@@ -32,7 +32,7 @@ func GetAllFile(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	
+
 	vars := mux.Vars(r)
 	bucketName :=  vars["bucketName"]
 	//hostname := vars["url"]
@@ -157,3 +157,32 @@ func PutFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+
+func HaveImagesChanged(images map[string]int) bool {
+	return true
+}
+
+
+func GetImagesFromObjStore() *map[string]int {
+	var m map[string]int
+	return m
+}
+func CreatePVC() string {
+	return ""
+}
+
+func CreateCopyPod(pvc string , secret string ) int {
+	if pvc {
+
+	}
+	if secret {
+
+	}
+	return 0
+}
+
+func CreateSecret() string{
+	return ""
+}
+
