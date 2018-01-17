@@ -10,8 +10,8 @@ CONTROLLER_IMAGE=cnv-copy-controller
 DIRTY_HASH=$(shell git describe --always --abbrev=7 --dirty)
 VERSION=v1
 
-.PHONY: controller image release push clean
-all: clean controller image
+.PHONY: controller controller_image release push clean
+all: clean controller controller_image
 
 # Compile controller binary
 controller: $(BIN_DIR)/$(BIN_TARGET)
