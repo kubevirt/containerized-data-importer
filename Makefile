@@ -16,7 +16,7 @@ all: clean controller controller_image
 # Compile controller binary
 controller: $(BIN_DIR)/$(BIN_TARGET)
 $(BIN_DIR)/$(BIN_TARGET): $(PKG_DIR)/main.go
-	go build -i -o $(BIN_DIR)/$(BIN_TARGET) $(PKG_DIR)/main.go
+	go build -i -o $(BIN_DIR)/$(BIN_TARGET) $(PKG_DIR)/*.go
 
 # build the controller image
 controller_image: $(BUILD_DIR)/Dockerfile
@@ -24,7 +24,7 @@ controller_image: $(BUILD_DIR)/Dockerfile
 	mkdir -p $(TEMP_BUILD_DIR)
 	cp $(BIN_DIR)/$(BIN_TARGET) $(TEMP_BUILD_DIR)
 	cp $(BUILD_DIR)/Dockerfile $(TEMP_BUILD_DIR)
-	docker build -t $(IMAGE) $(TEMP_BUILD_DIR)
+	docker build -t $(CONTROLLER_IMAGE) $(TEMP_BUILD_DIR)
 	docker tag $(CONTROLLER_IMAGE) $(REGISTRY)/$(CONTROLLER_IMAGE):$(DIRTY_HASH)
 	rm -rf $(TEMP_BUILD_DIR)
 

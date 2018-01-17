@@ -1,4 +1,4 @@
 FROM golang:1.9
 
-COPY ./app /app
-ENTRYPOINT /app
+COPY ./cnv-copy-controller /cnv-copy-controller
+ENTRYPOINT /cnv-copy-controller

@@ -158,6 +158,7 @@ func PutFile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+/*
 
 func HaveImagesChanged(images map[string]int) bool {
 	return true
@@ -185,4 +186,5 @@ func CreateCopyPod(pvc string , secret string ) int {
 func CreateSecret() string{
 	return ""
 }
+*/
 
