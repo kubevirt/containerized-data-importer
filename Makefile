@@ -1,7 +1,7 @@
 REPO_ROOT=$(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 BIN_DIR=$(REPO_ROOT)/bin
 BIN_TARGET=cnv-copy-controller
-PKG_DIR=$(REPO_ROOT)/main
+PKG_DIR=$(REPO_ROOT)/cmd
 BUILD_DIR=$(REPO_ROOT)/build
 
 # DOCKER TAG VARS
