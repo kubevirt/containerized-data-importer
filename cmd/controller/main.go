@@ -1,14 +1,14 @@
-package main
+package controller
 
 import (
-//"log"
-//"net/http"
-	"github.com/golang/glog"
-"os"
-b64 "encoding/base64"
-_	"fmt"
-_	"context"
+	//"log"
+	//"net/http"
+	_ "context"
+	b64 "encoding/base64"
 	"flag"
+	_ "fmt"
+	"github.com/golang/glog"
+	"os"
 )
 
 var tmp_endpoint, _ = b64.StdEncoding.DecodeString(os.Getenv("BUCKET_ENDPOINT"))
@@ -26,7 +26,6 @@ func init() {
 	flag.IntVar(&options.Port, "port", 8005, "use '--port' option to specify the port for broker to listen on")
 	flag.Parse()
 }
-
 
 func main() {
 
@@ -46,7 +45,6 @@ func main() {
 	//	}
 	//}
 
-
 	//---------- COPIER --------------------------
 	//1)Setup the environment
 	//2) create io buffer and copy the img into it
@@ -59,5 +57,3 @@ func main() {
 	//
 	//log.Fatal(http.ListenAndServe(":8888", router))
 }
-
-

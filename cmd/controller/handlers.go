@@ -1,4 +1,4 @@
-package main
+package controller
 
 import (
 	"encoding/json"
@@ -21,11 +21,10 @@ func ShowPic(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("<html><body><img src='http://localhost:8888/getBucket/demo-bucket1/pic1.jpg'></body></html>"))
 }
 
-
 func GetAllFile(w http.ResponseWriter, r *http.Request) {
 
 	useSSL := false
-	myFiles := make([]string,0)
+	myFiles := make([]string, 0)
 
 	// Initialize minio client object.
 	minioClient, err := minio.NewV2(endpoint, accessKeyID, secretAccessKey, useSSL)
@@ -34,14 +33,12 @@ func GetAllFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vars := mux.Vars(r)
-	bucketName :=  vars["bucketName"]
+	bucketName := vars["bucketName"]
 	//hostname := vars["url"]
-
 
 	fmt.Printf("Getting all file names for bucket: %v\n", bucketName)
 	fmt.Printf("Cluster IP:Port %v\n", endpoint)
 	fmt.Printf("Cluster Creditials: %v ***** %v\n", accessKeyID, secretAccessKey)
-
 
 	// Create a done channel to control 'ListObjectsV2' go routine.
 	doneCh := make(chan struct{})
@@ -58,7 +55,7 @@ func GetAllFile(w http.ResponseWriter, r *http.Request) {
 			fmt.Println(object.Err)
 			return
 		}
-		myFiles = append(myFiles,object.Key)
+		myFiles = append(myFiles, object.Key)
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
@@ -80,11 +77,10 @@ func GetFile(w http.ResponseWriter, r *http.Request) {
 
 	// Make a new bucket called mymusic.
 	vars := mux.Vars(r)
-	bucketName :=  vars["bucketName"]
-	reqFile :=  vars["fileName"]
+	bucketName := vars["bucketName"]
+	reqFile := vars["fileName"]
 
 	fmt.Printf("Getting file: %v\n", reqFile)
-
 
 	// Create a done channel to control 'ListObjectsV2' go routine.
 	doneCh := make(chan struct{})
@@ -95,14 +91,14 @@ func GetFile(w http.ResponseWriter, r *http.Request) {
 	isRecursive := true
 	objectCh := minioClient.ListObjectsV2(bucketName, "", isRecursive, doneCh)
 
-	pic := make([]byte,0)
+	pic := make([]byte, 0)
 
 	for object := range objectCh {
 		if object.Err != nil {
 			fmt.Println(object.Err)
 			return
 		}
-		if (object.Key == reqFile) {
+		if object.Key == reqFile {
 			miniofileobject, err := minioClient.GetObject(bucketName, object.Key)
 			if err != nil {
 				fmt.Println(err)
@@ -113,7 +109,6 @@ func GetFile(w http.ResponseWriter, r *http.Request) {
 			pic = tmpFile
 		}
 	}
-
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
@@ -133,7 +128,7 @@ func PutFile(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response{"ok","1"}); err != nil {
+	if err := json.NewEncoder(w).Encode(response{"ok", "1"}); err != nil {
 		panic(err)
 	}
 
@@ -147,9 +142,8 @@ func PutFile(w http.ResponseWriter, r *http.Request) {
 
 	// Make a new bucket called mymusic.
 	vars := mux.Vars(r)
-	bucketName :=  vars["bucketName"]
-	newFile :=  vars["fileName"]
-
+	bucketName := vars["bucketName"]
+	newFile := vars["fileName"]
 
 	_, err = minioClient.PutObject(bucketName, newFile, file, "application/octet-stream")
 	if err != nil {
@@ -187,4 +181,3 @@ func CreateSecret() string{
 	return ""
 }
 */
-
