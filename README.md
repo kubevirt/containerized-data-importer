@@ -15,11 +15,12 @@ Download source:
 
  First install glide
 
-    `curl https://glide.sh/get | sh`
+ `curl https://glide.sh/get | sh`
 
  The run it from the repo root
 
  `glide install -v`
 
- `install` scans imports and resolves missing and unsued dependencies. `-v` removes nested vendor and Godeps/_workspace directories.
+ `install` scans imports and resolves missing and unsued dependencies.
+ `-v` removes nested vendor and Godeps/_workspace directories.
 
