@@ -99,7 +99,7 @@ func GetFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if object.Key == reqFile {
-			miniofileobject, err := minioClient.GetObject(bucketName, object.Key)
+			miniofileobject, err := minioClient.GetObject(bucketName, object.Key, nil)
 			if err != nil {
 				fmt.Println(err)
 				return
