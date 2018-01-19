@@ -23,7 +23,6 @@ var options struct {
 }
 
 func init() {
-	flag.IntVar(&options.Port, "port", 8005, "use '--port' option to specify the port for broker to listen on")
 	flag.Parse()
 }
 
