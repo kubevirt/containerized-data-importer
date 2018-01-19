@@ -5,8 +5,9 @@ import (
 	"github.com/minio/minio-go"
 	"fmt"
 	"github.com/golang/glog"
-	"bufio"
-	"path/filepath"
+	"io"
+	"net/http"
+	"strings"
 )
 
 func isTestEnv() bool {
@@ -60,16 +61,10 @@ func GetFile() {
 			tmpFile := make([]byte, object.Size)
 			_, err = miniofileobject.Read(tmpFile)
 			pic = tmpFile
-			f, err := os.Create(getImageFile())
+			err := os.Create(getImageFile())
 			if err != nil {
 				glog.Fatalln(err)
 			}
-			defer f.Close()
-			_, err = f.Write(tmpFile)
-			if err != nil {
-				glog.Fatalln(err)
-			}
-			f.Sync()
 			//todo: do I need this?
 			//w := bufio.NewWriter(f)
 			//w.Flush()
@@ -94,9 +89,22 @@ func getBucketName() string {
 	endpoint := getEndpoint()
 	return endpoint
 }
-func getImageFile() string {
+func getImageFile(url string) error {
 	//todo: not sure this will work with a url
-	endpoint := getEndpoint()
-	file := filepath.Base(endpoint)
-	return file
+	splicedUrl := strings.Split(url, "/")
+	file := splicedUrl[len(splicedUrl) - 1]
+	resp, err := http.Get(url)
+	defer resp.Body.Close()
+	if err != nil {
+		return err
+	}
+	outFile, err := os.Create(file)
+	defer outFile.Close()
+	if err != nil {
+		return err
+	}
+	if _, err = io.Copy(outFile, resp.Body); err != nil {
+		return err
+	}
+	return nil
 }
