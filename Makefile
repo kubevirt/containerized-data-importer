@@ -32,7 +32,7 @@ $(CONTROLLER_BIN): $(CONTROLLER_CMD)/main.go
 
 # Compile importer binary
 vm_importer: $(IMPORTER_BIN)
-$(IMPORTER_BIN): $(IMPORTER_CMD)/main.go
+$(IMPORTER_BIN): $(IMPORTER_CMD)/importer.go
 	go build -i -o $(IMPORTER_BIN) $(IMPORTER_CMD)/*.go
 
 # build the controller image

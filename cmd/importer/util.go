@@ -30,9 +30,9 @@ func getDataWithClient(ep, path, accKey, secKey string) *minio.Object {
 	fmt.Printf("Copying file: %s\n")
 	mc, err := minio.NewV4(ep, accKey, secKey, false)
 	if err != nil {
-		glog.Fatalf("Could not create Minio client: %v", err)
+		glog.Fatalf("func getDataWithClient: Could not create Minio client: %v", err)
 	}
-	parsedPath := strings.Split(path, "/")
+	parsedPath := strings.Split(path, "/")  //TODO use filepath pkg instead
 	objectName := strings.Join(parsedPath[1:], "/")
 	bucketName := parsedPath[0]
 	objectReader, err := mc.GetObject(bucketName, objectName, minio.GetObjectOptions{})
