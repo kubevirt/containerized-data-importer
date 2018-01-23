@@ -10,13 +10,6 @@ import (
 	"strings"
 )
 
-const (
-	IMPORTER_ENDPOINT      = "IMPORTER_ENDPOINT"
-	IMPORTER_OBJECT_PATH   = "IMPORTER_OBJECT_PATH"
-	IMPORTER_ACCESS_KEY_ID = "IMPORTER_ACCESS_KEY_ID"
-	IMPORTER_SECRET_KEY    = "IMPORTER_SECRET_KEY"
-)
-
 func parseEnvVar(envVarName string) string {
 	var value string
 	if value = os.Getenv(envVarName); len(value) == 0 {

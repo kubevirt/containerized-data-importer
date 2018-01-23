@@ -16,6 +16,13 @@ import (
 //    IMPORTER_ACCESS_KEY_ID  Secret key is the password to your account
 //    IMPORTER_SECRET_KEY     Access key is the user ID that uniquely identifies your account.
 
+const (
+	IMPORTER_ENDPOINT      = "IMPORTER_ENDPOINT"
+	IMPORTER_OBJECT_PATH   = "IMPORTER_OBJECT_NAME"
+	IMPORTER_ACCESS_KEY_ID = "IMPORTER_ACCESS_KEY_ID"
+	IMPORTER_SECRET_KEY    = "IMPORTER_SECRET_KEY"
+)
+
 func init() {
 	// TODO verify destination volume exists (and is mountpoint?)
 	flag.Parse()
