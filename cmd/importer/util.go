@@ -20,7 +20,7 @@ func parseEnvVar(envVarName string) string {
 }
 
 func getDataWithClient(ep, path, accKey, secKey string) *minio.Object {
-	fmt.Printf("Copying file: %s\n")
+	fmt.Printf("Copying file: %s\n", path)
 	mc, err := minio.NewV4(ep, accKey, secKey, false)
 	if err != nil {
 		glog.Fatalf("func getDataWithClient: Could not create Minio client: %v", err)
@@ -28,6 +28,7 @@ func getDataWithClient(ep, path, accKey, secKey string) *minio.Object {
 	parsedPath := strings.Split(path, "/")  //TODO use filepath pkg instead
 	objectName := strings.Join(parsedPath[1:], "/")
 	bucketName := parsedPath[0]
+fmt.Printf("parsedPath=%q, objectName=%q, bucketName=%q\n", parsedPath, objectName, bucketName)
 	objectReader, err := mc.GetObject(bucketName, objectName, minio.GetObjectOptions{})
 	if err != nil {
 		glog.Fatalf("func getDataWithClient: failed getting object: %v", err)
