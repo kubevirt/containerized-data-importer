@@ -18,7 +18,7 @@ import (
 
 const (
 	IMPORTER_ENDPOINT      = "IMPORTER_ENDPOINT"
-	IMPORTER_OBJECT_PATH   = "IMPORTER_OBJECT_NAME"
+	IMPORTER_OBJECT_PATH   = "IMPORTER_OBJECT_PATH"
 	IMPORTER_ACCESS_KEY_ID = "IMPORTER_ACCESS_KEY_ID"
 	IMPORTER_SECRET_KEY    = "IMPORTER_SECRET_KEY"
 )
@@ -38,7 +38,7 @@ func main() {
 	defer reader.Close()
 	obj := parseEnvVar(IMPORTER_OBJECT_PATH)
 	objSlice := strings.Split(obj, "/")
-	obj = objSlice[len(objSlice)]
+	obj = objSlice[len(objSlice)-1]
 	outFile, err := os.Create(obj)
 	defer outFile.Close()
 	if err != nil {
