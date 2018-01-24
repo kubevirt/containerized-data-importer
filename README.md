@@ -23,4 +23,11 @@ Download source:
 
  `install` scans imports and resolves missing and unsued dependencies.
  `-v` removes nested vendor and Godeps/_workspace directories.
-
+ 
+ 
+ ## Export ENV variables
+ 
+export IMPORTER_ACCESS_KEY_ID="xyzzy"
+export IMPORTER_SECRET_KEY="xyzz"
+export IMPORTER_ENDPOINT=s3.amazonaws.com   # if using aws s3
+export IMPORTER_OBJECT_PATH=<bucket-name>/<vm-image-name>
