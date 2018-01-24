@@ -23,16 +23,14 @@ DIRTY_HASH=$(shell git describe --always --abbrev=7 --dirty)
 VERSION=v1
 
 .PHONY: controller controller_image vm_importer vm_importer_image clean #release push
-all: clean controller controller_image vm_importer vm_importer_image
+all: clean controller controller_image importer importer_image
 
 # Compile controller binary
-controller: $(CONTROLLER_BIN)
-$(CONTROLLER_BIN): $(CONTROLLER_CMD)/main.go
+controller:
 	go build -i -o $(CONTROLLER_BIN) $(CONTROLLER_CMD)/*.go
 
 # Compile importer binary
-vm_importer: $(IMPORTER_BIN)
-$(IMPORTER_BIN): $(IMPORTER_CMD)/importer.go
+importer:
 	go build -i -o $(IMPORTER_BIN) $(IMPORTER_CMD)/*.go
 
 # build the controller image

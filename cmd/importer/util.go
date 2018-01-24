@@ -8,50 +8,43 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"encoding/base64"
 )
 
-func parseEnvVar(envVarName string) string {
-	var value string
-	if value = os.Getenv(envVarName); len(value) == 0 {
-		glog.Fatalf("func parseEnvVar: Environment Variable not set: %s", envVarName)
+func parseEnvVar(envVarName string, decode bool) string {
+	value := os.Getenv(envVarName)
+	if decode {
+		v, err := base64.StdEncoding.DecodeString(value)
+		if err != nil {
+			glog.Fatalf("Error decoding environment variable %q", envVarName)
+		}
+		value = fmt.Sprintf("%s", v)
 	}
-	glog.Infof("Success parsing environment variable %q", envVarName)
+	glog.Infof("Success parsing environment variable %s", envVarName)
 	return value
 }
 
-func getDataWithClient(ep, path, accKey, secKey string) *minio.Object {
-	fmt.Printf("Copying file: %s\n", path)
-	mc, err := minio.NewV4(ep, accKey, secKey, false)
+func getDataWithClient(con *importInfo) io.ReadCloser {
+	mc, err := minio.NewV4(con.endpoint, con.accessKeyId, con.secretKey, false)
 	if err != nil {
 		glog.Fatalf("func getDataWithClient: Could not create Minio client: %v", err)
 	}
-	parsedPath := strings.Split(path, "/")  //TODO use filepath pkg instead
-	objectName := strings.Join(parsedPath[1:], "/")
-	bucketName := parsedPath[0]
-fmt.Printf("parsedPath=%q, objectName=%q, bucketName=%q\n", parsedPath, objectName, bucketName)
-	objectReader, err := mc.GetObject(bucketName, objectName, minio.GetObjectOptions{})
+	objPath := strings.Split(con.objectPath, "/")
+	bucketName := objPath[0]
+	objName := strings.Join(objPath[1:], "/")
+	fmt.Printf("Copying file: %s\n", objName)
+	objectReader, err := mc.GetObject(bucketName, objName, minio.GetObjectOptions{})
 	if err != nil {
-		glog.Fatalf("func getDataWithClient: failed getting object: %v", err)
+		glog.Fatalf("func getDataWithClient: failed getting objectPath: %v", err)
 	}
 	return objectReader
 }
 
 // TODO not sure if we actually need this, but it's cool!
-func getDataWithHTTP(url string) io.Reader {
-	splicedUrl := strings.Split(url, "/")
-	file := splicedUrl[len(splicedUrl)-1]
+func getDataWithHTTP(url string) io.ReadCloser {
 	resp, err := http.Get(url)
-	defer resp.Body.Close()
 	if err != nil {
 		glog.Fatalf("func streamDataFromURL: response body error: %v", err)
-	}
-	outFile, err := os.Create(file)
-	defer outFile.Close()
-	if err != nil {
-		glog.Fatalf("func streamDataFromURL: create file error: %v", err)
-	}
-	if _, err = io.Copy(outFile, resp.Body); err != nil {
-		glog.Fatalf("func streamDataFromURL: error streaming data: %v", err)
 	}
 	return resp.Body
 }
