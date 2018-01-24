@@ -75,8 +75,6 @@ $HOME/.aws/credentials
 aws_access_key_id = <your-access-key>
 aws_secret_access_key = <your-secret>
 ```
- 
-base64 key is decoded by image importer.
 
 #### Mino cli:
 
@@ -94,4 +92,3 @@ $HOME/.mc/config.json:
         }
 }
 ```
- base64 key will decoded by image importer.
