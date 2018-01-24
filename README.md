@@ -27,7 +27,9 @@ Download source:
  
  ## Export ENV variables
  
+ ```
 export IMPORTER_ACCESS_KEY_ID="xyzzy"
 export IMPORTER_SECRET_KEY="xyzz"
 export IMPORTER_ENDPOINT=s3.amazonaws.com   # if using aws s3
 export IMPORTER_OBJECT_PATH=<bucket-name>/<vm-image-name>
+```
