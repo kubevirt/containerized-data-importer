@@ -3,7 +3,7 @@ REPO_ROOT=$(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 # Binary Output
 BIN_DIR=$(REPO_ROOT)/bin
 CONTROLLER_BIN=$(BIN_DIR)/import-controller
-IMPORTER_BIN=$(BIN_DIR)/vm-importer
+IMPORTER_BIN=$(BIN_DIR)/importer
 
 # Source dirs
 CMD_DIR=$(REPO_ROOT)/cmd
@@ -18,7 +18,7 @@ IMPORTER_BUILD=$(BUILD_DIR)/importer
 # DOCKER TAG VARS
 REGISTRY=gcr.io/openshift-gce-devel
 CONTROLLER_IMAGE=import-controller
-IMPORTER_IMAGE=vm-importer
+IMPORTER_IMAGE=importer
 DIRTY_HASH=$(shell git describe --always --abbrev=7 --dirty)
 VERSION=v1
 
@@ -41,7 +41,7 @@ controller-image: $(CONTROLLER_BUILD)/Dockerfile
 	cp $(CONTROLLER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
 	docker build -t $(CONTROLLER_IMAGE) $(TEMP_BUILD_DIR)
 	docker tag $(CONTROLLER_IMAGE) $(REGISTRY)/$(CONTROLLER_IMAGE):$(DIRTY_HASH)
-	rm -rf $(TEMP_BUILD_DIR)
+	-rm -rf $(TEMP_BUILD_DIR)
 
 # build the controller image
 importer-image: $(IMPORTER_BUILD)/Dockerfile
@@ -49,9 +49,9 @@ importer-image: $(IMPORTER_BUILD)/Dockerfile
 	mkdir -p $(TEMP_BUILD_DIR)
 	cp $(IMPORTER_BIN) $(TEMP_BUILD_DIR)
 	cp $(IMPORTER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
-	docker build -t $(CONTROLLER_IMAGE) $(TEMP_BUILD_DIR)
+	docker build -t $(IMPORTER_IMAGE) $(TEMP_BUILD_DIR)
 	docker tag $(IMPORTER_IMAGE) $(REGISTRY)/$(IMPORTER_IMAGE):$(DIRTY_HASH)
-	rm -rf $(TEMP_BUILD_DIR)
+	-rm -rf $(TEMP_BUILD_DIR)
 
 clean:
 	-rm -rf $(BIN_DIR)/*
