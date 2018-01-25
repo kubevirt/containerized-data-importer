@@ -1,110 +1,50 @@
 package main
 
 import (
-	"os"
-	"github.com/minio/minio-go"
 	"fmt"
 	"github.com/golang/glog"
+	"github.com/minio/minio-go"
 	"io"
 	"net/http"
+	"os"
 	"strings"
+	"encoding/base64"
 )
 
-func isTestEnv() bool {
-	if os.Getenv("IMPORT_ENV") == "local" {
-		return true
-	} else {
-		return false
-
+func parseEnvVar(envVarName string, decode bool) string {
+	value := os.Getenv(envVarName)
+	if decode {
+		v, err := base64.StdEncoding.DecodeString(value)
+		if err != nil {
+			glog.Fatalf("Error decoding environment variable %q", envVarName)
+		}
+		value = fmt.Sprintf("%s", v)
 	}
-
+	glog.Infof("Success parsing environment variable %s", envVarName)
+	return value
 }
 
-func GetFile() {
-
-	useSSL := false
-
-	// Initialize minio client object.
-	minioClient, err := minio.NewV2(getEndpoint(), getAccessKeyID(), getSecretAccessKey(), useSSL)
+func getDataWithClient(con *importInfo) io.ReadCloser {
+	mc, err := minio.NewV4(con.endpoint, con.accessKeyId, con.secretKey, false)
 	if err != nil {
-		glog.Fatalln(err)
+		glog.Fatalf("func getDataWithClient: Could not create Minio client: %v", err)
 	}
-
-	// Make a new bucket called mymusic.
-	bucketName := getBucketName(getEndpoint())
-	imageFile := getImageFile(getEndpoint())
-
-	fmt.Printf("Getting file: %v\n", imageFile)
-
-	// Create a done channel to control 'ListObjectsV2' go routine.
-	doneCh := make(chan struct{})
-
-	// Indicate to our routine to exit cleanly upon return.
-	defer close(doneCh)
-
-	isRecursive := true
-	objectCh := minioClient.ListObjectsV2(bucketName, "", isRecursive, doneCh)
-
-	pic := make([]byte, 0)
-
-	for object := range objectCh {
-		if object.Err != nil {
-			fmt.Println(object.Err)
-			return
-		}
-		if object.Key == imageFile {
-			miniofileobject, err := minioClient.GetObject(bucketName, object.Key, nil)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			tmpFile := make([]byte, object.Size)
-			_, err = miniofileobject.Read(tmpFile)
-			pic = tmpFile
-			err := os.Create(getImageFile())
-			if err != nil {
-				glog.Fatalln(err)
-			}
-			//todo: do I need this?
-			//w := bufio.NewWriter(f)
-			//w.Flush()
-
-		}
+	objPath := strings.Split(con.objectPath, "/")
+	bucketName := objPath[0]
+	objName := strings.Join(objPath[1:], "/")
+	fmt.Printf("Copying file: %s\n", objName)
+	objectReader, err := mc.GetObject(bucketName, objName, minio.GetObjectOptions{})
+	if err != nil {
+		glog.Fatalf("func getDataWithClient: failed getting objectPath: %v", err)
 	}
-
+	return objectReader
 }
 
-func getEndpoint() string{
-	//Grab from ENV?
- 	return os.Getenv("ENDPOINT")
-}
-func getAccessKeyID() string{
-	return os.Getenv("KEYID")
-}
-func getSecretAccessKey() string{
-	return os.Getenv("SECRETKEY")
-}
-func getBucketName() string {
-	//todo: write parser
-	endpoint := getEndpoint()
-	return endpoint
-}
-func getImageFile(url string) error {
-	//todo: not sure this will work with a url
-	splicedUrl := strings.Split(url, "/")
-	file := splicedUrl[len(splicedUrl) - 1]
+// TODO not sure if we actually need this, but it's cool!
+func getDataWithHTTP(url string) io.ReadCloser {
 	resp, err := http.Get(url)
-	defer resp.Body.Close()
 	if err != nil {
-		return err
+		glog.Fatalf("func streamDataFromURL: response body error: %v", err)
 	}
-	outFile, err := os.Create(file)
-	defer outFile.Close()
-	if err != nil {
-		return err
-	}
-	if _, err = io.Copy(outFile, resp.Body); err != nil {
-		return err
-	}
-	return nil
+	return resp.Body
 }
