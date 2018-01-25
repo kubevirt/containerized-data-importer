@@ -1,5 +1,8 @@
-# VM Importer
-This repo implements a vm image importer (copier) to a known location inside a Kubernetes or Openshift cluster. This immutable vm image copy is considered a _golden image_ source for later vm cloning and instantiation. The initial work supports only the import (copy) task, which will require some manual steps (i.e., creating the imported pod, pv and pvc). The next phase will include a custom controller that watches for new pvcs that represent new vm images, and then automatically imports the new image to the known golden vm-image location.
+# Data Importer
+This repo implements a fairly general file copier to a known location inside a Kubernetes or Openshift cluster.
+For the purposes of running a vm inside a container, this copied (imported) file is a vm image and is considered to be a _golden image_  source for later cloning and instantiation.
+The initial work supports only the import (copy) task, which will require some manual steps (i.e., creating the imported pod, pv and pvc).
+The next phase will include a custom controller that watches for new pvcs that represent new files (e.g. vm images), and then automatically imports the new file to the known _golden_ location.
 
 ## Purpose
 
