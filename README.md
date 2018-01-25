@@ -1,4 +1,4 @@
-# Data Importer
+# Containerized Data Importer
 This repo implements a fairly general file copier to a known location inside a Kubernetes or Openshift cluster.
 For the purposes of running a VM inside a container, this imported file is a VM image and is considered to be a _golden image_  source for later cloning and instantiation.
 The initial work supports only the import task, which will require some manual steps (i.e., creating the imported Pod, PV and PVC).
