@@ -127,11 +127,9 @@ Then run it from the repo root
 
 ```
 cd $GOPATH/src/github.com/yard-turkey/
-make importer
+make importer importer-image
 ```
-which places the binary in _./bin/vm-importer_.
-
-**Note:** the binary has not been containerized yet so it cannot be executed from a pod.
+which places the binary in _./bin/importer_. The importer image is built locally and visible in `docker images`.
 
 ### Export ENV variables
 
