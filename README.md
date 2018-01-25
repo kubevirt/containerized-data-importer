@@ -1,15 +1,15 @@
 # Data Importer
 This repo implements a fairly general file copier to a known location inside a Kubernetes or Openshift cluster.
-For the purposes of running a vm inside a container, this copied (imported) file is a vm image and is considered to be a _golden image_  source for later cloning and instantiation.
-The initial work supports only the import (copy) task, which will require some manual steps (i.e., creating the imported pod, pv and pvc).
-The next phase will include a custom controller that watches for new pvcs that represent new files (e.g. vm images), and then automatically imports the new file to the known _golden_ location.
+For the purposes of running a VM inside a container, this imported file is a VM image and is considered to be a _golden image_  source for later cloning and instantiation.
+The initial work supports only the import task, which will require some manual steps (i.e., creating the imported Pod, PV and PVC).
+The next phase will include a custom controller that watches for new PVCs that represent new files (e.g. VM images), and then automatically imports the new file to the known _golden_ location.
 
 ## Purpose
 
 The project eases the burden on cluster admins seeking to take advantage
 of Kubernetes orchestration for their virtualized app platforms.  As a first
 step in migration into a Kubernetes cluster, virtual machine images must
-be imported into a location accessible to the kubelet.  The VM Importer
+be imported into a location accessible to the kubelet.  The Data Importer
 automates this by pulling images from an external http repository and preserving
 them in in-cluster storage.  The components of this process are detailed below.
 
