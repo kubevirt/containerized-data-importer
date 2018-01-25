@@ -27,7 +27,6 @@ Creation begins automatically when the Golden PVC is created by an admin.
 **Golden PV:** Long-lived Persistent Volume created by the Dynamic Provisioner and
 written to by the Data Import Pod.  References the Golden Image volume in storage.
 
-
 **Golden PVC:** Long-lived claim manually created by an admin in the Images namespace.
 Linked to the Dynamic Provisioner via a reference to the storage class and automatically
 bound to a dynamically created Golden PV.
