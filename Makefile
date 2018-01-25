@@ -34,7 +34,7 @@ importer:
 	go build -i -o $(IMPORTER_BIN) $(IMPORTER_CMD)/*.go
 
 # build the controller image
-controller_image: $(CONTROLLER_BUILD)/Dockerfile
+controller-image: $(CONTROLLER_BUILD)/Dockerfile
 	$(eval TEMP_BUILD_DIR=$(CONTROLLER_BUILD)/tmp)
 	mkdir -p $(TEMP_BUILD_DIR)
 	cp $(CONTROLLER_BIN) $(TEMP_BUILD_DIR)
@@ -44,7 +44,7 @@ controller_image: $(CONTROLLER_BUILD)/Dockerfile
 	rm -rf $(TEMP_BUILD_DIR)
 
 # build the controller image
-importer_image: $(IMPORTER_BUILD)/Dockerfile
+importer-image: $(IMPORTER_BUILD)/Dockerfile
 	$(eval TEMP_BUILD_DIR=$(IMPORTER_BUILD)/tmp)
 	mkdir -p $(TEMP_BUILD_DIR)
 	cp $(IMPORTER_BIN) $(TEMP_BUILD_DIR)
