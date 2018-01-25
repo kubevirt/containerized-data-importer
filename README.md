@@ -1,5 +1,5 @@
-# VM Import Controller
-This repo implements a vm image importer (copier) to a known location inside a Kubernetes or Openshift cluster. This immutable vm image copy is considered a _golden image_ source for later vm cloning and instantiation.
+# VM Importer
+This repo implements a vm image importer (copier) to a known location inside a Kubernetes or Openshift cluster. This immutable vm image copy is considered a _golden image_ source for later vm cloning and instantiation. The initial work supports only the import (copy) task, which will require some manual steps (i.e., creating the imported pod, pv and pvc). The next phase will include a custom controller that watches for new pvcs that represent new vm images, and then automatically imports the new image to the known golden vm-image location.
 
 ## Purpose
 
