@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"github.com/golang/glog"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -12,6 +13,8 @@ import (
 // and writing to a local directory.  It utilizes the minio-go client sdk.
 // This process expects several environmental variables:
 //    IMPORTER_URL            Full url + path to object. Mutually exclusive with IMPORTER_ENDPOINT
+//    IMPORTER_ENDPOINT       Endpoint url minus scheme, bucket/object and port, eg. s3.amazon.com
+//			      Mutually exclusive with IMPORTER_URL
 //    IMPORTER_OBJECT_PATH    Full path of object (e.g. bucket/object)
 //    IMPORTER_ACCESS_KEY_ID  Secret key is the password to your account
 //    IMPORTER_SECRET_KEY     Access key is the user ID that uniquely identifies your account.
@@ -36,25 +39,20 @@ func init() {
 	// TODO verify destination volume exists (and is mountpoint?)
 	flag.Parse()
 }
-// asfdasdfsadfasdf
+
 func main() {
 	defer glog.Flush()
-	imp := &importInfo{
-		endpoint:    parseEnvVar(IMPORTER_ENDPOINT, false),
-		objectPath:  parseEnvVar(IMPORTER_OBJECT_PATH, false),
-		accessKeyId: parseEnvVar(IMPORTER_ACCESS_KEY_ID, false),
-		secretKey: parseEnvVar(IMPORTER_SECRET_KEY, false),
+
+	imp, err := getEnvVars()
+	if err != nil {
+		glog.Fatalf("unable to get env variables: %v", err)
 	}
-	if len(imp.endpoint) > 0 && len(imp.url) > 0 {
-		glog.Fatalf("Detected IMPORTER_URL and IMPORTER_ENDPOINT non-nil values. Variables are mutually exclusive.")
-	} else if len(imp.endpoint) > 0 {
-		// TODO check required vars
-	}
+	// create object reader
 	reader := getDataWithClient(imp)
 	defer reader.Close()
-	obj := parseEnvVar(IMPORTER_OBJECT_PATH, false)
-	objSlice := strings.Split(obj, "/")
-	obj = objSlice[len(objSlice)-1]
+	// object copy
+	objSlice := strings.Split(imp.objectPath, "/")
+	obj := objSlice[len(objSlice)-1]
 	outFile, err := os.Create(obj)
 	defer outFile.Close()
 	if err != nil {
@@ -63,4 +61,32 @@ func main() {
 	if _, err = io.Copy(outFile, reader); err != nil {
 		glog.Fatalf("func main: error streaming data: %v", err)
 	}
+}
+
+// getEnvVars: get predefined exported env variables, perform syntax and semantic checking,
+// return struc containing these vars.
+// TODO: maybe the access key and secret need to be decoded from base64?
+func getEnvVars() (*importInfo, error) {
+	url := parseEnvVar(IMPORTER_URL, false)
+	ep := parseEnvVar(IMPORTER_ENDPOINT, false)
+	op := parseEnvVar(IMPORTER_OBJECT_PATH, false)
+	acc := parseEnvVar(IMPORTER_ACCESS_KEY_ID, false)
+	sec := parseEnvVar(IMPORTER_SECRET_KEY, false)
+	// check vars
+	if len(ep) > 0 && len(url) > 0 {
+		return nil, fmt.Errorf("IMPORTER_ENDPOINT and IMPORTER_URL cannot both be defined")
+	}
+	if len(ep) == 0 && len(url) == 0 {
+		return nil, fmt.Errorf("IMPORTER_ENDPOINT or IMPORTER_URL must be defined")
+	}
+	if len(op) == 0 || len(acc) == 0 || len(sec) == 0 {
+		return nil, fmt.Errorf("IMPORTER_OBJECT_PATH and/or IMPORTER_ACCESS_KEY_ID and/or IMPORTER_SECRET_KEY are empty")
+	}
+	return &importInfo{
+		url:	     url,
+		endpoint:    ep,
+		objectPath:  op,
+		accessKeyId: acc,
+		secretKey:   sec,
+	}, nil
 }
