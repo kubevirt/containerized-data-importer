@@ -20,7 +20,6 @@ func parseEnvVar(envVarName string, decode bool) string {
 		}
 		value = fmt.Sprintf("%s", v)
 	}
-	glog.Infof("Success parsing environment variable %s", envVarName)
 	return value
 }
 
@@ -31,8 +30,8 @@ func getDataWithClient(con *importInfo) io.ReadCloser {
 	}
 	objPath := strings.Split(con.objectPath, "/")
 	bucketName := objPath[0]
-	objName := strings.Join(objPath[1:], "/")
-	fmt.Printf("Copying file: %s\n", objName)
+	objName := strings.Join(objPath[1:], "_")
+	glog.Infof("Streaming object %s", con.objectPath)
 	objectReader, err := mc.GetObject(bucketName, objName, minio.GetObjectOptions{})
 	if err != nil {
 		glog.Fatalf("func getDataWithClient: failed getting objectPath: %v", err)
@@ -40,7 +39,6 @@ func getDataWithClient(con *importInfo) io.ReadCloser {
 	return objectReader
 }
 
-// TODO not sure if we actually need this, but it's cool!
 func getDataWithHTTP(url string) io.ReadCloser {
 	resp, err := http.Get(url)
 	if err != nil {
