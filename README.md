@@ -14,9 +14,31 @@ automates this by pulling images from an external http repository and preserving
 them in in-cluster storage.  The components of this process are detailed below.
 
 ## Design (Current)
+
+The below diagram illustrates the short term goal of this project.  For our current
+work we will not be focused on automation, implying that executing each step of
+the import process will be done manually. User Flow (Current) provides explanation
+of each step show in the diagram.
+
+### User Flow (Current)
+Steps are identified by role according the the colored shape. Each step must be performed in
+the order they are number unless otherwise specified.
+
+0. An admin stores the data in a network accessible location.
+1. The admin must create the Golden PVC API Object in the kubernetes cluster. This step
+kicks of the automated provisioning of a Persistent Volume.
+2. The Dynamic Provisioner create the Persistent Volume API Object.
+3. (In parallel to 2) The Dynamic Provisioner provisions the backing storage.
+4. The admin creates the Endpoint Secret API Object.
+5. The admin then creates the Data Import Pod.  (Prereqs: 1 & 4)
+6. On startup, the Data Import Pod mounts the Secret and the PVC.  It then begins
+streaming data from object store to the Golden Image location via the mounted PVC.
+
+On completion of step 6, the pod will exit and the import is ended.
+
 ![Topology](doc/data-import-service-sprint.png)
 
-## Components (Current):
+### Components (Current):
 **Object Store:** Arbitrary url-based storage location.  Currently we support
 http and S3 protocols.
 
@@ -50,9 +72,35 @@ will consume values stored in the secret as environmental variables and stream d
 the url endpoint to the Golden PV. On completions (whether success or failure) the pod will exit.
 
 ## Design (Stretch)
+
+### User Flow (Stecth)
+Steps are identified by role according the the colored shape. Each step must be performed in
+the order they are number unless otherwise specified.
+
+> *NOTE:* Steps 1 & 2 only need to be performed once to initialize the cluster and are not required
+for subsequent imports.
+
+0. An admin stores the data in a network accessible location.
+1. Before starting the Data Import Controller, an admin must define and create a Secret
+API Object.  This secret will contain values required by the controller to connect the
+Data Import Pod to the Object Store.
+2. The admin will then create the Data Import Controller Pod, which will begin a watch for PVCs
+in the Images Namespace.
+3. The admin must create the Golden PVC API Object in the kubernetes cluster. This step
+kicks of the automated provisioning of a Persistent Volume.  This PVC will have an identifying
+annotation to signal the to the controller that it is a Golden Image volume.  This annotation
+must name the specific file or object to be store in it.  This name will be passed by the controller
+to the Data Import Pod.
+4. The Dynamic Provisioner create the Persistent Volume API Object.
+5. (In parallel to 4) The Dynamic Provisioner provisions the backing storage.
+6. The Data Import Controller creates the Endpoint Secret API Object.
+7. The Data Import Controller then creates the Data Import Pod.
+8. On startup, the Data Import Pod mounts the Secret and the PVC.  It then begins
+streaming data from the object store to the Golden Image location via the mounted PVC.
+
 ![Topology](doc/data-import-service-stretch.png)
 
-## Components (Stretch):
+### Components (Stretch):
 **Object Store:** Same as above
 
 **Namespace Images:** Same as above.
