@@ -24,14 +24,19 @@ VERSION=v1
 
 .PHONY: controller controller_image vm_importer vm_importer_image clean #release push
 all: clean controller controller_image importer importer_image
+controller: controller-bin controller-image
+importer: importer-bin importer-image
+
+PLATFORM?=linux
+ARCH?=amd64
 
 # Compile controller binary
-controller:
-	go build -i -o $(CONTROLLER_BIN) $(CONTROLLER_CMD)/*.go
+controller-bin:
+	GOOS=$(PLATFORM) GOARCH=$(ARCH) go build -o $(CONTROLLER_BIN) $(CONTROLLER_CMD)/*.go
 
 # Compile importer binary
-importer:
-	go build -i -o $(IMPORTER_BIN) $(IMPORTER_CMD)/*.go
+importer-bin:
+	GOOS=$(PLATFORM) GOARCH=$(ARCH) go build -o $(IMPORTER_BIN) $(IMPORTER_CMD)/*.go
 
 # build the controller image
 controller-image: $(CONTROLLER_BUILD)/Dockerfile

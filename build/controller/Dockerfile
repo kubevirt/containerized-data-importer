@@ -1,4 +1,3 @@
-FROM golang:1.9
-
+FROM busybox
 COPY ./import-controller /import-controller
-ENTRYPOINT /import-controller
+ENTRYPOINT ./import-controller -alsologtostderr

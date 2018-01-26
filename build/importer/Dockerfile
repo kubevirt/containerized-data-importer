@@ -1,4 +1,3 @@
-FROM golang:1.9
-
+FROM busybox
 COPY ./importer /importer
-ENTRYPOINT /importer
+ENTRYPOINT ./importer -alsologtostderr
