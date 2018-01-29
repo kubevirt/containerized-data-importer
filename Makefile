@@ -22,8 +22,8 @@ IMPORTER_IMAGE=importer
 DIRTY_HASH=$(shell git describe --always --abbrev=7 --dirty)
 VERSION=v1
 
-.PHONY: controller controller_image vm_importer vm_importer_image clean #release push
-all: clean controller controller_image importer importer_image
+.PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-importer clean
+all: clean controller importer
 controller: controller-bin controller-image
 importer: importer-bin importer-image
 push: push-importer push-controller
@@ -59,11 +59,11 @@ importer-image: $(IMPORTER_BUILD)/Dockerfile
 	docker tag $(IMPORTER_IMAGE) $(REGISTRY)/$(IMPORTER_IMAGE):$(DIRTY_HASH)
 	-rm -rf $(TEMP_BUILD_DIR)
 
-push-importer:
-	gcloud docker -- push $(REGISTRY)/$(IMPORTER_IMAGE):$(DIRTY_HASH)
-
 push-controller:
 	gcloud docker -- push $(REGISTRY)/$(CONTROLLER_IMAGE):$(DIRTY_HASH)
+
+push-importer:
+	gcloud docker -- push $(REGISTRY)/$(IMPORTER_IMAGE):$(DIRTY_HASH)
 
 clean:
 	-rm -rf $(BIN_DIR)/*
