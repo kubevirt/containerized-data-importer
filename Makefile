@@ -26,6 +26,7 @@ VERSION=v1
 all: clean controller controller_image importer importer_image
 controller: controller-bin controller-image
 importer: importer-bin importer-image
+push: push-importer push-controller
 
 PLATFORM?=linux
 ARCH?=amd64
@@ -57,6 +58,12 @@ importer-image: $(IMPORTER_BUILD)/Dockerfile
 	docker build -t $(IMPORTER_IMAGE) $(TEMP_BUILD_DIR)
 	docker tag $(IMPORTER_IMAGE) $(REGISTRY)/$(IMPORTER_IMAGE):$(DIRTY_HASH)
 	-rm -rf $(TEMP_BUILD_DIR)
+
+push-importer:
+	gcloud docker -- push $(REGISTRY)/$(IMPORTER_IMAGE):$(DIRTY_HASH)
+
+push-controller:
+	gcloud docker -- push $(REGISTRY)/$(CONTROLLER_IMAGE):$(DIRTY_HASH)
 
 clean:
 	-rm -rf $(BIN_DIR)/*
