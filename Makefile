@@ -20,6 +20,8 @@ REGISTRY=gcr.io/openshift-gce-devel
 CONTROLLER_IMAGE=import-controller
 IMPORTER_IMAGE=importer
 DIRTY_HASH=$(shell git describe --always --abbrev=7 --dirty)
+GIT_USER=$(shell git config --get user.email | sed 's/@.*//')
+TAG="$(DIRTY_HASH)-$(GIT_USER)"
 VERSION=v1
 
 .PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-importer clean
@@ -46,7 +48,7 @@ controller-image: $(CONTROLLER_BUILD)/Dockerfile
 	cp $(CONTROLLER_BIN) $(TEMP_BUILD_DIR)
 	cp $(CONTROLLER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
 	docker build -t $(CONTROLLER_IMAGE) $(TEMP_BUILD_DIR)
-	docker tag $(CONTROLLER_IMAGE) $(REGISTRY)/$(CONTROLLER_IMAGE):$(DIRTY_HASH)
+	docker tag $(CONTROLLER_IMAGE) $(REGISTRY)/$(CONTROLLER_IMAGE):$(TAG)
 	-rm -rf $(TEMP_BUILD_DIR)
 
 # build the controller image
@@ -56,14 +58,14 @@ importer-image: $(IMPORTER_BUILD)/Dockerfile
 	cp $(IMPORTER_BIN) $(TEMP_BUILD_DIR)
 	cp $(IMPORTER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
 	docker build -t $(IMPORTER_IMAGE) $(TEMP_BUILD_DIR)
-	docker tag $(IMPORTER_IMAGE) $(REGISTRY)/$(IMPORTER_IMAGE):$(DIRTY_HASH)
+	docker tag $(IMPORTER_IMAGE) $(REGISTRY)/$(IMPORTER_IMAGE):$(TAG)
 	-rm -rf $(TEMP_BUILD_DIR)
 
 push-controller:
-	gcloud docker -- push $(REGISTRY)/$(CONTROLLER_IMAGE):$(DIRTY_HASH)
+	gcloud docker -- push $(REGISTRY)/$(CONTROLLER_IMAGE):$(TAG)
 
 push-importer:
-	gcloud docker -- push $(REGISTRY)/$(IMPORTER_IMAGE):$(DIRTY_HASH)
+	gcloud docker -- push $(REGISTRY)/$(IMPORTER_IMAGE):$(TAG)
 
 clean:
 	-rm -rf $(BIN_DIR)/*
