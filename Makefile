@@ -19,9 +19,8 @@ IMPORTER_BUILD=$(BUILD_DIR)/importer
 REGISTRY=gcr.io/openshift-gce-devel
 CONTROLLER_IMAGE=import-controller
 IMPORTER_IMAGE=importer
-DIRTY_HASH=$(shell git describe --always --abbrev=7 --dirty)
 GIT_USER=$(shell git config --get user.email | sed 's/@.*//')
-TAG="$(DIRTY_HASH)-$(GIT_USER)"
+TAG="$(GIT_USER)-latest"
 VERSION=v1
 
 .PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-importer clean
