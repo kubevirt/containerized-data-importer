@@ -3,8 +3,7 @@ kind: ConfigMap
 metadata:
   name: importer-pod-config
 data:
-  importer_url: ""  #intentionally blank
-  importer_endpoint: s3.amazon.com
-  # importer_object_path: <bucket-name>/<object-name>
-  importer_object_path: cnv-image-store/hello-cnv
-  importer_destination: "/images"
+  importer_url: ""          # HTTP address of data
+  importer_endpoint: ""     # S3 location of data; mutually exclusive with importer_url
+  importer_object_path: ""  # <bucket-name>/<object-name>
+  importer_destination: ""  # volume mountpoint inside container.
