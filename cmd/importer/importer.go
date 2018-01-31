@@ -20,7 +20,6 @@ import (
 //    IMPORTER_OBJECT_PATH    Full path of object (e.g. bucket/object)
 //    IMPORTER_ACCESS_KEY_ID  Secret key is the password to your account
 //    IMPORTER_SECRET_KEY     Access key is the user ID that uniquely identifies your account.
-//	  IMPORTER_WRITE_TO_PATH  Local directory to which the data is written
 
 const (
 	IMPORTER_URL           = "IMPORTER_URL"
@@ -28,7 +27,7 @@ const (
 	IMPORTER_OBJECT_PATH   = "IMPORTER_OBJECT_PATH"
 	IMPORTER_ACCESS_KEY_ID = "IMPORTER_ACCESS_KEY_ID"
 	IMPORTER_SECRET_KEY    = "IMPORTER_SECRET_KEY"
-	IMPORTER_WRITE_TO_PATH = "IMPORTER_WRITE_TO_PATH"
+	WRITE_PATH             = "/data"
 )
 
 type importInfo struct {
@@ -37,7 +36,6 @@ type importInfo struct {
 	objectPath  string
 	accessKeyId string
 	secretKey   string
-	dest        string
 }
 
 func init() {
@@ -58,8 +56,8 @@ func main() {
 	objSlice := strings.Split(imp.objectPath, "/")
 	// Rejoin object name. Convert / to _
 	obj := strings.Join(objSlice[1:], "_")
-	glog.Infof("Writing %s to %s", obj, imp.dest)
-	outFile, err := os.Create(filepath.Join(imp.dest, obj))
+	glog.Infof("Writing %s to %s", obj, WRITE_PATH)
+	outFile, err := os.Create(filepath.Join(WRITE_PATH, obj))
 	defer outFile.Close()
 	if err != nil {
 		glog.Fatalf("func main: create file error: %v", err)
@@ -79,7 +77,6 @@ func getEnvVars() (*importInfo, error) {
 	op := parseEnvVar(IMPORTER_OBJECT_PATH, false)
 	acc := parseEnvVar(IMPORTER_ACCESS_KEY_ID, false)
 	sec := parseEnvVar(IMPORTER_SECRET_KEY, false)
-	dest := parseEnvVar(IMPORTER_WRITE_TO_PATH, false)
 	// check vars
 	// TODO log the endpoint to be used
 	if len(ep) > 0 && len(url) > 0 {
@@ -91,16 +88,11 @@ func getEnvVars() (*importInfo, error) {
 	if len(op) == 0 || len(acc) == 0 || len(sec) == 0 {
 		return nil, fmt.Errorf("IMPORTER_OBJECT_PATH and/or IMPORTER_ACCESS_KEY_ID and/or IMPORTER_SECRET_KEY are empty")
 	}
-	if len(dest) == 0 {
-		glog.Infof("%s not set, default: /", IMPORTER_WRITE_TO_PATH)
-		dest = "./"
-	}
 	return &importInfo{
 		url:	     url,
 		endpoint:    ep,
 		objectPath:  op,
 		accessKeyId: acc,
 		secretKey:   sec,
-		dest:        dest,
 	}, nil
 }

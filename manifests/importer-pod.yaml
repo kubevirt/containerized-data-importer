@@ -37,15 +37,10 @@ spec:
         configMapKeyRef:
           name: importer-config
           key: objectPath
-    - name: IMPORTER_WRITE_TO_PATH
-      valueFrom:
-        configMapKeyRef:
-          name: importer-config
-          key: writeToPath
     volumeMounts:
     - name: data-path
-      mountPath: /image # MUST match importer configMap data.writeToPath
+      mountPath: /data
   volumes:
   - name: data-path
     hostPath:
-      path: /image
+      path: /data
