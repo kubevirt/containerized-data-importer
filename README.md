@@ -173,13 +173,14 @@ Then run it from the repo root
 `glide install` scans imports and resolves missing and unsued dependencies.
 `-v` removes nested vendor and Godeps/_workspace directories.
 
-### Compile importer binary from source
+### Create importer image from source
 
 ```
 cd $GOPATH/src/github.com/yard-turkey/
-make importer importer-image
+make importer
 ```
-which places the binary in _./bin/importer_. The importer image is built locally and visible in `docker images`.
+which places the binary in _./bin/importer_.
+The importer image is pushed to `jcoperh/importer:latest`, and this is where the pod will pull image from. 
 
 ### Export ENV variables
 
@@ -190,16 +191,17 @@ export IMPORTER_ACCESS_KEY_ID="xyzzy"       # may later be base64 encoded
 export IMPORTER_SECRET_KEY="xyzz"           # may later be base64 encoded
 export IMPORTER_ENDPOINT=s3.amazonaws.com   # if using aws s3
 export IMPORTER_OBJECT_PATH=<bucket-name>/<vm-image-name>  # import-from source object
-export IMPORTER_WRITE_TO_PATH=<local-directory-path>   # import-to target directory
-
 ```
 
-### Run the importer
+### Run the importer image
 
 ```
-./bin/importer
+docker run --env-file=<env-var-file> -v "$(pwd)"/data:/data jcoperh/importer:latest
 ```
-which copyies the image named by the `IMPORTER_OBJECT_PATH` environment variable to your current working directory.
+where _env-var-file_ is the name of a shell script which exports the above env variables, _/data_ is the destination directory inside the container, and _$(pwd)"/data:/data_ is the persistent destination used by the storage provider.
+
+The above `docker run...` copyies the image named by the `IMPORTER_OBJECT_PATH` environment variable to the volume
+bind-mounted to the container's `/data` directory.
 
 
 ### S3-compatible client setup
