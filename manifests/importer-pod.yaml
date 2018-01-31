@@ -2,13 +2,26 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: data-importer
+  namespace: images
 spec:
   restartPolicy: Never
   containers:
   - name: importer
     image: docker.io/jcoperh/importer:jcope-latest 
-    imagePullPolicy: IfNotPresent
+    imagePullPolicy: Always
     env:
+    # Secret
+    - name: IMPORTER_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: importer-pod-secret
+          key: importer-access-key-id
+    - name: IMPORTER_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: importer-pod-secret
+          key: importer-secret-key
+    # ConfigMap
     - name: IMPORTER_URL
       valueFrom:
         configMapKeyRef:
@@ -24,15 +37,16 @@ spec:
         configMapKeyRef:
           name: importer-pod-config
           key: importer_object_path
-    - name: IMPORTER_DESTINATION
+    - name: IMPORTER_DEST_PATH
       valueFrom:
         configMapKeyRef:
           name: importer-pod-config
-          key: importer_destination
+          key: importer_dest_path
     volumeMounts:
     - name: data-path
-      mountPath: /images
+      # mountPath MUST match configMap: IMPORT_DESTINATION
+      mountPath: /image
   volumes:
   - name: data-path
     hostPath:
-      path: /home/ec2-user
+      path: /image

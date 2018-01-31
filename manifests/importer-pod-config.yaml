@@ -2,9 +2,10 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: importer-pod-config
+  namespace: images
 data:
   importer_url: ""  #intentionally blank
-  importer_endpoint: s3.amazon.com
+  importer_endpoint: ""
   # importer_object_path: <bucket-name>/<object-name>
-  importer_object_path: cnv-image-store/hello-cnv
-  importer_destination: "/images"
+  importer_object_path: ""
+  importer_dest_path: "/image"
