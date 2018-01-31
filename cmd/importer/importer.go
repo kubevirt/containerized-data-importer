@@ -27,7 +27,7 @@ const (
 	IMPORTER_OBJECT_PATH   = "IMPORTER_OBJECT_PATH"
 	IMPORTER_ACCESS_KEY_ID = "IMPORTER_ACCESS_KEY_ID"
 	IMPORTER_SECRET_KEY    = "IMPORTER_SECRET_KEY"
-	IMPORTER_DESTINATION   = "IMPORTER_DESTINATION"
+	IMPORTER_DEST_PATH     = "IMPORTER_DEST_PATH"
 )
 
 type importInfo struct {
@@ -78,7 +78,7 @@ func getEnvVars() (*importInfo, error) {
 	op := parseEnvVar(IMPORTER_OBJECT_PATH, false)
 	acc := parseEnvVar(IMPORTER_ACCESS_KEY_ID, false)
 	sec := parseEnvVar(IMPORTER_SECRET_KEY, false)
-	dest := parseEnvVar(IMPORTER_DESTINATION, false)
+	dest := parseEnvVar(IMPORTER_DEST_PATH, false)
 	// check vars
 	// TODO log the endpoint to be used
 	if len(ep) > 0 && len(url) > 0 {
@@ -91,7 +91,7 @@ func getEnvVars() (*importInfo, error) {
 		return nil, fmt.Errorf("IMPORTER_OBJECT_PATH and/or IMPORTER_ACCESS_KEY_ID and/or IMPORTER_SECRET_KEY are empty")
 	}
 	if len(dest) == 0 {
-		glog.Infof("%s not set, default: /", IMPORTER_DESTINATION)
+		glog.Infof("%s not set, default: /", IMPORTER_DEST_PATH)
 		dest = "./"
 	}
 	return &importInfo{
