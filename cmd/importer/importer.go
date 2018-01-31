@@ -16,10 +16,11 @@ import (
 // This process expects several environmental variables:
 //    IMPORTER_URL            Full url + path to object. Mutually exclusive with IMPORTER_ENDPOINT
 //    IMPORTER_ENDPOINT       Endpoint url minus scheme, bucket/object and port, eg. s3.amazon.com
-//			      Mutually exclusive with IMPORTER_URL
+//			      			    Mutually exclusive with IMPORTER_URL
 //    IMPORTER_OBJECT_PATH    Full path of object (e.g. bucket/object)
 //    IMPORTER_ACCESS_KEY_ID  Secret key is the password to your account
 //    IMPORTER_SECRET_KEY     Access key is the user ID that uniquely identifies your account.
+//	  IMPORTER_WRITE_TO_PATH  Local directory to which the data is written
 
 const (
 	IMPORTER_URL           = "IMPORTER_URL"
@@ -27,7 +28,7 @@ const (
 	IMPORTER_OBJECT_PATH   = "IMPORTER_OBJECT_PATH"
 	IMPORTER_ACCESS_KEY_ID = "IMPORTER_ACCESS_KEY_ID"
 	IMPORTER_SECRET_KEY    = "IMPORTER_SECRET_KEY"
-	IMPORTER_DEST_PATH     = "IMPORTER_DEST_PATH"
+	IMPORTER_WRITE_TO_PATH = "IMPORTER_WRITE_TO_PATH"
 )
 
 type importInfo struct {
@@ -78,7 +79,7 @@ func getEnvVars() (*importInfo, error) {
 	op := parseEnvVar(IMPORTER_OBJECT_PATH, false)
 	acc := parseEnvVar(IMPORTER_ACCESS_KEY_ID, false)
 	sec := parseEnvVar(IMPORTER_SECRET_KEY, false)
-	dest := parseEnvVar(IMPORTER_DEST_PATH, false)
+	dest := parseEnvVar(IMPORTER_WRITE_TO_PATH, false)
 	// check vars
 	// TODO log the endpoint to be used
 	if len(ep) > 0 && len(url) > 0 {
@@ -91,7 +92,7 @@ func getEnvVars() (*importInfo, error) {
 		return nil, fmt.Errorf("IMPORTER_OBJECT_PATH and/or IMPORTER_ACCESS_KEY_ID and/or IMPORTER_SECRET_KEY are empty")
 	}
 	if len(dest) == 0 {
-		glog.Infof("%s not set, default: /", IMPORTER_DEST_PATH)
+		glog.Infof("%s not set, default: /", IMPORTER_WRITE_TO_PATH)
 		dest = "./"
 	}
 	return &importInfo{

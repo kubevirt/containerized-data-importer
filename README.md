@@ -190,7 +190,7 @@ export IMPORTER_ACCESS_KEY_ID="xyzzy"       # may later be base64 encoded
 export IMPORTER_SECRET_KEY="xyzz"           # may later be base64 encoded
 export IMPORTER_ENDPOINT=s3.amazonaws.com   # if using aws s3
 export IMPORTER_OBJECT_PATH=<bucket-name>/<vm-image-name>  # import-from source object
-export IMPORTER_DESTINATION_PATH=<destination-directory>   # import-to target directory
+export IMPORTER_WRITE_TO_PATH=<local-directory-path>   # import-to target directory
 
 ```
 
