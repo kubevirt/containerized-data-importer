@@ -136,11 +136,11 @@ mount both and run the data import binary that is baked into the container.  The
 will consume values stored in the secret as environmental variables and stream data from
 the endpoint to the Golden PV. On completions (whether success or failure) the pod will exit.
 
-# Getting Started
+## Getting Started For Developers
 
 ### Download source:
 
-`# in github fork yard-turkey/vm-image-import to your personal repo`, then:
+`# in github fork kubevirt/containerized-data-importer to your personal repo`, then:
 ```
 cd $GOPATH/src/
 mkdir -p github.com/yard-turkey/
@@ -160,7 +160,7 @@ git push origin master -f
  git remote add upstream 	https://github.com/yard-turkey/vm-image-import.git
  ```
 
-### Use glide to handle vendoring of dependencies.
+### Use glide to handle vendoring of dependencies:
 
 Install glide:
 
@@ -173,40 +173,45 @@ Then run it from the repo root
 `glide install` scans imports and resolves missing and unsued dependencies.
 `-v` removes nested vendor and Godeps/_workspace directories.
 
-### Create importer image from source
+### Create importer image from source:
 
 ```
-cd $GOPATH/src/github.com/yard-turkey/
+cd $GOPATH/src/github.com/kubevirt/containerized-data-importer
 make importer
 ```
 which places the binary in _./bin/importer_.
-The importer image is pushed to `jcoperh/importer:latest`, and this is where the pod will pull image from. 
+The importer image is pushed to `jcoperh/importer:latest`, and this is where the pod pulls image from. 
 
-### Export ENV variables
 
-Before running the importer binary several environment variables must be exported:
+## Getting Started For Non-Developers
+
+### Export ENV variables:
+
+Before running the importer several environment variables must be exported:
  
 ```
-export IMPORTER_ACCESS_KEY_ID="xyzzy"       # may later be base64 encoded
-export IMPORTER_SECRET_KEY="xyzz"           # may later be base64 encoded
-export IMPORTER_ENDPOINT=s3.amazonaws.com   # if using aws s3
-export IMPORTER_OBJECT_PATH=<bucket-name>/<vm-image-name>  # import-from source object
+export IMPORTER_ACCESS_KEY_ID="user-xyzzy"  # base64 encoded if this is stored in a secret
+export IMPORTER_SECRET_KEY="secret-xyzz"    # base64 encoded if this is stored in a secret
+export IMPORTER_ENDPOINT=s3.amazonaws.com   # eg, if using aws s3
+export IMPORTER_OBJECT_PATH=<bucket-name>/object-name>  # import-from source object
 ```
+**Note"** forward slashes in the object name name are changed to underscores in the destination file name.
 
-### Run the importer image
+### Run the importer image:
 
 ```
 docker run --env-file=<env-var-file> -v "$(pwd)"/data:/data jcoperh/importer:latest
 ```
-where _env-var-file_ is the name of a shell script which exports the above env variables, _/data_ is the destination directory inside the container, and _$(pwd)"/data:/data_ is the persistent destination used by the storage provider.
+where _env-var-file_ is the name of a shell script which exports the above env variables.
+_"$(pwd)"/data_ is the persistent volume path used by the storage provider.
+_/data_ is the destination directory inside the container (which is bind-mounted to the persistent volume).
 
-The above `docker run...` copyies the image named by the `IMPORTER_OBJECT_PATH` environment variable to the volume
-bind-mounted to the container's `/data` directory.
+The above `docker run...` copies the file named by the `IMPORTER_OBJECT_PATH` environment variable to the directory location defined in the bind-mount to _/data_.
 
 
-### S3-compatible client setup
+### S3-compatible client setup:
 
-#### AWS S3 cli:
+#### AWS S3 cli
 $HOME/.aws/credentials
 ```
 [default]
@@ -214,7 +219,7 @@ aws_access_key_id = <your-access-key>
 aws_secret_access_key = <your-secret>
 ```
 
-#### Mino cli:
+#### Mino cli
 
 $HOME/.mc/config.json:
 ```
