@@ -16,7 +16,7 @@ CONTROLLER_BUILD=$(BUILD_DIR)/controller
 IMPORTER_BUILD=$(BUILD_DIR)/importer
 
 # DOCKER TAG VARS
-REGISTRY=gcr.io/openshift-gce-devel
+REGISTRY=jcoperh
 CONTROLLER_IMAGE=import-controller
 IMPORTER_IMAGE=importer
 GIT_USER=$(shell git config --get user.email | sed 's/@.*//')
@@ -61,10 +61,10 @@ importer-image: $(IMPORTER_BUILD)/Dockerfile
 	-rm -rf $(TEMP_BUILD_DIR)
 
 push-controller:
-	gcloud docker -- push $(REGISTRY)/$(CONTROLLER_IMAGE):$(TAG)
+	docker push $(REGISTRY)/$(CONTROLLER_IMAGE):$(TAG)
 
 push-importer:
-	gcloud docker -- push $(REGISTRY)/$(IMPORTER_IMAGE):$(TAG)
+	docker push $(REGISTRY)/$(IMPORTER_IMAGE):$(TAG)
 
 clean:
 	-rm -rf $(BIN_DIR)/*

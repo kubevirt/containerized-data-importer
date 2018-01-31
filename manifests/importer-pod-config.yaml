@@ -7,4 +7,3 @@ data:
   url: ""               # mutually exclusive w/ endpoint
   endpoint: ""
   objectPath: ""        # expects: <bucket-name>/<object-name>
-  writeToPath: "/image" # MUST match importer pod spec.containers[0].volumeMounts[0].mountPath
