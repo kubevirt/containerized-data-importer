@@ -7,45 +7,44 @@ spec:
   restartPolicy: Never
   containers:
   - name: importer
-    image: docker.io/jcoperh/importer:jcope-latest 
+    image: docker.io/jcoperh/importer:latest
     imagePullPolicy: Always
     env:
-    # Secret
+    # Secret vars
     - name: IMPORTER_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:
-          name: importer-pod-secret
-          key: importer-access-key-id
+          name: importer-secret
+          key: accessKeyId
     - name: IMPORTER_SECRET_KEY
       valueFrom:
         secretKeyRef:
-          name: importer-pod-secret
-          key: importer-secret-key
-    # ConfigMap
+          name: importer-secret
+          key: secretKey
+    # ConfigMap vars
     - name: IMPORTER_URL
       valueFrom:
         configMapKeyRef:
-          name: importer-pod-config
-          key: importer_url
+          name: importer-config
+          key: url
     - name: IMPORTER_ENDPOINT
       valueFrom:
         configMapKeyRef:
-          name: importer-pod-config
-          key: importer_endpoint
+          name: importer-config
+          key: endpoint
     - name: IMPORTER_OBJECT_PATH
       valueFrom:
         configMapKeyRef:
-          name: importer-pod-config
-          key: importer_object_path
+          name: importer-config
+          key: objectPath
     - name: IMPORTER_DEST_PATH
       valueFrom:
         configMapKeyRef:
-          name: importer-pod-config
-          key: importer_dest_path
+          name: importer-config
+          key: writeToPath
     volumeMounts:
     - name: data-path
-      # mountPath MUST match configMap: IMPORT_DESTINATION
-      mountPath: /image
+      mountPath: /image # MUST match importer configMap data.writeToPath
   volumes:
   - name: data-path
     hostPath:

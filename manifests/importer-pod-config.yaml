@@ -1,11 +1,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: importer-pod-config
+  name: importer-config
   namespace: images
 data:
-  importer_url: ""  #intentionally blank
-  importer_endpoint: ""
-  # importer_object_path: <bucket-name>/<object-name>
-  importer_object_path: ""
-  importer_dest_path: "/image"
+  url: ""               # mutually exclusive w/ endpoint
+  endpoint: ""
+  objectPath: ""        # expects: <bucket-name>/<object-name>
+  writeToPath: "/image" # MUST match importer pod spec.containers[0].volumeMounts[0].mountPath
