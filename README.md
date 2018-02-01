@@ -135,7 +135,101 @@ Data Import controller to reference the Golden PVC and the Ephemeral Endpoint Se
 mount both and run the data import binary that is baked into the container.  The import process
 will consume values stored in the secret as environmental variables and stream data from
 the endpoint to the Golden PV. On completions (whether success or failure) the pod will exit.
+---
+## Running the Data Importer
 
+Deploying the containerized data importer is fairly simple and requires little configuration.  In the current state,
+a user is expected to deploy each API object using `kubectl`.  Once the controller component is introduced,
+this should be reduced to manually creating the Persistent Volume Claim.
+
+### Assumptions
+- A running Kubernetes cluster
+- A reachable object store
+- A file in the object store to be imported
+
+### Configuration
+
+Make copies of the [example manifests](./manifests/importer) to some local directory for editing.  There are
+several values required by the data importer pod that are provided by the configMap and secret.
+
+The files you need are
+- importer-namespace.yaml
+- importer-pod-config.yaml
+- importer-pod-secret.yaml
+- importer-pod.yaml
+
+#### Edit importer-pod-config.yaml
+Configureable values are in the `data` stanza of the file.  The values are commented in-line but we'll cover them
+in a little more detail here.
+
+```yaml
+  url: ""               # mutually exclusive w/ endpoint
+```
+
+There are 2 recognized paths to reach a your data.  The first is by http(s) url and path (www.MyDataStore.com/path/to/data).  This is the most generic method for accessing remote data.  It also
+assumes that the server it is contacting does not require authentication credentials (i.e. is publicly accessible).
+Set this value to the full url and path of the data object if you choose to import via http(s).
+
+```yaml
+  endpoint: ""
+  objectPath: ""        # expects: <bucket-name>/<object-name>
+ ```
+
+The second method makes use of the s3-compliant [Minio client sdk](https://docs.minio.io/docs/golang-client-api-reference).  This client is capable of communicating with any
+server that implements the S3 api.  This method works for accessing both public and privately stored data.  As
+such, it also requires certain credentials be specified in the secret (more on that later).
+
+Set these values if you want to import via the S3 client.   
+
+`endpoint` should be the the top level domain or ip address and port of the server (e.g. www.MyDataStore.com).
+
+`objectPath` should be the bucket name, followed by a forward slash `/`, followed by the object name.
+
+
+> NOTE: `url` and `endpoint` are mutually exclusive!  Only define one.
+
+#### Edit importer-pod-secret.yaml
+
+> NOTE: This is only required when defining `endpoint` in importer-pod-config.yaml.  The credentials provided here
+are consumed by the S3 client inside the pod.
+
+```yaml
+  accessKeyId: "" # <your key or user name, base64 encoded>
+  secretKey:    "" # <your secret or password, base64 encoded>
+```
+
+Under the `data` stanza are these two keys.  Both are required by the S3 client.
+
+`accessKeyID` Must be the access token or username required to read from the object store.
+`secretKey` Must be the secret access key or password required to read from the object store.
+
+#### Further Configuration
+
+At this time, the Pod mounts a hostPath volume.  To mount a Persistent Volume Claim, edit the relevant values in the importer-pod.yaml.  A PVC and PV spec are planned additions to this project.
+
+### Deploy the API Objects
+
+First create the Namespace.
+
+`# kubectl create -f importer-namespace.yaml`
+
+Next create the configMap and secret.  If you defined the `url` value above, only create the configMap.
+
+`# kubectl create -f importer-pod-config.yaml -f importer-pod-secret.yaml`
+
+Finally, deploy the data importer pod.
+
+`# kubect create -f importer-pod.yaml`
+
+The pod will exit after the import is complete.  You can check the status of the pod like so
+
+`# kubectl get -n images pods --show-all`
+
+And log output can be read with
+
+`# kubectl log -n image data-importer`
+
+---
 ## Getting Started For Developers
 
 ### Download source:
@@ -180,34 +274,7 @@ cd $GOPATH/src/github.com/kubevirt/containerized-data-importer
 make importer
 ```
 which places the binary in _./bin/importer_.
-The importer image is pushed to `jcoperh/importer:latest`, and this is where the pod pulls image from. 
-
-
-## Getting Started For Non-Developers
-
-### Export ENV variables:
-
-Before running the importer several environment variables must be exported:
- 
-```
-export IMPORTER_ACCESS_KEY_ID="user-xyzzy"  # base64 encoded if this is stored in a secret
-export IMPORTER_SECRET_KEY="secret-xyzz"    # base64 encoded if this is stored in a secret
-export IMPORTER_ENDPOINT=s3.amazonaws.com   # eg, if using aws s3
-export IMPORTER_OBJECT_PATH=<bucket-name>/object-name>  # import-from source object
-```
-**Note"** forward slashes in the object name name are changed to underscores in the destination file name.
-
-### Run the importer image:
-
-```
-docker run --env-file=<env-var-file> -v "$(pwd)"/data:/data jcoperh/importer:latest
-```
-where _env-var-file_ is the name of a shell script which exports the above env variables.
-_"$(pwd)"/data_ is the persistent volume path used by the storage provider.
-_/data_ is the destination directory inside the container (which is bind-mounted to the persistent volume).
-
-The above `docker run...` copies the file named by the `IMPORTER_OBJECT_PATH` environment variable to the directory location defined in the bind-mount to _/data_.
-
+The importer image is pushed to `jcoperh/importer:latest`, and this is where the pod pulls image from.
 
 ### S3-compatible client setup:
 
