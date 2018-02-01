@@ -18,8 +18,9 @@ import (
 //    IMPORTER_ENDPOINT       Endpoint url minus scheme, bucket/object and port, eg. s3.amazon.com
 //			      			    Mutually exclusive with IMPORTER_URL
 //    IMPORTER_OBJECT_PATH    Full path of object (e.g. bucket/object)
-//    IMPORTER_ACCESS_KEY_ID  Secret key is the password to your account
-//    IMPORTER_SECRET_KEY     Access key is the user ID that uniquely identifies your account.
+//    access and secret keys are optional. If omitted no creds are passed to the object store client
+//    IMPORTER_ACCESS_KEY_ID  Optional. Access key is the user ID that uniquely identifies your account.
+//    IMPORTER_SECRET_KEY     Optional. Secret key is the password to your account
 
 const (
 	IMPORTER_URL           = "IMPORTER_URL"
@@ -85,8 +86,11 @@ func getEnvVars() (*importInfo, error) {
 	if len(ep) == 0 && len(url) == 0 {
 		return nil, fmt.Errorf("IMPORTER_ENDPOINT or IMPORTER_URL must be defined")
 	}
-	if len(op) == 0 || len(acc) == 0 || len(sec) == 0 {
-		return nil, fmt.Errorf("IMPORTER_OBJECT_PATH and/or IMPORTER_ACCESS_KEY_ID and/or IMPORTER_SECRET_KEY are empty")
+	if len(op) == 0 {
+		return nil, fmt.Errorf("IMPORTER_OBJECT_PATH is empty")
+	}
+	if len(acc) == 0 || len(sec) == 0 {
+		glog.Info("warn: IMPORTER_ACCESS_KEY_ID and/or IMPORTER_SECRET_KEY env variables are empty")
 	}
 	return &importInfo{
 		url:	     url,
