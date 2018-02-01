@@ -135,7 +135,7 @@ Data Import controller to reference the Golden PVC and the Ephemeral Endpoint Se
 mount both and run the data import binary that is baked into the container.  The import process
 will consume values stored in the secret as environmental variables and stream data from
 the endpoint to the Golden PV. On completions (whether success or failure) the pod will exit.
----
+
 ## Running the Data Importer
 
 Deploying the containerized data importer is fairly simple and requires little configuration.  In the current state,
@@ -229,7 +229,6 @@ And log output can be read with
 
 `# kubectl log -n image data-importer`
 
----
 ## Getting Started For Developers
 
 ### Download source:
