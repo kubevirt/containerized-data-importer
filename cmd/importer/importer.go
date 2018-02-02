@@ -2,13 +2,9 @@ package main
 
 import (
 	"flag"
-	"github.com/golang/glog"
 	"fmt"
+	"github.com/golang/glog"
 	"io"
-	"os"
-	//"strings"
-	"strings"
-	"path/filepath"
 )
 
 // importer.go implements a data fetching service capable of pulling objects from remote object stores
@@ -46,31 +42,39 @@ func init() {
 func main() {
 	defer glog.Flush()
 	glog.Info("Starting importer")
-	imp, err := getEnvVars()
+	importInfo, err := getEnvVars()
 	if err != nil {
 		glog.Fatalf("unable to get env variables: %v", err)
 	}
-	// create object reader
-	reader := getDataWithClient(imp)
-	defer reader.Close()
-	// Parse bucket and object name (handles directory abstraction in object names)
-	objSlice := strings.Split(imp.objectPath, "/")
-	// Rejoin object name. Convert / to _
-	obj := strings.Join(objSlice[1:], "_")
-	glog.Infof("Writing %s to %s", obj, WRITE_PATH)
-	outFile, err := os.Create(filepath.Join(WRITE_PATH, obj))
-	defer outFile.Close()
-	if err != nil {
-		glog.Fatalf("func main: create file error: %v", err)
+	var dataReader io.ReadCloser
+	var filename string
+	if len(importInfo.endpoint) > 0 {
+		glog.Infof("Importing data from S3 endpoint: %s", importInfo.endpoint)
+		dataReader = getDataWithClient(importInfo)
+		defer dataReader.Close()
+		_, filename, err = parseDataPath(importInfo.objectPath, false)
+		if err != nil {
+			glog.Fatalln(err)
+		}
+	} else if len(importInfo.url) > 0 {
+		glog.Infof("Importing data from URL: %s", importInfo.url)
+		dataReader = getDataWithHTTP(importInfo)
+		defer dataReader.Close()
+		_, filename, err = parseDataPath(importInfo.url, true)
+		if err != nil {
+			glog.Fatalln(err)
+		}
 	}
-	if _, err = io.Copy(outFile, reader); err != nil {
-		glog.Fatalf("func main: error streaming data: %v", err)
+
+	glog.Infof("Beginning import of %s", filename)
+	if err = streamDataToFile(dataReader, filename); err != nil {
+		glog.Fatalln(err)
 	}
-	glog.Infof("Streaming complete, exiting")
+	glog.Infof("Import complete, exiting")
 }
 
 // getEnvVars: get predefined exported env variables, perform syntax and semantic checking,
-// return struc containing these vars.
+// return struct containing these vars.
 // TODO: maybe the access key and secret need to be decoded from base64?
 func getEnvVars() (*importInfo, error) {
 	url := parseEnvVar(IMPORTER_URL, false)
@@ -79,21 +83,22 @@ func getEnvVars() (*importInfo, error) {
 	acc := parseEnvVar(IMPORTER_ACCESS_KEY_ID, false)
 	sec := parseEnvVar(IMPORTER_SECRET_KEY, false)
 	// check vars
-	// TODO log the endpoint to be used
 	if len(ep) > 0 && len(url) > 0 {
 		return nil, fmt.Errorf("IMPORTER_ENDPOINT and IMPORTER_URL cannot both be defined")
 	}
 	if len(ep) == 0 && len(url) == 0 {
 		return nil, fmt.Errorf("IMPORTER_ENDPOINT or IMPORTER_URL must be defined")
 	}
-	if len(op) == 0 {
-		return nil, fmt.Errorf("IMPORTER_OBJECT_PATH is empty")
-	}
-	if len(acc) == 0 || len(sec) == 0 {
-		glog.Info("warn: IMPORTER_ACCESS_KEY_ID and/or IMPORTER_SECRET_KEY env variables are empty")
+	if len(ep) > 0 {
+		if len(op) == 0 {
+			return nil, fmt.Errorf("IMPORTER_OBJECT_PATH is empty")
+		}
+		if len(acc) == 0 || len(sec) == 0 {
+			glog.Info("warn: IMPORTER_ACCESS_KEY_ID and/or IMPORTER_SECRET_KEY env variables are empty")
+		}
 	}
 	return &importInfo{
-		url:	     url,
+		url:         url,
 		endpoint:    ep,
 		objectPath:  op,
 		accessKeyId: acc,
