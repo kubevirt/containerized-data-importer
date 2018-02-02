@@ -42,5 +42,5 @@ spec:
       mountPath: /data
   volumes:
   - name: data-path
-    hostPath:
-      path: /data
+    persistentVolumeClaim:
+      claimName: aws-pvc
