@@ -44,31 +44,15 @@ func main() {
 	glog.Info("Starting importer")
 	importInfo, err := getEnvVars()
 	if err != nil {
-		glog.Fatalf("unable to get env variables: %v", err)
+		glog.Fatalf("main: unable to get env variables: %v", err)
 	}
-	var dataReader io.ReadCloser
-	var filename string
-	if len(importInfo.endpoint) > 0 {
-		glog.Infof("Importing data from S3 endpoint: %s", importInfo.endpoint)
-		dataReader = getDataWithClient(importInfo)
-		defer dataReader.Close()
-		_, filename, err = parseDataPath(importInfo.objectPath, false)
-		if err != nil {
-			glog.Fatalln(err)
-		}
-	} else if len(importInfo.url) > 0 {
-		glog.Infof("Importing data from URL: %s", importInfo.url)
-		dataReader = getDataWithHTTP(importInfo)
-		defer dataReader.Close()
-		_, filename, err = parseDataPath(importInfo.url, true)
-		if err != nil {
-			glog.Fatalln(err)
-		}
+	dataReader, filename, err := newDataReader(importInfo)
+	if err != nil {
+		glog.Fatalf("main: unable to create data reader: %v", err)
 	}
-
 	glog.Infof("Beginning import of %s", filename)
 	if err = streamDataToFile(dataReader, filename); err != nil {
-		glog.Fatalln(err)
+		glog.Fatalf("main: unable to stream data to file:", err)
 	}
 	glog.Infof("Import complete, exiting")
 }
@@ -84,14 +68,14 @@ func getEnvVars() (*importInfo, error) {
 	sec := parseEnvVar(IMPORTER_SECRET_KEY, false)
 	// check vars
 	if len(ep) > 0 && len(url) > 0 {
-		return nil, fmt.Errorf("IMPORTER_ENDPOINT and IMPORTER_URL cannot both be defined")
+		return nil, fmt.Errorf("getEnvVars: IMPORTER_ENDPOINT and IMPORTER_URL cannot both be defined")
 	}
 	if len(ep) == 0 && len(url) == 0 {
-		return nil, fmt.Errorf("IMPORTER_ENDPOINT or IMPORTER_URL must be defined")
+		return nil, fmt.Errorf("getEnvVars: IMPORTER_ENDPOINT or IMPORTER_URL must be defined")
 	}
 	if len(ep) > 0 {
 		if len(op) == 0 {
-			return nil, fmt.Errorf("IMPORTER_OBJECT_PATH is empty")
+			return nil, fmt.Errorf("getEnvVars: IMPORTER_OBJECT_PATH is empty")
 		}
 		if len(acc) == 0 || len(sec) == 0 {
 			glog.Info("warn: IMPORTER_ACCESS_KEY_ID and/or IMPORTER_SECRET_KEY env variables are empty")
@@ -104,4 +88,25 @@ func getEnvVars() (*importInfo, error) {
 		accessKeyId: acc,
 		secretKey:   sec,
 	}, nil
+}
+
+func newDataReader(importInfo *importInfo) (dataReader io.ReadCloser, filename string, err error) {
+	if len(importInfo.endpoint) > 0 {
+		glog.Infof("Importing data from S3 endpoint: %s", importInfo.endpoint)
+		dataReader = getDataWithClient(importInfo)
+		defer dataReader.Close()
+		_, filename, err = parseDataPath(importInfo.objectPath, false)
+		if err != nil {
+			return nil, "", fmt.Errorf("newDataReader endpoint: %v", err)
+		}
+	} else if len(importInfo.url) > 0 {
+		glog.Infof("Importing data from URL: %s", importInfo.url)
+		dataReader = getDataWithHTTP(importInfo)
+		defer dataReader.Close()
+		_, filename, err = parseDataPath(importInfo.url, true)
+		if err != nil {
+			return nil, "", fmt.Errorf("newDataReader url: %v", err)
+		}
+	}
+	return dataReader, filename, nil
 }
