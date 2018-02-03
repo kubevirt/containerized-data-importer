@@ -59,7 +59,6 @@ func main() {
 
 // getEnvVars: get predefined exported env variables, perform syntax and semantic checking,
 // return struct containing these vars.
-// TODO: maybe the access key and secret need to be decoded from base64?
 func getEnvVars() (*importInfo, error) {
 	url := parseEnvVar(IMPORTER_URL, false)
 	ep := parseEnvVar(IMPORTER_ENDPOINT, false)
@@ -90,6 +89,7 @@ func getEnvVars() (*importInfo, error) {
 	}, nil
 }
 
+// newDataReader: given an endpoint or url return a reader and file name.
 func newDataReader(importInfo *importInfo) (dataReader io.ReadCloser, filename string, err error) {
 	if len(importInfo.endpoint) > 0 {
 		glog.Infof("Importing data from S3 endpoint: %s", importInfo.endpoint)
@@ -107,6 +107,8 @@ func newDataReader(importInfo *importInfo) (dataReader io.ReadCloser, filename s
 		if err != nil {
 			return nil, "", fmt.Errorf("newDataReader url: %v", err)
 		}
+	} else {
+		return nil, "", fmt.Errorf("newDataReader: missing endpoint and url")
 	}
 	return dataReader, filename, nil
 }
