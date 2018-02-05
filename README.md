@@ -54,10 +54,14 @@ written to by the Data Import Pod.  References the Golden Image volume in storag
 
 **Golden PVC:** Long-lived claim manually created by an admin in the Images namespace.
 Linked to the Dynamic Provisioner via a reference to the storage class and automatically
-bound to a dynamically created Golden PV.
+bound to a dynamically created Golden PV.  The "default" provisioner and storage class
+is used in the example.  However, the importer pod should support any dynamic provisioner
+that provides mountable volumes.
 
-**Storage Class:** Long-lived, manually created Storage Class(es) which link Persistent
-Volume Claims to dynamic provisioner(s). Referenced by the golden PVC.
+**Storage Class:** Long-lived, default Storage Class which links Persistent
+Volume Claims to the default Dynamic Provisioner(s). Referenced by the golden PVC.
+The example makes use of the "default" provisioner. However, any provisioner that
+manages mountable volumes should be compatible.
 
 **Endpoint Secret:** Short-lived secret in Images Namespace that must be defined
 and created by an admin.  The Secret must contain the url, object path (bucket/object),
