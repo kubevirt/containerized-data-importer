@@ -176,28 +176,19 @@ Set this value to the full url and path of the data object and omit the endpoint
   endpoint: "" # empty
 ```
 
-The second method makes use of an s3-compliant endpoint. [Minio client sdk](https://docs.minio.io/docs/golang-client-api-reference).
-This client is capable of communicating with any server that implements the S3 api.
-This method works for accessing both public and privately stored data.
-As such, it also requires certain credentials be specified in the secret (more on that later).
+The second method makes use of an [s3-compliant](https://docs.minio.io/docs/golang-client-api-reference) endpoint. .
+Typically the endpoint method expects certain credentials be specified in the secret (more on that later).
 `endpoint` should be the the top level domain or ip address and port of the server (e.g. www.MyDataStore.com).
 ```yaml
   url: "" # empty
   endpoint: "s3.amazonaws.com" # for example. Mutually exclusive w/ url
  ```
 
-Set these values if you want to import via the S3 client.   
-
-`endpoint` should be the the top level domain or ip address and port of the server (e.g. www.MyDataStore.com).
-
-```yaml
-  endpoint: ""
-  objectPath: ""        # expects: <bucket-name>/<object-name>
- ```
 `objectPath` should be the bucket name, followed by a forward slash `/`, followed by the object name.
-
-
-> NOTE: `url` and `endpoint` are mutually exclusive!  Only define one.
+```yaml
+  ...
+  objectPath: "cnv-src-obj/hello-cnv"  # expects: <bucket-name>/<object-name>
+ ```
 
 #### Edit importer-pod-secret.yaml
 
