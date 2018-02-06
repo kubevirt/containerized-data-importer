@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: "aws-pvc"
+  name: "importer-pvc"
   namespace: images
 spec:
   storageClassName: default
