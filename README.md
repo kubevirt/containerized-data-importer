@@ -175,17 +175,17 @@ Configureable values are in the `data` stanza of the file.  The values are comme
 in a little more detail here.
 
 
-There are two mutually exclusive methods to access the source object. The first is by http(s) (e.g. www.MyDataStore.com/path/to/data). This is the most generic way to access remote data.
+There are two mutually exclusive methods to access the source object. The first is via http(s) (e.g. www.MyDataStore.com/path/to/data). This is the most generic way to access remote data.
 It also assumes that the hosting server does not require authentication credentials (i.e. is publicly accessible).
-Set this value to the full url and path of the data object and omit the endpoint value.
+Set `url` to the full url and path of the data store and omit the `endpoint` value.
 ```yaml
   url: <url-to-your-data-path> # mutually exclusive w/ endpoint
   endpoint: "" # empty
 ```
 
-The second method makes use of an [s3-compliant](https://docs.minio.io/docs/golang-client-api-reference) endpoint. .
-Typically the endpoint method expects certain credentials be specified in the secret (more on that later).
-`endpoint` should be the the top level domain or ip address and port of the server (e.g. www.MyDataStore.com).
+The second method makes use of an [s3-compliant](https://docs.minio.io/docs/golang-client-api-reference) endpoint.
+Typically the endpoint method expects certain credentials be specified in the secret (see below).
+Set `endpoint` to the top level domain or ip address and port of the server (e.g. www.MyDataStore.com:123), and omit the `url` value.
 ```yaml
   url: "" # empty
   endpoint: "s3.amazonaws.com" # for example. Mutually exclusive w/ url
