@@ -43,4 +43,4 @@ spec:
   volumes:
   - name: data-path
     persistentVolumeClaim:
-      claimName: aws-pvc
+      claimName: importer-pvc
