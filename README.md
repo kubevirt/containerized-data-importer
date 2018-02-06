@@ -161,32 +161,39 @@ The files you need are
 - importer-pod-config.yaml
 - importer-pod-secret.yaml
 - importer-pod.yaml
+- importer-pvc.yaml
 
 #### Edit importer-pod-config.yaml
 Configureable values are in the `data` stanza of the file.  The values are commented in-line but we'll cover them
 in a little more detail here.
 
+
+There are two mutually exclusive methods to access the source object. The first is by http(s) (e.g. www.MyDataStore.com/path/to/data). This is the most generic way to access remote data.
+It also assumes that the hosting server does not require authentication credentials (i.e. is publicly accessible).
+Set this value to the full url and path of the data object and omit the endpoint value.
 ```yaml
-  url: ""               # mutually exclusive w/ endpoint
+  url: <url-to-your-data-path> # mutually exclusive w/ endpoint
+  endpoint: "" # empty
 ```
 
-There are 2 recognized paths to reach a your data.  The first is by http(s) url and path (www.MyDataStore.com/path/to/data).  This is the most generic method for accessing remote data.  It also
-assumes that the server it is contacting does not require authentication credentials (i.e. is publicly accessible).
-Set this value to the full url and path of the data object if you choose to import via http(s).
-
+The second method makes use of an s3-compliant endpoint. [Minio client sdk](https://docs.minio.io/docs/golang-client-api-reference).
+This client is capable of communicating with any server that implements the S3 api.
+This method works for accessing both public and privately stored data.
+As such, it also requires certain credentials be specified in the secret (more on that later).
+`endpoint` should be the the top level domain or ip address and port of the server (e.g. www.MyDataStore.com).
 ```yaml
-  endpoint: ""
-  objectPath: ""        # expects: <bucket-name>/<object-name>
+  url: "" # empty
+  endpoint: "s3.amazonaws.com" # for example. Mutually exclusive w/ url
  ```
-
-The second method makes use of the s3-compliant [Minio client sdk](https://docs.minio.io/docs/golang-client-api-reference).  This client is capable of communicating with any
-server that implements the S3 api.  This method works for accessing both public and privately stored data.  As
-such, it also requires certain credentials be specified in the secret (more on that later).
 
 Set these values if you want to import via the S3 client.   
 
 `endpoint` should be the the top level domain or ip address and port of the server (e.g. www.MyDataStore.com).
 
+```yaml
+  endpoint: ""
+  objectPath: ""        # expects: <bucket-name>/<object-name>
+ ```
 `objectPath` should be the bucket name, followed by a forward slash `/`, followed by the object name.
 
 
