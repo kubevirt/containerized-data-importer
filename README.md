@@ -223,10 +223,6 @@ For example, when copying VM image files, the backend storage should support fas
 > NOTE: in GCE the default storage class (named "standard") is a pd and is trigged by omitting the entire `storageClassName` stanza.
 
 
-#### Further Configuration
-
-At this time, the Pod mounts a hostPath volume.  To mount a Persistent Volume Claim, edit the relevant values in the importer-pod.yaml.  A PVC and PV spec are planned additions to this project.
-
 ### Deploy the API Objects
 
 First, create the Namespace.
