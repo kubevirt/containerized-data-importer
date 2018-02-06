@@ -240,9 +240,9 @@ And log output can be read with
 `# in github fork kubevirt/containerized-data-importer to your personal repo`, then:
 ```
 cd $GOPATH/src/
-mkdir -p github.com/yard-turkey/
-go get github.com/yard-turkey/vm-image-import
-cd github.com/vm-image-import
+mkdir -p github.com/kubevirt/containerized-data-importer
+go get github.com/kubevirt/containerized-data-importer
+cd github.com/kubevirt/containerized-data-importer
 git remote set-url origin <url-to-your-personal-repo>
 git push origin master -f
 ```
@@ -250,11 +250,11 @@ git push origin master -f
  or
 
  ```
- cd $GOPATH/src/github.com/
- mkdir yard-turkey && cd yard-turkey
- git clone <your-repo-url-for-vm-image-import>
- cd vm-image-import
- git remote add upstream 	https://github.com/yard-turkey/vm-image-import.git
+ cd $GOPATH/src/
+ mkdir -p github.com/kubevirt && cd github.com/kubevirt
+ git clone <your-forked-containerized-data-importer-url>
+ cd containerized-data-importer
+ git remote add upstream 	https://github.com/kubevirt/containerized-data-importer.git
  ```
 
 ### Use glide to handle vendoring of dependencies:
