@@ -205,6 +205,14 @@ Under the `data` stanza are these two keys.  Both are required by the S3 client.
 `accessKeyID` Must be the access token or username required to read from the object store.
 `secretKey` Must be the secret access key or password required to read from the object store.
 
+#### Edit importer-pvc.yaml
+
+Editing the pvc yaml file is required if the default storage class does not meet the needs of the destination storage.
+For example, when copying VM image files, the backend storage should support fast-cloning, and thus a non-default storage class is likely needed.
+```yaml
+  storageClassName: default  # change this to the desired import destination storage class name
+```
+
 #### Further Configuration
 
 At this time, the Pod mounts a hostPath volume.  To mount a Persistent Volume Claim, edit the relevant values in the importer-pod.yaml.  A PVC and PV spec are planned additions to this project.
