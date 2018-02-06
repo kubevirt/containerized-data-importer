@@ -163,6 +163,13 @@ The files you need are
 - importer-pod.yaml
 - importer-pvc.yaml
 
+#### Edit importer-namespace.yaml
+If you wish to use a namespace other than _images_ edit this file.
+```yaml
+  name: images
+```
+> NOTE: if you change the namespace name you will also need to change it in the configmap, secret, pvc, and pod.
+
 #### Edit importer-pod-config.yaml
 Configureable values are in the `data` stanza of the file.  The values are commented in-line but we'll cover them
 in a little more detail here.
@@ -219,13 +226,19 @@ At this time, the Pod mounts a hostPath volume.  To mount a Persistent Volume Cl
 
 ### Deploy the API Objects
 
-First create the Namespace.
+First, create the Namespace.
 
 `# kubectl create -f importer-namespace.yaml`
 
-Next create the configMap and secret.  If you defined the `url` value above, only create the configMap.
+> NOTE: if you changed the namespace name you will also need to edit it in the configmap, secret, pvc, and pod.
+
+Next, create the configMap and secret.  If you defined the `url` value above, only create the configMap.
 
 `# kubectl create -f importer-pod-config.yaml -f importer-pod-secret.yaml`
+
+Next, create the persistent volume claim.
+
+`# kubectl create -f importer-pvc.yaml`
 
 Finally, deploy the data importer pod.
 
