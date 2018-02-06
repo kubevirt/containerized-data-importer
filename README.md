@@ -199,8 +199,9 @@ Typically the endpoint method expects certain credentials be specified in the se
 
 #### Edit importer-pod-secret.yaml
 
-> NOTE: This is only required when defining `endpoint` in importer-pod-config.yaml.  The credentials provided here
+This is only required when defining `endpoint` in importer-pod-config.yaml.  The credentials provided here
 are consumed by the S3 client inside the pod.
+> NOTE: the access key id and secret key **must** be base64 encoded.
 
 ```yaml
   accessKeyId: "" # <your key or user name, base64 encoded>
@@ -214,11 +215,13 @@ Under the `data` stanza are these two keys.  Both are required by the S3 client.
 
 #### Edit importer-pvc.yaml
 
-Editing the pvc yaml file is required if the default storage class does not meet the needs of the destination storage.
+Editing the pvc yaml file is required if the storage class named "default" does not meet the needs of the destination storage.
 For example, when copying VM image files, the backend storage should support fast-cloning, and thus a non-default storage class is likely needed.
 ```yaml
   storageClassName: default  # change this to the desired import destination storage class name
 ```
+> NOTE: in GCE the default storage class (named "standard") is a pd and is trigged by omitting the entire `storageClassName` stanza.
+
 
 #### Further Configuration
 
@@ -250,7 +253,7 @@ The pod will exit after the import is complete.  You can check the status of the
 
 And log output can be read with
 
-`# kubectl log -n image data-importer`
+`# kubectl logs -n images data-importer`
 
 ## Getting Started For Developers
 
