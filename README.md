@@ -229,7 +229,7 @@ Next create the configMap and secret.  If you defined the `url` value above, onl
 
 Finally, deploy the data importer pod.
 
-`# kubect create -f importer-pod.yaml`
+`# kubectl create -f importer-pod.yaml`
 
 The pod will exit after the import is complete.  You can check the status of the pod like so
 
