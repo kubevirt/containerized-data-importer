@@ -201,7 +201,7 @@ Set `endpoint` to the top level domain or ip address and port of the server (e.g
 
 This is only required when defining `endpoint` in importer-pod-config.yaml.  The credentials provided here
 are consumed by the S3 client inside the pod.
-> NOTE: the access key id and secret key **must** be base64 encoded.
+> NOTE: the access key id and secret key **must** be base64 encoded with no extraneous linefeeds. Use `echo -n "xyzzy" | base64` or `printf "xyzzy" | base64` to avoid the trailing linefeed.
 
 ```yaml
   accessKeyId: "" # <your key or user name, base64 encoded>
