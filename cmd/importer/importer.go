@@ -47,6 +47,7 @@ func main() {
 		glog.Fatalf("main: unable to get env variables: %v", err)
 	}
 	dataReader, filename, err := newDataReader(importInfo)
+	defer dataReader.Close()
 	if err != nil {
 		glog.Fatalf("main: unable to create data reader: %v", err)
 	}
@@ -94,7 +95,6 @@ func newDataReader(importInfo *importInfo) (dataReader io.ReadCloser, filename s
 	if len(importInfo.endpoint) > 0 {
 		glog.Infof("Importing data from S3 endpoint: %s", importInfo.endpoint)
 		dataReader = getDataWithClient(importInfo)
-		defer dataReader.Close()
 		_, filename, err = parseDataPath(importInfo.objectPath, false)
 		if err != nil {
 			return nil, "", fmt.Errorf("newDataReader endpoint: %v", err)
@@ -102,7 +102,6 @@ func newDataReader(importInfo *importInfo) (dataReader io.ReadCloser, filename s
 	} else if len(importInfo.url) > 0 {
 		glog.Infof("Importing data from URL: %s", importInfo.url)
 		dataReader = getDataWithHTTP(importInfo)
-		defer dataReader.Close()
 		_, filename, err = parseDataPath(importInfo.url, true)
 		if err != nil {
 			return nil, "", fmt.Errorf("newDataReader url: %v", err)
