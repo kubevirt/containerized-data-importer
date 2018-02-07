@@ -194,8 +194,9 @@ Set `endpoint` to the top level domain or ip address and port of the server (e.g
 `objectPath` should be the bucket name, followed by a forward slash `/`, followed by the object name.
 ```yaml
   ...
-  objectPath: "cnv-src-obj/hello-cnv"  # expects: <bucket-name>/<object-name>
+  objectPath: "kubevirt-images/hello-kubevirt"  # expects: <bucket-name>/<object-name>
  ```
+ > NOTE: the object-name portion of `objectPath` can contain multiple "/"s, which are converted to underscores in the destination file name.
 
 #### Edit importer-pod-secret.yaml
 
