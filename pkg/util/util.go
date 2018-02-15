@@ -8,6 +8,7 @@ import (
 )
 
 func GetOutOfClusterClient(configPath, masterurl string) kubernetes.Interface {
+	glog.Infoln("Initializing out-of-cluster kube client")
 	config, err := clientcmd.BuildConfigFromFlags(masterurl, configPath)
 	if err != nil {
 		glog.Fatalln(err)
@@ -20,6 +21,7 @@ func GetOutOfClusterClient(configPath, masterurl string) kubernetes.Interface {
 }
 
 func GetInClusterClient() kubernetes.Interface {
+	glog.Infoln("Initializing in-cluster kube client")
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		glog.Fatalln(err)

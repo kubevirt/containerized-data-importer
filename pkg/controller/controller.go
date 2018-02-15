@@ -5,7 +5,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/staging/src/k8s.io/client-go/util/workqueue"
+	"k8s.io/client-go/util/workqueue"
 	"time"
 )
 
@@ -35,10 +35,11 @@ func (c *Controller) Run(stopCh <-chan struct{}) {}
 
 func (c *Controller) runWorker() {}
 
-func (c *Controller) processNextItem() bool {}
+func (c *Controller) processNextItem() bool { return true }
 
 func (c *Controller) processItem(key, kobj string) error {
 	c.pvcInformer.GetIndexer().GetByKey(key)
+	return nil
 }
 
-func (c *Controller) HasSynced() bool {}
+func (c *Controller) HasSynced() bool { return true }
