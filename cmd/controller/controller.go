@@ -8,11 +8,11 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/kubevirt/containerized-data-importer/pkg/controller"
-	"github.com/kubevirt/containerized-data-importer/pkg/util"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 )
 
@@ -22,21 +22,20 @@ var (
 )
 
 func init() {
-	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Absolute path to kubeconfig. (Default: $KUBECONFIG)")
+	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG and $HOME/.kube/config")
 	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
 	flag.Parse()
 	glog.Infoln("CDI Controller is initialized.")
 }
 
 func main() {
-	var client kubernetes.Interface
-	// Build client relevant to runtime environment
-	if os.Getenv("KUBERNETES_PORT") != "" {
-		glog.Infoln("Detected in-cluster environment")
-		client = util.GetInClusterClient()
-	} else {
-		glog.Infoln("Detected out-of-cluster environment")
-		client = util.GetOutOfClusterClient(configPath, masterURL)
+	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, configPath)
+	if err != nil {
+		glog.Fatalf("Error getting kube config: %v", err)
+	}
+	client, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		glog.Fatalln("Error getting kube client: %v", err)
 	}
 
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
@@ -68,7 +67,7 @@ func main() {
 	pvcListWatcher := cache.NewListWatchFromClient(client.CoreV1().RESTClient(), "persistentvolumeclaims", "", fields.Everything())
 	cdiController := controller.NewController(client, queue, pvcInformer, pvcListWatcher)
 	stopCh := handleSignals()
-	err := cdiController.Run(1, stopCh)
+	err = cdiController.Run(1, stopCh)
 	if err != nil {
 		glog.Fatalln(err)
 	}
