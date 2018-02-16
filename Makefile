@@ -50,7 +50,7 @@ controller-image: $(CONTROLLER_BUILD)/Dockerfile
 	docker tag $(CONTROLLER_IMAGE) $(REGISTRY)/$(CONTROLLER_IMAGE):$(TAG)
 	-rm -rf $(TEMP_BUILD_DIR)
 
-# build the controller image
+# build the importer image
 importer-image: $(IMPORTER_BUILD)/Dockerfile
 	$(eval TEMP_BUILD_DIR=$(IMPORTER_BUILD)/tmp)
 	mkdir -p $(TEMP_BUILD_DIR)
