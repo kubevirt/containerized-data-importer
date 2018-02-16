@@ -4,7 +4,6 @@ import (
 	"flag"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"time"
 
 	"github.com/golang/glog"
@@ -20,21 +19,19 @@ import (
 var (
 	configPath string
 	masterURL  string
-	kubeEnvVar string
 )
 
 func init() {
-	home := os.Getenv("HOME")
-	kubeEnvVar = os.Getenv("KUBERNETES_PORT") // KUBERNETES_PORT is always set in a pod environment
-	flag.StringVar(&configPath, "kubeconfig", filepath.Join(home, ".kube", "config"), "(Optional) Absolute path to kubeconfig. (Default: $HOME/.kube/config)")
-	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of api server (Default: localhost:443)")
+	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Absolute path to kubeconfig. (Default: $KUBECONFIG)")
+	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
 	flag.Parse()
 	glog.Infoln("CDI Controller is initialized.")
 }
 
 func main() {
 	var client kubernetes.Interface
-	if kubeEnvVar != "" {
+	// Build client relevant to runtime environment
+	if os.Getenv("KUBERNETES_PORT") != "" {
 		glog.Infoln("Detected in-cluster environment")
 		client = util.GetInClusterClient()
 	} else {
@@ -46,6 +43,7 @@ func main() {
 
 	informerFactory := informers.NewSharedInformerFactory(client, time.Second*30)
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims().Informer()
+	// Bind the Index/Informer to the queue
 	pvcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			key, err := cache.MetaNamespaceKeyFunc(obj)
@@ -55,7 +53,7 @@ func main() {
 		},
 		UpdateFunc: func(old, new interface{}) {
 			key, err := cache.MetaNamespaceKeyFunc(new)
-			if err == nil {
+			if err == nil && old != new {
 				queue.AddRateLimited(key)
 			}
 		},
@@ -76,6 +74,7 @@ func main() {
 	}
 }
 
+// Shutdown gracefully on system signals
 func handleSignals() <-chan struct{} {
 	sigCh := make(chan os.Signal)
 	stopCh := make(chan struct{})
