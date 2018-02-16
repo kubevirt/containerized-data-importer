@@ -80,7 +80,6 @@ func (c *Controller) processNextItem() bool {
 func (c *Controller) processItem(key string) error {
 	glog.Infof("DEBUG -- controller.processItem(): processing object %q", key)
 	obj, ok, err := c.pvcInformer.GetIndexer().GetByKey(key)
-	c.pvcInformer.GetController()
 	if err != nil {
 		return fmt.Errorf("controller.processItem(): error getting object with key %s: %v", key, err)
 	}

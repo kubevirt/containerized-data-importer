@@ -33,11 +33,11 @@ func init() {
 func main() {
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, configPath)
 	if err != nil {
-		glog.Fatalf("Error getting kube config: %v", err)
+		glog.Fatalf("Error getting kube config: %v\n", err)
 	}
 	client, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
-		glog.Fatalln("Error getting kube client: %v", err)
+		glog.Fatalf("Error getting kube client: %v\n", err)
 	}
 
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())

@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cdi-controller
+spec:
+  restartPolicy: Never
+  containers:
+  - name: cdi-controller
+    image: jcoperh/import-controller
+    imagePullPolicy: Always
