@@ -68,8 +68,8 @@ func (c *Controller) processNextItem() bool {
 	if key, ok := key.(string); !ok {
 		c.queue.Forget(key)
 		glog.Errorf("controller.processNextItem(): key object failed string type assertion")
-		return false
 	}
+
 	if err := c.processItem(key.(string)); err != nil {
 		c.queue.Forget(key)
 		glog.Errorf("controller.processNextItem(): error processing key: %v", err)
