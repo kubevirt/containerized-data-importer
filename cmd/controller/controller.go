@@ -21,8 +21,10 @@ var (
 	masterURL  string
 )
 
+// Note: kubeconfig hierarchy is 1) -kubeconfig flag, 2) $KUBECONFIG exported var. If neither is specified
+//   we'll do an in-cluster config, so for testing it's easiest to export KUBECONFIG.
 func init() {
-	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG and $HOME/.kube/config")
+	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG")
 	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
 	flag.Parse()
 	glog.Infoln("CDI Controller is initialized.")
