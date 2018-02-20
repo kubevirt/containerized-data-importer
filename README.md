@@ -4,6 +4,12 @@ For the purposes of running a VM inside a container, this imported file is a VM 
 The initial work supports only the import task, which will require some manual steps (i.e., creating the imported Pod, PV and PVC).
 The next phase will include a custom controller that watches for new PVCs that represent new files (e.g. VM images), and then automatically imports the new file to the known _golden_ location.
 
+1. [Purpose](##purpose)
+2. [Current Design](##design_current)
+3. [Stretch Desig](##stretch_design)
+4. [Running the Data Importer](##running_the_data_importer)
+5. [Getting Started For Developers](##getting_started_for_developers)
+
 ## Purpose
 
 The project eases the burden on cluster admins seeking to take advantage
@@ -13,14 +19,14 @@ be imported into a location accessible to the kubelet.  The Data Importer
 automates this by pulling images from an external http repository and preserving
 them in in-cluster storage.  The components of this process are detailed below.
 
-## Design (Current)
+## Current Design
 
 The below diagram illustrates the short term goal of this project.  For our current
 work we will not be focused on automation, implying that executing each step of
 the import process will be done manually. User Flow (Current) provides explanation
 of each step show in the diagram.
 
-### User Flow (Current)
+### Current User Flow
 Steps are identified by role according the the colored shape. Each step must be performed in
 the order they are number unless otherwise specified.
 
@@ -75,9 +81,9 @@ mount both and run the data import binary that is baked into the container.  The
 will consume values stored in the secret as environmental variables and stream data from
 the url endpoint to the Golden PV. On completions (whether success or failure) the pod will exit.
 
-## Design (Stretch)
+## Stretch Design
 
-### User Flow (Stecth)
+### Stertch User Flow
 Steps are identified by role according the the colored shape. Each step must be performed in
 the order they are number unless otherwise specified.
 
