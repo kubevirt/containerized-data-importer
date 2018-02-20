@@ -4,11 +4,11 @@ For the purposes of running a VM inside a container, this imported file is a VM 
 The initial work supports only the import task, which will require some manual steps (i.e., creating the imported Pod, PV and PVC).
 The next phase will include a custom controller that watches for new PVCs that represent new files (e.g. VM images), and then automatically imports the new file to the known _golden_ location.
 
-1. [Purpose](##purpose)
-2. [Current Design](##design-current)
-3. [Stretch Design](##stretch-design)
-4. [Running the Data Importer](##running-the-data-importer)
-5. [Getting Started For Developers](##getting-started-for-developers)
+1. [Purpose](#purpose)
+2. [Current Design](#design-current)
+3. [Stretch Design](#stretch-design)
+4. [Running the Data Importer](#running-the-data-importer)
+5. [Getting Started For Developers](#getting-started-for-developers)
 
 ## Purpose
 
