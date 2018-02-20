@@ -8,7 +8,8 @@ The next phase will include a custom controller that watches for new PVCs that r
 2. [Current Design](#design-current)
 3. [Stretch Design](#stretch-design)
 4. [Running the Data Importer](#running-the-data-importer)
-5. [Getting Started For Developers](#getting-started-for-developers)
+5. [Running the CDI Controller](#running-the-cdi-controller)
+6. [Getting Started For Developers](#getting-started-for-developers)
 
 ## Purpose
 
@@ -258,6 +259,22 @@ And log output can be read with
 
 `# kubectl logs -n images data-importer`
 
+
+## Running the CDI Controller
+
+Deploying the containerized data import (CDI) controller requires creation of the "golden"namespace and
+the actual controller pod. The "golden" namespace where golden image import work occurs.
+It should be sufficiently restricted (RBAC, clusterRoleBindings) such that "regular" cluster users are not allowed to
+create objects in this namespace.
+
+A deployment manifest [template](missing) is provided. The deployment is created, via `kubectl -f ...`, in the
+namespace of the admin creating the controller. If the admin's context is not the "golden" namespace then the 
+`--namespace=` needs to be used to direct the deployment to be created in the desired namespace.
+
+... more later....
+
+
+
 ## Getting Started For Developers
 
 ### Download source:
@@ -302,7 +319,24 @@ cd $GOPATH/src/github.com/kubevirt/containerized-data-importer
 make importer
 ```
 which places the binary in _./bin/importer_.
-The importer image is pushed to `jcoperh/importer:latest`, and this is where the pod pulls image from.
+The importer image is pushed to `jcoperh/importer:latest`,
+and this is where the importer pod pulls the image from.
+
+### Create controller image from source:
+
+```
+cd $GOPATH/src/github.com/kubevirt/containerized-data-importer
+make controller
+```
+which places the binary in _./bin/importer-controller_.
+The controller image is pushed to `jcoperh/importer-controller:latest`,
+and this is where the controller pod pulls the image from.
+
+> NOTE: when running the controller in a `local-up-cluster` environment (and in the default namespace)
+the cluster role binding below was needed to allow the controller pod to list PVCs:
+```
+kubectl create clusterrolebinding cdi-controller --clusterrole=cluster-admin --serviceaccount=default:default
+```
 
 ### S3-compatible client setup:
 
