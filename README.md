@@ -5,10 +5,10 @@ The initial work supports only the import task, which will require some manual s
 The next phase will include a custom controller that watches for new PVCs that represent new files (e.g. VM images), and then automatically imports the new file to the known _golden_ location.
 
 1. [Purpose](##purpose)
-2. [Current Design](##design_current)
-3. [Stretch Desig](##stretch_design)
-4. [Running the Data Importer](##running_the_data_importer)
-5. [Getting Started For Developers](##getting_started_for_developers)
+2. [Current Design](##design-current)
+3. [Stretch Design](##stretch-design)
+4. [Running the Data Importer](##running-the-data-importer)
+5. [Getting Started For Developers](##getting-started-for-developers)
 
 ## Purpose
 
