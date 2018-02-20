@@ -5,10 +5,18 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+)
+
+const (
+	annEndpoint = "kubevirt.io/storage.import.endpoint"
+	annSecret   = "kubevirt.io/storage.import.secretName"
+	annStatus   = "kubevirt.io/storage.import.status"
 )
 
 type Controller struct {
@@ -52,40 +60,59 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 }
 
 func (c *Controller) runWorkers() {
-	glog.Infoln("DEBUG - controller.runWorkers()")
 	for c.processNextItem() {
 	}
 }
 
 func (c *Controller) processNextItem() bool {
-	glog.Infoln("DEBUG -- controller.processNextItem()")
 	key, shutdown := c.queue.Get()
 	if shutdown {
 		return false
 	}
-	glog.Infof("Got Object: %v", key)
 	defer c.queue.Done(key)
-	if key, ok := key.(string); !ok {
+	pvc, err := c.pvcFromKey(key)
+	if pvc == nil {
 		c.queue.Forget(key)
-		glog.Errorf("controller.processNextItem(): key object failed string type assertion")
+		return true
 	}
-
-	if err := c.processItem(key.(string)); err != nil {
+	glog.Infoln("processNextItem(): Next item to process: ", pvc.Name)
+	if err != nil {
+		glog.Errorf("processNextItem(): error converting key to pvc: %v", err)
 		c.queue.Forget(key)
-		glog.Errorf("controller.processNextItem(): error processing key: %v", err)
+		return true
+	}
+	if ! metav1.HasAnnotation(pvc.ObjectMeta, annEndpoint) {
+		glog.Infoln("processNextItem(): annotation not found, skipping item")
+		c.queue.Forget(key)
+		return true
+	}
+	if err := c.processItem(pvc); err != nil {
+		glog.Errorf("processNextItem(): error processing key: %v", err)
+		c.queue.Forget(key)
 	}
 	return true
 }
 
-func (c *Controller) processItem(key string) error {
-	glog.Infof("DEBUG -- controller.processItem(): processing object %q", key)
-	obj, ok, err := c.pvcInformer.GetIndexer().GetByKey(key)
-	if err != nil {
-		return fmt.Errorf("controller.processItem(): error getting object with key %s: %v", key, err)
-	}
-	if !ok {
-		glog.Infof("Object with key %s does not exist\n", key)
-	}
-	c.queue.Forget(obj)
+func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
+	// DO STUFF
 	return nil
+}
+
+func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, error) {
+	keyString, ok := key.(string)
+	if !ok {
+		return nil, fmt.Errorf("pvcFromKey(): key object not of type string\n")
+	}
+	obj, ok, err := c.pvcInformer.GetIndexer().GetByKey(keyString)
+	if !ok {
+		return nil, fmt.Errorf("pvcFromKey(): key not found in cache\n")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("pvcFromKey(): Error getting key from cache: %q\n", keyString)
+	}
+	pvc, ok := obj.(*v1.PersistentVolumeClaim)
+	if !ok {
+		return nil, fmt.Errorf("pvcFromKey(): Object not of type *v1.PersistentVolumeClaim\n")
+	}
+	return pvc, nil
 }
