@@ -105,7 +105,7 @@ func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, err
 	}
 	obj, ok, err := c.pvcInformer.GetIndexer().GetByKey(keyString)
 	if !ok {
-		return nil, fmt.Errorf("pvcFromKey(): key not found in cache\n")
+		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("pvcFromKey(): Error getting key from cache: %q\n", keyString)
