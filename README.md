@@ -262,14 +262,14 @@ And log output can be read with
 
 ## Running the CDI Controller
 
-Deploying the containerized data import (CDI) controller requires creation of the "golden"namespace and
-the actual controller pod. The "golden" namespace where golden image import work occurs.
+Deploying the containerized data import (CDI) controller requires creation of the "golden" namespace and
+the controller pod. The "golden" namespace where golden image import work occurs.
 It should be sufficiently restricted (RBAC, clusterRoleBindings) such that "regular" cluster users are not allowed to
 create objects in this namespace.
 
 A deployment manifest [template](missing) is provided. The deployment is created, via `kubectl -f ...`, in the
-namespace of the admin creating the controller. If the admin's context is not the "golden" namespace then the 
-`--namespace=` needs to be used to direct the deployment to be created in the desired namespace.
+namespace of the admin creating the controller. If the admin's context is not in the "golden" namespace then the 
+`--namespace=<ns>` flag is needed to direct the deployment to be created in the desired namespace.
 
 ... more later....
 
