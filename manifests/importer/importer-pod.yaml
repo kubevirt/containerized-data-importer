@@ -2,12 +2,11 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: data-importer
-  namespace: images
 spec:
   restartPolicy: Never
   containers:
   - name: importer
-    image: docker.io/jcoperh/importer:latest
+    image: jcoperh/importer:latest
     imagePullPolicy: Always
     env:
     # Secret vars
@@ -21,22 +20,12 @@ spec:
         secretKeyRef:
           name: importer-secret
           key: secretKey
-    # ConfigMap vars
-    - name: IMPORTER_URL
-      valueFrom:
-        configMapKeyRef:
-          name: importer-config
-          key: url
+    # ConfigMap var
     - name: IMPORTER_ENDPOINT
       valueFrom:
         configMapKeyRef:
           name: importer-config
           key: endpoint
-    - name: IMPORTER_OBJECT_PATH
-      valueFrom:
-        configMapKeyRef:
-          name: importer-config
-          key: objectPath
     volumeMounts:
     - name: data-path
       mountPath: /data
