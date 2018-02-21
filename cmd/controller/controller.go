@@ -19,15 +19,23 @@ import (
 var (
 	configPath string
 	masterURL  string
+	namespace  string
 )
 
+// Controller's own namespace is obtained here along with supported flags and env variables.
 // Note: kubeconfig hierarchy is 1) -kubeconfig flag, 2) $KUBECONFIG exported var. If neither is specified
 //   we'll do an in-cluster config, so for testing it's easiest to export KUBECONFIG.
 func init() {
+	const OWN_NAMESPACE = "OWN_NAMESPACE"
+	namespace = os.Getenv(OWN_NAMESPACE)
+	if namespace == "" {
+		glog.Fatalf("CDI Controller's namespace was not passed in as env variable %q", OWN_NAMESPACE)
+	}
+	// flags
 	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG")
 	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
 	flag.Parse()
-	glog.Infoln("CDI Controller is initialized.")
+	glog.Infoln("init: CDI Controller is initialized.")
 }
 
 func main() {
@@ -66,8 +74,9 @@ func main() {
 		},
 	})
 
-	pvcListWatcher := cache.NewListWatchFromClient(client.CoreV1().RESTClient(), "persistentvolumeclaims", "", fields.Everything())
+	pvcListWatcher := cache.NewListWatchFromClient(client.CoreV1().RESTClient(), "persistentvolumeclaims", namespace, fields.Everything())
 	cdiController := controller.NewController(client, queue, pvcInformer, pvcListWatcher)
+	glog.Infof("main: created CDI Controller in %q namespace\n", namespace)
 	stopCh := handleSignals()
 	err = cdiController.Run(1, stopCh)
 	if err != nil {
