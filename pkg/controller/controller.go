@@ -81,7 +81,7 @@ func (c *Controller) processNextItem() bool {
 		c.queue.Forget(key)
 		return true
 	}
-	if ! metav1.HasAnnotation(pvc.ObjectMeta, annEndpoint) {
+	if !metav1.HasAnnotation(pvc.ObjectMeta, annEndpoint) {
 		glog.Infoln("processNextItem(): annotation not found, skipping item")
 		c.queue.Forget(key)
 		return true
@@ -93,26 +93,22 @@ func (c *Controller) processNextItem() bool {
 	return true
 }
 
+// Create the importer pod (and its secert if needed).
+// Place a watch on the importer pod and annotate the pvc when the importer pod terminates.
 func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
-	// DO STUFF
-	return nil
-}
-
-func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, error) {
-	keyString, ok := key.(string)
-	if !ok {
-		return nil, fmt.Errorf("pvcFromKey(): key object not of type string\n")
+	ep := getEndpoint(pvc)
+	if ep == "" {
+		return fmt.Errorf("import endpoint missing for pvc %q", pvc.Name)
 	}
-	obj, ok, err := c.pvcInformer.GetIndexer().GetByKey(keyString)
-	if !ok {
-		return nil, nil
+	epSecret := getEndpointSecret(pvc)
+	if epSecret == nil {
+		glog.Infof("processItem: no secret for endpoint %q\n", ep)
 	}
+	importPod, err := createImporterPod(ep, epSecret, pvc)
 	if err != nil {
-		return nil, fmt.Errorf("pvcFromKey(): Error getting key from cache: %q\n", keyString)
+		return fmt.Errorf("processItem: error creating importer pod: %v\n", err)
 	}
-	pvc, ok := obj.(*v1.PersistentVolumeClaim)
-	if !ok {
-		return nil, fmt.Errorf("pvcFromKey(): Object not of type *v1.PersistentVolumeClaim\n")
-	}
-	return pvc, nil
+	//just reference pod to prevent compile error
+	glog.Infof("importer pod %q created", importPod.Name)
+	return nil
 }
