@@ -52,12 +52,13 @@ func NewDataReader(info *importInfo) (io.ReadCloser, string, error) {
 	var dataReader io.ReadCloser
 	switch info.Url.Scheme {
 	case "s3":
-		glog.Infof("Importing data from S3 Endpoint: %s", info.Endpoint)
+		info.Url.Host = "s3.amazonaws.com"
+		glog.Infof("Detected S3 scheme in data uri.", info.Endpoint)
 		dataReader = getDataWithS3Client(info)
 	case "http":
 		fallthrough
 	case "https":
-		glog.Infof("Importing data from URL: %s", info.Endpoint)
+		glog.Infof("Detected http in data uri", info.Endpoint)
 		dataReader = getDataWithHTTP(info)
 	case "":
 		return nil, "", fmt.Errorf("newDataReader: no url scheme found")
@@ -79,24 +80,28 @@ func ParseEnvVar(envVarName string, decode bool) string {
 
 func StreamDataToFile(dataReader io.ReadCloser, filePath string) error {
 	// Attempt to create the file with name filePath.  If it exists, fail.
-	outFile, err := os.OpenFile(filePath, os.O_CREATE|os.O_EXCL, 0666)
+	outFile, err := os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
 	defer outFile.Close()
 	if err != nil {
-		return fmt.Errorf("func streamDataToFile: create file error: %v", err)
+		return fmt.Errorf("func StreamDataToFile: create file error: %v", err)
 	}
 	if _, err = io.Copy(outFile, dataReader); err != nil {
-		return fmt.Errorf("func streamDataToFile: error streaming data: %v", err)
+		return fmt.Errorf("func StreamDataToFile: error streaming data: %v", err)
 	}
 	return nil
 }
 
 func getDataWithS3Client(importInfo *importInfo) io.ReadCloser {
-	mc, err := minio.NewV4(importInfo.Endpoint, importInfo.AccessKeyId, importInfo.SecretKey, false)
+	glog.Infoln("Creating Minio S3 client.")
+	mc, err := minio.NewV4(importInfo.Url.Host, importInfo.AccessKeyId, importInfo.SecretKey, false)
+	if err != nil {
+		glog.Fatalf("getDataWithS3Client(): error building minio client for s3:// (%v)\n", importInfo.Url.Host)
+	}
 	if err != nil {
 		glog.Fatalf("func getDataWithS3Client: Could not create Minio client: %v", err)
 	}
 	bucket, object, err := parseDataPath(importInfo.Url.Path)
-	glog.Infof("Streaming object %s", importInfo.Url.Path)
+	glog.Infof("S3 Client streaming object %s", importInfo.Url.Path)
 	objectReader, err := mc.GetObject(bucket, object, minio.GetObjectOptions{})
 	if err != nil {
 		glog.Fatalf("func getDataWithS3Client: failed getting objectPath: %v", err)
@@ -105,9 +110,9 @@ func getDataWithS3Client(importInfo *importInfo) io.ReadCloser {
 }
 
 func getDataWithHTTP(importInfo *importInfo) io.ReadCloser {
-	resp, err := http.Get(importInfo.Url.RawPath)
+	resp, err := http.Get(importInfo.Endpoint)
 	if err != nil {
-		glog.Fatalf("func streamDataFromURL: response body error: %v", err)
+		glog.Fatalf("func getDataWithHTTP: response body error: %v", err)
 	}
 	return resp.Body
 }

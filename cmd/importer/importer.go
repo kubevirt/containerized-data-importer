@@ -1,4 +1,12 @@
 package main
+// importer.go implements a data fetching service capable of pulling objects from remote object stores
+// and writing to a local directory.  It utilizes the minio-go client sdk.
+// This process expects several environmental variables:
+//    IMPORTER_ENDPOINT       Endpoint url minus scheme, bucket/object and port, eg. s3.amazon.com
+// Access and secret keys are optional. If omitted no creds are passed to the object store client
+//    IMPORTER_ACCESS_KEY_ID  Optional. Access key is the user ID that uniquely identifies your account.
+//    IMPORTER_SECRET_KEY     Optional. Secret key is the password to your account
+
 
 import (
 	"flag"
@@ -7,18 +15,6 @@ import (
 	"github.com/golang/glog"
 	. "github.com/kubevirt/containerized-data-importer/pkg/importer"
 )
-
-// importer.go implements a data fetching service capable of pulling objects from remote object stores
-// and writing to a local directory.  It utilizes the minio-go client sdk.
-// This process expects several environmental variables:
-//    IMPORTER_URL            Full url + path to object. Mutually exclusive with IMPORTER_ENDPOINT
-//    IMPORTER_ENDPOINT       Endpoint url minus scheme, bucket/object and port, eg. s3.amazon.com
-//			      			    Mutually exclusive with IMPORTER_URL
-//    IMPORTER_OBJECT_PATH    Full path of object (e.g. bucket/object)
-//    access and secret keys are optional. If omitted no creds are passed to the object store client
-//    IMPORTER_ACCESS_KEY_ID  Optional. Access key is the user ID that uniquely identifies your account.
-//    IMPORTER_SECRET_KEY     Optional. Secret key is the password to your account
-
 
 const (
 	WRITE_PATH             = "/disk.img"
