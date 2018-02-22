@@ -13,14 +13,12 @@ import (
 	"github.com/minio/minio-go"
 )
 
-
 type importInfo struct {
 	Endpoint    string
 	Url         *url.URL
 	AccessKeyId string
 	SecretKey   string
 }
-
 
 // NewImportInfo: construct a new importInfo object from params.
 func NewImportInfo(endpoint, accessKey, secretKey string) (*importInfo, error) {
@@ -43,27 +41,27 @@ func NewImportInfo(endpoint, accessKey, secretKey string) (*importInfo, error) {
 	}, nil
 }
 
-// newDataReader: given an Endpoint or url return a reader and file name.
-func NewDataReader(info *importInfo) (io.ReadCloser, string, error) {
-	_, filename, err := parseDataPath(info.Url.Path)
-	if err != nil {
-		return nil, "", fmt.Errorf("newDataReader Endpoint: %v", err)
-	}
+// NewDataReader returns a reader of either S3 or HTTP streams.
+//   http: if no security credentials are provided, http is assumed.
+//	 s3:   if s3:// scheme or security credentials are provided, s3 is assumed.
+//   If the url scheme is s3://, the importInfo.Url is altered to represent an AWS bucket.
+func NewDataReader(importInfo *importInfo) (io.ReadCloser, error) {
 	var dataReader io.ReadCloser
-	switch info.Url.Scheme {
-	case "s3":
-		info.Url.Host = "s3.amazonaws.com"
-		glog.Infof("Detected S3 scheme in data uri.", info.Endpoint)
-		dataReader = getDataWithS3Client(info)
-	case "http":
-		fallthrough
-	case "https":
-		glog.Infof("Detected http in data uri", info.Endpoint)
-		dataReader = getDataWithHTTP(info)
-	case "":
-		return nil, "", fmt.Errorf("newDataReader: no url scheme found")
+	if len(importInfo.AccessKeyId) > 0 {
+		if importInfo.Url.Scheme == "s3" {
+			// When s3:// is detected, the s3 client is directed to s3.amazonaws.com
+			// Bucket is the url.host; object is the url.Path.
+			// So we alter the Url object to represent an aws bucket.
+			importInfo.Url.Path = strings.Join([]string{importInfo.Url.Host, importInfo.Url.Path}, "")
+			importInfo.Url.Host = "s3.amazonaws.com"
+		}
+		dataReader = getDataWithS3Client(importInfo)
+	} else if strings.Contains(importInfo.Url.Scheme, "http") && len(importInfo.AccessKeyId) == 0 {
+		dataReader = getDataWithHTTP(importInfo)
+	} else {
+		return nil, fmt.Errorf("Unable to determinte client for streaming %v\n", importInfo.Url)
 	}
-	return dataReader, filename, nil
+	return dataReader, nil
 }
 
 func ParseEnvVar(envVarName string, decode bool) string {
@@ -92,16 +90,13 @@ func StreamDataToFile(dataReader io.ReadCloser, filePath string) error {
 }
 
 func getDataWithS3Client(importInfo *importInfo) io.ReadCloser {
-	glog.Infoln("Creating Minio S3 client.")
+	glog.Infoln("Using S3 client to get data")
 	mc, err := minio.NewV4(importInfo.Url.Host, importInfo.AccessKeyId, importInfo.SecretKey, false)
 	if err != nil {
-		glog.Fatalf("getDataWithS3Client(): error building minio client for s3:// (%v)\n", importInfo.Url.Host)
-	}
-	if err != nil {
-		glog.Fatalf("func getDataWithS3Client: Could not create Minio client: %v", err)
+		glog.Fatalf("getDataWithS3Client(): error building minio client for %q\n", importInfo.Url.Host)
 	}
 	bucket, object, err := parseDataPath(importInfo.Url.Path)
-	glog.Infof("S3 Client streaming object %s", importInfo.Url.Path)
+	glog.Infof("Attempting to get object %q via S3 client\n", importInfo.Url.Path)
 	objectReader, err := mc.GetObject(bucket, object, minio.GetObjectOptions{})
 	if err != nil {
 		glog.Fatalf("func getDataWithS3Client: failed getting objectPath: %v", err)
@@ -110,6 +105,7 @@ func getDataWithS3Client(importInfo *importInfo) io.ReadCloser {
 }
 
 func getDataWithHTTP(importInfo *importInfo) io.ReadCloser {
+	glog.Infoln("Using HTTP GET to fetch data.")
 	resp, err := http.Get(importInfo.Endpoint)
 	if err != nil {
 		glog.Fatalf("func getDataWithHTTP: response body error: %v", err)
@@ -118,6 +114,6 @@ func getDataWithHTTP(importInfo *importInfo) io.ReadCloser {
 }
 
 func parseDataPath(dataPath string) (string, string, error) {
-	pathSlice := strings.Split(dataPath, "/")
-	return pathSlice[0], strings.Join(pathSlice[1:], "_"), nil
+	pathSlice := strings.Split(strings.Trim(dataPath, "/"), "/")
+	return pathSlice[0], strings.Join(pathSlice[1:], "/"), nil
 }

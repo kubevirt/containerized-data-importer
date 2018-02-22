@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	WRITE_PATH             = "/disk.img"
+	WRITE_PATH             = "/disk.img" // Cloner requirement, do not change.
 	IMPORTER_ENDPOINT      = "IMPORTER_ENDPOINT"
 	IMPORTER_ACCESS_KEY_ID = "IMPORTER_ACCESS_KEY_ID"
 	IMPORTER_SECRET_KEY    = "IMPORTER_SECRET_KEY"
@@ -41,16 +41,14 @@ func main() {
 	if err != nil {
 		glog.Fatalf("main(): \n")
 	}
-	dataReader, filename, err := NewDataReader(importInfo)
+	dataReader, err := NewDataReader(importInfo)
 	defer dataReader.Close()
 	if err != nil {
 		glog.Fatalf("main(): unable to create data reader: %v\n", err)
 	}
-	glog.Infof("Beginning import of %s\n", filename)
+	glog.Infof("Beginning import from %s\n", importInfo.Url.RawPath)
 	if err = StreamDataToFile(dataReader, WRITE_PATH); err != nil {
 		glog.Fatalf("main: unable to stream data to file: %v\n", err)
 	}
 	glog.Infoln("Import complete, exiting")
 }
-
-
