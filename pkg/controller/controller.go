@@ -100,7 +100,7 @@ func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
 	if ep == "" {
 		return fmt.Errorf("import endpoint missing for pvc %q", pvc.Name)
 	}
-	epSecret := getEndpointSecret(pvc)
+	epSecret := getEndpointSecret(c.clientset, pvc)
 	if epSecret == nil {
 		glog.Infof("processItem: no secret for endpoint %q\n", ep)
 	}
