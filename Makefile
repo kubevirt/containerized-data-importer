@@ -34,7 +34,7 @@ ARCH?=amd64
 
 # Compile controller binary
 controller-bin:
-	GOOS=$(PLATFORM) GOARCH=$(ARCH) go build -o $(CONTROLLER_BIN) $(CONTROLLER_CMD)/*.go
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -a -ldflags '-extldflags "-static"'  -o bin/import-controller cmd/controller/controller.go
 
 # Compile importer binary
 importer-bin:
