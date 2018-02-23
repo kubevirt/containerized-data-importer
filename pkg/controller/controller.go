@@ -44,11 +44,11 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	defer c.queue.ShutDown()
 	glog.Infoln("Starting CDI controller loop")
 	if threadiness < 1 {
-		return fmt.Errorf("controller.Run(): expected >0 threads, got %d", threadiness)
+		return fmt.Errorf("controller.Run: expected >0 threads, got %d", threadiness)
 	}
 	go c.pvcInformer.Run(stopCh)
 	if !cache.WaitForCacheSync(stopCh, c.pvcInformer.HasSynced) {
-		return fmt.Errorf("controller.Run(): Timeout waiting for cache sync")
+		return fmt.Errorf("controller.Run: Timeout waiting for cache sync")
 	}
 	glog.Infoln("Controller cache has synced")
 
@@ -75,19 +75,19 @@ func (c *Controller) processNextItem() bool {
 		c.queue.Forget(key)
 		return true
 	}
-	glog.Infoln("processNextItem(): Next item to process: ", pvc.Name)
+	glog.Infof("processNextItem: next pvc to process: %s\n", key)
 	if err != nil {
-		glog.Errorf("processNextItem(): error converting key to pvc: %v", err)
+		glog.Errorf("processNextItem: error converting key to pvc: %v", err)
 		c.queue.Forget(key)
 		return true
 	}
 	if !metav1.HasAnnotation(pvc.ObjectMeta, annEndpoint) {
-		glog.Infoln("processNextItem(): annotation not found, skipping item")
+		glog.Infof("processNextItem: annotation %q not found, skipping pvc\n", annEndpoint)
 		c.queue.Forget(key)
 		return true
 	}
 	if err := c.processItem(pvc); err != nil {
-		glog.Errorf("processNextItem(): error processing key: %v", err)
+		glog.Errorf("processNextItem: error processing key %q: %v", key, err)
 		c.queue.Forget(key)
 	}
 	return true
@@ -96,9 +96,9 @@ func (c *Controller) processNextItem() bool {
 // Create the importer pod (and its secert if needed).
 // Place a watch on the importer pod and annotate the pvc when the importer pod terminates.
 func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
-	ep := getEndpoint(pvc)
-	if ep == "" {
-		return fmt.Errorf("import endpoint missing for pvc %q", pvc.Name)
+	ep, err := getEndpoint(pvc)
+	if err != nil {
+		return fmt.Errorf("processItem: %v\n", err)
 	}
 	epSecret := getEndpointSecret(c.clientset, pvc)
 	if epSecret == nil {
@@ -109,6 +109,6 @@ func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
 		return fmt.Errorf("processItem: error creating importer pod: %v\n", err)
 	}
 	//just reference pod to prevent compile error
-	glog.Infof("importer pod %q created", importPod.Name)
+	glog.Infof("importer pod %q will be created...", importPod.Name)
 	return nil
 }
