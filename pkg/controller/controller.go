@@ -17,6 +17,9 @@ const (
 	annEndpoint = "kubevirt.io/storage.import.endpoint"
 	annSecret   = "kubevirt.io/storage.import.secretName"
 	annStatus   = "kubevirt.io/storage.import.status"
+	pvcStatusInProcess = "In-process"
+	pvcStatusSuccess   = "Success"
+	pvcStatusFailed    = "Failed"
 )
 
 type Controller struct {
@@ -64,6 +67,7 @@ func (c *Controller) runWorkers() {
 	}
 }
 
+// Select pvcs with annEndpoint and without annStatus.
 func (c *Controller) processNextItem() bool {
 	key, shutdown := c.queue.Get()
 	if shutdown {
@@ -86,6 +90,11 @@ func (c *Controller) processNextItem() bool {
 		c.queue.Forget(key)
 		return true
 	}
+	if metav1.HasAnnotation(pvc.ObjectMeta, annStatus) {
+		glog.Infof("processNextItem: annotation %q present, skipping pvc\n", annStatus)
+		c.queue.Forget(key)
+		return true
+	}
 	if err := c.processItem(pvc); err != nil {
 		glog.Errorf("processNextItem: error processing key %q: %v", key, err)
 		c.queue.Forget(key)
@@ -93,18 +102,25 @@ func (c *Controller) processNextItem() bool {
 	return true
 }
 
-// Create the importer pod (and its secert if needed).
+// Create the importer pod and its secert if needed.
 // Place a watch on the importer pod and annotate the pvc when the importer pod terminates.
 func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
 	ep, err := getEndpoint(pvc)
 	if err != nil {
 		return fmt.Errorf("processItem: %v\n", err)
 	}
-	epSecret := getEndpointSecret(c.clientset, pvc)
-	if epSecret == nil {
-		glog.Infof("processItem: no secret for endpoint %q\n", ep)
+	epSecret, err := c.getEndpointSecret(pvc)
+	if err != nil {
+		return fmt.Errorf("processItem: %v\n", err)
 	}
-	importPod, err := createImporterPod(ep, epSecret, pvc)
+	if epSecret == nil {
+		glog.Infof("processItem: no secret will be supplied to endpoint %q\n", ep)
+	}
+	locPVC, err := c.setPVCStatus(pvc, pvcStatusInProcess)
+	if err != nil {
+		return fmt.Errorf("processItem: %v\n", err)
+	}
+	importPod, err := createImporterPod(ep, epSecret, locPVC)
 	if err != nil {
 		return fmt.Errorf("processItem: error creating importer pod: %v\n", err)
 	}
