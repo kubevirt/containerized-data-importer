@@ -5,9 +5,7 @@ import (
 
 	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // return a pvc pointer based on the passed-in work queue key.
@@ -42,24 +40,34 @@ func getEndpoint(pvc *v1.PersistentVolumeClaim) (string, error) {
 
 // returns a pointer to the secret containing endpoint credentials consumed by the importer pod.
 // Nil implies there are no credentials for the endpoint being used.
-func getEndpointSecret(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) *v1.Secret {
+func (c *Controller) getEndpointSecret(pvc *v1.PersistentVolumeClaim) (*v1.Secret, error) {
 	ns := pvc.Namespace
 	secretName, found := pvc.Annotations[annSecret]
 	if !found || secretName == "" {
-		glog.Infof("secret %q is missing in pvc %s/%s\n", annSecret, ns, pvc.Name)
-		return nil
+		glog.Infof("getEndpointSecret: secret %q is missing in pvc %s/%s\n", annSecret, ns, pvc.Name)
+		return nil, nil // no error
 	}
-	glog.Infof("retrieving Secret %s/%s\n", ns, secretName)
-	secret, err := client.CoreV1().Secrets(ns).Get(secretName, metav1.GetOptions{})
-	if apierrs.IsNotFound(err) {
-		glog.Errorf("getEndpointSecret: secret %q defined in pvc %s/%s does not exist\n", secretName, ns, pvc.Name)
-		return nil
-	}
+	glog.Infof("retrieving Secret \"%s/%s\"\n", ns, secretName)
+	secret, err := c.clientset.CoreV1().Secrets(ns).Get(secretName, metav1.GetOptions{})
 	if err != nil {
-		glog.Errorf("getEndpointSecret: error getting secret %q defined in pvc %s/%s: %v\n", secretName, ns, pvc.Name, err)
-		return nil
+		return nil, fmt.Errorf("getEndpointSecret: error getting secret %q defined in pvc \"%s/%s\": %v\n", secretName, ns, pvc.Name, err)
 	}
-	return secret
+	return secret, nil
+}
+
+// set the pvc's "status" annotation to the passed-in value.
+func (c *Controller) setPVCStatus(pvc *v1.PersistentVolumeClaim, status string) (*v1.PersistentVolumeClaim, error) {
+	if val, ok := pvc.Annotations[annStatus]; ok && val == status {
+		return pvc, nil // annotation already set
+	}
+	// don't mutate the original pvc since it's from the shared informer
+	pvcClone := pvc.DeepCopy()
+	metav1.SetMetaDataAnnotation(&pvcClone.ObjectMeta, annStatus, status)
+	newPVC, err := c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(pvcClone)
+	if err != nil {
+		return nil, fmt.Errorf("error updating pvc %s/%s: %v\n", pvc.Namespace, pvc.Name, err)
+	}
+	return newPVC, nil
 }
 
 // returns a pointer to a pod which is created based on the passed-in endpoint,
