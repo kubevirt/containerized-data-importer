@@ -5,6 +5,7 @@ import (
 
 	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -39,20 +40,30 @@ func getEndpoint(pvc *v1.PersistentVolumeClaim) (string, error) {
 }
 
 // returns a pointer to the secret containing endpoint credentials consumed by the importer pod.
-// Nil implies there are no credentials for the endpoint being used.
-func (c *Controller) getEndpointSecret(pvc *v1.PersistentVolumeClaim) (*v1.Secret, error) {
+// Nil pvc implies there are no credentials for the endpoint being used. A returned error
+// causes processNextItem() to stop. If returned skipPVC is true this pvc is not processed but
+// will be requeued.
+func (c *Controller) getEndpointSecret(pvc *v1.PersistentVolumeClaim) (secret *v1.Secret, skipPVC bool, err error) {
 	ns := pvc.Namespace
 	secretName, found := pvc.Annotations[annSecret]
-	if !found || secretName == "" {
-		glog.Infof("getEndpointSecret: secret %q is missing in pvc %s/%s\n", annSecret, ns, pvc.Name)
-		return nil, nil // no error
+	if !found {
+		glog.Infof("getEndpointSecret: annotation %q is missing in pvc %s/%s\n", annSecret, ns, pvc.Name)
+		return nil, false, nil // no error
 	}
-	glog.Infof("retrieving Secret \"%s/%s\"\n", ns, secretName)
-	secret, err := c.clientset.CoreV1().Secrets(ns).Get(secretName, metav1.GetOptions{})
+	if secretName == "" {
+		glog.Infof("getEndpointSecret: secret name is missing from annotation %q in pvc \"%s/%s\n", annSecret, ns, pvc.Name)
+		return nil, false, nil // no error
+	}
+	glog.Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, secretName)
+	secret, err = c.clientset.CoreV1().Secrets(ns).Get(secretName, metav1.GetOptions{})
+	if apierrs.IsNotFound(err) {
+		glog.Infof("getEndpointSecret: secret %q defined in pvc \"%s/%s\" is missing\n", secretName, ns, pvc.Name)
+		return nil, true, nil // no error
+	}
 	if err != nil {
-		return nil, fmt.Errorf("getEndpointSecret: error getting secret %q defined in pvc \"%s/%s\": %v\n", secretName, ns, pvc.Name, err)
+		return nil, true, fmt.Errorf("getEndpointSecret: error getting secret %q defined in pvc \"%s/%s\": %v\n", secretName, ns, pvc.Name, err)
 	}
-	return secret, nil
+	return secret, false, nil
 }
 
 // set the pvc's "status" annotation to the passed-in value.
@@ -70,9 +81,62 @@ func (c *Controller) setPVCStatus(pvc *v1.PersistentVolumeClaim, status string) 
 	return newPVC, nil
 }
 
-// returns a pointer to a pod which is created based on the passed-in endpoint,
-// secret, and pvc.
-func createImporterPod(ep string, secret *v1.Secret, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+// return a pointer to a pod which is created based on the passed-in endpoint,
+// secret, and pvc. A nil secret means the endpoint credentials are not passed
+// to the importer pod.
+func (c *Controller) createImporterPod(ep string, secret *v1.Secret, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+	pod := makeImporterPodSpec(ep, secret, pvc)
 
-	return &v1.Pod{}, nil //TODO
+	return pod, nil
+}
+
+// return the importer pod spec based on the passed-in endpoint, secret and pvc.
+func makeImporterPodSpec(ep string, secret *v1.Secret, pvc *v1.PersistentVolumeClaim) *v1.Pod {
+	if secret != nil {
+	}
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				annCreatedBy: "yes",
+			},
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:    "importer", //TODO name must be unique!
+					Image:   "docker.io/jcoperh/importer:latest",
+					ImagePullPolicy: v1.PullAlways,
+					Env: []v1.EnvVar{
+						{
+							Name: "IMPORTER_ENDPOINT",
+							Value: ep,
+						},
+					},
+					VolumeMounts: []v1.VolumeMount{
+						{
+							Name: "data-path",
+							MountPath: "/data",
+						},
+					},
+				},
+			},
+			RestartPolicy: v1.RestartPolicyNever,
+			Volumes: []v1.Volume{
+				{
+					Name: "data-path",
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvc.Name,
+							ReadOnly:  false,
+						},
+					},
+				},
+			},
+		},
+	}
+	return pod
 }
