@@ -14,12 +14,16 @@ import (
 )
 
 const (
+	// pvc annotations
 	annEndpoint = "kubevirt.io/storage.import.endpoint"
 	annSecret   = "kubevirt.io/storage.import.secretName"
 	annStatus   = "kubevirt.io/storage.import.status"
+	// importer pod annotations
+	annCreatedBy = "kubevirt.io/storage.createdByController"
+	// pvc statuses
 	pvcStatusInProcess = "In-process"
 	pvcStatusSuccess   = "Success"
-	pvcStatusFailed    = "Failed"
+	pvcStatusFailed	   = "Failed"
 )
 
 type Controller struct {
@@ -109,9 +113,14 @@ func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
 	if err != nil {
 		return fmt.Errorf("processItem: %v\n", err)
 	}
-	epSecret, err := c.getEndpointSecret(pvc)
+	epSecret, skip, err := c.getEndpointSecret(pvc)
 	if err != nil {
 		return fmt.Errorf("processItem: %v\n", err)
+	}
+	if skip {
+		// skip this pvc and try again. Note: annStatus has not been set yet
+		c.enqueue(pvc) // re-queue pvc
+		return nil
 	}
 	if epSecret == nil {
 		glog.Infof("processItem: no secret will be supplied to endpoint %q\n", ep)
@@ -120,11 +129,19 @@ func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
 	if err != nil {
 		return fmt.Errorf("processItem: %v\n", err)
 	}
-	importPod, err := createImporterPod(ep, epSecret, locPVC)
+	importPod, err := c.createImporterPod(ep, epSecret, locPVC)
 	if err != nil {
 		return fmt.Errorf("processItem: error creating importer pod: %v\n", err)
 	}
 	//just reference pod to prevent compile error
 	glog.Infof("importer pod %q will be created...", importPod.Name)
 	return nil
+}
+
+// re-queue the pvc.
+func (c *Controller) enqueue(obj interface{}) {
+	key, err := cache.MetaNamespaceKeyFunc(obj)
+	if err == nil {
+		c.queue.AddRateLimited(key)
+	}
 }
