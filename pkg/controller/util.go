@@ -85,21 +85,26 @@ func (c *Controller) setPVCStatus(pvc *v1.PersistentVolumeClaim, status string) 
 // secret, and pvc. A nil secret means the endpoint credentials are not passed
 // to the importer pod.
 func (c *Controller) createImporterPod(ep string, secret *v1.Secret, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+	ns := pvc.Namespace
 	pod := makeImporterPodSpec(ep, secret, pvc)
-
+	var err error
+	pod, err = c.clientset.CoreV1().Pods(ns).Create(pod)
+	if err != nil {
+		return nil, fmt.Errorf("createImporterPod: Create failed: %v\n", err)
+	}
+	glog.Infof("importer pod \"%s/%s\" created\n", pod.Namespace, pod.Name)
 	return pod, nil
 }
 
 // return the importer pod spec based on the passed-in endpoint, secret and pvc.
 func makeImporterPodSpec(ep string, secret *v1.Secret, pvc *v1.PersistentVolumeClaim) *v1.Pod {
-	if secret != nil {
-	}
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "importer-",
 			Annotations: map[string]string{
 				annCreatedBy: "yes",
 			},
@@ -107,7 +112,7 @@ func makeImporterPodSpec(ep string, secret *v1.Secret, pvc *v1.PersistentVolumeC
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Name:    "importer", //TODO name must be unique!
+					Name:    "importer",
 					Image:   "docker.io/jcoperh/importer:latest",
 					ImagePullPolicy: v1.PullAlways,
 					Env: []v1.EnvVar{
@@ -137,6 +142,8 @@ func makeImporterPodSpec(ep string, secret *v1.Secret, pvc *v1.PersistentVolumeC
 				},
 			},
 		},
+	}
+	if secret != nil {
 	}
 	return pod
 }
