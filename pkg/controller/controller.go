@@ -131,7 +131,7 @@ func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
 	}
 	importPod, err := c.createImporterPod(ep, epSecret, locPVC)
 	if err != nil {
-		return fmt.Errorf("processItem: error creating importer pod: %v\n", err)
+		return fmt.Errorf("processItem: %v\n", err)
 	}
 	//just reference pod to prevent compile error
 	glog.Infof("importer pod %q will be created...", importPod.Name)
