@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	WRITE_PATH             = "/disk.img" // Cloner requirement, do not change.
+	WRITE_PATH             = "/data/disk.img" // Coupled with controller, do not change.
 	IMPORTER_ENDPOINT      = "IMPORTER_ENDPOINT"
 	IMPORTER_ACCESS_KEY_ID = "IMPORTER_ACCESS_KEY_ID"
 	IMPORTER_SECRET_KEY    = "IMPORTER_SECRET_KEY"
