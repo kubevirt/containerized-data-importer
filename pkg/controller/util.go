@@ -112,18 +112,12 @@ func makeImporterPodSpec(ep string, secret *v1.Secret, pvc *v1.PersistentVolumeC
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Name:    "importer",
-					Image:   "docker.io/jcoperh/importer:latest",
+					Name:            "importer",
+					Image:           "docker.io/jcoperh/importer:latest",
 					ImagePullPolicy: v1.PullAlways,
-					Env: []v1.EnvVar{
-						{
-							Name: "IMPORTER_ENDPOINT",
-							Value: ep,
-						},
-					},
 					VolumeMounts: []v1.VolumeMount{
 						{
-							Name: "data-path",
+							Name:      "data-path",
 							MountPath: "/data",
 						},
 					},
@@ -143,7 +137,40 @@ func makeImporterPodSpec(ep string, secret *v1.Secret, pvc *v1.PersistentVolumeC
 			},
 		},
 	}
-	if secret != nil {
-	}
+	pod.Spec.Containers[0].Env = makeEnv(secret, ep)
 	return pod
+}
+
+// return the Env portion for the importer container.
+func makeEnv(secret *v1.Secret, endpoint string) []v1.EnvVar {
+	env := []v1.EnvVar{
+		{
+			Name:  "IMPORTER_ENDPOINT",
+			Value: endpoint,
+		},
+	}
+	if secret != nil {
+		env = append(env, v1.EnvVar{
+			Name: "IMPORTER_ACCESS_KEY_ID",
+			ValueFrom: &v1.EnvVarSource{
+				SecretKeyRef: &v1.SecretKeySelector{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: secret.ObjectMeta.Name,
+					},
+					Key: "accessKeyId",
+				},
+			},
+		}, v1.EnvVar{
+			Name: "IMPORTER_SECRET_KEY",
+			ValueFrom: &v1.EnvVarSource{
+				SecretKeyRef: &v1.SecretKeySelector{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: secret.ObjectMeta.Name,
+					},
+					Key: "secretKey",
+				},
+			},
+		})
+	}
+	return env
 }

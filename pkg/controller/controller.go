@@ -23,7 +23,7 @@ const (
 	// pvc statuses
 	pvcStatusInProcess = "In-process"
 	pvcStatusSuccess   = "Success"
-	pvcStatusFailed	   = "Failed"
+	pvcStatusFailed    = "Failed"
 )
 
 type Controller struct {
@@ -139,6 +139,9 @@ func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
 }
 
 // re-queue the pvc.
+// TODO: figue out if there's a way to slow down the processing of the re-queuing.
+//   Log indicates this pvc re-queue is processed almost immediately. Better to add
+//   a short delay...
 func (c *Controller) enqueue(obj interface{}) {
 	key, err := cache.MetaNamespaceKeyFunc(obj)
 	if err == nil {
