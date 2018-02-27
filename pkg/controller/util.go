@@ -2,11 +2,13 @@ package controller
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 // return a pvc pointer based on the passed-in work queue key.
@@ -39,31 +41,32 @@ func getEndpoint(pvc *v1.PersistentVolumeClaim) (string, error) {
 	return ep, nil
 }
 
-// returns a pointer to the secret containing endpoint credentials consumed by the importer pod.
-// Nil pvc implies there are no credentials for the endpoint being used. A returned error
-// causes processNextItem() to stop. If returned skipPVC is true this pvc is not processed but
-// will be requeued.
-func (c *Controller) getEndpointSecret(pvc *v1.PersistentVolumeClaim) (secret *v1.Secret, skipPVC bool, err error) {
+// returns the name of the secret containing endpoint credentials consumed by the importer pod.
+// A value of "" implies there are no credentials for the endpoint being used. A returned error
+// causes processNextItem() to stop.
+func (c *Controller) getSecretName(pvc *v1.PersistentVolumeClaim) (string, error) {
 	ns := pvc.Namespace
-	secretName, found := pvc.Annotations[annSecret]
-	if !found {
-		glog.Infof("getEndpointSecret: annotation %q is missing in pvc %s/%s\n", annSecret, ns, pvc.Name)
-		return nil, false, nil // no error
+	name, found := pvc.Annotations[annSecret]
+	if !found || name == "" {
+		msg := ""
+		if !found {
+			msg = fmt.Sprintf("getEndpointSecret: annotation %q is missing in pvc %s/%s\n", annSecret, ns, pvc.Name)
+		} else {
+			msg = fmt.Sprintf("getEndpointSecret: secret name is missing from annotation %q in pvc \"%s/%s\n", annSecret, ns, pvc.Name)
+		}
+		glog.Info(msg)
+		return "", nil // importer pod will not contain secret credentials
 	}
-	if secretName == "" {
-		glog.Infof("getEndpointSecret: secret name is missing from annotation %q in pvc \"%s/%s\n", annSecret, ns, pvc.Name)
-		return nil, false, nil // no error
-	}
-	glog.Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, secretName)
-	secret, err = c.clientset.CoreV1().Secrets(ns).Get(secretName, metav1.GetOptions{})
+	glog.Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, name)
+	_, err := c.clientset.CoreV1().Secrets(ns).Get(name, metav1.GetOptions{})
 	if apierrs.IsNotFound(err) {
-		glog.Infof("getEndpointSecret: secret %q defined in pvc \"%s/%s\" is missing\n", secretName, ns, pvc.Name)
-		return nil, true, nil // no error
+		glog.Infof("getEndpointSecret: secret %q defined in pvc \"%s/%s\" is missing. Importer pod will run once this secret is created\n", name, ns, pvc.Name)
+		return name, nil
 	}
 	if err != nil {
-		return nil, true, fmt.Errorf("getEndpointSecret: error getting secret %q defined in pvc \"%s/%s\": %v\n", secretName, ns, pvc.Name, err)
+		return "", fmt.Errorf("getEndpointSecret: error getting secret %q defined in pvc \"%s/%s\": %v\n", name, ns, pvc.Name, err)
 	}
-	return secret, false, nil
+	return name, nil
 }
 
 // set the pvc's "status" annotation to the passed-in value.
@@ -73,20 +76,35 @@ func (c *Controller) setPVCStatus(pvc *v1.PersistentVolumeClaim, status string) 
 	}
 	// don't mutate the original pvc since it's from the shared informer
 	pvcClone := pvc.DeepCopy()
-	metav1.SetMetaDataAnnotation(&pvcClone.ObjectMeta, annStatus, status)
-	newPVC, err := c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(pvcClone)
-	if err != nil {
-		return nil, fmt.Errorf("error updating pvc %s/%s: %v\n", pvc.Namespace, pvc.Name, err)
-	}
-	return newPVC, nil
+
+	var newPVC *v1.PersistentVolumeClaim
+	// loop a few times in case the cloned pvc is stale
+	err := wait.PollImmediate(time.Second*1, time.Second*4, func() (bool, error) {
+		var err error
+		metav1.SetMetaDataAnnotation(&pvcClone.ObjectMeta, annStatus, status)
+		newPVC, err = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(pvcClone)
+		if err == nil {
+			return true, nil // successful update
+		}
+		verb := "updating"
+		if apierrs.IsConflict(err) { // pvc is likely stale
+			pvcClone, err = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
+			if err == nil {
+				return false, nil // re-try adding annotation
+			}
+			verb = "getting"
+		}
+		return true, fmt.Errorf("setPVCStatus: error %s pvc %s/%s: %v\n", verb, pvc.Namespace, pvc.Name, err)
+	})
+	return newPVC, err
 }
 
-// return a pointer to a pod which is created based on the passed-in endpoint,
-// secret, and pvc. A nil secret means the endpoint credentials are not passed
-// to the importer pod.
-func (c *Controller) createImporterPod(ep string, secret *v1.Secret, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+// return a pointer to a pod which is created based on the passed-in endpoint, secret
+// name, and pvc. A nil secret means the endpoint credentials are not passed to the
+// importer pod.
+func (c *Controller) createImporterPod(ep, secretName string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
 	ns := pvc.Namespace
-	pod := makeImporterPodSpec(ep, secret, pvc)
+	pod := makeImporterPodSpec(ep, secretName, pvc)
 	var err error
 	pod, err = c.clientset.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
@@ -97,7 +115,7 @@ func (c *Controller) createImporterPod(ep string, secret *v1.Secret, pvc *v1.Per
 }
 
 // return the importer pod spec based on the passed-in endpoint, secret and pvc.
-func makeImporterPodSpec(ep string, secret *v1.Secret, pvc *v1.PersistentVolumeClaim) *v1.Pod {
+func makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -137,25 +155,25 @@ func makeImporterPodSpec(ep string, secret *v1.Secret, pvc *v1.PersistentVolumeC
 			},
 		},
 	}
-	pod.Spec.Containers[0].Env = makeEnv(secret, ep)
+	pod.Spec.Containers[0].Env = makeEnv(ep, secret)
 	return pod
 }
 
 // return the Env portion for the importer container.
-func makeEnv(secret *v1.Secret, endpoint string) []v1.EnvVar {
+func makeEnv(endpoint, secret string) []v1.EnvVar {
 	env := []v1.EnvVar{
 		{
 			Name:  "IMPORTER_ENDPOINT",
 			Value: endpoint,
 		},
 	}
-	if secret != nil {
+	if secret != "" {
 		env = append(env, v1.EnvVar{
 			Name: "IMPORTER_ACCESS_KEY_ID",
 			ValueFrom: &v1.EnvVarSource{
 				SecretKeyRef: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
-						Name: secret.ObjectMeta.Name,
+						Name: secret,
 					},
 					Key: "accessKeyId",
 				},
@@ -165,7 +183,7 @@ func makeEnv(secret *v1.Secret, endpoint string) []v1.EnvVar {
 			ValueFrom: &v1.EnvVarSource{
 				SecretKeyRef: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
-						Name: secret.ObjectMeta.Name,
+						Name: secret,
 					},
 					Key: "secretKey",
 				},
