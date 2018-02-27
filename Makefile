@@ -73,9 +73,13 @@ clean:
 	-rm -rf $(CONTROLLER_BUILD)/tmp
 	-rm -rf $(IMPORTER_BUILD)/tmp
 
-# TODO add image specific push options
 # push CONTROLLER_IMAGE:$(VERSION). Intended to release stable image built from master branch.
-#release:
+release:
+	docker tag $(IMPORTER_IMAGE) $(REGISTRY)/$(IMPORTER_IMAGE):latest
+	docker push $(REGISTRY)/$(IMPORTER_IMAGE):latest
+	docker tag $(CONTROLLER_IMAGE) $(REGISTRY)/$(CONTROLLER_IMAGE):latest
+	docker push $(REGISTRY)/$(CONTROLLER_IMAGE):latest
+
 #	git fetch origin
 #ifneq ($(shell git rev-parse --abbrev-ref HEAD), master)
 #	$(error Release is intended to be run on master branch. Please checkout master and retry.)
@@ -86,5 +90,5 @@ clean:
 #ifneq ($(shell git rev-list origin/master..HEAD --count), 0)
 #	$(error HEAD is ahead of origin/master --  $(shell git status -sb --porcelain))
 #endif
-#	docker tag $(IMAGE) $(REGISTRY)/$(CONTROLLER_IMAGE):$(VERSION)
-#	gcloud docker -- push $(REGISTRY)/$(CONTROLLER_IMAGE)
+#	docker tag $(IMAGE) $(REGISTRY)/$(CONTROLLER_IMAGE):latest
+#	docker push $(REGISTRY)/$(CONTROLLER_IMAGE):latest
