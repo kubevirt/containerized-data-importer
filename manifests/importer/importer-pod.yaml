@@ -14,18 +14,18 @@ spec:
     env:
     # REQUIRED!  Location of source data.
     - name: IMPORTER_ENDPOINT
-      value: "http://s3.amazonaws.com/kubevirt-images/hello-kubevirt"  # format: (http||s3)://www.Server.com/path/of/data
+      value: ""  # format: (http||s3)://www.Server.com/path/of/data
     # Optional.  If no credentials are required to access the source data, these fields should be removed.
     - name: IMPORTER_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:
-          name: endpoint-secret
-          key: accessKeyId
+          name: <YOUR ENDPOINT SECRET>
+          key: <access key id>
     - name: IMPORTER_SECRET_KEY
       valueFrom:
         secretKeyRef:
-          name: endpoint-secret
-          key: secretKey
+          name: <YOUR ENDPOINT SECRET>
+          key: <secret key>
     # End Optional
     volumeMounts:
     - name: data-path
