@@ -31,14 +31,17 @@ push: push-importer push-controller
 
 PLATFORM?=linux
 ARCH?=amd64
+ARCH?=amd64
+CGO_ENABLED=0
+LDFLAGS='-extldflags "-static"'
 
 # Compile controller binary
 controller-bin:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -a -ldflags '-extldflags "-static"'  -o bin/import-controller cmd/controller/controller.go
+	GOOS=linux GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -a -ldflags $(LDFLAGS) -o $(CONTROLLER_BIN) $(CONTROLLER_CMD)/*.go
 
 # Compile importer binary
 importer-bin:
-	GOOS=$(PLATFORM) GOARCH=$(ARCH) go build -o $(IMPORTER_BIN) $(IMPORTER_CMD)/*.go
+	GOOS=linux GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -a -ldflags $(LDFLAGS) -o $(IMPORTER_BIN) $(IMPORTER_CMD)/*.go
 
 # build the controller image
 controller-image: $(CONTROLLER_BUILD)/Dockerfile
