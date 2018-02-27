@@ -113,38 +113,22 @@ func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
 	if err != nil {
 		return fmt.Errorf("processItem: %v\n", err)
 	}
-	epSecret, skip, err := c.getEndpointSecret(pvc)
+	secretName, err := c.getSecretName(pvc)
 	if err != nil {
 		return fmt.Errorf("processItem: %v\n", err)
 	}
-	if skip {
-		// skip this pvc and try again. Note: annStatus has not been set yet
-		c.enqueue(pvc) // re-queue pvc
-		return nil
-	}
-	if epSecret == nil {
+	if secretName == "" {
 		glog.Infof("processItem: no secret will be supplied to endpoint %q\n", ep)
 	}
 	locPVC, err := c.setPVCStatus(pvc, pvcStatusInProcess)
 	if err != nil {
 		return fmt.Errorf("processItem: %v\n", err)
 	}
-	importPod, err := c.createImporterPod(ep, epSecret, locPVC)
+	importPod, err := c.createImporterPod(ep, secretName, locPVC)
 	if err != nil {
 		return fmt.Errorf("processItem: %v\n", err)
 	}
 	//just reference pod to prevent compile error
-	glog.Infof("importer pod %q will be created...", importPod.Name)
+	glog.Infof("importer pod %q created...", importPod.Name)
 	return nil
-}
-
-// re-queue the pvc.
-// TODO: figue out if there's a way to slow down the processing of the re-queuing.
-//   Log indicates this pvc re-queue is processed almost immediately. Better to add
-//   a short delay...
-func (c *Controller) enqueue(obj interface{}) {
-	key, err := cache.MetaNamespaceKeyFunc(obj)
-	if err == nil {
-		c.queue.AddRateLimited(key)
-	}
 }
