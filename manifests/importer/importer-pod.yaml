@@ -20,12 +20,12 @@ spec:
       valueFrom:
         secretKeyRef:
           name: <YOUR ENDPOINT SECRET>
-          key: <access key id>
+          key: <name of key for access key id>
     - name: IMPORTER_SECRET_KEY
       valueFrom:
         secretKeyRef:
           name: <YOUR ENDPOINT SECRET>
-          key: <secret key>
+          key: <name of key for secret key>
     # End Optional
     volumeMounts:
     - name: data-path
