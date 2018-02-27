@@ -24,7 +24,7 @@ them in in-cluster storage. The components of this process are detailed below.
 
 The diagram below illustrates the architecture and control flow of this project.
 
-![Topology](doc/data-import-service-stretch.png)
+![Topology](doc/diagrams/cdi-controller.png)
 
 
 ### Work Flow
