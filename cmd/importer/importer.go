@@ -36,10 +36,10 @@ func main() {
 		glog.Fatalf("main(): \n")
 	}
 	dataReader, err := NewDataReader(importInfo)
-	defer dataReader.Close()
 	if err != nil {
 		glog.Fatalf("main: unable to create data reader: %v\n", err)
 	}
+	defer dataReader.Close()
 	glog.Infof("Beginning import from %s\n", importInfo.Url.RawPath)
 	if err = StreamDataToFile(dataReader, common.IMPORTER_WRITE_PATH); err != nil {
 		glog.Fatalf("main: unable to stream data to file: %v\n", err)
