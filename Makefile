@@ -31,7 +31,6 @@ push: push-importer push-controller
 
 PLATFORM?=linux
 ARCH?=amd64
-ARCH?=amd64
 CGO_ENABLED=0
 LDFLAGS='-extldflags "-static"'
 
