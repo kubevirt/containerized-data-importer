@@ -1,3 +1,6 @@
+# This manifest is strictly intended for standalone testing of the data importer.  As such, it will not be similar
+# to the data importer pod created by the cdi-controller.  Here, we must provide the secret and endpoint information as
+# environmental variables.
 apiVersion: v1
 kind: Pod
 metadata:
@@ -9,27 +12,25 @@ spec:
     image: jcoperh/importer:latest
     imagePullPolicy: Always
     env:
-    # Secret vars
+    # REQUIRED!  Location of source data.
+    - name: IMPORTER_ENDPOINT
+      value: "http://s3.amazonaws.com/kubevirt-images/hello-kubevirt"  # format: (http||s3)://www.Server.com/path/of/data
+    # Optional.  If no credentials are required to access the source data, these fields should be removed.
     - name: IMPORTER_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:
-          name: importer-secret
+          name: endpoint-secret
           key: accessKeyId
     - name: IMPORTER_SECRET_KEY
       valueFrom:
         secretKeyRef:
-          name: importer-secret
+          name: endpoint-secret
           key: secretKey
-    # ConfigMap var
-    - name: IMPORTER_ENDPOINT
-      valueFrom:
-        configMapKeyRef:
-          name: importer-config
-          key: endpoint
+    # End Optional
     volumeMounts:
     - name: data-path
       mountPath: /data
   volumes:
   - name: data-path
     persistentVolumeClaim:
-      claimName: importer-pvc
+      claimName: golden-pvc
