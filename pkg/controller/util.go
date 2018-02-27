@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	"k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -122,7 +123,7 @@ func makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVolumeClaim) *v1.P
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: "importer-",
+			GenerateName: common.IMPORTER_PODNAME + "-",
 			Annotations: map[string]string{
 				annCreatedBy: "yes",
 			},
@@ -130,13 +131,13 @@ func makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVolumeClaim) *v1.P
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Name:            "importer",
+					Name:            common.IMPORTER_PODNAME,
 					Image:           "docker.io/jcoperh/importer:latest",
 					ImagePullPolicy: v1.PullAlways,
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      "data-path",
-							MountPath: "/data",
+							MountPath: common.IMPORTER_DATA_DIR,
 						},
 					},
 				},
@@ -163,29 +164,29 @@ func makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVolumeClaim) *v1.P
 func makeEnv(endpoint, secret string) []v1.EnvVar {
 	env := []v1.EnvVar{
 		{
-			Name:  "IMPORTER_ENDPOINT",
+			Name:  common.IMPORTER_ENDPOINT,
 			Value: endpoint,
 		},
 	}
 	if secret != "" {
 		env = append(env, v1.EnvVar{
-			Name: "IMPORTER_ACCESS_KEY_ID",
+			Name: common.IMPORTER_ACCESS_KEY_ID,
 			ValueFrom: &v1.EnvVarSource{
 				SecretKeyRef: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
 						Name: secret,
 					},
-					Key: "accessKeyId",
+					Key: common.KeyAccess,
 				},
 			},
 		}, v1.EnvVar{
-			Name: "IMPORTER_SECRET_KEY",
+			Name: common.IMPORTER_SECRET_KEY,
 			ValueFrom: &v1.EnvVarSource{
 				SecretKeyRef: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
 						Name: secret,
 					},
-					Key: "secretKey",
+					Key: common.KeySecret,
 				},
 			},
 		})

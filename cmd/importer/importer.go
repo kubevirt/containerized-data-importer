@@ -12,15 +12,9 @@ import (
 	"flag"
 	"net/url"
 
+	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/golang/glog"
 	. "github.com/kubevirt/containerized-data-importer/pkg/importer"
-)
-
-const (
-	WRITE_PATH             = "/data/disk.img" // Coupled with controller, do not change.
-	IMPORTER_ENDPOINT      = "IMPORTER_ENDPOINT"
-	IMPORTER_ACCESS_KEY_ID = "IMPORTER_ACCESS_KEY_ID"
-	IMPORTER_SECRET_KEY    = "IMPORTER_SECRET_KEY"
 )
 
 func init() {
@@ -30,12 +24,12 @@ func init() {
 func main() {
 	defer glog.Flush()
 	glog.Infoln("Starting importer")
-	ep := ParseEnvVar(IMPORTER_ENDPOINT, false)
-	acc := ParseEnvVar(IMPORTER_ACCESS_KEY_ID, false)
-	sec := ParseEnvVar(IMPORTER_SECRET_KEY, false)
+	ep := ParseEnvVar(common.IMPORTER_ENDPOINT, false)
+	acc := ParseEnvVar(common.IMPORTER_ACCESS_KEY_ID, false)
+	sec := ParseEnvVar(common.IMPORTER_SECRET_KEY, false)
 	importInfo, err := NewImportInfo(ep, acc, sec)
 	if err != nil {
-		glog.Fatalf("main(): unable to get env variables: %v\n", err)
+		glog.Fatalf("main: unable to get env variables: %v\n", err)
 	}
 	importInfo.Url, err = url.Parse(importInfo.Endpoint)
 	if err != nil {
@@ -44,10 +38,10 @@ func main() {
 	dataReader, err := NewDataReader(importInfo)
 	defer dataReader.Close()
 	if err != nil {
-		glog.Fatalf("main(): unable to create data reader: %v\n", err)
+		glog.Fatalf("main: unable to create data reader: %v\n", err)
 	}
 	glog.Infof("Beginning import from %s\n", importInfo.Url.RawPath)
-	if err = StreamDataToFile(dataReader, WRITE_PATH); err != nil {
+	if err = StreamDataToFile(dataReader, common.IMPORTER_WRITE_PATH); err != nil {
 		glog.Fatalf("main: unable to stream data to file: %v\n", err)
 	}
 	glog.Infoln("Import complete, exiting")

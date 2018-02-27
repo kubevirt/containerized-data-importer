@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/golang/glog"
 	"github.com/minio/minio-go"
 )
@@ -24,14 +25,14 @@ type importInfo struct {
 func NewImportInfo(endpoint, accessKey, secretKey string) (*importInfo, error) {
 	// check vars
 	if len(endpoint) == 0 {
-		return nil, fmt.Errorf("NewImportInfo(): IMPORTER_ENDPOINT is empty")
+		return nil, fmt.Errorf("NewImportInfo: %s env variable is empty/n", common.IMPORTER_ENDPOINT)
 	}
 	if len(accessKey) == 0 || len(secretKey) == 0 {
-		glog.Warningln("NewImportInfo(): IMPORTER_ACCESS_KEY_ID and/or IMPORTER_SECRET_KEY env variables are empty")
+		glog.Warningf("NewImportInfo: %s and/or %s env variables are empty/n", common.IMPORTER_ACCESS_KEY_ID, common.IMPORTER_SECRET_KEY)
 	}
 	url, err := url.Parse(endpoint)
 	if err != nil {
-		return nil, fmt.Errorf("NewImportInfo(): error parsing url: %v\n", err)
+		return nil, fmt.Errorf("NewImportInfo: error parsing url: %v\n", err)
 	}
 	return &importInfo{
 		Endpoint:    endpoint,
@@ -53,13 +54,13 @@ func NewDataReader(importInfo *importInfo) (io.ReadCloser, error) {
 			// Bucket is the url.host; object is the url.Path.
 			// So we alter the Url object to represent an aws bucket.
 			importInfo.Url.Path = strings.Join([]string{importInfo.Url.Host, importInfo.Url.Path}, "")
-			importInfo.Url.Host = "s3.amazonaws.com"
+			importInfo.Url.Host = common.IMPORTER_S3_HOST
 		}
 		dataReader = getDataWithS3Client(importInfo)
 	} else if strings.Contains(importInfo.Url.Scheme, "http") && len(importInfo.AccessKeyId) == 0 {
 		dataReader = getDataWithHTTP(importInfo)
 	} else {
-		return nil, fmt.Errorf("Unable to determinte client for streaming %v\n", importInfo.Url)
+		return nil, fmt.Errorf("NewDataReader: unable to determinte client for streaming %v\n", importInfo.Url)
 	}
 	return dataReader, nil
 }
@@ -69,7 +70,7 @@ func ParseEnvVar(envVarName string, decode bool) string {
 	if decode {
 		v, err := base64.StdEncoding.DecodeString(value)
 		if err != nil {
-			glog.Fatalf("Error decoding environment variable %q", envVarName)
+			glog.Fatalf("ParseEnvVar: error decoding environment variable %q", envVarName)
 		}
 		value = fmt.Sprintf("%s", v)
 	}
@@ -81,10 +82,10 @@ func StreamDataToFile(dataReader io.ReadCloser, filePath string) error {
 	outFile, err := os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
 	defer outFile.Close()
 	if err != nil {
-		return fmt.Errorf("func StreamDataToFile: create file error: %v", err)
+		return fmt.Errorf("StreamDataToFile: create file error: %v", err)
 	}
 	if _, err = io.Copy(outFile, dataReader); err != nil {
-		return fmt.Errorf("func StreamDataToFile: error streaming data: %v", err)
+		return fmt.Errorf("StreamDataToFile: error streaming data: %v", err)
 	}
 	return nil
 }
@@ -93,13 +94,13 @@ func getDataWithS3Client(importInfo *importInfo) io.ReadCloser {
 	glog.Infoln("Using S3 client to get data")
 	mc, err := minio.NewV4(importInfo.Url.Host, importInfo.AccessKeyId, importInfo.SecretKey, false)
 	if err != nil {
-		glog.Fatalf("getDataWithS3Client(): error building minio client for %q\n", importInfo.Url.Host)
+		glog.Fatalf("getDataWithS3Client: error building minio client for %q\n", importInfo.Url.Host)
 	}
 	bucket, object, err := parseDataPath(importInfo.Url.Path)
 	glog.Infof("Attempting to get object %q via S3 client\n", importInfo.Url.Path)
 	objectReader, err := mc.GetObject(bucket, object, minio.GetObjectOptions{})
 	if err != nil {
-		glog.Fatalf("func getDataWithS3Client: failed getting objectPath: %v", err)
+		glog.Fatalf("getDataWithS3Client: failed getting s3 object: \"%s/%s\": %v\n", bucket, object, err)
 	}
 	return objectReader
 }
@@ -108,7 +109,7 @@ func getDataWithHTTP(importInfo *importInfo) io.ReadCloser {
 	glog.Infoln("Using HTTP GET to fetch data.")
 	resp, err := http.Get(importInfo.Endpoint)
 	if err != nil {
-		glog.Fatalf("func getDataWithHTTP: response body error: %v", err)
+		glog.Fatalf("getDataWithHTTP: response body error: %v\n", err)
 	}
 	return resp.Body
 }
