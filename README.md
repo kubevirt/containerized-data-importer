@@ -15,11 +15,10 @@ of Kubernetes/Openshift orchestration of their virtualized app platforms.
 For the purposes of running a VM inside a container, the imported file referred to above
 is a VM image and is considered to be an immutable _golden image_  source for subsequent
 cloning and instantiation. As a first step in migration to a Kubernetes cluster, virtual machine
-images must be imported into a location accessible to the kubelet. The Data Importer 
+images must be imported into a location accessible to the kubelet. The Data Importer
 automates this by copying images from an external http repository and persisting
 them in in-cluster storage. The components of this process are detailed below.
 
-<<<<<<< HEAD
 ## Design
 
 The diagram below illustrates the architecture and control flow of this project.
@@ -33,13 +32,14 @@ the order they are number unless otherwise specified.
 
 0. An admin stores the data in a network accessible location outside of the Kubernetes cluster.
 
-_NOT SHOWN_: Admin creates a "golden" namespace which is restricted such that ordinary users cannot
+**NOT SHOWN:** Admin creates a "golden" namespace which is restricted such that ordinary users cannot
 create objects within it. This is to prevent a non-privileged user from trigger the import of
 a potentially large VM image.
+
 1. The admin creates one or more secrets, in the "golden" namespace, which contain base64
 encoded values of credentials to access the source file (VM image).
 
-_NOT NUMBERED_: Admin creates one or more Kubernetes Storage Classes which define the storage provisioner
+**NOT NUMBERED:** Admin creates one or more Kubernetes Storage Classes which define the storage provisioner
 and parameters needed by this provisioner. These storage classes will be referenced by the "golden"
 PVC created below.
 
@@ -78,7 +78,7 @@ annotations:
    the source file/image
    kubevirt.io/storage.import.secretName: Defined by the admin: the name of the existing
    Secret containing the credential to access the endoint.
-   kubevirt.io/storage.import.status: Added by the controller: the current status of the 
+   kubevirt.io/storage.import.status: Added by the controller: the current status of the
    PVC with respect to the import/copy process. Values include:
       ”In process”, “Success” ,“ Failed”
 
@@ -98,9 +98,6 @@ Creation begins automatically when the Golden PVC is created by an admin.
 **Endpoint Secret:** Long-lived secret in "golden" namespace that is defined and
 created by the admin. The Secret must contain the access key id and secret key required
 to make requests from the object store. The Secret is mounted by the Data Import pod.
-=======
-
->>>>>>> restructure docs
 
 **"Golden" Namespace:** Restricted/private Namespace for Golden PVCs and endpoint Secrets
 Also the namespace where the CDI Controller and CDI Importer pods run.
@@ -108,7 +105,7 @@ Also the namespace where the CDI Controller and CDI Importer pods run.
 **Golden PV:** Long-lived Persistent Volume created by the Dynamic Provisioner and
 written to by the Data Import Pod.  References the Golden Image volume in storage.
 
-**Golden PVC:** Long-lived Persistent Volume Claim manually created by an admin in the 
+**Golden PVC:** Long-lived Persistent Volume Claim manually created by an admin in the
 "golden" namespace. Linked to the Dynamic Provisioner via a reference to the storage class
 and automatically bound to a dynamically created Golden PV. The "default" provisioner and
 storage class is used in the example; however, the importer pod supports any dynamic provisioner
@@ -207,30 +204,8 @@ should support fast-cloning, and thus a non-default storage class may be needed.
 . Next, create the cdi controller:
 `kubectl create -f cdi-controller-pod.yaml`
 
-<<<<<<< HEAD
 . Next, create the persistent volume claim to trigger the import process;
 `# kubectl create -f golden-pvc.yaml`
-=======
-`# kubectl get -n images pods --show-all`
-
-And log output can be read with
-
-`# kubectl logs -n images data-importer`
-
-
-## Running the CDI Controller
-
-Deploying the containerized data import (CDI) controller requires creation of the "golden" namespace and
-the controller pod. The "golden" namespace where golden image import work occurs.
-It should be sufficiently restricted (RBAC, clusterRoleBindings) such that "regular" cluster users are not allowed to
-create objects in this namespace.
-
-A deployment manifest [template](missing) is provided. The deployment is created, via `kubectl -f ...`, in the
-namespace of the admin creating the controller. If the admin's context is not in the "golden" namespace then the
-`--namespace=<ns>` flag is needed to direct the deployment to be created in the desired namespace.
-
-... more later....
->>>>>>> restructure docs
 
 . Monitor the cdi-controller:
 `kubectl logs cdi-controller`
