@@ -4,11 +4,9 @@ and the associated Persistent Volume Claims (PVC) reside within a single, dedica
 or Openshift cluster.
 
 1. [Purpose](#purpose)
-2. [Design](#design)
-3. [Stretch Design](#stretch-design)
-4. [Running the Data Importer](#running-the-data-importer)
-5. [Running the CDI Controller](#running-the-cdi-controller)
-6. [Getting Started For Developers](#getting-started-for-developers)
+1. [Design](#design)
+1. [Running the Data Importer](#running-the-data-importer)
+1. [Getting Started For Developers](#getting-started-for-developers)
 
 ## Purpose
 
