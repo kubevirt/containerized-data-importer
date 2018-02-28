@@ -1,11 +1,10 @@
 # Containerized Data Importer
-This repo implements a fairly general file copier to a known location inside a Kubernetes or Openshift cluster.
-For the purposes of running a VM inside a container, this imported file is a VM image and is considered to be a _golden image_  source for later cloning and instantiation.
-The initial work supports only the import task, which will require some manual steps (i.e., creating the imported Pod, PV and PVC).
-The next phase will include a custom controller that watches for new PVCs that represent new files (e.g. VM images), and then automatically imports the new file to the known _golden_ location.
+This repo implements a fairly general file copier/importer. The importer, the controller which instantiates the importer,
+and the associated Persistent Volume Claims (PVC) reside within a single, dedicated namespace (project) inside a Kubernetes
+or Openshift cluster.
 
 1. [Purpose](#purpose)
-2. [Current Design](#design-current)
+2. [Design](#design)
 3. [Stretch Design](#stretch-design)
 4. [Running the Data Importer](#running-the-data-importer)
 5. [Running the CDI Controller](#running-the-cdi-controller)
@@ -13,44 +12,60 @@ The next phase will include a custom controller that watches for new PVCs that r
 
 ## Purpose
 
-The project eases the burden on cluster admins seeking to take advantage
-of Kubernetes orchestration for their virtualized app platforms.  As a first
-step in migration into a Kubernetes cluster, virtual machine images must
-be imported into a location accessible to the kubelet.  The Data Importer
-automates this by pulling images from an external http repository and preserving
-them in in-cluster storage.  The components of this process are detailed below.
+This project eases the burden on cluster admins seeking to take advantage
+of Kubernetes/Openshift orchestration of their virtualized app platforms.
+For the purposes of running a VM inside a container, the imported file referred to above
+is a VM image and is considered to be an immutable _golden image_  source for subsequent
+cloning and instantiation. As a first step in migration to a Kubernetes cluster, virtual machine
+images must be imported into a location accessible to the kubelet. The Data Importer 
+automates this by copying images from an external http repository and persisting
+them in in-cluster storage. The components of this process are detailed below.
 
-## Current Design
+## Design
 
-The below diagram illustrates the short term goal of this project.  For our current
-work we will not be focused on automation, implying that executing each step of
-the import process will be done manually. User Flow (Current) provides explanation
-of each step show in the diagram.
+The diagram below illustrates the architecture and control flow of this project.
 
-### Current User Flow
+### Work Flow
 Steps are identified by role according the the colored shape. Each step must be performed in
 the order they are number unless otherwise specified.
 
-0. An admin stores the data in a network accessible location.
-1. The admin must create the Golden PVC API Object in the kubernetes cluster. This step
-kicks of the automated provisioning of a Persistent Volume.
-2. The Dynamic Provisioner create the Persistent Volume API Object.
-3. (In parallel to 2) The Dynamic Provisioner provisions the backing storage.
-4. The admin creates the Endpoint Secret API Object.
-5. The admin then creates the Data Import Pod.  (Prereqs: 1 & 4)
-6. On startup, the Data Import Pod mounts the Secret and the PVC.  It then begins
-streaming data from object store to the Golden Image location via the mounted PVC.
+0. An admin stores the data in a network accessible location outside of the Kubernetes cluster.
+1. The admin creates a "golden" namespace which is restricted such that ordinary users cannot
+create objects within it. This is to prevent a non-privileged user from trigger the import of
+a potentially large VM image.
+1. The admin creates one or more secrets, in the "golden" namespace, which contain base64
+encoded values of credentials to access the source file (VM image).
+1. The admin creates one or more Kubernetes Storage Classes which define the storage provisioner
+and parameters needed by this provisioner. These storage classes will be referenced by the "golden"
+PVC created below.
+1. The admin creates the Controller's "golden" Deployment via a template provided in this repo.
+The Deployment launches the controller in the "golden" namespace and ensures only one instance of
+the controller is always running. This controller watches for PVCs containing special annotations
+which define the source file's endpoint path, and secret name (if credentials are needed to access the
+endpoint).
+1. The admin creates the Golden PVC in the "golden" namespace. This PVC references the Storage Class
+above, either explicitly or as the default. These "golden" PVCs, annotated per below, tell the
+controller to create and launch the impoter pod which does the file copy.
+1. The dynamic provisioner, referenced in the Storage Class, creates the Persistent Volume (PV) which
+contains the target destination information.
+1. (in parallel) The dynamic provisioner provisions the backing storage/volume, which for VM images, should
+support fast cloning. Note: for VM images there is a one-to-one mapping of a volume to a single image. Thus,
+each VM image has one PVC and one PV defining it.
+1. The Data Import Pod, created by the controller, mounts the Secret and the backend storage volume. It 
+copies the source file/image by streaming data from object store to the Golden Image location via the mounted PV.
+When the copy completes the importer pod terminates. The destination file/image name is always _disk.img_ but, 
+since there is one volume per image file, the parent directory will (and must) differ.
 
-On completion of step 6, the pod will exit and the import is ended.
 
-![Topology](doc/data-import-service-sprint.png)
+![Topology](doc/data-import-service-stretch.png)
 
-### Components (Current):
+
+### Components :
 **Object Store:** Arbitrary url-based storage location.  Currently we support
 http and S3 protocols.
 
-**Images Namespace:** Restricted/private Namespace for Golden Persistent
-Volume Claims. Data Importer Pod and it’s Endpoint Secret reside in this namespace.
+**"Golden" Namespace:** Restricted/private Namespace for Golden PVCs and endpoint Secrets
+Also the namespace where the CDI Controller and CDI Importer pods run.
 
 **Dynamic Provisioner:** Existing storage provisoner(s) which create
 the Golden Persistent Volume that reference an empty cluster storage volume.
@@ -59,224 +74,140 @@ Creation begins automatically when the Golden PVC is created by an admin.
 **Golden PV:** Long-lived Persistent Volume created by the Dynamic Provisioner and
 written to by the Data Import Pod.  References the Golden Image volume in storage.
 
-**Golden PVC:** Long-lived claim manually created by an admin in the Images namespace.
-Linked to the Dynamic Provisioner via a reference to the storage class and automatically
-bound to a dynamically created Golden PV.  The "default" provisioner and storage class
-is used in the example.  However, the importer pod should support any dynamic provisioner
-that provides mountable volumes.
+**Golden PVC:** Long-lived Persistent Volume Claim manually created by an admin in the 
+"golden" namespace. Linked to the Dynamic Provisioner via a reference to the storage class
+and automatically bound to a dynamically created Golden PV. The "default" provisioner and
+storage class is used in the example; however, the importer pod supports any dynamic provisioner
+which supports mountable volumes.
 
 **Storage Class:** Long-lived, default Storage Class which links Persistent
-Volume Claims to the default Dynamic Provisioner(s). Referenced by the golden PVC.
-The example makes use of the "default" provisioner. However, any provisioner that
-manages mountable volumes should be compatible.
+Volume Claims to the desired Dynamic Provisioner(s). Referenced by the golden PVC.
+The example makes use of the "default" provisioner; however, any provisioner that
+manages mountable volumes is compatible.
 
-**Endpoint Secret:** Short-lived secret in Images Namespace that must be defined
-and created by an admin.  The Secret must contain the url, object path (bucket/object),
-access key id and secret key required to make requests from the store.  The Secret
-is mounted by the Data Import Pod
+**Endpoint Secret:** Long-lived secret in "golden" namespace that is defined and
+created by the admin. The Secret must contain the access key id and secret key required
+to make requests from the object store. The Secret is mounted by the Data Import pod.
 
+**Data Import Controller:** Long-lived Controller pod in "golden" namespace.
+The controller scans for "golden" PVCs in the same namespace looking for specific
+annotations:
+   kubevirt.io/storage.import.endpoint:  Defined by the admin: the full endpoint URI for
+   the source file/image
+   kubevirt.io/storage.import.secretName: Defined by the admin: the name of the existing
+   Secret containing the credential to access the endoint.
+   kubevirt.io/storage.import.status: Added by the controller: the current status of the 
+   PVC with respect to the import/copy process. Values include:
+      ”In process”, “Success” ,“ Failed”
 
-**Data Import Pod:** Short-lived Pod in Images Namespace.  The Pod Spec must be defined
-by an admin to reference to Endpoint Secret and the Golden PVC.  On start, the Pod will
-mount both and run the data import binary that is baked into the container.  The copy process
-will consume values stored in the secret as environmental variables and stream data from
-the url endpoint to the Golden PV. On completions (whether success or failure) the pod will exit.
+On detecting a new PVC with the endpoint annotation (and lacking the status annotation), the
+controller creates the Data Importer pod "golden" namespace. The controller performs clean up
+operations after the data import process ends.
 
-## Stretch Design
+**Data Import Pod:** Short-lived pod in "golden" namespace. The pod is created by the
+controller and consumes the secret (if any) and the endpoint annotated in the PVC. It
+copies the object referenced by the PVC's endpoint annotation to the destination directory
+used by the storage class/provider. In all cases the target file **name** is _disk.img_.
 
-### Stertch User Flow
-Steps are identified by role according the the colored shape. Each step must be performed in
-the order they are number unless otherwise specified.
-
-> *NOTE:* Steps 1 & 2 only need to be performed once to initialize the cluster and are not required
-for subsequent imports.
-
-0. An admin stores the data in a network accessible location.
-1. Before starting the Data Import Controller, an admin must define and create a Secret
-API Object.  This secret will contain values required by the controller to connect the
-Data Import Pod to the Object Store.
-2. The admin will then create the Data Import Controller Pod, which will begin a watch for PVCs
-in the Images Namespace.
-3. The admin must create the Golden PVC API Object in the kubernetes cluster. This step
-kicks of the automated provisioning of a Persistent Volume.  This PVC will have an identifying
-annotation to signal the to the controller that it is a Golden Image volume.  This annotation
-must name the specific file or object to be store in it.  This name will be passed by the controller
-to the Data Import Pod.
-4. The Dynamic Provisioner create the Persistent Volume API Object.
-5. (In parallel to 4) The Dynamic Provisioner provisions the backing storage.
-6. The Data Import Controller creates the Endpoint Secret API Object.
-7. The Data Import Controller then creates the Data Import Pod.
-8. On startup, the Data Import Pod mounts the Secret and the PVC.  It then begins
-streaming data from the object store to the Golden Image location via the mounted PVC.
-
-![Topology](doc/data-import-service-stretch.png)
-
-### Components (Stretch):
-**Object Store:** Same as above
-
-**Namespace Images:** Same as above.
-
-**Dynamic Provisioner:** Same as above.
-
-**Golden PV:** Same as above.
-
-**Storage Class:** same as above
-
-**Golden PVC:** In addition to the above, the PVC will contain a special annotation
-to be detected by the controller.  This annotation will likely be the path of the
-data (bucket/object) to be copied.
-
-**Static Endpoint Secret:** Long-lived, admin defined secret, in the Default Namespace.
-The Secret contains url and access credentials required to reach the remote Object Store.
-Whenever the Data Import Controller detects a new Golden PVC, it will pass the values stored in
-this Secret into the Ephemeral Endpoint Secret to be consumed by the Data Import Pod.
-
-**Ephemeral Endpoint Secret:** Short-lived Secret in the Images Namespace. This Secret is created
-by the Data Import Controller and consumed by the Data Import Pod. After the Pod exits, the controller
-should clean up this Secret.
-
-**Data Import Controller:** Long-lived Controller Pod in Default Namespace.
-The controller scans for *bound* Golden PVCs in the Images Namespace with
-a special annotation.  On detecting a new PVC with this annotation, the controller
-creates the Data Importer Pod and Endpoint Secret in the Images namespace.  The controller
-will perform clean up operations after the data import process ends.
-
-**Data Import Pod:** Short-lived Pod in Images Namespace.  The Pod Spec will be dynamically defined by
-Data Import controller to reference the Golden PVC and the Ephemeral Endpoint Secret. On start, the Pod will
-mount both and run the data import binary that is baked into the container.  The import process
-will consume values stored in the secret as environmental variables and stream data from
-the endpoint to the Golden PV. On completions (whether success or failure) the pod will exit.
 
 ## Running the Data Importer
 
-Deploying the containerized data importer is fairly simple and requires little configuration.  In the current state,
-a user is expected to deploy each API object using `kubectl`.  Once the controller component is introduced,
-this should be reduced to manually creating the Persistent Volume Claim.
+Deploying the controller and importer pod fairly simple but requires several manual steps. An admin
+is expected to deploy the following object using `kubectl`. If the admin's current context is outside
+of the "golden" namespace then she is expected to use the `--namespace=<name>` kubectl flag:
+1. "golden" namespace where the controller, importer, secret(s) and PVC(s) live.
+1. secret(s) containing endpoint credentials. Not required if the endpoint(s) are public.
+1. storage class(es) defining the backend storage provisioner(s).
+1. controller pod via the Deployment template. Note that the controller pod spec needs to set an
+environment variable named OWN_NAMESPACE which can be done as:
+```
+...
+   imagePullPolicy: Always
+       env:
+         - name: OWN_NAMESPACE
+           valueFrom:
+             fieldRef:
+               fieldPath: metadata.namespace
+```
 
 ### Assumptions
 - A running Kubernetes cluster
 - A reachable object store
-- A file in the object store to be imported
+- A file in the object store to be imported.
 
 ### Configuration
 
 Make copies of the [example manifests](./manifests/importer) to some local directory for editing.  There are
 several values required by the data importer pod that are provided by the configMap and secret.
 
-The files you need are
-- importer-namespace.yaml
-- importer-pod-config.yaml
-- importer-pod-secret.yaml
-- importer-pod.yaml
-- importer-pvc.yaml
+The files needed are:
+- cdi-controller-pod.yaml
+- endpoint-secret.yaml
+- golden-pvc.yaml
 
-#### Edit importer-namespace.yaml
-If you wish to use a namespace other than _images_ edit this file.
-```yaml
-  name: images
-```
-> NOTE: if you change the namespace name you will also need to change it in the configmap, secret, pvc, and pod.
+#### cdi-controller-pod.yaml
+(to be replaced by a Deployment manifest)
 
-#### Edit importer-pod-config.yaml
-Configureable values are in the `data` stanza of the file.  The values are commented in-line but we'll cover them
-in a little more detail here.
+Defines the spec used by the controller. There should be nothing to edit in this file unless
+the "golden" namespace is desired to be hard-coded.
+Note: no namespace is supplied since the controller is excpected to be created from the "golden" namespace.
 
+#### endpoint-secret.yaml
 
-There are two mutually exclusive methods to access the source object. The first is via http(s) (e.g. www.MyDataStore.com/path/to/data). This is the most generic way to access remote data.
-It also assumes that the hosting server does not require authentication credentials (i.e. is publicly accessible).
-Set `url` to the full url and path of the data store and omit the `endpoint` value.
-```yaml
-  url: <url-to-your-data-path> # mutually exclusive w/ endpoint
-  endpoint: "" # empty
-```
-
-The second method makes use of an [s3-compliant](https://docs.minio.io/docs/golang-client-api-reference) endpoint.
-Typically the endpoint method expects certain credentials be specified in the secret (see below).
-Set `endpoint` to the top level domain or ip address and port of the server (e.g. www.MyDataStore.com:123), and omit the `url` value.
-```yaml
-  url: "" # empty
-  endpoint: "s3.amazonaws.com" # for example. Mutually exclusive w/ url
- ```
-
-`objectPath` should be the bucket name, followed by a forward slash `/`, followed by the object name.
-```yaml
-  ...
-  objectPath: "kubevirt-images/hello-kubevirt"  # expects: <bucket-name>/<object-name>
- ```
- > NOTE: the object-name portion of `objectPath` can contain multiple "/"s, which are converted to underscores in the destination file name.
-
-#### Edit importer-pod-secret.yaml
-
-This is only required when defining `endpoint` in importer-pod-config.yaml.  The credentials provided here
+One or more endpoint secrets in the "golden" namespace are required for non-public endpoints. If the
+endpoint is public there is no need to an endpoint secret. No namespace is supplied since the secret
+is excpected to be created from the "golden" namespace.
+##### Edit:
+- `metadata.name:` change this to a different secert name if desired. Remember to use this name in the
+PVC's secret annotation.
+-  `accessKeyId:` to contain the endpoint's key and/or user name. This value must be **base64** encoded
+with no extraneous linefeeds. Use `echo -n "xyzzy" | base64` or `printf "xyzzy" | base64` to avoid a
+trailing linefeed.
+-  `secretKey:`  the endpoint's secret or password, again base64 encoded.
+The credentials provided here
 are consumed by the S3 client inside the pod.
-> NOTE: the access key id and secret key **must** be base64 encoded with no extraneous linefeeds. Use `echo -n "xyzzy" | base64` or `printf "xyzzy" | base64` to avoid the trailing linefeed.
+> NOTE: the access key id and secret key **must** be base64 encoded without newlines (\n).
 
-```yaml
-  accessKeyId: "" # <your key or user name, base64 encoded>
-  secretKey:    "" # <your secret or password, base64 encoded>
-```
+#### golden-pvc.yaml
 
-Under the `data` stanza are these two keys.  Both are required by the S3 client.
-
-`accessKeyID` Must be the access token or username required to read from the object store.
-`secretKey` Must be the secret access key or password required to read from the object store.
-
-#### Edit importer-pvc.yaml
-
-Editing the pvc yaml file is required if the storage class named "default" does not meet the needs of the destination storage.
-For example, when copying VM image files, the backend storage should support fast-cloning, and thus a non-default storage class is likely needed.
-```yaml
-  storageClassName: default  # change this to the desired import destination storage class name
-```
-> NOTE: in GCE the default storage class (named "standard") is a pd and is trigged by omitting the entire `storageClassName` stanza.
-
+This is the template PVC. No namespace is supplied since the PVC is excpected to be created from the
+"golden" namespace. A storage class is also not provided since there is excpected to be a default
+storage class per cluster. A storage class will need to be added if the default storage provider does
+not met the needs of golden images. For example, when copying VM image files, the backend storage
+should support fast-cloning, and thus a non-default storage class may be needed.
+##### Edit:
+-  `storageClassName:` change this to the desired storage class for high speed cloning.
+-  `kubevirt.io/storage.import.endpoint:` change this to contain the source endpoint. Format:
+   (http||s3)://www.myUrl.com/path/of/data
+-  `kubevirt.io/storage.import.secretName:` (not needed for public endpoints). Edit the name of the
+    secret containing credentials for the supplied endpoint.
 
 ### Deploy the API Objects
 
-First, create the Namespace.
+. First, create the "golden" namespace:  (no manifests are provided)
 
-`# kubectl create -f importer-namespace.yaml`
+. Next, create one or more storage classes: (no manifests are provided).
 
-> NOTE: if you changed the namespace name you will also need to edit it in the configmap, secret, pvc, and pod.
+. Next, create the endpoint secrets:
+`kubectl create -f endpoint-secret.yaml`
 
-Next, create the configMap and secret.  If you defined the `url` value above, only create the configMap.
+. Next, create the cdi controller:
+`kubectl create -f cdi-controller-pod.yaml`
 
-`# kubectl create -f importer-pod-config.yaml -f importer-pod-secret.yaml`
+. Next, create the persistent volume claim to trigger the import process;
+`# kubectl create -f golden-pvc.yaml`
 
-Next, create the persistent volume claim.
+. Monitor the cdi-controller:
+`kubectl logs cdi-controller`
 
-`# kubectl create -f importer-pvc.yaml`
-
-Finally, deploy the data importer pod.
-
-`# kubectl create -f importer-pod.yaml`
-
-The pod will exit after the import is complete.  You can check the status of the pod like so
-
-`# kubectl get -n images pods --show-all`
-
-And log output can be read with
-
-`# kubectl logs -n images data-importer`
-
-
-## Running the CDI Controller
-
-Deploying the containerized data import (CDI) controller requires creation of the "golden" namespace and
-the controller pod. The "golden" namespace where golden image import work occurs.
-It should be sufficiently restricted (RBAC, clusterRoleBindings) such that "regular" cluster users are not allowed to
-create objects in this namespace.
-
-A deployment manifest [template](missing) is provided. The deployment is created, via `kubectl -f ...`, in the
-namespace of the admin creating the controller. If the admin's context is not in the "golden" namespace then the 
-`--namespace=<ns>` flag is needed to direct the deployment to be created in the desired namespace.
-
-... more later....
-
-
+. Monitor the importer pod:
+`kubectl logs <unique-name-of-importer pod>`  # shown in controller log above
 
 ## Getting Started For Developers
 
+See the readme under the _hack/_ directory.
+
+TODO: move text below to _hack/_
 ### Download source:
 
 `# in github fork kubevirt/containerized-data-importer to your personal repo`, then:
