@@ -23,6 +23,9 @@ them in in-cluster storage. The components of this process are detailed below.
 
 The diagram below illustrates the architecture and control flow of this project.
 
+![Topology](doc/data-import-service-stretch.png)
+
+
 ### Work Flow
 Steps are identified by role according the the colored shape. Each step must be performed in
 the order they are number unless otherwise specified.
@@ -58,13 +61,11 @@ each VM image has one PVC and one PV defining it.
 location via the mounted PV. When the copy completes the importer pod terminates. The destination file/image
 name is always _disk.img_ but, since there is one volume per image file, the parent directory will (and must) differ.
 
-**Note** the diagram below needs some revisions. 1) the "golden" namespace in the diagram is named _images_.
+**Note** the diagram above needs some revisions. 1) the "golden" namespace in the diagram is named _images_.
 However, the diagram shows the controller in a different namespace. This is incorrect and will be revised.
 The controller, pvc, secret and importer pod all live in the same "golden" namespace. 2) there is no ephemeral
 secret. Each endpoint has a long lived secret in the "golden" namespace. The access and secret keys in these
 secrets are consumed by the importer pod and passed to the endpoint for authentication.
-
-![Topology](doc/data-import-service-stretch.png)
 
 
 ### Components :
