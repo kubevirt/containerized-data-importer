@@ -28,64 +28,46 @@ Steps are identified by role according the the colored shape. Each step must be 
 the order they are number unless otherwise specified.
 
 0. An admin stores the data in a network accessible location outside of the Kubernetes cluster.
-1. The admin creates a "golden" namespace which is restricted such that ordinary users cannot
+
+_NOT SHOWN_: Admin creates a "golden" namespace which is restricted such that ordinary users cannot
 create objects within it. This is to prevent a non-privileged user from trigger the import of
 a potentially large VM image.
 1. The admin creates one or more secrets, in the "golden" namespace, which contain base64
 encoded values of credentials to access the source file (VM image).
-1. The admin creates one or more Kubernetes Storage Classes which define the storage provisioner
+
+_NOT NUMBERED_: Admin creates one or more Kubernetes Storage Classes which define the storage provisioner
 and parameters needed by this provisioner. These storage classes will be referenced by the "golden"
 PVC created below.
-1. The admin creates the Controller's "golden" Deployment via a template provided in this repo.
+
+2. The admin creates the Controller using a Deployment manifest provided in this repo.
 The Deployment launches the controller in the "golden" namespace and ensures only one instance of
 the controller is always running. This controller watches for PVCs containing special annotations
 which define the source file's endpoint path, and secret name (if credentials are needed to access the
 endpoint).
-1. The admin creates the Golden PVC in the "golden" namespace. This PVC references the Storage Class
+3. The admin creates the Golden PVC in the "golden" namespace. This PVC references the Storage Class
 above, either explicitly or as the default. These "golden" PVCs, annotated per below, tell the
 controller to create and launch the impoter pod which does the file copy.
-1. The dynamic provisioner, referenced in the Storage Class, creates the Persistent Volume (PV) which
+4. The dynamic provisioner, referenced in the Storage Class, creates the Persistent Volume (PV) which
 contains the target destination information.
-1. (in parallel) The dynamic provisioner provisions the backing storage/volume, which for VM images, should
+5. (in parallel) The dynamic provisioner provisions the backing storage/volume, which for VM images, should
 support fast cloning. Note: for VM images there is a one-to-one mapping of a volume to a single image. Thus,
 each VM image has one PVC and one PV defining it.
-1. The Data Import Pod, created by the controller, mounts the Secret and the backend storage volume. It 
-copies the source file/image by streaming data from object store to the Golden Image location via the mounted PV.
-When the copy completes the importer pod terminates. The destination file/image name is always _disk.img_ but, 
-since there is one volume per image file, the parent directory will (and must) differ.
+6. (obsolete)
+7. The Data Import Pod, created by the controller, mounts the Secret and the backend storage volume.
+8. The importer pod copies the source file/image by streaming data from object store to the Golden Image
+location via the mounted PV. When the copy completes the importer pod terminates. The destination file/image
+name is always _disk.img_ but, since there is one volume per image file, the parent directory will (and must) differ.
 
+**Note** the diagram below needs some revisions. 1) the "golden" namespace in the diagram is named _images_.
+However, the diagram shows the controller in a different namespace. This is incorrect and will be revised.
+The controller, pvc, secret and importer pod all live in the same "golden" namespace. 2) there is no ephemeral
+secret. Each endpoint has a long lived secret in the "golden" namespace. The access and secret keys in these
+secrets are consumed by the importer pod and passed to the endpoint for authentication.
 
 ![Topology](doc/data-import-service-stretch.png)
 
 
 ### Components :
-**Object Store:** Arbitrary url-based storage location.  Currently we support
-http and S3 protocols.
-
-**"Golden" Namespace:** Restricted/private Namespace for Golden PVCs and endpoint Secrets
-Also the namespace where the CDI Controller and CDI Importer pods run.
-
-**Dynamic Provisioner:** Existing storage provisoner(s) which create
-the Golden Persistent Volume that reference an empty cluster storage volume.
-Creation begins automatically when the Golden PVC is created by an admin.
-
-**Golden PV:** Long-lived Persistent Volume created by the Dynamic Provisioner and
-written to by the Data Import Pod.  References the Golden Image volume in storage.
-
-**Golden PVC:** Long-lived Persistent Volume Claim manually created by an admin in the 
-"golden" namespace. Linked to the Dynamic Provisioner via a reference to the storage class
-and automatically bound to a dynamically created Golden PV. The "default" provisioner and
-storage class is used in the example; however, the importer pod supports any dynamic provisioner
-which supports mountable volumes.
-
-**Storage Class:** Long-lived, default Storage Class which links Persistent
-Volume Claims to the desired Dynamic Provisioner(s). Referenced by the golden PVC.
-The example makes use of the "default" provisioner; however, any provisioner that
-manages mountable volumes is compatible.
-
-**Endpoint Secret:** Long-lived secret in "golden" namespace that is defined and
-created by the admin. The Secret must contain the access key id and secret key required
-to make requests from the object store. The Secret is mounted by the Data Import pod.
 
 **Data Import Controller:** Long-lived Controller pod in "golden" namespace.
 The controller scans for "golden" PVCs in the same namespace looking for specific
@@ -106,6 +88,34 @@ operations after the data import process ends.
 controller and consumes the secret (if any) and the endpoint annotated in the PVC. It
 copies the object referenced by the PVC's endpoint annotation to the destination directory
 used by the storage class/provider. In all cases the target file **name** is _disk.img_.
+
+**Dynamic Provisioner:** Existing storage provisoner(s) which create
+the Golden Persistent Volume that reference an empty cluster storage volume.
+Creation begins automatically when the Golden PVC is created by an admin.
+
+**Endpoint Secret:** Long-lived secret in "golden" namespace that is defined and
+created by the admin. The Secret must contain the access key id and secret key required
+to make requests from the object store. The Secret is mounted by the Data Import pod.
+
+**"Golden" Namespace:** Restricted/private Namespace for Golden PVCs and endpoint Secrets
+Also the namespace where the CDI Controller and CDI Importer pods run.
+
+**Golden PV:** Long-lived Persistent Volume created by the Dynamic Provisioner and
+written to by the Data Import Pod.  References the Golden Image volume in storage.
+
+**Golden PVC:** Long-lived Persistent Volume Claim manually created by an admin in the 
+"golden" namespace. Linked to the Dynamic Provisioner via a reference to the storage class
+and automatically bound to a dynamically created Golden PV. The "default" provisioner and
+storage class is used in the example; however, the importer pod supports any dynamic provisioner
+which supports mountable volumes.
+
+**Object Store:** Arbitrary url-based storage location.  Currently we support
+http and S3 protocols.
+
+**Storage Class:** Long-lived, default Storage Class which links Persistent
+Volume Claims to the desired Dynamic Provisioner(s). Referenced by the golden PVC.
+The example makes use of the "default" provisioner; however, any provisioner that
+manages mountable volumes is compatible.
 
 
 ## Running the Data Importer
