@@ -30,27 +30,33 @@ The diagram below illustrates the architecture and control flow of this project.
 Steps are identified by role according the the colored shape. Each step must be performed in
 the order they are number unless otherwise specified.
 
+#### Assumptions
+
+- (Optional) A "golden" namespace  which is restricted such that ordinary users cannot
+create objects within it. This is to prevent a non-privileged user from trigger the import of a
+ potentially large VM image.  In tire kicking setups, "default" is an acceptable namespace.
+
+- (Required) A Kubernetes Storage Class which defines the storage provisioner. The "golden"
+pvc expects dynamic provisioning to be enabled in the cluster.
+
+#### Steps
+
 0. An admin stores the data in a network accessible location outside of the Kubernetes cluster.
 
-**NOT SHOWN:** Admin creates a "golden" namespace which is restricted such that ordinary users cannot
-create objects within it. This is to prevent a non-privileged user from trigger the import of
-a potentially large VM image.
-
-1. The admin creates one or more secrets, in the "golden" namespace, which contain base64
-encoded values of credentials to access the source file (VM image).
-
-**NOT NUMBERED:** Admin creates one or more Kubernetes Storage Classes which define the storage provisioner
-and parameters needed by this provisioner. These storage classes will be referenced by the "golden"
-PVC created below.
+1. (Optional) If the source repo requires authentication credentials to access the source endpoint,
+then the admin can create one or more secrets in the "golden" namespace, which contain
+base64 encoded values of credentials.
 
 2. The admin creates the Controller using a Deployment manifest provided in this repo.
-The Deployment launches the controller in the "golden" namespace and ensures only one instance of
-the controller is always running. This controller watches for PVCs containing special annotations
-which define the source file's endpoint path, and secret name (if credentials are needed to access the
+The Deployment launches the controller in the "golden" namespace and ensures only one instance of the
+controller is always running. This controller watches for PVCs containing special annotations which
+define the source file's endpoint path, and secret name (if credentials are needed to access the
 endpoint).
-3. The admin creates the Golden PVC in the "golden" namespace. This PVC references the Storage Class
-above, either explicitly or as the default. These "golden" PVCs, annotated per below, tell the
-controller to create and launch the impoter pod which does the file copy.
+
+3. The admin creates the Golden PVC in the "golden" namespace. This PVC references the
+Storage above, either explicitly or as the default. These "golden" PVCs, annotated per
+below, tell the controller to create and launch the impoter pod which does the file copy.
+
 4. The dynamic provisioner, referenced in the Storage Class, creates the Persistent Volume (PV) which
 contains the target destination information.
 5. (in parallel) The dynamic provisioner provisions the backing storage/volume, which for VM images, should
@@ -69,7 +75,7 @@ secret. Each endpoint has a long lived secret in the "golden" namespace. The acc
 secrets are consumed by the importer pod and passed to the endpoint for authentication.
 
 
-### Components :
+### Components
 
 **Data Import Controller:** Long-lived Controller pod in "golden" namespace.
 The controller scans for "golden" PVCs in the same namespace looking for specific
