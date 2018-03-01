@@ -4,7 +4,8 @@ This repo implements a fairly general file copier/importer. The importer, the co
 1. [Purpose](#purpose)
 1. [Design](#design)
 1. [Running the Data Importer](#running-the-data-importer)
-1. [Getting Started For Developers](hack/README.md#getting-started-for-developers)
+
+Development: for devs who want to dig into the code, see our hacking [README](hack/README.md#getting-started-for-developers) (WIP)
 
 ## Purpose
 
@@ -17,7 +18,7 @@ The diagram below illustrates the architecture and control flow of this project.
 ![](doc/diagrams/cdi-controller.png)
 
 ### Work Flow
-Steps are identified by role according the the colored shape. Each step must be performed in the order they are number unless otherwise specified.
+The agents responsible for each step are identified by corresponding colored shape.
 
 #### Assumptions
 
@@ -25,25 +26,23 @@ Steps are identified by role according the the colored shape. Each step must be 
 
 - (Required) A Kubernetes Storage Class which defines the storage provisioner. The "golden" pvc expects dynamic provisioning to be enabled in the cluster.
 
-#### Steps
+#### Event Sequence
 
-0. An admin stores the data in a network accessible location outside of the Kubernetes cluster.
+1. The admin creates the Controller using a Deployment manifest provided in this repo. The Deployment launches the controller in the "golden" namespace and ensures only one instance of the controller is always running. This controller watches for PVCs containing special annotations which define the source file's endpoint path and secret name (if credentials are needed to access the endpoint).
 
-1. (Optional) If the source repo requires authentication credentials to access the source endpoint, then the admin can create one or more secrets in the "golden" namespace, which contain base64 encoded values of credentials.
+1. (Optional) If the source repo requires authentication credentials to access the source endpoint, then the admin can create one or more secrets in the "golden" namespace, which contain the credentials in base64 encoding.
 
-1. The admin creates the Controller using a Deployment manifest provided in this repo.
-The Deployment launches the controller in the "golden" namespace and ensures only one instance of the controller is always running. This controller watches for PVCs containing special annotations which define the source file's endpoint path, and secret name (if credentials are needed to access the endpoint).
+1. The admin creates the Golden PVC in the "golden" namespace.  This PVC should either reference a desired Storage Class or fall to the cluster default.  These PVCs, annotated per below, signal the controller to launch the ephemeral importer pod.  
 
-1. The admin creates the Golden PVC in the "golden" namespace. This PVC references the Storage above, either explicitly or as the default. These "golden" PVCs, annotated per below, tell the controller to create and launch the importer pod which does the file copy.
+1. When a PVC is created, the dynamic provisioner referenced by the Storage Class will create a Persistent Volume representing the backing storage volume.
 
-1. The dynamic provisioner, referenced in the Storage Class, creates the Persistent Volume (PV) which contains the target destination information.
-1. (in parallel) The dynamic provisioner provisions the backing storage/volume, which for VM images, should support fast cloning. Note: for VM images there is a one-to-one mapping of a volume to a single image. Thus, each VM image has one PVC and one PV defining it.
+1. (Parallel to 4) The dynamic provisioner creates the backing storage volume.
 
-1. The Data Import Pod, created by the controller, mounts the Secret and the backend storage volume.
-1. The importer pod copies the source file/image by streaming data from object store to the Golden Image location via the mounted PV. When the copy completes the importer pod terminates. The destination file/image name is always _disk.img_ but, since there is one volume per image file, the parent directory will (and must) differ.
+    >NOTE: for VM images there is a one-to-one mapping of a volume to a single image. Thus, each VM image has one PVC and one PV defining it.
 
-**Note** the diagram above needs some revisions. 1) the "golden" namespace in the diagram is named _images_. However, the diagram shows the controller in a different namespace. This is incorrect and will be revised. The controller, pvc, secret and importer pod all live in the same "golden" namespace. 2) there is no ephemeral secret. Each endpoint has a long lived secret in the "golden" namespace. The access and secret keys in these secrets are consumed by the importer pod and passed to the endpoint for authentication.
+1. The Data Import Pod, created by the controller, binds the Secret and mounts the backing storage volume via the Persistent Volume Claim.
 
+1. The Data Importer Pod streams the file from the remote data store to the mounted backing storage volume. When the copy completes the importer pod terminates. The destination file name is always _disk.img_ but, since there is one volume per image file, the parent directory will (and must) differ.
 
 ### Components
 
@@ -51,7 +50,7 @@ The Deployment launches the controller in the "golden" namespace and ensures onl
 The controller scans for "golden" PVCs in the same namespace looking for specific
 annotations:
 - kubevirt.io/storage.import.endpoint:  Defined by the admin: the full endpoint URI for the source file/image
-- kubevirt.io/storage.import.secretName: Defined by the admin: the name of the existing Secret containing the credential to access the endoint.
+- kubevirt.io/storage.import.secretName: Defined by the admin: the name of the existing Secret containing the credential to access the endpoint.
 - kubevirt.io/storage.import.status: Added by the controller: the current status of the PVC with respect to the import/copy process. Values include:  ”In process”, “Success”, “ Failed”
 
 On detecting a new PVC with the endpoint annotation (and lacking the status annotation), the controller creates the Data Importer pod "golden" namespace. The controller performs clean up operations after the data import process ends.
