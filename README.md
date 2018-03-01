@@ -4,7 +4,7 @@ This repo implements a fairly general file copier/importer. The importer, the co
 1. [Purpose](#purpose)
 1. [Design](#design)
 1. [Running the Data Importer](#running-the-data-importer)
-1. [Getting Started For Developers](#getting-started-for-developers)
+1. [Getting Started For Developers](hack/README.md#getting-started-for-developers)
 
 ## Purpose
 
@@ -153,91 +153,3 @@ This is the template PVC. No namespace is supplied since the PVC is excpected to
 1. Monitor the importer pod:
 
         $ kubectl logs <unique-name-of-importer pod>  # shown in controller log above
-
-## Getting Started For Developers
-
-See the readme under the _hack/_ directory.
-
-TODO: move text below to _hack/_
-### Download source:
-
-`# in github fork kubevirt/containerized-data-importer to your personal repo`, then:
-```
-cd $GOPATH/src/
-mkdir -p github.com/kubevirt/containerized-data-importer
-go get github.com/kubevirt/containerized-data-importer
-cd github.com/kubevirt/containerized-data-importer
-git remote set-url origin <url-to-your-personal-repo>
-git push origin master -f
-```
-
- or
-
- ```
- cd $GOPATH/src/
- mkdir -p github.com/kubevirt && cd github.com/kubevirt
- git clone <your-forked-containerized-data-importer-url>
- cd containerized-data-importer
- git remote add upstream 	https://github.com/kubevirt/containerized-data-importer.git
- ```
-
-### Use glide to handle vendoring of dependencies:
-
-Install glide:
-
-`curl https://glide.sh/get | sh`
-
-Then run it from the repo root
-
-`glide install -v`
-
-`glide install` scans imports and resolves missing and unsued dependencies. `-v` removes nested vendor and Godeps/_workspace directories.
-
-### Create importer image from source:
-
-```
-cd $GOPATH/src/github.com/kubevirt/containerized-data-importer
-make importer
-```
-which places the binary in _./bin/importer_.
-The importer image is pushed to `jcoperh/importer:latest`, and this is where the importer pod pulls the image from.
-
-### Create controller image from source:
-
-```
-cd $GOPATH/src/github.com/kubevirt/containerized-data-importer
-make controller
-```
-which places the binary in _./bin/importer-controller_. The controller image is pushed to `jcoperh/importer-controller:latest`, and this is where the controller pod pulls the image from.
-
-> NOTE: when running the controller in a `local-up-cluster` environment (and in the default namespace) the cluster role binding below was needed to allow the controller pod to list PVCs:
-```
-kubectl create clusterrolebinding cdi-controller --clusterrole=cluster-admin --serviceaccount=default:default
-```
-
-### S3-compatible client setup:
-
-#### AWS S3 cli
-$HOME/.aws/credentials
-```
-[default]
-aws_access_key_id = <your-access-key>
-aws_secret_access_key = <your-secret>
-```
-
-#### Mino cli
-
-$HOME/.mc/config.json:
-```
-{
-        "version": "8",
-        "hosts": {
-                "s3": {
-                        "url": "https://s3.amazonaws.com",
-                        "accessKey": "<your-access-key>",
-                        "secretKey": "<your-secret>",
-                        "api": "S3v4"
-                }
-        }
-}
-```
