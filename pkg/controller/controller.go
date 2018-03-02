@@ -27,10 +27,11 @@ const (
 )
 
 type Controller struct {
-	clientset      kubernetes.Interface
-	queue          workqueue.RateLimitingInterface
-	pvcInformer    cache.SharedIndexInformer
-	pvcListWatcher cache.ListerWatcher
+	clientset        kubernetes.Interface
+	queue            workqueue.RateLimitingInterface
+	pvcInformer      cache.SharedIndexInformer
+	pvcListWatcher   cache.ListerWatcher
+	importerImageTag string
 }
 
 func NewController(
@@ -38,12 +39,14 @@ func NewController(
 	queue workqueue.RateLimitingInterface,
 	pvcInformer cache.SharedIndexInformer,
 	pvcListWatcher cache.ListerWatcher,
+	importerTag string,
 ) *Controller {
 	return &Controller{
-		clientset:      client,
-		queue:          queue,
-		pvcInformer:    pvcInformer,
-		pvcListWatcher: pvcListWatcher,
+		clientset:        client,
+		queue:            queue,
+		pvcInformer:      pvcInformer,
+		pvcListWatcher:   pvcListWatcher,
+		importerImageTag: importerTag,
 	}
 }
 
@@ -124,11 +127,9 @@ func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
 	if err != nil {
 		return fmt.Errorf("processItem: %v\n", err)
 	}
-	importPod, err := c.createImporterPod(ep, secretName, locPVC)
+	_, err = c.createImporterPod(ep, secretName, locPVC) //TODO: may need importer pod later
 	if err != nil {
 		return fmt.Errorf("processItem: %v\n", err)
 	}
-	//just reference pod to prevent compile error
-	glog.Infof("importer pod %q created...", importPod.Name)
 	return nil
 }

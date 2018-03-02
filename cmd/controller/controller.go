@@ -17,25 +17,37 @@ import (
 )
 
 var (
-	configPath string
-	masterURL  string
-	namespace  string
+	configPath  string
+	masterURL   string
+	namespace   string
+	importerTag string
 )
 
-// Controller's own namespace is obtained here along with supported flags and env variables.
-// Note: kubeconfig hierarchy is 1) -kubeconfig flag, 2) $KUBECONFIG exported var. If neither is specified
-//   we'll do an in-cluster config, so for testing it's easiest to export KUBECONFIG.
+// Controller's own namespace and optional importer image tag are obtained here along with
+// the supported flags.
+// Note: kubeconfig hierarchy is 1) -kubeconfig flag, 2) $KUBECONFIG exported var. If neither is
+//   specified we do an in-cluster config. For testing it's easiest to export KUBECONFIG.
 func init() {
-	const OWN_NAMESPACE = "OWN_NAMESPACE"
-	namespace = os.Getenv(OWN_NAMESPACE)
-	if namespace == "" {
-		glog.Fatalf("CDI Controller's namespace was not passed in as env variable %q", OWN_NAMESPACE)
-	}
+	const (
+		// required, own_namespace is define in the pod spec via the downward api
+		OWN_NAMESPACE = "OWN_NAMESPACE"
+		// optional, importer image tag, default is "latest"
+		IMPORTER_TAG = "IMPORTER_TAG"
+	)
 	// flags
 	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG")
 	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
 	flag.Parse()
-	glog.Infoln("init: CDI Controller is initialized.")
+	// env variables
+	namespace = os.Getenv(OWN_NAMESPACE)
+	if namespace == "" {
+		glog.Fatalf("init: cdi controller's namespace was not passed in env variable %q", OWN_NAMESPACE)
+	}
+	importerTag = os.Getenv(IMPORTER_TAG)
+	if importerTag == "" {
+		importerTag = "latest"
+	}
+	glog.Infof("init: complete: CDI controller will create the %q version of the importer\n", importerTag)
 }
 
 func main() {
@@ -75,7 +87,7 @@ func main() {
 	})
 
 	pvcListWatcher := cache.NewListWatchFromClient(client.CoreV1().RESTClient(), "persistentvolumeclaims", namespace, fields.Everything())
-	cdiController := controller.NewController(client, queue, pvcInformer, pvcListWatcher)
+	cdiController := controller.NewController(client, queue, pvcInformer, pvcListWatcher, importerTag)
 	glog.Infof("main: created CDI Controller in %q namespace\n", namespace)
 	stopCh := handleSignals()
 	err = cdiController.Run(1, stopCh)
