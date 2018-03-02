@@ -105,25 +105,27 @@ func (c *Controller) setPVCStatus(pvc *v1.PersistentVolumeClaim, status string) 
 // importer pod.
 func (c *Controller) createImporterPod(ep, secretName string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
 	ns := pvc.Namespace
-	pod := makeImporterPodSpec(ep, secretName, pvc)
+	pod := c.makeImporterPodSpec(ep, secretName, pvc)
 	var err error
 	pod, err = c.clientset.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
 		return nil, fmt.Errorf("createImporterPod: Create failed: %v\n", err)
 	}
-	glog.Infof("importer pod \"%s/%s\" created\n", pod.Namespace, pod.Name)
+	glog.Infof("importer pod \"%s/%s\" (image tag: %q) created\n", pod.Namespace, pod.Name, c.importerImageTag)
 	return pod, nil
 }
 
 // return the importer pod spec based on the passed-in endpoint, secret and pvc.
-func makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
+func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
+	// importer pod name contains the pvc name
+	podName := fmt.Sprintf("%s-%s", common.IMPORTER_PODNAME, pvc.Name)
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: common.IMPORTER_PODNAME + "-",
+			Name: podName,
 			Annotations: map[string]string{
 				annCreatedBy: "yes",
 			},
@@ -132,7 +134,7 @@ func makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVolumeClaim) *v1.P
 			Containers: []v1.Container{
 				{
 					Name:            common.IMPORTER_PODNAME,
-					Image:           "docker.io/jcoperh/importer:latest",
+					Image:           "docker.io/jcoperh/importer:" + c.importerImageTag,
 					ImagePullPolicy: v1.PullAlways,
 					VolumeMounts: []v1.VolumeMount{
 						{
