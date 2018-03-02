@@ -70,11 +70,8 @@ func (c *Controller) getSecretName(pvc *v1.PersistentVolumeClaim) (string, error
 	return name, nil
 }
 
-// set the pvc's "status" annotation to the passed-in value.
-func (c *Controller) setPVCStatus(pvc *v1.PersistentVolumeClaim, status string) (*v1.PersistentVolumeClaim, error) {
-	if val, ok := pvc.Annotations[annStatus]; ok && val == status {
-		return pvc, nil // annotation already set
-	}
+// set the pvc's "import pod name" annotation.
+func (c *Controller) setAnnoImportPod(pvc *v1.PersistentVolumeClaim, name string) (*v1.PersistentVolumeClaim, error) {
 	// don't mutate the original pvc since it's from the shared informer
 	pvcClone := pvc.DeepCopy()
 
@@ -82,20 +79,19 @@ func (c *Controller) setPVCStatus(pvc *v1.PersistentVolumeClaim, status string) 
 	// loop a few times in case the cloned pvc is stale
 	err := wait.PollImmediate(time.Second*1, time.Second*4, func() (bool, error) {
 		var err error
-		metav1.SetMetaDataAnnotation(&pvcClone.ObjectMeta, annStatus, status)
+		metav1.SetMetaDataAnnotation(&pvcClone.ObjectMeta, annImportPod, name)
 		newPVC, err = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(pvcClone)
 		if err == nil {
 			return true, nil // successful update
 		}
-		verb := "updating"
 		if apierrs.IsConflict(err) { // pvc is likely stale
 			pvcClone, err = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
 			if err == nil {
 				return false, nil // re-try adding annotation
 			}
-			verb = "getting"
+			return true, fmt.Errorf("setAnnoImportPod: error getting pvc %s/%s: %v\n", pvc.Namespace, pvc.Name, err)
 		}
-		return true, fmt.Errorf("setPVCStatus: error %s pvc %s/%s: %v\n", verb, pvc.Namespace, pvc.Name, err)
+		return true, fmt.Errorf("setAnnoImportPod: error updating pvc %s/%s's annotation %q to %q: %v\n", pvc.Namespace, pvc.Name, annImportPod, name, err)
 	})
 	return newPVC, err
 }
