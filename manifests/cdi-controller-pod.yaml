@@ -1,15 +1,23 @@
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1beta2
+kind: Deployment
 metadata:
-  name: cdi-controller
+  name: cdi-deployment
 spec:
-  restartPolicy: Never
-  containers:
-  - name: cdi-controller
-    image: jcoperh/import-controller
-    imagePullPolicy: Always
-    env:
-      - name: OWN_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
+  selector:
+    matchLabels:
+      app: cdi-controller
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: cdi-controller
+    spec:
+      containers:
+      - name: cdi-controller
+        image: jcoperh/import-controller
+        imagePullPolicy: Always
+        env:
+          - name: OWN_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace

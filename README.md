@@ -3,7 +3,7 @@ This repo implements a fairly general file copier/importer. The importer, the co
 
 1. [Purpose](#purpose)
 1. [Design](#design)
-1. [Running the Data Importer](#running-the-data-importer)
+1. [Running the CDI Controller](#running-the-data-importer)
 
 Development: for devs who want to dig into the code, see our hacking [README](hack/README.md#getting-started-for-developers) (WIP)
 
