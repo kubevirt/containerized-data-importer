@@ -44,7 +44,7 @@ func (d *dataStreamFactory) NewDataStream() (io.ReadCloser, error) {
 	if d.err != nil {
 		return nil, d.err
 	}
-	if d.url.Scheme == "s3" {
+	if d.url.Scheme == "s3" { // TODO what about non-aws s3 interfaces? (minio just performs http GET on them anyway)
 		return d.s3()
 	}
 	return d.http()
@@ -52,14 +52,12 @@ func (d *dataStreamFactory) NewDataStream() (io.ReadCloser, error) {
 
 func (d *dataStreamFactory) s3() (io.ReadCloser, error) {
 	glog.Infoln("Using S3 client to get data")
-	mc, err := minio.NewV4(d.url.Host, d.accessKeyId, d.secretKey, false)
+	bucket := d.url.Host
+	object := strings.Trim(d.url.Path, "/")
+	mc, err := minio.NewV4(common.IMPORTER_S3_HOST, d.accessKeyId, d.secretKey, false)
 	if err != nil {
 		return nil, fmt.Errorf("getDataWithS3Client: error building minio client for %q\n", d.url.Host)
 	}
-	bucket := d.url.Host
-	object := d.url.Path
-	debug, err := mc.ListBuckets()
-	fmt.Printf("%#v", debug)
 	glog.Infof("Attempting to get object %q via S3 client\n", d.url.String())
 	objectReader, err := mc.GetObject(bucket, object, minio.GetObjectOptions{})
 	if err != nil {

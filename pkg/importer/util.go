@@ -29,6 +29,7 @@ func StreamDataToFile(dataReader io.ReadCloser, filePath string) error {
 		return fmt.Errorf("StreamDataToFile: create file error: %v", err)
 	}
 	if _, err = io.Copy(outFile, dataReader); err != nil {
+		os.Remove(outFile.Name())
 		return fmt.Errorf("StreamDataToFile: error streaming data: %v", err)
 	}
 	return nil
