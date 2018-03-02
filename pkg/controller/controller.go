@@ -15,15 +15,11 @@ import (
 
 const (
 	// pvc annotations
-	annEndpoint = "kubevirt.io/storage.import.endpoint"
-	annSecret   = "kubevirt.io/storage.import.secretName"
-	annStatus   = "kubevirt.io/storage.import.status"
+	annEndpoint  = "kubevirt.io/storage.import.endpoint"
+	annSecret    = "kubevirt.io/storage.import.secretName"
+	annImportPod = "kubevirt.io/storage.import.importPodName"
 	// importer pod annotations
 	annCreatedBy = "kubevirt.io/storage.createdByController"
-	// pvc statuses
-	pvcStatusInProcess = "In-process"
-	pvcStatusSuccess   = "Success"
-	pvcStatusFailed    = "Failed"
 )
 
 type Controller struct {
@@ -74,7 +70,9 @@ func (c *Controller) runWorkers() {
 	}
 }
 
-// Select pvcs with annEndpoint and without annStatus.
+// Select pvcs with annEndpoint
+// Note: only new pvcs trigger an addition to the work queue. Updated and deleted pvcs
+//  are ignored.
 func (c *Controller) processNextItem() bool {
 	key, shutdown := c.queue.Get()
 	if shutdown {
@@ -97,11 +95,6 @@ func (c *Controller) processNextItem() bool {
 		c.queue.Forget(key)
 		return true
 	}
-	if metav1.HasAnnotation(pvc.ObjectMeta, annStatus) {
-		glog.Infof("processNextItem: annotation %q present, skipping pvc\n", annStatus)
-		c.queue.Forget(key)
-		return true
-	}
 	if err := c.processItem(pvc); err != nil {
 		glog.Errorf("processNextItem: error processing key %q: %v", key, err)
 		c.queue.Forget(key)
@@ -109,27 +102,26 @@ func (c *Controller) processNextItem() bool {
 	return true
 }
 
-// Create the importer pod and its secert if needed.
-// Place a watch on the importer pod and annotate the pvc when the importer pod terminates.
+// Create the importer pod with the pvc and optional secret.
 func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
 	ep, err := getEndpoint(pvc)
 	if err != nil {
-		return fmt.Errorf("processItem: %v\n", err)
+		return fmt.Errorf("processItem: get endpoint: %v\n", err)
 	}
 	secretName, err := c.getSecretName(pvc)
 	if err != nil {
-		return fmt.Errorf("processItem: %v\n", err)
+		return fmt.Errorf("processItem: get secert: %v\n", err)
 	}
 	if secretName == "" {
 		glog.Infof("processItem: no secret will be supplied to endpoint %q\n", ep)
 	}
-	locPVC, err := c.setPVCStatus(pvc, pvcStatusInProcess)
+	pod, err := c.createImporterPod(ep, secretName, pvc)
 	if err != nil {
-		return fmt.Errorf("processItem: %v\n", err)
+		return fmt.Errorf("processItem: create pod: %v\n", err)
 	}
-	_, err = c.createImporterPod(ep, secretName, locPVC) //TODO: may need importer pod later
+	_, err = c.setAnnoImportPod(pvc, pod.Name) // TODO: may need returned pvc later?
 	if err != nil {
-		return fmt.Errorf("processItem: %v\n", err)
+		return fmt.Errorf("processItem: set anno: %v\n", err)
 	}
 	return nil
 }

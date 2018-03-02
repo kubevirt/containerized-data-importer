@@ -64,22 +64,10 @@ func main() {
 
 	informerFactory := informers.NewSharedInformerFactory(client, time.Second*30)
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims().Informer()
-	// Bind the Index/Informer to the queue
+	// Bind the Index/Informer to the queue only for new pvcs
 	pvcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			key, err := cache.MetaNamespaceKeyFunc(obj)
-			if err == nil {
-				queue.AddRateLimited(key)
-			}
-		},
-		UpdateFunc: func(old, new interface{}) {
-			key, err := cache.MetaNamespaceKeyFunc(new)
-			if err == nil && old != new {
-				queue.AddRateLimited(key)
-			}
-		},
-		DeleteFunc: func(obj interface{}) {
-			key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 			if err == nil {
 				queue.AddRateLimited(key)
 			}
