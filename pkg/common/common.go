@@ -4,7 +4,7 @@ package common
 
 const (
 	// host file constants:
-	IMPORTER_WRITE_DIR     = "/data"
+	IMPORTER_WRITE_DIR     = "."
 	IMPORTER_WRITE_FILE    = "disk.img"
 	IMPORTER_WRITE_PATH    = IMPORTER_WRITE_DIR+"/"+IMPORTER_WRITE_FILE
 	// importer container constants:
