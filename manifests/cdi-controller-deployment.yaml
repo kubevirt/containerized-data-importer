@@ -1,0 +1,23 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: cdi-deployment
+spec:
+  selector:
+    matchLabels:
+      app: cdi-controller
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: cdi-controller
+    spec:
+      containers:
+      - name: cdi-controller
+        image: jcoperh/import-controller
+        imagePullPolicy: Always
+        env:
+          - name: OWN_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
