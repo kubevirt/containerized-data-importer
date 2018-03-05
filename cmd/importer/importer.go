@@ -22,7 +22,7 @@ func init() {
 
 func main() {
 	defer glog.Flush()
-	glog.Infoln("Starting importer")
+	glog.Infoln("main: Starting importer")
 	ep := ParseEnvVar(common.IMPORTER_ENDPOINT, false)
 	acc := ParseEnvVar(common.IMPORTER_ACCESS_KEY_ID, false)
 	sec := ParseEnvVar(common.IMPORTER_SECRET_KEY, false)
@@ -35,5 +35,5 @@ func main() {
 	if err = StreamDataToFile(dataStream, common.IMPORTER_WRITE_PATH); err != nil {
 		glog.Fatalf("main: unable to stream data to file: %v\n", err)
 	}
-	glog.Infoln("Import complete, exiting")
+	glog.Infoln("main: Import complete, exiting")
 }
