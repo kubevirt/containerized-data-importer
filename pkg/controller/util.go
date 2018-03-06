@@ -1,15 +1,16 @@
 package controller
 
 import (
+	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/golang/glog"
 	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	"k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // return a pvc pointer based on the passed-in work queue key.
@@ -71,29 +72,33 @@ func (c *Controller) getSecretName(pvc *v1.PersistentVolumeClaim) (string, error
 }
 
 // set the pvc's "import pod name" annotation.
-func (c *Controller) setAnnoImportPod(pvc *v1.PersistentVolumeClaim, name string) (*v1.PersistentVolumeClaim, error) {
+// Note: Patch() is used instead of Update() to handle version related field changes.
+func (c *Controller) setAnnoImportPod(pvc *v1.PersistentVolumeClaim, name string) error {
+	glog.Infof("setAnnoImportPod: adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", annImportPod, name, pvc.Namespace, pvc.Name)
+
 	// don't mutate the original pvc since it's from the shared informer
 	pvcClone := pvc.DeepCopy()
-
-	var newPVC *v1.PersistentVolumeClaim
-	// loop a few times in case the cloned pvc is stale
-	err := wait.PollImmediate(time.Second*1, time.Second*4, func() (bool, error) {
-		var err error
-		metav1.SetMetaDataAnnotation(&pvcClone.ObjectMeta, annImportPod, name)
-		newPVC, err = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(pvcClone)
-		if err == nil {
-			return true, nil // successful update
-		}
-		if apierrs.IsConflict(err) { // pvc is likely stale
-			pvcClone, err = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
-			if err == nil {
-				return false, nil // re-try adding annotation
-			}
-			return true, fmt.Errorf("setAnnoImportPod: error getting pvc %s/%s: %v\n", pvc.Namespace, pvc.Name, err)
-		}
-		return true, fmt.Errorf("setAnnoImportPod: error updating pvc %s/%s's annotation %q to %q: %v\n", pvc.Namespace, pvc.Name, annImportPod, name, err)
-	})
-	return newPVC, err
+	// make copies of old and updated pvc
+	oldData, err := json.Marshal(pvcClone)
+	if err != nil {
+		return fmt.Errorf("setAnnoImportPod: marshal clone pvc data: %v\n", err)
+	}
+	// add annotation
+	metav1.SetMetaDataAnnotation(&pvcClone.ObjectMeta, annImportPod, name)
+	newData, err := json.Marshal(pvcClone)
+	if err != nil {
+		return fmt.Errorf("setAnnoImportPod: marshal new pvc data: %v\n", err)
+	}
+	// patch the pvc clone
+	patch, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, v1.PersistentVolumeClaim{})
+	if err != nil {
+		return fmt.Errorf("setAnnoImportPod: creating patch: %v\n", err)
+	}
+	_, err = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Patch(pvc.Name, types.StrategicMergePatchType, patch)
+	if err != nil {
+		return fmt.Errorf("setAnnoImportPod: patching pvc annotation %q to %q: %v\n", annImportPod, name, err)
+	}
+	return nil
 }
 
 // return a pointer to a pod which is created based on the passed-in endpoint, secret
