@@ -72,7 +72,6 @@ func (d *dataStreamFactory) http() (io.ReadCloser, error) {
 			r.SetBasicAuth(d.accessKeyId, d.secretKey)
 			return nil
 		},
-		Timeout: 20 * time.Second,
 	}
 	req, err := http.NewRequest("GET", d.url.String(), nil)
 	if len(d.accessKeyId) > 0 && len(d.secretKey) > 0 {
