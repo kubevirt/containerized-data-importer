@@ -3,13 +3,15 @@ package validation
 import (
 	"path/filepath"
 	"strings"
+
+	"github.com/golang/glog"
 )
 
 const (
-	qcow2Ext = "qcow2"
-	tar      = "tar"
-	gzip     = "gz"
-	xz       = "xz"
+	qcow2Ext = ".qcow2"
+	tar      = ".tar"
+	gzip     = ".gz"
+	xz       = ".xz"
 )
 
 func IsQcow2(file string) bool {
@@ -21,5 +23,9 @@ func IsTarBall(file string) bool {
 }
 
 func IsValidImageFile(file string) bool {
-	return IsQcow2(file) || IsTarBall(file)
+	var valid bool
+	if valid = IsQcow2(file) || IsTarBall(file); !valid {
+		glog.Errorf("IsValidImageFile: file extension is unsupported. Expected *.qcow2, *.tar.gz or *.tar.xz; Got %s", file)
+	}
+	return valid
 }
