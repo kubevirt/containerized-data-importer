@@ -119,7 +119,7 @@ func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
 	if err != nil {
 		return fmt.Errorf("processItem: create pod: %v\n", err)
 	}
-	_, err = c.setAnnoImportPod(pvc, pod.Name) // TODO: may need returned pvc later?
+	err = c.setAnnoImportPod(pvc, pod.Name)
 	if err != nil {
 		return fmt.Errorf("processItem: set anno: %v\n", err)
 	}
