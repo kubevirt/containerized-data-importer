@@ -12,7 +12,7 @@ const (
 )
 
 func IsQcow2(file string) bool {
-	return strings.HasSuffix(qcow2, file)
+	return strings.HasSuffix(file, qcow2)
 }
 
 func IsTarBall(file string) bool {
