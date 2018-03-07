@@ -10,10 +10,12 @@ package main
 
 import (
 	"flag"
+	"path/filepath"
 
 	"github.com/golang/glog"
 	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	. "github.com/kubevirt/containerized-data-importer/pkg/importer"
+	"github.com/kubevirt/containerized-data-importer/pkg/validation"
 )
 
 func init() {
@@ -24,6 +26,9 @@ func main() {
 	defer glog.Flush()
 	glog.Infoln("main: Starting importer")
 	ep := ParseEnvVar(common.IMPORTER_ENDPOINT, false)
+	if !validation.IsValidImageFile(filepath.Base(ep)) {
+		glog.Fatalf("main: detected invalid source file format")
+	}
 	acc := ParseEnvVar(common.IMPORTER_ACCESS_KEY_ID, false)
 	sec := ParseEnvVar(common.IMPORTER_SECRET_KEY, false)
 	dataStream, err := NewDataStreamFactory(ep, acc, sec).NewDataStream()
