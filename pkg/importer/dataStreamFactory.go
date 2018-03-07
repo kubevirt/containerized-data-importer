@@ -26,7 +26,7 @@ func (d *dataStreamFactory) Error() error {
 // NewDataStreamFactory: construct a new DataStreamFactory object from params.
 func NewDataStreamFactory(ep, accKey, secKey string) *dataStreamFactory {
 	if len(accKey) == 0 || len(secKey) == 0 {
-		glog.Warningf("NewDataStreamFactory: %s and/or %s env variables are empty/n", common.IMPORTER_ACCESS_KEY_ID, common.IMPORTER_SECRET_KEY)
+		glog.Warningf("NewDataStreamFactory: %s and/or %s env variables are empty\n", common.IMPORTER_ACCESS_KEY_ID, common.IMPORTER_SECRET_KEY)
 	}
 	epUrl, err := url.Parse(ep)
 	if err != nil {
