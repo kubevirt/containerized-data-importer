@@ -38,25 +38,22 @@ func NewDataStream(ep, accKey, secKey string) *dataStream {
 	if len(accKey) == 0 || len(secKey) == 0 {
 		glog.Warningf("NewDataStream: %s and/or %s env variables are empty\n", common.IMPORTER_ACCESS_KEY_ID, common.IMPORTER_SECRET_KEY)
 	}
-	epUrl, err := url.Parse(ep)
-	if err != nil {
-		return &dataStream{err: err}
-	}
 	return &dataStream{
-		url:         epUrl,
+		url:         ep,
 		accessKeyId: accKey,
 		secretKey:   secKey,
 	}
 }
 
 func (d *dataStream) DataStreamSelector() (io.ReadCloser, error) {
-	if d.err != nil {
-		return nil, d.err
-	}
-	if d.url.Scheme == "s3" { // TODO what about non-aws s3 interfaces? (minio just performs http GET on them anyway)
+	switch d.url.Scheme {
+	case "s3":
 		return d.s3()
+	case "http","https":
+		return d.http()
+	default:
+		return nil, fmt.Errorf("NewDataStream: invalid url scheme: %s", d.url.Scheme)
 	}
-	return d.http()
 }
 
 func (d *dataStream) s3() (io.ReadCloser, error) {

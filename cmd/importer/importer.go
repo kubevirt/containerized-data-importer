@@ -9,6 +9,7 @@ package main
 //    IMPORTER_SECRET_KEY     Optional. Secret key is the password to your account
 
 import (
+	"net/url"
 	"flag"
 	"path/filepath"
 
@@ -23,11 +24,13 @@ func init() {
 }
 
 func main() {
-	var err error
 	defer glog.Flush()
 	glog.Infoln("main: Starting importer")
-	ep := ParseEnvVar(common.IMPORTER_ENDPOINT, false)
-	fn := filepath.Base(ep)
+	ep, err := url.Parse(ParseEnvVar(common.IMPORTER_ENDPOINT, false))
+	if err != nil {
+		glog.Fatalf("main: Error parsing endpoint %q: %v", ep, err)
+	}
+	fn := filepath.Base(ep.Path)
 	if !image.IsValidImageFile(fn) {
 		glog.Fatalf("main: unsupported source file %q. Supported extensions: %v", fn, image.SupportedFileExtensions)
 	}
