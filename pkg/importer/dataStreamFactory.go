@@ -12,34 +12,44 @@ import (
 	"github.com/minio/minio-go"
 )
 
-type dataStreamFactory struct {
+type DataStreamInterface interface {
+	DataStreamSelector() (io.ReadCloser, error)
+	s3() (io.ReadCloser, error)
+	http() (io.ReadCloser, error)
+	parseDataPath() (string, string, error)
+	Error() error
+}
+
+var _ DataStreamInterface = &dataStream{}
+
+type dataStream struct {
 	url         *url.URL
 	accessKeyId string
 	secretKey   string
 	err         error
 }
 
-func (d *dataStreamFactory) Error() error {
+func (d *dataStream) Error() error {
 	return d.err
 }
 
-// NewDataStreamFactory: construct a new DataStreamFactory object from params.
-func NewDataStreamFactory(ep, accKey, secKey string) *dataStreamFactory {
+// NewDataStream: construct a new dataStream object from params.
+func NewDataStream(ep, accKey, secKey string) *dataStream {
 	if len(accKey) == 0 || len(secKey) == 0 {
-		glog.Warningf("NewDataStreamFactory: %s and/or %s env variables are empty\n", common.IMPORTER_ACCESS_KEY_ID, common.IMPORTER_SECRET_KEY)
+		glog.Warningf("NewDataStream: %s and/or %s env variables are empty\n", common.IMPORTER_ACCESS_KEY_ID, common.IMPORTER_SECRET_KEY)
 	}
 	epUrl, err := url.Parse(ep)
 	if err != nil {
-		return &dataStreamFactory{err: err}
+		return &dataStream{err: err}
 	}
-	return &dataStreamFactory{
+	return &dataStream{
 		url:         epUrl,
 		accessKeyId: accKey,
 		secretKey:   secKey,
 	}
 }
 
-func (d *dataStreamFactory) NewDataStream() (io.ReadCloser, error) {
+func (d *dataStream) DataStreamSelector() (io.ReadCloser, error) {
 	if d.err != nil {
 		return nil, d.err
 	}
@@ -49,7 +59,7 @@ func (d *dataStreamFactory) NewDataStream() (io.ReadCloser, error) {
 	return d.http()
 }
 
-func (d *dataStreamFactory) s3() (io.ReadCloser, error) {
+func (d *dataStream) s3() (io.ReadCloser, error) {
 	glog.Infoln("Using S3 client to get data")
 	bucket := d.url.Host
 	object := strings.Trim(d.url.Path, "/")
@@ -65,7 +75,7 @@ func (d *dataStreamFactory) s3() (io.ReadCloser, error) {
 	return objectReader, nil
 }
 
-func (d *dataStreamFactory) http() (io.ReadCloser, error) {
+func (d *dataStream) http() (io.ReadCloser, error) {
 	client := http.Client{
 		CheckRedirect: func(r *http.Request, via []*http.Request) error {
 			r.SetBasicAuth(d.accessKeyId, d.secretKey)
@@ -83,7 +93,8 @@ func (d *dataStreamFactory) http() (io.ReadCloser, error) {
 	return resp.Body, nil
 }
 
-func (d *dataStreamFactory) parseDataPath() (string, string, error) {
+// parseDataPath only used for debugging
+func (d *dataStream) parseDataPath() (string, string, error) {
 	pathSlice := strings.Split(strings.Trim(d.url.EscapedPath(), "/"), "/")
 	glog.Infof("DEBUG -- %v", pathSlice)
 	return pathSlice[0], strings.Join(pathSlice[1:], "/"), nil
