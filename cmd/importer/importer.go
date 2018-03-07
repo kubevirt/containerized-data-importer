@@ -27,7 +27,7 @@ func main() {
 	glog.Infoln("main: Starting importer")
 	ep := ParseEnvVar(common.IMPORTER_ENDPOINT, false)
 	if !validation.IsValidImageFile(filepath.Base(ep)) {
-		glog.Fatalf("main: invalid source file format")
+		glog.Fatalf("main: detected invalid source file format")
 	}
 	acc := ParseEnvVar(common.IMPORTER_ACCESS_KEY_ID, false)
 	sec := ParseEnvVar(common.IMPORTER_SECRET_KEY, false)
