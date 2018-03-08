@@ -14,8 +14,8 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/kubevirt/containerized-data-importer/pkg/common"
+	"github.com/kubevirt/containerized-data-importer/pkg/image"
 	. "github.com/kubevirt/containerized-data-importer/pkg/importer"
-	"github.com/kubevirt/containerized-data-importer/pkg/validation"
 )
 
 func init() {
@@ -23,12 +23,21 @@ func init() {
 }
 
 func main() {
+	var err error
 	defer glog.Flush()
 	glog.Infoln("main: Starting importer")
 	ep := ParseEnvVar(common.IMPORTER_ENDPOINT, false)
-	if !validation.IsValidImageFile(filepath.Base(ep)) {
-		glog.Fatalf("main: unsupported source file %q\n", filepath.Base(ep))
+	fn := filepath.Base(ep)
+	if !image.IsValidImageFile(fn) {
+		glog.Fatalf("main: unsupported source file %q. Supported extensions: %v", fn, image.SupportedFileExtensions)
 	}
+	if image.IsCompressed(fn) {
+		glog.Infof("main: decompressing file %q/n", fn)
+		if fn, err = image.Decompress(fn); err != nil {
+			glog.Fatalf("main: decompress error: %v\n", err)
+		}
+	}
+	glog.Infof("main: importing file %q\n", fn)
 	acc := ParseEnvVar(common.IMPORTER_ACCESS_KEY_ID, false)
 	sec := ParseEnvVar(common.IMPORTER_SECRET_KEY, false)
 	dataStream, err := NewDataStreamFactory(ep, acc, sec).NewDataStream()
