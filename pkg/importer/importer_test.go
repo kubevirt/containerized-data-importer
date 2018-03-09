@@ -19,8 +19,6 @@ type fakeDataStream struct {
 	err         error
 }
 
-//var _ DataStreamInterface = &fakeDataStream{}
-
 func (d *fakeDataStream) Error() error {
 	return d.err
 }

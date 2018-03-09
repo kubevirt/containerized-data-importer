@@ -15,11 +15,11 @@ import (
 
 const (
 	// pvc annotations
-	annEndpoint  = "kubevirt.io/storage.import.endpoint"
-	annSecret    = "kubevirt.io/storage.import.secretName"
-	annImportPod = "kubevirt.io/storage.import.importPodName"
+	AnnEndpoint  = "kubevirt.io/storage.import.endpoint"
+	AnnSecret    = "kubevirt.io/storage.import.secretName"
+	AnnImportPod = "kubevirt.io/storage.import.importPodName"
 	// importer pod annotations
-	annCreatedBy = "kubevirt.io/storage.createdByController"
+	AnnCreatedBy = "kubevirt.io/storage.createdByController"
 )
 
 type Controller struct {
@@ -66,14 +66,14 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 }
 
 func (c *Controller) runWorkers() {
-	for c.processNextItem() {
+	for c.ProcessNextItem() {
 	}
 }
 
-// Select pvcs with annEndpoint
+// Select pvcs with AnnEndpoint
 // Note: only new pvcs trigger an addition to the work queue. Updated and deleted pvcs
 //  are ignored.
-func (c *Controller) processNextItem() bool {
+func (c *Controller) ProcessNextItem() bool {
 	key, shutdown := c.queue.Get()
 	if shutdown {
 		return false
@@ -90,8 +90,8 @@ func (c *Controller) processNextItem() bool {
 		c.queue.Forget(key)
 		return true
 	}
-	if !metav1.HasAnnotation(pvc.ObjectMeta, annEndpoint) {
-		glog.Infof("processNextItem: annotation %q not found, skipping pvc\n", annEndpoint)
+	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnEndpoint) {
+		glog.Infof("processNextItem: annotation %q not found, skipping pvc\n", AnnEndpoint)
 		c.queue.Forget(key)
 		return true
 	}
