@@ -52,7 +52,7 @@ func DecompressData(filename string, src io.Reader) interface{} {
 	glog.Infof("DecompressData: checking ext: %v", fn)
 	switch fn {
 	case Gz:
-		glog.Infof("DecompressData: detected %v is of %v format", fn, Gz)
+		glog.Infof("DecompressData: detected %v compression format", Gz)
 		src = gunzip(src)
 	default:
 		// noop
@@ -67,7 +67,7 @@ func DecompressData(filename string, src io.Reader) interface{} {
 // If not archive format is detected, it is considered a 'noop' and the original stream is
 // returned.
 func DearchiveData(filename string, src io.Reader) interface{} {
-	glog.Infoln("DearchiveData: filename: %v, src: %v", )
+	glog.Infof("DearchiveData: filename: %v, src: %T", filename, src)
 	switch {
 	case strings.HasSuffix(filename, TarArch), strings.HasSuffix(filename, TarArch+Gz):
 		glog.Infof("")
