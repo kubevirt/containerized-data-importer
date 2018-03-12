@@ -3,10 +3,11 @@ package image
 import (
 	"archive/tar"
 	"compress/gzip"
-	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
+
+	"github.com/golang/glog"
 )
 
 var SupportedCompressionExtensions = []string{
@@ -21,6 +22,7 @@ var SupportedArchiveExtentions = []string{
 // UnpackData combines the decompressing and unarchiving of a data stream and returns the
 // end of the stream for further processing.
 func UnpackData(filename string, src io.Reader) interface{} {
+	glog.Infof("UnpackData: filename: %v, src: %T\n", filename, src)
 	/*if file is raw image{
 		return io.ReadCloser (raw image stream)
 	}*/
@@ -41,12 +43,16 @@ func UnpackData(filename string, src io.Reader) interface{} {
 // If not compression is detected, it is considered a 'noop' and the original stream is
 // returned.
 func DecompressData(filename string, src io.Reader) interface{} {
+	glog.Infof("DecompressData: filename: %v, src: %T", filename, src)
 	if src == nil || filename == "" {
+		glog.Errorln("DecompressData: Nil parameter found.")
 		return nil
 	}
 	fn := filepath.Ext(strings.ToLower(strings.TrimSpace(filename)))
+	glog.Infof("DecompressData: checking ext: %v", fn)
 	switch fn {
 	case Gz:
+		glog.Infof("DecompressData: detected %v is of %v format", fn, Gz)
 		src = gunzip(src)
 	default:
 		// noop
@@ -61,8 +67,10 @@ func DecompressData(filename string, src io.Reader) interface{} {
 // If not archive format is detected, it is considered a 'noop' and the original stream is
 // returned.
 func DearchiveData(filename string, src io.Reader) interface{} {
+	glog.Infoln("DearchiveData: filename: %v, src: %v", )
 	switch {
 	case strings.HasSuffix(filename, TarArch), strings.HasSuffix(filename, TarArch+Gz):
+		glog.Infof("")
 		src, _ = Unarchive(filename, src)
 	default:
 		// noop
@@ -73,14 +81,11 @@ func DearchiveData(filename string, src io.Reader) interface{} {
 func gunzip(r io.Reader) io.ReadCloser {
 	gzr, err := gzip.NewReader(r)
 	if err != nil {
+		glog.Errorf("gunzip: error creating new reader: %v", err)
 		return nil
 	}
+	glog.Infof("gunzip: created new gzip reader: %T", gzr)
 	return gzr
-}
-
-func untar(r io.Reader) io.Reader {
-	tr := tar.NewReader(r)
-	return tr
 }
 
 func IsCompressed(filename string) bool {
@@ -107,24 +112,28 @@ func IsArchived(filename string) bool {
 
 // TODO: generalize for all compression formats. This just handles tar!
 func Unarchive(srcFile string, f io.Reader) (io.Reader, error) {
-	var fn string
+	glog.Infof("Unarchive: srcfile: %v, f: %T", srcFile, f)
+	//var fn string
 	tr := tar.NewReader(f)
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("Unarchive: unexpected tar read error on %q: %v\n", srcFile, err)
-		}
-		if fn != "" {
-			return nil, fmt.Errorf("Unarchive: excpect only 1 file in archive %q\n", srcFile)
-		}
-		fn = hdr.Name
-		fmt.Printf("\n**** archived filename=%q\n", fn)
-	}
-	if fn == "" {
-		return nil, fmt.Errorf("Unarchive: excpect 1 file in archive %q\n", srcFile)
-	}
+	glog.Infof("Unarchive: new tar reader: %T", tr)
+	//for {
+	//	hdr, err := tr.Next()
+	//	if err == io.EOF {
+	//		break
+	//	}
+	//	if err != nil {
+	//		glog.Errorf("Unarchive: unexpected tar read error on %q: %v\n", srcFile, err)
+	//		return nil, fmt.Errorf("Unarchive: unexpected tar read error on %q: %v\n", srcFile, err)
+	//	}
+	//	if fn != "" {
+	//		glog.Errorf("Unarchive: excpect only 1 file in archive %q\n", srcFile)
+	//		return nil, fmt.Errorf("Unarchive: excpect only 1 file in archive %q\n", srcFile)
+	//	}
+	//	fn = hdr.Name
+	//	fmt.Printf("\n**** archived filename=%q\n", fn)
+	//}
+	//if fn == "" {
+	//	return nil, fmt.Errorf("Unarchive: excpect 1 file in archive %q\n", srcFile)
+	//}
 	return tr, nil
 }
