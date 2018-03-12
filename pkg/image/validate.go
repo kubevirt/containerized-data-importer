@@ -5,28 +5,21 @@ import (
 )
 
 const (
-	Qcow2 = ".qcow2"
-	Tar   = ".tar" // note: uppercase Tar to not conflict with tar pkg
-	TarGz = Tar + ".gz"
-	TarXz = Tar + ".xz"
+	Qcow2   = ".qcow2"
+	TarArch = ".tar"
+	Gz      = ".gz"
 )
 
 var SupportedFileExtensions = []string{
-	Qcow2, Tar, TarGz, TarXz,
-}
-var SupportedCompressionExtensions = []string{
-	Tar, TarGz, TarXz,
+	Qcow2, TarArch, Gz,
 }
 
-func IsQcow2(file string) bool {
-	return strings.HasSuffix(file, Qcow2)
-}
-
-func IsTarBall(file string) bool {
-	return strings.HasSuffix(file, Tar) || strings.HasSuffix(file, TarGz) || strings.HasSuffix(file, TarXz)
-}
-
-func IsValidImageFile(file string) bool {
-	f := strings.ToLower(strings.TrimSpace(file))
-	return IsQcow2(f) || IsTarBall(f)
+func IsSupporedFileType(filename string) bool {
+	fn := strings.ToLower(strings.TrimSpace(filename))
+	for _, ext := range SupportedFileExtensions {
+		if strings.HasSuffix(fn, ext) {
+			return true
+		}
+	}
+	return false
 }

@@ -28,28 +28,25 @@ func main() {
 	glog.Infoln("main: Starting importer")
 	ep, err := url.Parse(ParseEnvVar(common.IMPORTER_ENDPOINT, false))
 	if err != nil {
-		glog.Fatalf("main: Error parsing endpoint %q: %v", ep, err)
+		glog.Fatalf("main: Error parsing endpoint %q: %v\n", ep, err)
 	}
 	fn := filepath.Base(ep.Path)
-	if !image.IsValidImageFile(fn) {
-		glog.Fatalf("main: unsupported source file %q. Supported extensions: %v", fn, image.SupportedFileExtensions)
+	if !image.IsSupporedFileType(fn) {
+		glog.Fatalf("main: unsupported source file %q. Supported extensions: %v\n", fn, image.SupportedFileExtensions)
 	}
-	if image.IsCompressed(fn) {
-		glog.Infof("main: decompressing file %q/n", fn)
-		if fn, err = image.Decompress(fn); err != nil {
-			glog.Fatalf("main: decompress error: %v\n", err)
-		}
-	}
-	glog.Infof("main: importing file %q\n", fn)
 	acc := ParseEnvVar(common.IMPORTER_ACCESS_KEY_ID, false)
 	sec := ParseEnvVar(common.IMPORTER_SECRET_KEY, false)
+
+
 	dataStream, err := NewDataStream(ep, acc, sec).DataStreamSelector()
 	if err != nil {
-		glog.Fatalf("main: error getting data stream: %v", err)
+		glog.Fatalf("main: error getting data stream: %v\n", err)
 	}
 	defer dataStream.Close()
+
 	glog.Infof("Beginning import from %s\n", ep)
-	if err = StreamDataToFile(dataStream, common.IMPORTER_WRITE_PATH); err != nil {
+	unpackedReader := image.UnpackData(fn, dataStream)
+	if err = StreamDataToFile(unpackedReader, common.IMPORTER_WRITE_PATH); err != nil {
 		glog.Fatalf("main: unable to stream data to file: %v\n", err)
 	}
 	glog.Infoln("main: Import complete, exiting")

@@ -75,7 +75,7 @@ func (d *dataStream) s3() (io.ReadCloser, error) {
 func (d *dataStream) http() (io.ReadCloser, error) {
 	client := http.Client{
 		CheckRedirect: func(r *http.Request, via []*http.Request) error {
-			r.SetBasicAuth(d.accessKeyId, d.secretKey)
+			r.SetBasicAuth(d.accessKeyId, d.secretKey)  // Redirects will lose basic auth, so reset them manually
 			return nil
 		},
 	}
