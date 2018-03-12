@@ -9,8 +9,9 @@ package main
 //    IMPORTER_SECRET_KEY     Optional. Secret key is the password to your account
 
 import (
-	"net/url"
 	"flag"
+	"io"
+	"net/url"
 	"path/filepath"
 
 	"github.com/golang/glog"
@@ -37,15 +38,13 @@ func main() {
 	acc := ParseEnvVar(common.IMPORTER_ACCESS_KEY_ID, false)
 	sec := ParseEnvVar(common.IMPORTER_SECRET_KEY, false)
 
-
 	dataStream, err := NewDataStream(ep, acc, sec).DataStreamSelector()
 	if err != nil {
 		glog.Fatalf("main: error getting data stream: %v\n", err)
 	}
 	defer dataStream.Close()
-
 	glog.Infof("Beginning import from %s\n", ep)
-	unpackedReader := image.UnpackData(fn, dataStream)
+	unpackedReader := image.UnpackData(fn, dataStream).(io.Reader)
 	if err = StreamDataToFile(unpackedReader, common.IMPORTER_WRITE_PATH); err != nil {
 		glog.Fatalf("main: unable to stream data to file: %v\n", err)
 	}

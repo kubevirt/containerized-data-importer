@@ -49,7 +49,7 @@ func (d *dataStream) DataStreamSelector() (io.ReadCloser, error) {
 	switch d.url.Scheme {
 	case "s3":
 		return d.s3()
-	case "http","https":
+	case "http", "https":
 		return d.http()
 	default:
 		return nil, fmt.Errorf("NewDataStream: invalid url scheme: %s", d.url.Scheme)
@@ -75,7 +75,7 @@ func (d *dataStream) s3() (io.ReadCloser, error) {
 func (d *dataStream) http() (io.ReadCloser, error) {
 	client := http.Client{
 		CheckRedirect: func(r *http.Request, via []*http.Request) error {
-			r.SetBasicAuth(d.accessKeyId, d.secretKey)  // Redirects will lose basic auth, so reset them manually
+			r.SetBasicAuth(d.accessKeyId, d.secretKey) // Redirects will lose basic auth, so reset them manually
 			return nil
 		},
 	}

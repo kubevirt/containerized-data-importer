@@ -17,60 +17,57 @@ var SupportedArchiveExtentions = []string{
 	TarArch, TarArch + Gz,
 }
 
+// TODO fixup comment
 // UnpackData combines the decompressing and unarchiving of a data stream and returns the
 // end of the stream for further processing.
-func UnpackData(filename string, src io.Reader) io.Reader {
-	var uncompData io.ReadCloser
-	var unarchData io.Reader
+func UnpackData(filename string, src io.Reader) interface{} {
 	/*if file is raw image{
 		return io.ReadCloser (raw image stream)
 	}*/
-	uncompData = DecompressData(filename, src)
-	defer uncompData.Close()
-	unarchData = DearchiveData(filename, uncompData)
-
+	src = DecompressData(filename, src).(io.ReadCloser)
+	src = DearchiveData(filename, src).(io.Reader)
 	/*if file is qcow2 {
 	convert to raw image
 	return io.ReadCloser
 	}*/
-	return unarchData
+	return src
 }
 
+// TODO fixup comment
 // DecompressData analyzes the filename (string) to decide which decompression function to call.
 // Compression packages return objects that must be closed after reading,
 // hence the need to return a ReadCloser.  It is up to the caller of DecompressData
 // to close the returned stream.
 // If not compression is detected, it is considered a 'noop' and the original stream is
 // returned.
-func DecompressData(filename string, src io.ReadCloser) io.Reader{
+func DecompressData(filename string, src io.Reader) interface{} {
 	if src == nil || filename == "" {
 		return nil
 	}
 	fn := filepath.Ext(strings.ToLower(strings.TrimSpace(filename)))
-	var stream io.ReadCloser
 	switch fn {
 	case Gz:
-		stream = gunzip(src)
-		return stream
+		src = gunzip(src)
+	default:
+		// noop
 	}
-	return src //noop
+	return src
 }
 
+// TODO fixup comment
 // DearchiveData analyzes a filename (string) to decided which de-archive function to call.
 // Golang archive packages return readers and do not need to be closed, so only an io.Reader
 // is returned.
 // If not archive format is detected, it is considered a 'noop' and the original stream is
 // returned.
-func DearchiveData(filename string, src io.Reader) io.Reader {
-	var err error
+func DearchiveData(filename string, src io.Reader) interface{} {
 	switch {
-	case strings.HasSuffix(filename, TarArch):
-		src, err = Unarchive(filename, src)
+	case strings.HasSuffix(filename, TarArch), strings.HasSuffix(filename, TarArch+Gz):
+		src, _ = Unarchive(filename, src)
+	default:
+		// noop
 	}
-	if err != nil {
-		return nil
-	}
-	return src // noop
+	return src
 }
 
 func gunzip(r io.Reader) io.ReadCloser {
