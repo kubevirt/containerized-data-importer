@@ -35,10 +35,10 @@ func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, err
 
 // returns the endpoint string which contains the full path URI of the target object to be copied.
 func getEndpoint(pvc *v1.PersistentVolumeClaim) (string, error) {
-	ep, found := pvc.Annotations[annEndpoint]
+	ep, found := pvc.Annotations[AnnEndpoint]
 	if !found || ep == "" {
 		// annotation was present and is now missing or is blank
-		return ep, fmt.Errorf("getEndpoint: annotation %q in pvc %s/%s is missing or is blank\n", annEndpoint, pvc.Namespace, pvc.Name)
+		return ep, fmt.Errorf("getEndpoint: annotation %q in pvc %s/%s is missing or is blank\n", AnnEndpoint, pvc.Namespace, pvc.Name)
 	}
 	return ep, nil
 }
@@ -48,13 +48,13 @@ func getEndpoint(pvc *v1.PersistentVolumeClaim) (string, error) {
 // causes processNextItem() to stop.
 func (c *Controller) getSecretName(pvc *v1.PersistentVolumeClaim) (string, error) {
 	ns := pvc.Namespace
-	name, found := pvc.Annotations[annSecret]
+	name, found := pvc.Annotations[AnnSecret]
 	if !found || name == "" {
 		msg := ""
 		if !found {
-			msg = fmt.Sprintf("getEndpointSecret: annotation %q is missing in pvc %s/%s\n", annSecret, ns, pvc.Name)
+			msg = fmt.Sprintf("getEndpointSecret: annotation %q is missing in pvc %s/%s\n", AnnSecret, ns, pvc.Name)
 		} else {
-			msg = fmt.Sprintf("getEndpointSecret: secret name is missing from annotation %q in pvc \"%s/%s\n", annSecret, ns, pvc.Name)
+			msg = fmt.Sprintf("getEndpointSecret: secret name is missing from annotation %q in pvc \"%s/%s\n", AnnSecret, ns, pvc.Name)
 		}
 		glog.Info(msg)
 		return "", nil // importer pod will not contain secret credentials
@@ -74,7 +74,7 @@ func (c *Controller) getSecretName(pvc *v1.PersistentVolumeClaim) (string, error
 // set the pvc's "import pod name" annotation.
 // Note: Patch() is used instead of Update() to handle version related field changes.
 func (c *Controller) setAnnoImportPod(pvc *v1.PersistentVolumeClaim, name string) error {
-	glog.Infof("setAnnoImportPod: adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", annImportPod, name, pvc.Namespace, pvc.Name)
+	glog.Infof("setAnnoImportPod: adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", AnnImportPod, name, pvc.Namespace, pvc.Name)
 
 	// don't mutate the original pvc since it's from the shared informer
 	pvcClone := pvc.DeepCopy()
@@ -84,7 +84,7 @@ func (c *Controller) setAnnoImportPod(pvc *v1.PersistentVolumeClaim, name string
 		return fmt.Errorf("setAnnoImportPod: marshal clone pvc data: %v\n", err)
 	}
 	// add annotation
-	metav1.SetMetaDataAnnotation(&pvcClone.ObjectMeta, annImportPod, name)
+	metav1.SetMetaDataAnnotation(&pvcClone.ObjectMeta, AnnImportPod, name)
 	newData, err := json.Marshal(pvcClone)
 	if err != nil {
 		return fmt.Errorf("setAnnoImportPod: marshal new pvc data: %v\n", err)
@@ -96,7 +96,7 @@ func (c *Controller) setAnnoImportPod(pvc *v1.PersistentVolumeClaim, name string
 	}
 	_, err = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Patch(pvc.Name, types.StrategicMergePatchType, patch)
 	if err != nil {
-		return fmt.Errorf("setAnnoImportPod: patching pvc annotation %q to %q: %v\n", annImportPod, name, err)
+		return fmt.Errorf("setAnnoImportPod: patching pvc annotation %q to %q: %v\n", AnnImportPod, name, err)
 	}
 	return nil
 }
@@ -128,7 +128,7 @@ func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVo
 		ObjectMeta: metav1.ObjectMeta{
 			Name: podName,
 			Annotations: map[string]string{
-				annCreatedBy: "yes",
+				AnnCreatedBy: "yes",
 			},
 		},
 		Spec: v1.PodSpec{

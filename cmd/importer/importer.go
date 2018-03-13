@@ -40,7 +40,7 @@ func main() {
 	glog.Infof("main: importing file %q\n", fn)
 	acc := ParseEnvVar(common.IMPORTER_ACCESS_KEY_ID, false)
 	sec := ParseEnvVar(common.IMPORTER_SECRET_KEY, false)
-	dataStream, err := NewDataStreamFactory(ep, acc, sec).NewDataStream()
+	dataStream, err := NewDataStream(ep, acc, sec).DataStreamSelector()
 	if err != nil {
 		glog.Fatalf("main: error getting data stream: %v", err)
 	}
