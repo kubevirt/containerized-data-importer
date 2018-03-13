@@ -90,6 +90,10 @@ func (d *dataStream) http() (io.ReadCloser, error) {
 	if err != nil {
 		glog.Fatalf("http: response body error: %v\n", err)
 	}
+	if resp.StatusCode != 200 {
+		glog.Errorf("http: expected status code 200, got %d", resp.StatusCode)
+		return nil, fmt.Errorf("http: expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
+	}
 	return resp.Body, nil
 }
 
