@@ -44,8 +44,8 @@ func main() {
 	}
 	defer dataStream.Close()
 	glog.Infof("Beginning import from %s\n", ep)
-	unpackedReader := image.UnpackData(fn, dataStream).(io.Reader)
-	if err = StreamDataToFile(unpackedReader, common.IMPORTER_WRITE_PATH); err != nil {
+	unpackedStream := image.UnpackData(fn, dataStream).(io.Reader)
+	if err = StreamDataToFile(unpackedStream, common.IMPORTER_WRITE_PATH); err != nil {
 		glog.Fatalf("main: unable to stream data to file: %v\n", err)
 	}
 	glog.Infoln("main: Import complete, exiting")
