@@ -93,7 +93,7 @@ func main() {
 		}
 	} else {
 		// Otherwise, write directly to /data/
-		if err = StreamDataToFile(unpackedStream, common.IMPORTER_WRITE_PATH); err != nil {
+		if err = StreamDataToFile(dataStreamReader, common.IMPORTER_WRITE_PATH); err != nil {
 			glog.Errorf("main: unable to stream data to file: %v\n", err)
 			os.Exit(1)
 		}
