@@ -10,8 +10,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 
 	"github.com/golang/glog"
@@ -24,29 +26,48 @@ func init() {
 	flag.Parse()
 }
 
+// Parse the required endpoint and return the url struct.
+func parseEndpoint() (*url.URL, error) {
+	epEnv := ParseEnvVar(common.IMPORTER_ENDPOINT, false)
+	if epEnv == "" {
+		return nil, fmt.Errorf("parseEndpoint: endpoint %q is missing or blank\n", common.IMPORTER_ENDPOINT)
+	}
+	ep, err := url.Parse(epEnv)
+    	if err != nil {
+        	return nil, fmt.Errorf("parseEndpoint: %v\n", err)
+	}
+	return ep, nil
+}
+
 func main() {
 	defer glog.Flush()
+
 	glog.Infoln("main: Starting importer")
-	ep, err := url.Parse(ParseEnvVar(common.IMPORTER_ENDPOINT, false))
-	if err != nil {
-		glog.Fatalf("main: Error parsing endpoint %q: %v\n", ep, err)
-	}
-	fn := filepath.Base(ep.Path)
-	if !image.IsSupporedFileType(fn) {
-		glog.Fatalf("main: unsupported source file %q. Supported extensions: %v\n", fn, image.SupportedFileExtensions)
-	}
+	ep, err := parseEndpoint()
+    	if err != nil {
+        	glog.Errorf("main: endpoint error: %v\n", err)
+		os.Exit(1)
+    	}
 	acc := ParseEnvVar(common.IMPORTER_ACCESS_KEY_ID, false)
 	sec := ParseEnvVar(common.IMPORTER_SECRET_KEY, false)
+	fn := filepath.Base(ep.Path)
+	if !image.IsSupporedFileType(fn) {
+		glog.Errorf("main: unsupported source file %q. Supported types: %v\n", fn, image.SupportedFileExtensions)
+		os.Exit(1)
+	}
 
 	dataStream, err := NewDataStream(ep, acc, sec).DataStreamSelector()
 	if err != nil {
-		glog.Fatalf("main: error getting data stream: %v\n", err)
+		glog.Errorf("main: %q error: %v\n", ep.Path, err)
+		os.Exit(1)
 	}
 	defer dataStream.Close()
-	glog.Infof("Beginning import from %s\n", ep)
+
+	glog.Infof("Beginning import from %s\n", ep.Path)
 	unpackedStream := image.UnpackData(fn, dataStream).(io.Reader)
 	if err = StreamDataToFile(unpackedStream, common.IMPORTER_WRITE_PATH); err != nil {
-		glog.Fatalf("main: unable to stream data to file: %v\n", err)
+		glog.Errorf("main: unable to stream data to file: %v\n", err)
+		os.Exit(1)
 	}
 	glog.Infoln("main: Import complete, exiting")
 }
