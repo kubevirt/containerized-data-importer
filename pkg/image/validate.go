@@ -5,25 +5,22 @@ import (
 )
 
 const (
+	ExtImg   = ".img"
 	ExtQcow2 = ".qcow2"
-	ExtGz	 = ".gz"
-	ExtXz	 = ".xz"
-	ExtTar	 = ".tar" // note: uppercase Tar to not conflict with tar pkg
+	ExtGz    = ".gz"
+	ExtTar   = ".tar"
 	ExtTarGz = ExtTar + ExtGz
-	ExtTarXz = ExtTar + ExtXz
 )
 
-var SupportedFileExtensions = []string{
-	ExtQcow2, ExtGz, ExtTar, ExtTarGz, ExtTarXz,
-}
-
 var SupportedCompressionExtensions = []string{
-	ExtTar, ExtTarGz, ExtTarXz,
+	ExtTar, ExtGz, ExtTarGz,
 }
 
-var SupportedArchiveExtentions = []string{
-        ExtTar, ExtTarGz,
+var SupportedImageFormats = []string{
+	ExtImg, ExtQcow2,
 }
+
+var SupportedFileExtensions = append(SupportedImageFormats, SupportedCompressionExtensions...)
 
 func IsSupporedFileType(filename string) bool {
 	fn := strings.ToLower(strings.TrimSpace(filename))
