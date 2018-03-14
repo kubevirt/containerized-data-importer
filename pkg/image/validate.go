@@ -9,11 +9,10 @@ const (
 	ExtQcow2 = ".qcow2"
 	ExtGz    = ".gz"
 	ExtTar   = ".tar"
-	ExtTarGz = ExtTar + ExtGz
 )
 
 var SupportedCompressionExtensions = []string{
-	ExtTar, ExtGz, ExtTarGz,
+	ExtTar, ExtGz,
 }
 
 var SupportedImageFormats = []string{
