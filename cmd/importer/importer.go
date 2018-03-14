@@ -9,6 +9,7 @@ package main
 //    IMPORTER_SECRET_KEY     Optional. Secret key is the password to your account
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -56,6 +57,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize the input io stream (typically http or s3 client)
+	glog.Infof("main: importing file %q\n", fn)
 	dataStream, err := NewDataStream(ep, acc, sec).DataStreamSelector()
 	if err != nil {
 		glog.Errorf("main: %q error: %v\n", ep.Path, err)
@@ -65,9 +68,35 @@ func main() {
 
 	glog.Infof("Beginning import from %s\n", ep.Path)
 	unpackedStream := image.UnpackData(fn, dataStream).(io.Reader)
-	if err = StreamDataToFile(unpackedStream, common.IMPORTER_WRITE_PATH); err != nil {
-		glog.Errorf("main: unable to stream data to file: %v\n", err)
-		os.Exit(1)
+
+	// chkBuf is used to match first 4 bytes of io stream.
+	chkBuf := make([]byte, 4)
+	unpackedStream.Read(chkBuf)
+
+	// Reconstruct the stream.  `dataStreamReader` is considered the new head of the stream.
+	dataStreamReader := io.MultiReader(bytes.NewReader(chkBuf), dataStream)
+	if image.MatchQcow2MagicNum(chkBuf) {
+		// If the stream matches qcow2 format, write to /tmp/, then convert to raw disk in /data/.
+		glog.Infoln("main: detected qcow2 magic number.")
+		tmpFile := filepath.Join("tmp", fn)
+		err = StreamDataToFile(dataStreamReader, tmpFile)
+		if err != nil {
+			glog.Fatalf("main: error streaming data to file: %v\n", err)
+		}
+		err = image.ConvertQcow2ToRaw(tmpFile, common.IMPORTER_WRITE_PATH)
+		if err != nil {
+			glog.Fatalf("main: error converting qcow2 image: %v\n", err)
+		}
+		err = os.Remove(tmpFile)
+		if err != nil {
+			glog.Fatalf("main: error removing temp file %v: %v\n", tmpFile, err)
+		}
+	} else {
+		// Otherwise, write directly to /data/
+		if err = StreamDataToFile(unpackedStream, common.IMPORTER_WRITE_PATH); err != nil {
+			glog.Errorf("main: unable to stream data to file: %v\n", err)
+			os.Exit(1)
+		}
 	}
 	glog.Infoln("main: Import complete, exiting")
 }

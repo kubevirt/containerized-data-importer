@@ -23,7 +23,7 @@ func ParseEnvVar(envVarName string, decode bool) string {
 
 func StreamDataToFile(dataReader io.Reader, filePath string) error {
 	// Attempt to create the file with name filePath.  If it exists, fail.
-	outFile, err := os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
+	outFile, err := os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.ModePerm)
 	defer outFile.Close()
 	if err != nil {
 		return fmt.Errorf("StreamDataToFile: create file error: %v", err)
