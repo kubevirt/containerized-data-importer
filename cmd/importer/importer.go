@@ -11,7 +11,7 @@ package main
 import (
 	"flag"
 	"io"
-	"net/url"
+	"os"
 	"path/filepath"
 
 	"github.com/golang/glog"
@@ -26,27 +26,29 @@ func init() {
 
 func main() {
 	defer glog.Flush()
+
 	glog.Infoln("main: Starting importer")
-	ep, err := url.Parse(ParseEnvVar(common.IMPORTER_ENDPOINT, false))
-	if err != nil {
-		glog.Fatalf("main: Error parsing endpoint %q: %v\n", ep, err)
-	}
-	fn := filepath.Base(ep.Path)
-	if !image.IsSupporedFileType(fn) {
-		glog.Fatalf("main: unsupported source file %q. Supported extensions: %v\n", fn, image.SupportedFileExtensions)
-	}
+	ep := ParseEnvVar(common.IMPORTER_ENDPOINT, false)
 	acc := ParseEnvVar(common.IMPORTER_ACCESS_KEY_ID, false)
 	sec := ParseEnvVar(common.IMPORTER_SECRET_KEY, false)
+	fn := filepath.Base(ep)
+	if !image.IsSupporedFileType(fn) {
+		glog.Errorf("main: unsupported source file %q. Supported types: %v\n", fn, image.SupportedFileExtensions)
+		os.Exit(1)
+	}
 
 	dataStream, err := NewDataStream(ep, acc, sec).DataStreamSelector()
 	if err != nil {
-		glog.Fatalf("main: error getting data stream: %v\n", err)
+		glog.Errorf("main: error getting endpoint %q: %v\n", ep, err)
+		os.Exit(1)
 	}
 	defer dataStream.Close()
+
 	glog.Infof("Beginning import from %s\n", ep)
 	unpackedStream := image.UnpackData(fn, dataStream).(io.Reader)
 	if err = StreamDataToFile(unpackedStream, common.IMPORTER_WRITE_PATH); err != nil {
-		glog.Fatalf("main: unable to stream data to file: %v\n", err)
+		glog.Errorf("main: unable to stream data to file: %v\n", err)
+		os.Exit(1)
 	}
 	glog.Infoln("main: Import complete, exiting")
 }
