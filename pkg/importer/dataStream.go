@@ -34,7 +34,7 @@ func (d *dataStream) Error() error {
 }
 
 // NewDataStream: construct a new dataStream object from params.
-func NewDataStream(ep, accKey, secKey string) *dataStream {
+func NewDataStream(ep *url.URL, accKey, secKey string) *dataStream {
 	if len(accKey) == 0 || len(secKey) == 0 {
 		glog.Warningf("NewDataStream: %s and/or %s env variables are empty\n", common.IMPORTER_ACCESS_KEY_ID, common.IMPORTER_SECRET_KEY)
 	}
