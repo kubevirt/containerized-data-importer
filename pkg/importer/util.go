@@ -21,7 +21,7 @@ func ParseEnvVar(envVarName string, decode bool) string {
 	return value
 }
 
-func StreamDataToFile(dataReader io.ReadCloser, filePath string) error {
+func StreamDataToFile(dataReader io.Reader, filePath string) error {
 	// Attempt to create the file with name filePath.  If it exists, fail.
 	outFile, err := os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
 	defer outFile.Close()
