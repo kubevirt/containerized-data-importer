@@ -1,7 +1,7 @@
 package validation_test
 
 import (
-	. "github.com/kubevirt/containerized-data-importer/pkg/validation"
+	. "github.com/kubevirt/containerized-data-importer/pkg/image"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
