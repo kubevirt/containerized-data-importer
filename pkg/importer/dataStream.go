@@ -52,7 +52,7 @@ func (d *dataStream) DataStreamSelector() (io.ReadCloser, error) {
 	case "http", "https":
 		return d.http()
 	default:
-		return nil, fmt.Errorf("NewDataStream: invalid url scheme: %s", d.url.Scheme)
+		return nil, fmt.Errorf("DataStreamSelector: invalid url scheme: %s", d.url.Scheme)
 	}
 }
 
