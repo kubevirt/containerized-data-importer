@@ -1,4 +1,4 @@
-package validation_test
+package image_test
 
 import (
 	. "github.com/kubevirt/containerized-data-importer/pkg/image"
