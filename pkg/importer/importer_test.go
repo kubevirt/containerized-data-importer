@@ -142,14 +142,21 @@ var _ = Describe("Importer", func() {
 		tests := []testT{
 			{
 				descr:    "use base64",
-				testEnv:  "PARSEENVVAR-TEST",
-				value:    "dGVzdA==",
+				testEnv:  "TEST",
+				value:    "cmVkaGF0",
 				decode:   true,
-				expected: "test",
+				expected: "redhat",
+			},
+			{
+				descr:    "use base64",
+				testEnv:  "TEST",
+				value:    "MTIz",
+				decode:   true,
+				expected: "123",
 			},
 			{
 				descr:    "not use base64",
-				testEnv:  "PARSEENVVAR-TEST",
+				testEnv:  "TEST",
 				value:    "test",
 				decode:   false,
 				expected: "test",
@@ -157,9 +164,13 @@ var _ = Describe("Importer", func() {
 		}
 
 		for _, test := range tests {
+			e := test.testEnv
+			v := test.value
+			b := test.decode
+			d := test.expected
 			It("use base64", func() {
-				os.Setenv(test.testEnv, test.value)
-				Expect(ParseEnvVar(test.testEnv, test.decode)).To(Equal(test.expected))
+				os.Setenv(e, v)
+				Expect(ParseEnvVar(e, b)).To(Equal(d))
 			})
 		}
 	})
