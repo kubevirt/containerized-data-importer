@@ -19,15 +19,15 @@ var _ = Describe("Validate Test IsValidImageFile", func() {
 				imageFileName: "test.tar",
 			},
 			{
-				imageFileName: "test.tar.gz",
+				imageFileName: "test.gz",
 			},
 			{
-				imageFileName: "test.tar.xz",
+				imageFileName: "test.img",
 			},
 		}
 		It("returns false when the suffix are invalid type or empty", func() {
 			for _, t := range tests {
-				Expect(IsValidImageFile(t.imageFileName)).Should(BeTrue())
+				Expect(IsSupporedFileType(t.imageFileName)).Should(BeTrue())
 			}
 		})
 	})
@@ -49,7 +49,7 @@ var _ = Describe("Validate Test IsValidImageFile", func() {
 		}
 		It("returns true when the suffix are invalid type or empty", func() {
 			for _, t := range tests {
-				Expect(IsValidImageFile(t.imageFileName)).ShouldNot(BeTrue())
+				Expect(IsSupporedFileType(t.imageFileName)).ShouldNot(BeTrue())
 			}
 		})
 	})
