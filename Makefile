@@ -69,7 +69,7 @@ push-importer:
 	docker push $(REGISTRY)/$(IMPORTER_IMAGE):$(TAG)
 
 test:
-	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go test -v ./...
+	CGO_ENABLED=$(CGO_ENABLED) go test -v ./...
 
 clean:
 	-rm -rf $(BIN_DIR)/*

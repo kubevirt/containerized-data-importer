@@ -126,7 +126,7 @@ func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVo
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: podName,
+			GenerateName: podName,
 			Annotations: map[string]string{
 				AnnCreatedBy: "yes",
 			},
