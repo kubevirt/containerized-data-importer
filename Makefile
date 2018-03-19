@@ -23,8 +23,8 @@ GIT_USER=$(shell git config --get user.email | sed 's/@.*//')
 TAG="$(GIT_USER)-latest"
 VERSION=v1
 
-.PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-importer clean
-all: clean controller importer
+.PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-importer clean test
+all: clean controller importer test
 controller: controller-bin controller-image
 importer: importer-bin importer-image
 push: push-importer push-controller
@@ -67,6 +67,9 @@ push-controller:
 
 push-importer:
 	docker push $(REGISTRY)/$(IMPORTER_IMAGE):$(TAG)
+
+test:
+	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go test -v ./...
 
 clean:
 	-rm -rf $(BIN_DIR)/*
