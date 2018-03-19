@@ -24,6 +24,9 @@ var _ = Describe("Validate Test IsValidImageFile", func() {
 			{
 				imageFileName: "test.img",
 			},
+			{
+				imageFileName: "test.iso",
+			},
 		}
 		It("returns false when the suffix are invalid type or empty", func() {
 			for _, t := range tests {
