@@ -6,6 +6,7 @@ import (
 
 const (
 	ExtImg   = ".img"
+	ExtIso   = ".iso"
 	ExtQcow2 = ".qcow2"
 	ExtGz    = ".gz"
 	ExtTar   = ".tar"
@@ -16,7 +17,7 @@ var SupportedCompressionExtensions = []string{
 }
 
 var SupportedImageFormats = []string{
-	ExtImg, ExtQcow2,
+	ExtImg, ExtIso, ExtQcow2,
 }
 
 var SupportedFileExtensions = append(SupportedImageFormats, SupportedCompressionExtensions...)
