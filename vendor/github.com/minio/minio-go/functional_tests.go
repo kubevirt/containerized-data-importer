@@ -1101,6 +1101,101 @@ func testGetObjectClosedTwice() {
 	successLogger(testName, function, args, startTime).Info()
 }
 
+// Test RemoveObjectsWithContext request context cancels after timeout
+func testRemoveObjectsWithContext() {
+	// Initialize logging params.
+	startTime := time.Now()
+	testName := getFuncName()
+	function := "RemoveObjectsWithContext(ctx, bucketName, objectsCh)"
+	args := map[string]interface{}{
+		"bucketName": "",
+	}
+
+	// Seed random based on current tie.
+	rand.Seed(time.Now().Unix())
+
+	// Instantiate new minio client.
+	c, err := minio.New(
+		os.Getenv(serverEndpoint),
+		os.Getenv(accessKey),
+		os.Getenv(secretKey),
+		mustParseBool(os.Getenv(enableHTTPS)),
+	)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "Minio client object creation failed", err)
+		return
+	}
+
+	// Set user agent.
+	c.SetAppInfo("Minio-go-FunctionalTest", "0.1.0")
+	// Enable tracing, write to stdout.
+	// c.TraceOn(os.Stderr)
+
+	// Generate a new random bucket name.
+	bucketName := randString(60, rand.NewSource(time.Now().UnixNano()), "minio-go-test-")
+	args["bucketName"] = bucketName
+
+	// Make a new bucket.
+	err = c.MakeBucket(bucketName, "us-east-1")
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MakeBucket failed", err)
+	}
+
+	// Generate put data.
+	r := bytes.NewReader(bytes.Repeat([]byte("a"), 8))
+
+	// Multi remove of 20 objects.
+	nrObjects := 20
+	objectsCh := make(chan string)
+	go func() {
+		defer close(objectsCh)
+		for i := 0; i < nrObjects; i++ {
+			objectName := "sample" + strconv.Itoa(i) + ".txt"
+			_, err = c.PutObject(bucketName, objectName, r, 8, minio.PutObjectOptions{ContentType: "application/octet-stream"})
+			if err != nil {
+				logError(testName, function, args, startTime, "", "PutObject failed", err)
+				continue
+			}
+			objectsCh <- objectName
+		}
+	}()
+	// Set context to cancel in 1 nanosecond.
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+	args["ctx"] = ctx
+	defer cancel()
+
+	// Call RemoveObjectsWithContext API with short timeout.
+	errorCh := c.RemoveObjectsWithContext(ctx, bucketName, objectsCh)
+	// Check for error.
+	select {
+	case r := <-errorCh:
+		if r.Err == nil {
+			logError(testName, function, args, startTime, "", "RemoveObjectsWithContext should fail on short timeout", err)
+			return
+		}
+	}
+	// Set context with longer timeout.
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Hour)
+	args["ctx"] = ctx
+	defer cancel()
+	// Perform RemoveObjectsWithContext with the longer timeout. Expect the removals to succeed.
+	errorCh = c.RemoveObjectsWithContext(ctx, bucketName, objectsCh)
+	select {
+	case r, more := <-errorCh:
+		if more || r.Err != nil {
+			logError(testName, function, args, startTime, "", "Unexpected error", r.Err)
+			return
+		}
+	}
+
+	// Delete all objects and buckets.
+	if err = cleanupBucket(bucketName, c); err != nil {
+		logError(testName, function, args, startTime, "", "Cleanup failed", err)
+		return
+	}
+	successLogger(testName, function, args, startTime).Info()
+}
+
 // Test removing multiple objects with Remove API
 func testRemoveMultipleObjects() {
 	// initialize logging params
@@ -1912,6 +2007,14 @@ func testGetObjectReadSeekFunctional() {
 		return
 	}
 
+	defer func() {
+		// Delete all objects and buckets
+		if err = cleanupBucket(bucketName, c); err != nil {
+			logError(testName, function, args, startTime, "", "Cleanup failed", err)
+			return
+		}
+	}()
+
 	// Generate 33K of data.
 	bufSize := dataFileMap["datafile-33-kB"]
 	var reader = getDataReader("datafile-33-kB")
@@ -1937,14 +2040,6 @@ func testGetObjectReadSeekFunctional() {
 		logError(testName, function, args, startTime, "", "Number of bytes does not match, expected "+string(int64(bufSize))+", got "+string(n), err)
 		return
 	}
-
-	defer func() {
-		// Delete all objects and buckets
-		if err = cleanupBucket(bucketName, c); err != nil {
-			logError(testName, function, args, startTime, "", "Cleanup failed", err)
-			return
-		}
-	}()
 
 	// Read the data back
 	r, err := c.GetObject(bucketName, objectName, minio.GetObjectOptions{})
@@ -2127,7 +2222,7 @@ func testGetObjectReadAtFunctional() {
 	buf3 := make([]byte, 512)
 	buf4 := make([]byte, 512)
 
-	// Test readAt before stat is called.
+	// Test readAt before stat is called such that objectInfo doesn't change.
 	m, err := r.ReadAt(buf1, offset)
 	if err != nil {
 		logError(testName, function, args, startTime, "", "ReadAt failed", err)
@@ -2167,6 +2262,7 @@ func testGetObjectReadAtFunctional() {
 		logError(testName, function, args, startTime, "", "Incorrect read between two ReadAt from same offset", err)
 		return
 	}
+
 	offset += 512
 	m, err = r.ReadAt(buf3, offset)
 	if err != nil {
@@ -2411,9 +2507,10 @@ func testPresignedPostPolicy() {
 	}
 
 	expectedLocation := scheme + os.Getenv(serverEndpoint) + "/" + bucketName + "/" + objectName
+	expectedLocationBucketDNS := scheme + bucketName + "." + os.Getenv(serverEndpoint) + "/" + objectName
 
 	if val, ok := res.Header["Location"]; ok {
-		if val[0] != expectedLocation {
+		if val[0] != expectedLocation && val[0] != expectedLocationBucketDNS {
 			logError(testName, function, args, startTime, "", "Location in header response is incorrect", err)
 			return
 		}
@@ -2614,6 +2711,391 @@ func testCopyObject() {
 		return
 	}
 	if err = cleanupBucket(bucketName+"-copy", c); err != nil {
+		logError(testName, function, args, startTime, "", "Cleanup failed", err)
+		return
+	}
+	successLogger(testName, function, args, startTime).Info()
+}
+
+// Tests SSE-C get object ReaderSeeker interface methods.
+func testEncryptedGetObjectReadSeekFunctional() {
+	// initialize logging params
+	startTime := time.Now()
+	testName := getFuncName()
+	function := "GetObject(bucketName, objectName)"
+	args := map[string]interface{}{}
+
+	// Seed random based on current time.
+	rand.Seed(time.Now().Unix())
+
+	// Instantiate new minio client object.
+	c, err := minio.New(
+		os.Getenv(serverEndpoint),
+		os.Getenv(accessKey),
+		os.Getenv(secretKey),
+		mustParseBool(os.Getenv(enableHTTPS)),
+	)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "Minio client object creation failed", err)
+		return
+	}
+
+	// Enable tracing, write to stderr.
+	// c.TraceOn(os.Stderr)
+
+	// Set user agent.
+	c.SetAppInfo("Minio-go-FunctionalTest", "0.1.0")
+
+	// Generate a new random bucket name.
+	bucketName := randString(60, rand.NewSource(time.Now().UnixNano()), "minio-go-test-")
+	args["bucketName"] = bucketName
+
+	// Make a new bucket.
+	err = c.MakeBucket(bucketName, "us-east-1")
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MakeBucket failed", err)
+		return
+	}
+
+	defer func() {
+		// Delete all objects and buckets
+		if err = cleanupBucket(bucketName, c); err != nil {
+			logError(testName, function, args, startTime, "", "Cleanup failed", err)
+			return
+		}
+	}()
+
+	// Generate 65MiB of data.
+	bufSize := dataFileMap["datafile-65-MB"]
+	var reader = getDataReader("datafile-65-MB")
+	defer reader.Close()
+
+	objectName := randString(60, rand.NewSource(time.Now().UnixNano()), "")
+	args["objectName"] = objectName
+
+	buf, err := ioutil.ReadAll(reader)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "ReadAll failed", err)
+		return
+	}
+
+	sseInfo := minio.NewSSEInfo([]byte("32byteslongsecretkeymustbeagiven"), "AES256")
+
+	// Save the data
+	n, err := c.PutObject(bucketName, objectName, bytes.NewReader(buf), int64(len(buf)), minio.PutObjectOptions{
+		ContentType:  "binary/octet-stream",
+		UserMetadata: sseInfo.GetSSEHeaders(),
+	})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "PutObject failed", err)
+		return
+	}
+
+	if n != int64(bufSize) {
+		logError(testName, function, args, startTime, "", "Number of bytes does not match, expected "+string(int64(bufSize))+", got "+string(n), err)
+		return
+	}
+
+	opts := minio.GetObjectOptions{}
+	for k, v := range sseInfo.GetSSEHeaders() {
+		opts.Set(k, v)
+	}
+
+	// Read the data back
+	r, err := c.GetObject(bucketName, objectName, opts)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "GetObject failed", err)
+		return
+	}
+
+	st, err := r.Stat()
+	if err != nil {
+		logError(testName, function, args, startTime, "", "Stat object failed", err)
+		return
+	}
+
+	if st.Size != int64(bufSize) {
+		logError(testName, function, args, startTime, "", "Number of bytes does not match, expected "+string(int64(bufSize))+", got "+string(st.Size), err)
+		return
+	}
+
+	// This following function helps us to compare data from the reader after seek
+	// with the data from the original buffer
+	cmpData := func(r io.Reader, start, end int) {
+		if end-start == 0 {
+			return
+		}
+		buffer := bytes.NewBuffer([]byte{})
+		if _, err := io.CopyN(buffer, r, int64(bufSize)); err != nil {
+			if err != io.EOF {
+				logError(testName, function, args, startTime, "", "CopyN failed", err)
+				return
+			}
+		}
+		if !bytes.Equal(buf[start:end], buffer.Bytes()) {
+			logError(testName, function, args, startTime, "", "Incorrect read bytes v/s original buffer", err)
+			return
+		}
+	}
+
+	testCases := []struct {
+		offset    int64
+		whence    int
+		pos       int64
+		err       error
+		shouldCmp bool
+		start     int
+		end       int
+	}{
+		// Start from offset 0, fetch data and compare
+		{0, 0, 0, nil, true, 0, 0},
+		// Start from offset 2048, fetch data and compare
+		{2048, 0, 2048, nil, true, 2048, bufSize},
+		// Start from offset larger than possible
+		{int64(bufSize) + 1024, 0, 0, io.EOF, false, 0, 0},
+		// Move to offset 0 without comparing
+		{0, 0, 0, nil, false, 0, 0},
+		// Move one step forward and compare
+		{1, 1, 1, nil, true, 1, bufSize},
+		// Move larger than possible
+		{int64(bufSize), 1, 0, io.EOF, false, 0, 0},
+		// Provide negative offset with CUR_SEEK
+		{int64(-1), 1, 0, fmt.Errorf("Negative position not allowed for 1"), false, 0, 0},
+		// Test with whence SEEK_END and with positive offset
+		{1024, 2, 0, io.EOF, false, 0, 0},
+		// Test with whence SEEK_END and with negative offset
+		{-1024, 2, int64(bufSize) - 1024, nil, true, bufSize - 1024, bufSize},
+		// Test with whence SEEK_END and with large negative offset
+		{-int64(bufSize) * 2, 2, 0, fmt.Errorf("Seeking at negative offset not allowed for 2"), false, 0, 0},
+		// Test with invalid whence
+		{0, 3, 0, fmt.Errorf("Invalid whence 3"), false, 0, 0},
+	}
+
+	for i, testCase := range testCases {
+		// Perform seek operation
+		n, err := r.Seek(testCase.offset, testCase.whence)
+		if err != nil && testCase.err == nil {
+			// We expected success.
+			logError(testName, function, args, startTime, "",
+				fmt.Sprintf("Test %d, unexpected err value: expected: %s, found: %s", i+1, testCase.err, err), err)
+			return
+		}
+		if err == nil && testCase.err != nil {
+			// We expected failure, but got success.
+			logError(testName, function, args, startTime, "",
+				fmt.Sprintf("Test %d, unexpected err value: expected: %s, found: %s", i+1, testCase.err, err), err)
+			return
+		}
+		if err != nil && testCase.err != nil {
+			if err.Error() != testCase.err.Error() {
+				// We expect a specific error
+				logError(testName, function, args, startTime, "",
+					fmt.Sprintf("Test %d, unexpected err value: expected: %s, found: %s", i+1, testCase.err, err), err)
+				return
+			}
+		}
+		// Check the returned seek pos
+		if n != testCase.pos {
+			logError(testName, function, args, startTime, "",
+				fmt.Sprintf("Test %d, number of bytes seeked does not match, expected %d, got %d", i+1, testCase.pos, n), err)
+			return
+		}
+		// Compare only if shouldCmp is activated
+		if testCase.shouldCmp {
+			cmpData(r, testCase.start, testCase.end)
+		}
+	}
+	successLogger(testName, function, args, startTime).Info()
+}
+
+// Tests SSE-C get object ReaderAt interface methods.
+func testEncryptedGetObjectReadAtFunctional() {
+	// initialize logging params
+	startTime := time.Now()
+	testName := getFuncName()
+	function := "GetObject(bucketName, objectName)"
+	args := map[string]interface{}{}
+
+	// Seed random based on current time.
+	rand.Seed(time.Now().Unix())
+
+	// Instantiate new minio client object.
+	c, err := minio.New(
+		os.Getenv(serverEndpoint),
+		os.Getenv(accessKey),
+		os.Getenv(secretKey),
+		mustParseBool(os.Getenv(enableHTTPS)),
+	)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "Minio client object creation failed", err)
+		return
+	}
+
+	// Enable tracing, write to stderr.
+	// c.TraceOn(os.Stderr)
+
+	// Set user agent.
+	c.SetAppInfo("Minio-go-FunctionalTest", "0.1.0")
+
+	// Generate a new random bucket name.
+	bucketName := randString(60, rand.NewSource(time.Now().UnixNano()), "minio-go-test-")
+	args["bucketName"] = bucketName
+
+	// Make a new bucket.
+	err = c.MakeBucket(bucketName, "us-east-1")
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MakeBucket failed", err)
+		return
+	}
+
+	// Generate 65MiB of data.
+	bufSize := dataFileMap["datafile-65-MB"]
+	var reader = getDataReader("datafile-65-MB")
+	defer reader.Close()
+
+	objectName := randString(60, rand.NewSource(time.Now().UnixNano()), "")
+	args["objectName"] = objectName
+
+	buf, err := ioutil.ReadAll(reader)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "ReadAll failed", err)
+		return
+	}
+
+	sseInfo := minio.NewSSEInfo([]byte("32byteslongsecretkeymustbeagiven"), "AES256")
+
+	// Save the data
+	n, err := c.PutObject(bucketName, objectName, bytes.NewReader(buf), int64(len(buf)), minio.PutObjectOptions{
+		ContentType:  "binary/octet-stream",
+		UserMetadata: sseInfo.GetSSEHeaders(),
+	})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "PutObject failed", err)
+		return
+	}
+
+	if n != int64(bufSize) {
+		logError(testName, function, args, startTime, "", "Number of bytes does not match, expected "+string(int64(bufSize))+", got "+string(n), err)
+		return
+	}
+
+	opts := minio.GetObjectOptions{}
+	for k, v := range sseInfo.GetSSEHeaders() {
+		opts.Set(k, v)
+	}
+
+	// read the data back
+	r, err := c.GetObject(bucketName, objectName, opts)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "PutObject failed", err)
+		return
+	}
+	offset := int64(2048)
+
+	// read directly
+	buf1 := make([]byte, 512)
+	buf2 := make([]byte, 512)
+	buf3 := make([]byte, 512)
+	buf4 := make([]byte, 512)
+
+	// Test readAt before stat is called such that objectInfo doesn't change.
+	m, err := r.ReadAt(buf1, offset)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "ReadAt failed", err)
+		return
+	}
+	if m != len(buf1) {
+		logError(testName, function, args, startTime, "", "ReadAt read shorter bytes before reaching EOF, expected "+string(len(buf1))+", got "+string(m), err)
+		return
+	}
+	if !bytes.Equal(buf1, buf[offset:offset+512]) {
+		logError(testName, function, args, startTime, "", "Incorrect read between two ReadAt from same offset", err)
+		return
+	}
+	offset += 512
+
+	st, err := r.Stat()
+	if err != nil {
+		logError(testName, function, args, startTime, "", "Stat failed", err)
+		return
+	}
+
+	if st.Size != int64(bufSize) {
+		logError(testName, function, args, startTime, "", "Number of bytes in stat does not match, expected "+string(int64(bufSize))+", got "+string(st.Size), err)
+		return
+	}
+
+	m, err = r.ReadAt(buf2, offset)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "ReadAt failed", err)
+		return
+	}
+	if m != len(buf2) {
+		logError(testName, function, args, startTime, "", "ReadAt read shorter bytes before reaching EOF, expected "+string(len(buf2))+", got "+string(m), err)
+		return
+	}
+	if !bytes.Equal(buf2, buf[offset:offset+512]) {
+		logError(testName, function, args, startTime, "", "Incorrect read between two ReadAt from same offset", err)
+		return
+	}
+	offset += 512
+	m, err = r.ReadAt(buf3, offset)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "ReadAt failed", err)
+		return
+	}
+	if m != len(buf3) {
+		logError(testName, function, args, startTime, "", "ReadAt read shorter bytes before reaching EOF, expected "+string(len(buf3))+", got "+string(m), err)
+		return
+	}
+	if !bytes.Equal(buf3, buf[offset:offset+512]) {
+		logError(testName, function, args, startTime, "", "Incorrect read between two ReadAt from same offset", err)
+		return
+	}
+	offset += 512
+	m, err = r.ReadAt(buf4, offset)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "ReadAt failed", err)
+		return
+	}
+	if m != len(buf4) {
+		logError(testName, function, args, startTime, "", "ReadAt read shorter bytes before reaching EOF, expected "+string(len(buf4))+", got "+string(m), err)
+		return
+	}
+	if !bytes.Equal(buf4, buf[offset:offset+512]) {
+		logError(testName, function, args, startTime, "", "Incorrect read between two ReadAt from same offset", err)
+		return
+	}
+
+	buf5 := make([]byte, n)
+	// Read the whole object.
+	m, err = r.ReadAt(buf5, 0)
+	if err != nil {
+		if err != io.EOF {
+			logError(testName, function, args, startTime, "", "ReadAt failed", err)
+			return
+		}
+	}
+	if m != len(buf5) {
+		logError(testName, function, args, startTime, "", "ReadAt read shorter bytes before reaching EOF, expected "+string(len(buf5))+", got "+string(m), err)
+		return
+	}
+	if !bytes.Equal(buf, buf5) {
+		logError(testName, function, args, startTime, "", "Incorrect data read in GetObject, than what was previously uploaded", err)
+		return
+	}
+
+	buf6 := make([]byte, n+1)
+	// Read the whole object and beyond.
+	_, err = r.ReadAt(buf6, 0)
+	if err != nil {
+		if err != io.EOF {
+			logError(testName, function, args, startTime, "", "ReadAt failed", err)
+			return
+		}
+	}
+	// Delete all objects and buckets
+	if err = cleanupBucket(bucketName, c); err != nil {
 		logError(testName, function, args, startTime, "", "Cleanup failed", err)
 		return
 	}
@@ -3101,7 +3583,7 @@ func testFunctional() {
 	startTime := time.Now()
 	testName := getFuncName()
 	function := "testFunctional()"
-	function_all := ""
+	functionAll := ""
 	args := map[string]interface{}{}
 
 	// Seed random based on current time.
@@ -3129,7 +3611,7 @@ func testFunctional() {
 
 	// Make a new bucket.
 	function = "MakeBucket(bucketName, region)"
-	function_all = "MakeBucket(bucketName, region)"
+	functionAll = "MakeBucket(bucketName, region)"
 	args["bucketName"] = bucketName
 	err = c.MakeBucket(bucketName, "us-east-1")
 
@@ -3158,7 +3640,7 @@ func testFunctional() {
 	// Verify if bucket exits and you have access.
 	var exists bool
 	function = "BucketExists(bucketName)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 	}
@@ -3175,7 +3657,7 @@ func testFunctional() {
 
 	// Asserting the default bucket policy.
 	function = "GetBucketPolicy(bucketName, objectPrefix)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName":   bucketName,
 		"objectPrefix": "",
@@ -3193,7 +3675,7 @@ func testFunctional() {
 
 	// Set the bucket policy to 'public readonly'.
 	function = "SetBucketPolicy(bucketName, objectPrefix, bucketPolicy)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName":   bucketName,
 		"objectPrefix": "",
@@ -3207,7 +3689,7 @@ func testFunctional() {
 	}
 	// should return policy `readonly`.
 	function = "GetBucketPolicy(bucketName, objectPrefix)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName":   bucketName,
 		"objectPrefix": "",
@@ -3225,7 +3707,7 @@ func testFunctional() {
 
 	// Make the bucket 'public writeonly'.
 	function = "SetBucketPolicy(bucketName, objectPrefix, bucketPolicy)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName":   bucketName,
 		"objectPrefix": "",
@@ -3239,7 +3721,7 @@ func testFunctional() {
 	}
 	// should return policy `writeonly`.
 	function = "GetBucketPolicy(bucketName, objectPrefix)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName":   bucketName,
 		"objectPrefix": "",
@@ -3256,7 +3738,7 @@ func testFunctional() {
 	}
 	// Make the bucket 'public read/write'.
 	function = "SetBucketPolicy(bucketName, objectPrefix, bucketPolicy)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName":   bucketName,
 		"objectPrefix": "",
@@ -3270,7 +3752,7 @@ func testFunctional() {
 	}
 	// should return policy `readwrite`.
 	function = "GetBucketPolicy(bucketName, objectPrefix)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName":   bucketName,
 		"objectPrefix": "",
@@ -3287,7 +3769,7 @@ func testFunctional() {
 	}
 	// List all buckets.
 	function = "ListBuckets()"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = nil
 	buckets, err := c.ListBuckets()
 
@@ -3320,7 +3802,7 @@ func testFunctional() {
 	buf := bytes.Repeat([]byte("f"), 1<<19)
 
 	function = "PutObject(bucketName, objectName, reader, contentType)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName":  bucketName,
 		"objectName":  objectName,
@@ -3363,7 +3845,7 @@ func testFunctional() {
 	isRecursive := true // Recursive is true.
 
 	function = "ListObjects(bucketName, objectName, isRecursive, doneCh)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName":  bucketName,
 		"objectName":  objectName,
@@ -3384,7 +3866,7 @@ func testFunctional() {
 	objFound = false
 	isRecursive = true // Recursive is true.
 	function = "ListObjectsV2(bucketName, objectName, isRecursive, doneCh)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName":  bucketName,
 		"objectName":  objectName,
@@ -3405,7 +3887,7 @@ func testFunctional() {
 	incompObjNotFound := true
 
 	function = "ListIncompleteUploads(bucketName, objectName, isRecursive, doneCh)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName":  bucketName,
 		"objectName":  objectName,
@@ -3424,7 +3906,7 @@ func testFunctional() {
 	}
 
 	function = "GetObject(bucketName, objectName)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"objectName": objectName,
@@ -3448,7 +3930,7 @@ func testFunctional() {
 	}
 
 	function = "FGetObject(bucketName, objectName, fileName)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"objectName": objectName,
@@ -3462,7 +3944,7 @@ func testFunctional() {
 	}
 
 	function = "PresignedHeadObject(bucketName, objectName, expires, reqParams)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"objectName": "",
@@ -3475,7 +3957,7 @@ func testFunctional() {
 
 	// Generate presigned HEAD object url.
 	function = "PresignedHeadObject(bucketName, objectName, expires, reqParams)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"objectName": objectName,
@@ -3504,7 +3986,7 @@ func testFunctional() {
 	resp.Body.Close()
 
 	function = "PresignedGetObject(bucketName, objectName, expires, reqParams)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"objectName": "",
@@ -3518,7 +4000,7 @@ func testFunctional() {
 
 	// Generate presigned GET object url.
 	function = "PresignedGetObject(bucketName, objectName, expires, reqParams)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"objectName": objectName,
@@ -3592,7 +4074,7 @@ func testFunctional() {
 	}
 
 	function = "PresignedPutObject(bucketName, objectName, expires)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"objectName": "",
@@ -3605,7 +4087,7 @@ func testFunctional() {
 	}
 
 	function = "PresignedPutObject(bucketName, objectName, expires)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"objectName": objectName + "-presigned",
@@ -3656,7 +4138,7 @@ func testFunctional() {
 	}
 
 	function = "RemoveObject(bucketName, objectName)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"objectName": objectName,
@@ -3692,7 +4174,7 @@ func testFunctional() {
 	}
 
 	function = "RemoveBucket(bucketName)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 	}
@@ -3720,7 +4202,7 @@ func testFunctional() {
 		logError(testName, function, args, startTime, "", "File Remove failed", err)
 		return
 	}
-	successLogger(testName, function_all, args, startTime).Info()
+	successLogger(testName, functionAll, args, startTime).Info()
 }
 
 // Test for validating GetObject Reader* methods functioning when the
@@ -5147,6 +5629,115 @@ func testCompose10KSourcesV2() {
 	testComposeMultipleSources(c)
 }
 
+func testEncryptedEmptyObject() {
+	// initialize logging params
+	startTime := time.Now()
+	testName := getFuncName()
+	function := "PutObject(bucketName, objectName, reader, objectSize, opts)"
+	args := map[string]interface{}{}
+
+	// Instantiate new minio client object
+	c, err := minio.NewV4(
+		os.Getenv(serverEndpoint),
+		os.Getenv(accessKey),
+		os.Getenv(secretKey),
+		mustParseBool(os.Getenv(enableHTTPS)),
+	)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "Minio v4 client object creation failed", err)
+		return
+	}
+
+	// Generate a new random bucket name.
+	bucketName := randString(60, rand.NewSource(time.Now().UnixNano()), "minio-go-test-")
+	args["bucketName"] = bucketName
+	// Make a new bucket in 'us-east-1' (source bucket).
+	err = c.MakeBucket(bucketName, "us-east-1")
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MakeBucket failed", err)
+		return
+	}
+
+	sseInfo := minio.NewSSEInfo([]byte("32byteslongsecretkeymustbeagiven"), "AES256")
+
+	// 1. create an sse-c encrypted object to copy by uploading
+	const srcSize = 0
+	var buf []byte // Empty buffer
+	metadata := make(map[string]string)
+	for k, v := range sseInfo.GetSSEHeaders() {
+		metadata[k] = v
+	}
+
+	args["objectName"] = "object"
+	_, err = c.PutObject(bucketName, "object", bytes.NewReader(buf), int64(len(buf)), minio.PutObjectOptions{UserMetadata: metadata, Progress: nil})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "PutObject call failed", err)
+		return
+	}
+
+	// 2. Test CopyObject for an empty object
+	dstInfo, err := minio.NewDestinationInfo(bucketName, "new-object", &sseInfo, nil)
+	if err != nil {
+		args["objectName"] = "new-object"
+		function = "NewDestinationInfo(bucketName, objectName, encryptSSEC, userMetadata)"
+		logError(testName, function, args, startTime, "", "NewDestinationInfo failed", err)
+		return
+	}
+	srcInfo := minio.NewSourceInfo(bucketName, "object", &sseInfo)
+	if err = c.CopyObject(dstInfo, srcInfo); err != nil {
+		function = "CopyObject(dstInfo, srcInfo)"
+		logError(testName, function, map[string]interface{}{}, startTime, "", "CopyObject failed", err)
+		return
+	}
+
+	// 3. Test Key rotation
+	rsseInfo := minio.NewSSEInfo([]byte("32byteslongsecretkeymustgenerate"), "AES256")
+	dstInfo, err = minio.NewDestinationInfo(bucketName, "new-object", &rsseInfo, nil)
+	if err != nil {
+		args["objectName"] = "new-object"
+		function = "NewDestinationInfo(bucketName, objectName, encryptSSEC, userMetadata)"
+		logError(testName, function, args, startTime, "", "NewDestinationInfo failed", err)
+		return
+	}
+
+	srcInfo = minio.NewSourceInfo(bucketName, "new-object", &sseInfo)
+	if err = c.CopyObject(dstInfo, srcInfo); err != nil {
+		function = "CopyObject(dstInfo, srcInfo)"
+		logError(testName, function, map[string]interface{}{}, startTime, "", "CopyObject with key rotation failed", err)
+		return
+	}
+
+	// 4. Download the object.
+	opts := minio.GetObjectOptions{}
+	for k, v := range rsseInfo.GetSSEHeaders() {
+		opts.Set(k, v)
+	}
+	reader, err := c.GetObject(bucketName, "new-object", opts)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "GetObject failed", err)
+		return
+	}
+	defer reader.Close()
+
+	decBytes, err := ioutil.ReadAll(reader)
+	if err != nil {
+		logError(testName, function, map[string]interface{}{}, startTime, "", "ReadAll failed", err)
+		return
+	}
+	if !bytes.Equal(decBytes, buf) {
+		logError(testName, function, map[string]interface{}{}, startTime, "", "Downloaded object doesn't match the empty encrypted object", err)
+		return
+	}
+	// Delete all objects and buckets
+	delete(args, "objectName")
+	if err = cleanupBucket(bucketName, c); err != nil {
+		logError(testName, function, args, startTime, "", "Cleanup failed", err)
+		return
+	}
+
+	successLogger(testName, function, args, startTime).Info()
+}
+
 func testEncryptedCopyObjectWrapper(c *minio.Client) {
 	// initialize logging params
 	startTime := time.Now()
@@ -5173,7 +5764,9 @@ func testEncryptedCopyObjectWrapper(c *minio.Client) {
 	for k, v := range key1.GetSSEHeaders() {
 		metadata[k] = v
 	}
-	_, err = c.PutObject(bucketName, "srcObject", bytes.NewReader(buf), int64(len(buf)), minio.PutObjectOptions{UserMetadata: metadata, Progress: nil})
+	_, err = c.PutObject(bucketName, "srcObject", bytes.NewReader(buf), int64(len(buf)), minio.PutObjectOptions{
+		UserMetadata: metadata,
+	})
 	if err != nil {
 		logError(testName, function, args, startTime, "", "PutObject call failed", err)
 		return
@@ -5217,6 +5810,78 @@ func testEncryptedCopyObjectWrapper(c *minio.Client) {
 		logError(testName, function, args, startTime, "", "Downloaded object mismatched for encrypted object", err)
 		return
 	}
+
+	// Test key rotation for source object in-place.
+	dst, err = minio.NewDestinationInfo(bucketName, "srcObject", &key2, nil)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "NewDestinationInfo failed", err)
+		return
+	}
+	args["destination"] = dst
+
+	err = c.CopyObject(dst, src)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "CopyObject failed", err)
+		return
+	}
+
+	// Get copied object and check if content is equal
+	opts = minio.GetObjectOptions{}
+	for k, v := range key2.GetSSEHeaders() {
+		opts.Set(k, v)
+	}
+	reader, _, err = coreClient.GetObject(bucketName, "srcObject", opts)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "GetObject failed", err)
+		return
+	}
+	defer reader.Close()
+
+	decBytes, err = ioutil.ReadAll(reader)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "ReadAll failed", err)
+		return
+	}
+	if !bytes.Equal(decBytes, buf) {
+		logError(testName, function, args, startTime, "", "Downloaded object mismatched for encrypted object", err)
+		return
+	}
+
+	// Test in-place decryption.
+	dst, err = minio.NewDestinationInfo(bucketName, "srcObject", nil, nil)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "NewDestinationInfo failed", err)
+		return
+	}
+	args["destination"] = dst
+
+	src = minio.NewSourceInfo(bucketName, "srcObject", &key2)
+	args["source"] = src
+	err = c.CopyObject(dst, src)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "CopyObject failed", err)
+		return
+	}
+
+	// Get copied decrypted object and check if content is equal
+	opts = minio.GetObjectOptions{}
+	reader, _, err = coreClient.GetObject(bucketName, "srcObject", opts)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "GetObject failed", err)
+		return
+	}
+	defer reader.Close()
+
+	decBytes, err = ioutil.ReadAll(reader)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "ReadAll failed", err)
+		return
+	}
+	if !bytes.Equal(decBytes, buf) {
+		logError(testName, function, args, startTime, "", "Downloaded object mismatched for encrypted object", err)
+		return
+	}
+
 	// Delete all objects and buckets
 	if err = cleanupBucket(bucketName, c); err != nil {
 		logError(testName, function, args, startTime, "", "Cleanup failed", err)
@@ -5990,7 +6655,7 @@ func testFunctionalV2() {
 	startTime := time.Now()
 	testName := getFuncName()
 	function := "testFunctionalV2()"
-	function_all := ""
+	functionAll := ""
 	args := map[string]interface{}{}
 
 	// Seed random based on current time.
@@ -6018,7 +6683,7 @@ func testFunctionalV2() {
 	location := "us-east-1"
 	// Make a new bucket.
 	function = "MakeBucket(bucketName, location)"
-	function_all = "MakeBucket(bucketName, location)"
+	functionAll = "MakeBucket(bucketName, location)"
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"location":   location,
@@ -6049,7 +6714,7 @@ func testFunctionalV2() {
 	// Verify if bucket exits and you have access.
 	var exists bool
 	function = "BucketExists(bucketName)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 	}
@@ -6065,7 +6730,7 @@ func testFunctionalV2() {
 
 	// Make the bucket 'public read/write'.
 	function = "SetBucketPolicy(bucketName, objectPrefix, bucketPolicy)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName":   bucketName,
 		"objectPrefix": "",
@@ -6079,7 +6744,7 @@ func testFunctionalV2() {
 
 	// List all buckets.
 	function = "ListBuckets()"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = nil
 	buckets, err := c.ListBuckets()
 	if len(buckets) == 0 {
@@ -6145,7 +6810,7 @@ func testFunctionalV2() {
 	objFound := false
 	isRecursive := true // Recursive is true.
 	function = "ListObjects(bucketName, objectName, isRecursive, doneCh)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName":  bucketName,
 		"objectName":  objectName,
@@ -6164,7 +6829,7 @@ func testFunctionalV2() {
 
 	incompObjNotFound := true
 	function = "ListIncompleteUploads(bucketName, objectName, isRecursive, doneCh)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName":  bucketName,
 		"objectName":  objectName,
@@ -6182,7 +6847,7 @@ func testFunctionalV2() {
 	}
 
 	function = "GetObject(bucketName, objectName)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"objectName": objectName,
@@ -6205,7 +6870,7 @@ func testFunctionalV2() {
 	}
 
 	function = "FGetObject(bucketName, objectName, fileName)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"objectName": objectName,
@@ -6219,7 +6884,7 @@ func testFunctionalV2() {
 
 	// Generate presigned HEAD object url.
 	function = "PresignedHeadObject(bucketName, objectName, expires, reqParams)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"objectName": objectName,
@@ -6248,7 +6913,7 @@ func testFunctionalV2() {
 
 	// Generate presigned GET object url.
 	function = "PresignedGetObject(bucketName, objectName, expires, reqParams)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"objectName": objectName,
@@ -6316,7 +6981,7 @@ func testFunctionalV2() {
 	}
 
 	function = "PresignedPutObject(bucketName, objectName, expires)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"objectName": objectName + "-presigned",
@@ -6350,7 +7015,7 @@ func testFunctionalV2() {
 	}
 
 	function = "GetObject(bucketName, objectName)"
-	function_all += ", " + function
+	functionAll += ", " + function
 	args = map[string]interface{}{
 		"bucketName": bucketName,
 		"objectName": objectName + "-presigned",
@@ -6386,7 +7051,7 @@ func testFunctionalV2() {
 		logError(testName, function, args, startTime, "", "File removes failed", err)
 		return
 	}
-	successLogger(testName, function_all, args, startTime).Info()
+	successLogger(testName, functionAll, args, startTime).Info()
 }
 
 // Test get object with GetObjectWithContext
@@ -6941,8 +7606,11 @@ func main() {
 
 		// SSE-C tests will only work over TLS connection.
 		if tls {
+			testEncryptedGetObjectReadAtFunctional()
+			testEncryptedGetObjectReadSeekFunctional()
 			testEncryptedCopyObjectV2()
 			testEncryptedCopyObject()
+			testEncryptedEmptyObject()
 		}
 	} else {
 		testFunctional()
