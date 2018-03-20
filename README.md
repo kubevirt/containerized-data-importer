@@ -4,6 +4,7 @@ This repo implements a fairly general file copier/importer. The importer, the co
 1. [Purpose](#purpose)
 1. [Design](#design)
 1. [Running the CDI Controller](#running-the-data-importer)
+1. [Security Configurations](#security-configurations)
 
 Development: for devs who want to dig into the code, see our hacking [README](hack/README.md#getting-started-for-developers) (WIP)
 
@@ -152,3 +153,54 @@ This is the template PVC. No namespace is supplied since the PVC is excpected to
 1. Monitor the importer pod:
 
         $ kubectl logs <unique-name-of-importer pod>  # shown in controller log above
+
+### Security Configurations
+
+#### RBAC Roles
+
+CDI needs certain permissions to be able to execute properly, primarily the `cluster-admin` role should be applied to the service account being used through the [Kubernetes RBAC model](https://kubernetes.io/docs/admin/authorization/rbac/).  For example, if CDI is running in a namespace called `golden-images`, and the `default` service account is being used, then the following RBAC should be applied:
+
+```
+  $ kubectl create clusterrolebinding <binding-name> --clusterrole=cluster-admin  --serviceaccount=<namespace>:default
+
+  i.e.
+  $ kubectl create clusterrolebinding c-golden-images-default --clusterrole=cluster-admin  --serviceaccount=golden-images:default
+
+```
+
+> NOTE: This gives full cluster-admin access to this binding
+
+
+#### Protecting the `Golden` Image Namespace
+
+Currently there is no support for automatically implementing [Kubernetes ResourceQuotas](https://kubernetes.io/docs/concepts/policy/resource-quotas/) and Limits on desired namespaces and resources, therefore administrators need to manually lock down all new namespaces from being able to use the StorageClass associated with CDI/Kubevirt and cloning capabilities. This capability of automatically restricting resources is in the works for a future release. Below are some examples of how one might achieve this level of resource protection:
+
+- Lock Down StorageClass Usage for Namespace:
+
+```
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: protect-mynamespace
+spec:
+  hard:
+    <storage-class-name>.storageclass.storage.k8s.io/requests.storage: "0"
+```  
+
+> NOTE: <storage-class-name>.storageclass.storage.k8s.io/persistentvolumeclaims: "0" would also accomplish the same affect by not allowing any pvc requests against the storageclass for this namespace.
+
+
+- Open Up StorageClass Usage for Namespace:
+
+```
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: protect-mynamespace
+spec:
+  hard:
+    <storage-class-name>.storageclass.storage.k8s.io/requests.storage: "500Gi"
+```
+
+> NOTE: <storage-class-name>.storageclass.storage.k8s.io/persistentvolumeclaims: "4" could be used and this would only allow for 4 pvc requests in this namespace, anything over that would be denied.
+
