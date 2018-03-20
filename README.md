@@ -1,54 +1,56 @@
 # Containerized Data Importer
-This repo implements a fairly general file copier/importer. The importer, the controller which instantiates the importer, and the associated Persistent Volume Claims (PVC) reside within a single, dedicated namespace (or project) inside a Kubernetes or Openshift cluster.
+
+A declarative Kubernetes system to import Virtual Machine images for use with Kubevirt.
 
 1. [Purpose](#purpose)
 1. [Design](/doc/design.md#design)
-1. [Running the CDI Controller](#running-the-data-importer)
+1. [Running the CDI Controller](#deploying-cdi)
+1. [Hacking (WIP)](hack/README.md#getting-started-for-developers)
 1. [Security Configurations](#security-configurations)
 
-Development: for devs who want to dig into the code, see our hacking [README](hack/README.md#getting-started-for-developers) (WIP)
 
 ## Purpose
 
-This project eases the burden on cluster admins seeking to take advantage of Kubernetes/Openshift orchestration of their virtualized app platforms. For the purposes of running a VM inside a container, the imported file referred to above is a VM image and is considered to be an immutable _golden image_  for subsequent cloning and instantiation. As a first step in migration to a Kubernetes cluster, virtual machine images must be imported into a location accessible to the kubelet. The importer automates this by copying images from an external http repository and persisting them in in-cluster storage. The components of this process are detailed [here](/doc/design.md#design).
+This project is designed with Kubevirt in mind and provides a declarative method of importing VM images into a Kuberenetes cluster. Through this behavior, cluster administrators can build an abstract registry of template images (referred to as "Golden Images" for their role as templates for image clones).
+
+For an in depth look at the system, see the [Design](/doc/design.md#design) documentation.
 
 ### Data Formatting
 
-While the importer has been designed to be relatively agnostic to file format, it is capable of performing certain functions that streamline its use with Kubevirt.  It will unpackage **gzip** and **tar** archived files automatically, as well as convert **qcow2** images into raw image files.  
+The importer is capable of performing certain functions that streamline its use with Kubevirt.  It will unpackage **gzip** and **tar** archived files automatically, as well as convert **qcow2** images into raw image files.
 
-## CDI Tire Kicking
+Expected file formats are:
 
-Deploying the controller pod is simple!
+- .tar
+- .gz
+- .img
+- .iso
+- .qcow2
 
-1. Secret(s) containing endpoint credentials. Not required if the endpoint(s) are public.
-1. Storage class(es) defining the backend storage provisioner(s).
-1. Controller pod via the Deployment template. Note that the controller pod spec needs to set an environment variable named OWN_NAMESPACE which can be done as:
-```
-...
-   imagePullPolicy: Always
-       env:
-         - name: OWN_NAMESPACE
-           valueFrom:
-             fieldRef:
-               fieldPath: metadata.namespace
-```
+## Deploying CDI
 
 ### Assumptions
 - A running Kubernetes cluster
-- A reachable object store
-- A file in the object store to be imported.
+- A storage class and provisioner.
+- An HTTP or S3 file server hosting VM images
+- A namespace acting as the image registry (`default` is fine for tire kicking)
+
+Deploying the CDI controller is straight forward.  Create the controller in the namespace where VM images are to be stored.
+
+`$ kubectl create -f https://raw.githubusercontent.com/kubevirt/containerized-data-importer/master/manifests/cdi-controller-deployment.yaml`
+
+
+To begin importing images, follow the PVC configuration guide below.
 
 ### Configuration
 
 Make copies of the [example manifests](./manifests/importer) to some local directory for editing.  There are several values required by the data importer pod that are provided by the configMap and secret.
 
 The files needed are:
-- cdi-controller-pod.yaml
 - endpoint-secret.yaml
 - golden-pvc.yaml
 
-#### cdi-controller-pod.yaml
-(to be replaced by a Deployment manifest)
+#### cdi-controller-deployment.yaml
 
 Defines the spec used by the controller. There should be nothing to edit in this file unless the "golden" namespace is desired to be hard-coded. Note: no namespace is supplied since the controller is excpected to be created from the "golden" namespace.
 
@@ -65,7 +67,7 @@ The credentials provided here are consumed by the S3 client inside the pod.
 
 #### golden-pvc.yaml
 
-This is the template PVC. No namespace is supplied since the PVC is excpected to be created from the "golden" namespace. A storage class is also not provided since there is excpected to be a default storage class per cluster. A storage class will need to be added if the default storage provider does not met the needs of golden images. For example, when copying VM image files, the backend storage should support fast-cloning, and thus a non-default storage class may be needed.
+This is the template PVC. A storage class will need to be added if the default storage provider does not met the needs of golden images. For example, when copying VM image files, the backend storage should support fast-cloning, and thus a non-default storage class may be needed.
 
 ##### Edit:
 -  `storageClassName:` change this to the desired storage class for high speed cloning.
@@ -129,7 +131,7 @@ metadata:
 spec:
   hard:
     <storage-class-name>.storageclass.storage.k8s.io/requests.storage: "0"
-```  
+```
 
 > NOTE: <storage-class-name>.storageclass.storage.k8s.io/persistentvolumeclaims: "0" would also accomplish the same affect by not allowing any pvc requests against the storageclass for this namespace.
 
