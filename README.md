@@ -13,7 +13,7 @@ A declarative Kubernetes system to import Virtual Machine images for use with Ku
 
 This project is designed with Kubevirt in mind and provides a declarative method of importing VM images into a Kuberenetes cluster. Through this behavior, cluster administrators can build an abstract registry of template images (referred to as "Golden Images" for their role as templates for image clones).
 
-For an in depth look at the system, see the [Design](/doc/design.md#design) documentation.
+For an in depth look at the system and workflow, see the [Design](/doc/design.md#design) documentation.
 
 ### Data Formatting
 
@@ -35,70 +35,77 @@ Expected file formats are:
 - An HTTP or S3 file server hosting VM images
 - A namespace acting as the image registry (`default` is fine for tire kicking)
 
-Deploying the CDI controller is straight forward.  Create the controller in the namespace where VM images are to be stored.
+### Either clone this repo or download the necessary manifests directly:
 
-`$ kubectl create -f https://raw.githubusercontent.com/kubevirt/containerized-data-importer/master/manifests/cdi-controller-deployment.yaml`
+`$ git clone https://github.com/kubevirt/containerized-data-importer.git`
 
+*Or*
+
+```shell
+$ mkdir cdi-manifests && cd cdi-manifests
+$ wget https://raw.githubusercontent.com/copejon/containerized-data-importer/kubevirt-centric-readme/manifests/example/golden-pvc.yaml
+$ wget https://raw.githubusercontent.com/copejon/containerized-data-importer/kubevirt-centric-readme/manifests/example/endpoint-secret.yaml
+$ wget https://raw.githubusercontent.com/copejon/containerized-data-importer/kubevirt-centric-readme/manifests/controller/controller/cdi-controller-deployment.yaml
+```
+
+### Run the CDI Controller
+
+Deploying the CDI controller is straight forward.  Create the controller in the namespace where VM images are to be stored.  Here, `default` is used.  In a production setup, a namespace that is inaccessible to regular users should be used instead.
+
+`$ kubectl -n default create -f https://raw.githubusercontent.com/kubevirt/containerized-data-importer/master/manifests/cdi-controller-deployment.yaml`
 
 To begin importing images, follow the PVC configuration guide below.
 
-### Configuration
+### Start Importing Images
 
-Make copies of the [example manifests](./manifests/importer) to some local directory for editing.  There are several values required by the data importer pod that are provided by the configMap and secret.
+> Note: The CDI controller is a require part of this work flow.
 
-The files needed are:
-- endpoint-secret.yaml
+Make copies of the [example manifests](./manifests/example) for editing. The neccessary files are:
 - golden-pvc.yaml
+- endpoint-secret.yaml
 
-#### cdi-controller-deployment.yaml
+###### Edit golden-pvc.yaml:
+1.  `storageClassName:` The default StorageClass will be used if not set.  Otherwise, set to a desired StorageClass
 
-Defines the spec used by the controller. There should be nothing to edit in this file unless the "golden" namespace is desired to be hard-coded. Note: no namespace is supplied since the controller is excpected to be created from the "golden" namespace.
+1.  `kubevirt.io/storage.import.endpoint:` The full URL to the VM image in the format of: `http://www.myUrl.com/path/of/data` or `s3://bucketName/fileName`
 
-#### endpoint-secret.yaml
+1.  `kubevirt.io/storage.import.secretName:` (Optional) The name of the secret containing the authentication credentials required by the file server
 
-One or more endpoint secrets in the "golden" namespace are required for non-public endpoints. If the endpoint is public there is no need to an endpoint secret. No namespace is supplied since the secret is expected to be created from the "golden" namespace.
+###### Edit endpoint-secret.yaml:
 
-##### Edit:
-- `metadata.name:` change this to a different secert name if desired. Remember to use this name in the PVC's secret annotation.
--  `accessKeyId:` to contain the endpoint's key and/or user name. This value must be **base64** encoded with no extraneous linefeeds. Use `echo -n "xyzzy" | base64` or `printf "xyzzy" | base64` to avoid a trailing linefeed.
--  `secretKey:`  the endpoint's secret or password, again base64 encoded.
-The credentials provided here are consumed by the S3 client inside the pod.
-> NOTE: the access key id and secret key **must** be base64 encoded without newlines (\n).
+> Note:  (Optional) Only set these values if the file server requires authentication credentials.
 
-#### golden-pvc.yaml
+1. `metadata.name:` Arbitrary name of the secret. Must match the PVC's `kubevirt.io/storage.import.secretName:`
 
-This is the template PVC. A storage class will need to be added if the default storage provider does not met the needs of golden images. For example, when copying VM image files, the backend storage should support fast-cloning, and thus a non-default storage class may be needed.
+1.  `accessKeyId:` Contains the endpoint's key and/or user name. This value **must be base64 encoded** with no extraneous linefeeds. Use `echo -n "xyzzy" | base64` or `printf "xyzzy" | base64` to avoid a trailing linefeed
 
-##### Edit:
--  `storageClassName:` change this to the desired storage class for high speed cloning.
--  `kubevirt.io/storage.import.endpoint:` change this to contain the source endpoint. Format: `(http||s3)://www.myUrl.com/path/of/data`
--  `kubevirt.io/storage.import.secretName:` (not needed for public endpoints). Edit the name of the secret containing credentials for the supplied endpoint.
+1.  `secretKey:`  the endpoint's secret or password, again **base64 encoded**
 
 ### Deploy the API Objects
 
-1. First, create the "golden" namespace:  (no manifests are provided)
+1. (Optional) Create the "golden" namespace
 
-1. Next, create one or more storage classes: (no manifests are provided).
+    `$ kubectl create ns <name>`
 
-1. Next, create the endpoint secrets:
+1. (Optional) Create the endpoint secrets:
 
-        $ kubectl create -f endpoint-secret.yaml
+   `$ kubectl create -f endpoint-secret.yaml`
 
-1. Next, create the cdi controller:
+1. Create the CDI controller (If not already done):
 
-        $ kubectl create -f cdi-controller-pod.yaml
+   `$ kubectl create -f manifests/controller/cdi-controller-deployment.yaml`
 
 1. Next, create the persistent volume claim to trigger the import process;
 
-        $ kubectl create -f golden-pvc.yaml
+   `$ kubectl create -f golden-pvc.yaml`
 
 1. Monitor the cdi-controller:
 
-        $ kubectl logs cdi-controller
+   `$ kubectl logs cdi-controller`
 
 1. Monitor the importer pod:
 
-        $ kubectl logs <unique-name-of-importer pod>  # shown in controller log above
+   `$ kubectl logs <unique-name-of-importer pod>`  # shown in controller log above
 
 ### Security Configurations
 

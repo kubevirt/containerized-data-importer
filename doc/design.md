@@ -9,7 +9,7 @@ The agents responsible for each step are identified by corresponding colored sha
 
 #### Assumptions
 
-- (Optional) A "golden" namespace  which is restricted such that ordinary users cannot create objects within it. This is to prevent a non-privileged user from trigger the import of a potentially large VM image.  In tire kicking setups, "default" is an acceptable namespace.
+- (Optional) A "golden" namespace which is restricted from oridnary users. This is to prevent a non-privileged user from trigger the import of a potentially large VM image.  In tire kicking setups, "default" is an acceptable namespace.
 
 - (Required) A Kubernetes Storage Class which defines the storage provisioner. The "golden" pvc expects dynamic provisioning to be enabled in the cluster.
 
@@ -57,3 +57,19 @@ On detecting a new PVC with the endpoint annotation (and lacking the status anno
 **Object Store:** Arbitrary url-based storage location.  Currently we support http and S3 protocols.
 
 **Storage Class:** Long-lived, default Storage Class which links Persistent Volume Claims to the desired Dynamic Provisioner(s). Referenced by the golden PVC. The example makes use of the "default" provisioner; however, any provisioner that manages mountable volumes is compatible.
+
+
+## Included Manifests
+
+###### cdi-controller-deployment.yaml
+
+Defines the spec used by the controller. There should be nothing to edit in this file unless the "golden" namespace is desired to be hard-coded. Note: no namespace is supplied since the controller is excpected to be created from the "golden" namespace.
+
+###### endpoint-secret.yaml
+
+One or more endpoint secrets in the "golden" namespace are required for non-public endpoints. If the endpoint is public there is no need to an endpoint secret. No namespace is supplied since the secret is expected to be created from the "golden" namespace.
+
+
+###### golden-pvc.yaml
+
+This is the template PVC. A storage class will need to be added if the default storage provider does not met the needs of golden images. For example, when copying VM image files, the backend storage should support fast-cloning, and thus a non-default storage class may be needed.
