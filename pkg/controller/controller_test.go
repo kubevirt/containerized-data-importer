@@ -19,8 +19,8 @@ type operation int
 
 const (
 	opAdd    operation = iota
-	opUpdate 
-	opDelete 
+	opUpdate
+	opDelete
 )
 
 var _ = Describe("Controller", func() {
@@ -82,9 +82,9 @@ var _ = Describe("Controller", func() {
 			It(test.descr, func() {
 				Expect(controller.ProcessNextItem()).To(BeTrue())
 				pod, err := getTestPod(fakeClient, test.expectPodName)
-				Expect(err).To(BeNil(), fmt.Sprintf("Expected nil err, got: %v", err))
+				Expect(err).NotTo(HaveOccurred())
 				Expect(pod).NotTo(BeNil(), fmt.Sprintf("Expected Pod %q was not found.", test.expectPodName))
-				Expect(pod.GenerateName).To(ContainSubstring(test.expectPodName))
+				Expect(pod.GenerateName).To(HavePrefix(test.expectPodName))
 			})
 		}
 	})
