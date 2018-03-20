@@ -81,6 +81,7 @@ func (d *dataStream) http() (io.ReadCloser, error) {
 	}
 	req, err := http.NewRequest("GET", d.url.String(), nil)
 	if len(d.accessKeyId) > 0 && len(d.secretKey) > 0 {
+		req.SetBasicAuth(d.accessKeyId, d.secretKey)
 	}
 	glog.Infoln("Using HTTP GET to fetch data.")
 	resp, err := client.Do(req)
