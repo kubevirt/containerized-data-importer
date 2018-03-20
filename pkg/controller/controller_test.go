@@ -1,6 +1,8 @@
 package controller_test
 
 import (
+	"fmt"
+
 	. "github.com/kubevirt/containerized-data-importer/pkg/controller"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -16,7 +18,7 @@ import (
 type operation int
 
 const (
-	opAdd operation = iota
+	opAdd    operation = iota
 	opUpdate
 	opDelete
 )
@@ -79,9 +81,10 @@ var _ = Describe("Controller", func() {
 
 			It(test.descr, func() {
 				Expect(controller.ProcessNextItem()).To(BeTrue())
-				pod, err := fakeClient.CoreV1().Pods("").Get(test.expectPodName, metav1.GetOptions{})
+				pod, err := getTestPod(fakeClient, test.expectPodName)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(pod.Name).To(Equal(test.expectPodName))
+				Expect(pod).NotTo(BeNil(), fmt.Sprintf("Expected Pod %q was not found.", test.expectPodName))
+				Expect(pod.GenerateName).To(HavePrefix(test.expectPodName))
 			})
 		}
 	})
@@ -121,3 +124,20 @@ var _ = Describe("Controller", func() {
 		}
 	})
 })
+
+// getTestPod is used to handle pods with generated name by comparing the passed in pod name to a list of pods
+// If a match is found, the pod is returned.
+// If no match is found, a nil pointer is returned.  This should be checked by the caller.
+func getTestPod(fc *fake.Clientset, podName string) (*v1.Pod, error) {
+	podList, err := fc.CoreV1().Pods("").List(metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	var pod *v1.Pod
+	for i, p := range podList.Items {
+		if p.GenerateName == podName {
+			pod = &podList.Items[i]
+		}
+	}
+	return pod, nil
+}
