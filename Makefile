@@ -95,3 +95,8 @@ release:
 #endif
 #	docker tag $(IMAGE) $(REGISTRY)/$(CONTROLLER_IMAGE):latest
 #	docker push $(REGISTRY)/$(CONTROLLER_IMAGE):latest
+
+my-golden-pvc.yaml: manifests/golden-pvc.yaml
+	sed "s,endpoint:.*,endpoint: \"$(URI)\"," $< > $@
+
+.PHONY: my-golden-pvc.yaml
