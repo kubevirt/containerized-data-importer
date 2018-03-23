@@ -11,9 +11,7 @@ package main
 import (
 	"bytes"
 	"flag"
-	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 
@@ -27,28 +25,15 @@ func init() {
 	flag.Parse()
 }
 
-// Parse the required endpoint and return the url struct.
-func parseEndpoint() (*url.URL, error) {
-	epEnv := ParseEnvVar(common.IMPORTER_ENDPOINT, false)
-	if epEnv == "" {
-		return nil, fmt.Errorf("parseEndpoint: endpoint %q is missing or blank\n", common.IMPORTER_ENDPOINT)
-	}
-	ep, err := url.Parse(epEnv)
-    	if err != nil {
-        	return nil, fmt.Errorf("parseEndpoint: %v\n", err)
-	}
-	return ep, nil
-}
-
 func main() {
 	defer glog.Flush()
 
 	glog.Infoln("main: Starting importer")
-	ep, err := parseEndpoint()
-    	if err != nil {
-        	glog.Errorf("main: endpoint error: %v\n", err)
+	ep, err := ParseEndpoint("")
+	if err != nil {
+		glog.Errorf("main: endpoint error: %v\n", err)
 		os.Exit(1)
-    	}
+	}
 	acc := ParseEnvVar(common.IMPORTER_ACCESS_KEY_ID, false)
 	sec := ParseEnvVar(common.IMPORTER_SECRET_KEY, false)
 	fn := filepath.Base(ep.Path)
@@ -59,15 +44,19 @@ func main() {
 
 	// Initialize the input io stream (typically http or s3 client)
 	glog.Infof("main: importing file %q\n", fn)
-	dataStream, err := NewDataStream(ep, acc, sec).DataStreamSelector()
+	dataStream, err := NewDataStream(ep, acc, sec)
 	if err != nil {
 		glog.Errorf("main: %q error: %v\n", ep.Path, err)
 		os.Exit(1)
 	}
-	defer dataStream.Close()
+	defer dataStream.DataRdr.Close()
 
 	glog.Infof("Beginning import from %s\n", ep.Path)
-	unpackedStream := image.UnpackData(fn, dataStream).(io.Reader)
+	unpackedStream, err := image.UnpackData(fn, dataStream.DataRdr)
+	if err != nil {
+		glog.Errorf("main: %v\n", err)
+		os.Exit(1)
+	}
 
 	// chkBuf is used to match first 4 bytes of io stream.
 	chkBuf := make([]byte, 4)
@@ -78,7 +67,7 @@ func main() {
 	if image.MatchQcow2MagicNum(chkBuf) {
 		// If the stream matches qcow2 format, write to /tmp/, then convert to raw disk in /data/.
 		glog.Infoln("main: detected qcow2 magic number.")
-		tmpFile := filepath.Join("tmp", fn)
+		tmpFile := filepath.Join("/tmp", fn)
 		err = StreamDataToFile(dataStreamReader, tmpFile)
 		if err != nil {
 			glog.Fatalf("main: error streaming data to file: %v\n", err)

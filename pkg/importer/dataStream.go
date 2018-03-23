@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/golang/glog"
@@ -13,9 +14,10 @@ import (
 )
 
 type DataStreamInterface interface {
-	DataStreamSelector() (io.ReadCloser, error)
+	dataStreamSelector() (io.ReadCloser, error)
 	s3() (io.ReadCloser, error)
 	http() (io.ReadCloser, error)
+	local() (io.ReadCloser, error)
 	parseDataPath() (string, string, error)
 	Error() error
 }
@@ -23,6 +25,7 @@ type DataStreamInterface interface {
 var _ DataStreamInterface = &dataStream{}
 
 type dataStream struct {
+	DataRdr	    io.ReadCloser
 	url         *url.URL
 	accessKeyId string
 	secretKey   string
@@ -34,25 +37,33 @@ func (d *dataStream) Error() error {
 }
 
 // NewDataStream: construct a new dataStream object from params.
-func NewDataStream(ep *url.URL, accKey, secKey string) *dataStream {
+func NewDataStream(ep *url.URL, accKey, secKey string) (*dataStream, error) {
 	if len(accKey) == 0 || len(secKey) == 0 {
 		glog.Warningf("NewDataStream: %s and/or %s env variables are empty\n", common.IMPORTER_ACCESS_KEY_ID, common.IMPORTER_SECRET_KEY)
 	}
-	return &dataStream{
-		url:         ep,
+	ds := &dataStream{
+		url:	     ep,
 		accessKeyId: accKey,
 		secretKey:   secKey,
 	}
+	rdr, err := ds.dataStreamSelector()
+	if err != nil {
+		return nil, fmt.Errorf("NewDataStream: %v\n", err)
+	}
+	ds.DataRdr = rdr
+	return ds, nil
 }
 
-func (d *dataStream) DataStreamSelector() (io.ReadCloser, error) {
+func (d *dataStream) dataStreamSelector() (io.ReadCloser, error) {
 	switch d.url.Scheme {
 	case "s3":
 		return d.s3()
 	case "http", "https":
 		return d.http()
+	case "file":
+		return d.local()
 	default:
-		return nil, fmt.Errorf("DataStreamSelector: invalid url scheme: %s", d.url.Scheme)
+		return nil, fmt.Errorf("dataStreamSelector: invalid url scheme: %s", d.url.Scheme)
 	}
 }
 
@@ -93,6 +104,16 @@ func (d *dataStream) http() (io.ReadCloser, error) {
 		return nil, fmt.Errorf("http: expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
 	}
 	return resp.Body, nil
+}
+
+func (d *dataStream) local() (io.ReadCloser, error) {
+	fn := d.url.Path
+	f, err := os.Open(fn)
+	if err != nil {
+		return nil, fmt.Errorf("open fail on %q: %v\n", fn, err)
+	}
+	//note: if poor perf here consider wrapping this with a buffered i/o Reader
+	return f, nil
 }
 
 // parseDataPath only used for debugging
