@@ -15,7 +15,7 @@ This project is designed with Kubevirt in mind and provides a declarative method
 
 For an in depth look at the system and workflow, see the [Design](/doc/design.md#design) documentation.
 
-### Data Formatting
+### Data Format
 
 The importer is capable of performing certain functions that streamline its use with Kubevirt.  It will unpackage **gzip** and **tar** archived files automatically, as well as convert **qcow2** images into raw image files.
 
