@@ -74,7 +74,7 @@ func main() {
 	unpackedStream.Read(chkBuf)
 
 	// Reconstruct the stream.  `dataStreamReader` is considered the new head of the stream.
-	dataStreamReader := io.MultiReader(bytes.NewReader(chkBuf), dataStream)
+	dataStreamReader := io.MultiReader(bytes.NewReader(chkBuf), unpackedStream)
 	if image.MatchQcow2MagicNum(chkBuf) {
 		// If the stream matches qcow2 format, write to /tmp/, then convert to raw disk in /data/.
 		glog.Infoln("main: detected qcow2 magic number.")
