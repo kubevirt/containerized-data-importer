@@ -22,6 +22,9 @@ var _ = Describe("Validate Test IsValidImageFile", func() {
 				imageFileName: "test.gz",
 			},
 			{
+				imageFileName: "test.xz",
+			},
+			{
 				imageFileName: "test.img",
 			},
 			{

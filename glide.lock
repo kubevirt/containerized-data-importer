@@ -1,5 +1,5 @@
-hash: aea904e314250a5574e366a6ecf7ddc9ac69a04b8e593d0040d810d4e4ff9466
-updated: 2018-03-18T15:09:39.741094374+08:00
+hash: 7a5bf1fa110ec90fdb68e5eb96ebf2f45a4f9be118c31af49506a3ac7cb339c1
+updated: 2018-03-21T13:30:53.784728501-07:00
 imports:
 - name: github.com/davecgh/go-spew
   version: 782f4967f2dc4564575ca782fe2d04090b5faca8
@@ -12,7 +12,7 @@ imports:
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ini/ini
-  version: 300e940a926eb277d3901b20bdfcc54928ad3642
+  version: 6ecc596bd756a16c6e93e4ef9225ecdb9f54ed2c
 - name: github.com/go-openapi/jsonpointer
   version: 46af16f9f7b149af66e5d1bd010e3574dc06de98
 - name: github.com/go-openapi/jsonreference
@@ -27,7 +27,7 @@ imports:
   - proto
   - sortkeys
 - name: github.com/golang/glog
-  version: 44145f04b68cf362d9c4df2182967c2275eaefed
+  version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
 - name: github.com/golang/protobuf
   version: 1643683e1b54a9e88ad26d98f81400c8c9d9f4f9
   subpackages:
@@ -89,6 +89,8 @@ imports:
   version: 5bd2802263f21d8788851d5305584c82a5c75d7e
 - name: github.com/spf13/pflag
   version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7
+- name: github.com/xi2/xz
+  version: 48954b6210f8d154cb5f8484d3a3e1f83489309e
 - name: golang.org/x/crypto
   version: 81e90905daefcd6fd217b62423c0908922eadb30
   subpackages:
@@ -104,6 +106,7 @@ imports:
   - http2/hpack
   - idna
   - lex/httplex
+  - websocket
 - name: golang.org/x/sys
   version: 95c6576299259db960f6c5b9b69ea52422860fce
   subpackages:
@@ -159,6 +162,7 @@ imports:
   - core/v1
   - events/v1beta1
   - extensions/v1beta1
+  - imagepolicy/v1alpha1
   - networking/v1
   - policy/v1beta1
   - rbac/v1
@@ -369,7 +373,7 @@ imports:
   - pkg/util/proto
 testImports:
 - name: github.com/onsi/ginkgo
-  version: ba8e856bb854d6771a72ddf6497a42dad3a0c971
+  version: 11459a886d9cd66b319dac7ef1e917ee221372c9
   subpackages:
   - config
   - internal/codelocation
@@ -389,7 +393,7 @@ testImports:
   - reporters/stenographer/support/go-isatty
   - types
 - name: github.com/onsi/gomega
-  version: de89e61d40b75aa971a9fc3eae7f4fefabd6e0ee
+  version: dcabb60a477c2b6f456df65037cb6708210fbb02
   subpackages:
   - format
   - internal/assertion

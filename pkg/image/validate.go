@@ -7,13 +7,14 @@ import (
 const (
 	ExtImg   = ".img"
 	ExtIso   = ".iso"
-	ExtQcow2 = ".qcow2"
 	ExtGz    = ".gz"
+	ExtQcow2 = ".qcow2"
 	ExtTar   = ".tar"
+	ExtXz    = ".xz"
 )
 
 var SupportedCompressionExtensions = []string{
-	ExtGz,
+	ExtGz, ExtXz,
 }
 
 var SupportedArchiveExtensions = []string{
