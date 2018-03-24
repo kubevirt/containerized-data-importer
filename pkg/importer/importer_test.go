@@ -13,6 +13,7 @@ import (
 )
 
 type fakeDataStream struct {
+	DataRdr     io.ReadCloser
 	url         *url.URL
 	accessKeyId string
 	secretKey   string
@@ -23,7 +24,7 @@ func (d *fakeDataStream) Error() error {
 	return d.err
 }
 
-func (d *fakeDataStream) DataStreamSelector() (io.ReadCloser, error) {
+func (d *fakeDataStream) dataStreamSelector() (io.ReadCloser, error) {
 	if d.err != nil {
 		return nil, d.err
 	}
@@ -47,13 +48,9 @@ func (d *fakeDataStream) parseDataPath() (string, string, error) {
 }
 
 // NewFakeDataStream: construct a new fakeDataStream object from params.
-func NewFakeDataStream(ep, accKey, secKey string) *fakeDataStream {
-	epUrl, err := url.Parse(ep)
-	if err != nil {
-		return &fakeDataStream{err: err}
-	}
+func NewFakeDataStream(ep *url.URL, accKey, secKey string) *fakeDataStream {
 	return &fakeDataStream{
-		url:         epUrl,
+		url:         ep,
 		accessKeyId: accKey,
 		secretKey:   secKey,
 	}
@@ -114,10 +111,10 @@ var _ = Describe("Importer", func() {
 		for _, test := range tests {
 			fn := test.filename
 			expt := test.expected
-			ep := test.endpoint
+			ep, _ := ParseEndpoint(test.endpoint)
 			expErr := test.expectError
 			It(test.descr, func() {
-				dataStream, err := NewFakeDataStream(ep, "", "").DataStreamSelector()
+				dataStream, err := NewFakeDataStream(ep, "", "").dataStreamSelector()
 				Expect(err).ToNot(HaveOccurred())
 				err = StreamDataToFile(dataStream, importerTestFolder+fn)
 				if expErr {

@@ -13,18 +13,42 @@ const (
 )
 
 var SupportedCompressionExtensions = []string{
-	ExtTar, ExtGz,
+	ExtGz,
+}
+
+var SupportedArchiveExtensions = []string{
+	ExtTar,
 }
 
 var SupportedImageFormats = []string{
 	ExtImg, ExtIso, ExtQcow2,
 }
 
-var SupportedFileExtensions = append(SupportedImageFormats, SupportedCompressionExtensions...)
+var SupportedFileExtensions = append(SupportedImageFormats, append(SupportedCompressionExtensions, SupportedArchiveExtensions...)...)
 
-func IsSupporedFileType(filename string) bool {
-	fn := strings.ToLower(strings.TrimSpace(filename))
+func IsSupporedFileType(fn string) bool {
+	fn = TrimString(fn)
 	for _, ext := range SupportedFileExtensions {
+		if strings.HasSuffix(fn, ext) {
+			return true
+		}
+	}
+	return false
+}
+
+func IsSupporedCompressionType(fn string) bool {
+	fn = TrimString(fn)
+	for _, ext := range SupportedCompressionExtensions {
+		if strings.HasSuffix(fn, ext) {
+			return true
+		}
+	}
+	return false
+}
+
+func IsSupporedArchiveType(fn string) bool {
+	fn = TrimString(fn)
+	for _, ext := range SupportedArchiveExtensions {
 		if strings.HasSuffix(fn, ext) {
 			return true
 		}
