@@ -1,6 +1,6 @@
 # Containerized Data Importer
 
-A declarative Kubernetes system to import Virtual Machine images for use with Kubevirt.
+A declarative Kubernetes system to import Virtual Machine images for use with [Kubevirt](https://github.com/kubevirt/kubevirt).
 
 1. [Purpose](#purpose)
 1. [Design](/doc/design.md#design)
@@ -23,6 +23,7 @@ Expected file formats are:
 
 - .tar
 - .gz
+- .xz
 - .img
 - .iso
 - .qcow2
@@ -43,22 +44,20 @@ Expected file formats are:
 
 ```shell
 $ mkdir cdi-manifests && cd cdi-manifests
-$ wget https://raw.githubusercontent.com/copejon/containerized-data-importer/kubevirt-centric-readme/manifests/example/golden-pvc.yaml
-$ wget https://raw.githubusercontent.com/copejon/containerized-data-importer/kubevirt-centric-readme/manifests/example/endpoint-secret.yaml
-$ wget https://raw.githubusercontent.com/copejon/containerized-data-importer/kubevirt-centric-readme/manifests/controller/controller/cdi-controller-deployment.yaml
+$ wget https://raw.githubusercontent.com/kubevirt/containerized-data-importer/kubevirt-centric-readme/manifests/example/golden-pvc.yaml
+$ wget https://raw.githubusercontent.com/kubevirt/containerized-data-importer/kubevirt-centric-readme/manifests/example/endpoint-secret.yaml
+$ wget https://raw.githubusercontent.com/kubevirt/containerized-data-importer/kubevirt-centric-readme/manifests/controller/controller/cdi-controller-deployment.yaml
 ```
 
 ### Run the CDI Controller
 
-Deploying the CDI controller is straight forward.  Create the controller in the namespace where VM images are to be stored.  Here, `default` is used.  In a production setup, a namespace that is inaccessible to regular users should be used instead.
+Deploying the CDI controller is straight forward.  Create the controller in the namespace where VM images are to be stored.  Here, `default` is used, but in a production setup, a namespace that is inaccessible to regular users should be used instead (see [Protecting the Golden Image Namespace](#protecting-the-golden-image-namespace) creating a secure golden namespace).
 
 `$ kubectl -n default create -f https://raw.githubusercontent.com/kubevirt/containerized-data-importer/master/manifests/cdi-controller-deployment.yaml`
 
-To begin importing images, follow the PVC configuration guide below.
-
 ### Start Importing Images
 
-> Note: The CDI controller is a require part of this work flow.
+> Note: The CDI controller is a required part of this work flow.
 
 Make copies of the [example manifests](./manifests/example) for editing. The neccessary files are:
 - golden-pvc.yaml
@@ -71,41 +70,41 @@ Make copies of the [example manifests](./manifests/example) for editing. The nec
 
 1.  `kubevirt.io/storage.import.secretName:` (Optional) The name of the secret containing the authentication credentials required by the file server
 
-###### Edit endpoint-secret.yaml:
+###### Edit endpoint-secret.yaml (Optional):
 
-> Note:  (Optional) Only set these values if the file server requires authentication credentials.
+> Note: Only set these values if the file server requires authentication credentials.
 
 1. `metadata.name:` Arbitrary name of the secret. Must match the PVC's `kubevirt.io/storage.import.secretName:`
 
 1.  `accessKeyId:` Contains the endpoint's key and/or user name. This value **must be base64 encoded** with no extraneous linefeeds. Use `echo -n "xyzzy" | base64` or `printf "xyzzy" | base64` to avoid a trailing linefeed
 
-1.  `secretKey:`  the endpoint's secret or password, again **base64 encoded**
+1.  `secretKey:`  the endpoint's secret or password, again **base64 encoded** with no extraneous linefeeds.
 
 ### Deploy the API Objects
 
-1. (Optional) Create the "golden" namespace
+1. (Optional) Create the "golden" namespace.
 
     `$ kubectl create ns <name>`
 
 1. (Optional) Create the endpoint secrets:
 
-   `$ kubectl create -f endpoint-secret.yaml`
+   `$ kubectl -n <target namespace> create -f endpoint-secret.yaml`
 
-1. Create the CDI controller (If not already done):
+1. Create the CDI controller (if not already done):
 
-   `$ kubectl create -f manifests/controller/cdi-controller-deployment.yaml`
+   `$ kubectl -n <target namespace> create -f manifests/controller/cdi-controller-deployment.yaml`
 
 1. Next, create the persistent volume claim to trigger the import process;
 
-   `$ kubectl create -f golden-pvc.yaml`
+   `$ kubectl -n <target namespace> create -f golden-pvc.yaml`
 
 1. Monitor the cdi-controller:
 
-   `$ kubectl logs cdi-controller`
+   `$ kubectl -n <target namespace> logs cdi-controller`
 
 1. Monitor the importer pod:
 
-   `$ kubectl logs <unique-name-of-importer pod>`  # shown in controller log above
+   `$ kubectl -n <target namespace> logs importer-<pvc-name>`  # shown in controller log above
 
 ### Security Configurations
 
