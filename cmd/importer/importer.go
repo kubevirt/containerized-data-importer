@@ -1,12 +1,16 @@
 package main
 
-// importer.go implements a data fetching service capable of pulling objects from remote object stores
-// and writing to a local directory.  It utilizes the minio-go client sdk.
+// importer.go implements a data fetching service capable of pulling objects from remote object
+// stores and writing to a local directory. It utilizes the minio-go client sdk for s3 remotes,
+// https for public remotes, and "file" for local files. The main use-case for this importer is
+// to copy VM images to a "golden" namespace for consumption by kubevirt.
 // This process expects several environmental variables:
-//    IMPORTER_ENDPOINT       Endpoint url minus scheme, bucket/object and port, eg. s3.amazon.com
-// Access and secret keys are optional. If omitted no creds are passed to the object store client
-//    IMPORTER_ACCESS_KEY_ID  Optional. Access key is the user ID that uniquely identifies your account.
-//    IMPORTER_SECRET_KEY     Optional. Secret key is the password to your account
+//    IMPORTER_ENDPOINT       Endpoint url minus scheme, bucket/object and port, eg. s3.amazon.com.
+//			      Access and secret keys are optional. If omitted no creds are passed
+//			      to the object store client.
+//    IMPORTER_ACCESS_KEY_ID  Optional. Access key is the user ID that uniquely identifies your
+//			      account.
+//    IMPORTER_SECRET_KEY     Optional. Secret key is the password to your account.
 
 import (
 	"bytes"
@@ -51,7 +55,7 @@ func main() {
 	}
 	defer dataStream.DataRdr.Close()
 
-	glog.Infof("Beginning import from %s\n", ep.Path)
+	glog.Infof("Beginning import from %q\n", ep.Path)
 	unpackedStream, err := image.UnpackData(fn, dataStream.DataRdr)
 	if err != nil {
 		glog.Errorf("main: %v\n", err)

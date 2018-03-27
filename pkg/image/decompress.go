@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
+	"github.com/xi2/xz"
 )
 
 // Return string as lowercase with all spaces removed.
@@ -42,15 +43,24 @@ func UnpackData(filename string, src io.ReadCloser) (io.ReadCloser, error) {
 // Returns trimmed filename string and gzip Reader if gzip compression was used.
 func DecompressData(filename string, src io.ReadCloser) (string, io.ReadCloser, error) {
 	glog.Infof("DecompressData: checking if %q is compressed\n", filename)
+	var err error
+	var r io.ReadCloser
 	ext := filepath.Ext(TrimString(filename))
 	switch ext {
 	case ExtGz:
-		glog.Infof("DecompressData: detected %v compression format", ExtGz)
-		filename = strings.TrimSuffix(filename, ext) // trim ".gz"
-		src, err := gunzip(src)
-		return filename, src, err
+		r, err = gzDecompress(src)
+	case ExtXz:
+		r, err = xzDecompress(src)
 	}
-	return filename, src, nil // orig filename and reader
+	if err != nil {
+		return filename, nil, fmt.Errorf("DecompressData: %v\n", err)
+	}
+	if r != nil { // have decompress Reader
+		glog.Infof("DecompressData: decompressed %q", filename)
+		src = r
+		filename = strings.TrimSuffix(filename, ext) // trim compression extension
+	}
+	return filename, src, nil // orig filename and orig reader
 }
 
 // DearchiveData analyzes a filename extension to decided which de-archive function to call.
@@ -67,8 +77,16 @@ func DearchiveData(filename string, src io.ReadCloser) (io.ReadCloser, error) {
 	return src, nil // orig reader
 }
 
-func gunzip(r io.ReadCloser) (io.ReadCloser, error) {
+func gzDecompress(r io.ReadCloser) (io.ReadCloser, error) {
 	return gzip.NewReader(r)
+}
+
+func xzDecompress(r io.ReadCloser) (io.ReadCloser, error) {
+	rdr, err := xz.NewReader(r, 0) //note: default dict size may be too small
+	if err != nil {
+		return nil, fmt.Errorf("xzDecompress: error creating xz Reader: %v\n", err)
+	}
+	return ioutil.NopCloser(rdr), nil
 }
 
 // TODO: support other archive formats? This just handles tar.

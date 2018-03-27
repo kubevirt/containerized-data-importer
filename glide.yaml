@@ -14,3 +14,4 @@ import:
   subpackages:
   - kubernetes
   - rest
+- package: github.com/xi2/xz
