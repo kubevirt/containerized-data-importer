@@ -28,11 +28,11 @@ before_script:
 
 script:
   # Deploy manifests
-  - kubectl apply -f manifests/endpoint-secret.yaml
-  - kubectl apply -f manifests/cdi-controller-deployment.yaml
+  - kubectl apply -f manifests/example/endpoint-secret.yaml
+  - kubectl apply -f manifests/controller/cdi-controller-deployment.yaml
 
-  - make manifests/golden-pvc.yaml URI="$SRC"
-  - kubectl apply -f manifests/golden-pvc.yaml
+  - make manifests/example/golden-pvc.yaml URI="$SRC"
+  - kubectl apply -f manifests/example/golden-pvc.yaml
 
   - k_wait_all_running pods
   - kubectl get pods --all-namespaces
