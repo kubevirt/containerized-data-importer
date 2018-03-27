@@ -41,25 +41,26 @@ func UnpackData(filename string, src io.ReadCloser) (io.ReadCloser, error) {
 // return a ReadCloser.  It is up to the caller of DecompressData to close the returned stream.
 // If no compression is detected, it is considered a 'noop' and the original stream is returned.
 // Returns trimmed filename string and gzip Reader if gzip compression was used.
-func DecompressData(filename string, src io.ReadCloser) (fn string, rc io.ReadCloser, err error) {
+func DecompressData(filename string, src io.ReadCloser) (string, io.ReadCloser, error) {
 	glog.Infof("DecompressData: checking if %q is compressed\n", filename)
+	var err error
+	var r io.ReadCloser
 	ext := filepath.Ext(TrimString(filename))
 	switch ext {
-	case ExtGz, ExtXz:
-		glog.Infof("DecompressData: detected %v compression format", ext)
-		switch ext {
-		case ExtGz:
-			rc, err = gunzip(src)
-		case ExtXz:
-			rc, err = xzDecompress(src)
-		}
-		if err != nil {
-			return "", nil, fmt.Errorf("DecompressData: %v\n", err)
-		}
-		fn = strings.TrimSuffix(filename, ext) // trim compression extension
-		return fn, rc, nil
+	case ExtGz:
+		r, err = gzDecompress(src)
+	case ExtXz:
+		r, err = xzDecompress(src)
 	}
-	return filename, src, nil // orig filename and reader
+	if err != nil {
+		return filename, nil, fmt.Errorf("DecompressData: %v\n", err)
+	}
+	if r != nil { // have decompress Reader
+		glog.Infof("DecompressData: decompressed %q", filename)
+		src = r
+		filename = strings.TrimSuffix(filename, ext) // trim compression extension
+	}
+	return filename, src, nil // orig filename and orig reader
 }
 
 // DearchiveData analyzes a filename extension to decided which de-archive function to call.
@@ -76,7 +77,7 @@ func DearchiveData(filename string, src io.ReadCloser) (io.ReadCloser, error) {
 	return src, nil // orig reader
 }
 
-func gunzip(r io.ReadCloser) (io.ReadCloser, error) {
+func gzDecompress(r io.ReadCloser) (io.ReadCloser, error) {
 	return gzip.NewReader(r)
 }
 
