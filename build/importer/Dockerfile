@@ -1,7 +1,11 @@
 FROM alpine:3.3
 RUN mkdir /data
-COPY ./importer /importer
+ARG entrypoint
+ARG runArgs
+ENV RUN_ARGS=$runArgs
+COPY ./$entrypoint ./run-binary
 RUN apk update && apk add qemu-img \
+  xz \
   qemu-system-or32 \
   qemu-system-mips64el \
   qemu-system-ppc64 \
@@ -31,4 +35,4 @@ RUN apk update && apk add qemu-img \
   qemu-system-sh4 \
   qemu-system-sparc
 RUN apk add ca-certificates && rm -rf /var/cache/apk/*
-ENTRYPOINT ./importer -alsologtostderr
+ENTRYPOINT ./run-binary $RUN_ARGS
