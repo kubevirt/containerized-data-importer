@@ -19,18 +19,14 @@ import (
 var (
 	configPath  string
 	masterURL   string
-	namespace   string
 	importerTag string
 )
 
-// Controller's own namespace and optional importer image tag are obtained here along with
-// the supported flags.
+// The optional importer image tag are obtained here along with the supported flags.
 // Note: kubeconfig hierarchy is 1) -kubeconfig flag, 2) $KUBECONFIG exported var. If neither is
 //   specified we do an in-cluster config. For testing it's easiest to export KUBECONFIG.
 func init() {
 	const (
-		// required, own_namespace is define in the pod spec via the downward api
-		OWN_NAMESPACE = "OWN_NAMESPACE"
 		// optional, importer image tag, default is "latest"
 		IMPORTER_TAG = "IMPORTER_TAG"
 	)
@@ -39,10 +35,6 @@ func init() {
 	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
 	flag.Parse()
 	// env variables
-	namespace = os.Getenv(OWN_NAMESPACE)
-	if namespace == "" {
-		glog.Fatalf("init: cdi controller's namespace was not passed in env variable %q", OWN_NAMESPACE)
-	}
 	importerTag = os.Getenv(IMPORTER_TAG)
 	if importerTag == "" {
 		importerTag = "latest"
@@ -74,9 +66,10 @@ func main() {
 		},
 	})
 
-	pvcListWatcher := cache.NewListWatchFromClient(client.CoreV1().RESTClient(), "persistentvolumeclaims", namespace, fields.Everything())
+	// watch pvcs in all namespaces
+	pvcListWatcher := cache.NewListWatchFromClient(client.CoreV1().RESTClient(), "persistentvolumeclaims", "", fields.Everything())
 	cdiController := controller.NewController(client, queue, pvcInformer, pvcListWatcher, importerTag)
-	glog.Infof("main: created CDI Controller in %q namespace\n", namespace)
+	glog.Infoln("main: created CDI Controller")
 	stopCh := handleSignals()
 	err = cdiController.Run(1, stopCh)
 	if err != nil {
