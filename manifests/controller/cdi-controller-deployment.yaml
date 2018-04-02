@@ -16,8 +16,3 @@ spec:
       - name: cdi-controller
         image: jcoperh/import-controller
         imagePullPolicy: Always
-        env:
-          - name: OWN_NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace

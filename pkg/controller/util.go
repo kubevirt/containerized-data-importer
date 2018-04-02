@@ -50,13 +50,13 @@ func (c *Controller) getSecretName(pvc *v1.PersistentVolumeClaim) (string, error
 	ns := pvc.Namespace
 	name, found := pvc.Annotations[AnnSecret]
 	if !found || name == "" {
-		msg := ""
+		msg := "getEndpointSecret: "
 		if !found {
-			msg = fmt.Sprintf("getEndpointSecret: annotation %q is missing in pvc %s/%s\n", AnnSecret, ns, pvc.Name)
+			msg += "annotation %q is missing in pvc \"%s/%s\""
 		} else {
-			msg = fmt.Sprintf("getEndpointSecret: secret name is missing from annotation %q in pvc \"%s/%s\n", AnnSecret, ns, pvc.Name)
+			msg += "secret name is missing from annotation %q in pvc \"%s/%s\""
 		}
-		glog.Info(msg)
+		glog.Infof(msg+"\n", AnnSecret, ns, pvc.Name)
 		return "", nil // importer pod will not contain secret credentials
 	}
 	glog.Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, name)
