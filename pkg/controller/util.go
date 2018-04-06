@@ -9,8 +9,8 @@ import (
 	"k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 )
 
 // return a pvc pointer based on the passed-in work queue key.
@@ -37,8 +37,11 @@ func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, err
 func getEndpoint(pvc *v1.PersistentVolumeClaim) (string, error) {
 	ep, found := pvc.Annotations[AnnEndpoint]
 	if !found || ep == "" {
-		// annotation was present and is now missing or is blank
-		return ep, fmt.Errorf("getEndpoint: annotation %q in pvc %s/%s is missing or is blank\n", AnnEndpoint, pvc.Namespace, pvc.Name)
+		verb := "empty"
+		if !found {
+			verb = "missing"
+		}
+		return ep, fmt.Errorf("getEndpoint: annotation %q in pvc \"%s/%s\" is %s\n", AnnEndpoint, pvc.Namespace, pvc.Name, verb)
 	}
 	return ep, nil
 }

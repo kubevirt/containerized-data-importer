@@ -2,10 +2,12 @@ package importer_test
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
+	"path/filepath"
 
 	. "github.com/kubevirt/containerized-data-importer/pkg/importer"
 	. "github.com/onsi/ginkgo"
@@ -24,63 +26,64 @@ func (d *fakeDataStream) Error() error {
 	return d.err
 }
 
-func (d *fakeDataStream) dataStreamSelector() (io.ReadCloser, error) {
-	if d.err != nil {
-		return nil, d.err
-	}
-	if d.url.Scheme == "s3" {
+func (d *fakeDataStream) fakeDataStreamSelector() io.ReadCloser {
+	switch d.url.Scheme {
+	case "s3":
 		return d.s3()
+	case "http", "https":
+		return d.http()
+	default:
+		Fail(fmt.Sprintf("fakeDataStreamSelector: invalid url scheme: %s", d.url.Scheme))
 	}
-	return d.http()
+	return nil
 }
 
-func (d *fakeDataStream) s3() (io.ReadCloser, error) {
-	return ioutil.NopCloser(bytes.NewReader([]byte("s3 dataStream"))), nil
+func (d *fakeDataStream) s3() io.ReadCloser {
+	return ioutil.NopCloser(bytes.NewReader([]byte("s3 dataStream")))
 }
 
-func (d *fakeDataStream) http() (io.ReadCloser, error) {
-	return ioutil.NopCloser(bytes.NewReader([]byte("http dataStream"))), nil
-}
-
-// parseDataPath only for debug, never used in mock
-func (d *fakeDataStream) parseDataPath() (string, string, error) {
-	return "", "", nil
+func (d *fakeDataStream) http() io.ReadCloser {
+	return ioutil.NopCloser(bytes.NewReader([]byte("http dataStream")))
 }
 
 // NewFakeDataStream: construct a new fakeDataStream object from params.
 func NewFakeDataStream(ep *url.URL, accKey, secKey string) *fakeDataStream {
-	return &fakeDataStream{
+
+	ds := &fakeDataStream{
 		url:         ep,
 		accessKeyId: accKey,
 		secretKey:   secKey,
 	}
+	rdr := ds.fakeDataStreamSelector()
+	ds.DataRdr = rdr
+	return ds
 }
 
 var _ = Describe("Importer", func() {
+	const importerTestFolder = "/tmp/importer-test/"
+
 	Context("Test StreamDataToFile when", func() {
-		var dataStream io.ReadCloser
-		importerTestFolder := "/tmp/importer-test/"
 		type testT struct {
 			descr       string
 			endpoint    string
 			filename    string
+			createFile  bool
 			expected    string
 			expectError bool
 		}
 
 		BeforeEach(func() {
-			// create a files and importerTestFolder
-			var err error
-			if _, err = os.Stat(importerTestFolder); os.IsNotExist(err) {
-				os.Mkdir(importerTestFolder, os.ModePerm)
+			// create importerTestFolder
+			err := os.RemoveAll(importerTestFolder)
+			if err == os.ErrNotExist {
+				err = nil
 			}
-			Expect(os.Create(importerTestFolder + "test_file_already_exist")).ToNot(BeNil())
+			Expect(err).To(BeNil(), fmt.Sprintf("os.RemoveAll: %v", err))
+			err = os.MkdirAll(importerTestFolder, os.ModePerm)
+			Expect(err).To(BeNil(), fmt.Sprintf("os.MkdirAll: %v", err))
 		})
 
 		AfterEach(func() {
-			if dataStream != nil {
-				dataStream.Close()
-			}
 			os.RemoveAll(importerTestFolder)
 		})
 
@@ -88,6 +91,7 @@ var _ = Describe("Importer", func() {
 			{
 				descr:       "use http",
 				filename:    "test-http",
+				createFile:  false,
 				expected:    "http dataStream",
 				endpoint:    "http://www.google.com",
 				expectError: false,
@@ -95,6 +99,7 @@ var _ = Describe("Importer", func() {
 			{
 				descr:       "use s3",
 				filename:    "test-s3",
+				createFile:  false,
 				expected:    "s3 dataStream",
 				endpoint:    "s3://test123",
 				expectError: false,
@@ -102,6 +107,7 @@ var _ = Describe("Importer", func() {
 			{
 				descr:       "file already exist",
 				filename:    "test_file_already_exist",
+				createFile:  true,
 				expected:    "",
 				endpoint:    "http://www.google.com",
 				expectError: true,
@@ -109,18 +115,30 @@ var _ = Describe("Importer", func() {
 		}
 
 		for _, test := range tests {
-			fn := test.filename
-			expt := test.expected
 			ep, _ := ParseEndpoint(test.endpoint)
+			fn := filepath.Join(importerTestFolder, test.filename)
+			mkFile := test.createFile
+			expt := test.expected
 			expErr := test.expectError
 			It(test.descr, func() {
-				dataStream, err := NewFakeDataStream(ep, "", "").dataStreamSelector()
-				Expect(err).ToNot(HaveOccurred())
-				err = StreamDataToFile(dataStream, importerTestFolder+fn)
+				By("creating dataStream object")
+				dataStream := NewFakeDataStream(ep, "", "")
+				Expect(dataStream).ToNot(BeNil(), "dataStream is nil")
+				Expect(dataStream.DataRdr).ToNot(BeNil(), "dataStream.DataRdr is nil")
+				defer dataStream.DataRdr.Close()
+				if mkFile {
+					By(fmt.Sprintf("creating file %q", fn))
+					_, err := os.Create(fn)
+					Expect(err).To(BeNil(), fmt.Sprintf("os.Create: %v", err))
+				}
+				By("copying test data")
+				err := StreamDataToFile(dataStream.DataRdr, fn)
 				if expErr {
 					Expect(err).To(HaveOccurred())
 				} else {
-					content, err := ioutil.ReadFile(importerTestFolder + fn)
+					Expect(err).ToNot(HaveOccurred())
+					By("reading file content")
+					content, err := ioutil.ReadFile(fn)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(string(content)).To(Equal(expt))
 				}

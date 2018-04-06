@@ -25,7 +25,7 @@ type DataStreamInterface interface {
 var _ DataStreamInterface = &dataStream{}
 
 type dataStream struct {
-	DataRdr	    io.ReadCloser
+	DataRdr     io.ReadCloser
 	url         *url.URL
 	accessKeyId string
 	secretKey   string
@@ -42,7 +42,7 @@ func NewDataStream(ep *url.URL, accKey, secKey string) (*dataStream, error) {
 		glog.Warningf("NewDataStream: %s and/or %s env variables are empty\n", common.IMPORTER_ACCESS_KEY_ID, common.IMPORTER_SECRET_KEY)
 	}
 	ds := &dataStream{
-		url:	     ep,
+		url:         ep,
 		accessKeyId: accKey,
 		secretKey:   secKey,
 	}
