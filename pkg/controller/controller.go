@@ -104,24 +104,31 @@ func (c *Controller) ProcessNextItem() bool {
 
 // Create the importer pod with the pvc and optional secret.
 func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
+	e := func(err error, s string) error {
+		if s == "" {
+			return fmt.Errorf("processItem: %v\n", err)
+		}
+		return fmt.Errorf("processItem: %s: %v\n", s, err)
+	}
+
 	ep, err := getEndpoint(pvc)
 	if err != nil {
-		return fmt.Errorf("processItem: get endpoint: %v\n", err)
+		return e(err, "")
 	}
 	secretName, err := c.getSecretName(pvc)
 	if err != nil {
-		return fmt.Errorf("processItem: get secert: %v\n", err)
+		return e(err, "")
 	}
 	if secretName == "" {
 		glog.Infof("processItem: no secret will be supplied to endpoint %q\n", ep)
 	}
 	pod, err := c.createImporterPod(ep, secretName, pvc)
 	if err != nil {
-		return fmt.Errorf("processItem: create pod: %v\n", err)
+		return e(err, "create pod")
 	}
 	err = c.setAnnoImportPod(pvc, pod.Name)
 	if err != nil {
-		return fmt.Errorf("processItem: set anno: %v\n", err)
+		return e(err, "set annotation")
 	}
 	return nil
 }

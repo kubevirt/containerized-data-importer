@@ -18,27 +18,30 @@ import (
 type operation int
 
 const (
-	opAdd    operation = iota
+	opAdd operation = iota
 	opUpdate
 	opDelete
 )
 
 var _ = Describe("Controller", func() {
-	var stop chan struct{}
-	var controller *Controller
-	var fakeClient *fake.Clientset
+	const pvcName = "test-pvc"
+	var (
+		controller *Controller
+		fakeClient *fake.Clientset
+		pvcObj     *v1.PersistentVolumeClaim
+		stop       chan struct{}
+	)
 	type testT struct {
 		descr         string
-		pvcName       string
 		annEndpoint   string
-		op            operation
 		expectPodName string
-		errMessage    string
+		expectError   bool
 	}
+
 	setUpInformer := func(obj *v1.PersistentVolumeClaim, op operation, pvcName string) {
 		stop = make(chan struct{})
 		fakeClient = fake.NewSimpleClientset()
-		importerTag := "test"
+		importerTag := "latest"
 		objSource := k8stesting.NewFakeControllerSource()
 		pvcInformer := cache.NewSharedIndexInformer(objSource, obj, 0, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 		queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
@@ -53,91 +56,68 @@ var _ = Describe("Controller", func() {
 		Expect(cache.WaitForCacheSync(stop, pvcInformer.HasSynced)).To(BeTrue())
 	}
 
-	Context("Test Contoller create pods will success if", func() {
-		tests := []testT{
-			{
-				descr:         "it has an annEndpoint",
-				pvcName:       "test",
-				annEndpoint:   "http://www.google.com",
-				op:            opAdd,
-				expectPodName: "importer-test",
+	BeforeEach(func() {
+		// anno may be updated in It block
+		pvcObj = &v1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        pvcName,
+				Annotations: map[string]string{AnnEndpoint: ""},
 			},
-		}
-
-		for _, test := range tests {
-			BeforeEach(func() {
-				pvcObj := &v1.PersistentVolumeClaim{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:        test.pvcName,
-						Annotations: map[string]string{AnnEndpoint: test.annEndpoint},
-					},
-				}
-				setUpInformer(pvcObj, test.op, test.pvcName)
-			})
-
-			AfterEach(func() {
-				close(stop)
-			})
-
-			It(test.descr, func() {
-				Expect(controller.ProcessNextItem()).To(BeTrue())
-				pod, err := getTestPod(fakeClient, test.expectPodName)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(pod).NotTo(BeNil(), fmt.Sprintf("Expected Pod %q was not found.", test.expectPodName))
-				Expect(pod.GenerateName).To(HavePrefix(test.expectPodName))
-			})
 		}
 	})
 
-	Context("Test Contoller create pods will failed if", func() {
-		tests := []testT{
-			{
-				descr:         "it does not have an annEndpoint",
-				pvcName:       "test",
-				annEndpoint:   "",
-				op:            opAdd,
-				expectPodName: "",
-				errMessage:    "pods \"\" not found",
-			},
-		}
-		for _, test := range tests {
-			BeforeEach(func() {
-				pvcObj := &v1.PersistentVolumeClaim{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:        test.pvcName,
-						Annotations: map[string]string{AnnEndpoint: test.annEndpoint},
-					},
-				}
-				setUpInformer(pvcObj, test.op, test.pvcName)
-			})
-
-			AfterEach(func() {
-				close(stop)
-			})
-
-			It(test.descr, func() {
-				Expect(controller.ProcessNextItem()).To(BeTrue())
-				_, err := fakeClient.CoreV1().Pods("").Get(test.expectPodName, metav1.GetOptions{})
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal(test.errMessage))
-			})
-		}
+	AfterEach(func() {
+		close(stop)
 	})
+
+	tests := []testT{
+		{
+			descr:         "pvc with endpoint: controller creates importer pod",
+			annEndpoint:   "http://www.google.com",
+			expectPodName: "importer-" + pvcName,
+			expectError:   false,
+		},
+		{
+			descr:         "pvc with blank endpoint: controller does not create importer pod",
+			annEndpoint:   "",
+			expectPodName: "",
+			expectError:   true,
+		},
+	}
+
+	for _, test := range tests {
+		ep := test.annEndpoint
+		exptPod := test.expectPodName
+		exptErr := test.expectError
+		It(test.descr, func() {
+			By(fmt.Sprintf("setting the pvc's %q anno to %q", AnnEndpoint, ep))
+			pvcObj.Annotations[AnnEndpoint] = ep
+			By("invoking the controller")
+			setUpInformer(pvcObj, opAdd, pvcName)
+			controller.ProcessNextItem()
+			By("checking if importer pod is present")
+			pod := getImporterPod(fakeClient, exptPod)
+			if exptErr {
+				Expect(pod).To(BeNil(), "pod should not exist")
+			} else {
+				Expect(pod).NotTo(BeNil(), fmt.Sprintf("pod %q was not found", exptPod))
+				Expect(pod.GenerateName).To(HavePrefix(exptPod))
+			}
+		})
+	}
 })
 
-// getTestPod is used to handle pods with generated name by comparing the passed in pod name to a list of pods
-// If a match is found, the pod is returned.
-// If no match is found, a nil pointer is returned.  This should be checked by the caller.
-func getTestPod(fc *fake.Clientset, podName string) (*v1.Pod, error) {
+// getImporterPod gets the first pod with a generated name equal to the passed-in name.
+// Nil is returned if no match is found.
+func getImporterPod(fc *fake.Clientset, podName string) *v1.Pod {
 	podList, err := fc.CoreV1().Pods("").List(metav1.ListOptions{})
-	if err != nil {
-		return nil, err
+	if err != nil || len(podList.Items) == 0 {
+		return nil
 	}
-	var pod *v1.Pod
 	for i, p := range podList.Items {
 		if p.GenerateName == podName {
-			pod = &podList.Items[i]
+			return &podList.Items[i]
 		}
 	}
-	return pod, nil
+	return nil
 }
