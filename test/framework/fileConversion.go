@@ -67,11 +67,11 @@ func transformTar(srcFile string) (string, error) {
 }
 
 func transformGz(srcFile string) (string, error) {
-	return transformFile(srcFile, image.ExtGz, "gzip", srcFile)
+	return transformFile(srcFile, image.ExtGz, "gzip", "-c", srcFile, ">", srcFile+image.ExtGz)
 }
 
 func transformXz(srcFile string) (string, error) {
-	return transformFile(srcFile, image.ExtXz, "xz", srcFile)
+	return transformFile(srcFile, image.ExtXz, "xz", "-k", srcFile)
 }
 
 func transformQcow2(srcfile string) (string, error) {
