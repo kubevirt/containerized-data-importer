@@ -1,6 +1,10 @@
 ---
 sudo: required
 
+language: go
+go:
+  - "1.10.x"
+
 env:
   - CHANGE_MINIKUBE_NONE_USER=true K8S_VER=1.9.0 K6T_VER=0.3.0 SRC="http://www.tinycorelinux.net/9.x/x86/release/Core-current.iso"
 
@@ -36,3 +40,5 @@ script:
 
   - k_wait_all_running pods
   - kubectl get pods --all-namespaces
+
+  - make test
