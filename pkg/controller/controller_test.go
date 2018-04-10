@@ -24,55 +24,44 @@ const (
 )
 
 var _ = Describe("Controller", func() {
-	const pvcName = "test-pvc"
 	var (
 		controller *Controller
 		fakeClient *fake.Clientset
-		pvcObj     *v1.PersistentVolumeClaim
 		stop       chan struct{}
 	)
 	type testT struct {
 		descr         string
 		ns            string
+		name          string // name of test pvc
 		annEndpoint   string
-		expectPodName string
 		expectError   bool
 	}
 
-	setUpInformer := func(obj *v1.PersistentVolumeClaim, op operation, ns string, pvcName string) {
-		// build queue value of ns + "/" + pvcName if exists
-		queueKey := pvcName
+	setUpInformer := func(pvc *v1.PersistentVolumeClaim, op operation) {
+		// build queue value of ns + "/" + pvc name if exists
+		ns := pvc.Namespace
+		name := pvc.Name
+		queueKey := name
 		if len(ns) > 0 {
-			queueKey = fmt.Sprintf("%s/%s", ns, pvcName)
+			queueKey = fmt.Sprintf("%s/%s", ns, name)
 		}
 
 		stop = make(chan struct{})
 		fakeClient = fake.NewSimpleClientset()
 		importerTag := "latest"
 		objSource := k8stesting.NewFakeControllerSource()
-		pvcInformer := cache.NewSharedIndexInformer(objSource, obj, 0, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+		pvcInformer := cache.NewSharedIndexInformer(objSource, pvc, 0, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 		queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 		pvcListWatcher := k8stesting.NewFakeControllerSource()
 		controller = NewController(fakeClient, queue, pvcInformer, pvcListWatcher, importerTag)
 		if op == opAdd {
-			pvcListWatcher.Add(obj)
-			objSource.Add(obj)
+			pvcListWatcher.Add(pvc)
+			objSource.Add(pvc)
 			queue.Add(queueKey)
 		}
 		go pvcInformer.Run(stop)
 		Expect(cache.WaitForCacheSync(stop, pvcInformer.HasSynced)).To(BeTrue())
 	}
-
-	BeforeEach(func() {
-		// anno and namespace may be updated in It block
-		pvcObj = &v1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:        pvcName,
-				Namespace:   "",
-				Annotations: map[string]string{AnnEndpoint: ""},
-			},
-		}
-	})
 
 	AfterEach(func() {
 		close(stop)
@@ -81,23 +70,23 @@ var _ = Describe("Controller", func() {
 	tests := []testT{
 		{
 			descr:         "pvc, endpoint, blank ns: controller creates importer pod",
-			ns:            "", // seems to be default for unit tests
+			ns:            "", // blank used originally in these unit tests
+			name:          "test-pvc",
 			annEndpoint:   "http://www.google.com",
-			expectPodName: "importer-" + pvcName,
 			expectError:   false,
 		},
 		{
 			descr:         "pvc, endpoint, non-blank ns: controller creates importer pod",
 			ns:            "ns-a",
+			name:          "test-pvc",
 			annEndpoint:   "http://www.google.com",
-			expectPodName: "importer-" + pvcName,
 			expectError:   false,
 		},
 		{
 			descr:         "pvc, blank endpoint: controller does not create importer pod",
 			ns:            "",
+			name:          "test-pvc",
 			annEndpoint:   "",
-			expectPodName: "",
 			expectError:   true,
 		},
 	}
@@ -105,14 +94,19 @@ var _ = Describe("Controller", func() {
 	for _, test := range tests {
 		ep := test.annEndpoint
 		ns := test.ns
-		exptPod := test.expectPodName
+		pvcName := test.name
+		fullname := pvcName
+		if len(ns) > 0 {
+			fullname = fmt.Sprintf("%s/%s", ns, pvcName)
+		}
+		exptPod := fmt.Sprintf("importer-%s", pvcName)
 		exptErr := test.expectError
+
 		It(test.descr, func() {
-			By(fmt.Sprintf("setting the pvc's endpt anno=%q and ns=%q", ep, ns))
-			pvcObj.Annotations[AnnEndpoint] = ep
-			pvcObj.Namespace = ns
+			By(fmt.Sprintf("creating in-mem pvc %q with endpt anno=%q", fullname, ep))
+			pvcObj := createInMemPVC(ns, pvcName, ep)
 			By("invoking the controller")
-			setUpInformer(pvcObj, opAdd, ns, pvcName)
+			setUpInformer(pvcObj, opAdd)
 			controller.ProcessNextItem()
 			By("checking if importer pod is present")
 			pod, err := getImporterPod(fakeClient, ns, exptPod)
@@ -126,6 +120,17 @@ var _ = Describe("Controller", func() {
 		})
 	}
 })
+
+// return an in-memory pvc using the passed-in namespace, name and the endpoint annotation.
+func createInMemPVC(ns, name, ep string) *v1.PersistentVolumeClaim {
+	return &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Namespace:   ns,
+			Annotations: map[string]string{AnnEndpoint: ep},
+		},
+	}
+}
 
 // getImporterPod gets the first pod with a generated name equal to the passed-in name.
 // Nil is returned if no match is found.
