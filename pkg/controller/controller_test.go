@@ -39,7 +39,13 @@ var _ = Describe("Controller", func() {
 		expectError   bool
 	}
 
-	setUpInformer := func(obj *v1.PersistentVolumeClaim, op operation, pvcName string) {
+	setUpInformer := func(obj *v1.PersistentVolumeClaim, op operation, ns string, pvcName string) {
+		// build queue value of ns + "/" + pvcName if exists
+		queueKey := pvcName
+		if len(ns) > 0 {
+			queueKey = fmt.Sprintf("%s/%s", ns, pvcName)
+		}
+
 		stop = make(chan struct{})
 		fakeClient = fake.NewSimpleClientset()
 		importerTag := "latest"
@@ -51,7 +57,7 @@ var _ = Describe("Controller", func() {
 		if op == opAdd {
 			pvcListWatcher.Add(obj)
 			objSource.Add(obj)
-			queue.Add(pvcName)
+			queue.Add(queueKey)
 		}
 		go pvcInformer.Run(stop)
 		Expect(cache.WaitForCacheSync(stop, pvcInformer.HasSynced)).To(BeTrue())
@@ -106,7 +112,7 @@ var _ = Describe("Controller", func() {
 			pvcObj.Annotations[AnnEndpoint] = ep
 			pvcObj.Namespace = ns
 			By("invoking the controller")
-			setUpInformer(pvcObj, opAdd, pvcName)
+			setUpInformer(pvcObj, opAdd, ns, pvcName)
 			controller.ProcessNextItem()
 			By("checking if importer pod is present")
 			pod, err := getImporterPod(fakeClient, ns, exptPod)
