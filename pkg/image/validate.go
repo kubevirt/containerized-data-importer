@@ -5,14 +5,14 @@ import (
 )
 
 const (
-	ExtImg   string = ".img"
-	ExtIso   string = ".iso"
-	ExtGz    string = ".gz"
-	ExtQcow2 string = ".qcow2"
-	ExtTar   string = ".tar"
-	ExtXz    string = ".xz"
-	ExtTarXz string = ExtTar + ExtXz
-	ExtTarGz string = ExtTar + ExtGz
+	ExtImg   = ".img"
+	ExtIso   = ".iso"
+	ExtGz    = ".gz"
+	ExtQcow2 = ".qcow2"
+	ExtTar   = ".tar"
+	ExtXz    = ".xz"
+	ExtTarXz = ExtTar + ExtXz
+	ExtTarGz = ExtTar + ExtGz
 )
 
 var SupportedNestedExtensions = []string{
