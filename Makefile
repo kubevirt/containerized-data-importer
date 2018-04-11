@@ -104,7 +104,7 @@ func-test-run:
 	@echo '********'
 	@echo 'Running functional tests'
 	docker ps -qa && \
-	docker run --rm $(F_TEST) || echo 'Docker service not detected, skipping functional tests'
+	docker run --rm $(F_TEST) && echo 'Docker service not detected, skipping functional tests'
 
 push-controller:
 	@echo '********'

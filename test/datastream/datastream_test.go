@@ -28,7 +28,6 @@ var _ = Describe("Streaming Data Conversion", func() {
 	Context("when data is in a supported file format", func() {
 
 		const (
-			size       = 16000 // 16Kb buf size
 			infilePath = "tinyCore.iso"
 		)
 
@@ -79,10 +78,14 @@ var _ = Describe("Streaming Data Conversion", func() {
 
 			It(desc, func() {
 
+				By("Stating the source image file")
+				finfo, err := os.Stat(fn)
+				Expect(err).NotTo(HaveOccurred())
+				size := finfo.Size()
+
 				By(fmt.Sprintf("Converting sample file to format: %v", ff))
 				// Generate the expected data format from the random bytes
 				sampleFilename, err := f.FormatTestData(fn, ff...)
-				fmt.Println("DEBUG ---- sampleFileName: ", sampleFilename)
 				Expect(err).NotTo(HaveOccurred(), "Error formatting test data.")
 
 				By(fmt.Sprintf("Confirming sample file name %q matches expected file name %q", sampleFilename, fn+strings.Join(ff, "")))
@@ -102,10 +105,11 @@ var _ = Describe("Streaming Data Conversion", func() {
 
 				var output bytes.Buffer
 				io.Copy(&output, r)
+
 				By("Checking the output of the data stream")
 				Expect(err).NotTo(HaveOccurred(), "ioutil.ReadAll erred")
-				Expect(output.Len()).To(Equal(size))
-				//Expect(output.Bytes()).To(Equal(sampleData))
+				Expect(int64(output.Len())).To(Equal(size))
+				//Expect(output.Bytes()).To(Equal(sampleData)) // TODO replace with checksum?
 				By("Closing sample test file.")
 			})
 		}

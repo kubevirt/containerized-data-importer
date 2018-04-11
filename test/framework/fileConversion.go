@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/kubevirt/containerized-data-importer/pkg/image"
 )
@@ -45,38 +46,37 @@ func FormatTestData(srcFile string, targetFormats ...string) (string, error) {
 	return outFile, nil
 }
 
-func transformFile(srcFile, ext, osCmd string, osArgs ...string) (string, error) {
-	//osArgs = append(osArgs, srcFile)
+func transformFile(srcFile, outfileName, osCmd string, osArgs ...string) (string, error) {
 	cmd := exec.Command(osCmd, osArgs...)
 	cout, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("transformFile: command erred: %v\n"+
 			"transformFile: command output: %v", err, string(cout))
 	}
-	f := srcFile + ext
-	_, err = os.Stat(f)
+	finfo, err := os.Stat(outfileName)
 	if err != nil {
 		return "", fmt.Errorf("transformFile: error stat-ing file: %v\n", err)
 	}
-	return f, nil
+	return finfo.Name(), nil
 }
 
 func transformTar(srcFile string) (string, error) {
 	args := []string{"-cf", srcFile + image.ExtTar, srcFile}
-	return transformFile(srcFile, image.ExtTar, "tar", args...)
+	return transformFile(srcFile, srcFile + image.ExtTar, "tar", args...)
 }
 
 func transformGz(srcFile string) (string, error) {
-	return transformFile(srcFile, image.ExtGz, "gzip", "-c", srcFile, ">", srcFile+image.ExtGz)
+	return transformFile(srcFile, srcFile + image.ExtGz, "gzip", "-k", srcFile)
 }
 
 func transformXz(srcFile string) (string, error) {
-	return transformFile(srcFile, image.ExtXz, "xz", "-k", srcFile)
+	return transformFile(srcFile, srcFile + image.ExtXz, "xz", "-k", srcFile)
 }
 
 func transformQcow2(srcfile string) (string, error) {
-	args := []string{"convert", "-f", "raw", "-O", "qcow2", srcfile, srcfile + image.ExtQcow2}
-	return transformFile(srcfile, image.ExtQcow2, "qemu-img", args...)
+	outFile := strings.Replace(srcfile, ".iso", image.ExtQcow2, 1)
+	args := []string{"convert", "-f", "raw", "-O", "qcow2", srcfile, outFile}
+	return transformFile(srcfile, outFile, "qemu-img", args...)
 }
 
 func transformNoop(srcFile string) (string, error) {
