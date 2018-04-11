@@ -99,7 +99,7 @@ var _ = Describe("Importer", func() {
 				filename:    "test-local",
 				createFile:  false,
 				expected:    "file dataStream",
-				endpoint:    "file:///tmp/importer-test/",
+				endpoint:    "file:///tmp/fake-file",
 				expectError: false,
 			},
 			{
