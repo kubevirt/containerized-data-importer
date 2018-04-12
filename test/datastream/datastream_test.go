@@ -28,40 +28,44 @@ var _ = Describe("Streaming Data Conversion", func() {
 	Context("when data is in a supported file format", func() {
 
 		const (
-			size           = 16000 // 16Kb buf size
-			commonBaseName = "testFile"
+			infilePath = "tinyCore.iso"
 		)
 
 		// Test Table
 		tests := Tests{
 			{
 				testDesc:      "should decompress gzip",
-				inFileName:    commonBaseName,
+				inFileName:    infilePath,
 				expectFormats: []string{image.ExtGz},
 			},
 			{
 				testDesc:      "should decompress xz",
-				inFileName:    commonBaseName,
+				inFileName:    infilePath,
 				expectFormats: []string{image.ExtXz},
 			},
 			{
 				testDesc:      "should unarchive tar",
-				inFileName:    commonBaseName,
+				inFileName:    infilePath,
 				expectFormats: []string{image.ExtTar},
 			},
 			{
 				testDesc:      "should unpack .tar.gz",
-				inFileName:    commonBaseName,
+				inFileName:    infilePath,
 				expectFormats: []string{image.ExtTar, image.ExtGz},
 			},
 			{
 				testDesc:      "should unpack .tar.xz",
-				inFileName:    commonBaseName,
+				inFileName:    infilePath,
 				expectFormats: []string{image.ExtTar, image.ExtXz},
 			},
 			{
+				testDesc:      "should convert .qcow2",
+				inFileName:    infilePath,
+				expectFormats: []string{image.ExtQcow2},
+			},
+			{
 				testDesc:      "should pass through unformatted data",
-				inFileName:    commonBaseName,
+				inFileName:    infilePath,
 				expectFormats: []string{""},
 			},
 		}
@@ -74,8 +78,10 @@ var _ = Describe("Streaming Data Conversion", func() {
 
 			It(desc, func() {
 
-				By("Generating some input data")
-				sampleData, err := generateTestFile(size, fn)
+				By("Stating the source image file")
+				finfo, err := os.Stat(fn)
+				Expect(err).NotTo(HaveOccurred())
+				size := finfo.Size()
 
 				By(fmt.Sprintf("Converting sample file to format: %v", ff))
 				// Generate the expected data format from the random bytes
@@ -99,22 +105,23 @@ var _ = Describe("Streaming Data Conversion", func() {
 
 				var output bytes.Buffer
 				io.Copy(&output, r)
+
 				By("Checking the output of the data stream")
 				Expect(err).NotTo(HaveOccurred(), "ioutil.ReadAll erred")
-				Expect(output.Len()).To(Equal(size))
-				Expect(output.Bytes()).To(Equal(sampleData))
+				Expect(int64(output.Len())).To(Equal(size))
+				//Expect(output.Bytes()).To(Equal(sampleData)) // TODO replace with checksum?
 				By("Closing sample test file.")
 			})
 		}
 	})
 })
 
-func generateTestFile(size int, filename string) ([]byte, error){
+func generateTestFile(size int, filename string) ([]byte, error) {
 	// Create a some random data to compress and/or archive.
 	By("Generating test data")
 	sampleData := make([]byte, size)
 	if _, err := rand.Read(sampleData); err != nil {
-		return nil,fmt.Errorf("error occurred during rand.Read()")
+		return nil, fmt.Errorf("error occurred during rand.Read()")
 	}
 
 	// Write the byte slice to a file at /

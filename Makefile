@@ -16,6 +16,7 @@ CMD_DIR=$(REPO_ROOT)/cmd
 CONTROLLER_CMD=$(CMD_DIR)/$(CONTROLLER)
 IMPORTER_CMD=$(CMD_DIR)/$(IMPORTER)
 F_TEST_DIR=$(REPO_ROOT)/test/datastream
+F_IMG_DIR=$(REPO_ROOT)/test/images/tinyCore.iso
 
 # Build Dirs
 BUILD_DIR=$(REPO_ROOT)/build
@@ -93,8 +94,9 @@ func-test-image: $(IMPORTER_BUILD)/Dockerfile
 	$(eval TEMP_BUILD_DIR=$(IMPORTER_BUILD)/tmp)
 	mkdir -p $(TEMP_BUILD_DIR)
 	cp $(F_TEST_BIN) $(TEMP_BUILD_DIR)
+	cp $(F_IMG_DIR) $(TEMP_BUILD_DIR)
 	cp $(IMPORTER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
-	docker build --build-arg entrypoint=$(F_TEST) --build-arg runArgs='-ginkgo.v' -t $(F_TEST) $(TEMP_BUILD_DIR)
+	docker build --build-arg entrypoint=$(F_TEST) --build-arg runArgs='-ginkgo.v' --build-arg depFile=tinyCore.iso -t $(F_TEST) $(TEMP_BUILD_DIR)
 	-rm -rf $(TEMP_BUILD_DIR)
 
 
@@ -102,7 +104,7 @@ func-test-run:
 	@echo '********'
 	@echo 'Running functional tests'
 	docker ps -qa && \
-	docker run --rm $(F_TEST) || echo 'Docker service not detected, skipping functional tests'
+	docker run --rm $(F_TEST) && echo 'Docker service not detected, skipping functional tests'
 
 push-controller:
 	@echo '********'
