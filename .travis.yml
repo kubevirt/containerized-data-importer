@@ -6,7 +6,7 @@ go:
   - "1.10.x"
 
 env:
-  - CHANGE_MINIKUBE_NONE_USER=true K8S_VER=1.9.0 K6T_VER=0.4.0 SRC="http://www.tinycorelinux.net/9.x/x86/release/Core-current.iso"
+  - CHANGE_MINIKUBE_NONE_USER=true K8S_VER=1.9.0 MK_VER=0.25.2 K6T_VER=0.4.0 SRC="http://www.tinycorelinux.net/9.x/x86/release/Core-current.iso"
 
 notifications:
   irc:
@@ -18,7 +18,7 @@ notifications:
 before_script:
   # Setup minikube
   - curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/v$K8S_VER/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-  - curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
+  - curl -Lo minikube https://storage.googleapis.com/minikube/releases/v$MK_VER/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
 
   - sudo minikube start --vm-driver=none --kubernetes-version=v$K8S_VER
   - minikube update-context
