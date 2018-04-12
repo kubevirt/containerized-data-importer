@@ -62,33 +62,37 @@ func main() {
 		os.Exit(1)
 	}
 
-	// chkBuf is used to match first 4 bytes of io stream.
-	chkBuf := make([]byte, 4)
-	unpackedStream.Read(chkBuf)
+	magicStr, err := image.GetMagicNumber(unpackedStream)
+	if err != nil {
+		glog.Errorf("main: %v\n", err)
+		os.Exit(1)
+	}
+	qemu := image.MatchQcow2MagicNum(magicStr)
 
-	// Reconstruct the stream.  `dataStreamReader` is considered the new head of the stream.
-	dataStreamReader := io.MultiReader(bytes.NewReader(chkBuf), unpackedStream)
-	if image.MatchQcow2MagicNum(chkBuf) {
-		// If the stream matches qcow2 format, write to /tmp/, then convert to raw disk in /data/.
-		glog.Infoln("main: detected qcow2 magic number.")
-		tmpFile := filepath.Join("/tmp", fn)
-		err = StreamDataToFile(dataStreamReader, tmpFile)
-		if err != nil {
-			glog.Fatalf("main: error streaming data to file: %v\n", err)
-		}
-		err = image.ConvertQcow2ToRaw(tmpFile, common.IMPORTER_WRITE_PATH)
+	// Don't lose bytes read in getting the magic number. MultiReader reads from each
+	// passed-in reader in order until the last reader returns eof.
+	dataStreamReader := io.MultiReader(bytes.NewReader(magicStr), unpackedStream)
+
+	// copy image file
+	out := common.IMPORTER_WRITE_PATH
+	if qemu {
+		// copy to tmp; the qemu conversion will write to final destination
+		out = filepath.Join("/tmp", fn)
+	}
+	err = StreamDataToFile(dataStreamReader, out)
+	if err != nil {
+		glog.Errorf("main: unable to stream data to file %q: %v\n", out, err)
+		os.Exit(1)
+	}
+	if qemu {
+		glog.Infoln("main: converting qcow2 image to raw")
+		err = image.ConvertQcow2ToRaw(out, common.IMPORTER_WRITE_PATH)
 		if err != nil {
 			glog.Fatalf("main: error converting qcow2 image: %v\n", err)
 		}
-		err = os.Remove(tmpFile)
+		err = os.Remove(out)
 		if err != nil {
-			glog.Fatalf("main: error removing temp file %v: %v\n", tmpFile, err)
-		}
-	} else {
-		// Otherwise, write directly to /data/
-		if err = StreamDataToFile(dataStreamReader, common.IMPORTER_WRITE_PATH); err != nil {
-			glog.Errorf("main: unable to stream data to file: %v\n", err)
-			os.Exit(1)
+			glog.Fatalf("main: error removing temp file %v: %v\n", out, err)
 		}
 	}
 	glog.Infoln("main: Import complete, exiting")
