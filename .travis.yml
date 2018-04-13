@@ -43,4 +43,5 @@ before_script:
   - make func-test-build
 
 script:
-  - make test
+  - make unit-test
+  - make functional-test
