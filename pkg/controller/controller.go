@@ -23,11 +23,11 @@ const (
 )
 
 type Controller struct {
-	clientset        kubernetes.Interface
-	queue            workqueue.RateLimitingInterface
-	pvcInformer      cache.SharedIndexInformer
-	pvcListWatcher   cache.ListerWatcher
-	importerImageTag string
+	clientset      kubernetes.Interface
+	queue          workqueue.RateLimitingInterface
+	pvcInformer    cache.SharedIndexInformer
+	pvcListWatcher cache.ListerWatcher
+	importerImage  string
 }
 
 func NewController(
@@ -35,14 +35,14 @@ func NewController(
 	queue workqueue.RateLimitingInterface,
 	pvcInformer cache.SharedIndexInformer,
 	pvcListWatcher cache.ListerWatcher,
-	importerTag string,
+	importerImage string,
 ) *Controller {
 	return &Controller{
-		clientset:        client,
-		queue:            queue,
-		pvcInformer:      pvcInformer,
-		pvcListWatcher:   pvcListWatcher,
-		importerImageTag: importerTag,
+		clientset:      client,
+		queue:          queue,
+		pvcInformer:    pvcInformer,
+		pvcListWatcher: pvcListWatcher,
+		importerImage:  importerImage,
 	}
 }
 
