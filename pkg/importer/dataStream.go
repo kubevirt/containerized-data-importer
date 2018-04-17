@@ -1,15 +1,18 @@
 package importer
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/golang/glog"
 	"github.com/kubevirt/containerized-data-importer/pkg/common"
+	"github.com/kubevirt/containerized-data-importer/pkg/image"
 	"github.com/minio/minio-go"
 )
 
@@ -34,6 +37,14 @@ type dataStream struct {
 
 func (d *dataStream) Error() error {
 	return d.err
+}
+
+func (d *dataStream) Read(p []byte) (int, error) {
+	return d.DataRdr.Read(p)
+}
+
+func (d *dataStream) Close() error {
+	return d.DataRdr.Close()
 }
 
 // NewDataStream: construct a new dataStream object from params.
@@ -115,6 +126,75 @@ func (d *dataStream) local() (io.ReadCloser, error) {
 	//note: if poor perf here consider wrapping this with a buffered i/o Reader
 	return f, nil
 }
+
+// Copy...
+// Note: d.DataRdr already set to reader based on url scheme and is closed here.
+func (d *dataStream) Copy(fn string) error {
+	glog.Infof("Copy: checking compressed and/or archive for file %q\n", fn)
+	var err error
+	r := d.DataRdr
+	defer r.Close() // initial stream reader
+	fn = image.TrimString(fn)
+	ext := filepath.Ext(fn)
+
+	for len(ext) > 0 && !image.IsFinalImageFormat(fn) {
+		// check d.err here?????
+		switch ext {
+		case image.ExtGz:
+			d.DataRdr, err = image.GzReader(r)
+		case image.ExtXz:
+			d.DataRdr, err = image.XzReader(r)
+		case image.ExtTar:
+			d.DataRdr, err = image.TarReader(r)
+		}
+		if err != nil {
+			d.err = fmt.Errorf("Copy: %v\n", err)
+			return  err //need to handle error!
+		}
+		defer d.DataRdr.Close()
+		fn = strings.TrimSuffix(fn, ext)
+		ext = filepath.Ext(fn)
+	}
+
+	// All extensions handled, all readers defined
+	// If image is qemu convert it to raw
+	magicStr, err := image.GetMagicNumber(d.DataRdr)
+	if err != nil {
+		d.err = fmt.Errorf("Copy: %v\n", err)
+		return err //caller handle err
+	}
+	qemu := image.MatchQcow2MagicNum(magicStr)
+
+	// Don't lose bytes read reading the magic number. MultiReader reads from each
+	// reader, in order, until the last reader returns eof.
+	multir := io.MultiReader(bytes.NewReader(magicStr), d.DataRdr)
+
+	// copy image file
+	out := common.IMPORTER_WRITE_PATH
+	if qemu {
+		// copy to tmp; the qemu conversion will write to final destination
+		out = filepath.Join("/tmp", fn)
+	}
+	err = StreamDataToFile(multir, out)
+	if err != nil {
+		d.err = fmt.Errorf("Copy: unable to stream data to file %q: %v\n", out, err)
+		return err //caller handle err
+	}
+	if qemu {
+		glog.Infoln("Copy: converting qcow2 image to raw")
+		err = image.ConvertQcow2ToRaw(out, common.IMPORTER_WRITE_PATH)
+		if err != nil {
+			d.err = fmt.Errorf("Copy: converting qcow2 image: %v\n", err)
+			return err //ditto
+		}
+		err = os.Remove(out)
+		if err != nil {
+			d.err = fmt.Errorf("Copy: error removing temp file %s: %v\n", out, err)
+			return err //ditto
+		}
+	}
+	return nil
+} 
 
 // parseDataPath only used for debugging
 func (d *dataStream) parseDataPath() (string, string, error) {

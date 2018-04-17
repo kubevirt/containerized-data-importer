@@ -31,6 +31,10 @@ var SupportedImageFormats = []string{
 	ExtImg, ExtIso, ExtQcow2,
 }
 
+var FinalImageFormats = []string{ // no more processing if these extensions found, just copy
+	ExtImg, ExtIso,
+}
+
 var SupportedFileExtensions = append(SupportedImageFormats,
 	append(SupportedCompressionExtensions,
 	append(SupportedArchiveExtensions, SupportedNestedExtensions...)...)...)
@@ -58,6 +62,16 @@ func IsSupporedCompressionType(fn string) bool {
 func IsSupporedArchiveType(fn string) bool {
 	fn = TrimString(fn)
 	for _, ext := range SupportedArchiveExtensions {
+		if strings.HasSuffix(fn, string(ext)) {
+			return true
+		}
+	}
+	return false
+}
+
+func IsFinalImageFormat(fn string) bool {
+	fn = TrimString(fn)
+	for _, ext := range FinalImageFormats {
 		if strings.HasSuffix(fn, string(ext)) {
 			return true
 		}
