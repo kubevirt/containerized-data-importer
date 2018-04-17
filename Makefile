@@ -25,8 +25,11 @@ IMPORTER_BUILD=$(BUILD_DIR)/$(IMPORTER)
 
 # DOCKER TAG VARS
 REGISTRY=jcoperh
+RELEASE_REGISTRY=kubevirt
+CTRL_IMG_NAME=cdi-$(CONTROLLER)
+IMPT_IMG_NAME=cdi-$(IMPORTER)
 GIT_USER=$(shell git config --get user.email | sed 's/@.*//')
-TAG="$(GIT_USER)-latest"
+TAG=$(GIT_USER)-latest
 VERSION=v1
 
 .PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-importer clean test
@@ -70,8 +73,7 @@ controller-image: $(CONTROLLER_BUILD)/Dockerfile
 	mkdir -p $(TEMP_BUILD_DIR)
 	cp $(CONTROLLER_BIN) $(TEMP_BUILD_DIR)
 	cp $(CONTROLLER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
-	docker build -t $(CONTROLLER) $(TEMP_BUILD_DIR)
-	docker tag $(CONTROLLER) $(REGISTRY)/$(CONTROLLER):$(TAG)
+	docker build -t $(CTRL_IMG_NAME) $(TEMP_BUILD_DIR)
 	-rm -rf $(TEMP_BUILD_DIR)
 
 # build the importer image
@@ -82,8 +84,7 @@ importer-image: $(IMPORTER_BUILD)/Dockerfile
 	mkdir -p $(TEMP_BUILD_DIR)
 	cp $(IMPORTER_BIN) $(TEMP_BUILD_DIR)
 	cp $(IMPORTER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
-	docker build --build-arg entrypoint=$(IMPORTER) --build-arg runArgs='-alsologtostderr' -t $(IMPORTER) $(TEMP_BUILD_DIR)
-	docker tag $(IMPORTER) $(REGISTRY)/$(IMPORTER):$(TAG)
+	docker build --build-arg entrypoint=$(IMPORTER) --build-arg runArgs='-alsologtostderr' -t $(IMPT_IMG_NAME) $(TEMP_BUILD_DIR)
 	-rm -rf $(TEMP_BUILD_DIR)
 
 # build the functional test image.  The importer image is used to provide consistency between test
@@ -103,18 +104,19 @@ func-test-image: $(IMPORTER_BUILD)/Dockerfile
 func-test-run:
 	@echo '********'
 	@echo 'Running functional tests'
-	docker ps -qa && \
-	docker run --rm $(F_TEST) && echo 'Docker service not detected, skipping functional tests'
+	docker ps -qa && docker run --rm $(F_TEST) || echo 'Docker service not detected, skipping functional tests'
 
 push-controller:
 	@echo '********'
 	@echo 'Pushing controller image'
-	docker push $(REGISTRY)/$(CONTROLLER):$(TAG)
+	docker tag $(CTRL_IMG_NAME) $(REGISTRY)/$(CTRL_IMG_NAME):$(TAG)
+	docker push $(REGISTRY)/$(CTRL_IMG_NAME):$(TAG)
 
 push-importer:
 	@echo '********'
 	@echo 'Pushing importer image'
-	docker push $(REGISTRY)/$(IMPORTER):$(TAG)
+	docker tag $(IMPT_IMG_NAME) $(REGISTRY)/$(IMPT_IMG_NAME):$(TAG)
+	docker push $(REGISTRY)/$(IMPT_IMG_NAME):$(TAG)
 
 unit-test:
 	@echo '********'
@@ -129,14 +131,14 @@ clean:
 	-rm -rf $(CONTROLLER_BUILD)/tmp
 	-rm -rf $(IMPORTER_BUILD)/tmp
 
-# push CONTROLLER:$(VERSION). Intended to release stable image built from master branch.
+# push cdi-importer and cdi-controller images to kubevirt repo for general use. Intended to release stable image built from master branch.
 release:
 	@echo '********'
 	@echo 'Releasing CDI images'
-	docker tag $(IMPORTER) $(REGISTRY)/$(IMPORTER):latest
-	docker push $(REGISTRY)/$(IMPORTER):latest
-	docker tag $(CONTROLLER) $(REGISTRY)/$(CONTROLLER):latest
-	docker push $(REGISTRY)/$(CONTROLLER):latest
+	docker tag $(IMPT_IMG_NAME) $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):latest
+	docker push $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):latest
+	docker tag $(CTRL_IMG_NAME) $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):latest
+	docker push $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):latest
 
 
 my-golden-pvc.yaml: manifests/golden-pvc.yaml

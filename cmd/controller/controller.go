@@ -17,29 +17,29 @@ import (
 )
 
 var (
-	configPath  string
-	masterURL   string
-	importerTag string
+	configPath    string
+	masterURL     string
+	importerImage string
 )
 
-// The optional importer image tag are obtained here along with the supported flags.
+// The optional importer image is obtained here along with the supported flags.
 // Note: kubeconfig hierarchy is 1) -kubeconfig flag, 2) $KUBECONFIG exported var. If neither is
 //   specified we do an in-cluster config. For testing it's easiest to export KUBECONFIG.
 func init() {
-	const (
-		// optional, importer image tag, default is "latest"
-		IMPORTER_TAG = "IMPORTER_TAG"
-	)
+	// optional, importer image.  If not provided, uses IMPORTER_DEFAULT_IMAGE
+	const IMPORTER_IMAGE = "IMPORTER_IMAGE"
+	const IMPORTER_DEFAULT_IMAGE = "docker.io/kubevirt/cdi-importer:latest"
+
 	// flags
 	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG")
 	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
 	flag.Parse()
 	// env variables
-	importerTag = os.Getenv(IMPORTER_TAG)
-	if importerTag == "" {
-		importerTag = "latest"
+	importerImage = os.Getenv(IMPORTER_IMAGE)
+	if importerImage == "" {
+		importerImage = IMPORTER_DEFAULT_IMAGE
 	}
-	glog.Infof("init: complete: CDI controller will create the %q version of the importer\n", importerTag)
+	glog.Infof("init: complete: CDI controller will create the %q version of the importer\n", importerImage)
 }
 
 func main() {
@@ -68,7 +68,7 @@ func main() {
 
 	// watch pvcs in all namespaces
 	pvcListWatcher := cache.NewListWatchFromClient(client.CoreV1().RESTClient(), "persistentvolumeclaims", "", fields.Everything())
-	cdiController := controller.NewController(client, queue, pvcInformer, pvcListWatcher, importerTag)
+	cdiController := controller.NewController(client, queue, pvcInformer, pvcListWatcher, importerImage)
 	glog.Infoln("main: created CDI Controller")
 	stopCh := handleSignals()
 	err = cdiController.Run(1, stopCh)

@@ -115,7 +115,7 @@ func (c *Controller) createImporterPod(ep, secretName string, pvc *v1.Persistent
 	if err != nil {
 		return nil, fmt.Errorf("createImporterPod: Create failed: %v\n", err)
 	}
-	glog.Infof("importer pod \"%s/%s\" (image tag: %q) created\n", pod.Namespace, pod.Name, c.importerImageTag)
+	glog.Infof("importer pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, c.importerImage)
 	return pod, nil
 }
 
@@ -138,7 +138,7 @@ func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVo
 			Containers: []v1.Container{
 				{
 					Name:            common.IMPORTER_PODNAME,
-					Image:           "docker.io/jcoperh/importer:" + c.importerImageTag,
+					Image:          c.importerImage,
 					ImagePullPolicy: v1.PullAlways,
 					VolumeMounts: []v1.VolumeMount{
 						{
