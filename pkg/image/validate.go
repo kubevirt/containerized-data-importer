@@ -29,7 +29,7 @@ var SupportedArchiveExtensions = []string{
 
 var SupportedCompressArchiveExtensions = append(
 	SupportedCompressionExtensions,
-	SupportedArchiveExtensions...
+	SupportedArchiveExtensions...,
 )
 
 var SupportedImageFormats = []string{
@@ -40,9 +40,9 @@ var SupportedFileExtensions = append(
 	SupportedImageFormats, append(
 		SupportedCompressionExtensions, append(
 			SupportedArchiveExtensions,
-			SupportedNestedExtensions...
-		)...
-	)...
+			SupportedNestedExtensions...,
+		)...,
+	)...,
 )
 
 func IsSupportedType(fn string, exts []string) bool {

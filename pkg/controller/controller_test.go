@@ -30,11 +30,11 @@ var _ = Describe("Controller", func() {
 		stop       chan struct{}
 	)
 	type testT struct {
-		descr         string
-		ns            string
-		name          string // name of test pvc
-		annEndpoint   string
-		expectError   bool
+		descr       string
+		ns          string
+		name        string // name of test pvc
+		annEndpoint string
+		expectError bool
 	}
 
 	setUpInformer := func(pvc *v1.PersistentVolumeClaim, op operation) {
@@ -69,25 +69,25 @@ var _ = Describe("Controller", func() {
 
 	tests := []testT{
 		{
-			descr:         "pvc, endpoint, blank ns: controller creates importer pod",
-			ns:            "", // blank used originally in these unit tests
-			name:          "test-pvc",
-			annEndpoint:   "http://www.google.com",
-			expectError:   false,
+			descr:       "pvc, endpoint, blank ns: controller creates importer pod",
+			ns:          "", // blank used originally in these unit tests
+			name:        "test-pvc",
+			annEndpoint: "http://www.google.com",
+			expectError: false,
 		},
 		{
-			descr:         "pvc, endpoint, non-blank ns: controller creates importer pod",
-			ns:            "ns-a",
-			name:          "test-pvc",
-			annEndpoint:   "http://www.google.com",
-			expectError:   false,
+			descr:       "pvc, endpoint, non-blank ns: controller creates importer pod",
+			ns:          "ns-a",
+			name:        "test-pvc",
+			annEndpoint: "http://www.google.com",
+			expectError: false,
 		},
 		{
-			descr:         "pvc, blank endpoint: controller does not create importer pod",
-			ns:            "",
-			name:          "test-pvc",
-			annEndpoint:   "",
-			expectError:   true,
+			descr:       "pvc, blank endpoint: controller does not create importer pod",
+			ns:          "",
+			name:        "test-pvc",
+			annEndpoint: "",
+			expectError: true,
 		},
 	}
 

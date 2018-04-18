@@ -2,8 +2,10 @@ package importer
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -133,7 +135,7 @@ func (d *dataStream) Copy(outPath string) error {
 	// build slice of compression/archive extensions in reverse right-to-left order, eg:
 	//   [.tar] or [.gz] or [.gz, .tar] or [.xz, .tar]
 	exts := []string{}
-	for image.IsSupporedCompressArchiveType(fn)  {
+	for image.IsSupporedCompressArchiveType(fn) {
 		ext := strings.ToLower(filepath.Ext(fn))
 		exts = append(exts, ext)
 		fn = strings.TrimSuffix(fn, ext)
@@ -177,7 +179,7 @@ func (d *dataStream) Copy(outPath string) error {
 		return fmt.Errorf("Copy: %v", err)
 	}
 	return nil
-} 
+}
 
 // Copy the file using its Reader (r) to the passed-in destination (`out`).
 func copyImage(r io.Reader, out string, qemu bool) error {
@@ -185,12 +187,9 @@ func copyImage(r io.Reader, out string, qemu bool) error {
 	glog.Infof("copyImage: copying image file to %q", out)
 	dest := out
 	if qemu {
-		// copy to tmp; the qemu conversion will write to final destination
-		dest = filepath.Join("/tmp", filepath.Base(out))
-		// make sure dest != out for qemu tmp location
-		if dest == out {
-			dest = filepath.Join("/tmp", "tmp41-" + filepath.Base(out))
-		}
+		// copy to tmp; qemu conversion will write to passed-in destination
+		dest = randTmpName(out)
+		glog.Infof(fmt.Sprintf("copyImage: temp file for qcow2 conversion: %q", dest))
 	}
 
 	// actual copy
@@ -200,7 +199,7 @@ func copyImage(r io.Reader, out string, qemu bool) error {
 	}
 
 	if qemu {
-		glog.Infoln("Copy: converting qcow2 image to raw")
+		glog.Infoln("copyImage: converting qcow2 image")
 		err = image.ConvertQcow2ToRaw(dest, out)
 		if err != nil {
 			return fmt.Errorf("copyImage: converting qcow2 image: %v\n", err)
@@ -211,6 +210,17 @@ func copyImage(r io.Reader, out string, qemu bool) error {
 		}
 	}
 	return nil
+}
+
+// Return a random temp path with the `src` basename as the prefix and preserving the extension.
+// Eg. "/tmp/disk1d729566c74d1003.img".
+func randTmpName(src string) string {
+	ext := filepath.Ext(src)
+	base := filepath.Base(src)
+	base = base[:len(base)-len(ext)] // exclude extension
+	randName := make([]byte, 8)
+	rand.Read(randName)
+	return filepath.Join(os.TempDir(), base+hex.EncodeToString(randName)+ext)
 }
 
 // parseDataPath only used for debugging

@@ -112,10 +112,8 @@ var _ = Describe("Streaming Data Conversion", func() {
 				By("Creating a local dataStream w/o auth credentials")
 				fUrl := "file:/" + sampleFilename
 				ep, err := importer.ParseEndpoint(fUrl)
-fmt.Printf("\n***** ep=%#v\n", *ep)
 				Expect(err).NotTo(HaveOccurred())
 				ds, err := importer.NewDataStream(ep, "", "")
-fmt.Printf("\n***** ds=%#v\n", *ds)
 				Expect(err).NotTo(HaveOccurred())
 
 				dest := "/tmp/" + of
@@ -128,7 +126,7 @@ fmt.Printf("\n***** ds=%#v\n", *ds)
 					By("Checking output image virtual size")
 					Expect(getImageVirtualSize(dest)).To(Equal(size))
 				} else {
-					By("Stating output file") 
+					By("Stating output file")
 					finfo, err := os.Stat(dest)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(finfo.Size()).To(Equal(size))

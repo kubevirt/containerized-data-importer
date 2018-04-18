@@ -36,7 +36,7 @@ func FormatTestData(srcFile string, targetFormats ...string) (string, error) {
 			} else if i == len(formatTable)-1 {
 				err = fmt.Errorf("format extension %q not recognized\n", tf)
 			}
-			i ++
+			i++
 		}
 	}
 
@@ -62,15 +62,15 @@ func transformFile(srcFile, outfileName, osCmd string, osArgs ...string) (string
 
 func transformTar(srcFile string) (string, error) {
 	args := []string{"-cf", srcFile + image.ExtTar, srcFile}
-	return transformFile(srcFile, srcFile + image.ExtTar, "tar", args...)
+	return transformFile(srcFile, srcFile+image.ExtTar, "tar", args...)
 }
 
 func transformGz(srcFile string) (string, error) {
-	return transformFile(srcFile, srcFile + image.ExtGz, "gzip", "-k", srcFile)
+	return transformFile(srcFile, srcFile+image.ExtGz, "gzip", "-k", srcFile)
 }
 
 func transformXz(srcFile string) (string, error) {
-	return transformFile(srcFile, srcFile + image.ExtXz, "xz", "-k", srcFile)
+	return transformFile(srcFile, srcFile+image.ExtXz, "xz", "-k", srcFile)
 }
 
 func transformQcow2(srcfile string) (string, error) {
