@@ -1,3 +1,5 @@
+// +build functional_test
+
 package datastream
 
 import (

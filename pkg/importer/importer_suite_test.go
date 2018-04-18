@@ -1,4 +1,4 @@
-// +build unit
+// +build unit_test
 
 package importer_test
 

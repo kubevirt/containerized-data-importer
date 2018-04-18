@@ -1,4 +1,4 @@
-// +build functional
+// +build functional_test
 
 package datastream
 

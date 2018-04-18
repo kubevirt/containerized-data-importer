@@ -121,7 +121,7 @@ push-importer:
 unit-test:
 	@echo '********'
 	@echo 'Running unit tests'
-	CGO_ENABLED=$(CGO_ENABLED) go test -v ./... -tags=unit
+	CGO_ENABLED=$(CGO_ENABLED) go test -v  -tags=unit ./...
 
 
 clean:
