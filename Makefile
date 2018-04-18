@@ -1,3 +1,5 @@
+include version # Provides `VERSION` variable
+
 REPO_ROOT=$(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 # Basenames
@@ -135,11 +137,10 @@ clean:
 release: all
 	@echo '********'
 	@echo 'Releasing CDI images'
-	docker tag $(IMPT_IMG_NAME) $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):latest
-	docker push $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):latest
-	docker tag $(CTRL_IMG_NAME) $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):latest
-	docker push $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):latest
-
+	docker tag $(IMPT_IMG_NAME) $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):$(VERSION)
+	docker push $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):$(VERSION)
+	docker tag $(CTRL_IMG_NAME) $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):$(VERSION)
+	docker push $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):$(VERSION)
 
 my-golden-pvc.yaml: manifests/golden-pvc.yaml
 	sed "s,endpoint:.*,endpoint: \"$(URI)\"," $< > $@
