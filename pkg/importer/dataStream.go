@@ -115,41 +115,52 @@ func (d *dataStream) local() (io.ReadCloser, error) {
 	return f, nil
 }
 
-// Creates the ReadClosers necessary to be copy the endpoint URI to `outPath`.
-// Performs the copy and closes each Reader.
+// Creates the ReadClosers needed to read the endpoint URI.
+// Performs the copy and closes each ReadCloser.
 func (d *dataStream) Copy(outPath string) error {
 	var err error
 	fn := d.url.Path
-	ext := strings.ToLower(filepath.Ext(fn))
 
 	glog.Infof("Copy: create the initial Reader based on the url's %q scheme", d.url.Scheme)
-	r, err := d.dataStreamSelector()
+	d.DataRdr, err = d.dataStreamSelector()
 	if err != nil {
 		return fmt.Errorf("Copy: %v\n", err)
 	}
-	d.DataRdr = r
-	defer r.Close()
+	defer func(r io.ReadCloser) {
+		r.Close()
+	}(d.DataRdr)
 
-	glog.Infof("Copy: checking compressed and/or archive for file %q\n", fn)
-	for len(ext) > 0 && !image.IsFinalImageFormat(fn) {
+	// build slice of compression/archive extensions in reverse right-to-left order, eg:
+	//   [.tar] or [.gz] or [.gz, .tar] or [.xz, .tar]
+	exts := []string{}
+	for image.IsSupporedCompressArchiveType(fn)  {
+		ext := strings.ToLower(filepath.Ext(fn))
+		exts = append(exts, ext)
+		fn = strings.TrimSuffix(fn, ext)
+	}
+
+	// create decompress/un-archive Readers
+	glog.Infof("Copy: checking compressed and/or archive for file %q\n", d.url.Path)
+	for _, ext := range exts {
 		switch ext {
 		case image.ExtGz:
-			d.DataRdr, err = image.GzReader(r)
-		case image.ExtXz:
-			d.DataRdr, err = image.XzReader(r)
+			d.DataRdr, err = image.GzReader(d.DataRdr)
 		case image.ExtTar:
-			d.DataRdr, err = image.TarReader(r)
+			d.DataRdr, err = image.TarReader(d.DataRdr)
+		case image.ExtXz:
+			d.DataRdr, err = image.XzReader(d.DataRdr)
 		}
 		if err != nil {
 			return fmt.Errorf("Copy: %v\n", err)
 		}
-		defer d.DataRdr.Close()
-		fn = strings.TrimSuffix(fn, ext)
-		ext = strings.ToLower(filepath.Ext(fn))
+		defer func(r io.ReadCloser) {
+			r.Close()
+		}(d.DataRdr)
+
 	}
 
-	// All extensions handled, all readers defined
-	// If image is qemu convert it to raw
+	// All compression/archive extensions handled, all readers defined
+	// If image is qemu convert it to raw. Note .qcow2 ext is ignored
 	magicStr, err := image.GetMagicNumber(d.DataRdr)
 	if err != nil {
 		return fmt.Errorf("Copy: %v\n", err)
@@ -160,7 +171,7 @@ func (d *dataStream) Copy(outPath string) error {
 	// reader, in order, until the last reader returns eof.
 	multir := io.MultiReader(bytes.NewReader(magicStr), d.DataRdr)
 
-	// copy image file to hard-coded destination
+	// copy image file to outPath
 	err = copyImage(multir, outPath, qemu)
 	if err != nil {
 		return fmt.Errorf("Copy: %v", err)
