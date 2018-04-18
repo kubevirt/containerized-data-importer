@@ -9,7 +9,7 @@ spec:
   restartPolicy: Never
   containers:
   - name: importer
-    image: jcoperh/importer:latest
+    image: kubevirt/cdi-importer
     imagePullPolicy: Always
     env:
     # REQUIRED!  Location of source data.
