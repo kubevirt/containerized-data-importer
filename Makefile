@@ -33,7 +33,7 @@ TAG=$(GIT_USER)-latest
 VERSION=v1
 
 .PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-importer clean test
-all: clean controller importer test
+all: clean test controller importer
 controller: controller-bin controller-image
 importer: importer-bin importer-image
 push: push-importer push-controller
@@ -132,7 +132,7 @@ clean:
 	-rm -rf $(IMPORTER_BUILD)/tmp
 
 # push cdi-importer and cdi-controller images to kubevirt repo for general use. Intended to release stable image built from master branch.
-release:
+release: all
 	@echo '********'
 	@echo 'Releasing CDI images'
 	docker tag $(IMPT_IMG_NAME) $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):latest
