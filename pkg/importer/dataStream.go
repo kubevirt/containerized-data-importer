@@ -22,7 +22,6 @@ type DataStreamInterface interface {
 	http() (io.ReadCloser, error)
 	local() (io.ReadCloser, error)
 	parseDataPath() (string, string, error)
-	Error() error
 }
 
 var _ DataStreamInterface = &dataStream{}
@@ -32,11 +31,6 @@ type dataStream struct {
 	url         *url.URL
 	accessKeyId string
 	secretKey   string
-	err         error
-}
-
-func (d *dataStream) Error() error {
-	return d.err
 }
 
 func (d *dataStream) Read(p []byte) (int, error) {
@@ -52,17 +46,11 @@ func NewDataStream(ep *url.URL, accKey, secKey string) (*dataStream, error) {
 	if len(accKey) == 0 || len(secKey) == 0 {
 		glog.Warningf("NewDataStream: %s and/or %s env variables are empty\n", common.IMPORTER_ACCESS_KEY_ID, common.IMPORTER_SECRET_KEY)
 	}
-	ds := &dataStream{
+	return &dataStream{
 		url:         ep,
 		accessKeyId: accKey,
 		secretKey:   secKey,
-	}
-	rdr, err := ds.dataStreamSelector()
-	if err != nil {
-		return nil, fmt.Errorf("NewDataStream: %v\n", err)
-	}
-	ds.DataRdr = rdr
-	return ds, nil
+	}, nil
 }
 
 func (d *dataStream) dataStreamSelector() (io.ReadCloser, error) {
@@ -127,18 +115,23 @@ func (d *dataStream) local() (io.ReadCloser, error) {
 	return f, nil
 }
 
-// Copy...
-// Note: d.DataRdr already set to reader based on url scheme and is closed here.
-func (d *dataStream) Copy(fn string) error {
-	glog.Infof("Copy: checking compressed and/or archive for file %q\n", fn)
+// Creates the ReadClosers necessary to be copy the endpoint URI to `outPath`.
+// Performs the copy and closes each Reader.
+func (d *dataStream) Copy(outPath string) error {
 	var err error
-	r := d.DataRdr
-	defer r.Close() // initial stream reader
-	fn = image.TrimString(fn)
-	ext := filepath.Ext(fn)
+	fn := d.url.Path
+	ext := strings.ToLower(filepath.Ext(fn))
 
+	glog.Infof("Copy: create the initial Reader based on the url's %q scheme", d.url.Scheme)
+	r, err := d.dataStreamSelector()
+	if err != nil {
+		return fmt.Errorf("Copy: %v\n", err)
+	}
+	d.DataRdr = r
+	defer r.Close()
+
+	glog.Infof("Copy: checking compressed and/or archive for file %q\n", fn)
 	for len(ext) > 0 && !image.IsFinalImageFormat(fn) {
-		// check d.err here?????
 		switch ext {
 		case image.ExtGz:
 			d.DataRdr, err = image.GzReader(r)
@@ -148,20 +141,18 @@ func (d *dataStream) Copy(fn string) error {
 			d.DataRdr, err = image.TarReader(r)
 		}
 		if err != nil {
-			d.err = fmt.Errorf("Copy: %v\n", err)
-			return  err //need to handle error!
+			return fmt.Errorf("Copy: %v\n", err)
 		}
 		defer d.DataRdr.Close()
 		fn = strings.TrimSuffix(fn, ext)
-		ext = filepath.Ext(fn)
+		ext = strings.ToLower(filepath.Ext(fn))
 	}
 
 	// All extensions handled, all readers defined
 	// If image is qemu convert it to raw
 	magicStr, err := image.GetMagicNumber(d.DataRdr)
 	if err != nil {
-		d.err = fmt.Errorf("Copy: %v\n", err)
-		return err //caller handle err
+		return fmt.Errorf("Copy: %v\n", err)
 	}
 	qemu := image.MatchQcow2MagicNum(magicStr)
 
@@ -169,32 +160,47 @@ func (d *dataStream) Copy(fn string) error {
 	// reader, in order, until the last reader returns eof.
 	multir := io.MultiReader(bytes.NewReader(magicStr), d.DataRdr)
 
-	// copy image file
-	out := common.IMPORTER_WRITE_PATH
-	if qemu {
-		// copy to tmp; the qemu conversion will write to final destination
-		out = filepath.Join("/tmp", fn)
-	}
-	err = StreamDataToFile(multir, out)
+	// copy image file to hard-coded destination
+	err = copyImage(multir, outPath, qemu)
 	if err != nil {
-		d.err = fmt.Errorf("Copy: unable to stream data to file %q: %v\n", out, err)
-		return err //caller handle err
-	}
-	if qemu {
-		glog.Infoln("Copy: converting qcow2 image to raw")
-		err = image.ConvertQcow2ToRaw(out, common.IMPORTER_WRITE_PATH)
-		if err != nil {
-			d.err = fmt.Errorf("Copy: converting qcow2 image: %v\n", err)
-			return err //ditto
-		}
-		err = os.Remove(out)
-		if err != nil {
-			d.err = fmt.Errorf("Copy: error removing temp file %s: %v\n", out, err)
-			return err //ditto
-		}
+		return fmt.Errorf("Copy: %v", err)
 	}
 	return nil
 } 
+
+// Copy the file using its Reader (r) to the passed-in destination (`out`).
+func copyImage(r io.Reader, out string, qemu bool) error {
+	out = filepath.Clean(out)
+	glog.Infof("copyImage: copying image file to %q", out)
+	dest := out
+	if qemu {
+		// copy to tmp; the qemu conversion will write to final destination
+		dest = filepath.Join("/tmp", filepath.Base(out))
+		// make sure dest != out for qemu tmp location
+		if dest == out {
+			dest = filepath.Join("/tmp", "tmp41-" + filepath.Base(out))
+		}
+	}
+
+	// actual copy
+	err := StreamDataToFile(r, dest)
+	if err != nil {
+		return fmt.Errorf("copyImage: unable to stream data to file %q: %v\n", dest, err)
+	}
+
+	if qemu {
+		glog.Infoln("Copy: converting qcow2 image to raw")
+		err = image.ConvertQcow2ToRaw(dest, out)
+		if err != nil {
+			return fmt.Errorf("copyImage: converting qcow2 image: %v\n", err)
+		}
+		err = os.Remove(dest)
+		if err != nil {
+			return fmt.Errorf("copyImage: error removing temp file %q: %v\n", dest, err)
+		}
+	}
+	return nil
+}
 
 // parseDataPath only used for debugging
 func (d *dataStream) parseDataPath() (string, string, error) {

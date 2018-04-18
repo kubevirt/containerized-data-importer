@@ -53,7 +53,7 @@ func main() {
 	}
 
 	glog.Infof("Beginning import from %q\n", ep.Path)
-	err = dataStream.Copy(fn)
+	err = dataStream.Copy(common.IMPORTER_WRITE_PATH)
 	if err != nil {
 		glog.Errorf("main: copy error: %v\n", err)
 		os.Exit(1)

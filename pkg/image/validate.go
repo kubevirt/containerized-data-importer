@@ -42,7 +42,7 @@ var SupportedFileExtensions = append(SupportedImageFormats,
 func IsSupporedFileType(fn string) bool {
 	fn = TrimString(fn)
 	for _, ext := range SupportedFileExtensions {
-		if strings.HasSuffix(fn, string(ext)) {
+		if strings.HasSuffix(fn, ext) {
 			return true
 		}
 	}
@@ -52,7 +52,7 @@ func IsSupporedFileType(fn string) bool {
 func IsSupporedCompressionType(fn string) bool {
 	fn = TrimString(fn)
 	for _, ext := range SupportedCompressionExtensions {
-		if strings.HasSuffix(fn, string(ext)) {
+		if strings.HasSuffix(fn, ext) {
 			return true
 		}
 	}
@@ -62,7 +62,7 @@ func IsSupporedCompressionType(fn string) bool {
 func IsSupporedArchiveType(fn string) bool {
 	fn = TrimString(fn)
 	for _, ext := range SupportedArchiveExtensions {
-		if strings.HasSuffix(fn, string(ext)) {
+		if strings.HasSuffix(fn, ext) {
 			return true
 		}
 	}
@@ -72,9 +72,14 @@ func IsSupporedArchiveType(fn string) bool {
 func IsFinalImageFormat(fn string) bool {
 	fn = TrimString(fn)
 	for _, ext := range FinalImageFormats {
-		if strings.HasSuffix(fn, string(ext)) {
+		if strings.HasSuffix(fn, ext) {
 			return true
 		}
 	}
 	return false
+}
+
+// Return string as lowercase with all spaces removed.
+func TrimString(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
 }

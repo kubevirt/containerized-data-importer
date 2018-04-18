@@ -6,16 +6,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"strings"
 
 	"github.com/golang/glog"
 	"github.com/xi2/xz"
 )
-
-// Return string as lowercase with all spaces removed.
-func TrimString(s string) string {
-	return strings.ToLower(strings.TrimSpace(s))
-}
 
 func GzReader(r io.ReadCloser) (io.ReadCloser, error) {
 	glog.Infoln("GzReader: gz format")
@@ -36,7 +30,7 @@ func TarReader(r io.ReadCloser) (io.ReadCloser, error) {
 	tr := tar.NewReader(r)
 	hdr, err := tr.Next() // advance cursor to 1st (and only) file in tarball
 	if err != nil {
-		return r, fmt.Errorf("TarReader: reading tarfile %q header: %v\n", err)
+		return r, fmt.Errorf("TarReader: reading tarfile header: %v\n", err)
 	}
 	glog.Infof("TarReader: extracting %q\n", hdr.Name)
 	return ioutil.NopCloser(tr), nil
