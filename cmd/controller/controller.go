@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/kubevirt/containerized-data-importer/pkg/controller"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/informers"
@@ -28,7 +29,6 @@ var (
 func init() {
 	// optional, importer image.  If not provided, uses IMPORTER_DEFAULT_IMAGE
 	const IMPORTER_IMAGE = "IMPORTER_IMAGE"
-	const IMPORTER_DEFAULT_IMAGE = "docker.io/kubevirt/cdi-importer:latest"
 
 	// flags
 	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG")
@@ -37,7 +37,7 @@ func init() {
 	// env variables
 	importerImage = os.Getenv(IMPORTER_IMAGE)
 	if importerImage == "" {
-		importerImage = IMPORTER_DEFAULT_IMAGE
+		importerImage = common.IMPORTER_DEFAULT_IMAGE
 	}
 	glog.Infof("init: complete: CDI controller will create the %q version of the importer\n", importerImage)
 }

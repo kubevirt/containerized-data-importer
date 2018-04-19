@@ -4,6 +4,9 @@ package common
 // TODO: maybe the vm cloner can use these common values
 
 const (
+	CDI_VERSION = "0.4.0-alpha.0"
+	IMPORTER_DEFAULT_IMAGE = "docker.io/kubevirt/cdi-importer:" + CDI_VERSION
+
 	// host file constants:
 	IMPORTER_WRITE_DIR  = "/data"
 	IMPORTER_WRITE_FILE = "disk.img"
