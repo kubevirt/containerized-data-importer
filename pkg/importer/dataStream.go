@@ -44,7 +44,7 @@ func (d *dataStream) Close() error {
 }
 
 // NewDataStream: construct a new dataStream object from params.
-func NewDataStream(ep *url.URL, accKey, secKey string) (*dataStream, error) {
+func NewDataStream(ep *url.URL, accKey, secKey string) *dataStream {
 	if len(accKey) == 0 || len(secKey) == 0 {
 		glog.Warningf("NewDataStream: %s and/or %s env variables are empty\n", common.IMPORTER_ACCESS_KEY_ID, common.IMPORTER_SECRET_KEY)
 	}
@@ -52,7 +52,7 @@ func NewDataStream(ep *url.URL, accKey, secKey string) (*dataStream, error) {
 		url:         ep,
 		accessKeyId: accKey,
 		secretKey:   secKey,
-	}, nil
+	}
 }
 
 func (d *dataStream) dataStreamSelector() (io.ReadCloser, error) {
@@ -132,8 +132,7 @@ func (d *dataStream) Copy(outPath string) error {
 		r.Close()
 	}(d.DataRdr)
 
-	// build slice of compression/archive extensions in reverse right-to-left order, eg:
-	//   [.tar] or [.gz] or [.gz, .tar] or [.xz, .tar]
+	// build slice of compression/archive extensions in right-to-left order
 	exts := []string{}
 	for image.IsSupporedCompressArchiveType(fn) {
 		ext := strings.ToLower(filepath.Ext(fn))
@@ -158,17 +157,14 @@ func (d *dataStream) Copy(outPath string) error {
 		defer func(r io.ReadCloser) {
 			r.Close()
 		}(d.DataRdr)
-
 	}
 
-	// All compression/archive extensions handled, all readers defined
 	// If image is qemu convert it to raw. Note .qcow2 ext is ignored
 	magicStr, err := image.GetMagicNumber(d.DataRdr)
 	if err != nil {
 		return fmt.Errorf("Copy: %v\n", err)
 	}
 	qemu := image.MatchQcow2MagicNum(magicStr)
-
 	// Don't lose bytes read reading the magic number. MultiReader reads from each
 	// reader, in order, until the last reader returns eof.
 	multir := io.MultiReader(bytes.NewReader(magicStr), d.DataRdr)
@@ -191,13 +187,11 @@ func copyImage(r io.Reader, out string, qemu bool) error {
 		dest = randTmpName(out)
 		glog.Infof(fmt.Sprintf("copyImage: temp file for qcow2 conversion: %q", dest))
 	}
-
 	// actual copy
 	err := StreamDataToFile(r, dest)
 	if err != nil {
 		return fmt.Errorf("copyImage: unable to stream data to file %q: %v\n", dest, err)
 	}
-
 	if qemu {
 		glog.Infoln("copyImage: converting qcow2 image")
 		err = image.ConvertQcow2ToRaw(dest, out)

@@ -43,16 +43,8 @@ func main() {
 		glog.Errorf("main: unsupported source file %q. Supported types: %v\n", fn, image.SupportedFileExtensions)
 		os.Exit(1)
 	}
-
-	// Initialize the input io stream (typically http or s3 client)
-	glog.Infof("main: importing file %q\n", fn)
-	dataStream, err := NewDataStream(ep, acc, sec)
-	if err != nil {
-		glog.Errorf("main: %q error: %v\n", ep.Path, err)
-		os.Exit(1)
-	}
-
-	glog.Infof("Beginning import from %q\n", ep.Path)
+	glog.Infof("main: beginning import from %q\n", ep.Path)
+	dataStream := NewDataStream(ep, acc, sec)
 	err = dataStream.Copy(common.IMPORTER_WRITE_PATH)
 	if err != nil {
 		glog.Errorf("main: copy error: %v\n", err)

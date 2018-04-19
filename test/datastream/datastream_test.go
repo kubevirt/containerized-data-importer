@@ -113,8 +113,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 				fUrl := "file:/" + sampleFilename
 				ep, err := importer.ParseEndpoint(fUrl)
 				Expect(err).NotTo(HaveOccurred())
-				ds, err := importer.NewDataStream(ep, "", "")
-				Expect(err).NotTo(HaveOccurred())
+				ds := importer.NewDataStream(ep, "", "")
 
 				dest := "/tmp/" + of
 				By(fmt.Sprintf("Copying the sample file to %q", dest))
