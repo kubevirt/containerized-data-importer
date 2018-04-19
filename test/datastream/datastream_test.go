@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -117,7 +118,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 				Expect(err).NotTo(HaveOccurred())
 				ds := importer.NewDataStream(ep, "", "")
 
-				dest := "/tmp/" + of
+				dest := filepath.Join(os.TempDir(), of)
 				By(fmt.Sprintf("Copying the sample file to %q", dest))
 				err = ds.Copy(dest)
 				Expect(err).NotTo(HaveOccurred())
