@@ -3,7 +3,6 @@
 package datastream
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"math/rand"
@@ -13,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/kubevirt/containerized-data-importer/pkg/image"
+	"github.com/kubevirt/containerized-data-importer/pkg/importer"
 	f "github.com/kubevirt/containerized-data-importer/test/framework"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -100,8 +100,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 			useVSize := t.useVirtSize
 
 			It(desc, func() {
-
-				By("Stating the source image file")
+				By(fmt.Sprintf("Stating the source image file %q", fn))
 				finfo, err := os.Stat(fn)
 				Expect(err).NotTo(HaveOccurred())
 				size := finfo.Size()
@@ -110,35 +109,33 @@ var _ = Describe("Streaming Data Conversion", func() {
 				// Generate the expected data format from the random bytes
 				sampleFilename, err := f.FormatTestData(fn, ff...)
 				Expect(err).NotTo(HaveOccurred(), "Error formatting test data.")
-
-				By(fmt.Sprintf("Confirming sample file name %q matches expected file name %q", sampleFilename, of))
 				Expect(sampleFilename).To(Equal(of), "Test data filename doesn't match expected file name.")
 
-				// BEGIN TEST
-				By("Opening sample file for test.")
-				// Finally, open the file for reading
-				sampleFile, err := os.Open(sampleFilename)
-				Expect(err).NotTo(HaveOccurred(), "Failed to open sample file %s", sampleFilename)
-				defer sampleFile.Close()
-
-				By("Passing file reader to the data stream")
-				r, err := image.UnpackData(sampleFilename, sampleFile)
+				By("Creating a local dataStream w/o auth credentials")
+				fUrl := "file:/" + sampleFilename
+				ep, err := importer.ParseEndpoint(fUrl)
 				Expect(err).NotTo(HaveOccurred())
-				defer r.Close()
+				ds := importer.NewDataStream(ep, "", "")
 
-				var output bytes.Buffer
-				io.Copy(&output, r)
+				dest := "/tmp/" + of
+				By(fmt.Sprintf("Copying the sample file to %q", dest))
+				err = ds.Copy(dest)
+				Expect(err).NotTo(HaveOccurred())
 
-				By("Checking the output of the data stream")
-				Expect(err).NotTo(HaveOccurred(), "ioutil.ReadAll erred")
+				By(fmt.Sprintf("Checking the output file %q", dest))
 				if useVSize {
-					By("Checking getImageVirtualSize")
-					Expect(getImageVirtualSize(of)).To(Equal(size))
+					By("Checking output image virtual size")
+					Expect(getImageVirtualSize(dest)).To(Equal(size))
 				} else {
-					Expect(int64(output.Len())).To(Equal(size))
+					By("Stating output file")
+					finfo, err := os.Stat(dest)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(finfo.Size()).To(Equal(size))
 				}
+				By(fmt.Sprintf("Removing the output file %q", dest))
+				err = os.Remove(dest)
+				Expect(err).NotTo(HaveOccurred())
 				//Expect(output.Bytes()).To(Equal(size)) // TODO replace with checksum?
-				By("Closing sample test file.")
 			})
 		}
 	})

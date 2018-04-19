@@ -27,40 +27,51 @@ var SupportedArchiveExtensions = []string{
 	ExtTar,
 }
 
+var SupportedCompressArchiveExtensions = append(
+	SupportedCompressionExtensions,
+	SupportedArchiveExtensions...,
+)
+
 var SupportedImageFormats = []string{
 	ExtImg, ExtIso, ExtQcow2,
 }
 
-var SupportedFileExtensions = append(SupportedImageFormats,
-	append(SupportedCompressionExtensions,
-	append(SupportedArchiveExtensions, SupportedNestedExtensions...)...)...)
+var SupportedFileExtensions = append(
+	SupportedImageFormats, append(
+		SupportedCompressionExtensions, append(
+			SupportedArchiveExtensions,
+			SupportedNestedExtensions...,
+		)...,
+	)...,
+)
 
-func IsSupporedFileType(fn string) bool {
+func IsSupportedType(fn string, exts []string) bool {
 	fn = TrimString(fn)
-	for _, ext := range SupportedFileExtensions {
-		if strings.HasSuffix(fn, string(ext)) {
+	for _, ext := range exts {
+		if strings.HasSuffix(fn, ext) {
 			return true
 		}
 	}
 	return false
+}
+
+func IsSupporedFileType(fn string) bool {
+	return IsSupportedType(fn, SupportedFileExtensions)
 }
 
 func IsSupporedCompressionType(fn string) bool {
-	fn = TrimString(fn)
-	for _, ext := range SupportedCompressionExtensions {
-		if strings.HasSuffix(fn, string(ext)) {
-			return true
-		}
-	}
-	return false
+	return IsSupportedType(fn, SupportedCompressionExtensions)
 }
 
 func IsSupporedArchiveType(fn string) bool {
-	fn = TrimString(fn)
-	for _, ext := range SupportedArchiveExtensions {
-		if strings.HasSuffix(fn, string(ext)) {
-			return true
-		}
-	}
-	return false
+	return IsSupportedType(fn, SupportedArchiveExtensions)
+}
+
+func IsSupporedCompressArchiveType(fn string) bool {
+	return IsSupportedType(fn, SupportedCompressArchiveExtensions)
+}
+
+// Return string as lowercase with all spaces removed.
+func TrimString(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
 }

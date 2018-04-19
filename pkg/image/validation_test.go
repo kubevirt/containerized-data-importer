@@ -21,39 +21,39 @@ var _ = Describe("Validate file and extensions", func() {
 	Context("various file extensions", func() {
 		tests := []testT{
 			{
-				name: "test.qcow2",
+				name:    "test.qcow2",
 				expctOK: true,
 			},
 			{
-				name: "test.tar",
+				name:    "test.tar",
 				expctOK: true,
 			},
 			{
-				name: "test.gz",
+				name:    "test.gz",
 				expctOK: true,
 			},
 			{
-				name: "test.xz",
+				name:    "test.xz",
 				expctOK: true,
 			},
 			{
-				name: "test.img",
+				name:    "test.img",
 				expctOK: true,
 			},
 			{
-				name: "test.iso",
+				name:    "test.iso",
 				expctOK: true,
 			},
 			{
-				name: "xyz.abc",
+				name:    "xyz.abc",
 				expctOK: false,
 			},
 			{
-				name: "xxx",
+				name:    "xxx",
 				expctOK: false,
 			},
 			{
-				name: "",
+				name:    "",
 				expctOK: false,
 			},
 		}

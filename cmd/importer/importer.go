@@ -13,9 +13,7 @@ package main
 //    IMPORTER_SECRET_KEY     Optional. Secret key is the password to your account.
 
 import (
-	"bytes"
 	"flag"
-	"io"
 	"os"
 	"path/filepath"
 
@@ -45,55 +43,12 @@ func main() {
 		glog.Errorf("main: unsupported source file %q. Supported types: %v\n", fn, image.SupportedFileExtensions)
 		os.Exit(1)
 	}
-
-	// Initialize the input io stream (typically http or s3 client)
-	glog.Infof("main: importing file %q\n", fn)
-	dataStream, err := NewDataStream(ep, acc, sec)
+	glog.Infof("main: beginning import from %q\n", ep.Path)
+	dataStream := NewDataStream(ep, acc, sec)
+	err = dataStream.Copy(common.IMPORTER_WRITE_PATH)
 	if err != nil {
-		glog.Errorf("main: %q error: %v\n", ep.Path, err)
+		glog.Errorf("main: copy error: %v\n", err)
 		os.Exit(1)
-	}
-	defer dataStream.DataRdr.Close()
-
-	glog.Infof("Beginning import from %q\n", ep.Path)
-	unpackedStream, err := image.UnpackData(fn, dataStream.DataRdr)
-	if err != nil {
-		glog.Errorf("main: %v\n", err)
-		os.Exit(1)
-	}
-
-	magicStr, err := image.GetMagicNumber(unpackedStream)
-	if err != nil {
-		glog.Errorf("main: %v\n", err)
-		os.Exit(1)
-	}
-	qemu := image.MatchQcow2MagicNum(magicStr)
-
-	// Don't lose bytes read in getting the magic number. MultiReader reads from each
-	// passed-in reader in order until the last reader returns eof.
-	dataStreamReader := io.MultiReader(bytes.NewReader(magicStr), unpackedStream)
-
-	// copy image file
-	out := common.IMPORTER_WRITE_PATH
-	if qemu {
-		// copy to tmp; the qemu conversion will write to final destination
-		out = filepath.Join("/tmp", fn)
-	}
-	err = StreamDataToFile(dataStreamReader, out)
-	if err != nil {
-		glog.Errorf("main: unable to stream data to file %q: %v\n", out, err)
-		os.Exit(1)
-	}
-	if qemu {
-		glog.Infoln("main: converting qcow2 image to raw")
-		err = image.ConvertQcow2ToRaw(out, common.IMPORTER_WRITE_PATH)
-		if err != nil {
-			glog.Fatalf("main: error converting qcow2 image: %v\n", err)
-		}
-		err = os.Remove(out)
-		if err != nil {
-			glog.Fatalf("main: error removing temp file %v: %v\n", out, err)
-		}
 	}
 	glog.Infoln("main: Import complete, exiting")
 }

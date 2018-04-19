@@ -15,15 +15,15 @@ var QCOW2MagicStrSize = len(QCOW2MagicStr)
 // the passed in file. If the file is too small then an empty magic string is returned.
 // Error is returned if a non-eof io error occurs.
 func GetMagicNumber(f io.Reader) ([]byte, error) {
-        buff := make([]byte, QCOW2MagicStrSize)
-        cnt, err := f.Read(buff)
-        if cnt < QCOW2MagicStrSize {
-                return nil, nil
-        }
-        if err != nil && err != io.EOF {
-                return nil, fmt.Errorf("GetMagicNumber: read error: %v\n", err)
-        }
-        return buff, nil
+	buff := make([]byte, QCOW2MagicStrSize)
+	cnt, err := f.Read(buff)
+	if cnt < QCOW2MagicStrSize {
+		return nil, nil
+	}
+	if err != nil && err != io.EOF {
+		return nil, fmt.Errorf("GetMagicNumber: read error: %v\n", err)
+	}
+	return buff, nil
 }
 
 func MatchQcow2MagicNum(match []byte) bool {
