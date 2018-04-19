@@ -5,40 +5,46 @@ language: go
 go:
   - "1.10.x"
 
-env:
-  - CHANGE_MINIKUBE_NONE_USER=true K8S_VER=1.9.0 MK_VER=0.25.2 K6T_VER=0.4.0 SRC="http://www.tinycorelinux.net/9.x/x86/release/Core-current.iso"
+jobs:
+  include:
+    stage: test
+      env:
+      - CHANGE_MINIKUBE_NONE_USER=true K8S_VER=1.9.0 MK_VER=0.25.2 K6T_VER=0.4.0 SRC="http://www.tinycorelinux.net/9.x/x86/release/Core-current.iso"
 
-notifications:
-  irc:
-    channels:
-      - "chat.freenode.net#kubevirt"
-    on_success: change
-    on_failure: always
+      notifications:
+      irc:
+        channels:
+        - "chat.freenode.net#kubevirt"
+        on_success: change
+        on_failure: always
 
-before_script:
-  # Setup minikube
-  - curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/v$K8S_VER/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-  - curl -Lo minikube https://storage.googleapis.com/minikube/releases/v$MK_VER/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
+      before_script:
+      # Setup minikube
+      - curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/v$K8S_VER/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+      - curl -Lo minikube https://storage.googleapis.com/minikube/releases/v$MK_VER/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
 
-  - sudo minikube start --vm-driver=none --kubernetes-version=v$K8S_VER
-  - minikube update-context
-  - JSONPATH='{range .items[*]}{@.metadata.name}:{range @.status.conditions[*]}{@.type}={@.status};{end}{end}'; until kubectl get nodes -o jsonpath="$JSONPATH" 2>&1 | grep -q "Ready=True"; do sleep 1; done
+      - sudo minikube start --vm-driver=none --kubernetes-version=v$K8S_VER
+      - minikube update-context
+      - JSONPATH='{range .items[*]}{@.metadata.name}:{range @.status.conditions[*]}{@.type}={@.status};{end}{end}'; until kubectl get nodes -o jsonpath="$JSONPATH" 2>&1 | grep -q "Ready=True"; do sleep 1; done
 
-  - k_wait_all_running() { while [[ "$(kubectl get $1 --all-namespaces --field-selector=status.phase!=Running | wc -l)" -gt 1 ]]; do kubectl get $1 --all-namespaces ; sleep 6; done ; }
+      - k_wait_all_running() { while [[ "$(kubectl get $1 --all-namespaces --field-selector=status.phase!=Running | wc -l)" -gt 1 ]]; do kubectl get $1 --all-namespaces ; sleep 6; done ; }
 
-  # Deploy kubevirt
-  - kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/v$K6T_VER/kubevirt.yaml
-  - k_wait_all_running pods
+      # Deploy kubevirt
+      - kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/v$K6T_VER/kubevirt.yaml
+      - k_wait_all_running pods
 
-script:
-  # Deploy manifests
-  - kubectl apply -f manifests/example/endpoint-secret.yaml
-  - kubectl apply -f manifests/controller/cdi-controller-deployment.yaml
+      script:
+      # Deploy manifests
+      - kubectl apply -f manifests/example/endpoint-secret.yaml
+      - kubectl apply -f manifests/controller/cdi-controller-deployment.yaml
 
-  - make manifests/example/golden-pvc.yaml URI="$SRC"
-  - kubectl apply -f manifests/example/golden-pvc.yaml
+      - make manifests/example/golden-pvc.yaml URI="$SRC"
+      - kubectl apply -f manifests/example/golden-pvc.yaml
 
-  - k_wait_all_running pods
-  - kubectl get pods --all-namespaces
+      - k_wait_all_running pods
+      - kubectl get pods --all-namespaces
 
-  - make test
+      - make test
+
+    stage: deploy
+      if:
