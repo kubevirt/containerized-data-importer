@@ -109,8 +109,10 @@ func (c *Controller) setAnnoImportPod(pvc *v1.PersistentVolumeClaim, name string
 // importer pod.
 func (c *Controller) createImporterPod(ep, secretName string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
 	ns := pvc.Namespace
-	pod := c.makeImporterPodSpec(ep, secretName, pvc)
-	var err error
+	pod, err := c.makeImporterPodSpec(ep, secretName, pvc)
+	if err != nil {
+		return nil, fmt.Errorf("createImporterPod: error creating pod spec: %v", err)
+	}
 	pod, err = c.clientset.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
 		return nil, fmt.Errorf("createImporterPod: Create failed: %v\n", err)
@@ -120,9 +122,15 @@ func (c *Controller) createImporterPod(ep, secretName string, pvc *v1.Persistent
 }
 
 // return the importer pod spec based on the passed-in endpoint, secret and pvc.
-func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
+func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
 	// importer pod name contains the pvc name
 	podName := fmt.Sprintf("%s-%s", common.IMPORTER_PODNAME, pvc.Name)
+
+	sl, err := metav1.ParseToLabelSelector(common.CDI_SELECTOR_LABEL)
+	if err != nil {
+		return nil, fmt.Errorf("makeImporterPodSpec: error parsing selector label: %v", common.CDI_SELECTOR_LABEL)
+	}
+
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -133,9 +141,7 @@ func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVo
 			Annotations: map[string]string{
 				AnnCreatedBy: "yes",
 			},
-			Labels: map[string]string{
-				"app": "containerized-data-importer",
-			},
+			Labels: sl.MatchLabels,
 		},
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
@@ -166,7 +172,7 @@ func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVo
 		},
 	}
 	pod.Spec.Containers[0].Env = makeEnv(ep, secret)
-	return pod
+	return pod, nil
 }
 
 // return the Env portion for the importer container.

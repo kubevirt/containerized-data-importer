@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -38,7 +39,7 @@ func NewController(client kubernetes.Interface, importerImage string) *Controlle
 
 	// Setup all informers to only watch objects with the LabelSelector `app=containerized-data-importer`
 	informerFactory := informers.NewFilteredSharedInformerFactory(client, 10*time.Minute, "", func(options *metav1.ListOptions) {
-		options.LabelSelector = "app=containerized-data-importer"
+		options.LabelSelector = common.CDI_SELECTOR_LABEL
 	})
 	pvcInformerFactory := informerFactory.Core().V1().PersistentVolumeClaims()
 
