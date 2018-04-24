@@ -19,7 +19,7 @@ func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, err
 	if !ok {
 		return nil, fmt.Errorf("pvcFromKey: key object not of type string\n")
 	}
-	obj, ok, err := c.pvcInformer.GetIndexer().GetByKey(keyString)
+	obj, ok, err := c.PvcInformer.GetIndexer().GetByKey(keyString)
 	if !ok {
 		return nil, nil
 	}
@@ -63,7 +63,7 @@ func (c *Controller) getSecretName(pvc *v1.PersistentVolumeClaim) (string, error
 		return "", nil // importer pod will not contain secret credentials
 	}
 	glog.Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, name)
-	_, err := c.clientset.CoreV1().Secrets(ns).Get(name, metav1.GetOptions{})
+	_, err := c.Clientset.CoreV1().Secrets(ns).Get(name, metav1.GetOptions{})
 	if apierrs.IsNotFound(err) {
 		glog.Infof("getEndpointSecret: secret %q defined in pvc \"%s/%s\" is missing. Importer pod will run once this secret is created\n", name, ns, pvc.Name)
 		return name, nil
@@ -97,7 +97,7 @@ func (c *Controller) setAnnoImportPod(pvc *v1.PersistentVolumeClaim, name string
 	if err != nil {
 		return fmt.Errorf("setAnnoImportPod: creating patch: %v\n", err)
 	}
-	_, err = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Patch(pvc.Name, types.StrategicMergePatchType, patch)
+	_, err = c.Clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Patch(pvc.Name, types.StrategicMergePatchType, patch)
 	if err != nil {
 		return fmt.Errorf("setAnnoImportPod: patching pvc annotation %q to %q: %v\n", AnnImportPod, name, err)
 	}
@@ -111,11 +111,11 @@ func (c *Controller) createImporterPod(ep, secretName string, pvc *v1.Persistent
 	ns := pvc.Namespace
 	pod := c.makeImporterPodSpec(ep, secretName, pvc)
 	var err error
-	pod, err = c.clientset.CoreV1().Pods(ns).Create(pod)
+	pod, err = c.Clientset.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
 		return nil, fmt.Errorf("createImporterPod: Create failed: %v\n", err)
 	}
-	glog.Infof("importer pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, c.importerImage)
+	glog.Infof("importer pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, c.ImporterImage)
 	return pod, nil
 }
 
@@ -138,7 +138,7 @@ func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVo
 			Containers: []v1.Container{
 				{
 					Name:            common.IMPORTER_PODNAME,
-					Image:          c.importerImage,
+					Image:          c.ImporterImage,
 					ImagePullPolicy: v1.PullAlways,
 					VolumeMounts: []v1.VolumeMount{
 						{
