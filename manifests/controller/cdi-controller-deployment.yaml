@@ -2,10 +2,12 @@ apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
   name: cdi-deployment
+  labels:
+    app: containerized-data-importer
 spec:
   selector:
     matchLabels:
-      app: cdi-controller
+      app: containerized-data-importer
   replicas: 1
   template:
     metadata:

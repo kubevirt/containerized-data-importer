@@ -133,12 +133,15 @@ func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVo
 			Annotations: map[string]string{
 				AnnCreatedBy: "yes",
 			},
+			Labels: map[string]string{
+				"app": "containerized-data-importer",
+			},
 		},
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
 					Name:            common.IMPORTER_PODNAME,
-					Image:          c.importerImage,
+					Image:           c.importerImage,
 					ImagePullPolicy: v1.PullAlways,
 					VolumeMounts: []v1.VolumeMount{
 						{
