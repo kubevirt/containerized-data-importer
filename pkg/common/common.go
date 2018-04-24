@@ -1,10 +1,13 @@
 package common
 
+import "time"
+
 // Common types and constants used by the importer and controller.
 // TODO: maybe the vm cloner can use these common values
 
 const (
 	CDI_VERSION = "0.4.0-alpha.0"
+
 	IMPORTER_DEFAULT_IMAGE = "docker.io/kubevirt/cdi-importer:" + CDI_VERSION
 
 	// host file constants:
@@ -22,4 +25,7 @@ const (
 	// key names expected in credential secret
 	KeyAccess = "accessKeyId"
 	KeySecret = "secretKey"
+
+	// Shared informer resync period.
+	DEFAULT_RESYNC_PERIOD = 10 * time.Minute
 )

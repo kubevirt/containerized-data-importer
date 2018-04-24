@@ -23,27 +23,41 @@ const (
 )
 
 type Controller struct {
-	clientset      kubernetes.Interface
-	queue          workqueue.RateLimitingInterface
-	pvcInformer    cache.SharedIndexInformer
-	pvcListWatcher cache.ListerWatcher
-	importerImage  string
+	clientset     kubernetes.Interface
+	queue         workqueue.RateLimitingInterface
+	pvcInformer   cache.SharedIndexInformer
+	importerImage string
 }
 
-func NewController(
-	client kubernetes.Interface,
-	queue workqueue.RateLimitingInterface,
-	pvcInformer cache.SharedIndexInformer,
-	pvcListWatcher cache.ListerWatcher,
-	importerImage string,
-) *Controller {
-	return &Controller{
-		clientset:      client,
-		queue:          queue,
-		pvcInformer:    pvcInformer,
-		pvcListWatcher: pvcListWatcher,
-		importerImage:  importerImage,
+func NewController(client kubernetes.Interface, pvcInformer cache.SharedIndexInformer, importerImage string) (*Controller, error) {
+	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+
+	c := &Controller{
+		clientset:     client,
+		queue:         queue,
+		pvcInformer:   pvcInformer,
+		importerImage: importerImage,
 	}
+
+	// Bind the Index/Informer to the queue only for new pvcs
+	c.pvcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			key, err := cache.MetaNamespaceKeyFunc(obj)
+			if err == nil {
+				queue.AddRateLimited(key)
+			}
+		},
+		// this is triggered by an update or it will also be
+		// be triggered periodically even if no changes were made.
+		UpdateFunc: func(old, new interface{}) {
+			key, err := cache.MetaNamespaceKeyFunc(new)
+			if err == nil {
+				queue.AddRateLimited(key)
+			}
+		},
+	})
+
+	return c, nil
 }
 
 func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
