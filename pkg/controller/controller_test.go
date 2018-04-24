@@ -35,7 +35,8 @@ var _ = Describe("Controller", func() {
 		descr       string
 		ns          string
 		name        string // name of test pvc
-		annEndpoint string
+		qops        operation
+		annotations map[string]string
 		expectError bool
 	}
 
@@ -56,7 +57,7 @@ var _ = Describe("Controller", func() {
 		queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 		pvcListWatcher := k8stesting.NewFakeControllerSource()
 		controller = NewController(fakeClient, queue, pvcInformer, pvcListWatcher, importerTag)
-		if op == opAdd {
+		if op == opAdd || op == opUpdate{
 			pvcListWatcher.Add(pvc)
 			objSource.Add(pvc)
 			queue.Add(queueKey)
@@ -74,29 +75,49 @@ var _ = Describe("Controller", func() {
 			descr:       "pvc, endpoint, blank ns: controller creates importer pod",
 			ns:          "", // blank used originally in these unit tests
 			name:        "test-pvc",
-			annEndpoint: "http://www.google.com",
+			qops:        opAdd,
+			annotations: map[string]string{AnnEndpoint: "http://www.google.com"},
 			expectError: false,
 		},
 		{
 			descr:       "pvc, endpoint, non-blank ns: controller creates importer pod",
 			ns:          "ns-a",
 			name:        "test-pvc",
-			annEndpoint: "http://www.google.com",
+			qops:        opAdd,
+			annotations: map[string]string{AnnEndpoint: "http://www.google.com"},
 			expectError: false,
 		},
 		{
 			descr:       "pvc, blank endpoint: controller does not create importer pod",
 			ns:          "",
 			name:        "test-pvc",
-			annEndpoint: "",
+			qops:        opAdd,
+			annotations: map[string]string{},
+			expectError: true,
+		},
+		{
+			descr:       "updated pvc should process",
+			ns:          "ns-a",
+			name:        "test-pvc",
+			qops:        opUpdate,
+			annotations: map[string]string{AnnEndpoint: "http://www.google.com"},
+			expectError: false,
+		},
+		{
+			descr:       "updated pvc should not process based on annotation AnnImportPod indicating already been processed",
+			ns:          "ns-a",
+			name:        "test-pvc",
+			qops:        opUpdate,
+			annotations: map[string]string{AnnEndpoint: "http://www.google.com", AnnImportPod: "importer-test-pvc"},
 			expectError: true,
 		},
 	}
 
 	for _, test := range tests {
-		ep := test.annEndpoint
 		ns := test.ns
 		pvcName := test.name
+		ops := test.qops
+		annotations := test.annotations
 		fullname := pvcName
 		if len(ns) > 0 {
 			fullname = fmt.Sprintf("%s/%s", ns, pvcName)
@@ -105,10 +126,10 @@ var _ = Describe("Controller", func() {
 		exptErr := test.expectError
 
 		It(test.descr, func() {
-			By(fmt.Sprintf("creating in-mem pvc %q with endpt anno=%q", fullname, ep))
-			pvcObj := createInMemPVC(ns, pvcName, ep)
+			By(fmt.Sprintf("creating in-mem pvc %q with endpt anno=%q", fullname, annotations))
+			pvcObj := createInMemPVC(ns, pvcName, annotations)
 			By("invoking the controller")
-			setUpInformer(pvcObj, opAdd)
+			setUpInformer(pvcObj, ops)
 			controller.ProcessNextItem()
 			By("checking if importer pod is present")
 			pod, err := getImporterPod(fakeClient, ns, exptPod)
@@ -124,12 +145,12 @@ var _ = Describe("Controller", func() {
 })
 
 // return an in-memory pvc using the passed-in namespace, name and the endpoint annotation.
-func createInMemPVC(ns, name, ep string) *v1.PersistentVolumeClaim {
+func createInMemPVC(ns, name string, annotations map[string]string) *v1.PersistentVolumeClaim {
 	return &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Namespace:   ns,
-			Annotations: map[string]string{AnnEndpoint: ep},
+			Annotations: annotations,
 		},
 	}
 }
