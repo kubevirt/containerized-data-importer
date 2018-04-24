@@ -34,7 +34,10 @@ type Controller struct {
 }
 
 func NewController(client kubernetes.Interface, selectorLabel, importerImage string) (*Controller, error) {
-
+	var (
+		sl *metav1.LabelSelector
+		err error
+	)
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 	// Setup all informers to only watch objects with the LabelSelector `app=containerized-data-importer`
@@ -43,9 +46,12 @@ func NewController(client kubernetes.Interface, selectorLabel, importerImage str
 	})
 	pvcInformerFactory := informerFactory.Core().V1().PersistentVolumeClaims()
 
-	sl, err := metav1.ParseToLabelSelector(selectorLabel)
-	if err != nil {
-		return nil, fmt.Errorf("NewController: error parsing selectorLable: %v", err)
+	sl = &metav1.LabelSelector{}
+	if selectorLabel != "" {
+		sl, err = metav1.ParseToLabelSelector(selectorLabel)
+		if err != nil {
+			return nil, fmt.Errorf("NewController: error parsing selectorLabel: %v", err)
+		}
 	}
 
 	c := &Controller{

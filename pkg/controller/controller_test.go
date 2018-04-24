@@ -5,6 +5,7 @@ package controller_test
 import (
 	"fmt"
 
+	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	. "github.com/kubevirt/containerized-data-importer/pkg/controller"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -56,7 +57,9 @@ var _ = Describe("Controller", func() {
 		pvcInformer := cache.NewSharedIndexInformer(objSource, pvc, 0, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 		queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 		pvcListWatcher := k8stesting.NewFakeControllerSource()
-		controller = NewController(fakeClient, queue, pvcInformer, pvcListWatcher, importerTag)
+		var err error
+		controller, err = NewController(fakeClient, common.CDI_SELECTOR_LABEL,importerTag)
+		if error
 		if op == opAdd || op == opUpdate{
 			pvcListWatcher.Add(pvc)
 			objSource.Add(pvc)
