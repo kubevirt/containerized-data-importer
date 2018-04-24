@@ -64,6 +64,14 @@ func main() {
 				queue.AddRateLimited(key)
 			}
 		},
+		// this is triggered by an update or it will also be
+		// be triggered periodically even if no changes were made.
+		UpdateFunc: func(old, new interface{}) {
+			key, err := cache.MetaNamespaceKeyFunc(new)
+			if err == nil {
+				queue.AddRateLimited(key)
+			}
+		},
 	})
 
 	// watch pvcs in all namespaces

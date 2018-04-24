@@ -71,7 +71,7 @@ func (c *Controller) runWorkers() {
 }
 
 // Select pvcs with AnnEndpoint
-// Note: only new pvcs trigger an addition to the work queue. Updated and deleted pvcs
+// Note: only new and updated pvcs will trigger an add to the work queue, Deleted pvcs
 //  are ignored.
 func (c *Controller) ProcessNextItem() bool {
 	key, shutdown := c.queue.Get()
@@ -79,26 +79,34 @@ func (c *Controller) ProcessNextItem() bool {
 		return false
 	}
 	defer c.queue.Done(key)
+
 	pvc, err := c.pvcFromKey(key)
 	if pvc == nil {
-		c.queue.Forget(key)
-		return true
+		return c.forgetKey("", key)
 	}
 	glog.Infof("processNextItem: next pvc to process: %s\n", key)
 	if err != nil {
-		glog.Errorf("processNextItem: error converting key to pvc: %v", err)
-		c.queue.Forget(key)
-		return true
+		return c.forgetKey(fmt.Sprintf("processNextItem: error converting key to pvc: %v", err), key)
 	}
 	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnEndpoint) {
-		glog.Infof("processNextItem: annotation %q not found, skipping pvc\n", AnnEndpoint)
-		c.queue.Forget(key)
-		return true
+		return c.forgetKey(fmt.Sprintf("processNextItem: annotation %q not found, skipping pvc\n", AnnEndpoint), key)
+	}
+	if metav1.HasAnnotation(pvc.ObjectMeta, AnnImportPod) {
+		// The pvc may have reached our queue due to a normal update process
+		// however, based on the annotation of an importer pod, we know this was already processed.
+		return c.forgetKey(fmt.Sprintf("processNextItem: annotation %q was found but annotation %q exists indicating this was already processed once, skipping pvc\n", AnnEndpoint, AnnImportPod), key)
 	}
 	if err := c.processItem(pvc); err != nil {
-		glog.Errorf("processNextItem: error processing key %q: %v", key, err)
-		c.queue.Forget(key)
+		return c.forgetKey(fmt.Sprintf("processNextItem: error processing key %q: %v", key, err), key)
 	}
+	return true
+}
+
+func (c *Controller) forgetKey(msg string, key interface{}) bool {
+	if len(msg) > 0 {
+		glog.Info(msg)
+	}
+	c.queue.Forget(key)
 	return true
 }
 
