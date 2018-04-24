@@ -8,6 +8,8 @@ import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/informers/internalinterfaces"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -23,27 +25,62 @@ const (
 )
 
 type Controller struct {
-	clientset      kubernetes.Interface
-	queue          workqueue.RateLimitingInterface
-	pvcInformer    cache.SharedIndexInformer
-	pvcListWatcher cache.ListerWatcher
-	importerImage  string
+	clientset             kubernetes.Interface
+	queue                 workqueue.RateLimitingInterface
+	sharedInformerFactory internalinterfaces.SharedInformerFactory
+	pvcInformer           cache.SharedIndexInformer
+	importerImage         string
+	selectorLabel		  *metav1.LabelSelector
 }
 
-func NewController(
-	client kubernetes.Interface,
-	queue workqueue.RateLimitingInterface,
-	pvcInformer cache.SharedIndexInformer,
-	pvcListWatcher cache.ListerWatcher,
-	importerImage string,
-) *Controller {
-	return &Controller{
-		clientset:      client,
-		queue:          queue,
-		pvcInformer:    pvcInformer,
-		pvcListWatcher: pvcListWatcher,
-		importerImage:  importerImage,
+func NewController(client kubernetes.Interface, selectorLabel, importerImage string) (*Controller, error) {
+	var (
+		sl *metav1.LabelSelector
+		err error
+	)
+	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+
+	// Setup all informers to only watch objects with the LabelSelector `app=containerized-data-importer`
+	informerFactory := informers.NewFilteredSharedInformerFactory(client, 10*time.Minute, "", func(options *metav1.ListOptions) {
+		options.LabelSelector = selectorLabel
+	})
+	pvcInformerFactory := informerFactory.Core().V1().PersistentVolumeClaims()
+
+	sl = &metav1.LabelSelector{}
+	if selectorLabel != "" {
+		sl, err = metav1.ParseToLabelSelector(selectorLabel)
+		if err != nil {
+			return nil, fmt.Errorf("NewController: error parsing selectorLabel: %v", err)
+		}
 	}
+
+	c := &Controller{
+		clientset:     client,
+		selectorLabel: sl,
+		queue:         queue,
+		pvcInformer:   pvcInformerFactory.Informer(),
+		importerImage: importerImage,
+	}
+
+	// Bind the Index/Informer to the queue only for new pvcs
+	c.pvcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			key, err := cache.MetaNamespaceKeyFunc(obj)
+			if err == nil {
+				queue.AddRateLimited(key)
+			}
+		},
+		// this is triggered by an update or it will also be
+		// be triggered periodically even if no changes were made.
+		UpdateFunc: func(old, new interface{}) {
+			key, err := cache.MetaNamespaceKeyFunc(new)
+			if err == nil {
+				queue.AddRateLimited(key)
+			}
+		},
+	})
+
+	return c, nil
 }
 
 func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
@@ -52,7 +89,7 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	if threadiness < 1 {
 		return fmt.Errorf("controller.Run: expected >0 threads, got %d", threadiness)
 	}
-	go c.pvcInformer.Run(stopCh)
+	go c.sharedInformerFactory.Start(stopCh)
 	if !cache.WaitForCacheSync(stopCh, c.pvcInformer.HasSynced) {
 		return fmt.Errorf("controller.Run: Timeout waiting for cache sync")
 	}

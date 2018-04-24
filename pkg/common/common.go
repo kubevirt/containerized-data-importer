@@ -5,6 +5,8 @@ package common
 
 const (
 	CDI_VERSION = "0.4.0-alpha.0"
+	CDI_SELECTOR_LABEL="app=containerized-data-importer"
+
 	IMPORTER_DEFAULT_IMAGE = "docker.io/kubevirt/cdi-importer:" + CDI_VERSION
 
 	// host file constants:
