@@ -4,10 +4,12 @@ package controller_test
 
 import (
 	"fmt"
+	"time"
 
 	. "github.com/kubevirt/containerized-data-importer/pkg/controller"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"k8s.io/client-go/informers"
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,15 +56,21 @@ var _ = Describe("Controller", func() {
 		objSource := k8stesting.NewFakeControllerSource()
 		pvcInformer := cache.NewSharedIndexInformer(objSource, pvc, 0, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 		queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-		pvcListWatcher := k8stesting.NewFakeControllerSource()
-		controller = NewController(fakeClient, queue, pvcInformer, pvcListWatcher, importerTag)
+
+		sif := informers.NewSharedInformerFactory(fakeClient, 30 * time.Second)
+		pvcIndInf := sif.Core().V1().PersistentVolumeClaims()
+		podIndInf := sif.Core().V1().Pods()
+		controller := NewController(fakeClient, queue, pvcIndInf, podIndInf, importerTag)
+
 		if op == opAdd {
-			pvcListWatcher.Add(pvc)
 			objSource.Add(pvc)
 			queue.Add(queueKey)
 		}
+
 		go pvcInformer.Run(stop)
 		Expect(cache.WaitForCacheSync(stop, pvcInformer.HasSynced)).To(BeTrue())
+
+		controller.Run(1, stop)
 	}
 
 	AfterEach(func() {

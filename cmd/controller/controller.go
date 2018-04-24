@@ -9,10 +9,8 @@ import (
 	"github.com/golang/glog"
 	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/kubevirt/containerized-data-importer/pkg/controller"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -55,20 +53,11 @@ func main() {
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 	informerFactory := informers.NewSharedInformerFactory(client, time.Second*30)
-	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims().Informer()
-	// Bind the Index/Informer to the queue only for new pvcs
-	pvcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			key, err := cache.MetaNamespaceKeyFunc(obj)
-			if err == nil {
-				queue.AddRateLimited(key)
-			}
-		},
-	})
+	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims()
+	podInformer := informerFactory.Core().V1().Pods()
 
 	// watch pvcs in all namespaces
-	pvcListWatcher := cache.NewListWatchFromClient(client.CoreV1().RESTClient(), "persistentvolumeclaims", "", fields.Everything())
-	cdiController := controller.NewController(client, queue, pvcInformer, pvcListWatcher, importerImage)
+	cdiController := controller.NewController(client, queue, pvcInformer, podInformer, importerImage)
 	glog.Infoln("main: created CDI Controller")
 	stopCh := handleSignals()
 	err = cdiController.Run(1, stopCh)
