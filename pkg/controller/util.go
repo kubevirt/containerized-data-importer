@@ -126,11 +126,6 @@ func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVo
 	// importer pod name contains the pvc name
 	podName := fmt.Sprintf("%s-%s", common.IMPORTER_PODNAME, pvc.Name)
 
-	sl, err := metav1.ParseToLabelSelector(common.CDI_SELECTOR_LABEL)
-	if err != nil {
-		return nil, fmt.Errorf("makeImporterPodSpec: error parsing selector label: %v", common.CDI_SELECTOR_LABEL)
-	}
-
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -141,7 +136,7 @@ func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVo
 			Annotations: map[string]string{
 				AnnCreatedBy: "yes",
 			},
-			Labels: sl.MatchLabels,
+			Labels: c.selectorLabel.MatchLabels,
 		},
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{

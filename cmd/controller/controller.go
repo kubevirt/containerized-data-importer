@@ -47,7 +47,10 @@ func main() {
 		glog.Fatalf("Error getting kube client: %v\n", err)
 	}
 
-	cdiController := controller.NewController(client, importerImage)
+	cdiController, err := controller.NewController(client, common.CDI_SELECTOR_LABEL, importerImage)
+	if err != nil {
+		glog.Fatal("Error creating CDI controller: %v", err)
+	}
 	glog.Infoln("main: created CDI Controller")
 	stopCh := handleSignals()
 	err = cdiController.Run(1, stopCh)

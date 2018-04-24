@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -31,20 +30,27 @@ type Controller struct {
 	sharedInformerFactory internalinterfaces.SharedInformerFactory
 	pvcInformer           cache.SharedIndexInformer
 	importerImage         string
+	selectorLabel		  *metav1.LabelSelector
 }
 
-func NewController(client kubernetes.Interface, importerImage string) *Controller {
+func NewController(client kubernetes.Interface, selectorLabel, importerImage string) (*Controller, error) {
 
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 	// Setup all informers to only watch objects with the LabelSelector `app=containerized-data-importer`
 	informerFactory := informers.NewFilteredSharedInformerFactory(client, 10*time.Minute, "", func(options *metav1.ListOptions) {
-		options.LabelSelector = common.CDI_SELECTOR_LABEL
+		options.LabelSelector = selectorLabel
 	})
 	pvcInformerFactory := informerFactory.Core().V1().PersistentVolumeClaims()
 
+	sl, err := metav1.ParseToLabelSelector(selectorLabel)
+	if err != nil {
+		return nil, fmt.Errorf("NewController: error parsing selectorLable: %v", err)
+	}
+
 	c := &Controller{
 		clientset:     client,
+		selectorLabel: sl,
 		queue:         queue,
 		pvcInformer:   pvcInformerFactory.Informer(),
 		importerImage: importerImage,
@@ -68,7 +74,7 @@ func NewController(client kubernetes.Interface, importerImage string) *Controlle
 		},
 	})
 
-	return c
+	return c, nil
 }
 
 func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
