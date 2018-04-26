@@ -141,7 +141,7 @@ release: all
 	docker tag $(CTRL_IMG_NAME) $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):$(VERSION)
 	docker push $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):$(VERSION)
 
-my-golden-pvc.yaml: manifests/golden-pvc.yaml
+my-golden-pvc.yaml: manifests/example/golden-pvc.yaml
 	sed "s,endpoint:.*,endpoint: \"$(URI)\"," $< > $@
 
 .PHONY: my-golden-pvc.yaml

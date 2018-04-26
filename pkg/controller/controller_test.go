@@ -5,6 +5,7 @@ package controller_test
 import (
 	"fmt"
 
+	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	. "github.com/kubevirt/containerized-data-importer/pkg/controller"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -20,7 +21,7 @@ import (
 type operation int
 
 const (
-	opAdd operation = iota
+	opAdd    operation = iota
 	opUpdate
 	opDelete
 )
@@ -51,14 +52,16 @@ var _ = Describe("Controller", func() {
 
 		stop = make(chan struct{})
 		fakeClient = fake.NewSimpleClientset()
-		importerTag := "latest"
 		objSource := k8stesting.NewFakeControllerSource()
-		pvcInformer := cache.NewSharedIndexInformer(objSource, pvc, 0, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+
+		pvcInformer := cache.NewSharedIndexInformer(objSource, pvc, common.DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+
 		queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-		pvcListWatcher := k8stesting.NewFakeControllerSource()
-		controller = NewController(fakeClient, queue, pvcInformer, pvcListWatcher, importerTag)
-		if op == opAdd || op == opUpdate{
-			pvcListWatcher.Add(pvc)
+
+		var err error // declare err here to prevent shadowing `controller`, declared in the outer block
+		controller, err = NewController(fakeClient, pvcInformer, common.IMPORTER_DEFAULT_IMAGE)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("setupInformer failed to create controller: %v", err))
+		if op == opAdd || op == opUpdate {
 			objSource.Add(pvc)
 			queue.Add(queueKey)
 		}

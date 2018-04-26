@@ -4,17 +4,13 @@ import (
 	"flag"
 	"os"
 	"os/signal"
-	"time"
 
 	"github.com/golang/glog"
 	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/kubevirt/containerized-data-importer/pkg/controller"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/workqueue"
 )
 
 var (
@@ -51,32 +47,13 @@ func main() {
 	if err != nil {
 		glog.Fatalf("Error getting kube client: %v\n", err)
 	}
-
-	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-
-	informerFactory := informers.NewSharedInformerFactory(client, time.Second*30)
+	informerFactory := informers.NewSharedInformerFactory(client, common.DEFAULT_RESYNC_PERIOD)
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims().Informer()
-	// Bind the Index/Informer to the queue only for new pvcs
-	pvcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			key, err := cache.MetaNamespaceKeyFunc(obj)
-			if err == nil {
-				queue.AddRateLimited(key)
-			}
-		},
-		// this is triggered by an update or it will also be
-		// be triggered periodically even if no changes were made.
-		UpdateFunc: func(old, new interface{}) {
-			key, err := cache.MetaNamespaceKeyFunc(new)
-			if err == nil {
-				queue.AddRateLimited(key)
-			}
-		},
-	})
 
-	// watch pvcs in all namespaces
-	pvcListWatcher := cache.NewListWatchFromClient(client.CoreV1().RESTClient(), "persistentvolumeclaims", "", fields.Everything())
-	cdiController := controller.NewController(client, queue, pvcInformer, pvcListWatcher, importerImage)
+	cdiController, err := controller.NewController(client, pvcInformer, importerImage)
+	if err != nil {
+		glog.Fatal("Error creating CDI controller: %v", err)
+	}
 	glog.Infoln("main: created CDI Controller")
 	stopCh := handleSignals()
 	err = cdiController.Run(1, stopCh)
