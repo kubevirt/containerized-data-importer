@@ -38,6 +38,42 @@ func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, err
 	return pvc, nil
 }
 
+// checkIfShouldQueuePVC will check our existing pvc looking for
+// specific annotations AnnEndPoint and AnnImportPod
+// AnnEndPoint indicates that the pvc is targeted for our queue
+// AnnImportPod indicates that a pvc is already being processed.
+// Notice due to timing issues, we run this check multiple times.
+func (c *Controller) checkIfShouldQueuePVC(pvc *v1.PersistentVolumeClaim, method string) bool {
+
+	// check if we have proper AnnEndPoint annotation. Continue if we do
+	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnEndpoint) {
+		// this pvc does not contain our endpoint annotation.
+		glog.Infof("%s: annotation %q not found, skipping pvc\n", method, AnnEndpoint)
+		return false
+	}
+
+	//check if the pvc is or has already been processed
+	if metav1.HasAnnotation(pvc.ObjectMeta, AnnImportPod) {
+		glog.Infof("%s: pvc has annotation %q, indicating this is being processed or was already processed once, skipping pvc\n", method, AnnImportPod)
+		return false
+	}
+
+	// secondary check, just in case, fetching latest pvc object if available to help mitigate race and timing issues
+	// with latency between the store and work queue to double check if we are already processing.
+	glog.Infof("%s: checking latest version of Get pvc for inprocess annotation", method)
+	latest, err := c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
+	if err == nil {
+		// checking if we are already processing this request based on latest known Get()
+		if metav1.HasAnnotation(latest.ObjectMeta, AnnImportPod) {
+			glog.Infof("processNextItem: latest Get on pvc reveals that annotation %q exists indicating this was already processed once, skipping pvc\n", method, AnnImportPod)
+			return false
+		}
+	}
+
+	//continue to process pvc
+	return true
+}
+
 // returns the endpoint string which contains the full path URI of the target object to be copied.
 func getEndpoint(pvc *v1.PersistentVolumeClaim) (string, error) {
 	ep, found := pvc.Annotations[AnnEndpoint]

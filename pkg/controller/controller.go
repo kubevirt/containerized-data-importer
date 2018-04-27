@@ -7,7 +7,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -99,18 +98,17 @@ func (c *Controller) ProcessNextItem() bool {
 	if pvc == nil {
 		return c.forgetKey("", key)
 	}
-	glog.Infof("processNextItem: next pvc to process: %s\n", key)
 	if err != nil {
 		return c.forgetKey(fmt.Sprintf("processNextItem: error converting key to pvc: %v", err), key)
 	}
-	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnEndpoint) {
-		return c.forgetKey(fmt.Sprintf("processNextItem: annotation %q not found, skipping pvc\n", AnnEndpoint), key)
+
+	// check to see if we have our endpoint and we are not already processing this pvc
+	if !c.checkIfShouldQueuePVC(pvc, "processNextItem") {
+		return c.forgetKey(fmt.Sprintf("processNextItem: annotation %q not found or pvc %s is already being worked, skipping pvc\n", AnnEndpoint, pvc.Name), key)
 	}
-	if metav1.HasAnnotation(pvc.ObjectMeta, AnnImportPod) {
-		// The pvc may have reached our queue due to a normal update process
-		// however, based on the annotation of an importer pod, we know this was already processed.
-		return c.forgetKey(fmt.Sprintf("processNextItem: annotation %q was found but annotation %q exists indicating this was already processed once, skipping pvc\n", AnnEndpoint, AnnImportPod), key)
-	}
+	glog.Infof("processNextItem: next pvc to process: %s\n", key)
+
+	// all checks have passed, let's process it!
 	if err := c.processItem(pvc); err != nil {
 		return c.forgetKey(fmt.Sprintf("processNextItem: error processing key %q: %v", key, err), key)
 	}
@@ -145,6 +143,14 @@ func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
 	if secretName == "" {
 		glog.Infof("processItem: no secret will be supplied to endpoint %q\n", ep)
 	}
+
+	// check our existing pvc one more time to ensure we should be working on it
+	// and to help mitigate any unforeseen race conditions.
+	if !c.checkIfShouldQueuePVC(pvc, "processItem") {
+		return e(nil, "pvc is already being processed")
+	}
+
+	// all checks passed, let's create the importer pod!
 	pod, err := c.createImporterPod(ep, secretName, pvc)
 	if err != nil {
 		return e(err, "create pod")
