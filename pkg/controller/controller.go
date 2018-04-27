@@ -81,7 +81,10 @@ func NewController(client kubernetes.Interface, pvcInformer, podInformer cache.S
 }
 
 func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
-	defer c.pvcQueue.ShutDown()
+	defer func() {
+		c.pvcQueue.ShutDown()
+		c.podQueue.ShutDown()
+	}()
 	glog.Infoln("Starting CDI controller loop")
 	if threadiness < 1 {
 		return fmt.Errorf("controller.Run: expected >0 threads, got %d", threadiness)
