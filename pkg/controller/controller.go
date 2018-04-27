@@ -23,28 +23,31 @@ const (
 )
 
 type Controller struct {
-	clientset     kubernetes.Interface
-	queue         workqueue.RateLimitingInterface
-	pvcInformer   cache.SharedIndexInformer
-	importerImage string
+	clientset                kubernetes.Interface
+	pvcQueue, podQueue       workqueue.RateLimitingInterface
+	pvcInformer, podInformer cache.SharedIndexInformer
+	importerImage            string
 }
 
-func NewController(client kubernetes.Interface, pvcInformer cache.SharedIndexInformer, importerImage string) (*Controller, error) {
-	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+func NewController(client kubernetes.Interface, pvcInformer, podInformer cache.SharedIndexInformer, importerImage string) (*Controller, error) {
+	pvcQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	podQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 	c := &Controller{
 		clientset:     client,
-		queue:         queue,
+		pvcQueue:      pvcQueue,
+		podQueue:      podQueue,
 		pvcInformer:   pvcInformer,
+		podInformer:   podInformer,
 		importerImage: importerImage,
 	}
 
-	// Bind the Index/Informer to the queue only for new pvcs
+	// Bind the IndexInformer to the pvc queue
 	c.pvcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			key, err := cache.MetaNamespaceKeyFunc(obj)
 			if err == nil {
-				queue.AddRateLimited(key)
+				pvcQueue.AddRateLimited(key)
 			}
 		},
 		// this is triggered by an update or it will also be
@@ -52,7 +55,24 @@ func NewController(client kubernetes.Interface, pvcInformer cache.SharedIndexInf
 		UpdateFunc: func(old, new interface{}) {
 			key, err := cache.MetaNamespaceKeyFunc(new)
 			if err == nil {
-				queue.AddRateLimited(key)
+				pvcQueue.AddRateLimited(key)
+			}
+		},
+	})
+
+	c.podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			glog.Infoln("[=== DEBUG ===] Pod created event")
+			key, err := cache.MetaNamespaceKeyFunc(obj)
+			if err == nil {
+				podQueue.AddRateLimited(key)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			glog.Infoln("[=== DEBUG ===] Pod update event")
+			key, err := cache.MetaNamespaceKeyFunc(newObj)
+			if err == nil {
+				podQueue.AddRateLimited(key)
 			}
 		},
 	})
@@ -61,43 +81,94 @@ func NewController(client kubernetes.Interface, pvcInformer cache.SharedIndexInf
 }
 
 func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
-	defer c.queue.ShutDown()
+	defer func() {
+		c.pvcQueue.ShutDown()
+		c.podQueue.ShutDown()
+	}()
 	glog.Infoln("Starting CDI controller loop")
 	if threadiness < 1 {
 		return fmt.Errorf("controller.Run: expected >0 threads, got %d", threadiness)
 	}
 	go c.pvcInformer.Run(stopCh)
+	go c.podInformer.Run(stopCh)
+
 	if !cache.WaitForCacheSync(stopCh, c.pvcInformer.HasSynced) {
-		return fmt.Errorf("controller.Run: Timeout waiting for cache sync")
+		return fmt.Errorf("controller.Run: Timeout waiting for pvc cache sync")
+	}
+	if !cache.WaitForCacheSync(stopCh, c.podInformer.HasSynced) {
+		return fmt.Errorf("controller.Run: Timeout waiting for pod cache sync")
 	}
 	glog.Infoln("Controller cache has synced")
 
 	for i := 0; i < threadiness; i++ {
-		go wait.Until(c.runWorkers, time.Second, stopCh)
+		go wait.Until(c.runPVCWorkers, time.Second, stopCh)
+		go wait.Until(c.runPodWorkers, time.Second, stopCh)
 	}
 	<-stopCh
 	return nil
 }
 
-func (c *Controller) runWorkers() {
-	for c.ProcessNextItem() {
+func (c *Controller) runPodWorkers() {
+	glog.Infoln("[=== DEBUG ===] Starting pod workers")
+	for c.ProcessNextPodItem() {
 	}
+}
+
+func (c *Controller) runPVCWorkers() {
+	for c.ProcessNextPvcItem() {
+	}
+}
+
+func (c *Controller) ProcessNextPodItem() bool {
+	glog.Infoln("[=== DEBUG ===] ProcessNextPodItem")
+	key, shutdown := c.podQueue.Get()
+	if shutdown {
+		return false
+	}
+	glog.Infoln("[=== DEBUG ===] dequeuing pod key")
+	defer c.podQueue.Done(key)
+
+	keyString, ok := key.(string)
+	if !ok {
+		return false
+	}
+
+	glog.Infof("[=== DEBUG ===] getting pod from store by key %q\n", keyString)
+	obj, ok, err := c.podInformer.GetIndexer().GetByKey(keyString)
+	if err != nil || !ok {
+		return false
+	}
+	pod, ok := obj.(*v1.Pod)
+	if !ok {
+		return false
+	}
+	if err := c.processPodItem(pod); err == nil {
+		c.podQueue.Forget(key)
+	}
+	return true
+}
+
+func (c *Controller) processPodItem(pod *v1.Pod) error {
+	glog.Infof("processPodItem: processing pod named %q\n", pod.Name)
+	glog.Infof("processPodItem: ")
+	return nil
 }
 
 // Select pvcs with AnnEndpoint
 // Note: only new and updated pvcs will trigger an add to the work queue, Deleted pvcs
 //  are ignored.
-func (c *Controller) ProcessNextItem() bool {
-	key, shutdown := c.queue.Get()
+func (c *Controller) ProcessNextPvcItem() bool {
+	key, shutdown := c.pvcQueue.Get()
 	if shutdown {
 		return false
 	}
-	defer c.queue.Done(key)
+	defer c.pvcQueue.Done(key)
 
 	pvc, err := c.pvcFromKey(key)
 	if pvc == nil {
 		return c.forgetKey("", key)
 	}
+	glog.Infof("processNextItem: next pvc to process: %s\n", key)
 	if err != nil {
 		return c.forgetKey(fmt.Sprintf("processNextItem: error converting key to pvc: %v", err), key)
 	}
@@ -109,7 +180,7 @@ func (c *Controller) ProcessNextItem() bool {
 	glog.Infof("processNextItem: next pvc to process: %s\n", key)
 
 	// all checks have passed, let's process it!
-	if err := c.processItem(pvc); err != nil {
+	if err := c.processPvcItem(pvc); err != nil {
 		return c.forgetKey(fmt.Sprintf("processNextItem: error processing key %q: %v", key, err), key)
 	}
 	return true
@@ -119,17 +190,17 @@ func (c *Controller) forgetKey(msg string, key interface{}) bool {
 	if len(msg) > 0 {
 		glog.Info(msg)
 	}
-	c.queue.Forget(key)
+	c.pvcQueue.Forget(key)
 	return true
 }
 
 // Create the importer pod with the pvc and optional secret.
-func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
+func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	e := func(err error, s string) error {
 		if s == "" {
-			return fmt.Errorf("processItem: %v\n", err)
+			return fmt.Errorf("processPvcItem: %v\n", err)
 		}
-		return fmt.Errorf("processItem: %s: %v\n", s, err)
+		return fmt.Errorf("processPvcItem: %s: %v\n", s, err)
 	}
 
 	ep, err := getEndpoint(pvc)
@@ -141,7 +212,7 @@ func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
 		return e(err, "")
 	}
 	if secretName == "" {
-		glog.Infof("processItem: no secret will be supplied to endpoint %q\n", ep)
+		glog.Infof("processPvcItem: no secret will be supplied to endpoint %q\n", ep)
 	}
 
 	// check our existing pvc one more time to ensure we should be working on it

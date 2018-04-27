@@ -49,8 +49,9 @@ func main() {
 	}
 	informerFactory := informers.NewSharedInformerFactory(client, common.DEFAULT_RESYNC_PERIOD)
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims().Informer()
+	podInformer := informerFactory.Core().V1().Pods().Informer()
 
-	cdiController, err := controller.NewController(client, pvcInformer, importerImage)
+	cdiController, err := controller.NewController(client, pvcInformer, podInformer, importerImage)
 	if err != nil {
 		glog.Fatal("Error creating CDI controller: %v", err)
 	}

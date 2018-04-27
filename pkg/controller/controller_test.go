@@ -15,7 +15,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	k8stesting "k8s.io/client-go/tools/cache/testing"
-	"k8s.io/client-go/util/workqueue"
 )
 
 type operation int
@@ -42,31 +41,26 @@ var _ = Describe("Controller", func() {
 	}
 
 	setUpInformer := func(pvc *v1.PersistentVolumeClaim, op operation) {
-		// build queue value of ns + "/" + pvc name if exists
-		ns := pvc.Namespace
-		name := pvc.Name
-		queueKey := name
-		if len(ns) > 0 {
-			queueKey = fmt.Sprintf("%s/%s", ns, name)
-		}
 
 		stop = make(chan struct{})
-		fakeClient = fake.NewSimpleClientset()
-		objSource := k8stesting.NewFakeControllerSource()
+		fakeClient = fake.NewSimpleClientset(pvc)
+		pvcSource := k8stesting.NewFakePVCControllerSource()
+		podSource := k8stesting.NewFakeControllerSource()
 
-		pvcInformer := cache.NewSharedIndexInformer(objSource, pvc, common.DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
-
-		queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+		pvcInformer := cache.NewSharedIndexInformer(pvcSource, pvc, common.DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+		podInformer := cache.NewSharedIndexInformer(podSource, &v1.Pod{}, common.DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 
 		var err error // declare err here to prevent shadowing `controller`, declared in the outer block
-		controller, err = NewController(fakeClient, pvcInformer, common.IMPORTER_DEFAULT_IMAGE)
+		controller, err = NewController(fakeClient, pvcInformer, podInformer, common.IMPORTER_DEFAULT_IMAGE)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("setupInformer failed to create controller: %v", err))
 		if op == opAdd || op == opUpdate {
-			objSource.Add(pvc)
-			queue.Add(queueKey)
+			pvcSource.Add(pvc)
 		}
 		go pvcInformer.Run(stop)
+		go podInformer.Run(stop)
+
 		Expect(cache.WaitForCacheSync(stop, pvcInformer.HasSynced)).To(BeTrue())
+		Expect(cache.WaitForCacheSync(stop, podInformer.HasSynced)).To(BeTrue())
 	}
 
 	AfterEach(func() {
@@ -131,9 +125,10 @@ var _ = Describe("Controller", func() {
 		It(test.descr, func() {
 			By(fmt.Sprintf("creating in-mem pvc %q with endpt anno=%q", fullname, annotations))
 			pvcObj := createInMemPVC(ns, pvcName, annotations)
-			By("invoking the controller")
+			By("Creating the controller")
 			setUpInformer(pvcObj, ops)
-			controller.ProcessNextItem()
+			controller.ProcessNextPvcItem()
+			//controller.ProcessNextPodItem()
 			By("checking if importer pod is present")
 			pod, err := getImporterPod(fakeClient, ns, exptPod)
 			if exptErr {
