@@ -56,12 +56,11 @@ var _ = Describe("Controller", func() {
 		if op == opAdd || op == opUpdate {
 			pvcSource.Add(pvc)
 		}
-		go func() {
-			pvcInformer.Run(stop)
-			//podInformer.Run(stop)
-		}()
+		go pvcInformer.Run(stop)
+		go podInformer.Run(stop)
+
 		Expect(cache.WaitForCacheSync(stop, pvcInformer.HasSynced)).To(BeTrue())
-		//Expect(cache.WaitForCacheSync(stop, podInformer.HasSynced)).To(BeTrue())
+		Expect(cache.WaitForCacheSync(stop, podInformer.HasSynced)).To(BeTrue())
 	}
 
 	AfterEach(func() {

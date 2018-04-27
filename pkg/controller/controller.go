@@ -87,8 +87,13 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 		return fmt.Errorf("controller.Run: expected >0 threads, got %d", threadiness)
 	}
 	go c.pvcInformer.Run(stopCh)
+	go c.podInformer.Run(stopCh)
+
 	if !cache.WaitForCacheSync(stopCh, c.pvcInformer.HasSynced) {
-		return fmt.Errorf("controller.Run: Timeout waiting for cache sync")
+		return fmt.Errorf("controller.Run: Timeout waiting for pvc cache sync")
+	}
+	if !cache.WaitForCacheSync(stopCh, c.podInformer.HasSynced) {
+		return fmt.Errorf("controller.Run: Timeout waiting for pod cache sync")
 	}
 	glog.Infoln("Controller cache has synced")
 
