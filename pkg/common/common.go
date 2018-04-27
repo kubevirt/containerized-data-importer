@@ -9,6 +9,9 @@ const (
 	CDI_VERSION = "0.4.0-alpha.0"
 
 	IMPORTER_DEFAULT_IMAGE = "docker.io/kubevirt/cdi-importer:" + CDI_VERSION
+	CDI_LABEL_KEY = "app"
+	CDI_LABEL_VALUE = "containerized-data-importer"
+	CDI_LABEL_SELECTOR = CDI_LABEL_KEY + "=" + CDI_LABEL_VALUE
 
 	// host file constants:
 	IMPORTER_WRITE_DIR  = "/data"

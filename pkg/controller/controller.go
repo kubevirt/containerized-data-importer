@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -151,6 +152,18 @@ func (c *Controller) processItem(pvc *v1.PersistentVolumeClaim) error {
 	err = c.setAnnoImportPod(pvc, pod.Name)
 	if err != nil {
 		return e(err, "set annotation")
+	}
+	// Add the label if it doesn't exist
+	// it should be noted that the label may actually exist but not
+	// recognized due to patched timing issues but since this is a
+	// simple map there is no harm in adding it again if we don't find it.
+	if !c.checkIfLabelExists(pvc, common.CDI_LABEL_KEY, common.CDI_LABEL_VALUE) {
+		glog.Infof("adding label \"%s\" to pvc, it does not exist", common.CDI_LABEL_SELECTOR)
+		err = c.setCdiLabel(pvc)
+		if err != nil {
+			glog.Infof("error adding label %v", err)
+			return e(err, "set label")
+		}
 	}
 	return nil
 }
