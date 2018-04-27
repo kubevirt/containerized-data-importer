@@ -109,7 +109,8 @@ func (c *Controller) ProcessNextItem() bool {
 	glog.Infof("processNextItem: next pvc to process: %s\n", key)
 
 	// all checks have passed, let's process it!
-	if err := c.processItem(pvc); err != nil {
+	if err := c.processItem(pvc); err == nil {
+		// If the proceess succeeds, we're done operating on this key; remove it from the queue
 		return c.forgetKey(fmt.Sprintf("processNextItem: error processing key %q: %v", key, err), key)
 	}
 	return true
