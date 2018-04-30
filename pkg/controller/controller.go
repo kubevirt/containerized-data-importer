@@ -27,9 +27,11 @@ type Controller struct {
 	queue         workqueue.RateLimitingInterface
 	pvcInformer   cache.SharedIndexInformer
 	importerImage string
+	pullPolicy    string // Options: IfNotPresent, Always, or Never
 }
 
-func NewController(client kubernetes.Interface, pvcInformer cache.SharedIndexInformer, importerImage string) (*Controller, error) {
+func NewController(client kubernetes.Interface, pvcInformer cache.SharedIndexInformer, importerImage string, pullPolicy string) (*Controller, error) {
+
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 	c := &Controller{
@@ -37,6 +39,7 @@ func NewController(client kubernetes.Interface, pvcInformer cache.SharedIndexInf
 		queue:         queue,
 		pvcInformer:   pvcInformer,
 		importerImage: importerImage,
+		pullPolicy:    pullPolicy,
 	}
 
 	// Bind the Index/Informer to the queue only for new pvcs
