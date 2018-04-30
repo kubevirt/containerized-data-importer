@@ -17,6 +17,7 @@ var (
 	configPath    string
 	masterURL     string
 	importerImage string
+	pullPolicy    string
 )
 
 // The optional importer image is obtained here along with the supported flags.
@@ -30,10 +31,15 @@ func init() {
 	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG")
 	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
 	flag.Parse()
+
 	// env variables
 	importerImage = os.Getenv(IMPORTER_IMAGE)
 	if importerImage == "" {
 		importerImage = common.IMPORTER_DEFAULT_IMAGE
+	}
+	pullPolicy = common.IMPORTER_DEFAULT_PULL_POLICY
+	if pp := os.Getenv(common.IMPORTER_PULL_POLICY); len(pp) != 0 {
+		pullPolicy = pp
 	}
 	glog.Infof("init: complete: CDI controller will create the %q version of the importer\n", importerImage)
 }
@@ -50,7 +56,7 @@ func main() {
 	informerFactory := informers.NewSharedInformerFactory(client, common.DEFAULT_RESYNC_PERIOD)
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims().Informer()
 
-	cdiController, err := controller.NewController(client, pvcInformer, importerImage)
+	cdiController, err := controller.NewController(client, pvcInformer, importerImage, pullPolicy)
 	if err != nil {
 		glog.Fatal("Error creating CDI controller: %v", err)
 	}

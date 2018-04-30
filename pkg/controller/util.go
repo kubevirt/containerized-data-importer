@@ -251,7 +251,7 @@ func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVo
 				{
 					Name:            common.IMPORTER_PODNAME,
 					Image:           c.importerImage,
-					ImagePullPolicy: v1.PullAlways,
+					ImagePullPolicy: v1.PullPolicy(c.pullPolicy),
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      "data-path",

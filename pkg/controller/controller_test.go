@@ -59,7 +59,7 @@ var _ = Describe("Controller", func() {
 		queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 		var err error // declare err here to prevent shadowing `controller`, declared in the outer block
-		controller, err = NewController(fakeClient, pvcInformer, common.IMPORTER_DEFAULT_IMAGE)
+		controller, err = NewController(fakeClient, pvcInformer, common.IMPORTER_DEFAULT_IMAGE, common.IMPORTER_DEFAULT_PULL_POLICY)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("setupInformer failed to create controller: %v", err))
 		if op == opAdd || op == opUpdate {
 			objSource.Add(pvc)

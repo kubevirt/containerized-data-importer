@@ -17,4 +17,4 @@ spec:
       containers:
       - name: cdi-controller
         image: kubevirt/cdi-controller:0.4.0-alpha.0
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
