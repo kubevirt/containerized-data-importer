@@ -114,7 +114,7 @@ func (c *Controller) ProcessNextItem() bool {
 	// all checks have passed, let's process it!
 	if err := c.processItem(pvc); err == nil {
 		// If the proceess succeeds, we're done operating on this key; remove it from the queue
-		return c.forgetKey(fmt.Sprintf("processNextItem: error processing key %q: %v", key, err), key)
+		return c.forgetKey(fmt.Sprintf("processNextItem: finished processing key %q", key), key)
 	}
 	return true
 }
