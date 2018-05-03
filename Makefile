@@ -39,7 +39,8 @@ controller: controller-bin controller-image
 importer: importer-bin importer-image
 push: push-importer push-controller
 test: functional-test unit-test
-functional-test: func-test-bin func-test-image func-test-run
+functional-test: func-test-run
+func-test-build: func-test-bin func-test-image
 
 GOOS?=linux
 ARCH?=amd64
@@ -102,7 +103,7 @@ func-test-image: $(IMPORTER_BUILD)/Dockerfile
 	-rm -rf $(TEMP_BUILD_DIR)
 
 
-func-test-run:
+func-test-run: func-test-build
 	@echo '********'
 	@echo 'Running functional tests'
 	docker ps -qa && docker run --rm $(F_TEST) || echo 'Docker service not detected, skipping functional tests'
