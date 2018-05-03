@@ -1,4 +1,4 @@
-include version # Provides `VERSION` variable
+include version # Provides `RELEASE VERSIONING` variables
 
 REPO_ROOT=$(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
@@ -32,9 +32,12 @@ CTRL_IMG_NAME=cdi-$(CONTROLLER)
 IMPT_IMG_NAME=cdi-$(IMPORTER)
 GIT_USER=$(shell git config --get user.email | sed 's/@.*//')
 TAG=$(GIT_USER)-latest
+RELEASE_TAG=-$(RELEASE_TAG)
+PRERELEASE_TAG=-$(PRERELEASE_TAG)
 
-.PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-importer clean test
+.PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-controller-release push-importer-release push-importer clean test
 all: clean test controller importer
+pre-release: all
 controller: controller-bin controller-image
 importer: importer-bin importer-image
 push: push-importer push-controller
@@ -133,13 +136,13 @@ clean:
 	-rm -rf $(IMPORTER_BUILD)/tmp
 
 # push cdi-importer and cdi-controller images to kubevirt repo for general use. Intended to release stable image built from master branch.
-release: all
+release: controller importer
 	@echo '********'
 	@echo 'Releasing CDI images'
-	docker tag $(IMPT_IMG_NAME) $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):$(VERSION)
-	docker push $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):$(VERSION)
-	docker tag $(CTRL_IMG_NAME) $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):$(VERSION)
-	docker push $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):$(VERSION)
+	docker tag $(IMPT_IMG_NAME) $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):$(RELEASE_TAG)
+	docker push $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):$(RELEASE_TAG)
+	docker tag $(CTRL_IMG_NAME) $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):$(RELEASE_TAG)
+	docker push $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):$(RELEASE_TAG)
 
 my-golden-pvc.yaml: manifests/example/golden-pvc.yaml
 	sed "s,endpoint:.*,endpoint: \"$(URI)\"," $< > $@
