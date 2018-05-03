@@ -8,6 +8,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/kubevirt/containerized-data-importer/pkg/controller"
+	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -53,10 +54,16 @@ func main() {
 	if err != nil {
 		glog.Fatalf("Error getting kube client: %v\n", err)
 	}
-	informerFactory := informers.NewSharedInformerFactory(client, common.DEFAULT_RESYNC_PERIOD)
-	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims().Informer()
 
-	cdiController, err := controller.NewController(client, pvcInformer, importerImage, pullPolicy)
+	pvcInformerFactory := informers.NewSharedInformerFactory(client, common.DEFAULT_RESYNC_PERIOD)
+	podInformerFactory := informers.NewFilteredSharedInformerFactory(client, common.DEFAULT_RESYNC_PERIOD, "", func(options *v1.ListOptions) {
+		options.LabelSelector = common.CDI_LABEL_SELECTOR
+	})
+
+	pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims().Informer()
+	podInformer := podInformerFactory.Core().V1().Pods().Informer()
+
+	cdiController, err := controller.NewController(client, pvcInformer, podInformer, importerImage, pullPolicy)
 	if err != nil {
 		glog.Fatal("Error creating CDI controller: %v", err)
 	}

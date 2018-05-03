@@ -13,10 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 )
 
-const (
-	SetImportPod = "setAnnoImportPod"
-	SetCdiLabel  = "setCdiLabel"
-)
+const DataVolName = "cdi-data-vol"
 
 // return a pvc pointer based on the passed-in work queue key.
 func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, error) {
@@ -25,11 +22,11 @@ func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, err
 		return nil, fmt.Errorf("pvcFromKey: key object not of type string\n")
 	}
 	obj, ok, err := c.pvcInformer.GetIndexer().GetByKey(keyString)
-	if !ok {
-		return nil, nil
-	}
 	if err != nil {
 		return nil, fmt.Errorf("pvcFromKey: Error getting key from cache: %q\n", keyString)
+	}
+	if !ok {
+		return nil, fmt.Errorf("pvcFromKey: object %v not found", keyString)
 	}
 	pvc, ok := obj.(*v1.PersistentVolumeClaim)
 	if !ok {
@@ -38,12 +35,31 @@ func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, err
 	return pvc, nil
 }
 
-// checkIfShouldQueuePVC will check our existing pvc looking for
+func (c *Controller) podFromKey(key interface{}) (*v1.Pod, error) {
+	keyString, ok := key.(string)
+	if !ok {
+		return nil, fmt.Errorf("podFromKey: keys is not of type string")
+	}
+	obj, ok, err := c.podInformer.GetIndexer().GetByKey(keyString)
+	if err != nil {
+		return nil, fmt.Errorf("podFromKey: error getting pod obj from store: %v", err)
+	}
+	if !ok {
+		return nil, fmt.Errorf("podFromKey: pod not found in store")
+	}
+	pod, ok := obj.(*v1.Pod)
+	if !ok {
+		return nil, fmt.Errorf("podFromKey: error casting object to type \"v1.Pod\"")
+	}
+	return pod, nil
+}
+
+// checkIfShouldProcessPVC will check our existing pvc looking for
 // specific annotations AnnEndPoint and AnnImportPod
 // AnnEndPoint indicates that the pvc is targeted for our queue
 // AnnImportPod indicates that a pvc is already being processed.
 // Notice due to timing issues, we run this check multiple times.
-func (c *Controller) checkIfShouldQueuePVC(pvc *v1.PersistentVolumeClaim, method string) bool {
+func (c *Controller) checkIfShouldProcessPVC(pvc *v1.PersistentVolumeClaim, method string) bool {
 
 	// check if we have proper AnnEndPoint annotation. Continue if we do
 	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnEndpoint) {
@@ -137,31 +153,32 @@ func (c *Controller) clonePVC(claim *v1.PersistentVolumeClaim) (*v1.PersistentVo
 	return pvcClone, data, nil
 }
 
-// set the pvc's "import pod name" annotation.
+// Sets an annotation `key: val` in the given PVC.
 // Note: Patch() is used instead of Update() to handle version related field changes.
-func (c *Controller) setAnnoImportPod(pvc *v1.PersistentVolumeClaim, name string) error {
-	glog.Infof("%s: adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", SetImportPod, AnnImportPod, name, pvc.Namespace, pvc.Name)
+func (c *Controller) setPVCAnnotation(pvc *v1.PersistentVolumeClaim, key, val string) error {
+	const funcTrace = "setPVCAnnotation"
+	glog.Infof("Adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", key, val, pvc.Namespace, pvc.Name)
 
 	// don't mutate the original pvc since it's from the shared informer
 	// make copies of old pvc
 	pvcClone, oldData, err := c.clonePVC(pvc)
 	if err != nil {
-		return fmt.Errorf("%s: marshal clone pvc data: %v\n", SetImportPod, err)
+		return fmt.Errorf("%s: marshal clone pvc data: %v\n", funcTrace, err)
 	}
 
 	// add annotation to update pvc
-	metav1.SetMetaDataAnnotation(&pvcClone.ObjectMeta, AnnImportPod, name)
+	metav1.SetMetaDataAnnotation(&pvcClone.ObjectMeta, key, val)
 
 	//make copies of new pvc
 	newData, err := json.Marshal(pvcClone)
 	if err != nil {
-		return fmt.Errorf("%s: marshal new pvc data: %v\n", SetImportPod, err)
+		return fmt.Errorf("%s: marshal new pvc data: %v\n", funcTrace, err)
 	}
 
 	//patch and merge the old and new pvc
-	err = c.patchPVC(oldData, newData, pvc, SetImportPod)
+	err = c.patchPVC(oldData, newData, pvc, funcTrace)
 	if err != nil {
-		return fmt.Errorf("%s: %v", SetImportPod, err)
+		return fmt.Errorf("%s: %v", funcTrace, err)
 	}
 	return nil
 }
@@ -179,13 +196,14 @@ func (c *Controller) checkIfLabelExists(pvc *v1.PersistentVolumeClaim, lbl strin
 // set the pvc's cdi label.
 // Note: Patch() is used instead of Update() to handle version related field changes.
 func (c *Controller) setCdiLabel(pvc *v1.PersistentVolumeClaim) error {
-	glog.Infof("%s: adding label \"%s: %s\" to pvc %s\n", SetCdiLabel, common.CDI_LABEL_KEY, common.CDI_LABEL_VALUE, pvc.Name)
+	const funcTrace = "setCdiLabel"
+	glog.Infof("%s: adding label \"%s: %s\" to pvc %s\n", funcTrace, common.CDI_LABEL_KEY, common.CDI_LABEL_VALUE, pvc.Name)
 
 	// don't mutate the original pvc since it's from the shared informer
 	// make copies of old pvc
 	pvcClone, oldData, err := c.clonePVC(pvc)
 	if err != nil {
-		return fmt.Errorf("%s: marshal clone pvc data: %v\n", SetImportPod, err)
+		return fmt.Errorf("%s: marshal clone pvc data: %v\n", funcTrace, err)
 	}
 
 	// add label
@@ -194,13 +212,13 @@ func (c *Controller) setCdiLabel(pvc *v1.PersistentVolumeClaim) error {
 	// make copy of updated pvc
 	newData, err := json.Marshal(pvcClone)
 	if err != nil {
-		return fmt.Errorf("%s: error marshal new pvc data: %v\n", SetCdiLabel, err)
+		return fmt.Errorf("%s: error marshal new pvc data: %v\n", funcTrace, err)
 	}
 
 	// patch the pvc clone
-	err = c.patchPVC(oldData, newData, pvc, SetCdiLabel)
+	err = c.patchPVC(oldData, newData, pvc, funcTrace)
 	if err != nil {
-		return fmt.Errorf("%s: %v", SetCdiLabel, err)
+		return fmt.Errorf("%s: %v", funcTrace, err)
 	}
 	return nil
 }
@@ -254,7 +272,7 @@ func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVo
 					ImagePullPolicy: v1.PullPolicy(c.pullPolicy),
 					VolumeMounts: []v1.VolumeMount{
 						{
-							Name:      "data-path",
+							Name:      DataVolName,
 							MountPath: common.IMPORTER_DATA_DIR,
 						},
 					},
@@ -263,7 +281,7 @@ func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVo
 			RestartPolicy: v1.RestartPolicyNever,
 			Volumes: []v1.Volume{
 				{
-					Name: "data-path",
+					Name: DataVolName,
 					VolumeSource: v1.VolumeSource{
 						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
 							ClaimName: pvc.Name,
