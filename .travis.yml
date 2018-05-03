@@ -42,3 +42,35 @@ script:
   - kubectl get pods --all-namespaces
 
   - make test
+
+before_deploy:
+  - include version
+  - make controller importer
+  - git config --local user.name "screeley44"
+  - git config --local user.email "screeley@redhat.com"
+  - git tag "$(RELEASE_TAG)"
+  # - git tag "$(date +'%Y%m%d%H%M%S')-$(git log --format=%h -1)"
+
+deploy:
+- provider: script
+  script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
+  skip_cleanup: true
+  on:
+    branch: master
+    repo: kubevirt/containerized-data-importer
+- provider: script
+  script: make release
+  skip_cleanup: true
+  overwrite: true
+  on:
+    branch: master
+    repo: kubevirt/containerized-data-importer
+- provider: releases
+  skip_cleanup: true
+  overwrite: true
+  file:
+    - build/controller/tmp/*
+    - build/importer/tmp/*
+  on:
+    branch: master
+    repo: kubevirt/containerized-data-importer
