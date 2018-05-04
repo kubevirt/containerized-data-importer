@@ -47,8 +47,7 @@ before_deploy:
   - make controller importer
   - git config --local user.name "screeley44"
   - git config --local user.email "screeley@redhat.com"
-  - source version && git tag "$(RELEASE_TAG)"
-  # - git tag "$(date +'%Y%m%d%H%M%S')-$(git log --format=%h -1)"
+  - source version && git tag -a $RELEASE_TAG -m "cdi merge"
 
 deploy:
 - provider: script
