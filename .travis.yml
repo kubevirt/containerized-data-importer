@@ -5,6 +5,9 @@ language: go
 go:
   - "1.10.x"
 
+services:
+- docker
+
 env:
   global:
     secure: "p2MDt0w4jrbDERn3rBz4kO9GQCO3Bgzh2ge76aUP81Er3X8yKXmzLd8TdKKVg2ijT3/T3STdtSKbU3qbgzUT3QbOrn40X9IkK+PoWZaJ91bl9mDAZUey0duzzVIzWeHkOldA8B18QgmFYiWXMsbPFo+Pvi9O5OdInDAGvp6e9zL6QTUN6JsMFXVsBHehtaIv9o89ecaBkBiueO2K7mHd896UH4jYiyo6dGhmOIPUH5dwnJPXGujfFpCuU5vJXMkwryjARtzg78bQTQ2l7tvLhmqtepgjTC+NL0LgjP9Yj5SK8Zfuga+phzfeEH+NV0Mc3NBDgwWE0siWOHxjv/tdkILRm3bpLcjGG7aAgsip3NE3Hy04l3BJaWXMRJiHtpCq5vraGv5ix3RAmufbww40qLwT5ZQpA7VlQ8kkonuFw5v7cph/XnZQeqo6C/kb47LJbNwwTRG9xAzdwVsgQOU5TbYH/Xfj593b86clcmr4Kd6va3C9WUTWcxXsGsm8ZzFwhCxxP06bx8EDWk5RfEtUGaMUYSr2T4jfaHRCUGCkwvoVrWyKXcyT0fZg8Ay248PNK2ijp2A4xNKrDpqtKRyHX/ATIkIJwvbsKonfN+/hUJxn1a94+vOXcg2GWix090ZPkusPKmtOd4oUI+B4FwvJ3NxZEAeGeyZ1M8Zug2myBSA="
@@ -50,33 +53,33 @@ script:
   - make test
 
 before_deploy:
-  - make controller importer
   - git config --local user.name "screeley44"
   - git config --local user.email "screeley@redhat.com"
   - source version && git tag -f $RELEASE_TAG
 
 deploy:
 - provider: script
-  script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
+  script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS" && make release
   skip_cleanup: true
   on:
     branch: master
     repo: kubevirt/containerized-data-importer
 - provider: script
-  script: make release
+  script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS" && make release
   skip_cleanup: true
-  overwrite: true
   on:
-    branch: master
-    repo: kubevirt/containerized-data-importer
+    tags: true
 - provider: releases
   api_key:
-    secure: "p2MDt0w4jrbDERn3rBz4kO9GQCO3Bgzh2ge76aUP81Er3X8yKXmzLd8TdKKVg2ijT3/T3STdtSKbU3qbgzUT3QbOrn40X9IkK+PoWZaJ91bl9mDAZUey0duzzVIzWeHkOldA8B18QgmFYiWXMsbPFo+Pvi9O5OdInDAGvp6e9zL6QTUN6JsMFXVsBHehtaIv9o89ecaBkBiueO2K7mHd896UH4jYiyo6dGhmOIPUH5dwnJPXGujfFpCuU5vJXMkwryjARtzg78bQTQ2l7tvLhmqtepgjTC+NL0LgjP9Yj5SK8Zfuga+phzfeEH+NV0Mc3NBDgwWE0siWOHxjv/tdkILRm3bpLcjGG7aAgsip3NE3Hy04l3BJaWXMRJiHtpCq5vraGv5ix3RAmufbww40qLwT5ZQpA7VlQ8kkonuFw5v7cph/XnZQeqo6C/kb47LJbNwwTRG9xAzdwVsgQOU5TbYH/Xfj593b86clcmr4Kd6va3C9WUTWcxXsGsm8ZzFwhCxxP06bx8EDWk5RfEtUGaMUYSr2T4jfaHRCUGCkwvoVrWyKXcyT0fZg8Ay248PNK2ijp2A4xNKrDpqtKRyHX/ATIkIJwvbsKonfN+/hUJxn1a94+vOXcg2GWix090ZPkusPKmtOd4oUI+B4FwvJ3NxZEAeGeyZ1M8Zug2myBSA="
+    secure: "eInJ2Jz9Bat34qGWS81pv8v7uml+Q+PMNQt5lDO1WHGUuDLuRFgxsFRhT0VHAMAxTejHt+gDmt3rk0Jc4Q4b8g2iI4uxhG7FOfdNs3hutZOOCJVGJdhxYSzv/1UrGoSWqvv2muIEeuJ0s56+8uhCyarTF3//XkCHegVJ3UpOnVmlVP2o4Y+lLpbclgZLvlOk2g1jNmK/VeIH4nJl6KGmc2/cr6MT9ODD83Wd7PP5ejB/cAj30C4yY4bLFScMA1dOYQIVIXbG4dpprib5RwOJ1Gnf4vXs+FxdgjIRtWvzvoiK1OcKw+rX5pb6OCo49sgIDuk5OC44MInkVrnp2AhUxeR/xwA/70hpiqPy9K5/Y4auXAGC5FFxhGd+2Vmd5Uydo3kv5uuhVD+z1ig4QvA2DqFXvgLp9iSjouCIWXx6KDHDb6ZA/tHk25O4QNW7nDzTJH7Rum/PourqEOuW4sThFPy2rdOCJq/oEBFMMM3ph6+JamQaHgp/H36kcY20NRIvXsSWxnJQBFZVJab3Cp+mBsW8YI/6BXL6LGrUQk+jujhHZ3lGQyMKLxvqDnOWv3eewRKc+SB0oFvT7tUD8fRlCpfvwS6VZI9zmXjU6z64yX3P0thdHHZmhIYNJpvnYITaCBxXqF1s4ntnvkrJRu4WK33CyIKBC/W82SEL9E3Yi+E="
   skip_cleanup: true
   overwrite: true
   file:
     - bin/import-controller
     - bin/importer
   on:
-    tag: true
+    tags: true
+
+
+
 
