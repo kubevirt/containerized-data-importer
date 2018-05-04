@@ -1,61 +1,57 @@
----
 sudo: required
-
 language: go
+
 go:
-  - "1.10.x"
+- 1.10.x
 
 services:
 - docker
 
 env:
   global:
-    secure: "p2MDt0w4jrbDERn3rBz4kO9GQCO3Bgzh2ge76aUP81Er3X8yKXmzLd8TdKKVg2ijT3/T3STdtSKbU3qbgzUT3QbOrn40X9IkK+PoWZaJ91bl9mDAZUey0duzzVIzWeHkOldA8B18QgmFYiWXMsbPFo+Pvi9O5OdInDAGvp6e9zL6QTUN6JsMFXVsBHehtaIv9o89ecaBkBiueO2K7mHd896UH4jYiyo6dGhmOIPUH5dwnJPXGujfFpCuU5vJXMkwryjARtzg78bQTQ2l7tvLhmqtepgjTC+NL0LgjP9Yj5SK8Zfuga+phzfeEH+NV0Mc3NBDgwWE0siWOHxjv/tdkILRm3bpLcjGG7aAgsip3NE3Hy04l3BJaWXMRJiHtpCq5vraGv5ix3RAmufbww40qLwT5ZQpA7VlQ8kkonuFw5v7cph/XnZQeqo6C/kb47LJbNwwTRG9xAzdwVsgQOU5TbYH/Xfj593b86clcmr4Kd6va3C9WUTWcxXsGsm8ZzFwhCxxP06bx8EDWk5RfEtUGaMUYSr2T4jfaHRCUGCkwvoVrWyKXcyT0fZg8Ay248PNK2ijp2A4xNKrDpqtKRyHX/ATIkIJwvbsKonfN+/hUJxn1a94+vOXcg2GWix090ZPkusPKmtOd4oUI+B4FwvJ3NxZEAeGeyZ1M8Zug2myBSA="
+  - secure: p2MDt0w4jrbDERn3rBz4kO9GQCO3Bgzh2ge76aUP81Er3X8yKXmzLd8TdKKVg2ijT3/T3STdtSKbU3qbgzUT3QbOrn40X9IkK+PoWZaJ91bl9mDAZUey0duzzVIzWeHkOldA8B18QgmFYiWXMsbPFo+Pvi9O5OdInDAGvp6e9zL6QTUN6JsMFXVsBHehtaIv9o89ecaBkBiueO2K7mHd896UH4jYiyo6dGhmOIPUH5dwnJPXGujfFpCuU5vJXMkwryjARtzg78bQTQ2l7tvLhmqtepgjTC+NL0LgjP9Yj5SK8Zfuga+phzfeEH+NV0Mc3NBDgwWE0siWOHxjv/tdkILRm3bpLcjGG7aAgsip3NE3Hy04l3BJaWXMRJiHtpCq5vraGv5ix3RAmufbww40qLwT5ZQpA7VlQ8kkonuFw5v7cph/XnZQeqo6C/kb47LJbNwwTRG9xAzdwVsgQOU5TbYH/Xfj593b86clcmr4Kd6va3C9WUTWcxXsGsm8ZzFwhCxxP06bx8EDWk5RfEtUGaMUYSr2T4jfaHRCUGCkwvoVrWyKXcyT0fZg8Ay248PNK2ijp2A4xNKrDpqtKRyHX/ATIkIJwvbsKonfN+/hUJxn1a94+vOXcg2GWix090ZPkusPKmtOd4oUI+B4FwvJ3NxZEAeGeyZ1M8Zug2myBSA=
+  - secure: RfAvL8kqBzK4/r7NHX61rCevvua5BfMXIdFfhg/nI2XUxINtUuX9uNBkLsohZWwk1UDA6CWt8+jaW2SDcQrOz9PAU+RHfGHYQtMsEMbBWlw3FV2EpaZe+rMybQUSqh2fZSCACguxdDm7o1IZVTp+dD5dhQHK341isfYDtbfnKRn5zrmlNhAdrpJEJQTzHT1MBBBDfhBggVkxcSAMYpKC43mGH9kgKn7BSxaUK4I7xtuAAO1EflQWClTXyMrTm7oYxEld6qGNmLq0tsA0ff8qY9vTCCyu6NSIjGFSgJoRFApJDYfhV7NEQNEzAeGo1ljf4M4r/iMRllZaTnCcdsbXA01OnnIkYNwj1+OGOJe19XOvZslPDAl5K3H9bipYfP/CUKOlK5QgbPJsemi+NvUkNBSKZ6BHY1MURBFdvsiMEawhlhoQvZTcc/ONH8PqV0XZdyk8pCNL98o+Y7RVwReJJbTRfOgQQl/b/fPL0BwCjCp2GouwwKLkoLLbsjQPJ73chRsyAblT/SgcMFpm8eGFysCRvdnpy+omBxGiqrOBdYpDDZW2hWvtQ5AmpXGrAOXVDdPoF2O8693OqTr6DRST0n6U2g5Akst+4VKTamCFqY6tV8YZcf7mhuPQcpkl5OUtS509UNwLZi1/EL2xMGAvqX5Kni/tTJVWlSBe1q0TkgY=
   matrix:
   - CHANGE_MINIKUBE_NONE_USER=true K8S_VER=1.9.0 MK_VER=0.25.2 K6T_VER=0.4.0 SRC="http://www.tinycorelinux.net/9.x/x86/release/Core-current.iso"
 
 before_install:
-  - composer config --global github-oauth.github.com "$GITHUB_TOKEN"
+- composer config --global github-oauth.github.com "$GITHUB_TOKEN"
 
 notifications:
   irc:
     channels:
-      - "chat.freenode.net#kubevirt"
+    - chat.freenode.net#kubevirt
     on_success: change
     on_failure: always
 
 before_script:
-  # Setup minikube
-  - curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/v$K8S_VER/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-  - curl -Lo minikube https://storage.googleapis.com/minikube/releases/v$MK_VER/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
-
-  - sudo minikube start --vm-driver=none --kubernetes-version=v$K8S_VER
-  - minikube update-context
-  - JSONPATH='{range .items[*]}{@.metadata.name}:{range @.status.conditions[*]}{@.type}={@.status};{end}{end}'; until kubectl get nodes -o jsonpath="$JSONPATH" 2>&1 | grep -q "Ready=True"; do sleep 1; done
-
-  - k_wait_all_running() { while [[ "$(kubectl get $1 --all-namespaces --field-selector=status.phase!=Running | wc -l)" -gt 1 ]]; do kubectl get $1 --all-namespaces ; sleep 6; done ; }
-
-  # Deploy kubevirt
-  - kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/v$K6T_VER/kubevirt.yaml
-  - k_wait_all_running pods
+- curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/v$K8S_VER/bin/linux/amd64/kubectl
+  && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+- curl -Lo minikube https://storage.googleapis.com/minikube/releases/v$MK_VER/minikube-linux-amd64
+  && chmod +x minikube && sudo mv minikube /usr/local/bin/
+- sudo minikube start --vm-driver=none --kubernetes-version=v$K8S_VER
+- minikube update-context
+- JSONPATH='{range .items[*]}{@.metadata.name}:{range @.status.conditions[*]}{@.type}={@.status};{end}{end}';
+  until kubectl get nodes -o jsonpath="$JSONPATH" 2>&1 | grep -q "Ready=True"; do
+  sleep 1; done
+- k_wait_all_running() { while [[ "$(kubectl get $1 --all-namespaces --field-selector=status.phase!=Running
+  | wc -l)" -gt 1 ]]; do kubectl get $1 --all-namespaces ; sleep 6; done ; }
+- kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/v$K6T_VER/kubevirt.yaml
+- k_wait_all_running pods
 
 script:
-  # Deploy manifests
-  - kubectl apply -f manifests/example/endpoint-secret.yaml
-  - kubectl apply -f manifests/controller/cdi-controller-deployment.yaml
-
-  - make manifests/example/golden-pvc.yaml URI="$SRC"
-  - kubectl apply -f manifests/example/golden-pvc.yaml
-
-  - k_wait_all_running pods
-  - kubectl get pods --all-namespaces
-
-  - make test
+- kubectl apply -f manifests/example/endpoint-secret.yaml
+- kubectl apply -f manifests/controller/cdi-controller-deployment.yaml
+- make manifests/example/golden-pvc.yaml URI="$SRC"
+- kubectl apply -f manifests/example/golden-pvc.yaml
+- k_wait_all_running pods
+- kubectl get pods --all-namespaces
+- make test
 
 before_deploy:
-  - git config --local user.name "screeley44"
-  - git config --local user.email "screeley@redhat.com"
-  - source version && git tag -f $RELEASE_TAG
+- git config --local user.name "screeley44"
+- git config --local user.email "screeley@redhat.com"
+- source version && git tag -f $RELEASE_TAG
 
 deploy:
 - provider: script
@@ -64,22 +60,14 @@ deploy:
   on:
     branch: master
     repo: kubevirt/containerized-data-importer
-- provider: script
-  script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS" && make release
-  skip_cleanup: true
-  on:
-    tags: true
 - provider: releases
   api_key:
-    secure: "eInJ2Jz9Bat34qGWS81pv8v7uml+Q+PMNQt5lDO1WHGUuDLuRFgxsFRhT0VHAMAxTejHt+gDmt3rk0Jc4Q4b8g2iI4uxhG7FOfdNs3hutZOOCJVGJdhxYSzv/1UrGoSWqvv2muIEeuJ0s56+8uhCyarTF3//XkCHegVJ3UpOnVmlVP2o4Y+lLpbclgZLvlOk2g1jNmK/VeIH4nJl6KGmc2/cr6MT9ODD83Wd7PP5ejB/cAj30C4yY4bLFScMA1dOYQIVIXbG4dpprib5RwOJ1Gnf4vXs+FxdgjIRtWvzvoiK1OcKw+rX5pb6OCo49sgIDuk5OC44MInkVrnp2AhUxeR/xwA/70hpiqPy9K5/Y4auXAGC5FFxhGd+2Vmd5Uydo3kv5uuhVD+z1ig4QvA2DqFXvgLp9iSjouCIWXx6KDHDb6ZA/tHk25O4QNW7nDzTJH7Rum/PourqEOuW4sThFPy2rdOCJq/oEBFMMM3ph6+JamQaHgp/H36kcY20NRIvXsSWxnJQBFZVJab3Cp+mBsW8YI/6BXL6LGrUQk+jujhHZ3lGQyMKLxvqDnOWv3eewRKc+SB0oFvT7tUD8fRlCpfvwS6VZI9zmXjU6z64yX3P0thdHHZmhIYNJpvnYITaCBxXqF1s4ntnvkrJRu4WK33CyIKBC/W82SEL9E3Yi+E="
+    secure: eInJ2Jz9Bat34qGWS81pv8v7uml+Q+PMNQt5lDO1WHGUuDLuRFgxsFRhT0VHAMAxTejHt+gDmt3rk0Jc4Q4b8g2iI4uxhG7FOfdNs3hutZOOCJVGJdhxYSzv/1UrGoSWqvv2muIEeuJ0s56+8uhCyarTF3//XkCHegVJ3UpOnVmlVP2o4Y+lLpbclgZLvlOk2g1jNmK/VeIH4nJl6KGmc2/cr6MT9ODD83Wd7PP5ejB/cAj30C4yY4bLFScMA1dOYQIVIXbG4dpprib5RwOJ1Gnf4vXs+FxdgjIRtWvzvoiK1OcKw+rX5pb6OCo49sgIDuk5OC44MInkVrnp2AhUxeR/xwA/70hpiqPy9K5/Y4auXAGC5FFxhGd+2Vmd5Uydo3kv5uuhVD+z1ig4QvA2DqFXvgLp9iSjouCIWXx6KDHDb6ZA/tHk25O4QNW7nDzTJH7Rum/PourqEOuW4sThFPy2rdOCJq/oEBFMMM3ph6+JamQaHgp/H36kcY20NRIvXsSWxnJQBFZVJab3Cp+mBsW8YI/6BXL6LGrUQk+jujhHZ3lGQyMKLxvqDnOWv3eewRKc+SB0oFvT7tUD8fRlCpfvwS6VZI9zmXjU6z64yX3P0thdHHZmhIYNJpvnYITaCBxXqF1s4ntnvkrJRu4WK33CyIKBC/W82SEL9E3Yi+E=
   skip_cleanup: true
   overwrite: true
   file:
-    - bin/import-controller
-    - bin/importer
+  - bin/import-controller
+  - bin/importer
   on:
-    tags: true
-
-
-
-
+    branch: master
+    repo: kubevirt/containerized-data-importer
