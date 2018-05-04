@@ -47,8 +47,7 @@ before_deploy:
   - make controller importer
   - git config --local user.name "screeley44"
   - git config --local user.email "screeley@redhat.com"
-  - source version && git tag -a $RELEASE_TAG -m "cdi merge"
-
+  - source version && git tag -f $RELEASE_TAG
 deploy:
 - provider: script
   script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
