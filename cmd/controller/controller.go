@@ -8,6 +8,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/kubevirt/containerized-data-importer/pkg/controller"
+	. "github.com/kubevirt/containerized-data-importer/pkg/util"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -48,6 +49,7 @@ func init() {
 func main() {
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, configPath)
 	if err != nil {
+		glog.Fatalf(Err(err))
 		glog.Fatalf("Error getting kube config: %v\n", err)
 	}
 	client, err := kubernetes.NewForConfig(cfg)

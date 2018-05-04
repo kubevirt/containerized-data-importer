@@ -6,13 +6,13 @@ import (
 )
 
 type err struct {
-	msg        string
+	msg        error
 	file       string
 	function   string
 	lineNumber int
 }
 
-func Err(msg string) *err {
+func Err(msg error) *err {
 	pc := make([]uintptr, 1) // Only store the PC for the caller of Err().
 	runtime.Callers(2, pc)   // skip the 2 lowest PCs (Callers() and Err).
 	frames := runtime.CallersFrames(pc)
@@ -28,4 +28,8 @@ func Err(msg string) *err {
 
 func (e err) Error() string {
 	return fmt.Sprintf("ERROR: <%s>%s()L%d: %s", e.file, e.function, e.lineNumber, e.msg)
+}
+
+func (e err) String() string {
+	return e.Error()
 }
