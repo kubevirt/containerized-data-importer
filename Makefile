@@ -1,4 +1,4 @@
-include version # Provides `RELEASE VERSIONING` variables
+include version # Provides `RELEASE_TAG` variable for versioning
 
 REPO_ROOT=$(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
@@ -32,8 +32,7 @@ CTRL_IMG_NAME=cdi-$(CONTROLLER)
 IMPT_IMG_NAME=cdi-$(IMPORTER)
 GIT_USER=$(shell git config --get user.email | sed 's/@.*//')
 TAG=$(GIT_USER)-latest
-RELEASE_TAG=-$(RELEASE_TAG)
-PRERELEASE_TAG=-$(PRERELEASE_TAG)
+PRERELEASE_TAG=-$(RELEASE_TAG)
 
 .PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-controller-release push-importer-release push-importer clean test
 all: clean test controller importer
