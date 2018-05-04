@@ -1,6 +1,5 @@
 sudo: required
 language: go
-
 go:
 - 1.10.x
 
@@ -49,6 +48,7 @@ script:
 - make test
 
 before_deploy:
+- make controller importer
 - git config --local user.name "screeley44"
 - git config --local user.email "screeley@redhat.com"
 - source version && git tag -f $RELEASE_TAG
@@ -62,7 +62,7 @@ deploy:
     repo: kubevirt/containerized-data-importer
 - provider: releases
   api_key:
-    secure: eInJ2Jz9Bat34qGWS81pv8v7uml+Q+PMNQt5lDO1WHGUuDLuRFgxsFRhT0VHAMAxTejHt+gDmt3rk0Jc4Q4b8g2iI4uxhG7FOfdNs3hutZOOCJVGJdhxYSzv/1UrGoSWqvv2muIEeuJ0s56+8uhCyarTF3//XkCHegVJ3UpOnVmlVP2o4Y+lLpbclgZLvlOk2g1jNmK/VeIH4nJl6KGmc2/cr6MT9ODD83Wd7PP5ejB/cAj30C4yY4bLFScMA1dOYQIVIXbG4dpprib5RwOJ1Gnf4vXs+FxdgjIRtWvzvoiK1OcKw+rX5pb6OCo49sgIDuk5OC44MInkVrnp2AhUxeR/xwA/70hpiqPy9K5/Y4auXAGC5FFxhGd+2Vmd5Uydo3kv5uuhVD+z1ig4QvA2DqFXvgLp9iSjouCIWXx6KDHDb6ZA/tHk25O4QNW7nDzTJH7Rum/PourqEOuW4sThFPy2rdOCJq/oEBFMMM3ph6+JamQaHgp/H36kcY20NRIvXsSWxnJQBFZVJab3Cp+mBsW8YI/6BXL6LGrUQk+jujhHZ3lGQyMKLxvqDnOWv3eewRKc+SB0oFvT7tUD8fRlCpfvwS6VZI9zmXjU6z64yX3P0thdHHZmhIYNJpvnYITaCBxXqF1s4ntnvkrJRu4WK33CyIKBC/W82SEL9E3Yi+E=
+    secure: ercU2aqp/MNwFz/ZuDzfQup+YABLYvDw9X126D2eXb/2f00v5cpjEnxEWDqBnVIeakkAt8lledyS0JqthRfQDhXJWKzHh5PfuEqjDKx6tx/yODsEZKK2bQ4hcII7f0RyBP/UlF4wBEWN6Rh3TxZfolfv8wQqJKvn8ft0nF2ZVInkbC74ZOyRZVWXlrcHf3mn/cWw9UKLQvDbFLrEs1T42rELaIzKuaOubBWSkLIz7/jS+OFRm27vdt1t+6hyiRihX4jOxKUu+UKz/rFVxQp0dUw0kkK3zaFTUYy47mkc7w/XemWiF2KGP72KuOWcdepEhtYxWskwOkLpYYw8J06w59HlUpAS81feCgGu5nQNzIZpsEN9JFF9y3ZdAENLih//IIWANz3yagiCUhjwmajTRmFJUqv6cGeT+36+AJZn/o3GaEPgnNsL8ruVxefQLBmH2XtzbFisqSEyEd1G8Oif1sJ+E3dJbaNNDkT3egmPqcLCrzQl3Oxl9NZZj66++jad0qol8jhJwYxSWQOyTSfyAZCYXHMhTtX1PwFGaZm+a/5erp9/zaYoRt0R5dNreCJ7u9Wfa2sSxfUGSEftwr63n2UyYluI+9Tyoa+y5qV6HzwxeXbEtbDwYSIIDVWrKn7Bk89XiXEhCBdvTUwArLtH1bxVce+YnbtqHZiaW3rBWpA=
   skip_cleanup: true
   overwrite: true
   file:
@@ -71,3 +71,4 @@ deploy:
   on:
     branch: master
     repo: kubevirt/containerized-data-importer
+
