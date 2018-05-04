@@ -44,11 +44,10 @@ script:
   - make test
 
 before_deploy:
-  - include version
   - make controller importer
   - git config --local user.name "screeley44"
   - git config --local user.email "screeley@redhat.com"
-  - git tag "$(RELEASE_TAG)"
+  - source version && git tag "$(RELEASE_TAG)"
   # - git tag "$(date +'%Y%m%d%H%M%S')-$(git log --format=%h -1)"
 
 deploy:
@@ -66,11 +65,13 @@ deploy:
     branch: master
     repo: kubevirt/containerized-data-importer
 - provider: releases
+  api_key:
+    secure: "i57weqeibIvsHe1fHbqJQ4WsUGpjgl+TJZqzE5lTk/wcXNmQCHH2X9XbTsrFgmoOitnxQdduB9JzlKL3fwu2tAMA0P7k/RL0cOHUkLqIbd6G/hr3+XPNpfl4wtcoYA5vfiskIoZaTaJGFw9bEmAnPqbNQ35o1Ed9i3BWixrGIEfHFoIZNBygdbsR0oLuQgjjlMZmKKzktnYndhcbd43DwvqQ9o9+LlUJrznXZEKP7qxJdcg2ue01T8EN2T+vMaBj25geECciSLeL0g0cpvFlFVQ34yX2ZvIbnd0XgnaNKCNG9PN1k7JZX8vjCfUgeIaelTe0fYN5FDAO10CL/0ZBHTuyjcyOEMABLdG8dMbYVJi5mTtPgiCgNeVsj2zXAXRGIGeE7XUyKbYON0suejg1bLrFivsERgShaiGDkZDy6uSTXEHH0v/esIy07g3AIUyjr9r710tR0TVDMd2gyRL/lH8yEQdE/6Q5MSwiolrjv6e2FhZR+7H9KzcXjyBkH6xs7EzAzyzD4XN7BW2n8eAH/+Exl6LEdFqNDuguHDz/PwU+6GvEKzzNjMB4RVQY6YwzOAP/GS6Jbz7Ya5kmW1fNXECUPrSZuDZGp4cIsNhP9kHdu+Njt5sDMsy0Svqd3LvwRlAcgbFXemd7McdnrUjse73zJnHwOb7Koqk/Q9QHgYw="
   skip_cleanup: true
   overwrite: true
   file:
     - build/controller/tmp/*
     - build/importer/tmp/*
   on:
-    branch: master
-    repo: kubevirt/containerized-data-importer
+    tag: true
+
