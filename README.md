@@ -1,6 +1,6 @@
 # Containerized Data Importer
 
-A declarative Kubernetes system to import Virtual Machine images for use with [Kubevirt](https://github.com/kubevirt/kubevirt).
+A declarative Kubernetes utility to import Virtual Machine images for use with [Kubevirt](https://github.com/kubevirt/kubevirt). At a high level, a persistent volume claim (PVC), which defines VM-suitable storage (via a storage class), is created. A custom controller watches for importer specific claims and starts an import/copy process when such a claim is detected. The status of the import process is reflected in the same claim, and when the copy completes Kubevirt creates the VM based on the just-imported image.
 
 1. [Purpose](#purpose)
 1. [Design](/doc/design.md#design)
@@ -11,15 +11,19 @@ A declarative Kubernetes system to import Virtual Machine images for use with [K
 
 ## Purpose
 
-This project is designed with Kubevirt in mind and provides a declarative method for importing VM images into a Kuberenetes cluster. This approach support two main use-cases:
+This project is designed with Kubevirt in mind and provides a declarative method for importing VM images into a Kuberenetes cluster.
+Kubevirt detects when the VM image copy is complete and, using the same PVC that triggered the import process, creates the VM.
+
+This approach supports two main use-cases:
 -  a cluster administrator can build an abstract registry of immutable images (referred to as "Golden Images") which can be cloned and later consumed by Kubevirt, or
 -  an ad-hoc user (granted access) can import a VM image into their own namespace and feed this image directly to Kubevirt, bypassing the cloning step.
+
 
 For an in depth look at the system and workflow, see the [Design](/doc/design.md#design) documentation.
 
 ### Data Format
 
-The importer is capable of performing certain functions that streamline its use with Kubevirt.  It automatically decompresses **gzip** and **xz** files, and un-tar's **tar** archives. Also, **qcow2** images are converted into a raw image files needed by Kubevirt.
+The importer is capable of performing certain functions that streamline its use with Kubevirt.  It automatically decompresses **gzip** and **xz** files, and un-tar's **tar** archives. Also, **qcow2** images are converted into a raw image files needed by Kubevirt, resulting in the final file being a simple _.img_ file.
 
 Supported file formats are:
 
@@ -33,7 +37,7 @@ Supported file formats are:
 ## Deploying CDI
 
 ### Assumptions
-- A running Kubernetes cluster with roles and role bindings implementing security necesary for the CDI controller to watch PVCs across all namespaces.
+- A running Kubernetes cluster with roles and role bindings implementing security necesary for the CDI controller to watch PVCs and pods across all namespaces.
 - A storage class and provisioner.
 - An HTTP or S3 file server hosting VM images
 - An optional "golden" namespace acting as the image registry. The `default` namespace is fine for tire kicking.
@@ -53,7 +57,7 @@ $ wget https://raw.githubusercontent.com/kubevirt/containerized-data-importer/ku
 
 ### Run the CDI Controller
 
-Deploying the CDI controller is straight forward. Choose the namespace where the controller will run and ensure that this namespace has cluster-wide permission to watch all PVCs.
+Deploying the CDI controller is straight forward. Choose the namespace where the controller will run and ensure that this namespace has cluster-wide permission to watch all PVCs and pods.
 In this document the _default_ namespace is used, but in a production setup a namespace that is inaccessible to regular users should be used instead. See [Protecting the Golden Image Namespace](#protecting-the-golden-image-namespace) on creating a secure CDI controller namespace.
 
 `$ kubectl -n default create -f https://raw.githubusercontent.com/kubevirt/containerized-data-importer/master/manifests/cdi-controller-deployment.yaml`
@@ -89,13 +93,13 @@ Make copies of the [example manifests](./manifests/example) for editing. The nec
 
     `$ kubectl create ns <CDI-NAMESPACE>`
 
-1. (Optional) Create the endpoint secret in the triggering PVC's namespace:
-
-   `$ kubectl -n <NAMESPACE> create -f endpoint-secret.yaml`
-
 1. Deploy the CDI controller:
 
    `$ kubectl -n <CDI-NAMESPACE> create -f manifests/controller/cdi-controller-deployment.yaml`
+
+1. (Optional) Create the endpoint secret in the PVC's namespace:
+
+   `$ kubectl -n <NAMESPACE> create -f endpoint-secret.yaml`
 
 1. Create the persistent volume claim to trigger the import process;
 
@@ -103,11 +107,15 @@ Make copies of the [example manifests](./manifests/example) for editing. The nec
 
 1. Monitor the cdi-controller:
 
-   `$ kubectl -n <CDI-NAMESPACE> logs cdi-deployment-<RANDOM-STRING>`
+   `$ kubectl -n <CDI-NAMESPACE> logs cdi-deployment-<RANDOM>`
 
 1. Monitor the importer pod:
 
-   `$ kubectl -n <NAMESPACE> logs importer-<PVC-NAME>`  # shown in controller log above
+   `$ kubectl -n <NAMESPACE> logs importer-<PVC-NAME>` # pvc name is shown in controller log
+
+     _or_
+
+   `kubectl get -n <NAMESPACE> pvc <PVC-NAME> -o yaml | grep "storage.import-pod.phase:"` # to see the status of the importer pod triggered by the pvc
 
 ### Security Configurations
 
