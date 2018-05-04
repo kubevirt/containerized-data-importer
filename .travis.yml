@@ -11,7 +11,7 @@ env:
     secure: "p2MDt0w4jrbDERn3rBz4kO9GQCO3Bgzh2ge76aUP81Er3X8yKXmzLd8TdKKVg2ijT3/T3STdtSKbU3qbgzUT3QbOrn40X9IkK+PoWZaJ91bl9mDAZUey0duzzVIzWeHkOldA8B18QgmFYiWXMsbPFo+Pvi9O5OdInDAGvp6e9zL6QTUN6JsMFXVsBHehtaIv9o89ecaBkBiueO2K7mHd896UH4jYiyo6dGhmOIPUH5dwnJPXGujfFpCuU5vJXMkwryjARtzg78bQTQ2l7tvLhmqtepgjTC+NL0LgjP9Yj5SK8Zfuga+phzfeEH+NV0Mc3NBDgwWE0siWOHxjv/tdkILRm3bpLcjGG7aAgsip3NE3Hy04l3BJaWXMRJiHtpCq5vraGv5ix3RAmufbww40qLwT5ZQpA7VlQ8kkonuFw5v7cph/XnZQeqo6C/kb47LJbNwwTRG9xAzdwVsgQOU5TbYH/Xfj593b86clcmr4Kd6va3C9WUTWcxXsGsm8ZzFwhCxxP06bx8EDWk5RfEtUGaMUYSr2T4jfaHRCUGCkwvoVrWyKXcyT0fZg8Ay248PNK2ijp2A4xNKrDpqtKRyHX/ATIkIJwvbsKonfN+/hUJxn1a94+vOXcg2GWix090ZPkusPKmtOd4oUI+B4FwvJ3NxZEAeGeyZ1M8Zug2myBSA="
 
 before_install:
-
+  - composer config --global github-oauth.github.com "$GITHUB_TOKEN"
 
 notifications:
   irc:
@@ -50,7 +50,6 @@ script:
 
 before_deploy:
   - make controller importer
-  - composer config --global github-oauth.github.com "$GITHUB_TOKEN"
   - git config --local user.name "screeley44"
   - git config --local user.email "screeley@redhat.com"
   - source version && git tag -f $RELEASE_TAG
