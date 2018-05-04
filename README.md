@@ -115,7 +115,7 @@ Make copies of the [example manifests](./manifests/example) for editing. The nec
 
      _or_
 
-   `kubectl get -n <NAMESPACE> pvc <PVC-NAME> -o yaml | grep "storage.import-pod.phase:"` # to see the status of the importer pod triggered by the pvc
+   `kubectl get -n <NAMESPACE> pvc <PVC-NAME> -o yaml | grep "storage.import.pod.phase:"` # to see the status of the importer pod triggered by the pvc
 
 ### Security Configurations
 
