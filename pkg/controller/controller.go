@@ -6,6 +6,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/kubevirt/containerized-data-importer/pkg/common"
+	. "github.com/kubevirt/containerized-data-importer/pkg/util"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -87,16 +88,16 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	}()
 	glog.Infoln("Starting CDI controller loop")
 	if threadiness < 1 {
-		return fmt.Errorf("controller.Run: expected >0 threads, got %d", threadiness)
+		return Err("expected >0 threads, got %d", threadiness)
 	}
 	go c.pvcInformer.Run(stopCh)
 	go c.podInformer.Run(stopCh)
 
 	if !cache.WaitForCacheSync(stopCh, c.pvcInformer.HasSynced) {
-		return fmt.Errorf("controller.Run: Timeout waiting for pvc cache sync")
+		return Err("Timeout waiting for pvc cache sync")
 	}
 	if !cache.WaitForCacheSync(stopCh, c.podInformer.HasSynced) {
-		return fmt.Errorf("controller.Run: Timeout waiting for pod cache sync")
+		return Err("Timeout waiting for pod cache sync")
 	}
 	glog.Infoln("Controller cache has synced")
 
