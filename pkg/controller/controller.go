@@ -88,7 +88,7 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	}()
 	glog.Infoln("Starting CDI controller loop")
 	if threadiness < 1 {
-		return Err("expected >0 threads, got %d", threadiness)
+		return Errf("expected >0 threads, got %d", threadiness)
 	}
 	go c.pvcInformer.Run(stopCh)
 	go c.podInformer.Run(stopCh)

@@ -41,7 +41,7 @@ func main() {
 	sec := ParseEnvVar(common.IMPORTER_SECRET_KEY, false)
 	fn := filepath.Base(ep.Path)
 	if !image.IsSupporedFileType(fn) {
-		Errf("main: unsupported source file %q. Supported types: %v\n", fn, image.SupportedFileExtensions).Log()
+		glog.Error(Errf("unsupported source file %q. Supported types: %v\n", fn, image.SupportedFileExtensions))
 		os.Exit(1)
 	}
 	glog.Infof("main: beginning import from %q\n", ep.Path)
