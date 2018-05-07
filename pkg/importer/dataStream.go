@@ -12,10 +12,12 @@ import (
 	"path/filepath"
 	"strings"
 
+
 	"github.com/golang/glog"
 	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/kubevirt/containerized-data-importer/pkg/image"
 	"github.com/minio/minio-go"
+	. "github.com/kubevirt/containerized-data-importer/pkg/utils/errors"
 )
 
 type DataStreamInterface interface {
@@ -64,7 +66,7 @@ func (d *dataStream) dataStreamSelector() (io.ReadCloser, error) {
 	case "file":
 		return d.local()
 	default:
-		return nil, fmt.Errorf("dataStreamSelector: invalid url scheme: %s", d.url.Scheme)
+		return nil, Errf("invalid url scheme: %s", d.url.Scheme)
 	}
 }
 

@@ -1,7 +1,7 @@
 package image
 
 import (
-	. "github.com/kubevirt/containerized-data-importer/pkg/util"
+	. "github.com/kubevirt/containerized-data-importer/pkg/utils/errors"
 	"bytes"
 	"fmt"
 	"io"
@@ -22,7 +22,7 @@ func GetMagicNumber(f io.Reader) ([]byte, error) {
 		return nil, nil
 	}
 	if err != nil && err != io.EOF {
-		return nil, Err("GetMagicNumber: read error: %v\n", err)
+		return nil, Errf("GetMagicNumber: read error: %v\n", err)
 	}
 	return buff, nil
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/kubevirt/containerized-data-importer/pkg/image"
 	. "github.com/kubevirt/containerized-data-importer/pkg/importer"
+	. "github.com/kubevirt/containerized-data-importer/pkg/utils/errors"
 )
 
 func init() {
@@ -40,7 +41,7 @@ func main() {
 	sec := ParseEnvVar(common.IMPORTER_SECRET_KEY, false)
 	fn := filepath.Base(ep.Path)
 	if !image.IsSupporedFileType(fn) {
-		glog.Errorf("main: unsupported source file %q. Supported types: %v\n", fn, image.SupportedFileExtensions)
+		Errf("main: unsupported source file %q. Supported types: %v\n", fn, image.SupportedFileExtensions).Log()
 		os.Exit(1)
 	}
 	glog.Infof("main: beginning import from %q\n", ep.Path)
