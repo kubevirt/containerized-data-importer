@@ -6,48 +6,77 @@ import (
 	"strings"
 )
 
-const repository = "containerized-data-importer"
-
-type error struct {
-	message       string
-	funcTrace     string
-	reverseFrames []runtime.Frame
+type prettyError struct {
+	message    string
+	traceStack *trace
+	frameStack []runtime.Frame
 }
 
-func newError(errMsg string, skip int) *error {
-	pc := make([]uintptr, 256)
-	runtime.Callers(skip, pc)
-	frames := runtime.CallersFrames(pc)
-
-	var tr []runtime.Frame
-	for f, more := frames.Next(); strings.Contains(f.File, repository) || !more; f, more = frames.Next() {
-		tr = append(tr, f)
-	}
-
-	ft := "Trace:"
-	for i := len(tr) - 1; i >= 0; i-- {
-		ft = fmt.Sprintf("%s\n\t=> %s(L%d)", ft, tr[i].Function, tr[i].Line)
-	}
-
-	return 	&error{
-		message:       errMsg,
-		reverseFrames: tr,
-		funcTrace:     ft,
-	}
+func (e prettyError) Error() string {
+	return fmt.Sprintf("ERROR: %v\n%s", e.message, e.traceStack)
 }
 
-func Err(message string) *error {
-	return newError(message, 3)
-}
-
-func Errf(pattern string, args ...interface{}) *error {
-	return newError(fmt.Sprintf(pattern, args...), 3)
-}
-
-func (e error) Error() string {
-	return fmt.Sprintf("ERROR: %v\n%s:%s(L%d)\n%s", e.message, e.reverseFrames[0].File, e.reverseFrames[0].Function, e.reverseFrames[0].Line, e.funcTrace)
-}
-
-func (e error) String() string {
+func (e prettyError) String() string {
 	return e.Error()
+}
+
+func Err(msg interface{}) *prettyError {
+	e := fmt.Sprintf("%v", msg)
+	e = strings.TrimRight(e, "\n")
+	return newError(e, 3)
+}
+
+func Errf(pattern string, args ...interface{}) *prettyError {
+	return newError(strings.TrimRight(fmt.Sprintf(pattern, args...), "\n"), 3)
+}
+
+func newError(errMsg string, skip int) *prettyError {
+	pc := make([]uintptr, 32)
+	numPCs := runtime.Callers(skip, pc)
+	frames := runtime.CallersFrames(pc[:numPCs])
+
+	fs := frameStack(frames)
+	st := newTrace(fs)
+
+	return &prettyError{
+		message:    errMsg,
+		frameStack: fs,
+		traceStack: st,
+	}
+}
+
+func frameStack(frames *runtime.Frames) []runtime.Frame {
+	var tr []runtime.Frame
+	for {
+		f, more := frames.Next()
+		tr = append(tr, f)
+		if ! strings.Contains(f.File, "containerized-data-importer") {
+			break
+		} else if ! more {
+			break
+		}
+	}
+	return tr
+}
+
+type trace struct {
+	traceSlice []string
+}
+
+func (t *trace) String() string {
+	var outputTrace string
+	for _, line := range t.traceSlice {
+		outputTrace = fmt.Sprintf("%s%s", outputTrace, line)
+	}
+	return outputTrace
+}
+
+func newTrace(fs []runtime.Frame) *trace {
+	var ts = []string{"\tStack Trace:\n"}
+	for i := len(fs) - 1; i >= 0; i-- {
+		ts = append(ts, fmt.Sprintf("\t=> %s(L%d)\n", fs[i].Function, fs[i].Line))
+	}
+	return &trace{
+		traceSlice: ts,
+	}
 }

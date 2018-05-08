@@ -48,7 +48,7 @@ func main() {
 	dataStream := NewDataStream(ep, acc, sec)
 	err = dataStream.Copy(common.IMPORTER_WRITE_PATH)
 	if err != nil {
-		glog.Errorf("main: copy error: %v\n", err)
+		glog.Error(err)
 		os.Exit(1)
 	}
 	glog.Infoln("main: Import complete, exiting")

@@ -66,7 +66,7 @@ func (d *dataStream) dataStreamSelector() (io.ReadCloser, error) {
 	case "file":
 		return d.local()
 	default:
-		return nil, Errf("invalid url scheme: %s", d.url.Scheme)
+		return nil, Errf("invalid url scheme: %q", d.url.Scheme)
 	}
 }
 
@@ -128,7 +128,7 @@ func (d *dataStream) Copy(outPath string) error {
 	glog.Infof("Copy: create the initial Reader based on the url's %q scheme", d.url.Scheme)
 	d.DataRdr, err = d.dataStreamSelector()
 	if err != nil {
-		return fmt.Errorf("Copy: %v\n", err)
+		return fmt.Errorf("%v", err)
 	}
 	defer func(r io.ReadCloser) {
 		r.Close()
