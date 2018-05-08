@@ -49,12 +49,12 @@ func frameStack(frames *runtime.Frames) []runtime.Frame {
 	var tr []runtime.Frame
 	for {
 		f, more := frames.Next()
-		tr = append(tr, f)
 		if ! strings.Contains(f.File, "containerized-data-importer") {
 			break
 		} else if ! more {
 			break
 		}
+		tr = append(tr, f)
 	}
 	return tr
 }
