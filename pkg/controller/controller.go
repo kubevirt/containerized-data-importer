@@ -118,6 +118,9 @@ func (c *Controller) runPVCWorkers() {
 	}
 }
 
+// ProcessNextPodItem gets the next pod key from the queue and verifies that it was created
+// by the CDI controller. If not, the key is discarded. Otherwise, the pod object is passed
+// to processPodItem.
 func (c *Controller) ProcessNextPodItem() bool {
 	key, shutdown := c.podQueue.Get()
 	if shutdown {
@@ -126,19 +129,21 @@ func (c *Controller) ProcessNextPodItem() bool {
 	defer c.podQueue.Done(key)
 	pod, err := c.podFromKey(key)
 	if err != nil {
-		c.forgetKey(fmt.Sprintf("Unable to get pod object: %v", err), key)
+		c.forgetKey(key, fmt.Sprintf("Unable to get pod object: %v", err))
 		return true
 	}
-	if ! metav1.HasAnnotation(pod.ObjectMeta, AnnCreatedBy) {
-		c.forgetKey("Pod does not have annotation "+AnnCreatedBy, key)
+	if !metav1.HasAnnotation(pod.ObjectMeta, AnnCreatedBy) {
+		c.forgetKey(key, "Pod does not have annotation "+AnnCreatedBy)
 		return true
 	}
 	if err := c.processPodItem(pod); err == nil {
-		c.forgetKey(fmt.Sprintf("Processing Pod %q completed", pod.Name), key)
+		c.forgetKey(key, fmt.Sprintf("Processing Pod %q completed", pod.Name))
 	}
 	return true
 }
 
+// processPodItem verifies that the passed in pod is genuine and, if so, annotates the Phase
+// of the pod in the PVC to indicate the status of the import process.
 func (c *Controller) processPodItem(pod *v1.Pod) error {
 	glog.Infof("processPodItem: processing pod named %q\n", pod.Name)
 
@@ -168,9 +173,9 @@ func (c *Controller) processPodItem(pod *v1.Pod) error {
 	return nil
 }
 
-// Select pvcs with AnnEndpoint
-// Note: only new and updated pvcs will trigger an add to the work queue, Deleted pvcs
-//  are ignored.
+// Select only pvcs with the importer endpoint annotation and that are not being processed.
+// We forget the key unless `processPvcItem` returns an error in which case the key can be
+// retried. 
 func (c *Controller) ProcessNextPvcItem() bool {
 	key, shutdown := c.pvcQueue.Get()
 	if shutdown {
@@ -179,26 +184,28 @@ func (c *Controller) ProcessNextPvcItem() bool {
 	defer c.pvcQueue.Done(key)
 
 	pvc, err := c.pvcFromKey(key)
-	glog.Infof("processNextPVCItem: next pvc to process: %s\n", key)
+	if err != nil || pvc == nil {
+		return c.forgetKey(key, fmt.Sprintf("ProcessNextPvcItem: error converting key %q to pvc: %v", key, err))
+	}
+
+	// filter pvc and decide if the importer pod should be created
+	createPod, _ := c.checkPVC(pvc, false)
+	if !createPod {
+		return c.forgetKey(key, fmt.Sprintf("ProcessNextPvcItem: skipping pvc %q\n", key))
+	}
+
+	glog.Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)
+	err = c.processPvcItem(pvc)
 	if err != nil {
-		return c.forgetKey(fmt.Sprintf("processNextPVCItem: error converting key to pvc: %v", err), key)
+		return true // and remember key
 	}
-
-	// check to see if we have our endpoint and we are not already processing this pvc
-	if !c.checkIfShouldProcessPVC(pvc, "processNextPVCItem") {
-		return c.forgetKey(fmt.Sprintf("processNextPVCItem: annotation %q not found or pvc %s is already being worked, skipping pvc\n", AnnEndpoint, pvc.Name), key)
-	}
-	glog.Infof("processNextPVCItem: next pvc to process: %s\n", key)
-
-	// all checks have passed, let's process it!
-	if err := c.processPvcItem(pvc); err == nil {
-		// If the proceess succeeds, we're done operating on this key; remove it from the queue
-		return c.forgetKey(fmt.Sprintf("Processing PVC %q completed", key), key)
-	}
-	return true
+	// we're done operating on this key; remove it from the queue
+	return c.forgetKey(key, "")
 }
 
-// Create the importer pod with the pvc and optional secret.
+// Create the importer pod based the pvc. The endpoint and optional secret are available to
+// the importer pod as env vars. The pvc is checked (again) to ensure that we are not already
+// processing this pvc, which would result in multiple importer pods for the same pvc.
 func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	e := func(err error, s string) error {
 		if s == "" {
@@ -220,9 +227,13 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	}
 
 	// check our existing pvc one more time to ensure we should be working on it
-	// and to help mitigate any unforeseen race conditions.
-	if !c.checkIfShouldProcessPVC(pvc, "processItem") {
-		return e(nil, "pvc is already being processed")
+	// and to help mitigate any race conditions. This time we get the latest pvc.
+	createPod, err := c.checkPVC(pvc, true)
+	if err != nil { // maybe an intermittent api error
+		return e(err, "check pvc")
+	}
+	if !createPod { // don't create importer pod but not an error
+		return nil // forget key; logging already done
 	}
 
 	// all checks passed, let's create the importer pod!
@@ -249,7 +260,8 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	return nil
 }
 
-func (c *Controller) forgetKey(msg string, key interface{}) bool {
+// forget the passed-in key for this event and optionally log a message.
+func (c *Controller) forgetKey(key interface{}, msg string) bool {
 	if len(msg) > 0 {
 		glog.Info(msg)
 	}
