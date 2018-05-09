@@ -253,7 +253,7 @@ func (c *Controller) createImporterPod(ep, secretName string, pvc *v1.Persistent
 // return the importer pod spec based on the passed-in endpoint, secret and pvc.
 func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	// importer pod name contains the pvc name
-	podName := fmt.Sprintf("%s-%s", common.IMPORTER_PODNAME, pvc.Name)
+	podName := fmt.Sprintf("%s-%s-", common.IMPORTER_PODNAME, pvc.Name)
 
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
