@@ -54,40 +54,45 @@ func (c *Controller) podFromKey(key interface{}) (*v1.Pod, error) {
 	return pod, nil
 }
 
-// checkIfShouldProcessPVC will check our existing pvc looking for
-// specific annotations AnnEndPoint and AnnImportPod
-// AnnEndPoint indicates that the pvc is targeted for our queue
-// AnnImportPod indicates that a pvc is already being processed.
-// Notice due to timing issues, we run this check multiple times.
-func (c *Controller) checkIfShouldProcessPVC(pvc *v1.PersistentVolumeClaim, method string) bool {
-
-	// check if we have proper AnnEndPoint annotation. Continue if we do
+// checkPVC verifies that the passed-in pvc is one we care about. Specifically, it must have the
+// endpoint annotation and it must not already be "in-progress". If the pvc passes these filters
+// then true is returned and the importer pod will be created. `AnnEndPoint` indicates that the
+// pvc is targeted for the importer pod. `AnnImportPod` indicates the  pvc is being processed.
+// Note: there is a race condition where the AnnImportPod annotation is not seen in time and as
+//   a result the importer pod can be created twice (or more, presumably). To reduce this window
+//   a Get api call can be requested in order to get the latest copy of the pvc before verifying
+//   its annotations.
+func (c *Controller) checkPVC(pvc *v1.PersistentVolumeClaim, get bool) (bool, error) {
+	// check if we have proper AnnEndPoint annotation
 	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnEndpoint) {
-		// this pvc does not contain our endpoint annotation.
-		glog.Infof("%s: annotation %q not found, skipping pvc\n", method, AnnEndpoint)
-		return false
+		glog.Infof("checkPVC: annotation %q not found, skipping pvc\n", AnnEndpoint)
+		return false, nil
 	}
-
-	//check if the pvc is or has already been processed
+	//check if the pvc is being processed
 	if metav1.HasAnnotation(pvc.ObjectMeta, AnnImportPod) {
-		glog.Infof("%s: pvc has annotation %q, indicating this is being processed or was already processed once, skipping pvc\n", method, AnnImportPod)
-		return false
+		glog.Infof("checkPVC: pvc annotation %q exists indicating it is being or has been processed, skipping pvc\n", AnnImportPod)
+		return false, nil
 	}
 
-	// secondary check, just in case, fetching latest pvc object if available to help mitigate race and timing issues
-	// with latency between the store and work queue to double check if we are already processing.
-	glog.Infof("%s: checking latest version of Get pvc for inprocess annotation", method)
+	if !get {
+		return true, nil // done checking this pvc, assume it's good to go
+	}
+
+	// get latest pvc object to help mitigate race and timing issues with latency between the
+	// store and work queue to double check if we are already processing
+	glog.Infof("checkPVC: getting latest version of pvc for in-process annotation")
 	latest, err := c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
-	if err == nil {
-		// checking if we are already processing this request based on latest known Get()
-		if metav1.HasAnnotation(latest.ObjectMeta, AnnImportPod) {
-			glog.Infof("processNextItem: latest Get on pvc reveals that annotation %q exists indicating this was already processed once, skipping pvc\n", method, AnnImportPod)
-			return false
-		}
+	if err != nil {
+		glog.Infof("checkPVC: pvc Get error: %v\n", err)
+		return false, err
 	}
-
+	// check if we are processing this pvc now that we have the lastest copy
+	if metav1.HasAnnotation(latest.ObjectMeta, AnnImportPod) {
+		glog.Infof("checkPVC: pvc Get annotation %q exists indicating it is being or has been processed, skipping pvc\n", AnnImportPod)
+		return false, nil
+	}
 	//continue to process pvc
-	return true
+	return true, nil
 }
 
 // returns the endpoint string which contains the full path URI of the target object to be copied.

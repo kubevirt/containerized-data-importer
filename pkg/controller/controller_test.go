@@ -123,9 +123,9 @@ var _ = Describe("Controller", func() {
 
 		It(test.descr, func() {
 			By(fmt.Sprintf("creating in-mem pvc %q with endpt anno=%q", fullname, annotations))
-			pvcObj := createInMemPVC(ns, pvcName, annotations)
+			pvc := createInMemPVC(ns, pvcName, annotations)
 			By("Creating the controller")
-			setUpInformer(pvcObj, ops)
+			setUpInformer(pvc, ops)
 			controller.ProcessNextPvcItem()
 			//controller.ProcessNextPodItem()
 			By("checking if importer pod is present")
