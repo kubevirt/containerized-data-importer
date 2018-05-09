@@ -2,11 +2,12 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 
 	"github.com/golang/glog"
-	"github.com/kubevirt/containerized-data-importer/pkg/common"
+	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/kubevirt/containerized-data-importer/pkg/controller"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -19,6 +20,7 @@ var (
 	masterURL     string
 	importerImage string
 	pullPolicy    string
+	verbose       string
 )
 
 // The optional importer image is obtained here along with the supported flags.
@@ -36,16 +38,32 @@ func init() {
 	// env variables
 	importerImage = os.Getenv(IMPORTER_IMAGE)
 	if importerImage == "" {
-		importerImage = common.IMPORTER_DEFAULT_IMAGE
+		importerImage = IMPORTER_DEFAULT_IMAGE
 	}
-	pullPolicy = common.IMPORTER_DEFAULT_PULL_POLICY
-	if pp := os.Getenv(common.IMPORTER_PULL_POLICY); len(pp) != 0 {
+	pullPolicy = IMPORTER_DEFAULT_PULL_POLICY
+	if pp := os.Getenv(IMPORTER_PULL_POLICY); len(pp) != 0 {
 		pullPolicy = pp
 	}
-	glog.Infof("init: complete: CDI controller will create the %q version of the importer\n", importerImage)
+
+	// get the verbose level so it can be passed to the importer pod
+	defVerbose := fmt.Sprintf("%d", IMPORTER_DEFAULT_VERBOSE) // note flag values are strings
+	verbose = defVerbose
+	// visit actual flags passed in and if passed check -v and set verbose
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "v" {
+			verbose = f.Value.String()
+		}
+	})
+	if verbose == defVerbose {
+		glog.V(Vuser).Infof("Note: increase the -v level in the controller deployment for more detailed logging, eg. -v=%d or -v=%d\n", Vadmin, Vdebug)
+	}
+
+	glog.V(Vdebug).Infof("init: complete: cdi controller will create importer using image %q\n", importerImage)
 }
 
 func main() {
+	defer glog.Flush()
+
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, configPath)
 	if err != nil {
 		glog.Fatalf("Error getting kube config: %v\n", err)
@@ -55,24 +73,25 @@ func main() {
 		glog.Fatalf("Error getting kube client: %v\n", err)
 	}
 
-	pvcInformerFactory := informers.NewSharedInformerFactory(client, common.DEFAULT_RESYNC_PERIOD)
-	podInformerFactory := informers.NewFilteredSharedInformerFactory(client, common.DEFAULT_RESYNC_PERIOD, "", func(options *v1.ListOptions) {
-		options.LabelSelector = common.CDI_LABEL_SELECTOR
+	pvcInformerFactory := informers.NewSharedInformerFactory(client, DEFAULT_RESYNC_PERIOD)
+	podInformerFactory := informers.NewFilteredSharedInformerFactory(client, DEFAULT_RESYNC_PERIOD, "", func(options *v1.ListOptions) {
+		options.LabelSelector = CDI_LABEL_SELECTOR
 	})
 
 	pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims().Informer()
 	podInformer := podInformerFactory.Core().V1().Pods().Informer()
 
-	cdiController, err := controller.NewController(client, pvcInformer, podInformer, importerImage, pullPolicy)
+	cdiController, err := controller.NewController(client, pvcInformer, podInformer, importerImage, pullPolicy, verbose)
 	if err != nil {
-		glog.Fatal("Error creating CDI controller: %v", err)
+		glog.Fatal("Error creating cdi controller: %v", err)
 	}
-	glog.Infoln("main: created CDI Controller")
+	glog.V(Vuser).Infoln("created cdi controller")
 	stopCh := handleSignals()
 	err = cdiController.Run(1, stopCh)
 	if err != nil {
 		glog.Fatalln(err)
 	}
+	glog.V(Vadmin).Infoln("cdi controller exited")
 }
 
 // Shutdown gracefully on system signals

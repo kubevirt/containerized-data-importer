@@ -18,3 +18,4 @@ spec:
       - name: cdi-controller
         image: kubevirt/cdi-controller:0.4.0-alpha.0
         imagePullPolicy: IfNotPresent
+        args: ["-v=1"] # default verbosity; change to 2 or 3 for more detailed logging

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/kubevirt/containerized-data-importer/pkg/common"
+	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -30,9 +30,10 @@ type Controller struct {
 	pvcInformer, podInformer cache.SharedIndexInformer
 	importerImage            string
 	pullPolicy               string // Options: IfNotPresent, Always, or Never
+	verbose                  string // verbose levels: 1, 2, ...
 }
 
-func NewController(client kubernetes.Interface, pvcInformer, podInformer cache.SharedIndexInformer, importerImage string, pullPolicy string) (*Controller, error) {
+func NewController(client kubernetes.Interface, pvcInformer, podInformer cache.SharedIndexInformer, importerImage string, pullPolicy string, verbose string) (*Controller, error) {
 	c := &Controller{
 		clientset:     client,
 		pvcQueue:      workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
@@ -41,6 +42,7 @@ func NewController(client kubernetes.Interface, pvcInformer, podInformer cache.S
 		podInformer:   podInformer,
 		importerImage: importerImage,
 		pullPolicy:    pullPolicy,
+		verbose:       verbose,
 	}
 
 	// Bind the pvc SharedIndexInformer to the pvc queue
@@ -85,7 +87,7 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 		c.pvcQueue.ShutDown()
 		c.podQueue.ShutDown()
 	}()
-	glog.Infoln("Starting CDI controller loop")
+	glog.V(Vadmin).Infoln("Starting cdi controller Run loop")
 	if threadiness < 1 {
 		return fmt.Errorf("controller.Run: expected >0 threads, got %d", threadiness)
 	}
@@ -98,7 +100,7 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	if !cache.WaitForCacheSync(stopCh, c.podInformer.HasSynced) {
 		return fmt.Errorf("controller.Run: Timeout waiting for pod cache sync")
 	}
-	glog.Infoln("Controller cache has synced")
+	glog.V(Vdebug).Infoln("Controller cache has synced")
 
 	for i := 0; i < threadiness; i++ {
 		go wait.Until(c.runPVCWorkers, time.Second, stopCh)
@@ -119,7 +121,7 @@ func (c *Controller) runPVCWorkers() {
 }
 
 // ProcessNextPodItem gets the next pod key from the queue and verifies that it was created
-// by the CDI controller. If not, the key is discarded. Otherwise, the pod object is passed
+// by the cdi controller. If not, the key is discarded. Otherwise, the pod object is passed
 // to processPodItem.
 func (c *Controller) ProcessNextPodItem() bool {
 	key, shutdown := c.podQueue.Get()
@@ -145,14 +147,14 @@ func (c *Controller) ProcessNextPodItem() bool {
 // processPodItem verifies that the passed in pod is genuine and, if so, annotates the Phase
 // of the pod in the PVC to indicate the status of the import process.
 func (c *Controller) processPodItem(pod *v1.Pod) error {
-	glog.Infof("processPodItem: processing pod named %q\n", pod.Name)
+	glog.V(Vdebug).Infof("processPodItem: processing pod named %q\n", pod.Name)
 
 	// First get the pod's CDI-relative pvc name
 	var pvcKey string
 	for _, vol := range pod.Spec.Volumes {
 		if vol.Name == DataVolName {
-			glog.Infof("processPodItem: Pod has volume matching CDI claim")
 			pvcKey = fmt.Sprintf("%s/%s", pod.Namespace, vol.PersistentVolumeClaim.ClaimName)
+			glog.V(Vadmin).Infof("pod \"%s/%s\" has volume matching claim %q\n", pod.Namespace, pod.Name, pvcKey)
 			break
 		}
 	}
@@ -160,7 +162,7 @@ func (c *Controller) processPodItem(pod *v1.Pod) error {
 		// For some reason, no pvc matching the volume name was found.
 		return fmt.Errorf("processPodItem: Pod does not contain volume %q", DataVolName)
 	}
-	glog.Infof("processPodItem: Getting PVC object for key %q", pvcKey)
+	glog.V(Vdebug).Infof("processPodItem: Getting PVC object for key %q", pvcKey)
 	pvc, err := c.pvcFromKey(pvcKey)
 	if err != nil {
 		return fmt.Errorf("processPodItem: error getting pvc from key: %v", err)
@@ -169,13 +171,13 @@ func (c *Controller) processPodItem(pod *v1.Pod) error {
 	if err != nil {
 		return fmt.Errorf("processPodItem: error setting PVC annotation: %v", err)
 	}
-	glog.Infof("processPodItem: Pod phase %q annotated in PVC %q", pod.Status.Phase, pvcKey)
+	glog.V(Vdebug).Infof("processPodItem: Pod phase %q annotated in PVC %q", pod.Status.Phase, pvcKey)
 	return nil
 }
 
 // Select only pvcs with the importer endpoint annotation and that are not being processed.
 // We forget the key unless `processPvcItem` returns an error in which case the key can be
-// retried. 
+// retried.
 func (c *Controller) ProcessNextPvcItem() bool {
 	key, shutdown := c.pvcQueue.Get()
 	if shutdown {
@@ -194,7 +196,7 @@ func (c *Controller) ProcessNextPvcItem() bool {
 		return c.forgetKey(key, fmt.Sprintf("ProcessNextPvcItem: skipping pvc %q\n", key))
 	}
 
-	glog.Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)
+	glog.V(Vdebug).Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)
 	err = c.processPvcItem(pvc)
 	if err != nil {
 		return true // and remember key
@@ -223,7 +225,7 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 		return e(err, "")
 	}
 	if secretName == "" {
-		glog.Infof("processPvcItem: no secret will be supplied to endpoint %q\n", ep)
+		glog.V(Vadmin).Infof("no secret will be supplied to endpoint %q\n", ep)
 	}
 
 	// check our existing pvc one more time to ensure we should be working on it
@@ -249,11 +251,10 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	// it should be noted that the label may actually exist but not
 	// recognized due to patched timing issues but since this is a
 	// simple map there is no harm in adding it again if we don't find it.
-	if !c.checkIfLabelExists(pvc, common.CDI_LABEL_KEY, common.CDI_LABEL_VALUE) {
-		glog.Infof("adding label \"%s\" to pvc, it does not exist", common.CDI_LABEL_SELECTOR)
+	if !c.checkIfLabelExists(pvc, CDI_LABEL_KEY, CDI_LABEL_VALUE) {
+		glog.V(Vdebug).Infof("adding label \"%s\" to pvc, it does not exist", CDI_LABEL_SELECTOR)
 		err = c.setCdiLabel(pvc)
 		if err != nil {
-			glog.Infof("error adding label %v", err)
 			return e(err, "set label")
 		}
 	}
@@ -263,7 +264,7 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 // forget the passed-in key for this event and optionally log a message.
 func (c *Controller) forgetKey(key interface{}, msg string) bool {
 	if len(msg) > 0 {
-		glog.Info(msg)
+		glog.V(Vdebug).Info(msg)
 	}
 	c.pvcQueue.Forget(key)
 	return true
