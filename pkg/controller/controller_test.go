@@ -118,7 +118,7 @@ var _ = Describe("Controller", func() {
 		if len(ns) > 0 {
 			fullname = fmt.Sprintf("%s/%s", ns, pvcName)
 		}
-		exptPod := fmt.Sprintf("importer-%s", pvcName)
+		exptPod := fmt.Sprintf("importer-%s-", pvcName)
 		exptErr := test.expectError
 
 		It(test.descr, func() {
