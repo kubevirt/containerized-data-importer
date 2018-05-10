@@ -9,6 +9,7 @@ import (
 
 	"github.com/golang/glog"
 	. "github.com/kubevirt/containerized-data-importer/pkg/common"
+	"github.com/pkg/errors"
 )
 
 func ParseEnvVar(envVarName string, decode bool) string {
@@ -28,7 +29,7 @@ func ParseEndpoint(endpt string) (*url.URL, error) {
 	if endpt == "" {
 		endpt = ParseEnvVar(IMPORTER_ENDPOINT, false)
 		if endpt == "" {
-			return nil, fmt.Errorf("ParseEndpoint: endpoint %q is missing or blank\n", IMPORTER_ENDPOINT)
+			return nil, errors.Errorf("endpoint %q is missing or blank", IMPORTER_ENDPOINT)
 		}
 	}
 	return url.Parse(endpt)
@@ -39,12 +40,12 @@ func StreamDataToFile(dataReader io.Reader, filePath string) error {
 	outFile, err := os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.ModePerm)
 	defer outFile.Close()
 	if err != nil {
-		return fmt.Errorf("StreamDataToFile: create file error: %v", err)
+		return errors.Wrapf(err, "could not open file %q", filePath)
 	}
 	glog.V(Vuser).Infof("begin import...\n")
 	if _, err = io.Copy(outFile, dataReader); err != nil {
 		os.Remove(outFile.Name())
-		return fmt.Errorf("StreamDataToFile: error streaming data: %v", err)
+		return errors.Wrapf(err, "unable to write to file")
 	}
 	return nil
 }

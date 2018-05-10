@@ -1,12 +1,12 @@
 package framework
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/kubevirt/containerized-data-importer/pkg/image"
+	"github.com/pkg/errors"
 )
 
 var formatTable = map[string]func(string) (string, error){
@@ -34,14 +34,14 @@ func FormatTestData(srcFile string, targetFormats ...string) (string, error) {
 				outFile, err = ffunc(outFile)
 				break
 			} else if i == len(formatTable)-1 {
-				err = fmt.Errorf("format extension %q not recognized\n", tf)
+				err = errors.Errorf("format extension %q not recognized", tf)
 			}
 			i++
 		}
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("FormatTestData: %v", err)
+		return "", errors.Wrap(err, "could not format test data")
 	}
 	return outFile, nil
 }
@@ -50,12 +50,11 @@ func transformFile(srcFile, outfileName, osCmd string, osArgs ...string) (string
 	cmd := exec.Command(osCmd, osArgs...)
 	cout, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("transformFile: command erred: %v\n"+
-			"transformFile: command output: %v", err, string(cout))
+		return "", errors.Wrapf(err, "OS command %s %v errored with output: %v", osCmd, strings.Join(osArgs, " "), cout)
 	}
 	finfo, err := os.Stat(outfileName)
 	if err != nil {
-		return "", fmt.Errorf("transformFile: error stat-ing file: %v\n", err)
+		return "", errors.Wrapf(err, "error stat-ing file")
 	}
 	return finfo.Name(), nil
 }

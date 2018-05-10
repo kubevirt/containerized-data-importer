@@ -16,6 +16,7 @@ import (
 	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/kubevirt/containerized-data-importer/pkg/image"
 	"github.com/minio/minio-go"
+	"github.com/pkg/errors"
 )
 
 type DataStreamInterface interface {
@@ -23,7 +24,7 @@ type DataStreamInterface interface {
 	s3() (io.ReadCloser, error)
 	http() (io.ReadCloser, error)
 	local() (io.ReadCloser, error)
-	parseDataPath() (string, string, error)
+	parseDataPath() (string, string)
 }
 
 var _ DataStreamInterface = &dataStream{}
@@ -64,7 +65,7 @@ func (d *dataStream) dataStreamSelector() (io.ReadCloser, error) {
 	case "file":
 		return d.local()
 	default:
-		return nil, fmt.Errorf("dataStreamSelector: invalid url scheme: %s", d.url.Scheme)
+		return nil, errors.Errorf("invalid url scheme: %q", d.url.Scheme)
 	}
 }
 
@@ -74,12 +75,12 @@ func (d *dataStream) s3() (io.ReadCloser, error) {
 	object := strings.Trim(d.url.Path, "/")
 	mc, err := minio.NewV4(IMPORTER_S3_HOST, d.accessKeyId, d.secretKey, false)
 	if err != nil {
-		return nil, fmt.Errorf("getDataWithS3Client: error building minio client for %q\n", d.url.Host)
+		return nil, errors.Wrapf(err, "could not build minio client for %q", d.url.Host)
 	}
 	glog.V(Vadmin).Infof("Attempting to get object %q via S3 client\n", d.url.String())
 	objectReader, err := mc.GetObject(bucket, object, minio.GetObjectOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("s3: failed getting s3 object: \"%s/%s\": %v\n", bucket, object, err)
+		return nil, errors.Wrapf(err, "could not get s3 object: \"%s/%s\"", bucket, object)
 	}
 	return objectReader, nil
 }
@@ -92,17 +93,20 @@ func (d *dataStream) http() (io.ReadCloser, error) {
 		},
 	}
 	req, err := http.NewRequest("GET", d.url.String(), nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not create HTTP request")
+	}
 	if len(d.accessKeyId) > 0 && len(d.secretKey) > 0 {
 		req.SetBasicAuth(d.accessKeyId, d.secretKey)
 	}
 	glog.V(Vadmin).Infof("Attempting to get object %q via http client\n", d.url.String())
 	resp, err := client.Do(req)
 	if err != nil {
-		glog.Fatalf("http: response body error: %v\n", err)
+		return nil, errors.Wrap(err, "HTTP request errored")
 	}
 	if resp.StatusCode != 200 {
 		glog.Errorf("http: expected status code 200, got %d", resp.StatusCode)
-		return nil, fmt.Errorf("http: expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
+		return nil, errors.Errorf("expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
 	}
 	return resp.Body, nil
 }
@@ -111,7 +115,7 @@ func (d *dataStream) local() (io.ReadCloser, error) {
 	fn := d.url.Path
 	f, err := os.Open(fn)
 	if err != nil {
-		return nil, fmt.Errorf("open fail on %q: %v\n", fn, err)
+		return nil, errors.Wrapf(err, "could not open file %q", fn)
 	}
 	//note: if poor perf here consider wrapping this with a buffered i/o Reader
 	return f, nil
@@ -126,7 +130,7 @@ func (d *dataStream) Copy(outPath string) error {
 	glog.V(Vdebug).Infof("Copy: create the initial Reader based on the url's %q scheme", d.url.Scheme)
 	d.DataRdr, err = d.dataStreamSelector()
 	if err != nil {
-		return fmt.Errorf("Copy: %v\n", err)
+		return errors.WithMessage(err, "could not get data reader")
 	}
 	defer func(r io.ReadCloser) {
 		r.Close()
@@ -152,7 +156,7 @@ func (d *dataStream) Copy(outPath string) error {
 			d.DataRdr, err = image.XzReader(d.DataRdr)
 		}
 		if err != nil {
-			return fmt.Errorf("Copy: %v\n", err)
+			return errors.WithMessage(err, "could not get compression reader")
 		}
 		defer func(r io.ReadCloser) {
 			r.Close()
@@ -162,7 +166,7 @@ func (d *dataStream) Copy(outPath string) error {
 	// If image is qemu convert it to raw. Note .qcow2 ext is ignored
 	magicStr, err := image.GetMagicNumber(d.DataRdr)
 	if err != nil {
-		return fmt.Errorf("Copy: %v\n", err)
+		return errors.WithMessage(err, "unable to check magic number")
 	}
 	qemu := image.MatchQcow2MagicNum(magicStr)
 	// Don't lose bytes read reading the magic number. MultiReader reads from each
@@ -172,7 +176,7 @@ func (d *dataStream) Copy(outPath string) error {
 	// copy image file to outPath
 	err = copyImage(multir, outPath, qemu)
 	if err != nil {
-		return fmt.Errorf("Copy: %v", err)
+		return errors.WithMessage(err, fmt.Sprintf("unable to write data to %q", outPath))
 	}
 	return nil
 }
@@ -190,17 +194,17 @@ func copyImage(r io.Reader, out string, qemu bool) error {
 	// actual copy
 	err := StreamDataToFile(r, dest)
 	if err != nil {
-		return fmt.Errorf("copyImage: unable to stream data to file %q: %v\n", dest, err)
+		return errors.WithMessage(err, fmt.Sprintf("unable to stream data to file %q", dest))
 	}
 	if qemu {
 		glog.V(Vadmin).Infoln("converting qcow2 image")
 		err = image.ConvertQcow2ToRaw(dest, out)
 		if err != nil {
-			return fmt.Errorf("copyImage: converting qcow2 image: %v\n", err)
+			return errors.WithMessage(err, "unable to copy image")
 		}
 		err = os.Remove(dest)
 		if err != nil {
-			return fmt.Errorf("copyImage: error removing temp file %q: %v\n", dest, err)
+			return errors.Wrapf(err, "error removing temp file %q", dest)
 		}
 	}
 	return nil
@@ -218,8 +222,8 @@ func randTmpName(src string) string {
 }
 
 // parseDataPath only used for debugging
-func (d *dataStream) parseDataPath() (string, string, error) {
+func (d *dataStream) parseDataPath() (string, string) {
 	pathSlice := strings.Split(strings.Trim(d.url.EscapedPath(), "/"), "/")
 	glog.V(Vdebug).Infof("parseDataPath: url path: %v", pathSlice)
-	return pathSlice[0], strings.Join(pathSlice[1:], "/"), nil
+	return pathSlice[0], strings.Join(pathSlice[1:], "/")
 }

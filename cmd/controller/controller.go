@@ -9,6 +9,7 @@ import (
 	"github.com/golang/glog"
 	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/kubevirt/containerized-data-importer/pkg/controller"
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -66,11 +67,11 @@ func main() {
 
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, configPath)
 	if err != nil {
-		glog.Fatalf("Error getting kube config: %v\n", err)
+		glog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
 	}
 	client, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
-		glog.Fatalf("Error getting kube client: %v\n", err)
+		glog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
 	}
 
 	pvcInformerFactory := informers.NewSharedInformerFactory(client, DEFAULT_RESYNC_PERIOD)
@@ -81,15 +82,12 @@ func main() {
 	pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims().Informer()
 	podInformer := podInformerFactory.Core().V1().Pods().Informer()
 
-	cdiController, err := controller.NewController(client, pvcInformer, podInformer, importerImage, pullPolicy, verbose)
-	if err != nil {
-		glog.Fatal("Error creating cdi controller: %v", err)
-	}
+	cdiController := controller.NewController(client, pvcInformer, podInformer, importerImage, pullPolicy, verbose)
 	glog.V(Vuser).Infoln("created cdi controller")
 	stopCh := handleSignals()
 	err = cdiController.Run(1, stopCh)
 	if err != nil {
-		glog.Fatalln(err)
+		glog.Fatalln("Error running controller: %+v", err)
 	}
 	glog.V(Vadmin).Infoln("cdi controller exited")
 }
