@@ -86,7 +86,7 @@ importer-image: $(IMPORTER_BUILD)/Dockerfile
 	mkdir -p $(TEMP_BUILD_DIR)
 	cp $(IMPORTER_BIN) $(TEMP_BUILD_DIR)
 	cp $(IMPORTER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
-	docker build --build-arg entrypoint=$(IMPORTER) --build-arg runArgs='-alsologtostderr' -t $(IMPT_IMG_NAME) $(TEMP_BUILD_DIR)
+	docker build --build-arg entrypoint=$(IMPORTER) -t $(IMPT_IMG_NAME) $(TEMP_BUILD_DIR)
 	-rm -rf $(TEMP_BUILD_DIR)
 
 # build the functional test image.  The importer image is used to provide consistency between test

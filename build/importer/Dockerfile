@@ -10,4 +10,5 @@ RUN apk update && apk add qemu-img \
   xz \
   gzip
 RUN apk add ca-certificates && rm -rf /var/cache/apk/*
-ENTRYPOINT ./run-binary $RUN_ARGS
+ENTRYPOINT ["./run-binary", "-alsologtostderr"]
+CMD $RUN_ARGS
