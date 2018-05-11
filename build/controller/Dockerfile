@@ -1,3 +1,3 @@
 FROM alpine
 COPY ./import-controller /import-controller
-ENTRYPOINT /import-controller -alsologtostderr
+ENTRYPOINT [ "/import-controller", "-alsologtostderr"]
