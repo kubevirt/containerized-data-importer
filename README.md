@@ -97,6 +97,10 @@ Make copies of the [example manifests](./manifests/example) for editing. The nec
 
    `$ kubectl -n <CDI-NAMESPACE> create -f manifests/controller/cdi-controller-deployment.yaml`
 
+> Note: the default verbosity level is set to 1 in the controller deployment file, which is minimal logging. If greater details are desired increase the `-v` number to 2 or 3.
+
+> Note: the importer pod uses the same logging verbosity as the controller. If a different level of logging is required after the controller has been started, the deployment can be edited and applied via `kubectl apply -f manifests/controller/cdi-controller-deployment.yaml`. This will not alter the running controller's logging level but will affect importer pods created after the change. To change the running controller's log level requires it to be restarted after the deployment has been edited.
+
 1. (Optional) Create the endpoint secret in the PVC's namespace:
 
    `$ kubectl -n <NAMESPACE> create -f endpoint-secret.yaml`

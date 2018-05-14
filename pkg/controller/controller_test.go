@@ -5,7 +5,7 @@ package controller_test
 import (
 	"fmt"
 
-	"github.com/kubevirt/containerized-data-importer/pkg/common"
+	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	. "github.com/kubevirt/containerized-data-importer/pkg/controller"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -24,6 +24,8 @@ const (
 	opUpdate
 	opDelete
 )
+
+var verboseDebug = fmt.Sprintf("%d", Vdebug)
 
 var _ = Describe("Controller", func() {
 	var (
@@ -47,11 +49,11 @@ var _ = Describe("Controller", func() {
 		pvcSource := k8stesting.NewFakePVCControllerSource()
 		podSource := k8stesting.NewFakeControllerSource()
 
-		pvcInformer := cache.NewSharedIndexInformer(pvcSource, pvc, common.DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
-		podInformer := cache.NewSharedIndexInformer(podSource, &v1.Pod{}, common.DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+		pvcInformer := cache.NewSharedIndexInformer(pvcSource, pvc, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+		podInformer := cache.NewSharedIndexInformer(podSource, &v1.Pod{}, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 
 		var err error // declare err here to prevent shadowing `controller`, declared in the outer block
-		controller, err = NewController(fakeClient, pvcInformer, podInformer, common.IMPORTER_DEFAULT_IMAGE, common.IMPORTER_DEFAULT_PULL_POLICY)
+		controller, err = NewController(fakeClient, pvcInformer, podInformer, IMPORTER_DEFAULT_IMAGE, IMPORTER_DEFAULT_PULL_POLICY, verboseDebug)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("setupInformer failed to create controller: %v", err))
 		if op == opAdd || op == opUpdate {
 			pvcSource.Add(pvc)

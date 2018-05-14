@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
-	"github.com/kubevirt/containerized-data-importer/pkg/common"
+	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/kubevirt/containerized-data-importer/pkg/image"
 	"github.com/minio/minio-go"
 )
@@ -46,7 +46,7 @@ func (d *dataStream) Close() error {
 // NewDataStream: construct a new dataStream object from params.
 func NewDataStream(ep *url.URL, accKey, secKey string) *dataStream {
 	if len(accKey) == 0 || len(secKey) == 0 {
-		glog.Warningf("NewDataStream: %s and/or %s env variables are empty\n", common.IMPORTER_ACCESS_KEY_ID, common.IMPORTER_SECRET_KEY)
+		glog.Warningf("NewDataStream: %s and/or %s env variables are empty\n", IMPORTER_ACCESS_KEY_ID, IMPORTER_SECRET_KEY)
 	}
 	return &dataStream{
 		url:         ep,
@@ -69,14 +69,14 @@ func (d *dataStream) dataStreamSelector() (io.ReadCloser, error) {
 }
 
 func (d *dataStream) s3() (io.ReadCloser, error) {
-	glog.Infoln("Using S3 client to get data")
+	glog.V(Vdebug).Infoln("Using S3 client to get data")
 	bucket := d.url.Host
 	object := strings.Trim(d.url.Path, "/")
-	mc, err := minio.NewV4(common.IMPORTER_S3_HOST, d.accessKeyId, d.secretKey, false)
+	mc, err := minio.NewV4(IMPORTER_S3_HOST, d.accessKeyId, d.secretKey, false)
 	if err != nil {
 		return nil, fmt.Errorf("getDataWithS3Client: error building minio client for %q\n", d.url.Host)
 	}
-	glog.Infof("Attempting to get object %q via S3 client\n", d.url.String())
+	glog.V(Vadmin).Infof("Attempting to get object %q via S3 client\n", d.url.String())
 	objectReader, err := mc.GetObject(bucket, object, minio.GetObjectOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("s3: failed getting s3 object: \"%s/%s\": %v\n", bucket, object, err)
@@ -95,7 +95,7 @@ func (d *dataStream) http() (io.ReadCloser, error) {
 	if len(d.accessKeyId) > 0 && len(d.secretKey) > 0 {
 		req.SetBasicAuth(d.accessKeyId, d.secretKey)
 	}
-	glog.Infoln("Using HTTP GET to fetch data.")
+	glog.V(Vadmin).Infof("Attempting to get object %q via http client\n", d.url.String())
 	resp, err := client.Do(req)
 	if err != nil {
 		glog.Fatalf("http: response body error: %v\n", err)
@@ -123,7 +123,7 @@ func (d *dataStream) Copy(outPath string) error {
 	var err error
 	fn := d.url.Path
 
-	glog.Infof("Copy: create the initial Reader based on the url's %q scheme", d.url.Scheme)
+	glog.V(Vdebug).Infof("Copy: create the initial Reader based on the url's %q scheme", d.url.Scheme)
 	d.DataRdr, err = d.dataStreamSelector()
 	if err != nil {
 		return fmt.Errorf("Copy: %v\n", err)
@@ -141,7 +141,7 @@ func (d *dataStream) Copy(outPath string) error {
 	}
 
 	// create decompress/un-archive Readers
-	glog.Infof("Copy: checking compressed and/or archive for file %q\n", d.url.Path)
+	glog.V(Vdebug).Infof("Copy: checking compressed and/or archive for file %q\n", d.url.Path)
 	for _, ext := range exts {
 		switch ext {
 		case image.ExtGz:
@@ -180,12 +180,12 @@ func (d *dataStream) Copy(outPath string) error {
 // Copy the file using its Reader (r) to the passed-in destination (`out`).
 func copyImage(r io.Reader, out string, qemu bool) error {
 	out = filepath.Clean(out)
-	glog.Infof("copyImage: copying image file to %q", out)
+	glog.V(Vadmin).Infof("copying image file to %q", out)
 	dest := out
 	if qemu {
 		// copy to tmp; qemu conversion will write to passed-in destination
 		dest = randTmpName(out)
-		glog.Infof(fmt.Sprintf("copyImage: temp file for qcow2 conversion: %q", dest))
+		glog.V(Vdebug).Infof("copyImage: temp file for qcow2 conversion: %q", dest)
 	}
 	// actual copy
 	err := StreamDataToFile(r, dest)
@@ -193,7 +193,7 @@ func copyImage(r io.Reader, out string, qemu bool) error {
 		return fmt.Errorf("copyImage: unable to stream data to file %q: %v\n", dest, err)
 	}
 	if qemu {
-		glog.Infoln("copyImage: converting qcow2 image")
+		glog.V(Vadmin).Infoln("converting qcow2 image")
 		err = image.ConvertQcow2ToRaw(dest, out)
 		if err != nil {
 			return fmt.Errorf("copyImage: converting qcow2 image: %v\n", err)
@@ -220,6 +220,6 @@ func randTmpName(src string) string {
 // parseDataPath only used for debugging
 func (d *dataStream) parseDataPath() (string, string, error) {
 	pathSlice := strings.Split(strings.Trim(d.url.EscapedPath(), "/"), "/")
-	glog.Infof("DEBUG -- %v", pathSlice)
+	glog.V(Vdebug).Infof("parseDataPath: url path: %v", pathSlice)
 	return pathSlice[0], strings.Join(pathSlice[1:], "/"), nil
 }

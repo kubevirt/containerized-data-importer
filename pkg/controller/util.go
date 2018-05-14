@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/golang/glog"
-	"github.com/kubevirt/containerized-data-importer/pkg/common"
+	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -65,12 +65,12 @@ func (c *Controller) podFromKey(key interface{}) (*v1.Pod, error) {
 func (c *Controller) checkPVC(pvc *v1.PersistentVolumeClaim, get bool) (bool, error) {
 	// check if we have proper AnnEndPoint annotation
 	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnEndpoint) {
-		glog.Infof("checkPVC: annotation %q not found, skipping pvc\n", AnnEndpoint)
+		glog.V(Vdebug).Infof("checkPVC: annotation %q not found, skipping pvc\n", AnnEndpoint)
 		return false, nil
 	}
 	//check if the pvc is being processed
 	if metav1.HasAnnotation(pvc.ObjectMeta, AnnImportPod) {
-		glog.Infof("checkPVC: pvc annotation %q exists indicating it is being or has been processed, skipping pvc\n", AnnImportPod)
+		glog.V(Vadmin).Infof("pvc annotation %q exists indicating it is being or has been processed, skipping pvc\n", AnnImportPod)
 		return false, nil
 	}
 
@@ -80,15 +80,14 @@ func (c *Controller) checkPVC(pvc *v1.PersistentVolumeClaim, get bool) (bool, er
 
 	// get latest pvc object to help mitigate race and timing issues with latency between the
 	// store and work queue to double check if we are already processing
-	glog.Infof("checkPVC: getting latest version of pvc for in-process annotation")
+	glog.V(Vdebug).Infof("checkPVC: getting latest version of pvc for in-process annotation")
 	latest, err := c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
 	if err != nil {
-		glog.Infof("checkPVC: pvc Get error: %v\n", err)
 		return false, err
 	}
 	// check if we are processing this pvc now that we have the lastest copy
 	if metav1.HasAnnotation(latest.ObjectMeta, AnnImportPod) {
-		glog.Infof("checkPVC: pvc Get annotation %q exists indicating it is being or has been processed, skipping pvc\n", AnnImportPod)
+		glog.V(Vadmin).Infof("pvc Get annotation %q exists indicating it is being or has been processed, skipping pvc\n", AnnImportPod)
 		return false, nil
 	}
 	//continue to process pvc
@@ -121,18 +120,19 @@ func (c *Controller) getSecretName(pvc *v1.PersistentVolumeClaim) (string, error
 		} else {
 			msg += "secret name is missing from annotation %q in pvc \"%s/%s\""
 		}
-		glog.Infof(msg+"\n", AnnSecret, ns, pvc.Name)
+		glog.V(Vadmin).Infof(msg+"\n", AnnSecret, ns, pvc.Name)
 		return "", nil // importer pod will not contain secret credentials
 	}
-	glog.Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, name)
+	glog.V(Vdebug).Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, name)
 	_, err := c.clientset.CoreV1().Secrets(ns).Get(name, metav1.GetOptions{})
 	if apierrs.IsNotFound(err) {
-		glog.Infof("getEndpointSecret: secret %q defined in pvc \"%s/%s\" is missing. Importer pod will run once this secret is created\n", name, ns, pvc.Name)
+		glog.V(Vuser).Infof("secret %q defined in pvc \"%s/%s\" is missing. Importer pod will run once this secret is created\n", name, ns, pvc.Name)
 		return name, nil
 	}
 	if err != nil {
 		return "", fmt.Errorf("getEndpointSecret: error getting secret %q defined in pvc \"%s/%s\": %v\n", name, ns, pvc.Name, err)
 	}
+	glog.V(Vuser).Infof("retrieved secret %q defined in pvc \"%s/%s\"\n", name, ns, pvc.Name)
 	return name, nil
 }
 
@@ -162,7 +162,7 @@ func (c *Controller) clonePVC(claim *v1.PersistentVolumeClaim) (*v1.PersistentVo
 // Note: Patch() is used instead of Update() to handle version related field changes.
 func (c *Controller) setPVCAnnotation(pvc *v1.PersistentVolumeClaim, key, val string) error {
 	const funcTrace = "setPVCAnnotation"
-	glog.Infof("Adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", key, val, pvc.Namespace, pvc.Name)
+	glog.V(Vdebug).Infof("Adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", key, val, pvc.Namespace, pvc.Name)
 
 	// don't mutate the original pvc since it's from the shared informer
 	// make copies of old pvc
@@ -190,7 +190,6 @@ func (c *Controller) setPVCAnnotation(pvc *v1.PersistentVolumeClaim, key, val st
 
 // checks if particular label exists in pvc
 func (c *Controller) checkIfLabelExists(pvc *v1.PersistentVolumeClaim, lbl string, val string) bool {
-	glog.Info("checkIfLabelExists")
 	value, exists := pvc.ObjectMeta.Labels[lbl]
 	if exists && value == val {
 		return true
@@ -202,7 +201,7 @@ func (c *Controller) checkIfLabelExists(pvc *v1.PersistentVolumeClaim, lbl strin
 // Note: Patch() is used instead of Update() to handle version related field changes.
 func (c *Controller) setCdiLabel(pvc *v1.PersistentVolumeClaim) error {
 	const funcTrace = "setCdiLabel"
-	glog.Infof("%s: adding label \"%s: %s\" to pvc %s\n", funcTrace, common.CDI_LABEL_KEY, common.CDI_LABEL_VALUE, pvc.Name)
+	glog.V(Vdebug).Infof("%s: adding label \"%s: %s\" to pvc %s\n", funcTrace, CDI_LABEL_KEY, CDI_LABEL_VALUE, pvc.Name)
 
 	// don't mutate the original pvc since it's from the shared informer
 	// make copies of old pvc
@@ -212,7 +211,7 @@ func (c *Controller) setCdiLabel(pvc *v1.PersistentVolumeClaim) error {
 	}
 
 	// add label
-	setPvcMetaDataLabel(&pvcClone.ObjectMeta, common.CDI_LABEL_KEY, common.CDI_LABEL_VALUE)
+	setPvcMetaDataLabel(&pvcClone.ObjectMeta, CDI_LABEL_KEY, CDI_LABEL_VALUE)
 
 	// make copy of updated pvc
 	newData, err := json.Marshal(pvcClone)
@@ -246,14 +245,14 @@ func (c *Controller) createImporterPod(ep, secretName string, pvc *v1.Persistent
 	if err != nil {
 		return nil, fmt.Errorf("createImporterPod: Create failed: %v\n", err)
 	}
-	glog.Infof("importer pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, c.importerImage)
+	glog.V(Vuser).Infof("importer pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, c.importerImage)
 	return pod, nil
 }
 
 // return the importer pod spec based on the passed-in endpoint, secret and pvc.
 func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	// importer pod name contains the pvc name
-	podName := fmt.Sprintf("%s-%s-", common.IMPORTER_PODNAME, pvc.Name)
+	podName := fmt.Sprintf("%s-%s-", IMPORTER_PODNAME, pvc.Name)
 
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -266,21 +265,22 @@ func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVo
 				AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				common.CDI_LABEL_KEY: common.CDI_LABEL_VALUE,
+				CDI_LABEL_KEY: CDI_LABEL_VALUE,
 			},
 		},
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Name:            common.IMPORTER_PODNAME,
+					Name:            IMPORTER_PODNAME,
 					Image:           c.importerImage,
 					ImagePullPolicy: v1.PullPolicy(c.pullPolicy),
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      DataVolName,
-							MountPath: common.IMPORTER_DATA_DIR,
+							MountPath: IMPORTER_DATA_DIR,
 						},
 					},
+					Args: []string{"-v=" + c.verbose},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyNever,
@@ -305,29 +305,29 @@ func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVo
 func makeEnv(endpoint, secret string) []v1.EnvVar {
 	env := []v1.EnvVar{
 		{
-			Name:  common.IMPORTER_ENDPOINT,
+			Name:  IMPORTER_ENDPOINT,
 			Value: endpoint,
 		},
 	}
 	if secret != "" {
 		env = append(env, v1.EnvVar{
-			Name: common.IMPORTER_ACCESS_KEY_ID,
+			Name: IMPORTER_ACCESS_KEY_ID,
 			ValueFrom: &v1.EnvVarSource{
 				SecretKeyRef: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
 						Name: secret,
 					},
-					Key: common.KeyAccess,
+					Key: KeyAccess,
 				},
 			},
 		}, v1.EnvVar{
-			Name: common.IMPORTER_SECRET_KEY,
+			Name: IMPORTER_SECRET_KEY,
 			ValueFrom: &v1.EnvVarSource{
 				SecretKeyRef: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
 						Name: secret,
 					},
-					Key: common.KeySecret,
+					Key: KeySecret,
 				},
 			},
 		})
