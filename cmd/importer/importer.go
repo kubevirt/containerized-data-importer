@@ -21,6 +21,7 @@ import (
 	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/kubevirt/containerized-data-importer/pkg/image"
 	. "github.com/kubevirt/containerized-data-importer/pkg/importer"
+	"github.com/pkg/errors"
 )
 
 func init() {
@@ -33,21 +34,22 @@ func main() {
 	glog.V(Vuser).Infoln("Starting importer")
 	ep, err := ParseEndpoint("")
 	if err != nil {
-		glog.Errorf("main: endpoint error: %v\n", err)
+		glog.Errorf("Could not get endpoint: %+v", err)
 		os.Exit(1)
 	}
 	acc := ParseEnvVar(IMPORTER_ACCESS_KEY_ID, false)
 	sec := ParseEnvVar(IMPORTER_SECRET_KEY, false)
 	fn := filepath.Base(ep.Path)
 	if !image.IsSupporedFileType(fn) {
-		glog.Errorf("main: unsupported source file %q. Supported types: %v\n", fn, image.SupportedFileExtensions)
+		err := errors.Errorf("unsupported source file %q. Supported types: %v\n", fn, image.SupportedFileExtensions)
+		glog.Errorf("%+v", err)
 		os.Exit(1)
 	}
 	glog.V(Vuser).Infof("beginning import from %q\n", ep.Path)
 	dataStream := NewDataStream(ep, acc, sec)
 	err = dataStream.Copy(IMPORTER_WRITE_PATH)
 	if err != nil {
-		glog.Errorf("main: copy error: %v\n", err)
+		glog.Errorf("%+v", err)
 		os.Exit(1)
 	}
 	glog.V(Vuser).Infoln("Import complete, exiting")

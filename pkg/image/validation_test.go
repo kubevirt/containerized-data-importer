@@ -100,7 +100,7 @@ var _ = Describe("Validate file and extensions", func() {
 			It(fmt.Sprintf("%d byte buffer", size), func() {
 				f := createQCOW2(size)
 				magic, err := GetMagicNumber(f)
-				Expect(err).ToNot(HaveOccurred(), "GetMagicNumber error:")
+				Expect(err).ToNot(HaveOccurred())
 				match := MatchQcow2MagicNum(magic)
 				if expctQcow2 {
 					Expect(match).To(BeTrue(), fmt.Sprintf("magic num %q did not match expected %q", magic, QCOW2MagicStr))
@@ -119,7 +119,7 @@ func createQCOW2(size int) io.Reader {
 	}
 	buf := make([]byte, size)
 	_, err := rand.Read(buf) // fill buf with random stuff
-	Expect(err).ToNot(HaveOccurred(), "createQCOW2: rand.Read errror:")
+	Expect(err).ToNot(HaveOccurred(), "could not generate random number")
 	// set Qcow2 magic num
 	for i := 0; i < QCOW2MagicStrSize && i < size; i++ {
 		buf[i] = QCOW2MagicStr[i]

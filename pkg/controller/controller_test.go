@@ -9,6 +9,7 @@ import (
 	. "github.com/kubevirt/containerized-data-importer/pkg/controller"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,7 +21,7 @@ import (
 type operation int
 
 const (
-	opAdd    operation = iota
+	opAdd operation = iota
 	opUpdate
 	opDelete
 )
@@ -52,9 +53,7 @@ var _ = Describe("Controller", func() {
 		pvcInformer := cache.NewSharedIndexInformer(pvcSource, pvc, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 		podInformer := cache.NewSharedIndexInformer(podSource, &v1.Pod{}, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 
-		var err error // declare err here to prevent shadowing `controller`, declared in the outer block
-		controller, err = NewController(fakeClient, pvcInformer, podInformer, IMPORTER_DEFAULT_IMAGE, IMPORTER_DEFAULT_PULL_POLICY, verboseDebug)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("setupInformer failed to create controller: %v", err))
+		controller = NewController(fakeClient, pvcInformer, podInformer, IMPORTER_DEFAULT_IMAGE, IMPORTER_DEFAULT_PULL_POLICY, verboseDebug)
 		if op == opAdd || op == opUpdate {
 			pvcSource.Add(pvc)
 		}
@@ -159,15 +158,15 @@ func createInMemPVC(ns, name string, annotations map[string]string) *v1.Persiste
 func getImporterPod(fc *fake.Clientset, ns, podName string) (*v1.Pod, error) {
 	podList, err := fc.CoreV1().Pods(ns).List(metav1.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("getImporterPod: %v\n", err)
+		return nil, errors.Wrapf(err, "could not list pods in namespace %q", ns)
 	}
 	if len(podList.Items) == 0 {
-		return nil, fmt.Errorf("getImporterPod: no pods found in namespace %q\n", ns)
+		return nil, errors.Errorf("Found 0 pods in namespace %q", ns)
 	}
 	for i, p := range podList.Items {
 		if p.GenerateName == podName {
 			return &podList.Items[i], nil
 		}
 	}
-	return nil, fmt.Errorf("getImporterPod: no pods match %s/%s\n", ns, podName)
+	return nil, errors.Errorf("no pods match %s/%s", ns, podName)
 }

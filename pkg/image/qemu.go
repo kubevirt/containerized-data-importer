@@ -2,9 +2,10 @@ package image
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"os/exec"
+
+	"github.com/pkg/errors"
 )
 
 // magic number strings, needed to detect and test qcow2 files
@@ -21,7 +22,7 @@ func GetMagicNumber(f io.Reader) ([]byte, error) {
 		return nil, nil
 	}
 	if err != nil && err != io.EOF {
-		return nil, fmt.Errorf("GetMagicNumber: read error: %v\n", err)
+		return nil, errors.Wrap(err, "unable to read byte buffer")
 	}
 	return buff, nil
 }
@@ -34,7 +35,7 @@ func ConvertQcow2ToRaw(src, dest string) error {
 	cmd := exec.Command("qemu-img", "convert", "-f", "qcow2", "-O", "raw", src, dest)
 	err := cmd.Run()
 	if err != nil {
-		return fmt.Errorf("ConvertQcow2ToRaw: command failed: %v\n", err)
+		return errors.Wrap(err, "could not convert qcow2 image to raw")
 	}
 	return nil
 }

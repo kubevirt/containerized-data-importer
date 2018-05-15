@@ -6,6 +6,7 @@ import (
 
 	"github.com/golang/glog"
 	. "github.com/kubevirt/containerized-data-importer/pkg/common"
+	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -33,7 +34,7 @@ type Controller struct {
 	verbose                  string // verbose levels: 1, 2, ...
 }
 
-func NewController(client kubernetes.Interface, pvcInformer, podInformer cache.SharedIndexInformer, importerImage string, pullPolicy string, verbose string) (*Controller, error) {
+func NewController(client kubernetes.Interface, pvcInformer, podInformer cache.SharedIndexInformer, importerImage string, pullPolicy string, verbose string) *Controller {
 	c := &Controller{
 		clientset:     client,
 		pvcQueue:      workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
@@ -79,7 +80,7 @@ func NewController(client kubernetes.Interface, pvcInformer, podInformer cache.S
 		},
 	})
 
-	return c, nil
+	return c
 }
 
 func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
@@ -89,16 +90,16 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	}()
 	glog.V(Vadmin).Infoln("Starting cdi controller Run loop")
 	if threadiness < 1 {
-		return fmt.Errorf("controller.Run: expected >0 threads, got %d", threadiness)
+		return errors.Errorf("expected >0 threads, got %d", threadiness)
 	}
 	go c.pvcInformer.Run(stopCh)
 	go c.podInformer.Run(stopCh)
 
 	if !cache.WaitForCacheSync(stopCh, c.pvcInformer.HasSynced) {
-		return fmt.Errorf("controller.Run: Timeout waiting for pvc cache sync")
+		return errors.New("Timeout waiting for pvc cache sync")
 	}
 	if !cache.WaitForCacheSync(stopCh, c.podInformer.HasSynced) {
-		return fmt.Errorf("controller.Run: Timeout waiting for pod cache sync")
+		return errors.New("Timeout waiting for pod cache sync")
 	}
 	glog.V(Vdebug).Infoln("Controller cache has synced")
 
@@ -159,17 +160,18 @@ func (c *Controller) processPodItem(pod *v1.Pod) error {
 		}
 	}
 	if len(pvcKey) == 0 {
-		// For some reason, no pvc matching the volume name was found.
-		return fmt.Errorf("processPodItem: Pod does not contain volume %q", DataVolName)
+		// If this block is ever reached, something has gone very wrong.  The pod should ALWAYS be created with the volume.
+		// A missing volume would most likely indicate a pod that has been created manually, but also incorrectly defined.
+		return errors.Errorf("Pod does not contain volume %q", DataVolName)
 	}
 	glog.V(Vdebug).Infof("processPodItem: Getting PVC object for key %q", pvcKey)
 	pvc, err := c.pvcFromKey(pvcKey)
 	if err != nil {
-		return fmt.Errorf("processPodItem: error getting pvc from key: %v", err)
+		return errors.WithMessage(err, "could not retrieve pvc from cache")
 	}
 	err = c.setPVCAnnotation(pvc, AnnPodPhase, string(pod.Status.Phase))
 	if err != nil {
-		return fmt.Errorf("processPodItem: error setting PVC annotation: %v", err)
+		return errors.WithMessage(err, fmt.Sprintf("error setting annotation %q:%q in pvc %q", AnnPodPhase, pod.Status.Phase, pvc.Name))
 	}
 	glog.V(Vdebug).Infof("processPodItem: Pod phase %q annotated in PVC %q", pod.Status.Phase, pvcKey)
 	return nil
@@ -209,20 +211,13 @@ func (c *Controller) ProcessNextPvcItem() bool {
 // the importer pod as env vars. The pvc is checked (again) to ensure that we are not already
 // processing this pvc, which would result in multiple importer pods for the same pvc.
 func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
-	e := func(err error, s string) error {
-		if s == "" {
-			return fmt.Errorf("processPvcItem: %v\n", err)
-		}
-		return fmt.Errorf("processPvcItem: %s: %v\n", s, err)
-	}
-
 	ep, err := getEndpoint(pvc)
 	if err != nil {
-		return e(err, "")
+		return err
 	}
 	secretName, err := c.getSecretName(pvc)
 	if err != nil {
-		return e(err, "")
+		return err
 	}
 	if secretName == "" {
 		glog.V(Vadmin).Infof("no secret will be supplied to endpoint %q\n", ep)
@@ -232,7 +227,7 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	// and to help mitigate any race conditions. This time we get the latest pvc.
 	createPod, err := c.checkPVC(pvc, true)
 	if err != nil { // maybe an intermittent api error
-		return e(err, "check pvc")
+		return err
 	}
 	if !createPod { // don't create importer pod but not an error
 		return nil // forget key; logging already done
@@ -241,11 +236,11 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	// all checks passed, let's create the importer pod!
 	pod, err := c.createImporterPod(ep, secretName, pvc)
 	if err != nil {
-		return e(err, "create pod")
+		return err
 	}
 	err = c.setPVCAnnotation(pvc, AnnImportPod, pod.Name)
 	if err != nil {
-		return e(err, "set annotation")
+		return errors.WithMessage(err, "could not annotate pod name in pvc")
 	}
 	// Add the label if it doesn't exist
 	// it should be noted that the label may actually exist but not
@@ -255,7 +250,7 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 		glog.V(Vdebug).Infof("adding label \"%s\" to pvc, it does not exist", CDI_LABEL_SELECTOR)
 		err = c.setCdiLabel(pvc)
 		if err != nil {
-			return e(err, "set label")
+			return errors.WithMessage(err, fmt.Sprintf("could not set label %q on pvc %q", CDI_LABEL_SELECTOR, pvc.Name))
 		}
 	}
 	return nil

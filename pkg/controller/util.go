@@ -6,6 +6,7 @@ import (
 
 	"github.com/golang/glog"
 	. "github.com/kubevirt/containerized-data-importer/pkg/common"
+	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,18 +20,18 @@ const DataVolName = "cdi-data-vol"
 func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, error) {
 	keyString, ok := key.(string)
 	if !ok {
-		return nil, fmt.Errorf("pvcFromKey: key object not of type string\n")
+		return nil, errors.New("key object not of type string")
 	}
 	obj, ok, err := c.pvcInformer.GetIndexer().GetByKey(keyString)
 	if err != nil {
-		return nil, fmt.Errorf("pvcFromKey: Error getting key from cache: %q\n", keyString)
+		return nil, errors.Wrapf(err, "Error getting key %q from cache", keyString)
 	}
 	if !ok {
-		return nil, fmt.Errorf("pvcFromKey: object %v not found", keyString)
+		return nil, errors.Errorf("key %q not found in cache", keyString)
 	}
 	pvc, ok := obj.(*v1.PersistentVolumeClaim)
 	if !ok {
-		return nil, fmt.Errorf("pvcFromKey: Object not of type *v1.PersistentVolumeClaim\n")
+		return nil, errors.New("Object not of type *v1.PersistentVolumeClaim")
 	}
 	return pvc, nil
 }
@@ -38,18 +39,18 @@ func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, err
 func (c *Controller) podFromKey(key interface{}) (*v1.Pod, error) {
 	keyString, ok := key.(string)
 	if !ok {
-		return nil, fmt.Errorf("podFromKey: keys is not of type string")
+		return nil, errors.New("keys is not of type string")
 	}
 	obj, ok, err := c.podInformer.GetIndexer().GetByKey(keyString)
 	if err != nil {
-		return nil, fmt.Errorf("podFromKey: error getting pod obj from store: %v", err)
+		return nil, errors.Wrap(err, "error getting pod obj from store")
 	}
 	if !ok {
-		return nil, fmt.Errorf("podFromKey: pod not found in store")
+		return nil, errors.New("pod not found in store")
 	}
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
-		return nil, fmt.Errorf("podFromKey: error casting object to type \"v1.Pod\"")
+		return nil, errors.New("error casting object to type \"v1.Pod\"")
 	}
 	return pod, nil
 }
@@ -83,6 +84,7 @@ func (c *Controller) checkPVC(pvc *v1.PersistentVolumeClaim, get bool) (bool, er
 	glog.V(Vdebug).Infof("checkPVC: getting latest version of pvc for in-process annotation")
 	latest, err := c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
 	if err != nil {
+		glog.Infof("checkPVC: pvc Get error: %v\n", err)
 		return false, err
 	}
 	// check if we are processing this pvc now that we have the lastest copy
@@ -102,7 +104,7 @@ func getEndpoint(pvc *v1.PersistentVolumeClaim) (string, error) {
 		if !found {
 			verb = "missing"
 		}
-		return ep, fmt.Errorf("getEndpoint: annotation %q in pvc \"%s/%s\" is %s\n", AnnEndpoint, pvc.Namespace, pvc.Name, verb)
+		return ep, errors.Errorf("annotation %q in pvc \"%s/%s\" is %s\n", AnnEndpoint, pvc.Namespace, pvc.Name, verb)
 	}
 	return ep, nil
 }
@@ -130,21 +132,21 @@ func (c *Controller) getSecretName(pvc *v1.PersistentVolumeClaim) (string, error
 		return name, nil
 	}
 	if err != nil {
-		return "", fmt.Errorf("getEndpointSecret: error getting secret %q defined in pvc \"%s/%s\": %v\n", name, ns, pvc.Name, err)
+		return "", errors.Wrapf(err, "error getting secret %q defined in pvc \"%s/%s\"", name, ns, pvc.Name)
 	}
 	glog.V(Vuser).Infof("retrieved secret %q defined in pvc \"%s/%s\"\n", name, ns, pvc.Name)
 	return name, nil
 }
 
-func (c *Controller) patchPVC(oldData, newData []byte, pvc *v1.PersistentVolumeClaim, comp string) error {
+func (c *Controller) patchPVC(oldData, newData []byte, pvc *v1.PersistentVolumeClaim) error {
 	// patch the pvc clone
 	patch, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, v1.PersistentVolumeClaim{})
 	if err != nil {
-		return fmt.Errorf("error creating patch %v", err)
+		return errors.Wrap(err, "error creating pvc patch")
 	}
 	_, err = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Patch(pvc.Name, types.StrategicMergePatchType, patch)
 	if err != nil {
-		return fmt.Errorf("error patching pvc %v", err)
+		return errors.Wrapf(err, "error patching pvc %q", pvc.Name)
 	}
 	return nil
 }
@@ -153,7 +155,7 @@ func (c *Controller) clonePVC(claim *v1.PersistentVolumeClaim) (*v1.PersistentVo
 	pvcClone := claim.DeepCopy()
 	data, err := json.Marshal(pvcClone)
 	if err != nil {
-		return pvcClone, nil, fmt.Errorf("marshal clone pvc data: %v\n", err)
+		return pvcClone, nil, errors.Wrap(err, "error marshalling pvc object")
 	}
 	return pvcClone, data, nil
 }
@@ -161,14 +163,13 @@ func (c *Controller) clonePVC(claim *v1.PersistentVolumeClaim) (*v1.PersistentVo
 // Sets an annotation `key: val` in the given PVC.
 // Note: Patch() is used instead of Update() to handle version related field changes.
 func (c *Controller) setPVCAnnotation(pvc *v1.PersistentVolumeClaim, key, val string) error {
-	const funcTrace = "setPVCAnnotation"
 	glog.V(Vdebug).Infof("Adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", key, val, pvc.Namespace, pvc.Name)
 
 	// don't mutate the original pvc since it's from the shared informer
 	// make copies of old pvc
 	pvcClone, oldData, err := c.clonePVC(pvc)
 	if err != nil {
-		return fmt.Errorf("%s: marshal clone pvc data: %v\n", funcTrace, err)
+		return err
 	}
 
 	// add annotation to update pvc
@@ -177,13 +178,13 @@ func (c *Controller) setPVCAnnotation(pvc *v1.PersistentVolumeClaim, key, val st
 	//make copies of new pvc
 	newData, err := json.Marshal(pvcClone)
 	if err != nil {
-		return fmt.Errorf("%s: marshal new pvc data: %v\n", funcTrace, err)
+		return errors.Wrap(err, "error marshalling pvc object")
 	}
 
 	//patch and merge the old and new pvc
-	err = c.patchPVC(oldData, newData, pvc, funcTrace)
+	err = c.patchPVC(oldData, newData, pvc)
 	if err != nil {
-		return fmt.Errorf("%s: %v", funcTrace, err)
+		return err
 	}
 	return nil
 }
@@ -207,7 +208,7 @@ func (c *Controller) setCdiLabel(pvc *v1.PersistentVolumeClaim) error {
 	// make copies of old pvc
 	pvcClone, oldData, err := c.clonePVC(pvc)
 	if err != nil {
-		return fmt.Errorf("%s: marshal clone pvc data: %v\n", funcTrace, err)
+		return err
 	}
 
 	// add label
@@ -216,13 +217,13 @@ func (c *Controller) setCdiLabel(pvc *v1.PersistentVolumeClaim) error {
 	// make copy of updated pvc
 	newData, err := json.Marshal(pvcClone)
 	if err != nil {
-		return fmt.Errorf("%s: error marshal new pvc data: %v\n", funcTrace, err)
+		return errors.Wrap(err, "error marshalling new pvc data")
 	}
 
 	// patch the pvc clone
-	err = c.patchPVC(oldData, newData, pvc, funcTrace)
+	err = c.patchPVC(oldData, newData, pvc)
 	if err != nil {
-		return fmt.Errorf("%s: %v", funcTrace, err)
+		return err
 	}
 	return nil
 }
@@ -243,7 +244,7 @@ func (c *Controller) createImporterPod(ep, secretName string, pvc *v1.Persistent
 
 	pod, err := c.clientset.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
-		return nil, fmt.Errorf("createImporterPod: Create failed: %v\n", err)
+		return nil, errors.Wrap(err, "importer pod API create errored")
 	}
 	glog.V(Vuser).Infof("importer pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, c.importerImage)
 	return pod, nil

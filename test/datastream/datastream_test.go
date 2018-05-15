@@ -17,6 +17,7 @@ import (
 	f "github.com/kubevirt/containerized-data-importer/test/framework"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 )
 
 type testCase struct {
@@ -204,7 +205,7 @@ func generateTestFile(size int, filename string) ([]byte, error) {
 	By("Generating test data")
 	sampleData := make([]byte, size)
 	if _, err := rand.Read(sampleData); err != nil {
-		return nil, fmt.Errorf("error occurred during rand.Read()")
+		return nil, errors.Wrap(err, "unable to generate random number")
 	}
 
 	// Write the byte slice to a file at /
@@ -212,11 +213,11 @@ func generateTestFile(size int, filename string) ([]byte, error) {
 	By("Writing test data to file")
 	file, err := os.Create(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create test file %q", filename)
+		return nil, errors.Wrapf(err, "failed to create test file %q", filename)
 	}
 	defer file.Close()
 	if _, err = file.Write(sampleData); err != nil {
-		return nil, fmt.Errorf("failed to write sample data to file")
+		return nil, errors.Wrap(err, "failed to write sample data to file")
 	}
 	return sampleData, nil
 }
