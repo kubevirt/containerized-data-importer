@@ -1,3 +1,33 @@
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: cdi-sa
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cdi
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: cdi-sa
+roleRef:
+  kind: ClusterRole
+  name: cdi
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+  - kind: ServiceAccount
+    name: cdi-sa
+    namespace: default  # update accordingly based on the namespace you are deploying in
+---
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
@@ -14,6 +44,7 @@ spec:
       labels:
         app: containerized-data-importer
     spec:
+      serviceAccountName: cdi-sa
       containers:
       - name: cdi-controller
         image: kubevirt/cdi-controller:0.4.0-alpha.0
