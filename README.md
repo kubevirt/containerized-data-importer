@@ -125,17 +125,9 @@ Make copies of the [example manifests](./manifests/example) for editing. The nec
 
 #### RBAC Roles
 
-CDI needs certain permissions to be able to execute properly, primarily the `cluster-admin` role should be applied to the service account being used through the [Kubernetes RBAC model](https://kubernetes.io/docs/admin/authorization/rbac/). For example, if the CDI controller is running in a namespace called `cdi` and the `default` service account is being used, then the following RBAC should be applied:
+CDI runs under a custom ServiceAccount (cdi-sa) and uses the [Kubernetes RBAC model](https://kubernetes.io/docs/admin/authorization/rbac/) to apply an application specific custom ClusterRole with rules to properly access needed resources such as PersistentVolumeClaims and Pods.
 
-```
-  $ kubectl create clusterrolebinding <BINDING-NAME> --clusterrole=cluster-admin  --serviceaccount=<NAMESPACE>:default
-
-  i.e.
-  $ kubectl create clusterrolebinding c-golden-images-default --clusterrole=cluster-admin  --serviceaccount=cdi:default
-
-```
-
-> NOTE: This gives full cluster-admin access to this binding and may not be appropriate for production environments.
+> NOTE: The cdi-controller-deployment.yaml in the manifests directory should be updated if deploying manually with kubectl to use the correct Namespace where the deployment is running.
 
 
 #### Protecting VM Image Namespaces
