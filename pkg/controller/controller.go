@@ -190,7 +190,7 @@ func (c *Controller) ProcessNextPvcItem() bool {
 	}
 	defer c.pvcQueue.Done(key)
 
-	pvc, err := c.pvcFromKey(key)
+	pvc, err := pvcFromKey(c.pvcInformer, key)
 	if err != nil || pvc == nil {
 		return c.forgetKey(key, fmt.Sprintf("ProcessNextPvcItem: error converting key %q to pvc: %v", key, err))
 	}
