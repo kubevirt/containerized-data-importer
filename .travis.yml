@@ -2,20 +2,24 @@ sudo: required
 language: go
 go:
 - 1.10.x
+
 services:
 - docker
+
 env:
-  global:
-  - secure: p2MDt0w4jrbDERn3rBz4kO9GQCO3Bgzh2ge76aUP81Er3X8yKXmzLd8TdKKVg2ijT3/T3STdtSKbU3qbgzUT3QbOrn40X9IkK+PoWZaJ91bl9mDAZUey0duzzVIzWeHkOldA8B18QgmFYiWXMsbPFo+Pvi9O5OdInDAGvp6e9zL6QTUN6JsMFXVsBHehtaIv9o89ecaBkBiueO2K7mHd896UH4jYiyo6dGhmOIPUH5dwnJPXGujfFpCuU5vJXMkwryjARtzg78bQTQ2l7tvLhmqtepgjTC+NL0LgjP9Yj5SK8Zfuga+phzfeEH+NV0Mc3NBDgwWE0siWOHxjv/tdkILRm3bpLcjGG7aAgsip3NE3Hy04l3BJaWXMRJiHtpCq5vraGv5ix3RAmufbww40qLwT5ZQpA7VlQ8kkonuFw5v7cph/XnZQeqo6C/kb47LJbNwwTRG9xAzdwVsgQOU5TbYH/Xfj593b86clcmr4Kd6va3C9WUTWcxXsGsm8ZzFwhCxxP06bx8EDWk5RfEtUGaMUYSr2T4jfaHRCUGCkwvoVrWyKXcyT0fZg8Ay248PNK2ijp2A4xNKrDpqtKRyHX/ATIkIJwvbsKonfN+/hUJxn1a94+vOXcg2GWix090ZPkusPKmtOd4oUI+B4FwvJ3NxZEAeGeyZ1M8Zug2myBSA=
-  - secure: RfAvL8kqBzK4/r7NHX61rCevvua5BfMXIdFfhg/nI2XUxINtUuX9uNBkLsohZWwk1UDA6CWt8+jaW2SDcQrOz9PAU+RHfGHYQtMsEMbBWlw3FV2EpaZe+rMybQUSqh2fZSCACguxdDm7o1IZVTp+dD5dhQHK341isfYDtbfnKRn5zrmlNhAdrpJEJQTzHT1MBBBDfhBggVkxcSAMYpKC43mGH9kgKn7BSxaUK4I7xtuAAO1EflQWClTXyMrTm7oYxEld6qGNmLq0tsA0ff8qY9vTCCyu6NSIjGFSgJoRFApJDYfhV7NEQNEzAeGo1ljf4M4r/iMRllZaTnCcdsbXA01OnnIkYNwj1+OGOJe19XOvZslPDAl5K3H9bipYfP/CUKOlK5QgbPJsemi+NvUkNBSKZ6BHY1MURBFdvsiMEawhlhoQvZTcc/ONH8PqV0XZdyk8pCNL98o+Y7RVwReJJbTRfOgQQl/b/fPL0BwCjCp2GouwwKLkoLLbsjQPJ73chRsyAblT/SgcMFpm8eGFysCRvdnpy+omBxGiqrOBdYpDDZW2hWvtQ5AmpXGrAOXVDdPoF2O8693OqTr6DRST0n6U2g5Akst+4VKTamCFqY6tV8YZcf7mhuPQcpkl5OUtS509UNwLZi1/EL2xMGAvqX5Kni/tTJVWlSBe1q0TkgY=
   matrix:
   - CHANGE_MINIKUBE_NONE_USER=true K8S_VER=1.9.0 MK_VER=0.25.2 K6T_VER=0.4.0 SRC="http://www.tinycorelinux.net/9.x/x86/release/Core-current.iso"
+  global:
+  - secure: ctq1aD1raj/cWJjgnA1woERI4JyILCzjOWloomts0NiLqQwu/MUaVF4FQ2kkcm6VUdVcixLOzszrRuBax+lwss6y9PpmJcXZhoLokMmZLO/i3hNBNrUtfQ5yUtbNP4SmdXtvZOTkibG0hVTNYU3/d772eZ0KX+6kJ9O5j3qVX6KzZmEN6JnHArvTxyiHj5tflSxx9+FzhzGZaQoObLbn2LmRvh51BWTSXfMWVwnE7JU54+63Ji5s+r+RMc3friDIgnohqRNgU4EA3r0724/i4iicYnqwscV0KtqewRO6HvRndvsX286uWdJOydgaF4sAiuyyHxKiqPBErM1TwoFvFzY+TgzWI5TRJz70q5OfcMucwwQSoDeyFXfj/2inipDJlt5StWGaW/y/Q5DeIdDgPbvZqcUSHLPbBhLkE7dtdUaLUWjRkIhPX/xB+gttM7XpSGORe26HYwtXrWCQHS0r/nQWG66VIkjikc98yyAwc4Qu6VGvwEbWzUJNSgluPpLezpD1byjVjRRDIRVDTsc2nFiFhQms42N3DNwJD42YMYlYX3+DthqHXtANGlgab9p1NUFXEuL/y3RS2+gKzQrrH7CdohJfrZTOZYSnjDHdkjYhMQmjwhlCts/Ju3T+EvSTYChZgKZYdxwTG08HeLkQ9J21sXzCEbjdXriJVd+MD10=
+  - secure: Y8NC22q6Q9wURgi51zu7k5H/UhSs/buKinVRyEgV7Ve6ol48hynBQ1Kde6kCZ1ovr5m43guS79gpgvNmap3/EVY/9O21HQS7JmlYFlZy9XmUvGcKhe0lqd2stXkec+7E7wka63EmHWhYiO6jPXshYmLFoa/D8qIIvvQ8muQWV3bvAHUlinhV5bbEzManLKHTaxRw88UTd/2eodT7BCVMwrQ6V1B+7TjCI2N2NrRztUeopL4WImM1WfYnvr8N4HzAa7QG4z99Uzd6TwqST3Tre2LaUP6iSg1oXaheKswebWYPdTjT577Bw/VyVW5xTdKnTgDNkZVySmAx9vBxlSI1tWmvrHg5qFbni7LBz3vGUJ1f/n/Gi+8IFRpJlyUj33/DsUMr2cYT0AJ3aURUJGRCQlUOl21LHsCpUBiYcnEo8YaIfnluYyAEHFeXgaPvLU+GGVOifxBjuyjHPx2go/pbOlTwmhzvf3YHvOCLxlvWc2imMnhiNgr8MeV8tAG2CFyyGCTQKVtrJRER9XfsJC3Etqe35XpPKKuzQKOgXty/AqevWmaWwzGhEDO+emD/w1cJfecsNeAf97RmYFTVGYxC00YUejlDIUUC1dfqrPhf5jRw3M3gkCk1Oqt2o3lhjFoMiVfZk+ppOkeUuUHtnwTDskC5x3wZeYWbCyYmR1s8FLE=
+
 notifications:
   irc:
     channels:
     - chat.freenode.net#kubevirt
     on_success: change
     on_failure: always
+
 before_script:
 - curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/v$K8S_VER/bin/linux/amd64/kubectl
   && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
@@ -30,6 +34,7 @@ before_script:
   | wc -l)" -gt 1 ]]; do kubectl get $1 --all-namespaces ; sleep 6; done ; }
 - kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/v$K6T_VER/kubevirt.yaml
 - k_wait_all_running pods
+
 script:
 - kubectl apply -f manifests/example/endpoint-secret.yaml
 - kubectl apply -f manifests/controller/cdi-controller-deployment.yaml
@@ -38,6 +43,7 @@ script:
 - k_wait_all_running pods
 - kubectl get pods --all-namespaces
 - make test
+
 before_deploy:
 - make controller importer
 - git config --local user.name "screeley44"
@@ -45,22 +51,21 @@ before_deploy:
 - source version && git tag -f $RELEASE_TAG
 
 deploy:
-- provider: script
-  script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS" && make release
-  skip_cleanup: true
-  on:
-    branch: master
-    repo: kubevirt/containerized-data-importer
-- provider: releases
-  user: screeley44
-  password:
-    secure: BFp+MrsvClJOnOTH019Nm9btk+ZM10A+93NJvrjgw+DNKi3JhQmttUOgAfJDfAqQuXu6EBiOUtNTAGXPZXdBBo05D2oPS0PJw4TVB9vUFPnyOdCMR641GK8Yw9h6cCUQX0vNqd0eIF8ks0qHAhAAllyV5nPCbzxCGSTsatBnFohFxybTzWwp0lR8FyPHNBrukpUcZLfjKYsoF9t66P3XCSO2XnJKvDjHwO9s8sysqDmlDwYyXkN8R67vZG0u23t76Nd08GsQegU4vIjd3HxHWtQpdbMBYZFbXaLSYEgulCIjiCwPsJtG1JARDlPGFKMC37nZ15J8w9U0OVViaiCuHFEjAs6kSdh5Zdz+0mWArl+IHNFMGD8BwjTYtrCDwAbh9AnGxOR1dVBaDASqbVzHDCfnAanYHmD6Vw3fT3rGkbEUy27IJlBNTJPgM+44WCsU95xEC+Jb7EgTrqk3DQ79nag7vt1sAcepdknyZJpHKLURpGWZkyjdDHmYq8kYgQO65ri0QGWM4hYvCWEOrnwsPlv1wY2eRByKxi8N1l/bsj1UHkn8kYPd3naD1EapfeXygXyzLuesCT3u4f6dlvU3ZlNbTq2OUOCzeAHRC59qwD7+UkAt0jU3qEJNyVV1nTgTyuFEYiZZNPHDY7wnl1CO3RP2xppQiIG8ySpQpmW9Bko=
-    # api_key:
-  skip_cleanup: true
-  overwrite: true
-  file:
-  - bin/import-controller
-  - bin/importer
-  on:
-    branch: master
-    repo: kubevirt/containerized-data-importer
+  matrix:
+  - provider: script
+    script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS" && make release
+    skip_cleanup: true
+    on:
+      branch: master
+      repo: kubevirt/containerized-data-importer
+  - provider: releases
+    api_key:
+      secure: jpmIRn2l1kIfvSqCfAX97RCjuvmdh66HE24puP5TkLVHlZWKZ+vNqTf6G5ENUPAd6YdbsEJcnMcLZcV2LKShO6V2QivsO3LTr/VpHrpEDqrB75hZ1uyu1ZnXe7+ESZ8WCF9iCgEHetf0TGoYxHQZV9lJtAIr+KRJaZhQ30yhpCXdNd0kMV56+OHqjsef9j3zptSf4lN5MUs5vN+7Y0Si+k9lA1KuwUa4G6g2AbdZfTvAh4HhxTifZp7HK8FhJu8IifU6dKxtmqP3QFCeHs9z4kQPIRj9ym+uM9sNwFeOs2pbquCLibAZL9DlRSm674kHTHSvhNq8FJYyxKYUO+PANFvV8hLM2MHVombi/n4XOMLbIdH1YySfUiZftImso1O3H/5e4BR1D/XCE15cm/8mgORQW7Kmgr85rqPHwX/sbEUhGT+UxDxq0W3gEbejfJxM2qdY4bqbz/icg68WVz0z0KxMCweejGAr5WcikY/cdPAoQ3DimEiGtfSu1/lK1B5g52IJtmPVOojWeUs/YrVVl9ZIeydFbv/wNAzqu1a3pO4OY9Ec5xKlkwZFYHbxw/fTL+zEc7cmADbSqVGvtfJxqxtSEag1Mf0skJwvcB1SbxdNQLCf+bIxwfn+oSfJUzRStKs5QsiCGcCYcbthA4O7lWWagiMG/omA5kl+dNW0jCo=
+    skip_cleanup: true
+    overwrite: true
+    file:
+    - bin/import-controller
+    - bin/importer
+    on:
+      branch: master
+      repo: kubevirt/containerized-data-importer
