@@ -51,21 +51,20 @@ before_deploy:
 - source version && git tag -f $RELEASE_TAG
 
 deploy:
-  matrix:
-  - provider: script
-    script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS" && make release
-    skip_cleanup: true
-    on:
-      branch: master
-      repo: kubevirt/containerized-data-importer
-  - provider: releases
-    api_key:
-      secure: jpmIRn2l1kIfvSqCfAX97RCjuvmdh66HE24puP5TkLVHlZWKZ+vNqTf6G5ENUPAd6YdbsEJcnMcLZcV2LKShO6V2QivsO3LTr/VpHrpEDqrB75hZ1uyu1ZnXe7+ESZ8WCF9iCgEHetf0TGoYxHQZV9lJtAIr+KRJaZhQ30yhpCXdNd0kMV56+OHqjsef9j3zptSf4lN5MUs5vN+7Y0Si+k9lA1KuwUa4G6g2AbdZfTvAh4HhxTifZp7HK8FhJu8IifU6dKxtmqP3QFCeHs9z4kQPIRj9ym+uM9sNwFeOs2pbquCLibAZL9DlRSm674kHTHSvhNq8FJYyxKYUO+PANFvV8hLM2MHVombi/n4XOMLbIdH1YySfUiZftImso1O3H/5e4BR1D/XCE15cm/8mgORQW7Kmgr85rqPHwX/sbEUhGT+UxDxq0W3gEbejfJxM2qdY4bqbz/icg68WVz0z0KxMCweejGAr5WcikY/cdPAoQ3DimEiGtfSu1/lK1B5g52IJtmPVOojWeUs/YrVVl9ZIeydFbv/wNAzqu1a3pO4OY9Ec5xKlkwZFYHbxw/fTL+zEc7cmADbSqVGvtfJxqxtSEag1Mf0skJwvcB1SbxdNQLCf+bIxwfn+oSfJUzRStKs5QsiCGcCYcbthA4O7lWWagiMG/omA5kl+dNW0jCo=
-    skip_cleanup: true
-    overwrite: true
-    file:
+- provider: script
+  script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS" && make release
+  skip_cleanup: true
+  on:
+    branch: master
+    repo: kubevirt/containerized-data-importer
+- provider: releases
+  api_key:
+    secure: jpmIRn2l1kIfvSqCfAX97RCjuvmdh66HE24puP5TkLVHlZWKZ+vNqTf6G5ENUPAd6YdbsEJcnMcLZcV2LKShO6V2QivsO3LTr/VpHrpEDqrB75hZ1uyu1ZnXe7+ESZ8WCF9iCgEHetf0TGoYxHQZV9lJtAIr+KRJaZhQ30yhpCXdNd0kMV56+OHqjsef9j3zptSf4lN5MUs5vN+7Y0Si+k9lA1KuwUa4G6g2AbdZfTvAh4HhxTifZp7HK8FhJu8IifU6dKxtmqP3QFCeHs9z4kQPIRj9ym+uM9sNwFeOs2pbquCLibAZL9DlRSm674kHTHSvhNq8FJYyxKYUO+PANFvV8hLM2MHVombi/n4XOMLbIdH1YySfUiZftImso1O3H/5e4BR1D/XCE15cm/8mgORQW7Kmgr85rqPHwX/sbEUhGT+UxDxq0W3gEbejfJxM2qdY4bqbz/icg68WVz0z0KxMCweejGAr5WcikY/cdPAoQ3DimEiGtfSu1/lK1B5g52IJtmPVOojWeUs/YrVVl9ZIeydFbv/wNAzqu1a3pO4OY9Ec5xKlkwZFYHbxw/fTL+zEc7cmADbSqVGvtfJxqxtSEag1Mf0skJwvcB1SbxdNQLCf+bIxwfn+oSfJUzRStKs5QsiCGcCYcbthA4O7lWWagiMG/omA5kl+dNW0jCo=
+  skip_cleanup: true
+  overwrite: true
+  file:
     - bin/import-controller
     - bin/importer
-    on:
-      branch: master
-      repo: kubevirt/containerized-data-importer
+  on:
+    branch: master
+    repo: kubevirt/containerized-data-importer
