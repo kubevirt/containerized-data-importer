@@ -130,7 +130,8 @@ func (c *Controller) ProcessNextPodItem() bool {
 		return false
 	}
 	defer c.podQueue.Done(key)
-	pod, err := c.podFromKey(key)
+	//pod, err := c.podFromKey(key)
+	pod, err := podFromKey(c.podInformer, key)
 	if err != nil {
 		c.forgetKey(key, fmt.Sprintf("Unable to get pod object: %v", err))
 		return true
@@ -165,11 +166,13 @@ func (c *Controller) processPodItem(pod *v1.Pod) error {
 		return errors.Errorf("Pod does not contain volume %q", DataVolName)
 	}
 	glog.V(Vdebug).Infof("processPodItem: Getting PVC object for key %q", pvcKey)
-	pvc, err := c.pvcFromKey(pvcKey)
+	//pvc, err := c.pvcFromKey(pvcKey)
+	pvc, err := pvcFromKey(c.pvcInformer, pvcKey)
 	if err != nil {
 		return errors.WithMessage(err, "could not retrieve pvc from cache")
 	}
-	err = c.setPVCAnnotation(pvc, AnnPodPhase, string(pod.Status.Phase))
+	//err = c.setPVCAnnotation(pvc, AnnPodPhase, string(pod.Status.Phase))
+	err = SetPVCAnnotation(c.clientset, pvc, AnnPodPhase, string(pod.Status.Phase))
 	if err != nil {
 		return errors.WithMessage(err, fmt.Sprintf("error setting annotation %q:%q in pvc %q", AnnPodPhase, pod.Status.Phase, pvc.Name))
 	}
@@ -187,13 +190,14 @@ func (c *Controller) ProcessNextPvcItem() bool {
 	}
 	defer c.pvcQueue.Done(key)
 
-	pvc, err := c.pvcFromKey(key)
+	pvc, err := pvcFromKey(c.pvcInformer, key)
 	if err != nil || pvc == nil {
 		return c.forgetKey(key, fmt.Sprintf("ProcessNextPvcItem: error converting key %q to pvc: %v", key, err))
 	}
 
 	// filter pvc and decide if the importer pod should be created
-	createPod, _ := c.checkPVC(pvc, false)
+	//createPod, _ := c.checkPVC(pvc, false)
+	createPod, _ := checkPVC(c.clientset, pvc, false)
 	if !createPod {
 		return c.forgetKey(key, fmt.Sprintf("ProcessNextPvcItem: skipping pvc %q\n", key))
 	}
@@ -215,7 +219,8 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	if err != nil {
 		return err
 	}
-	secretName, err := c.getSecretName(pvc)
+	//secretName, err := c.getSecretName(pvc)
+	secretName, err := getSecretName(c.clientset, pvc)
 	if err != nil {
 		return err
 	}
@@ -225,7 +230,8 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 
 	// check our existing pvc one more time to ensure we should be working on it
 	// and to help mitigate any race conditions. This time we get the latest pvc.
-	createPod, err := c.checkPVC(pvc, true)
+	//createPod, err := c.checkPVC(pvc, true)
+	createPod, err := checkPVC(c.clientset, pvc, true)
 	if err != nil { // maybe an intermittent api error
 		return err
 	}
@@ -234,11 +240,13 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	}
 
 	// all checks passed, let's create the importer pod!
-	pod, err := c.createImporterPod(ep, secretName, pvc)
+	// pod, err := c.createImporterPod(ep, secretName, pvc)
+	pod, err := createImporterPod(c.clientset, c.importerImage, c.verbose, c.pullPolicy, ep, secretName, pvc)
 	if err != nil {
 		return err
 	}
-	err = c.setPVCAnnotation(pvc, AnnImportPod, pod.Name)
+	//err = c.setPVCAnnotation(pvc, AnnImportPod, pod.Name)
+	err = SetPVCAnnotation(c.clientset, pvc, AnnImportPod, pod.Name)
 	if err != nil {
 		return errors.WithMessage(err, "could not annotate pod name in pvc")
 	}
@@ -246,12 +254,14 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	// it should be noted that the label may actually exist but not
 	// recognized due to patched timing issues but since this is a
 	// simple map there is no harm in adding it again if we don't find it.
-	if !c.checkIfLabelExists(pvc, CDI_LABEL_KEY, CDI_LABEL_VALUE) {
-		glog.V(Vdebug).Infof("adding label \"%s\" to pvc, it does not exist", CDI_LABEL_SELECTOR)
-		err = c.setCdiLabel(pvc)
-		if err != nil {
-			return errors.WithMessage(err, fmt.Sprintf("could not set label %q on pvc %q", CDI_LABEL_SELECTOR, pvc.Name))
-		}
+	//if !c.checkIfLabelExists(pvc, CDI_LABEL_KEY, CDI_LABEL_VALUE) {
+	if !CheckIfLabelExists(pvc, CDI_LABEL_KEY, CDI_LABEL_VALUE) {
+			glog.V(Vdebug).Infof("adding label \"%s\" to pvc, it does not exist", CDI_LABEL_SELECTOR)
+			//err = c.setCdiLabel(pvc)
+			err = SetCdiLabel(c.clientset, pvc)
+			if err != nil {
+				return errors.WithMessage(err, fmt.Sprintf("could not set label %q on pvc %q", CDI_LABEL_SELECTOR, pvc.Name))
+			}
 	}
 	return nil
 }
