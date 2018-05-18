@@ -131,7 +131,7 @@ func (c *Controller) ProcessNextPodItem() bool {
 	}
 	defer c.podQueue.Done(key)
 	//pod, err := c.podFromKey(key)
-	pod, err := podFromKey2(c.podInformer, key)
+	pod, err := podFromKey(c.podInformer, key)
 	if err != nil {
 		c.forgetKey(key, fmt.Sprintf("Unable to get pod object: %v", err))
 		return true
@@ -167,7 +167,7 @@ func (c *Controller) processPodItem(pod *v1.Pod) error {
 	}
 	glog.V(Vdebug).Infof("processPodItem: Getting PVC object for key %q", pvcKey)
 	//pvc, err := c.pvcFromKey(pvcKey)
-	pvc, err := pvcFromKey2(c.pvcInformer, pvcKey)
+	pvc, err := pvcFromKey(c.pvcInformer, pvcKey)
 	if err != nil {
 		return errors.WithMessage(err, "could not retrieve pvc from cache")
 	}

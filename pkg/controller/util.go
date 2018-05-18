@@ -19,18 +19,12 @@ import (
 const DataVolName = "cdi-data-vol"
 
 // return a pvc pointer based on the passed-in work queue key.
-func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, error) {
-	keyString, ok := key.(string)
-	if !ok {
-		return nil, errors.New("key object not of type string")
-	}
-	obj, ok, err := c.pvcInformer.GetIndexer().GetByKey(keyString)
+func pvcFromKey(informer cache.SharedIndexInformer, key interface{}) (*v1.PersistentVolumeClaim, error) {
+	obj, err := getKey(informer, key)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Error getting key %q from cache", keyString)
+		return nil, errors.Wrap(err, "could not get pvc object key")
 	}
-	if !ok {
-		return nil, errors.Errorf("key %q not found in cache", keyString)
-	}
+
 	pvc, ok := obj.(*v1.PersistentVolumeClaim)
 	if !ok {
 		return nil, errors.New("Object not of type *v1.PersistentVolumeClaim")
@@ -38,37 +32,12 @@ func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, err
 	return pvc, nil
 }
 
-func pvcFromKey2(informer cache.SharedIndexInformer, key interface{}) (*v1.PersistentVolumeClaim, error) {
-	keyString, ok := key.(string)
-	if !ok {
-		return nil, errors.New("key object not of type string")
-	}
-	obj, ok, err := informer.GetIndexer().GetByKey(keyString)
+func podFromKey(informer cache.SharedIndexInformer, key interface{}) (*v1.Pod, error) {
+	obj, err := getKey(informer, key)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Error getting key %q from cache", keyString)
+		return nil, errors.Wrap(err, "could not get pod object key")
 	}
-	if !ok {
-		return nil, errors.Errorf("key %q not found in cache", keyString)
-	}
-	pvc, ok := obj.(*v1.PersistentVolumeClaim)
-	if !ok {
-		return nil, errors.New("Object not of type *v1.PersistentVolumeClaim")
-	}
-	return pvc, nil
-}
 
-func (c *Controller) podFromKey(key interface{}) (*v1.Pod, error) {
-	keyString, ok := key.(string)
-	if !ok {
-		return nil, errors.New("keys is not of type string")
-	}
-	obj, ok, err := c.podInformer.GetIndexer().GetByKey(keyString)
-	if err != nil {
-		return nil, errors.Wrap(err, "error getting pod obj from store")
-	}
-	if !ok {
-		return nil, errors.New("pod not found in store")
-	}
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
 		return nil, errors.New("error casting object to type \"v1.Pod\"")
@@ -76,23 +45,19 @@ func (c *Controller) podFromKey(key interface{}) (*v1.Pod, error) {
 	return pod, nil
 }
 
-func podFromKey2(informer cache.SharedIndexInformer, key interface{}) (*v1.Pod, error) {
+func getKey(informer cache.SharedIndexInformer, key interface{}) (interface{}, error) {
 	keyString, ok := key.(string)
 	if !ok {
 		return nil, errors.New("keys is not of type string")
 	}
 	obj, ok, err := informer.GetIndexer().GetByKey(keyString)
 	if err != nil {
-		return nil, errors.Wrap(err, "error getting pod obj from store")
+		return nil, errors.Wrap(err, "error getting interface obj from store")
 	}
 	if !ok {
-		return nil, errors.New("pod not found in store")
+		return nil, errors.New("interface object not found in store")
 	}
-	pod, ok := obj.(*v1.Pod)
-	if !ok {
-		return nil, errors.New("error casting object to type \"v1.Pod\"")
-	}
-	return pod, nil
+	return obj, nil
 }
 
 // checkPVC verifies that the passed-in pvc is one we care about. Specifically, it must have the
