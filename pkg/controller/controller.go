@@ -121,36 +121,38 @@ func (c *Controller) runPVCWorkers() {
 	}
 }
 
-// ProcessNextPodItem gets the next pod key from the queue and verifies that it was created
-// by the cdi controller. If not, the key is discarded. Otherwise, the pod object is passed
-// to processPodItem.
+// ProcessNextPodItem gets the next pod key from the queue and verifies that it was created by the
+// controller. If not the key is discarded; otherwise, the pod object is passed to processPodItem.
+// Note: pods are already filtered by label "app=containerized-data-importer".
 func (c *Controller) ProcessNextPodItem() bool {
 	key, shutdown := c.podQueue.Get()
 	if shutdown {
 		return false
 	}
 	defer c.podQueue.Done(key)
+
 	pod, err := c.podFromKey(key)
 	if err != nil {
-		c.forgetKey(key, fmt.Sprintf("Unable to get pod object: %v", err))
+		c.forgetKey(key, fmt.Sprintf("ProcessNextPodItem: unable to get pod from key %v: %v", key, err))
 		return true
 	}
 	if !metav1.HasAnnotation(pod.ObjectMeta, AnnCreatedBy) {
-		c.forgetKey(key, "Pod does not have annotation "+AnnCreatedBy)
+		c.forgetKey(key, fmt.Sprintf("ProcessNextPodItem: pod %q does not have annotation %q", key, AnnCreatedBy))
 		return true
 	}
-	if err := c.processPodItem(pod); err == nil {
-		c.forgetKey(key, fmt.Sprintf("Processing Pod %q completed", pod.Name))
+	glog.V(Vdebug).Infof("ProcessNextPodItem: next pod to process: %s\n", key)
+	err = c.processPodItem(pod)
+	if err != nil { // processPodItem errors may not have been logged so log here
+		glog.Errorf("error processing pod %q: %v", key, err)
+		return true
 	}
-	return true
+	return c.forgetKey(key, fmt.Sprintf("ProcessNextPodItem: processing pod %q completed", key))
 }
 
 // processPodItem verifies that the passed in pod is genuine and, if so, annotates the Phase
 // of the pod in the PVC to indicate the status of the import process.
 func (c *Controller) processPodItem(pod *v1.Pod) error {
-	glog.V(Vdebug).Infof("processPodItem: processing pod named %q\n", pod.Name)
-
-	// First get the pod's CDI-relative pvc name
+	// verify that this pod has the expected pvc name
 	var pvcKey string
 	for _, vol := range pod.Spec.Volumes {
 		if vol.Name == DataVolName {
@@ -164,16 +166,21 @@ func (c *Controller) processPodItem(pod *v1.Pod) error {
 		// A missing volume would most likely indicate a pod that has been created manually, but also incorrectly defined.
 		return errors.Errorf("Pod does not contain volume %q", DataVolName)
 	}
-	glog.V(Vdebug).Infof("processPodItem: Getting PVC object for key %q", pvcKey)
+
+	glog.V(Vdebug).Infof("processPodItem: getting pvc for key %q", pvcKey)
 	pvc, err := c.pvcFromKey(pvcKey)
 	if err != nil {
 		return errors.WithMessage(err, "could not retrieve pvc from cache")
 	}
-	err = c.setPVCAnnotation(pvc, AnnPodPhase, string(pod.Status.Phase))
-	if err != nil {
-		return errors.WithMessage(err, fmt.Sprintf("error setting annotation %q:%q in pvc %q", AnnPodPhase, pod.Status.Phase, pvc.Name))
+	// see if pvc's importer pod phase anno needs to be added/updated
+	phase := string(pod.Status.Phase)
+	if !c.checkIfAnnoExists(pvc, AnnPodPhase, phase) {
+		pvc, err = c.setPVCAnnotation(pvc, AnnPodPhase, phase)
+		if err != nil {
+			return errors.WithMessage(err, fmt.Sprintf("could not set annotation \"%s: %s\" on pvc %q", AnnPodPhase, phase, pvc.Name))
+			glog.V(Vdebug).Infof("processPodItem: pod phase %q annotated in pvc %q", pod.Status.Phase, pvcKey)
+		}
 	}
-	glog.V(Vdebug).Infof("processPodItem: Pod phase %q annotated in PVC %q", pod.Status.Phase, pvcKey)
 	return nil
 }
 
@@ -189,22 +196,19 @@ func (c *Controller) ProcessNextPvcItem() bool {
 
 	pvc, err := c.pvcFromKey(key)
 	if err != nil || pvc == nil {
-		return c.forgetKey(key, fmt.Sprintf("ProcessNextPvcItem: error converting key %q to pvc: %v", key, err))
+		return c.forgetKey(key, fmt.Sprintf("ProcessNextPvcItem: error converting key %v to pvc: %v", key, err))
 	}
-
 	// filter pvc and decide if the importer pod should be created
-	createPod, _ := c.checkPVC(pvc, false)
-	if !createPod {
+	if continue_processing, _, _ := c.checkPVC(pvc, false); !continue_processing {
 		return c.forgetKey(key, fmt.Sprintf("ProcessNextPvcItem: skipping pvc %q\n", key))
 	}
-
 	glog.V(Vdebug).Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)
 	err = c.processPvcItem(pvc)
-	if err != nil {
-		return true // and remember key
+	if err != nil { // processPvcItem errors may not have been logged so log here
+		glog.Errorf("error processing pvc %q: %v", key, err)
+		return true
 	}
-	// we're done operating on this key; remove it from the queue
-	return c.forgetKey(key, "")
+	return c.forgetKey(key, fmt.Sprintf("ProcessNextPvcItem: processing pvc %q completed", key))
 }
 
 // Create the importer pod based the pvc. The endpoint and optional secret are available to
@@ -225,11 +229,11 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 
 	// check our existing pvc one more time to ensure we should be working on it
 	// and to help mitigate any race conditions. This time we get the latest pvc.
-	createPod, err := c.checkPVC(pvc, true)
+	doCreate, pvc, err := c.checkPVC(pvc, true)
 	if err != nil { // maybe an intermittent api error
 		return err
 	}
-	if !createPod { // don't create importer pod but not an error
+	if !doCreate { // don't create importer pod but not an error
 		return nil // forget key; logging already done
 	}
 
@@ -238,20 +242,15 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	if err != nil {
 		return err
 	}
-	err = c.setPVCAnnotation(pvc, AnnImportPod, pod.Name)
-	if err != nil {
-		return errors.WithMessage(err, "could not annotate pod name in pvc")
-	}
-	// Add the label if it doesn't exist
-	// it should be noted that the label may actually exist but not
-	// recognized due to patched timing issues but since this is a
-	// simple map there is no harm in adding it again if we don't find it.
+	// update pvc with importer pod name and optional cdi label
+	anno := map[string]string{AnnImportPod: pod.Name}
+	var lab map[string]string
 	if !c.checkIfLabelExists(pvc, CDI_LABEL_KEY, CDI_LABEL_VALUE) {
-		glog.V(Vdebug).Infof("adding label \"%s\" to pvc, it does not exist", CDI_LABEL_SELECTOR)
-		err = c.setCdiLabel(pvc)
-		if err != nil {
-			return errors.WithMessage(err, fmt.Sprintf("could not set label %q on pvc %q", CDI_LABEL_SELECTOR, pvc.Name))
-		}
+		lab = map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}
+	}
+	pvc, err = c.updatePVC(pvc, anno, lab)
+	if err != nil {
+		return errors.WithMessage(err, "could not update pvc %q annotation and/or label")
 	}
 	return nil
 }

@@ -1,8 +1,8 @@
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/golang/glog"
 	. "github.com/kubevirt/containerized-data-importer/pkg/common"
@@ -10,8 +10,7 @@ import (
 	"k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/strategicpatch"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 const DataVolName = "cdi-data-vol"
@@ -63,37 +62,37 @@ func (c *Controller) podFromKey(key interface{}) (*v1.Pod, error) {
 //   a result the importer pod can be created twice (or more, presumably). To reduce this window
 //   a Get api call can be requested in order to get the latest copy of the pvc before verifying
 //   its annotations.
-func (c *Controller) checkPVC(pvc *v1.PersistentVolumeClaim, get bool) (bool, error) {
+func (c *Controller) checkPVC(pvc *v1.PersistentVolumeClaim, get bool) (ok bool, newPvc *v1.PersistentVolumeClaim, err error) {
 	// check if we have proper AnnEndPoint annotation
 	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnEndpoint) {
-		glog.V(Vdebug).Infof("checkPVC: annotation %q not found, skipping pvc\n", AnnEndpoint)
-		return false, nil
+		glog.V(Vadmin).Infof("pvc annotation %q not found, skipping pvc\n", AnnEndpoint)
+		return false, pvc, nil
 	}
 	//check if the pvc is being processed
 	if metav1.HasAnnotation(pvc.ObjectMeta, AnnImportPod) {
-		glog.V(Vadmin).Infof("pvc annotation %q exists indicating it is being or has been processed, skipping pvc\n", AnnImportPod)
-		return false, nil
+		glog.V(Vadmin).Infof("pvc annotation %q exists indicating in-progress or completed, skipping pvc\n", AnnImportPod)
+		return false, pvc, nil
 	}
 
 	if !get {
-		return true, nil // done checking this pvc, assume it's good to go
+		return true, pvc, nil // done checking this pvc, assume it's good to go
 	}
 
 	// get latest pvc object to help mitigate race and timing issues with latency between the
 	// store and work queue to double check if we are already processing
 	glog.V(Vdebug).Infof("checkPVC: getting latest version of pvc for in-process annotation")
-	latest, err := c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
+	newPvc, err = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
 	if err != nil {
-		glog.Infof("checkPVC: pvc Get error: %v\n", err)
-		return false, err
+		glog.Infof("checkPVC: pvc %q Get error: %v\n", pvc.Name, err)
+		return false, pvc, err
 	}
 	// check if we are processing this pvc now that we have the lastest copy
-	if metav1.HasAnnotation(latest.ObjectMeta, AnnImportPod) {
-		glog.V(Vadmin).Infof("pvc Get annotation %q exists indicating it is being or has been processed, skipping pvc\n", AnnImportPod)
-		return false, nil
+	if metav1.HasAnnotation(newPvc.ObjectMeta, AnnImportPod) {
+		glog.V(Vadmin).Infof("latest pvc annotation %q exists indicating in-progress or completed, skipping pvc\n", AnnImportPod)
+		return false, newPvc, nil
 	}
 	//continue to process pvc
-	return true, nil
+	return true, newPvc, nil
 }
 
 // returns the endpoint string which contains the full path URI of the target object to be copied.
@@ -138,55 +137,67 @@ func (c *Controller) getSecretName(pvc *v1.PersistentVolumeClaim) (string, error
 	return name, nil
 }
 
-func (c *Controller) patchPVC(oldData, newData []byte, pvc *v1.PersistentVolumeClaim) error {
-	// patch the pvc clone
-	patch, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, v1.PersistentVolumeClaim{})
-	if err != nil {
-		return errors.Wrap(err, "error creating pvc patch")
+// Update and return a copy of the passed-in pvc. Only one of the annotation or label maps is requred though
+// both can be passed.
+// Note: the only pvc changes supported are annotations and labels.
+func (c *Controller) updatePVC(pvc *v1.PersistentVolumeClaim, anno, label map[string]string) (*v1.PersistentVolumeClaim, error) {
+	glog.V(Vdebug).Infof("updatePVC: updating pvc \"%s/%s\" with anno: %+v and label: %+v", pvc.Namespace, pvc.Name, anno, label)
+
+	applyUpdt := func(claim *v1.PersistentVolumeClaim, a, l map[string]string) {
+		if a != nil {
+			claim.ObjectMeta.Annotations = addToMap(claim.ObjectMeta.Annotations, a)
+		}
+		if l != nil {
+			claim.ObjectMeta.Labels = addToMap(claim.ObjectMeta.Labels, l)
+		}
 	}
-	_, err = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Patch(pvc.Name, types.StrategicMergePatchType, patch)
-	if err != nil {
-		return errors.Wrapf(err, "error patching pvc %q", pvc.Name)
+
+	var updtPvc *v1.PersistentVolumeClaim
+	nsName := fmt.Sprintf("%s/%s", pvc.Namespace, pvc.Name)
+	// don't mutate the passed-in pvc since it's likely from the shared informer
+	pvcCopy := pvc.DeepCopy()
+
+	// loop a few times in case the pvc is stale
+	err := wait.PollImmediate(time.Second*1, time.Second*10, func() (bool, error) {
+		var e error
+		applyUpdt(pvcCopy, anno, label)
+		updtPvc, e = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(pvcCopy)
+		if e == nil {
+			return true, nil // successful update
+		}
+		if apierrs.IsConflict(e) { // pvc is likely stale
+			glog.V(Vdebug).Infof("pvc %q is stale, re-trying\n", nsName)
+			pvcCopy, e = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
+			if e == nil {
+				return false, nil // retry update
+			}
+			// Get failed, start over
+			pvcCopy = pvc.DeepCopy()
+		}
+		glog.Errorf("%q update/get error: %v\n", nsName, e)
+		return false, nil // retry
+	})
+
+	if err == nil {
+		glog.V(Vdebug).Infof("updatePVC: pvc %q updated", nsName)
+		return updtPvc, nil
 	}
-	return nil
+	return pvc, errors.Wrapf(err, "error updating pvc %q\n", nsName)
 }
 
-func (c *Controller) clonePVC(claim *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, []byte, error) {
-	pvcClone := claim.DeepCopy()
-	data, err := json.Marshal(pvcClone)
-	if err != nil {
-		return pvcClone, nil, errors.Wrap(err, "error marshalling pvc object")
-	}
-	return pvcClone, data, nil
+// Sets an annotation `key: val` in the given pvc. Returns the updated pvc.
+func (c *Controller) setPVCAnnotation(pvc *v1.PersistentVolumeClaim, key, val string) (*v1.PersistentVolumeClaim, error) {
+	glog.V(Vdebug).Infof("setPVCAnnotation: adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", key, val, pvc.Namespace, pvc.Name)
+	return c.updatePVC(pvc, map[string]string{key: val}, nil)
 }
 
-// Sets an annotation `key: val` in the given PVC.
-// Note: Patch() is used instead of Update() to handle version related field changes.
-func (c *Controller) setPVCAnnotation(pvc *v1.PersistentVolumeClaim, key, val string) error {
-	glog.V(Vdebug).Infof("Adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", key, val, pvc.Namespace, pvc.Name)
-
-	// don't mutate the original pvc since it's from the shared informer
-	// make copies of old pvc
-	pvcClone, oldData, err := c.clonePVC(pvc)
-	if err != nil {
-		return err
+// checks if annotation `key` has a value of `val`.
+func (c *Controller) checkIfAnnoExists(pvc *v1.PersistentVolumeClaim, key string, val string) bool {
+	value, exists := pvc.ObjectMeta.Annotations[key]
+	if exists && value == val {
+		return true
 	}
-
-	// add annotation to update pvc
-	metav1.SetMetaDataAnnotation(&pvcClone.ObjectMeta, key, val)
-
-	//make copies of new pvc
-	newData, err := json.Marshal(pvcClone)
-	if err != nil {
-		return errors.Wrap(err, "error marshalling pvc object")
-	}
-
-	//patch and merge the old and new pvc
-	err = c.patchPVC(oldData, newData, pvc)
-	if err != nil {
-		return err
-	}
-	return nil
+	return false
 }
 
 // checks if particular label exists in pvc
@@ -196,43 +207,6 @@ func (c *Controller) checkIfLabelExists(pvc *v1.PersistentVolumeClaim, lbl strin
 		return true
 	}
 	return false
-}
-
-// set the pvc's cdi label.
-// Note: Patch() is used instead of Update() to handle version related field changes.
-func (c *Controller) setCdiLabel(pvc *v1.PersistentVolumeClaim) error {
-	const funcTrace = "setCdiLabel"
-	glog.V(Vdebug).Infof("%s: adding label \"%s: %s\" to pvc %s\n", funcTrace, CDI_LABEL_KEY, CDI_LABEL_VALUE, pvc.Name)
-
-	// don't mutate the original pvc since it's from the shared informer
-	// make copies of old pvc
-	pvcClone, oldData, err := c.clonePVC(pvc)
-	if err != nil {
-		return err
-	}
-
-	// add label
-	setPvcMetaDataLabel(&pvcClone.ObjectMeta, CDI_LABEL_KEY, CDI_LABEL_VALUE)
-
-	// make copy of updated pvc
-	newData, err := json.Marshal(pvcClone)
-	if err != nil {
-		return errors.Wrap(err, "error marshalling new pvc data")
-	}
-
-	// patch the pvc clone
-	err = c.patchPVC(oldData, newData, pvc)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func setPvcMetaDataLabel(obj *metav1.ObjectMeta, key string, value string) {
-	if obj.Labels == nil {
-		obj.Labels = make(map[string]string)
-	}
-	obj.Labels[key] = value
 }
 
 // return a pointer to a pod which is created based on the passed-in endpoint, secret
@@ -334,4 +308,16 @@ func makeEnv(endpoint, secret string) []v1.EnvVar {
 		})
 	}
 	return env
+}
+
+// Return a new map consisting of map1 with map2 added. In general, map2 is expected to have a single key. eg
+// a single annotation or label. If map1 has the same key as map2 then map2's value is used.
+func addToMap(m1, m2 map[string]string) map[string]string {
+	if m1 == nil {
+		m1 = make(map[string]string)
+	}
+	for k, v := range m2 {
+		m1[k] = v
+	}
+	return m1
 }
