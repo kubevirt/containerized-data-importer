@@ -7,11 +7,7 @@ services:
 - docker
 
 env:
-  global:
-  - secure: p2MDt0w4jrbDERn3rBz4kO9GQCO3Bgzh2ge76aUP81Er3X8yKXmzLd8TdKKVg2ijT3/T3STdtSKbU3qbgzUT3QbOrn40X9IkK+PoWZaJ91bl9mDAZUey0duzzVIzWeHkOldA8B18QgmFYiWXMsbPFo+Pvi9O5OdInDAGvp6e9zL6QTUN6JsMFXVsBHehtaIv9o89ecaBkBiueO2K7mHd896UH4jYiyo6dGhmOIPUH5dwnJPXGujfFpCuU5vJXMkwryjARtzg78bQTQ2l7tvLhmqtepgjTC+NL0LgjP9Yj5SK8Zfuga+phzfeEH+NV0Mc3NBDgwWE0siWOHxjv/tdkILRm3bpLcjGG7aAgsip3NE3Hy04l3BJaWXMRJiHtpCq5vraGv5ix3RAmufbww40qLwT5ZQpA7VlQ8kkonuFw5v7cph/XnZQeqo6C/kb47LJbNwwTRG9xAzdwVsgQOU5TbYH/Xfj593b86clcmr4Kd6va3C9WUTWcxXsGsm8ZzFwhCxxP06bx8EDWk5RfEtUGaMUYSr2T4jfaHRCUGCkwvoVrWyKXcyT0fZg8Ay248PNK2ijp2A4xNKrDpqtKRyHX/ATIkIJwvbsKonfN+/hUJxn1a94+vOXcg2GWix090ZPkusPKmtOd4oUI+B4FwvJ3NxZEAeGeyZ1M8Zug2myBSA=
-  - secure: RfAvL8kqBzK4/r7NHX61rCevvua5BfMXIdFfhg/nI2XUxINtUuX9uNBkLsohZWwk1UDA6CWt8+jaW2SDcQrOz9PAU+RHfGHYQtMsEMbBWlw3FV2EpaZe+rMybQUSqh2fZSCACguxdDm7o1IZVTp+dD5dhQHK341isfYDtbfnKRn5zrmlNhAdrpJEJQTzHT1MBBBDfhBggVkxcSAMYpKC43mGH9kgKn7BSxaUK4I7xtuAAO1EflQWClTXyMrTm7oYxEld6qGNmLq0tsA0ff8qY9vTCCyu6NSIjGFSgJoRFApJDYfhV7NEQNEzAeGo1ljf4M4r/iMRllZaTnCcdsbXA01OnnIkYNwj1+OGOJe19XOvZslPDAl5K3H9bipYfP/CUKOlK5QgbPJsemi+NvUkNBSKZ6BHY1MURBFdvsiMEawhlhoQvZTcc/ONH8PqV0XZdyk8pCNL98o+Y7RVwReJJbTRfOgQQl/b/fPL0BwCjCp2GouwwKLkoLLbsjQPJ73chRsyAblT/SgcMFpm8eGFysCRvdnpy+omBxGiqrOBdYpDDZW2hWvtQ5AmpXGrAOXVDdPoF2O8693OqTr6DRST0n6U2g5Akst+4VKTamCFqY6tV8YZcf7mhuPQcpkl5OUtS509UNwLZi1/EL2xMGAvqX5Kni/tTJVWlSBe1q0TkgY=
-  matrix:
-  - CHANGE_MINIKUBE_NONE_USER=true K8S_VER=1.9.0 MK_VER=0.25.2 K6T_VER=0.4.0 SRC="http://www.tinycorelinux.net/9.x/x86/release/Core-current.iso"
+- CHANGE_MINIKUBE_NONE_USER=true K8S_VER=1.9.0 MK_VER=0.25.2 K6T_VER=0.4.0 SRC="http://www.tinycorelinux.net/9.x/x86/release/Core-current.iso"
 
 notifications:
   irc:
@@ -56,16 +52,14 @@ deploy:
   skip_cleanup: true
   on:
     branch: master
-    repo: kubevirt/containerized-data-importer
 - provider: releases
   api_key:
-    secure: ercU2aqp/MNwFz/ZuDzfQup+YABLYvDw9X126D2eXb/2f00v5cpjEnxEWDqBnVIeakkAt8lledyS0JqthRfQDhXJWKzHh5PfuEqjDKx6tx/yODsEZKK2bQ4hcII7f0RyBP/UlF4wBEWN6Rh3TxZfolfv8wQqJKvn8ft0nF2ZVInkbC74ZOyRZVWXlrcHf3mn/cWw9UKLQvDbFLrEs1T42rELaIzKuaOubBWSkLIz7/jS+OFRm27vdt1t+6hyiRihX4jOxKUu+UKz/rFVxQp0dUw0kkK3zaFTUYy47mkc7w/XemWiF2KGP72KuOWcdepEhtYxWskwOkLpYYw8J06w59HlUpAS81feCgGu5nQNzIZpsEN9JFF9y3ZdAENLih//IIWANz3yagiCUhjwmajTRmFJUqv6cGeT+36+AJZn/o3GaEPgnNsL8ruVxefQLBmH2XtzbFisqSEyEd1G8Oif1sJ+E3dJbaNNDkT3egmPqcLCrzQl3Oxl9NZZj66++jad0qol8jhJwYxSWQOyTSfyAZCYXHMhTtX1PwFGaZm+a/5erp9/zaYoRt0R5dNreCJ7u9Wfa2sSxfUGSEftwr63n2UyYluI+9Tyoa+y5qV6HzwxeXbEtbDwYSIIDVWrKn7Bk89XiXEhCBdvTUwArLtH1bxVce+YnbtqHZiaW3rBWpA=
+    secure: o3RvAnOm3q3ml1WVL1OY+8d1E5aC3WaoLepgDyuTIa6mSY+9W1jP/jRB2p/fiP02YB1PB0U65TxeFcwrf5T7lGzYbxlinZic2sJ0IEJdXpio3OD929+zx7YEjFxobFYptOoxbxRvo9t1drobiufLzCbF1oc/rRSLVkyRc1kL2ckFFbDOfSiUbGFCvM2jZmLgOL1ABUOgHgXq6oIyH8dmuW3RKKFjbF5n8RyH5dzCZVWH+BWuqM7jfCBh6v3CI/J8FP9M95bu0CF6yGM4txiqOiPQwd2qwk6W5auW2EafpAGg52nTVpBfUJG3faRZBAFuWAEUqjwCqigCGJx3AtARCI7glsq8IYPda56uxcQbv4qin65amo0FFzIWLGHq+ZDqwrf0fraZKQ5L6GykyGNRWS1e9kjcJtWk6QyMmy7zTYXHOLFq35CeCvssxRZfiHeXKrsaE3Wj763ywUQLbA3xyzBQFySPVHiWQSUTHyQjEji3GqNDhYtLHG2cA2+zhi3sYSPfTZ45ODmyQCSzZc023NDHdWBk1KwDTrO/JqhoL0hyho8apSV0rEZjywVeGvPn23Qb5FtevFv7WRdOSm/L+whwYv0K4XcKH9pCSdt40WV8IQoHXQ+MR+5FXC7Sw7TuqpKY3fq4aSRF2WzC+0Fj3vawQ7abOiytEyikLTwm1/E=
   skip_cleanup: true
   overwrite: true
   file:
-  - bin/import-controller
-  - bin/importer
+    - bin/import-controller
+    - bin/importer
   on:
     branch: master
     repo: kubevirt/containerized-data-importer
-
