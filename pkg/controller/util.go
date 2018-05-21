@@ -137,7 +137,7 @@ func (c *Controller) getSecretName(pvc *v1.PersistentVolumeClaim) (string, error
 	return name, nil
 }
 
-// Update and return a copy of the passed-in pvc. Only one of the annotation or label maps is requred though
+// Update and return a copy of the passed-in pvc. Only one of the annotation or label maps is required though
 // both can be passed.
 // Note: the only pvc changes supported are annotations and labels.
 func (c *Controller) updatePVC(pvc *v1.PersistentVolumeClaim, anno, label map[string]string) (*v1.PersistentVolumeClaim, error) {
