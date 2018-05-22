@@ -37,14 +37,29 @@ script:
 before_deploy:
 - git config --local user.name "copejon"
 - git config --local user.email "copejon@redhat.com"
-- source version && git tag -f $RELEASE_TAG
+- docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
 deploy:
+# When a git tag is set, propagate the new version throughout CDI and
+# publish new images with the tag
 - provider: script
   on:
     branch: master
     repo: kubevirt/containerized-data-importer
-  script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS" && make release
+  script: hack/version-and-deploy.sh $TRAVIS_TAG
   skip_cleanup: true
+  on:
+    branch: master
+    repo: kubevirt/containerized-data-importer
+    tags: true
+# When a PR is merged into master, build and push fresh CDI
+# images with the current version
+- provider: script
+  script: make release
+  skip_cleanup: true
+  on:
+    branch: master
+    repo: kubevirt/containerized-data-importer
+# When a PR is merged into master, build and upload fresh binaries
 - provider: releases
   on:
     repo: kubevirt/containerized-data-importer
