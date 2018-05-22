@@ -11,23 +11,19 @@ import (
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 )
 
 const DataVolName = "cdi-data-vol"
 
 // return a pvc pointer based on the passed-in work queue key.
 func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, error) {
-	keyString, ok := key.(string)
-	if !ok {
-		return nil, errors.New("key object not of type string")
-	}
-	obj, ok, err := c.pvcInformer.GetIndexer().GetByKey(keyString)
+	obj, err := c.objFromKey(c.pvcInformer, key)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Error getting key %q from cache", keyString)
+		return nil, errors.Wrap(err, "could not get pvc object from key")
 	}
-	if !ok {
-		return nil, errors.Errorf("key %q not found in cache", keyString)
-	}
+
 	pvc, ok := obj.(*v1.PersistentVolumeClaim)
 	if !ok {
 		return nil, errors.New("Object not of type *v1.PersistentVolumeClaim")
@@ -36,22 +32,31 @@ func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, err
 }
 
 func (c *Controller) podFromKey(key interface{}) (*v1.Pod, error) {
-	keyString, ok := key.(string)
-	if !ok {
-		return nil, errors.New("keys is not of type string")
-	}
-	obj, ok, err := c.podInformer.GetIndexer().GetByKey(keyString)
+	obj, err := c.objFromKey(c.podInformer, key)
 	if err != nil {
-		return nil, errors.Wrap(err, "error getting pod obj from store")
+		return nil, errors.Wrap(err, "could not get pod object from key")
 	}
-	if !ok {
-		return nil, errors.New("pod not found in store")
-	}
+
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
 		return nil, errors.New("error casting object to type \"v1.Pod\"")
 	}
 	return pod, nil
+}
+
+func (c *Controller) objFromKey(informer cache.SharedIndexInformer, key interface{}) (interface{}, error) {
+	keyString, ok := key.(string)
+	if !ok {
+		return nil, errors.New("keys is not of type string")
+	}
+	obj, ok, err := informer.GetIndexer().GetByKey(keyString)
+	if err != nil {
+		return nil, errors.Wrap(err, "error getting interface obj from store")
+	}
+	if !ok {
+		return nil, errors.New("interface object not found in store")
+	}
+	return obj, nil
 }
 
 // checkPVC verifies that the passed-in pvc is one we care about. Specifically, it must have the
@@ -62,7 +67,7 @@ func (c *Controller) podFromKey(key interface{}) (*v1.Pod, error) {
 //   a result the importer pod can be created twice (or more, presumably). To reduce this window
 //   a Get api call can be requested in order to get the latest copy of the pvc before verifying
 //   its annotations.
-func (c *Controller) checkPVC(pvc *v1.PersistentVolumeClaim, get bool) (ok bool, newPvc *v1.PersistentVolumeClaim, err error) {
+func checkPVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, get bool) (ok bool, newPvc *v1.PersistentVolumeClaim, err error) {
 	// check if we have proper AnnEndPoint annotation
 	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnEndpoint) {
 		glog.V(Vadmin).Infof("pvc annotation %q not found, skipping pvc\n", AnnEndpoint)
@@ -81,7 +86,7 @@ func (c *Controller) checkPVC(pvc *v1.PersistentVolumeClaim, get bool) (ok bool,
 	// get latest pvc object to help mitigate race and timing issues with latency between the
 	// store and work queue to double check if we are already processing
 	glog.V(Vdebug).Infof("checkPVC: getting latest version of pvc for in-process annotation")
-	newPvc, err = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
+	newPvc, err = client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
 	if err != nil {
 		glog.Infof("checkPVC: pvc %q Get error: %v\n", pvc.Name, err)
 		return false, pvc, err
@@ -111,7 +116,7 @@ func getEndpoint(pvc *v1.PersistentVolumeClaim) (string, error) {
 // returns the name of the secret containing endpoint credentials consumed by the importer pod.
 // A value of "" implies there are no credentials for the endpoint being used. A returned error
 // causes processNextItem() to stop.
-func (c *Controller) getSecretName(pvc *v1.PersistentVolumeClaim) (string, error) {
+func getSecretName(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (string, error) {
 	ns := pvc.Namespace
 	name, found := pvc.Annotations[AnnSecret]
 	if !found || name == "" {
@@ -125,7 +130,7 @@ func (c *Controller) getSecretName(pvc *v1.PersistentVolumeClaim) (string, error
 		return "", nil // importer pod will not contain secret credentials
 	}
 	glog.V(Vdebug).Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, name)
-	_, err := c.clientset.CoreV1().Secrets(ns).Get(name, metav1.GetOptions{})
+	_, err := client.CoreV1().Secrets(ns).Get(name, metav1.GetOptions{})
 	if apierrs.IsNotFound(err) {
 		glog.V(Vuser).Infof("secret %q defined in pvc \"%s/%s\" is missing. Importer pod will run once this secret is created\n", name, ns, pvc.Name)
 		return name, nil
@@ -140,7 +145,7 @@ func (c *Controller) getSecretName(pvc *v1.PersistentVolumeClaim) (string, error
 // Update and return a copy of the passed-in pvc. Only one of the annotation or label maps is required though
 // both can be passed.
 // Note: the only pvc changes supported are annotations and labels.
-func (c *Controller) updatePVC(pvc *v1.PersistentVolumeClaim, anno, label map[string]string) (*v1.PersistentVolumeClaim, error) {
+func updatePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, anno, label map[string]string) (*v1.PersistentVolumeClaim, error) {
 	glog.V(Vdebug).Infof("updatePVC: updating pvc \"%s/%s\" with anno: %+v and label: %+v", pvc.Namespace, pvc.Name, anno, label)
 
 	applyUpdt := func(claim *v1.PersistentVolumeClaim, a, l map[string]string) {
@@ -161,13 +166,13 @@ func (c *Controller) updatePVC(pvc *v1.PersistentVolumeClaim, anno, label map[st
 	err := wait.PollImmediate(time.Second*1, time.Second*10, func() (bool, error) {
 		var e error
 		applyUpdt(pvcCopy, anno, label)
-		updtPvc, e = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(pvcCopy)
+		updtPvc, e = client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(pvcCopy)
 		if e == nil {
 			return true, nil // successful update
 		}
 		if apierrs.IsConflict(e) { // pvc is likely stale
 			glog.V(Vdebug).Infof("pvc %q is stale, re-trying\n", nsName)
-			pvcCopy, e = c.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
+			pvcCopy, e = client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
 			if e == nil {
 				return false, nil // retry update
 			}
@@ -186,13 +191,13 @@ func (c *Controller) updatePVC(pvc *v1.PersistentVolumeClaim, anno, label map[st
 }
 
 // Sets an annotation `key: val` in the given pvc. Returns the updated pvc.
-func (c *Controller) setPVCAnnotation(pvc *v1.PersistentVolumeClaim, key, val string) (*v1.PersistentVolumeClaim, error) {
+func setPVCAnnotation(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, key, val string) (*v1.PersistentVolumeClaim, error) {
 	glog.V(Vdebug).Infof("setPVCAnnotation: adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", key, val, pvc.Namespace, pvc.Name)
-	return c.updatePVC(pvc, map[string]string{key: val}, nil)
+	return updatePVC(client, pvc, map[string]string{key: val}, nil)
 }
 
 // checks if annotation `key` has a value of `val`.
-func (c *Controller) checkIfAnnoExists(pvc *v1.PersistentVolumeClaim, key string, val string) bool {
+func checkIfAnnoExists(pvc *v1.PersistentVolumeClaim, key string, val string) bool {
 	value, exists := pvc.ObjectMeta.Annotations[key]
 	if exists && value == val {
 		return true
@@ -201,7 +206,7 @@ func (c *Controller) checkIfAnnoExists(pvc *v1.PersistentVolumeClaim, key string
 }
 
 // checks if particular label exists in pvc
-func (c *Controller) checkIfLabelExists(pvc *v1.PersistentVolumeClaim, lbl string, val string) bool {
+func checkIfLabelExists(pvc *v1.PersistentVolumeClaim, lbl string, val string) bool {
 	value, exists := pvc.ObjectMeta.Labels[lbl]
 	if exists && value == val {
 		return true
@@ -212,20 +217,20 @@ func (c *Controller) checkIfLabelExists(pvc *v1.PersistentVolumeClaim, lbl strin
 // return a pointer to a pod which is created based on the passed-in endpoint, secret
 // name, and pvc. A nil secret means the endpoint credentials are not passed to the
 // importer pod.
-func (c *Controller) createImporterPod(ep, secretName string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+func CreateImporterPod(client kubernetes.Interface, image, verbose, pullPolicy, ep, secretName string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
 	ns := pvc.Namespace
-	pod := c.makeImporterPodSpec(ep, secretName, pvc)
+	pod := MakeImporterPodSpec(image, verbose, pullPolicy, ep, secretName, pvc)
 
-	pod, err := c.clientset.CoreV1().Pods(ns).Create(pod)
+	pod, err := client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
 		return nil, errors.Wrap(err, "importer pod API create errored")
 	}
-	glog.V(Vuser).Infof("importer pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, c.importerImage)
+	glog.V(Vuser).Infof("importer pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
 	return pod, nil
 }
 
 // return the importer pod spec based on the passed-in endpoint, secret and pvc.
-func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
+func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	// importer pod name contains the pvc name
 	podName := fmt.Sprintf("%s-%s-", IMPORTER_PODNAME, pvc.Name)
 
@@ -247,15 +252,15 @@ func (c *Controller) makeImporterPodSpec(ep, secret string, pvc *v1.PersistentVo
 			Containers: []v1.Container{
 				{
 					Name:            IMPORTER_PODNAME,
-					Image:           c.importerImage,
-					ImagePullPolicy: v1.PullPolicy(c.pullPolicy),
+					Image:           image,
+					ImagePullPolicy: v1.PullPolicy(pullPolicy),
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      DataVolName,
 							MountPath: IMPORTER_DATA_DIR,
 						},
 					},
-					Args: []string{"-v=" + c.verbose},
+					Args: []string{"-v=" + verbose},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyNever,
