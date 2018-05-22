@@ -174,8 +174,8 @@ func (c *Controller) processPodItem(pod *v1.Pod) error {
 	}
 	// see if pvc's importer pod phase anno needs to be added/updated
 	phase := string(pod.Status.Phase)
-	if !c.checkIfAnnoExists(pvc, AnnPodPhase, phase) {
-		pvc, err = c.setPVCAnnotation(pvc, AnnPodPhase, phase)
+	if !checkIfAnnoExists(pvc, AnnPodPhase, phase) {
+		pvc, err = setPVCAnnotation(c.clientset, pvc, AnnPodPhase, phase)
 		if err != nil {
 			return errors.WithMessage(err, fmt.Sprintf("could not set annotation \"%s: %s\" on pvc %q", AnnPodPhase, phase, pvc.Name))
 			glog.V(Vdebug).Infof("processPodItem: pod phase %q annotated in pvc %q", pod.Status.Phase, pvcKey)
@@ -199,7 +199,7 @@ func (c *Controller) ProcessNextPvcItem() bool {
 		return c.forgetKey(key, fmt.Sprintf("ProcessNextPvcItem: error converting key %v to pvc: %v", key, err))
 	}
 	// filter pvc and decide if the importer pod should be created
-	if continue_processing, _, _ := c.checkPVC(pvc, false); !continue_processing {
+	if continue_processing, _, _ := checkPVC(c.clientset, pvc, false); !continue_processing {
 		return c.forgetKey(key, fmt.Sprintf("ProcessNextPvcItem: skipping pvc %q\n", key))
 	}
 	glog.V(Vdebug).Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)
@@ -219,7 +219,7 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	if err != nil {
 		return err
 	}
-	secretName, err := c.getSecretName(pvc)
+	secretName, err := getSecretName(c.clientset, pvc)
 	if err != nil {
 		return err
 	}
@@ -229,7 +229,7 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 
 	// check our existing pvc one more time to ensure we should be working on it
 	// and to help mitigate any race conditions. This time we get the latest pvc.
-	doCreate, pvc, err := c.checkPVC(pvc, true)
+	doCreate, pvc, err := checkPVC(c.clientset, pvc, true)
 	if err != nil { // maybe an intermittent api error
 		return err
 	}
@@ -238,17 +238,17 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	}
 
 	// all checks passed, let's create the importer pod!
-	pod, err := c.createImporterPod(ep, secretName, pvc)
+	pod, err := CreateImporterPod(c.clientset, c.importerImage, c.verbose, c.pullPolicy, ep, secretName, pvc)
 	if err != nil {
 		return err
 	}
 	// update pvc with importer pod name and optional cdi label
 	anno := map[string]string{AnnImportPod: pod.Name}
 	var lab map[string]string
-	if !c.checkIfLabelExists(pvc, CDI_LABEL_KEY, CDI_LABEL_VALUE) {
+	if !checkIfLabelExists(pvc, CDI_LABEL_KEY, CDI_LABEL_VALUE) {
 		lab = map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}
 	}
-	pvc, err = c.updatePVC(pvc, anno, lab)
+	pvc, err = updatePVC(c.clientset, pvc, anno, lab)
 	if err != nil {
 		return errors.WithMessage(err, "could not update pvc %q annotation and/or label")
 	}
