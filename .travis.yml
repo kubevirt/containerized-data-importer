@@ -46,14 +46,3 @@ deploy:
     repo: kubevirt/containerized-data-importer
   script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS" && make release
   skip_cleanup: true
-- provider: releases
-  on:
-    branch: master
-    repo: kubevirt/containerized-data-importer
-  api_key:
-    secure: "Hf0MGVGcB7mzrqERmhz0f1gh9Nlw1j2t+cv7W+mo/TUKMO4+Sn6ozPEX1W1aP/jPU3n5QsluTLiUXRq87D/8slpICruOSdAnbNgi/Jx7NDD0PQmyRYX58pRzLMZ58+gYenI8OX0O3yvhtNzAN2yjbyS7O403mVuuUl6a8nxwiKsPOFmanbSj9w7tWpH6iB1luzuctzvfaXWyXiBNqZOcJxW9i6k5+aVGgtwvT5AGL/SelaoPk73HKV1xTKdfQYD5kkR8bQ0fOWEbW4zAHw+ZSz9vz0n83Zgw0cLJXP96wKeX8dik/RxclgbRPtN5Gyz0XwHkeKg+hQ0vEbh/SIa4+JPYNfEq8XTgajTzdhNFIytb4mmgqxfuwEg/vZE0xRYB7ZU57UeaxhBYwIeJJGzqZMzw5xojtZoaus8JGsJ6aAznw8RI0+pNSVJGSLDjLwXtSWFPCY4B9dnRdrJ522dx32FyxFXQ2yYzOLG/87z3twyeveH3KMQlrH8ixDkOApS14WIlUgwqckbt/Cm4wlbQ4q5EV2T9PeeVxKQKMEJ83RyiMbqaDZ7RI8I0iHLUczJ4G3+Y36/ddLvJadMJiUs1QHQfA8LnzsgVPLL3p0t4RAY9tWeoWoeYcQEimrZZFWlg9UeWxCO+ex908KqNXMoW9qE/fcvekVQgl1TpDoZWIO4="
-  overwrite: true
-  file:
-  - bin/import-controller
-  - bin/importer
-  - manifests/controller/cdi-controller-deployment.yaml
