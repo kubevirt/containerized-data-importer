@@ -2,20 +2,16 @@ sudo: required
 language: go
 go:
 - 1.10.x
-
 services:
 - docker
-
 env:
 - CHANGE_MINIKUBE_NONE_USER=true K8S_VER=1.9.0 MK_VER=0.25.2 K6T_VER=0.4.0 SRC="http://www.tinycorelinux.net/9.x/x86/release/Core-current.iso"
-
 notifications:
   irc:
     channels:
     - chat.freenode.net#kubevirt
     on_success: change
     on_failure: always
-
 before_script:
 - curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/v$K8S_VER/bin/linux/amd64/kubectl
   && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
@@ -30,7 +26,6 @@ before_script:
   | wc -l)" -gt 1 ]]; do kubectl get $1 --all-namespaces ; sleep 6; done ; }
 - kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/v$K6T_VER/kubevirt.yaml
 - k_wait_all_running pods
-
 script:
 - kubectl apply -f manifests/example/endpoint-secret.yaml
 - kubectl apply -f manifests/controller/cdi-controller-deployment.yaml
@@ -39,27 +34,26 @@ script:
 - k_wait_all_running pods
 - kubectl get pods --all-namespaces
 - make test
-
 before_deploy:
 - make controller importer
 - git config --local user.name "screeley44"
 - git config --local user.email "screeley@redhat.com"
 - source version && git tag -f $RELEASE_TAG
-
 deploy:
 - provider: script
-  script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS" && make release
-  skip_cleanup: true
-  on:
-    branch: master
-- provider: releases
-  api_key:
-    secure: o3RvAnOm3q3ml1WVL1OY+8d1E5aC3WaoLepgDyuTIa6mSY+9W1jP/jRB2p/fiP02YB1PB0U65TxeFcwrf5T7lGzYbxlinZic2sJ0IEJdXpio3OD929+zx7YEjFxobFYptOoxbxRvo9t1drobiufLzCbF1oc/rRSLVkyRc1kL2ckFFbDOfSiUbGFCvM2jZmLgOL1ABUOgHgXq6oIyH8dmuW3RKKFjbF5n8RyH5dzCZVWH+BWuqM7jfCBh6v3CI/J8FP9M95bu0CF6yGM4txiqOiPQwd2qwk6W5auW2EafpAGg52nTVpBfUJG3faRZBAFuWAEUqjwCqigCGJx3AtARCI7glsq8IYPda56uxcQbv4qin65amo0FFzIWLGHq+ZDqwrf0fraZKQ5L6GykyGNRWS1e9kjcJtWk6QyMmy7zTYXHOLFq35CeCvssxRZfiHeXKrsaE3Wj763ywUQLbA3xyzBQFySPVHiWQSUTHyQjEji3GqNDhYtLHG2cA2+zhi3sYSPfTZ45ODmyQCSzZc023NDHdWBk1KwDTrO/JqhoL0hyho8apSV0rEZjywVeGvPn23Qb5FtevFv7WRdOSm/L+whwYv0K4XcKH9pCSdt40WV8IQoHXQ+MR+5FXC7Sw7TuqpKY3fq4aSRF2WzC+0Fj3vawQ7abOiytEyikLTwm1/E=
-  skip_cleanup: true
-  overwrite: true
-  file:
-    - bin/import-controller
-    - bin/importer
   on:
     branch: master
     repo: kubevirt/containerized-data-importer
+  script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS" && make release
+  skip_cleanup: true
+- provider: releases
+  on:
+    branch: master
+    repo: kubevirt/containerized-data-importer
+  api_key:
+    secure: M+Nzjk8lVbb66FwGVlNUlG4PtHX2TfixFOGNstgB1LhnvlX0QUgcI+Nnov6KdVBTE8XT8uvve7bMQNKeu5ce9TpJCPh5rFg0DbvYuQ1jRUw/w3Jx6CTcRTE1yYJxN0PbZ+fJ3mBogclMK4HuuA4WKvjz2jNtNAJzPg0bluO0qjZrV5SbodyojfOpW5ogQb8aBce8zpoXsx0uBMe6qdBe1BMIoi9vTcL3NDbfai9N0WABH5lCT3awQnIkIyCR2GQ1GT2BWQLERslCYqRQdDQ5HmIa9egFvaYaBqQco0rpyIwg0qtT40xiThZZsve1ADbwbbU6sGHJiWsORxI9cu+SBnNH+h0WOEMgps9ngl4KBOyZQvuUW+2jWYzIqKklWfbAq3/fnRx9eODPZ7b2Gex7XTGcpXNMO/5jBZV0nSKtBjy1zsvomJz+2AquJkfmSjsE3FlguT1RAmeBr5gGGiUBuU90NoLI3oA7S5leFfoWcg6f8+vQUpP67dvWpjYRwfAddeDzMBLLAxFeyMkHiXiZBomiVzt3h2d/bksh5gkfyIVT29+snzGtmnAcC+idMhOPWY5KCIE6lM1casQO9i/XdNZWlmE59XnHFVnU5igOAHA09vsvDx90Rkx/25WuwZXYkxCcGCxbiZnKIZyr69ly1eRjNP903MUgzZJXBhhB2Oc=
+  overwrite: true
+  file:
+  - bin/import-controller
+  - bin/importer
+  - manifests/controller/cdi-controller-deployment.yaml
