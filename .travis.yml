@@ -56,4 +56,3 @@ deploy:
   - bin/importer
   - bin/import-controller
   - manifests/controller/cdi-controller-deployment.yaml
-

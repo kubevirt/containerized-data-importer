@@ -1,6 +1,6 @@
 // +build functional_test
 
-package datastream
+package importer
 
 import (
 	"fmt"
@@ -146,6 +146,11 @@ var _ = Describe("Streaming Data Conversion", func() {
 				// Generate the expected data format from the random bytes
 				sampleFilename, err := f.FormatTestData(fn, ff...)
 				Expect(err).NotTo(HaveOccurred(), "Error formatting test data.")
+				defer func() {
+					if sampleFilename != fn {     // don't rm source file
+						os.Remove(sampleFilename) // ignore err
+					}
+				}()
 				Expect(sampleFilename).To(Equal(of), "Test data filename doesn't match expected file name.")
 
 				By("Creating a local dataStream w/o auth credentials")
