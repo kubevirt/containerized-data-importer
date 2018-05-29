@@ -17,7 +17,7 @@ F_TEST_BIN=$(BIN_DIR)/$(F_TEST)
 CMD_DIR=$(REPO_ROOT)/cmd
 CONTROLLER_CMD=$(CMD_DIR)/$(CONTROLLER)
 IMPORTER_CMD=$(CMD_DIR)/$(IMPORTER)
-F_TEST_DIR=$(REPO_ROOT)/test/datastream
+F_TEST_DIR=$(REPO_ROOT)/test/functional/importer
 F_IMG_DIR=$(REPO_ROOT)/test/images/tinyCore.iso
 
 # Build Dirs

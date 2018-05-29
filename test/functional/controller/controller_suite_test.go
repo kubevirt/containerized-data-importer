@@ -1,6 +1,6 @@
 // +build unit_test
 
-package controller_test
+package controller
 
 import (
 	. "github.com/onsi/ginkgo"

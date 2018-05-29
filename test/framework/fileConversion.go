@@ -19,29 +19,26 @@ var formatTable = map[string]func(string) (string, error){
 
 func FormatTestData(srcFile string, targetFormats ...string) (string, error) {
 
-	var (
-		err     error
-		outFile = srcFile
-	)
+	outFile := srcFile
+	var err error
+	var prevFile string
 
 	for _, tf := range targetFormats {
+		f, ok := formatTable[tf]
+		if !ok {
+			return "", errors.Errorf("format extension %q not recognized", tf)
+		}
+		if len(tf) == 0 {
+			continue
+		}
+		outFile, err = f(outFile)
+		if prevFile != srcFile {
+			os.Remove(prevFile)
+		}
 		if err != nil {
-			break
+			return "", errors.Wrap(err, "could not format test data")
 		}
-		i := 0
-		for ftkey, ffunc := range formatTable {
-			if tf == ftkey {
-				outFile, err = ffunc(outFile)
-				break
-			} else if i == len(formatTable)-1 {
-				err = errors.Errorf("format extension %q not recognized", tf)
-			}
-			i++
-		}
-	}
-
-	if err != nil {
-		return "", errors.Wrap(err, "could not format test data")
+		prevFile = outFile
 	}
 	return outFile, nil
 }
@@ -50,7 +47,7 @@ func transformFile(srcFile, outfileName, osCmd string, osArgs ...string) (string
 	cmd := exec.Command(osCmd, osArgs...)
 	cout, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", errors.Wrapf(err, "OS command %s %v errored with output: %v", osCmd, strings.Join(osArgs, " "), cout)
+		return "", errors.Wrapf(err, "OS command %s %v errored with output: %v", osCmd, strings.Join(osArgs, " "), string(cout))
 	}
 	finfo, err := os.Stat(outfileName)
 	if err != nil {

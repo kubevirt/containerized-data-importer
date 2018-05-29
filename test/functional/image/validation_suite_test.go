@@ -1,6 +1,6 @@
-// +build unit_test
+// +build unit
 
-package importer_test
+package image
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestImporter(t *testing.T) {
+func TestValidation(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Importer Suite")
+	RunSpecs(t, "Validation Suite")
 }

@@ -1,6 +1,6 @@
 // +build unit_test
 
-package importer_test
+package importer
 
 import (
 	"bytes"

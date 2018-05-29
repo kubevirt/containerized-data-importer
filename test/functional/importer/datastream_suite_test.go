@@ -1,6 +1,6 @@
 // +build functional_test
 
-package datastream
+package importer
 
 import (
 	"testing"
