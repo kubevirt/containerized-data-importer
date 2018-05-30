@@ -35,7 +35,6 @@ script:
 - kubectl get pods --all-namespaces
 - make test
 before_deploy:
-- make controller importer
 - git config --local user.name "copejon"
 - git config --local user.email "copejon@redhat.com"
 - source version && git tag -f $RELEASE_TAG
