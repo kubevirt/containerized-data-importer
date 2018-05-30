@@ -17,7 +17,7 @@
 set -eou pipefail
 
 # doIncrement replaces the oldVersion value with the newVersion in the given file
-function doIncrement(){
+function setNewVersion(){
     local file=$1
     local oldVersion=$2
     local newVersion=$3
@@ -27,8 +27,10 @@ function doIncrement(){
 
 # commitAndPush indexes only the files where versions are known to be specified,
 # commits the changes, and pushes to master
+# Parameters:
+#     $@: Known files containing an updated version value
 function commitAndPush(){
-    git add "${TARGET_FILES[*]}"
+    git add "$@"
     git commit -m "CI: versioning commit performed via automation"
     git push origin master
 }
@@ -38,14 +40,19 @@ function commitAndPush(){
 # the version values in the project, a new commit will be pushed to origin.
 # This will cause the human defined tag to fall 1 behind the commit where the
 # values are changed.  Thus, it is necessary to "shift" the tag by one.
+# Note: this initiates a 2nd run of the CI, which is short circuited below
+# by comparing tags.
 function shiftTag(){
     local versionTag=$1
 
-    git push origin ":refs/tags/$versionTag"
+    git push origin ":refs/tags/$versionTag" # delete the human defined tag
     git tag -f -a "$versionTag" -m "CI: tag set via automation"
     git push origin master "$versionTag"
 }
 
+################
+#     MAIN     #
+################
 # containerized-data-importer/
 REPO_ROOT=$(realpath $(dirname $0)/../)
 
@@ -67,8 +74,8 @@ if [[ "$OLD_RELEASE_TAG" == "$NEW_RELEASE_TAG" ]]; then
     exit 0
 fi
 
-for f in  ${TARGET_FILES[*]}; do
-    doIncrement $f $OLD_RELEASE_TAG $NEW_RELEASE_TAG
+for f in "${TARGET_FILES[*]}"; do
+    setNewVersion $f $OLD_RELEASE_TAG $NEW_RELEASE_TAG
 done
-commitAndPush
+commitAndPush "${TARGET_FILES[*]}"
 shiftTag

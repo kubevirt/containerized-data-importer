@@ -5,11 +5,8 @@ go:
 services:
 - docker
 env:
-  matrix:
-  - CHANGE_MINIKUBE_NONE_USER=true K8S_VER=1.9.0 MK_VER=0.25.2 K6T_VER=0.4.0 SRC="http://www.tinycorelinux.net/9.x/x86/release/Core-current.iso"
   global:
-    - GH_USER='copejon'
-    - GH_EMAIL='jcope@redhat.com'
+    - CHANGE_MINIKUBE_NONE_USER=true K8S_VER=1.9.0 MK_VER=0.25.2 K6T_VER=0.4.0 SRC="http://www.tinycorelinux.net/9.x/x86/release/Core-current.iso"
     - secure: jPx5Nleoi0hidCiLAEWBLr8Wt4GXWzwSwNq9x3uL6WvruxKJwrcyKzYNKqgZoLFazzE+D94vf7jbxC9VgvJVknAsg7BelaOuaG4IJL3ayLAG6oyT1M7l6IRJq9BqSxxnOL8VTsRvYwAGUid98XOo/Lk4H5FF6YbGyP7CXbF1HNLGdBj9xiIUku6gvEs4rP0E61i2ihdP0uKQLCPncsyUvCITTFQNDBrOsHIPdJhVQpf31Xgx0HdOIaOAbVMecXNkWzplx0iyfrkB81hZiWkEKCqftUZrXwwkHK6jSzEt58sxeh8R6oRdLTL7YClrlXusT8wz7fljYbhqTsVN09KDVjJPYWH+3YKP0kT0E9EFmxDvVH6NQzXQGP6jqiU3CcTjK5IwFbowDMx9hjE+UgASSiQajPjKX3DDOCQtFZ1WG2xI+WgagDcp1VH7kcXVoibBoL+I0C+Zkl5UCDNzDwINTg7ox8V4x3W/7KP+dvaAlPN8fS+Y4V4MuXhqoe8Z+PNor7pdamyRPCsfd8Z+Z7EG0Zh1AA0YKOVNaD3e3grsFoS7DFV+I09k5Ec7/HgrIjLm1GjLQ27uWouryM1TnTMTRHiNTwlNkKXBOW/ufWOynrVizg1SlIVRWI+YduKeleFUmM3up2E/nO+FLB0Epvv+jShBfQ35ALYe4osNgzFjt3w=
 notifications:
   irc:
@@ -40,11 +37,10 @@ script:
 - kubectl get pods --all-namespaces
 - make test
 before_deploy:
-- git config --local user.name ${GH_USER}
-- git config --local user.email ${GH_EMAIL}
 - git remote add https://${GH_TOKEN}@github.com/kubevirt/containerized-data-importer.git
 - docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
 deploy:
+# Increment version if tagged
 - provider: script
   on:
     branch: master
@@ -52,12 +48,14 @@ deploy:
     tags: true
   script: hack/version-and-deploy.sh $TRAVIS_TAG
   skip_cleanup: true
+# Release new docker images
 - provider: script
   script: make release
   skip_cleanup: true
   on:
     branch: master
     repo: kubevirt/containerized-data-importer
+# Upload the latest files
 - provider: releases
   on:
     repo: kubevirt/containerized-data-importer
