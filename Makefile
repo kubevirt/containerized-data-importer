@@ -1,5 +1,3 @@
-include version # Provides `RELEASE_TAG` variable for versioning
-
 REPO_ROOT=$(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 # Basenames
@@ -28,6 +26,7 @@ IMPORTER_BUILD=$(BUILD_DIR)/$(IMPORTER)
 # DOCKER TAG VARS
 REGISTRY=jcoperh
 RELEASE_REGISTRY=kubevirt
+RELEASE_TAG=$(shell cat $(REPO_ROOT)/version)
 CTRL_IMG_NAME=cdi-$(CONTROLLER)
 IMPT_IMG_NAME=cdi-$(IMPORTER)
 GIT_USER=$(shell git config --get user.email | sed 's/@.*//')
