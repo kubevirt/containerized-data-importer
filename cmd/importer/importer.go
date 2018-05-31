@@ -15,13 +15,10 @@ package main
 import (
 	"flag"
 	"os"
-	"path/filepath"
 
 	"github.com/golang/glog"
 	. "github.com/kubevirt/containerized-data-importer/pkg/common"
-	"github.com/kubevirt/containerized-data-importer/pkg/image"
 	. "github.com/kubevirt/containerized-data-importer/pkg/importer"
-	"github.com/pkg/errors"
 )
 
 func init() {
@@ -32,22 +29,12 @@ func main() {
 	defer glog.Flush()
 
 	glog.V(Vuser).Infoln("Starting importer")
-	ep, err := ParseEndpoint("")
-	if err != nil {
-		glog.Errorf("Could not get endpoint: %+v", err)
-		os.Exit(1)
-	}
-	acc := ParseEnvVar(IMPORTER_ACCESS_KEY_ID, false)
-	sec := ParseEnvVar(IMPORTER_SECRET_KEY, false)
-	fn := filepath.Base(ep.Path)
-	if !image.IsSupporedFileType(fn) {
-		err := errors.Errorf("unsupported source file %q. Supported types: %v\n", fn, image.SupportedFileExtensions)
-		glog.Errorf("%+v", err)
-		os.Exit(1)
-	}
-	glog.V(Vuser).Infof("beginning import from %q\n", ep.Path)
-	dataStream := NewDataStream(ep, acc, sec)
-	err = dataStream.Copy(IMPORTER_WRITE_PATH)
+	ep, _ := ParseEnvVar(IMPORTER_ENDPOINT, false)
+	acc, _ := ParseEnvVar(IMPORTER_ACCESS_KEY_ID, false)
+	sec, _ := ParseEnvVar(IMPORTER_SECRET_KEY, false)
+
+	glog.V(Vuser).Infof("beginning import from %q\n", ep)
+	err := CopyImage(IMPORTER_WRITE_PATH, ep, acc, sec)
 	if err != nil {
 		glog.Errorf("%+v", err)
 		os.Exit(1)

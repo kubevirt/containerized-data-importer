@@ -12,22 +12,26 @@ import (
 	"github.com/pkg/errors"
 )
 
-func ParseEnvVar(envVarName string, decode bool) string {
+func ParseEnvVar(envVarName string, decode bool) (string, error) {
 	value := os.Getenv(envVarName)
 	if decode {
 		v, err := base64.StdEncoding.DecodeString(value)
 		if err != nil {
-			glog.Fatalf("ParseEnvVar: error decoding environment variable %q", envVarName)
+			return "", errors.Errorf("error decoding environment variable %q", envVarName)
 		}
 		value = fmt.Sprintf("%s", v)
 	}
-	return value
+	return value, nil
 }
 
 // Parse the required endpoint and return the url struct.
 func ParseEndpoint(endpt string) (*url.URL, error) {
+	var err error
 	if endpt == "" {
-		endpt = ParseEnvVar(IMPORTER_ENDPOINT, false)
+		endpt, err = ParseEnvVar(IMPORTER_ENDPOINT, false)
+		if err != nil {
+			return nil, err
+		}
 		if endpt == "" {
 			return nil, errors.Errorf("endpoint %q is missing or blank", IMPORTER_ENDPOINT)
 		}

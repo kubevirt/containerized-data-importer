@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -30,30 +31,39 @@ type DataStreamInterface interface {
 var _ DataStreamInterface = &dataStream{}
 
 type dataStream struct {
-	DataRdr     io.ReadCloser
 	url         *url.URL
 	accessKeyId string
 	secretKey   string
+	readers     []io.ReadCloser
+	qemu        bool
 }
 
-func (d *dataStream) Read(p []byte) (int, error) {
-	return d.DataRdr.Read(p)
-}
-
-func (d *dataStream) Close() error {
-	return d.DataRdr.Close()
-}
-
-// NewDataStream: construct a new dataStream object from params.
-func NewDataStream(ep *url.URL, accKey, secKey string) *dataStream {
+// Return a dataStream object after validating the endpoint and constructing the reader/closer chain.
+// Note: the caller must close the `readers` in reverse order. See CloseReaders().
+func NewDataStream(endpt, accKey, secKey string) (*dataStream, error) {
 	if len(accKey) == 0 || len(secKey) == 0 {
-		glog.Warningf("NewDataStream: %s and/or %s env variables are empty\n", IMPORTER_ACCESS_KEY_ID, IMPORTER_SECRET_KEY)
+		glog.Warningf("%s and/or %s env variables are empty\n", IMPORTER_ACCESS_KEY_ID, IMPORTER_SECRET_KEY)
 	}
-	return &dataStream{
+	ep, err := ParseEndpoint(endpt)
+	if err != nil {
+		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpt))
+	}
+	fn := filepath.Base(ep.Path)
+	if !image.IsSupporedFileType(fn) {
+		return nil, errors.Errorf("unsupported source file %q. Supported types: %v\n", fn, image.SupportedFileExtensions)
+	}
+	ds := &dataStream{
 		url:         ep,
 		accessKeyId: accKey,
 		secretKey:   secKey,
 	}
+	// establish readers for each extension type in the endpoint
+	readers, err := ds.constructReaders()
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to construct readers")
+	}
+	ds.readers = readers
+	return ds, nil
 }
 
 func (d *dataStream) dataStreamSelector() (io.ReadCloser, error) {
@@ -121,23 +131,43 @@ func (d *dataStream) local() (io.ReadCloser, error) {
 	return f, nil
 }
 
-// Creates the ReadClosers needed to read the endpoint URI.
-// Performs the copy and closes each ReadCloser.
-func (d *dataStream) Copy(outPath string) error {
-	var err error
-	fn := d.url.Path
-
-	glog.V(Vdebug).Infof("Copy: create the initial Reader based on the url's %q scheme", d.url.Scheme)
-	d.DataRdr, err = d.dataStreamSelector()
+// Copy the source file (image) to the provided destination path.
+func CopyImage(dest, endpoint, accessKey, secKey string) error {
+	ds, err := NewDataStream(endpoint, accessKey, secKey)
 	if err != nil {
-		return errors.WithMessage(err, "could not get data reader")
+		return errors.Wrapf(err, "unable to create data stream")
 	}
-	defer func(r io.ReadCloser) {
-		r.Close()
-	}(d.DataRdr)
+	defer CloseReaders(ds.readers)
+	return ds.copy(dest)
+}
+
+// Return the size in bytes of the provided endpoint.
+func ImageSize(endpoint, accessKey, secKey string) (int64, error) {
+	ds, err := NewDataStream(endpoint, accessKey, secKey)
+	if err != nil {
+		return -1, errors.Wrapf(err, "unable to create data stream")
+	}
+	defer CloseReaders(ds.readers)
+	return ds.size()
+}
+
+// Parse the endpoint extensions and return a slice of read-closers. The readers are in order starting with
+// the lowest level reader (eg. http) with the last entry being the highest level reader (eg, gzip).
+// Note: the .qcow2 ext is ignored however qemu files are detected based on their magic number.
+// Note: readers are not closed here.
+func (d *dataStream) constructReaders() ([]io.ReadCloser, error) {
+	glog.V(Vdebug).Infof("constructReaders: create the initial Reader based on the url's %q scheme", d.url.Scheme)
+	var readers []io.ReadCloser
+
+	rdr, err := d.dataStreamSelector()
+	if err != nil {
+		return nil, errors.WithMessage(err, "could not get data reader")
+	}
+	readers = append(readers, rdr)
 
 	// build slice of compression/archive extensions in right-to-left order
 	exts := []string{}
+	fn := d.url.Path
 	for image.IsSupporedCompressArchiveType(fn) {
 		ext := strings.ToLower(filepath.Ext(fn))
 		exts = append(exts, ext)
@@ -145,51 +175,65 @@ func (d *dataStream) Copy(outPath string) error {
 	}
 
 	// create decompress/un-archive Readers
-	glog.V(Vdebug).Infof("Copy: checking compressed and/or archive for file %q\n", d.url.Path)
+	glog.V(Vdebug).Infof("constructReaders: checking compressed and/or archive for file %q\n", d.url.Path)
 	for _, ext := range exts {
 		switch ext {
 		case image.ExtGz:
-			d.DataRdr, err = image.GzReader(d.DataRdr)
+			rdr, err = image.GzReader(rdr)
 		case image.ExtTar:
-			d.DataRdr, err = image.TarReader(d.DataRdr)
+			rdr, err = image.TarReader(rdr)
 		case image.ExtXz:
-			d.DataRdr, err = image.XzReader(d.DataRdr)
+			rdr, err = image.XzReader(rdr)
 		}
 		if err != nil {
-			return errors.WithMessage(err, "could not get compression reader")
+			return nil, errors.WithMessage(err, "could not get compression reader")
 		}
-		defer func(r io.ReadCloser) {
-			r.Close()
-		}(d.DataRdr)
+		readers = append(readers, rdr)
 	}
 
-	// If image is qemu convert it to raw. Note .qcow2 ext is ignored
-	magicStr, err := image.GetMagicNumber(d.DataRdr)
+	// if image is qemu convert it to raw
+	magicStr, err := image.GetMagicNumber(rdr)
 	if err != nil {
-		return errors.WithMessage(err, "unable to check magic number")
+		return nil, errors.WithMessage(err, "unable to check magic number")
 	}
-	qemu := image.MatchQcow2MagicNum(magicStr)
-	// Don't lose bytes read reading the magic number. MultiReader reads from each
-	// reader, in order, until the last reader returns eof.
-	multir := io.MultiReader(bytes.NewReader(magicStr), d.DataRdr)
+	d.qemu = image.MatchQcow2MagicNum(magicStr)
+	// don't lose bytes reading the magic number regardless of the file being qemu or not:
+	// MultiReader reads from each reader, in order, until the last reader returns eof.
+	multir := io.MultiReader(bytes.NewReader(magicStr), rdr)
+	readers = append(readers, ioutil.NopCloser(multir))
 
-	// copy image file to outPath
-	err = copyImage(multir, outPath, qemu)
-	if err != nil {
-		return errors.WithMessage(err, fmt.Sprintf("unable to write data to %q", outPath))
+	return readers, nil
+}
+
+// Close the passed-in slice of readers in reverse order. See constructReaders().
+func CloseReaders(readers []io.ReadCloser) {
+	for i := len(readers) - 1; i >= 0; i-- {
+		r := readers[i]
+		r.Close()
 	}
-	return nil
+}
+
+// Copy endpoint to dest based on passed-in reader.
+func (d *dataStream) copy(dest string) error {
+	rdr := d.readers[len(d.readers)-1]
+	return copy(rdr, dest, d.qemu)
+}
+
+// Return the endpoint size based on passed-in reader.
+func (d *dataStream) size() (int64, error) {
+	rdr := d.readers[len(d.readers)-1]
+	return size(rdr, d.qemu)
 }
 
 // Copy the file using its Reader (r) to the passed-in destination (`out`).
-func copyImage(r io.Reader, out string, qemu bool) error {
+func copy(r io.Reader, out string, qemu bool) error {
 	out = filepath.Clean(out)
 	glog.V(Vadmin).Infof("copying image file to %q", out)
 	dest := out
 	if qemu {
 		// copy to tmp; qemu conversion will write to passed-in destination
 		dest = randTmpName(out)
-		glog.V(Vdebug).Infof("copyImage: temp file for qcow2 conversion: %q", dest)
+		glog.V(Vdebug).Infof("Copy: temp file for qcow2 conversion: %q", dest)
 	}
 	// actual copy
 	err := StreamDataToFile(r, dest)
@@ -208,6 +252,12 @@ func copyImage(r io.Reader, out string, qemu bool) error {
 		}
 	}
 	return nil
+}
+
+// Return the size of the endpoint corresponding to the passed-in reader.
+func size(rdr io.ReadCloser, qemu bool) (int64, error) {
+	// TODO: figure out the size!
+	return 0, nil
 }
 
 // Return a random temp path with the `src` basename as the prefix and preserving the extension.
