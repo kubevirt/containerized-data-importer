@@ -46,6 +46,7 @@ before_deploy:
 deploy:
 - provider: script
   on:
+    tags: true
     branch: master
     repo: kubevirt/containerized-data-importer
   script: hack/auto-version.sh $TRAVIS_TAG
@@ -54,10 +55,12 @@ deploy:
   script: make release
   skip_cleanup: true
   on:
+    tags: true
     branch: master
     repo: kubevirt/containerized-data-importer
 - provider: releases
   on:
+    tags: true
     repo: kubevirt/containerized-data-importer
     branch: master
   api_key:
