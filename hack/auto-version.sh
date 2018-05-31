@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# version-and-deploy.sh
+# auto-version.sh
 # This script will be executed by Travis CI upon the push of a new git tag to mark a new version of CDI.
 # When a new git tag is pushed to master, Travis will execute this script and pass in the tag value.
 # This script will replace the existing version values in known files, then commit the changes and push to master.
@@ -8,7 +8,7 @@
 # current commit, and push this tag to master.
 # This secondary push is required because the human created tag will reference 1 commit behind the new
 # version values.  It is necessary to shift this tag to the commit reflecting the new version.
-# This will cause CI to execute again.  version-and-deploy.sh will not execute if the passed in tag matches the
+# This will cause CI to execute again.  auto-version.sh will not execute if the passed in tag matches the
 # existing version and will exit with code 0.
 #
 # Parameters:
@@ -25,14 +25,15 @@ function setNewVersion(){
     sed -i "s#$oldVersion#$newVersion#" $file
 }
 
-# commitAndPush indexes only the files where versions are known to be specified,
+# pushNewVersion indexes only the files where versions are known to be specified,
 # commits the changes, and pushes to master
 # Parameters:
 #     $@: Known files containing an updated version value
-function commitAndPush(){
-    git add "$@"
-    git commit -m "CI: versioning commit performed via automation"
-    git push origin master
+function pushNewVersion(){
+    git add $@
+    git commit -m "[ci skip] CI: updated version"
+    git tag -f -a -m "[ci skip] CI tagged commit" $NEW_RELEASE_TAG
+    git push --tags -f
 }
 
 # shiftTag deletes the human defined tag in the remote repo
@@ -45,9 +46,9 @@ function commitAndPush(){
 function shiftTag(){
     local versionTag=$1
 
-    git push origin ":refs/tags/$versionTag" # delete the human defined tag
-    git tag -f -a "$versionTag" -m "CI: tag set via automation"
-    git push origin master "$versionTag"
+    git push --delete origin $versionTag # delete the remote stale tag
+    git tag -f -a -m "[ci skip] shift existing tag to HEAD" $versionTag
+    git push origin $versionTag
 }
 
 ################
@@ -65,17 +66,19 @@ IMPORTER_MANIFEST="$REPO_ROOT/manifests/importer/importer-pod.yaml"
 # Array of target files for iterative ops
 TARGET_FILES=($COMMON_VARS $VERSION_FILE $CONTROLLER_MANIFEST $IMPORTER_MANIFEST)
 
-NEW_RELEASE_TAG=$1
+NEW_RELEASE_TAG=${1:-}
 OLD_RELEASE_TAG=$(cat "$VERSION_FILE")
 
-# If the tags are the same, do nothing. We are likely in the 2nd iteration of the CI run and do not need to continue.
 if [[ "$OLD_RELEASE_TAG" == "$NEW_RELEASE_TAG" ]]; then
     printf "Version %s matches tag %s: skipping.\n" "$OLD_RELEASE_TAG" "$NEW_RELEASE_TAG"
-    exit 0
+elif [ -z "$NEW_RELEASE_TAG" ]; then
+    printf "No new tag found, shifting most current tag (%s) to now\n" $OLD_RELEASE_TAG
+    shiftTag $OLD_RELEASE_TAG
+else
+    printf "New tag detected (%s)! Updating version values in \n" $NEW_RELEASE_TAG
+    for f in ${TARGET_FILES[*]}; do
+        printf "%s\n" $f
+        setNewVersion $f $OLD_RELEASE_TAG $NEW_RELEASE_TAG
+    done
+    pushNewVersion ${TARGET_FILES[@]}
 fi
-
-for f in "${TARGET_FILES[*]}"; do
-    setNewVersion $f $OLD_RELEASE_TAG $NEW_RELEASE_TAG
-done
-commitAndPush "${TARGET_FILES[*]}"
-shiftTag
