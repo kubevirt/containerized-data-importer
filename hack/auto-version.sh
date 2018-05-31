@@ -55,7 +55,7 @@ function shiftTag(){
 #     MAIN     #
 ################
 # containerized-data-importer/
-REPO_ROOT=$(realpath $(dirname $0)/../)
+REPO_ROOT=$(readlink -f $(dirname $0)/../)
 
 # All files where the version is specified
 VERSION_FILE="$REPO_ROOT/version"
