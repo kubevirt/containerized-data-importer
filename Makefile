@@ -145,3 +145,9 @@ my-golden-pvc.yaml: manifests/example/golden-pvc.yaml
 	sed "s,endpoint:.*,endpoint: \"$(URI)\"," $< > $@
 
 .PHONY: my-golden-pvc.yaml
+
+set-version:
+	@echo '********'
+	@echo 'Setting new version.  THIS DOES NOT RELEASE, call release explicitly to publish the newly versioned artifacts'
+	[ -n "$(VERSION)" ] || (echo "Must provide VERSION=<version> on command line" && exit 1)
+	$(REPO_ROOT)/hack/version/set-version.sh $(VERSION)
