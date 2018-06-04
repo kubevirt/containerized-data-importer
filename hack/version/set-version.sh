@@ -22,6 +22,6 @@ if [ -z "$TARGET_FILES" ]; then
 fi
 acceptChanges "$CUR_VERSION" "$NEW_VERSION" "$TARGET_FILES"
 for f in $TARGET_FILES; do
-    setNewVersion f "$CUR_VERSION" "$NEW_VERSION"
+    setNewVersion $f "$CUR_VERSION" "$NEW_VERSION"
 done
 pushNewVersion "$TARGET_FILES"
