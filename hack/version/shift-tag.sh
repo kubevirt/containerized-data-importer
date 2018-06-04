@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# shift-version.sh
+# shift-tag.sh
 
 # shiftTag deletes the human defined tag in the remote repo
 # and sets it again for the current commit. After the CI has updated

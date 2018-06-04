@@ -42,7 +42,7 @@ before_deploy:
 - docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
 deploy:
 - provider: script
-  script: hack/version/shift-version.sh
+  script: hack/version/shift-tag.sh
   on:
     repo: kubevirt/containerized-data-importer
     branch: master
