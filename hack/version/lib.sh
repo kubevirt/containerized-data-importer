@@ -14,12 +14,21 @@ function setNewVersion(){
 # pushNewVersion indexes only the files where versions are known to be specified,
 # commits the changes, and pushes to master
 # Parameters:
-#     $@: Known files containing an updated version value
+#   $1: the new version tag
+#   $@: Known files containing an updated version value
 function pushNewVersion(){
-    local new_tag_name="$1"
-    git add $@
+    local new_tag_name="$1"; shift
+    local files="$@"
+    printf "Adding changed files\n"
+    for f in "$files"; do
+        printf "Adding: %s\n" $files
+        git add $f
+    done
+    printf "Commiting changed files\n"
     git commit -m "Update Version"
+    printf "Creating new tag for commit\n"
     git tag -f -a -m "Update Version" $new_tag_name
+    printf "Pushing changes to master\n"
     git push --follow-tags
 }
 
@@ -73,7 +82,7 @@ function getVersionedFiles(){
         printf "" # this func exec'd inside subshell, so return null string
         exit 1
     fi
-    printf "$verFiles"
+    printf "$(echo $verFiles | tr '\n' ' ')"
 }
 
 function acceptChanges(){
@@ -81,8 +90,8 @@ function acceptChanges(){
     local newVersion=$2
     local targetFiles=$3
 
-    printf "The version will be changed from '%s' to '%s' in:\n" "$curVersion" "$newVersion"
-    echo "$targetFiles" | tr " " "\n"
+    printf "\nThe version will be changed from '%s' to '%s' in:\n" "$curVersion" "$newVersion"
+    printf "%s\n" "$(echo $targetFiles | tr ' ' '\n')"
     read -n 1 -p "Do you accept these changes [N|y]: " key
     printf "\n"
     case "$key" in
