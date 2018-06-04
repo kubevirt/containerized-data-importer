@@ -17,11 +17,11 @@ func TestParseEnvVar(t *testing.T) {
 		args args
 		want string
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ParseEnvVar(tt.args.envVarName, tt.args.decode); got != tt.want {
+			if got, _ := ParseEnvVar(tt.args.envVarName, tt.args.decode); got != tt.want {
 				t.Errorf("ParseEnvVar() = %v, want %v", got, tt.want)
 			}
 		})
@@ -38,7 +38,7 @@ func TestParseEndpoint(t *testing.T) {
 		want    *url.URL
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -64,7 +64,7 @@ func TestStreamDataToFile(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

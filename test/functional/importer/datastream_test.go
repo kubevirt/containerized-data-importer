@@ -153,15 +153,10 @@ var _ = Describe("Streaming Data Conversion", func() {
 				}()
 				Expect(sampleFilename).To(Equal(of), "Test data filename doesn't match expected file name.")
 
-				By("Creating a local dataStream w/o auth credentials")
-				fUrl := "file:/" + sampleFilename
-				ep, err := importer.ParseEndpoint(fUrl)
-				Expect(err).NotTo(HaveOccurred())
-				ds := importer.NewDataStream(ep, "", "")
-
 				dest := filepath.Join(os.TempDir(), of)
-				By(fmt.Sprintf("Copying the sample file to %q", dest))
-				err = ds.Copy(dest)
+				fUrl := "file:/" + sampleFilename
+				By(fmt.Sprintf("Copying sample file to %q using `local` dataStream w/o auth", dest))
+				err = importer.CopyImage(dest, fUrl, "", "")
 				Expect(err).NotTo(HaveOccurred())
 
 				By(fmt.Sprintf("Checking the output file %q", dest))
