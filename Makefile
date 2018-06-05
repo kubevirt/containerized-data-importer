@@ -154,6 +154,12 @@ my-golden-pvc.yaml: manifests/example/golden-pvc.yaml
 
 set-version:
 	@echo '********'
-	@echo 'Setting new version.  THIS DOES NOT RELEASE, call release explicitly to publish the newly versioned artifacts'
-	[ -n "$(VERSION)" ] || (echo "Must provide VERSION=<version> on command line" && exit 1)
+	@[ -n "$(VERSION)" ] || (echo "Must provide VERSION=<version> on command line" && exit 1)
+	@echo 'Setting new version.'
 	$(REPO_ROOT)/hack/version/set-version.sh $(VERSION)
+	$(MAKE) release RELEASE_TAG=$(VERSION)
+	@echo "Version change complete (=> $(VERSION))"
+	@echo "To finalize this update, push to these changes to the upstream reposoitory with"
+	@echo "    $ git push <upstream>/master && git push <upstream> --tags"
+	@echo "To undo local changes without pushing, rollback to the previous commit"
+	@echo "    $ git reset HEAD~1"

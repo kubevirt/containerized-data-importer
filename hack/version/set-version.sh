@@ -24,4 +24,4 @@ acceptChanges "$CUR_VERSION" "$NEW_VERSION" "$TARGET_FILES"
 for f in $TARGET_FILES; do
     setNewVersion $f "$CUR_VERSION" "$NEW_VERSION"
 done
-pushNewVersion "$NEW_VERSION" "$TARGET_FILES"
+commitAndTag "$NEW_VERSION" "$TARGET_FILES"
