@@ -15,6 +15,9 @@ F_TEST_BIN=$(BIN_DIR)/$(F_TEST)
 CMD_DIR=$(REPO_ROOT)/cmd
 CONTROLLER_CMD=$(CMD_DIR)/$(CONTROLLER)
 IMPORTER_CMD=$(CMD_DIR)/$(IMPORTER)
+PKG_DIR=$(REPO_ROOT)/pkg
+LIB_PKG_DIR=$(PKG_DIR)/lib
+LIB_SIZE_DIR=$(LIB_PKG_DIR)/size
 F_TEST_DIR=$(REPO_ROOT)/test/functional/importer
 F_IMG_DIR=$(REPO_ROOT)/test/images/tinyCore.iso
 
@@ -32,14 +35,15 @@ IMPT_IMG_NAME=cdi-$(IMPORTER)
 GIT_USER=$(shell git config --get user.email | sed 's/@.*//')
 TAG=$(GIT_USER)-latest
 
-.PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-controller-release push-importer-release push-importer clean test
-all: clean test controller importer
-pre-release: all
+.PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-controller-release push-importer-release push-importer lib clean test
+all: clean test controller importer lib
+#pre-release: all #why??
 controller: controller-bin controller-image
 importer: importer-bin importer-image
 push: push-importer push-controller
 test: functional-test unit-test
 functional-test: func-test-bin func-test-image func-test-run
+lib: lib-size
 
 GOOS?=linux
 ARCH?=amd64
@@ -57,7 +61,6 @@ importer-bin:
 	@echo '********'
 	@echo 'Compiling importer binary'
 	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -a -ldflags $(LDFLAGS) -o $(IMPORTER_BIN) $(IMPORTER_CMD)/*.go
-
 
 # Compile datastream functional test binary
 func-test-bin:
@@ -124,6 +127,9 @@ unit-test:
 	@echo 'Running unit tests'
 	CGO_ENABLED=$(CGO_ENABLED) go test -v -tags=unit_test ./...
 
+lib-size:
+	# compile size "library" package consumed by external repos
+	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -a -ldflags $(LDFLAGS) $(LIB_SIZE_DIR)/*.go
 
 clean:
 	@echo '********'
