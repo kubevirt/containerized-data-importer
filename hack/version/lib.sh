@@ -16,7 +16,7 @@ function setNewVersion(){
 # Parameters:
 #   $1: the new version tag
 #   $@: Known files containing an updated version value
-function pushNewVersion(){
+function commitAndTag(){
     local new_tag_name="$1"; shift
     local files="$@"
     printf "Adding changed files\n"
@@ -26,10 +26,8 @@ function pushNewVersion(){
     done
     printf "Commiting changed files\n"
     git commit -m "Update Version"
-    printf "Creating new tag for commit\n"
+    printf "Creating new tag for commit (%s)\n" $new_tag_name
     git tag -f -a -m "Update Version" $new_tag_name
-    printf "Pushing changes to master\n"
-    git push --follow-tags
 }
 
 function verifyOnMaster(){
