@@ -1,3 +1,5 @@
+SHELL!=/usr/bin/env bash
+
 REPO_ROOT=$(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 # Basenames
@@ -45,6 +47,8 @@ test: functional-test unit-test
 functional-test: func-test-bin func-test-image func-test-run
 lib: lib-size
 
+BUILD_IMAGE=golang:1.10.2
+WORK_DIR=/go/src/github.com/kubevirt/containerized-data-importer
 GOOS?=linux
 ARCH?=amd64
 CGO_ENABLED=0
@@ -54,13 +58,13 @@ LDFLAGS='-extldflags "-static"'
 controller-bin:
 	@echo '********'
 	@echo 'Compiling controller binary'
-	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -a -ldflags $(LDFLAGS) -o $(CONTROLLER_BIN) $(CONTROLLER_CMD)/*.go
+	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR) -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) -o $(WORK_DIR)/bin/$(CONTROLLER) $(WORK_DIR)/cmd/controller/controller.go
 
 # Compile importer binary
 importer-bin:
 	@echo '********'
 	@echo 'Compiling importer binary'
-	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -a -ldflags $(LDFLAGS) -o $(IMPORTER_BIN) $(IMPORTER_CMD)/*.go
+	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR) -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) -o $(WORK_DIR)/bin/$(IMPORTER) $(WORK_DIR)/cmd/importer/importer.go
 
 # Compile datastream functional test binary
 func-test-bin:
