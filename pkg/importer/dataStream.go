@@ -70,7 +70,7 @@ func NewDataStream(endpt, accKey, secKey string) (*dataStream, error) {
 		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpt))
 	}
 	fn := filepath.Base(ep.Path)
-	if !image.IsSupporedFileType(fn) {
+	if !image.IsSupportedFileType(fn) {
 		return nil, errors.Errorf("unsupported source file %q. Supported types: %v\n", fn, image.SupportedFileExtensions)
 	}
 	ds := &dataStream{
@@ -200,7 +200,7 @@ func (d *dataStream) constructReaders() error {
 	// build slice of compression/archive extensions in right-to-left order
 	exts := []string{}
 	fn := d.Url.Path
-	for image.IsSupporedCompressArchiveType(fn) {
+	for image.IsSupportedCompressArchiveType(fn) {
 		ext := strings.ToLower(filepath.Ext(fn))
 		exts = append(exts, ext)
 		fn = strings.TrimSuffix(fn, ext)
