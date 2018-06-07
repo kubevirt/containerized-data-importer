@@ -18,7 +18,7 @@ import (
 const DataVolName = "cdi-data-vol"
 
 // return a pvc pointer based on the passed-in work queue key.
-func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, error) {
+func (c *ImportController) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, error) {
 	obj, err := c.objFromKey(c.pvcInformer, key)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not get pvc object from key")
@@ -31,7 +31,7 @@ func (c *Controller) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, err
 	return pvc, nil
 }
 
-func (c *Controller) podFromKey(key interface{}) (*v1.Pod, error) {
+func (c *ImportController) podFromKey(key interface{}) (*v1.Pod, error) {
 	obj, err := c.objFromKey(c.podInformer, key)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not get pod object from key")
@@ -44,7 +44,7 @@ func (c *Controller) podFromKey(key interface{}) (*v1.Pod, error) {
 	return pod, nil
 }
 
-func (c *Controller) objFromKey(informer cache.SharedIndexInformer, key interface{}) (interface{}, error) {
+func (c *ImportController) objFromKey(informer cache.SharedIndexInformer, key interface{}) (interface{}, error) {
 	keyString, ok := key.(string)
 	if !ok {
 		return nil, errors.New("keys is not of type string")

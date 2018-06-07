@@ -82,10 +82,10 @@ func main() {
 	pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims().Informer()
 	podInformer := podInformerFactory.Core().V1().Pods().Informer()
 
-	cdiController := controller.NewController(client, pvcInformer, podInformer, importerImage, pullPolicy, verbose)
+	importController := controller.NewImportController(client, pvcInformer, podInformer, importerImage, pullPolicy, verbose)
 	glog.V(Vuser).Infoln("created cdi controller")
 	stopCh := handleSignals()
-	err = cdiController.Run(1, stopCh)
+	err = importController.Run(1, stopCh)
 	if err != nil {
 		glog.Fatalln("Error running controller: %+v", err)
 	}

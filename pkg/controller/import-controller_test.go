@@ -10,7 +10,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
-func TestNewController(t *testing.T) {
+func TestNewImportController(t *testing.T) {
 	type args struct {
 		client        kubernetes.Interface
 		pvcInformer   cache.SharedIndexInformer
@@ -22,14 +22,14 @@ func TestNewController(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want *Controller
+		want *ImportController
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NewController(tt.args.client, tt.args.pvcInformer, tt.args.podInformer, tt.args.importerImage, tt.args.pullPolicy, tt.args.verbose); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewController() = %v, want %v", got, tt.want)
+			if got := NewImportController(tt.args.client, tt.args.pvcInformer, tt.args.podInformer, tt.args.importerImage, tt.args.pullPolicy, tt.args.verbose); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("NewImportController() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -56,11 +56,11 @@ func TestController_Run(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Controller{
+			c := &ImportController{
 				clientset:     tt.fields.clientset,
 				pvcQueue:      tt.fields.pvcQueue,
 				podQueue:      tt.fields.podQueue,
@@ -92,11 +92,11 @@ func TestController_runPodWorkers(t *testing.T) {
 		name   string
 		fields fields
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Controller{
+			c := &ImportController{
 				clientset:     tt.fields.clientset,
 				pvcQueue:      tt.fields.pvcQueue,
 				podQueue:      tt.fields.podQueue,
@@ -126,11 +126,11 @@ func TestController_runPVCWorkers(t *testing.T) {
 		name   string
 		fields fields
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Controller{
+			c := &ImportController{
 				clientset:     tt.fields.clientset,
 				pvcQueue:      tt.fields.pvcQueue,
 				podQueue:      tt.fields.podQueue,
@@ -161,11 +161,11 @@ func TestController_ProcessNextPodItem(t *testing.T) {
 		fields fields
 		want   bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Controller{
+			c := &ImportController{
 				clientset:     tt.fields.clientset,
 				pvcQueue:      tt.fields.pvcQueue,
 				podQueue:      tt.fields.podQueue,
@@ -202,11 +202,11 @@ func TestController_processPodItem(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Controller{
+			c := &ImportController{
 				clientset:     tt.fields.clientset,
 				pvcQueue:      tt.fields.pvcQueue,
 				podQueue:      tt.fields.podQueue,
@@ -239,11 +239,11 @@ func TestController_ProcessNextPvcItem(t *testing.T) {
 		fields fields
 		want   bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Controller{
+			c := &ImportController{
 				clientset:     tt.fields.clientset,
 				pvcQueue:      tt.fields.pvcQueue,
 				podQueue:      tt.fields.podQueue,
@@ -280,11 +280,11 @@ func TestController_processPvcItem(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Controller{
+			c := &ImportController{
 				clientset:     tt.fields.clientset,
 				pvcQueue:      tt.fields.pvcQueue,
 				podQueue:      tt.fields.podQueue,
@@ -322,11 +322,11 @@ func TestController_forgetKey(t *testing.T) {
 		args   args
 		want   bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Controller{
+			c := &ImportController{
 				clientset:     tt.fields.clientset,
 				pvcQueue:      tt.fields.pvcQueue,
 				podQueue:      tt.fields.podQueue,

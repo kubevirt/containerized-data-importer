@@ -25,7 +25,7 @@ const (
 	AnnPodPhase  = "kubevirt.io/storage.import.pod.phase"
 )
 
-type Controller struct {
+type ImportController struct {
 	clientset                kubernetes.Interface
 	pvcQueue, podQueue       workqueue.RateLimitingInterface
 	pvcInformer, podInformer cache.SharedIndexInformer
@@ -34,8 +34,8 @@ type Controller struct {
 	verbose                  string // verbose levels: 1, 2, ...
 }
 
-func NewController(client kubernetes.Interface, pvcInformer, podInformer cache.SharedIndexInformer, importerImage string, pullPolicy string, verbose string) *Controller {
-	c := &Controller{
+func NewImportController(client kubernetes.Interface, pvcInformer, podInformer cache.SharedIndexInformer, importerImage string, pullPolicy string, verbose string) *ImportController {
+	c := &ImportController{
 		clientset:     client,
 		pvcQueue:      workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		podQueue:      workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
@@ -83,7 +83,7 @@ func NewController(client kubernetes.Interface, pvcInformer, podInformer cache.S
 	return c
 }
 
-func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
+func (c *ImportController) Run(threadiness int, stopCh <-chan struct{}) error {
 	defer func() {
 		c.pvcQueue.ShutDown()
 		c.podQueue.ShutDown()
@@ -101,7 +101,7 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	if !cache.WaitForCacheSync(stopCh, c.podInformer.HasSynced) {
 		return errors.New("Timeout waiting for pod cache sync")
 	}
-	glog.V(Vdebug).Infoln("Controller cache has synced")
+	glog.V(Vdebug).Infoln("ImportController cache has synced")
 
 	for i := 0; i < threadiness; i++ {
 		go wait.Until(c.runPVCWorkers, time.Second, stopCh)
@@ -111,12 +111,12 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	return nil
 }
 
-func (c *Controller) runPodWorkers() {
+func (c *ImportController) runPodWorkers() {
 	for c.ProcessNextPodItem() {
 	}
 }
 
-func (c *Controller) runPVCWorkers() {
+func (c *ImportController) runPVCWorkers() {
 	for c.ProcessNextPvcItem() {
 	}
 }
@@ -124,7 +124,7 @@ func (c *Controller) runPVCWorkers() {
 // ProcessNextPodItem gets the next pod key from the queue and verifies that it was created by the
 // controller. If not the key is discarded; otherwise, the pod object is passed to processPodItem.
 // Note: pods are already filtered by label "app=containerized-data-importer".
-func (c *Controller) ProcessNextPodItem() bool {
+func (c *ImportController) ProcessNextPodItem() bool {
 	key, shutdown := c.podQueue.Get()
 	if shutdown {
 		return false
@@ -151,7 +151,7 @@ func (c *Controller) ProcessNextPodItem() bool {
 
 // processPodItem verifies that the passed in pod is genuine and, if so, annotates the Phase
 // of the pod in the PVC to indicate the status of the import process.
-func (c *Controller) processPodItem(pod *v1.Pod) error {
+func (c *ImportController) processPodItem(pod *v1.Pod) error {
 	// verify that this pod has the expected pvc name
 	var pvcKey string
 	for _, vol := range pod.Spec.Volumes {
@@ -187,7 +187,7 @@ func (c *Controller) processPodItem(pod *v1.Pod) error {
 // Select only pvcs with the importer endpoint annotation and that are not being processed.
 // We forget the key unless `processPvcItem` returns an error in which case the key can be
 // retried.
-func (c *Controller) ProcessNextPvcItem() bool {
+func (c *ImportController) ProcessNextPvcItem() bool {
 	key, shutdown := c.pvcQueue.Get()
 	if shutdown {
 		return false
@@ -214,7 +214,7 @@ func (c *Controller) ProcessNextPvcItem() bool {
 // Create the importer pod based the pvc. The endpoint and optional secret are available to
 // the importer pod as env vars. The pvc is checked (again) to ensure that we are not already
 // processing this pvc, which would result in multiple importer pods for the same pvc.
-func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
+func (c *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	ep, err := getEndpoint(pvc)
 	if err != nil {
 		return err
@@ -256,7 +256,7 @@ func (c *Controller) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 }
 
 // forget the passed-in key for this event and optionally log a message.
-func (c *Controller) forgetKey(key interface{}, msg string) bool {
+func (c *ImportController) forgetKey(key interface{}, msg string) bool {
 	if len(msg) > 0 {
 		glog.V(Vdebug).Info(msg)
 	}
