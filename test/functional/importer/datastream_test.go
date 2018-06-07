@@ -14,6 +14,7 @@ import (
 
 	"github.com/kubevirt/containerized-data-importer/pkg/image"
 	"github.com/kubevirt/containerized-data-importer/pkg/importer"
+	imagesize "github.com/kubevirt/containerized-data-importer/pkg/lib/size"
 	f "github.com/kubevirt/containerized-data-importer/test/framework"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -129,7 +130,6 @@ var _ = Describe("Streaming Data Conversion", func() {
 		}
 
 		for _, t := range tests {
-
 			desc := t.testDesc
 			ff := t.expectFormats
 			fn := t.inFileName
@@ -147,7 +147,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 				sampleFilename, err := f.FormatTestData(fn, ff...)
 				Expect(err).NotTo(HaveOccurred(), "Error formatting test data.")
 				defer func() {
-					if sampleFilename != fn {     // don't rm source file
+					if sampleFilename != fn { // don't rm source file
 						os.Remove(sampleFilename) // ignore err
 					}
 				}()
@@ -158,20 +158,29 @@ var _ = Describe("Streaming Data Conversion", func() {
 				By(fmt.Sprintf("Copying sample file to %q using `local` dataStream w/o auth", dest))
 				err = importer.CopyImage(dest, fUrl, "", "")
 				Expect(err).NotTo(HaveOccurred())
+				defer func() {
+					By(fmt.Sprintf("Removing the output file %q", dest))
+					err := os.Remove(dest)
+					Expect(err).NotTo(HaveOccurred())
+				}()
 
-				By(fmt.Sprintf("Checking the output file %q", dest))
+				By(fmt.Sprintf("Checking size of the output file %q", dest))
 				if useVSize {
 					By("Checking output image virtual size")
-					Expect(getImageVirtualSize(dest)).To(Equal(size))
+					newSize := getImageVirtualSize(dest)
+					Expect(newSize).To(Equal(size))
+					By("Calling `ImageSize` function to check size")
+					newSize, err = imagesize.ImageSize(fUrl, "", "")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(newSize).To(Equal(size))
 				} else {
 					By("Stating output file")
 					finfo, err := os.Stat(dest)
 					Expect(err).NotTo(HaveOccurred())
-					Expect(finfo.Size()).To(Equal(size))
+					newSize := finfo.Size()
+					Expect(newSize).To(Equal(size))
 				}
-				By(fmt.Sprintf("Removing the output file %q", dest))
-				err = os.Remove(dest)
-				Expect(err).NotTo(HaveOccurred())
+
 				//Expect(output.Bytes()).To(Equal(size)) // TODO replace with checksum?
 			})
 		}
