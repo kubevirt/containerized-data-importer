@@ -54,7 +54,7 @@ type dataVolumes struct {
 }
 
 // newDataVolumes returns a DataVolumes
-func newDataVolumes(c *DatavolumecontrollerV1alpha1Client, namespace string) *dataVolumes {
+func newDataVolumes(c *CdiV1alpha1Client, namespace string) *dataVolumes {
 	return &dataVolumes{
 		client: c.RESTClient(),
 		ns:     namespace,

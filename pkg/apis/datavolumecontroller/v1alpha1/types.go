@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -31,11 +32,26 @@ type DataVolume struct {
 }
 
 type DataVolumeSpec struct {
-	FakeVal string `json:"fakeVal"`
+	Source DataVolumeSource                  `json:"source"`
+	PVC    *corev1.PersistentVolumeClaimSpec `json:"pvc"`
+}
+
+type DataVolumeSource struct {
+	HTTP *DataVolumeSourceHTTP `json:"http,omitempty"`
+	S3   *DataVolumeSourceS3   `json:"s3,omitempty"`
+}
+
+type DataVolumeSourceS3 struct {
+	URL       string `json:"url,omitempty"`
+	SecretRef string `json:"secretRef,omitempty"`
+}
+
+type DataVolumeSourceHTTP struct {
+	URL string `json:"url,omitempty"`
 }
 
 type DataVolumeStatus struct {
-	FakeVal string `json:"fakeVal"`
+	Phase DataVolumePhase `json:"phase,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -45,3 +61,20 @@ type DataVolumeList struct {
 
 	Items []DataVolume `json:"items"`
 }
+
+type DataVolumePhase string
+
+const (
+	PhaseUnset DataVolumePhase = ""
+
+	Pending  DataVolumePhase = "Pending"
+	PVCBound DataVolumePhase = "PVCBound"
+
+	ImportScheduled DataVolumePhase = "ImportScheduled"
+
+	ImportInProgress DataVolumePhase = "ImportInProgress"
+
+	Succeeded DataVolumePhase = "Succeeded"
+	Failed    DataVolumePhase = "Failed"
+	Unknown   DataVolumePhase = "Unknown"
+)

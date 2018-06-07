@@ -9,6 +9,9 @@ metadata:
   name: cdi
 rules:
 - apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "update", "patch"]
+- apiGroups: [""]
   resources: ["persistentvolumeclaims"]
   verbs: ["get", "list", "watch", "create", "update", "patch"]
 - apiGroups: [""]
@@ -17,6 +20,9 @@ rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["get", "list", "watch", "create"]
+- apiGroups: ["cdi.io"]
+  resources: ["datavolumes"]
+  verbs: ["get", "list", "watch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
@@ -53,3 +59,22 @@ spec:
         image: kubevirt/cdi-controller:v0.5.0-alpha.0
         imagePullPolicy: IfNotPresent
         args: ["-v=1"] # default verbosity; change to 2 or 3 for more detailed logging
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  labels:
+    cdi.io: ""
+  name: datavolumes.cdi.io
+spec:
+  group: cdi.io
+  names:
+    kind: DataVolume
+    plural: datavolumes
+    shortNames:
+    - dv
+    - dvs
+    singular: datavolume
+  scope: Namespaced
+  version: v1alpha1
+

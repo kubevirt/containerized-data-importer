@@ -123,9 +123,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Datavolumecontroller() datavolumecontroller.Interface
+	Cdi() datavolumecontroller.Interface
 }
 
-func (f *sharedInformerFactory) Datavolumecontroller() datavolumecontroller.Interface {
+func (f *sharedInformerFactory) Cdi() datavolumecontroller.Interface {
 	return datavolumecontroller.New(f, f.namespace, f.tweakListOptions)
 }

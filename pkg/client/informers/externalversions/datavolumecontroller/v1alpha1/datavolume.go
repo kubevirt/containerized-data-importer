@@ -61,13 +61,13 @@ func NewFilteredDataVolumeInformer(client versioned.Interface, namespace string,
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.DatavolumecontrollerV1alpha1().DataVolumes(namespace).List(options)
+				return client.CdiV1alpha1().DataVolumes(namespace).List(options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.DatavolumecontrollerV1alpha1().DataVolumes(namespace).Watch(options)
+				return client.CdiV1alpha1().DataVolumes(namespace).Watch(options)
 			},
 		},
 		&datavolumecontroller_v1alpha1.DataVolume{},

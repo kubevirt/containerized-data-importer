@@ -9,9 +9,13 @@ import (
 	"github.com/golang/glog"
 	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/kubevirt/containerized-data-importer/pkg/controller"
+
+	clientset "github.com/kubevirt/containerized-data-importer/pkg/client/clientset/versioned"
+	informers "github.com/kubevirt/containerized-data-importer/pkg/client/informers/externalversions"
+
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/informers"
+	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -74,21 +78,59 @@ func main() {
 		glog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
 	}
 
-	pvcInformerFactory := informers.NewSharedInformerFactory(client, DEFAULT_RESYNC_PERIOD)
-	podInformerFactory := informers.NewFilteredSharedInformerFactory(client, DEFAULT_RESYNC_PERIOD, "", func(options *v1.ListOptions) {
+	cdiClient, err := clientset.NewForConfig(cfg)
+	if err != nil {
+		glog.Fatalf("Error building example clientset: %s", err.Error())
+	}
+
+	cdiInformerFactory := informers.NewSharedInformerFactory(cdiClient, DEFAULT_RESYNC_PERIOD)
+	pvcInformerFactory := k8sinformers.NewSharedInformerFactory(client, DEFAULT_RESYNC_PERIOD)
+	podInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(client, DEFAULT_RESYNC_PERIOD, "", func(options *v1.ListOptions) {
 		options.LabelSelector = CDI_LABEL_SELECTOR
 	})
 
-	pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims().Informer()
-	podInformer := podInformerFactory.Core().V1().Pods().Informer()
+	pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims()
+	podInformer := podInformerFactory.Core().V1().Pods()
+	dataVolumeInformer := cdiInformerFactory.Cdi().V1alpha1().DataVolumes()
 
-	importController := controller.NewImportController(client, pvcInformer, podInformer, importerImage, pullPolicy, verbose)
-	glog.V(Vuser).Infoln("created cdi controller")
+	dataVolumeController := controller.NewDataVolumeController(
+		client,
+		cdiClient,
+		pvcInformer,
+		dataVolumeInformer)
+
+	importController := controller.NewImportController(client,
+		pvcInformer.Informer(),
+		podInformer.Informer(),
+		importerImage,
+		pullPolicy,
+		verbose)
+
+	glog.V(Vuser).Infoln("created cdi controllers")
+
 	stopCh := handleSignals()
-	err = importController.Run(1, stopCh)
-	if err != nil {
-		glog.Fatalln("Error running controller: %+v", err)
-	}
+
+	go cdiInformerFactory.Start(stopCh)
+	go pvcInformerFactory.Start(stopCh)
+	go podInformerFactory.Start(stopCh)
+
+	glog.V(Vuser).Infoln("started informers")
+
+	go func() {
+		err = dataVolumeController.Run(3, stopCh)
+		if err != nil {
+			glog.Fatalln("Error running dataVolume controller: %+v", err)
+		}
+	}()
+
+	go func() {
+		err = importController.Run(1, stopCh)
+		if err != nil {
+			glog.Fatalln("Error running import controller: %+v", err)
+		}
+	}()
+
+	<-stopCh
 	glog.V(Vadmin).Infoln("cdi controller exited")
 }
 

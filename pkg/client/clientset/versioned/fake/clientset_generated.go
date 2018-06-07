@@ -20,8 +20,8 @@ package fake
 
 import (
 	clientset "github.com/kubevirt/containerized-data-importer/pkg/client/clientset/versioned"
-	datavolumecontrollerv1alpha1 "github.com/kubevirt/containerized-data-importer/pkg/client/clientset/versioned/typed/datavolumecontroller/v1alpha1"
-	fakedatavolumecontrollerv1alpha1 "github.com/kubevirt/containerized-data-importer/pkg/client/clientset/versioned/typed/datavolumecontroller/v1alpha1/fake"
+	cdiv1alpha1 "github.com/kubevirt/containerized-data-importer/pkg/client/clientset/versioned/typed/datavolumecontroller/v1alpha1"
+	fakecdiv1alpha1 "github.com/kubevirt/containerized-data-importer/pkg/client/clientset/versioned/typed/datavolumecontroller/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -70,12 +70,12 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 
 var _ clientset.Interface = &Clientset{}
 
-// DatavolumecontrollerV1alpha1 retrieves the DatavolumecontrollerV1alpha1Client
-func (c *Clientset) DatavolumecontrollerV1alpha1() datavolumecontrollerv1alpha1.DatavolumecontrollerV1alpha1Interface {
-	return &fakedatavolumecontrollerv1alpha1.FakeDatavolumecontrollerV1alpha1{Fake: &c.Fake}
+// CdiV1alpha1 retrieves the CdiV1alpha1Client
+func (c *Clientset) CdiV1alpha1() cdiv1alpha1.CdiV1alpha1Interface {
+	return &fakecdiv1alpha1.FakeCdiV1alpha1{Fake: &c.Fake}
 }
 
-// Datavolumecontroller retrieves the DatavolumecontrollerV1alpha1Client
-func (c *Clientset) Datavolumecontroller() datavolumecontrollerv1alpha1.DatavolumecontrollerV1alpha1Interface {
-	return &fakedatavolumecontrollerv1alpha1.FakeDatavolumecontrollerV1alpha1{Fake: &c.Fake}
+// Cdi retrieves the CdiV1alpha1Client
+func (c *Clientset) Cdi() cdiv1alpha1.CdiV1alpha1Interface {
+	return &fakecdiv1alpha1.FakeCdiV1alpha1{Fake: &c.Fake}
 }

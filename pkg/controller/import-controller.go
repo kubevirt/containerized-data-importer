@@ -92,8 +92,6 @@ func (c *ImportController) Run(threadiness int, stopCh <-chan struct{}) error {
 	if threadiness < 1 {
 		return errors.Errorf("expected >0 threads, got %d", threadiness)
 	}
-	go c.pvcInformer.Run(stopCh)
-	go c.podInformer.Run(stopCh)
 
 	if !cache.WaitForCacheSync(stopCh, c.pvcInformer.HasSynced) {
 		return errors.New("Timeout waiting for pvc cache sync")
