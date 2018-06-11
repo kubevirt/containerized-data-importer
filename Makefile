@@ -1,5 +1,3 @@
-#SHELL!=/usr/bin/env bash
-
 REPO_ROOT=$(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 # Basenames
@@ -8,10 +6,10 @@ IMPORTER=importer
 F_TEST=datastream-test
 
 # Binary Path
-BIN_DIR=$(REPO_ROOT)/bin
-CONTROLLER_BIN=$(BIN_DIR)/import-controller
-IMPORTER_BIN=$(BIN_DIR)/$(IMPORTER)
-F_TEST_BIN=$(BIN_DIR)/$(F_TEST)
+BIN=$(REPO_ROOT)/bin
+CONTROLLER_BIN=import-controller
+IMPORTER_BIN=importer
+F_TEST_BIN=$(BIN)/$(F_TEST)
 
 # Source dirs
 CMD_DIR=$(REPO_ROOT)/cmd
@@ -55,13 +53,13 @@ LDFLAGS='-extldflags "-static"'
 controller-bin:
 	@echo '********'
 	@echo 'Compiling controller binary'
-	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR) -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) -o $(WORK_DIR)/bin/$(CONTROLLER) $(WORK_DIR)/cmd/controller/controller.go
+	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR) -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) -o $(WORK_DIR)/bin/$(CONTROLLER_BIN) $(WORK_DIR)/cmd/controller/controller.go
 
 # Compile importer binary
 importer-bin:
 	@echo '********'
 	@echo 'Compiling importer binary'
-	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR) -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) -o $(WORK_DIR)/bin/$(IMPORTER) $(WORK_DIR)/cmd/importer/importer.go
+	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR) -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) -o $(WORK_DIR)/bin/$(IMPORTER_BIN) $(WORK_DIR)/cmd/importer/importer.go
 
 # Compile datastream functional test binary
 func-test-bin:
@@ -76,7 +74,7 @@ controller-image: $(CONTROLLER_BUILD)/Dockerfile
 	@echo 'Building controller image'
 	$(eval TEMP_BUILD_DIR=$(CONTROLLER_BUILD)/tmp)
 	mkdir -p $(TEMP_BUILD_DIR)
-	cp $(CONTROLLER_BIN) $(TEMP_BUILD_DIR)
+	cp $(BIN)/$(CONTROLLER_BIN) $(TEMP_BUILD_DIR)
 	cp $(CONTROLLER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
 	docker build -t $(CTRL_IMG_NAME) $(TEMP_BUILD_DIR)
 	-rm -rf $(TEMP_BUILD_DIR)
@@ -87,7 +85,7 @@ importer-image: $(IMPORTER_BUILD)/Dockerfile
 	@echo 'Building importer image'
 	$(eval TEMP_BUILD_DIR=$(IMPORTER_BUILD)/tmp)
 	mkdir -p $(TEMP_BUILD_DIR)
-	cp $(IMPORTER_BIN) $(TEMP_BUILD_DIR)
+	cp $(BIN)/$(IMPORTER_BIN) $(TEMP_BUILD_DIR)
 	cp $(IMPORTER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
 	docker build --build-arg entrypoint=$(IMPORTER) -t $(IMPT_IMG_NAME) $(TEMP_BUILD_DIR)
 	-rm -rf $(TEMP_BUILD_DIR)
@@ -135,7 +133,7 @@ lib-size:
 clean:
 	@echo '********'
 	@echo 'Cleaning build artifacts'
-	-rm -rf $(BIN_DIR)/*
+	-rm -rf $(BIN)/*
 	-rm -rf $(CONTROLLER_BUILD)/tmp
 	-rm -rf $(IMPORTER_BUILD)/tmp
 
