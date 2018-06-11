@@ -1,4 +1,4 @@
-SHELL!=/usr/bin/env bash
+#SHELL!=/usr/bin/env bash
 
 REPO_ROOT=$(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
@@ -15,8 +15,6 @@ F_TEST_BIN=$(BIN_DIR)/$(F_TEST)
 
 # Source dirs
 CMD_DIR=$(REPO_ROOT)/cmd
-CONTROLLER_CMD=$(CMD_DIR)/$(CONTROLLER)
-IMPORTER_CMD=$(CMD_DIR)/$(IMPORTER)
 PKG_DIR=$(REPO_ROOT)/pkg
 LIB_PKG_DIR=$(PKG_DIR)/lib
 LIB_SIZE_DIR=$(LIB_PKG_DIR)/size
@@ -29,9 +27,9 @@ CONTROLLER_BUILD=$(BUILD_DIR)/$(CONTROLLER)
 IMPORTER_BUILD=$(BUILD_DIR)/$(IMPORTER)
 
 # DOCKER TAG VARS
-REGISTRY=jcoperh
+DEV_REGISTRY=jcoperh
 RELEASE_REGISTRY=kubevirt
-RELEASE_TAG=$(shell cat $(REPO_ROOT)/version)
+RELEASE_TAG=$(shell git describe --tags --abbrev=0 HEAD)
 CTRL_IMG_NAME=cdi-$(CONTROLLER)
 IMPT_IMG_NAME=cdi-$(IMPORTER)
 GIT_USER=$(shell git config --get user.email | sed 's/@.*//')
@@ -39,7 +37,6 @@ TAG=$(GIT_USER)-latest
 
 .PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-controller-release push-importer-release push-importer lib clean test
 all: clean test controller importer lib
-#pre-release: all #why??
 controller: controller-bin controller-image
 importer: importer-bin importer-image
 push: push-importer push-controller
@@ -117,14 +114,14 @@ func-test-run:
 push-controller:
 	@echo '********'
 	@echo 'Pushing controller image'
-	docker tag $(CTRL_IMG_NAME) $(REGISTRY)/$(CTRL_IMG_NAME):$(TAG)
-	docker push $(REGISTRY)/$(CTRL_IMG_NAME):$(TAG)
+	docker tag $(CTRL_IMG_NAME) $(DEV_REGISTRY)/$(CTRL_IMG_NAME):$(TAG)
+	docker push $(DEV_REGISTRY)/$(CTRL_IMG_NAME):$(TAG)
 
 push-importer:
 	@echo '********'
 	@echo 'Pushing importer image'
-	docker tag $(IMPT_IMG_NAME) $(REGISTRY)/$(IMPT_IMG_NAME):$(TAG)
-	docker push $(REGISTRY)/$(IMPT_IMG_NAME):$(TAG)
+	docker tag $(IMPT_IMG_NAME) $(DEV_REGISTRY)/$(IMPT_IMG_NAME):$(TAG)
+	docker push $(DEV_REGISTRY)/$(IMPT_IMG_NAME):$(TAG)
 
 unit-test:
 	@echo '********'
