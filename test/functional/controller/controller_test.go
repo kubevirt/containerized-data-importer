@@ -20,7 +20,7 @@ import (
 type operation int
 
 const (
-	opAdd    operation = iota
+	opAdd operation = iota
 	opUpdate
 	opDelete
 )
@@ -29,7 +29,7 @@ var verboseDebug = fmt.Sprintf("%d", Vdebug)
 
 var _ = Describe("Controller", func() {
 	var (
-		controller *Controller
+		controller *ImportController
 		fakeClient *fake.Clientset
 		pvcSource  *k8stesting.FakePVCControllerSource
 		podSource  *k8stesting.FakeControllerSource
@@ -52,7 +52,7 @@ var _ = Describe("Controller", func() {
 		pvcInformer := cache.NewSharedIndexInformer(pvcSource, pvc, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 		podInformer := cache.NewSharedIndexInformer(podSource, pod, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 
-		controller = NewController(fakeClient, pvcInformer, podInformer, IMPORTER_DEFAULT_IMAGE, IMPORTER_DEFAULT_PULL_POLICY, verboseDebug)
+		controller = NewImportController(fakeClient, pvcInformer, podInformer, IMPORTER_DEFAULT_IMAGE, IMPORTER_DEFAULT_PULL_POLICY, verboseDebug)
 
 		go pvcInformer.Run(stop)
 		go podInformer.Run(stop)

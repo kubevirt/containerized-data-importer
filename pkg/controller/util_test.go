@@ -31,11 +31,11 @@ func TestController_pvcFromKey(t *testing.T) {
 		want    *v1.PersistentVolumeClaim
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Controller{
+			c := &ImportController{
 				clientset:     tt.fields.clientset,
 				pvcQueue:      tt.fields.pvcQueue,
 				podQueue:      tt.fields.podQueue,
@@ -78,11 +78,11 @@ func TestController_podFromKey(t *testing.T) {
 		want    *v1.Pod
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Controller{
+			c := &ImportController{
 				clientset:     tt.fields.clientset,
 				pvcQueue:      tt.fields.pvcQueue,
 				podQueue:      tt.fields.podQueue,
@@ -126,11 +126,11 @@ func TestController_objFromKey(t *testing.T) {
 		want    interface{}
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Controller{
+			c := &ImportController{
 				clientset:     tt.fields.clientset,
 				pvcQueue:      tt.fields.pvcQueue,
 				podQueue:      tt.fields.podQueue,
@@ -165,7 +165,7 @@ func Test_checkPVC(t *testing.T) {
 		wantNewPvc *v1.PersistentVolumeClaim
 		wantErr    bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -194,7 +194,7 @@ func Test_getEndpoint(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -221,7 +221,7 @@ func Test_getSecretName(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -250,7 +250,7 @@ func Test_updatePVC(t *testing.T) {
 		want    *v1.PersistentVolumeClaim
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -279,7 +279,7 @@ func Test_setPVCAnnotation(t *testing.T) {
 		want    *v1.PersistentVolumeClaim
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -306,7 +306,7 @@ func Test_checkIfAnnoExists(t *testing.T) {
 		args args
 		want bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -328,7 +328,7 @@ func Test_checkIfLabelExists(t *testing.T) {
 		args args
 		want bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -355,7 +355,7 @@ func TestCreateImporterPod(t *testing.T) {
 		want    *v1.Pod
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -385,7 +385,7 @@ func TestMakeImporterPodSpec(t *testing.T) {
 		args args
 		want *v1.Pod
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -406,7 +406,7 @@ func Test_makeEnv(t *testing.T) {
 		args args
 		want []v1.EnvVar
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -427,7 +427,7 @@ func Test_addToMap(t *testing.T) {
 		args args
 		want map[string]string
 	}{
-	// TODO: Add test cases.
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
