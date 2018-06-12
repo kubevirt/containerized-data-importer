@@ -19,13 +19,13 @@ limitations under the License.
 package fake
 
 import (
-	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
+	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
 )
 
 // FakeDataVolumes implements DataVolumeInterface
@@ -34,9 +34,9 @@ type FakeDataVolumes struct {
 	ns   string
 }
 
-var datavolumesResource = schema.GroupVersionResource{Group: "cdi.io", Version: "v1alpha1", Resource: "datavolumes"}
+var datavolumesResource = schema.GroupVersionResource{Group: "cdi.kubevirt.io", Version: "v1alpha1", Resource: "datavolumes"}
 
-var datavolumesKind = schema.GroupVersionKind{Group: "cdi.io", Version: "v1alpha1", Kind: "DataVolume"}
+var datavolumesKind = schema.GroupVersionKind{Group: "cdi.kubevirt.io", Version: "v1alpha1", Kind: "DataVolume"}
 
 // Get takes name of the dataVolume, and returns the corresponding dataVolume object, and an error if there is any.
 func (c *FakeDataVolumes) Get(name string, options v1.GetOptions) (result *v1alpha1.DataVolume, err error) {

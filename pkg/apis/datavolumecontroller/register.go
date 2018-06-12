@@ -1,5 +1,5 @@
 package datavolumecontroller
 
 const (
-	GroupName = "cdi.io"
+	GroupName = "cdi.kubevirt.io"
 )

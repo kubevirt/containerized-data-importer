@@ -19,10 +19,10 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
-	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	rest "k8s.io/client-go/rest"
+	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
+	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
 )
 
 type CdiV1alpha1Interface interface {
@@ -30,7 +30,7 @@ type CdiV1alpha1Interface interface {
 	DataVolumesGetter
 }
 
-// CdiV1alpha1Client is used to interact with features provided by the cdi.io group.
+// CdiV1alpha1Client is used to interact with features provided by the cdi.kubevirt.io group.
 type CdiV1alpha1Client struct {
 	restClient rest.Interface
 }

@@ -241,7 +241,7 @@ func (f *fixture) expectUpdatePersistentVolumeClaimAction(d *corev1.PersistentVo
 }
 
 func (f *fixture) expectUpdateDataVolumeStatusAction(dataVolume *cdiv1.DataVolume) {
-	action := core.NewUpdateAction(schema.GroupVersionResource{Group: "cdi.io", Resource: "dataVolumes", Version: "v1alpha1"}, dataVolume.Namespace, dataVolume)
+	action := core.NewUpdateAction(schema.GroupVersionResource{Group: "cdi.kubevirt.io", Resource: "dataVolumes", Version: "v1alpha1"}, dataVolume.Namespace, dataVolume)
 	// TODO: Until #38113 is merged, we can't use Subresource
 	//action.Subresource = "status"
 	f.actions = append(f.actions, action)
