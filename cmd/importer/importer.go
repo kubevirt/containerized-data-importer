@@ -17,8 +17,8 @@ import (
 	"os"
 
 	"github.com/golang/glog"
-	. "github.com/kubevirt/containerized-data-importer/pkg/common"
-	. "github.com/kubevirt/containerized-data-importer/pkg/importer"
+	. "kubevirt.io/containerized-data-importer/pkg/common"
+	. "kubevirt.io/containerized-data-importer/pkg/importer"
 )
 
 func init() {

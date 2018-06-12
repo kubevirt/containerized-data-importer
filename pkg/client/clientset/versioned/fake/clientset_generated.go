@@ -19,9 +19,9 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/kubevirt/containerized-data-importer/pkg/client/clientset/versioned"
-	cdiv1alpha1 "github.com/kubevirt/containerized-data-importer/pkg/client/clientset/versioned/typed/datavolumecontroller/v1alpha1"
-	fakecdiv1alpha1 "github.com/kubevirt/containerized-data-importer/pkg/client/clientset/versioned/typed/datavolumecontroller/v1alpha1/fake"
+	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/datavolumecontroller/v1alpha1"
+	fakecdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/datavolumecontroller/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

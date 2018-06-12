@@ -23,9 +23,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/kubevirt/containerized-data-importer/pkg/client/clientset/versioned"
-	datavolumecontroller "github.com/kubevirt/containerized-data-importer/pkg/client/informers/externalversions/datavolumecontroller"
-	internalinterfaces "github.com/kubevirt/containerized-data-importer/pkg/client/informers/externalversions/internalinterfaces"
+	versioned "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	datavolumecontroller "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/datavolumecontroller"
+	internalinterfaces "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
