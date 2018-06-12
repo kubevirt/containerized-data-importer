@@ -17,12 +17,12 @@ import (
 
 const (
 	// pvc annotations
-	AnnEndpoint  = "kubevirt.io/storage.import.endpoint"
-	AnnSecret    = "kubevirt.io/storage.import.secretName"
-	AnnImportPod = "kubevirt.io/storage.import.importPodName"
+	AnnEndpoint  = "cdi.io/storage.import.endpoint"
+	AnnSecret    = "cdi.io/storage.import.secretName"
+	AnnImportPod = "cdi.io/storage.import.importPodName"
 	// importer pod annotations
-	AnnCreatedBy = "kubevirt.io/storage.createdByController"
-	AnnPodPhase  = "kubevirt.io/storage.import.pod.phase"
+	AnnCreatedBy = "cdi.io/storage.createdByController"
+	AnnPodPhase  = "cdi.io/storage.import.pod.phase"
 )
 
 type ImportController struct {
