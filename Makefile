@@ -128,7 +128,7 @@ unit-test:
 
 lib-size:
 	# compile size "library" package consumed by external repos
-	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -a -ldflags $(LDFLAGS) $(LIB_SIZE_DIR)/*.go
+	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR):Z -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) $(WORK_DIR)/pkg/lib/size/size.go -o /tmp/size
 
 clean:
 	@echo '********'
