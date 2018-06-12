@@ -53,13 +53,13 @@ LDFLAGS='-extldflags "-static"'
 controller-bin:
 	@echo '********'
 	@echo 'Compiling controller binary'
-	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR) -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) -o $(WORK_DIR)/bin/$(CONTROLLER_BIN) $(WORK_DIR)/cmd/controller/controller.go
+	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR):Z -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) -o $(WORK_DIR)/bin/$(CONTROLLER_BIN) $(WORK_DIR)/cmd/controller/controller.go
 
 # Compile importer binary
 importer-bin:
 	@echo '********'
 	@echo 'Compiling importer binary'
-	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR) -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) -o $(WORK_DIR)/bin/$(IMPORTER_BIN) $(WORK_DIR)/cmd/importer/importer.go
+	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR):Z -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) -o $(WORK_DIR)/bin/$(IMPORTER_BIN) $(WORK_DIR)/cmd/importer/importer.go
 
 # Compile datastream functional test binary
 func-test-bin:
