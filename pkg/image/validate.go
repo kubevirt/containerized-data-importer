@@ -55,19 +55,19 @@ func IsSupportedType(fn string, exts []string) bool {
 	return false
 }
 
-func IsSupporedFileType(fn string) bool {
+func IsSupportedFileType(fn string) bool {
 	return IsSupportedType(fn, SupportedFileExtensions)
 }
 
-func IsSupporedCompressionType(fn string) bool {
+func IsSupportedCompressionType(fn string) bool {
 	return IsSupportedType(fn, SupportedCompressionExtensions)
 }
 
-func IsSupporedArchiveType(fn string) bool {
+func IsSupportedArchiveType(fn string) bool {
 	return IsSupportedType(fn, SupportedArchiveExtensions)
 }
 
-func IsSupporedCompressArchiveType(fn string) bool {
+func IsSupportedCompressArchiveType(fn string) bool {
 	return IsSupportedType(fn, SupportedCompressArchiveExtensions)
 }
 

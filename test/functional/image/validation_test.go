@@ -64,7 +64,7 @@ var _ = Describe("Validate file and extensions", func() {
 			ext := filepath.Ext(name)
 
 			It(fmt.Sprintf("checking filename %q", name), func() {
-				supported := IsSupporedFileType(name)
+				supported := IsSupportedFileType(name)
 				if expctOK {
 					Expect(supported).To(BeTrue(), fmt.Sprintf("%q should be a supported extension", ext))
 				} else {

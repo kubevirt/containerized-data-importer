@@ -36,8 +36,8 @@ func TestIsSupporedFileType(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsSupporedFileType(tt.args.fn); got != tt.want {
-				t.Errorf("IsSupporedFileType() = %v, want %v", got, tt.want)
+			if got := IsSupportedFileType(tt.args.fn); got != tt.want {
+				t.Errorf("IsSupportedFileType() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -56,8 +56,8 @@ func TestIsSupporedCompressionType(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsSupporedCompressionType(tt.args.fn); got != tt.want {
-				t.Errorf("IsSupporedCompressionType() = %v, want %v", got, tt.want)
+			if got := IsSupportedCompressionType(tt.args.fn); got != tt.want {
+				t.Errorf("IsSupportedCompressionType() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -76,8 +76,8 @@ func TestIsSupporedArchiveType(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsSupporedArchiveType(tt.args.fn); got != tt.want {
-				t.Errorf("IsSupporedArchiveType() = %v, want %v", got, tt.want)
+			if got := IsSupportedArchiveType(tt.args.fn); got != tt.want {
+				t.Errorf("IsSupportedArchiveType() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -96,8 +96,8 @@ func TestIsSupporedCompressArchiveType(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsSupporedCompressArchiveType(tt.args.fn); got != tt.want {
-				t.Errorf("IsSupporedCompressArchiveType() = %v, want %v", got, tt.want)
+			if got := IsSupportedCompressArchiveType(tt.args.fn); got != tt.want {
+				t.Errorf("IsSupportedCompressArchiveType() = %v, want %v", got, tt.want)
 			}
 		})
 	}
