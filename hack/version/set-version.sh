@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -eou pipefail
+
 # containerized-data-importer/
 REPO_ROOT="$(readlink -f $(dirname $0)/../../)"
 
@@ -13,7 +15,6 @@ if [ -z "$CUR_VERSION" ]; then
     exit 1
 fi
 verifyVersionFormat "$NEW_VERSION"
-verifyOnMaster
 verifyNoDiff
 TARGET_FILES=$(getVersionedFiles "$CUR_VERSION" "$REPO_ROOT")
 if [ -z "$TARGET_FILES" ]; then

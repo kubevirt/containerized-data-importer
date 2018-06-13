@@ -42,13 +42,23 @@ function verifyOnMaster(){
 function verifyNoDiff() {
     printf "Checking commit diff between local and upstream master branches\n"
     local upstream="$(git remote -v | grep 'kubevirt/containerized-data-importer' | awk 'NR==1{print $1}')"
+    local curBranch="$(git rev-parse --abbrev-ref HEAD)"
+
     if [ -z "$upstream" ]; then
         printf "No upstream remote repository detected, cannot verify commit differences\n"
         exit 1
     fi
-    upstream="$upstream/master"
-    if [ -n "$(git rev-list --left-right "$upstream"...master)" ]; then
-        printf "Detected commit difference between %s and local master.  Please merge/rebase %s and retry\n" "$upstream" "$upstream"
+    if [ -z "$curBranch" ]; then
+        printf "No current branch was found, exiting\n"
+        exit 1
+    fi
+
+    if ! git fetch "$upstream" master; then
+        exit 1
+    fi
+
+    if [ -n "$(git rev-list --left-right "$upstream/master"..."$curBranch")" ]; then
+        printf "Detected commit difference between %s and current branch (%s).  Merge/rebase %s and retry.\n" "$upstream" "$curBranch" "$upstream"
         exit 1
     fi
     printf "Verified local master matches %s\n" "$upstream"
