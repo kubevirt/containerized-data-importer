@@ -109,7 +109,7 @@ function acceptChanges(){
 
         ?)
             printf "Aborting\n"
-            exit 0
+            exit 1
             ;;
     esac
 }
