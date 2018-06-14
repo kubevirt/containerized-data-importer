@@ -41,14 +41,6 @@ before_deploy:
 - git remote set-url origin https://"${GH_USER}":"${GH_TOKEN}"@github.com/kubevirt/containerized-data-importer.git
 - docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
 deploy:
-- provider: script
-  script: make release
-  skip_cleanup: true
-  branches:
-    only: /v[0-9]+\.[0-9]+\.[0-9]+/
-  on:
-    tags: true
-    repo: kubevirt/containerized-data-importer
 - provider: releases
   branches:
     only: /v[0-9]+\.[0-9]+\.[0-9]+/
