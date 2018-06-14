@@ -128,7 +128,7 @@ unit-test:
 
 lib-size:
 	# compile size "library" package consumed by external repos
-	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR):Z -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) $(WORK_DIR)/pkg/lib/size/size.go -o /tmp/size
+	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR):Z -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) -o /tmp/size $(WORK_DIR)/pkg/lib/size/size.go
 
 clean:
 	@echo '********'
