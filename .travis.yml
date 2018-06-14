@@ -1,5 +1,6 @@
 sudo: required
 language: go
+go_import_path: kubevirt.io/containerized-data-importer
 go:
 - 1.10.x
 services:
