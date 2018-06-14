@@ -50,9 +50,9 @@ The controller scans PVCs within its namespace by looking for specific annotatio
 
 **Golden PVC:** Long-lived Persistent Volume Claim manually created by an admin in the "golden" namespace. Linked to the Dynamic Provisioner via a reference to the storage class and automatically bound to a dynamically created Golden PV. The "default" provisioner and storage class is used in the example; however, the importer pod supports any dynamic provisioner which supports mountable volumes.
 
-- kubevirt.io/storage.import.endpoint:  Defined by the admin: the full endpoint URI for the source file/image
-- kubevirt.io/storage.import.secretName: Defined by the admin: the name of the existing Secret containing the credential to access the endpoint.
-- kubevirt.io/storage.import.status: Added by the controller: the current status of the PVC with respect to the import/copy process. Values include:  ”In process”, “Success”, “ Failed”
+- cdi.kubevirt.io/storage.import.endpoint:  Defined by the admin: the full endpoint URI for the source file/image
+- cdi.kubevirt.io/storage.import.secretName: Defined by the admin: the name of the existing Secret containing the credential to access the endpoint.
+- cdi.kubevirt.io/storage.import.status: Added by the controller: the current status of the PVC with respect to the import/copy process. Values include:  ”In process”, “Success”, “ Failed”
 
 **Object Store:** Arbitrary url-based storage location.  Currently we support http and S3 protocols.
 
