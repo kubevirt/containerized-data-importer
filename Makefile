@@ -185,6 +185,6 @@ set-version:
 	@echo "Version change complete (=> $(VERSION))"
 	@echo "To finalize this update, push to these changes to the upstream reposoitory with"
 	@echo "    $ make release"
-	@echo "    $ git push --tags"
+	@echo "    $ git push <upstream> master &&  git push <upstream> --tags"
 	@echo "To undo local changes without pushing, rollback to the previous commit"
 	@echo "    $ git reset HEAD~1"
