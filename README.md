@@ -73,15 +73,15 @@ Make copies of the [example manifests](./manifests/example) for editing. The nec
 ###### Edit golden-pvc.yaml:
 1.  `storageClassName:` The default StorageClass will be used if not set.  Otherwise, set to a desired StorageClass.
 
-1.  `kubevirt.io/storage.import.endpoint:` The full URL to the VM image in the format of: `http://www.myUrl.com/path/of/data` or `s3://bucketName/fileName`.
+1.  `cdi.kubevirt.io/storage.import.endpoint:` The full URL to the VM image in the format of: `http://www.myUrl.com/path/of/data` or `s3://bucketName/fileName`.
 
-1.  `kubevirt.io/storage.import.secretName:` (Optional) The name of the secret containing the authentication credentials required by the file server.
+1.  `cdi.kubevirt.io/storage.import.secretName:` (Optional) The name of the secret containing the authentication credentials required by the file server.
 
 ###### Edit endpoint-secret.yaml (Optional):
 
 > Note: Only set these values if the file server requires authentication credentials.
 
-1. `metadata.name:` Arbitrary name of the secret. Must match the PVC's `kubevirt.io/storage.import.secretName:`
+1. `metadata.name:` Arbitrary name of the secret. Must match the PVC's `cdi.kubevirt.io/storage.import.secretName:`
 
 1.  `accessKeyId:` Contains the endpoint's key and/or user name. This value **must be base64 encoded** with no extraneous linefeeds. Use `echo -n "xyzzy" | base64` or `printf "xyzzy" | base64` to avoid a trailing linefeed
 
