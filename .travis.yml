@@ -37,25 +37,29 @@ script:
 - k_wait_all_running pods
 - kubectl get pods --all-namespaces
 - make test
-#before_deploy:
-#- git remote set-url origin https://"${GH_USER}":"${GH_TOKEN}"@github.com/kubevirt/containerized-data-importer.git
-#- docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
-#deploy:
-#- provider: script
-#  script: make release
-#  skip_cleanup: true
-#  on:
-#    repo: kubevirt/containerized-data-importer
-#    branch: master
-#- provider: releases
-#  on:
-#    repo: kubevirt/containerized-data-importer
-#    branch: master
-#  api_key:
-#    secure: vJBZnfjNdprDA85YLp/kOUFxhYJRmxIx3r5EMk3FFnXYGJf0upyQUwFcU4TP6bJfgif2JgjuMAim92pyQvKcM9GH9vxWdmQPNBJwQUkNmzlBDhoIrH2O0SWw2IeuXqfHgD88TB+6S90lTK+FmsG2Y/bpf4QZxMvplzfjoPY76I/UQ6q0jC2pvOlduZpMXtJ+4e9uKp8zGW2pzNuw0d37pA66QJ2vFGq27farQijywmkPJmYZ1xvcpqTSklMonGLy8g8WSoOjD7VNvGIQfLALmU6XynQ/nF/LXbuCzB4/xq7GqmFPzDeKFmN7Gpv8U9QMhICCRsNCXeJuNs5wDrLJCseS8oAr+VWhCTvYsfCvIheTNrBaXJa9o9DVGgGtIP86NHb01PfVXb1iKEKPYo7xatDCxSVjaQwx1tbWuHoY3+E6z2zBMhZc/jwG5rYzQ/cvMaHOEgAFUkl9K5xV0ojhKrXyujf4nC/QJkyS7S6N+FvIGLseZywpH+1tIAXJ5kJFbJ0Y7Fkz6a4uQUd4TxpwXayqlXenE0uWawYURlevexDt3RWs2+vBTwg29lHVxcrdd8n3beFixp23V/wXg0B2j8EKUJXh/G8JXQ5LmPYXoQRiSwWqdAuhZF5HeuVXHuvRUzN7ADF3cQPT1JpG1786WqxkbK2OyL8bMV0a1KNdr/4=
-#  overwrite: true
-#  skip_cleanup: true
-#  file:
-#  - bin/importer
-#  - bin/import-controller
-#  - manifests/controller/cdi-controller-deployment.yaml
+before_deploy:
+- git remote set-url origin https://"${GH_USER}":"${GH_TOKEN}"@github.com/kubevirt/containerized-data-importer.git
+- docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
+deploy:
+- provider: script
+  script: make release
+  skip_cleanup: true
+  branches:
+    only: /v[0-9]+\.[0-9]+\.[0-9]+/
+  on:
+    tags: true
+    repo: kubevirt/containerized-data-importer
+- provider: releases
+  branches:
+    only: /v[0-9]+\.[0-9]+\.[0-9]+/
+  on:
+    tags: true
+    repo: kubevirt/containerized-data-importer
+  api_key:
+    secure: vJBZnfjNdprDA85YLp/kOUFxhYJRmxIx3r5EMk3FFnXYGJf0upyQUwFcU4TP6bJfgif2JgjuMAim92pyQvKcM9GH9vxWdmQPNBJwQUkNmzlBDhoIrH2O0SWw2IeuXqfHgD88TB+6S90lTK+FmsG2Y/bpf4QZxMvplzfjoPY76I/UQ6q0jC2pvOlduZpMXtJ+4e9uKp8zGW2pzNuw0d37pA66QJ2vFGq27farQijywmkPJmYZ1xvcpqTSklMonGLy8g8WSoOjD7VNvGIQfLALmU6XynQ/nF/LXbuCzB4/xq7GqmFPzDeKFmN7Gpv8U9QMhICCRsNCXeJuNs5wDrLJCseS8oAr+VWhCTvYsfCvIheTNrBaXJa9o9DVGgGtIP86NHb01PfVXb1iKEKPYo7xatDCxSVjaQwx1tbWuHoY3+E6z2zBMhZc/jwG5rYzQ/cvMaHOEgAFUkl9K5xV0ojhKrXyujf4nC/QJkyS7S6N+FvIGLseZywpH+1tIAXJ5kJFbJ0Y7Fkz6a4uQUd4TxpwXayqlXenE0uWawYURlevexDt3RWs2+vBTwg29lHVxcrdd8n3beFixp23V/wXg0B2j8EKUJXh/G8JXQ5LmPYXoQRiSwWqdAuhZF5HeuVXHuvRUzN7ADF3cQPT1JpG1786WqxkbK2OyL8bMV0a1KNdr/4=
+  overwrite: true
+  skip_cleanup: true
+  file:
+  - bin/importer
+  - bin/import-controller
+  - manifests/controller/cdi-controller-deployment.yaml
