@@ -56,7 +56,7 @@ spec:
       serviceAccountName: cdi-sa
       containers:
       - name: cdi-controller
-        image: kubevirt/cdi-controller:v0.5.0
+        image: kubevirt/cdi-controller:v1.0.0
         imagePullPolicy: IfNotPresent
         args: ["-v=1"] # default verbosity; change to 2 or 3 for more detailed logging
 ---
