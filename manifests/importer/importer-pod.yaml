@@ -11,7 +11,7 @@ spec:
   restartPolicy: Never
   containers:
   - name: importer
-    image: kubevirt/cdi-importer:v0.6.0-alpha.0
+    image: kubevirt/cdi-importer:v0.5.0-alpha.0
     imagePullPolicy: Always
     env:
     # REQUIRED!  Location of source data.
