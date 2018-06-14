@@ -14,10 +14,14 @@ F_TEST_BIN=$(BIN)/$(F_TEST)
 # Source dirs
 CMD_DIR=$(REPO_ROOT)/cmd
 PKG_DIR=$(REPO_ROOT)/pkg
+CONTROLLER_CMD=$(CMD_DIR)/$(CONTROLLER)
+IMPORTER_CMD=$(CMD_DIR)/$(IMPORTER)
 LIB_PKG_DIR=$(PKG_DIR)/lib
 LIB_SIZE_DIR=$(LIB_PKG_DIR)/size
 F_TEST_DIR=$(REPO_ROOT)/test/functional/importer
 F_IMG_DIR=$(REPO_ROOT)/test/images/tinyCore.iso
+BUILD_CMD=GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -a -ldflags $(LDFLAGS)
+DOCKER_BUILD_CMD=docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR):Z -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build
 
 # Build Dirs
 BUILD_DIR=$(REPO_ROOT)/build
@@ -32,6 +36,10 @@ CTRL_IMG_NAME=cdi-$(CONTROLLER)
 IMPT_IMG_NAME=cdi-$(IMPORTER)
 GIT_USER=$(shell git config --get user.email | sed 's/@.*//')
 TAG=$(GIT_USER)-latest
+
+# Preflight Check Defaults
+USE_DOCKER=1
+DOCKER_OUT=$(shell docker ps)
 
 .PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-controller-release push-importer-release push-importer lib clean test
 all: clean test controller importer lib
@@ -53,13 +61,25 @@ LDFLAGS='-extldflags "-static"'
 controller-bin:
 	@echo '********'
 	@echo 'Compiling controller binary'
-	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR):Z -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) -o $(WORK_DIR)/bin/$(CONTROLLER_BIN) $(WORK_DIR)/cmd/controller/controller.go
+	@if [ -n '$(DOCKER_OUT)' ] && [ $(USE_DOCKER) -eq 1 ]; then \
+		echo 'building with docker'; \
+		$(DOCKER_BUILD_CMD) -o $(WORK_DIR)/bin/$(CONTROLLER_BIN) $(WORK_DIR)/cmd/controller/controller.go; \
+	else \
+		echo 'building without docker'; \
+		$(BUILD_CMD) -o $(REPO_ROOT)/bin/$(CONTROLLER_BIN) $(CONTROLLER_CMD)/controller.go; \
+	fi
 
 # Compile importer binary
 importer-bin:
 	@echo '********'
 	@echo 'Compiling importer binary'
-	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR):Z -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) -o $(WORK_DIR)/bin/$(IMPORTER_BIN) $(WORK_DIR)/cmd/importer/importer.go
+	@if [ -n '$(DOCKER_OUT)' ] && [ $(USE_DOCKER) -eq 1 ]; then \
+		echo 'building with docker'; \
+		$(DOCKER_BUILD_CMD) -o $(WORK_DIR)/bin/$(IMPORTER_BIN) $(WORK_DIR)/cmd/importer/importer.go; \
+	else \
+		echo 'building without docker'; \
+		$(BUILD_CMD) -o $(REPO_ROOT)/bin/$(IMPORTER_BIN) $(IMPORTER_CMD)/importer.go; \
+	fi
 
 # Compile datastream functional test binary
 func-test-bin:
@@ -128,7 +148,13 @@ unit-test:
 
 lib-size:
 	# compile size "library" package consumed by external repos
-	docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR):Z -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build -a -ldflags $(LDFLAGS) -o /tmp/size $(WORK_DIR)/pkg/lib/size/size.go
+	@if [ -n '$(DOCKER_OUT)' ] && [ $(USE_DOCKER) -eq 1 ]; then \
+		echo 'building with docker'; \
+		$(DOCKER_BUILD_CMD) -o /tmp/size $(WORK_DIR)/pkg/lib/size/size.go; \
+	else \
+		echo 'building without docker'; \
+		$(BUILD_CMD) -o /tmp/size $(REPO_ROOT)/pkg/lib/size/size.go; \
+	fi
 
 clean:
 	@echo '********'
