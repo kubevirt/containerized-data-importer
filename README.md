@@ -21,6 +21,16 @@ This approach supports two main use-cases:
 
 For an in depth look at the system and workflow, see the [Design](/doc/design.md#design) documentation.
 
+### Versions
+
+CDI follows the common semantic version scheme defined at semver.org in the "vMajor.Minor.Patch" pattern.  These are defined as:
+
+- Major: API or other changes that will break existing CDI deployments.  These changes are expected to require users to alter the way they interact with CDI.  Major versions are released at the end a development cycle (every 2 weeks) in leiu of a Minor version.
+
+- Minor: Backwards compatible changes within the current Major version.  These changes represent the products of a 2 week developement cycle and contain bug fixes and new features.  By releasing merged work at the end of the cycle, users are able to closely track the project's progress and report issues or bugs soon after they are introduced.  At the same time, it should be easy to roll back to the previous Minor version if the release blocks the user's workflow.
+
+- Patch: Mid development cycle critical bug fix. In the case that a Minor release has a bug that must be fixed for users before the next release cycle, a Patch may be published.  Patches should be small in scope and only alter / introduce code related to the bug fix.
+
 ### Data Format
 
 The importer is capable of performing certain functions that streamline its use with Kubevirt.  It automatically decompresses **gzip** and **xz** files, and un-tar's **tar** archives. Also, **qcow2** images are converted into a raw image files needed by Kubevirt, resulting in the final file being a simple _.img_ file.
