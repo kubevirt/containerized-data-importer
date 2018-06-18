@@ -3,13 +3,16 @@
 A declarative Kubernetes utility to import Virtual Machine images for use with [Kubevirt](https://github.com/kubevirt/kubevirt). At a high level, a persistent volume claim (PVC), which defines VM-suitable storage (via a storage class), is created. A custom controller watches for importer specific claims and starts an import/copy process when such a claim is detected. The status of the import process is reflected in the same claim, and when the copy completes Kubevirt creates the VM based on the just-imported image.
 
 1. [Purpose](#purpose)
+1. [Versions](#versions)
 1. [Design](/doc/design.md#design)
 1. [Running the CDI Controller](#deploying-cdi)
 1. [Hacking (WIP)](hack/README.md#getting-started-for-developers)
 1. [Security Configurations](#security-configurations)
 
 
-## Purpose
+## Overview
+
+### Purpose
 
 This project is designed with Kubevirt in mind and provides a declarative method for importing VM images into a Kuberenetes cluster.
 Kubevirt detects when the VM image copy is complete and, using the same PVC that triggered the import process, creates the VM.
@@ -30,6 +33,8 @@ CDI follows the common semantic version scheme defined at semver.org in the "vMa
 - Minor: Backwards compatible changes within the current Major version.  These changes represent the products of a 2 week developement cycle and contain bug fixes and new features.  By releasing merged work at the end of the cycle, users are able to closely track the project's progress and report issues or bugs soon after they are introduced.  At the same time, it should be easy to roll back to the previous Minor version if the release blocks the user's workflow.
 
 - Patch: Mid development cycle critical bug fix. In the case that a Minor release has a bug that must be fixed for users before the next release cycle, a Patch may be published.  Patches should be small in scope and only alter / introduce code related to the bug fix.
+
+See [releases.md](/doc/releases.md) for more information on versioning.
 
 ### Data Format
 

@@ -16,7 +16,7 @@ CDI adheres to the [semantic version definitions](https://semver.org/) format of
 
  The version number is tracked in several files in CDI as well as through a git tag.  To reduce the chance of human error, a help script is used to change the version in all known locations.
 
-     DO NOT EDIT THE VERSION VALUES!!
+     DO NOT EDIT ANY VERSION STRINGS IN CDI!!
 
 1. Set the new release version
 
