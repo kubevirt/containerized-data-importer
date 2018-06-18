@@ -40,6 +40,7 @@ type dataStream struct {
 	Url         *url.URL
 	Readers     []Reader
 	Qemu        bool
+	Size        int64
 	accessKeyId string
 	secretKey   string
 }
@@ -52,11 +53,12 @@ type Reader struct {
 const (
 	RdrHttp = iota
 	RdrS3
-	RdrTar
-	RdrGz
-	RdrXz
 	RdrFile
+	RdrGz
 	RdrMulti
+	RdrQcow2
+	RdrTar
+	RdrXz
 )
 
 // Return a dataStream object after validating the endpoint and constructing the reader/closer chain.
@@ -172,12 +174,14 @@ func CopyImage(dest, endpoint, accessKey, secKey string) error {
 	return ds.copy(dest)
 }
 
-// Parse the endpoint extensions and set the Reader slice in the receiver. The reader order starts with
-// the lowest level reader, eg. http, used to read file content. The last reader is a multi reader needed
-// to piece together a byte reader which is always used to read the magic number of the file. In between
-// are the decompression/archive readers, if any. Readers are closed in reverse (right-to-left) order,
-// see the Close method. If a format doesn't natively support Close() a no-op Closer is wrapped around
-// the native Reader so that all Readers can be consider ReadClosers.
+// Read the endpoint and determine the file composition (eg. .iso.tar.gz) based on the magic number in
+// each known file format header. Set the Reader slice in the receiver and set the Size field to each
+// reader's original size. Note: the reader processed last defines the final Size. 
+// The reader order starts with the lowest level reader, eg. http, used to read file content. The last
+// reader is a multi reader needed to piece together a byte reader which is always used to read the magic
+// number of the file. In between are the decompression/archive readers, if any. Readers are closed in
+// reverse (right-to-left) order, see the Close method. If a format doesn't natively support Close() a
+// no-op Closer is wrapped around the native Reader so that all Readers can be consider ReadClosers.
 // Examples:
 //   Filename                         Readers
 //   --------                         -------
@@ -186,7 +190,6 @@ func CopyImage(dest, endpoint, accessKey, secKey string) error {
 //   "s3://some-iso"                  [s3, multi-reader]
 //   "https://somefile.qcow2"         [http, multi-reader]
 //   "https://somefile.qcow2.tar.gz"  [http, gz, tar, multi-reader]
-// Note: the .qcow2 ext is ignored; qemu files are detected based on their magic number.
 // Note: readers are not closed here, see dataStream.Close().
 func (d *dataStream) constructReaders() error {
 	glog.V(Vdebug).Infof("constructReaders: create the initial Reader based on the url's %q scheme", d.Url.Scheme)
@@ -197,43 +200,40 @@ func (d *dataStream) constructReaders() error {
 	}
 	d.Readers = append(d.Readers, rdr)
 
-	// build slice of compression/archive extensions in right-to-left order
-	exts := []string{}
-	fn := d.Url.Path
-	for image.IsSupportedCompressArchiveType(fn) {
-		ext := strings.ToLower(filepath.Ext(fn))
-		exts = append(exts, ext)
-		fn = strings.TrimSuffix(fn, ext)
-	}
-	// create decompress/un-archive Readers
 	glog.V(Vdebug).Infof("constructReaders: checking compressed and/or archive for file %q\n", d.Url.Path)
-	for _, ext := range exts {
-		switch ext {
-		case image.ExtGz:
+	hdrBuf := make([]byte, image.MaxExpectedHdrSize)
+
+	for kh := range image.KnownHdrs {
+		hdr := image.MatchHeader(kh, rdr.Rdr. hdrBuf)
+		// don't lose bytes just read
+		multir := io.MultiReader(bytes.NewReader(hdrBuf), rdr.Rdr)
+		d.Readers = append(d.Readers, Reader{RdrType: RdrMulti, Rdr: ioutil.NopCloser(multir)})
+		if hdr != nil { // no known hdr found so we're done processing file headers
+			break
+		}
+		switch hdr.format {
+		case "gz":
 			rdr, err = GzReader(rdr.Rdr)
-		case image.ExtTar:
+		case "qcow2":
+			d.Qemu = true
+			rdr, err = Qcow2NopReader(rdr.Rdr)
+		case "tar":
 			rdr, err = TarReader(rdr.Rdr)
-		case image.ExtXz:
+		case "xz":
 			rdr, err = XzReader(rdr.Rdr)
+		default:
+			return errors.Errorf("mismatch between supported file formats and this header type: %q", hdr.format)
 		}
 		if err != nil {
-			return errors.WithMessage(err, "could not get compression reader")
+			return errors.WithMessage(err, "could not create compression/unarchive reader")
 		}
 		d.Readers = append(d.Readers, rdr)
+		d.Size, err = hdr.Size()
+		if err != nil {
+			return errors.WithMessage(err, "could not determine original image size")
+		}
 	}
 
-	// if image is qemu convert it to raw
-	glog.V(Vdebug).Infoln("constructReaders: check for qcow2/qemu file")
-	magicStr, err := image.GetMagicNumber(rdr.Rdr)
-	if err != nil {
-		return errors.WithMessage(err, "unable to check magic number")
-	}
-	d.Qemu = image.MatchQcow2MagicNum(magicStr)
-	glog.V(Vdebug).Infof("constructReaders: qemu file is %t\n", d.Qemu) 
-	// don't lose bytes reading the magic number regardless of the file being qemu or not:
-	// MultiReader reads from each reader, in order, until the last reader returns eof.
-	multir := io.MultiReader(bytes.NewReader(magicStr), rdr.Rdr)
-	d.Readers = append(d.Readers, Reader{RdrType: RdrMulti, Rdr: ioutil.NopCloser(multir)})
 	return nil
 }
 
@@ -244,6 +244,11 @@ func GzReader(r io.ReadCloser) (Reader, error) {
 	}
 	glog.V(Vadmin).Infof("gzip: extracting %q\n", gz.Name)
 	return Reader{RdrType: RdrGz, Rdr: gz}, nil
+}
+
+func Qcow2NopReader(r io.ReadCloser) (Reader, error) {
+	glog.V(Vdebug).Infof("Qcow2NopReader: found qcow2 file")
+	return Reader{RdrType: Qcow2, Rdr: r}, nil
 }
 
 func XzReader(r io.ReadCloser) (Reader, error) {

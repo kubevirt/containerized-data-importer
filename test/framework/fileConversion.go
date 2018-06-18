@@ -17,8 +17,9 @@ var formatTable = map[string]func(string) (string, error){
 	"":             transformNoop,
 }
 
+// create file based on targetFormat extensions and return created file's name.
+// note: intermediate files are removed.
 func FormatTestData(srcFile string, targetFormats ...string) (string, error) {
-
 	outFile := srcFile
 	var err error
 	var prevFile string
@@ -31,6 +32,7 @@ func FormatTestData(srcFile string, targetFormats ...string) (string, error) {
 		if len(tf) == 0 {
 			continue
 		}
+		// invoke conversion func
 		outFile, err = f(outFile)
 		if prevFile != srcFile {
 			os.Remove(prevFile)
