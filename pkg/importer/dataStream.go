@@ -202,35 +202,41 @@ func (d *dataStream) constructReaders() error {
 
 	glog.V(Vdebug).Infof("constructReaders: checking compressed and/or archive for file %q\n", d.Url.Path)
 	hdrBuf := make([]byte, image.MaxExpectedHdrSize)
+	var hdr *image.Header
 
-	for kh := range image.KnownHdrs {
-		hdr := image.MatchHeader(kh, rdr.Rdr. hdrBuf)
-		// don't lose bytes just read
-		multir := io.MultiReader(bytes.NewReader(hdrBuf), rdr.Rdr)
-		d.Readers = append(d.Readers, Reader{RdrType: RdrMulti, Rdr: ioutil.NopCloser(multir)})
-		if hdr != nil { // no known hdr found so we're done processing file headers
-			break
-		}
-		switch hdr.format {
-		case "gz":
-			rdr, err = GzReader(rdr.Rdr)
-		case "qcow2":
-			d.Qemu = true
-			rdr, err = Qcow2NopReader(rdr.Rdr)
-		case "tar":
-			rdr, err = TarReader(rdr.Rdr)
-		case "xz":
-			rdr, err = XzReader(rdr.Rdr)
-		default:
-			return errors.Errorf("mismatch between supported file formats and this header type: %q", hdr.format)
-		}
-		if err != nil {
-			return errors.WithMessage(err, "could not create compression/unarchive reader")
-		}
-		d.Readers = append(d.Readers, rdr)
-		d.Size, err = hdr.Size()
-		if err != nil {
-			return errors.WithMessage(err, "could not determine original image size")
+	for hdr != nil { // loop until we do not find a header structure we recognize
+		for _, kh := range image.KnownHdrs {
+			hdr, err = image.MatchHeader(kh, rdr.Rdr, hdrBuf)
+			if err != nil {
+				return errors.WithMessage(err, "could not read image header")
+			}
+			// don't lose bytes just read
+			multir := io.MultiReader(bytes.NewReader(hdrBuf), rdr.Rdr)
+			d.Readers = append(d.Readers, Reader{RdrType: RdrMulti, Rdr: ioutil.NopCloser(multir)})
+			if hdr != nil { // no known hdr found so we're done processing file headers
+				break
+			}
+			switch hdr.Format {
+			case "gz":
+				rdr, err = GzReader(rdr.Rdr)
+			case "qcow2":
+				d.Qemu = true
+				rdr, err = Qcow2NopReader(rdr.Rdr)
+			case "tar":
+				rdr, err = TarReader(rdr.Rdr)
+			case "xz":
+				rdr, err = XzReader(rdr.Rdr)
+			default:
+				return errors.Errorf("mismatch between supported file formats and this header type: %q", hdr.Format)
+			}
+			if err != nil {
+				return errors.WithMessage(err, "could not create compression/unarchive reader")
+			}
+			d.Readers = append(d.Readers, rdr)
+			d.Size, err = hdr.Size(hdrBuf)
+			if err != nil {
+				return errors.WithMessage(err, "could not determine original image size")
+			}
 		}
 	}
 
@@ -248,7 +254,7 @@ func GzReader(r io.ReadCloser) (Reader, error) {
 
 func Qcow2NopReader(r io.ReadCloser) (Reader, error) {
 	glog.V(Vdebug).Infof("Qcow2NopReader: found qcow2 file")
-	return Reader{RdrType: Qcow2, Rdr: r}, nil
+	return Reader{RdrType: RdrQcow2, Rdr: r}, nil
 }
 
 func XzReader(r io.ReadCloser) (Reader, error) {
