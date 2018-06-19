@@ -3,31 +3,28 @@ package image
 import (
 	"bytes"
 	"encoding/binary"
-	"io"
 
+"github.com/golang/glog"
 	"github.com/pkg/errors"
 )
 
 const MaxExpectedHdrSize = 1024 // 1kb
 
-func MatchHeader(hdr *Header, r io.Reader, b []byte) (*Header, error) {
-	if b == nil {
-		b = make([]byte, MaxExpectedHdrSize)
-	}
-	n, err := r.Read(b)
-	if err != nil {
-		return nil, errors.Wrap(err, "could not read file header")
-	}
-	if n != MaxExpectedHdrSize {
-		return nil, errors.Errorf("could not read all %d bytes of file header", MaxExpectedHdrSize)
-	}
+func MatchHeader(hdr *Header, b []byte) *Header {
 	if hdr.match(b) {
-		return hdr, nil
+		return hdr
 	}
-	return nil, nil
+	return nil
 }
 
 var KnownHdrs = []*Header{
+	{
+		Format:      "gz",
+		magicNumber: []byte{0x1F, 0x8B},
+		// TODO: size not in hdr
+		sizeOff:     0,
+		sizeLen:     0,
+	},
 	{
 		Format:      "qcow2",
 		magicNumber: []byte{'Q', 'F', 'I', 0xfb},
@@ -45,9 +42,9 @@ var KnownHdrs = []*Header{
 	{
 		Format:      "xz",
 		magicNumber: []byte{0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00},
-		// TODO size
+		// TODO: size not in hdr
 		sizeOff:     0,
-		sizeLen:     8,
+		sizeLen:     0,
 	},
 }
 
@@ -59,13 +56,18 @@ type Header struct {
 	sizeLen	    int // in bytes
 }
 
-func (h *Header) match(b []byte) bool {
-	return bytes.Equal(b[h.mgOffset-1:h.mgOffset-1+len(h.magicNumber)], h.magicNumber)
+func (h Header) match(b []byte) bool {
+glog.Infof("\n***** match: h=%+v, len(magic)=%d\n",h,len(h.magicNumber))
+	return bytes.Equal(b[h.mgOffset:h.mgOffset+len(h.magicNumber)], h.magicNumber)
 }
 
 // BIG OR LITTLE-ENDIAN?
 func (h *Header) Size(b []byte) (int64, error) {
-	size, n := binary.Varint(b[h.sizeOff-1:h.sizeOff-1+h.sizeLen])
+	sizeLen := h.sizeLen
+	if sizeLen == 0 { // indicates no size is supported in this format's header
+		return 0, nil
+	}
+	size, n := binary.Varint(b[h.sizeOff:h.sizeOff+sizeLen])
 	if n != len(b) {
 		return 0, errors.Errorf("internal Size error: number of bytes read (%d) != expected (%d)", n, len(b))
 	}

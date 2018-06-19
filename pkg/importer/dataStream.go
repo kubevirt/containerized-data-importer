@@ -191,6 +191,7 @@ func CopyImage(dest, endpoint, accessKey, secKey string) error {
 //   "https://somefile.qcow2"         [http, multi-reader]
 //   "https://somefile.qcow2.tar.gz"  [http, gz, tar, multi-reader]
 // Note: readers are not closed here, see dataStream.Close().
+// Assumption: a particular header format only appears once in the data stream. Eg. foo.gz.gz is not supported.
 func (d *dataStream) constructReaders() error {
 	glog.V(Vdebug).Infof("constructReaders: create the initial Reader based on the url's %q scheme", d.Url.Scheme)
 
@@ -200,45 +201,68 @@ func (d *dataStream) constructReaders() error {
 	}
 	d.Readers = append(d.Readers, rdr)
 
-	glog.V(Vdebug).Infof("constructReaders: checking compressed and/or archive for file %q\n", d.Url.Path)
+	glog.V(Vdebug).Infof("constructReaders: checking compression and archive formats: %s\n", d.Url.Path)
 	hdrBuf := make([]byte, image.MaxExpectedHdrSize)
 	var hdr *image.Header
+	var done bool
+	knownHdrs := image.KnownHdrs // local copy since elements are removed from it
+	var i int
 
-	for hdr != nil { // loop until we do not find a header structure we recognize
-		for _, kh := range image.KnownHdrs {
-			hdr, err = image.MatchHeader(kh, rdr.Rdr, hdrBuf)
-			if err != nil {
-				return errors.WithMessage(err, "could not read image header")
-			}
-			// don't lose bytes just read
-			multir := io.MultiReader(bytes.NewReader(hdrBuf), rdr.Rdr)
-			d.Readers = append(d.Readers, Reader{RdrType: RdrMulti, Rdr: ioutil.NopCloser(multir)})
-			if hdr != nil { // no known hdr found so we're done processing file headers
+	// loop (in reverse) through all supported file formats until we do not find a header we recognize
+	for !done {
+		// read current header
+		_, err = rdr.Rdr.Read(hdrBuf)
+		if err != nil {
+			return errors.WithMessage(err, "could not read image header")
+		}
+		for i = len(knownHdrs) - 1; i >= 0; i-- {
+			kh := knownHdrs[i]
+			hdr = image.MatchHeader(kh, hdrBuf)
+glog.Infof("\n***** hdr=%+v, kh=%+v\n", hdr, kh)
+			// nil header implies no match but there may be more header formats to check
+			if hdr != nil {
 				break
 			}
-			switch hdr.Format {
-			case "gz":
-				rdr, err = GzReader(rdr.Rdr)
-			case "qcow2":
-				d.Qemu = true
-				rdr, err = Qcow2NopReader(rdr.Rdr)
-			case "tar":
-				rdr, err = TarReader(rdr.Rdr)
-			case "xz":
-				rdr, err = XzReader(rdr.Rdr)
-			default:
-				return errors.Errorf("mismatch between supported file formats and this header type: %q", hdr.Format)
-			}
-			if err != nil {
-				return errors.WithMessage(err, "could not create compression/unarchive reader")
-			}
-			d.Readers = append(d.Readers, rdr)
-			d.Size, err = hdr.Size(hdrBuf)
-			if err != nil {
-				return errors.WithMessage(err, "could not determine original image size")
-			}
+		}
+		if hdr == nil { // done
+			done = true
+			break
+		}
+
+		// don't lose the hdr bytes just read
+		multir := io.MultiReader(bytes.NewReader(hdrBuf), rdr.Rdr)
+		rdr = Reader{RdrType: RdrMulti, Rdr: ioutil.NopCloser(multir)}
+		d.Readers = append(d.Readers, rdr)
+glog.Infof("\n***** d.Readers=%+v\n", d.Readers)
+
+		// remove this known hdr from slice since we don't want to process it again
+		knownHdrs = append(knownHdrs[:i], knownHdrs[i+1:]...)
+glog.Infof("\n***** new knownHdrs=%+v\n", knownHdrs)
+
+		glog.V(Vdebug).Infof("constructReaders: found header of type %q\n", hdr.Format)
+		switch hdr.Format {
+		case "gz":
+			rdr, err = GzReader(rdr.Rdr)
+		case "qcow2":
+			d.Qemu = true
+			rdr, err = Qcow2NopReader(rdr.Rdr)
+		case "tar":
+			rdr, err = TarReader(rdr.Rdr)
+		case "xz":
+			rdr, err = XzReader(rdr.Rdr)
+		default:
+			return errors.Errorf("mismatch between supported file formats and this header type: %q", hdr.Format)
+		}
+		if err != nil {
+			return errors.WithMessage(err, "could not create compression/unarchive reader")
+		}
+		d.Readers = append(d.Readers, rdr)
+		d.Size, err = hdr.Size(hdrBuf)
+		if err != nil {
+			return errors.WithMessage(err, "could not determine original image size")
 		}
 	}
+	glog.V(Vdebug).Infof("constructReaders: done processing %q headers\n", d.Url.Path)
 
 	return nil
 }
