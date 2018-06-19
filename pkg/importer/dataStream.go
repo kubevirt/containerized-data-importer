@@ -164,7 +164,7 @@ func (d *dataStream) local() (Reader, error) {
 	return Reader{RdrType: RdrFile, Rdr: f}, nil
 }
 
-// Copy the source file (image) to the provided destination path.
+// Copy the source endpoint (vm image) to the provided destination path.
 func CopyImage(dest, endpoint, accessKey, secKey string) error {
 	ds, err := NewDataStream(endpoint, accessKey, secKey)
 	if err != nil {
@@ -193,8 +193,7 @@ func CopyImage(dest, endpoint, accessKey, secKey string) error {
 // Note: readers are not closed here, see dataStream.Close().
 // Assumption: a particular header format only appears once in the data stream. Eg. foo.gz.gz is not supported.
 func (d *dataStream) constructReaders() error {
-	glog.V(Vdebug).Infof("constructReaders: create the initial Reader based on the url's %q scheme", d.Url.Scheme)
-
+	glog.V(Vadmin).Infof("create the initial Reader based on the url's %q scheme", d.Url.Scheme)
 	rdr, err := d.dataStreamSelector()
 	if err != nil {
 		return errors.WithMessage(err, "could not get data reader")
@@ -203,10 +202,12 @@ func (d *dataStream) constructReaders() error {
 
 	glog.V(Vdebug).Infof("constructReaders: checking compression and archive formats: %s\n", d.Url.Path)
 	hdrBuf := make([]byte, image.MaxExpectedHdrSize)
-	var hdr *image.Header
-	var done bool
+	var (
+		hdr  *image.Header
+		done bool
+		i    int
+	)
 	knownHdrs := image.KnownHdrs // local copy since elements are removed from it
-	var i int
 
 	// loop (in reverse) through all supported file formats until we do not find a header we recognize
 	for !done {
@@ -215,16 +216,16 @@ func (d *dataStream) constructReaders() error {
 		if err != nil {
 			return errors.WithMessage(err, "could not read image header")
 		}
+		// find known header for this format
 		for i = len(knownHdrs) - 1; i >= 0; i-- {
 			kh := knownHdrs[i]
 			hdr = image.MatchHeader(kh, hdrBuf)
 glog.Infof("\n***** hdr=%+v, kh=%+v\n", hdr, kh)
-			// nil header implies no match but there may be more header formats to check
 			if hdr != nil {
 				break
 			}
 		}
-		if hdr == nil { // done
+		if hdr == nil {
 			done = true
 			break
 		}
@@ -239,7 +240,7 @@ glog.Infof("\n***** d.Readers=%+v\n", d.Readers)
 		knownHdrs = append(knownHdrs[:i], knownHdrs[i+1:]...)
 glog.Infof("\n***** new knownHdrs=%+v\n", knownHdrs)
 
-		glog.V(Vdebug).Infof("constructReaders: found header of type %q\n", hdr.Format)
+		glog.V(Vadmin).Infof("found header of type %q\n", hdr.Format)
 		switch hdr.Format {
 		case "gz":
 			rdr, err = GzReader(rdr.Rdr)
@@ -259,11 +260,14 @@ glog.Infof("\n***** new knownHdrs=%+v\n", knownHdrs)
 		d.Readers = append(d.Readers, rdr)
 		d.Size, err = hdr.Size(hdrBuf)
 		if err != nil {
-			return errors.WithMessage(err, "could not determine original image size")
+			return err
 		}
 	}
-	glog.V(Vdebug).Infof("constructReaders: done processing %q headers\n", d.Url.Path)
 
+	if hdr == nil {
+		glog.V(Vdebug).Infof("constructReaders: no header found for file %q\n", d.Url.Path)
+	}
+	glog.V(Vadmin).Infof("done processing %q headers\n", d.Url.Path)
 	return nil
 }
 
@@ -314,8 +318,8 @@ func closeReaders(readers []Reader) (rtnerr error) {
 
 // Copy endpoint to dest based on passed-in reader.
 func (d *dataStream) copy(dest string) error {
-	r := d.Readers[len(d.Readers)-1]
-	return copy(r.Rdr, dest, d.Qemu)
+	// use the top-level reader
+	return copy(d.Readers[len(d.Readers)-1].Rdr, dest, d.Qemu)
 }
 
 // Copy the file using its Reader (r) to the passed-in destination (`out`).

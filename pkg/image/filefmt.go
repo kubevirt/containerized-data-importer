@@ -2,10 +2,12 @@ package image
 
 import (
 	"bytes"
-	"encoding/binary"
+	"encoding/hex"
+	"strconv"
 
-"github.com/golang/glog"
+	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/pkg/errors"
+	"github.com/golang/glog"
 )
 
 const MaxExpectedHdrSize = 1024 // 1kb
@@ -34,10 +36,10 @@ var KnownHdrs = []*Header{
 	},
 	{
 		Format:      "tar",
-		magicNumber: []byte{0x75, 0x73, 0x74, 0x61, 0x72, 0x00},
+		magicNumber: []byte{0x75, 0x73, 0x74, 0x61, 0x72, 0x20},
 		mgOffset:    0x101,
 		sizeOff:     124,
-		sizeLen:     8,
+		sizeLen:     12,
 	},
 	{
 		Format:      "xz",
@@ -57,19 +59,20 @@ type Header struct {
 }
 
 func (h Header) match(b []byte) bool {
-glog.Infof("\n***** match: h=%+v, len(magic)=%d\n",h,len(h.magicNumber))
+glog.Infof("\n***** match: len(b)=%d, h=%+v, slice=%+v\n",len(b),h,b[h.mgOffset:h.mgOffset+len(h.magicNumber)])
 	return bytes.Equal(b[h.mgOffset:h.mgOffset+len(h.magicNumber)], h.magicNumber)
 }
 
-// BIG OR LITTLE-ENDIAN?
 func (h *Header) Size(b []byte) (int64, error) {
-	sizeLen := h.sizeLen
-	if sizeLen == 0 { // indicates no size is supported in this format's header
+	if h.sizeLen == 0 { // no size is supported in this format's header
 		return 0, nil
 	}
-	size, n := binary.Varint(b[h.sizeOff:h.sizeOff+sizeLen])
-	if n != len(b) {
-		return 0, errors.Errorf("internal Size error: number of bytes read (%d) != expected (%d)", n, len(b))
+	s := hex.EncodeToString(b[h.sizeOff:h.sizeOff+h.sizeLen])
+glog.Infof("\n***** Size: bytes=%+v, hexstr=%q\n", b[h.sizeOff:h.sizeOff+h.sizeLen], s)
+	size, err := strconv.ParseInt(s, 16, 64)
+	if err != nil {
+		return 0, errors.Wrapf(err, "unable to determine original file size from %+v", s)
 	}
+	glog.V(Vdebug).Infof("Size: %q size in bytes: %d", h.Format, size)
 	return size, nil
 }
