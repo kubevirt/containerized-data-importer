@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/golang/glog"
@@ -190,6 +191,7 @@ func CopyImage(dest, endpoint, accessKey, secKey string) error {
 //   "s3://some-iso"                  [s3, multi-reader]
 //   "https://somefile.qcow2"         [http, multi-reader]
 //   "https://somefile.qcow2.tar.gz"  [http, gz, tar, multi-reader]
+// Note: all file extensions are ignored.
 // Note: readers are not closed here, see dataStream.Close().
 // Assumption: a particular header format only appears once in the data stream. Eg. foo.gz.gz is not supported.
 func (d *dataStream) constructReaders() error {
@@ -216,6 +218,7 @@ func (d *dataStream) constructReaders() error {
 		if err != nil {
 			return errors.WithMessage(err, "could not read image header")
 		}
+
 		// find known header for this format
 		for i = len(knownHdrs) - 1; i >= 0; i-- {
 			kh := knownHdrs[i]
@@ -225,17 +228,18 @@ glog.Infof("\n***** hdr=%+v, kh=%+v\n", hdr, kh)
 				break
 			}
 		}
-		if hdr == nil {
-			done = true
-			break
-		}
 
-		// don't lose the hdr bytes just read
+		// don't lose the hdr bytes read in the outer loop
 		multir := io.MultiReader(bytes.NewReader(hdrBuf), rdr.Rdr)
 		rdr = Reader{RdrType: RdrMulti, Rdr: ioutil.NopCloser(multir)}
 		d.Readers = append(d.Readers, rdr)
 glog.Infof("\n***** d.Readers=%+v\n", d.Readers)
 
+		// nil header implies there are no more header types to process, we have the orig file
+		if hdr == nil {
+			done = true
+			break
+		}
 		// remove this known hdr from slice since we don't want to process it again
 		knownHdrs = append(knownHdrs[:i], knownHdrs[i+1:]...)
 glog.Infof("\n***** new knownHdrs=%+v\n", knownHdrs)
@@ -243,14 +247,14 @@ glog.Infof("\n***** new knownHdrs=%+v\n", knownHdrs)
 		glog.V(Vadmin).Infof("found header of type %q\n", hdr.Format)
 		switch hdr.Format {
 		case "gz":
-			rdr, err = GzReader(rdr.Rdr)
+			rdr, d.Size, err = GzReader(rdr.Rdr)
 		case "qcow2":
 			d.Qemu = true
-			rdr, err = Qcow2NopReader(rdr.Rdr)
+			rdr, d.Size, err = Qcow2NopReader(rdr.Rdr, hdr, hdrBuf)
 		case "tar":
-			rdr, err = TarReader(rdr.Rdr)
+			rdr, d.Size, err = TarReader(rdr.Rdr)
 		case "xz":
-			rdr, err = XzReader(rdr.Rdr)
+			rdr, d.Size, err = XzReader(rdr.Rdr)
 		default:
 			return errors.Errorf("mismatch between supported file formats and this header type: %q", hdr.Format)
 		}
@@ -258,7 +262,6 @@ glog.Infof("\n***** new knownHdrs=%+v\n", knownHdrs)
 			return errors.WithMessage(err, "could not create compression/unarchive reader")
 		}
 		d.Readers = append(d.Readers, rdr)
-		d.Size, err = hdr.Size(hdrBuf)
 		if err != nil {
 			return err
 		}
@@ -271,37 +274,48 @@ glog.Infof("\n***** new knownHdrs=%+v\n", knownHdrs)
 	return nil
 }
 
-func GzReader(r io.ReadCloser) (Reader, error) {
+//NOTE: size in gz is stored in the last 4 bytes of the file. This requires the file to be decompressed in
+//  order to get its original size. For now 0 is returned.
+//TODO: support gz size.
+func GzReader(r io.ReadCloser) (Reader, int64, error) {
 	gz, err := gzip.NewReader(r)
 	if err != nil {
-		return Reader{}, errors.Wrap(err, "could not create gzip reader")
+		return Reader{}, 0, errors.Wrap(err, "could not create gzip reader")
 	}
 	glog.V(Vadmin).Infof("gzip: extracting %q\n", gz.Name)
-	return Reader{RdrType: RdrGz, Rdr: gz}, nil
+	return Reader{RdrType: RdrGz, Rdr: gz}, 0, nil
 }
 
-func Qcow2NopReader(r io.ReadCloser) (Reader, error) {
-	glog.V(Vdebug).Infof("Qcow2NopReader: found qcow2 file")
-	return Reader{RdrType: RdrQcow2, Rdr: r}, nil
+// Note: size is stored at offset 24 in the qcow2 header.
+func Qcow2NopReader(r io.ReadCloser, h *image.Header, buf []byte) (Reader, int64, error) {
+	s := hex.EncodeToString(buf[h.SizeOff:h.SizeOff+h.SizeLen])
+	size, err := strconv.ParseInt(s, 16, 64)
+glog.Infof("\n***** Qcow2NopReader: size=%d, bytes=%+v, hexstr=%q\n", size, buf[h.SizeOff:h.SizeOff+20], s)
+	if err != nil {
+		return Reader{RdrType: RdrQcow2, Rdr: r}, 0, errors.Wrapf(err, "unable to determine original qcow2 file size from %+v", s)
+	}
+	return Reader{RdrType: RdrQcow2, Rdr: r}, size, nil
 }
 
-func XzReader(r io.ReadCloser) (Reader, error) {
-	glog.V(Vdebug).Infoln("XzReader: xz format")
+//NOTE: size is nots stored in the xz header. This may require the file to be decompressed in
+//  order to get its original size. For now 0 is returned.
+//TODO: support gz size.
+func XzReader(r io.ReadCloser) (Reader, int64,  error) {
 	xz, err := xz.NewReader(r, 0) //note: default dict size may be too small
 	if err != nil {
-		return Reader{}, errors.Wrap(err, "could not create xz reader")
+		return Reader{}, 0, errors.Wrap(err, "could not create xz reader")
 	}
-	return Reader{RdrType: RdrXz, Rdr: ioutil.NopCloser(xz)}, nil
+	return Reader{RdrType: RdrXz, Rdr: ioutil.NopCloser(xz)}, 0, nil
 }
 
-func TarReader(r io.ReadCloser) (Reader, error) {
+func TarReader(r io.ReadCloser) (Reader, int64, error) {
 	tr := tar.NewReader(r)
 	hdr, err := tr.Next() // advance cursor to 1st (and only) file in tarball
 	if err != nil {
-		return Reader{}, errors.Wrap(err, "could not read tar header")
+		return Reader{}, 0, errors.Wrap(err, "could not read tar header")
 	}
 	glog.V(Vadmin).Infof("tar: extracting %q\n", hdr.Name)
-	return Reader{RdrType: RdrTar, Rdr: ioutil.NopCloser(tr)}, nil
+	return Reader{RdrType: RdrTar, Rdr: ioutil.NopCloser(tr)}, hdr.Size, nil
 }
 
 // Close the passed-in Readers in reverse order, see constructReaders().
