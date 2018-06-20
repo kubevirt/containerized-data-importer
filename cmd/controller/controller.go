@@ -7,11 +7,11 @@ import (
 	"os/signal"
 
 	"github.com/golang/glog"
-	. "github.com/kubevirt/containerized-data-importer/pkg/common"
-	"github.com/kubevirt/containerized-data-importer/pkg/controller"
+	. "kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 
-	clientset "github.com/kubevirt/containerized-data-importer/pkg/client/clientset/versioned"
-	informers "github.com/kubevirt/containerized-data-importer/pkg/client/informers/externalversions"
+	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,8 +24,11 @@ var (
 	configPath    string
 	masterURL     string
 	importerImage string
-	pullPolicy    string
-	verbose       string
+	clonerImage    string
+	importerPullPolicy    string
+	clonerPullPolicy       string
+	importerVerbose       string
+	clonerVerbose          string
 )
 
 // The optional importer image is obtained here along with the supported flags.
@@ -34,6 +37,7 @@ var (
 func init() {
 	// optional, importer image.  If not provided, uses IMPORTER_DEFAULT_IMAGE
 	const IMPORTER_IMAGE = "IMPORTER_IMAGE"
+	const CLONER_IMAGE = "CLONER_IMAGE"
 
 	// flags
 	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG")
@@ -45,24 +49,46 @@ func init() {
 	if importerImage == "" {
 		importerImage = IMPORTER_DEFAULT_IMAGE
 	}
-	pullPolicy = IMPORTER_DEFAULT_PULL_POLICY
+	importerPullPolicy = IMPORTER_DEFAULT_PULL_POLICY
 	if pp := os.Getenv(IMPORTER_PULL_POLICY); len(pp) != 0 {
-		pullPolicy = pp
+		importerPullPolicy = pp
+	}
+	
+	clonerImage = os.Getenv(CLONER_IMAGE)
+	if clonerImage == "" {
+		clonerImage = CLONER_DEFAULT_IMAGE
+	}
+	clonerPullPolicy = CLONER_DEFAULT_PULL_POLICY
+	if pp := os.Getenv(CLONER_PULL_POLICY); len(pp) != 0 {
+		clonerPullPolicy = pp
 	}
 
 	// get the verbose level so it can be passed to the importer pod
 	defVerbose := fmt.Sprintf("%d", IMPORTER_DEFAULT_VERBOSE) // note flag values are strings
-	verbose = defVerbose
+	importerVerbose = defVerbose
 	// visit actual flags passed in and if passed check -v and set verbose
 	flag.Visit(func(f *flag.Flag) {
 		if f.Name == "v" {
-			verbose = f.Value.String()
+			importerVerbose = f.Value.String()
 		}
 	})
-	if verbose == defVerbose {
+	if importerVerbose == defVerbose {
 		glog.V(Vuser).Infof("Note: increase the -v level in the controller deployment for more detailed logging, eg. -v=%d or -v=%d\n", Vadmin, Vdebug)
 	}
-
+	
+	// get the verbose level so it can be passed to the clone pods
+	defVerbose = fmt.Sprintf("%d", CLONER_DEFAULT_VERBOSE) // note flag values are strings
+	clonerVerbose = defVerbose
+	// visit actual flags passed in and if passed check -v and set verbose
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "v" {
+			clonerVerbose = f.Value.String()
+		}
+	})
+	if clonerVerbose == defVerbose {
+		glog.V(Vuser).Infof("Note: increase the -v level in the controller deployment for more detailed logging, eg. -v=%d or -v=%d\n", Vadmin, Vdebug)
+	}
+	
 	glog.V(Vdebug).Infof("init: complete: cdi controller will create importer using image %q\n", importerImage)
 }
 
@@ -103,11 +129,18 @@ func main() {
 		pvcInformer.Informer(),
 		podInformer.Informer(),
 		importerImage,
-		pullPolicy,
-		verbose)
+		importerPullPolicy,
+		importerVerbose)
+	
+	cloneController := controller.NewCloneController(client,
+		pvcInformer.Informer(),
+		podInformer.Informer(),
+		clonerImage,
+		clonerPullPolicy,
+		clonerVerbose)
 
 	glog.V(Vuser).Infoln("created cdi controllers")
-
+	
 	stopCh := handleSignals()
 
 	go cdiInformerFactory.Start(stopCh)
@@ -127,6 +160,13 @@ func main() {
 		err = importController.Run(1, stopCh)
 		if err != nil {
 			glog.Fatalln("Error running import controller: %+v", err)
+		}
+	}()
+	
+	go func() {
+		err = cloneController.Run(1, stopCh)
+		if err != nil {
+			glog.Fatalln("Error running clone controller: %+v", err)
 		}
 	}()
 

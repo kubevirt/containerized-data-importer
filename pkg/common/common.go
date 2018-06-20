@@ -13,6 +13,8 @@ const (
 	CDI_VERSION = "v1.0.0"
 
 	IMPORTER_DEFAULT_IMAGE = "docker.io/kubevirt/cdi-importer:" + CDI_VERSION
+	//CLONER_DEFAULT_IMAGE = "docker.io/kubevirt/cdi-cloner" + CDI_VERSION
+	CLONER_DEFAULT_IMAGE = "docker.io/zvikorn/host_assisted_cloning:latest"
 	CDI_LABEL_KEY          = "app"
 	CDI_LABEL_VALUE        = "containerized-data-importer"
 	CDI_LABEL_SELECTOR     = CDI_LABEL_KEY + "=" + CDI_LABEL_VALUE
@@ -26,11 +28,20 @@ const (
 	IMPORTER_DATA_DIR            = "/data"
 	IMPORTER_S3_HOST             = "s3.amazonaws.com"
 	IMPORTER_DEFAULT_PULL_POLICY = string(v1.PullIfNotPresent)
+	CLONER_DEFAULT_PULL_POLICY = string(v1.PullIfNotPresent)
 	// env var names
 	IMPORTER_PULL_POLICY   = "IMPORTER_PULL_POLICY"
 	IMPORTER_ENDPOINT      = "IMPORTER_ENDPOINT"
 	IMPORTER_ACCESS_KEY_ID = "IMPORTER_ACCESS_KEY_ID"
 	IMPORTER_SECRET_KEY    = "IMPORTER_SECRET_KEY"
+	CLONER_PULL_POLICY     = "CLONE_PULL_POLICY"
+	
+	CLONER_SOURCE_PODNAME =          "clone-source-pod"
+	CLONER_TARGET_PODNAME =          "clone-target-pod"
+	CLONER_IMAGE_PATH =              "/tmp/clone/image"
+	CLONER_SOCKET_PATH =             "/tmp/clone/socket"
+	CLONER_SCRIPT_ARGS =             "/tmp/script.sh"
+
 	// key names expected in credential secret
 	KeyAccess = "accessKeyId"
 	KeySecret = "secretKey"
@@ -43,4 +54,5 @@ const (
 	Vadmin                   = 2
 	Vdebug                   = 3
 	IMPORTER_DEFAULT_VERBOSE = Vuser
+	CLONER_DEFAULT_VERBOSE = Vuser
 )

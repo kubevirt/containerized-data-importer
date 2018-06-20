@@ -3,9 +3,9 @@ package controller
 import (
 	"fmt"
 	"time"
-
+	
 	"github.com/golang/glog"
-	. "github.com/kubevirt/containerized-data-importer/pkg/common"
+	. "kubevirt.io/containerized-data-importer/pkg/common"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -13,9 +13,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"strings"
 )
 
 const DataVolName = "cdi-data-vol"
+const ImagePathName = "image-path"
+const SocketPathName = "socket-path"
 
 // return a pvc pointer based on the passed-in work queue key.
 func (c *ImportController) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, error) {
@@ -326,3 +329,297 @@ func addToMap(m1, m2 map[string]string) map[string]string {
 	}
 	return m1
 }
+
+// returns the CloneRequest string which contains the pvc name (and namespace) from which we want to clone the image.
+func getCloneRequestPVC(pvc *v1.PersistentVolumeClaim) (string, error) {
+	cr, found := pvc.Annotations[AnnCloneRequest]
+	if !found || cr == "" {
+		verb := "empty"
+		if !found {
+			verb = "missing"
+		}
+		return cr, errors.Errorf("annotation %q in pvc \"%s/%s\" is %s\n", AnnCloneRequest, pvc.Namespace, pvc.Name, verb)
+	}
+	return cr, nil
+}
+
+func CreateCloneSourcePod(client kubernetes.Interface, image, verbose, pullPolicy, cr, secretName string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+	strArr := strings.Split(cr, "/")
+    var ns string = ""
+	if strArr == nil || len(strArr) < 2 {
+		glog.V(Vdebug).Infof("Wrong CloneRequest Annotation")
+		return nil, nil
+	}
+	ns = strArr[0]
+	pvcName := strArr[1]
+	
+	pod := MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, secretName, pvcName)
+
+	pod, err := client.CoreV1().Pods(ns).Create(pod)
+	if err != nil {
+		return nil, errors.Wrap(err, "source pod API create errored")
+	}
+	glog.V(Vuser).Infof("source pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	return pod, nil
+}
+
+// return the clone source pod spec based on the target pvc.
+func MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, secret string, pvcName string) *v1.Pod {
+	// source pod name contains the pvc name
+	podName := fmt.Sprintf("%s-", CLONER_SOURCE_PODNAME)
+
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: podName,
+			Annotations: map[string]string{
+				AnnCreatedBy: "yes",
+			},
+		},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+						NodeSelectorTerms: []v1.NodeSelectorTerm{
+							{
+								MatchExpressions: []v1.NodeSelectorRequirement{
+									{
+										Key:      "kubevirt.io/Host-Assisted-Cloning",
+										Operator: v1.NodeSelectorOpIn,
+										Values: []string{"true"},
+									},
+								},
+							},
+						},
+	                },
+				},
+			},
+			Containers: []v1.Container{
+				{
+					Command:		[]string{"/bin/sh"},
+					Name:            CLONER_SOURCE_PODNAME,
+					Image:           image,
+					ImagePullPolicy: v1.PullPolicy(pullPolicy),
+					SecurityContext: &v1.SecurityContext{
+						Privileged: &[]bool{true}[0],
+						RunAsUser: &[]int64{0}[0],
+					},
+					VolumeMounts: []v1.VolumeMount{
+						{
+							Name:      ImagePathName,
+							MountPath: CLONER_IMAGE_PATH,
+						},
+						{
+							Name:      SocketPathName,
+							MountPath: CLONER_SOCKET_PATH,
+						},
+					},
+					Args: []string{"-c", "/tmp/script.sh source"},
+				},
+			},
+			RestartPolicy: v1.RestartPolicyNever,
+			Volumes: []v1.Volume{
+				{
+					Name: ImagePathName,
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvcName,
+							ReadOnly:  false,
+						},
+					},
+				},
+				{
+					Name: SocketPathName,
+					VolumeSource: v1.VolumeSource{
+						HostPath: &v1.HostPathVolumeSource{
+							Path: CLONER_SOCKET_PATH,
+						},
+					},
+				},
+			},
+		},
+	}
+	return pod
+}
+
+func CreateCloneTargetPod(client kubernetes.Interface, image, verbose, pullPolicy, cr, secretName string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+	ns := pvc.Namespace
+    pod := MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr, secretName, pvc)
+
+	pod, err := client.CoreV1().Pods(ns).Create(pod)
+	if err != nil {
+		return nil, errors.Wrap(err, "clone target pod API create errored")
+	}
+	glog.V(Vuser).Infof("clone target pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	return pod, nil
+}
+
+// return the clone target pod spec based on the target pvc.
+func MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr, secret string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
+	// target pod name contains the pvc name
+	podName := fmt.Sprintf("%s-", CLONER_TARGET_PODNAME)
+
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: podName,
+			Annotations: map[string]string{
+				AnnCreatedBy: "yes",
+			},
+		},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+						NodeSelectorTerms: []v1.NodeSelectorTerm{
+							{
+								MatchExpressions: []v1.NodeSelectorRequirement{
+									{
+										Key:      "kubevirt.io/Host-Assisted-Cloning",
+										Operator: v1.NodeSelectorOpIn,
+										Values: []string{"true"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Containers: []v1.Container{
+				{
+					Command:		[]string{"/bin/sh"},
+					Name:            CLONER_TARGET_PODNAME,
+					Image:           image,
+					ImagePullPolicy: v1.PullPolicy(pullPolicy),
+					VolumeMounts: []v1.VolumeMount{
+						{
+							Name:      ImagePathName,
+							MountPath: CLONER_IMAGE_PATH,
+						},
+						{
+							Name:      SocketPathName,
+							MountPath: CLONER_SOCKET_PATH,
+						},
+					},
+					Args: []string{"-c", "/tmp/script.sh target" },
+				},
+			},
+			RestartPolicy: v1.RestartPolicyNever,
+			Volumes: []v1.Volume{
+				{
+					Name: ImagePathName,
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvc.Name,
+							ReadOnly:  false,
+						},
+					},
+				},
+				{
+					Name: SocketPathName,
+					VolumeSource: v1.VolumeSource{
+						HostPath: &v1.HostPathVolumeSource{
+							Path: CLONER_SOCKET_PATH,
+						},
+					},
+
+				},
+			},
+		},
+	}
+	return pod
+}
+
+// checkPVC verifies that the passed-in pvc is one we care about. Specifically, it must have the
+// CloneRequest annotation and it must not already be "in-progress". If the pvc passes these filters
+// then true is returned and the source and the target pods will be created. `AnnCloneRequest` indicates that the
+// pvc is targeted for the cloning job. `AnnCloneInProgress` indicates the  pvc is being processed.
+// Note: there is a race condition where the AnnCloneInProgress annotation is not seen in time and as
+// a result the source and the target pods can be created twice (or more, presumably). To reduce this window
+// a Get api call can be requested in order to get the latest copy of the pvc before verifying
+// its annotations.
+func checkClonePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, get bool) (ok bool, newPvc *v1.PersistentVolumeClaim, err error) {
+	// check if we have proper AnnCloneRequest annotation on the target pvc
+	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneRequest) {
+		glog.V(Vadmin).Infof("pvc annotation %q not found, skipping pvc\n", AnnCloneRequest)
+		return false, pvc, nil
+	}
+
+	//check if the pvc is being processed
+	if metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneInProgress) {
+		glog.V(Vadmin).Infof("pvc annotation %q exists indicating in-progress or completed, skipping pvc\n", AnnCloneInProgress)
+		return false, pvc, nil
+	}
+
+	if !get {
+		return true, pvc, nil // done checking this pvc, assume it's good to go
+	}
+
+	// get latest pvc object to help mitigate race and timing issues with latency between the
+	// store and work queue to double check if we are already processing
+	glog.V(Vdebug).Infof("checkPVC: getting latest version of pvc for in-process annotation")
+	newPvc, err = client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
+	if err != nil {
+		glog.Infof("checkPVC: pvc %q Get error: %v\n", pvc.Name, err)
+		return false, pvc, err
+	}
+
+	// check if we are processing this pvc now that we have the lastest copy
+	if metav1.HasAnnotation(newPvc.ObjectMeta, AnnCloneInProgress) {
+		glog.V(Vadmin).Infof("latest pvc annotation %q exists indicating in-progress or completed, skipping pvc\n", AnnCloneInProgress)
+		return false, newPvc, nil
+	}
+	//continue to process pvc
+	return true, newPvc, nil
+}
+
+func (c *CloneController) podFromKey(key interface{}) (*v1.Pod, error) {
+	obj, err := c.objFromKey(c.podInformer, key)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not get pod object from key")
+	}
+
+	pod, ok := obj.(*v1.Pod)
+	if !ok {
+		return nil, errors.New("error casting object to type \"v1.Pod\"")
+	}
+	return pod, nil
+}
+
+func (c *CloneController) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, error) {
+	obj, err := c.objFromKey(c.pvcInformer, key)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not get pvc object from key")
+	}
+
+	pvc, ok := obj.(*v1.PersistentVolumeClaim)
+	if !ok {
+		return nil, errors.New("Object not of type *v1.PersistentVolumeClaim")
+	}
+	return pvc, nil
+}
+
+func (c *CloneController) objFromKey(informer cache.SharedIndexInformer, key interface{}) (interface{}, error) {
+	keyString, ok := key.(string)
+	if !ok {
+		return nil, errors.New("keys is not of type string")
+	}
+	obj, ok, err := informer.GetIndexer().GetByKey(keyString)
+	if err != nil {
+		return nil, errors.Wrap(err, "error getting interface obj from store")
+	}
+	if !ok {
+		return nil, errors.New("interface object not found in store")
+	}
+	return obj, nil
+}
+
+
+
+
