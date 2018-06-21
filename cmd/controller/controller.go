@@ -7,11 +7,11 @@ import (
 	"os/signal"
 
 	"github.com/golang/glog"
-	. "kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
+	. "github.com/kubevirt/containerized-data-importer/pkg/common"
+	"github.com/kubevirt/containerized-data-importer/pkg/controller"
 
-	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
-	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions"
+	clientset "github.com/kubevirt/containerized-data-importer/pkg/client/clientset/versioned"
+	informers "github.com/kubevirt/containerized-data-importer/pkg/client/informers/externalversions"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"

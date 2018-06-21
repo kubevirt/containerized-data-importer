@@ -5,7 +5,7 @@ import (
 	"time"
 	//"encoding/json"  temporary for debug
 	"github.com/golang/glog"
-	. "kubevirt.io/containerized-data-importer/pkg/common"
+	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
