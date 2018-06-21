@@ -59,7 +59,7 @@ Supported file formats are:
 
 ### Either clone this repo or download the necessary manifests directly:
 
-`$ git clone https://github.com/kubevirt/containerized-data-importer.git`
+`$ git clone https://kubevirt.io/containerized-data-importer.git`
 
 *Or*
 

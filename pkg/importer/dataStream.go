@@ -16,8 +16,8 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
-	. "github.com/kubevirt/containerized-data-importer/pkg/common"
-	"github.com/kubevirt/containerized-data-importer/pkg/image"
+	. "kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/image"
 	"github.com/minio/minio-go"
 	"github.com/pkg/errors"
 	"github.com/xi2/xz"

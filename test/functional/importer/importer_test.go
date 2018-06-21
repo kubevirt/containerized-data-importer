@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	. "github.com/kubevirt/containerized-data-importer/pkg/importer"
+	. "kubevirt.io/containerized-data-importer/pkg/importer"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

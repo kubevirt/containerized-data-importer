@@ -5,8 +5,8 @@ package controller
 import (
 	"fmt"
 
-	. "github.com/kubevirt/containerized-data-importer/pkg/common"
-	. "github.com/kubevirt/containerized-data-importer/pkg/controller"
+	. "kubevirt.io/containerized-data-importer/pkg/common"
+	. "kubevirt.io/containerized-data-importer/pkg/controller"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"

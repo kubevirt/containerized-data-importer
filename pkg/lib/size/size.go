@@ -5,7 +5,7 @@ import (
 	"io"
 	"strconv"
 
-	. "github.com/kubevirt/containerized-data-importer/pkg/importer"
+	. "kubevirt.io/containerized-data-importer/pkg/importer"
 	"github.com/pkg/errors"
 )
 

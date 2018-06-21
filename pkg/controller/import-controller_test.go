@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"testing"
 
-	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -13,6 +12,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	k8stesting "k8s.io/client-go/tools/cache/testing"
 	"k8s.io/client-go/util/workqueue"
+	. "kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 func TestNewImportController(t *testing.T) {

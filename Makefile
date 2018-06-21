@@ -51,7 +51,7 @@ functional-test: func-test-bin func-test-image func-test-run
 lib: lib-size
 
 BUILD_IMAGE=golang:1.10.2
-WORK_DIR=/go/src/github.com/kubevirt/containerized-data-importer
+WORK_DIR=/go/src/kubevirt.io/containerized-data-importer
 GOOS?=linux
 ARCH?=amd64
 CGO_ENABLED=0

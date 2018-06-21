@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/kubevirt/containerized-data-importer/pkg/image"
+	"kubevirt.io/containerized-data-importer/pkg/image"
 	"github.com/pkg/errors"
 )
 

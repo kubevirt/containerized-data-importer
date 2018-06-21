@@ -7,7 +7,7 @@ import (
 	"math/rand"
 	"path/filepath"
 
-	. "github.com/kubevirt/containerized-data-importer/pkg/image"
+	. "kubevirt.io/containerized-data-importer/pkg/image"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
