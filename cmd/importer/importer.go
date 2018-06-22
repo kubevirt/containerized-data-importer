@@ -33,11 +33,11 @@ func main() {
 	acc, _ := ParseEnvVar(IMPORTER_ACCESS_KEY_ID, false)
 	sec, _ := ParseEnvVar(IMPORTER_SECRET_KEY, false)
 
-	glog.V(Vuser).Infof("beginning import from %q\n", ep)
+	glog.V(Vuser).Infoln("begin import process")
 	err := CopyImage(IMPORTER_WRITE_PATH, ep, acc, sec)
 	if err != nil {
 		glog.Errorf("%+v", err)
 		os.Exit(1)
 	}
-	glog.V(Vuser).Infoln("Import complete, exiting")
+	glog.V(Vuser).Infoln("import complete")
 }

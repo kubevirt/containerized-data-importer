@@ -79,7 +79,8 @@ func NewDataStream(endpt, accKey, secKey string) (*dataStream, error) {
 	}
 	ds := &dataStream{
 		Url:         ep,
-		buf:	     make([]byte, image.MaxExpectedHdrSize),
+//buf:	     make([]byte, image.MaxExpectedHdrSize),
+		buf:	     make([]byte, 512),
 		accessKeyId: accKey,
 		secretKey:   secKey,
 	}
@@ -172,6 +173,7 @@ func (d *dataStream) local() (Reader, error) {
 
 // Copy the source endpoint (vm image) to the provided destination path.
 func CopyImage(dest, endpoint, accessKey, secKey string) error {
+	glog.V(Vuser).Infof("copying %q to %q...\n", endpoint, dest)
 	ds, err := NewDataStream(endpoint, accessKey, secKey)
 	if err != nil {
 		return errors.Wrapf(err, "unable to create data stream")
@@ -219,7 +221,7 @@ func (d *dataStream) constructReaders() error {
 		if hdr == nil {
 			break // done processing headers, we have the orig source file
 		}
-glog.Infof("\n***** after matchHeader: hdr=%+v, knownHdrs=%+v, readers=%q\n",*hdr,knownHdrs,d.printReaders())
+//glog.Infof("\n***** after matchHeader: hdr=%+v, knownHdrs=%+v, readers=%q\n",*hdr,knownHdrs,d.printReaders())
 		glog.V(Vadmin).Infof("found header of type %q\n", hdr.Format)
 
 		switch hdr.Format {
@@ -237,7 +239,7 @@ glog.Infof("\n***** after matchHeader: hdr=%+v, knownHdrs=%+v, readers=%q\n",*hd
 		if err != nil {
 			return errors.WithMessage(err, "could not create compression/unarchive reader")
 		}
-glog.Infof("\n***** after switch: readers=%q\n",d.printReaders())
+//glog.Infof("\n***** after switch: readers=%q\n",d.printReaders())
 glog.Infof("\n***** %q size is %d\n", hdr.Format, d.Size)
 	}
 glog.Infof("\n***** after for: readers=%q\n",d.printReaders())
@@ -262,6 +264,7 @@ func (d *dataStream) topReader() io.ReadCloser {
 
 //NOTE: size in gz is stored in the last 4 bytes of the file. This requires the file to be decompressed in
 //  order to get its original size. For now 0 is returned.
+// Assumes a single file was gzipped.
 //TODO: support gz size.
 func (d *dataStream) gzReader() error {
 	gz, err := gzip.NewReader(d.topReader())
@@ -301,6 +304,7 @@ func (d *dataStream) xzReader() error {
 	return nil
 }
 
+// Assumes a single file was archived.
 func (d *dataStream) tarReader() error {
 	tr := tar.NewReader(d.topReader())
 	hdr, err := tr.Next() // advance cursor to 1st (and only) file in tarball
@@ -352,7 +356,6 @@ func closeReaders(readers []Reader) (rtnerr error) {
 
 // Copy endpoint to dest based on passed-in reader.
 func (d *dataStream) copy(dest string) error {
-	// use the top-level reader
 	return copy(d.topReader(), dest, d.Qemu)
 }
 
