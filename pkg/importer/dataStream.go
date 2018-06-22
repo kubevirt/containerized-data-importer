@@ -210,9 +210,8 @@ func (d *dataStream) constructReaders() error {
 	}
 
 	// loop through all supported file formats until we do not find a header we recognize
-	knownHdrs := image.KnownHeaders // local copy since keys are removed
+	knownHdrs := image.CopyKnownHdrs() // need local copy since keys are removed
 	glog.V(Vdebug).Infof("constructReaders: checking compression and archive formats: %s\n", d.Url.Path)
-
 	for {
 		hdr, err := d.matchHeader(&knownHdrs)
 		if err != nil {
@@ -221,7 +220,6 @@ func (d *dataStream) constructReaders() error {
 		if hdr == nil {
 			break // done processing headers, we have the orig source file
 		}
-//glog.Infof("\n***** after matchHeader: hdr=%+v, knownHdrs=%+v, readers=%q\n",*hdr,knownHdrs,d.printReaders())
 		glog.V(Vadmin).Infof("found header of type %q\n", hdr.Format)
 
 		switch hdr.Format {
@@ -239,23 +237,13 @@ func (d *dataStream) constructReaders() error {
 		if err != nil {
 			return errors.WithMessage(err, "could not create compression/unarchive reader")
 		}
-//glog.Infof("\n***** after switch: readers=%q\n",d.printReaders())
-glog.Infof("\n***** %q size is %d\n", hdr.Format, d.Size)
 	}
-glog.Infof("\n***** after for: readers=%q\n",d.printReaders())
+
 	if len(d.Readers) <= 2 { // 1st rdr is source, 2nd rdr is multi-rdr, >2 means we have additional formats
 		glog.V(Vdebug).Infof("constructReaders: no headers found for file %q\n", d.Url.Path)
 	}
 	glog.V(Vadmin).Infof("done processing %q headers\n", d.Url.Path)
 	return nil
-}
-
-func (d *dataStream) printReaders() string {
-s := ""
-for _, r := range d.Readers {
-	s += fmt.Sprintf("%+v, r.Rdr=%+v @@@ ", r, r.Rdr)
-}
-return s
 }
 
 func (d *dataStream) topReader() io.ReadCloser {
@@ -282,7 +270,6 @@ func (d *dataStream) gzReader() error {
 func (d *dataStream) qcow2NopReader(h *image.Header) error {
 	s := hex.EncodeToString(d.buf[h.SizeOff:h.SizeOff+h.SizeLen])
 	size, err := strconv.ParseInt(s, 16, 64)
-glog.Infof("\n***** Qcow2NopReader: size=%d, bytes=%+v, hexstr=%q\n", size, d.buf[h.SizeOff:h.SizeOff+20], s)
 	if err != nil {
 		return errors.Wrapf(err, "unable to determine original qcow2 file size from %+v", s)
 	}

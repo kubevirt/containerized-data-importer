@@ -53,8 +53,16 @@ type Header struct {
 	SizeLen	    int // in bytes
 }
 
+// simple map copy since := assignment copies the reference to the map, not contents.
+func CopyKnownHdrs() Headers {
+	m := make(Headers)
+	for k, v := range KnownHeaders {
+		m[k] = v
+	}
+	return m
+}
+
 func (h Header) Match(b []byte) bool {
-glog.Infof("\n***** match: len(b)=%d, h=%+v, slice=%+v\n",len(b),h,b[h.mgOffset:h.mgOffset+len(h.magicNumber)])
 	return bytes.Equal(b[h.mgOffset:h.mgOffset+len(h.magicNumber)], h.magicNumber)
 }
 
@@ -67,6 +75,6 @@ func (h *Header) Size(b []byte) (int64, error) {
 	if err != nil {
 		return 0, errors.Wrapf(err, "unable to determine original file size from %+v", s)
 	}
-	glog.V(Vdebug).Infof("Size: %q size in bytes: %d", h.Format, size)
+	glog.V(Vdebug).Infof("Size: %q size in bytes (at off %d:%d): %d", h.Format, h.SizeOff, h.SizeOff+h.SizeLen, size)
 	return size, nil
 }
