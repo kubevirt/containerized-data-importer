@@ -40,7 +40,7 @@ var _ DataStreamInterface = &dataStream{}
 type dataStream struct {
 	Url         *url.URL
 	Readers     []Reader
-	buf	    []byte // holds file headers
+	buf         []byte // holds file headers
 	Qemu        bool
 	Size        int64
 	accessKeyId string
@@ -79,8 +79,7 @@ func NewDataStream(endpt, accKey, secKey string) (*dataStream, error) {
 	}
 	ds := &dataStream{
 		Url:         ep,
-//buf:	     make([]byte, image.MaxExpectedHdrSize),
-		buf:	     make([]byte, 512),
+		buf:         make([]byte, image.MaxExpectedHdrSize),
 		accessKeyId: accKey,
 		secretKey:   secKey,
 	}
@@ -184,7 +183,7 @@ func CopyImage(dest, endpoint, accessKey, secKey string) error {
 
 // Read the endpoint and determine the file composition (eg. .iso.tar.gz) based on the magic number in
 // each known file format header. Set the Reader slice in the receiver and set the Size field to each
-// reader's original size. Note: the reader processed last defines the final Size. 
+// reader's original size. Note: the reader processed last defines the final Size.
 // The reader order starts with the lowest level reader, eg. http, used to read file content. The next
 // readers are combinations of decompression/archive readers and bytes multi-readers. The multi-readers
 // are created so that header data (interpreted by the current reader) is present for the next reader.
@@ -261,14 +260,14 @@ func (d *dataStream) gzReader() error {
 	}
 	glog.V(Vadmin).Infof("gzip: extracting %q\n", gz.Name)
 	d.Readers = append(d.Readers, Reader{RdrType: RdrGz, Rdr: gz})
-	d.Size = 0  //TODO: implement size
+	d.Size = 0 //TODO: implement size
 	return nil
 }
 
 // Note: size is stored at offset 24 in the qcow2 header.
 // Note: there is no qcow2 reader.
 func (d *dataStream) qcow2NopReader(h *image.Header) error {
-	s := hex.EncodeToString(d.buf[h.SizeOff:h.SizeOff+h.SizeLen])
+	s := hex.EncodeToString(d.buf[h.SizeOff : h.SizeOff+h.SizeLen])
 	size, err := strconv.ParseInt(s, 16, 64)
 	if err != nil {
 		return errors.Wrapf(err, "unable to determine original qcow2 file size from %+v", s)
@@ -287,7 +286,7 @@ func (d *dataStream) xzReader() error {
 		return errors.Wrap(err, "could not create xz reader")
 	}
 	d.Readers = append(d.Readers, Reader{RdrType: RdrXz, Rdr: ioutil.NopCloser(xz)})
-	d.Size = 0  //TODO: implement size
+	d.Size = 0 //TODO: implement size
 	return nil
 }
 
@@ -309,24 +308,24 @@ func (d *dataStream) tarReader() error {
 // so that the header data is not lost.
 // Note: knownHdrs is passed by reference and modified.
 func (d *dataStream) matchHeader(knownHdrs *image.Headers) (*image.Header, error) {
-        _, err := d.Read(d.buf) // read current header
-        if err != nil {
-                return nil, err
-        }
+	_, err := d.Read(d.buf) // read current header
+	if err != nil {
+		return nil, err
+	}
 	// create a multi-reader so that the header data is re-read by subsequent readers
-        hRdr := ioutil.NopCloser(io.MultiReader(bytes.NewReader(d.buf), d.topReader()))
+	hRdr := ioutil.NopCloser(io.MultiReader(bytes.NewReader(d.buf), d.topReader()))
 	// append byte multi-reader to datastream reader stack
 	d.Readers = append(d.Readers, Reader{RdrType: RdrMulti, Rdr: hRdr})
 
 	// loop through known headers until a match
-        for format, kh := range *knownHdrs {
-                if kh.Match(d.buf) {
-                        // delete this header format key so that it's not processed again
-                        delete(*knownHdrs, format)
-                        return &kh, nil
-                }
-        }
-        return nil, nil // no match
+	for format, kh := range *knownHdrs {
+		if kh.Match(d.buf) {
+			// delete this header format key so that it's not processed again
+			delete(*knownHdrs, format)
+			return &kh, nil
+		}
+	}
+	return nil, nil // no match
 }
 
 // Close the passed-in Readers in reverse order, see constructReaders().
