@@ -5,8 +5,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"kubevirt.io/containerized-data-importer/pkg/image"
 	"github.com/pkg/errors"
+	"kubevirt.io/containerized-data-importer/pkg/image"
 )
 
 var formatTable = map[string]func(string) (string, error){

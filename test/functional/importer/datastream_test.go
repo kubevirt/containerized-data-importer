@@ -12,13 +12,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	imagesize "kubevirt.io/containerized-data-importer/pkg/lib/size"
 	f "kubevirt.io/containerized-data-importer/test/framework"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"github.com/pkg/errors"
 )
 
 type testCase struct {

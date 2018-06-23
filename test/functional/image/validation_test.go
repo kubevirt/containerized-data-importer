@@ -7,9 +7,9 @@ import (
 	"math/rand"
 	"path/filepath"
 
-	. "kubevirt.io/containerized-data-importer/pkg/image"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	. "kubevirt.io/containerized-data-importer/pkg/image"
 )
 
 var _ = Describe("Validate file and extensions", func() {

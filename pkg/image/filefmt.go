@@ -5,9 +5,9 @@ import (
 	"encoding/hex"
 	"strconv"
 
-	"github.com/golang/glog"
-	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/pkg/errors"
+	"github.com/golang/glog"
+	. "kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 // Size of buffer used to read file headers.
