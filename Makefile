@@ -89,11 +89,10 @@ func-test-bin:
 	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go test -a -c -ldflags $(LDFLAGS) -o $(F_TEST_BIN) $(F_TEST_DIR)/*.go
 
 # build the controller image
-ifeq ($(RUNNING_DOCKER), 1)
-controller-image:
-	@echo "Docker daemon not running, skipping image build."
-else
 controller-image: $(CONTROLLER_BUILD)/Dockerfile
+ifeq ($(RUNNING_DOCKER), 1)
+	@echo 'Docker daemon not running, skipping image build.'
+else ifeq ($(USE_DOCKER), 1)
 	@echo '********'
 	@echo 'Building controller image'
 	$(eval TEMP_BUILD_DIR=$(CONTROLLER_BUILD)/tmp)
@@ -105,11 +104,10 @@ controller-image: $(CONTROLLER_BUILD)/Dockerfile
 endif
 
 # build the importer image
-ifeq ($(RUNNING_DOCKER), 1)
-importer-image:
-	@echo "Docker daemon not running, skipping image build."
-else
 importer-image: $(IMPORTER_BUILD)/Dockerfile
+ifeq ($(RUNNING_DOCKER), 1)
+	@echo 'Docker daemon not running, skipping image build.'
+else ifeq ($(USE_DOCKER), 1)
 	@echo '********'
 	@echo 'Building importer image'
 	$(eval TEMP_BUILD_DIR=$(IMPORTER_BUILD)/tmp)
