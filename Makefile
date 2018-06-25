@@ -39,7 +39,7 @@ TAG=$(GIT_USER)-latest
 
 # Preflight Check Defaults
 USE_DOCKER=1
-DOCKER_OUT=$(shell docker ps)
+RUNNING_DOCKER=$(shell docker ps &>/dev/null; echo $$?)
 
 .PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-controller-release push-importer-release push-importer lib clean test
 all: clean test controller importer lib
@@ -61,7 +61,7 @@ LDFLAGS='-extldflags "-static"'
 controller-bin:
 	@echo '********'
 	@echo 'Compiling controller binary'
-	@if [ -n '$(DOCKER_OUT)' ] && [ $(USE_DOCKER) -eq 1 ]; then \
+	@if [ '$(RUNNING_DOCKER)' -eq 0 ] && [ $(USE_DOCKER) -eq 1 ]; then \
 		echo 'building with docker'; \
 		$(DOCKER_BUILD_CMD) -o $(WORK_DIR)/bin/$(CONTROLLER_BIN) $(WORK_DIR)/cmd/controller/controller.go; \
 	else \
@@ -73,7 +73,7 @@ controller-bin:
 importer-bin:
 	@echo '********'
 	@echo 'Compiling importer binary'
-	@if [ -n '$(DOCKER_OUT)' ] && [ $(USE_DOCKER) -eq 1 ]; then \
+	@if [ $(RUNNING_DOCKER) -eq 0 ] && [ $(USE_DOCKER) -eq 1 ]; then \
 		echo 'building with docker'; \
 		$(DOCKER_BUILD_CMD) -o $(WORK_DIR)/bin/$(IMPORTER_BIN) $(WORK_DIR)/cmd/importer/importer.go; \
 	else \
@@ -90,6 +90,9 @@ func-test-bin:
 
 # build the controller image
 controller-image: $(CONTROLLER_BUILD)/Dockerfile
+ifeq ($(RUNNING_DOCKER), 1)
+	@echo 'Docker daemon not running, skipping image build.'
+else ifeq ($(USE_DOCKER), 1)
 	@echo '********'
 	@echo 'Building controller image'
 	$(eval TEMP_BUILD_DIR=$(CONTROLLER_BUILD)/tmp)
@@ -98,9 +101,13 @@ controller-image: $(CONTROLLER_BUILD)/Dockerfile
 	cp $(CONTROLLER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
 	docker build -t $(CTRL_IMG_NAME) $(TEMP_BUILD_DIR)
 	-rm -rf $(TEMP_BUILD_DIR)
+endif
 
 # build the importer image
 importer-image: $(IMPORTER_BUILD)/Dockerfile
+ifeq ($(RUNNING_DOCKER), 1)
+	@echo 'Docker daemon not running, skipping image build.'
+else ifeq ($(USE_DOCKER), 1)
 	@echo '********'
 	@echo 'Building importer image'
 	$(eval TEMP_BUILD_DIR=$(IMPORTER_BUILD)/tmp)
@@ -109,6 +116,7 @@ importer-image: $(IMPORTER_BUILD)/Dockerfile
 	cp $(IMPORTER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
 	docker build --build-arg entrypoint=$(IMPORTER) -t $(IMPT_IMG_NAME) $(TEMP_BUILD_DIR)
 	-rm -rf $(TEMP_BUILD_DIR)
+endif
 
 # build the functional test image.  The importer image is used to provide consistency between test
 # and run environments.
@@ -148,7 +156,7 @@ unit-test:
 
 lib-size:
 	# compile size "library" package consumed by external repos
-	@if [ -n '$(DOCKER_OUT)' ] && [ $(USE_DOCKER) -eq 1 ]; then \
+	@if [ $(RUNNING_DOCKER) -eq 1 ] && [ $(USE_DOCKER) -eq 1 ]; then \
 		echo 'building with docker'; \
 		$(DOCKER_BUILD_CMD) -o /tmp/size $(WORK_DIR)/pkg/lib/size/size.go; \
 	else \
