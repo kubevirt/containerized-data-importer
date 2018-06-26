@@ -18,7 +18,7 @@ const MaxExpectedHdrSize = 512
 // key is file format, eg. "gz" or "tar", value is metadata describing the layout for this hdr
 type Headers map[string]Header
 
-var KnownHeaders = Headers{
+var knownHeaders = Headers{
 	"gz": Header{
 		Format:      "gz",
 		magicNumber: []byte{0x1F, 0x8B},
@@ -60,7 +60,7 @@ type Header struct {
 // simple map copy since := assignment copies the reference to the map, not contents.
 func CopyKnownHdrs() Headers {
 	m := make(Headers)
-	for k, v := range KnownHeaders {
+	for k, v := range knownHeaders {
 		m[k] = v
 	}
 	return m
@@ -70,7 +70,7 @@ func (h Header) Match(b []byte) bool {
 	return bytes.Equal(b[h.mgOffset:h.mgOffset+len(h.magicNumber)], h.magicNumber)
 }
 
-func (h *Header) Size(b []byte) (int64, error) {
+func (h Header) Size(b []byte) (int64, error) {
 	if h.SizeLen == 0 { // no size is supported in this format's header
 		return 0, nil
 	}

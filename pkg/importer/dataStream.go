@@ -25,7 +25,7 @@ import (
 )
 
 type DataStreamInterface interface {
-	dataStreamSelector() error
+	dataStreamSelector() (Reader, error)
 	s3() (Reader, error)
 	http() (Reader, error)
 	local() (Reader, error)
@@ -92,33 +92,30 @@ func NewDataStream(endpt, accKey, secKey string) (*dataStream, error) {
 }
 
 // Read from top-most reader.
-func (d *dataStream) Read(buf []byte) (int, error) {
+func (d dataStream) Read(buf []byte) (int, error) {
 	return d.topReader().Read(buf)
 }
 
 // Close all readers.
-func (d *dataStream) Close() error {
+func (d dataStream) Close() error {
 	return closeReaders(d.Readers)
 }
 
-func (d *dataStream) dataStreamSelector() (err error) {
-	var r Reader
+// Based on the enpoint scheme, return a scheme-specific dataStream Reader.
+func (d dataStream) dataStreamSelector() (Reader, error) {
 	switch d.Url.Scheme {
 	case "s3":
-		r, err = d.s3()
+		return d.s3()
 	case "http", "https":
-		r, err = d.http()
+		return d.http()
 	case "file":
-		r, err = d.local()
+		return d.local()
 	default:
-		return errors.Errorf("invalid url scheme: %q", d.Url.Scheme)
+		return Reader{}, errors.Errorf("invalid url scheme: %q", d.Url.Scheme)
 	}
-	// append source reader to datastream reader stack
-	d.Readers = append(d.Readers, r)
-	return
 }
 
-func (d *dataStream) s3() (Reader, error) {
+func (d dataStream) s3() (Reader, error) {
 	glog.V(Vdebug).Infoln("Using S3 client to get data")
 	bucket := d.Url.Host
 	object := strings.Trim(d.Url.Path, "/")
@@ -134,7 +131,7 @@ func (d *dataStream) s3() (Reader, error) {
 	return Reader{RdrType: RdrS3, Rdr: objectReader}, nil
 }
 
-func (d *dataStream) http() (Reader, error) {
+func (d dataStream) http() (Reader, error) {
 	client := http.Client{
 		CheckRedirect: func(r *http.Request, via []*http.Request) error {
 			r.SetBasicAuth(d.accessKeyId, d.secretKey) // Redirects will lose basic auth, so reset them manually
@@ -160,7 +157,7 @@ func (d *dataStream) http() (Reader, error) {
 	return Reader{RdrType: RdrHttp, Rdr: resp.Body}, nil
 }
 
-func (d *dataStream) local() (Reader, error) {
+func (d dataStream) local() (Reader, error) {
 	fn := d.Url.Path
 	f, err := os.Open(fn)
 	if err != nil {
@@ -183,13 +180,13 @@ func CopyImage(dest, endpoint, accessKey, secKey string) error {
 
 // Read the endpoint and determine the file composition (eg. .iso.tar.gz) based on the magic number in
 // each known file format header. Set the Reader slice in the receiver and set the Size field to each
-// reader's original size. Note: the reader processed last defines the final Size.
-// The reader order starts with the lowest level reader, eg. http, used to read file content. The next
-// readers are combinations of decompression/archive readers and bytes multi-readers. The multi-readers
-// are created so that header data (interpreted by the current reader) is present for the next reader.
-// Thus, the last reader in the reader stack is always a multi-reader. Readers are closed in reverse order,
-// see the Close method. If a format doesn't natively support Close() a no-op Closer is wrapped around
-// the native Reader so that all Readers can be consider ReadClosers.
+// reader's original size. Note: the reader processed last defines the final Size. The reader order
+// starts with the lowest level reader, eg. http, used to read file content. The next readers are
+// combinations of decompression/archive readers and bytes multi-readers. The multi-readers are created
+// so that header data (interpreted by the current reader) is present for the next reader. Thus, the
+// last reader in the reader stack is always a multi-reader. Readers are closed in reverse order, see
+// the Close method. If a format doesn't natively support Close() a no-op Closer is wrapped around the
+// native Reader so that all Readers can be consider ReadClosers.
 // Examples:
 //   Filename                    Readers (mr == multi-reader)
 //   --------                    ----------------------------
@@ -203,10 +200,12 @@ func CopyImage(dest, endpoint, accessKey, secKey string) error {
 // Assumption: a particular header format only appears once in the data stream. Eg. foo.gz.gz is not supported.
 func (d *dataStream) constructReaders() error {
 	glog.V(Vadmin).Infof("create the initial Reader based on the url's %q scheme", d.Url.Scheme)
-	err := d.dataStreamSelector()
+	r, err := d.dataStreamSelector()
 	if err != nil {
 		return errors.WithMessage(err, "could not get data reader")
 	}
+	// append source reader to datastream reader stack
+	d.Readers = append(d.Readers, r)
 
 	// loop through all supported file formats until we do not find a header we recognize
 	knownHdrs := image.CopyKnownHdrs() // need local copy since keys are removed
@@ -216,28 +215,19 @@ func (d *dataStream) constructReaders() error {
 		if err != nil {
 			return errors.WithMessage(err, "could not process image header")
 		}
+		// append multi-reader so that the header data is re-read by subsequent readers
+		d.Readers = append(d.Readers, Reader{RdrType: RdrMulti, Rdr: ioutil.NopCloser(io.MultiReader(bytes.NewReader(d.buf), d.topReader()))})
 		if hdr == nil {
 			break // done processing headers, we have the orig source file
 		}
 		glog.V(Vadmin).Infof("found header of type %q\n", hdr.Format)
 
-		switch hdr.Format {
-		case "gz":
-			err = d.gzReader()
-		case "qcow2":
-			err = d.qcow2NopReader(hdr)
-		case "tar":
-			err = d.tarReader()
-		case "xz":
-			err = d.xzReader()
-		default:
-			return errors.Errorf("mismatch between supported file formats and this header type: %q", hdr.Format)
-		}
+		// create format-specific reader and append it to dataStream Readers slice
+		err = d.fileFormatSelector(hdr)
 		if err != nil {
 			return errors.WithMessage(err, "could not create compression/unarchive reader")
 		}
 	}
-
 	if len(d.Readers) <= 2 { // 1st rdr is source, 2nd rdr is multi-rdr, >2 means we have additional formats
 		glog.V(Vdebug).Infof("constructReaders: no headers found for file %q\n", d.Url.Path)
 	}
@@ -245,8 +235,25 @@ func (d *dataStream) constructReaders() error {
 	return nil
 }
 
-func (d *dataStream) topReader() io.ReadCloser {
+// Return the top-level io.ReadCloser from the receiver Reader "stack".
+func (d dataStream) topReader() io.ReadCloser {
 	return d.Readers[len(d.Readers)-1].Rdr
+}
+
+// Based on the passed in header, return the format-specific reader.
+func (d *dataStream) fileFormatSelector(hdr *image.Header) error {
+	switch hdr.Format {
+	case "gz":
+		return d.gzReader()
+	case "qcow2":
+		return d.qcow2NopReader(hdr)
+	case "tar":
+		return d.tarReader()
+	case "xz":
+		return d.xzReader()
+	default:
+		return errors.Errorf("mismatch between supported file formats and this header type: %q", hdr.Format)
+	}
 }
 
 //NOTE: size in gz is stored in the last 4 bytes of the file. This requires the file to be decompressed in
@@ -279,6 +286,7 @@ func (d *dataStream) qcow2NopReader(h *image.Header) error {
 
 //NOTE: size is not stored in the xz header. This may require the file to be decompressed in
 //  order to get its original size. For now 0 is returned.
+// Assumes a single file was gzipped.
 //TODO: support gz size.
 func (d *dataStream) xzReader() error {
 	xz, err := xz.NewReader(d.topReader(), 0) //note: default dict size may be too small
@@ -304,19 +312,12 @@ func (d *dataStream) tarReader() error {
 }
 
 // Return the matching header, if one is found, from the passed-in map of known headers.
-// After reading the header, update the receiver's slice of readers with a byte multi-reader
-// so that the header data is not lost.
 // Note: knownHdrs is passed by reference and modified.
-func (d *dataStream) matchHeader(knownHdrs *image.Headers) (*image.Header, error) {
+func (d dataStream) matchHeader(knownHdrs *image.Headers) (*image.Header, error) {
 	_, err := d.Read(d.buf) // read current header
 	if err != nil {
 		return nil, err
 	}
-	// create a multi-reader so that the header data is re-read by subsequent readers
-	hRdr := ioutil.NopCloser(io.MultiReader(bytes.NewReader(d.buf), d.topReader()))
-	// append byte multi-reader to datastream reader stack
-	d.Readers = append(d.Readers, Reader{RdrType: RdrMulti, Rdr: hRdr})
-
 	// loop through known headers until a match
 	for format, kh := range *knownHdrs {
 		if kh.Match(d.buf) {
@@ -341,7 +342,7 @@ func closeReaders(readers []Reader) (rtnerr error) {
 }
 
 // Copy endpoint to dest based on passed-in reader.
-func (d *dataStream) copy(dest string) error {
+func (d dataStream) copy(dest string) error {
 	return copy(d.topReader(), dest, d.Qemu)
 }
 
@@ -385,7 +386,7 @@ func randTmpName(src string) string {
 }
 
 // parseDataPath only used for debugging
-func (d *dataStream) parseDataPath() (string, string) {
+func (d dataStream) parseDataPath() (string, string) {
 	pathSlice := strings.Split(strings.Trim(d.Url.EscapedPath(), "/"), "/")
 	glog.V(Vdebug).Infof("parseDataPath: url path: %v", pathSlice)
 	return pathSlice[0], strings.Join(pathSlice[1:], "/")
