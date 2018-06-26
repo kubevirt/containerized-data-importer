@@ -20,7 +20,7 @@ CDI adheres to the [semantic version definitions](https://semver.org/) format of
 
 1. Set the new release version
 
-    A recipe has been provided in `Makefile` to handle version setting. ONLY use this command to set versions.
+    A recipe has been provided in `Makefile` to handle version setting. Use ONLY this command to set versions. Do NOT edit the values manually.
 
         $ make  set-version VERSION=v#.#.#
 
@@ -31,14 +31,6 @@ CDI adheres to the [semantic version definitions](https://semver.org/) format of
     Before publishing the changes, make one last check to verify the correct version value has been substituted in.
 
         $ git diff HEAD~1
-
-NOTE: The following steps MUST be performed in order or risk breaking the CI job.
-
-1. Build and publish the docker images
-
-        $ make release
-
-    The `release` recipe will compile fresh binaries, build new docker containers, tag them with the new version, and push them to docker.io/kubevirt. If you do not have push access to that repository, this step will fail.
 
 1. Push the changes to Github
 
