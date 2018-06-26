@@ -172,7 +172,7 @@ clean:
 	-rm -rf $(IMPORTER_BUILD)/tmp
 
 # push cdi-importer and cdi-controller images to kubevirt repo for general use. Intended to release stable image built from master branch.
-release: controller importer
+release:
 	@echo '********'
 	@echo 'Releasing CDI images'
 	docker tag $(IMPT_IMG_NAME) $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):$(RELEASE_TAG)
