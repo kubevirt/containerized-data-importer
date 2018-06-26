@@ -25,10 +25,11 @@ import (
 )
 
 type DataStreamInterface interface {
-	dataStreamSelector() (Reader, error)
-	s3() (Reader, error)
-	http() (Reader, error)
-	local() (Reader, error)
+	dataStreamSelector() error
+	s3() (*Reader, error)
+	http() (*Reader, error)
+	local() (*Reader, error)
+	fileFormatSelector(h *image.Header) error
 	parseDataPath() (string, string)
 	Read(p []byte) (int, error)
 	Close() error
@@ -101,37 +102,43 @@ func (d dataStream) Close() error {
 	return closeReaders(d.Readers)
 }
 
-// Based on the enpoint scheme, return a scheme-specific dataStream Reader.
-func (d dataStream) dataStreamSelector() (Reader, error) {
+// Based on the endpoint scheme, append the scheme-specific reader to the receiver's
+// reader stack.
+func (d *dataStream) dataStreamSelector() (err error) {
+	var r *Reader
 	switch d.Url.Scheme {
 	case "s3":
-		return d.s3()
+		r, err = d.s3()
 	case "http", "https":
-		return d.http()
+		r, err = d.http()
 	case "file":
-		return d.local()
+		r, err = d.local()
 	default:
-		return Reader{}, errors.Errorf("invalid url scheme: %q", d.Url.Scheme)
+		return errors.Errorf("invalid url scheme: %q", d.Url.Scheme)
 	}
+	if r != nil {
+		d.Readers = append(d.Readers, *r)
+	}
+	return err
 }
 
-func (d dataStream) s3() (Reader, error) {
+func (d dataStream) s3() (*Reader, error) {
 	glog.V(Vdebug).Infoln("Using S3 client to get data")
 	bucket := d.Url.Host
 	object := strings.Trim(d.Url.Path, "/")
 	mc, err := minio.NewV4(IMPORTER_S3_HOST, d.accessKeyId, d.secretKey, false)
 	if err != nil {
-		return Reader{}, errors.Wrapf(err, "could not build minio client for %q", d.Url.Host)
+		return nil, errors.Wrapf(err, "could not build minio client for %q", d.Url.Host)
 	}
 	glog.V(Vadmin).Infof("Attempting to get object %q via S3 client\n", d.Url.String())
 	objectReader, err := mc.GetObject(bucket, object, minio.GetObjectOptions{})
 	if err != nil {
-		return Reader{}, errors.Wrapf(err, "could not get s3 object: \"%s/%s\"", bucket, object)
+		return nil, errors.Wrapf(err, "could not get s3 object: \"%s/%s\"", bucket, object)
 	}
-	return Reader{RdrType: RdrS3, Rdr: objectReader}, nil
+	return &Reader{RdrType: RdrS3, Rdr: objectReader}, nil
 }
 
-func (d dataStream) http() (Reader, error) {
+func (d dataStream) http() (*Reader, error) {
 	client := http.Client{
 		CheckRedirect: func(r *http.Request, via []*http.Request) error {
 			r.SetBasicAuth(d.accessKeyId, d.secretKey) // Redirects will lose basic auth, so reset them manually
@@ -140,7 +147,7 @@ func (d dataStream) http() (Reader, error) {
 	}
 	req, err := http.NewRequest("GET", d.Url.String(), nil)
 	if err != nil {
-		return Reader{}, errors.Wrap(err, "could not create HTTP request")
+		return nil, errors.Wrap(err, "could not create HTTP request")
 	}
 	if len(d.accessKeyId) > 0 && len(d.secretKey) > 0 {
 		req.SetBasicAuth(d.accessKeyId, d.secretKey)
@@ -148,23 +155,23 @@ func (d dataStream) http() (Reader, error) {
 	glog.V(Vadmin).Infof("Attempting to get object %q via http client\n", d.Url.String())
 	resp, err := client.Do(req)
 	if err != nil {
-		return Reader{}, errors.Wrap(err, "HTTP request errored")
+		return nil, errors.Wrap(err, "HTTP request errored")
 	}
 	if resp.StatusCode != 200 {
 		glog.Errorf("http: expected status code 200, got %d", resp.StatusCode)
-		return Reader{}, errors.Errorf("expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
+		return nil, errors.Errorf("expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
 	}
-	return Reader{RdrType: RdrHttp, Rdr: resp.Body}, nil
+	return &Reader{RdrType: RdrHttp, Rdr: resp.Body}, nil
 }
 
-func (d dataStream) local() (Reader, error) {
+func (d dataStream) local() (*Reader, error) {
 	fn := d.Url.Path
 	f, err := os.Open(fn)
 	if err != nil {
-		return Reader{}, errors.Wrapf(err, "could not open file %q", fn)
+		return nil, errors.Wrapf(err, "could not open file %q", fn)
 	}
 	//note: if poor perf here consider wrapping this with a buffered i/o Reader
-	return Reader{RdrType: RdrFile, Rdr: f}, nil
+	return &Reader{RdrType: RdrFile, Rdr: f}, nil
 }
 
 // Copy the source endpoint (vm image) to the provided destination path.
@@ -199,13 +206,12 @@ func CopyImage(dest, endpoint, accessKey, secKey string) error {
 // Note: readers are not closed here, see dataStream.Close().
 // Assumption: a particular header format only appears once in the data stream. Eg. foo.gz.gz is not supported.
 func (d *dataStream) constructReaders() error {
-	glog.V(Vadmin).Infof("create the initial Reader based on the url's %q scheme", d.Url.Scheme)
-	r, err := d.dataStreamSelector()
+	glog.V(Vadmin).Infof("create the initial Reader based on the endpoint's %q scheme", d.Url.Scheme)
+	// create the scheme-specific source reader and append it to dataStream readers stack
+	err := d.dataStreamSelector()
 	if err != nil {
 		return errors.WithMessage(err, "could not get data reader")
 	}
-	// append source reader to datastream reader stack
-	d.Readers = append(d.Readers, r)
 
 	// loop through all supported file formats until we do not find a header we recognize
 	knownHdrs := image.CopyKnownHdrs() // need local copy since keys are removed
@@ -222,13 +228,14 @@ func (d *dataStream) constructReaders() error {
 		}
 		glog.V(Vadmin).Infof("found header of type %q\n", hdr.Format)
 
-		// create format-specific reader and append it to dataStream Readers slice
+		// create format-specific reader and append it to dataStream readers stack
 		err = d.fileFormatSelector(hdr)
 		if err != nil {
 			return errors.WithMessage(err, "could not create compression/unarchive reader")
 		}
 	}
-	if len(d.Readers) <= 2 { // 1st rdr is source, 2nd rdr is multi-rdr, >2 means we have additional formats
+	if len(d.Readers) <= 2 {
+		// 1st rdr is source, 2nd rdr is multi-rdr, >2 means we have additional formats
 		glog.V(Vdebug).Infof("constructReaders: no headers found for file %q\n", d.Url.Path)
 	}
 	glog.V(Vadmin).Infof("done processing %q headers\n", d.Url.Path)
@@ -240,75 +247,82 @@ func (d dataStream) topReader() io.ReadCloser {
 	return d.Readers[len(d.Readers)-1].Rdr
 }
 
-// Based on the passed in header, return the format-specific reader.
-func (d *dataStream) fileFormatSelector(hdr *image.Header) error {
+// Based on the passed in header, append the format-specific reader to the readers stack,
+// and update the receiver Size field. Note: a bool is set in the receiver for qcow2 files.
+func (d *dataStream) fileFormatSelector(hdr *image.Header) (err error) {
+	var r *Reader
 	switch hdr.Format {
 	case "gz":
-		return d.gzReader()
+		r, d.Size, err = d.gzReader()
 	case "qcow2":
-		return d.qcow2NopReader(hdr)
+		r, d.Size, err = d.qcow2NopReader(hdr)
+		d.Qemu = true
 	case "tar":
-		return d.tarReader()
+		r, d.Size, err = d.tarReader()
 	case "xz":
-		return d.xzReader()
+		r, d.Size, err = d.xzReader()
 	default:
 		return errors.Errorf("mismatch between supported file formats and this header type: %q", hdr.Format)
 	}
-}
-
-//NOTE: size in gz is stored in the last 4 bytes of the file. This requires the file to be decompressed in
-//  order to get its original size. For now 0 is returned.
-// Assumes a single file was gzipped.
-//TODO: support gz size.
-func (d *dataStream) gzReader() error {
-	gz, err := gzip.NewReader(d.topReader())
-	if err != nil {
-		return errors.Wrap(err, "could not create gzip reader")
+	if r != nil {
+		d.Readers = append(d.Readers, *r)
 	}
-	glog.V(Vadmin).Infof("gzip: extracting %q\n", gz.Name)
-	d.Readers = append(d.Readers, Reader{RdrType: RdrGz, Rdr: gz})
-	d.Size = 0 //TODO: implement size
 	return nil
 }
 
+// Return the gz reader and the size of the endpoint "through the eye" of the previous reader.
+// Assumes a single file was gzipped.
+//NOTE: size in gz is stored in the last 4 bytes of the file. This probably requires the file
+//  to be decompressed in order to get its original size. For now 0 is returned.
+//TODO: support gz size.
+func (d dataStream) gzReader() (*Reader, int64, error) {
+	gz, err := gzip.NewReader(d.topReader())
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "could not create gzip reader")
+	}
+	glog.V(Vadmin).Infof("gzip: extracting %q\n", gz.Name)
+	size := int64(0) //TODO: implement size
+	return &Reader{RdrType: RdrGz, Rdr: gz}, size, nil
+}
+
+// Return the size of the endpoint "through the eye" of the previous reader. Note: there is no
+// qcow2 reader so nil is returned so that nothing is appended to the reader stack.
 // Note: size is stored at offset 24 in the qcow2 header.
-// Note: there is no qcow2 reader.
-func (d *dataStream) qcow2NopReader(h *image.Header) error {
+func (d dataStream) qcow2NopReader(h *image.Header) (*Reader, int64, error) {
 	s := hex.EncodeToString(d.buf[h.SizeOff : h.SizeOff+h.SizeLen])
 	size, err := strconv.ParseInt(s, 16, 64)
 	if err != nil {
-		return errors.Wrapf(err, "unable to determine original qcow2 file size from %+v", s)
+		return nil, 0, errors.Wrapf(err, "unable to determine original qcow2 file size from %+v", s)
 	}
-	d.Qemu = true
-	d.Size = size
-	return nil
+	return nil, size, nil
 }
 
+// Return the xz reader and size of the endpoint "through the eye" of the previous reader.
+// Assumes a single file was compressed. Note: the xz reader is not a closer so we wrap a
+// nop Closer around it.
 //NOTE: size is not stored in the xz header. This may require the file to be decompressed in
 //  order to get its original size. For now 0 is returned.
-// Assumes a single file was gzipped.
 //TODO: support gz size.
-func (d *dataStream) xzReader() error {
+func (d dataStream) xzReader() (*Reader, int64, error) {
 	xz, err := xz.NewReader(d.topReader(), 0) //note: default dict size may be too small
 	if err != nil {
-		return errors.Wrap(err, "could not create xz reader")
+		return nil, 0, errors.Wrap(err, "could not create xz reader")
 	}
-	d.Readers = append(d.Readers, Reader{RdrType: RdrXz, Rdr: ioutil.NopCloser(xz)})
-	d.Size = 0 //TODO: implement size
-	return nil
+	size := int64(0) //TODO: implement size
+	return &Reader{RdrType: RdrXz, Rdr: ioutil.NopCloser(xz)}, size, nil
 }
 
-// Assumes a single file was archived.
-func (d *dataStream) tarReader() error {
+// Return the tar reader and size of the endpoint "through the eye" of the previous reader.
+// Assumes a single file was archived. 
+// Note: the size stored in the header is used rather than raw metadata.
+func (d dataStream) tarReader() (*Reader, int64, error) {
 	tr := tar.NewReader(d.topReader())
 	hdr, err := tr.Next() // advance cursor to 1st (and only) file in tarball
 	if err != nil {
-		return errors.Wrap(err, "could not read tar header")
+		return nil, 0, errors.Wrap(err, "could not read tar header")
 	}
 	glog.V(Vadmin).Infof("tar: extracting %q\n", hdr.Name)
-	d.Size = hdr.Size
-	d.Readers = append(d.Readers, Reader{RdrType: RdrTar, Rdr: ioutil.NopCloser(tr)})
-	return nil
+	return &Reader{RdrType: RdrTar, Rdr: ioutil.NopCloser(tr)}, hdr.Size, nil
 }
 
 // Return the matching header, if one is found, from the passed-in map of known headers.
