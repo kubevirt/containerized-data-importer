@@ -192,11 +192,11 @@ set-version:
 	@echo "To undo local changes without pushing, rollback to the previous commit"
 	@echo "    $ git reset HEAD~1"
 
-.PHONY: deploy-head
+.PHONY: deploy-local-head
 deploy-head: controller importer create-deployment
 	kubectl patch deployment cdi-deployment --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/env", "value": [{"name": "IMPORTER_IMAGE", "value": "cdi-importer"}]}]'
 
-.PHONY: create-deployment
+.PHONY: create-local-deployment
 create-deployment:
 	sed -E -e 's#kubevirt/cdi-controller.*#cdi-controller#g' -e 's#imagePullPolicy:.*#imagePullPolicy: Never#g' $(REPO_ROOT)/manifests/controller/cdi-controller-deployment.yaml | kubectl apply -f -
 
