@@ -8,8 +8,8 @@ import (
 	"os"
 
 	"github.com/golang/glog"
-	. "kubevirt.io/containerized-data-importer/pkg/common"
 	"github.com/pkg/errors"
+	. "kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 func ParseEnvVar(envVarName string, decode bool) (string, error) {

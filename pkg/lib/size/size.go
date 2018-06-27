@@ -5,8 +5,8 @@ import (
 	"io"
 	"strconv"
 
-	. "kubevirt.io/containerized-data-importer/pkg/importer"
 	"github.com/pkg/errors"
+	. "kubevirt.io/containerized-data-importer/pkg/importer"
 )
 
 // Return the size in bytes of the provided endpoint. If the endpoint was archived, compressed or converted to

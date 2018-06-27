@@ -16,7 +16,7 @@ git push origin master -f
 
  ```
  cd $GOPATH/src/
- mkdir -p github.com/kubevirt && cd github.com/kubevirt
+ mkdir -p kubevirt.io/kubevirt && cd kubevirt.io/kubevirt
  git clone <your-forked-containerized-data-importer-url>
  cd containerized-data-importer
  git remote add upstream https://kubevirt.io/containerized-data-importer.git
