@@ -39,7 +39,7 @@ TAG=$(GIT_USER)-latest
 
 # Preflight Check Defaults
 USE_DOCKER=1
-RUNNING_DOCKER=$(shell docker ps &>/dev/null; echo $$?)
+RUNNING_DOCKER=$(shell docker ps > /dev/null 2>&1; echo $$?)
 
 .PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-controller-release push-importer-release push-importer lib clean test
 all: clean test controller importer lib
@@ -172,18 +172,13 @@ clean:
 	-rm -rf $(IMPORTER_BUILD)/tmp
 
 # push cdi-importer and cdi-controller images to kubevirt repo for general use. Intended to release stable image built from master branch.
-release: controller importer
+release:
 	@echo '********'
 	@echo 'Releasing CDI images'
 	docker tag $(IMPT_IMG_NAME) $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):$(RELEASE_TAG)
 	docker push $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):$(RELEASE_TAG)
 	docker tag $(CTRL_IMG_NAME) $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):$(RELEASE_TAG)
 	docker push $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):$(RELEASE_TAG)
-
-my-golden-pvc.yaml: manifests/example/golden-pvc.yaml
-	sed "s,endpoint:.*,endpoint: \"$(URI)\"," $< > $@
-
-.PHONY: my-golden-pvc.yaml
 
 set-version:
 	@echo '********'
@@ -196,3 +191,18 @@ set-version:
 	@echo "    $ git push <upstream> master &&  git push <upstream> --tags"
 	@echo "To undo local changes without pushing, rollback to the previous commit"
 	@echo "    $ git reset HEAD~1"
+
+.PHONY: build-and-deploy
+build-and-deploy: importer controller deploy-controller patch-controller
+
+.PHONY: deploy-controller
+deploy-controller: $(REPO_ROOT)/manifests/controller/cdi-controller-deployment.yaml
+	sed -E -e 's#kubevirt/cdi-controller.*#cdi-controller#g' -e 's#imagePullPolicy:.*#imagePullPolicy: Never#g' $(REPO_ROOT)/manifests/controller/cdi-controller-deployment.yaml | kubectl apply -f -
+
+.PHONY: patch-controller
+patch-controller:
+	kubectl patch deployment cdi-deployment --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/env", "value": [{"name": "IMPORTER_IMAGE", "value": "cdi-importer"}]}]'
+
+.PHONY: my-golden-pvc.yaml
+my-golden-pvc.yaml: manifests/example/golden-pvc.yaml
+	sed "s,endpoint:.*,endpoint: \"$(URI)\"," $< > $@
