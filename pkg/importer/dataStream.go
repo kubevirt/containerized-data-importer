@@ -74,27 +74,34 @@ func NewDataStream(endpt, accKey, secKey string) (*dataStream, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpt))
 	}
-	fn := filepath.Base(ep.Path)
-	if !image.IsSupportedFileType(fn) {
-		return nil, errors.Errorf("unsupported source file %q. Supported types: %v\n", fn, image.SupportedFileExtensions)
-	}
 	ds := &dataStream{
 		Url:         ep,
 		buf:         make([]byte, image.MaxExpectedHdrSize),
 		accessKeyId: accKey,
 		secretKey:   secKey,
 	}
+
 	// establish readers for each nested format types in the endpoint
 	err = ds.constructReaders()
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to construct readers")
 	}
+	if ds.Size > 0 { // done, we determined the size of the original endpoint file
+		return ds, nil
+	}
+
+	// the endpoint's file size is zero, if it's an iso file then compute its orig size
+	ds.Size, err = ds.isoSize()
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to calculate iso file size")
+	}
 	return ds, nil
 }
 
-// Read from top-most reader.
+// Read from top-most reader. Note: ReadFull is needed since there may be intermediate,
+// smaller multi-readers in the reader stack, and we need to be able to fill buf.
 func (d dataStream) Read(buf []byte) (int, error) {
-	return d.topReader().Read(buf)
+	return io.ReadFull(d.topReader(), buf)
 }
 
 // Close all readers.
@@ -187,13 +194,14 @@ func CopyImage(dest, endpoint, accessKey, secKey string) error {
 
 // Read the endpoint and determine the file composition (eg. .iso.tar.gz) based on the magic number in
 // each known file format header. Set the Reader slice in the receiver and set the Size field to each
-// reader's original size. Note: the reader processed last defines the final Size. The reader order
-// starts with the lowest level reader, eg. http, used to read file content. The next readers are
-// combinations of decompression/archive readers and bytes multi-readers. The multi-readers are created
-// so that header data (interpreted by the current reader) is present for the next reader. Thus, the
-// last reader in the reader stack is always a multi-reader. Readers are closed in reverse order, see
-// the Close method. If a format doesn't natively support Close() a no-op Closer is wrapped around the
-// native Reader so that all Readers can be consider ReadClosers.
+// reader's original size. Note: if, when this method returns, the Size is still 0 then another method
+// will compute the final size.
+// The reader order starts with the lowest level reader, eg. http, used to read file content. The next
+// readers are combinations of decompression/archive readers and bytes multi-readers. The multi-readers
+// are created so that header data (interpreted by the current reader) is present for the next reader.
+// Thus, the last reader in the reader stack is always a multi-reader. Readers are closed in reverse
+// order, see the Close method. If a format doesn't natively support Close() a no-op Closer is wrapped
+// around the native Reader so that all Readers can be consider ReadClosers.
 // Examples:
 //   Filename                    Readers (mr == multi-reader)
 //   --------                    ----------------------------
@@ -222,7 +230,7 @@ func (d *dataStream) constructReaders() error {
 			return errors.WithMessage(err, "could not process image header")
 		}
 		// append multi-reader so that the header data is re-read by subsequent readers
-		d.Readers = append(d.Readers, Reader{RdrType: RdrMulti, Rdr: ioutil.NopCloser(io.MultiReader(bytes.NewReader(d.buf), d.topReader()))})
+		d.appendReader(RdrMulti, bytes.NewReader(d.buf))
 		if hdr == nil {
 			break // done processing headers, we have the orig source file
 		}
@@ -240,6 +248,24 @@ func (d *dataStream) constructReaders() error {
 	}
 	glog.V(Vadmin).Infof("done processing %q headers\n", d.Url.Path)
 	return nil
+}
+
+// Append to the receiver's reader stack the passed in reader. If the reader type is a multi-reader
+// then wrap a multi-reader around the passed in reader. If the reader is not a Closer then wrap a
+// nop closer.
+func (d *dataStream) appendReader(rType int, x interface{}) {
+	r, ok := x.(io.Reader)
+	if !ok {
+		glog.Errorf("internal error: unexecected reader type passed to appendReader()")
+		return
+	}
+	if rType == RdrMulti {
+		r = io.MultiReader(r, d.topReader())
+	}
+	if _, ok := r.(io.Closer); !ok {
+		r = ioutil.NopCloser(r)
+	}
+	d.Readers = append(d.Readers, Reader{RdrType: rType, Rdr: r.(io.ReadCloser)})
 }
 
 // Return the top-level io.ReadCloser from the receiver Reader "stack".
@@ -323,6 +349,82 @@ func (d dataStream) tarReader() (*Reader, int64, error) {
 	}
 	glog.V(Vadmin).Infof("tar: extracting %q\n", hdr.Name)
 	return &Reader{RdrType: RdrTar, Rdr: ioutil.NopCloser(tr)}, hdr.Size, nil
+}
+
+// If the raw endpoint is an ISO file then set the receiver's Size via the iso metadata.
+// ISO reference: http://alumnus.caltech.edu/~pje/iso9660.html
+func (d *dataStream) isoSize() (int64, error) {
+	// iso id values
+	const (
+		id        = "CD001"
+		primaryVD = 1
+	)
+	// primary volume descriptor sector offset in iso file
+	const (
+		isoSectorSize        = 2048
+		primVolDescriptorOff = 16 * isoSectorSize
+	)
+	// single volume descriptor layout (independent of location within file)
+	// note: offsets are zero-relative and lengths are in bytes
+	const (
+		vdTypeOff       = 0
+		typeLen         = 1
+		vdIdOff         = 1
+		idLen           = 5
+		vdNumSectorsOff = 84
+		numSectorsLen   = 4
+		vdSectorSizeOff = 130
+		sectorSizeLen   = 2
+	)
+	// primary volume descriptor layout within full iso file (lengths are defined above)
+	const (
+		typeOff       = vdTypeOff + primVolDescriptorOff
+		idOff         = vdIdOff + primVolDescriptorOff
+		numSectorsOff = vdNumSectorsOff + primVolDescriptorOff
+		sectorSizeOff = vdSectorSizeOff + primVolDescriptorOff // last field we care about
+	)
+	const bufSize = sectorSizeOff + sectorSizeLen
+
+	buf := make([]byte, bufSize)
+	_, err := d.Read(buf) // read primary volume descriptor
+	if err != nil {
+		return 0, errors.Wrapf(err, "attempting to read ISO primary volume descriptor")
+	}
+	glog.Infof("\n****** raw buf:\n%v\n", buf[primVolDescriptorOff:])
+	glog.Infof("\n***** bufSize=%d, typeOf=%d, idOf=%d, numSecOf=%d, secSizeOf=%d\n", bufSize, typeOff, idOff, numSectorsOff, sectorSizeOff)
+
+	// append multi-reader so that the iso data can be re-read by subsequent readers
+	d.appendReader(RdrMulti, bytes.NewReader(buf))
+
+	// ensure we have an iso file by checking the type and id value
+	vdtyp, err := strconv.Atoi(hex.EncodeToString(buf[typeOff : typeOff+typeLen]))
+	if err != nil {
+		return 0, nil
+	}
+	glog.Infof("\n***** iso typ:%v, id:bytes=%+v, str=%q\n", vdtyp, buf[idOff:idOff+idLen], string(buf[idOff:idOff+idLen]))
+	if vdtyp != primaryVD && string(buf[idOff:idOff+idLen]) != id {
+		glog.V(Vdebug).Infof("isoSize: endpoint %q is not an ISO file", d.Url.Path)
+		return 0, nil
+	}
+
+	// get the logical block/sector size (expect 2048)
+	s := hex.EncodeToString(buf[sectorSizeOff : sectorSizeOff+sectorSizeLen])
+	glog.Infof("\n***** sectsize:bytes=%+v\n", buf[sectorSizeOff:sectorSizeOff+sectorSizeLen])
+	sectSize, err := strconv.ParseInt(s, 16, 64)
+	glog.Infof("\n***** parseInt: sectSize=%d, err: %v\n", sectSize, err)
+	if err != nil {
+		return 0, nil
+	}
+	// get the number sectors
+	s = hex.EncodeToString(buf[numSectorsOff : numSectorsOff+numSectorsLen])
+	glog.Infof("\n***** volsize:bytes=%+v\n", buf[numSectorsOff:numSectorsOff+numSectorsLen])
+	numSects, err := strconv.ParseInt(s, 16, 64)
+	glog.Infof("\n***** parseInt: numSects=%d, err: %v\n", numSects, err)
+	if err != nil {
+		return 0, nil
+	}
+	glog.Infof("\n***** new Size = %d\n", numSects*sectSize)
+	return int64(numSects * sectSize), nil
 }
 
 // Return the matching header, if one is found, from the passed-in map of known headers.
