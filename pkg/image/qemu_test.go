@@ -88,7 +88,7 @@ func TestConvertQcow2ToRaw(t *testing.T) {
 		dest string
 	}
 	imageDir, _ := filepath.Abs("../../test/images")
-	goodImage := filepath.Join(imageDir, "cirros.img")
+	goodImage := filepath.Join(imageDir, "cirros-qcow2.img")
 	badImage := filepath.Join(imageDir, "tinyCore.iso")
 	defer os.Remove("/tmp/cirros-test-good")
 	defer os.Remove("/tmp/cirros-test-bad")

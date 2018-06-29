@@ -314,3 +314,4 @@ func TestTrimString(t *testing.T) {
 		})
 	}
 }
+

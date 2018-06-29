@@ -150,13 +150,13 @@ func TestHeader_Size(t *testing.T) {
 				SizeOff:     tt.fields.SizeOff,
 				SizeLen:     tt.fields.SizeLen,
 			}
-			got, err, s := h.Size(tt.args.b)
+			got, err := h.Size(tt.args.b)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Header.Size() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
-				t.Errorf("Header.Size() = %v, want %v - string is %s", got, tt.want, s)
+				t.Errorf("Header.Size() = %v, want %v - string is %s", got, tt.want)
 			}
 		})
 	}
