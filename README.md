@@ -182,7 +182,7 @@ The `Size` function does **not** yet support the following formats:
 
 - certain raw, unititialized iso formats
 
-In other words, if the endpoint is a _qcow2_ file, or any file wrapped by tar (even with compression) then the size of the endpoint can be determined. If the endpoint is a simple an unformatted raw file then its size cannot (yet) be returned.
+In other words, if the endpoint is a _qcow2_ file, or any file wrapped by tar (even with compression) then the size of the endpoint can be determined. If the endpoint is an unformatted raw file, not compressed, not archived, then its size cannot (yet) be returned.
 
 And additional caveat is that currently the size is under reported for simple iso files, meaning a structured iso file that is not archived and/or compressed.
 
