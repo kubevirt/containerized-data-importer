@@ -4,12 +4,14 @@ REPO_ROOT=$(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 CONTROLLER=controller
 IMPORTER=importer
 F_TEST=datastream-test
+U_TEST=unit-test
 
 # Binary Path
 BIN=$(REPO_ROOT)/bin
 CONTROLLER_BIN=import-controller
 IMPORTER_BIN=importer
 F_TEST_BIN=$(BIN)/$(F_TEST)
+U_TEST_BIN=$(BIN)/$(U_TEST)
 
 # Source dirs
 CMD_DIR=$(REPO_ROOT)/cmd
@@ -19,7 +21,10 @@ IMPORTER_CMD=$(CMD_DIR)/$(IMPORTER)
 LIB_PKG_DIR=$(PKG_DIR)/lib
 LIB_SIZE_DIR=$(LIB_PKG_DIR)/size
 F_TEST_DIR=$(REPO_ROOT)/test/functional/importer
+U_TEST_DIR_CONTROLLER=$(REPO_ROOT)/pkg/controller
+U_TEST_DIR_ALL=$(REPO_ROOT)/pkg
 F_IMG_DIR=$(REPO_ROOT)/test/images/tinyCore.iso
+U_IMG_DIR=$(REPO_ROOT)/test/images/cirros-qcow2.img
 BUILD_CMD=GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -a -ldflags $(LDFLAGS)
 DOCKER_BUILD_CMD=docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR):Z -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build
 
@@ -47,7 +52,9 @@ controller: controller-bin controller-image
 importer: importer-bin importer-image
 push: push-importer push-controller
 test: functional-test unit-test
+test-local: unit-test-local
 functional-test: func-test-bin func-test-image func-test-run
+unit-test: unit-test-bin unit-test-image unit-test-run
 lib: lib-size
 
 BUILD_IMAGE=golang:1.10.2
@@ -87,6 +94,13 @@ func-test-bin:
 	@echo 'Compiling functional test binary'
 	-rm -f $(F_TEST_BIN)
 	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go test -a -c -ldflags $(LDFLAGS) -o $(F_TEST_BIN) $(F_TEST_DIR)/*.go
+
+# Compile datastream functional test binary
+unit-test-bin:
+	@echo '********'
+	@echo 'Compiling unit test binary'
+	-rm -f $(U_TEST_BIN)
+	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go test -v -tags=unit_test ./pkg/controller -a -ldflags $(LDFLAGS) -o $(U_TEST_BIN) $(U_TEST_DIR_ALL)/*_test.go
 
 # build the controller image
 controller-image: $(CONTROLLER_BUILD)/Dockerfile
@@ -131,11 +145,28 @@ func-test-image: $(IMPORTER_BUILD)/Dockerfile
 	docker build --build-arg entrypoint=$(F_TEST) --build-arg runArgs='-ginkgo.v' --build-arg depFile=tinyCore.iso -t $(F_TEST) $(TEMP_BUILD_DIR)
 	-rm -rf $(TEMP_BUILD_DIR)
 
+# build the functional test image.  The importer image is used to provide consistency between test
+# and run environments.
+unit-test-image: $(IMPORTER_BUILD)/Dockerfile
+	@echo '********'
+	@echo 'Building unit test image'
+	$(eval TEMP_BUILD_DIR=$(IMPORTER_BUILD)/tmp)
+	mkdir -p $(TEMP_BUILD_DIR)
+	cp $(U_TEST_BIN) $(TEMP_BUILD_DIR)
+	cp $(U_IMG_DIR) $(TEMP_BUILD_DIR)
+	cp $(IMPORTER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
+	docker build --build-arg entrypoint=$(U_TEST) --build-arg runArgs='-ginkgo.v' --build-arg depFile=cirros-qcow2.img -t $(U_TEST) $(TEMP_BUILD_DIR)
+	-rm -rf $(TEMP_BUILD_DIR)
 
 func-test-run:
 	@echo '********'
 	@echo 'Running functional tests'
 	docker ps -qa && docker run --rm $(F_TEST) || echo 'Docker service not detected, skipping functional tests'
+
+unit-test-run:
+	@echo '********'
+	@echo 'Running unit tests'
+	docker ps -qa && docker run --rm $(U_TEST) || echo 'Docker service not detected, skipping unit tests'
 
 push-controller:
 	@echo '********'
@@ -149,7 +180,7 @@ push-importer:
 	docker tag $(IMPT_IMG_NAME) $(DEV_REGISTRY)/$(IMPT_IMG_NAME):$(TAG)
 	docker push $(DEV_REGISTRY)/$(IMPT_IMG_NAME):$(TAG)
 
-unit-test:
+unit-test-local:
 	@echo '********'
 	@echo 'Running unit tests'
 	CGO_ENABLED=$(CGO_ENABLED) go test -v -tags=unit_test ./...
