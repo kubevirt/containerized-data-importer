@@ -25,13 +25,11 @@ var (
 	masterURL     string
 	importerImage string
 	clonerImage    string
-	importerPullPolicy    string
-	clonerPullPolicy       string
-	importerVerbose       string
-	clonerVerbose          string
+	PullPolicy    string
+	Verbose       string
 )
 
-// The optional importer image is obtained here along with the supported flags.
+// The optional importer and colner images are obtained here along with the supported flags.
 // Note: kubeconfig hierarchy is 1) -kubeconfig flag, 2) $KUBECONFIG exported var. If neither is
 //   specified we do an in-cluster config. For testing it's easiest to export KUBECONFIG.
 func init() {
@@ -49,43 +47,27 @@ func init() {
 	if importerImage == "" {
 		importerImage = IMPORTER_DEFAULT_IMAGE
 	}
-	importerPullPolicy = IMPORTER_DEFAULT_PULL_POLICY
-	if pp := os.Getenv(IMPORTER_PULL_POLICY); len(pp) != 0 {
-		importerPullPolicy = pp
-	}
 	
 	clonerImage = os.Getenv(CLONER_IMAGE)
 	if clonerImage == "" {
 		clonerImage = CLONER_DEFAULT_IMAGE
 	}
-	clonerPullPolicy = CLONER_DEFAULT_PULL_POLICY
-	if pp := os.Getenv(CLONER_PULL_POLICY); len(pp) != 0 {
-		clonerPullPolicy = pp
-	}
-
-	// get the verbose level so it can be passed to the importer pod
-	defVerbose := fmt.Sprintf("%d", IMPORTER_DEFAULT_VERBOSE) // note flag values are strings
-	importerVerbose = defVerbose
-	// visit actual flags passed in and if passed check -v and set verbose
-	flag.Visit(func(f *flag.Flag) {
-		if f.Name == "v" {
-			importerVerbose = f.Value.String()
-		}
-	})
-	if importerVerbose == defVerbose {
-		glog.V(Vuser).Infof("Note: increase the -v level in the controller deployment for more detailed logging, eg. -v=%d or -v=%d\n", Vadmin, Vdebug)
+	
+	PullPolicy = DEFAULT_PULL_POLICY
+	if pp := os.Getenv(PULL_POLICY); len(pp) != 0 {
+		PullPolicy = pp
 	}
 	
-	// get the verbose level so it can be passed to the clone pods
-	defVerbose = fmt.Sprintf("%d", CLONER_DEFAULT_VERBOSE) // note flag values are strings
-	clonerVerbose = defVerbose
+	// get the verbose level so it can be passed to the importer pod
+	defVerbose := fmt.Sprintf("%d", DEFAULT_VERBOSE) // note flag values are strings
+	Verbose = defVerbose
 	// visit actual flags passed in and if passed check -v and set verbose
 	flag.Visit(func(f *flag.Flag) {
 		if f.Name == "v" {
-			clonerVerbose = f.Value.String()
+			Verbose = f.Value.String()
 		}
 	})
-	if clonerVerbose == defVerbose {
+	if Verbose == defVerbose {
 		glog.V(Vuser).Infof("Note: increase the -v level in the controller deployment for more detailed logging, eg. -v=%d or -v=%d\n", Vadmin, Vdebug)
 	}
 	
@@ -129,15 +111,15 @@ func main() {
 		pvcInformer.Informer(),
 		podInformer.Informer(),
 		importerImage,
-		importerPullPolicy,
-		importerVerbose)
+		PullPolicy,
+		Verbose)
 	
 	cloneController := controller.NewCloneController(client,
 		pvcInformer.Informer(),
 		podInformer.Informer(),
 		clonerImage,
-		clonerPullPolicy,
-		clonerVerbose)
+		PullPolicy,
+		Verbose)
 
 	glog.V(Vuser).Infoln("created cdi controllers")
 	

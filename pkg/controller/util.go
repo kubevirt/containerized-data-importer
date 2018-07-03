@@ -3,7 +3,6 @@ package controller
 import (
 	"fmt"
 	"time"
-	
 	"github.com/golang/glog"
 	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/pkg/errors"
@@ -343,7 +342,7 @@ func getCloneRequestPVC(pvc *v1.PersistentVolumeClaim) (string, error) {
 	return cr, nil
 }
 
-func CreateCloneSourcePod(client kubernetes.Interface, image, verbose, pullPolicy, cr, secretName string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+func CreateCloneSourcePod(client kubernetes.Interface, image string, verbose string, pullPolicy string, cr string , pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
 	strArr := strings.Split(cr, "/")
     var ns string = ""
 	if strArr == nil || len(strArr) < 2 {
@@ -353,18 +352,18 @@ func CreateCloneSourcePod(client kubernetes.Interface, image, verbose, pullPolic
 	ns = strArr[0]
 	pvcName := strArr[1]
 	
-	pod := MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, secretName, pvcName)
+	pod := MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, pvcName)
 
 	pod, err := client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
 		return nil, errors.Wrap(err, "source pod API create errored")
 	}
-	glog.V(Vuser).Infof("source pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	glog.V(Vuser).Infof("cloning source pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
 	return pod, nil
 }
 
 // return the clone source pod spec based on the target pvc.
-func MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, secret string, pvcName string) *v1.Pod {
+func MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, pvcName string) *v1.Pod {
 	// source pod name contains the pvc name
 	podName := fmt.Sprintf("%s-", CLONER_SOURCE_PODNAME)
 
@@ -376,25 +375,29 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, secret string, pvcNa
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: podName,
 			Annotations: map[string]string{
-				AnnCreatedBy: "yes",
+				AnnCloningCreatedBy: "yes",
+			},
+			Labels: map[string]string{
+				"app": "Host-Assisted-Cloning",
 			},
 		},
 		Spec: v1.PodSpec{
 			Affinity: &v1.Affinity{
-				NodeAffinity: &v1.NodeAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
-						NodeSelectorTerms: []v1.NodeSelectorTerm{
-							{
-								MatchExpressions: []v1.NodeSelectorRequirement{
-									{
-										Key:      "kubevirt.io/Host-Assisted-Cloning",
-										Operator: v1.NodeSelectorOpIn,
-										Values: []string{"true"},
-									},
-								},
-							},
-						},
-	                },
+				PodAffinity: &v1.PodAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+				        {
+				        	LabelSelector: &metav1.LabelSelector{
+					           MatchExpressions: []metav1.LabelSelectorRequirement{
+			                       {
+			              	          Key: "app",
+		                              Operator: metav1.LabelSelectorOpIn,
+							          Values: []string{"Host-Assisted-Cloning"},
+			                       },
+					           },
+				        	},
+				        	TopologyKey: "Host-Assisted-Cloning",
+					    },
+					},
 				},
 			},
 			Containers: []v1.Container{
@@ -417,7 +420,7 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, secret string, pvcNa
 							MountPath: CLONER_SOCKET_PATH,
 						},
 					},
-					Args: []string{"-c", "/tmp/script.sh source"},
+					Args: []string{"-c", CLONER_SCRIPT_ARGS + " source"},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyNever,
@@ -445,20 +448,20 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, secret string, pvcNa
 	return pod
 }
 
-func CreateCloneTargetPod(client kubernetes.Interface, image, verbose, pullPolicy, cr, secretName string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose string, pullPolicy string, cr string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
 	ns := pvc.Namespace
-    pod := MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr, secretName, pvc)
+    pod := MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr, pvc)
 
 	pod, err := client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
 		return nil, errors.Wrap(err, "clone target pod API create errored")
 	}
-	glog.V(Vuser).Infof("clone target pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	glog.V(Vuser).Infof("cloning target pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
 	return pod, nil
 }
 
 // return the clone target pod spec based on the target pvc.
-func MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr, secret string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
+func MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	// target pod name contains the pvc name
 	podName := fmt.Sprintf("%s-", CLONER_TARGET_PODNAME)
 
@@ -470,24 +473,28 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr, secret string, pvc *
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: podName,
 			Annotations: map[string]string{
-				AnnCreatedBy: "yes",
+				AnnCloningCreatedBy: "yes",
+			},
+			Labels: map[string]string{
+				"app": "Host-Assisted-Cloning",
 			},
 		},
 		Spec: v1.PodSpec{
 			Affinity: &v1.Affinity{
-				NodeAffinity: &v1.NodeAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
-						NodeSelectorTerms: []v1.NodeSelectorTerm{
-							{
-								MatchExpressions: []v1.NodeSelectorRequirement{
-									{
-										Key:      "kubevirt.io/Host-Assisted-Cloning",
-										Operator: v1.NodeSelectorOpIn,
-										Values: []string{"true"},
-									},
-								},
-							},
-						},
+				PodAffinity: &v1.PodAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+				        {
+				        	LabelSelector: &metav1.LabelSelector{
+					           MatchExpressions: []metav1.LabelSelectorRequirement{
+			                       {
+			              	          Key: "app",
+		                              Operator: metav1.LabelSelectorOpIn,
+							          Values: []string{"Host-Assisted-Cloning"},
+			                       },
+					           },
+				        	},
+				        	TopologyKey: "Host-Assisted-Cloning",
+					    },
 					},
 				},
 			},
@@ -507,7 +514,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr, secret string, pvc *
 							MountPath: CLONER_SOCKET_PATH,
 						},
 					},
-					Args: []string{"-c", "/tmp/script.sh target" },
+					Args: []string{"-c", CLONER_SCRIPT_ARGS + " target" },
 				},
 			},
 			RestartPolicy: v1.RestartPolicyNever,
@@ -536,7 +543,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr, secret string, pvc *
 	return pod
 }
 
-// checkPVC verifies that the passed-in pvc is one we care about. Specifically, it must have the
+// checkClonePVC verifies that the passed-in pvc is one we care about. Specifically, it must have the
 // CloneRequest annotation and it must not already be "in-progress". If the pvc passes these filters
 // then true is returned and the source and the target pods will be created. `AnnCloneRequest` indicates that the
 // pvc is targeted for the cloning job. `AnnCloneInProgress` indicates the  pvc is being processed.
@@ -551,9 +558,15 @@ func checkClonePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, g
 		return false, pvc, nil
 	}
 
+	//checking for CloneOf annotation indicating that the clone was already taken care of by the provisioner (smart clone).
+	if metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf) {
+		glog.V(Vadmin).Infof("pvc annotation %q exists indicating cloning completed, skipping pvc\n", AnnCloneOf)
+		return false, pvc, nil
+	}
+	
 	//check if the pvc is being processed
-	if metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneInProgress) {
-		glog.V(Vadmin).Infof("pvc annotation %q exists indicating in-progress or completed, skipping pvc\n", AnnCloneInProgress)
+	if metav1.HasAnnotation(pvc.ObjectMeta, AnnCloningPods) {
+		glog.V(Vadmin).Infof("pvc annotation %q exists indicating in-progress or completed, skipping pvc\n", AnnCloningPods)
 		return false, pvc, nil
 	}
 
@@ -571,8 +584,8 @@ func checkClonePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, g
 	}
 
 	// check if we are processing this pvc now that we have the lastest copy
-	if metav1.HasAnnotation(newPvc.ObjectMeta, AnnCloneInProgress) {
-		glog.V(Vadmin).Infof("latest pvc annotation %q exists indicating in-progress or completed, skipping pvc\n", AnnCloneInProgress)
+	if metav1.HasAnnotation(newPvc.ObjectMeta, AnnCloningPods) {
+		glog.V(Vadmin).Infof("latest pvc annotation %q exists indicating in-progress or completed, skipping pvc\n", AnnCloningPods)
 		return false, newPvc, nil
 	}
 	//continue to process pvc

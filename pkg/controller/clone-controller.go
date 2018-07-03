@@ -3,7 +3,6 @@ package controller
 import (
 	"fmt"
 	"time"
-	//"encoding/json"  temporary for debug
 	"github.com/golang/glog"
 	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/pkg/errors"
@@ -19,7 +18,9 @@ const (
 	// pvc annotations
 	AnnCloneRequest    = "k8s.io/CloneRequest"
 	AnnCloneOf         = "k8s.io/CloneOf"
-	AnnCloneInProgress = "cdi.kubevirt.io/storage.clone.inprogress"
+	AnnCloningPods = "cdi.kubevirt.io/storage.clone.cloningPods"
+	// importer pod annotations
+	AnnCloningCreatedBy = "cdi.kubevirt.io/storage.cloningCreatedByController"
 	
 )
 
@@ -71,12 +72,6 @@ func NewCloneController(client kubernetes.Interface, pvcInformer, podInformer ca
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			
-			//TEMPORARY - for debug -  to be delete
-			//tmp, _ := json.Marshal(&newObj))
-		    //glog.V(Vdebug).Info(fmt.Println(string(tmp)))
-			///////////
-			
 			key, err := cache.MetaNamespaceKeyFunc(newObj)
 			if err == nil {
 				c.podQueue.AddRateLimited(key)
@@ -125,21 +120,20 @@ func (c *CloneController) runPVCWorkers() {
 
 // ProcessNextPodItem gets the next pod key from the queue and verifies that it was created by the
 // controller. If not the key is discarded; otherwise, the pod object is passed to processPodItem.
-// Note: pods are already filtered by label "app=host-assisted-cloning".
+// Note: pods are already filtered by label "host-assisted-cloning".
 func (c *CloneController) ProcessNextPodItem() bool {
 	key, shutdown := c.podQueue.Get()
 	if shutdown {
 		return false
 	}
 	defer c.podQueue.Done(key)
-
 	pod, err := c.podFromKey(key)
 	if err != nil {
 		c.forgetKey(key, fmt.Sprintf("ProcessNextPodItem: unable to get pod from key %v: %v", key, err))
 		return true
 	}
-	if !metav1.HasAnnotation(pod.ObjectMeta, AnnCreatedBy) {
-		c.forgetKey(key, fmt.Sprintf("ProcessNextPodItem: pod %q does not have annotation %q", key, AnnCreatedBy))
+	if !metav1.HasAnnotation(pod.ObjectMeta, AnnCloningCreatedBy) {
+		c.forgetKey(key, fmt.Sprintf("ProcessNextPodItem: pod %q does not have annotation %q", key, AnnCloningCreatedBy))
 		return true
 	}
 	glog.V(Vdebug).Infof("ProcessNextPodItem: next pod to process: %s\n", key)
@@ -177,7 +171,7 @@ func (c *CloneController) processPodItem(pod *v1.Pod) error {
 	// see if pvc's pod phase anno needs to be added/updated
 	phase := string(pod.Status.Phase)
 	if !checkIfAnnoExists(pvc, AnnPodPhase, phase) {
-		pvc, err = setPVCAnnotation(c.clientset, pvc, AnnPodPhase, phase)
+		pvc, err = setPVCAnnotation(c.clientset, pvc, AnnCloneOf, "true")
 		if err != nil {
 			return errors.WithMessage(err, fmt.Sprintf("could not set annotation \"%s: %s\" on pvc %q", AnnPodPhase, phase, pvc.Name))
 			glog.V(Vdebug).Infof("processPodItem: pod phase %q annotated in pvc %q", pod.Status.Phase, pvcKey)
@@ -231,26 +225,28 @@ func (c *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 		return nil // forget key; logging already done
 	}
 
-secret := ""
-	// all checks passed, let's create the source pod!
-	_, err = CreateCloneSourcePod(c.clientset, c.cloneImage, c.verbose, c.pullPolicy, cr, secret, pvc)
-	if err != nil {
-		return err
-	}
-	
-	//create the target pod
-	_ , err = CreateCloneTargetPod(c.clientset, c.cloneImage, c.verbose, c.pullPolicy, cr, secret, pvc)
-	if err != nil {
-		return err
-	}
-	
-	// update pvc with 'CloneOf' annotation optional cdi label
-	anno := map[string]string{AnnCloneInProgress: "true"}
+	// update pvc with 'AnnCloningPods' annotation to indicate cloning is in process
+	anno := map[string]string{AnnCloningPods: "exist"}
 	var lab map[string]string
 	pvc, err = updatePVC(c.clientset, pvc, anno, lab)
 	if err != nil {
 		return errors.WithMessage(err, "could not update pvc %q annotation and/or label")
 	}
+
+	// all checks passed, let's create the source pod!
+	_, err = CreateCloneSourcePod(c.clientset, c.cloneImage, c.verbose, c.pullPolicy, cr, pvc)
+	if err != nil {
+		//TODO: remove annotation AnnCloningPods from pvc as pod failed to run
+		return err
+	}
+	
+	//create the target pod
+	_ , err = CreateCloneTargetPod(c.clientset, c.cloneImage, c.verbose, c.pullPolicy, cr, pvc)
+	if err != nil {
+		//TODO: remove annotation AnnCloningPods from pvc as pod failed to run
+		return err
+	}
+	
 	return nil
 }
 
