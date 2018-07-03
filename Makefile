@@ -150,7 +150,7 @@ func-test-image: $(IMPORTER_BUILD)/Dockerfile
 	cp $(F_TEST_BIN) $(TEMP_BUILD_DIR)
 	cp $(F_IMG_DIR) $(TEMP_BUILD_DIR)
 	cp $(IMPORTER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
-	docker build --build-arg entrypoint=$(F_TEST) --build-arg runArgs='-ginkgo.v' --build-arg depFile=tinyCore.iso -t $(F_TEST) $(TEMP_BUILD_DIR)
+	docker build --build-arg entrypoint=$(F_TEST) --build-arg runArgs='-ginkgo.v' --build-arg depFile1=tinyCore.iso -t $(F_TEST) $(TEMP_BUILD_DIR)
 	-rm -rf $(TEMP_BUILD_DIR)
 
 # build the functional test image.  The importer image is used to provide consistency between test
@@ -176,7 +176,7 @@ unit-test-image-image: $(IMPORTER_BUILD)/Dockerfile
 	cp $(U_IMG_DIR) $(TEMP_BUILD_DIR)
 	cp $(F_IMG_DIR) $(TEMP_BUILD_DIR)
 	cp $(IMPORTER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
-	docker build --build-arg entrypoint=$(U_TEST_IMAGE) --build-arg runArgs='-ginkgo.v' --build-arg depFile=cirros-qcow2.img --build-arg depFile=tinyCore.iso -t $(U_TEST_IMAGE) $(TEMP_BUILD_DIR)
+	docker build --build-arg entrypoint=$(U_TEST_IMAGE) --build-arg runArgs='-ginkgo.v' --build-arg depFile1=cirros-qcow2.img --build-arg depFile2=tinyCore.iso -t $(U_TEST_IMAGE) $(TEMP_BUILD_DIR)
 	-rm -rf $(TEMP_BUILD_DIR)
 
 func-test-run:

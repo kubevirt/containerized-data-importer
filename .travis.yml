@@ -16,6 +16,8 @@ notifications:
     - chat.freenode.net#kubevirt
     on_success: change
     on_failure: always
+before_install:
+  - sudo apt-get install -y qemu-utils
 before_script:
 - curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/v$K8S_VER/bin/linux/amd64/kubectl
   && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
