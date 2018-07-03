@@ -42,7 +42,7 @@ type dataStream struct {
 	Url         *url.URL
 	Readers     []Reader
 	buf         []byte // holds file headers
-	Qemu        bool
+	qemu        bool
 	Size        int64
 	accessKeyId string
 	secretKey   string
@@ -282,7 +282,7 @@ func (d *dataStream) fileFormatSelector(hdr *image.Header) (err error) {
 		r, d.Size, err = d.gzReader()
 	case "qcow2":
 		r, d.Size, err = d.qcow2NopReader(hdr)
-		d.Qemu = true
+		d.qemu = true
 	case "tar":
 		r, d.Size, err = d.tarReader()
 	case "xz":
@@ -459,7 +459,7 @@ func closeReaders(readers []Reader) (rtnerr error) {
 
 // Copy endpoint to dest based on passed-in reader.
 func (d dataStream) copy(dest string) error {
-	return copy(d.topReader(), dest, d.Qemu)
+	return copy(d.topReader(), dest, d.qemu)
 }
 
 // Copy the file using its Reader (r) to the passed-in destination (`out`).
