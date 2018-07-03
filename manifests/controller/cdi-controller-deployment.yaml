@@ -2,6 +2,7 @@ kind: ServiceAccount
 apiVersion: v1
 metadata:
   name: cdi-sa
+  namespace: default  # update accordingly based on the namespace you are deploying in
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
@@ -41,6 +42,7 @@ apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
   name: cdi-deployment
+  namespace: default  # update accordingly based on the namespace you are deploying in
   labels:
     app: containerized-data-importer
 spec:
