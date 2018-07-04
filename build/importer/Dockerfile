@@ -2,9 +2,11 @@ FROM alpine:3.3
 RUN mkdir /data
 ARG entrypoint
 ARG runArgs
-ARG depFile
+ARG depFile1
+ARG depFile2
 ENV RUN_ARGS=$runArgs
-COPY $depFile /
+COPY $depFile1 /
+COPY $depFile2 /
 COPY ./$entrypoint ./run-binary
 RUN apk update && apk add qemu-img \
   xz \
