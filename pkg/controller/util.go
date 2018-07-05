@@ -351,7 +351,7 @@ func CreateCloneSourcePod(client kubernetes.Interface, image string, verbose str
 	}
 	ns := strArr[0]
 	pvcName := strArr[1]
-	pod := MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, pvcName, generatedLabelStr)
+	pod := MakeCloneSourcePodSpec(image, verbose, pullPolicy, pvcName, generatedLabelStr)
 	pod, err := client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
 		return nil, errors.Wrap(err, "source pod API create errored")
@@ -361,7 +361,7 @@ func CreateCloneSourcePod(client kubernetes.Interface, image string, verbose str
 }
 
 // return the clone source pod spec based on the target pvc.
-func MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, pvcName string, generatedLabelStr string) *v1.Pod {
+func MakeCloneSourcePodSpec(image, verbose, pullPolicy, pvcName string, generatedLabelStr string) *v1.Pod {
 	// source pod name contains the pvc name
 	podName := fmt.Sprintf("%s-", CLONER_SOURCE_PODNAME)
 
@@ -447,9 +447,9 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, pvcName string, gene
 	return pod
 }
 
-func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose string, pullPolicy string, cr string, pvc *v1.PersistentVolumeClaim, generatedLabelStr string) (*v1.Pod, error) {
+func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose string, pullPolicy string, pvc *v1.PersistentVolumeClaim, generatedLabelStr string) (*v1.Pod, error) {
 	ns := pvc.Namespace
-	pod := MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr, pvc, generatedLabelStr)
+	pod := MakeCloneTargetPodSpec(image, verbose, pullPolicy, pvc, generatedLabelStr)
 
 	pod, err := client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
@@ -460,7 +460,7 @@ func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose str
 }
 
 // return the clone target pod spec based on the target pvc.
-func MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr string, pvc *v1.PersistentVolumeClaim, generatedLabelStr string) *v1.Pod {
+func MakeCloneTargetPodSpec(image, verbose, pullPolicy string, pvc *v1.PersistentVolumeClaim, generatedLabelStr string) *v1.Pod {
 	// target pod name contains the pvc name
 	podName := fmt.Sprintf("%s-", CLONER_TARGET_PODNAME)
 

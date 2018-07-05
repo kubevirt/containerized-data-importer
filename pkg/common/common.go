@@ -31,7 +31,7 @@ const (
 	IMPORTER_ACCESS_KEY_ID = "IMPORTER_ACCESS_KEY_ID"
 	IMPORTER_SECRET_KEY    = "IMPORTER_SECRET_KEY"
 
-	CLONER_DEFAULT_IMAGE  = "docker.io/zvikorn/cdi-cloner:" + CDI_VERSION
+	CLONER_DEFAULT_IMAGE  = "docker.io/kubevirt/cdi-cloner:" + CDI_VERSION
 	CLONING_LABEL_KEY     = "cloning"
 	CLONING_LABEL_VALUE   = "host-assisted-cloning"
 	CLONER_SOURCE_PODNAME = "clone-source-pod"

@@ -167,14 +167,16 @@ func (c *CloneController) processPodItem(pod *v1.Pod) error {
 	if err != nil {
 		return errors.WithMessage(err, "could not retrieve pvc from cache")
 	}
-	// see if pvc's pod phase anno needs to be added/updated
+	// see if pvc's pod phase anno needs to be added/updated. The update is done only on the target PVC
 	phase := string(pod.Status.Phase)
-	if !checkIfAnnoExists(pvc, AnnPodPhase, phase) {
+	_, exists := pvc.ObjectMeta.Annotations[AnnCloneRequest]
+	if !checkIfAnnoExists(pvc, AnnPodPhase, phase) && exists{
 		pvc, err = setPVCAnnotation(c.clientset, pvc, AnnPodPhase, phase)
 		if err != nil {
 			return errors.WithMessage(err, fmt.Sprintf("could not set annotation \"%s: %s\" on pvc %q", AnnPodPhase, phase, pvc.Name))
-			glog.V(Vdebug).Infof("processPodItem: pod phase %q annotated in pvc %q", pod.Status.Phase, pvcKey)
+			
 		}
+		glog.V(Vdebug).Infof("processPodItem: pod phase %q annotated in pvc %q", pod.Status.Phase, pvcKey)
 		if phase == "Succeeded" {
 			pvc, err = setPVCAnnotation(c.clientset, pvc, AnnCloneOf, "true")
 			if err != nil {
@@ -250,7 +252,7 @@ func (c *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	}
 
 	//create the target pod
-	_, err = CreateCloneTargetPod(c.clientset, c.cloneImage, c.verbose, c.pullPolicy, cr, pvc, generatedLabelStr)
+	_, err = CreateCloneTargetPod(c.clientset, c.cloneImage, c.verbose, c.pullPolicy, pvc, generatedLabelStr)
 	if err != nil {
 		//TODO: remove annotation AnnCloningPods from pvc as pod failed to run
 		return err
