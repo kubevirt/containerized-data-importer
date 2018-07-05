@@ -24,7 +24,7 @@ const (
 	IMPORTER_PODNAME    = "importer"
 	IMPORTER_DATA_DIR   = "/data"
 	IMPORTER_S3_HOST    = "s3.amazonaws.com"
-	DEFAULT_PULL_POLICY = string(v1.PullAlways)
+	DEFAULT_PULL_POLICY = string(v1.PullIfNotPresent)
 	// env var names
 	PULL_POLICY            = "PULL_POLICY"
 	IMPORTER_ENDPOINT      = "IMPORTER_ENDPOINT"
