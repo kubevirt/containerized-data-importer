@@ -2,11 +2,16 @@ kind: ServiceAccount
 apiVersion: v1
 metadata:
   name: cdi-sa
+  namespace: default  # update accordingly based on the namespace you are deploying in
+  labels:
+    cdi.kubevirt.io: ""
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: cdi
+  labels:
+    cdi.kubevirt.io: ""
 rules:
 - apiGroups: [""]
   resources: ["events"]
@@ -28,6 +33,8 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
 metadata:
   name: cdi-sa
+  labels:
+    cdi.kubevirt.io: ""
 roleRef:
   kind: ClusterRole
   name: cdi
@@ -41,7 +48,9 @@ apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
   name: cdi-deployment
+  namespace: default  # update accordingly based on the namespace you are deploying in
   labels:
+    cdi.kubevirt.io: ""
     app: containerized-data-importer
 spec:
   selector:
