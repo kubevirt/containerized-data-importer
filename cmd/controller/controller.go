@@ -7,11 +7,11 @@ import (
 	"os/signal"
 
 	"github.com/golang/glog"
-	. "github.com/kubevirt/containerized-data-importer/pkg/common"
-	"github.com/kubevirt/containerized-data-importer/pkg/controller"
+	. "kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 
-	clientset "github.com/kubevirt/containerized-data-importer/pkg/client/clientset/versioned"
-	informers "github.com/kubevirt/containerized-data-importer/pkg/client/informers/externalversions"
+	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,9 +24,9 @@ var (
 	configPath    string
 	masterURL     string
 	importerImage string
-	clonerImage    string
-	PullPolicy    string
-	Verbose       string
+	clonerImage   string
+	pullPolicy    string
+	verbose       string
 )
 
 // The optional importer and colner images are obtained here along with the supported flags.
@@ -47,30 +47,30 @@ func init() {
 	if importerImage == "" {
 		importerImage = IMPORTER_DEFAULT_IMAGE
 	}
-	
+
 	clonerImage = os.Getenv(CLONER_IMAGE)
 	if clonerImage == "" {
 		clonerImage = CLONER_DEFAULT_IMAGE
 	}
-	
-	PullPolicy = DEFAULT_PULL_POLICY
+
+	pullPolicy = DEFAULT_PULL_POLICY
 	if pp := os.Getenv(PULL_POLICY); len(pp) != 0 {
-		PullPolicy = pp
+		pullPolicy = pp
 	}
-	
+
 	// get the verbose level so it can be passed to the importer pod
 	defVerbose := fmt.Sprintf("%d", DEFAULT_VERBOSE) // note flag values are strings
-	Verbose = defVerbose
+	verbose = defVerbose
 	// visit actual flags passed in and if passed check -v and set verbose
 	flag.Visit(func(f *flag.Flag) {
 		if f.Name == "v" {
-			Verbose = f.Value.String()
+			verbose = f.Value.String()
 		}
 	})
-	if Verbose == defVerbose {
+	if verbose == defVerbose {
 		glog.V(Vuser).Infof("Note: increase the -v level in the controller deployment for more detailed logging, eg. -v=%d or -v=%d\n", Vadmin, Vdebug)
 	}
-	
+
 	glog.V(Vdebug).Infof("init: complete: cdi controller will create importer using image %q\n", importerImage)
 }
 
@@ -111,18 +111,18 @@ func main() {
 		pvcInformer.Informer(),
 		podInformer.Informer(),
 		importerImage,
-		PullPolicy,
-		Verbose)
-	
+		pullPolicy,
+		verbose)
+
 	cloneController := controller.NewCloneController(client,
 		pvcInformer.Informer(),
 		podInformer.Informer(),
 		clonerImage,
-		PullPolicy,
-		Verbose)
+		pullPolicy,
+		verbose)
 
 	glog.V(Vuser).Infoln("created cdi controllers")
-	
+
 	stopCh := handleSignals()
 
 	go cdiInformerFactory.Start(stopCh)
@@ -144,7 +144,7 @@ func main() {
 			glog.Fatalln("Error running import controller: %+v", err)
 		}
 	}()
-	
+
 	go func() {
 		err = cloneController.Run(1, stopCh)
 		if err != nil {

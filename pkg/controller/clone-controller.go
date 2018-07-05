@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 	"github.com/golang/glog"
-	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,16 +11,16 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	. "kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 const (
 	// pvc annotations
-	AnnCloneRequest    = "k8s.io/CloneRequest"
-	AnnCloneOf         = "k8s.io/CloneOf"
-	AnnCloningPods = "cdi.kubevirt.io/storage.clone.cloningPods"
+	AnnCloneRequest = "k8s.io/CloneRequest"
+	AnnCloneOf      = "k8s.io/CloneOf"
+	AnnCloningPods  = "cdi.kubevirt.io/storage.clone.cloningPods"
 	// importer pod annotations
 	AnnCloningCreatedBy = "cdi.kubevirt.io/storage.cloningCreatedByController"
-	
 )
 
 type CloneController struct {
@@ -35,14 +34,14 @@ type CloneController struct {
 
 func NewCloneController(client kubernetes.Interface, pvcInformer, podInformer cache.SharedIndexInformer, cloneImage string, pullPolicy string, verbose string) *CloneController {
 	c := &CloneController{
-		clientset:     client,
-		pvcQueue:      workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
-		podQueue:      workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
-		pvcInformer:   pvcInformer,
-		podInformer:   podInformer,
-		cloneImage:    cloneImage,
-		pullPolicy:    pullPolicy,
-		verbose:       verbose,
+		clientset:   client,
+		pvcQueue:    workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+		podQueue:    workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+		pvcInformer: pvcInformer,
+		podInformer: podInformer,
+		cloneImage:  cloneImage,
+		pullPolicy:  pullPolicy,
+		verbose:     verbose,
 	}
 
 	// Bind the pvc SharedIndexInformer to the pvc queue
@@ -151,7 +150,7 @@ func (c *CloneController) processPodItem(pod *v1.Pod) error {
 	// verify that this pod has the expected pvc name
 	var pvcKey string
 	for _, vol := range pod.Spec.Volumes {
-		if vol.Name == DataVolName {
+		if vol.Name == ImagePathName {
 			pvcKey = fmt.Sprintf("%s/%s", pod.Namespace, vol.PersistentVolumeClaim.ClaimName)
 			glog.V(Vadmin).Infof("pod \"%s/%s\" has volume matching claim %q\n", pod.Namespace, pod.Name, pvcKey)
 			break
@@ -160,7 +159,7 @@ func (c *CloneController) processPodItem(pod *v1.Pod) error {
 	if len(pvcKey) == 0 {
 		// If this block is ever reached, something has gone very wrong.  The pod should ALWAYS be created with the volume.
 		// A missing volume would most likely indicate a pod that has been created manually, but also incorrectly defined.
-		return errors.Errorf("Pod does not contain volume %q", DataVolName)
+		return errors.Errorf("Pod does not contain volume %q", ImagePathName)
 	}
 
 	glog.V(Vdebug).Infof("processPodItem: getting pvc for key %q", pvcKey)
@@ -171,11 +170,19 @@ func (c *CloneController) processPodItem(pod *v1.Pod) error {
 	// see if pvc's pod phase anno needs to be added/updated
 	phase := string(pod.Status.Phase)
 	if !checkIfAnnoExists(pvc, AnnPodPhase, phase) {
-		pvc, err = setPVCAnnotation(c.clientset, pvc, AnnCloneOf, "true")
+		pvc, err = setPVCAnnotation(c.clientset, pvc, AnnPodPhase, phase)
 		if err != nil {
 			return errors.WithMessage(err, fmt.Sprintf("could not set annotation \"%s: %s\" on pvc %q", AnnPodPhase, phase, pvc.Name))
 			glog.V(Vdebug).Infof("processPodItem: pod phase %q annotated in pvc %q", pod.Status.Phase, pvcKey)
 		}
+		if phase == "Succeeded" {
+			pvc, err = setPVCAnnotation(c.clientset, pvc, AnnCloneOf, "true")
+			if err != nil {
+				return errors.WithMessage(err, fmt.Sprintf("could not set annotation \"%s: %s\" on pvc %q", AnnCloneOf, "true", pvc.Name))
+				glog.V(Vdebug).Infof("processPodItem: CloneOf annotatated in pvc %q", pvcKey)
+			}
+		}
+
 	}
 	return nil
 }
@@ -214,7 +221,7 @@ func (c *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// check our existing pvc one more time to ensure we should be working on it
 	// and to help mitigate any race conditions. This time we get the latest pvc.
 	doCreate, pvc, err := checkClonePVC(c.clientset, pvc, true)
@@ -233,20 +240,22 @@ func (c *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 		return errors.WithMessage(err, "could not update pvc %q annotation and/or label")
 	}
 
-	// all checks passed, let's create the source pod!
-	_, err = CreateCloneSourcePod(c.clientset, c.cloneImage, c.verbose, c.pullPolicy, cr, pvc)
+	//create random string to be used for pod labeling and hostpath name
+	generatedLabelStr := GenerateLabelStr(GENERATED_CLONING_LABEL_LEN)
+	//create the source pod
+	_, err = CreateCloneSourcePod(c.clientset, c.cloneImage, c.verbose, c.pullPolicy, cr, pvc, generatedLabelStr)
 	if err != nil {
 		//TODO: remove annotation AnnCloningPods from pvc as pod failed to run
 		return err
 	}
-	
+
 	//create the target pod
-	_ , err = CreateCloneTargetPod(c.clientset, c.cloneImage, c.verbose, c.pullPolicy, cr, pvc)
+	_, err = CreateCloneTargetPod(c.clientset, c.cloneImage, c.verbose, c.pullPolicy, cr, pvc, generatedLabelStr)
 	if err != nil {
 		//TODO: remove annotation AnnCloningPods from pvc as pod failed to run
 		return err
 	}
-	
+
 	return nil
 }
 

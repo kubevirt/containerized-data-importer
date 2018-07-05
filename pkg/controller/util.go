@@ -2,9 +2,10 @@ package controller
 
 import (
 	"fmt"
+	"math/rand"
+	"strings"
 	"time"
 	"github.com/golang/glog"
-	. "github.com/kubevirt/containerized-data-importer/pkg/common"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -12,12 +13,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-	"strings"
+	. "kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 const DataVolName = "cdi-data-vol"
 const ImagePathName = "image-path"
-const SocketPathName = "socket-path"
+const socketPathName = "socket-path"
 
 // return a pvc pointer based on the passed-in work queue key.
 func (c *ImportController) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, error) {
@@ -342,18 +343,15 @@ func getCloneRequestPVC(pvc *v1.PersistentVolumeClaim) (string, error) {
 	return cr, nil
 }
 
-func CreateCloneSourcePod(client kubernetes.Interface, image string, verbose string, pullPolicy string, cr string , pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+func CreateCloneSourcePod(client kubernetes.Interface, image string, verbose string, pullPolicy string, cr string, pvc *v1.PersistentVolumeClaim, generatedLabelStr string) (*v1.Pod, error) {
 	strArr := strings.Split(cr, "/")
-    var ns string = ""
 	if strArr == nil || len(strArr) < 2 {
 		glog.V(Vdebug).Infof("Wrong CloneRequest Annotation")
 		return nil, nil
 	}
-	ns = strArr[0]
+	ns := strArr[0]
 	pvcName := strArr[1]
-	
-	pod := MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, pvcName)
-
+	pod := MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, pvcName, generatedLabelStr)
 	pod, err := client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
 		return nil, errors.Wrap(err, "source pod API create errored")
@@ -363,7 +361,7 @@ func CreateCloneSourcePod(client kubernetes.Interface, image string, verbose str
 }
 
 // return the clone source pod spec based on the target pvc.
-func MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, pvcName string) *v1.Pod {
+func MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, pvcName string, generatedLabelStr string) *v1.Pod {
 	// source pod name contains the pvc name
 	podName := fmt.Sprintf("%s-", CLONER_SOURCE_PODNAME)
 
@@ -378,37 +376,38 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, pvcName string) *v1.
 				AnnCloningCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				"app": "Host-Assisted-Cloning",
+				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                     //filtered by the podInformer
+				CLONING_LABEL_KEY: CLONING_LABEL_VALUE + "-" + generatedLabelStr, //used by podAffity
 			},
 		},
 		Spec: v1.PodSpec{
 			Affinity: &v1.Affinity{
 				PodAffinity: &v1.PodAffinity{
 					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
-				        {
-				        	LabelSelector: &metav1.LabelSelector{
-					           MatchExpressions: []metav1.LabelSelectorRequirement{
-			                       {
-			              	          Key: "app",
-		                              Operator: metav1.LabelSelectorOpIn,
-							          Values: []string{"Host-Assisted-Cloning"},
-			                       },
-					           },
-				        	},
-				        	TopologyKey: "Host-Assisted-Cloning",
-					    },
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      CLONING_LABEL_KEY,
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{CLONING_LABEL_VALUE + "-" + generatedLabelStr},
+									},
+								},
+							},
+							TopologyKey: CLONING_LABEL_VALUE,
+						},
 					},
 				},
 			},
 			Containers: []v1.Container{
 				{
-					Command:		[]string{"/bin/sh"},
+					Command:         []string{"/bin/sh"},
 					Name:            CLONER_SOURCE_PODNAME,
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
 					SecurityContext: &v1.SecurityContext{
 						Privileged: &[]bool{true}[0],
-						RunAsUser: &[]int64{0}[0],
+						RunAsUser:  &[]int64{0}[0],
 					},
 					VolumeMounts: []v1.VolumeMount{
 						{
@@ -416,11 +415,11 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, pvcName string) *v1.
 							MountPath: CLONER_IMAGE_PATH,
 						},
 						{
-							Name:      SocketPathName,
-							MountPath: CLONER_SOCKET_PATH,
+							Name:      socketPathName,
+							MountPath: CLONER_SOCKET_PATH + "/" + generatedLabelStr,
 						},
 					},
-					Args: []string{"-c", CLONER_SCRIPT_ARGS + " source"},
+					Args: []string{"-c", CLONER_SCRIPT_ARGS + " source " + generatedLabelStr},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyNever,
@@ -435,10 +434,10 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, pvcName string) *v1.
 					},
 				},
 				{
-					Name: SocketPathName,
+					Name: socketPathName,
 					VolumeSource: v1.VolumeSource{
 						HostPath: &v1.HostPathVolumeSource{
-							Path: CLONER_SOCKET_PATH,
+							Path: CLONER_SOCKET_PATH + "/" + generatedLabelStr,
 						},
 					},
 				},
@@ -448,9 +447,9 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, cr, pvcName string) *v1.
 	return pod
 }
 
-func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose string, pullPolicy string, cr string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose string, pullPolicy string, cr string, pvc *v1.PersistentVolumeClaim, generatedLabelStr string) (*v1.Pod, error) {
 	ns := pvc.Namespace
-    pod := MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr, pvc)
+	pod := MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr, pvc, generatedLabelStr)
 
 	pod, err := client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
@@ -461,7 +460,7 @@ func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose str
 }
 
 // return the clone target pod spec based on the target pvc.
-func MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
+func MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr string, pvc *v1.PersistentVolumeClaim, generatedLabelStr string) *v1.Pod {
 	// target pod name contains the pvc name
 	podName := fmt.Sprintf("%s-", CLONER_TARGET_PODNAME)
 
@@ -476,31 +475,32 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr string, pvc *v1.Persi
 				AnnCloningCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				"app": "Host-Assisted-Cloning",
+				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                     //filtered by the podInformer
+				CLONING_LABEL_KEY: CLONING_LABEL_VALUE + "-" + generatedLabelStr, //used by PodAffinity
 			},
 		},
 		Spec: v1.PodSpec{
 			Affinity: &v1.Affinity{
 				PodAffinity: &v1.PodAffinity{
 					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
-				        {
-				        	LabelSelector: &metav1.LabelSelector{
-					           MatchExpressions: []metav1.LabelSelectorRequirement{
-			                       {
-			              	          Key: "app",
-		                              Operator: metav1.LabelSelectorOpIn,
-							          Values: []string{"Host-Assisted-Cloning"},
-			                       },
-					           },
-				        	},
-				        	TopologyKey: "Host-Assisted-Cloning",
-					    },
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      CLONING_LABEL_KEY,
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{CLONING_LABEL_VALUE + "-" + generatedLabelStr},
+									},
+								},
+							},
+							TopologyKey: CLONING_LABEL_VALUE,
+						},
 					},
 				},
 			},
 			Containers: []v1.Container{
 				{
-					Command:		[]string{"/bin/sh"},
+					Command:         []string{"/bin/sh"},
 					Name:            CLONER_TARGET_PODNAME,
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
@@ -510,11 +510,11 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr string, pvc *v1.Persi
 							MountPath: CLONER_IMAGE_PATH,
 						},
 						{
-							Name:      SocketPathName,
-							MountPath: CLONER_SOCKET_PATH,
+							Name:      socketPathName,
+							MountPath: CLONER_SOCKET_PATH + "/" + generatedLabelStr,
 						},
 					},
-					Args: []string{"-c", CLONER_SCRIPT_ARGS + " target" },
+					Args: []string{"-c", CLONER_SCRIPT_ARGS + " target " + generatedLabelStr},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyNever,
@@ -529,13 +529,12 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, cr string, pvc *v1.Persi
 					},
 				},
 				{
-					Name: SocketPathName,
+					Name: socketPathName,
 					VolumeSource: v1.VolumeSource{
 						HostPath: &v1.HostPathVolumeSource{
-							Path: CLONER_SOCKET_PATH,
+							Path: CLONER_SOCKET_PATH + "/" + generatedLabelStr,
 						},
 					},
-
 				},
 			},
 		},
@@ -563,7 +562,7 @@ func checkClonePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, g
 		glog.V(Vadmin).Infof("pvc annotation %q exists indicating cloning completed, skipping pvc\n", AnnCloneOf)
 		return false, pvc, nil
 	}
-	
+
 	//check if the pvc is being processed
 	if metav1.HasAnnotation(pvc.ObjectMeta, AnnCloningPods) {
 		glog.V(Vadmin).Infof("pvc annotation %q exists indicating in-progress or completed, skipping pvc\n", AnnCloningPods)
@@ -576,10 +575,10 @@ func checkClonePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, g
 
 	// get latest pvc object to help mitigate race and timing issues with latency between the
 	// store and work queue to double check if we are already processing
-	glog.V(Vdebug).Infof("checkPVC: getting latest version of pvc for in-process annotation")
+	glog.V(Vdebug).Infof("checkClonePVC: getting latest version of pvc for in-process annotation")
 	newPvc, err = client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
 	if err != nil {
-		glog.Infof("checkPVC: pvc %q Get error: %v\n", pvc.Name, err)
+		glog.Infof("checkClonePVC: pvc %q Get error: %v\n", pvc.Name, err)
 		return false, pvc, err
 	}
 
@@ -633,6 +632,12 @@ func (c *CloneController) objFromKey(informer cache.SharedIndexInformer, key int
 	return obj, nil
 }
 
-
-
-
+func GenerateLabelStr(n int) string {
+	rand.Seed(time.Now().UnixNano())
+	var letter = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letter[rand.Intn(len(letter))]
+	}
+	return string(b)
+}
