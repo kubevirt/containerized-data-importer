@@ -181,10 +181,9 @@ func (c *CloneController) processPodItem(pod *v1.Pod) error {
 			pvc, err = setPVCAnnotation(c.clientset, pvc, AnnCloneOf, "true")
 			if err != nil {
 				return errors.WithMessage(err, fmt.Sprintf("could not set annotation \"%s: %s\" on pvc %q", AnnCloneOf, "true", pvc.Name))
-				glog.V(Vdebug).Infof("processPodItem: CloneOf annotatated in pvc %q", pvcKey)
 			}
+			glog.V(Vdebug).Infof("processPodItem: CloneOf annotatated in pvc %q", pvcKey)
 		}
-
 	}
 	return nil
 }
