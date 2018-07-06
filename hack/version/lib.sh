@@ -8,7 +8,7 @@ function setNewVersion(){
     local oldVersion=$2
     local newVersion=$3
 
-    sed -i "s#$oldVersion#$newVersion#" $file
+    sed -i "s#$oldVersion#$newVersion#g" $file
 }
 
 # pushNewVersion indexes only the files where versions are known to be specified,

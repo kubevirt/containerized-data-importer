@@ -5,7 +5,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/kubevirt/containerized-data-importer/pkg/apis/datavolumecontroller"
+	"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller"
 )
 
 // SchemeGroupVersion is group version used to register these objects

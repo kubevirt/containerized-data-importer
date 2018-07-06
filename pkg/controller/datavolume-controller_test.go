@@ -32,9 +32,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 
-	cdiv1 "github.com/kubevirt/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
-	"github.com/kubevirt/containerized-data-importer/pkg/client/clientset/versioned/fake"
-	informers "github.com/kubevirt/containerized-data-importer/pkg/client/informers/externalversions"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
+	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
+	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions"
 )
 
 var (
@@ -241,7 +241,7 @@ func (f *fixture) expectUpdatePersistentVolumeClaimAction(d *corev1.PersistentVo
 }
 
 func (f *fixture) expectUpdateDataVolumeStatusAction(dataVolume *cdiv1.DataVolume) {
-	action := core.NewUpdateAction(schema.GroupVersionResource{Group: "cdi.io", Resource: "dataVolumes", Version: "v1alpha1"}, dataVolume.Namespace, dataVolume)
+	action := core.NewUpdateAction(schema.GroupVersionResource{Group: "cdi.kubevirt.io", Resource: "dataVolumes", Version: "v1alpha1"}, dataVolume.Namespace, dataVolume)
 	// TODO: Until #38113 is merged, we can't use Subresource
 	//action.Subresource = "status"
 	f.actions = append(f.actions, action)

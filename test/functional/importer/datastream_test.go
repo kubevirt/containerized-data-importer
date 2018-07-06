@@ -12,13 +12,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kubevirt/containerized-data-importer/pkg/image"
-	"github.com/kubevirt/containerized-data-importer/pkg/importer"
-	imagesize "github.com/kubevirt/containerized-data-importer/pkg/lib/size"
-	f "github.com/kubevirt/containerized-data-importer/test/framework"
+	"github.com/pkg/errors"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/pkg/errors"
+	"kubevirt.io/containerized-data-importer/pkg/image"
+	"kubevirt.io/containerized-data-importer/pkg/importer"
+	imagesize "kubevirt.io/containerized-data-importer/pkg/lib/size"
+	f "kubevirt.io/containerized-data-importer/test/framework"
 )
 
 type testCase struct {
@@ -129,15 +129,18 @@ var _ = Describe("Streaming Data Conversion", func() {
 			},
 		}
 
+		var i int
 		for _, t := range tests {
-			desc := t.testDesc
+			i++
+			desc := fmt.Sprintf("[%d] %s", i, t.testDesc)
 			ff := t.expectFormats
 			fn := t.inFileName
 			of := t.outFileName
 			useVSize := t.useVirtSize
 
 			It(desc, func() {
-				By(fmt.Sprintf("Stating the source image file %q", fn))
+				By(fmt.Sprintf("[%d] Begin test on image file %q", i, fn))
+				By(fmt.Sprintf("stat() file %q", fn))
 				finfo, err := os.Stat(fn)
 				Expect(err).NotTo(HaveOccurred())
 				size := finfo.Size()
@@ -153,7 +156,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 				}()
 				Expect(sampleFilename).To(Equal(of), "Test data filename doesn't match expected file name.")
 
-				dest := filepath.Join(os.TempDir(), of)
+				dest := fmt.Sprintf("%s.%d", filepath.Join(os.TempDir(), outfileBase), i)
 				fUrl := "file:/" + sampleFilename
 				By(fmt.Sprintf("Copying sample file to %q using `local` dataStream w/o auth", dest))
 				err = importer.CopyImage(dest, fUrl, "", "")
@@ -174,14 +177,14 @@ var _ = Describe("Streaming Data Conversion", func() {
 					Expect(err).NotTo(HaveOccurred())
 					Expect(newSize).To(Equal(size))
 				} else {
-					By("Stating output file")
-					finfo, err := os.Stat(dest)
+					By("stat() output file")
+					finfo, err = os.Stat(dest)
 					Expect(err).NotTo(HaveOccurred())
 					newSize := finfo.Size()
 					Expect(newSize).To(Equal(size))
 				}
-
 				//Expect(output.Bytes()).To(Equal(size)) // TODO replace with checksum?
+				By(fmt.Sprintf("[%d] End test on image file %q", i, fn))
 			})
 		}
 	})

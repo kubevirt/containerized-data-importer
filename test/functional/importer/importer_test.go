@@ -11,9 +11,9 @@ import (
 	"os"
 	"path/filepath"
 
-	. "github.com/kubevirt/containerized-data-importer/pkg/importer"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	. "kubevirt.io/containerized-data-importer/pkg/importer"
 )
 
 type fakeDataStream struct {

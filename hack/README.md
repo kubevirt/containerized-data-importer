@@ -5,9 +5,9 @@
 `# in github fork kubevirt/containerized-data-importer to your personal repo`, then:
 ```
 cd $GOPATH/src/
-mkdir -p github.com/kubevirt/containerized-data-importer
-go get github.com/kubevirt/containerized-data-importer
-cd github.com/kubevirt/containerized-data-importer
+mkdir -p kubevirt.io/containerized-data-importer
+go get kubevirt.io/containerized-data-importer
+cd kubevirt.io/containerized-data-importer
 git remote set-url origin <url-to-your-personal-repo>
 git push origin master -f
 ```
@@ -16,10 +16,10 @@ git push origin master -f
 
  ```
  cd $GOPATH/src/
- mkdir -p github.com/kubevirt && cd github.com/kubevirt
+ mkdir -p kubevirt.io/kubevirt && cd kubevirt.io/kubevirt
  git clone <your-forked-containerized-data-importer-url>
  cd containerized-data-importer
- git remote add upstream https://github.com/kubevirt/containerized-data-importer.git
+ git remote add upstream https://kubevirt.io/containerized-data-importer.git
  ```
 
 ### Use glide to handle vendoring of dependencies:
@@ -37,7 +37,7 @@ Then run it from the repo root
 ### Create importer image from source:
 
 ```
-cd $GOPATH/src/github.com/kubevirt/containerized-data-importer
+cd $GOPATH/src/kubevirt.io/containerized-data-importer
 make importer
 ```
 which places the binary in _./bin/importer_.
@@ -46,7 +46,7 @@ The importer image is pushed to `jcoperh/importer:latest`, and this is where the
 ### Create controller image from source:
 
 ```
-cd $GOPATH/src/github.com/kubevirt/containerized-data-importer
+cd $GOPATH/src/kubevirt.io/containerized-data-importer
 make controller
 ```
 which places the binary in _./bin/importer-controller_. The controller image is pushed to `jcoperh/importer-controller:latest`, and this is where the controller pod pulls the image from.

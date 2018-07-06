@@ -4,12 +4,18 @@ REPO_ROOT=$(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 CONTROLLER=controller
 IMPORTER=importer
 F_TEST=datastream-test
+U_TEST=unit-test
+U_TEST_CONTROLLER=unit-test-controller
+U_TEST_IMAGE=unit-test-image
 
 # Binary Path
 BIN=$(REPO_ROOT)/bin
 CONTROLLER_BIN=import-controller
 IMPORTER_BIN=importer
 F_TEST_BIN=$(BIN)/$(F_TEST)
+U_TEST_BIN=$(BIN)/$(U_TEST)
+U_TEST_BIN_CONTROLLER=$(BIN)/$(U_TEST_CONTROLLER)
+U_TEST_BIN_IMAGE=$(BIN)/$(U_TEST_IMAGE)
 
 # Source dirs
 CMD_DIR=$(REPO_ROOT)/cmd
@@ -19,7 +25,11 @@ IMPORTER_CMD=$(CMD_DIR)/$(IMPORTER)
 LIB_PKG_DIR=$(PKG_DIR)/lib
 LIB_SIZE_DIR=$(LIB_PKG_DIR)/size
 F_TEST_DIR=$(REPO_ROOT)/test/functional/importer
+U_TEST_DIR_CONTROLLER=$(REPO_ROOT)/pkg/controller
+U_TEST_DIR_IMAGE=$(REPO_ROOT)/pkg/image
+U_TEST_DIR_ALL=$(REPO_ROOT)/pkg/...
 F_IMG_DIR=$(REPO_ROOT)/test/images/tinyCore.iso
+U_IMG_DIR=$(REPO_ROOT)/test/images/cirros-qcow2.img
 BUILD_CMD=GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -a -ldflags $(LDFLAGS)
 DOCKER_BUILD_CMD=docker run -it --rm -v $(REPO_ROOT):$(WORK_DIR):Z -w $(WORK_DIR) -e GOOS=$(GOOS) -e GOARCH=$(ARCH) -e CGO_ENABLED=$(CGO_ENABLED) $(BUILD_IMAGE) go build
 
@@ -39,7 +49,7 @@ TAG=$(GIT_USER)-latest
 
 # Preflight Check Defaults
 USE_DOCKER=1
-DOCKER_OUT=$(shell docker ps)
+RUNNING_DOCKER=$(shell docker ps > /dev/null 2>&1; echo $$?)
 
 .PHONY: controller importer controller-bin importer-bin controller-image importer-image push-controller push-controller-release push-importer-release push-importer lib clean test
 all: clean test controller importer lib
@@ -47,11 +57,13 @@ controller: controller-bin controller-image
 importer: importer-bin importer-image
 push: push-importer push-controller
 test: functional-test unit-test
+test-local: unit-test-local
 functional-test: func-test-bin func-test-image func-test-run
+unit-test: unit-test-bin unit-test-image-controller unit-test-image-image unit-test-run
 lib: lib-size
 
 BUILD_IMAGE=golang:1.10.2
-WORK_DIR=/go/src/github.com/kubevirt/containerized-data-importer
+WORK_DIR=/go/src/kubevirt.io/containerized-data-importer
 GOOS?=linux
 ARCH?=amd64
 CGO_ENABLED=0
@@ -61,7 +73,7 @@ LDFLAGS='-extldflags "-static"'
 controller-bin:
 	@echo '********'
 	@echo 'Compiling controller binary'
-	@if [ -n '$(DOCKER_OUT)' ] && [ $(USE_DOCKER) -eq 1 ]; then \
+	@if [ '$(RUNNING_DOCKER)' -eq 0 ] && [ $(USE_DOCKER) -eq 1 ]; then \
 		echo 'building with docker'; \
 		$(DOCKER_BUILD_CMD) -o $(WORK_DIR)/bin/$(CONTROLLER_BIN) $(WORK_DIR)/cmd/controller/controller.go; \
 	else \
@@ -73,7 +85,7 @@ controller-bin:
 importer-bin:
 	@echo '********'
 	@echo 'Compiling importer binary'
-	@if [ -n '$(DOCKER_OUT)' ] && [ $(USE_DOCKER) -eq 1 ]; then \
+	@if [ $(RUNNING_DOCKER) -eq 0 ] && [ $(USE_DOCKER) -eq 1 ]; then \
 		echo 'building with docker'; \
 		$(DOCKER_BUILD_CMD) -o $(WORK_DIR)/bin/$(IMPORTER_BIN) $(WORK_DIR)/cmd/importer/importer.go; \
 	else \
@@ -88,8 +100,21 @@ func-test-bin:
 	-rm -f $(F_TEST_BIN)
 	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go test -a -c -ldflags $(LDFLAGS) -o $(F_TEST_BIN) $(F_TEST_DIR)/*.go
 
+# Compile datastream functional test binary
+unit-test-bin:
+	@echo '********'
+	@echo 'Compiling unit test binary'
+	-rm -f $(U_TEST_BIN)
+	-rm -f $(U_TEST_BIN_CONTROLLER)
+	-rm -f $(U_TEST_BIN_IMAGE)
+	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go test -v -tags=unit_test ./pkg/controller -a -ldflags $(LDFLAGS) -o $(U_TEST_BIN_CONTROLLER) $(U_TEST_DIR_ALL)/*_test.go
+	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go test -v -tags=unit_test ./pkg/image -a -ldflags $(LDFLAGS) -o $(U_TEST_BIN_IMAGE) $(U_TEST_DIR_ALL)/*_test.go
+
 # build the controller image
 controller-image: $(CONTROLLER_BUILD)/Dockerfile
+ifeq ($(RUNNING_DOCKER), 1)
+	@echo 'Docker daemon not running, skipping image build.'
+else ifeq ($(USE_DOCKER), 1)
 	@echo '********'
 	@echo 'Building controller image'
 	$(eval TEMP_BUILD_DIR=$(CONTROLLER_BUILD)/tmp)
@@ -98,9 +123,13 @@ controller-image: $(CONTROLLER_BUILD)/Dockerfile
 	cp $(CONTROLLER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
 	docker build -t $(CTRL_IMG_NAME) $(TEMP_BUILD_DIR)
 	-rm -rf $(TEMP_BUILD_DIR)
+endif
 
 # build the importer image
 importer-image: $(IMPORTER_BUILD)/Dockerfile
+ifeq ($(RUNNING_DOCKER), 1)
+	@echo 'Docker daemon not running, skipping image build.'
+else ifeq ($(USE_DOCKER), 1)
 	@echo '********'
 	@echo 'Building importer image'
 	$(eval TEMP_BUILD_DIR=$(IMPORTER_BUILD)/tmp)
@@ -109,6 +138,7 @@ importer-image: $(IMPORTER_BUILD)/Dockerfile
 	cp $(IMPORTER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
 	docker build --build-arg entrypoint=$(IMPORTER) -t $(IMPT_IMG_NAME) $(TEMP_BUILD_DIR)
 	-rm -rf $(TEMP_BUILD_DIR)
+endif
 
 # build the functional test image.  The importer image is used to provide consistency between test
 # and run environments.
@@ -120,14 +150,45 @@ func-test-image: $(IMPORTER_BUILD)/Dockerfile
 	cp $(F_TEST_BIN) $(TEMP_BUILD_DIR)
 	cp $(F_IMG_DIR) $(TEMP_BUILD_DIR)
 	cp $(IMPORTER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
-	docker build --build-arg entrypoint=$(F_TEST) --build-arg runArgs='-ginkgo.v' --build-arg depFile=tinyCore.iso -t $(F_TEST) $(TEMP_BUILD_DIR)
+	docker build --build-arg entrypoint=$(F_TEST) --build-arg runArgs='-ginkgo.v' --build-arg depFile1=tinyCore.iso -t $(F_TEST) $(TEMP_BUILD_DIR)
 	-rm -rf $(TEMP_BUILD_DIR)
 
+# build the functional test image.  The importer image is used to provide consistency between test
+# and run environments.
+unit-test-image-controller: $(IMPORTER_BUILD)/Dockerfile
+	@echo '********'
+	@echo 'Building unit test image'
+	$(eval TEMP_BUILD_DIR=$(IMPORTER_BUILD)/tmp)
+	mkdir -p $(TEMP_BUILD_DIR)
+	cp $(U_TEST_BIN_CONTROLLER) $(TEMP_BUILD_DIR)
+	cp $(IMPORTER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
+	docker build --build-arg entrypoint=$(U_TEST_CONTROLLER) --build-arg runArgs='-ginkgo.v' -t $(U_TEST_CONTROLLER) $(TEMP_BUILD_DIR)
+	-rm -rf $(TEMP_BUILD_DIR)
+
+# build the functional test image.  The importer image is used to provide consistency between test
+# and run environments.
+unit-test-image-image: $(IMPORTER_BUILD)/Dockerfile
+	@echo '********'
+	@echo 'Building unit test image'
+	$(eval TEMP_BUILD_DIR=$(IMPORTER_BUILD)/tmp)
+	mkdir -p $(TEMP_BUILD_DIR)
+	cp $(U_TEST_BIN_IMAGE) $(TEMP_BUILD_DIR)
+	cp $(U_IMG_DIR) $(TEMP_BUILD_DIR)
+	cp $(F_IMG_DIR) $(TEMP_BUILD_DIR)
+	cp $(IMPORTER_BUILD)/Dockerfile $(TEMP_BUILD_DIR)
+	docker build --build-arg entrypoint=$(U_TEST_IMAGE) --build-arg runArgs='-ginkgo.v' --build-arg depFile1=cirros-qcow2.img --build-arg depFile2=tinyCore.iso -t $(U_TEST_IMAGE) $(TEMP_BUILD_DIR)
+	-rm -rf $(TEMP_BUILD_DIR)
 
 func-test-run:
 	@echo '********'
 	@echo 'Running functional tests'
 	docker ps -qa && docker run --rm $(F_TEST) || echo 'Docker service not detected, skipping functional tests'
+
+unit-test-run:
+	@echo '********'
+	@echo 'Running unit tests'
+	docker ps -qa && docker run --rm $(U_TEST_CONTROLLER) || echo 'Docker service not detected, skipping unit tests'
+	docker ps -qa && docker run --rm $(U_TEST_IMAGE) || echo 'Docker service not detected, skipping unit tests'
 
 push-controller:
 	@echo '********'
@@ -141,14 +202,14 @@ push-importer:
 	docker tag $(IMPT_IMG_NAME) $(DEV_REGISTRY)/$(IMPT_IMG_NAME):$(TAG)
 	docker push $(DEV_REGISTRY)/$(IMPT_IMG_NAME):$(TAG)
 
-unit-test:
+unit-test-local:
 	@echo '********'
 	@echo 'Running unit tests'
 	CGO_ENABLED=$(CGO_ENABLED) go test -v -tags=unit_test ./...
 
 lib-size:
 	# compile size "library" package consumed by external repos
-	@if [ -n '$(DOCKER_OUT)' ] && [ $(USE_DOCKER) -eq 1 ]; then \
+	@if [ $(RUNNING_DOCKER) -eq 1 ] && [ $(USE_DOCKER) -eq 1 ]; then \
 		echo 'building with docker'; \
 		$(DOCKER_BUILD_CMD) -o /tmp/size $(WORK_DIR)/pkg/lib/size/size.go; \
 	else \
@@ -164,18 +225,13 @@ clean:
 	-rm -rf $(IMPORTER_BUILD)/tmp
 
 # push cdi-importer and cdi-controller images to kubevirt repo for general use. Intended to release stable image built from master branch.
-release: controller importer
+release:
 	@echo '********'
 	@echo 'Releasing CDI images'
 	docker tag $(IMPT_IMG_NAME) $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):$(RELEASE_TAG)
 	docker push $(RELEASE_REGISTRY)/$(IMPT_IMG_NAME):$(RELEASE_TAG)
 	docker tag $(CTRL_IMG_NAME) $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):$(RELEASE_TAG)
 	docker push $(RELEASE_REGISTRY)/$(CTRL_IMG_NAME):$(RELEASE_TAG)
-
-my-golden-pvc.yaml: manifests/example/golden-pvc.yaml
-	sed "s,endpoint:.*,endpoint: \"$(URI)\"," $< > $@
-
-.PHONY: my-golden-pvc.yaml
 
 set-version:
 	@echo '********'
@@ -188,3 +244,18 @@ set-version:
 	@echo "    $ git push <upstream> master &&  git push <upstream> --tags"
 	@echo "To undo local changes without pushing, rollback to the previous commit"
 	@echo "    $ git reset HEAD~1"
+
+.PHONY: build-and-deploy
+build-and-deploy: importer controller deploy-controller patch-controller
+
+.PHONY: deploy-controller
+deploy-controller: $(REPO_ROOT)/manifests/controller/cdi-controller-deployment.yaml
+	sed -E -e 's#kubevirt/cdi-controller.*#cdi-controller#g' -e 's#imagePullPolicy:.*#imagePullPolicy: Never#g' $(REPO_ROOT)/manifests/controller/cdi-controller-deployment.yaml | kubectl apply -f -
+
+.PHONY: patch-controller
+patch-controller:
+	kubectl patch deployment cdi-deployment --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/env", "value": [{"name": "IMPORTER_IMAGE", "value": "cdi-importer"}]}]'
+
+.PHONY: my-golden-pvc.yaml
+my-golden-pvc.yaml: manifests/example/golden-pvc.yaml
+	sed "s,endpoint:.*,endpoint: \"$(URI)\"," $< > $@

@@ -19,8 +19,8 @@ limitations under the License.
 package cdi
 
 import (
-	v1alpha1 "github.com/kubevirt/containerized-data-importer/pkg/client/informers/externalversions/datavolumecontroller/v1alpha1"
-	internalinterfaces "github.com/kubevirt/containerized-data-importer/pkg/client/informers/externalversions/internalinterfaces"
+	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/datavolumecontroller/v1alpha1"
+	internalinterfaces "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to each of this group's versions.

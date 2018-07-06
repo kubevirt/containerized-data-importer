@@ -1,15 +1,18 @@
 # Containerized Data Importer
-
-A declarative Kubernetes utility to import Virtual Machine images for use with [Kubevirt](https://github.com/kubevirt/kubevirt). At a high level, a persistent volume claim (PVC), which defines VM-suitable storage (via a storage class), is created. A custom controller watches for importer specific claims and starts an import/copy process when such a claim is detected. The status of the import process is reflected in the same claim, and when the copy completes Kubevirt creates the VM based on the just-imported image.
+A declarative Kubernetes utility to import Virtual Machine images for use with [Kubevirt](https://github.com/kubevirt/kubevirt). At a high level, a persistent volume claim (PVC), which defines VM-suitable storage via a storage class, is created. A custom controller watches for importer specific claims, and when discovered, starts an import/copy process. The status of the import process is reflected in the same claim, and when the copy completes Kubevirt can create the VM based on the just-imported image.
 
 1. [Purpose](#purpose)
+1. [Versions](#versions)
 1. [Design](/doc/design.md#design)
 1. [Running the CDI Controller](#deploying-cdi)
+1. [Endpoint Size](#endpoint-size)
 1. [Hacking (WIP)](hack/README.md#getting-started-for-developers)
 1. [Security Configurations](#security-configurations)
 
 
-## Purpose
+## Overview
+
+### Purpose
 
 This project is designed with Kubevirt in mind and provides a declarative method for importing VM images into a Kuberenetes cluster.
 Kubevirt detects when the VM image copy is complete and, using the same PVC that triggered the import process, creates the VM.
@@ -20,6 +23,18 @@ This approach supports two main use-cases:
 
 
 For an in depth look at the system and workflow, see the [Design](/doc/design.md#design) documentation.
+
+### Versions
+
+CDI follows the common semantic version scheme defined at semver.org in the "vMajor.Minor.Patch" pattern.  These are defined as:
+
+- Major: API or other changes that will break existing CDI deployments.  These changes are expected to require users to alter the way they interact with CDI.  Major versions are released at the end a development cycle (every 2 weeks) in leiu of a Minor version.
+
+- Minor: Backwards compatible changes within the current Major version.  These changes represent the products of a 2 week developement cycle and contain bug fixes and new features.  By releasing merged work at the end of the cycle, users are able to closely track the project's progress and report issues or bugs soon after they are introduced.  At the same time, it should be easy to roll back to the previous Minor version if the release blocks the user's workflow.
+
+- Patch: Mid development cycle critical bug fix. In the case that a Minor release has a bug that must be fixed for users before the next release cycle, a Patch may be published.  Patches should be small in scope and only alter / introduce code related to the bug fix.
+
+See [releases.md](/doc/releases.md) for more information on versioning.
 
 ### Data Format
 
@@ -44,7 +59,7 @@ Supported file formats are:
 
 ### Either clone this repo or download the necessary manifests directly:
 
-`$ git clone https://github.com/kubevirt/containerized-data-importer.git`
+`$ git clone https://kubevirt.io/containerized-data-importer.git`
 
 *Or*
 
@@ -120,6 +135,57 @@ Make copies of the [example manifests](./manifests/example) for editing. The nec
      _or_
 
    `kubectl get -n <NAMESPACE> pvc <PVC-NAME> -o yaml | grep "storage.import.pod.phase:"` # to see the status of the importer pod triggered by the pvc
+   
+### Endpoint Size
+
+The size of the source endpoint can be retrieved by importing the _pkg/lib/size_ package. The `Size` function returns the endpoint size without the need to decompress and copy the source file. The `Size` function has this signature:
+```
+func Size(endpoint, accessKey, secKey string) (int64, error)
+```
+where:
+
+- **endpoint** is the full enpoint path name, eg. _https://s3.amazonaws.com/kubevirt-images/tinyCore.qcow2_
+
+- **accessKey** and **secKey** are optional credentials for accessing private endpoints.
+
+Example:
+```
+import (
+   ...
+   "kubevirt.io/containerized-data-importer/pkg/lib/size"
+   ...
+   size, err := size.Size(sourceFileEp, "", "")
+   if err == nil {
+      ... // have a valid size
+   }
+```
+##### Limitations:
+The `Size` function currently supports the following file formats:
+- _any.tar_
+
+- _any.tar.gz_
+
+- _any.tar.xz_
+
+- _any.qcow2_
+
+- _any.qcow2.tar[.gz|.xz]_
+
+- _any.iso_
+
+- _any.iso.tar[.gz|.xz]_
+
+The `Size` function does **not** yet support the following formats:
+- _any.gz_
+
+- _any.xz_
+
+- certain raw, unititialized iso formats
+
+In other words, if the endpoint is a _qcow2_ file, or any file wrapped by tar (even with compression) then the size of the endpoint can be determined. If the endpoint is an unformatted raw file, not compressed, not archived, then its size cannot (yet) be returned.
+
+An additional caveat is that currently the size is under reported for simple iso files, meaning a structured iso file that is not archived and/or compressed.
+
 
 ### Security Configurations
 
@@ -162,4 +228,5 @@ spec:
 ```
 
 > NOTE: <STORAGE-CLASS-NAME>.storageclass.storage.k8s.io/persistentvolumeclaims: "4" could be used and this would only allow for 4 pvc requests in this namespace, anything over that would be denied.
+
 
