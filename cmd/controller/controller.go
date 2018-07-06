@@ -24,16 +24,18 @@ var (
 	configPath    string
 	masterURL     string
 	importerImage string
+	clonerImage   string
 	pullPolicy    string
 	verbose       string
 )
 
-// The optional importer image is obtained here along with the supported flags.
+// The optional importer and colner images are obtained here along with the supported flags.
 // Note: kubeconfig hierarchy is 1) -kubeconfig flag, 2) $KUBECONFIG exported var. If neither is
 //   specified we do an in-cluster config. For testing it's easiest to export KUBECONFIG.
 func init() {
 	// optional, importer image.  If not provided, uses IMPORTER_DEFAULT_IMAGE
 	const IMPORTER_IMAGE = "IMPORTER_IMAGE"
+	const CLONER_IMAGE = "CLONER_IMAGE"
 
 	// flags
 	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG")
@@ -45,13 +47,19 @@ func init() {
 	if importerImage == "" {
 		importerImage = IMPORTER_DEFAULT_IMAGE
 	}
-	pullPolicy = IMPORTER_DEFAULT_PULL_POLICY
-	if pp := os.Getenv(IMPORTER_PULL_POLICY); len(pp) != 0 {
+
+	clonerImage = os.Getenv(CLONER_IMAGE)
+	if clonerImage == "" {
+		clonerImage = CLONER_DEFAULT_IMAGE
+	}
+
+	pullPolicy = DEFAULT_PULL_POLICY
+	if pp := os.Getenv(PULL_POLICY); len(pp) != 0 {
 		pullPolicy = pp
 	}
 
 	// get the verbose level so it can be passed to the importer pod
-	defVerbose := fmt.Sprintf("%d", IMPORTER_DEFAULT_VERBOSE) // note flag values are strings
+	defVerbose := fmt.Sprintf("%d", DEFAULT_VERBOSE) // note flag values are strings
 	verbose = defVerbose
 	// visit actual flags passed in and if passed check -v and set verbose
 	flag.Visit(func(f *flag.Flag) {
@@ -106,6 +114,13 @@ func main() {
 		pullPolicy,
 		verbose)
 
+	cloneController := controller.NewCloneController(client,
+		pvcInformer.Informer(),
+		podInformer.Informer(),
+		clonerImage,
+		pullPolicy,
+		verbose)
+
 	glog.V(Vuser).Infoln("created cdi controllers")
 
 	stopCh := handleSignals()
@@ -127,6 +142,13 @@ func main() {
 		err = importController.Run(1, stopCh)
 		if err != nil {
 			glog.Fatalln("Error running import controller: %+v", err)
+		}
+	}()
+
+	go func() {
+		err = cloneController.Run(1, stopCh)
+		if err != nil {
+			glog.Fatalln("Error running clone controller: %+v", err)
 		}
 	}()
 
