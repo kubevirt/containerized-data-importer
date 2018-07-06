@@ -1,6 +1,4 @@
-// +build functional_test
-
-package importer
+package importer_test
 
 import (
 	"fmt"
