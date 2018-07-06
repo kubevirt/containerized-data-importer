@@ -9,7 +9,7 @@ import (
 // TODO: maybe the vm cloner can use these common values
 
 const (
-	CDI_VERSION = "v1.0.0"
+	CDI_VERSION = "v1.1.0-alpha.1"
 
 	IMPORTER_DEFAULT_IMAGE = "docker.io/kubevirt/cdi-importer:" + CDI_VERSION
 	CDI_LABEL_KEY          = "app"

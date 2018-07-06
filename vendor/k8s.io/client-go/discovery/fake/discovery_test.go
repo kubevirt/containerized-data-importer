@@ -31,7 +31,7 @@ func TestFakingServerVersion(t *testing.T) {
 		t.Fatalf("couldn't convert Discovery() to *FakeDiscovery")
 	}
 
-	testGitCommit := "v1.0.0"
+	testGitCommit := "v1.1.0-alpha.1"
 	fakeDiscovery.FakedServerVersion = &version.Info{
 		GitCommit: testGitCommit,
 	}
