@@ -313,7 +313,7 @@ func (d dataStream) xzReader() (*Reader, int64, error) {
 }
 
 // Return the tar reader and size of the endpoint "through the eye" of the previous reader.
-// Assumes a single file was archived. 
+// Assumes a single file was archived.
 // Note: the size stored in the header is used rather than raw metadata.
 func (d dataStream) tarReader() (*Reader, int64, error) {
 	tr := tar.NewReader(d.topReader())

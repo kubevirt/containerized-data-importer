@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"strconv"
 
-	"github.com/pkg/errors"
 	"github.com/golang/glog"
+	"github.com/pkg/errors"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 )
 
