@@ -5,16 +5,16 @@ package controller
 import (
 	"fmt"
 
-	"github.com/pkg/errors"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "kubevirt.io/containerized-data-importer/pkg/common"
-	. "kubevirt.io/containerized-data-importer/pkg/controller"
+	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	k8stesting "k8s.io/client-go/tools/cache/testing"
+	. "kubevirt.io/containerized-data-importer/pkg/common"
+	. "kubevirt.io/containerized-data-importer/pkg/controller"
 )
 
 type operation int

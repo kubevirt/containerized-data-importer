@@ -2,7 +2,6 @@ package controller
 
 import (
 	"fmt"
-	"time"
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
@@ -12,6 +11,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
+	"time"
 )
 
 const (
@@ -170,11 +170,11 @@ func (c *CloneController) processPodItem(pod *v1.Pod) error {
 	// see if pvc's pod phase anno needs to be added/updated. The update is done only on the target PVC
 	phase := string(pod.Status.Phase)
 	_, exists := pvc.ObjectMeta.Annotations[AnnCloneRequest]
-	if !checkIfAnnoExists(pvc, AnnPodPhase, phase) && exists{
+	if !checkIfAnnoExists(pvc, AnnPodPhase, phase) && exists {
 		pvc, err = setPVCAnnotation(c.clientset, pvc, AnnPodPhase, phase)
 		if err != nil {
 			return errors.WithMessage(err, fmt.Sprintf("could not set annotation \"%s: %s\" on pvc %q", AnnPodPhase, phase, pvc.Name))
-			
+
 		}
 		glog.V(Vdebug).Infof("processPodItem: pod phase %q annotated in pvc %q", pod.Status.Phase, pvcKey)
 		if phase == "Succeeded" {

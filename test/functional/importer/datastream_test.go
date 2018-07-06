@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	imagesize "kubevirt.io/containerized-data-importer/pkg/lib/size"

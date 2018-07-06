@@ -2,9 +2,6 @@ package controller
 
 import (
 	"fmt"
-	"math/rand"
-	"strings"
-	"time"
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
@@ -14,6 +11,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
+	"math/rand"
+	"strings"
+	"time"
 )
 
 const DataVolName = "cdi-data-vol"
@@ -376,7 +376,7 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, pvcName string, generate
 				AnnCloningCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                     //filtered by the podInformer
+				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                               //filtered by the podInformer
 				CLONING_LABEL_KEY: CLONING_LABEL_VALUE + "-" + generatedLabelStr, //used by podAffity
 			},
 		},
@@ -475,7 +475,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy string, pvc *v1.Persisten
 				AnnCloningCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                     //filtered by the podInformer
+				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                               //filtered by the podInformer
 				CLONING_LABEL_KEY: CLONING_LABEL_VALUE + "-" + generatedLabelStr, //used by PodAffinity
 			},
 		},
