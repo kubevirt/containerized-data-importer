@@ -104,6 +104,7 @@ func NewDataStream(endpt, accKey, secKey string) (*dataStream, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to calculate iso file size")
 	}
+	glog.V(Vdebug).Infof("NewDataStream: endpoint %q's computed byte size: %d", ep, ds.Size)
 	return ds, nil
 }
 
