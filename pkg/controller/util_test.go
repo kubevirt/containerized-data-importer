@@ -684,7 +684,7 @@ func Test_addToMap(t *testing.T) {
 
 func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 	// importer pod name contains the pvc name
-	podName := fmt.Sprintf("%s-%s", IMPORTER_PODNAME, pvc.Name)
+	podName := fmt.Sprintf("%s-%s-", IMPORTER_PODNAME, pvc.Name)
 
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -692,13 +692,16 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: podName,
-			// Namespace: pvc.Namespace,
+			GenerateName: podName,
 			Annotations: map[string]string{
 				AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
 				CDI_LABEL_KEY: CDI_LABEL_VALUE,
+				AnnImportPVC:  pvc.Name,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(pvc, appsv1.SchemeGroupVersion.WithKind("PersistentVolumeClaim")),
 			},
 		},
 		Spec: v1.PodSpec{
@@ -728,6 +731,14 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 					},
 				},
 			},
+		},
+	}
+
+	ep, _ := getEndpoint(pvc)
+	pod.Spec.Containers[0].Env = []v1.EnvVar{
+		{
+			Name:  IMPORTER_ENDPOINT,
+			Value: ep,
 		},
 	}
 	return pod
