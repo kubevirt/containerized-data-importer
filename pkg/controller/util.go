@@ -2,6 +2,10 @@ package controller
 
 import (
 	"fmt"
+	"math/rand"
+	"strings"
+	"time"
+
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -11,9 +15,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+
 	. "kubevirt.io/containerized-data-importer/pkg/common"
-	"strings"
-	"time"
 )
 
 const DataVolName = "cdi-data-vol"

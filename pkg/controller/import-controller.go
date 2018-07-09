@@ -37,6 +37,8 @@ type ImportController struct {
 	pvcInformer, podInformer cache.SharedIndexInformer
 	pvcLister                corelisters.PersistentVolumeClaimLister
 	podLister                corelisters.PodLister
+	pvcsSynced               cache.InformerSynced
+	podsSynced               cache.InformerSynced
 	importerImage            string
 	pullPolicy               string // Options: IfNotPresent, Always, or Never
 	verbose                  string // verbose levels: 1, 2, ...
@@ -56,6 +58,8 @@ func NewImportController(client kubernetes.Interface,
 		podInformer:     podInformer.Informer(),
 		pvcLister:       pvcInformer.Lister(),
 		podLister:       podInformer.Lister(),
+		pvcsSynced:      pvcInformer.Informer().HasSynced,
+		podsSynced:      podInformer.Informer().HasSynced,
 		importerImage:   importerImage,
 		pullPolicy:      pullPolicy,
 		verbose:         verbose,
@@ -99,6 +103,13 @@ func (c *ImportController) handlePodDelete(obj interface{}) {
 	c.handlePodObject(obj, "delete")
 }
 
+func (c *ImportController) expectPodCreate(pvcKey string) {
+	c.podExpectations.ExpectCreations(pvcKey, 1)
+}
+func (c *ImportController) observePodCreate(pvcKey string) {
+	c.podExpectations.CreationObserved(pvcKey)
+}
+
 func (c *ImportController) handlePodObject(obj interface{}, verb string) {
 	var object metav1.Object
 	var ok bool
@@ -138,7 +149,7 @@ func (c *ImportController) handlePodObject(obj interface{}, verb string) {
 				return
 			}
 
-			c.podExpectations.CreationObserved(pvcKey)
+			c.observePodCreate(pvcKey)
 		}
 		c.enqueuePVC(pvc)
 		return
@@ -184,6 +195,22 @@ func (c *ImportController) runPVCWorkers() {
 	}
 }
 
+func (c *ImportController) syncPvc(key string) error {
+	pvc, err := c.pvcFromKey(key)
+	if err != nil {
+		return err
+	}
+	if pvc == nil {
+		return nil
+	}
+	// filter pvc and decide if the importer pod should be created
+	if !checkPVC(pvc) {
+		return nil
+	}
+	glog.V(Vdebug).Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)
+	return c.processPvcItem(pvc)
+}
+
 // Select only pvcs with the importer endpoint annotation and that are not being processed.
 // We forget the key unless `processPvcItem` returns an error in which case the key can be
 // retried.
@@ -194,16 +221,7 @@ func (c *ImportController) ProcessNextPvcItem() bool {
 	}
 	defer c.queue.Done(key)
 
-	pvc, err := c.pvcFromKey(key)
-	if err != nil || pvc == nil {
-		return c.forgetKey(key, fmt.Sprintf("ProcessNextPvcItem: error converting key %v to pvc: %v", key, err))
-	}
-	// filter pvc and decide if the importer pod should be created
-	if !checkPVC(pvc) {
-		return c.forgetKey(key, fmt.Sprintf("ProcessNextPvcItem: skipping pvc %q\n", key))
-	}
-	glog.V(Vdebug).Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)
-	err = c.processPvcItem(pvc)
+	err := c.syncPvc(key.(string))
 	if err != nil { // processPvcItem errors may not have been logged so log here
 		glog.Errorf("error processing pvc %q: %v", key, err)
 		return true
@@ -216,6 +234,7 @@ func (c *ImportController) findImportPodFromCache(pvc *v1.PersistentVolumeClaim)
 	if err != nil {
 		return nil, err
 	}
+
 	podList, err := c.podLister.Pods(pvc.Namespace).List(selector)
 	if err != nil {
 		return nil, err
@@ -244,6 +263,11 @@ func (c *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 		return err
 	}
 
+	// Pod must be controlled by this PVC
+	if pod != nil && !metav1.IsControlledBy(pod, pvc) {
+		return errors.Errorf("found pod %s/%s not owned by pvc %s/%s", pod.Namespace, pod.Name, pvc.Namespace, pvc.Name)
+	}
+
 	// expectations prevent us from creating multiple pods. An expectation forces
 	// us to observe a pod's creation in the cache.
 	needsSync := c.podExpectations.SatisfiedExpectations(pvcKey)
@@ -262,17 +286,19 @@ func (c *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 		}
 
 		// all checks passed, let's create the importer pod!
-		c.podExpectations.ExpectCreations(pvcKey, 1)
+		c.expectPodCreate(pvcKey)
 		pod, err = CreateImporterPod(c.clientset, c.importerImage, c.verbose, c.pullPolicy, ep, secretName, pvc)
 		if err != nil {
-			c.podExpectations.CreationObserved(pvcKey)
+			c.observePodCreate(pvcKey)
 			return err
 		}
+		return nil
 	}
 
 	// update pvc with importer pod name and optional cdi label
-	anno := map[string]string{AnnImportPod: pod.Name}
+	anno := map[string]string{}
 	if pod != nil {
+		anno[AnnImportPod] = string(pod.Name)
 		anno[AnnPodPhase] = string(pod.Status.Phase)
 	}
 
