@@ -882,6 +882,55 @@ func createImportController(pvcSpec *v1.PersistentVolumeClaim, podSpec *v1.Pod, 
 	return c, pvc, pod, nil
 }
 
+func createCloneController(pvcSpec *v1.PersistentVolumeClaim, podSpec *v1.Pod, ns string) (*CloneController, *v1.PersistentVolumeClaim, *v1.Pod, error) {
+	//Set up environment
+	myclient := k8sfake.NewSimpleClientset()
+	pvcSource := k8stesting.NewFakePVCControllerSource()
+	podSource := k8stesting.NewFakeControllerSource()
+
+	//create staging pvc and pod
+	pvc, err := myclient.CoreV1().PersistentVolumeClaims(ns).Create(pvcSpec)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("createImportController: failed to initialize and create pvc error = %v", err)
+	}
+	pvcSource.Add(pvc)
+
+	pod, err := myclient.CoreV1().Pods(ns).Create(podSpec)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("createImportController: failed to initialize and create pod error = %v", err)
+	}
+	podSource.Add(pod)
+
+	// create informers and queue
+	pvcInformer := cache.NewSharedIndexInformer(pvcSource, pvc, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	podInformer := cache.NewSharedIndexInformer(podSource, pod, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	pvcQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	podQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	pvcQueue.Add(pvc)
+	podQueue.Add(pod)
+
+	//run the informers
+	stop := make(chan struct{})
+	go pvcInformer.Run(stop)
+	go podInformer.Run(stop)
+	cache.WaitForCacheSync(stop, podInformer.HasSynced)
+	cache.WaitForCacheSync(stop, pvcInformer.HasSynced)
+	defer close(stop)
+
+	c := &CloneController{
+		clientset:     myclient,
+		pvcQueue:      pvcQueue,
+		podQueue:      podQueue,
+		pvcInformer:   pvcInformer,
+		podInformer:   podInformer,
+		cloneImage:    CLONER_DEFAULT_IMAGE,
+		pullPolicy:    "Always",
+		verbose:       "-v=5",
+	}
+	return c, pvc, pod, nil
+}
+
+
 func createImportControllerMultiObject(pvcSpecs []*v1.PersistentVolumeClaim, podSpecs []*v1.Pod, nspaces []string) (*ImportController, []*v1.PersistentVolumeClaim, []*v1.Pod, error) {
 	//Set up environment
 	myclient := k8sfake.NewSimpleClientset()
@@ -938,6 +987,66 @@ func createImportControllerMultiObject(pvcSpecs []*v1.PersistentVolumeClaim, pod
 		importerImage: "test/image",
 		pullPolicy:    "Always",
 		verbose:       "-v=5",
+	}
+	return c, pvcs, pods, nil
+}
+
+func createCloneControllerMultiObject(pvcSpecs []*v1.PersistentVolumeClaim, podSpecs []*v1.Pod, nspaces []string) (*CloneController, []*v1.PersistentVolumeClaim, []*v1.Pod, error) {
+	//Set up environment
+	myclient := k8sfake.NewSimpleClientset()
+	pvcSource := k8stesting.NewFakePVCControllerSource()
+	podSource := k8stesting.NewFakeControllerSource()
+	pvcQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	podQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	var pvcInformer cache.SharedIndexInformer
+	var podInformer cache.SharedIndexInformer
+	var pvcs []*v1.PersistentVolumeClaim
+	var pods []*v1.Pod
+
+	//create staging pvc and pod
+	for i, v := range pvcSpecs {
+		pvc, err := myclient.CoreV1().PersistentVolumeClaims(v.Namespace).Create(v)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("createCloneController: failed to initialize and create pvc index = %v value = %v error = %v", i, v, err)
+		}
+		pvcSource.Add(pvc)
+		pvcInformer = cache.NewSharedIndexInformer(pvcSource, pvc, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+		pvcQueue.Add(pvc)
+		pvcs = append(pvcs, pvc)
+	}
+
+	for i, v := range podSpecs {
+		pod, err := myclient.CoreV1().Pods(nspaces[i]).Create(v)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("createCloneController: failed to initialize and create pod index = %v value = %v error = %v, Pod Name = %v, Length Specs = %v", i, v, err, v.Name, len(podSpecs))
+		}
+		podSource.Add(pod)
+		podInformer = cache.NewSharedIndexInformer(podSource, pod, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+		podQueue.Add(pod)
+		pods = append(pods, pod)
+	}
+
+	//run the informers
+	stop := make(chan struct{})
+	if pvcInformer != nil {
+		go pvcInformer.Run(stop)
+		cache.WaitForCacheSync(stop, pvcInformer.HasSynced)
+	}
+	if podInformer != nil {
+		go podInformer.Run(stop)
+		cache.WaitForCacheSync(stop, podInformer.HasSynced)
+	}
+	defer close(stop)
+
+	c := &CloneController{
+		clientset:   myclient,
+		pvcQueue:    pvcQueue,
+		podQueue:    podQueue,
+		pvcInformer: pvcInformer,
+		podInformer: podInformer,
+		cloneImage:  CLONER_DEFAULT_IMAGE,
+		pullPolicy:  "Always",
+		verbose:     "-v=5",
 	}
 	return c, pvcs, pods, nil
 }
