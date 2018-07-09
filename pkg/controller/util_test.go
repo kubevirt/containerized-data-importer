@@ -9,13 +9,15 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	bootstrapapi "k8s.io/client-go/tools/bootstrap/token/api"
 	"k8s.io/client-go/tools/cache"
-	k8stesting "k8s.io/client-go/tools/cache/testing"
 	"k8s.io/client-go/util/workqueue"
+
 	. "kubevirt.io/containerized-data-importer/pkg/common"
+	expectations "kubevirt.io/containerized-data-importer/pkg/expectations"
 )
 
 func TestController_pvcFromKey(t *testing.T) {
@@ -168,7 +170,6 @@ func Test_checkPVC(t *testing.T) {
 	//Create base pvcs and secrets
 	pvcNoAnno := createPvc("testPvcNoAnno", "default", nil, nil)
 	pvcWithEndPointAnno := createPvc("testPvcWithEndPointAnno", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
-	pvcWithPodAnno := createPvc("testPvcWithPodAnno", "default", map[string]string{AnnEndpoint: "http://test", AnnImportPod: "mypod"}, nil)
 
 	tests := []struct {
 		name   string
@@ -560,6 +561,7 @@ func TestMakeImporterPodSpec(t *testing.T) {
 			},
 			Labels: map[string]string{
 				CDI_LABEL_KEY: CDI_LABEL_VALUE,
+				AnnImportPVC:  pvc.Name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(pvc, appsv1.SchemeGroupVersion.WithKind("PersistentVolumeClaim")),
@@ -802,47 +804,47 @@ func createEnv(endpoint, secret string) []v1.EnvVar {
 func createImportController(pvcSpec *v1.PersistentVolumeClaim, podSpec *v1.Pod, ns string) (*ImportController, *v1.PersistentVolumeClaim, *v1.Pod, error) {
 	//Set up environment
 	myclient := k8sfake.NewSimpleClientset()
-	pvcSource := k8stesting.NewFakePVCControllerSource()
-	podSource := k8stesting.NewFakeControllerSource()
 
 	//create staging pvc and pod
 	pvc, err := myclient.CoreV1().PersistentVolumeClaims(ns).Create(pvcSpec)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("createImportController: failed to initialize and create pvc error = %v", err)
 	}
-	pvcSource.Add(pvc)
 
 	pod, err := myclient.CoreV1().Pods(ns).Create(podSpec)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("createImportController: failed to initialize and create pod error = %v", err)
 	}
-	podSource.Add(pod)
 
 	// create informers and queue
-	pvcInformer := cache.NewSharedIndexInformer(pvcSource, pvc, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
-	podInformer := cache.NewSharedIndexInformer(podSource, pod, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	k8sI := kubeinformers.NewSharedInformerFactory(myclient, noResyncPeriodFunc())
+
+	pvcInformer := k8sI.Core().V1().PersistentVolumeClaims()
+	podInformer := k8sI.Core().V1().Pods()
+
 	pvcQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	podQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	pvcQueue.Add(pvc)
-	podQueue.Add(pod)
+
+	k8sI.Core().V1().PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+	k8sI.Core().V1().Pods().Informer().GetIndexer().Add(pod)
 
 	//run the informers
 	stop := make(chan struct{})
-	go pvcInformer.Run(stop)
-	go podInformer.Run(stop)
-	cache.WaitForCacheSync(stop, podInformer.HasSynced)
-	cache.WaitForCacheSync(stop, pvcInformer.HasSynced)
+	go pvcInformer.Informer().Run(stop)
+	go podInformer.Informer().Run(stop)
+	cache.WaitForCacheSync(stop, podInformer.Informer().HasSynced)
+	cache.WaitForCacheSync(stop, pvcInformer.Informer().HasSynced)
 	defer close(stop)
 
 	c := &ImportController{
-		clientset:     myclient,
-		pvcQueue:      pvcQueue,
-		podQueue:      podQueue,
-		pvcInformer:   pvcInformer,
-		podInformer:   podInformer,
-		importerImage: "test/image",
-		pullPolicy:    "Always",
-		verbose:       "-v=5",
+		clientset:       myclient,
+		queue:           pvcQueue,
+		pvcInformer:     pvcInformer.Informer(),
+		podInformer:     podInformer.Informer(),
+		importerImage:   "test/image",
+		pullPolicy:      "Always",
+		verbose:         "-v=5",
+		podExpectations: expectations.NewUIDTrackingControllerExpectations(expectations.NewControllerExpectations()),
 	}
 	return c, pvc, pod, nil
 }
@@ -899,14 +901,14 @@ func createCloneController(pvcSpec *v1.PersistentVolumeClaim, podSpec *v1.Pod, n
 func createImportControllerMultiObject(pvcSpecs []*v1.PersistentVolumeClaim, podSpecs []*v1.Pod, nspaces []string) (*ImportController, []*v1.PersistentVolumeClaim, []*v1.Pod, error) {
 	//Set up environment
 	myclient := k8sfake.NewSimpleClientset()
-	pvcSource := k8stesting.NewFakePVCControllerSource()
-	podSource := k8stesting.NewFakeControllerSource()
 	pvcQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	podQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	var pvcInformer cache.SharedIndexInformer
-	var podInformer cache.SharedIndexInformer
 	var pvcs []*v1.PersistentVolumeClaim
 	var pods []*v1.Pod
+
+	k8sI := kubeinformers.NewSharedInformerFactory(myclient, noResyncPeriodFunc())
+
+	pvcInformer := k8sI.Core().V1().PersistentVolumeClaims()
+	podInformer := k8sI.Core().V1().Pods()
 
 	//create staging pvc and pod
 	for i, v := range pvcSpecs {
@@ -914,8 +916,7 @@ func createImportControllerMultiObject(pvcSpecs []*v1.PersistentVolumeClaim, pod
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("createImportController: failed to initialize and create pvc index = %v value = %v error = %v", i, v, err)
 		}
-		pvcSource.Add(pvc)
-		pvcInformer = cache.NewSharedIndexInformer(pvcSource, pvc, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+		k8sI.Core().V1().PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
 		pvcQueue.Add(pvc)
 		pvcs = append(pvcs, pvc)
 	}
@@ -925,33 +926,27 @@ func createImportControllerMultiObject(pvcSpecs []*v1.PersistentVolumeClaim, pod
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("createImportController: failed to initialize and create pod index = %v value = %v error = %v, Pod Name = %v, Length Specs = %v", i, v, err, v.Name, len(podSpecs))
 		}
-		podSource.Add(pod)
-		podInformer = cache.NewSharedIndexInformer(podSource, pod, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
-		podQueue.Add(pod)
+		k8sI.Core().V1().Pods().Informer().GetIndexer().Add(pod)
 		pods = append(pods, pod)
 	}
 
 	//run the informers
 	stop := make(chan struct{})
-	if pvcInformer != nil {
-		go pvcInformer.Run(stop)
-		cache.WaitForCacheSync(stop, pvcInformer.HasSynced)
-	}
-	if podInformer != nil {
-		go podInformer.Run(stop)
-		cache.WaitForCacheSync(stop, podInformer.HasSynced)
-	}
+	go pvcInformer.Informer().Run(stop)
+	cache.WaitForCacheSync(stop, pvcInformer.Informer().HasSynced)
+	go podInformer.Informer().Run(stop)
+	cache.WaitForCacheSync(stop, podInformer.Informer().HasSynced)
 	defer close(stop)
 
 	c := &ImportController{
-		clientset:     myclient,
-		pvcQueue:      pvcQueue,
-		podQueue:      podQueue,
-		pvcInformer:   pvcInformer,
-		podInformer:   podInformer,
-		importerImage: "test/image",
-		pullPolicy:    "Always",
-		verbose:       "-v=5",
+		clientset:       myclient,
+		queue:           pvcQueue,
+		pvcInformer:     pvcInformer.Informer(),
+		podInformer:     podInformer.Informer(),
+		importerImage:   "test/image",
+		pullPolicy:      "Always",
+		verbose:         "-v=5",
+		podExpectations: expectations.NewUIDTrackingControllerExpectations(expectations.NewControllerExpectations()),
 	}
 	return c, pvcs, pods, nil
 }
