@@ -107,8 +107,8 @@ unit-test-bin:
 	-rm -f $(U_TEST_BIN)
 	-rm -f $(U_TEST_BIN_CONTROLLER)
 	-rm -f $(U_TEST_BIN_IMAGE)
-	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go test -v -tags=unit_test ./pkg/controller -a -ldflags $(LDFLAGS) -o $(U_TEST_BIN_CONTROLLER) $(U_TEST_DIR_ALL)/*_test.go
-	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go test -v -tags=unit_test ./pkg/image -a -ldflags $(LDFLAGS) -o $(U_TEST_BIN_IMAGE) $(U_TEST_DIR_ALL)/*_test.go
+	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go test -c -v -tags=unit_test ./pkg/controller -a -ldflags $(LDFLAGS) -o $(U_TEST_BIN_CONTROLLER) $(U_TEST_DIR_ALL)/*_test.go
+	GOOS=$(GOOS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go test -c -v -tags=unit_test ./pkg/image -a -ldflags $(LDFLAGS) -o $(U_TEST_BIN_IMAGE) $(U_TEST_DIR_ALL)/*_test.go
 
 # build the controller image
 controller-image: $(CONTROLLER_BUILD)/Dockerfile
@@ -187,8 +187,8 @@ func-test-run:
 unit-test-run:
 	@echo '********'
 	@echo 'Running unit tests'
-	docker ps -qa && docker run --rm $(U_TEST_CONTROLLER) || echo 'Docker service not detected, skipping unit tests'
 	docker ps -qa && docker run --rm $(U_TEST_IMAGE) || echo 'Docker service not detected, skipping unit tests'
+	docker ps -qa && docker run --rm $(U_TEST_CONTROLLER) || echo 'Docker service not detected, skipping unit tests'
 
 push-controller:
 	@echo '********'
