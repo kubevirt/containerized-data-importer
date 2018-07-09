@@ -165,68 +165,33 @@ func TestController_objFromKey(t *testing.T) {
 }
 
 func Test_checkPVC(t *testing.T) {
-	type args struct {
-		client kubernetes.Interface
-		pvc    *v1.PersistentVolumeClaim
-		get    bool
-	}
 	//Create base pvcs and secrets
 	pvcNoAnno := createPvc("testPvcNoAnno", "default", nil, nil)
 	pvcWithEndPointAnno := createPvc("testPvcWithEndPointAnno", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
 	pvcWithPodAnno := createPvc("testPvcWithPodAnno", "default", map[string]string{AnnEndpoint: "http://test", AnnImportPod: "mypod"}, nil)
 
-	// set test env
-	myclient := k8sfake.NewSimpleClientset(pvcNoAnno, pvcWithEndPointAnno, pvcWithPodAnno)
-
 	tests := []struct {
-		name       string
-		args       args
-		wantOk     bool
-		wantNewPvc *v1.PersistentVolumeClaim
-		wantErr    bool
+		name   string
+		wantOk bool
+		pvc    *v1.PersistentVolumeClaim
 	}{
 		{
-			name:       "pvc does not have endpoint annotation or pod annotation",
-			args:       args{myclient, pvcNoAnno, false},
-			wantOk:     false,
-			wantNewPvc: pvcNoAnno,
-			wantErr:    false,
+			name:   "pvc does not have endpoint annotation or pod annotation",
+			wantOk: false,
+			pvc:    pvcNoAnno,
 		},
 		{
-			name:       "pvc does have endpoint annotation and does not have a pod annotation",
-			args:       args{myclient, pvcWithEndPointAnno, false},
-			wantOk:     true,
-			wantNewPvc: pvcWithEndPointAnno,
-			wantErr:    false,
-		},
-		{
-			name:       "pvc does have endpoint annotation and pod annotation",
-			args:       args{myclient, pvcWithEndPointAnno, false},
-			wantOk:     true,
-			wantNewPvc: pvcWithEndPointAnno,
-			wantErr:    false,
-		},
-		{
-			name:       "pvc does not have endpoint annotation or pod annotation use api get",
-			args:       args{myclient, pvcNoAnno, true},
-			wantOk:     false,
-			wantNewPvc: pvcNoAnno,
-			wantErr:    false,
+			name:   "pvc does have endpoint annotation and does not have a pod annotation",
+			wantOk: true,
+			pvc:    pvcWithEndPointAnno,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotOk, gotNewPvc, err := checkPVC(tt.args.client, tt.args.pvc, tt.args.get)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("checkPVC() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
+			gotOk := checkPVC(tt.pvc)
 			if gotOk != tt.wantOk {
 				t.Errorf("checkPVC() gotOk = %v, want %v", gotOk, tt.wantOk)
-			}
-			if !reflect.DeepEqual(gotNewPvc, tt.wantNewPvc) {
-				t.Errorf("checkPVC() gotNewPvc = %v, want %v", gotNewPvc, tt.wantNewPvc)
 			}
 		})
 	}
