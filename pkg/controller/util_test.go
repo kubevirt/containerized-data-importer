@@ -14,6 +14,7 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	bootstrapapi "k8s.io/client-go/tools/bootstrap/token/api"
 	"k8s.io/client-go/tools/cache"
+	k8stesting "k8s.io/client-go/tools/cache/testing"
 	"k8s.io/client-go/util/workqueue"
 
 	. "kubevirt.io/containerized-data-importer/pkg/common"
@@ -682,6 +683,12 @@ func Test_addToMap(t *testing.T) {
 	}
 }
 
+func createPodWithName(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
+	pod := createPod(pvc, dvname)
+	pod.Name = fmt.Sprintf("%sgeneratedname", pod.GenerateName)
+	return pod
+}
+
 func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 	// importer pod name contains the pvc name
 	podName := fmt.Sprintf("%s-%s-", IMPORTER_PODNAME, pvc.Name)
@@ -896,18 +903,17 @@ func createCloneController(pvcSpec *v1.PersistentVolumeClaim, podSpec *v1.Pod, n
 	defer close(stop)
 
 	c := &CloneController{
-		clientset:     myclient,
-		pvcQueue:      pvcQueue,
-		podQueue:      podQueue,
-		pvcInformer:   pvcInformer,
-		podInformer:   podInformer,
-		cloneImage:    CLONER_DEFAULT_IMAGE,
-		pullPolicy:    "Always",
-		verbose:       "-v=5",
+		clientset:   myclient,
+		pvcQueue:    pvcQueue,
+		podQueue:    podQueue,
+		pvcInformer: pvcInformer,
+		podInformer: podInformer,
+		cloneImage:  CLONER_DEFAULT_IMAGE,
+		pullPolicy:  "Always",
+		verbose:     "-v=5",
 	}
 	return c, pvc, pod, nil
 }
-
 
 func createImportControllerMultiObject(pvcSpecs []*v1.PersistentVolumeClaim, podSpecs []*v1.Pod, nspaces []string) (*ImportController, []*v1.PersistentVolumeClaim, []*v1.Pod, error) {
 	//Set up environment
