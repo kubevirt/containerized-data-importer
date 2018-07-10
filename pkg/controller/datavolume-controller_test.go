@@ -222,8 +222,8 @@ func filterInformerActions(actions []core.Action) []core.Action {
 		if len(action.GetNamespace()) == 0 &&
 			(action.Matches("list", "dataVolumes") ||
 				action.Matches("watch", "dataVolumes") ||
-				action.Matches("list", "pvcs") ||
-				action.Matches("watch", "pvcs")) {
+				action.Matches("list", "persistentvolumeclaims") ||
+				action.Matches("watch", "persistentvolumeclaims")) {
 			continue
 		}
 		ret = append(ret, action)
