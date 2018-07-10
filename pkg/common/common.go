@@ -52,7 +52,6 @@ const (
 	Vadmin          = 2
 	Vdebug          = 3
 	DEFAULT_VERBOSE = Vuser
-
 	// the length of the random generated cloning label
 	GENERATED_CLONING_LABEL_LEN = 10
 )

@@ -172,8 +172,8 @@ var _ = Describe("Streaming Data Conversion", func() {
 					By("Checking output image virtual size")
 					newSize := getImageVirtualSize(dest)
 					Expect(newSize).To(Equal(size))
-					By("Calling `ImageSize` function to check size")
-					newSize, err = imagesize.ImageSize(fUrl, "", "")
+					By("Calling `Size` function to check size")
+					newSize, err = imagesize.Size(fUrl, "", "")
 					Expect(err).NotTo(HaveOccurred())
 					Expect(newSize).To(Equal(size))
 				} else {
