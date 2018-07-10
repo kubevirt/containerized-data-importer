@@ -2,7 +2,6 @@ package controller
 
 import (
 	"fmt"
-	"math/rand"
 	"strings"
 	"time"
 
