@@ -107,7 +107,7 @@ func Test_dataStream_Read(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.Qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
@@ -129,7 +129,7 @@ func Test_dataStream_Close(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -147,7 +147,7 @@ func Test_dataStream_Close(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
@@ -164,7 +164,7 @@ func Test_dataStream_dataStreamSelector(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -182,7 +182,7 @@ func Test_dataStream_dataStreamSelector(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
@@ -199,7 +199,7 @@ func Test_dataStream_s3(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -218,7 +218,7 @@ func Test_dataStream_s3(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
@@ -240,7 +240,7 @@ func Test_dataStream_http(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -259,7 +259,7 @@ func Test_dataStream_http(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
@@ -281,7 +281,7 @@ func Test_dataStream_local(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -300,7 +300,7 @@ func Test_dataStream_local(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
@@ -345,7 +345,7 @@ func Test_dataStream_constructReaders(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -363,7 +363,7 @@ func Test_dataStream_constructReaders(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
@@ -380,7 +380,7 @@ func Test_dataStream_topReader(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -398,7 +398,7 @@ func Test_dataStream_topReader(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
@@ -415,7 +415,7 @@ func Test_dataStream_fileFormatSelector(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -437,7 +437,7 @@ func Test_dataStream_fileFormatSelector(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
@@ -454,7 +454,7 @@ func Test_dataStream_gzReader(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -474,7 +474,7 @@ func Test_dataStream_gzReader(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
@@ -499,7 +499,7 @@ func Test_dataStream_qcow2NopReader(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -523,7 +523,7 @@ func Test_dataStream_qcow2NopReader(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
@@ -548,7 +548,7 @@ func Test_dataStream_xzReader(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -568,7 +568,7 @@ func Test_dataStream_xzReader(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
@@ -593,7 +593,7 @@ func Test_dataStream_tarReader(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -613,7 +613,7 @@ func Test_dataStream_tarReader(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
@@ -638,7 +638,7 @@ func Test_dataStream_matchHeader(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -661,7 +661,7 @@ func Test_dataStream_matchHeader(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
@@ -703,7 +703,7 @@ func Test_dataStream_copy(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -725,7 +725,7 @@ func Test_dataStream_copy(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
@@ -784,7 +784,7 @@ func Test_dataStream_parseDataPath(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -803,7 +803,7 @@ func Test_dataStream_parseDataPath(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				Qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,
