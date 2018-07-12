@@ -49,9 +49,6 @@ else # Pass go commands directly on to packages
         targets="$(go list ./... | grep -v 'pkg/client')" # pkg/client is generated code, ignore it
     fi
     for tgt in ${targets}; do
-    (
-#        cd $tgt
         go "${go_opt}" ./...
-    )
     done
 fi
