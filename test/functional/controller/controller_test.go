@@ -52,7 +52,7 @@ var _ = Describe("Controller", func() {
 		pvcInformer := cache.NewSharedIndexInformer(pvcSource, pvc, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 		podInformer := cache.NewSharedIndexInformer(podSource, pod, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 
-		controller = NewImportController(fakeClient, pvcInformer, podInformer, IMPORTER_DEFAULT_IMAGE, IMPORTER_DEFAULT_PULL_POLICY, verboseDebug)
+		controller = NewImportController(fakeClient, pvcInformer, podInformer, IMPORTER_DEFAULT_IMAGE, DEFAULT_PULL_POLICY, verboseDebug)
 
 		go pvcInformer.Run(stop)
 		go podInformer.Run(stop)
