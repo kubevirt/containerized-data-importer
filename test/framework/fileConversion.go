@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"path/filepath"
+	"fmt"
 )
 
 var formatTable = map[string]func(string, string) (string, error){
@@ -53,8 +54,11 @@ func tarCmd(src, tgtDir string) (string, error) {
 }
 
 func gzCmd(src, tgtDir string) (string, error) {
-	tgt := filepath.Join(tgtDir, src + image.ExtGz)
+	tgt := filepath.Base(src)
+	tgt = filepath.Join(tgtDir, tgt + image.ExtGz)
 	args := []string{"-c", src, ">", tgt}
+
+	fmt.Printf("Compress file %q to %q\n", src, tgt)
 
 	if err := doCmdAndVerifyFile(tgt, "gzip", args...); err != nil {
 		return "", err
@@ -87,6 +91,7 @@ func doCmdAndVerifyFile(tgt, cmd string, args ...string) error {
 	if err := doCmd(cmd, args...); err != nil {
 		return err
 	}
+	fmt.Printf("Verifying file creation")
 	if _, err := os.Stat(tgt); err != nil {
 		return errors.Wrapf(err, "Failed to stat file %q", tgt)
 	}
@@ -94,10 +99,13 @@ func doCmdAndVerifyFile(tgt, cmd string, args ...string) error {
 }
 
 func doCmd(osCmd string, osArgs ...string) error {
+	fmt.Printf("command: %s %s\n", osCmd, osArgs)
 	cmd := exec.Command(osCmd, osArgs...)
-	cout, err := cmd.CombinedOutput()
+	fmt.Printf("Command:\n%#v\n\n", cmd)
+	err := cmd.Run()
 	if err != nil {
-		return errors.Wrapf(err, "OS command %s %v errored with output: %v", osCmd, strings.Join(osArgs, " "), string(cout))
+		return errors.Wrapf(err, "OS command `%s %v` errored: %v", osCmd, strings.Join(osArgs, " "), err)
 	}
+	fmt.Printf("Command succeeded")
 	return nil
 }

@@ -4,7 +4,6 @@ package importer
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,13 +12,12 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/pkg/errors"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	imagesize "kubevirt.io/containerized-data-importer/pkg/lib/size"
 	f "kubevirt.io/containerized-data-importer/test/framework"
-	"time"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 var _ = Describe("Streaming Data Conversion", func() {
@@ -39,23 +37,23 @@ var _ = Describe("Streaming Data Conversion", func() {
 
 		var tmpTestDir string
 		BeforeEach(func() {
-			tmpDir := os.TempDir()
+			//tmpDir := os.TempDir()
+			tmpDir, _ := filepath.Abs(baseImageRelPath)
 			tmpTestDir = testDir(tmpDir)
 			if err != nil {
 				Fail(fmt.Sprintf("Failed created test dir: %v\n", err))
 			}
 
-			err = os.Mkdir(tmpTestDir, 0666)
+			err = os.Mkdir(tmpTestDir, os.ModePerm)
 			if err != nil {
 				Fail(fmt.Sprintf("Could not create tmp file: %v\n ", err))
 			}
-			By(fmt.Sprintf("Creating temporary dir %s", tmpTestDir))
+			By(fmt.Sprintf("Created temporary dir %s", tmpTestDir))
 		})
 
-
 		AfterEach(func() {
-			By(fmt.Sprintf("Cleaning up temporary dir %s", tmpTestDir) )
-			os.Remove(tmpTestDir)
+			By(fmt.Sprintf("Cleaning up temporary dir %s", tmpTestDir))
+			//os.Remove(tmpTestDir)
 		})
 
 		// Test Table
@@ -206,13 +204,6 @@ func getImageVirtualSize(outFile string) int64 {
 }
 
 func testDir(parent string) string {
-	const suffixSize = 8
-	sufSource := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-
-	rand.Seed(time.Now().UnixNano())
-	suf := make([]rune, suffixSize)
-	for i := range suf {
-		suf[i] = sufSource[rand.Intn(len(sufSource))]
-	}
+	suf := util.RandAlphaNum(12)
 	return filepath.Join(parent, fmt.Sprintf(".tmp-%s", string(suf)))
 }
