@@ -212,8 +212,8 @@ func TestCloneController_ProcessNextPvcItem(t *testing.T) {
 func TestCloneController_processPvcItem(t *testing.T) {
 	const (
 		stageCount = 4
-		srcNs = "test"
-		srcPvc = "testPvcSource"
+		srcNs      = "test"
+		srcPvc     = "testPvcSource"
 	)
 	srcCloneRequestValue := srcNs + "/" + srcPvc
 
