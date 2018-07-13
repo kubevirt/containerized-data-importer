@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	"kubevirt.io/containerized-data-importer/pkg/image"
+	"fmt"
 )
 
 var formatTable = map[string]func(string) (string, error){
@@ -19,8 +20,10 @@ var formatTable = map[string]func(string) (string, error){
 
 // create file based on targetFormat extensions and return created file's name.
 // note: intermediate files are removed.
-func FormatTestData(srcFile string, targetFormats ...string) (string, error) {
-	outFile := srcFile
+// TODO write the formatted file somewhere useful
+func FormatTestData(srcFile, outDir string, targetFormats ...string) (string, error) {
+
+	fmt.Printf("[fileConversion.go:L26] %s<%T>: %+v\n", "outDir", outDir, outDir)
 	var err error
 	var prevFile string
 
@@ -33,16 +36,16 @@ func FormatTestData(srcFile string, targetFormats ...string) (string, error) {
 			continue
 		}
 		// invoke conversion func
-		outFile, err = f(outFile)
+		outDir, err = f(outDir)
 		if prevFile != srcFile {
 			os.Remove(prevFile)
 		}
 		if err != nil {
 			return "", errors.Wrap(err, "could not format test data")
 		}
-		prevFile = outFile
+		prevFile = outDir
 	}
-	return outFile, nil
+	return outDir, nil
 }
 
 func transformFile(srcFile, outfileName, osCmd string, osArgs ...string) (string, error) {

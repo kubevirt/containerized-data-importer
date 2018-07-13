@@ -4,7 +4,6 @@ package importer
 
 import (
 	"fmt"
-	"io"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -19,114 +18,134 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	imagesize "kubevirt.io/containerized-data-importer/pkg/lib/size"
 	f "kubevirt.io/containerized-data-importer/test/framework"
+	"time"
 )
-
-type testCase struct {
-	testDesc      string
-	srcData       io.Reader
-	originalFile  string
-	testFile      string
-	useVirtSize   bool
-	expectFormats []string
-}
-
-type Tests []testCase
 
 var _ = Describe("Streaming Data Conversion", func() {
 
 	Context("when data is in a supported file format", func() {
+		const (
+			baseImageRelPath = "../../images"
+			baseImage = "tinyCore"
+			baseImageExt = ".iso"
+			baseImageIso = baseImage + baseImageExt
+		)
 
-		var originalFile, err = filepath.Abs("../../images/tinyCore.iso")
+		baseTestImage, err := filepath.Abs(filepath.Join(baseImageRelPath, baseImageIso))
 		if err != nil {
 			Fail(fmt.Sprintf("Error getting abs path: %v\n", err))
 		}
-		const (
-			testFile = "tinyCore"
-		)
+
+		var tempTestDir string
+
+		BeforeEach(func() {
+			tmpDir := os.TempDir()
+			testDir := tempDir(tmpDir)
+			if err != nil {
+				Fail(fmt.Sprintf("Failed created test dir: %v\n", err))
+			}
+
+			err = os.Mkdir(tempTestDir, 0666)
+			if err != nil {
+				Fail(fmt.Sprintf("Could not create tmp file: %v\n ", err))
+			}
+			By("Mkdir " + tempTestDir)
+		})
+
+		//AfterEach(func() {
+		//	os.Remove(testDir)
+		//	By("Rmdir "+ testDir)
+		//})
 
 		// Test Table
-		tests := Tests{
+		tests := []struct {
+			testDesc      string
+			originalFile  string
+			testFile      string
+			useVirtSize   bool
+			expectFormats []string
+		}{
 			{
 				testDesc:      "should decompress gzip",
-				originalFile:  originalFile,
-				testFile:      testFile + ".iso.gz",
+				originalFile:  baseTestImage,
+				testFile:      filepath.Join(tempTestDir, testFile + ".iso.gz"),
 				useVirtSize:   false,
 				expectFormats: []string{image.ExtGz},
 			},
 			{
 				testDesc:      "should decompress xz",
-				originalFile:  originalFile,
-				testFile:      testFile + ".iso.xz",
+				originalFile:  baseTestImage,
+				testFile:      filepath.Join(tempTestDir, testFile + ".iso.xz"),
 				useVirtSize:   false,
 				expectFormats: []string{image.ExtXz},
 			},
 			{
 				testDesc:      "should unarchive tar",
-				originalFile:  originalFile,
-				testFile:      testFile + ".iso.tar",
+				originalFile:  baseTestImage,
+				testFile:      filepath.Join(tempTestDir, testFile + ".iso.tar"),
 				useVirtSize:   false,
 				expectFormats: []string{image.ExtTar},
 			},
 			{
 				testDesc:      "should unpack .tar.gz",
-				originalFile:  originalFile,
-				testFile:      testFile + ".iso.tar.gz",
+				originalFile:  baseTestImage,
+				testFile:      filepath.Join(tempTestDir, testFile + ".iso.tar.gz"),
 				useVirtSize:   false,
 				expectFormats: []string{image.ExtTar, image.ExtGz},
 			},
 			{
 				testDesc:      "should unpack .tar.xz",
-				originalFile:  originalFile,
-				testFile:      testFile + ".iso.tar.xz",
+				originalFile:  baseTestImage,
+				testFile:      filepath.Join(tempTestDir, testFile + ".iso.tar.xz"),
 				useVirtSize:   false,
 				expectFormats: []string{image.ExtTar, image.ExtXz},
 			},
 			{
 				testDesc:      "should convert .qcow2",
-				originalFile:  originalFile,
-				testFile:      testFile + ".qcow2",
+				originalFile:  baseTestImage,
+				testFile:      filepath.Join(tempTestDir, testFile + ".qcow2"),
 				useVirtSize:   true,
 				expectFormats: []string{image.ExtQcow2},
 			},
 			{
 				testDesc:      "should convert and unpack .qcow2.gz",
-				originalFile:  originalFile,
-				testFile:      testFile + ".qcow2.gz",
+				originalFile:  baseTestImage,
+				testFile:      filepath.Join(tempTestDir, testFile + ".qcow2.gz"),
 				useVirtSize:   false,
 				expectFormats: []string{image.ExtQcow2, image.ExtGz},
 			},
 			{
 				testDesc:      "should convert and unpack .qcow2.xz",
-				originalFile:  originalFile,
-				testFile:      testFile + ".qcow2.xz",
+				originalFile:  baseTestImage,
+				testFile:      filepath.Join(tempTestDir, testFile + ".qcow2.xz"),
 				useVirtSize:   false,
 				expectFormats: []string{image.ExtQcow2, image.ExtXz},
 			},
 			{
 				testDesc:      "should convert and untar .qcow2.tar",
-				originalFile:  originalFile,
-				testFile:      testFile + ".qcow2.tar",
+				originalFile:  baseTestImage,
+				testFile:      filepath.Join(tempTestDir, testFile + ".qcow2.tar"),
 				useVirtSize:   false,
 				expectFormats: []string{image.ExtQcow2, image.ExtTar},
 			},
 			{
 				testDesc:      "should convert and untar and unpack .qcow2.tar.gz",
-				originalFile:  originalFile,
-				testFile:      testFile + ".qcow2.tar.gz",
+				originalFile:  baseTestImage,
+				testFile:      filepath.Join(tempTestDir, testFile + ".qcow2.tar.gz"),
 				useVirtSize:   false,
 				expectFormats: []string{image.ExtQcow2, image.ExtTar, image.ExtGz},
 			},
 			{
 				testDesc:      "should convert and untar and unpack .qcow2.tar.xz",
-				originalFile:  originalFile,
-				testFile:      testFile + ".qcow2.tar.xz",
+				originalFile:  baseTestImage,
+				testFile:      filepath.Join(tempTestDir, testFile + ".qcow2.tar.xz"),
 				useVirtSize:   false,
 				expectFormats: []string{image.ExtQcow2, image.ExtTar, image.ExtXz},
 			},
 			{
 				testDesc:      "should pass through unformatted data",
-				originalFile:  originalFile,
-				testFile:      originalFile,
+				originalFile:  baseTestImage,
+				testFile:      baseTestImage,
 				useVirtSize:   false,
 				expectFormats: []string{""},
 			},
@@ -137,29 +156,25 @@ var _ = Describe("Streaming Data Conversion", func() {
 			i++
 			desc := fmt.Sprintf("[%d] %s", i, t.testDesc)
 			ff := t.expectFormats
-			fn := t.originalFile
-			of := t.testFile
+			origFile := t.originalFile
+			testFile := t.testFile
 			useVSize := t.useVirtSize
 
 			It(desc, func() {
-				By(fmt.Sprintf("[%d] Begin test on image file %q", i, fn))
-				By(fmt.Sprintf("stat() file %q", fn))
-				finfo, err := os.Stat(fn)
+
+				os.Open(testFile)
+
+				By(fmt.Sprintf("Getting size of source file (%s)\n", origFile))
+				finfo, err := os.Stat(origFile)
 				Expect(err).NotTo(HaveOccurred())
 				size := finfo.Size()
 
 				By(fmt.Sprintf("Converting sample file to format: %v", ff))
 				// Generate the expected data format from the random bytes
-				sampleFilename, err := f.FormatTestData(fn, ff...)
+				sampleFilename, err := f.FormatTestData(origFile, testFile, ff...)
 				Expect(err).NotTo(HaveOccurred(), "Error formatting test data.")
-				defer func() {
-					if sampleFilename != fn { // don't rm source file
-						os.Remove(sampleFilename) // ignore err
-					}
-				}()
-				Expect(sampleFilename).To(Equal(of), "Test data filename doesn't match expected file name.")
 
-				dest := fmt.Sprintf("%s.%d", filepath.Join(os.TempDir(), testFile), i)
+				dest := fmt.Sprintf("%s.%d", filepath.Join(os.TempDir(), filepath.Base(testFile)), i)
 				fUrl := "file:/" + sampleFilename
 				By(fmt.Sprintf("Copying sample file to %q using `local` dataStream w/o auth", dest))
 				err = importer.CopyImage(dest, fUrl, "", "")
@@ -186,8 +201,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 					newSize := finfo.Size()
 					Expect(newSize).To(Equal(size))
 				}
-				//Expect(output.Bytes()).To(Equal(size)) // TODO replace with checksum?
-				By(fmt.Sprintf("[%d] End test on image file %q", i, fn))
+				By(fmt.Sprintf("[%d] End test on image file %q", i, origFile))
 			})
 		}
 	})
@@ -213,6 +227,18 @@ func getImageVirtualSize(outFile string) int64 {
 		return 0
 	}
 	return vSize
+}
+
+func tempDir(parent string) string {
+	const suffixSize = 8
+	sufSource := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+
+	rand.Seed(time.Now().UnixNano())
+	suf := make([]rune, suffixSize)
+	for i := range suf {
+		suf[i] = sufSource[rand.Intn(len(sufSource))]
+	}
+	return filepath.Join(parent, fmt.Sprintf(".tmp-%s", string(suf)))
 }
 
 func generateTestFile(size int, filename string) ([]byte, error) {
