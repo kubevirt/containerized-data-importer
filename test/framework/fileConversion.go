@@ -7,79 +7,97 @@ import (
 
 	"github.com/pkg/errors"
 	"kubevirt.io/containerized-data-importer/pkg/image"
-	"fmt"
+	"path/filepath"
 )
 
-var formatTable = map[string]func(string) (string, error){
-	image.ExtGz:    transformGz,
-	image.ExtXz:    transformXz,
-	image.ExtTar:   transformTar,
-	image.ExtQcow2: transformQcow2,
-	"":             transformNoop,
+var formatTable = map[string]func(string, string) (string, error){
+	image.ExtGz:    gzCmd,
+	image.ExtXz:    xzCmd,
+	image.ExtTar:   tarCmd,
+	image.ExtQcow2: qcow2Cmd,
 }
 
 // create file based on targetFormat extensions and return created file's name.
 // note: intermediate files are removed.
 // TODO write the formatted file somewhere useful
-func FormatTestData(srcFile, outDir string, targetFormats ...string) (string, error) {
+func FormatTestData(srcFile, tgtDir string, targetFormats ...string) (string, error) {
 
-	fmt.Printf("[fileConversion.go:L26] %s<%T>: %+v\n", "outDir", outDir, outDir)
+	if len(targetFormats) == 0 {
+		return srcFile, nil
+	}
+
 	var err error
-	var prevFile string
 
 	for _, tf := range targetFormats {
 		f, ok := formatTable[tf]
 		if !ok {
 			return "", errors.Errorf("format extension %q not recognized", tf)
 		}
-		if len(tf) == 0 {
-			continue
-		}
 		// invoke conversion func
-		outDir, err = f(outDir)
-		if prevFile != srcFile {
-			os.Remove(prevFile)
-		}
+		srcFile, err = f(srcFile, tgtDir)
 		if err != nil {
 			return "", errors.Wrap(err, "could not format test data")
 		}
-		prevFile = outDir
 	}
-	return outDir, nil
+	return tgtDir, nil
 }
 
-func transformFile(srcFile, outfileName, osCmd string, osArgs ...string) (string, error) {
+func tarCmd(src, tgtDir string) (string, error) {
+	tgt := filepath.Join(tgtDir, src+image.ExtTar)
+	args := []string{"-cf", tgt, src}
+
+	if err := doCmdAndVerifyFile(tgt, "tar", args...); err != nil {
+		return "", err
+	}
+	return tgt, nil
+}
+
+func gzCmd(src, tgtDir string) (string, error) {
+	tgt := filepath.Join(tgtDir, src + image.ExtGz)
+	args := []string{"-c", src, ">", tgt}
+
+	if err := doCmdAndVerifyFile(tgt, "gzip", args...); err != nil {
+		return "", err
+	}
+	return tgt, nil
+}
+
+func xzCmd(srcFile, tgtDir string) (string, error) {
+	tgt := filepath.Join(srcFile, image.ExtXz)
+	args := []string{"xz", "-c", srcFile, ">", tgt}
+
+	if err := doCmdAndVerifyFile(tgt, "gzip", args...); err != nil {
+		return "", err
+	}
+	return tgt, nil
+}
+
+func qcow2Cmd(srcfile, tgtDir string) (string, error) {
+	tgt := strings.Replace(filepath.Base(srcfile), ".iso", image.ExtQcow2, 1)
+	tgt = filepath.Join(tgtDir, tgt)
+	args := []string{"convert", "-f", "raw", "-O", "qcow2", srcfile, tgt}
+
+	if err := doCmdAndVerifyFile(tgt, "gzip", args...); err != nil {
+		return "", err
+	}
+	return tgt, nil
+}
+
+func doCmdAndVerifyFile(tgt, cmd string, args ...string) error {
+	if err := doCmd(cmd, args...); err != nil {
+		return err
+	}
+	if _, err := os.Stat(tgt); err != nil {
+		return errors.Wrapf(err, "Failed to stat file %q", tgt)
+	}
+	return nil
+}
+
+func doCmd(osCmd string, osArgs ...string) error {
 	cmd := exec.Command(osCmd, osArgs...)
 	cout, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", errors.Wrapf(err, "OS command %s %v errored with output: %v", osCmd, strings.Join(osArgs, " "), string(cout))
+		return errors.Wrapf(err, "OS command %s %v errored with output: %v", osCmd, strings.Join(osArgs, " "), string(cout))
 	}
-	finfo, err := os.Stat(outfileName)
-	if err != nil {
-		return "", errors.Wrapf(err, "error stat-ing file")
-	}
-	return finfo.Name(), nil
-}
-
-func transformTar(srcFile string) (string, error) {
-	args := []string{"-cf", srcFile + image.ExtTar, srcFile}
-	return transformFile(srcFile, srcFile+image.ExtTar, "tar", args...)
-}
-
-func transformGz(srcFile string) (string, error) {
-	return transformFile(srcFile, srcFile+image.ExtGz, "gzip", "-k", srcFile)
-}
-
-func transformXz(srcFile string) (string, error) {
-	return transformFile(srcFile, srcFile+image.ExtXz, "xz", "-k", srcFile)
-}
-
-func transformQcow2(srcfile string) (string, error) {
-	outFile := strings.Replace(srcfile, ".iso", image.ExtQcow2, 1)
-	args := []string{"convert", "-f", "raw", "-O", "qcow2", srcfile, outFile}
-	return transformFile(srcfile, outFile, "qemu-img", args...)
-}
-
-func transformNoop(srcFile string) (string, error) {
-	return srcFile, nil
+	return nil
 }
