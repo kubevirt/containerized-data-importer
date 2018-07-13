@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 	"time"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -242,7 +243,7 @@ func (c *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	}
 
 	//create random string to be used for pod labeling and hostpath name
-	generatedLabelStr := GenerateLabelStr(GENERATED_CLONING_LABEL_LEN)
+	generatedLabelStr := util.RandAlphaNum(GENERATED_CLONING_LABEL_LEN)
 	//create the source pod
 	_, err = CreateCloneSourcePod(c.clientset, c.cloneImage, c.verbose, c.pullPolicy, cr, pvc, generatedLabelStr)
 	if err != nil {
