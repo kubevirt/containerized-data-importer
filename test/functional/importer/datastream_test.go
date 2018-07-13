@@ -18,6 +18,7 @@ import (
 	f "kubevirt.io/containerized-data-importer/test/framework"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	"syscall"
 )
 
 var _ = Describe("Streaming Data Conversion", func() {
@@ -43,8 +44,8 @@ var _ = Describe("Streaming Data Conversion", func() {
 			if err != nil {
 				Fail(fmt.Sprintf("Failed created test dir: %v\n", err))
 			}
-
-			err = os.Mkdir(tmpTestDir, os.ModePerm)
+			syscall.Umask(0000)
+			err = os.Mkdir(tmpTestDir, 0777)
 			if err != nil {
 				Fail(fmt.Sprintf("Could not create tmp file: %v\n ", err))
 			}
@@ -53,7 +54,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 
 		AfterEach(func() {
 			By(fmt.Sprintf("Cleaning up temporary dir %s", tmpTestDir))
-			//os.Remove(tmpTestDir)
+			os.Remove(tmpTestDir)
 		})
 
 		// Test Table
@@ -151,11 +152,17 @@ var _ = Describe("Streaming Data Conversion", func() {
 
 				By(fmt.Sprintf("Converting sample file to format: %v", ff))
 				// Generate the expected data format from the random bytes
+				fmt.Printf("[datastream_test.go:L155] %s<%T>: %+v\n", "origFile", origFile, origFile)
+				fmt.Printf("[datastream_test.go:L156] %s<%T>: %+v\n", "tmpTestDir", tmpTestDir, tmpTestDir)
 				testSample, err := f.FormatTestData(origFile, tmpTestDir, ff...)
 				Expect(err).NotTo(HaveOccurred(), "Error formatting test data.")
 
+				fmt.Printf("[datastream_test.go:L158] %s<%T>: %+v\n", "testSample", testSample, testSample)
+
 				testSample = "file:/" + testSample
+				fmt.Printf("[datastream_test.go:L163] %s<%T>: %+v\n", "testSample", testSample, testSample)
 				testTarget := filepath.Join(tmpTestDir, common.IMPORTER_WRITE_FILE)
+				fmt.Printf("[datastream_test.go:L165] %s<%T>: %+v\n", "testTarget", testTarget, testTarget)
 				By(fmt.Sprintf("Processing sample file %q to %q", testSample, testTarget))
 				err = importer.CopyImage(testTarget, testSample, "", "")
 				Expect(err).NotTo(HaveOccurred())

@@ -21,6 +21,7 @@ var formatTable = map[string]func(string, string) (string, error){
 // create file based on targetFormat extensions and return created file's name.
 // note: intermediate files are removed.
 // TODO write the formatted file somewhere useful
+// TODO the path is retuning with the first section /Users/ missing.  I think the URL package is considering /Users/ as the server
 func FormatTestData(srcFile, tgtDir string, targetFormats ...string) (string, error) {
 
 	if len(targetFormats) == 0 {
@@ -40,7 +41,7 @@ func FormatTestData(srcFile, tgtDir string, targetFormats ...string) (string, er
 			return "", errors.Wrap(err, "could not format test data")
 		}
 	}
-	return tgtDir, nil
+	return srcFile, nil
 }
 
 func tarCmd(src, tgtDir string) (string, error) {
@@ -54,13 +55,16 @@ func tarCmd(src, tgtDir string) (string, error) {
 }
 
 func gzCmd(src, tgtDir string) (string, error) {
-	tgt := filepath.Base(src)
-	tgt = filepath.Join(tgtDir, tgt + image.ExtGz)
-	args := []string{"-c", src, ">", tgt}
-
-	fmt.Printf("Compress file %q to %q\n", src, tgt)
-
-	if err := doCmdAndVerifyFile(tgt, "gzip", args...); err != nil {
+	if err := doCmd("cp", []string{src, tgtDir}...); err != nil {
+		return "", err
+	}
+	base := filepath.Base(src)
+	fmt.Printf("[fileConversion.go:L61] %s<%T>: %+v\n", "base", base, base)
+	src = filepath.Join(tgtDir, base)
+	fmt.Printf("[fileConversion.go:L63] %s<%T>: %+v\n", "src", src, src)
+	tgt := filepath.Join(tgtDir, base + image.ExtGz)
+	fmt.Printf("[fileConversion.go:L65] %s<%T>: %+v\n", "tgt", tgt, tgt)
+	if err := doCmdAndVerifyFile(tgt, "gzip", src); err != nil {
 		return "", err
 	}
 	return tgt, nil
@@ -91,7 +95,7 @@ func doCmdAndVerifyFile(tgt, cmd string, args ...string) error {
 	if err := doCmd(cmd, args...); err != nil {
 		return err
 	}
-	fmt.Printf("Verifying file creation")
+	fmt.Printf("Verifying file creation\n")
 	if _, err := os.Stat(tgt); err != nil {
 		return errors.Wrapf(err, "Failed to stat file %q", tgt)
 	}
@@ -102,10 +106,10 @@ func doCmd(osCmd string, osArgs ...string) error {
 	fmt.Printf("command: %s %s\n", osCmd, osArgs)
 	cmd := exec.Command(osCmd, osArgs...)
 	fmt.Printf("Command:\n%#v\n\n", cmd)
-	err := cmd.Run()
+	_, err := cmd.CombinedOutput()
 	if err != nil {
 		return errors.Wrapf(err, "OS command `%s %v` errored: %v", osCmd, strings.Join(osArgs, " "), err)
 	}
-	fmt.Printf("Command succeeded")
+	fmt.Printf("Command succeeded\n")
 	return nil
 }
