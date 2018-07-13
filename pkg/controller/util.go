@@ -12,9 +12,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
-	"math/rand"
 	"strings"
 	"time"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const DataVolName = "cdi-data-vol"
@@ -637,11 +637,5 @@ func (c *CloneController) objFromKey(informer cache.SharedIndexInformer, key int
 }
 
 func GenerateLabelStr(n int) string {
-	rand.Seed(time.Now().UnixNano())
-	var letter = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letter[rand.Intn(len(letter))]
-	}
-	return string(b)
+	return util.RandAlphaNum(n)
 }
