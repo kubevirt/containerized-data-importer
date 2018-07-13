@@ -77,7 +77,7 @@ var rdrTypM = map[string]int{
 // Note: the caller must close the `Readers` in reverse order. See Close().
 func NewDataStream(endpt, accKey, secKey string) (*dataStream, error) {
 	if len(accKey) == 0 || len(secKey) == 0 {
-		glog.Warningf("%s and/or %s env variables are empty\n", IMPORTER_ACCESS_KEY_ID, IMPORTER_SECRET_KEY)
+		glog.V(Vadmin).Infof("%s and/or %s are empty\n", IMPORTER_ACCESS_KEY_ID, IMPORTER_SECRET_KEY)
 	}
 	ep, err := ParseEndpoint(endpt)
 	if err != nil {
