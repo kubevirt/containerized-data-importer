@@ -14,7 +14,6 @@ import (
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 	"strings"
 	"time"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const DataVolName = "cdi-data-vol"
@@ -634,8 +633,4 @@ func (c *CloneController) objFromKey(informer cache.SharedIndexInformer, key int
 		return nil, errors.New("interface object not found in store")
 	}
 	return obj, nil
-}
-
-func GenerateLabelStr(n int) string {
-	return util.RandAlphaNum(n)
 }
