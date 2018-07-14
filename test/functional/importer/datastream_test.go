@@ -146,34 +146,42 @@ var _ = Describe("Streaming Data Conversion", func() {
 				finfo, err := os.Stat(origFile)
 				Expect(err).NotTo(HaveOccurred())
 				sourceSize := finfo.Size()
+				fmt.Fprintf(GinkgoWriter, "INFO: stat() of %q size = %d\n", origFile, sourceSize)
 
-				By(fmt.Sprintf("Converting sample file to format: %v", ff))
+				By(fmt.Sprintf("Converting source file to format: %s", ff))
 				// Generate the expected data format from the random bytes
 				testSample, err := f.FormatTestData(origFile, tmpTestDir, ff...)
 				Expect(err).NotTo(HaveOccurred(), "Error formatting test data.")
+				fmt.Fprintf(GinkgoWriter, "INFO: converted source file name is %q\n", testSample)
 
 				testSample = "file://" + testSample
 				testTarget := filepath.Join(tmpTestDir, common.IMPORTER_WRITE_FILE)
-				By(fmt.Sprintf("Processing sample file %q to %q", testSample, testTarget))
+				By(fmt.Sprintf("Copying %q to %q", testSample, testTarget))
 				err = importer.CopyImage(testTarget, testSample, "", "")
 				Expect(err).NotTo(HaveOccurred())
 
 				By(fmt.Sprintf("Checking size of the output file %q", testTarget))
 				if useVSize {
-					By("Checking output image virtual size")
+					By("... using output image's virtual size")
 					targetSize := getImageVirtualSize(testTarget)
 					Expect(targetSize).To(Equal(sourceSize))
-					By("Calling `Size` function to check size")
-					targetSize, err = imagesize.Size(testSample, "", "")
-					Expect(err).NotTo(HaveOccurred())
-					Expect(targetSize).To(Equal(sourceSize))
 				} else {
-					By("stat() output file")
+					By("... using stat() to get size")
 					finfo, err = os.Stat(testTarget)
 					Expect(err).NotTo(HaveOccurred())
 					targetSize := finfo.Size()
 					Expect(targetSize).To(Equal(sourceSize))
 				}
+
+				By(fmt.Sprintf("Calling `lib.Size()` on same endpoint %q", testSample))
+				if _, ok := sizeExceptions[testSample]; ok {
+					Skip(fmt.Sprintf("*** skipping endpoint %q as exception", testSample))
+				}
+				targetSize, err = imagesize.Size(testSample, "", "")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(targetSize).To(Equal(sourceSize))
+
+				fmt.Fprintf(GinkgoWriter, "End test on image file %q\n", testSample)
 			})
 		}
 	})
