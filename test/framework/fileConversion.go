@@ -77,10 +77,12 @@ func xzCmd(src, tgtDir string) (string, error) {
 
 func qcow2Cmd(srcfile, tgtDir string) (string, error) {
 	tgt := strings.Replace(filepath.Base(srcfile), ".iso", image.ExtQcow2, 1)
+	fmt.Printf("[fileConversion.go:L80] %s<%T>: %+v\n", "tgt", tgt, tgt)
 	tgt = filepath.Join(tgtDir, tgt)
+	fmt.Printf("[fileConversion.go:L82] %s<%T>: %+v\n", "tgt", tgt, tgt)
 	args := []string{"convert", "-f", "raw", "-O", "qcow2", srcfile, tgt}
 
-	if err := doCmdAndVerifyFile(tgt, "gzip", args...); err != nil {
+	if err := doCmdAndVerifyFile(tgt, "qemu-img", args...); err != nil {
 		return "", err
 	}
 	return tgt, nil
