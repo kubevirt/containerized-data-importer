@@ -7,76 +7,128 @@ import (
 
 	"github.com/pkg/errors"
 	"kubevirt.io/containerized-data-importer/pkg/image"
+	"path/filepath"
+	"fmt"
 )
 
-var formatTable = map[string]func(string) (string, error){
-	image.ExtGz:    transformGz,
-	image.ExtXz:    transformXz,
-	image.ExtTar:   transformTar,
-	image.ExtQcow2: transformQcow2,
-	"":             transformNoop,
+var formatTable = map[string]func(string, string) (string, error){
+	image.ExtGz:    gzCmd,
+	image.ExtXz:    xzCmd,
+	image.ExtTar:   tarCmd,
+	image.ExtQcow2: qcow2Cmd,
+	"":             noopCmd,
 }
 
 // create file based on targetFormat extensions and return created file's name.
 // note: intermediate files are removed.
-func FormatTestData(srcFile string, targetFormats ...string) (string, error) {
-	outFile := srcFile
+// TODO the path is retuning with the first section /Users/ missing.  I think the URL package is considering /Users/ as the server
+func FormatTestData(srcFile, tgtDir string, targetFormats ...string) (string, error) {
 	var err error
-	var prevFile string
-
 	for _, tf := range targetFormats {
 		f, ok := formatTable[tf]
 		if !ok {
 			return "", errors.Errorf("format extension %q not recognized", tf)
 		}
-		if len(tf) == 0 {
-			continue
-		}
 		// invoke conversion func
-		outFile, err = f(outFile)
-		if prevFile != srcFile {
-			os.Remove(prevFile)
-		}
+		srcFile, err = f(srcFile, tgtDir)
 		if err != nil {
 			return "", errors.Wrap(err, "could not format test data")
 		}
-		prevFile = outFile
 	}
-	return outFile, nil
+	return srcFile, nil
 }
 
-func transformFile(srcFile, outfileName, osCmd string, osArgs ...string) (string, error) {
+func tarCmd(src, tgtDir string) (string, error) {
+	base := filepath.Base(src)
+	tgt := filepath.Join(tgtDir, base+image.ExtTar)
+	args := []string{"-cf", tgt, src}
+
+	if err := doCmdAndVerifyFile(tgt, "tar", args...); err != nil {
+		return "", err
+	}
+	return tgt, nil
+}
+
+func gzCmd(src, tgtDir string) (string, error) {
+	src, err := copyIfNotPresent(src, tgtDir)
+	if err != nil {
+		return "", err
+	}
+	base := filepath.Base(src)
+	tgt := filepath.Join(tgtDir, base+image.ExtGz)
+	if err := doCmdAndVerifyFile(tgt, "gzip", src); err != nil {
+		return "", err
+	}
+	return tgt, nil
+}
+
+func xzCmd(src, tgtDir string) (string, error) {
+	src, err := copyIfNotPresent(src, tgtDir)
+	if err != nil {
+		return "", err
+	}
+	base := filepath.Base(src)
+	tgt := filepath.Join(tgtDir, base+image.ExtXz)
+	if err := doCmdAndVerifyFile(tgt, "xz", src); err != nil {
+		return "", err
+	}
+	return tgt, nil
+}
+
+func qcow2Cmd(srcfile, tgtDir string) (string, error) {
+	tgt := strings.Replace(filepath.Base(srcfile), ".iso", image.ExtQcow2, 1)
+	fmt.Printf("[fileConversion.go:L80] %s<%T>: %+v\n", "tgt", tgt, tgt)
+	tgt = filepath.Join(tgtDir, tgt)
+	fmt.Printf("[fileConversion.go:L82] %s<%T>: %+v\n", "tgt", tgt, tgt)
+	args := []string{"convert", "-f", "raw", "-O", "qcow2", srcfile, tgt}
+
+	if err := doCmdAndVerifyFile(tgt, "qemu-img", args...); err != nil {
+		return "", err
+	}
+	return tgt, nil
+}
+
+func noopCmd(src, tgtDir string) (string, error) {
+	newSrc, err := copyIfNotPresent(src, tgtDir)
+	if err != nil {
+		return "", err
+	}
+	return newSrc, nil
+}
+
+func doCmdAndVerifyFile(tgt, cmd string, args ...string) error {
+	if err := doCmd(cmd, args...); err != nil {
+		return err
+	}
+	fmt.Printf("Verifying file creation\n")
+	if _, err := os.Stat(tgt); err != nil {
+		return errors.Wrapf(err, "Failed to stat file %q", tgt)
+	}
+	return nil
+}
+
+func doCmd(osCmd string, osArgs ...string) error {
+	fmt.Printf("command: %s %s\n", osCmd, osArgs)
 	cmd := exec.Command(osCmd, osArgs...)
 	cout, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", errors.Wrapf(err, "OS command %s %v errored with output: %v", osCmd, strings.Join(osArgs, " "), string(cout))
+		return errors.Wrapf(err, "OS command `%s %v` errored: %v\nStdout/Stderr: %s", osCmd, strings.Join(osArgs, " "), err, string(cout))
 	}
-	finfo, err := os.Stat(outfileName)
-	if err != nil {
-		return "", errors.Wrapf(err, "error stat-ing file")
+	fmt.Printf("Command succeeded\n")
+	return nil
+}
+
+// copyIfNotPresent checks for the src file in the tgtDir.  If it is not there, it attempts to copy if from src to tgtdir.
+// If a copy is performed, the path to the copy is returned.
+// If no copy is performed, the original src string is returned.
+func copyIfNotPresent(src, tgtDir string) (string, error) {
+	base := filepath.Base(src)
+	// Only copy the source image if it does not exist in the temp directory
+	if _, err := os.Stat(filepath.Join(tgtDir, base)); err != nil {
+		if err := doCmd("cp", "-f", src, tgtDir); err != nil {
+			return "", err
+		}
+		src = filepath.Join(tgtDir, base)
 	}
-	return finfo.Name(), nil
-}
-
-func transformTar(srcFile string) (string, error) {
-	args := []string{"-cf", srcFile + image.ExtTar, srcFile}
-	return transformFile(srcFile, srcFile+image.ExtTar, "tar", args...)
-}
-
-func transformGz(srcFile string) (string, error) {
-	return transformFile(srcFile, srcFile+image.ExtGz, "gzip", "-k", srcFile)
-}
-
-func transformXz(srcFile string) (string, error) {
-	return transformFile(srcFile, srcFile+image.ExtXz, "xz", "-k", srcFile)
-}
-
-func transformQcow2(srcfile string) (string, error) {
-	outFile := strings.Replace(srcfile, ".iso", image.ExtQcow2, 1)
-	args := []string{"convert", "-f", "raw", "-O", "qcow2", srcfile, outFile}
-	return transformFile(srcfile, outFile, "qemu-img", args...)
-}
-
-func transformNoop(srcFile string) (string, error) {
-	return srcFile, nil
+	return src, nil
 }
