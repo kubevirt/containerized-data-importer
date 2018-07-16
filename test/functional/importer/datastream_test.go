@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	imagesize "kubevirt.io/containerized-data-importer/pkg/lib/size"
@@ -172,8 +172,8 @@ var _ = Describe("Streaming Data Conversion", func() {
 					By("Checking output image virtual size")
 					newSize := getImageVirtualSize(dest)
 					Expect(newSize).To(Equal(size))
-					By("Calling `ImageSize` function to check size")
-					newSize, err = imagesize.ImageSize(fUrl, "", "")
+					By("Calling `Size` function to check size")
+					newSize, err = imagesize.Size(fUrl, "", "")
 					Expect(err).NotTo(HaveOccurred())
 					Expect(newSize).To(Equal(size))
 				} else {

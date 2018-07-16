@@ -2,11 +2,9 @@ package controller
 
 import (
 	"fmt"
-	"math/rand"
-	"strings"
-	"time"
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,6 +12,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
+	"strings"
+	"time"
 )
 
 const DataVolName = "cdi-data-vol"
@@ -250,6 +250,9 @@ func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.
 			Labels: map[string]string{
 				CDI_LABEL_KEY: CDI_LABEL_VALUE,
 			},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(pvc, appsv1.SchemeGroupVersion.WithKind("PersistentVolumeClaim")),
+			},
 		},
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
@@ -376,7 +379,7 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, pvcName string, generate
 				AnnCloningCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                     //filtered by the podInformer
+				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                               //filtered by the podInformer
 				CLONING_LABEL_KEY: CLONING_LABEL_VALUE + "-" + generatedLabelStr, //used by podAffity
 			},
 		},
@@ -475,7 +478,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy string, pvc *v1.Persisten
 				AnnCloningCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                     //filtered by the podInformer
+				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                               //filtered by the podInformer
 				CLONING_LABEL_KEY: CLONING_LABEL_VALUE + "-" + generatedLabelStr, //used by PodAffinity
 			},
 		},
@@ -630,14 +633,4 @@ func (c *CloneController) objFromKey(informer cache.SharedIndexInformer, key int
 		return nil, errors.New("interface object not found in store")
 	}
 	return obj, nil
-}
-
-func GenerateLabelStr(n int) string {
-	rand.Seed(time.Now().UnixNano())
-	var letter = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letter[rand.Intn(len(letter))]
-	}
-	return string(b)
 }

@@ -1,86 +1,10 @@
 package image
 
 import (
-	"bytes"
-	"io"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 )
-
-func TestGetMagicNumber(t *testing.T) {
-	type args struct {
-		f io.Reader
-	}
-
-	tests := []struct {
-		name    string
-		args    args
-		want    []byte
-		wantErr bool
-	}{
-		{
-			name:    "return valid qcow2 magic number",
-			args:    args{bytes.NewReader([]byte{'Q', 'F', 'I', 0xfb, 'T', 'H', 'I', 'S'})},
-			want:    QCOW2MagicStr,
-			wantErr: false,
-		},
-		{
-			name:    "return invalid qcow2 magic number",
-			args:    args{bytes.NewReader([]byte{'F', 'I', 0xfb, 'T', 'H', 'I', 'S'})},
-			want:    []byte{'F', 'I', 0xfb, 'T'},
-			wantErr: false,
-		},
-		{
-			name:    "empty reader",
-			args:    args{bytes.NewReader([]byte{})},
-			want:    nil,
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := GetMagicNumber(tt.args.f)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetMagicNumber() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GetMagicNumber() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestMatchQcow2MagicNum(t *testing.T) {
-	type args struct {
-		match []byte
-	}
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{
-			name: "does match magic number",
-			args: args{[]byte{'Q', 'F', 'I', 0xfb, 'T', 'H', 'I', 'S'}},
-			want: true,
-		},
-		{
-			name: "does not match magic number",
-			args: args{[]byte{'Q', 'T', 'I', 0xfb, 'T', 'H', 'I', 'S'}},
-			want: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := MatchQcow2MagicNum(tt.args.match); got != tt.want {
-				t.Errorf("MatchQcow2MagicNum() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
 
 func TestConvertQcow2ToRaw(t *testing.T) {
 	type args struct {
