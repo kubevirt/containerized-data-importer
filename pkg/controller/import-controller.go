@@ -175,8 +175,8 @@ func (c *ImportController) processPodItem(pod *v1.Pod) error {
 	if !checkIfAnnoExists(pvc, AnnPodPhase, phase) {
 		pvc, err = setPVCAnnotation(c.clientset, pvc, AnnPodPhase, phase)
 		if err != nil {
-			return errors.WithMessage(err, fmt.Sprintf("could not set annotation \"%s: %s\" on pvc %q", AnnPodPhase, phase, pvc.Name))
 			glog.V(Vdebug).Infof("processPodItem: pod phase %q annotated in pvc %q", pod.Status.Phase, pvcKey)
+			return errors.WithMessage(err, fmt.Sprintf("could not set annotation \"%s: %s\" on pvc %q", AnnPodPhase, phase, pvc.Name))
 		}
 	}
 	return nil
