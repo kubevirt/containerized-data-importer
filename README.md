@@ -1,5 +1,6 @@
 # Containerized Data Importer
 A declarative Kubernetes utility to import Virtual Machine images for use with [Kubevirt](https://github.com/kubevirt/kubevirt). At a high level, a persistent volume claim (PVC), which defines VM-suitable storage via a storage class, is created. A custom controller watches for importer specific claims, and when discovered, starts an import/copy process. The status of the import process is reflected in the same claim, and when the copy completes Kubevirt can create the VM based on the just-imported image.
+In Addition, the Containerized Data Importer gives the option to clone the imported VM image from one PVC to another one across two different namespaces (A.K.A Host-Assisted cloning). This is achieved by creating a new PVC with the 'k8s.io/CloneRequest' annotation indicating the name of the PVC the image is copied from. Once the controller detects the PVC, it starts two pods which are responsible for the cloning of the image from one PVC to another using a unix socket that is created on the host itself. When the cloning is completed, the PVC which the image was copied to, is assigned with the 'k8s.io/CloneOf' annotation to indicate cloning completion. The copied VM image can be used by a new pod only after the cloning process is completed.
 
 1. [Purpose](#purpose)
 1. [Versions](#versions)
@@ -185,6 +186,33 @@ The `Size` function does **not** yet support the following formats:
 In other words, if the endpoint is a _qcow2_ file, or any file wrapped by tar (even with compression) then the size of the endpoint can be determined. If the endpoint is an unformatted raw file, not compressed, not archived, then its size cannot (yet) be returned.
 
 An additional caveat is that currently the size is under reported for simple iso files, meaning a structured iso file that is not archived and/or compressed.
+
+### Start Cloning Images
+
+Verify the following file from the [example manifests](./manifests/example) exists:
+- target-pvc.yaml
+
+###### Edit target-pvc.yaml:
+1.  `k8s.io/CloneRequest:` The name of the PVC we copy the image from (including its namespace). For example: "source-ns/golden-pvc".
+
+### Deploy the API Object
+1. (Optional) Create the namespace where the target PVC will be deployed:
+
+   `$ kubectl create ns <TARGET-NAMESPACE>`
+
+1. Deploy the target PVC:
+
+   `$ kubectl -n <TARGET-NAMESPACE> create -f target-pvc.yaml`
+
+1. Monitor the cloning pods:
+
+   `$ kubectl -n <SOURCE-NAMESPACE> logs <clone-source-pod-name>`
+
+   `$ kubectl -n <TARGET-NAMESPACE> logs <clone-target-pod-name>`
+
+1. Check the target PVC for 'k8s.io/CloneOf' annotation:
+
+   `$ kubectl -n <TARGET-NAMESPACE> get pvc <target-pvc-name> -o yaml`
 
 
 ### Security Configurations
