@@ -11,8 +11,6 @@ BUILDER_SPEC="${BUILD_DIR}/docker/${BUILDER}"
 # Build the encapsulated compile and test container
 (cd ${BUILDER_SPEC} && docker build --tag ${BUILDER} .)
 
-mkdir -p ${OUT_DIR}
-
 # Execute the build
 [ -t 1 ] && USE_TTY="-it"
 docker run ${USE_TTY} --rm -v ${CDI_DIR}:${WORK_DIR}:rw,z -w ${WORK_DIR} ${BUILDER} "$1"

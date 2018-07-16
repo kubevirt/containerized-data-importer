@@ -12,16 +12,16 @@ all: clean docker
 clean:
 	./hack/build/clean.sh
 
-build: # TODO vet
+build:
 ifeq (${DOCKER}, 1)
 	./hack/build/in-docker "./hack/build/build-go.sh build ${WHAT}"
 else
 	./hack/build/build-go.sh build ${WHAT}
 endif
 
-build-controller: WHAT = cmd/controller
+build-controller: WHAT = cmd/cdi-controller
 build-controller: build
-build-importer: WHAT = cmd/importer
+build-importer: WHAT = cmd/cdi-importer
 build-importer: build
 
 test:

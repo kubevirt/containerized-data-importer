@@ -1,28 +1,50 @@
 ## Getting Started For Developers
 
-### Download source:
+### Download CDI
 
-`# in github fork kubevirt/containerized-data-importer to your personal repo`, then:
-```
-cd $GOPATH/src/
-mkdir -p kubevirt.io/containerized-data-importer
-go get kubevirt.io/containerized-data-importer
-cd kubevirt.io/containerized-data-importer
-git remote set-url origin <url-to-your-personal-repo>
-git push origin master -f
-```
+To download the source directly, simply
 
- or
+`$ go get -u kubevirt.io/containerized-data-importer`
 
- ```
- cd $GOPATH/src/
- mkdir -p kubevirt.io/kubevirt && cd kubevirt.io/kubevirt
- git clone <your-forked-containerized-data-importer-url>
- cd containerized-data-importer
- git remote add upstream https://kubevirt.io/containerized-data-importer.git
- ```
+### Lint, Test, Build
 
-### Use glide to handle vendoring of dependencies:
+GnuMake is used to drive a set of scripts that handle linting, testing, compiling, and containerizing.  Executing the scripts directly is not supported at present.
+
+    NOTE: Standard builds require a running Docker daemon!
+
+The standard workflow is performed inside a helper container to normalize the build and test environment for all devs.  Building in the host environment is supported by the Makefile, but is not recommended.
+
+    Docker builds may be disabled by setting DOCKER=0; e.g.
+    $ make all DOCKER=0
+
+`$ make all` executes the full workflow.  For granular control of the workflow, several Make targets are defined:
+
+- `all`: cleans up previous build, then compiles all CDI packages and builds containers
+- `clean`: cleans up previous build artifacts
+- `build`: compile all CDI binary artifacts
+    - `build-controller`: compile cdi-controller binary
+    - `build-importer`: compile cdi-importer binary
+- `test`: execute all tests
+    - `test-unit`: execute all tests under `./pkg`
+    - `test-functional`: execute all tests under `./test`
+- `docker`: compile all binaries and build all containerized
+    - `docker-controller`: compile cdi-controller and build cdi-controller image
+    - `docker-importer`: compile cdi-importer and build cdi-importer image
+    - `docker-cloner`: build the cdi-cloner image ( cloner is driven by a shell script, not a binary )
+- `vet`: lint all CDI packages
+- `format`: Execute `shfmt`, `goimports`, and `go vet` on all CDI packages.  Writes back to the source files.
+
+In addition to the above recipes, directories may be targeted specifically by setting the `WHAT` make variable, e.g.
+
+Running `$ make vet WHAT=pkg/image` will execute `go vet` on the `kubevirt.io/containerized-data-importer/pkg/image`
+
+### Submit PRs
+
+All PRs should originate from forks of kubevirt.io/containerized-data-importer.  Work should not be done directly in the upstream repository.  Open new working branches from master/HEAD of your forked repository and push them to your remote repo.  Then submit PRs of the working branch against the upstream master branch.
+
+### Vendoring Dependencies
+
+This project uses `glide` as it's dependency manager.  At present, all project dependencies are vendored; using `glide` is unnecessary in the normal work flow.
 
 Install glide:
 
@@ -34,28 +56,6 @@ Then run it from the repo root
 
 `glide install` scans imports and resolves missing and unused dependencies. `-v` removes nested vendor and Godeps/_workspace directories.
 
-### Create importer image from source:
-
-```
-cd $GOPATH/src/kubevirt.io/containerized-data-importer
-make importer
-```
-which places the binary in _./bin/importer_.
-The importer image is pushed to `jcoperh/importer:latest`, and this is where the importer pod pulls the image from.
-
-### Create controller image from source:
-
-```
-cd $GOPATH/src/kubevirt.io/containerized-data-importer
-make controller
-```
-which places the binary in _./bin/importer-controller_. The controller image is pushed to `jcoperh/importer-controller:latest`, and this is where the controller pod pulls the image from.
-
-> NOTE: when running the controller in a `local-up-cluster` environment (and in the default namespace) the cluster role binding below was needed to allow the controller pod to list PVCs:
-```
-kubectl create clusterrolebinding cdi-controller --clusterrole=cluster-admin --serviceaccount=default:default
-```
-
 ### S3-compatible client setup:
 
 #### AWS S3 cli
@@ -66,7 +66,7 @@ aws_access_key_id = <your-access-key>
 aws_secret_access_key = <your-secret>
 ```
 
-#### Mino cli
+#### Minio cli
 
 $HOME/.mc/config.json:
 ```
