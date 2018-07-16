@@ -16,20 +16,14 @@ var formatTable = map[string]func(string, string) (string, error){
 	image.ExtXz:    xzCmd,
 	image.ExtTar:   tarCmd,
 	image.ExtQcow2: qcow2Cmd,
+	"":             noopCmd,
 }
 
 // create file based on targetFormat extensions and return created file's name.
 // note: intermediate files are removed.
-// TODO write the formatted file somewhere useful
 // TODO the path is retuning with the first section /Users/ missing.  I think the URL package is considering /Users/ as the server
 func FormatTestData(srcFile, tgtDir string, targetFormats ...string) (string, error) {
-
-	if len(targetFormats) == 0 {
-		return srcFile, nil
-	}
-
 	var err error
-
 	for _, tf := range targetFormats {
 		f, ok := formatTable[tf]
 		if !ok {
@@ -45,7 +39,8 @@ func FormatTestData(srcFile, tgtDir string, targetFormats ...string) (string, er
 }
 
 func tarCmd(src, tgtDir string) (string, error) {
-	tgt := filepath.Join(tgtDir, src+image.ExtTar)
+	base := filepath.Base(src)
+	tgt := filepath.Join(tgtDir, base+image.ExtTar)
 	args := []string{"-cf", tgt, src}
 
 	if err := doCmdAndVerifyFile(tgt, "tar", args...); err != nil {
@@ -55,26 +50,26 @@ func tarCmd(src, tgtDir string) (string, error) {
 }
 
 func gzCmd(src, tgtDir string) (string, error) {
-	if err := doCmd("cp", []string{src, tgtDir}...); err != nil {
+	src, err := copyIfNotPresent(src, tgtDir)
+	if err != nil {
 		return "", err
 	}
 	base := filepath.Base(src)
-	fmt.Printf("[fileConversion.go:L61] %s<%T>: %+v\n", "base", base, base)
-	src = filepath.Join(tgtDir, base)
-	fmt.Printf("[fileConversion.go:L63] %s<%T>: %+v\n", "src", src, src)
-	tgt := filepath.Join(tgtDir, base + image.ExtGz)
-	fmt.Printf("[fileConversion.go:L65] %s<%T>: %+v\n", "tgt", tgt, tgt)
+	tgt := filepath.Join(tgtDir, base+image.ExtGz)
 	if err := doCmdAndVerifyFile(tgt, "gzip", src); err != nil {
 		return "", err
 	}
 	return tgt, nil
 }
 
-func xzCmd(srcFile, tgtDir string) (string, error) {
-	tgt := filepath.Join(srcFile, image.ExtXz)
-	args := []string{"xz", "-c", srcFile, ">", tgt}
-
-	if err := doCmdAndVerifyFile(tgt, "gzip", args...); err != nil {
+func xzCmd(src, tgtDir string) (string, error) {
+	src, err := copyIfNotPresent(src, tgtDir)
+	if err != nil {
+		return "", err
+	}
+	base := filepath.Base(src)
+	tgt := filepath.Join(tgtDir, base+image.ExtXz)
+	if err := doCmdAndVerifyFile(tgt, "xz", src); err != nil {
 		return "", err
 	}
 	return tgt, nil
@@ -91,6 +86,14 @@ func qcow2Cmd(srcfile, tgtDir string) (string, error) {
 	return tgt, nil
 }
 
+func noopCmd(src, tgtDir string) (string, error) {
+	newSrc, err := copyIfNotPresent(src, tgtDir)
+	if err != nil {
+		return "", err
+	}
+	return newSrc, nil
+}
+
 func doCmdAndVerifyFile(tgt, cmd string, args ...string) error {
 	if err := doCmd(cmd, args...); err != nil {
 		return err
@@ -105,11 +108,25 @@ func doCmdAndVerifyFile(tgt, cmd string, args ...string) error {
 func doCmd(osCmd string, osArgs ...string) error {
 	fmt.Printf("command: %s %s\n", osCmd, osArgs)
 	cmd := exec.Command(osCmd, osArgs...)
-	fmt.Printf("Command:\n%#v\n\n", cmd)
-	_, err := cmd.CombinedOutput()
+	cout, err := cmd.CombinedOutput()
 	if err != nil {
-		return errors.Wrapf(err, "OS command `%s %v` errored: %v", osCmd, strings.Join(osArgs, " "), err)
+		return errors.Wrapf(err, "OS command `%s %v` errored: %v\nStdout/Stderr: %s", osCmd, strings.Join(osArgs, " "), err, string(cout))
 	}
 	fmt.Printf("Command succeeded\n")
 	return nil
+}
+
+// copyIfNotPresent checks for the src file in the tgtDir.  If it is not there, it attempts to copy if from src to tgtdir.
+// If a copy is performed, the path to the copy is returned.
+// If no copy is performed, the original src string is returned.
+func copyIfNotPresent(src, tgtDir string) (string, error) {
+	base := filepath.Base(src)
+	// Only copy the source image if it does not exist in the temp directory
+	if _, err := os.Stat(filepath.Join(tgtDir, base)); err != nil {
+		if err := doCmd("cp", "-f", src, tgtDir); err != nil {
+			return "", err
+		}
+		src = filepath.Join(tgtDir, base)
+	}
+	return src, nil
 }
