@@ -183,7 +183,7 @@ func (d dataStream) http() (io.ReadCloser, error) {
 }
 
 func (d dataStream) local() (io.ReadCloser, error) {
-	fn := d.Url.Path
+	fn := filepath.Join(d.Url.Host, d.Url.Path)
 	f, err := os.Open(fn)
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not open file %q", fn)
