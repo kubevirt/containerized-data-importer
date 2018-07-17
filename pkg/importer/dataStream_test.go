@@ -2,8 +2,8 @@ package importer
 
 import (
 	"archive/tar"
-	"bytes"
 	"bufio"
+	"bytes"
 	"encoding/hex"
 	"io"
 	"io/ioutil"
@@ -101,7 +101,7 @@ func createDataStreamBuf(ep, accKey, secKey, testfile string) (*dataStream, []by
 	ds.constructReaders()
 	// if no file supplied just return empty byte stream
 	if len(testfile) == 0 {
-		return ds, []byte{'T','E','S','T'}, 0
+		return ds, []byte{'T', 'E', 'S', 'T'}, 0
 	}
 
 	buf := bytes.NewBuffer(nil)
@@ -446,10 +446,9 @@ func Test_randTmpName(t *testing.T) {
 			wantString := hex.EncodeToString(randName)
 
 			got := randTmpName(tt.args.src)
-			if len(got) != len(tt.want) + len(wantString) {
-				t.Errorf("randTmpName() length does not match = %v, want %v", len(got), len(tt.want) + len(wantString))
+			if len(got) != len(tt.want)+len(wantString) {
+				t.Errorf("randTmpName() length does not match = %v, want %v", len(got), len(tt.want)+len(wantString))
 			}
 		})
 	}
 }
-

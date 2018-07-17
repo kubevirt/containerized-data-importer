@@ -2,10 +2,11 @@ package importer
 
 import (
 	"io"
-	"testing"
 	"os"
-	"kubevirt.io/containerized-data-importer/pkg/common"
 	"strings"
+	"testing"
+
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 func TestParseEnvVar(t *testing.T) {
@@ -126,12 +127,12 @@ func TestStreamDataToFile(t *testing.T) {
 	}{
 		{
 			name:    "successfully streamDataToFile",
-			args:    args{	strings.NewReader("test data for reader 1"), "/tmp/testoutfile"},
+			args:    args{strings.NewReader("test data for reader 1"), "/tmp/testoutfile"},
 			wantErr: false,
 		},
 		{
 			name:    "expect error when trying to open an invalid out file",
-			args:    args{	strings.NewReader("test data for reader 1"), ""},
+			args:    args{strings.NewReader("test data for reader 1"), ""},
 			wantErr: true,
 		},
 	}
