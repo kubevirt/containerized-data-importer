@@ -34,6 +34,7 @@ const (
 	CLONER_DEFAULT_IMAGE  = "docker.io/kubevirt/cdi-cloner:" + CDI_VERSION
 	CLONING_LABEL_KEY     = "cloning"
 	CLONING_LABEL_VALUE   = "host-assisted-cloning"
+	CLONING_TOPOLOGY_KEY  = "kubernetes.io/hostname"
 	CLONER_SOURCE_PODNAME = "clone-source-pod"
 	CLONER_TARGET_PODNAME = "clone-target-pod"
 	CLONER_IMAGE_PATH     = "/tmp/clone/image"
