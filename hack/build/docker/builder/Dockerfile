@@ -11,8 +11,12 @@ RUN \
     source /etc/profile.d/gimme.sh && \
     eval $(go env) && \
     go get golang.org/x/tools/cmd/goimports && \
-    cd $GOPATH/src/golang.org/x/tools/cmd/goimports  && \
-    go install ./...
+    ( go get -d mvdan.cc/sh/cmd/shfmt || echo "**** Expecting error \"cannot find package mvdan.cc/sh/v2/fileutil\"" ) && \
+    ( cd $GOPATH/src/golang.org/x/tools/cmd/goimports && \
+    go install ./... ) && \
+    ( cd $GOPATH/src/mvdan.cc/sh/cmd/shfmt && \
+    git checkout v2.5.0 -b build-v2.5.0 && \
+    go install ./... )
 
 ADD entrypoint.sh /entrypoint.sh
 

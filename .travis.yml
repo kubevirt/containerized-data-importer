@@ -23,9 +23,7 @@ notifications:
     on_failure: always
 
 install:
-  - sudo apt-get install -y qemu-utils
-  - git reset --hard
-  - make docker DOCKER_TAG=$TRAVIS_TAG
+  - make docker
 
 before_script:
 - curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/v$K8S_VER/bin/linux/amd64/kubectl
@@ -56,18 +54,20 @@ before_deploy:
 
 deploy:
   # Release :latest images
-- provider: script
-  script: make publish
-  skip_cleanup: true
-  on:
-    branch: master
-    repo: kubevirt/containerized-data-importer
+  # TODO disabled until manifest templator is merged
+#- provider: script
+#  script: make publish
+#  skip_cleanup: true
+#  on:
+#    branch: master
+#    repo: kubevirt/containerized-data-importer
   # Release versioned images
 - provider: script
   script: make publish DOCKER_TAG=$TRAVIS_TAG
   branches:
       only: /v[0-9]+\.[0-9]+\.[0-9]+(-alpha\.[0-9]+){0,1}/
   on:
+    tags: true
     repo: kubevirt/containerized-data-importer
 - provider: releases
   branches:

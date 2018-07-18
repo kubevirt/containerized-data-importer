@@ -1,9 +1,24 @@
 #!/usr/bin/env bash
 
-set -e
+#Copyright 2018 The CDI Authors.
+#
+#Licensed under the Apache License, Version 2.0 (the "License");
+#you may not use this file except in compliance with the License.
+#You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+#Unless required by applicable law or agreed to in writing, software
+#distributed under the License is distributed on an "AS IS" BASIS,
+#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#See the License for the specific language governing permissions and
+#limitations under the License.
 
-source hack/build/common.sh
-source hack/build/config.sh
+set -eo pipefail
+
+script_dir="$(readlink -f $(dirname $0))"
+source "${script_dir}"/common.sh
+source "${script_dir}"/config.sh
 
 mkdir -p ${BIN_DIR}
 mkdir -p ${CMD_OUT_DIR}
@@ -47,21 +62,9 @@ elif [ "${go_opt}" == "build" ]; then
 			ln -sf ${BIN_NAME} ${CDI_DIR}/bin/${BIN_NAME}
 		)
 	done
-elif [ "$go_opt" == "vet" ]; then
-    if [ -z "${targets}" ]; then
-        # Do not vet vendor or pkg/client (contains known error)
-        # To be fixed by https://github.com/kubernetes/kubernetes/pull/60584
-        targets=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./... | grep -v -E "vendor|pkg/client" | sort -u ))
-    fi
-    for tgt in ${targets}; do
-        (
-            cd "${tgt}"
-            go vet -v ./...
-        )
-    done
-else # Pass go commands directly on to packages expect vendor
+else # Pass go commands directly on to packages except vendor
     if [ -z ${targets} ]; then
-        targets="$(go list ./... | grep -v "vendor" | sort -u)" # pkg/client is generated code, ignore it
+        targets=$(allPkgs) # pkg/client is generated code, ignore it
     fi
     for tgt in ${targets}; do
         (

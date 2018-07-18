@@ -1,3 +1,17 @@
+#Copyright 2018 The CDI Authors.
+#
+#Licensed under the Apache License, Version 2.0 (the "License");
+#you may not use this file except in compliance with the License.
+#You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+#Unless required by applicable law or agreed to in writing, software
+#distributed under the License is distributed on an "AS IS" BASIS,
+#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#See the License for the specific language governing permissions and
+#limitations under the License.
+
 DOCKER=1
 
 .PHONY: build build-controller build-importer \
@@ -7,22 +21,27 @@ DOCKER=1
 		vet \
 		format
 
-all: clean docker
+all: docker
 
 clean:
-	./hack/build/clean.sh
+ifeq (${DOCKER}, 1)
+	./hack/build/in-docker "./hack/build/build-go.sh clean && rm -rf bin/* _out/*"
+else
+	"./hack/build/build-go.sh clean && rm -rf bin/* _out/*"
+endif
 
 build:
 ifeq (${DOCKER}, 1)
-	./hack/build/in-docker "./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
+	./hack/build/in-docker "./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
 else
-	./hack/build/build-go.sh build ${WHAT}
+	./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}
 endif
 
 build-controller: WHAT = cmd/cdi-controller
 build-controller: build
 build-importer: WHAT = cmd/cdi-importer
 build-importer: build
+# Note, the cloner is a bash script and has nothing to build
 
 test:
 ifeq (${DOCKER}, 1)
@@ -46,8 +65,18 @@ docker-importer: docker
 docker-cloner: WHAT = cmd/cdi-cloner
 docker-cloner: docker
 
-publish: docker
+push: docker
 	./hack/build/build-docker.sh push ${WHAT}
+
+push-controller: WHAT = cmd/cdi-controller
+push-controller: push
+push-importer: WHAT = cmd/cdi-importer
+push-importer: push
+push-cloner: WHAT = cdm/cdi-cloner
+push-cloner: push
+
+publish: docker
+	./hack/build/build-docker.sh publish ${WHAT}
 
 vet:
 ifeq (${DOCKER}, 1)
@@ -58,7 +87,7 @@ endif
 
 format:
 ifeq (${DOCKER}, 1)
-	.hack/build/in-docker "./hack/build/format.sh"
+	./hack/build/in-docker "./hack/build/format.sh"
 else
 	./hack/build/format.sh
 endif

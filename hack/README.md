@@ -19,7 +19,9 @@ The standard workflow is performed inside a helper container to normalize the bu
 
 `$ make all` executes the full workflow.  For granular control of the workflow, several Make targets are defined:
 
-- `all`: cleans up previous build, then compiles all CDI packages and builds containers
+**Make Targets**
+
+- `all`: cleans up previous build artifacts, compiles all CDI packages and builds containers
 - `clean`: cleans up previous build artifacts
 - `build`: compile all CDI binary artifacts
     - `build-controller`: compile cdi-controller binary
@@ -30,13 +32,22 @@ The standard workflow is performed inside a helper container to normalize the bu
 - `docker`: compile all binaries and build all containerized
     - `docker-controller`: compile cdi-controller and build cdi-controller image
     - `docker-importer`: compile cdi-importer and build cdi-importer image
-    - `docker-cloner`: build the cdi-cloner image ( cloner is driven by a shell script, not a binary )
+    - `docker-cloner`: build the cdi-cloner image (cloner is driven by a shell script, not a binary)
+- `push`: compiles, builds, and pushes to the repo passed in `DOCKER_REPO=<my repo>`
+    - push-controller: compile, build, and push cdi-controller
+    - push-importer: compile, build, and push cdi-importer
+    - push-cloner: compile, build, and push cdi-cloner
 - `vet`: lint all CDI packages
 - `format`: Execute `shfmt`, `goimports`, and `go vet` on all CDI packages.  Writes back to the source files.
+- `publish`: CI ONLY - this recipe is not intended for use by developers
 
-In addition to the above recipes, directories may be targeted specifically by setting the `WHAT` make variable, e.g.
+**Make Variables**
 
-Running `$ make vet WHAT=pkg/image` will execute `go vet` on the `kubevirt.io/containerized-data-importer/pkg/image`
+Several variables are provided to alter the targets of the above `Makefile` recipes.
+
+- `WHAT`:  The path from the repo root to a target directory (e.g. `make test WHAT=pkg/importer`)
+- `DOCKER_REPO`: (default: kubevirt) The docker repo to which images are pushed.  Used with `make push` to upload images to non-kubevirt repos.
+- `DOCKER_TAG`: (default: latest) The value with which new images are tagged.
 
 ### Submit PRs
 
