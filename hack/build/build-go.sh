@@ -33,11 +33,13 @@ elif [ "${go_opt}" == "build" ]; then
     fi
 	for tgt in ${targets}; do
 		BIN_NAME=$(basename $tgt)
+		if [[ "${BIN_NAME}" == "${CLONER}" ]]; then
+		    continue
+		fi
 		rm -f ${CMD_OUT_DIR}/${BIN_NAME}/${BIN_NAME}
 		rm -f ${BIN_DIR}/${BIN_NAME}
 		(
 			cd $tgt
-			go vet ./...
 
             # Only build executables for linux amd64
 			GOOS=linux GOARCH=amd64 go build -o ${CMD_OUT_DIR}/${BIN_NAME}/${BIN_NAME} -ldflags '-extldflags "static"'

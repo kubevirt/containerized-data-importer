@@ -14,7 +14,7 @@ clean:
 
 build:
 ifeq (${DOCKER}, 1)
-	./hack/build/in-docker "./hack/build/build-go.sh build ${WHAT}"
+	./hack/build/in-docker "./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
 else
 	./hack/build/build-go.sh build ${WHAT}
 endif
@@ -39,11 +39,11 @@ test-functional: test
 docker: build
 	./hack/build/build-docker.sh build ${WHAT}
 
-docker-controller: WHAT = cdi-controller
+docker-controller: WHAT = cmd/cdi-controller
 docker-controller: docker
-docker-importer: WHAT = cdi-importer
+docker-importer: WHAT = cmd/cdi-importer
 docker-importer: docker
-docker-cloner: WHAT = cdi-cloner
+docker-cloner: WHAT = cmd/cdi-cloner
 docker-cloner: docker
 
 publish: docker
