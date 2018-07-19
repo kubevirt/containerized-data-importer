@@ -245,14 +245,14 @@ func (c *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	//create random string to be used for pod labeling and hostpath name
 	generatedLabelStr := util.RandAlphaNum(GENERATED_CLONING_LABEL_LEN)
 	//create the source pod
-	_, err = CreateCloneSourcePod(c.clientset, c.cloneImage, c.verbose, c.pullPolicy, cr, pvc, generatedLabelStr)
+	pod, err := CreateCloneSourcePod(c.clientset, c.cloneImage, c.verbose, c.pullPolicy, cr, pvc, generatedLabelStr)
 	if err != nil {
 		//TODO: remove annotation AnnCloningPods from pvc as pod failed to run
 		return err
 	}
 
 	//create the target pod
-	_, err = CreateCloneTargetPod(c.clientset, c.cloneImage, c.verbose, c.pullPolicy, pvc, generatedLabelStr)
+	_, err = CreateCloneTargetPod(c.clientset, c.cloneImage, c.verbose, c.pullPolicy, pvc, generatedLabelStr, pod.ObjectMeta.Namespace)
 	if err != nil {
 		//TODO: remove annotation AnnCloningPods from pvc as pod failed to run
 		return err

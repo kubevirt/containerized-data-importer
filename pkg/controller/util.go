@@ -384,24 +384,6 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, pvcName string, generate
 			},
 		},
 		Spec: v1.PodSpec{
-			Affinity: &v1.Affinity{
-				PodAffinity: &v1.PodAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
-						{
-							LabelSelector: &metav1.LabelSelector{
-								MatchExpressions: []metav1.LabelSelectorRequirement{
-									{
-										Key:      CLONING_LABEL_KEY,
-										Operator: metav1.LabelSelectorOpIn,
-										Values:   []string{CLONING_LABEL_VALUE + "-" + generatedLabelStr},
-									},
-								},
-							},
-							TopologyKey: CLONING_LABEL_VALUE,
-						},
-					},
-				},
-			},
 			Containers: []v1.Container{
 				{
 					Command:         []string{"/bin/sh"},
@@ -450,9 +432,10 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, pvcName string, generate
 	return pod
 }
 
-func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose string, pullPolicy string, pvc *v1.PersistentVolumeClaim, generatedLabelStr string) (*v1.Pod, error) {
+func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose string, pullPolicy string, 
+			pvc *v1.PersistentVolumeClaim, generatedLabelStr string, podAffinityNamespace string) (*v1.Pod, error) {
 	ns := pvc.Namespace
-	pod := MakeCloneTargetPodSpec(image, verbose, pullPolicy, pvc, generatedLabelStr)
+	pod := MakeCloneTargetPodSpec(image, verbose, pullPolicy, pvc, generatedLabelStr, podAffinityNamespace)
 
 	pod, err := client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
@@ -463,7 +446,7 @@ func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose str
 }
 
 // return the clone target pod spec based on the target pvc.
-func MakeCloneTargetPodSpec(image, verbose, pullPolicy string, pvc *v1.PersistentVolumeClaim, generatedLabelStr string) *v1.Pod {
+func MakeCloneTargetPodSpec(image, verbose, pullPolicy string, pvc *v1.PersistentVolumeClaim, generatedLabelStr string, podAffinityNamespace string) *v1.Pod {
 	// target pod name contains the pvc name
 	podName := fmt.Sprintf("%s-", CLONER_TARGET_PODNAME)
 
@@ -496,7 +479,8 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy string, pvc *v1.Persisten
 									},
 								},
 							},
-							TopologyKey: CLONING_LABEL_VALUE,
+							Namespaces: []string{podAffinityNamespace},
+							TopologyKey: CLONING_TOPOLOGY_KEY,
 						},
 					},
 				},
