@@ -131,7 +131,7 @@ func (r *ControllerExpectations) GetExpectations(controllerKey string) (*Control
 // DeleteExpectations deletes the expectations of the given controller from the TTLStore.
 func (r *ControllerExpectations) DeleteExpectations(controllerKey string) {
 	if exp, exists, err := r.GetByKey(controllerKey); err == nil && exists {
-		if err := r.Delete(exp); err != nil {
+		if err = r.Delete(exp); err != nil {
 			glog.V(Vadmin).Infof("Error deleting expectations for controller %v: %v", controllerKey, err)
 		}
 	}
@@ -336,7 +336,7 @@ func (u *UIDTrackingControllerExpectations) DeleteExpectations(rcKey string) {
 
 	u.ControllerExpectationsInterface.DeleteExpectations(rcKey)
 	if uidExp, exists, err := u.uidStore.GetByKey(rcKey); err == nil && exists {
-		if err := u.uidStore.Delete(uidExp); err != nil {
+		if err = u.uidStore.Delete(uidExp); err != nil {
 			glog.V(Vadmin).Infof("Error deleting uid expectations for controller %v: %v", rcKey, err)
 		}
 	}
