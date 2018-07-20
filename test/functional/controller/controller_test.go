@@ -122,6 +122,15 @@ var _ = Describe("Controller", func() {
 				annotations: map[string]string{AnnEndpoint: "http://www.google.com"},
 				expectError: false,
 			},
+
+			{
+				descr:       "updated pvc should not process based on annotation AnnPodPhase=Succeeded indicating already been processed",
+				ns:          "ns-a",
+				name:        "test-pvc",
+				qops:        opUpdate,
+				annotations: map[string]string{AnnEndpoint: "http://www.google.com", AnnPodPhase: "Succeeded"},
+				expectError: true,
+			},
 		}
 		for _, test := range tests {
 			ns := test.ns
@@ -171,12 +180,12 @@ var _ = Describe("Controller", func() {
 		}
 		tests := []test{
 			{
-				desc:          fmt.Sprintf("Should annotate the pod phase in the pvc when the pod has annotation \"%s: \"", AnnImportPVC),
-				podLabel:      map[string]string{AnnImportPVC: pvcName},
+				desc:          fmt.Sprintf("Should annotate the pod phase in the pvc when the pod has label \"%s: \"", LabelImportPvc),
+				podLabel:      map[string]string{LabelImportPvc: pvcName},
 				shouldSucceed: true,
 			},
 			{
-				desc:          fmt.Sprintf("Should do nothing when the pod is missing label \"%s: %s\"", AnnImportPVC, ""),
+				desc:          fmt.Sprintf("Should do nothing when the pod is missing label \"%s: %s\"", LabelImportPvc, ""),
 				podLabel:      map[string]string{},
 				shouldSucceed: false,
 			},
