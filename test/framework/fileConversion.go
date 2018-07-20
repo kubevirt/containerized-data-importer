@@ -50,7 +50,7 @@ func tarCmd(src, tgtDir string) (string, error) {
 }
 
 func gzCmd(src, tgtDir string) (string, error) {
-	src, err := copyIfNotPresent(src, tgtDir)
+	src, err := copySrcToTgt(src, tgtDir)
 	if err != nil {
 		return "", err
 	}
@@ -63,7 +63,7 @@ func gzCmd(src, tgtDir string) (string, error) {
 }
 
 func xzCmd(src, tgtDir string) (string, error) {
-	src, err := copyIfNotPresent(src, tgtDir)
+	src, err := copySrcToTgt(src, tgtDir)
 	if err != nil {
 		return "", err
 	}
@@ -89,7 +89,7 @@ func qcow2Cmd(srcfile, tgtDir string) (string, error) {
 }
 
 func noopCmd(src, tgtDir string) (string, error) {
-	newSrc, err := copyIfNotPresent(src, tgtDir)
+	newSrc, err := copySrcToTgt(src, tgtDir)
 	if err != nil {
 		return "", err
 	}
@@ -121,14 +121,11 @@ func doCmd(osCmd string, osArgs ...string) error {
 // copyIfNotPresent checks for the src file in the tgtDir.  If it is not there, it attempts to copy if from src to tgtdir.
 // If a copy is performed, the path to the copy is returned.
 // If no copy is performed, the original src string is returned.
-func copyIfNotPresent(src, tgtDir string) (string, error) {
+func copySrcToTgt(src, tgtDir string) (string, error) {
 	base := filepath.Base(src)
-	// Only copy the source image if it does not exist in the temp directory
-	if _, err := os.Stat(filepath.Join(tgtDir, base)); err != nil {
-		if err := doCmd("cp", "-f", src, tgtDir); err != nil {
-			return "", err
-		}
-		src = filepath.Join(tgtDir, base)
+	// Always copy and overwrite source image to tgt
+	if err := doCmd("cp", "-f", src, tgtDir); err != nil {
+		return "", err
 	}
-	return src, nil
+	return filepath.Join(tgtDir, base), nil
 }

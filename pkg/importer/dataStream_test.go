@@ -288,16 +288,15 @@ func TestCopyImage(t *testing.T) {
 
 func createTestData() map[string]string {
 	imageDir, _ := filepath.Abs(testImagesDir)
-
-	// xz data
+	
 	xzfile, _ := framework.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), image.ExtXz)
 	gzfile, _ := framework.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), image.ExtGz)
-	xztarfile, _ := framework.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), []string{image.ExtTar, image.ExtGz}...)
+	tarfile, _ := framework.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), image.ExtTar)
 
 	return map[string]string{
 		".xz":     xzfile,
 		".gz":     gzfile,
-		".tar.xz": xztarfile,
+		".tar":    tarfile,
 	}
 }
 
@@ -323,6 +322,12 @@ func Test_dataStream_constructReaders(t *testing.T) {
 			name:    "successfully construct a gz reader",
 			outfile: "tinyCore.iso.gz",
 			ds:      createDataStream(filepath.Join("file://", testfiles[".gz"]), "", ""),
+			wantErr: false,
+		},
+		{
+			name:    "successfully construct a tar reader",
+			outfile: "tinyCore.iso.tar",
+			ds:      createDataStream(filepath.Join("file://", testfiles[".tar"]), "", ""),
 			wantErr: false,
 		},
 		{
