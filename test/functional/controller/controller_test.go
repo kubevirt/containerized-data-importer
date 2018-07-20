@@ -8,9 +8,11 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	k8stesting "k8s.io/client-go/tools/cache/testing"
+
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 	. "kubevirt.io/containerized-data-importer/pkg/controller"
 )
@@ -47,15 +49,18 @@ var _ = Describe("Controller", func() {
 			podSource.Add(pod)
 		}
 
-		pvcInformer := cache.NewSharedIndexInformer(pvcSource, pvc, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
-		podInformer := cache.NewSharedIndexInformer(podSource, pod, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+		pvcInformerFactory := k8sinformers.NewSharedInformerFactory(fakeClient, DEFAULT_RESYNC_PERIOD)
+		podInformerFactory := k8sinformers.NewSharedInformerFactory(fakeClient, DEFAULT_RESYNC_PERIOD)
+
+		pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims()
+		podInformer := podInformerFactory.Core().V1().Pods()
 
 		controller = NewImportController(fakeClient, pvcInformer, podInformer, IMPORTER_DEFAULT_IMAGE, DEFAULT_PULL_POLICY, verboseDebug)
 
-		go pvcInformer.Run(stop)
-		go podInformer.Run(stop)
-		Expect(cache.WaitForCacheSync(stop, pvcInformer.HasSynced)).To(BeTrue())
-		Expect(cache.WaitForCacheSync(stop, podInformer.HasSynced)).To(BeTrue())
+		go pvcInformerFactory.Start(stop)
+		go podInformerFactory.Start(stop)
+		Expect(cache.WaitForCacheSync(stop, pvcInformer.Informer().HasSynced)).To(BeTrue())
+		Expect(cache.WaitForCacheSync(stop, podInformer.Informer().HasSynced)).To(BeTrue())
 	}
 
 	BeforeEach(func() {
@@ -117,14 +122,6 @@ var _ = Describe("Controller", func() {
 				annotations: map[string]string{AnnEndpoint: "http://www.google.com"},
 				expectError: false,
 			},
-			{
-				descr:       "updated pvc should not process based on annotation AnnImportPod indicating already been processed",
-				ns:          "ns-a",
-				name:        "test-pvc",
-				qops:        opUpdate,
-				annotations: map[string]string{AnnEndpoint: "http://www.google.com", AnnImportPod: "importer-test-pvc"},
-				expectError: true,
-			},
 		}
 		for _, test := range tests {
 			ns := test.ns
@@ -168,27 +165,19 @@ var _ = Describe("Controller", func() {
 		)
 
 		type test struct {
-			desc                     string
-			podAnn                   map[string]string
-			hasVolume, shouldSucceed bool
+			desc          string
+			podLabel      map[string]string
+			shouldSucceed bool
 		}
 		tests := []test{
 			{
-				desc:          fmt.Sprintf("Should annotate the pod phase in the pvc when the pod has annotation \"%s: \"", AnnCreatedBy),
-				podAnn:        map[string]string{AnnCreatedBy: ""},
-				hasVolume:     true,
+				desc:          fmt.Sprintf("Should annotate the pod phase in the pvc when the pod has annotation \"%s: \"", AnnImportPVC),
+				podLabel:      map[string]string{AnnImportPVC: pvcName},
 				shouldSucceed: true,
 			},
 			{
-				desc:          fmt.Sprintf("Should do nothing when the pod is missing annotation \"%s: %s\"", AnnCreatedBy, ""),
-				podAnn:        map[string]string{},
-				hasVolume:     true,
-				shouldSucceed: false,
-			},
-			{
-				desc:          "Should do nothing if there is no volume attached to the pod",
-				podAnn:        map[string]string{AnnCreatedBy: ""},
-				hasVolume:     false,
+				desc:          fmt.Sprintf("Should do nothing when the pod is missing label \"%s: %s\"", AnnImportPVC, ""),
+				podLabel:      map[string]string{},
 				shouldSucceed: false,
 			},
 		}
@@ -198,18 +187,17 @@ var _ = Describe("Controller", func() {
 		}
 
 		for _, t := range tests {
-			podAnn := t.podAnn
+			podLabel := t.podLabel
 			ss := t.shouldSucceed
-			hasVol := t.hasVolume
 			It(t.desc, func() {
 				By("Setting up API objects and starting informers")
 				pvc := createInMemPVC(ns, pvcName, pvcAnn)
-				pod := createInMemPod(ns, pvcName, expectPhase, hasVol, podAnn)
+				pod := createInMemPod(ns, pvc, expectPhase, podLabel)
 				pod.Status.Phase = expectPhase
 				setUpInformers(pvc, pod, ns, opAdd, stop)
 
 				By("Initiating pod phase write to pvc annotation")
-				controller.ProcessNextPodItem()
+				controller.ProcessNextPvcItem()
 				pvc, err := fakeClient.CoreV1().PersistentVolumeClaims(ns).Get(pvcName, metav1.GetOptions{})
 				Expect(err).NotTo(HaveOccurred())
 
@@ -233,24 +221,35 @@ func createInMemPVC(ns, name string, annotations map[string]string) *v1.Persiste
 			Name:        name,
 			Namespace:   ns,
 			Annotations: annotations,
+			UID:         "1234",
 		},
 	}
 }
 
 // createInMemPod generates a pod with the passed-in values.
-func createInMemPod(ns, pvcName string, phase v1.PodPhase, hasVol bool, annotations map[string]string) *v1.Pod {
-	var volName string
-	if hasVol {
-		volName = DataVolName
-	}
+func createInMemPod(ns string, pvc *v1.PersistentVolumeClaim, phase v1.PodPhase, labels map[string]string) *v1.Pod {
+	volName := DataVolName
+	pvcName := pvc.Name
 	genName := fmt.Sprintf("importer-%s-", pvcName)
 
+	blockOwnerDeletion := true
+	isController := true
 	return &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:    ns,
 			GenerateName: genName,
 			Name:         fmt.Sprintf("%s1234", genName),
-			Annotations:  annotations,
+			Labels:       labels,
+			OwnerReferences: []metav1.OwnerReference{
+				metav1.OwnerReference{
+					APIVersion:         "v1",
+					Kind:               "PersistentVolumeClaim",
+					Name:               pvcName,
+					UID:                pvc.GetUID(),
+					BlockOwnerDeletion: &blockOwnerDeletion,
+					Controller:         &isController,
+				},
+			},
 		},
 		Spec: v1.PodSpec{
 			Volumes: []v1.Volume{
@@ -279,7 +278,10 @@ func getImporterPod(fc *fake.Clientset, ns, podName string) (*v1.Pod, error) {
 	}
 	if len(podList.Items) == 0 {
 		return nil, errors.Errorf("Found 0 pods in namespace %q", ns)
+	} else if len(podList.Items) > 1 {
+		return nil, errors.Errorf("Found > 1 pods in namespace %q", ns)
 	}
+
 	for i, p := range podList.Items {
 		if p.GenerateName == podName {
 			return &podList.Items[i], nil
