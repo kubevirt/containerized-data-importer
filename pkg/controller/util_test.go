@@ -657,8 +657,8 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 				AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				CDI_LABEL_KEY: CDI_LABEL_VALUE,
-				AnnImportPVC:  pvc.Name,
+				CDI_LABEL_KEY:  CDI_LABEL_VALUE,
+				LabelImportPvc: pvc.Name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				metav1.OwnerReference{

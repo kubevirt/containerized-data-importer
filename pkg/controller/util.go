@@ -226,7 +226,7 @@ func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.
 			Labels: map[string]string{
 				CDI_LABEL_KEY: CDI_LABEL_VALUE,
 				// this label is used when searching for a pvc's import pod.
-				AnnImportPVC: pvc.Name,
+				LabelImportPvc: pvc.Name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				metav1.OwnerReference{

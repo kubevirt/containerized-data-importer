@@ -26,9 +26,9 @@ const (
 	AnnSecret    = "cdi.kubevirt.io/storage.import.secretName"
 	AnnImportPod = "cdi.kubevirt.io/storage.import.importPodName"
 	// importer pod annotations
-	AnnCreatedBy = "cdi.kubevirt.io/storage.createdByController"
-	AnnPodPhase  = "cdi.kubevirt.io/storage.import.pod.phase"
-	AnnImportPVC = "cdi.kubevirt.io/storage.import.importPvcName"
+	AnnCreatedBy   = "cdi.kubevirt.io/storage.createdByController"
+	AnnPodPhase    = "cdi.kubevirt.io/storage.import.pod.phase"
+	LabelImportPvc = "cdi.kubevirt.io/storage.import.importPvcName"
 )
 
 type ImportController struct {
@@ -230,7 +230,7 @@ func (c *ImportController) ProcessNextPvcItem() bool {
 }
 
 func (c *ImportController) findImportPodFromCache(pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
-	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: map[string]string{AnnImportPVC: pvc.Name}})
+	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: map[string]string{LabelImportPvc: pvc.Name}})
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +271,16 @@ func (c *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	// expectations prevent us from creating multiple pods. An expectation forces
 	// us to observe a pod's creation in the cache.
 	needsSync := c.podExpectations.SatisfiedExpectations(pvcKey)
+
+	// make sure not to reprocess a PVC that has already completed successfully,
+	// even if the pod no longer exists
+	previousPhase, exists := pvc.ObjectMeta.Annotations[AnnPodPhase]
+	if exists && (previousPhase == string(v1.PodSucceeded)) {
+		needsSync = false
+	}
+
 	if pod == nil && needsSync {
+
 		ep, err := getEndpoint(pvc)
 		if err != nil {
 			return err
