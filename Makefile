@@ -19,22 +19,23 @@ DOCKER=1
 		test test-functional test-unit \
 		publish \
 		vet \
-		format
+		format \
+		manifests
 
 all: docker
 
 clean:
 ifeq (${DOCKER}, 1)
-	./hack/build/in-docker "./hack/build/build-go.sh clean && rm -rf bin/* _out/*"
+	./hack/build/in-docker "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/*"
 else
-	"./hack/build/build-go.sh clean && rm -rf bin/* _out/*"
+	./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/*
 endif
 
 build:
 ifeq (${DOCKER}, 1)
-	./hack/build/in-docker "./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
+	./hack/build/in-docker "./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} ./hack/build/build-manifests.sh ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
 else
-	./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}
+	./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-manifests.sh ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}
 endif
 
 build-controller: WHAT = cmd/cdi-controller
@@ -92,4 +93,9 @@ else
 	./hack/build/format.sh
 endif
 
-
+manifests:
+ifeq (${DOCKER}, 1)
+	./hack/build/in-docker "DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} ./hack/build/build-manifests.sh"
+else
+	./hack/build/build-manifests.sh
+endif

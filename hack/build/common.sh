@@ -17,3 +17,5 @@ BIN_DIR=${CDI_DIR}/bin
 OUT_DIR=${CDI_DIR}/_out
 CMD_OUT_DIR=${OUT_DIR}/cmd
 BUILD_DIR=${CDI_DIR}/hack/build
+MANIFEST_TEMPLATE_DIR=${CDI_DIR}/manifests/templates
+MANIFEST_GENERATED_DIR=${CDI_DIR}/manifests/generated

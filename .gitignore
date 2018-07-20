@@ -1,3 +1,4 @@
 .idea
 _out/*
 bin/*
+manifests/generated/*

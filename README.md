@@ -59,23 +59,34 @@ Supported file formats are:
 - An HTTP or S3 file server hosting VM images
 - An optional "golden" namespace acting as the image registry. The `default` namespace is fine for tire kicking.
 
-### Either clone this repo or download the necessary manifests directly:
+### Download CDI
+
+`$ go get kubevirt.io/containerized-data-importer`
+
+*Or*
 
 `$ git clone https://kubevirt.io/containerized-data-importer.git`
 
-*Or*
+*Or download only the yamls:*
 
 ```shell
 $ mkdir cdi-manifests && cd cdi-manifests
 $ wget https://raw.githubusercontent.com/kubevirt/containerized-data-importer/kubevirt-centric-readme/manifests/example/golden-pvc.yaml
 $ wget https://raw.githubusercontent.com/kubevirt/containerized-data-importer/kubevirt-centric-readme/manifests/example/endpoint-secret.yaml
-$ wget https://raw.githubusercontent.com/kubevirt/containerized-data-importer/kubevirt-centric-readme/manifests/controller/controller/cdi-controller-deployment.yaml
 ```
 
 ### Run the CDI Controller
 
-Deploying the CDI controller is straight forward. Choose the namespace where the controller will run and ensure that this namespace has cluster-wide permission to watch all PVCs and pods.
-In this document the _default_ namespace is used, but in a production setup a namespace that is inaccessible to regular users should be used instead. See [Protecting the Golden Image Namespace](#protecting-the-golden-image-namespace) on creating a secure CDI controller namespace.
+Deploying the CDI controller is straight forward. In this document the _default_ namespace is used, but in a production setup a [protected namespace](#protecting-the-golden-image-namespace) that is inaccessible to regular users should be used instead.
+
+1. Deploy the controller from the release manifest:
+
+```
+$ VERSION=<cdi version>
+$ kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-controller-deployment.yaml
+```
+
+**DEPRECATION NOTICE:** The below method will not be supported in releases following v1.1.0 as `manifests/controller/cdi-controller-deployment.yaml` will be removed.  See [Make Targets (manifests)](./hack/README.md#make-targets) for generating manifests locally.
 
 `$ kubectl -n default create -f https://raw.githubusercontent.com/kubevirt/containerized-data-importer/master/manifests/cdi-controller-deployment.yaml`
 

@@ -29,11 +29,11 @@ var (
 	verbose       string
 )
 
-// The optional importer and colner images are obtained here along with the supported flags.
+// The importer and cloner images are obtained here along with the supported flags. IMPORTER_IMAGE and CLONER_IMAGE
+// are required by the controller and will cause it to fail if not defined.
 // Note: kubeconfig hierarchy is 1) -kubeconfig flag, 2) $KUBECONFIG exported var. If neither is
 //   specified we do an in-cluster config. For testing it's easiest to export KUBECONFIG.
 func init() {
-	// optional, importer image.  If not provided, uses IMPORTER_DEFAULT_IMAGE
 	const IMPORTER_IMAGE = "IMPORTER_IMAGE"
 	const CLONER_IMAGE = "CLONER_IMAGE"
 
@@ -45,12 +45,12 @@ func init() {
 	// env variables
 	importerImage = os.Getenv(IMPORTER_IMAGE)
 	if importerImage == "" {
-		importerImage = IMPORTER_DEFAULT_IMAGE
+		glog.Fatalf("Environment Variable %q undefined\n", IMPORTER_IMAGE)
 	}
 
 	clonerImage = os.Getenv(CLONER_IMAGE)
 	if clonerImage == "" {
-		clonerImage = CLONER_DEFAULT_IMAGE
+		glog.Fatalf("Environment Variable %q undefined\n", CLONER_IMAGE)
 	}
 
 	pullPolicy = DEFAULT_PULL_POLICY
