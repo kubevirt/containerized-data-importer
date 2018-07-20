@@ -83,7 +83,7 @@ func Test_dataStream_Read(t *testing.T) {
 		Url         *url.URL
 		Readers     []Reader
 		buf         []byte
-		Qemu        bool
+		qemu        bool
 		Size        int64
 		accessKeyId string
 		secretKey   string
@@ -107,7 +107,7 @@ func Test_dataStream_Read(t *testing.T) {
 				Url:         tt.fields.Url,
 				Readers:     tt.fields.Readers,
 				buf:         tt.fields.buf,
-				qemu:        tt.fields.Qemu,
+				qemu:        tt.fields.qemu,
 				Size:        tt.fields.Size,
 				accessKeyId: tt.fields.accessKeyId,
 				secretKey:   tt.fields.secretKey,

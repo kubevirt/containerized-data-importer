@@ -1,6 +1,4 @@
-// +build unit_test
-
-package importer
+package importer_test
 
 import (
 	"bytes"
