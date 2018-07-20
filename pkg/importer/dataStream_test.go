@@ -1,20 +1,30 @@
 package importer
 
 import (
+	"bufio"
+	"encoding/hex"
+	"fmt"
 	"io"
-	"net/url"
+	"io/ioutil"
+	"math/rand"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/golang/glog"
 	"kubevirt.io/containerized-data-importer/pkg/image"
-	"path/filepath"
+	"kubevirt.io/containerized-data-importer/test/framework"
 )
 
+const testImagesDir = "../../test/images"
+
 func createDataStream(ep, accKey, secKey string) *dataStream {
-	url, _ := ParseEndpoint(ep)
+	dsurl, _ := ParseEndpoint(ep)
 
 	ds := &dataStream{
-		Url:         url,
+		Url:         dsurl,
 		buf:         make([]byte, image.MaxExpectedHdrSize),
 		accessKeyId: accKey,
 		secretKey:   secKey,
@@ -25,6 +35,60 @@ func createDataStream(ep, accKey, secKey string) *dataStream {
 	return ds
 }
 
+func createDataStreamBytes(testfile, ep string, defaultBuf, singlereader bool) (*dataStream, []byte, error) {
+	urlPath := filepath.Join(ep, testfile)
+	if len(ep) == 0 {
+		urlPath = getUrlPath(testfile)
+	}
+	testFilePath := getTestFilePath(testfile)
+	ds := createDataStream(urlPath, "", "")
+
+	// if no file supplied just return empty byte stream
+	if len(testfile) == 0 && !defaultBuf {
+		return ds, nil, nil
+	}
+	if len(testfile) == 0 && defaultBuf {
+		return ds, []byte{'T', 'E', 'S', 'T'}, nil
+	}
+
+	f, _ := os.Open(testFilePath)
+	defer f.Close()
+	testBytes, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Unable to read datastream buffer")
+	}
+
+	return ds, testBytes, nil
+}
+
+func getFileSize(testfile string) (int, error) {
+	f, err := os.Open(getTestFilePath(testfile))
+	defer f.Close()
+	if err != nil {
+		return 0, fmt.Errorf("Unable to open source datastream file %s", getTestFilePath(testfile))
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("Unable to stat file %v", f.Name())
+	}
+
+	return int(fi.Size()), nil
+}
+
+func getTestFilePath(testfile string) string {
+	// CWD is set within go test to the directory of the test
+	// being executed, so using relative path
+	imageDir, _ := filepath.Abs(testImagesDir)
+	return filepath.Join(imageDir, testfile)
+}
+
+func getUrlPath(testfile string) string {
+	// CWD is set within go test to the directory of the test
+	// being executed, so using relative path
+	imageDir, _ := filepath.Abs(testImagesDir)
+	return "file://" + imageDir + "/" + testfile
+}
+
 func TestNewDataStream(t *testing.T) {
 	type args struct {
 		endpt  string
@@ -32,7 +96,7 @@ func TestNewDataStream(t *testing.T) {
 		secKey string
 	}
 
-	imageDir, _ := filepath.Abs("../../test/images")
+	imageDir, _ := filepath.Abs(testImagesDir)
 	localImageBase := filepath.Join("file://", imageDir)
 
 	tests := []struct {
@@ -49,7 +113,7 @@ func TestNewDataStream(t *testing.T) {
 		},
 		{
 			name:    "expect new DataStream to fail with unsupported file type",
-			args:    args{filepath.Join(localImageBase, "image.bad"), "", ""},
+			args:    args{filepath.Join(localImageBase, "badimage.iso"), "", ""},
 			want:    nil,
 			wantErr: true,
 		},
@@ -79,80 +143,62 @@ func TestNewDataStream(t *testing.T) {
 }
 
 func Test_dataStream_Read(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
-	}
-
-	type args struct {
-		buf []byte
-	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    int
-		wantErr bool
+		name     string
+		testFile string
+		wantErr  bool
 	}{
-	// TODO: Add test cases.
+		{
+			name:     "successful read of datastream buffer",
+			testFile: "tinyCore.iso",
+			wantErr:  false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
+			ds, testBytes, errDs := createDataStreamBytes(tt.testFile, "", true, true)
+			if errDs != nil {
+				t.Errorf("error setting up test infrastructure %v", errDs)
 			}
-			got, err := d.Read(tt.args.buf)
+			defer ds.Close()
+
+			got, err := ds.Read(testBytes)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("dataStream.Read() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if got != tt.want {
-				t.Errorf("dataStream.Read() = %v, want %v", got, tt.want)
+			expectedSize, errFs := getFileSize(tt.testFile)
+			if errFs != nil {
+				t.Errorf("error getting test file size %v", errFs)
+				return
+			}
+			if got != expectedSize {
+				t.Errorf("dataStream.Read() sizes do not match = %v, want %v", got, expectedSize)
 			}
 		})
 	}
 }
 
 func Test_dataStream_Close(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
-	}
+	ds, _, errDs := createDataStreamBytes("tinyCore.iso", "", false, false)
+	defer ds.Close()
+
 	tests := []struct {
 		name    string
-		fields  fields
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		{
+			name:    "successfully close all readers",
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
+			if errDs != nil {
+				t.Errorf("error setting up test infrastructure %v", errDs)
+				return
 			}
-			if err := d.Close(); (err != nil) != tt.wantErr {
+			if err := ds.Close(); (err != nil) != tt.wantErr {
 				t.Errorf("dataStream.Close() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -160,158 +206,45 @@ func Test_dataStream_Close(t *testing.T) {
 }
 
 func Test_dataStream_dataStreamSelector(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
-	}
+	imageDir, _ := filepath.Abs(testImagesDir)
+	localImageBase := filepath.Join("file://", imageDir)
+	glog.V(2).Infof("Scott - localImageBase %s", localImageBase)
+
 	tests := []struct {
-		name    string
-		fields  fields
-		wantErr bool
+		name     string
+		testFile string
+		ep       string
+		wantErr  bool
 	}{
-	// TODO: Add test cases.
+		{
+			name:     "success building selector for file",
+			testFile: "tinyCore.iso",
+			ep:       localImageBase,
+			wantErr:  false,
+		},
+		{
+			name:     "fail trying to build selector for invalid http endpoint",
+			testFile: "",
+			ep:       "http://www.google.com",
+			wantErr:  true,
+		},
+		{
+			name:     "fail trying to build invalid selector",
+			testFile: "tinyCore.iso",
+			ep:       "fake://somefakefile",
+			wantErr:  true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := &dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
+			ds, _, errDs := createDataStreamBytes(tt.testFile, tt.ep, false, false)
+			defer ds.Close()
+			if errDs != nil {
+				t.Errorf("error setting up test infrastructure %v", errDs)
+				return
 			}
-			if err := d.dataStreamSelector(); (err != nil) != tt.wantErr {
+			if err := ds.dataStreamSelector(); (err != nil) != tt.wantErr {
 				t.Errorf("dataStream.dataStreamSelector() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func Test_dataStream_s3(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		want    *Reader
-		wantErr bool
-	}{
-	// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
-			}
-			got, err := d.s3()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("dataStream.s3() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("dataStream.s3() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_dataStream_http(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		want    *Reader
-		wantErr bool
-	}{
-	// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
-			}
-			got, err := d.http()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("dataStream.http() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("dataStream.http() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_dataStream_local(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		want    *Reader
-		wantErr bool
-	}{
-	// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
-			}
-			got, err := d.local()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("dataStream.local() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("dataStream.local() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -324,14 +257,27 @@ func TestCopyImage(t *testing.T) {
 		accessKey string
 		secKey    string
 	}
+	imageDir, _ := filepath.Abs(testImagesDir)
+	localImageBase := filepath.Join("file://", imageDir)
+
 	tests := []struct {
 		name    string
 		args    args
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		{
+			name:    "successfully copy local image",
+			args:    args{filepath.Join(os.TempDir(), "cdi-testcopy"), filepath.Join(localImageBase, "tinyCore.iso"), "", ""},
+			wantErr: false,
+		},
+		{
+			name:    "expect failure trying to copy non-existing local image",
+			args:    args{filepath.Join(os.TempDir(), "cdi-testcopy"), filepath.Join(localImageBase, "tinyCoreBad.iso"), "", ""},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
+		defer os.RemoveAll(tt.args.dest)
 		t.Run(tt.name, func(t *testing.T) {
 			if err := CopyImage(tt.args.dest, tt.args.endpoint, tt.args.accessKey, tt.args.secKey); (err != nil) != tt.wantErr {
 				t.Errorf("CopyImage() error = %v, wantErr %v", err, tt.wantErr)
@@ -340,339 +286,72 @@ func TestCopyImage(t *testing.T) {
 	}
 }
 
-func Test_dataStream_constructReaders(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
+func createTestData() map[string]string {
+	imageDir, _ := filepath.Abs(testImagesDir)
+
+	// xz data
+	xzfile, _ := framework.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), image.ExtXz)
+	gzfile, _ := framework.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), image.ExtGz)
+	xztarfile, _ := framework.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), []string{image.ExtTar, image.ExtGz}...)
+
+	return map[string]string{
+		".xz":     xzfile,
+		".gz":     gzfile,
+		".tar.xz": xztarfile,
 	}
+}
+
+func Test_dataStream_constructReaders(t *testing.T) {
+	imageDir, _ := filepath.Abs(testImagesDir)
+	localImageBase := filepath.Join("file://", imageDir)
+
+	testfiles := createTestData()
+
 	tests := []struct {
 		name    string
-		fields  fields
+		outfile string
+		ds      *dataStream
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		{
+			name:    "successfully construct a xz reader",
+			outfile: "tinyCore.iso.xz",
+			ds:      createDataStream(filepath.Join("file://", testfiles[".xz"]), "", ""),
+			wantErr: false,
+		},
+		{
+			name:    "successfully construct a gz reader",
+			outfile: "tinyCore.iso.gz",
+			ds:      createDataStream(filepath.Join("file://", testfiles[".gz"]), "", ""),
+			wantErr: false,
+		},
+		{
+			name:    "successfully construct qcow2 reader",
+			outfile: "",
+			ds:      createDataStream(filepath.Join(localImageBase, "cirros-qcow2.img"), "", ""),
+			wantErr: false,
+		},
+		{
+			name:    "successfully construct .iso reader",
+			outfile: "",
+			ds:      createDataStream(filepath.Join(localImageBase, "tinyCore.iso"), "", ""),
+			wantErr: false,
+		},
+		{
+			name:    "fail constructing reader for invalid file path",
+			outfile: "",
+			ds:      createDataStream(filepath.Join(localImageBase, "tinyCorebad.iso"), "", ""),
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := &dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
-			}
-			if err := d.constructReaders(); (err != nil) != tt.wantErr {
+			if err := tt.ds.constructReaders(); (err != nil) != tt.wantErr {
 				t.Errorf("dataStream.constructReaders() error = %v, wantErr %v", err, tt.wantErr)
 			}
-		})
-	}
-}
-
-func Test_dataStream_topReader(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		want   io.ReadCloser
-	}{
-	// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
-			}
-			if got := d.topReader(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("dataStream.topReader() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_dataStream_fileFormatSelector(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
-	}
-	type args struct {
-		hdr *image.Header
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-	// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := &dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
-			}
-			if err := d.fileFormatSelector(tt.args.hdr); (err != nil) != tt.wantErr {
-				t.Errorf("dataStream.fileFormatSelector() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func Test_dataStream_gzReader(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		want    *Reader
-		want1   int64
-		wantErr bool
-	}{
-	// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
-			}
-			got, got1, err := d.gzReader()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("dataStream.gzReader() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("dataStream.gzReader() got = %v, want %v", got, tt.want)
-			}
-			if got1 != tt.want1 {
-				t.Errorf("dataStream.gzReader() got1 = %v, want %v", got1, tt.want1)
-			}
-		})
-	}
-}
-
-func Test_dataStream_qcow2NopReader(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
-	}
-	type args struct {
-		h *image.Header
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    *Reader
-		want1   int64
-		wantErr bool
-	}{
-	// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
-			}
-			got, got1, err := d.qcow2NopReader(tt.args.h)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("dataStream.qcow2NopReader() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("dataStream.qcow2NopReader() got = %v, want %v", got, tt.want)
-			}
-			if got1 != tt.want1 {
-				t.Errorf("dataStream.qcow2NopReader() got1 = %v, want %v", got1, tt.want1)
-			}
-		})
-	}
-}
-
-func Test_dataStream_xzReader(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		want    *Reader
-		want1   int64
-		wantErr bool
-	}{
-	// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
-			}
-			got, got1, err := d.xzReader()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("dataStream.xzReader() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("dataStream.xzReader() got = %v, want %v", got, tt.want)
-			}
-			if got1 != tt.want1 {
-				t.Errorf("dataStream.xzReader() got1 = %v, want %v", got1, tt.want1)
-			}
-		})
-	}
-}
-
-func Test_dataStream_tarReader(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		want    *Reader
-		want1   int64
-		wantErr bool
-	}{
-	// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
-			}
-			got, got1, err := d.tarReader()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("dataStream.tarReader() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("dataStream.tarReader() got = %v, want %v", got, tt.want)
-			}
-			if got1 != tt.want1 {
-				t.Errorf("dataStream.tarReader() got1 = %v, want %v", got1, tt.want1)
-			}
-		})
-	}
-}
-
-func Test_dataStream_matchHeader(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
-	}
-	type args struct {
-		knownHdrs *image.Headers
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    *image.Header
-		wantErr bool
-	}{
-	// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
-			}
-			got, err := d.matchHeader(tt.args.knownHdrs)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("dataStream.matchHeader() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("dataStream.matchHeader() = %v, want %v", got, tt.want)
+			defer tt.ds.Close()
+			if len(tt.outfile) > 0 {
+				os.Remove(filepath.Join(os.TempDir(), tt.outfile))
 			}
 		})
 	}
@@ -682,56 +361,29 @@ func Test_closeReaders(t *testing.T) {
 	type args struct {
 		readers []Reader
 	}
+
+	rdrs1 := ioutil.NopCloser(strings.NewReader("test data for reader 1"))
+	rdrs2 := ioutil.NopCloser(strings.NewReader("test data for reader 2"))
+	rdrA := Reader{4, rdrs1}
+	rdrB := Reader{7, rdrs2}
+
+	rdrsTest := []Reader{rdrA, rdrB}
+
 	tests := []struct {
 		name    string
 		args    args
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		{
+			name:    "successfully close reader",
+			args:    args{rdrsTest},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := closeReaders(tt.args.readers); (err != nil) != tt.wantErr {
 				t.Errorf("closeReaders() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func Test_dataStream_copy(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
-	}
-	type args struct {
-		dest string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-	// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
-			}
-			if err := d.copy(tt.args.dest); (err != nil) != tt.wantErr {
-				t.Errorf("dataStream.copy() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
@@ -743,15 +395,37 @@ func Test_copy(t *testing.T) {
 		out  string
 		qemu bool
 	}
+	rdrs1 := strings.NewReader("test data for reader 1")
+
+	imageDir, _ := filepath.Abs(testImagesDir)
+	file := filepath.Join(imageDir, "cirros-qcow2.img")
+	rdrfile, _ := os.Open(file)
+	rdrs2 := bufio.NewReader(rdrfile)
+
 	tests := []struct {
 		name    string
 		args    args
 		wantErr bool
 	}{
-	// TODO: Add test cases.
+		{
+			name:    "successfully copy reader",
+			args:    args{rdrs1, "testoutfile", false},
+			wantErr: false,
+		},
+		{
+			name:    "successfully copy qcow2 reader",
+			args:    args{rdrs2, "testqcow2file", true},
+			wantErr: false,
+		},
+		{
+			name:    "expect error trying to copy invalid format",
+			args:    args{rdrs2, "testinvalidfile", true},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			defer os.Remove(tt.args.out)
 			if err := copy(tt.args.r, tt.args.out, tt.args.qemu); (err != nil) != tt.wantErr {
 				t.Errorf("copy() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -760,60 +434,31 @@ func Test_copy(t *testing.T) {
 }
 
 func Test_randTmpName(t *testing.T) {
+	const numbyte = 8
+
 	type args struct {
 		src string
 	}
 	tests := []struct {
 		name string
 		args args
-		want string
 	}{
-	// TODO: Add test cases.
+		{
+			name: "create expected random name",
+			args: args{"testfile.img"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := randTmpName(tt.args.src); got != tt.want {
-				t.Errorf("randTmpName() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
+			randName := make([]byte, numbyte)
+			rand.Read(randName)
+			wantString := hex.EncodeToString(randName)
 
-func Test_dataStream_parseDataPath(t *testing.T) {
-	type fields struct {
-		Url         *url.URL
-		Readers     []Reader
-		buf         []byte
-		qemu        bool
-		Size        int64
-		accessKeyId string
-		secretKey   string
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		want   string
-		want1  string
-	}{
-	// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := dataStream{
-				Url:         tt.fields.Url,
-				Readers:     tt.fields.Readers,
-				buf:         tt.fields.buf,
-				qemu:        tt.fields.qemu,
-				Size:        tt.fields.Size,
-				accessKeyId: tt.fields.accessKeyId,
-				secretKey:   tt.fields.secretKey,
-			}
-			got, got1 := d.parseDataPath()
-			if got != tt.want {
-				t.Errorf("dataStream.parseDataPath() got = %v, want %v", got, tt.want)
-			}
-			if got1 != tt.want1 {
-				t.Errorf("dataStream.parseDataPath() got1 = %v, want %v", got1, tt.want1)
+			got := randTmpName(tt.args.src)
+			_, fn := filepath.Split(got)
+
+			if len(fn) != len(tt.args.src)+len(wantString) {
+				t.Errorf("randTmpName() length does not match = %v, want %v  -  %s   %s", len(fn), len(tt.args.src)+len(wantString), fn, tt.args.src+wantString)
 			}
 		})
 	}
