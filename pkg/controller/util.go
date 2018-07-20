@@ -7,7 +7,6 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
-	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -212,6 +211,8 @@ func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.
 	// importer pod name contains the pvc name
 	podName := fmt.Sprintf("%s-%s-", IMPORTER_PODNAME, pvc.Name)
 
+	blockOwnerDeletion := true
+	isController := true
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -228,7 +229,14 @@ func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.
 				AnnImportPVC: pvc.Name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(pvc, appsv1.SchemeGroupVersion.WithKind("PersistentVolumeClaim")),
+				metav1.OwnerReference{
+					APIVersion:         "v1",
+					Kind:               "PersistentVolumeClaim",
+					Name:               pvc.Name,
+					UID:                pvc.GetUID(),
+					BlockOwnerDeletion: &blockOwnerDeletion,
+					Controller:         &isController,
+				},
 			},
 		},
 		Spec: v1.PodSpec{
@@ -409,8 +417,8 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, pvcName string, generate
 	return pod
 }
 
-func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose string, pullPolicy string, 
-			pvc *v1.PersistentVolumeClaim, generatedLabelStr string, podAffinityNamespace string) (*v1.Pod, error) {
+func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose string, pullPolicy string,
+	pvc *v1.PersistentVolumeClaim, generatedLabelStr string, podAffinityNamespace string) (*v1.Pod, error) {
 	ns := pvc.Namespace
 	pod := MakeCloneTargetPodSpec(image, verbose, pullPolicy, pvc, generatedLabelStr, podAffinityNamespace)
 
@@ -456,7 +464,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy string, pvc *v1.Persisten
 									},
 								},
 							},
-							Namespaces: []string{podAffinityNamespace},
+							Namespaces:  []string{podAffinityNamespace},
 							TopologyKey: CLONING_TOPOLOGY_KEY,
 						},
 					},

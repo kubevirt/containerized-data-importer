@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"testing"
 
-	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -548,56 +547,7 @@ func TestMakeImporterPodSpec(t *testing.T) {
 	// create PVC
 	pvc := createPvc("testPVC2", "default", nil, nil)
 
-	podName := fmt.Sprintf("%s-%s-", IMPORTER_PODNAME, pvc.Name)
-
-	pod := &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: podName,
-			Annotations: map[string]string{
-				AnnCreatedBy: "yes",
-			},
-			Labels: map[string]string{
-				CDI_LABEL_KEY: CDI_LABEL_VALUE,
-				AnnImportPVC:  pvc.Name,
-			},
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(pvc, appsv1.SchemeGroupVersion.WithKind("PersistentVolumeClaim")),
-			},
-		},
-		Spec: v1.PodSpec{
-			Containers: []v1.Container{
-				{
-					Name:            IMPORTER_PODNAME,
-					Image:           "test/image",
-					ImagePullPolicy: v1.PullPolicy("Always"),
-					VolumeMounts: []v1.VolumeMount{
-						{
-							Name:      DataVolName,
-							MountPath: IMPORTER_DATA_DIR,
-						},
-					},
-					Args: []string{"-v=5"},
-				},
-			},
-			RestartPolicy: v1.RestartPolicyNever,
-			Volumes: []v1.Volume{
-				{
-					Name: DataVolName,
-					VolumeSource: v1.VolumeSource{
-						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
-							ClaimName: pvc.Name,
-							ReadOnly:  false,
-						},
-					},
-				},
-			},
-		},
-	}
-	pod.Spec.Containers[0].Env = makeEnv("", "")
+	pod := createPod(pvc, DataVolName)
 
 	tests := []struct {
 		name    string
@@ -606,7 +556,7 @@ func TestMakeImporterPodSpec(t *testing.T) {
 	}{
 		{
 			name:    "expect pod to be created",
-			args:    args{"test/image", "5", "Always", "", "", pvc},
+			args:    args{"test/myimage", "5", "Always", "", "", pvc},
 			wantPod: pod,
 		},
 	}
@@ -615,7 +565,7 @@ func TestMakeImporterPodSpec(t *testing.T) {
 			got := MakeImporterPodSpec(tt.args.image, tt.args.verbose, tt.args.pullPolicy, tt.args.ep, tt.args.secret, tt.args.pvc)
 
 			if !reflect.DeepEqual(got, tt.wantPod) {
-				t.Errorf("MakeImporterPodSpec() = %v, want %v", got, tt.wantPod)
+				t.Errorf("MakeImporterPodSpec() =\n%v\n, want\n%v", got, tt.wantPod)
 			}
 
 		})
@@ -693,6 +643,9 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 	// importer pod name contains the pvc name
 	podName := fmt.Sprintf("%s-%s-", IMPORTER_PODNAME, pvc.Name)
 
+	blockOwnerDeletion := true
+	isController := true
+
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -708,7 +661,14 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 				AnnImportPVC:  pvc.Name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(pvc, appsv1.SchemeGroupVersion.WithKind("PersistentVolumeClaim")),
+				metav1.OwnerReference{
+					APIVersion:         "v1",
+					Kind:               "PersistentVolumeClaim",
+					Name:               pvc.Name,
+					UID:                pvc.GetUID(),
+					BlockOwnerDeletion: &blockOwnerDeletion,
+					Controller:         &isController,
+				},
 			},
 		},
 		Spec: v1.PodSpec{
