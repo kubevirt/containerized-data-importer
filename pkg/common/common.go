@@ -9,9 +9,6 @@ import (
 // TODO: maybe the vm cloner can use these common values
 
 const (
-	CDI_VERSION = "v1.0.0"
-
-	IMPORTER_DEFAULT_IMAGE = "docker.io/kubevirt/cdi-importer:" + CDI_VERSION
 	CDI_LABEL_KEY          = "app"
 	CDI_LABEL_VALUE        = "containerized-data-importer"
 	CDI_LABEL_SELECTOR     = CDI_LABEL_KEY + "=" + CDI_LABEL_VALUE
@@ -31,7 +28,6 @@ const (
 	IMPORTER_ACCESS_KEY_ID = "IMPORTER_ACCESS_KEY_ID"
 	IMPORTER_SECRET_KEY    = "IMPORTER_SECRET_KEY"
 
-	CLONER_DEFAULT_IMAGE  = "docker.io/kubevirt/cdi-cloner:" + CDI_VERSION
 	CLONING_LABEL_KEY     = "cloning"
 	CLONING_LABEL_VALUE   = "host-assisted-cloning"
 	CLONING_TOPOLOGY_KEY  = "kubernetes.io/hostname"

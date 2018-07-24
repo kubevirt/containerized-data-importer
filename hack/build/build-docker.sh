@@ -43,7 +43,7 @@ for tgt in ${targets}; do
         docker "${docker_opt}" "${IMAGE}"
     elif [ "${docker_opt}" == "publish" ]; then
         if [ -z "${TRAVIS}" ]; then
-            echo "Publishing releases should only be performed by the CI."
+            echo "Publishing releases should only be performed by the CI. "
             exit 1
         fi
         docker "${docker_opt}" ${IMAGE}

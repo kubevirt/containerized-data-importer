@@ -14,6 +14,8 @@ import (
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 )
 
+const CLONER_DEFAULT_IMAGE = "kubevirt/cdi-cloner:latest"
+
 func TestNewCloneController(t *testing.T) {
 	type args struct {
 		client      kubernetes.Interface

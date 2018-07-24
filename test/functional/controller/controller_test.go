@@ -21,6 +21,7 @@ const (
 	opAdd operation = iota
 	opUpdate
 	opDelete
+	IMPORTER_DEFAULT_IMAGE = "kubevirt/cdi-importer:latest"
 )
 
 var verboseDebug = fmt.Sprintf("%d", Vdebug)

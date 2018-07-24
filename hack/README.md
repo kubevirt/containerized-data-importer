@@ -19,13 +19,14 @@ The standard workflow is performed inside a helper container to normalize the bu
 
 `$ make all` executes the full workflow.  For granular control of the workflow, several Make targets are defined:
 
-**Make Targets**
+#### Make Targets
 
 - `all`: cleans up previous build artifacts, compiles all CDI packages and builds containers
 - `clean`: cleans up previous build artifacts
-- `build`: compile all CDI binary artifacts
+- `build`: compile all CDI binary artifacts and generate controller manifest
     - `build-controller`: compile cdi-controller binary
     - `build-importer`: compile cdi-importer binary
+    - No `build-cloner` target exists as the code is written in bash
 - `test`: execute all tests
     - `test-unit`: execute all tests under `./pkg`
     - `test-functional`: execute all tests under `./test`
@@ -33,21 +34,26 @@ The standard workflow is performed inside a helper container to normalize the bu
     - `docker-controller`: compile cdi-controller and build cdi-controller image
     - `docker-importer`: compile cdi-importer and build cdi-importer image
     - `docker-cloner`: build the cdi-cloner image (cloner is driven by a shell script, not a binary)
+- `manifests`: Generate a cdi-controller manifest in `manifests/generated/`.  Accepts [make variables](#make-variables) DOCKER_TAG, DOCKER_REPO, VERBOSITY, and PULL_POLICY
 - `push`: compiles, builds, and pushes to the repo passed in `DOCKER_REPO=<my repo>`
-    - push-controller: compile, build, and push cdi-controller
-    - push-importer: compile, build, and push cdi-importer
-    - push-cloner: compile, build, and push cdi-cloner
+    - `push-controller`: compile, build, and push cdi-controller
+    - `push-importer`: compile, build, and push cdi-importer
+    - `push-cloner`: compile, build, and push cdi-cloner
 - `vet`: lint all CDI packages
 - `format`: Execute `shfmt`, `goimports`, and `go vet` on all CDI packages.  Writes back to the source files.
 - `publish`: CI ONLY - this recipe is not intended for use by developers
 
-**Make Variables**
+#### Make Variables
 
 Several variables are provided to alter the targets of the above `Makefile` recipes.
 
-- `WHAT`:  The path from the repo root to a target directory (e.g. `make test WHAT=pkg/importer`)
-- `DOCKER_REPO`: (default: kubevirt) The docker repo to which images are pushed.  Used with `make push` to upload images to non-kubevirt repos.
-- `DOCKER_TAG`: (default: latest) The value with which new images are tagged.
+These may be passed to a target as `$ make VARIABLE=value target`
+
+- `WHAT`:  The path from the repository root to a target directory (e.g. `make test WHAT=pkg/importer`)
+- `DOCKER_REPO`: (default: kubevirt) Set repo globally for image and manifest creation
+- `DOCKER_TAG`: (default: latest) Set global version tags for image and manifest creation
+- `VERBOSITY`: (default: 1) Set global log level verbosity
+- `PULL_POLICY`: (default: IfNotPresent) Set global CDI pull policy
 
 ### Submit PRs
 

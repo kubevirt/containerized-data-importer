@@ -26,6 +26,8 @@ CLONER_MAIN="cmd/${CLONER}"
 DOCKER_IMAGES="cmd/${CONTROLLER} cmd/${IMPORTER} cmd/${CLONER}"
 DOCKER_REPO=${DOCKER_REPO:-kubevirt}
 DOCKER_TAG=${DOCKER_TAG:-latest}
+VERBOSITY=${VERBOSITY:-1}
+PULL_POLICY=${PULL_POLICY:-IfNotPresent}
 
 function allPkgs {
     ret=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./... | grep -v -E "vendor|pkg/client" | sort -u ))

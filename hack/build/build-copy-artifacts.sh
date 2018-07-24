@@ -22,18 +22,14 @@ source "${script_dir}"/config.sh
 
 targets="${@:-${DOCKER_IMAGES}}"
 
-if [ -z "${targets}" ]; then
-    targets=${DOCKER_IMAGES}
-fi
-
 for tgt in ${targets}; do
-    BIN_NAME="$(basename ${tgt})"
+    bin_name="$(basename ${tgt})"
+    dest_dir="${CMD_OUT_DIR}/${bin_name}/"
     # Cloner has no build artifact, copy script.sh as well
-    if [[ "${BIN_NAME}" == "${CLONER}" ]]; then
-        mkdir -p "${CMD_OUT_DIR}/${BIN_NAME}/"
-        cp -f "${CDI_DIR}/cmd/${BIN_NAME}/script.sh" "${CMD_OUT_DIR}/${BIN_NAME}/"
+    if [[ "${bin_name}" == "${CLONER}" ]]; then
+        mkdir -p "${CMD_OUT_DIR}/${bin_name}/"
+        cp -f "${CDI_DIR}/cmd/${bin_name}/script.sh" "${dest_dir}"
     fi
     # Copy respective docker files to the directory of the build artifact
-    cp -f "${BUILD_DIR}/docker/${BIN_NAME}/Dockerfile" "${CMD_OUT_DIR}/${BIN_NAME}/"
-
+    cp -f "${BUILD_DIR}/docker/${bin_name}/Dockerfile" "${dest_dir}"
 done
