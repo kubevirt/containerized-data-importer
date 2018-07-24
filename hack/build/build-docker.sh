@@ -46,6 +46,6 @@ for tgt in ${targets}; do
             echo "Publishing releases should only be performed by the CI. "
             exit 1
         fi
-        docker "${docker_opt}" ${IMAGE}
+        docker push ${IMAGE}
     fi
 done
