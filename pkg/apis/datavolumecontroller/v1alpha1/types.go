@@ -37,10 +37,19 @@ type DataVolumeSpec struct {
 }
 
 type DataVolumeSource struct {
-	HTTP *DataVolumeSourceHTTP `json:"http,omitempty"`
-	S3   *DataVolumeSourceS3   `json:"s3,omitempty"`
+	HTTP  *DataVolumeSourceHTTP  `json:"http,omitempty"`
+	S3    *DataVolumeSourceS3    `json:"s3,omitempty"`
+	Clone *DataVolumeSourceClone  `json:"clone,omitempty"`	
 }
 
+type DataVolumeSourceClone struct {
+	PVC PersistentVolumeClaim  `json:"pvc,omitempty"`
+}
+
+type PersistentVolumeClaim struct {
+	Name string `json:"name,omitempty"`
+}
+	
 type DataVolumeSourceS3 struct {
 	URL       string `json:"url,omitempty"`
 	SecretRef string `json:"secretRef,omitempty"`

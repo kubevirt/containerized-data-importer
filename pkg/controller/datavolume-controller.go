@@ -448,6 +448,8 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 		if dataVolume.Spec.Source.S3.SecretRef != "" {
 			annotations[AnnSecret] = dataVolume.Spec.Source.S3.SecretRef
 		}
+	} else if dataVolume.Spec.Source.Clone != nil {
+		annotations[AnnCloneRequest] = dataVolume.Spec.Source.Clone.PVC.Name
 	} else {
 		return nil, errors.Errorf("no source set for datavolume")
 	}
