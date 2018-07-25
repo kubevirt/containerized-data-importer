@@ -18,11 +18,7 @@ script_dir="$(readlink -f $(dirname $0))"
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
-templates="$@"
-if [ -z "${templates}" ]; then
-    templates="$(find "${MANIFEST_TEMPLATE_DIR}" -name *.in -type f)"
-fi
-
+templates="$(find "${MANIFEST_TEMPLATE_DIR}" -name *.in -type f)"
 generator="${BIN_DIR}/manifest-generator"
 
 (cd "${CDI_DIR}/tools/manifest-generator/" && go build -o "${generator}" ./...)
