@@ -20,22 +20,23 @@ DOCKER=1
 		publish \
 		vet \
 		format \
-		manifests
+		manifests \
+		goveralls
 
 all: docker
 
 clean:
 ifeq (${DOCKER}, 1)
-	./hack/build/in-docker "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/*"
+	./hack/build/in-docker "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile"
 else
-	./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/*
+	./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile
 endif
 
 build:
 ifeq (${DOCKER}, 1)
 	./hack/build/in-docker "./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} ./hack/build/build-manifests.sh ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
 else
-	./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-manifests.sh ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}
+	./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-manifests.sh && ./hack/build/build-copy-artifacts.sh ${WHAT}
 endif
 
 build-controller: WHAT = cmd/cdi-controller
@@ -99,3 +100,6 @@ ifeq (${DOCKER}, 1)
 else
 	./hack/build/build-manifests.sh
 endif
+
+goveralls:
+	./hack/build/in-docker "TRAVIS_JOB_ID=${TRAVIS_JOB_ID} TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST} TRAVIS_BRANCH=${TRAVIS_BRANCH} ./hack/build/goveralls.sh"

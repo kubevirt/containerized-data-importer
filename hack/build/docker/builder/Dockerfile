@@ -16,6 +16,9 @@ RUN \
     go install ./... ) && \
     ( cd $GOPATH/src/mvdan.cc/sh/cmd/shfmt && \
     git checkout v2.5.0 -b build-v2.5.0 && \
+    go install ./... ) && \
+    ( go get -d github.com/mattn/goveralls && \
+    cd $GOPATH/src/github.com/mattn/goveralls && \
     go install ./... )
 
 ADD entrypoint.sh /entrypoint.sh
