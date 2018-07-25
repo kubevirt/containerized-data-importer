@@ -51,15 +51,17 @@ elif [ "${go_opt}" == "build" ]; then
 		if [[ "${BIN_NAME}" == "${CLONER}" ]]; then
 		    continue
 		fi
-		rm -f ${CMD_OUT_DIR}/${BIN_NAME}/${BIN_NAME}
-		rm -f ${BIN_DIR}/${BIN_NAME}
+		outFile=${CMD_OUT_DIR}/${BIN_NAME}/${BIN_NAME}
+		outLink=${BIN_DIR}/${BIN_NAME}
+		rm -f ${outFile}
+		rm -f ${outLink}
 		(
 			cd $tgt
 
             # Only build executables for linux amd64
-			GOOS=linux GOARCH=amd64 go build -o ${CMD_OUT_DIR}/${BIN_NAME}/${BIN_NAME} -ldflags '-extldflags "static"'
+			GOOS=linux GOARCH=amd64 go build -o ${outFile} -ldflags '-extldflags "static"'
 
-			ln -sf ${BIN_NAME} ${CDI_DIR}/bin/${BIN_NAME}
+			ln -sf ${outFile} ${outLink}
 		)
 	done
 else # Pass go commands directly on to packages except vendor
