@@ -20,13 +20,14 @@ DOCKER=1
 		publish \
 		vet \
 		format \
-		manifests
+		manifests \
+		goveralls
 
 all: docker
 
 clean:
 ifeq (${DOCKER}, 1)
-	./hack/build/in-docker "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/*"
+	./hack/build/in-docker "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile"
 else
 	./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/*
 endif
@@ -99,3 +100,6 @@ ifeq (${DOCKER}, 1)
 else
 	./hack/build/build-manifests.sh
 endif
+
+goveralls:
+	./hack/build/in-docker "TRAVIS_JOB_ID=${TRAVIS_JOB_ID} TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST} TRAVIS_BRANCH=${TRAVIS_BRANCH} ./hack/build/goveralls.sh"
