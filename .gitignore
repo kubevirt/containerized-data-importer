@@ -2,3 +2,4 @@
 _out/*
 bin/*
 manifests/generated/*
+.coverprofile
