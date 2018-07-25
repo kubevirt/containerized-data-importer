@@ -29,7 +29,7 @@ clean:
 ifeq (${DOCKER}, 1)
 	./hack/build/in-docker "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile"
 else
-	./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/*
+	./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile
 endif
 
 build:

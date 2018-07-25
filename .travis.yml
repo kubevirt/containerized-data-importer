@@ -47,7 +47,7 @@ script:
 - "sed \"s#cdi.kubevirt.io/storage.import.endpoint:.*#cdi.kubevirt.io/storage.import.endpoint: \"$SRC#\"\" manifests/example/golden-pvc.yaml | kubectl apply -f -"
 - k_wait_all_running pods
 - kubectl get pods --all-namespaces
-- if [[ $TRAVIS_REPO_SLUG == "kubevirt/containerized-data-importer" ]]; then make goveralls && make test-functional; else make test; fi
+- if [[ ${TRAVIS_PULL_REQUEST} == 'false' ]]; then make goveralls && make test-functional; else make test; fi
 
 before_deploy:
 - git remote set-url origin https://"${GH_USER}":"${GH_TOKEN}"@github.com/kubevirt/containerized-data-importer.git
