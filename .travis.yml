@@ -81,6 +81,8 @@ deploy:
   skip_cleanup: true
   file_glob: true
   file:
-  - bin/*
-  - manifests/generated/cdi-controller-deployment.yaml
+  - _out/cmd/cdi-controller/cdi-controller
+  - _out/cmd/cdi-importer/cdi-importer
+  - _out/cmd/cdi-cloner/script.sh
+  - manifests/generated/cdi-controller.yaml
   - manifests/example/*
