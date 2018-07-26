@@ -30,6 +30,6 @@ VERBOSITY=${VERBOSITY:-1}
 PULL_POLICY=${PULL_POLICY:-IfNotPresent}
 
 function allPkgs {
-    ret=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./... | grep -v -E "vendor|pkg/client" | sort -u ))
+    ret=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./... | grep -v "pkg/client" | sort -u ))
     echo "$ret"
 }

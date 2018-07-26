@@ -1,5 +1,16 @@
 ## Getting Started For Developers
 
+* [Download CDI](#download-cdi)
+    * [Lint, Test, Build](#lint-test-build)
+        * [Make Targets](#make-targets)
+        * [Make Variables](#make-variables)
+        * [Submit PRs](#submit-prs)
+        * [Releases](#releases)
+        * [Vendoring Dependencies](#vendoring-dependencies)
+        * [S3 Compatible Client Setup](#s3-compatible-client-setup)
+            * [AWS S3 CLI](#aws-s3-cli)
+            * [Minio CLI](#minio-cli)
+
 ### Download CDI
 
 To download the source directly, simply
@@ -58,6 +69,10 @@ These may be passed to a target as `$ make VARIABLE=value target`
 ### Submit PRs
 
 All PRs should originate from forks of kubevirt.io/containerized-data-importer.  Work should not be done directly in the upstream repository.  Open new working branches from master/HEAD of your forked repository and push them to your remote repo.  Then submit PRs of the working branch against the upstream master branch.
+
+### Releases
+
+Release practices are described in the [release doc](/doc/releases.md).
 
 ### Vendoring Dependencies
 
