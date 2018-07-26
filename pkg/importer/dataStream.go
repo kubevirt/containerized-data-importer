@@ -90,19 +90,18 @@ func NewDataStream(endpt, accKey, secKey string) (*dataStream, error) {
 		secretKey:   secKey,
 	}
 
-	// establish readers for each nested format types in the endpoint
+	// establish readers for endpoint's formats and do initial calc of size of raw endpt
 	err = ds.constructReaders()
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to construct readers")
 	}
-	if ds.Size > 0 { // done, we determined the size of the original endpoint file
-		return ds, nil
-	}
 
-	// the endpoint's file size is zero, if it's an iso file then compute its orig size
-	ds.Size, err = ds.isoSize()
-	if err != nil {
-		return nil, errors.Wrapf(err, "unable to calculate iso file size")
+	// if the endpoint's file size is zero and it's an iso file then compute its orig size
+	if ds.Size == 0 {
+		ds.Size, err = ds.isoSize()
+		if err != nil {
+			return nil, errors.Wrapf(err, "unable to calculate iso file size")
+		}
 	}
 	glog.V(Vdebug).Infof("NewDataStream: endpoint %q's computed byte size: %d", ep, ds.Size)
 	return ds, nil
