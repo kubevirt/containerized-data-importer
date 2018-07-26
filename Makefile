@@ -12,8 +12,6 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-DOCKER=1
-
 .PHONY: build build-controller build-importer \
 		docker docker-controller docker-cloner docker-importer \
 		test test-functional test-unit \
@@ -21,23 +19,24 @@ DOCKER=1
 		vet \
 		format \
 		manifests \
-		goveralls
+		goveralls \
+		release-description
+
+DOCKER=1
+ifeq (${DOCKER}, 1)
+DO=./hack/build/in-docker
+else
+DO=eval
+endif
 
 all: docker
 
 clean:
-ifeq (${DOCKER}, 1)
-	./hack/build/in-docker "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile"
-else
-	./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile
-endif
+	${DO} "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile release-announcement"
 
 build:
-ifeq (${DOCKER}, 1)
-	./hack/build/in-docker "./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} ./hack/build/build-manifests.sh ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
-else
-	./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-manifests.sh && ./hack/build/build-copy-artifacts.sh ${WHAT}
-endif
+	${DO} "./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} ./hack/build/build-manifests.sh ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
+
 
 build-controller: WHAT = cmd/cdi-controller
 build-controller: build
@@ -46,11 +45,7 @@ build-importer: build
 # Note, the cloner is a bash script and has nothing to build
 
 test:
-ifeq (${DOCKER}, 1)
-	./hack/build/in-docker "./hack/build/build-go.sh test ${WHAT}"
-else
-	./hack/build/build-go.sh test ${WHAT}
-endif
+	 ${DO} "./hack/build/build-go.sh test ${WHAT}"
 
 test-unit: WHAT = pkg/
 test-unit: test
@@ -81,25 +76,16 @@ publish: docker
 	./hack/build/build-docker.sh publish ${WHAT}
 
 vet:
-ifeq (${DOCKER}, 1)
-	./hack/build/in-docker "./hack/build/build-go.sh vet ${WHAT}"
-else
-	./hack/build/build-go.sh vet ${WHAT}
-endif
+	${DO} "./hack/build/build-go.sh vet ${WHAT}"
 
 format:
-ifeq (${DOCKER}, 1)
-	./hack/build/in-docker "./hack/build/format.sh"
-else
-	./hack/build/format.sh
-endif
+	${DO} "./hack/build/format.sh"
 
 manifests:
-ifeq (${DOCKER}, 1)
-	./hack/build/in-docker "DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} ./hack/build/build-manifests.sh"
-else
-	./hack/build/build-manifests.sh
-endif
+	${DO} "DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} ./hack/build/build-manifests.sh"
 
 goveralls:
-	./hack/build/in-docker "TRAVIS_JOB_ID=${TRAVIS_JOB_ID} TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST} TRAVIS_BRANCH=${TRAVIS_BRANCH} ./hack/build/goveralls.sh"
+	${DO} "TRAVIS_JOB_ID=${TRAVIS_JOB_ID} TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST} TRAVIS_BRANCH=${TRAVIS_BRANCH} ./hack/build/goveralls.sh"
+
+release-description:
+	./hack/build/release-description.sh ${RELREF} ${PREREF}
