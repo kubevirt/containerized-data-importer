@@ -1,4 +1,4 @@
-package importer_test
+package datastream
 
 import (
 	"fmt"
@@ -23,7 +23,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 
 	Context("when data is in a supported file format", func() {
 		const (
-			baseImageRelPath = "../../images"
+			baseImageRelPath = "../../../images"
 			baseImage        = "tinyCore"
 			baseImageExt     = ".iso"
 			baseImageIso     = baseImage + baseImageExt
