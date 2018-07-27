@@ -1,10 +1,28 @@
 package size
 
 import (
+	"fmt"
+	"path/filepath"
+
 	"testing"
 )
 
+const (
+	baseImageRelPath = "../../../test/images"
+	tinyCore	 = "tinyCore.iso"
+	cirros		 = "cirros-qcow2.img"
+)
+
 func TestSize(t *testing.T) {
+	testImg1, err := filepath.Abs(filepath.Join(baseImageRelPath, tinyCore))
+	if err != nil {
+		t.Fatalf("failed to get %q source image Abs path: %v\n", tinyCore, err)
+	}
+	testImg2, err := filepath.Abs(filepath.Join(baseImageRelPath, cirros))
+	if err != nil {
+		t.Fatalf("failed to get %q source image Abs path: %v\n", cirros, err)
+	}
+
 	type args struct {
 		endpoint  string
 		accessKey string
@@ -18,24 +36,25 @@ func TestSize(t *testing.T) {
 		high  int64 // highest acceptable size due to variations in iso hdrs
 	}{
 		{
-			name:  "small tinyCore.iso file size",
-			args:  args{"file:///root/go/src/kubevirt.io/containerized-data-importer/tinyCore.iso", "", ""},
+			name:  "tinyCore file size",
+			args:  args{testImg1, "", ""},
 			low:   17860000,
 			exact: 18874368,
 			high:  18900000,
 		},
 		{
-			name:  "large windows .iso.xz file size",
-			args:  args{"file:///root/go/src/kubevirt.io/containerized-data-importer/en_windows_server_2016_updated_feb_2018_x64_dvd_11636692.iso.xz", "", ""},
-			low:   6006580000,
-			exact: 6006587392,
-			high:  6006590000,
+			name:  "cirros-qcow2 file size",
+			args:  args{testImg2, "", ""},
+			low:   46137344,
+			exact: 46137344,
+			high:  46137344,
 		},
 	}
 	for _, tt := range tests {
-		ep := tt.args.endpoint
-		t.Logf("** testing endpoint=%s\n", ep)
-		t.Run(tt.name, func(t *testing.T) {
+		ep := fmt.Sprintf("file://%s", tt.args.endpoint)
+		descr := fmt.Sprintf("testing %q file size", ep)
+		t.Log(descr)
+		t.Run(descr, func(t *testing.T) {
 			got, err := Size(ep, tt.args.accessKey, tt.args.secKey)
 			if err != nil {
 				t.Errorf("Size() error: %v", err)
