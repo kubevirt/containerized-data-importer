@@ -160,23 +160,31 @@ var _ = Describe("Streaming Data Conversion", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By(fmt.Sprintf("Checking size of the output file %q", testTarget))
+				var targetSize int64
 				if useVSize {
 					By("... using output image's virtual size")
-					targetSize := getImageVirtualSize(testTarget)
+					targetSize = getImageVirtualSize(testTarget)
 					Expect(targetSize).To(Equal(sourceSize))
 				} else {
 					By("... using stat()")
 					finfo, err = os.Stat(testTarget)
 					Expect(err).NotTo(HaveOccurred())
-					targetSize := finfo.Size()
+					targetSize = finfo.Size()
 					Expect(targetSize).To(Equal(sourceSize))
 				}
+				fmt.Fprintf(GinkgoWriter, "INFO: byte size = %d\n", targetSize)
 
 				By(fmt.Sprintf("Calling `size.Size()` on same endpoint %q", testEp))
-				if _, ok := sizeExceptions[testSample]; ok {
-					Skip(fmt.Sprintf("*** skipping endpoint %q as exception", testEp))
+				// extract the file extension(s) and check if file should be skipped
+				testBase := filepath.Base(testSample)
+				i := strings.Index(testBase, ".")
+				if i > 0 {
+					targetExt := testBase[i:]
+					if _, ok := sizeExceptions[targetExt]; ok {
+						Skip(fmt.Sprintf("*** skipping endpoint extension %q as exception", targetExt))
+					}
 				}
-				targetSize, err := imagesize.Size(testEp, "", "")
+				targetSize, err = imagesize.Size(testEp, "", "")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(targetSize).To(Equal(sourceSize))
 
