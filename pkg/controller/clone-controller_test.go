@@ -71,7 +71,7 @@ func TestNewCloneController(t *testing.T) {
 func TestCloneController_ProcessNextPodItem(t *testing.T) {
 	//create pod and pvc
 	pvcWithEndPointAnno := createPvc("testPvcWithEndPointAnno", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
-	podWithCdiAnno := createPod(pvcWithEndPointAnno, DataVolName)
+	podWithCdiAnno := createPodWithName(pvcWithEndPointAnno, DataVolName)
 
 	//create and run the informers
 	c, _, _, err := createCloneController(pvcWithEndPointAnno, podWithCdiAnno, "default")
@@ -116,9 +116,9 @@ func TestCloneController_processPodItem(t *testing.T) {
 
 	// create pod specs with pvc reference
 	stagePods := make([]*v1.Pod, stageCount)
-	stagePods[0] = createPod(stagePvcs[0], ImagePathName)
-	stagePods[1] = createPod(stagePvcs[1], "myvolume")
-	stagePods[2] = createPod(stagePvcs[2], ImagePathName)
+	stagePods[0] = createPodWithName(stagePvcs[0], ImagePathName)
+	stagePods[1] = createPodWithName(stagePvcs[1], "myvolume")
+	stagePods[2] = createPodWithName(stagePvcs[2], ImagePathName)
 
 	//create and run the informers passing back v1 processed pods
 	c, _, pods, err := createCloneControllerMultiObject(stagePvcs, stagePods, stageNs)
@@ -181,10 +181,10 @@ func TestCloneController_ProcessNextPvcItem(t *testing.T) {
 
 	// create pod specs with pvc reference
 	stagePods := make([]*v1.Pod, stageCount)
-	stagePods[0] = createPod(stagePvcs[0], DataVolName)
-	stagePods[1] = createPod(stagePvcs[1], DataVolName)
-	stagePods[2] = createPod(stagePvcs[2], DataVolName)
-	stagePods[3] = createPod(stagePvcs[3], DataVolName)
+	stagePods[0] = createPodWithName(stagePvcs[0], DataVolName)
+	stagePods[1] = createPodWithName(stagePvcs[1], DataVolName)
+	stagePods[2] = createPodWithName(stagePvcs[2], DataVolName)
+	stagePods[3] = createPodWithName(stagePvcs[3], DataVolName)
 
 	//create and run queues and informers
 	c, _, _, err := createCloneControllerMultiObject(stagePvcs, stagePods, stageNs)
@@ -308,7 +308,7 @@ func TestCloneController_processPvcItem(t *testing.T) {
 func TestCloneController_forgetKey(t *testing.T) {
 	//create staging pvc and pod
 	pvcWithEndPointAnno := createPvc("testPvcWithEndPointAnno", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
-	podWithCdiAnno := createPod(pvcWithEndPointAnno, DataVolName)
+	podWithCdiAnno := createPodWithName(pvcWithEndPointAnno, DataVolName)
 
 	//run the informers
 	c, _, _, err := createCloneController(pvcWithEndPointAnno, podWithCdiAnno, "default")

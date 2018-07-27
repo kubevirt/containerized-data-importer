@@ -1,0 +1,16 @@
+apiVersion: cdi.kubevirt.io/v1alpha1
+kind: DataVolume
+metadata:
+  name: target-pvc
+spec:
+  source:
+     clone: 
+        pvc:
+          name: "source-ns/golden-pvc"
+  pvc:
+    #storageClassName: "hostpath"
+    accessModes:
+      - ReadWriteMany
+    resources:
+      requests:
+        storage: 500Mi
