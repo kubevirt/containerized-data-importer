@@ -446,8 +446,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy string, pvc *v1.Persisten
 				AnnCloningCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                               //filtered by the podInformer
-				CLONING_LABEL_KEY: CLONING_LABEL_VALUE + "-" + generatedLabelStr, //used by PodAffinity
+				CDI_LABEL_KEY:     CDI_LABEL_VALUE,    //filtered by the podInformer
 			},
 		},
 		Spec: v1.PodSpec{
@@ -476,6 +475,10 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy string, pvc *v1.Persisten
 					Name:            CLONER_TARGET_PODNAME,
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
+					SecurityContext: &v1.SecurityContext{
+						Privileged: &[]bool{true}[0],
+						RunAsUser:  &[]int64{0}[0],
+					},
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      ImagePathName,
