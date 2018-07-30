@@ -34,7 +34,7 @@ targets="$@"
 
 if [ "${go_opt}" == "test" ]; then
 	if [ -z "${targets}" ]; then
-        targets="${CDI_PKGS}"
+            targets="${CDI_PKGS}"
 	fi
 	for tgt in ${targets}; do
         (
