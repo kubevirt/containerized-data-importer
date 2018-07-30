@@ -34,3 +34,9 @@ function allPkgs {
     ret=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./... | grep -v "pkg/client" | sort -u ))
     echo "$ret"
 }
+
+KUBERNETES_IMAGE="k8s-1.10.4"
+OPENSHIFT_IMAGE="os-3.10.0"
+
+image=$KUBERNETES_IMAGE
+
