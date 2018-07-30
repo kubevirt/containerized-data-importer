@@ -25,10 +25,10 @@ targets="${@:-${DOCKER_IMAGES}}"
 for tgt in ${targets}; do
     bin_name="$(basename ${tgt})"
     dest_dir="${CMD_OUT_DIR}/${bin_name}/"
-    # Cloner has no build artifact, copy script.sh as well
+    # Cloner has no build artifact, copy cloner_startup.sh as well
     if [[ "${bin_name}" == "${CLONER}" ]]; then
         mkdir -p "${CMD_OUT_DIR}/${bin_name}/"
-        cp -f "${CDI_DIR}/cmd/${bin_name}/script.sh" "${dest_dir}"
+        cp -f "${CDI_DIR}/cmd/${bin_name}/cloner_startup.sh" "${dest_dir}"
     fi
     # Copy respective docker files to the directory of the build artifact
     cp -f "${BUILD_DIR}/docker/${bin_name}/Dockerfile" "${dest_dir}"

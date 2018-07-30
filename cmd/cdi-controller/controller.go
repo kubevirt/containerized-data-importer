@@ -108,8 +108,8 @@ func main() {
 		dataVolumeInformer)
 
 	importController := controller.NewImportController(client,
-		pvcInformer.Informer(),
-		podInformer.Informer(),
+		pvcInformer,
+		podInformer,
 		importerImage,
 		pullPolicy,
 		verbose)
