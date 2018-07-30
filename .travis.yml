@@ -82,6 +82,6 @@ deploy:
   file:
   - _out/cmd/cdi-controller/cdi-controller
   - _out/cmd/cdi-importer/cdi-importer
-  - _out/cmd/cdi-cloner/script.sh
+  - _out/cmd/cdi-cloner/cloner_startup.sh
   - manifests/generated/cdi-controller.yaml
   - manifests/example/*
