@@ -15,7 +15,11 @@ limitations under the License.
 */
 
 /* TODO:
-Taken from https://github.com/kubernetes/kubernetes/blob/1889a6ef52eb18b08e24843577c5b9d3b9a65daa/pkg/controller/controller_utils.go
+This logic was originally taken from https://github.com/kubernetes/kubernetes/blob/1889a6ef52eb18b08e24843577c5b9d3b9a65daa/pkg/controller/controller_utils.go
+
+KubeVirt adapted this logic for their controllers and we adopted KubeVirt's adaptation.
+This code is realitively simple and shouldn't need much maintance.
+
 As soon as expectations become available in client-go or apimachinery, delete this and switch.
 */
 
