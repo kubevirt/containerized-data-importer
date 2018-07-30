@@ -1,4 +1,4 @@
-package importer_test
+package datastream
 
 import (
 	"fmt"
@@ -23,7 +23,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 
 	Context("when data is in a supported file format", func() {
 		const (
-			baseImageRelPath = "../../images"
+			baseImageRelPath = "../../../images"
 			baseImage        = "tinyCore"
 			baseImageExt     = ".iso"
 			baseImageIso     = baseImage + baseImageExt
@@ -36,21 +36,20 @@ var _ = Describe("Streaming Data Conversion", func() {
 
 		var tmpTestDir string
 		BeforeEach(func() {
-			tmpDir := os.TempDir()
-			tmpTestDir = testDir(tmpDir)
+			tmpTestDir = testDir(os.TempDir())
 			if err != nil {
-				Fail(fmt.Sprintf("Failed created test dir: %v\n", err))
+				Fail(fmt.Sprintf("[BeforeEach] Failed created test dir: %v\n", err))
 			}
+			By(fmt.Sprintf("[BeforeEach] Creating temporary dir %s", tmpTestDir))
 			syscall.Umask(0000)
 			err = os.Mkdir(tmpTestDir, 0777)
 			if err != nil {
 				Fail(fmt.Sprintf("Could not create tmp file: %v\n ", err))
 			}
-			By(fmt.Sprintf("Created temporary dir %s", tmpTestDir))
 		})
 
 		AfterEach(func() {
-			By(fmt.Sprintf("Cleaning up temporary dir %s", tmpTestDir))
+			By(fmt.Sprintf("[AfterEach] Cleaning up temporary dir %s", tmpTestDir))
 			os.RemoveAll(tmpTestDir)
 		})
 
@@ -142,38 +141,54 @@ var _ = Describe("Streaming Data Conversion", func() {
 			useVSize := t.useVirtSize
 
 			It(desc, func() {
-				By(fmt.Sprintf("Getting size of source file (%s)\n", origFile))
+				By(fmt.Sprintf("Getting size of source file %q", origFile))
 				finfo, err := os.Stat(origFile)
 				Expect(err).NotTo(HaveOccurred())
 				sourceSize := finfo.Size()
+				fmt.Fprintf(GinkgoWriter, "INFO: size = %d\n", sourceSize)
 
-				By(fmt.Sprintf("Converting sample file to format: %v", ff))
+				By(fmt.Sprintf("Converting source file to format: %s", ff))
 				// Generate the expected data format from the random bytes
 				testSample, err := f.FormatTestData(origFile, tmpTestDir, ff...)
 				Expect(err).NotTo(HaveOccurred(), "Error formatting test data.")
+				fmt.Fprintf(GinkgoWriter, "INFO: converted source file name is %q\n", testSample)
 
-				testSample = "file://" + testSample
+				testEp := "file://" + testSample
 				testTarget := filepath.Join(tmpTestDir, common.IMPORTER_WRITE_FILE)
-				By(fmt.Sprintf("Processing sample file %q to %q", testSample, testTarget))
-				err = importer.CopyImage(testTarget, testSample, "", "")
+				By(fmt.Sprintf("Importing %q to %q", testEp, testTarget))
+				err = importer.CopyImage(testTarget, testEp, "", "")
 				Expect(err).NotTo(HaveOccurred())
 
 				By(fmt.Sprintf("Checking size of the output file %q", testTarget))
+				var targetSize int64
 				if useVSize {
-					By("Checking output image virtual size")
-					targetSize := getImageVirtualSize(testTarget)
-					Expect(targetSize).To(Equal(sourceSize))
-					By("Calling `Size` function to check size")
-					targetSize, err = imagesize.Size(testSample, "", "")
-					Expect(err).NotTo(HaveOccurred())
+					By("... using output image's virtual size")
+					targetSize = getImageVirtualSize(testTarget)
 					Expect(targetSize).To(Equal(sourceSize))
 				} else {
-					By("stat() output file")
+					By("... using stat()")
 					finfo, err = os.Stat(testTarget)
 					Expect(err).NotTo(HaveOccurred())
-					targetSize := finfo.Size()
+					targetSize = finfo.Size()
 					Expect(targetSize).To(Equal(sourceSize))
 				}
+				fmt.Fprintf(GinkgoWriter, "INFO: byte size = %d\n", targetSize)
+
+				By(fmt.Sprintf("Calling `size.Size()` on same endpoint %q", testEp))
+				// extract the file extension(s) and check if file should be skipped
+				testBase := filepath.Base(testSample)
+				i := strings.Index(testBase, ".")
+				if i > 0 {
+					targetExt := testBase[i:]
+					if _, ok := sizeExceptions[targetExt]; ok {
+						Skip(fmt.Sprintf("*** skipping endpoint extension %q as exception", targetExt))
+					}
+				}
+				targetSize, err = imagesize.Size(testEp, "", "")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(targetSize).To(Equal(sourceSize))
+
+				fmt.Fprintf(GinkgoWriter, "End test on test file %q\n", testSample)
 			})
 		}
 	})

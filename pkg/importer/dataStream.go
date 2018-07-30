@@ -77,7 +77,7 @@ var rdrTypM = map[string]int{
 // Note: the caller must close the `Readers` in reverse order. See Close().
 func NewDataStream(endpt, accKey, secKey string) (*dataStream, error) {
 	if len(accKey) == 0 || len(secKey) == 0 {
-		glog.Warningf("%s and/or %s env variables are empty\n", IMPORTER_ACCESS_KEY_ID, IMPORTER_SECRET_KEY)
+		glog.V(Vadmin).Infof("%s and/or %s are empty\n", IMPORTER_ACCESS_KEY_ID, IMPORTER_SECRET_KEY)
 	}
 	ep, err := ParseEndpoint(endpt)
 	if err != nil {
@@ -90,19 +90,18 @@ func NewDataStream(endpt, accKey, secKey string) (*dataStream, error) {
 		secretKey:   secKey,
 	}
 
-	// establish readers for each nested format types in the endpoint
+	// establish readers for endpoint's formats and do initial calc of size of raw endpt
 	err = ds.constructReaders()
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to construct readers")
 	}
-	if ds.Size > 0 { // done, we determined the size of the original endpoint file
-		return ds, nil
-	}
 
-	// the endpoint's file size is zero, if it's an iso file then compute its orig size
-	ds.Size, err = ds.isoSize()
-	if err != nil {
-		return nil, errors.Wrapf(err, "unable to calculate iso file size")
+	// if the endpoint's file size is zero and it's an iso file then compute its orig size
+	if ds.Size == 0 {
+		ds.Size, err = ds.isoSize()
+		if err != nil {
+			return nil, errors.Wrapf(err, "unable to calculate iso file size")
+		}
 	}
 	glog.V(Vdebug).Infof("NewDataStream: endpoint %q's computed byte size: %d", ep, ds.Size)
 	return ds, nil
@@ -269,7 +268,7 @@ func (d *dataStream) appendReader(rType int, x interface{}) {
 	}
 	r, ok := x.(io.Reader)
 	if !ok {
-		glog.Errorf("internal error: unexecected reader type passed to appendReader()")
+		glog.Errorf("internal error: unexpected reader type passed to appendReader()")
 		return
 	}
 	if rType == RdrMulti {
@@ -367,6 +366,7 @@ func (d dataStream) tarReader() (io.Reader, int64, error) {
 
 // If the raw endpoint is an ISO file then set the receiver's Size via the iso metadata.
 // ISO reference: http://alumnus.caltech.edu/~pje/iso9660.html
+// Note: no error is returned if the enpoint does not match the expected iso format.
 func (d *dataStream) isoSize() (int64, error) {
 	// iso id values
 	const (
@@ -411,6 +411,7 @@ func (d *dataStream) isoSize() (int64, error) {
 	// ensure we have an iso file by checking the type and id value
 	vdtyp, err := strconv.Atoi(hex.EncodeToString(buf[typeOff : typeOff+typeLen]))
 	if err != nil {
+		glog.Errorf("isoSize: Atoi error on endpoint %q: %v", d.Url.Path, err)
 		return 0, nil
 	}
 	if vdtyp != primaryVD && string(buf[idOff:idOff+idLen]) != id {
@@ -422,12 +423,14 @@ func (d *dataStream) isoSize() (int64, error) {
 	s := hex.EncodeToString(buf[sectorSizeOff : sectorSizeOff+sectorSizeLen])
 	sectSize, err := strconv.ParseInt(s, 16, 64)
 	if err != nil {
+		glog.Errorf("isoSize: sector size ParseInt error on endpoint %q: %v", d.Url.Path, err)
 		return 0, nil
 	}
 	// get the number sectors
 	s = hex.EncodeToString(buf[numSectorsOff : numSectorsOff+numSectorsLen])
 	numSects, err := strconv.ParseInt(s, 16, 64)
 	if err != nil {
+		glog.Errorf("isoSize: sector count ParseInt error on endpoint %q: %v", d.Url.Path, err)
 		return 0, nil
 	}
 	return int64(numSects * sectSize), nil
