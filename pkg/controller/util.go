@@ -2,9 +2,11 @@ package controller
 
 import (
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
-	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,8 +14,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
-	"strings"
-	"time"
 )
 
 const DataVolName = "cdi-data-vol"
@@ -251,7 +251,7 @@ func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.
 				CDI_LABEL_KEY: CDI_LABEL_VALUE,
 			},
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(pvc, appsv1.SchemeGroupVersion.WithKind("PersistentVolumeClaim")),
+				*metav1.NewControllerRef(pvc, v1.SchemeGroupVersion.WithKind("PersistentVolumeClaim")),
 			},
 		},
 		Spec: v1.PodSpec{
@@ -432,8 +432,8 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, pvcName string, generate
 	return pod
 }
 
-func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose string, pullPolicy string, 
-			pvc *v1.PersistentVolumeClaim, generatedLabelStr string, podAffinityNamespace string) (*v1.Pod, error) {
+func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose string, pullPolicy string,
+	pvc *v1.PersistentVolumeClaim, generatedLabelStr string, podAffinityNamespace string) (*v1.Pod, error) {
 	ns := pvc.Namespace
 	pod := MakeCloneTargetPodSpec(image, verbose, pullPolicy, pvc, generatedLabelStr, podAffinityNamespace)
 
@@ -479,7 +479,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy string, pvc *v1.Persisten
 									},
 								},
 							},
-							Namespaces: []string{podAffinityNamespace},
+							Namespaces:  []string{podAffinityNamespace},
 							TopologyKey: CLONING_TOPOLOGY_KEY,
 						},
 					},
