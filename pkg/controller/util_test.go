@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"testing"
 
-	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -597,7 +596,7 @@ func TestMakeImporterPodSpec(t *testing.T) {
 				CDI_LABEL_KEY: CDI_LABEL_VALUE,
 			},
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(pvc, appsv1.SchemeGroupVersion.WithKind("PersistentVolumeClaim")),
+				*metav1.NewControllerRef(pvc, v1.SchemeGroupVersion.WithKind("PersistentVolumeClaim")),
 			},
 		},
 		Spec: v1.PodSpec{
@@ -918,18 +917,17 @@ func createCloneController(pvcSpec *v1.PersistentVolumeClaim, podSpec *v1.Pod, n
 	defer close(stop)
 
 	c := &CloneController{
-		clientset:     myclient,
-		pvcQueue:      pvcQueue,
-		podQueue:      podQueue,
-		pvcInformer:   pvcInformer,
-		podInformer:   podInformer,
-		cloneImage:    CLONER_DEFAULT_IMAGE,
-		pullPolicy:    "Always",
-		verbose:       "-v=5",
+		clientset:   myclient,
+		pvcQueue:    pvcQueue,
+		podQueue:    podQueue,
+		pvcInformer: pvcInformer,
+		podInformer: podInformer,
+		cloneImage:  CLONER_DEFAULT_IMAGE,
+		pullPolicy:  "Always",
+		verbose:     "-v=5",
 	}
 	return c, pvc, pod, nil
 }
-
 
 func createImportControllerMultiObject(pvcSpecs []*v1.PersistentVolumeClaim, podSpecs []*v1.Pod, nspaces []string) (*ImportController, []*v1.PersistentVolumeClaim, []*v1.Pod, error) {
 	//Set up environment
