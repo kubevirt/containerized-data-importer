@@ -22,7 +22,9 @@ if [ "$1" == "source" ] ; then
   echo "creating fifo pipe"
   mkfifo /tmp/clone/socket/$2/pipe
   echo "creating tarball of the image and redirecting it to /tmp/clone/socket/$2/pipe"
-  tar cv /tmp/clone/image/ > /tmp/clone/socket/$2/pipe
+  pushd /tmp/clone/image
+  tar cv . > /tmp/clone/socket/$2/pipe
+  popd
   echo "finished writing image to /tmp/clone/socket/$2/pipe"
 elif [ "$1" == "target" ] ; then
   echo "Starting clone target"
