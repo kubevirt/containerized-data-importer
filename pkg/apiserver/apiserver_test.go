@@ -18,19 +18,19 @@ func Test_tokenEncrption(t *testing.T) {
 		t.Errorf("unable to generate keys: %v", err)
 	}
 
-	encryptedToken, err := GenerateToken("fakepvc", "fakenamespace", &proxyKeys.PublicKey, apiServerKeys)
+	encryptedToken, err := GenerateEncryptedToken("fakepvc", "fakenamespace", &proxyKeys.PublicKey, apiServerKeys)
 
 	if err != nil {
 		t.Errorf("unable to encrypt token: %v", err)
 	}
 
-	decryptedToken, err := DecryptToken(encryptedToken, proxyKeys, &apiServerKeys.PublicKey)
+	tokenData, err := DecryptToken(encryptedToken, proxyKeys, &apiServerKeys.PublicKey)
 
 	if err != nil {
 		t.Errorf("unable to decrypt token: %v", err)
 	}
 
-	if decryptedToken != "fakenamespace/fakepvc" {
+	if tokenData.PvcName != "fakepvc" && tokenData.Namespace != "fakenamespace" {
 		t.Errorf("unexpected token generated")
 	}
 }

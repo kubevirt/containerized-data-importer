@@ -388,7 +388,7 @@ func mutateUploadTokens(ar *v1beta1.AdmissionReview, signingKey *rsa.PrivateKey,
 		return toAdmissionResponse(errors.Errorf("no pvcName set on UploadToken spec"))
 	}
 
-	encryptedTokenData, err := GenerateToken(token.Spec.PvcName, token.Namespace, encryptionKey, signingKey)
+	encryptedTokenData, err := GenerateEncryptedToken(token.Spec.PvcName, token.Namespace, encryptionKey, signingKey)
 	if err != nil {
 		glog.Error(err)
 		return toAdmissionResponse(err)
@@ -485,7 +485,7 @@ func (app *uploadApiApp) uploadHandler(request *restful.Request, response *restf
 		response.WriteError(http.StatusBadRequest, err)
 	}
 
-	encryptedTokenData, err := GenerateToken(uploadToken.Spec.PvcName, namespace, app.publicEncryptionKey, app.privateSigningKey)
+	encryptedTokenData, err := GenerateEncryptedToken(uploadToken.Spec.PvcName, namespace, app.publicEncryptionKey, app.privateSigningKey)
 
 	uploadToken.Status.Token = encryptedTokenData
 	response.WriteAsJson(uploadToken)

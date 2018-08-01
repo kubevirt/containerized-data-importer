@@ -8,9 +8,11 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"strings"
+	"time"
+
+	"github.com/pkg/errors"
 
 	"k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,28 +34,37 @@ const (
 
 	// uploadProxy Public key
 	uploadProxyPublicKeyConfigMap = "cdi-proxy-public"
+
+	// timeout seconds for each token. 5 minutes
+	tokenTimeout = 300
 )
 
-type tokenData struct {
+type TokenData struct {
+	PvcName           string    `json:"pvcName"`
+	Namespace         string    `json:"Namespace"`
+	CreationTimestamp time.Time `json:"creationTimestamp"`
+}
+
+type tokenPayload struct {
 	EncryptedData []byte `json:"encryptedData"`
 	Signature     []byte `json:"signature"`
 }
 
 func DecryptToken(encryptedToken string,
 	privateDecryptionKey *rsa.PrivateKey,
-	publicSigningKey *rsa.PublicKey) (string, error) {
+	publicSigningKey *rsa.PublicKey) (*TokenData, error) {
 
 	label := []byte("")
 	hash := sha256.New()
 
-	tokenData, err := decodeTokenData(encryptedToken)
+	tokenPayload, err := decodeTokenData(encryptedToken)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	message, err := rsa.DecryptOAEP(hash, rand.Reader, privateDecryptionKey, tokenData.EncryptedData, label)
+	message, err := rsa.DecryptOAEP(hash, rand.Reader, privateDecryptionKey, tokenPayload.EncryptedData, label)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	var opts rsa.PSSOptions
@@ -64,21 +75,43 @@ func DecryptToken(encryptedToken string,
 	hashed := pssh.Sum(nil)
 
 	//Verify Signature
-	err = rsa.VerifyPSS(publicSigningKey, newhash, hashed, tokenData.Signature, &opts)
+	err = rsa.VerifyPSS(publicSigningKey, newhash, hashed, tokenPayload.Signature, &opts)
 	if err != nil {
-		return "", err
+		return nil, err
+	}
+
+	tokenData := &TokenData{}
+	err = json.Unmarshal(message, tokenData)
+	if err != nil {
+		return nil, err
+	}
+
+	// don't allow expired tokens to be viewed
+	start := tokenData.CreationTimestamp.Unix()
+	now := time.Now().UTC().Unix()
+	if (now - start) > tokenTimeout {
+		return nil, errors.Errorf("Token expired")
 	}
 
 	// If we get here, the message is decrypted and the signature passed
-	return string(message), nil
+	return tokenData, nil
 }
 
-func GenerateToken(pvcName string,
+func GenerateEncryptedToken(pvcName string,
 	namespace string,
 	publicEncryptionKey *rsa.PublicKey,
 	privateSigningKey *rsa.PrivateKey) (string, error) {
 
-	message := []byte(fmt.Sprintf("%s/%s", namespace, pvcName))
+	tokenData := &TokenData{
+		Namespace:         namespace,
+		PvcName:           pvcName,
+		CreationTimestamp: time.Now().UTC(),
+	}
+	message, err := json.Marshal(tokenData)
+	if err != nil {
+		return "", err
+	}
+
 	label := []byte("")
 	hash := sha256.New()
 
@@ -100,17 +133,17 @@ func GenerateToken(pvcName string,
 		return "", err
 	}
 
-	tokenData := &tokenData{
+	tokenPayload := &tokenPayload{
 		EncryptedData: encryptedMessage,
 		Signature:     signature,
 	}
 
-	return encodeTokenData(tokenData)
+	return encodeTokenData(tokenPayload)
 }
 
-func encodeTokenData(tokenData *tokenData) (string, error) {
+func encodeTokenData(tokenPayload *tokenPayload) (string, error) {
 
-	bytes, err := json.Marshal(tokenData)
+	bytes, err := json.Marshal(tokenPayload)
 	if err != nil {
 		return "", err
 	}
@@ -119,19 +152,19 @@ func encodeTokenData(tokenData *tokenData) (string, error) {
 	return str, nil
 }
 
-func decodeTokenData(encodedtokenData string) (*tokenData, error) {
-	bytes, err := base64.StdEncoding.DecodeString(encodedtokenData)
+func decodeTokenData(encodedtokenPayload string) (*tokenPayload, error) {
+	bytes, err := base64.StdEncoding.DecodeString(encodedtokenPayload)
 	if err != nil {
 		return nil, err
 	}
 
-	tokenData := &tokenData{}
-	err = json.Unmarshal(bytes, tokenData)
+	tokenPayload := &tokenPayload{}
+	err = json.Unmarshal(bytes, tokenPayload)
 	if err != nil {
 		return nil, err
 	}
 
-	return tokenData, nil
+	return tokenPayload, nil
 }
 
 func RecordApiPublicKey(client *kubernetes.Clientset, publicKey *rsa.PublicKey) error {
