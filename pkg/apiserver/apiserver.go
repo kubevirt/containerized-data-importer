@@ -16,12 +16,9 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/emicklei/go-restful"
-	"k8s.io/api/admission/v1beta1"
-	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	"k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/cert/triple"
@@ -35,9 +32,6 @@ import (
 const (
 	// selfsigned cert secret name
 	apiCertSecretName = "cdi-api-certs"
-
-	apiMutationWebhook = "cdi-api-mutator"
-	tokenMutationPath  = "/uploadtoken-mutate"
 
 	uploadTokenGroup   = "upload.cdi.kubevirt.io"
 	uploadTokenVersion = "v1alpha1"
@@ -123,11 +117,6 @@ func NewUploadApiServer(bindAddress string, bindPort uint, client *kubernetes.Cl
 		glog.V(Vuser).Infof("contentLength: %d", resp.ContentLength())
 
 	})
-
-	//err = app.createWebhook()
-	//if err != nil {
-	//	return nil, errors.Errorf("Unable to create webhook: %v\n", errors.WithStack(err))
-	//}
 
 	return app, nil
 }
@@ -360,103 +349,6 @@ func (app *uploadApiApp) startTLS() error {
 	return <-errors
 }
 
-func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
-	return &v1beta1.AdmissionResponse{
-		Result: &metav1.Status{
-			Message: err.Error(),
-		},
-	}
-}
-
-type admitFunc func(*v1beta1.AdmissionReview, *rsa.PrivateKey, *rsa.PublicKey) *v1beta1.AdmissionResponse
-
-func mutateUploadTokens(ar *v1beta1.AdmissionReview, signingKey *rsa.PrivateKey, encryptionKey *rsa.PublicKey) *v1beta1.AdmissionResponse {
-	glog.V(Vadmin).Info("adding token to upload token crd")
-	token := cdiv1.UploadToken{}
-
-	raw := ar.Request.Object.Raw
-	err := json.Unmarshal(raw, &token)
-	if err != nil {
-		glog.Error(err)
-		return toAdmissionResponse(err)
-	}
-
-	reviewResponse := v1beta1.AdmissionResponse{}
-	reviewResponse.Allowed = true
-
-	if token.Spec.PvcName == "" {
-		return toAdmissionResponse(errors.Errorf("no pvcName set on UploadToken spec"))
-	}
-
-	encryptedTokenData, err := GenerateEncryptedToken(token.Spec.PvcName, token.Namespace, encryptionKey, signingKey)
-	if err != nil {
-		glog.Error(err)
-		return toAdmissionResponse(err)
-	}
-	patch := fmt.Sprintf("[{ \"op\": \"add\", \"path\": \"/status\", \"value\": { \"token\" : \"%s\" } }]", encryptedTokenData)
-
-	reviewResponse.Patch = []byte(patch)
-
-	pt := v1beta1.PatchTypeJSONPatch
-	reviewResponse.PatchType = &pt
-	return &reviewResponse
-}
-
-func getAdmissionReview(r *http.Request) (*v1beta1.AdmissionReview, error) {
-	var body []byte
-	if r.Body != nil {
-		if data, err := ioutil.ReadAll(r.Body); err == nil {
-			body = data
-		}
-	}
-
-	// verify the content type is accurate
-	contentType := r.Header.Get("Content-Type")
-	if contentType != "application/json" {
-		return nil, fmt.Errorf("contentType=%s, expect application/json", contentType)
-	}
-
-	ar := &v1beta1.AdmissionReview{}
-	err := json.Unmarshal(body, ar)
-	return ar, err
-}
-
-func (app *uploadApiApp) serve(resp http.ResponseWriter, req *http.Request, admit admitFunc) {
-	response := v1beta1.AdmissionReview{}
-	review, err := getAdmissionReview(req)
-
-	if err != nil {
-		resp.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	reviewResponse := admit(review, app.privateSigningKey, app.publicEncryptionKey)
-	if reviewResponse != nil {
-		response.Response = reviewResponse
-		response.Response.UID = review.Request.UID
-	}
-	// reset the Object and OldObject, they are not needed in a response.
-	review.Request.Object = runtime.RawExtension{}
-	review.Request.OldObject = runtime.RawExtension{}
-
-	responseBytes, err := json.Marshal(response)
-	if err != nil {
-		glog.Error(err)
-		resp.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	if _, err := resp.Write(responseBytes); err != nil {
-		glog.Error(err)
-		resp.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	resp.WriteHeader(http.StatusOK)
-}
-
-func (app *uploadApiApp) serveMutateUploadTokens(w http.ResponseWriter, r *http.Request) {
-	app.serve(w, r, mutateUploadTokens)
-}
-
 func (app *uploadApiApp) uploadHandler(request *restful.Request, response *restful.Response) {
 
 	allowed, reason, err := app.authorizor.Authorize(request)
@@ -652,78 +544,5 @@ func (app *uploadApiApp) createApiService() error {
 			return err
 		}
 	}
-	return nil
-}
-
-func (app *uploadApiApp) createWebhook() error {
-	namespace := GetNamespace()
-	registerWebhook := false
-
-	tokenPath := tokenMutationPath
-
-	webhookRegistration, err := app.client.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Get(apiMutationWebhook, metav1.GetOptions{})
-	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			registerWebhook = true
-		} else {
-			return err
-		}
-	}
-
-	webHooks := []admissionregistrationv1beta1.Webhook{
-		{
-			Name: "uploadtoken-mutator.cdi.kubevirt.io",
-			Rules: []admissionregistrationv1beta1.RuleWithOperations{{
-				Operations: []admissionregistrationv1beta1.OperationType{admissionregistrationv1beta1.Create},
-				Rule: admissionregistrationv1beta1.Rule{
-					APIGroups:   []string{cdiv1.SchemeGroupVersion.Group},
-					APIVersions: []string{cdiv1.SchemeGroupVersion.Version},
-					Resources:   []string{"uploadtokens"},
-				},
-			}},
-			ClientConfig: admissionregistrationv1beta1.WebhookClientConfig{
-				Service: &admissionregistrationv1beta1.ServiceReference{
-					Namespace: namespace,
-					Name:      apiServiceName,
-					Path:      &tokenPath,
-				},
-				CABundle: app.signingCertBytes,
-			},
-		},
-	}
-
-	if registerWebhook {
-		_, err := app.client.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Create(&admissionregistrationv1beta1.MutatingWebhookConfiguration{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: apiMutationWebhook,
-				Labels: map[string]string{
-					CDI_COMPONENT_LABEL: apiMutationWebhook,
-				},
-			},
-			Webhooks: webHooks,
-		})
-		if err != nil {
-			return err
-		}
-	} else {
-		for _, webhook := range webhookRegistration.Webhooks {
-			if webhook.ClientConfig.Service != nil && webhook.ClientConfig.Service.Namespace != namespace {
-				return fmt.Errorf("Webhook [%s] is already registered using services endpoints in a different namespace. Existing webhook registration must be deleted before virt-api can proceed.", apiMutationWebhook)
-			}
-		}
-
-		// update registered webhook with our data
-		webhookRegistration.Webhooks = webHooks
-
-		_, err := app.client.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Update(webhookRegistration)
-		if err != nil {
-			return err
-		}
-	}
-
-	http.HandleFunc(tokenPath, func(w http.ResponseWriter, r *http.Request) {
-		app.serveMutateUploadTokens(w, r)
-	})
-
 	return nil
 }
