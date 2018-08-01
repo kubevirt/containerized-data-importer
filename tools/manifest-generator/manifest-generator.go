@@ -13,10 +13,10 @@
 package main
 
 import (
-	"text/template"
-	"os"
 	"flag"
 	"github.com/golang/glog"
+	"os"
+	"text/template"
 )
 
 type data struct {
@@ -24,14 +24,16 @@ type data struct {
 	DockerTag  string
 	Verbosity  int
 	PullPolicy string
+	Namespace  string
 }
 
-func main () {
+func main() {
 	dockerRepo := flag.String("docker-repo", "", "")
 	dockertag := flag.String("docker-tag", "", "")
 	templFile := flag.String("template", "", "")
 	verbosity := flag.Int("verbosity", 1, "")
 	pullPolicy := flag.String("pull-policy", "", "")
+	namespace := flag.String("namespace", "", "")
 	flag.Parse()
 
 	data := &data{
@@ -39,6 +41,7 @@ func main () {
 		DockerRepo: *dockerRepo,
 		DockerTag:  *dockertag,
 		PullPolicy: *pullPolicy,
+		Namespace:  *namespace,
 	}
 
 	file, err := os.OpenFile(*templFile, os.O_RDONLY, 0)

@@ -33,6 +33,7 @@ for tmpl in ${templates}; do
         -docker-repo="${DOCKER_REPO}" \
         -docker-tag="${DOCKER_TAG}" \
         -verbosity="${VERBOSITY}" \
-        -pull-policy="${PULL_POLICY}"
+        -pull-policy="${PULL_POLICY}" \
+        -namespace="${NAMESPACE}"
     ) 1>"${MANIFEST_GENERATED_DIR}/${outFile}"
 done

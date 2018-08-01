@@ -28,6 +28,7 @@ DOCKER_REPO=${DOCKER_REPO:-kubevirt}
 DOCKER_TAG=${DOCKER_TAG:-latest}
 VERBOSITY=${VERBOSITY:-1}
 PULL_POLICY=${PULL_POLICY:-IfNotPresent}
+NAMESPACE=${NAMESPACE:-kube-system}
 
 function allPkgs {
     ret=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./... | grep -v "pkg/client" | sort -u ))
