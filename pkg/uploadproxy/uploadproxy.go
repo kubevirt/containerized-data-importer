@@ -28,7 +28,7 @@ const (
 	certBytesValue = "cert-bytes"
 	keyBytesValue  = "key-bytes"
 
-	uploadPath = "/upload"
+	uploadPath = "/v1alpha1/upload"
 )
 
 type UploadApiServer interface {
