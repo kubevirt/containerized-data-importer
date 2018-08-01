@@ -28,10 +28,11 @@ printf "Building targets: %s\n" "${targets}"
 
 for tgt in ${targets}; do
     BIN_NAME="$(basename ${tgt})"
+    BIN_PATH="${tgt%/}"
     IMAGE="${DOCKER_REPO}/${BIN_NAME}:${DOCKER_TAG}"
     if [ "${docker_opt}" == "build" ]; then
     (
-        cd "${CMD_OUT_DIR}/${BIN_NAME}"
+        cd "${OUT_DIR}/${BIN_PATH}"
         docker "${docker_opt}" -t ${IMAGE} .
     )
     elif [ "${docker_opt}" == "push" ]; then

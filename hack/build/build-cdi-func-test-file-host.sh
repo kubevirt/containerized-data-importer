@@ -14,24 +14,27 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-set -eo pipefail
+set -euo pipefail
 
 script_dir="$(readlink -f $(dirname $0))"
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
-targets="${@:-${DOCKER_IMAGES}}"
+FILE_INIT="cdi-func-test-file-host-init"
+FILE_INIT_PATH="tools/${FILE_INIT}"
+FILE_HOST="cdi-func-test-file-host-http"
+OUT_PATH="${OUT_DIR}/tools"
 
-for tgt in ${targets}; do
-    bin_name="$(basename ${tgt})"
-    bin_path="${tgt%/}"
-    dest_dir="${OUT_DIR}/${bin_path}/"
-    echo "$dest_dir"
-    # Cloner has no build artifact, copy cloner_startup.sh as well
-    if [[ "${bin_name}" == "${CLONER}" ]]; then
-        mkdir -p "${CMD_OUT_DIR}/${bin_name}/"
-        cp -f "${CDI_DIR}/cmd/${bin_name}/cloner_startup.sh" "${dest_dir}"
-    fi
-    # Copy respective docker files to the directory of the build artifact
-    cp -f "${BUILD_DIR}/docker/${bin_name}/Dockerfile" "${dest_dir}"
+mkdir -p "${OUT_PATH}/${FILE_INIT}" "${OUT_PATH}/${FILE_HOST}"
+
+DOCKER_REPO=""
+
+${BUILD_DIR}/build-copy-artifacts.sh "${FILE_INIT_PATH}"
+
+OUT_PATH="${OUT_DIR}/tools"
+cp ${BUILD_DIR}/docker/${FILE_HOST}/* ${OUT_PATH}/${FILE_HOST}/
+cp "${CDI_DIR}/test/images/tinyCore.iso" "${OUT_PATH}/${FILE_INIT}/"
+
+for target in "${FILE_HOST}" "${FILE_INIT}"; do
+	${BUILD_DIR}/build-docker.sh build "tools/${target}"
 done

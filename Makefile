@@ -107,5 +107,9 @@ cluster-sync-importer: cluster-sync
 cluster-sync-cloner: WHAT = cmd/cdi-cloner
 cluster-sync-cloner: cluster-sync
 
-functest:
+functest: .functest-image-host
 	./hack/build/functests.sh
+
+.functest-image-host: WHAT=tools/cdi-func-test-file-host-init
+.functest-image-host:  manifests build
+	./hack/build/build-cdi-func-test-file-host.sh
