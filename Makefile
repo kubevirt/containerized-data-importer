@@ -12,8 +12,8 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-.PHONY: build build-controller build-importer build-functest-image-init build-functest-image-http build-functest \
-		docker docker-controller docker-cloner docker-importer docker-functest-image-init docker-functest-image-http\
+.PHONY: build build-controller build-importer build-apiserver build-functest-image-init build-functest-image-http build-functest \
+		docker docker-controller docker-cloner docker-importer docker-apiserver docker-functest-image-init docker-functest-image-http\
 		cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer \
 		test test-functional test-unit test-lint \
 		publish \
@@ -42,6 +42,8 @@ build-controller: WHAT = cmd/cdi-controller
 build-controller: build
 build-importer: WHAT = cmd/cdi-importer
 build-importer: build
+build-apiserver: WHAT = cmd/cdi-apiserver
+build-apiserver: build
 # Note, the cloner is a bash script and has nothing to build
 build-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
 build-functest-image-init:
@@ -74,8 +76,13 @@ docker-importer: WHAT = cmd/cdi-importer
 docker-importer: docker
 docker-cloner: WHAT = cmd/cdi-cloner
 docker-cloner: docker
+<<<<<<< HEAD
 
 docker-functest-image: docker-functest-image-http docker-functest-image-init
+=======
+docker-apiserver: WHAT = cmd/cdi-apiserver
+docker-apiserver: docker
+>>>>>>> Add CDI apiserver component
 docker-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
 docker-functest-image-init: docker
 docker-functest-image-http: WHAT = tools/cdi-func-test-file-host-http
@@ -91,6 +98,8 @@ push-importer: WHAT = cmd/cdi-importer
 push-importer: push
 push-cloner: WHAT = cdm/cdi-cloner
 push-cloner: push
+push-apiserver: WHAT = cmd/cdi-apiserver
+push-apiserver: push
 
 publish: docker
 	./hack/build/build-docker.sh publish ${WHAT}

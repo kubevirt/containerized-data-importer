@@ -17,6 +17,8 @@ const (
 	// CDILabelSelector provides a constant to use for the selector to identify CDI objects in list
 	CDILabelSelector = CDILabelKey + "=" + CDILabelValue
 
+	CDI_COMPONENT_LABEL = "cdi.kubevirt.io"
+
 	// host file constants:
 	importerWriteDir = "/data"
 	// ImporterWriteFile provides a constant for our importer/datastream_ginkgo_test and to build ImporterWritePath
