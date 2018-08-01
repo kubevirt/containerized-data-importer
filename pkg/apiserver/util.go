@@ -40,6 +40,7 @@ const (
 )
 
 type TokenData struct {
+	RandomPadding     []byte    `json:"randomPadding"`
 	PvcName           string    `json:"pvcName"`
 	Namespace         string    `json:"Namespace"`
 	CreationTimestamp time.Time `json:"creationTimestamp"`
@@ -107,6 +108,11 @@ func GenerateEncryptedToken(pvcName string,
 		PvcName:           pvcName,
 		CreationTimestamp: time.Now().UTC(),
 	}
+
+	randPad := make([]byte, 16)
+	rand.Read(randPad)
+	tokenData.RandomPadding = randPad
+
 	message, err := json.Marshal(tokenData)
 	if err != nil {
 		return "", err
