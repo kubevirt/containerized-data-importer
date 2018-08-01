@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/util/cert/triple"
 
 	apiserver "kubevirt.io/containerized-data-importer/pkg/apiserver"
-	//. "kubevirt.io/containerized-data-importer/pkg/common"
+	. "kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 const (
@@ -99,18 +99,15 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	tokenMessage, err := apiserver.DecryptToken(encryptedTokenData, app.uploadProxyPrivateKey, app.apiServerPublicKey)
+	tokenData, err := apiserver.DecryptToken(encryptedTokenData, app.uploadProxyPrivateKey, app.apiServerPublicKey)
 
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	if tokenMessage != "" {
-		fmt.Printf("DECODED MESSAGE SUCCESSFULLY")
-	}
+	glog.V(Vuser).Infof("Received valid token: pvc: %s, namespace: %s", tokenData.PvcName, tokenData.Namespace)
 	// TODO add proxy logic here.
-
 }
 
 func (app *uploadProxyApp) generateKeys() error {
