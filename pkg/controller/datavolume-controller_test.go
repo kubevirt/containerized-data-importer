@@ -32,7 +32,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/cdicontroller/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions"
 )

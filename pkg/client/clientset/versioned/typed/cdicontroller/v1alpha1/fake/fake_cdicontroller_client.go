@@ -21,7 +21,7 @@ package fake
 import (
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
-	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/datavolumecontroller/v1alpha1"
+	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/cdicontroller/v1alpha1"
 )
 
 type FakeCdiV1alpha1 struct {
@@ -30,6 +30,10 @@ type FakeCdiV1alpha1 struct {
 
 func (c *FakeCdiV1alpha1) DataVolumes(namespace string) v1alpha1.DataVolumeInterface {
 	return &FakeDataVolumes{c, namespace}
+}
+
+func (c *FakeCdiV1alpha1) UploadTokens(namespace string) v1alpha1.UploadTokenInterface {
+	return &FakeUploadTokens{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

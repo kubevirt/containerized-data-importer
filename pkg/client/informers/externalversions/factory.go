@@ -28,7 +28,7 @@ import (
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 	versioned "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
-	datavolumecontroller "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/datavolumecontroller"
+	cdicontroller "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/cdicontroller"
 	internalinterfaces "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/internalinterfaces"
 )
 
@@ -123,9 +123,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Cdi() datavolumecontroller.Interface
+	Cdi() cdicontroller.Interface
 }
 
-func (f *sharedInformerFactory) Cdi() datavolumecontroller.Interface {
-	return datavolumecontroller.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Cdi() cdicontroller.Interface {
+	return cdicontroller.New(f, f.namespace, f.tweakListOptions)
 }

@@ -26,6 +26,8 @@ import (
 type Interface interface {
 	// DataVolumes returns a DataVolumeInformer.
 	DataVolumes() DataVolumeInformer
+	// UploadTokens returns a UploadTokenInformer.
+	UploadTokens() UploadTokenInformer
 }
 
 type version struct {
@@ -42,4 +44,9 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // DataVolumes returns a DataVolumeInformer.
 func (v *version) DataVolumes() DataVolumeInformer {
 	return &dataVolumeInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// UploadTokens returns a UploadTokenInformer.
+func (v *version) UploadTokens() UploadTokenInformer {
+	return &uploadTokenInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
