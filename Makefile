@@ -106,3 +106,6 @@ cluster-sync-importer: WHAT = cmd/cdi-importer
 cluster-sync-importer: cluster-sync
 cluster-sync-cloner: WHAT = cmd/cdi-cloner
 cluster-sync-cloner: cluster-sync
+
+functest:
+	./hack/build/functests.sh
