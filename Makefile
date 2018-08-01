@@ -12,8 +12,8 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-.PHONY: build build-controller build-importer \
-		docker docker-controller docker-cloner docker-importer \
+.PHONY: build build-controller build-importer build-apiserver \
+		docker docker-controller docker-cloner docker-importer docker-apiserver \
 		cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer \
 		test test-functional test-unit \
 		publish \
@@ -43,6 +43,8 @@ build-controller: WHAT = cmd/cdi-controller
 build-controller: build
 build-importer: WHAT = cmd/cdi-importer
 build-importer: build
+build-apiserver: WHAT = cmd/cdi-apiserver
+build-apiserver: build
 # Note, the cloner is a bash script and has nothing to build
 
 test:
@@ -62,6 +64,8 @@ docker-importer: WHAT = cmd/cdi-importer
 docker-importer: docker
 docker-cloner: WHAT = cmd/cdi-cloner
 docker-cloner: docker
+docker-apiserver: WHAT = cmd/cdi-apiserver
+docker-apiserver: docker
 
 push: docker
 	./hack/build/build-docker.sh push ${WHAT}
@@ -72,6 +76,8 @@ push-importer: WHAT = cmd/cdi-importer
 push-importer: push
 push-cloner: WHAT = cdm/cdi-cloner
 push-cloner: push
+push-apiserver: WHAT = cmd/cdi-apiserver
+push-apiserver: push
 
 publish: docker
 	./hack/build/build-docker.sh publish ${WHAT}
