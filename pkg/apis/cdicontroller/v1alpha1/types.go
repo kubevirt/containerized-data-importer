@@ -84,3 +84,29 @@ const (
 	Failed    DataVolumePhase = "Failed"
 	Unknown   DataVolumePhase = "Unknown"
 )
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type UploadToken struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   UploadTokenSpec   `json:"spec"`
+	Status UploadTokenStatus `json:"status"`
+}
+
+type UploadTokenSpec struct {
+	PvcName string `json:"pvcName"`
+}
+
+type UploadTokenStatus struct {
+	Token string `json:"token,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type UploadTokenList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []UploadToken `json:"items"`
+}

@@ -25,3 +25,11 @@ type DataVolumeListerExpansion interface{}
 // DataVolumeNamespaceListerExpansion allows custom methods to be added to
 // DataVolumeNamespaceLister.
 type DataVolumeNamespaceListerExpansion interface{}
+
+// UploadTokenListerExpansion allows custom methods to be added to
+// UploadTokenLister.
+type UploadTokenListerExpansion interface{}
+
+// UploadTokenNamespaceListerExpansion allows custom methods to be added to
+// UploadTokenNamespaceLister.
+type UploadTokenNamespaceListerExpansion interface{}

@@ -21,13 +21,14 @@ package v1alpha1
 import (
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	rest "k8s.io/client-go/rest"
-	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
+	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/cdicontroller/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
 )
 
 type CdiV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	DataVolumesGetter
+	UploadTokensGetter
 }
 
 // CdiV1alpha1Client is used to interact with features provided by the cdi.kubevirt.io group.
@@ -37,6 +38,10 @@ type CdiV1alpha1Client struct {
 
 func (c *CdiV1alpha1Client) DataVolumes(namespace string) DataVolumeInterface {
 	return newDataVolumes(c, namespace)
+}
+
+func (c *CdiV1alpha1Client) UploadTokens(namespace string) UploadTokenInterface {
+	return newUploadTokens(c, namespace)
 }
 
 // NewForConfig creates a new CdiV1alpha1Client for the given config.
