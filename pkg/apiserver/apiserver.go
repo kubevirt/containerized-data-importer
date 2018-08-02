@@ -51,8 +51,8 @@ type uploadApiApp struct {
 	bindAddress string
 	bindPort    uint
 
-	client           *kubernetes.Clientset
-	aggregatorClient *aggregatorclient.Clientset
+	client           kubernetes.Interface
+	aggregatorClient aggregatorclient.Interface
 
 	authorizor     CdiApiAuthorizor
 	certsDirectory string
@@ -67,7 +67,7 @@ type uploadApiApp struct {
 	publicEncryptionKey *rsa.PublicKey
 }
 
-func NewUploadApiServer(bindAddress string, bindPort uint, client *kubernetes.Clientset, aggregatorClient *aggregatorclient.Clientset, authorizor CdiApiAuthorizor) (UploadApiServer, error) {
+func NewUploadApiServer(bindAddress string, bindPort uint, client kubernetes.Interface, aggregatorClient aggregatorclient.Interface, authorizor CdiApiAuthorizor) (UploadApiServer, error) {
 	var err error
 	app := &uploadApiApp{
 		bindAddress:      bindAddress,

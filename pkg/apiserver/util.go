@@ -24,16 +24,16 @@ import (
 
 const (
 	// upload proxy generated
-	apiSecretName = "cdi-api-private"
+	ApiSecretName = "cdi-api-private"
 
 	// upload proxy generated
-	uploadProxySecretName = "cdi-proxy-private"
+	UploadProxySecretName = "cdi-proxy-private"
 
 	// uploadProxy Public key
-	apiPublicKeyConfigMap = "cdi-api-public"
+	ApiPublicKeyConfigMap = "cdi-api-public"
 
 	// uploadProxy Public key
-	uploadProxyPublicKeyConfigMap = "cdi-proxy-public"
+	UploadProxyPublicKeyConfigMap = "cdi-proxy-public"
 
 	// timeout seconds for each token. 5 minutes
 	tokenTimeout = 300
@@ -173,36 +173,36 @@ func decodeTokenData(encodedtokenPayload string) (*tokenPayload, error) {
 	return tokenPayload, nil
 }
 
-func RecordApiPublicKey(client *kubernetes.Clientset, publicKey *rsa.PublicKey) error {
-	return setPublicKeyConfigMap(client, publicKey, apiPublicKeyConfigMap)
+func RecordApiPublicKey(client kubernetes.Interface, publicKey *rsa.PublicKey) error {
+	return setPublicKeyConfigMap(client, publicKey, ApiPublicKeyConfigMap)
 }
 
-//func RecordApiPrivateKey(client *kubernetes.Clientset, privateKey *rsa.PrivateKey) error {
-//	return setPrivateKeySecret(client, privateKey, apiSecretName)
+//func RecordApiPrivateKey(client kubernetes.Interface, privateKey *rsa.PrivateKey) error {
+//	return setPrivateKeySecret(client, privateKey, ApiSecretName)
 //}
 
-func RecordUploadProxyPublicKey(client *kubernetes.Clientset, publicKey *rsa.PublicKey) error {
-	return setPublicKeyConfigMap(client, publicKey, uploadProxyPublicKeyConfigMap)
+func RecordUploadProxyPublicKey(client kubernetes.Interface, publicKey *rsa.PublicKey) error {
+	return setPublicKeyConfigMap(client, publicKey, UploadProxyPublicKeyConfigMap)
 }
 
-func RecordUploadProxyPrivateKey(client *kubernetes.Clientset, privateKey *rsa.PrivateKey) error {
-	return setPrivateKeySecret(client, privateKey, uploadProxySecretName)
+func RecordUploadProxyPrivateKey(client kubernetes.Interface, privateKey *rsa.PrivateKey) error {
+	return setPrivateKeySecret(client, privateKey, UploadProxySecretName)
 }
 
-func GetApiPublicKey(client *kubernetes.Clientset) (*rsa.PublicKey, bool, error) {
-	return getPublicKey(client, apiPublicKeyConfigMap)
+func GetApiPublicKey(client kubernetes.Interface) (*rsa.PublicKey, bool, error) {
+	return getPublicKey(client, ApiPublicKeyConfigMap)
 }
 
-func GetUploadProxyPublicKey(client *kubernetes.Clientset) (*rsa.PublicKey, bool, error) {
-	return getPublicKey(client, uploadProxyPublicKeyConfigMap)
+func GetUploadProxyPublicKey(client kubernetes.Interface) (*rsa.PublicKey, bool, error) {
+	return getPublicKey(client, UploadProxyPublicKeyConfigMap)
 }
 
-func GetUploadProxyPrivateKey(client *kubernetes.Clientset) (*rsa.PrivateKey, bool, error) {
-	return getPrivateSecret(client, uploadProxySecretName)
+func GetUploadProxyPrivateKey(client kubernetes.Interface) (*rsa.PrivateKey, bool, error) {
+	return getPrivateSecret(client, UploadProxySecretName)
 }
 
-//func GetApiPrivateKey(client *kubernetes.Clientset) (*rsa.PrivateKey, bool, error) {
-//	return getPrivateSecret(client, apiSecretName)
+//func GetApiPrivateKey(client kubernetes.Interface) (*rsa.PrivateKey, bool, error) {
+//	return getPrivateSecret(client, ApiSecretName)
 //}
 
 func GetNamespace() string {
@@ -214,7 +214,7 @@ func GetNamespace() string {
 	return metav1.NamespaceSystem
 }
 
-func getConfigMap(client *kubernetes.Clientset, configMap string) (*v1.ConfigMap, bool, error) {
+func getConfigMap(client kubernetes.Interface, configMap string) (*v1.ConfigMap, bool, error) {
 	namespace := GetNamespace()
 
 	config, err := client.CoreV1().ConfigMaps(namespace).Get(configMap, metav1.GetOptions{})
@@ -230,12 +230,12 @@ func getConfigMap(client *kubernetes.Clientset, configMap string) (*v1.ConfigMap
 	return config, true, nil
 }
 
-func encodePublicKey(key *rsa.PublicKey) string {
+func EncodePublicKey(key *rsa.PublicKey) string {
 	bytes := x509.MarshalPKCS1PublicKey(key)
 	return base64.StdEncoding.EncodeToString(bytes)
 }
 
-func decodePublicKey(encodedKey string) (*rsa.PublicKey, error) {
+func DecodePublicKey(encodedKey string) (*rsa.PublicKey, error) {
 	bytes, err := base64.StdEncoding.DecodeString(encodedKey)
 	if err != nil {
 		return nil, err
@@ -248,7 +248,7 @@ func decodePublicKey(encodedKey string) (*rsa.PublicKey, error) {
 	return key, nil
 }
 
-func getPublicKey(client *kubernetes.Clientset, configMap string) (*rsa.PublicKey, bool, error) {
+func getPublicKey(client kubernetes.Interface, configMap string) (*rsa.PublicKey, bool, error) {
 	config, exists, err := getConfigMap(client, configMap)
 	if err != nil {
 		return nil, false, err
@@ -263,13 +263,13 @@ func getPublicKey(client *kubernetes.Clientset, configMap string) (*rsa.PublicKe
 		return nil, false, nil
 	}
 
-	key, err := decodePublicKey(publicKeyEncoded)
+	key, err := DecodePublicKey(publicKeyEncoded)
 
 	return key, true, err
 }
 
-func setPublicKeyConfigMap(client *kubernetes.Clientset, publicKey *rsa.PublicKey, configMap string) error {
-	publicKeyEncoded := encodePublicKey(publicKey)
+func setPublicKeyConfigMap(client kubernetes.Interface, publicKey *rsa.PublicKey, configMap string) error {
+	publicKeyEncoded := EncodePublicKey(publicKey)
 	namespace := GetNamespace()
 
 	config, exists, err := getConfigMap(client, configMap)
@@ -278,11 +278,14 @@ func setPublicKeyConfigMap(client *kubernetes.Clientset, publicKey *rsa.PublicKe
 	}
 
 	if exists {
-		// Update
-		config.Data["publicKey"] = publicKeyEncoded
-		_, err := client.CoreV1().ConfigMaps(namespace).Update(config)
-		if err != nil {
-			return err
+		curKeyEncoded, ok := config.Data["publicKey"]
+		if !ok || curKeyEncoded != publicKeyEncoded {
+			// Update if the key doesn't exist or doesn't match
+			config.Data["publicKey"] = publicKeyEncoded
+			_, err := client.CoreV1().ConfigMaps(namespace).Update(config)
+			if err != nil {
+				return err
+			}
 		}
 	} else {
 		// Create
@@ -305,12 +308,12 @@ func setPublicKeyConfigMap(client *kubernetes.Clientset, publicKey *rsa.PublicKe
 	return nil
 }
 
-func encodePrivateKey(key *rsa.PrivateKey) string {
+func EncodePrivateKey(key *rsa.PrivateKey) string {
 	bytes := x509.MarshalPKCS1PrivateKey(key)
 	return base64.StdEncoding.EncodeToString(bytes)
 }
 
-func decodePrivateKey(encodedKey string) (*rsa.PrivateKey, error) {
+func DecodePrivateKey(encodedKey string) (*rsa.PrivateKey, error) {
 	bytes, err := base64.StdEncoding.DecodeString(encodedKey)
 	if err != nil {
 		return nil, err
@@ -323,7 +326,7 @@ func decodePrivateKey(encodedKey string) (*rsa.PrivateKey, error) {
 	return key, nil
 }
 
-func getSecret(client *kubernetes.Clientset, secretName string) (*v1.Secret, bool, error) {
+func getSecret(client kubernetes.Interface, secretName string) (*v1.Secret, bool, error) {
 	namespace := GetNamespace()
 	secret, err := client.CoreV1().Secrets(namespace).Get(secretName, metav1.GetOptions{})
 	if err != nil {
@@ -337,7 +340,7 @@ func getSecret(client *kubernetes.Clientset, secretName string) (*v1.Secret, boo
 	return secret, true, nil
 }
 
-func getPrivateSecret(client *kubernetes.Clientset, secretName string) (*rsa.PrivateKey, bool, error) {
+func getPrivateSecret(client kubernetes.Interface, secretName string) (*rsa.PrivateKey, bool, error) {
 	secret, exists, err := getSecret(client, secretName)
 	if err != nil {
 		return nil, false, err
@@ -352,13 +355,13 @@ func getPrivateSecret(client *kubernetes.Clientset, secretName string) (*rsa.Pri
 		return nil, false, nil
 	}
 
-	key, err := decodePrivateKey(string(privateKeyEncoded))
+	key, err := DecodePrivateKey(string(privateKeyEncoded))
 
 	return key, true, err
 }
 
-func setPrivateKeySecret(client *kubernetes.Clientset, privateKey *rsa.PrivateKey, secretName string) error {
-	privateKeyEncoded := encodePrivateKey(privateKey)
+func setPrivateKeySecret(client kubernetes.Interface, privateKey *rsa.PrivateKey, secretName string) error {
+	privateKeyEncoded := EncodePrivateKey(privateKey)
 	namespace := GetNamespace()
 
 	secret, exists, err := getSecret(client, secretName)
