@@ -57,6 +57,8 @@ Supported file formats are:
 - A running Kubernetes cluster with roles and role bindings implementing security necesary for the CDI controller to watch PVCs and pods across all namespaces.
 - A storage class and provisioner.
 - An HTTP or S3 file server hosting VM images
+> Note: CDI also supports importing a local file endpoint but this is not supported except for testing and debugging. The `file::///path-to-host-file` scheme is used and the endpoint's host path must be mounted in the importer container. This bind-mount is not done via the CDI controller nor importer pod.
+
 - An optional "golden" namespace acting as the image registry. The `default` namespace is fine for tire kicking.
 
 ### Download CDI
