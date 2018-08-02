@@ -184,6 +184,7 @@ func (d dataStream) http() (io.ReadCloser, error) {
 
 func (d dataStream) local() (io.ReadCloser, error) {
 	fn := d.Url.Path
+	glog.Warning("the file:/// protocol is intended *only* for debugging and testing. Files outside of the container cannot be accessed.")
 	f, err := os.Open(fn)
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not open file %q", fn)
