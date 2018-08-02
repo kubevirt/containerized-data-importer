@@ -24,9 +24,6 @@ import (
 
 const (
 	// upload proxy generated
-	ApiSecretName = "cdi-api-private"
-
-	// upload proxy generated
 	UploadProxySecretName = "cdi-proxy-private"
 
 	// uploadProxy Public key
@@ -177,10 +174,6 @@ func RecordApiPublicKey(client kubernetes.Interface, publicKey *rsa.PublicKey) e
 	return setPublicKeyConfigMap(client, publicKey, ApiPublicKeyConfigMap)
 }
 
-//func RecordApiPrivateKey(client kubernetes.Interface, privateKey *rsa.PrivateKey) error {
-//	return setPrivateKeySecret(client, privateKey, ApiSecretName)
-//}
-
 func RecordUploadProxyPublicKey(client kubernetes.Interface, publicKey *rsa.PublicKey) error {
 	return setPublicKeyConfigMap(client, publicKey, UploadProxyPublicKeyConfigMap)
 }
@@ -200,10 +193,6 @@ func GetUploadProxyPublicKey(client kubernetes.Interface) (*rsa.PublicKey, bool,
 func GetUploadProxyPrivateKey(client kubernetes.Interface) (*rsa.PrivateKey, bool, error) {
 	return getPrivateSecret(client, UploadProxySecretName)
 }
-
-//func GetApiPrivateKey(client kubernetes.Interface) (*rsa.PrivateKey, bool, error) {
-//	return getPrivateSecret(client, ApiSecretName)
-//}
 
 func GetNamespace() string {
 	if data, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {

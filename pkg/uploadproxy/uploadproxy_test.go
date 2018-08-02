@@ -1,9 +1,8 @@
 package uploadproxy
 
 import (
-	"crypto/rsa"
-	//"fmt"
 	"crypto/rand"
+	"crypto/rsa"
 	"reflect"
 	"testing"
 
