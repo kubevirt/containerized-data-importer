@@ -4,10 +4,12 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"archive/tar"
 
 	"github.com/pkg/errors"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"path/filepath"
+	"io"
 )
 
 var formatTable = map[string]func(string, string) (string, error){
@@ -40,38 +42,64 @@ func FormatTestData(srcFile, tgtDir string, targetFormats ...string) (string, er
 func tarCmd(src, tgtDir string) (string, error) {
 	base := filepath.Base(src)
 	tgt := filepath.Join(tgtDir, base+image.ExtTar)
-	args := []string{"-cf", tgt, src}
+	srcFile, err := os.OpenFile(src, os.O_RDONLY, 0660)
+	if err != nil {
+		return "", errors.Wrap(err, "Erred opening file")
+	}
+	defer srcFile.Close()
+	tarBall, err := os.Create(tgt)
+	if err != nil {
+		return "", errors.Wrap(err, "Erred opening file")
+	}
+	defer tarBall.Close()
 
-	if err := doCmdAndVerifyFile(tgt, "tar", args...); err != nil {
-		return "", err
+	tw := tar.NewWriter(tarBall)
+	defer tw.Close()
+
+	srcFileInfo, err := srcFile.Stat()
+	if err != nil {
+		return "", errors.Wrap(err, "Erred stating file")
+	}
+
+	hdr, err := tar.FileInfoHeader(srcFileInfo, "")
+	if err != nil {
+		return "", errors.Wrap(err, "Erred generating tar file header")
+	}
+
+	err = tw.WriteHeader(hdr)
+	if err != nil {
+		return "", errors.Wrap(err, "Erred writing header")
+	}
+
+	_, err = io.Copy(tw, srcFile)
+	if err != nil {
+		return "", errors.Wrap(err, "Err writing to file")
 	}
 	return tgt, nil
 }
 
 func gzCmd(src, tgtDir string) (string, error) {
-	src, err := copyIfNotPresent(src, tgtDir)
+	tmpDir := os.TempDir()
+	src, err := copyIfNotPresent(src, tmpDir)
 	if err != nil {
 		return "", err
 	}
-	base := filepath.Base(src)
-	tgt := filepath.Join(tgtDir, base+image.ExtGz)
-	if err := doCmdAndVerifyFile(tgt, "gzip", src); err != nil {
+	if err = doCmd("gzip", src); err != nil {
 		return "", err
 	}
-	return tgt, nil
+	return copyIfNotPresent(src+image.ExtGz, tgtDir)
 }
 
 func xzCmd(src, tgtDir string) (string, error) {
-	src, err := copyIfNotPresent(src, tgtDir)
+	tmpDir := os.TempDir()
+	src, err := copyIfNotPresent(src, tmpDir)
 	if err != nil {
 		return "", err
 	}
-	base := filepath.Base(src)
-	tgt := filepath.Join(tgtDir, base+image.ExtXz)
-	if err := doCmdAndVerifyFile(tgt, "xz", src); err != nil {
+	if err = doCmd("xz", src); err != nil {
 		return "", err
 	}
-	return tgt, nil
+	return copyIfNotPresent(src+image.ExtXz, tgtDir)
 }
 
 func qcow2Cmd(srcfile, tgtDir string) (string, error) {
@@ -112,17 +140,18 @@ func doCmd(osCmd string, osArgs ...string) error {
 	return nil
 }
 
-// copyIfNotPresent checks for the src file in the tgtDir.  If it is not there, it attempts to copy if from src to tgtdir.
+// copyIfNotPresent checks for the src file in the tgtDir.  If it is not there, it attempts to copy it from src to tgtdir.
 // If a copy is performed, the path to the copy is returned.
 // If no copy is performed, the original src string is returned.
 func copyIfNotPresent(src, tgtDir string) (string, error) {
-	base := filepath.Base(src)
+	tgt := filepath.Join(tgtDir, filepath.Base(src))
 	// Only copy the source image if it does not exist in the temp directory
-	if _, err := os.Stat(filepath.Join(tgtDir, base)); err != nil {
-		if err := doCmd("cp", "-f", src, tgtDir); err != nil {
+	_, err := os.Stat(tgt)
+	if os.IsNotExist(err) {
+		if err := doCmd("cp", src, tgtDir); err == nil {
 			return "", err
 		}
-		src = filepath.Join(tgtDir, base)
+		return tgt, nil
 	}
 	return src, nil
 }
