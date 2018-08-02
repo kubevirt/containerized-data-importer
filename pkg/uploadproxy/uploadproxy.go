@@ -39,7 +39,7 @@ type uploadProxyApp struct {
 	bindAddress string
 	bindPort    uint
 
-	client *kubernetes.Clientset
+	client kubernetes.Interface
 
 	certsDirectory string
 
@@ -53,7 +53,7 @@ type uploadProxyApp struct {
 	apiServerPublicKey *rsa.PublicKey
 }
 
-func NewUploadProxy(bindAddress string, bindPort uint, client *kubernetes.Clientset) (UploadApiServer, error) {
+func NewUploadProxy(bindAddress string, bindPort uint, client kubernetes.Interface) (UploadApiServer, error) {
 	var err error
 	app := &uploadProxyApp{
 		bindAddress: bindAddress,
@@ -62,31 +62,27 @@ func NewUploadProxy(bindAddress string, bindPort uint, client *kubernetes.Client
 	}
 	app.certsDirectory, err = ioutil.TempDir("", "certsdir")
 	if err != nil {
-		glog.Fatalf("Unable to create certs temporary directory: %v\n", errors.WithStack(err))
+		return nil, errors.Errorf("Unable to create certs temporary directory: %v\n", errors.WithStack(err))
 	}
 
 	// generate/retrieve RSA key used to decrypt tokens
 	err = app.generateKeys()
 	if err != nil {
-		glog.Fatal("Unable to generate and retrieve rsa keys: %v", errors.WithStack(err))
+		return nil, errors.Errorf("Unable to generate and retrieve rsa keys: %v", errors.WithStack(err))
 	}
 
 	// retrieve RSA key used by apiserver to sign tokens
 	err = app.getSigningKey()
 	if err != nil {
-		glog.Fatal("Unable to retrieve apiserver signing key: %v", errors.WithStack(err))
+		return nil, errors.Errorf("Unable to retrieve apiserver signing key: %v", errors.WithStack(err))
 	}
 
 	// generate self signed cert
 	err = app.generateSelfSignedCert()
 	if err != nil {
-		glog.Fatalf("Unable to create self signed certs for upload proxy: %v\n", errors.WithStack(err))
+		return nil, errors.Errorf("Unable to create self signed certs for upload proxy: %v\n", errors.WithStack(err))
 
 	}
-
-	http.HandleFunc(uploadPath, func(w http.ResponseWriter, r *http.Request) {
-		app.handleUploadRequest(w, r)
-	})
 
 	return app, nil
 }
@@ -191,6 +187,10 @@ func (app *uploadProxyApp) startTLS() error {
 	if err != nil {
 		return err
 	}
+
+	http.HandleFunc(uploadPath, func(w http.ResponseWriter, r *http.Request) {
+		app.handleUploadRequest(w, r)
+	})
 
 	go func() {
 		http.ListenAndServeTLS(fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort), certFile, keyFile, nil)

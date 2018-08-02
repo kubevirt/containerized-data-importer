@@ -63,7 +63,7 @@ func main() {
 
 	uploadProxy, err := uploadproxy.NewUploadProxy(defaultHost, defaultPort, client)
 	if err != nil {
-		glog.Fatalf("Upload upload proxy failed to initialize: %v\n", errors.WithStack(err))
+		glog.Fatalf("UploadProxy failed to initialize: %v\n", errors.WithStack(err))
 	}
 
 	err = uploadProxy.Start()
