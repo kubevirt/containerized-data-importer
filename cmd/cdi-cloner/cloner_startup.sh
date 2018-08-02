@@ -14,39 +14,54 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-retries=0
-max_retries=5
-sleep_time=3
-if [ "$1" == "source" ] ; then
-  echo "Starting clone source"
-  echo "creating fifo pipe"
-  mkfifo /tmp/clone/socket/$2/pipe
-  echo "creating tarball of the image and redirecting it to /tmp/clone/socket/$2/pipe"
-  pushd /tmp/clone/image
-  tar cv . > /tmp/clone/socket/$2/pipe
-  popd
-  echo "finished writing image to /tmp/clone/socket/$2/pipe"
-elif [ "$1" == "target" ] ; then
-  echo "Starting clone target"
-  while true; 
-  do
-    echo "checks if the fifo pipe was created by the cloning source pod"
-    if [ -e "/tmp/clone/socket/$2/pipe" ]; then
-      pushd /tmp/clone/image
-      echo "extract the image from /tmp/clone/socket/$2/pipe into /tmp/clone/image directory"
-      tar xv < /tmp/clone/socket/$2/pipe
-      popd
-      echo "finished reading image from /tmp/clone/socket/$2/pipe and writing it to /tmp/clone/image"
-      break
-    elif [ $retries -eq $max_retries ]; then
-      echo "retries to clone image has reached maximum retries - $max_retries."
-      exit 1
-    fi
-    echo "fifo pipe has not been created by the cloning source pod yet. waiting $sleep_time seconds before checking again...."
-    sleep $sleep_time
-    retries=$((retries+1)) 
-  done
-else
-  echo "argument value for this script is missing or wrong. shuold be 'source' or 'target'"
+set -euo pipefail
+
+if [ $# != 2 ] ; then
+  echo "cloner: 2 args are supported: source|target and socket name"
   exit 1
 fi
+obj="$1"  # source|target
+rand_dir="$2" # part of socket path
+
+pipe_dir="/tmp/clone/socket/$rand_dir/pipe"
+image_dir="/tmp/clone/image"
+retries=0
+max_retries=20
+sleep_time=3
+
+if [ "$obj" == "source" ] ; then
+  echo "cloner: Starting clone source"
+  echo "cloner: creating fifo pipe"
+  mkfifo $pipe_dir
+  echo "cloner: creating tarball of the image and redirecting it to $pipe_dir"
+  pushd $image_dir
+  tar cv . > $pipe_dir
+  popd
+  echo "cloner: finished writing image to $pipe_dir"
+  exit 0
+fi
+
+if [ "$obj" == "target" ] ; then
+  echo "cloner: Starting clone target"
+  while true ; do
+    echo "cloner: check if the fifo pipe was created by the cloning source pod"
+    if [ -e "$pipe_dir" ] ; then
+      pushd $image_dir
+      echo "cloner: extract the image from $pipe_dir into $image_dir directory"
+      tar xv < $pipe_dir
+      popd
+      echo "cloner: finished cloning image from $pipe_dir to $image_dir"
+      exit 0
+    fi
+    if (( retries == max_retries )) ; then
+      echo "cloner: failed after $retries retries to clone image"
+      exit 1
+    fi
+    echo "cloner: $retries: fifo pipe has not been created by the source pod. Waiting $sleep_time seconds before checking again..."
+    sleep $sleep_time
+    let retries+=1
+  done
+fi
+
+echo "cloner: argument \"$obj\" is wrong; expect 'source' or 'target'"
+exit 1
