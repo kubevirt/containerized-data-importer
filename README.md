@@ -153,16 +153,18 @@ Make copies of the [example manifests](./manifests/example) for editing. The nec
 ### Cloning VM Images
 
 Cloning is achieved by creating a new PVC with the 'k8s.io/CloneRequest' annotation indicating the name of the PVC the image is copied from.
-Once the controller detects the PVC, it starts two pods which are responsible for the cloning of the image from one PVC to another using a unix socket that is created on the host itself.
+Once the controller detects the PVC, it starts two pods (source and target pods) which are responsible for the cloning of the image from one PVC to another using a unix socket that is created on the host itself. 
 When the cloning is completed, the PVC which the image was copied to, is assigned with the 'k8s.io/CloneOf' annotation to indicate cloning completion.
 The copied VM image can be used by a new pod only after the cloning process is completed.
 
-Cloning requires two pods, the source pod and target pod, which must execute on the same node.
-Pod adffinity is used to enforce this requirement; however, the cluster also needs to be configured to delay volume binding until pod scheduling has completed.
+The two cloning pods must execute on the same node. Pod adffinity is used to enforce this requirement; however, the cluster also needs to be configured to delay volume binding until pod scheduling has completed.
 
-In Kubernetes 1.10 and older export KUBE_FEATURE_GATES before bringing up the cluster:
+In Kubernetes 1.9 and older export KUBE_FEATURE_GATES before bringing up the cluster:
 `$ export KUBE_FEATURE_GATES="PersistentLocalVolumes=true,VolumeScheduling=true,MountPropagation=true"`
-Also create a storage class with _volumeBindingMode_ set to "WaitForFirstConsumer", eg:
+
+These features default to true in Kubernetes 1.10 and later and thus do not need to be set.
+
+Regardless of the Kubernetes version, a storage class with _volumeBindingMode_ set to "WaitForFirstConsumer" needs to be created. Eg:
 ```
    kind: StorageClass
    apiVersion: storage.k8s.io/v1
