@@ -147,7 +147,9 @@ func (a *authorizor) generateAccessReview(req *restful.Request) (*authorization.
 	resource := pathSplit[6]
 	userExtras := a.getUserExtras(headers)
 
-	if resource != "uploadtoken" {
+	if group != uploadTokenGroup {
+		return nil, fmt.Errorf("unknown api group %s", group)
+	} else if resource != "uploadtoken" {
 		return nil, fmt.Errorf("unknown resource type %s", resource)
 	}
 
@@ -207,6 +209,16 @@ func isAuthenticated(req *restful.Request) bool {
 	return true
 }
 
+func isAllowed(result *authorization.SubjectAccessReview) (bool, string) {
+
+	if result.Status.Allowed {
+		return true, ""
+	}
+
+	return false, result.Status.Reason
+
+}
+
 func (a *authorizor) Authorize(req *restful.Request) (bool, string, error) {
 
 	// Endpoints related to getting information about
@@ -235,11 +247,8 @@ func (a *authorizor) Authorize(req *restful.Request) (bool, string, error) {
 		return false, "internal server error", err
 	}
 
-	if result.Status.Allowed {
-		return true, "", nil
-	}
-
-	return false, result.Status.Reason, nil
+	allowed, reason := isAllowed(result)
+	return allowed, reason, nil
 }
 
 func NewAuthorizorFromConfig(config *restclient.Config) (CdiApiAuthorizor, error) {
