@@ -14,6 +14,7 @@
 
 .PHONY: build build-controller build-importer \
 		docker docker-controller docker-cloner docker-importer \
+		cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer \
 		test test-functional test-unit \
 		publish \
 		vet \
@@ -89,3 +90,19 @@ goveralls:
 
 release-description:
 	./hack/build/release-description.sh ${RELREF} ${PREREF}
+
+cluster-up:
+	./cluster/up.sh
+
+cluster-down:
+	./cluster/down.sh
+
+cluster-sync: build ${WHAT}
+	./cluster/sync.sh ${WHAT}
+
+cluster-sync-controller: WHAT = cmd/cdi-controller
+cluster-sync-controller: cluster-sync
+cluster-sync-importer: WHAT = cmd/cdi-importer
+cluster-sync-importer: cluster-sync
+cluster-sync-cloner: WHAT = cmd/cdi-cloner
+cluster-sync-cloner: cluster-sync
