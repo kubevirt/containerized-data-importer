@@ -114,6 +114,9 @@ func checkActions(expected []core.Action, actual []core.Action, t *testing.T) {
 		expectedAction := expected[i]
 		checkAction(expectedAction, action, t)
 	}
+	if len(expected) != len(actual) {
+		t.Errorf("Expected %d actions, got %d", len(expected), len(actual))
+	}
 }
 
 func checkAction(expected, actual core.Action, t *testing.T) {
@@ -212,7 +215,6 @@ func TestPublicKeyCreation(t *testing.T) {
 	actions = append(actions, proxyPrivateKeyGetAction())
 	actions = append(actions, proxyPublicKeyGetAction())
 	actions = append(actions, proxyPublicKeyCreateAction(&proxyKeyPair.PublicKey))
-	actions = append(actions, apiPublicKeyGetAction())
 
 	client := k8sfake.NewSimpleClientset(kubeobjects...)
 	app := &uploadProxyApp{
