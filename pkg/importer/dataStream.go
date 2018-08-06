@@ -1,3 +1,19 @@
+/*
+Copyright 2018 The CDI Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package importer
 
 // DEPRECATION NOTICE: Support for local (file://) endpoints will be removed from CDI in the next
@@ -500,8 +516,18 @@ func closeReaders(readers []reader) (rtnerr error) {
 	return rtnerr
 }
 
+func (d DataStream) isHTTPQcow2() bool {
+	// assuming len(d.Readers) == 3 is [http, mr, mr]
+	// should prob get rid of the redundant MultiReader
+	return (d.url.Scheme == "http" || d.url.Scheme == "https") && d.qemu && len(d.Readers) == 3
+}
+
 // Copy endpoint to dest based on passed-in reader.
 func (d DataStream) copy(dest string) error {
+	if d.isHTTPQcow2() {
+		glog.V(3).Infoln("Doing streaming qcow2 to raw conversion")
+		return image.ConvertQcow2ToRawStream(d.url, dest)
+	}
 	return copy(d.topReader(), dest, d.qemu)
 }
 

@@ -7,3 +7,5 @@ release-announcement
 .project
 .vscode
 cluster/.*
+vendor/**
+.history
