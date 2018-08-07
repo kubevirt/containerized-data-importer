@@ -22,7 +22,7 @@ import (
 type data struct {
 	DockerRepo string
 	DockerTag  string
-	Verbosity  int
+	Verbosity  string
 	PullPolicy string
 	Namespace  string
 }
@@ -31,7 +31,7 @@ func main() {
 	dockerRepo := flag.String("docker-repo", "", "")
 	dockertag := flag.String("docker-tag", "", "")
 	templFile := flag.String("template", "", "")
-	verbosity := flag.Int("verbosity", 1, "")
+	verbosity := flag.String("verbosity", "1", "")
 	pullPolicy := flag.String("pull-policy", "", "")
 	namespace := flag.String("namespace", "", "")
 	flag.Parse()
