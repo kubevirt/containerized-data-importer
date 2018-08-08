@@ -13,3 +13,7 @@ import:
   version: kubernetes-1.10.3
 - package: k8s.io/gengo
 - package: github.com/xi2/xz
+- package: k8s.io/kube-aggregator
+  version: kubernetes-1.10.3
+- package: github.com/emicklei/go-restful
+  version: v2.6.0

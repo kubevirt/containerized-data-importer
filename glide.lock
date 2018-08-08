@@ -1,14 +1,16 @@
-hash: db75d5eb043fb5282eb0d854dd74a3e97c2b5276068cbcd8ea8277e92c8baa95
-updated: 2018-07-09T10:34:56.574974523-04:00
+hash: 7b501221bc3cafa9ec272eb2160d015e8968ef32abf1563d3461d49fa0382b1a
+updated: 2018-08-01T09:36:05.706462892-04:00
 imports:
 - name: github.com/davecgh/go-spew
   version: 782f4967f2dc4564575ca782fe2d04090b5faca8
   subpackages:
   - spew
+- name: github.com/emicklei/go-restful
+  version: 26b41036311f2da8242db402557a0dbd09dc83da
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ini/ini
-  version: cec2bdc49009247305a260b082a18e802d0fe292
+  version: d58d458bec3cb5adec4b7ddb41131855eac0b33f
 - name: github.com/gogo/protobuf
   version: c0656edd0d9eab7c66d1eb0c568f9039345796f7
   subpackages:
@@ -59,8 +61,6 @@ imports:
   - pkg/set
 - name: github.com/mitchellh/go-homedir
   version: 3864e76763d94a6df2f9960b16a20a33da9f9a66
-- name: github.com/pborman/uuid
-  version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 - name: github.com/pkg/errors
   version: 816c9085562cd7ee03e7f8188a1cfd942858cded
 - name: github.com/spf13/pflag
@@ -182,11 +182,9 @@ imports:
   - pkg/util/json
   - pkg/util/mergepatch
   - pkg/util/net
-  - pkg/util/rand
   - pkg/util/runtime
   - pkg/util/sets
   - pkg/util/strategicpatch
-  - pkg/util/uuid
   - pkg/util/validation
   - pkg/util/validation/field
   - pkg/util/wait
@@ -353,7 +351,9 @@ imports:
 - name: k8s.io/code-generator
   version: 69d88fb997c52c32288a40f5efb62add0a7c8e04
 - name: k8s.io/gengo
-  version: fdcf9f9480fdd5bf2b3c3df9bf4ecd22b25b87e2
+  version: 906d99f89cd644eecf75ab547b29bf9f876f0b59
+- name: k8s.io/kube-aggregator
+  version: a305d191dfc1956bfaa9500f0d2f3481e0e3ffb2
 - name: k8s.io/kube-openapi
   version: 39cb288412c48cb533ba4be5d6c28620b9a0c1b4
   subpackages:

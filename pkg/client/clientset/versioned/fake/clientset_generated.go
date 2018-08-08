@@ -25,8 +25,8 @@ import (
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/testing"
 	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
-	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/datavolumecontroller/v1alpha1"
-	fakecdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/datavolumecontroller/v1alpha1/fake"
+	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/cdicontroller/v1alpha1"
+	fakecdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/cdicontroller/v1alpha1/fake"
 )
 
 // NewSimpleClientset returns a clientset that will respond with the provided objects.
