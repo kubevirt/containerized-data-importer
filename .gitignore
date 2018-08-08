@@ -6,4 +6,4 @@ manifests/generated/*
 release-announcement
 .project
 .vscode
-vendor/**
+cluster/.*
