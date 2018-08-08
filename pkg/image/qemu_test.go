@@ -1,9 +1,14 @@
 package image
 
 import (
+	"fmt"
+	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestConvertQcow2ToRaw(t *testing.T) {
@@ -51,4 +56,83 @@ func TestConvertQcow2ToRaw(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConvertQcow2ToRawStream(t *testing.T) {
+	type args struct {
+		src  *url.URL
+		dest string
+	}
+	httpPort := 8080
+	imageDir, _ := filepath.Abs("../../test/images")
+	// adapted from above test not totally sure necessary
+	if _, err := os.Stat(imageDir); os.IsNotExist(err) {
+		imageDir = "./"
+	}
+
+	server := startHTTPServer(httpPort, imageDir)
+
+	defer server.Shutdown(nil)
+
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "convert qcow2 image to Raw",
+			args:    args{toURL(httpPort, "cirros-qcow2.img"), tempFile("cirros-test-good")},
+			wantErr: false,
+		},
+		{
+			name:    "failed to convert non qcow2 image to Raw",
+			args:    args{toURL(httpPort, "tinycore.iso"), tempFile("cirros-test-bad")},
+			wantErr: true,
+		},
+		{
+			name:    "failed to convert invalid qcow2 image to Raw",
+			args:    args{toURL(httpPort, "cirros-snapshot-qcow2.img"), tempFile("cirros-snapshot-test-bad")},
+			wantErr: true,
+		},
+		{
+			name:    "failed to convert non-existing qcow2 image to Raw",
+			args:    args{toURL(httpPort, "foobar.img"), tempFile("foobar-test-bad")},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := ConvertQcow2ToRawStream(tt.args.src, tt.args.dest); (err != nil) != tt.wantErr {
+				t.Errorf("ConvertQcow2ToRawStream() error = %v, wantErr %v %v", err, tt.wantErr, imageDir)
+			}
+		})
+		os.Remove(tt.args.dest)
+	}
+}
+
+func toURL(port int, fileName string) (result *url.URL) {
+	result, _ = url.Parse(fmt.Sprintf("http://localhost:%d/%s", port, fileName))
+	return
+}
+
+func tempFile(fileName string) string {
+	return filepath.Join(os.TempDir(), fileName)
+}
+
+func startHTTPServer(port int, dir string) *http.Server {
+	server := &http.Server{
+		Addr:    fmt.Sprintf(":%d", port),
+		Handler: http.FileServer(http.Dir(dir)),
+	}
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil {
+			// cannot panic, because this probably is an intentional close
+			log.Printf("Httpserver: ListenAndServe() error: %s", err)
+		}
+	}()
+
+	time.Sleep(2 * time.Second)
+
+	return server
 }
