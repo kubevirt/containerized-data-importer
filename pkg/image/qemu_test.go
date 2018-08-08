@@ -1,3 +1,18 @@
+/*
+Copyright 2018 The CDI Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package image
 
 import (
@@ -86,7 +101,7 @@ func TestConvertQcow2ToRawStream(t *testing.T) {
 		},
 		{
 			name:    "failed to convert non qcow2 image to Raw",
-			args:    args{toURL(httpPort, "tinycore.iso"), tempFile("cirros-test-bad")},
+			args:    args{toURL(httpPort, "tinyCore.iso"), tempFile("cirros-test-bad")},
 			wantErr: true,
 		},
 		{
@@ -132,7 +147,15 @@ func startHTTPServer(port int, dir string) *http.Server {
 		}
 	}()
 
-	time.Sleep(2 * time.Second)
+	for i := 0; i < 10; i++ {
+		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/", port))
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		resp.Body.Close()
+		break
+	}
 
 	return server
 }

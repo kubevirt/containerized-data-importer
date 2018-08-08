@@ -84,11 +84,11 @@ func validate(image, format string) error {
 	}
 
 	if info.Format != format {
-		return errors.Wrapf(err, "Invalid format %s for image %s", info.Format, image)
+		return errors.Errorf("Invalid format %s for image %s", info.Format, image)
 	}
 
 	if len(info.BackingFile) > 0 {
-		return errors.Wrapf(err, "Image %s is invalid because it has backing file %s", image, info.BackingFile)
+		return errors.Errorf("Image %s is invalid because it has backing file %s", image, info.BackingFile)
 	}
 
 	return nil
