@@ -344,7 +344,7 @@ func (d dataStream) qcow2NopReader(h *image.Header) (io.Reader, int64, error) {
 //  order to get its original size. For now 0 is returned.
 //TODO: support gz size.
 func (d dataStream) xzReader() (io.Reader, int64, error) {
-	xz, err := xz.NewReader(d.topReader()) //note: default dict size may be too small
+	xz, err := xz.NewReader(d.topReader())
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "could not create xz reader")
 	}

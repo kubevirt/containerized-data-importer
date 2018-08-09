@@ -22,8 +22,11 @@ var formatTable = map[string]func(string, string) (string, error){
 	"":             toNoop,
 }
 
-// create file based on targetFormat extensions and return created file's name.
-// note: intermediate files are removed.
+// FormatTestData accepts the path of a single file (srcFile) and attempts to generate an output
+// file in the format defined by targetFormats (e.g. ".tar", ".gz" will produce a .tar.gz formatted file).  The output file is written to the directory in `tgtDir`.
+// returns:
+//		(string) Path of output file
+//		(error)  Errors that occur during formatting
 func FormatTestData(srcFile, tgtDir string, targetFormats ...string) (string, error) {
 	var err error
 	for _, tf := range targetFormats {
@@ -67,7 +70,6 @@ func toTar(src, tgtDir string) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "Error writing header")
 	}
-	defer w.Close()
 
 	_, err = io.Copy(w, srcFile)
 	if err != nil {
@@ -120,8 +122,8 @@ func toXz(src, tgtDir string) (string, error) {
 }
 
 func toQcow2(srcfile, tgtDir string) (string, error) {
-	tgt := strings.Replace(filepath.Base(srcfile), ".iso", image.ExtQcow2, 1)
-	tgt = filepath.Join(tgtDir, tgt)
+	base := strings.TrimSuffix(filepath.Base(srcfile), ".iso")
+	tgt := filepath.Join(tgtDir, base+image.ExtQcow2)
 	args := []string{"convert", "-f", "raw", "-O", "qcow2", srcfile, tgt}
 
 	if err := doCmdAndVerifyFile(tgt, "qemu-img", args...); err != nil {
@@ -131,11 +133,7 @@ func toQcow2(srcfile, tgtDir string) (string, error) {
 }
 
 func toNoop(src, tgtDir string) (string, error) {
-	newSrc, err := copyIfNotPresent(src, tgtDir)
-	if err != nil {
-		return "", err
-	}
-	return newSrc, nil
+	return copyIfNotPresent(src, tgtDir)
 }
 
 func doCmdAndVerifyFile(tgt, cmd string, args ...string) error {
@@ -159,15 +157,17 @@ func doCmd(osCmd string, osArgs ...string) error {
 
 // copyIfNotPresent checks for the src file in the tgtDir.  If it is not there, it attempts to copy it from src to tgtdir.
 // If a copy is performed, the path to the copy is returned.
-// If no copy is performed, the original src string is returned.
+// If the file already exists, the original src string is returned.
 func copyIfNotPresent(src, tgtDir string) (string, error) {
 	ret := filepath.Join(tgtDir, filepath.Base(src))
 	_, err := os.Stat(ret)
 	if err != nil && !os.IsNotExist(err) {
 		return "", errors.Wrap(err, "Unexpected error stating file")
 	}
-	if err = doCmd("cp", src, tgtDir); err != nil {
-		return "", err
+	if os.IsNotExist(err) {
+		if err = doCmd("cp", src, ret); err != nil {
+			return "", err
+		}
 	}
 	return ret, nil
 }
