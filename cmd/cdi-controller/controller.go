@@ -116,8 +116,8 @@ func main() {
 		verbose)
 
 	cloneController := controller.NewCloneController(client,
-		pvcInformer.Informer(),
-		podInformer.Informer(),
+		pvcInformer,
+		podInformer,
 		clonerImage,
 		pullPolicy,
 		verbose)

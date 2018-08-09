@@ -193,15 +193,6 @@ func (f *importFixture) expectUpdatePvcAction(d *corev1.PersistentVolumeClaim) {
 	f.kubeactions = append(f.kubeactions, core.NewUpdateAction(schema.GroupVersionResource{Resource: "persistentvolumeclaims", Version: "v1"}, d.Namespace, d))
 }
 
-func getPvcKey(pvc *corev1.PersistentVolumeClaim, t *testing.T) string {
-	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(pvc)
-	if err != nil {
-		t.Errorf("Unexpected error getting key for pvc %v: %v", pvc.Name, err)
-		return ""
-	}
-	return key
-}
-
 // Verifies basic pod creation when new PVC is discovered
 func TestCreatesImportPod(t *testing.T) {
 	f := newImportFixture(t)

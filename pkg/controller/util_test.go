@@ -2,10 +2,8 @@ package controller
 
 import (
 	"fmt"
-	"reflect"
-	"testing"
-
 	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeinformers "k8s.io/client-go/informers"
@@ -13,15 +11,14 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	bootstrapapi "k8s.io/client-go/tools/bootstrap/token/api"
 	"k8s.io/client-go/tools/cache"
-	k8stesting "k8s.io/client-go/tools/cache/testing"
 	"k8s.io/client-go/util/workqueue"
-
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 	expectations "kubevirt.io/containerized-data-importer/pkg/expectations"
+	"reflect"
+	"testing"
 )
 
 func TestController_pvcFromKey(t *testing.T) {
-
 	//create staging pvc and pod
 	pvcWithEndPointAnno := createPvc("testPvcWithEndPointAnno", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
 	podWithCdiAnno := createPod(pvcWithEndPointAnno, DataVolName)
@@ -69,15 +66,18 @@ func TestController_pvcFromKey(t *testing.T) {
 	}
 }
 
-func TestController_podFromKey(t *testing.T) {
-	//create staging pvc and pod
-	pvcWithEndPointAnno := createPvc("testPvcWithEndPointAnno", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
-	podWithCdiAnno := createPod(pvcWithEndPointAnno, DataVolName)
+func TestCloneController_pvcFromKey(t *testing.T) {
+
+	//create staging pvc and pods
+	pvcWithCloneRequestAnno := createPvc("target-pvc", "target-ns", map[string]string{AnnCloneRequest: "source-ns/golden-pvc"}, nil)
+	pvcUid := string(pvcWithCloneRequestAnno.GetUID())
+	sourcePod := createSourcePod(pvcWithCloneRequestAnno, DataVolName, pvcUid)
+	targetPod := createTargetPod(pvcWithCloneRequestAnno, DataVolName, pvcUid, sourcePod.Namespace)
 
 	//run the informers
-	c, _, pod, err := createImportController(pvcWithEndPointAnno, podWithCdiAnno, "default")
+	c, pvc, sourcePod, targetPod, err := createCloneController(pvcWithCloneRequestAnno, sourcePod, targetPod, "target-ns", "sourceNs")
 	if err != nil {
-		t.Errorf("Controller.podFromKey() failed to initialize fake controller error = %v", err)
+		t.Errorf("Controller.pvcFromKey() failed to initialize fake clone controller error = %v", err)
 		return
 	}
 
@@ -87,31 +87,37 @@ func TestController_podFromKey(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *v1.Pod
+		want    *v1.PersistentVolumeClaim
 		wantErr bool
 	}{
 		{
-			name:    "expect to get pod object from key",
-			args:    args{fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)},
-			want:    pod,
+			name:    "expect to get pvc object from key",
+			args:    args{fmt.Sprintf("%s/%s", sourcePod.GetAnnotations()[AnnTargetPodNamespace], pvc.Name)},
+			want:    pvc,
 			wantErr: false,
 		},
 		{
-			name:    "expect to not get pod object from key",
-			args:    args{fmt.Sprintf("%s/%s", "myns", pod.Name)},
+			name:    "expect to not get pvc object from key",
+			args:    args{fmt.Sprintf("%s/%s", "myns", pvc.Name)},
 			want:    nil,
 			wantErr: true,
+		},
+		{
+			name:    "expect to get pvc object from key",
+			args:    args{fmt.Sprintf("%s/%s", targetPod.Namespace, pvc.Name)},
+			want:    pvc,
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := c.podFromKey(tt.args.key)
+			got, err := c.pvcFromKey(tt.args.key)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Controller.podFromKey() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Controller.pvcFromKey() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Controller.podFromKey() = %v, want %v", got, tt.want)
+				t.Errorf("Controller.pvcFromKey() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -166,6 +172,63 @@ func TestController_objFromKey(t *testing.T) {
 	}
 }
 
+func TestCloneController_objFromKey(t *testing.T) {
+	//create staging pvc and pods
+	pvcWithCloneRequestAnno := createPvc("testPvcWithCloneRequestAnno", "target-ns", map[string]string{AnnCloneRequest: "source-ns/golden-pvc"}, nil)
+	pvcUid := string(pvcWithCloneRequestAnno.GetUID())
+	sourcePod := createSourcePod(pvcWithCloneRequestAnno, DataVolName, pvcUid)
+	targetPod := createTargetPod(pvcWithCloneRequestAnno, DataVolName, pvcUid, sourcePod.Namespace)
+
+	//run the informers
+	c, pvc, sourcePod, targetPod, err := createCloneController(pvcWithCloneRequestAnno, sourcePod, targetPod, "target-ns", "source-ns")
+	if err != nil {
+		t.Errorf("Controller.objFromKey() failed to initialize fake clone controller error = %v", err)
+		return
+	}
+
+	type args struct {
+		informer cache.SharedIndexInformer
+		key      interface{}
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    interface{}
+		wantErr bool
+	}{
+		{
+			name:    "expect to get object key",
+			args:    args{c.pvcInformer, fmt.Sprintf("%s/%s", sourcePod.GetAnnotations()[AnnTargetPodNamespace], pvc.Name)},
+			want:    pvc,
+			wantErr: false,
+		},
+		{
+			name:    "expect to not get object key",
+			args:    args{c.pvcInformer, fmt.Sprintf("%s/%s", "myns", pvc.Name)},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "expect to get object key",
+			args:    args{c.pvcInformer, fmt.Sprintf("%s/%s", targetPod.Namespace, pvc.Name)},
+			want:    pvc,
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := c.objFromKey(tt.args.informer, tt.args.key)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Controller.objFromKey() error = %v, wantErr %v  myKey = %v", err, tt.wantErr, tt.args.key)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Controller.objFromKey() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_checkPVC(t *testing.T) {
 	//Create base pvcs and secrets
 	pvcNoAnno := createPvc("testPvcNoAnno", "default", nil, nil)
@@ -191,6 +254,38 @@ func Test_checkPVC(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gotOk := checkPVC(tt.pvc)
+			if gotOk != tt.wantOk {
+				t.Errorf("checkPVC() gotOk = %v, want %v", gotOk, tt.wantOk)
+			}
+		})
+	}
+
+}
+
+func Test_checkClonePVC(t *testing.T) {
+	//Create base pvcs and secrets
+	pvcNoAnno := createPvc("testPvcNoAnno", "default", nil, nil)
+	pvcWithCloneRequestAnno := createPvc("testPvcWithCloneRequestAnno", "default", map[string]string{AnnCloneRequest: "source-ns/golden-pvc"}, nil)
+	tests := []struct {
+		name   string
+		wantOk bool
+		pvc    *v1.PersistentVolumeClaim
+	}{
+		{
+			name:   "pvc does not have cloneRequest annotation or pod annotation",
+			wantOk: false,
+			pvc:    pvcNoAnno,
+		},
+		{
+			name:   "pvc does have CloneRequest annotation and does not have a pod annotation",
+			wantOk: true,
+			pvc:    pvcWithCloneRequestAnno,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotOk := checkClonePVC(tt.pvc)
 			if gotOk != tt.wantOk {
 				t.Errorf("checkPVC() gotOk = %v, want %v", gotOk, tt.wantOk)
 			}
@@ -730,6 +825,26 @@ func createPvc(name, ns string, annotations, labels map[string]string) *v1.Persi
 	}
 }
 
+func createClonePvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
+	return &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Namespace:   ns,
+			Annotations: annotations,
+			Labels:      labels,
+			UID:         "pvc-uid",
+		},
+		Spec: v1.PersistentVolumeClaimSpec{
+			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany, v1.ReadWriteOnce},
+			Resources: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					v1.ResourceName(v1.ResourceStorage): resource.MustParse("1G"),
+				},
+			},
+		},
+	}
+}
+
 func createSecret(name, ns, accessKey, secretKey string, labels map[string]string) *v1.Secret {
 	return &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -827,52 +942,57 @@ func createImportController(pvcSpec *v1.PersistentVolumeClaim, podSpec *v1.Pod, 
 	return c, pvc, pod, nil
 }
 
-func createCloneController(pvcSpec *v1.PersistentVolumeClaim, podSpec *v1.Pod, ns string) (*CloneController, *v1.PersistentVolumeClaim, *v1.Pod, error) {
+func createCloneController(pvcSpec *v1.PersistentVolumeClaim, sourcePodSpec *v1.Pod, targetPodSpec *v1.Pod, targetNs, sourceNs string) (*CloneController, *v1.PersistentVolumeClaim, *v1.Pod, *v1.Pod, error) {
 	//Set up environment
 	myclient := k8sfake.NewSimpleClientset()
-	pvcSource := k8stesting.NewFakePVCControllerSource()
-	podSource := k8stesting.NewFakeControllerSource()
 
-	//create staging pvc and pod
-	pvc, err := myclient.CoreV1().PersistentVolumeClaims(ns).Create(pvcSpec)
+	//create staging pvc and pods
+	pvc, err := myclient.CoreV1().PersistentVolumeClaims(targetNs).Create(pvcSpec)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("createImportController: failed to initialize and create pvc error = %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("createImportController: failed to initialize and create pvc error = %v", err)
 	}
-	pvcSource.Add(pvc)
 
-	pod, err := myclient.CoreV1().Pods(ns).Create(podSpec)
+	sourcePod, err := myclient.CoreV1().Pods(sourceNs).Create(sourcePodSpec)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("createImportController: failed to initialize and create pod error = %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("createCloneController: failed to initialize and create source pod error = %v", err)
 	}
-	podSource.Add(pod)
+	targetPod, err := myclient.CoreV1().Pods(targetNs).Create(targetPodSpec)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("createCloneController: failed to initialize and create target pod error = %v", err)
+	}
 
 	// create informers and queue
-	pvcInformer := cache.NewSharedIndexInformer(pvcSource, pvc, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
-	podInformer := cache.NewSharedIndexInformer(podSource, pod, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	k8sI := kubeinformers.NewSharedInformerFactory(myclient, noResyncPeriodFunc())
+
+	pvcInformer := k8sI.Core().V1().PersistentVolumeClaims()
+	podInformer := k8sI.Core().V1().Pods()
+
 	pvcQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	podQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	pvcQueue.Add(pvc)
-	podQueue.Add(pod)
+
+	k8sI.Core().V1().PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+	k8sI.Core().V1().Pods().Informer().GetIndexer().Add(sourcePod)
+	k8sI.Core().V1().Pods().Informer().GetIndexer().Add(targetPod)
 
 	//run the informers
 	stop := make(chan struct{})
-	go pvcInformer.Run(stop)
-	go podInformer.Run(stop)
-	cache.WaitForCacheSync(stop, podInformer.HasSynced)
-	cache.WaitForCacheSync(stop, pvcInformer.HasSynced)
+	go pvcInformer.Informer().Run(stop)
+	go podInformer.Informer().Run(stop)
+	cache.WaitForCacheSync(stop, podInformer.Informer().HasSynced)
+	cache.WaitForCacheSync(stop, pvcInformer.Informer().HasSynced)
 	defer close(stop)
 
 	c := &CloneController{
-		clientset:   myclient,
-		pvcQueue:    pvcQueue,
-		podQueue:    podQueue,
-		pvcInformer: pvcInformer,
-		podInformer: podInformer,
-		cloneImage:  CLONER_DEFAULT_IMAGE,
-		pullPolicy:  "Always",
-		verbose:     "-v=5",
+		clientset:       myclient,
+		queue:           pvcQueue,
+		pvcInformer:     pvcInformer.Informer(),
+		podInformer:     podInformer.Informer(),
+		cloneImage:      "test/mycloneimage",
+		pullPolicy:      "Always",
+		verbose:         "-v=5",
+		podExpectations: expectations.NewUIDTrackingControllerExpectations(expectations.NewControllerExpectations()),
 	}
-	return c, pvc, pod, nil
+	return c, pvc, sourcePod, targetPod, nil
 }
 
 func createImportControllerMultiObject(pvcSpecs []*v1.PersistentVolumeClaim, podSpecs []*v1.Pod, nspaces []string) (*ImportController, []*v1.PersistentVolumeClaim, []*v1.Pod, error) {
@@ -928,62 +1048,192 @@ func createImportControllerMultiObject(pvcSpecs []*v1.PersistentVolumeClaim, pod
 	return c, pvcs, pods, nil
 }
 
-func createCloneControllerMultiObject(pvcSpecs []*v1.PersistentVolumeClaim, podSpecs []*v1.Pod, nspaces []string) (*CloneController, []*v1.PersistentVolumeClaim, []*v1.Pod, error) {
-	//Set up environment
-	myclient := k8sfake.NewSimpleClientset()
-	pvcSource := k8stesting.NewFakePVCControllerSource()
-	podSource := k8stesting.NewFakeControllerSource()
-	pvcQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	podQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	var pvcInformer cache.SharedIndexInformer
-	var podInformer cache.SharedIndexInformer
-	var pvcs []*v1.PersistentVolumeClaim
-	var pods []*v1.Pod
+func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, pvcUid string) *v1.Pod {
+	_, sourcePvcName := ParseSourcePvcAnnotation(pvc.GetAnnotations()[AnnCloneRequest], "/")
+	// source pod name contains the pvc name
+	podName := fmt.Sprintf("%s-", CLONER_SOURCE_PODNAME)
+	blockOwnerDeletion := true
+	isController := true
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: podName,
+			Annotations: map[string]string{
+				AnnCloningCreatedBy:   "yes",
+				AnnTargetPodNamespace: pvc.Namespace,
+			},
+			Labels: map[string]string{
+				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                    //filtered by the podInformer
+				CLONING_LABEL_KEY: CLONING_LABEL_VALUE + "-" + pvcUid, //used by podAffity
+				// this label is used when searching for a pvc's cloner source pod.
+				CloneUniqeId: pvc.Name + "-source-pod",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         "v1",
+					Kind:               "PersistentVolumeClaim",
+					Name:               pvc.Name,
+					UID:                pvc.GetUID(),
+					BlockOwnerDeletion: &blockOwnerDeletion,
+					Controller:         &isController,
+				},
+			},
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:            CLONER_SOURCE_PODNAME,
+					Image:           "test/mycloneimage",
+					ImagePullPolicy: v1.PullPolicy("Always"),
+					SecurityContext: &v1.SecurityContext{
+						Privileged: &[]bool{true}[0],
+						RunAsUser:  &[]int64{0}[0],
+					},
+					VolumeMounts: []v1.VolumeMount{
+						{
+							Name:      ImagePathName,
+							MountPath: CLONER_IMAGE_PATH,
+						},
+						{
+							Name:      socketPathName,
+							MountPath: CLONER_SOCKET_PATH + "/" + pvcUid,
+						},
+					},
+					Args: []string{"source", pvcUid},
+				},
+			},
+			RestartPolicy: v1.RestartPolicyNever,
+			Volumes: []v1.Volume{
+				{
+					Name: ImagePathName,
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: sourcePvcName,
+							ReadOnly:  false,
+						},
+					},
+				},
+				{
+					Name: socketPathName,
+					VolumeSource: v1.VolumeSource{
+						HostPath: &v1.HostPathVolumeSource{
+							Path: CLONER_SOCKET_PATH + "/" + pvcUid,
+						},
+					},
+				},
+			},
+		},
+	}
+	return pod
+}
 
-	//create staging pvc and pod
-	for i, v := range pvcSpecs {
-		pvc, err := myclient.CoreV1().PersistentVolumeClaims(v.Namespace).Create(v)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("createCloneController: failed to initialize and create pvc index = %v value = %v error = %v", i, v, err)
-		}
-		pvcSource.Add(pvc)
-		pvcInformer = cache.NewSharedIndexInformer(pvcSource, pvc, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
-		pvcQueue.Add(pvc)
-		pvcs = append(pvcs, pvc)
+func createTargetPod(pvc *v1.PersistentVolumeClaim, dvname, pvcUid, podAffinityNamespace string) *v1.Pod {
+	// target pod name contains the pvc name
+	podName := fmt.Sprintf("%s-", CLONER_TARGET_PODNAME)
+	blockOwnerDeletion := true
+	isController := true
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: podName,
+			Annotations: map[string]string{
+				AnnCloningCreatedBy:   "yes",
+				AnnTargetPodNamespace: pvc.Namespace,
+			},
+			Labels: map[string]string{
+				CDI_LABEL_KEY: CDI_LABEL_VALUE, //filtered by the podInformer
+				// this label is used when searching for a pvc's cloner target pod.
+				CloneUniqeId: pvc.Name + "-target-pod",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         "v1",
+					Kind:               "PersistentVolumeClaim",
+					Name:               pvc.Name,
+					UID:                pvc.GetUID(),
+					BlockOwnerDeletion: &blockOwnerDeletion,
+					Controller:         &isController,
+				},
+			},
+		},
+		Spec: v1.PodSpec{
+			Affinity: &v1.Affinity{
+				PodAffinity: &v1.PodAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      CLONING_LABEL_KEY,
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{CLONING_LABEL_VALUE + "-" + pvcUid},
+									},
+								},
+							},
+							Namespaces:  []string{podAffinityNamespace}, //the scheduler looks for the namespace of the source pod
+							TopologyKey: CLONING_TOPOLOGY_KEY,
+						},
+					},
+				},
+			},
+			Containers: []v1.Container{
+				{
+					Name:            CLONER_TARGET_PODNAME,
+					Image:           "test/mycloneimage",
+					ImagePullPolicy: v1.PullPolicy("Always"),
+					SecurityContext: &v1.SecurityContext{
+						Privileged: &[]bool{true}[0],
+						RunAsUser:  &[]int64{0}[0],
+					},
+					VolumeMounts: []v1.VolumeMount{
+						{
+							Name:      ImagePathName,
+							MountPath: CLONER_IMAGE_PATH,
+						},
+						{
+							Name:      socketPathName,
+							MountPath: CLONER_SOCKET_PATH + "/" + pvcUid,
+						},
+					},
+					Args: []string{"target", pvcUid},
+				},
+			},
+			RestartPolicy: v1.RestartPolicyNever,
+			Volumes: []v1.Volume{
+				{
+					Name: ImagePathName,
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvc.Name,
+							ReadOnly:  false,
+						},
+					},
+				},
+				{
+					Name: socketPathName,
+					VolumeSource: v1.VolumeSource{
+						HostPath: &v1.HostPathVolumeSource{
+							Path: CLONER_SOCKET_PATH + "/" + pvcUid,
+						},
+					},
+				},
+			},
+		},
 	}
+	return pod
+}
 
-	for i, v := range podSpecs {
-		pod, err := myclient.CoreV1().Pods(nspaces[i]).Create(v)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("createCloneController: failed to initialize and create pod index = %v value = %v error = %v, Pod Name = %v, Length Specs = %v", i, v, err, v.Name, len(podSpecs))
-		}
-		podSource.Add(pod)
-		podInformer = cache.NewSharedIndexInformer(podSource, pod, DEFAULT_RESYNC_PERIOD, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
-		podQueue.Add(pod)
-		pods = append(pods, pod)
+func getPvcKey(pvc *corev1.PersistentVolumeClaim, t *testing.T) string {
+	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(pvc)
+	if err != nil {
+		t.Errorf("Unexpected error getting key for pvc %v: %v", pvc.Name, err)
+		return ""
 	}
-
-	//run the informers
-	stop := make(chan struct{})
-	if pvcInformer != nil {
-		go pvcInformer.Run(stop)
-		cache.WaitForCacheSync(stop, pvcInformer.HasSynced)
-	}
-	if podInformer != nil {
-		go podInformer.Run(stop)
-		cache.WaitForCacheSync(stop, podInformer.HasSynced)
-	}
-	defer close(stop)
-
-	c := &CloneController{
-		clientset:   myclient,
-		pvcQueue:    pvcQueue,
-		podQueue:    podQueue,
-		pvcInformer: pvcInformer,
-		podInformer: podInformer,
-		cloneImage:  CLONER_DEFAULT_IMAGE,
-		pullPolicy:  "Always",
-		verbose:     "-v=5",
-	}
-	return c, pvcs, pods, nil
+	return key
 }
