@@ -31,7 +31,7 @@ var _ = Describe("Cloning", func() {
 	})
 
 	Specify("New source PVC should be empty", func() {
-		check := "[ `ls -al /pvc | wc -l` == 0 ]"
+		check := "[ $(ls -1 /pvc | wc -l) == 0 ]"
 		client, err := tests.GetKubeClient()
 		tests.PanicOnError(err)
 
