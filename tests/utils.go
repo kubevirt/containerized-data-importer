@@ -104,17 +104,18 @@ func GetKubeClientFromRESTConfig(config *rest.Config) (*kubernetes.Clientset, er
 	return coreClient, nil
 }
 
-func CreatePVC(namespace string, name string, size string) {
+func CreatePVC(namespace string, name string, size string) *k8sv1.PersistentVolumeClaim {
 	client, err := GetKubeClient()
 	PanicOnError(err)
-	_, err = client.CoreV1().PersistentVolumeClaims(namespace).Create(newPVC(name, size))
+	pvc, err := client.CoreV1().PersistentVolumeClaims(namespace).Create(newPVC(name, size))
 	PanicOnError(err)
+	return pvc
 }
 
-func DeletePVC(namespace string, name string) {
+func DeletePVC(namespace string, pvc *k8sv1.PersistentVolumeClaim) {
 	client, err := GetKubeClient()
 	PanicOnError(err)
-	err = client.CoreV1().PersistentVolumeClaims(namespace).Delete(name, nil)
+	err = client.CoreV1().PersistentVolumeClaims(namespace).Delete(pvc.GetName(), nil)
 	PanicOnError(err)
 }
 
@@ -135,10 +136,10 @@ func newPVC(name string, size string) *k8sv1.PersistentVolumeClaim {
 	}
 }
 
-func RunPodWithPVC(namespace string, podName string, pvcName string, cmd string) {
+func RunPodWithPVC(namespace string, podName string, pvc *k8sv1.PersistentVolumeClaim, cmd string) {
 	client, err := GetKubeClient()
 	PanicOnError(err)
-	_, err = client.CoreV1().Pods(namespace).Create(newCmdPod(podName, pvcName, cmd))
+	_, err = client.CoreV1().Pods(namespace).Create(newCmdPod(podName, pvc.GetName(), cmd))
 	PanicOnError(err)
 }
 
