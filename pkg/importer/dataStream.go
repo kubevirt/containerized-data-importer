@@ -56,6 +56,8 @@ type DataStreamInterface interface {
 
 var _ DataStreamInterface = &DataStream{}
 
+var qemuOperations = image.NewQEMUOperations()
+
 // DataStream implements the ReadCloser interface
 type DataStream struct {
 	url         *url.URL
@@ -129,12 +131,12 @@ func NewDataStream(endpt, accKey, secKey string) (*DataStream, error) {
 
 // Read from top-most reader. Note: ReadFull is needed since there may be intermediate,
 // smaller multi-readers in the reader stack, and we need to be able to fill buf.
-func (d DataStream) Read(buf []byte) (int, error) {
+func (d *DataStream) Read(buf []byte) (int, error) {
 	return io.ReadFull(d.topReader(), buf)
 }
 
 // Close all readers.
-func (d DataStream) Close() error {
+func (d *DataStream) Close() error {
 	return closeReaders(d.Readers)
 }
 
@@ -159,7 +161,7 @@ func (d *DataStream) dataStreamSelector() (err error) {
 	return err
 }
 
-func (d DataStream) s3() (io.ReadCloser, error) {
+func (d *DataStream) s3() (io.ReadCloser, error) {
 	glog.V(3).Infoln("Using S3 client to get data")
 	bucket := d.url.Host
 	object := strings.Trim(d.url.Path, "/")
@@ -175,7 +177,7 @@ func (d DataStream) s3() (io.ReadCloser, error) {
 	return objectReader, nil
 }
 
-func (d DataStream) http() (io.ReadCloser, error) {
+func (d *DataStream) http() (io.ReadCloser, error) {
 	client := http.Client{
 		CheckRedirect: func(r *http.Request, via []*http.Request) error {
 			r.SetBasicAuth(d.accessKeyID, d.secretKey) // Redirects will lose basic auth, so reset them manually
@@ -201,7 +203,7 @@ func (d DataStream) http() (io.ReadCloser, error) {
 	return resp.Body, nil
 }
 
-func (d DataStream) local() (io.ReadCloser, error) {
+func (d *DataStream) local() (io.ReadCloser, error) {
 	// temporary local import deprecation notice
 	glog.Warningf("\nDEPRECATION NOTICE:\n   Support for local (file://) endpoints will be removed from CDI in the next release.\n   There is no replacement and no work-around.\n   All import endpoints must reference http(s) or s3 endpoints\n")
 	fn := d.url.Path
@@ -327,7 +329,7 @@ func (d *DataStream) appendReader(rType int, x interface{}) {
 }
 
 // Return the top-level io.ReadCloser from the receiver Reader "stack".
-func (d DataStream) topReader() io.ReadCloser {
+func (d *DataStream) topReader() io.ReadCloser {
 	return d.Readers[len(d.Readers)-1].rdr
 }
 
@@ -360,7 +362,7 @@ func (d *DataStream) fileFormatSelector(hdr *image.Header) (err error) {
 //NOTE: size in gz is stored in the last 4 bytes of the file. This probably requires the file
 //  to be decompressed in order to get its original size. For now 0 is returned.
 //TODO: support gz size.
-func (d DataStream) gzReader() (io.ReadCloser, int64, error) {
+func (d *DataStream) gzReader() (io.ReadCloser, int64, error) {
 	gz, err := gzip.NewReader(d.topReader())
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "could not create gzip reader")
@@ -373,7 +375,7 @@ func (d DataStream) gzReader() (io.ReadCloser, int64, error) {
 // Return the size of the endpoint "through the eye" of the previous reader. Note: there is no
 // qcow2 reader so nil is returned so that nothing is appended to the reader stack.
 // Note: size is stored at offset 24 in the qcow2 header.
-func (d DataStream) qcow2NopReader(h *image.Header) (io.Reader, int64, error) {
+func (d *DataStream) qcow2NopReader(h *image.Header) (io.Reader, int64, error) {
 	s := hex.EncodeToString(d.buf[h.SizeOff : h.SizeOff+h.SizeLen])
 	size, err := strconv.ParseInt(s, 16, 64)
 	if err != nil {
@@ -388,7 +390,7 @@ func (d DataStream) qcow2NopReader(h *image.Header) (io.Reader, int64, error) {
 //NOTE: size is not stored in the xz header. This may require the file to be decompressed in
 //  order to get its original size. For now 0 is returned.
 //TODO: support gz size.
-func (d DataStream) xzReader() (io.Reader, int64, error) {
+func (d *DataStream) xzReader() (io.Reader, int64, error) {
 	xz, err := xz.NewReader(d.topReader())
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "could not create xz reader")
@@ -400,7 +402,7 @@ func (d DataStream) xzReader() (io.Reader, int64, error) {
 // Return the tar reader and size of the endpoint "through the eye" of the previous reader.
 // Assumes a single file was archived.
 // Note: the size stored in the header is used rather than raw metadata.
-func (d DataStream) tarReader() (io.Reader, int64, error) {
+func (d *DataStream) tarReader() (io.Reader, int64, error) {
 	tr := tar.NewReader(d.topReader())
 	hdr, err := tr.Next() // advance cursor to 1st (and only) file in tarball
 	if err != nil {
@@ -516,17 +518,28 @@ func closeReaders(readers []reader) (rtnerr error) {
 	return rtnerr
 }
 
-func (d DataStream) isHTTPQcow2() bool {
+func (d *DataStream) isHTTPQcow2() bool {
 	// assuming len(d.Readers) == 3 is [http, mr, mr]
 	// should prob get rid of the redundant MultiReader
 	return (d.url.Scheme == "http" || d.url.Scheme == "https") && d.qemu && len(d.Readers) == 3
 }
 
 // Copy endpoint to dest based on passed-in reader.
-func (d DataStream) copy(dest string) error {
+func (d *DataStream) copy(dest string) error {
 	if d.isHTTPQcow2() {
+		glog.V(3).Infoln("Validating qcow2 file")
+		err := qemuOperations.Validate(d.url.String(), "qcow2")
+		if err != nil {
+			return errors.Wrap(err, "Streaming image validation failed")
+		}
+
 		glog.V(3).Infoln("Doing streaming qcow2 to raw conversion")
-		return image.ConvertQcow2ToRawStream(d.url, dest)
+		err = qemuOperations.ConvertQcow2ToRawStream(d.url, dest)
+		if err != nil {
+			return errors.Wrap(err, "Streaming qcow2 to raw conversion failed")
+		}
+
+		return nil
 	}
 	return copy(d.topReader(), dest, d.qemu)
 }
@@ -550,10 +563,15 @@ func copy(r io.Reader, out string, qemu bool) error {
 		return errors.WithMessage(err, fmt.Sprintf("unable to stream data to file %q", dest))
 	}
 	if qemu {
-		glog.V(2).Infoln("converting qcow2 image")
-		err = image.ConvertQcow2ToRaw(dest, out)
+		err = qemuOperations.Validate(dest, "qcow2")
 		if err != nil {
-			return errors.WithMessage(err, "unable to copy image")
+			return errors.Wrap(err, "Local image validation failed")
+		}
+
+		glog.V(2).Infoln("converting qcow2 image")
+		err = qemuOperations.ConvertQcow2ToRaw(dest, out)
+		if err != nil {
+			return errors.Wrap(err, "Local qcow to raw conversion failed")
 		}
 	}
 	return nil
@@ -571,7 +589,7 @@ func randTmpName(src string) string {
 }
 
 // parseDataPath only used for debugging
-func (d DataStream) parseDataPath() (string, string) {
+func (d *DataStream) parseDataPath() (string, string) {
 	pathSlice := strings.Split(strings.Trim(d.url.EscapedPath(), "/"), "/")
 	glog.V(3).Infof("parseDataPath: url path: %v", pathSlice)
 	return pathSlice[0], strings.Join(pathSlice[1:], "/")

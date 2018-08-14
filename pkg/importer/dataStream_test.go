@@ -3,10 +3,12 @@ package importer
 import (
 	"bufio"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -18,6 +20,39 @@ import (
 )
 
 const TestImagesDir = "../../tests/images"
+
+type fakeQEMUOperations struct {
+	e1 error
+	e2 error
+	e3 error
+}
+
+func (o *fakeQEMUOperations) ConvertQcow2ToRaw(string, string) error {
+	return o.e1
+}
+
+func (o *fakeQEMUOperations) ConvertQcow2ToRawStream(*url.URL, string) error {
+	return o.e2
+}
+
+func (o *fakeQEMUOperations) Validate(string, string) error {
+	return o.e3
+}
+
+func NewFakeQEMUOperations(e1, e2, e3 error) image.QEMUOperations {
+	return &fakeQEMUOperations{e1, e2, e3}
+}
+
+func replaceQEMUOperations(replacement image.QEMUOperations, f func()) {
+	orig := qemuOperations
+	if replacement != nil {
+		qemuOperations = replacement
+	}
+	f()
+	if replacement != nil {
+		qemuOperations = orig
+	}
+}
 
 func createDataStream(ep, accKey, secKey string) *DataStream {
 	dsurl, _ := ParseEndpoint(ep)
@@ -407,32 +442,38 @@ func Test_copy(t *testing.T) {
 	rdrs2 := bufio.NewReader(rdrfile)
 
 	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
+		name           string
+		args           args
+		qemuOperations image.QEMUOperations
+		wantErr        bool
 	}{
 		{
-			name:    "successfully copy reader",
-			args:    args{rdrs1, "testoutfile", false},
-			wantErr: false,
+			name:           "successfully copy reader",
+			args:           args{rdrs1, "testoutfile", false},
+			qemuOperations: NewFakeQEMUOperations(nil, nil, nil),
+			wantErr:        false,
 		},
 		{
-			name:    "successfully copy qcow2 reader",
-			args:    args{rdrs2, "testqcow2file", true},
-			wantErr: false,
+			name:           "successfully copy qcow2 reader",
+			args:           args{rdrs2, "testqcow2file", true},
+			qemuOperations: NewFakeQEMUOperations(nil, nil, nil),
+			wantErr:        false,
 		},
 		{
-			name:    "expect error trying to copy invalid format",
-			args:    args{rdrs2, "testinvalidfile", true},
-			wantErr: true,
+			name:           "expect error trying to copy invalid format",
+			args:           args{rdrs2, "testinvalidfile", true},
+			qemuOperations: NewFakeQEMUOperations(errors.New("Invalid format"), nil, nil),
+			wantErr:        true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			defer os.Remove(tt.args.out)
-			if err := copy(tt.args.r, tt.args.out, tt.args.qemu); (err != nil) != tt.wantErr {
-				t.Errorf("copy() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			replaceQEMUOperations(tt.qemuOperations, func() {
+				if err := copy(tt.args.r, tt.args.out, tt.args.qemu); (err != nil) != tt.wantErr {
+					t.Errorf("copy() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			})
 		})
 	}
 }
@@ -466,4 +507,13 @@ func Test_randTmpName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMain(m *testing.M) {
+	var retCode int
+	err := errors.New("all calls to qemu will return errors by default override with replaceQEMUOperations")
+	replaceQEMUOperations(NewFakeQEMUOperations(err, err, err), func() {
+		retCode = m.Run()
+	})
+	os.Exit(retCode)
 }
