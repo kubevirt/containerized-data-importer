@@ -71,6 +71,13 @@ These may be passed to a target as `$ make VARIABLE=value target`
 - `PULL_POLICY`: (default: IfNotPresent) Set global CDI pull policy
 
 #### Execute Functional Tests
+Environment Variables and Supported Values
+
+| Env Variable       | Default       | Additional Values  |
+|--------------------|---------------|--------------------|
+|KUBEVIRT_PROVIDER   | k8s-1.10.4    | os-3.10.0          |
+|NUM_NODES           | 1             | 2-5                |
+
 To Run Tests
 ```
  make cluster-up
