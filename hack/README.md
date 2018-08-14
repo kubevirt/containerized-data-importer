@@ -4,6 +4,7 @@
     * [Lint, Test, Build](#lint-test-build)
         * [Make Targets](#make-targets)
         * [Make Variables](#make-variables)
+        * [Execute Functional Tests](#execute-functional-tests)
         * [Submit PRs](#submit-prs)
         * [Releases](#releases)
         * [Vendoring Dependencies](#vendoring-dependencies)
@@ -56,7 +57,7 @@ The standard workflow is performed inside a helper container to normalize the bu
 - 'cluster-up': Start a default Kubernetes or Open Shift cluster. set KUBEVIRT_PROVIDER environment variable to either 'k8s-1.10.4' or 'os-3.10.0' to select the type of cluster. set KUBEVIRT_NUM_NODES to something higher than 1 to have more than one node.
 - 'cluster-down': Stop the cluster, doing a make cluster-down && make cluster-up will basically restart the cluster into an empty fresh state.
 - 'cluster-sync': Builds the controller/importer/cloner, and pushes it into a running cluster. The cluster must be up before running a cluster sync. Also generates a manifest and applies it to the running cluster after pushing the images to it.
-- 'functest': Run functional end to end tests against a running cluster. 
+- 'functest': Run functional end to end tests against a running cluster. See [execute functional tests](#execute-functional-tests)
 #### Make Variables
 
 Several variables are provided to alter the targets of the above `Makefile` recipes.
@@ -68,6 +69,28 @@ These may be passed to a target as `$ make VARIABLE=value target`
 - `DOCKER_TAG`: (default: latest) Set global version tags for image and manifest creation
 - `VERBOSITY`: (default: 1) Set global log level verbosity
 - `PULL_POLICY`: (default: IfNotPresent) Set global CDI pull policy
+
+#### Execute Functional Tests
+Environment Variables and Supported Values
+
+| Env Variable       | Default       | Additional Values  |
+|--------------------|---------------|--------------------|
+|KUBEVIRT_PROVIDER   | k8s-1.10.4    | os-3.10.0          |
+|NUM_NODES           | 1             | 2-5                |
+
+To Run Tests
+```
+ make cluster-up
+ make cluster-sync
+ make functest
+```
+
+Clean Up
+```
+ make cluster-down
+```
+
+**End to End Functional Tests currently only run on bare-metal - they will not run in a VM/Cloud environment (i.e. GCE, AWS, etc...)**
 
 ### Submit PRs
 
