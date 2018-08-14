@@ -25,7 +25,15 @@ func TestTests(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	client, err := tests.GetKubeClient()
+	if err == nil {
+		tests.DestroyAllTestNamespaces(client)
+	}
 })
 
 var _ = AfterSuite(func() {
+	client, err := tests.GetKubeClient()
+	if err == nil {
+		tests.DestroyAllTestNamespaces(client)
+	}
 })
