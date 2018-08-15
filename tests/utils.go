@@ -5,11 +5,17 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 
+	k8sv1 "k8s.io/api/core/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -17,11 +23,17 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 var KubectlPath = ""
 var OcPath = ""
 var CDIInstallNamespace = "kube-system"
+
+const (
+	defaultTimeout      = 30 * time.Second
+	testNamespacePrefix = "cdi-test-"
+)
 
 var (
 	kubeconfig string
@@ -107,4 +119,72 @@ func GetKubeClientFromRESTConfig(config *rest.Config) (*kubernetes.Clientset, er
 	config.ContentType = runtime.ContentTypeJSON
 
 	return kubernetes.NewForConfig(config)
+}
+
+// Creates a new namespace with a randomly generated name that starts with cdi-test-
+// and a base name, the base name has to conform to kubernetes namespace standards.
+// for instance a base name of test-basic, will generate a name cdi-test-test-basic-sdlea4fsde
+// but test_basic will cause a failure as it doesn't match the namespace standards.
+func GenerateNamespace(client *kubernetes.Clientset, baseName string) *k8sv1.Namespace {
+	var namespace *k8sv1.Namespace
+	var err error
+	nsDef := generateRandomNamespaceName(baseName)
+	if wait.PollImmediate(2*time.Second, defaultTimeout, func() (bool, error) {
+		namespace, err = client.CoreV1().Namespaces().Create(nsDef)
+		if err != nil {
+			if apierrs.IsAlreadyExists(err) {
+				nsDef = generateRandomNamespaceName(baseName)
+			}
+			return false, nil
+		}
+		return true, nil
+	}) != nil {
+		Fail("Unable to create namespace: " + nsDef.GetName())
+	}
+	return namespace
+}
+
+func generateRandomNamespaceName(baseName string) *k8sv1.Namespace {
+	namespaceName := fmt.Sprintf(testNamespacePrefix+"%s-%s", baseName, strings.ToLower(util.RandAlphaNum(10)))
+	return &k8sv1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: namespaceName,
+		},
+	}
+}
+
+// Destroys the passed in name space, be sure to clean any resources used before destroying the namespace.
+func DestroyNamespace(client *kubernetes.Clientset, namespace *k8sv1.Namespace) {
+	if wait.PollImmediate(2*time.Second, defaultTimeout, func() (bool, error) {
+		err := client.CoreV1().Namespaces().Delete(namespace.GetName(), &metav1.DeleteOptions{})
+		if err != nil {
+			if apierrs.IsNotFound(err) {
+				return true, nil
+			}
+			return false, nil
+		}
+		return true, nil
+	}) != nil {
+		Fail("Unable to remove namespace: " + namespace.GetName())
+	}
+}
+
+func DestroyAllTestNamespaces(client *kubernetes.Clientset) {
+	var namespaces *k8sv1.NamespaceList
+	var err error
+	if wait.PollImmediate(2*time.Second, defaultTimeout, func() (bool, error) {
+		namespaces, err = client.CoreV1().Namespaces().List(metav1.ListOptions{})
+		if err != nil {
+			return false, nil
+		}
+		return true, nil
+	}) != nil {
+		Fail("Unable to list namespaces")
+	}
+
+	for _, namespace := range namespaces.Items {
+		if strings.HasPrefix(namespace.GetName(), testNamespacePrefix) {
+			DestroyNamespace(client, &namespace)
+		}
+	}
 }
