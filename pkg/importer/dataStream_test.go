@@ -7,13 +7,16 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -41,6 +44,11 @@ func (o *fakeQEMUOperations) Validate(string, string) error {
 
 func NewFakeQEMUOperations(e1, e2, e3 error) image.QEMUOperations {
 	return &fakeQEMUOperations{e1, e2, e3}
+}
+
+func NewQEMUAllErrors() image.QEMUOperations {
+	err := errors.New("qemu should not be called from this test override with replaceQEMUOperations")
+	return NewFakeQEMUOperations(err, err, err)
 }
 
 func replaceQEMUOperations(replacement image.QEMUOperations, f func()) {
@@ -121,6 +129,39 @@ func getURLPath(testfile string) string {
 	// being executed, so using relative path
 	imageDir, _ := filepath.Abs(TestImagesDir)
 	return "file://" + imageDir + "/" + testfile
+}
+
+func startHTTPServer(port int, dir string) (*http.Server, error) {
+	server := &http.Server{
+		Addr:    fmt.Sprintf(":%d", port),
+		Handler: http.FileServer(http.Dir(dir)),
+	}
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil {
+			// cannot panic, because this probably is an intentional close
+			log.Printf("Httpserver: ListenAndServe() error: %s", err)
+		}
+	}()
+
+	started := false
+	for i := 0; i < 10; i++ {
+		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/", port))
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		resp.Body.Close()
+		started = true
+		break
+	}
+
+	if !started {
+		server.Shutdown(nil)
+		return nil, errors.New("Couldn't start http server")
+	}
+
+	return server, nil
 }
 
 func TestNewDataStream(t *testing.T) {
@@ -285,13 +326,22 @@ func Test_dataStream_dataStreamSelector(t *testing.T) {
 
 func TestCopyImage(t *testing.T) {
 	type args struct {
-		dest      string
-		endpoint  string
-		accessKey string
-		secKey    string
+		dest           string
+		endpoint       string
+		accessKey      string
+		secKey         string
+		qemuOperations image.QEMUOperations
 	}
 	imageDir, _ := filepath.Abs(TestImagesDir)
 	localImageBase := filepath.Join("file://", imageDir)
+
+	t.Logf("Image dir '%s' '%s'", imageDir, testImagesDir)
+	port := 9999
+	server, err := startHTTPServer(port, imageDir)
+	if err != nil {
+		t.Errorf("Error setting up CopyImage test")
+	}
+	defer server.Shutdown(nil)
 
 	tests := []struct {
 		name    string
@@ -299,22 +349,69 @@ func TestCopyImage(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "successfully copy local image",
-			args:    args{filepath.Join(os.TempDir(), "cdi-testcopy"), filepath.Join(localImageBase, "tinyCore.iso"), "", ""},
+			name: "successfully copy local image",
+			args: args{
+				filepath.Join(os.TempDir(), "cdi-testcopy"),
+				filepath.Join(localImageBase, "tinyCore.iso"),
+				"",
+				"",
+				NewQEMUAllErrors(),
+			},
 			wantErr: false,
 		},
 		{
-			name:    "expect failure trying to copy non-existing local image",
-			args:    args{filepath.Join(os.TempDir(), "cdi-testcopy"), filepath.Join(localImageBase, "tinyCoreBad.iso"), "", ""},
+			name: "expect failure trying to copy non-existing local image",
+			args: args{
+				filepath.Join(os.TempDir(), "cdi-testcopy"),
+				filepath.Join(localImageBase, "tinyCoreBad.iso"),
+				"",
+				"",
+				NewQEMUAllErrors(),
+			},
+			wantErr: true,
+		},
+		{
+			name: "successfully copy streaming image",
+			args: args{
+				filepath.Join(localImageBase, "cirros-qcow2.raw"),
+				fmt.Sprintf("http://localhost:%d/cirros-qcow2.img", port),
+				"",
+				"",
+				NewFakeQEMUOperations(errors.New("should not be called"), nil, nil),
+			},
+			wantErr: false,
+		},
+		{
+			name: "streaming image qemu validation fails",
+			args: args{
+				filepath.Join(localImageBase, "cirros-qcow2.raw"),
+				fmt.Sprintf("http://localhost:%d/cirros-qcow2.img", port),
+				"",
+				"",
+				NewFakeQEMUOperations(nil, nil, errors.New("invalid image")),
+			},
+			wantErr: true,
+		},
+		{
+			name: "streaming image qemu convert fails",
+			args: args{
+				filepath.Join(localImageBase, "cirros-qcow2.raw"),
+				fmt.Sprintf("http://localhost:%d/cirros-qcow2.img", port),
+				"",
+				"",
+				NewFakeQEMUOperations(nil, errors.New("exit 1"), nil),
+			},
 			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		defer os.RemoveAll(tt.args.dest)
 		t.Run(tt.name, func(t *testing.T) {
-			if err := CopyImage(tt.args.dest, tt.args.endpoint, tt.args.accessKey, tt.args.secKey); (err != nil) != tt.wantErr {
-				t.Errorf("CopyImage() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			replaceQEMUOperations(tt.args.qemuOperations, func() {
+				if err := CopyImage(tt.args.dest, tt.args.endpoint, tt.args.accessKey, tt.args.secKey); (err != nil) != tt.wantErr {
+					t.Errorf("CopyImage() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			})
 		})
 	}
 }
@@ -430,9 +527,10 @@ func Test_closeReaders(t *testing.T) {
 
 func Test_copy(t *testing.T) {
 	type args struct {
-		r    io.Reader
-		out  string
-		qemu bool
+		r              io.Reader
+		out            string
+		qemu           bool
+		qemuOperations image.QEMUOperations
 	}
 	rdrs1 := strings.NewReader("test data for reader 1")
 
@@ -442,34 +540,35 @@ func Test_copy(t *testing.T) {
 	rdrs2 := bufio.NewReader(rdrfile)
 
 	tests := []struct {
-		name           string
-		args           args
-		qemuOperations image.QEMUOperations
-		wantErr        bool
+		name    string
+		args    args
+		wantErr bool
 	}{
 		{
-			name:           "successfully copy reader",
-			args:           args{rdrs1, "testoutfile", false},
-			qemuOperations: NewFakeQEMUOperations(nil, nil, nil),
-			wantErr:        false,
+			name:    "successfully copy reader",
+			args:    args{rdrs1, "testoutfile", false, NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil)},
+			wantErr: false,
 		},
 		{
-			name:           "successfully copy qcow2 reader",
-			args:           args{rdrs2, "testqcow2file", true},
-			qemuOperations: NewFakeQEMUOperations(nil, nil, nil),
-			wantErr:        false,
+			name:    "successfully copy qcow2 reader",
+			args:    args{rdrs2, "testqcow2file", true, NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil)},
+			wantErr: false,
 		},
 		{
-			name:           "expect error trying to copy invalid format",
-			args:           args{rdrs2, "testinvalidfile", true},
-			qemuOperations: NewFakeQEMUOperations(errors.New("Invalid format"), nil, nil),
-			wantErr:        true,
+			name:    "expect error trying to copy invalid format",
+			args:    args{rdrs2, "testinvalidfile", true, NewFakeQEMUOperations(nil, nil, errors.New("invalid format"))},
+			wantErr: true,
+		},
+		{
+			name:    "expect error trying to copy qemu process fails",
+			args:    args{rdrs2, "testinvalidfile", true, NewFakeQEMUOperations(errors.New("exit 1"), nil, nil)},
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			defer os.Remove(tt.args.out)
-			replaceQEMUOperations(tt.qemuOperations, func() {
+			replaceQEMUOperations(tt.args.qemuOperations, func() {
 				if err := copy(tt.args.r, tt.args.out, tt.args.qemu); (err != nil) != tt.wantErr {
 					t.Errorf("copy() error = %v, wantErr %v", err, tt.wantErr)
 				}
@@ -511,8 +610,7 @@ func Test_randTmpName(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	var retCode int
-	err := errors.New("all calls to qemu will return errors by default override with replaceQEMUOperations")
-	replaceQEMUOperations(NewFakeQEMUOperations(err, err, err), func() {
+	replaceQEMUOperations(NewQEMUAllErrors(), func() {
 		retCode = m.Run()
 	})
 	os.Exit(retCode)

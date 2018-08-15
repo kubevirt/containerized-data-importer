@@ -169,6 +169,11 @@ func TestValidate(t *testing.T) {
 			errString: "",
 		},
 		{
+			name:      "validate error",
+			execFunc:  mockExecFunction("", "exit 1"),
+			errString: "exit 1",
+		},
+		{
 			name:      "validate bad json",
 			execFunc:  mockExecFunction(badValidateJSON, ""),
 			errString: "unexpected end of JSON input",
