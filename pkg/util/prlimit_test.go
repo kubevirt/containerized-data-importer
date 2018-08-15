@@ -75,8 +75,8 @@ func TestExec(t *testing.T) {
 		errString string
 	}{
 		{
-			"command success no limits",
-			args{fakeCommand, nil, nil, "faker", []string{"0", "", ""}},
+			"command success with real limits",
+			args{fakeCommand, nil, &ProcessLimitValues{1 << 30, 10}, "faker", []string{"0", "", ""}},
 			"",
 			"",
 		},
