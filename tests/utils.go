@@ -15,6 +15,8 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 )
 
 var KubectlPath = ""
@@ -76,6 +78,17 @@ func PanicOnError(err error) {
 	}
 }
 
+// Gets an instance of a kubernetes client that includes all the CDI extensions.
+func GetCDIClientOrDie() *clientset.Clientset {
+
+	cfg, err := clientcmd.BuildConfigFromFlags(master, kubeconfig)
+	PanicOnError(err)
+	cdiClient, err := clientset.NewForConfig(cfg)
+	PanicOnError(err)
+
+	return cdiClient
+}
+
 func GetKubeClient() (*kubernetes.Clientset, error) {
 	return GetKubeClientFromFlags(master, kubeconfig)
 }
@@ -93,10 +106,5 @@ func GetKubeClientFromRESTConfig(config *rest.Config) (*kubernetes.Clientset, er
 	config.APIPath = "/apis"
 	config.ContentType = runtime.ContentTypeJSON
 
-	coreClient, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, err
-	}
-
-	return coreClient, nil
+	return kubernetes.NewForConfig(config)
 }
