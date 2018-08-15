@@ -56,7 +56,6 @@ const (
 	RdrFile
 	RdrGz
 	RdrMulti
-	RdrQcow2
 	RdrTar
 	RdrXz
 )
@@ -67,7 +66,6 @@ var rdrTypM = map[string]int{
 	"http":  RdrHttp,
 	"https": RdrHttp,
 	"local": RdrFile,
-	"qcow2": RdrQcow2,
 	"s3":    RdrS3,
 	"tar":   RdrTar,
 	"xz":    RdrXz,
@@ -133,7 +131,7 @@ func (d *dataStream) dataStreamSelector() (err error) {
 	default:
 		return errors.Errorf("invalid url scheme: %q", scheme)
 	}
-	if err == nil {
+	if err == nil && r != nil {
 		d.appendReader(rdrTypM[scheme], r)
 	}
 	return err
@@ -206,24 +204,37 @@ func CopyImage(dest, endpoint, accessKey, secKey string) error {
 // Read the endpoint and determine the file composition (eg. .iso.tar.gz) based on the magic number in
 // each known file format header. Set the Reader slice in the receiver and set the Size field to each
 // reader's original size. Note: if, when this method returns, the Size is still 0 then another method
-// will compute the final size.
+// will compute the final size. See '*' note below.
 // The reader order starts with the lowest level reader, eg. http, used to read file content. The next
 // readers are combinations of decompression/archive readers and bytes multi-readers. The multi-readers
 // are created so that header data (interpreted by the current reader) is present for the next reader.
 // Thus, the last reader in the reader stack is always a multi-reader. Readers are closed in reverse
 // order, see the Close method. If a format doesn't natively support Close() a no-op Closer is wrapped
 // around the native Reader so that all Readers can be consider ReadClosers.
+//
 // Examples:
 //   Filename                    Readers (mr == multi-reader)
 //   --------                    ----------------------------
-//   "https:/foo.tar.gz"         [http, mr, gz, mr, tar, mr]
-//   "file:/foo.tar.xz"          [file, mr, xz, mr, tar, mr]
-//   "s3://foo-iso"              [s3, mr]
+//   "https://foo.iso"           [http, mr, mr*]
+//   "s3://foo.iso"              [s3, mr, mr*]
+//   "https://foo.iso.tar"       [http, mr, tar, mr]
+//   "https://foo.iso.gz"        [http, mr, gz, mr, mr*]
+//   "https://foo.iso.tar.gz"    [http, mr, gz, mr, tar, mr]
+//   "https://foo.iso.xz"        [http, mr, xz, mr, mr*]
+//   "file://foo.iso.tar.xz"     [file, mr, xz, mr]
 //   "https://foo.qcow2"         [http, mr]		     note: there is no qcow2 reader
 //   "https://foo.qcow2.tar.gz"  [http, mr, gz, mr, tar, mr] note: there is no qcow2 reader
+//
+//   * in .iso.gz and .iso.xz files (not tar'd) the size of the orig file is not available in their
+//     respective headers. All tar'd and .qcow2 files have the original file size in their headers.
+//     For .iso, .iso.gz and .iso.xz files the Size() func reads a much larger header structure to
+//     calculate these sizes. This entails using another byte reader and thus there will be two
+//     consecutive multi-readers for these file types.
+//
+// Assumptions:
+//   A particular header format only appears once in the data stream. Eg. foo.gz.gz is not supported.
 // Note: file extensions are ignored.
 // Note: readers are not closed here, see dataStream.Close().
-// Assumption: a particular header format only appears once in the data stream. Eg. foo.gz.gz is not supported.
 func (d *dataStream) constructReaders() error {
 	glog.V(Vadmin).Infof("create the initial Reader based on the endpoint's %q scheme", d.Url.Scheme)
 	// create the scheme-specific source reader and append it to dataStream readers stack
@@ -233,6 +244,8 @@ func (d *dataStream) constructReaders() error {
 	}
 
 	// loop through all supported file formats until we do not find a header we recognize
+	// note: iso file headers are not processed here due to their much larger size and if
+	//   the iso file is tar'd we can get its size via the tar hdr -- see intro comments.
 	knownHdrs := image.CopyKnownHdrs() // need local copy since keys are removed
 	glog.V(Vdebug).Infof("constructReaders: checking compression and archive formats: %s\n", d.Url.Path)
 	for {
@@ -240,8 +253,6 @@ func (d *dataStream) constructReaders() error {
 		if err != nil {
 			return errors.WithMessage(err, "could not process image header")
 		}
-		// append multi-reader so that the header data is re-read by subsequent readers
-		d.appendReader(RdrMulti, bytes.NewReader(d.buf))
 		if hdr == nil {
 			break // done processing headers, we have the orig source file
 		}
@@ -251,7 +262,13 @@ func (d *dataStream) constructReaders() error {
 		if err != nil {
 			return errors.WithMessage(err, "could not create compression/unarchive reader")
 		}
+		// exit loop if hdr is qcow2 since that's the equivalent of a raw (iso) file,
+		// mentioned above as the orig source file
+		if hdr.Format == "qcow2" {
+			break
+		}
 	}
+
 	if len(d.Readers) <= 2 {
 		// 1st rdr is source, 2nd rdr is multi-rdr, >2 means we have additional formats
 		glog.V(Vdebug).Infof("constructReaders: no headers found for file %q\n", d.Url.Path)
@@ -260,7 +277,7 @@ func (d *dataStream) constructReaders() error {
 	return nil
 }
 
-// Append to the receiver's reader stack the passed in reader. If the reader type is a multi-reader
+// Append to the receiver's reader stack the passed in reader. If the reader type is multi-reader
 // then wrap a multi-reader around the passed in reader. If the reader is not a Closer then wrap a
 // nop closer.
 func (d *dataStream) appendReader(rType int, x interface{}) {
@@ -304,7 +321,7 @@ func (d *dataStream) fileFormatSelector(hdr *image.Header) (err error) {
 	default:
 		return errors.Errorf("mismatch between supported file formats and this header type: %q", fFmt)
 	}
-	if err == nil {
+	if err == nil && r != nil {
 		d.appendReader(rdrTypM[fFmt], r)
 	}
 	return err
@@ -405,7 +422,6 @@ func (d *dataStream) isoSize() (int64, error) {
 	if err != nil {
 		return 0, errors.Wrapf(err, "attempting to read ISO primary volume descriptor")
 	}
-
 	// append multi-reader so that the iso data can be re-read by subsequent readers
 	d.appendReader(RdrMulti, bytes.NewReader(buf))
 
@@ -437,13 +453,18 @@ func (d *dataStream) isoSize() (int64, error) {
 	return int64(numSects * sectSize), nil
 }
 
-// Return the matching header, if one is found, from the passed-in map of known headers.
+// Return the matching header, if one is found, from the passed-in map of known headers. After a
+// successful read append a multi-reader to the receiver's reader stack.
+// Note: .iso files are not detected here but rather in the Size() function.
 // Note: knownHdrs is passed by reference and modified.
-func (d dataStream) matchHeader(knownHdrs *image.Headers) (*image.Header, error) {
+func (d *dataStream) matchHeader(knownHdrs *image.Headers) (*image.Header, error) {
 	_, err := d.Read(d.buf) // read current header
 	if err != nil {
 		return nil, err
 	}
+	// append multi-reader so that the header data can be re-read by subsequent readers
+	d.appendReader(RdrMulti, bytes.NewReader(d.buf))
+
 	// loop through known headers until a match
 	for format, kh := range *knownHdrs {
 		if kh.Match(d.buf) {

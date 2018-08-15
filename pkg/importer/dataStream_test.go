@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/golang/glog"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/test/framework"
 )
@@ -208,7 +207,6 @@ func Test_dataStream_Close(t *testing.T) {
 func Test_dataStream_dataStreamSelector(t *testing.T) {
 	imageDir, _ := filepath.Abs(testImagesDir)
 	localImageBase := filepath.Join("file://", imageDir)
-	glog.V(2).Infof("Scott - localImageBase %s", localImageBase)
 
 	tests := []struct {
 		name     string
@@ -311,45 +309,52 @@ func Test_dataStream_constructReaders(t *testing.T) {
 		name    string
 		outfile string
 		ds      *dataStream
+		numRdrs int
 		wantErr bool
 	}{
 		{
 			name:    "successfully construct a xz reader",
 			outfile: "tinyCore.iso.xz",
 			ds:      createDataStream(filepath.Join("file://", testfiles[".xz"]), "", ""),
+			numRdrs: 4, // [file, multi-r, xz, multi-r]
 			wantErr: false,
 		},
 		{
 			name:    "successfully construct a gz reader",
 			outfile: "tinyCore.iso.gz",
 			ds:      createDataStream(filepath.Join("file://", testfiles[".gz"]), "", ""),
+			numRdrs: 4, // [file, multi-r, gz, multi-r]
 			wantErr: false,
 		},
 		{
 			name:    "successfully construct qcow2 reader",
 			outfile: "",
 			ds:      createDataStream(filepath.Join(localImageBase, "cirros-qcow2.img"), "", ""),
+			numRdrs: 2, // [file, multi-r]
 			wantErr: false,
 		},
 		{
 			name:    "successfully construct .iso reader",
 			outfile: "",
 			ds:      createDataStream(filepath.Join(localImageBase, "tinyCore.iso"), "", ""),
+			numRdrs: 2, // [file, multi-r]
 			wantErr: false,
 		},
 		{
 			name:    "fail constructing reader for invalid file path",
 			outfile: "",
 			ds:      createDataStream(filepath.Join(localImageBase, "tinyCorebad.iso"), "", ""),
+			numRdrs: 0,
 			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.ds.constructReaders(); (err != nil) != tt.wantErr {
-				t.Errorf("dataStream.constructReaders() error = %v, wantErr %v", err, tt.wantErr)
-			}
 			defer tt.ds.Close()
+			actualNumRdrs := len(tt.ds.Readers)
+			if tt.numRdrs != actualNumRdrs {
+				t.Errorf("dataStream.constructReaders(): expect num-readers to be %d, got %d", tt.numRdrs, actualNumRdrs) 
+			}
 			if len(tt.outfile) > 0 {
 				os.Remove(filepath.Join(os.TempDir(), tt.outfile))
 			}
