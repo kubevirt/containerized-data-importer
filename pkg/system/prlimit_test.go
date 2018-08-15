@@ -271,20 +271,16 @@ func replaceExecCommand(replacement func(string, ...string) *exec.Cmd, f func())
 	orig := execCommand
 	if replacement != nil {
 		execCommand = replacement
+		defer func() { execCommand = orig }()
 	}
 	f()
-	if replacement != nil {
-		execCommand = orig
-	}
 }
 
 func replaceLimiter(replacement ProcessLimiter, f func()) {
 	orig := limiter
 	if replacement != nil {
 		limiter = replacement
+		defer func() { limiter = orig }()
 	}
 	f()
-	if replacement != nil {
-		limiter = orig
-	}
 }

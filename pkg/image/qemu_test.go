@@ -228,9 +228,7 @@ func replaceExecFunction(replacement execFunctionType, f func()) {
 	orig := qemuExecFunction
 	if replacement != nil {
 		qemuExecFunction = replacement
+		defer func() { qemuExecFunction = orig }()
 	}
 	f()
-	if replacement != nil {
-		qemuExecFunction = orig
-	}
 }

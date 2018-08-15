@@ -55,11 +55,9 @@ func replaceQEMUOperations(replacement image.QEMUOperations, f func()) {
 	orig := qemuOperations
 	if replacement != nil {
 		qemuOperations = replacement
+		defer func() { qemuOperations = orig }()
 	}
 	f()
-	if replacement != nil {
-		qemuOperations = orig
-	}
 }
 
 func createDataStream(ep, accKey, secKey string) *DataStream {
