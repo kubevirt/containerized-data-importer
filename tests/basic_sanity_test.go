@@ -1,7 +1,6 @@
 package tests_test
 
 import (
-	"flag"
 	"fmt"
 
 	. "github.com/onsi/ginkgo"
@@ -15,8 +14,6 @@ const (
 )
 
 var _ = Describe(TestSuiteName, func() {
-	flag.Parse()
-
 	Describe("CDI service account should exist", func() {
 		It("Should succeed", func() {
 			result, err := tests.RunKubectlCommand("get", "sa", "cdi-sa", "-n", tests.CDIInstallNamespace)
