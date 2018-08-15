@@ -8,6 +8,9 @@ import (
 
 	. "github.com/onsi/ginkgo"
 
+	k8sv1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 
@@ -107,4 +110,82 @@ func GetKubeClientFromRESTConfig(config *rest.Config) (*kubernetes.Clientset, er
 	config.ContentType = runtime.ContentTypeJSON
 
 	return kubernetes.NewForConfig(config)
+}
+
+func CreatePVC(namespace string, name string, size string) *k8sv1.PersistentVolumeClaim {
+	client, err := GetKubeClient()
+	PanicOnError(err)
+	pvc, err := client.CoreV1().PersistentVolumeClaims(namespace).Create(newPVC(name, size))
+	PanicOnError(err)
+	return pvc
+}
+
+func DeletePVC(namespace string, pvc *k8sv1.PersistentVolumeClaim) {
+	client, err := GetKubeClient()
+	PanicOnError(err)
+	err = client.CoreV1().PersistentVolumeClaims(namespace).Delete(pvc.GetName(), nil)
+	PanicOnError(err)
+}
+
+func newPVC(name string, size string) *k8sv1.PersistentVolumeClaim {
+	quantity, err := resource.ParseQuantity(size)
+	PanicOnError(err)
+
+	return &k8sv1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: k8sv1.PersistentVolumeClaimSpec{
+			AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+			Resources: k8sv1.ResourceRequirements{
+				Requests: k8sv1.ResourceList{
+					"storage": quantity,
+				},
+			},
+		},
+	}
+}
+
+func RunPodWithPVC(namespace string, podName string, pvc *k8sv1.PersistentVolumeClaim, cmd string) {
+	client, err := GetKubeClient()
+	PanicOnError(err)
+	_, err = client.CoreV1().Pods(namespace).Create(newCmdPod(podName, pvc.GetName(), cmd))
+	PanicOnError(err)
+}
+
+func DeletePod(namespace string, name string) {
+	client, err := GetKubeClient()
+	PanicOnError(err)
+	err = client.CoreV1().Pods(namespace).Delete(name, nil)
+	PanicOnError(err)
+}
+
+func newCmdPod(name string, pvcName string, cmd string) *k8sv1.Pod {
+	return &k8sv1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: k8sv1.PodSpec{
+			RestartPolicy: k8sv1.RestartPolicyNever,
+			Containers: []k8sv1.Container{
+				{
+					Name:    "runner",
+					Image:   "fedora:28",
+					Command: []string{"/bin/bash", "-c", cmd},
+					VolumeMounts: []k8sv1.VolumeMount{
+						{
+							Name:      "pvc",
+							MountPath: "/pvc",
+						},
+					},
+				},
+			},
+			Volumes: []k8sv1.Volume{
+				{
+					Name: "pvc",
+					VolumeSource: k8sv1.VolumeSource{
+						PersistentVolumeClaim: &k8sv1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvcName,
+						},
+					},
+				},
+			},
+		},
+	}
 }
