@@ -17,11 +17,14 @@ limitations under the License.
 package util
 
 import (
+	"bytes"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -135,6 +138,76 @@ func TestExec(t *testing.T) {
 	}
 }
 
+func TestLimitsActuallyWork(t *testing.T) {
+	type args struct {
+		timeout time.Duration
+		f       limitFunction
+		command string
+		args    []string
+	}
+
+	tests := []struct {
+		name      string
+		args      args
+		errString string
+	}{
+		{
+			"killed by cpu time limit",
+			args{10 * time.Second, func(p int) error { return SetCPUTimeLimit(p, 1) }, "spinner", nil},
+			"signal: killed",
+		},
+		{
+			"killed by memory limit",
+			args{10 * time.Second, func(p int) error { return SetAddressSpaceLimit(p, (1<<20)*10) }, "hog", nil},
+			"exit status 2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := runFakeCommandWithTimeout(t, tt.args.timeout, tt.args.f, tt.args.command, tt.args.args...)
+			if err.Error() != tt.errString {
+				t.Log(string(output))
+				t.Errorf("'%s' unexpected error: %s, expected: %s", tt.name, err, tt.errString)
+			}
+		})
+	}
+}
+
+type limitFunction func(int) error
+
+func runFakeCommandWithTimeout(t *testing.T, duration time.Duration, f limitFunction, command string, args ...string) ([]byte, error) {
+	var buf bytes.Buffer
+	cmd := fakeCommand(command, args...)
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+	err := cmd.Start()
+	if err != nil {
+		t.Errorf("Command didn't start error is: %s", err)
+	}
+	defer cmd.Process.Kill()
+
+	err = f(cmd.Process.Pid)
+	if err != nil {
+		t.Errorf("Limit function failed error is: %s", err)
+	}
+
+	done := make(chan error)
+	go func() { done <- cmd.Wait() }()
+
+	timeout := time.After(duration)
+
+	select {
+	case <-timeout:
+		t.Errorf("Process was not killed")
+	case err := <-done:
+		return buf.Bytes(), err
+	}
+
+	// shouldn't get here
+	return nil, errors.New("This shouldn't happen")
+}
+
 func TestHelperProcess(t *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		return
@@ -153,20 +226,45 @@ func TestHelperProcess(t *testing.T) {
 		os.Exit(1)
 	}
 
-	if args[0] == "faker" {
-		rc, err := strconv.Atoi(args[1])
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-
-		fmt.Fprint(os.Stdout, args[2])
-		fmt.Fprint(os.Stderr, args[3])
-		os.Exit(rc)
+	switch args[0] {
+	case "faker":
+		doFaker(args[1:])
+	case "spinner":
+		doSpinner(args[1:])
+	case "hog":
+		doHog(args[1:])
 	}
 
 	//shouldn't get here
 	os.Exit(1)
+}
+
+func doFaker(args []string) {
+	rc, err := strconv.Atoi(args[0])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Fprint(os.Stdout, args[1])
+	fmt.Fprint(os.Stderr, args[2])
+	os.Exit(rc)
+}
+
+func doSpinner(args []string) {
+	for {
+
+	}
+}
+
+func doHog(args []string) {
+	var arrays [][]byte
+
+	for i := 0; i < (1 << 20); i++ {
+		bytes := make([]byte, 1024)
+		rand.Read(bytes)
+		arrays = append(arrays, bytes)
+	}
 }
 
 func replaceExecCommand(replacement func(string, ...string) *exec.Cmd, f func()) {
