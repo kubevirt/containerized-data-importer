@@ -519,9 +519,7 @@ func closeReaders(readers []reader) (rtnerr error) {
 }
 
 func (d *DataStream) isHTTPQcow2() bool {
-	// assuming len(d.Readers) == 3 is [http, mr, mr]
-	// should prob get rid of the redundant MultiReader
-	return (d.url.Scheme == "http" || d.url.Scheme == "https") && d.qemu && len(d.Readers) == 3
+	return (d.url.Scheme == "http" || d.url.Scheme == "https") && d.qemu && len(d.Readers) == 2
 }
 
 // Copy endpoint to dest based on passed-in reader.

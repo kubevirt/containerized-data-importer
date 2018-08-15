@@ -335,7 +335,7 @@ func TestCopyImage(t *testing.T) {
 	imageDir, _ := filepath.Abs(TestImagesDir)
 	localImageBase := filepath.Join("file://", imageDir)
 
-	t.Logf("Image dir '%s' '%s'", imageDir, testImagesDir)
+	t.Logf("Image dir '%s' '%s'", imageDir, TestImagesDir)
 	port := 9999
 	server, err := startHTTPServer(port, imageDir)
 	if err != nil {
