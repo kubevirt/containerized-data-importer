@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
-	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/system"
 )
 
 const goodValidateJSON = `
@@ -89,7 +89,7 @@ const backingFileValidateJSON = `
 }
 `
 
-type execFunctionType func(*util.ProcessLimitValues, string, ...string) ([]byte, error)
+type execFunctionType func(*system.ProcessLimitValues, string, ...string) ([]byte, error)
 
 type convertTest struct {
 	name      string
@@ -213,7 +213,7 @@ func TestValidate(t *testing.T) {
 }
 
 func mockExecFunction(output, errString string) execFunctionType {
-	return func(*util.ProcessLimitValues, string, ...string) (bytes []byte, err error) {
+	return func(*system.ProcessLimitValues, string, ...string) (bytes []byte, err error) {
 		if output != "" {
 			bytes = []byte(output)
 		}

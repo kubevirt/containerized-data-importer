@@ -24,7 +24,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 
-	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/system"
 )
 
 const (
@@ -42,9 +42,9 @@ type QEMUOperations interface {
 
 type qemuOperations struct{}
 
-var qemuExecFunction = util.ExecWithLimits
+var qemuExecFunction = system.ExecWithLimits
 
-var qemuLimits = &util.ProcessLimitValues{AddressSpaceLimit: maxMemory, CPUTimeLimit: maxCPUSecs}
+var qemuLimits = &system.ProcessLimitValues{AddressSpaceLimit: maxMemory, CPUTimeLimit: maxCPUSecs}
 
 var qemuIterface = NewQEMUOperations()
 
