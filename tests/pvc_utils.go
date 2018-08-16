@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	defaultTimeout = 30*time.Second
 )
 
 // Creates a PVC in the passed in namespace from the passed in PersistentVolumeClaim definition.
