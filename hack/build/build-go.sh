@@ -47,11 +47,12 @@ elif [ "${go_opt}" == "build" ]; then
         targets="${BINARIES}"
     fi
 	for tgt in ${targets}; do
-		BIN_NAME=$(basename $tgt)
+		BIN_NAME=$(basename ${tgt})
+		BIN_PATH=${tgt%/}
 		if [[ "${BIN_NAME}" == "${CLONER}" ]]; then
 		    continue
 		fi
-		outFile=${CMD_OUT_DIR}/${BIN_NAME}/${BIN_NAME}
+		outFile=${OUT_DIR}/${BIN_PATH}/${BIN_NAME}
 		outLink=${BIN_DIR}/${BIN_NAME}
 		rm -f ${outFile}
 		rm -f ${outLink}
