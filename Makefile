@@ -25,7 +25,7 @@
 
 DOCKER=1
 ifeq (${DOCKER}, 1)
-DO=./hack/build/in-docker
+DO=./hack/build/in-docker.sh
 else
 DO=eval
 endif
