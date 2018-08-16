@@ -1,4 +1,4 @@
-package datastream
+package importer_test
 
 import (
 	"fmt"
