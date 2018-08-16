@@ -191,6 +191,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 				fmt.Fprintf(GinkgoWriter, "End test on test file %q\n", testSample)
 			})
 		}
+		fmt.Fprintf(GinkgoWriter, "\nDEPRECATION NOTICE:\n   Support for local (file://) endpoints will be removed from CDI in the next release.\n   There is no replacement and no work-around.\n   All import endpoints must reference http(s) or s3 endpoints\n")
 	})
 })
 

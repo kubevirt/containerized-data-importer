@@ -1,5 +1,9 @@
 package importer
 
+// DEPRECATION NOTICE: Support for local (file://) endpoints will be removed from CDI in the next
+// release. There is no replacement and no work-around. All import endpoints must reference http(s)
+// or s3 endpoints\n")
+
 import (
 	"archive/tar"
 	"bytes"
@@ -180,8 +184,10 @@ func (d dataStream) http() (io.ReadCloser, error) {
 }
 
 func (d dataStream) local() (io.ReadCloser, error) {
+	// temporary local import deprecation notice
+	glog.Warningf("\nDEPRECATION NOTICE:\n   Support for local (file://) endpoints will be removed from CDI in the next release.\n   There is no replacement and no work-around.\n   All import endpoints must reference http(s) or s3 endpoints\n")
 	fn := d.Url.Path
-	glog.Warning("the file:/// protocol is intended *only* for debugging and testing. Files outside of the container cannot be accessed.")
+
 	f, err := os.Open(fn)
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not open file %q", fn)
@@ -201,6 +207,10 @@ func CopyImage(dest, endpoint, accessKey, secKey string) error {
 	return ds.copy(dest)
 }
 
+// DEPRECATION NOTICE: Support for local (file://) endpoints will be removed from CDI in the next
+// release. There is no replacement and no work-around. All import endpoints must reference http(s)
+// or s3 endpoints\n")
+//
 // Read the endpoint and determine the file composition (eg. .iso.tar.gz) based on the magic number in
 // each known file format header. Set the Reader slice in the receiver and set the Size field to each
 // reader's original size. Note: if, when this method returns, the Size is still 0 then another method
