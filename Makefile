@@ -12,7 +12,7 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-.PHONY: build build-controller build-importer build-functest-image-init build-functest-image-http  \
+.PHONY: build build-controller build-importer build-functest-image-init build-functest-image-http build-functest \
 		docker docker-controller docker-cloner docker-importer docker-functest-image-init docker-functest-image-http\
 		cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer \
 		test test-functional test-unit \
@@ -47,6 +47,8 @@ build-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
 build-functest-image-init: build
 build-functest-image-http: WHAT = tools/cdi-func-test-file-host-http
 build-functest-image-http: build
+build-functest:
+	${DO} ./hack/build/build-functest.sh
 
 # WHAT must match go tool style package paths for test targets (e.g. ./path/to/my/package/...)
 test: test-unit test-functional

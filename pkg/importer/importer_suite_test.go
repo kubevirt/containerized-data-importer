@@ -5,9 +5,11 @@ import (
 	. "github.com/onsi/gomega"
 
 	"testing"
+
+	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 
 func TestImporter(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Importer Suite")
+	RunSpecsWithDefaultAndCustomReporters(t, "Importer Suite", reporters.NewReporters())
 }

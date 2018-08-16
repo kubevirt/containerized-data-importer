@@ -13,6 +13,7 @@ RUN \
     (go get -u github.com/onsi/ginkgo/ginkgo && \
      cd $GOPATH/src/github.com/onsi/ginkgo/ginkgo && \
      go install ./... ) && \
+    go get github.com/onsi/gomega && \
     go get golang.org/x/tools/cmd/goimports && \
     ( go get -d mvdan.cc/sh/cmd/shfmt || echo "**** Expecting error \"cannot find package mvdan.cc/sh/v2/fileutil\"" ) && \
     ( cd $GOPATH/src/golang.org/x/tools/cmd/goimports && \
