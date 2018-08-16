@@ -52,28 +52,28 @@ func toTar(src, tgtDir string) (string, error) {
 
 	srcFile, err := os.Open(src)
 	if err != nil {
-		return "", errors.Wrap(err, "Error opening file")
+		return "", errors.Wrapf(err, "Error opening file %s", src)
 	}
 	defer srcFile.Close()
 
 	srcFileInfo, err := srcFile.Stat()
 	if err != nil {
-		return "", errors.Wrap(err, "Error stating file")
+		return "", errors.Wrapf(err, "Error stating file %s", src)
 	}
 
 	hdr, err := tar.FileInfoHeader(srcFileInfo, "")
 	if err != nil {
-		return "", errors.Wrap(err, "Error generating tar file header")
+		return "", errors.Wrapf(err, "Error generating tar file header for %s", src)
 	}
 
 	err = w.WriteHeader(hdr)
 	if err != nil {
-		return "", errors.Wrap(err, "Error writing header")
+		return "", errors.Wrapf(err, "Error writing tar header to %s", tgtPath)
 	}
 
 	_, err = io.Copy(w, srcFile)
 	if err != nil {
-		return "", errors.Wrap(err, "Error writing to file")
+		return "", errors.Wrapf(err, "Error writing to file %s", tgtPath)
 	}
 	return tgtPath, nil
 }
@@ -87,13 +87,13 @@ func toGz(src, tgtDir string) (string, error) {
 
 	srcFile, err := os.Open(src)
 	if err != nil {
-		return "", errors.Wrap(err, "Error opening file")
+		return "", errors.Wrapf(err, "Error opening file %s", src)
 	}
 	defer srcFile.Close()
 
 	_, err = io.Copy(w, srcFile)
 	if err != nil {
-		return "", errors.Wrap(err, "Error writing to file")
+		return "", errors.Wrapf(err, "Error writing to file %s", tgtPath)
 	}
 	return tgtPath, nil
 }
@@ -104,19 +104,19 @@ func toXz(src, tgtDir string) (string, error) {
 
 	w, err := xz.NewWriter(tgtFile)
 	if err != nil {
-		return "", errors.Wrap(err, "Error getting writer")
+		return "", errors.Wrapf(err, "Error getting xz writer for file %s", tgtPath)
 	}
 	defer w.Close()
 
 	srcFile, err := os.Open(src)
 	if err != nil {
-		return "", errors.Wrap(err, "Error opening file")
+		return "", errors.Wrapf(err, "Error opening file %s", src)
 	}
 	defer srcFile.Close()
 
 	_, err = io.Copy(w, srcFile)
 	if err != nil {
-		return "", errors.Wrap(err, "Error writing to file")
+		return "", errors.Wrapf(err, "Error writing to file %s", tgtPath)
 	}
 	return tgtPath, nil
 }

@@ -13,10 +13,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-const (
-	defaultTimeout = 30*time.Second
-)
-
 // Creates a PVC in the passed in namespace from the passed in PersistentVolumeClaim definition.
 // An example of creating a PVC without annotations looks like this:
 // CreatePVCFromDefinition(client, namespace, NewPVCDefinition(name, size, nil))
