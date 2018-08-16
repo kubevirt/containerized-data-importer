@@ -14,6 +14,9 @@ const (
 )
 
 func TestSize(t *testing.T) {
+	// temporary local import deprecation notice
+	fmt.Printf("\nDEPRECATION NOTICE:\n   Support for local (file://) endpoints will be removed from CDI in the next release.\n   There is no replacement and no work-around.\n   All import endpoints must reference http(s) or s3 endpoints\n")
+
 	testImg1, err := filepath.Abs(filepath.Join(baseImageRelPath, tinyCore))
 	if err != nil {
 		t.Fatalf("failed to get %q source image Abs path: %v\n", tinyCore, err)
