@@ -66,10 +66,10 @@ type Framework struct {
 
 // initialize run-time flags
 func init() {
-	kubectlPath = flag.String("kubectl-path", "kubectl", "Set path to kubectl binary")
-	ocPath = flag.String("oc-path", "oc", "Set path to oc binary")
-	cdiInstallNs = flag.String("installed-namespace", "kube-system", "Set the namespace CDI is installed in")
-	kubeConfig = flag.String("kubeconfig", "/var/run/kubernetes/admin.kubeconfig", "absolute path to the kubeconfig file")
+	kubectlPath = flag.String("kubectl-path", "kubectl", "The path to the kubectl binary")
+	ocPath = flag.String("oc-path", "oc", "The path to the oc binary")
+	cdiInstallNs = flag.String("cdi-namespace", "kube-system", "The namespace of the CDI controller")
+	kubeConfig = flag.String("kubeconfig", "/var/run/kubernetes/admin.kubeconfig", "The absolute path to the kubeconfig file")
 	master = flag.String("master", "", "master url:port")
 }
 
