@@ -1,15 +1,13 @@
 package tests_test
 
 import (
-	. "github.com/onsi/ginkgo"
-
-	. "github.com/onsi/gomega"
-
 	"testing"
 
-	"kubevirt.io/qe-tools/pkg/ginkgo-reporters"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	"kubevirt.io/containerized-data-importer/tests"
+	"kubevirt.io/qe-tools/pkg/ginkgo-reporters"
 )
 
 func TestTests(t *testing.T) {
@@ -24,16 +22,3 @@ func TestTests(t *testing.T) {
 	RunSpecsWithDefaultAndCustomReporters(t, "Tests Suite", reporters)
 }
 
-var _ = BeforeSuite(func() {
-	client, err := tests.GetKubeClient()
-	if err == nil {
-		tests.DestroyAllTestNamespaces(client)
-	}
-})
-
-var _ = AfterSuite(func() {
-	client, err := tests.GetKubeClient()
-	if err == nil {
-		tests.DestroyAllTestNamespaces(client)
-	}
-})

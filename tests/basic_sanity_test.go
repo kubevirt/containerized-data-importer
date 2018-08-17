@@ -1,13 +1,13 @@
 package tests_test
 
 import (
-	"flag"
 	"fmt"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
 	"kubevirt.io/containerized-data-importer/tests"
+	"kubevirt.io/containerized-data-importer/tests/framework"
 )
 
 const (
@@ -15,48 +15,48 @@ const (
 )
 
 var _ = Describe(TestSuiteName, func() {
-	flag.Parse()
+	f := framework.NewFramework("sanity")
 
-	Describe("CDI service account should exist", func() {
+	Context("CDI service account should exist", func() {
 		It("Should succeed", func() {
-			result, err := tests.RunKubectlCommand("get", "sa", "cdi-sa", "-n", tests.CDIInstallNamespace)
+			result, err := tests.RunKubectlCommand(f, "get", "sa", "cdi-sa", "-n", f.CdiInstallNs)
 			Expect(err).To(BeNil())
 			Expect(result).To(ContainSubstring("cdi-sa"))
 		})
 	})
 
-	Describe("CDI Cluster role should exist", func() {
+	Context("CDI Cluster role should exist", func() {
 		It("Should succeed", func() {
-			result, err := tests.RunKubectlCommand("get", "clusterrole", "cdi")
+			result, err := tests.RunKubectlCommand(f, "get", "clusterrole", "cdi")
 			Expect(err).To(BeNil())
 			Expect(result).To(ContainSubstring("cdi"))
 		})
 	})
 
-	Describe("CDI Cluster role binding should exist", func() {
+	Context("CDI Cluster role binding should exist", func() {
 		It("Should succeed", func() {
-			result, err := tests.RunKubectlCommand("get", "clusterrolebinding", "cdi-sa")
+			result, err := tests.RunKubectlCommand(f, "get", "clusterrolebinding", "cdi-sa")
 			Expect(err).To(BeNil())
 			Expect(result).To(ContainSubstring("cdi-sa"))
 		})
 	})
 
-	Describe("CDI deployment should exist", func() {
+	Context("CDI deployment should exist", func() {
 		It("Should succeed", func() {
-			result, err := tests.RunKubectlCommand("get", "deployment", "cdi-deployment", "-n", tests.CDIInstallNamespace)
+			result, err := tests.RunKubectlCommand(f, "get", "deployment", "cdi-deployment", "-n", f.CdiInstallNs)
 			Expect(err).To(BeNil())
 			Expect(result).To(ContainSubstring("cdi-deployment"))
 		})
 		It("There should be 1 replica", func() {
-			result, err := tests.RunKubectlCommand("get", "deployment", "cdi-deployment", "-o", "jsonpath={.spec.replicas}", "-n", tests.CDIInstallNamespace)
+			result, err := tests.RunKubectlCommand(f, "get", "deployment", "cdi-deployment", "-o", "jsonpath={.spec.replicas}", "-n", f.CdiInstallNs)
 			Expect(err).To(BeNil())
 			Expect(result).To(ContainSubstring("1"))
 		})
 	})
 
-	Describe("cdi-sa RBAC rules are correct", func() {
+	Context("cdi-sa RBAC rules are correct", func() {
 		It("rules should match expectation", func() {
-			sa := fmt.Sprintf("system:serviceaccount:" + tests.CDIInstallNamespace + ":cdi-sa")
+			sa := fmt.Sprintf("system:serviceaccount:" + f.CdiInstallNs + ":cdi-sa")
 
 			eventExpectedResult := make(map[string]string)
 			eventExpectedResult["get"] = "no"
@@ -67,7 +67,7 @@ var _ = Describe(TestSuiteName, func() {
 			eventExpectedResult["update"] = "yes"
 			eventExpectedResult["patch"] = "yes"
 			eventExpectedResult["deletecollection"] = "no"
-			ValidateRBACForResource(eventExpectedResult, "events", sa)
+			ValidateRBACForResource(f, eventExpectedResult, "events", sa)
 
 			pvcExpectedResult := make(map[string]string)
 			pvcExpectedResult["get"] = "yes"
@@ -78,8 +78,8 @@ var _ = Describe(TestSuiteName, func() {
 			pvcExpectedResult["update"] = "yes"
 			pvcExpectedResult["patch"] = "yes"
 			pvcExpectedResult["deletecollection"] = "no"
-			ValidateRBACForResource(pvcExpectedResult, "persistentvolumeclaims", sa)
-			ValidateRBACForResource(pvcExpectedResult, "persistentvolumeclaims/finalizers", sa)
+			ValidateRBACForResource(f, pvcExpectedResult, "persistentvolumeclaims", sa)
+			ValidateRBACForResource(f, pvcExpectedResult, "persistentvolumeclaims/finalizers", sa)
 
 			podExpectedResult := make(map[string]string)
 			podExpectedResult["get"] = "yes"
@@ -90,8 +90,8 @@ var _ = Describe(TestSuiteName, func() {
 			podExpectedResult["update"] = "no"
 			podExpectedResult["patch"] = "no"
 			podExpectedResult["deletecollection"] = "no"
-			ValidateRBACForResource(podExpectedResult, "pods", sa)
-			ValidateRBACForResource(podExpectedResult, "pods/finalizers", sa)
+			ValidateRBACForResource(f, podExpectedResult, "pods", sa)
+			ValidateRBACForResource(f, podExpectedResult, "pods/finalizers", sa)
 
 			secretsExpectedResult := make(map[string]string)
 			secretsExpectedResult["get"] = "yes"
@@ -102,15 +102,15 @@ var _ = Describe(TestSuiteName, func() {
 			secretsExpectedResult["update"] = "no"
 			secretsExpectedResult["patch"] = "no"
 			secretsExpectedResult["deletecollection"] = "no"
-			ValidateRBACForResource(secretsExpectedResult, "secrets", sa)
+			ValidateRBACForResource(f, secretsExpectedResult, "secrets", sa)
 		})
 	})
 })
 
-func ValidateRBACForResource(expectedResults map[string]string, resource string, sa string) {
+func ValidateRBACForResource(f *framework.Framework, expectedResults map[string]string, resource string, sa string) {
 	for verb, expectedRes := range expectedResults {
 		By(fmt.Sprintf("verifying cdi-sa "+resource+" rules, for verb %s", verb))
-		result, err := tests.RunKubectlCommand("auth", "can-i", "--as", sa, verb, resource)
+		result, err := tests.RunKubectlCommand(f, "auth", "can-i", "--as", sa, verb, resource)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(result).To(ContainSubstring(expectedRes))
 	}
