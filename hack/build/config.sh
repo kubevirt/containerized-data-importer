@@ -32,12 +32,37 @@ VERBOSITY=${VERBOSITY:-1}
 PULL_POLICY=${PULL_POLICY:-IfNotPresent}
 NAMESPACE=${NAMESPACE:-kube-system}
 
+KUBERNETES_IMAGE="k8s-1.10.4@sha256:ee6846957b58e1f56b240d9ba6410f082e4787a4c4f1e0d60f6b907b76146b3e"
+OPENSHIFT_IMAGE="os-3.10.0@sha256:cdc9f998e19915b28b5c5be1ccc4c6fa2c8336435f38a37855f75b206977cbc2"
+
+KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER:-k8s-1.10.4}
+
+# functional testing
+KUBECTL=${KUBECTL:-./cluster/.kubectl}
+KUBECONFIG=${KUBECONFIG:-./cluster/.kubeconfig}
+
 function allPkgs {
     ret=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./... | grep -v "pkg/client" | sort -u ))
     echo "$ret"
 }
 
-KUBERNETES_IMAGE="k8s-1.10.4@sha256:ee6846957b58e1f56b240d9ba6410f082e4787a4c4f1e0d60f6b907b76146b3e"
-OPENSHIFT_IMAGE="os-3.10.0@sha256:cdc9f998e19915b28b5c5be1ccc4c6fa2c8336435f38a37855f75b206977cbc2"
-
-KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER:-k8s-1.10.4}
+function parseTestOpts {
+    pkgs=""
+    test_args=""
+    while [[ $# -gt 0 ]] && [[ $1 != "" ]]; do
+        case "${1}" in
+            --test-args=*)
+                test_args="${1#*=}"
+                shift 1
+                ;;
+            ./*...)
+                pkgs="${pkgs} ${1}"
+                shift 1
+                ;;
+            *)
+                echo "ABORT: Unrecognized option \"$1\""
+                exit 1
+                ;;
+        esac
+    done
+}

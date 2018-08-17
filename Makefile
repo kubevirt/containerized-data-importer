@@ -48,13 +48,16 @@ build-functest-image-init: build
 build-functest-image-http: WHAT = tools/cdi-func-test-file-host-http
 build-functest-image-http: build
 
-test:
-	 ${DO} "./hack/build/build-go.sh test ${WHAT}"
+# WHAT must match go tool style package paths for test targets (e.g. ./path/to/my/package/...)
+test: test-unit test-functional
 
-test-unit: WHAT = pkg/
-test-unit: test
-test-functional: WHAT = tests/
-test-functional: test
+test-unit: WHAT = ./pkg/...
+test-unit:
+	${DO} "./hack/build/run-tests.sh ${WHAT}"
+
+test-functional:  WHAT = ./tests/...
+test-functional:
+	./hack/build/run-functional-tests.sh ${WHAT} --test-args="${TEST_ARGS}"
 
 docker: build
 	./hack/build/build-docker.sh build ${WHAT}
@@ -117,7 +120,6 @@ cluster-sync-importer: cluster-sync
 cluster-sync-cloner: WHAT = cmd/cdi-cloner
 cluster-sync-cloner: cluster-sync
 
-functest:
-	./hack/build/functests.sh
-
-
+functest-image-host: WHAT=tools/cdi-func-test-file-host-init
+functest-image-host:  manifests build
+	${DO} ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-docker.sh "tools/cdi-func-test-file-host-init tools/cdi-func-test-file-host-http"

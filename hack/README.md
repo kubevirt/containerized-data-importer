@@ -41,7 +41,7 @@ The standard workflow is performed inside a helper container to normalize the bu
     - No `build-cloner` target exists as the code is written in bash
 - `test`: execute all tests
     - `test-unit`: execute all tests under `./pkg`
-    - `test-functional`: execute all tests under `./test`
+    - `test-functional`: execute all tests under `./tests`
 - `docker`: compile all binaries and build all containerized
     - `docker-controller`: compile cdi-controller and build cdi-controller image
     - `docker-importer`: compile cdi-importer and build cdi-importer image
@@ -69,6 +69,7 @@ These may be passed to a target as `$ make VARIABLE=value target`
 - `DOCKER_TAG`: (default: latest) Set global version tags for image and manifest creation
 - `VERBOSITY`: (default: 1) Set global log level verbosity
 - `PULL_POLICY`: (default: IfNotPresent) Set global CDI pull policy
+- `TEST_ARGS`: A list of arguments passed through `go test -args <test args>`
 
 #### Execute Functional Tests
 Environment Variables and Supported Values
