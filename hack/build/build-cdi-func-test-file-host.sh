@@ -34,7 +34,3 @@ ${BUILD_DIR}/build-copy-artifacts.sh "${FILE_INIT_PATH}"
 OUT_PATH="${OUT_DIR}/tools"
 cp ${BUILD_DIR}/docker/${FILE_HOST}/* ${OUT_PATH}/${FILE_HOST}/
 cp "${CDI_DIR}/test/images/tinyCore.iso" "${OUT_PATH}/${FILE_INIT}/"
-
-for target in "${FILE_HOST}" "${FILE_INIT}"; do
-	${BUILD_DIR}/build-docker.sh build "tools/${target}"
-done
