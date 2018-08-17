@@ -169,11 +169,11 @@ func (f *Framework) CreateNamespace(prefix string, labels map[string]string) (*v
 	err := wait.PollImmediate(2*time.Second, NsCreateTime, func() (bool, error) {
 		var err error
 		nsObj, err = c.CoreV1().Namespaces().Create(ns)
-		if err != nil {
-			glog.Errorf("Unexpected error while creating %q namespace: %v", ns.GenerateName, err)
-			return false, err
+		if err == nil || apierrs.IsAlreadyExists(err) {
+			return true, nil // done
 		}
-		return true, nil
+		glog.Warningf("Unexpected error while creating %q namespace: %v", ns.GenerateName, err)
+		return false, err // keep trying
 	})
 	if err != nil {
 		return nil, err
@@ -191,7 +191,7 @@ func DeleteNS(c *kubernetes.Clientset, ns string) error {
 	return wait.PollImmediate(2*time.Second, NsDeleteTime, func() (bool, error) {
 		err := c.CoreV1().Namespaces().Delete(ns, nil)
 		if err != nil && !apierrs.IsNotFound(err) {
-			glog.Warning("namespace Delete api err: %v", err)
+			glog.Warningf("namespace %q Delete api err: %v", ns, err)
 			return false, nil // keep trying
 		}
 		// see if ns is really deleted
@@ -200,7 +200,7 @@ func DeleteNS(c *kubernetes.Clientset, ns string) error {
 			return true, nil // deleted, done
 		}
 		if err != nil {
-			glog.Errorf("namespace Get api error: %v", err)
+			glog.Warningf("namespace %q Get api error: %v", ns, err)
 		}
 		return false, nil // keep trying
 	})
