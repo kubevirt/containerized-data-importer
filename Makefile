@@ -25,7 +25,7 @@
 
 DOCKER=1
 ifeq (${DOCKER}, 1)
-DO=./hack/build/in-docker
+DO=./hack/build/in-docker.sh
 else
 DO=eval
 endif
@@ -107,9 +107,9 @@ cluster-sync-importer: cluster-sync
 cluster-sync-cloner: WHAT = cmd/cdi-cloner
 cluster-sync-cloner: cluster-sync
 
-functest: .functest-image-host
+functest:
 	./hack/build/functests.sh
 
-.functest-image-host: WHAT=tools/cdi-func-test-file-host-init
-.functest-image-host:  manifests build
-	./hack/build/build-cdi-func-test-file-host.sh
+functest-image-host: WHAT=tools/cdi-func-test-file-host-init
+functest-image-host:  manifests build
+	${DO} ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-docker.sh "tools/cdi-func-test-file-host-init tools/cdi-func-test-file-host-http"
