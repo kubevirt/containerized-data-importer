@@ -70,7 +70,7 @@ func init() {
 	ocPath = flag.String("oc-path", "oc", "Set path to oc binary")
 	cdiInstallNs = flag.String("installed-namespace", "kube-system", "Set the namespace CDI is installed in")
 	kubeConfig = flag.String("kubeconfig", "/var/run/kubernetes/admin.kubeconfig", "absolute path to the kubeconfig file")
-	master = flag.String("master", "https://localhost:6443", "master url:port")
+	master = flag.String("master", "", "master url:port")
 }
 
 // NewFramework makes a new framework and sets up the global BeforeEach/AfterEach's.
@@ -141,13 +141,18 @@ func (f *Framework) AfterEach() {
 	// delete the namespace(s) in a defer in case future code added here could generate
 	// an exception. For now there is only a defer.
 	defer func() {
-		for _, ns := range f.namespacesToDelete {
-			if len(ns.Name) == 0 {
+		for i, ns := range f.namespacesToDelete {
+			if ns == nil || len(ns.Name) == 0 {
 				continue
 			}
 			By(fmt.Sprintf("Destroying namespace %q for this suite.", ns.Name))
 			err := DeleteNS(f.K8sClient, ns.Name)
 			Expect(err).NotTo(HaveOccurred())
+			// delete this ns from slice
+			size := len(f.namespacesToDelete) - 1
+			copy(f.namespacesToDelete[i:], f.namespacesToDelete[i+1:])
+			f.namespacesToDelete[size] = nil
+			f.namespacesToDelete = f.namespacesToDelete[:size]
 		}
 	}()
 	return
