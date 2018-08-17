@@ -22,14 +22,16 @@ set -e
 source hack/build/common.sh
 source hack/build/config.sh
 
-kubectl=${CDI_DIR}/cluster/.kubectl
+# collect all arguments to pass to test runner
+cdi_namespace=${CDI_NAMESPACE:-"kube-system"}
+
+kubectl=${KUBECTL_PATH:-$CDI_DIR/cluster/.kubectl}
+kubeconfig=${KUBECONFIG:-$CDI_DIR/cluster/.kubeconfig}
 
 if [[ ${TARGET} == openshift* ]]; then
     oc=${kubectl}
 fi
 
-echo ${kubectl}
+master_url=${KUBE_MASTER_URL:-""}
 
-kubeconfig=${CDI_DIR}/cluster/.kubeconfig
-# ${TESTS_OUT_DIR}/tests.test -kubeconfig=${kubeconfig} -oc-path=${oc} -kubectl-path=${kubectl} -test.timeout 90m ${FUNC_TEST_ARGS}
-go test -v ./tests/... -args -ginkgo.v -kubeconfig=${kubeconfig} -oc-path=${oc} -kubectl-path=${kubectl} -test.timeout 90m ${FUNC_TEST_ARGS}
+go test -v ./tests/... -args -ginkgo.v -kubeconfig=${kubeconfig} -oc-path=${oc} -kubectl-path=${kubectl} -cdi-namespace=${cdi_namespace} -master=${master_url} -test.timeout 30m ${FUNC_TEST_ARGS}

@@ -73,10 +73,14 @@ These may be passed to a target as `$ make VARIABLE=value target`
 #### Execute Functional Tests
 Environment Variables and Supported Values
 
-| Env Variable       | Default       | Additional Values  |
-|--------------------|---------------|--------------------|
-|KUBEVIRT_PROVIDER   | k8s-1.10.4    | os-3.10.0          |
-|NUM_NODES           | 1             | 2-5                |
+| Env Variable       | Default       | Additional Values       |
+|--------------------|---------------|-------------------------|
+|KUBEVIRT_PROVIDER   | k8s-1.10.4    | os-3.10.0               |
+|NUM_NODES           | 1             | 2-5                     |
+|CDI_NAMESPACE       | kube-system   | any possible NS         |
+|KUBECTL_PATH        | N/A           | any path to kubectl     |
+|KUBECONFIG          | N/A           | any path to kubeconfig  |
+|KUBE_MASTER_URL     | ""            | path to master node URL |
 
 To Run Tests
 ```
