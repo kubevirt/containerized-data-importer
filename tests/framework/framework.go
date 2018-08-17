@@ -30,10 +30,10 @@ const (
 
 // run-time flags
 var (
-	kubectlPath  string
-	cdiInstallNs string
-	kubeConfig   string
-	master       string
+	kubectlPath  *string
+	cdiInstallNs *string
+	kubeConfig   *string
+	master       *string
 )
 
 // Framework supports common operations used by functional/e2e tests. It holds the k8s and cdi clients,
@@ -64,10 +64,15 @@ type Framework struct {
 
 // initialize run-time flags
 func init() {
-	flag.StringVar(&kubectlPath, "kubectl-path", "", "Set path to kubectl binary")
-	flag.StringVar(&cdiInstallNs, "installed-namespace", "kube-system", "Set the namespace CDI is installed in")
-	flag.StringVar(&kubeConfig, "kubeconfig", "", "absolute path to the kubeconfig file")
-	flag.StringVar(&master, "master", "", "master url")
+fmt.Printf("\n******************* init ***********\n")
+	//flag.StringVar(&kubectlPath, "kubectl-path", "", "Set path to kubectl binary")
+	//flag.StringVar(&cdiInstallNs, "installed-namespace", "kube-system", "Set the namespace CDI is installed in")
+	//flag.StringVar(&kubeConfig, "kubeconfig", "", "absolute path to the kubeconfig file")
+	//flag.StringVar(&master, "master", "", "master url")
+	kubectlPath = flag.String("kubectl-path", "", "Set path to kubectl binary")
+	cdiInstallNs = flag.String("installed-namespace", "kube-system", "Set the namespace CDI is installed in")
+	kubeConfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	master = flag.String("master", "", "master url")
 }
 
 // NewFramework makes a new framework and sets up the global BeforeEach/AfterEach's.
@@ -80,22 +85,28 @@ func NewFramework(prefix string) *Framework {
 	// handle run-time flags
 	if !flag.Parsed() {
 		flag.Parse()
-		if kubectlPath == "" {
+fmt.Printf("\n********* flags:\nNFlag=%d, NArg=%d, Args=%+v\n", flag.NFlag(), flag.NArg(), flag.Args())
+flag.Visit(func(f *flag.Flag) {
+	fmt.Printf("\n**** flag=%q, val=%q\n", f.Name, f.Value.String())
+})
+fmt.Printf("\n****** lookup: kubectl-path=%q\n", flag.Lookup("kubectl-path").Value)
+		if *kubectlPath == "" {
 			Fail("flag `kubectl-path` was not specified")
 		}
-		f.KubectlPath = kubectlPath
-		if cdiInstallNs == "" {
+		f.KubectlPath = *kubectlPath
+		if *cdiInstallNs == "" {
 			Fail("flag `installed-namespace` was not specified")
 		}
-		f.CdiInstallNs = cdiInstallNs
-		if kubeConfig == "" {
+		f.CdiInstallNs = *cdiInstallNs
+		if *kubeConfig == "" {
 			Fail("flag `kubeconfig` was not specified")
 		}
-		f.KubeConfig = kubeConfig
-		if f.Master == "" {
+		f.KubeConfig = *kubeConfig
+		if *master == "" {
 			Fail("flag `master` was not specified")
 		}
-		f.Master = master
+		f.Master = *master
+fmt.Printf("\n******framework:\nf.KubectlPath=%q, f.CdiInstallNs=%q, f.KubeConfig=%q, f.Master=%q",f.KubectlPath, f.CdiInstallNs, f.KubeConfig, f.Master)
 	}
 
 	BeforeEach(f.BeforeEach)
@@ -156,6 +167,7 @@ func (f *Framework) CreateNamespace(prefix string, labels map[string]string) (*v
 		Status: v1.NamespaceStatus{},
 	}
 
+fmt.Printf("\n******* ns spec=%+v\n", ns)
 	var nsObj *v1.Namespace
 	c := f.K8sClient
 	err := wait.PollImmediate(2*time.Second, NsCreateTime, func() (bool, error) {
@@ -170,6 +182,7 @@ func (f *Framework) CreateNamespace(prefix string, labels map[string]string) (*v
 	if err != nil {
 		return nil, err
 	}
+fmt.Printf("\n******* nsObj=%+v\n", nsObj)
 	return nsObj, nil
 }
 
