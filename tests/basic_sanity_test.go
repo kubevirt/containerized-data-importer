@@ -16,11 +16,10 @@ const (
 
 var _ = Describe(TestSuiteName, func() {
 	f := framework.NewFramework("sanity")
-	fmt.Fprintf(GinkgoWriter, "\n******** ns=%+v\n", f.Namespace)
 
 	Context("CDI service account should exist", func() {
 		It("Should succeed", func() {
-			result, err := tests.RunKubectlCommand(f, "get", "sa", "cdi-sa", "-n")
+			result, err := tests.RunKubectlCommand(f, "get", "sa", "cdi-sa", "-n", f.CdiInstallNs)
 			Expect(err).To(BeNil())
 			Expect(result).To(ContainSubstring("cdi-sa"))
 		})

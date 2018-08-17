@@ -31,6 +31,7 @@ const (
 // run-time flags
 var (
 	kubectlPath  *string
+	ocPath	     *string
 	cdiInstallNs *string
 	kubeConfig   *string
 	master       *string
@@ -54,6 +55,7 @@ type Framework struct {
 	namespacesToDelete []*v1.Namespace
 	// test run-time flags
 	KubectlPath  string
+	OcPath	     string
 	CdiInstallNs string
 	KubeConfig   string
 	Master       string
@@ -64,15 +66,11 @@ type Framework struct {
 
 // initialize run-time flags
 func init() {
-fmt.Printf("\n******************* init ***********\n")
-	//flag.StringVar(&kubectlPath, "kubectl-path", "", "Set path to kubectl binary")
-	//flag.StringVar(&cdiInstallNs, "installed-namespace", "kube-system", "Set the namespace CDI is installed in")
-	//flag.StringVar(&kubeConfig, "kubeconfig", "", "absolute path to the kubeconfig file")
-	//flag.StringVar(&master, "master", "", "master url")
-	kubectlPath = flag.String("kubectl-path", "", "Set path to kubectl binary")
+	kubectlPath = flag.String("kubectl-path", "kubectl", "Set path to kubectl binary")
+	ocPath = flag.String("oc-path", "oc", "Set path to oc binary")
 	cdiInstallNs = flag.String("installed-namespace", "kube-system", "Set the namespace CDI is installed in")
-	kubeConfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	master = flag.String("master", "", "master url")
+	kubeConfig = flag.String("kubeconfig", "/var/run/kubernetes/admin.kubeconfig", "absolute path to the kubeconfig file")
+	master = flag.String("master", "https://localhost:6443", "master url:port")
 }
 
 // NewFramework makes a new framework and sets up the global BeforeEach/AfterEach's.
@@ -85,28 +83,27 @@ func NewFramework(prefix string) *Framework {
 	// handle run-time flags
 	if !flag.Parsed() {
 		flag.Parse()
-fmt.Printf("\n********* flags:\nNFlag=%d, NArg=%d, Args=%+v\n", flag.NFlag(), flag.NArg(), flag.Args())
-flag.Visit(func(f *flag.Flag) {
-	fmt.Printf("\n**** flag=%q, val=%q\n", f.Name, f.Value.String())
-})
-fmt.Printf("\n****** lookup: kubectl-path=%q\n", flag.Lookup("kubectl-path").Value)
-		if *kubectlPath == "" {
-			Fail("flag `kubectl-path` was not specified")
+		// report flags values passed to test binary
+		fmt.Fprintf(GinkgoWriter, "** Test flags:\n")
+		flag.Visit(func(f *flag.Flag) {
+			fmt.Fprintf(GinkgoWriter, "   %s = %q\n", f.Name, f.Value.String())
+		})
+		fmt.Fprintf(GinkgoWriter, "**\n")
+		if kubectlPath != nil {
+			f.KubectlPath = *kubectlPath
 		}
-		f.KubectlPath = *kubectlPath
-		if *cdiInstallNs == "" {
-			Fail("flag `installed-namespace` was not specified")
+		if ocPath != nil {
+			f.OcPath = *ocPath
 		}
-		f.CdiInstallNs = *cdiInstallNs
-		if *kubeConfig == "" {
-			Fail("flag `kubeconfig` was not specified")
+		if cdiInstallNs != nil {
+			f.CdiInstallNs = *cdiInstallNs
 		}
-		f.KubeConfig = *kubeConfig
-		if *master == "" {
-			Fail("flag `master` was not specified")
+		if kubeConfig != nil {
+			f.KubeConfig = *kubeConfig
 		}
-		f.Master = *master
-fmt.Printf("\n******framework:\nf.KubectlPath=%q, f.CdiInstallNs=%q, f.KubeConfig=%q, f.Master=%q",f.KubectlPath, f.CdiInstallNs, f.KubeConfig, f.Master)
+		if master != nil {
+			f.Master = *master
+		}
 	}
 
 	BeforeEach(f.BeforeEach)
@@ -116,15 +113,6 @@ fmt.Printf("\n******framework:\nf.KubectlPath=%q, f.CdiInstallNs=%q, f.KubeConfi
 }
 
 func (f *Framework) BeforeEach() {
-	// generate unique primary ns (ns2 not created here)
-	By(fmt.Sprintf("Building a %q namespace api object", f.NsPrefix))
-	ns, err := f.CreateNamespace(f.NsPrefix, map[string]string{
-		"cdi-e2e": f.NsPrefix,
-	})
-	Expect(err).NotTo(HaveOccurred())
-	f.Namespace = ns
-	f.AddNamespaceToDelete(ns)
-
 	// clients
 	if f.K8sClient == nil {
 		By("Creating a kubernetes client")
@@ -138,6 +126,15 @@ func (f *Framework) BeforeEach() {
 		Expect(err).NotTo(HaveOccurred())
 		f.CdiClient = cs
 	}
+
+	// generate unique primary ns (ns2 not created here)
+	By(fmt.Sprintf("Building a %q namespace api object", f.NsPrefix))
+	ns, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+		"cdi-e2e": f.NsPrefix,
+	})
+	Expect(err).NotTo(HaveOccurred())
+	f.Namespace = ns
+	f.AddNamespaceToDelete(ns)
 }
 
 func (f *Framework) AfterEach() {
@@ -167,7 +164,6 @@ func (f *Framework) CreateNamespace(prefix string, labels map[string]string) (*v
 		Status: v1.NamespaceStatus{},
 	}
 
-fmt.Printf("\n******* ns spec=%+v\n", ns)
 	var nsObj *v1.Namespace
 	c := f.K8sClient
 	err := wait.PollImmediate(2*time.Second, NsCreateTime, func() (bool, error) {
@@ -182,7 +178,8 @@ fmt.Printf("\n******* ns spec=%+v\n", ns)
 	if err != nil {
 		return nil, err
 	}
-fmt.Printf("\n******* nsObj=%+v\n", nsObj)
+
+	fmt.Fprintf(GinkgoWriter, "INFO: Created new namespace %q\n", nsObj.Name)
 	return nsObj, nil
 }
 
@@ -194,7 +191,7 @@ func DeleteNS(c *kubernetes.Clientset, ns string) error {
 	return wait.PollImmediate(2*time.Second, NsDeleteTime, func() (bool, error) {
 		err := c.CoreV1().Namespaces().Delete(ns, nil)
 		if err != nil && !apierrs.IsNotFound(err) {
-			glog.Errorf("namespace Delete api err: %v", err)
+			glog.Warning("namespace Delete api err: %v", err)
 			return false, nil // keep trying
 		}
 		// see if ns is really deleted
