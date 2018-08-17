@@ -106,11 +106,15 @@ func GetKubeClient() (*kubernetes.Clientset, error) {
 }
 
 func GetKubeClientFromFlags(master string, kubeconfig string) (*kubernetes.Clientset, error) {
-	config, err := clientcmd.BuildConfigFromFlags(master, kubeconfig)
+	config, err := LoadConfig()
 	if err != nil {
 		return nil, err
 	}
 	return GetKubeClientFromRESTConfig(config)
+}
+
+func LoadConfig() (*rest.Config, error) {
+	return clientcmd.BuildConfigFromFlags(master, kubeconfig)
 }
 
 func GetKubeClientFromRESTConfig(config *rest.Config) (*kubernetes.Clientset, error) {
