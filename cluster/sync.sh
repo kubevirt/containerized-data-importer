@@ -27,4 +27,7 @@ for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
     ./cluster/cli.sh ssh "node$(printf "%02d" ${i})" "echo \"${container}\" | xargs \-\-max-args=1 sudo docker pull"
 done
 
+# Install CDI
 ./cluster/kubectl.sh apply -f ./manifests/generated/cdi-controller.yaml
+# Start functional test HTTP server.
+./cluster/kubectl.sh apply -f ./manifests/generated/file-host.yaml

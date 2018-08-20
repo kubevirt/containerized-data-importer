@@ -15,15 +15,17 @@
 CONTROLLER="cdi-controller"
 IMPORTER="cdi-importer"
 CLONER="cdi-cloner"
+FUNC_TEST_INIT="cdi-func-test-file-host-init"
+FUNC_TEST_HTTP="cdi-func-test-file-host-http"
 
-BINARIES="cmd/${CONTROLLER} cmd/${IMPORTER}"
+BINARIES="cmd/${CONTROLLER} cmd/${IMPORTER} tools/${FUNC_TEST_INIT}"
 CDI_PKGS="cmd/ pkg/ test/"
 
 CONTROLLER_MAIN="cmd/${CONTROLLER}"
 IMPORTER_MAIN="cmd/${IMPORTER}"
 CLONER_MAIN="cmd/${CLONER}"
 
-DOCKER_IMAGES="cmd/${CONTROLLER} cmd/${IMPORTER} cmd/${CLONER}"
+DOCKER_IMAGES="cmd/${CONTROLLER} cmd/${IMPORTER} cmd/${CLONER} tools/${FUNC_TEST_INIT} tools/${FUNC_TEST_HTTP}"
 DOCKER_REPO=${DOCKER_REPO:-kubevirt}
 DOCKER_TAG=${DOCKER_TAG:-latest}
 VERBOSITY=${VERBOSITY:-1}
