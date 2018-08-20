@@ -87,7 +87,7 @@ Deploying the CDI controller is straight forward. In this document the _default_
 
 ```
 $ VERSION=<cdi version>
-$ kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-controller-deployment.yaml
+$ kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-controller.yaml
 ```
 
 **DEPRECATION NOTICE:** The below method will not be supported in releases following v1.1.0 as `manifests/controller/cdi-controller-deployment.yaml` will be removed.  See [Make Targets (manifests)](./hack/README.md#make-targets) for generating manifests locally.
