@@ -13,14 +13,14 @@ import (
 	"k8s.io/client-go/tools/cache"
 	k8stesting "k8s.io/client-go/tools/cache/testing"
 
-	. "kubevirt.io/containerized-data-importer/pkg/common"
 	. "kubevirt.io/containerized-data-importer/pkg/controller"
+	. "kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 type operation int
 
 const (
-	opAdd operation = iota
+	opAdd                  operation = iota
 	opUpdate
 	opDelete
 	IMPORTER_DEFAULT_IMAGE = "kubevirt/cdi-importer:latest"
@@ -251,7 +251,7 @@ func createInMemPod(ns string, pvc *v1.PersistentVolumeClaim, phase v1.PodPhase,
 			Name:         fmt.Sprintf("%s1234", genName),
 			Labels:       labels,
 			OwnerReferences: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion:         "v1",
 					Kind:               "PersistentVolumeClaim",
 					Name:               pvcName,

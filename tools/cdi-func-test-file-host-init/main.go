@@ -17,7 +17,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
-	"kubevirt.io/containerized-data-importer/test/framework"
+	"kubevirt.io/containerized-data-importer/tests/utils"
 	"os"
 	"path/filepath"
 	"strings"
@@ -86,7 +86,7 @@ func (ft formatTable) initializeTestFiles(inFile, outDir string) error {
 
 			glog.Infof("Mkdir %s\n", tmpDir)
 
-			p, err := framework.FormatTestData(i, tmpDir, f...)
+			p, err := utils.FormatTestData(i, tmpDir, f...)
 			if err != nil {
 				reportError(err, "Error formatting files")
 				return
