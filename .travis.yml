@@ -47,7 +47,7 @@ script:
 - "sed \"s#cdi.kubevirt.io/storage.import.endpoint:.*#cdi.kubevirt.io/storage.import.endpoint: \"$SRC#\"\" manifests/example/golden-pvc.yaml | kubectl apply -f -"
 - k_wait_all_running pods
 - kubectl get pods --all-namespaces
-- make goveralls && make test-functional
+- make goveralls
 
 before_deploy:
 - docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"

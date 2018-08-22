@@ -1,4 +1,4 @@
-package datastream
+package importer_test
 
 import (
 	"fmt"
@@ -11,25 +11,20 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"kubevirt.io/containerized-data-importer/pkg/image"
-	"kubevirt.io/containerized-data-importer/pkg/importer"
 	imagesize "kubevirt.io/containerized-data-importer/pkg/lib/size"
-	f "kubevirt.io/containerized-data-importer/test/framework"
+	"kubevirt.io/containerized-data-importer/tests/utils"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"syscall"
+	"kubevirt.io/containerized-data-importer/pkg/importer"
 )
 
 var _ = Describe("Streaming Data Conversion", func() {
 
 	Context("when data is in a supported file format", func() {
-		const (
-			baseImageRelPath = "../../../images"
-			baseImage        = "tinyCore"
-			baseImageExt     = ".iso"
-			baseImageIso     = baseImage + baseImageExt
-		)
 
-		baseTestImage, err := filepath.Abs(filepath.Join(baseImageRelPath, baseImageIso))
+		tinyCoreIso := "tinyCore.iso"
+		baseTestImage, err := filepath.Abs(filepath.Join(importer.TestImagesDir, tinyCoreIso))
 		if err != nil {
 			Fail(fmt.Sprintf("Error getting abs path: %v\n", err))
 		}
@@ -149,7 +144,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 
 				By(fmt.Sprintf("Converting source file to format: %s", ff))
 				// Generate the expected data format from the random bytes
-				testSample, err := f.FormatTestData(origFile, tmpTestDir, ff...)
+				testSample, err := utils.FormatTestData(origFile, tmpTestDir, ff...)
 				Expect(err).NotTo(HaveOccurred(), "Error formatting test data.")
 				fmt.Fprintf(GinkgoWriter, "INFO: converted source file name is %q\n", testSample)
 
