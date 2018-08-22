@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/golang/glog"
 	"github.com/ulikunitz/xz"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 )
@@ -35,6 +36,7 @@ func FormatTestData(srcFile, tgtDir string, targetFormats ...string) (string, er
 			return "", errors.Errorf("format extension %q not recognized", tf)
 		}
 		// invoke conversion func
+		glog.Infof("converting src file %q to %s\n", srcFile, f)
 		srcFile, err = f(srcFile, tgtDir)
 		if err != nil {
 			return "", errors.Wrap(err, "could not format test data")
@@ -116,6 +118,8 @@ func toXz(src, tgtDir string) (string, error) {
 
 	_, err = io.Copy(w, srcFile)
 	if err != nil {
+		// debug logging specific to issue 335 -- log even if this is not a tar.xz case
+		glog.Infof("***DEBUG: toXz: Writer=%+v\n", w, w.Header) // all fields are private so this may not work
 		return "", errors.Wrapf(err, "Error writing to file %s", tgtPath)
 	}
 	return tgtPath, nil
