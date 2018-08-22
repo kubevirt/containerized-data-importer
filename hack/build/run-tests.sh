@@ -19,6 +19,7 @@ set -euo pipefail
 source hack/build/config.sh
 source hack/build/common.sh
 
+# parsetTestOpts sets 'pkgs' and test_args
 parseTestOpts "${@}"
 
 go test -v -test.timeout 90m ${pkgs} ${test_args:+-args $test_args}

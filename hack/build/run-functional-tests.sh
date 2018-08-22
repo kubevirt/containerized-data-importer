@@ -26,6 +26,7 @@ KUBECONFIG=${KUBECONFIG:-${CDI_DIR}/cluster/.kubeconfig}
 KUBE_MASTER_URL=${KUBE_MASTER_URL:-""}
 CDI_NAMESPACE=${CDI_NAMESPACE:-kubesystem}
 
+# parsetTestOpts sets 'pkgs' and test_args
 parseTestOpts "${@}"
 
 arg_master="${KUBE_MASTER_URL:+-master=$KUBE_MASTER_URL}"
