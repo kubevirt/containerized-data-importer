@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/golang/glog"
+	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,7 +32,7 @@ const (
 // run-time flags
 var (
 	kubectlPath  *string
-	ocPath	     *string
+	ocPath       *string
 	cdiInstallNs *string
 	kubeConfig   *string
 	master       *string
@@ -47,6 +48,8 @@ type Framework struct {
 	K8sClient *kubernetes.Clientset
 	// cdi client
 	CdiClient *cdiClientset.Clientset
+	// REST client config.
+	RestConfig *rest.Config
 	// generated/unique ns per test
 	Namespace *v1.Namespace
 	// generated/unique secondary ns for testing across namespaces (eg. clone tests)
@@ -55,7 +58,7 @@ type Framework struct {
 	namespacesToDelete []*v1.Namespace
 	// test run-time flags
 	KubectlPath  string
-	OcPath	     string
+	OcPath       string
 	CdiInstallNs string
 	KubeConfig   string
 	Master       string
@@ -75,7 +78,7 @@ func init() {
 
 // NewFramework makes a new framework and sets up the global BeforeEach/AfterEach's.
 // Test run-time flags are parsed and added to the Framework struct.
-func NewFramework(prefix string) *Framework {
+func NewFramework(prefix string) (*Framework, error) {
 	f := &Framework{
 		NsPrefix: prefix,
 	}
@@ -83,33 +86,32 @@ func NewFramework(prefix string) *Framework {
 	// handle run-time flags
 	if !flag.Parsed() {
 		flag.Parse()
-		// report flags values passed to test binary
-		fmt.Fprintf(GinkgoWriter, "** Test flags:\n")
-		flag.Visit(func(f *flag.Flag) {
-			fmt.Fprintf(GinkgoWriter, "   %s = %q\n", f.Name, f.Value.String())
-		})
-		fmt.Fprintf(GinkgoWriter, "**\n")
-		if kubectlPath != nil {
-			f.KubectlPath = *kubectlPath
-		}
-		if ocPath != nil {
-			f.OcPath = *ocPath
-		}
-		if cdiInstallNs != nil {
-			f.CdiInstallNs = *cdiInstallNs
-		}
-		if kubeConfig != nil {
-			f.KubeConfig = *kubeConfig
-		}
-		if master != nil {
-			f.Master = *master
-		}
+	}
+	// report flags values passed to test binary
+	fmt.Fprintf(GinkgoWriter, "** Test flags:\n")
+	flag.Visit(func(f *flag.Flag) {
+		fmt.Fprintf(GinkgoWriter, "   %s = %q\n", f.Name, f.Value.String())
+	})
+	fmt.Fprintf(GinkgoWriter, "**\n")
+	f.KubectlPath = *kubectlPath
+	f.OcPath = *ocPath
+	f.CdiInstallNs = *cdiInstallNs
+	f.KubeConfig = *kubeConfig
+	f.Master = *master
+
+	restConfig, err := f.LoadConfig()
+	if err != nil {
+		// Can't use Expect here due this being called outside of an It block, and Expect
+		// requires any calls to it to be inside an It block.
+		err = errors.Wrap(err, "ERROR, unable to load RestConfig")
+	} else {
+		f.RestConfig = restConfig
 	}
 
 	BeforeEach(f.BeforeEach)
 	AfterEach(f.AfterEach)
 
-	return f
+	return f, err
 }
 
 func (f *Framework) BeforeEach() {
@@ -225,15 +227,11 @@ func (f *Framework) GetCdiClient() (*cdiClientset.Clientset, error) {
 }
 
 func (f *Framework) GetKubeClient() (*kubernetes.Clientset, error) {
-	return GetKubeClientFromFlags(f.Master, f.KubeConfig)
+	return GetKubeClientFromRESTConfig(f.RestConfig)
 }
 
-func GetKubeClientFromFlags(master, kubeconfig string) (*kubernetes.Clientset, error) {
-	config, err := clientcmd.BuildConfigFromFlags(master, kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-	return GetKubeClientFromRESTConfig(config)
+func (f *Framework) LoadConfig() (*rest.Config, error) {
+	return clientcmd.BuildConfigFromFlags(f.Master, f.KubeConfig)
 }
 
 func GetKubeClientFromRESTConfig(config *rest.Config) (*kubernetes.Clientset, error) {

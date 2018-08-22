@@ -21,4 +21,3 @@ func TestTests(t *testing.T) {
 	}
 	RunSpecsWithDefaultAndCustomReporters(t, "Tests Suite", reporters)
 }
-
