@@ -50,7 +50,7 @@ test:
 
 test-unit: WHAT = pkg/
 test-unit: test
-test-functional: WHAT = test/
+test-functional: WHAT = tests/
 test-functional: test
 
 docker: build

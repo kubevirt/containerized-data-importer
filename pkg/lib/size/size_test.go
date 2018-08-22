@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	baseImageRelPath = "../../../test/images"
+	baseImageRelPath = "../../../tests/images"
 	tinyCore	 = "tinyCore.iso"
 	cirros		 = "cirros-qcow2.img"
 )

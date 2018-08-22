@@ -14,10 +14,10 @@ import (
 	"testing"
 
 	"kubevirt.io/containerized-data-importer/pkg/image"
-	"kubevirt.io/containerized-data-importer/test/framework"
+	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-const testImagesDir = "../../test/images"
+const TestImagesDir = "../../tests/images"
 
 func createDataStream(ep, accKey, secKey string) *dataStream {
 	dsurl, _ := ParseEndpoint(ep)
@@ -77,14 +77,14 @@ func getFileSize(testfile string) (int, error) {
 func getTestFilePath(testfile string) string {
 	// CWD is set within go test to the directory of the test
 	// being executed, so using relative path
-	imageDir, _ := filepath.Abs(testImagesDir)
+	imageDir, _ := filepath.Abs(TestImagesDir)
 	return filepath.Join(imageDir, testfile)
 }
 
 func getUrlPath(testfile string) string {
 	// CWD is set within go test to the directory of the test
 	// being executed, so using relative path
-	imageDir, _ := filepath.Abs(testImagesDir)
+	imageDir, _ := filepath.Abs(TestImagesDir)
 	return "file://" + imageDir + "/" + testfile
 }
 
@@ -95,7 +95,7 @@ func TestNewDataStream(t *testing.T) {
 		secKey string
 	}
 
-	imageDir, _ := filepath.Abs(testImagesDir)
+	imageDir, _ := filepath.Abs(TestImagesDir)
 	localImageBase := filepath.Join("file://", imageDir)
 
 	tests := []struct {
@@ -205,7 +205,7 @@ func Test_dataStream_Close(t *testing.T) {
 }
 
 func Test_dataStream_dataStreamSelector(t *testing.T) {
-	imageDir, _ := filepath.Abs(testImagesDir)
+	imageDir, _ := filepath.Abs(TestImagesDir)
 	localImageBase := filepath.Join("file://", imageDir)
 
 	tests := []struct {
@@ -255,7 +255,7 @@ func TestCopyImage(t *testing.T) {
 		accessKey string
 		secKey    string
 	}
-	imageDir, _ := filepath.Abs(testImagesDir)
+	imageDir, _ := filepath.Abs(TestImagesDir)
 	localImageBase := filepath.Join("file://", imageDir)
 
 	tests := []struct {
@@ -285,12 +285,11 @@ func TestCopyImage(t *testing.T) {
 }
 
 func createTestData() map[string]string {
-	imageDir, _ := filepath.Abs(testImagesDir)
+	imageDir, _ := filepath.Abs(TestImagesDir)
 
-	// xz data
-	xzfile, _ := framework.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), image.ExtXz)
-	gzfile, _ := framework.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), image.ExtGz)
-	xztarfile, _ := framework.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), []string{image.ExtTar, image.ExtGz}...)
+	xzfile, _ := utils.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), image.ExtXz)
+	gzfile, _ := utils.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), image.ExtGz)
+	xztarfile, _ := utils.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), []string{image.ExtTar, image.ExtGz}...)
 
 	return map[string]string{
 		".xz":     xzfile,
@@ -300,7 +299,7 @@ func createTestData() map[string]string {
 }
 
 func Test_dataStream_constructReaders(t *testing.T) {
-	imageDir, _ := filepath.Abs(testImagesDir)
+	imageDir, _ := filepath.Abs(TestImagesDir)
 	localImageBase := filepath.Join("file://", imageDir)
 
 	testfiles := createTestData()
@@ -402,7 +401,7 @@ func Test_copy(t *testing.T) {
 	}
 	rdrs1 := strings.NewReader("test data for reader 1")
 
-	imageDir, _ := filepath.Abs(testImagesDir)
+	imageDir, _ := filepath.Abs(TestImagesDir)
 	file := filepath.Join(imageDir, "cirros-qcow2.img")
 	rdrfile, _ := os.Open(file)
 	rdrs2 := bufio.NewReader(rdrfile)
