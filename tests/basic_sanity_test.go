@@ -15,7 +15,10 @@ const (
 )
 
 var _ = Describe(TestSuiteName, func() {
-	f := framework.NewFramework("sanity")
+	f, err := framework.NewFramework("sanity")
+	if err != nil {
+		Fail("Unable to create framework struct")
+	}
 
 	Context("CDI service account should exist", func() {
 		It("Should succeed", func() {
