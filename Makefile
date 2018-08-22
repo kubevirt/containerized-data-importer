@@ -12,8 +12,8 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-.PHONY: build build-controller build-importer \
-		docker docker-controller docker-cloner docker-importer \
+.PHONY: build build-controller build-importer build-functest-image-init build-functest-image-http  \
+		docker docker-controller docker-cloner docker-importer docker-functest-image-init docker-functest-image-http\
 		cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer \
 		test test-functional test-unit \
 		publish \
@@ -36,14 +36,17 @@ clean:
 	${DO} "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile release-announcement"
 
 build:
-	${DO} "./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} ./hack/build/build-manifests.sh ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
-
+	${DO} "./hack/build/build-go.sh clean && ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-go.sh build ${WHAT} && DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} ./hack/build/build-manifests.sh ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
 
 build-controller: WHAT = cmd/cdi-controller
 build-controller: build
 build-importer: WHAT = cmd/cdi-importer
 build-importer: build
 # Note, the cloner is a bash script and has nothing to build
+build-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
+build-functest-image-init: build
+build-functest-image-http: WHAT = tools/cdi-func-test-file-host-http
+build-functest-image-http: build
 
 test:
 	 ${DO} "./hack/build/build-go.sh test ${WHAT}"
@@ -62,6 +65,10 @@ docker-importer: WHAT = cmd/cdi-importer
 docker-importer: docker
 docker-cloner: WHAT = cmd/cdi-cloner
 docker-cloner: docker
+docker-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
+docker-functest-image-init: docker
+docker-functest-image-http: WHAT = tools/cdi-func-test-file-host-http
+docker-functest-image-http: docker
 
 push: docker
 	./hack/build/build-docker.sh push ${WHAT}
@@ -97,7 +104,10 @@ cluster-up:
 cluster-down:
 	./cluster/down.sh
 
-cluster-sync: build ${WHAT}
+cluster-clean:
+	./cluster/clean.sh
+
+cluster-sync: cluster-clean build ${WHAT}
 	./cluster/sync.sh ${WHAT}
 
 cluster-sync-controller: WHAT = cmd/cdi-controller
@@ -110,6 +120,4 @@ cluster-sync-cloner: cluster-sync
 functest:
 	./hack/build/functests.sh
 
-functest-image-host: WHAT=tools/cdi-func-test-file-host-init
-functest-image-host:  manifests build
-	${DO} ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-docker.sh "tools/cdi-func-test-file-host-init tools/cdi-func-test-file-host-http"
+
