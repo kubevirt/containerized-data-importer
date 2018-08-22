@@ -57,7 +57,7 @@ test-unit:
 
 test-functional:  WHAT = ./tests/...
 test-functional:
-	./hack/build/run-functional-tests.sh ${WHAT} --test-args="${TEST_ARGS}"
+	./hack/build/run-functional-tests.sh ${WHAT} "${TEST_ARGS}"
 
 docker: build
 	./hack/build/build-docker.sh build ${WHAT}

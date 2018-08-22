@@ -37,10 +37,6 @@ OPENSHIFT_IMAGE="os-3.10.0@sha256:cdc9f998e19915b28b5c5be1ccc4c6fa2c8336435f38a3
 
 KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER:-k8s-1.10.4}
 
-# functional testing
-KUBECTL=${KUBECTL:-./cluster/.kubectl}
-KUBECONFIG=${KUBECONFIG:-./cluster/.kubeconfig}
-
 function allPkgs {
     ret=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./... | grep -v "pkg/client" | sort -u ))
     echo "$ret"

@@ -16,11 +16,24 @@
 
 set -euo pipefail
 
+script_dir="$(readlink -f $(dirname $0))"
 source hack/build/config.sh
 source hack/build/common.sh
 
+# functional testing
+KUBECTL=${KUBECTL:-${CDI_DIR}/cluster/.kubectl}
+KUBECONFIG=${KUBECONFIG:-${CDI_DIR}/cluster/.kubeconfig}
+KUBE_MASTER_URL=${KUBE_MASTER_URL:-""}
+CDI_NAMESPACE=${CDI_NAMESPACE:-kubesystem}
+
 parseTestOpts "${@}"
 
-test_args="${test_args} -ginkgo.v -oc-path=${KUBECTL} -kubectl-path=${KUBECTL} -kubeconfig=${KUBECONFIG}"
+arg_master="${KUBE_MASTER_URL:+-master=$KUBE_MASTER_URL}"
+arg_namespace="${CDI_NAMESPACE:+-cdi-namespace=$CDI_NAMESPACE}"
+arg_kubeconfig="${KUBECONFIG:+-kubeconfig=$KUBECONFIG}"
+arg_kubectl="${KUBECTL:+-kubectl-path=$KUBECTL}"
+arg_oc="${KUBECTL:+-oc-path=$KUBECTL}"
 
-go test -v -test.timeout 90m ${pkgs} ${test_args:+-args $test_args}
+test_args="${test_args} -ginkgo.v ${arg_master} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc}"
+
+${script_dir}/run-tests.sh ${pkgs} --test-args="${test_args}"
