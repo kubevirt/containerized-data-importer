@@ -79,12 +79,14 @@ var _ = Describe("Streaming Data Conversion", func() {
 				useVirtSize:   false,
 				expectFormats: []string{image.ExtTar, image.ExtGz},
 			},
-			{
-				testDesc:      "should unpack .tar.xz",
-				originalFile:  baseTestImage,
-				useVirtSize:   false,
-				expectFormats: []string{image.ExtTar, image.ExtXz},
-			},
+			// Disabled until issue 335 is resolved
+			// https://github.com/kubevirt/containerized-data-importer/issues/335
+			//{
+			//	testDesc:      "should unpack .tar.xz",
+			//	originalFile:  baseTestImage,
+			//	useVirtSize:   false,
+			//	expectFormats: []string{image.ExtTar, image.ExtXz},
+			//},
 			{
 				testDesc:      "should convert .qcow2",
 				originalFile:  baseTestImage,
