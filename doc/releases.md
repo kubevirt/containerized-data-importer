@@ -29,19 +29,19 @@ When creating a new release branch, follow the below process.  This assumes that
 
 1. Make sure you have the latest upstream code
 
-    `$ git pull <upstream> master`
+    `$ git fetch <upstream>`
 
-1. Create a new branch from `<upstream>/master`
+1. Checkout the release branch locally
 
-    `$ git checkout <upstream>/master -b release-v#.#.#`
+    `$ git checkout release-v#.#`
 
-1. Create a tag corresponding to the version
+1. Create an annotated tag corresponding to the version
 
-    `$ git tag -a -m "Release of version v#.#.#" v#.#.#`
+    `$ git tag -a -m "v#.#.#" v#.#.#`
 
 1. Push the new branch and tag to the main kubevirt repo.  (If you have cloned the main repo directly, use `origin` for <`upstream`>)
 
-    `$ git push -u <upstream> release-v#.#.# && git push <upstream> --tags`
+    `$ git push v#.#.#`
 
 CI will be triggered when a tag matching `v#.#.#(-alpha.#)` is pushed.  The automation will handle release artifact testing, building, and publishing.
 

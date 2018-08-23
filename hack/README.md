@@ -40,8 +40,10 @@ The standard workflow is performed inside a helper container to normalize the bu
     - `build-importer`: compile cdi-importer binary
     - No `build-cloner` target exists as the code is written in bash
 - `test`: execute all tests
-    - `test-unit`: execute all tests under `./pkg`
-    - `test-functional`: execute all tests under `./tests`
+    - `test-unit`: execute all tests under `./pkg/`
+    - `test-functional`: execute functional tests under `./tests/`. Reads from `TEST_ARGS` to pass through flags to tested code
+- `build-functest-image-init`: build the init container for the testing file server
+- `build-functest-image-http` build the http container for the testing file server
 - `docker`: compile all binaries and build all containerized
     - `docker-controller`: compile cdi-controller and build cdi-controller image
     - `docker-importer`: compile cdi-importer and build cdi-importer image
@@ -57,7 +59,7 @@ The standard workflow is performed inside a helper container to normalize the bu
 - 'cluster-up': Start a default Kubernetes or Open Shift cluster. set KUBEVIRT_PROVIDER environment variable to either 'k8s-1.10.4' or 'os-3.10.0' to select the type of cluster. set KUBEVIRT_NUM_NODES to something higher than 1 to have more than one node.
 - 'cluster-down': Stop the cluster, doing a make cluster-down && make cluster-up will basically restart the cluster into an empty fresh state.
 - 'cluster-sync': Builds the controller/importer/cloner, and pushes it into a running cluster. The cluster must be up before running a cluster sync. Also generates a manifest and applies it to the running cluster after pushing the images to it.
-- 'functest': Run functional end to end tests against a running cluster. See [execute functional tests](#execute-functional-tests)
+
 #### Make Variables
 
 Several variables are provided to alter the targets of the above `Makefile` recipes.
@@ -83,7 +85,7 @@ To Run Tests
 ```
  make cluster-up
  make cluster-sync
- make functest
+ make test-functional
 ```
 
 Clean Up
