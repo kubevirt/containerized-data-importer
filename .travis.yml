@@ -27,6 +27,8 @@ install:
   - make manifests
 
 before_script:
+- make goveralls
+- make checkformat
 - curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/v$K8S_VER/bin/linux/amd64/kubectl
   && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
 - curl -Lo minikube https://storage.googleapis.com/minikube/releases/v$MK_VER/minikube-linux-amd64
@@ -47,7 +49,6 @@ script:
 - "sed \"s#cdi.kubevirt.io/storage.import.endpoint:.*#cdi.kubevirt.io/storage.import.endpoint: \"$SRC#\"\" manifests/example/golden-pvc.yaml | kubectl apply -f -"
 - k_wait_all_running pods
 - kubectl get pods --all-namespaces
-- make goveralls
 
 before_deploy:
 - docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
