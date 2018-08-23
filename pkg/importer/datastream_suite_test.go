@@ -14,11 +14,10 @@ import (
 //   2) in tinyCore.iso where the returned size is smaller than the original. Note: this is not
 //      the case for larger iso files such as windows.
 var sizeExceptions = map[string]struct{}{
-	".iso":	   struct{}{},
+	".iso":    struct{}{},
 	".iso.gz": struct{}{},
 	".iso.xz": struct{}{},
 }
-
 
 func TestDatastream(t *testing.T) {
 	RegisterFailHandler(Fail)

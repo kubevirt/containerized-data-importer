@@ -446,7 +446,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy string, pvc *v1.Persisten
 				AnnCloningCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				CDI_LABEL_KEY:     CDI_LABEL_VALUE,    //filtered by the podInformer
+				CDI_LABEL_KEY: CDI_LABEL_VALUE, //filtered by the podInformer
 			},
 		},
 		Spec: v1.PodSpec{

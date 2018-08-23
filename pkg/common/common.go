@@ -1,17 +1,18 @@
 package common
 
 import (
-	"k8s.io/api/core/v1"
 	"time"
+
+	"k8s.io/api/core/v1"
 )
 
 // Common types and constants used by the importer and controller.
 // TODO: maybe the vm cloner can use these common values
 
 const (
-	CDI_LABEL_KEY          = "app"
-	CDI_LABEL_VALUE        = "containerized-data-importer"
-	CDI_LABEL_SELECTOR     = CDI_LABEL_KEY + "=" + CDI_LABEL_VALUE
+	CDI_LABEL_KEY      = "app"
+	CDI_LABEL_VALUE    = "containerized-data-importer"
+	CDI_LABEL_SELECTOR = CDI_LABEL_KEY + "=" + CDI_LABEL_VALUE
 
 	// host file constants:
 	IMPORTER_WRITE_DIR  = "/data"

@@ -1,8 +1,8 @@
 package util
 
 import (
-	"time"
 	"math/rand"
+	"time"
 )
 
 func RandAlphaNum(n int) string {
