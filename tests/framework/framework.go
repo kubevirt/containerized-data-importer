@@ -25,8 +25,9 @@ import (
 )
 
 const (
-	NsCreateTime = 30 * time.Second
-	NsDeleteTime = 5 * time.Minute
+	NsCreateTime  = 30 * time.Second
+	NsDeleteTime  = 5 * time.Minute
+	NsPrefixLabel = "cdi-e2e"
 )
 
 // run-time flags
@@ -142,7 +143,7 @@ func (f *Framework) BeforeEach() {
 		// generate unique primary ns (ns2 not created here)
 		By(fmt.Sprintf("Building a %q namespace api object", f.NsPrefix))
 		ns, err := f.CreateNamespace(f.NsPrefix, map[string]string{
-			"cdi-e2e": f.NsPrefix,
+			NsPrefixLabel: f.NsPrefix,
 		})
 		Expect(err).NotTo(HaveOccurred())
 		f.Namespace = ns
@@ -154,18 +155,14 @@ func (f *Framework) AfterEach() {
 	// delete the namespace(s) in a defer in case future code added here could generate
 	// an exception. For now there is only a defer.
 	defer func() {
-		for i, ns := range f.namespacesToDelete {
+		for _, ns := range f.namespacesToDelete {
+			defer func() { f.namespacesToDelete = nil }()
 			if ns == nil || len(ns.Name) == 0 {
 				continue
 			}
 			By(fmt.Sprintf("Destroying namespace %q for this suite.", ns.Name))
 			err := DeleteNS(f.K8sClient, ns.Name)
 			Expect(err).NotTo(HaveOccurred())
-			// delete this ns from slice
-			size := len(f.namespacesToDelete) - 1
-			copy(f.namespacesToDelete[i:], f.namespacesToDelete[i+1:])
-			f.namespacesToDelete[size] = nil
-			f.namespacesToDelete = f.namespacesToDelete[:size]
 		}
 	}()
 	return

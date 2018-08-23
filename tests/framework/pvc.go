@@ -2,7 +2,6 @@ package framework
 
 import (
 	"strings"
-	"time"
 
 	. "github.com/onsi/gomega"
 
@@ -27,12 +26,8 @@ func (f *Framework) CreateExecutorPodWithPVC(podName string, pvc *k8sv1.Persiste
 	return utils.CreateExecutorPodWithPVC(f.K8sClient, podName, f.Namespace.Name, pvc)
 }
 
-func (f *Framework) DeletePod(pod *k8sv1.Pod) error {
-	return utils.DeletePod(f.K8sClient, pod, f.Namespace.Name)
-}
-
-func (f *Framework) WaitTimeoutForPodReady(podName string, timeout time.Duration) error {
-	return utils.WaitTimeoutForPodReady(f.K8sClient, podName, f.Namespace.Name, timeout)
+func (f *Framework) FindPVC(pvcName string) (*k8sv1.PersistentVolumeClaim, error) {
+	return utils.FindPVC(f.K8sClient, f.Namespace.Name, pvcName)
 }
 
 // Verify passed in PVC is empty, returns true if the PVC is empty, false if it is not.
@@ -41,7 +36,7 @@ func VerifyPVCIsEmpty(f *Framework, pvc *k8sv1.PersistentVolumeClaim) bool {
 	Expect(err).ToNot(HaveOccurred())
 	err = f.WaitTimeoutForPodReady(executorPod.Name, utils.PodWaitForTime)
 	Expect(err).ToNot(HaveOccurred())
-	output := f.ExecShellInPod(executorPod.Name, "ls -1 /pvc | wc -l")
+	output := f.ExecShellInPod(executorPod.Name, f.Namespace.Name, "ls -1 /pvc | wc -l")
 	f.DeletePod(executorPod)
 	return strings.Compare("0", output) == 0
 }

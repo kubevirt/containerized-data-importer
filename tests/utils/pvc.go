@@ -50,6 +50,30 @@ func DeletePVC(clientSet *kubernetes.Clientset, namespace string, pvc *k8sv1.Per
 	})
 }
 
+// Find the passed in PVC
+func FindPVC(clientSet *kubernetes.Clientset, namespace, pvcName string) (*k8sv1.PersistentVolumeClaim, error) {
+	return clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(pvcName, metav1.GetOptions{})
+}
+
+// Wait for annotation on PVC
+func WaitForPVCAnnotation(clientSet *kubernetes.Clientset, namespace string, pvc *k8sv1.PersistentVolumeClaim, annotation string) (string, bool, error) {
+	var result string
+	err := wait.PollImmediate(pvcPollInterval, PVCCreateTime, func() (bool, error) {
+		var err error
+		var found bool
+		pvc, err = FindPVC(clientSet, namespace, pvc.Name)
+		result, found = pvc.ObjectMeta.Annotations[annotation]
+		if err == nil && found {
+			return true, nil
+		}
+		return false, err
+	})
+	if err != nil {
+		return "", false, err
+	}
+	return result, true, nil
+}
+
 // Creates a PVC definition using the passed in name and requested size.
 // You can use the following annotation keys to request an import or clone. The values are defined in the controller package
 // AnnEndpoint
@@ -76,12 +100,15 @@ func NewPVCDefinition(pvcName string, size string, annotations, labels map[strin
 
 // Wait for the PVC to be in a particular phase (Pending, Bound, or Lost)
 func WaitForPersistentVolumeClaimPhase(clientSet *kubernetes.Clientset, namespace string, phase k8sv1.PersistentVolumeClaimPhase, pvcName string) error {
-	wait.PollImmediate(pvcPollInterval, PVCPhaseTime, func() (bool, error) {
+	err := wait.PollImmediate(pvcPollInterval, PVCPhaseTime, func() (bool, error) {
 		pvc, err := clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(pvcName, metav1.GetOptions{})
 		if err != nil || pvc.Status.Phase != phase {
 			return false, err
 		}
 		return true, nil
 	})
-	return fmt.Errorf("PersistentVolumeClaim %s not in phase %s within %v", pvcName, phase, PVCPhaseTime)
+	if err != nil {
+		return fmt.Errorf("PersistentVolumeClaim %s not in phase %s within %v", pvcName, phase, PVCPhaseTime)
+	}
+	return nil
 }
