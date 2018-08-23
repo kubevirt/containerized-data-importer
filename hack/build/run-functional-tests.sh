@@ -24,7 +24,7 @@ source hack/build/common.sh
 KUBECTL=${KUBECTL:-${CDI_DIR}/cluster/.kubectl}
 KUBECONFIG=${KUBECONFIG:-${CDI_DIR}/cluster/.kubeconfig}
 KUBE_MASTER_URL=${KUBE_MASTER_URL:-""}
-CDI_NAMESPACE=${CDI_NAMESPACE:-kubesystem}
+CDI_NAMESPACE=${CDI_NAMESPACE:-kube-system}
 
 # parsetTestOpts sets 'pkgs' and test_args
 parseTestOpts "${@}"
