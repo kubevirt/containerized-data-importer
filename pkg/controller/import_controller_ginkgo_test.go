@@ -13,14 +13,14 @@ import (
 	"k8s.io/client-go/tools/cache"
 	k8stesting "k8s.io/client-go/tools/cache/testing"
 
-	. "kubevirt.io/containerized-data-importer/pkg/controller"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
+	. "kubevirt.io/containerized-data-importer/pkg/controller"
 )
 
 type operation int
 
 const (
-	opAdd                  operation = iota
+	opAdd operation = iota
 	opUpdate
 	opDelete
 	IMPORTER_DEFAULT_IMAGE = "kubevirt/cdi-importer:latest"

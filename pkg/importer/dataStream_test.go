@@ -352,7 +352,7 @@ func Test_dataStream_constructReaders(t *testing.T) {
 			defer tt.ds.Close()
 			actualNumRdrs := len(tt.ds.Readers)
 			if tt.numRdrs != actualNumRdrs {
-				t.Errorf("dataStream.constructReaders(): expect num-readers to be %d, got %d", tt.numRdrs, actualNumRdrs) 
+				t.Errorf("dataStream.constructReaders(): expect num-readers to be %d, got %d", tt.numRdrs, actualNumRdrs)
 			}
 			if len(tt.outfile) > 0 {
 				os.Remove(filepath.Join(os.TempDir(), tt.outfile))

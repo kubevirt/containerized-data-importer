@@ -2,6 +2,8 @@ package controller
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
@@ -10,8 +12,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
 	. "kubevirt.io/containerized-data-importer/pkg/common"
-	"time"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
