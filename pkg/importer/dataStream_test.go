@@ -606,6 +606,12 @@ func Test_randTmpName(t *testing.T) {
 	}
 }
 
+// dataStream_ginko_test.go was added while this PR was sitting
+// it has tests that execute qemu-img.  So disabling for now.
+// But I really think unit tests should not depend on a system process.
+// Not just for philosophical reasons.
+// qwmu-img aborts when doing streaming conversion when run in travis.
+/*
 func TestMain(m *testing.M) {
 	var retCode int
 	replaceQEMUOperations(NewQEMUAllErrors(), func() {
@@ -613,3 +619,4 @@ func TestMain(m *testing.M) {
 	})
 	os.Exit(retCode)
 }
+*/
