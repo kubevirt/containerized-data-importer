@@ -661,7 +661,7 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 				LabelImportPvc: pvc.Name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion:         "v1",
 					Kind:               "PersistentVolumeClaim",
 					Name:               pvc.Name,

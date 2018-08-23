@@ -9,8 +9,8 @@ import (
 
 const (
 	baseImageRelPath = "../../../tests/images"
-	tinyCore	 = "tinyCore.iso"
-	cirros		 = "cirros-qcow2.img"
+	tinyCore         = "tinyCore.iso"
+	cirros           = "cirros-qcow2.img"
 )
 
 func TestSize(t *testing.T) {
@@ -29,7 +29,7 @@ func TestSize(t *testing.T) {
 	type args struct {
 		endpoint  string
 		accessKey string
-		secKey	  string
+		secKey    string
 	}
 	tests := []struct {
 		name  string

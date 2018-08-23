@@ -9,9 +9,9 @@ import (
 // TODO: maybe the vm cloner can use these common values
 
 const (
-	CDI_LABEL_KEY          = "app"
-	CDI_LABEL_VALUE        = "containerized-data-importer"
-	CDI_LABEL_SELECTOR     = CDI_LABEL_KEY + "=" + CDI_LABEL_VALUE
+	CDI_LABEL_KEY      = "app"
+	CDI_LABEL_VALUE    = "containerized-data-importer"
+	CDI_LABEL_SELECTOR = CDI_LABEL_KEY + "=" + CDI_LABEL_VALUE
 
 	// host file constants:
 	IMPORTER_WRITE_DIR  = "/data"
