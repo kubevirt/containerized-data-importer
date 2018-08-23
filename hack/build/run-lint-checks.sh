@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 #Copyright 2018 The CDI Authors.
 #
 #Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,12 +14,17 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-CDI_DIR="$(readlink -f $(dirname $0)/../../)"
-BIN_DIR=${CDI_DIR}/bin
-OUT_DIR=${CDI_DIR}/_out
-CMD_OUT_DIR=${OUT_DIR}/cmd
-TESTS_OUT_DIR=${OUT_DIR}/tests
-BUILD_DIR=${CDI_DIR}/hack/build
-MANIFEST_TEMPLATE_DIR=${CDI_DIR}/manifests/templates
-MANIFEST_GENERATED_DIR=${CDI_DIR}/manifests/generated
-SOURCE_DIRS="pkg tests tools"
+# NOTE: Not using pipefail because gofmt returns 0 when it finds
+# suggestions and 1 when files are clean
+
+source hack/build/config.sh
+source hack/build/common.sh
+
+ec=0
+out="$(gofmt -l -s ${SOURCE_DIRS} | grep ".*\.go")"
+if [[ ${out} ]]; then
+  echo "FAIL: Format errors found in the following files:"
+  echo "${out}"
+  ec=1
+fi
+exit ${ec}
