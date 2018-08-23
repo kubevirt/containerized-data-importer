@@ -34,7 +34,7 @@ DO=eval
 endif
 SOURCE_DIRS = pkg tests tools
 
-all: docker
+all: docker fmt
 
 clean:
 	${DO} "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile release-announcement"
@@ -102,13 +102,12 @@ manifests:
 goveralls:
 	${DO} "TRAVIS_JOB_ID=${TRAVIS_JOB_ID} TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST} TRAVIS_BRANCH=${TRAVIS_BRANCH} ./hack/build/goveralls.sh"
 
-fmt:
-	## Run gofmt with simplification
-	@gofmt -l -s -w $(SOURCE_DIRS)
-
-fmtcheck:
+checkformat:
 	## Just run gofmt without attempting to update files
 	@gofmt -l -s $(SOURCE_DIRS) | grep ".*\.go"; if [ "$$?" = "0" ]; then exit 1; fi
+lint:
+	## Run golint on source files
+	@$(foreach dir,$(SOURCE_DIRS),echo "loop dir: $(dir)\n" && golint "$(dir)/...";)
 
 release-description:
 	./hack/build/release-description.sh ${RELREF} ${PREREF}
