@@ -15,7 +15,9 @@ const (
 )
 
 var _ = Describe(TestSuiteName, func() {
-	f, err := framework.NewFramework("sanity")
+	f, err := framework.NewFramework("sanity", &framework.Config{
+		SkipNamespaceCreation: true,
+	})
 	if err != nil {
 		Fail("Unable to create framework struct")
 	}
