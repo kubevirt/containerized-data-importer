@@ -21,7 +21,10 @@
 		format \
 		manifests \
 		goveralls \
-		release-description
+		release-description \
+		fmt \
+		fmtcheck \
+		lint
 
 DOCKER=1
 ifeq (${DOCKER}, 1)
@@ -29,6 +32,7 @@ DO=./hack/build/in-docker.sh
 else
 DO=eval
 endif
+SOURCE_DIRS = pkg tests tools
 
 all: docker
 
@@ -97,6 +101,14 @@ manifests:
 
 goveralls:
 	${DO} "TRAVIS_JOB_ID=${TRAVIS_JOB_ID} TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST} TRAVIS_BRANCH=${TRAVIS_BRANCH} ./hack/build/goveralls.sh"
+
+fmt:
+	## Run gofmt with simplification
+	@gofmt -l -s -w $(SOURCE_DIRS)
+
+fmtcheck:
+	## Just run gofmt without attempting to update files
+	@gofmt -l -s $(SOURCE_DIRS) | grep ".*\.go"; if [ "$$?" = "0" ]; then exit 1; fi
 
 release-description:
 	./hack/build/release-description.sh ${RELREF} ${PREREF}
