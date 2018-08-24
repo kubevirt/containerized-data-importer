@@ -15,7 +15,9 @@ const (
 )
 
 var _ = Describe(TestSuiteName, func() {
-	f, err := framework.NewFramework("sanity")
+	f, err := framework.NewFramework("sanity", &framework.Config{
+		SkipNamespaceCreation: true,
+	})
 	if err != nil {
 		Fail("Unable to create framework struct")
 	}
@@ -113,8 +115,7 @@ var _ = Describe(TestSuiteName, func() {
 func ValidateRBACForResource(f *framework.Framework, expectedResults map[string]string, resource string, sa string) {
 	for verb, expectedRes := range expectedResults {
 		By(fmt.Sprintf("verifying cdi-sa "+resource+" rules, for verb %s", verb))
-		result, err := tests.RunKubectlCommand(f, "auth", "can-i", "--as", sa, verb, resource)
-		Expect(err).ToNot(HaveOccurred())
+		result, _ := tests.RunKubectlCommand(f, "auth", "can-i", "--as", sa, verb, resource)
 		Expect(result).To(ContainSubstring(expectedRes))
 	}
 }

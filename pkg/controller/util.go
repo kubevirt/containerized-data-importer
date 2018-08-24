@@ -229,7 +229,7 @@ func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.
 				LabelImportPvc: pvc.Name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion:         "v1",
 					Kind:               "PersistentVolumeClaim",
 					Name:               pvc.Name,
@@ -446,7 +446,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy string, pvc *v1.Persisten
 				AnnCloningCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				CDI_LABEL_KEY:     CDI_LABEL_VALUE,    //filtered by the podInformer
+				CDI_LABEL_KEY: CDI_LABEL_VALUE, //filtered by the podInformer
 			},
 		},
 		Spec: v1.PodSpec{
