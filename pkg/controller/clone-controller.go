@@ -11,8 +11,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
-	"time"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	"time"
 )
 
 const (

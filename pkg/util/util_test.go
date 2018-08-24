@@ -1,8 +1,8 @@
 package util
 
 import (
-	"testing"
 	"regexp"
+	"testing"
 )
 
 func TestRandAlphaNum(t *testing.T) {
@@ -16,7 +16,7 @@ func TestRandAlphaNum(t *testing.T) {
 		name        string
 		args        args
 		wantMatches string
-		expectErr bool
+		expectErr   bool
 	}{
 		{
 			name: "Test expected input",
@@ -32,7 +32,7 @@ func TestRandAlphaNum(t *testing.T) {
 			if len(got) != tt.args.n {
 				t.Errorf("len(RandAlphaNum()) = %v, want %v", len(got), tt.args.n)
 			}
-			if ! regexp.MustCompile(tt.wantMatches).Match([]byte(got)){
+			if !regexp.MustCompile(tt.wantMatches).Match([]byte(got)) {
 				t.Errorf("RandAlphaNum() = %v, want match %v", got, tt.wantMatches)
 			}
 		})

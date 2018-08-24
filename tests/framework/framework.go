@@ -38,10 +38,17 @@ var (
 	master       *string
 )
 
+type Config struct {
+	// Whether to skip creating a namespace. Use this ONLY for tests that do not require
+	// a namespace at all, like basic sanity or other global tests.
+	SkipNamespaceCreation bool
+}
+
 // Framework supports common operations used by functional/e2e tests. It holds the k8s and cdi clients,
 // a generated unique namespace, run-time flags, and more fields will be added over time as cdi e2e
 // evolves. Global BeforeEach and AfterEach are called in the Framework constructor.
 type Framework struct {
+	*Config
 	// prefix for generated namespace
 	NsPrefix string
 	//  k8s client
@@ -56,6 +63,7 @@ type Framework struct {
 	Namespace2 *v1.Namespace // note: not instantiated in NewFramework
 	// list of ns to delete beyond the generated ns
 	namespacesToDelete []*v1.Namespace
+
 	// test run-time flags
 	KubectlPath  string
 	OcPath       string
@@ -78,8 +86,9 @@ func init() {
 
 // NewFramework makes a new framework and sets up the global BeforeEach/AfterEach's.
 // Test run-time flags are parsed and added to the Framework struct.
-func NewFramework(prefix string) (*Framework, error) {
+func NewFramework(prefix string, config *Config) (*Framework, error) {
 	f := &Framework{
+		Config:   config,
 		NsPrefix: prefix,
 	}
 
@@ -129,14 +138,16 @@ func (f *Framework) BeforeEach() {
 		f.CdiClient = cs
 	}
 
-	// generate unique primary ns (ns2 not created here)
-	By(fmt.Sprintf("Building a %q namespace api object", f.NsPrefix))
-	ns, err := f.CreateNamespace(f.NsPrefix, map[string]string{
-		"cdi-e2e": f.NsPrefix,
-	})
-	Expect(err).NotTo(HaveOccurred())
-	f.Namespace = ns
-	f.AddNamespaceToDelete(ns)
+	if !f.SkipNamespaceCreation {
+		// generate unique primary ns (ns2 not created here)
+		By(fmt.Sprintf("Building a %q namespace api object", f.NsPrefix))
+		ns, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+			"cdi-e2e": f.NsPrefix,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		f.Namespace = ns
+		f.AddNamespaceToDelete(ns)
+	}
 }
 
 func (f *Framework) AfterEach() {
