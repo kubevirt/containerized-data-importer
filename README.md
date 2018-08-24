@@ -83,7 +83,14 @@ $ wget https://raw.githubusercontent.com/kubevirt/containerized-data-importer/ku
 
 Deploying the CDI controller is straight forward. In this document the _default_ namespace is used, but in a production setup a [protected namespace](#protecting-the-golden-image-namespace) that is inaccessible to regular users should be used instead.
 
-1. Deploy the controller from the release manifest:
+1. Ensure that the cdi-sa service account has proper authority to run privileged containers, typically in a kube environment this is true by default.
+   If you are running an openshift variation of kubernetes you may need to enable privileged containers in the security context:
+
+```
+$ oc adm policy add-scc-to-user privileged -z cdi-sa
+```
+
+2. Deploy the controller from the release manifest:
 
 ```
 $ VERSION=<cdi version>
