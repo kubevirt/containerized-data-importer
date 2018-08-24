@@ -35,6 +35,8 @@ When creating a new release branch, follow the below process.  This assumes that
 
     `$ git checkout release-v#.#`
 
+    e.g. `$ git checkout release-v1.1`
+
 1. Create an annotated tag corresponding to the version
 
     `$ git tag -a -m "v#.#.#" v#.#.#`
