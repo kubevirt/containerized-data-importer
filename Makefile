@@ -15,7 +15,7 @@
 .PHONY: build build-controller build-importer build-functest-image-init build-functest-image-http build-functest \
 		docker docker-controller docker-cloner docker-importer docker-functest-image-init docker-functest-image-http\
 		cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer \
-		test test-functional test-unit \
+		test test-functional test-unit test-lint \
 		publish \
 		vet \
 		format \
@@ -51,7 +51,7 @@ build-functest:
 	${DO} ./hack/build/build-functest.sh
 
 # WHAT must match go tool style package paths for test targets (e.g. ./path/to/my/package/...)
-test: test-unit test-functional
+test: test-unit test-functional test-lint
 
 test-unit: WHAT = ./pkg/...
 test-unit:
@@ -60,6 +60,10 @@ test-unit:
 test-functional:  WHAT = ./tests/...
 test-functional:
 	./hack/build/run-functional-tests.sh ${WHAT} "${TEST_ARGS}"
+
+# test-lint runs gofmt and golint tests against src files
+test-lint:
+	${DO} "./hack/build/run-lint-checks.sh"
 
 docker: build
 	./hack/build/build-docker.sh build ${WHAT}

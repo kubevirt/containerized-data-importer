@@ -16,7 +16,6 @@ limitations under the License.
 
 package reporters
 
-
 import (
 	. "github.com/onsi/ginkgo"
 

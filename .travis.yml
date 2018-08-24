@@ -48,6 +48,7 @@ script:
 - k_wait_all_running pods
 - kubectl get pods --all-namespaces
 - make goveralls
+- make test-lint
 
 before_deploy:
 - docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
