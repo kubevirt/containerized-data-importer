@@ -12,11 +12,11 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-CDI_DIR="$(readlink -f $(dirname $0)/../../)"
-BIN_DIR=${CDI_DIR}/bin
-OUT_DIR=${CDI_DIR}/_out
-CMD_OUT_DIR=${OUT_DIR}/cmd
-TESTS_OUT_DIR=${OUT_DIR}/tests
-BUILD_DIR=${CDI_DIR}/hack/build
-MANIFEST_TEMPLATE_DIR=${CDI_DIR}/manifests/templates
-MANIFEST_GENERATED_DIR=${CDI_DIR}/manifests/generated
+set -euo pipefail
+
+script_dir="$(readlink -f $(dirname $0))"
+source "${script_dir}"/common.sh
+
+mkdir -p ${TESTS_OUT_DIR}/
+ginkgo build ${CDI_DIR}/tests/
+mv ${CDI_DIR}/tests/tests.test ${TESTS_OUT_DIR}/
