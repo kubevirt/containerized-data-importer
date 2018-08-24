@@ -17,7 +17,7 @@ const (
 )
 
 var _ = Describe(testSuiteName, func() {
-	f, err := framework.NewFramework(namespacePrefix, &framework.Config{})
+	f, err := framework.NewFramework(namespacePrefix, framework.Config{})
 	if err != nil {
 		Fail("Unable to create framework struct")
 	}
