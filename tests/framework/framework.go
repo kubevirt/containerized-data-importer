@@ -48,7 +48,7 @@ type Config struct {
 // a generated unique namespace, run-time flags, and more fields will be added over time as cdi e2e
 // evolves. Global BeforeEach and AfterEach are called in the Framework constructor.
 type Framework struct {
-	*Config
+	Config
 	// prefix for generated namespace
 	NsPrefix string
 	//  k8s client
@@ -86,7 +86,7 @@ func init() {
 
 // NewFramework makes a new framework and sets up the global BeforeEach/AfterEach's.
 // Test run-time flags are parsed and added to the Framework struct.
-func NewFramework(prefix string, config *Config) (*Framework, error) {
+func NewFramework(prefix string, config Config) (*Framework, error) {
 	f := &Framework{
 		Config:   config,
 		NsPrefix: prefix,

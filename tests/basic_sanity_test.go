@@ -15,7 +15,7 @@ const (
 )
 
 var _ = Describe(TestSuiteName, func() {
-	f, err := framework.NewFramework("sanity", &framework.Config{
+	f, err := framework.NewFramework("sanity", framework.Config{
 		SkipNamespaceCreation: true,
 	})
 	if err != nil {
