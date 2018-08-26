@@ -1,5 +1,5 @@
 hash: d76566d47e17a5b4e99a0dd66120dbb97c4e005ea3d2d3a1d0eebafe1746a834
-updated: 2018-08-26T10:47:24.567016386-04:00
+updated: 2018-08-26T11:08:35.791199312-04:00
 imports:
 - name: github.com/davecgh/go-spew
   version: 782f4967f2dc4564575ca782fe2d04090b5faca8
@@ -11,6 +11,8 @@ imports:
   - spdy
 - name: github.com/emicklei/go-restful
   version: 26b41036311f2da8242db402557a0dbd09dc83da
+  subpackages:
+  - log
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ini/ini
@@ -119,6 +121,7 @@ imports:
   version: 1c05540f6879653db88113bc4a2b70aec4bd491f
   subpackages:
   - context
+  - context/ctxhttp
   - html
   - html/atom
   - html/charset
@@ -126,7 +129,6 @@ imports:
   - http2/hpack
   - idna
   - lex/httplex
-  - websocket
 - name: golang.org/x/sys
   version: 95c6576299259db960f6c5b9b69ea52422860fce
   subpackages:
@@ -393,6 +395,7 @@ imports:
   - transport/spdy
   - util/buffer
   - util/cert
+  - util/cert/triple
   - util/exec
   - util/flowcontrol
   - util/homedir
@@ -405,6 +408,14 @@ imports:
   version: 4242d8e6c5dba56827bb7bcf14ad11cda38f3991
 - name: k8s.io/kube-aggregator
   version: a305d191dfc1956bfaa9500f0d2f3481e0e3ffb2
+  subpackages:
+  - pkg/apis/apiregistration
+  - pkg/apis/apiregistration/v1
+  - pkg/apis/apiregistration/v1beta1
+  - pkg/client/clientset_generated/clientset
+  - pkg/client/clientset_generated/clientset/scheme
+  - pkg/client/clientset_generated/clientset/typed/apiregistration/v1
+  - pkg/client/clientset_generated/clientset/typed/apiregistration/v1beta1
 - name: k8s.io/kube-openapi
   version: 39cb288412c48cb533ba4be5d6c28620b9a0c1b4
   subpackages:

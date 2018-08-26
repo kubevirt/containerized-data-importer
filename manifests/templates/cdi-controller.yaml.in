@@ -30,6 +30,9 @@ rules:
   resources: ["pods/finalizers"]
   verbs: ["update"]
 - apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+- apiGroups: [""]
   resources: ["secrets"]
   verbs: ["get", "list", "watch", "create"]
 - apiGroups: ["cdi.kubevirt.io"]
@@ -83,6 +86,8 @@ spec:
           value: {{ .DockerRepo }}/{{ .ImporterImage }}:{{ .DockerTag }}
         - name: CLONER_IMAGE
           value: {{ .DockerRepo }}/{{ .ClonerImage }}:{{ .DockerTag }}
+        - name: UPLOADSERVER_IMAGE
+          value: {{ .DockerRepo }}/{{ .UploadServerImage }}:{{ .DockerTag }}  
         - name: PULL_POLICY
           value: {{ .PullPolicy }}
 ---

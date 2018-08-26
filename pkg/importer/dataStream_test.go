@@ -70,7 +70,7 @@ func createDataStream(ep, accKey, secKey string) *DataStream {
 		secretKey:   secKey,
 	}
 
-	ds.constructReaders()
+	ds.constructReaders(nil)
 
 	return ds
 }

@@ -82,22 +82,32 @@ const (
 	rdrMulti
 	rdrTar
 	rdrXz
+	rdrStream
 )
 
 // map scheme and format to rdrType
 var rdrTypM = map[string]int{
-	"gz":    rdrGz,
-	"http":  rdrHTTP,
-	"https": rdrHTTP,
-	"local": rdrFile,
-	"s3":    rdrS3,
-	"tar":   rdrTar,
-	"xz":    rdrXz,
+	"gz":     rdrGz,
+	"http":   rdrHTTP,
+	"https":  rdrHTTP,
+	"local":  rdrFile,
+	"s3":     rdrS3,
+	"tar":    rdrTar,
+	"xz":     rdrXz,
+	"stream": rdrStream,
 }
 
 // NewDataStream returns a DataStream object after validating the endpoint and constructing the reader/closer chain.
 // Note: the caller must close the `Readers` in reverse order. See Close().
 func NewDataStream(endpt, accKey, secKey string) (*DataStream, error) {
+	return newDataStream(endpt, accKey, secKey, nil)
+}
+
+func newDataStreamFromStream(stream io.ReadCloser) (*DataStream, error) {
+	return newDataStream(fmt.Sprintf("stream://%p", stream), "", "", stream)
+}
+
+func newDataStream(endpt, accKey, secKey string, stream io.ReadCloser) (*DataStream, error) {
 	if len(accKey) == 0 || len(secKey) == 0 {
 		glog.V(2).Infof("%s and/or %s are empty\n", common.ImporterAccessKeyID, common.ImporterSecretKey)
 	}
@@ -113,7 +123,7 @@ func NewDataStream(endpt, accKey, secKey string) (*DataStream, error) {
 	}
 
 	// establish readers for endpoint's formats and do initial calc of size of raw endpt
-	err = ds.constructReaders()
+	err = ds.constructReaders(stream)
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to construct readers")
 	}
@@ -159,6 +169,10 @@ func (d *DataStream) dataStreamSelector() (err error) {
 		d.appendReader(rdrTypM[scheme], r)
 	}
 	return err
+}
+
+func (d *DataStream) addStream(reader io.ReadCloser) {
+	d.appendReader(rdrTypM["stream"], reader)
 }
 
 func (d *DataStream) s3() (io.ReadCloser, error) {
@@ -221,10 +235,25 @@ func CopyImage(dest, endpoint, accessKey, secKey string) error {
 	glog.V(1).Infof("copying %q to %q...\n", endpoint, dest)
 	ds, err := NewDataStream(endpoint, accessKey, secKey)
 	if err != nil {
-		return errors.Wrapf(err, "unable to create data stream")
+		return errors.Wrap(err, "unable to create data stream")
 	}
 	defer ds.Close()
 	return ds.copy(dest)
+}
+
+// SaveStream reads from a stream and saves data to dest
+func SaveStream(stream io.ReadCloser, dest string) (int64, error) {
+	glog.V(1).Infof("Saving stream to %q...\n", dest)
+	ds, err := newDataStreamFromStream(stream)
+	if err != nil {
+		return 0, errors.Wrapf(err, "unable to create data stream from stream")
+	}
+	defer ds.Close()
+	err = ds.copy(dest)
+	if err != nil {
+		return 0, errors.Wrap(err, "data stream copy failed")
+	}
+	return ds.Size, nil
 }
 
 // DEPRECATION NOTICE: Support for local (file://) endpoints will be removed from CDI in the next
@@ -265,12 +294,17 @@ func CopyImage(dest, endpoint, accessKey, secKey string) error {
 //   A particular header format only appears once in the data stream. Eg. foo.gz.gz is not supported.
 // Note: file extensions are ignored.
 // Note: readers are not closed here, see dataStream.Close().
-func (d *DataStream) constructReaders() error {
+func (d *DataStream) constructReaders(stream io.ReadCloser) error {
 	glog.V(2).Infof("create the initial Reader based on the endpoint's %q scheme", d.url.Scheme)
-	// create the scheme-specific source reader and append it to dataStream readers stack
-	err := d.dataStreamSelector()
-	if err != nil {
-		return errors.WithMessage(err, "could not get data reader")
+
+	if stream == nil {
+		// create the scheme-specific source reader and append it to dataStream readers stack
+		err := d.dataStreamSelector()
+		if err != nil {
+			return errors.WithMessage(err, "could not get data reader")
+		}
+	} else {
+		d.addStream(stream)
 	}
 
 	// loop through all supported file formats until we do not find a header we recognize
@@ -580,14 +614,14 @@ func copy(r io.Reader, out string, qemu bool) error {
 }
 
 // Return a random temp path with the `src` basename as the prefix and preserving the extension.
-// Eg. "/tmp/disk1d729566c74d1003.img".
+// Eg. "/data/disk1d729566c74d1003.img".
 func randTmpName(src string) string {
 	ext := filepath.Ext(src)
 	base := filepath.Base(src)
 	base = base[:len(base)-len(ext)] // exclude extension
 	randName := make([]byte, 8)
 	rand.Read(randName)
-	return filepath.Join(os.TempDir(), base+hex.EncodeToString(randName)+ext)
+	return filepath.Join(filepath.Dir(src), base+hex.EncodeToString(randName)+ext)
 }
 
 // parseDataPath only used for debugging

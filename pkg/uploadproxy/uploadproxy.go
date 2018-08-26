@@ -31,7 +31,7 @@ const (
 	uploadPath = "/v1alpha1/upload"
 )
 
-type UploadApiServer interface {
+type UploadProxyServer interface {
 	Start() error
 }
 
@@ -53,7 +53,7 @@ type uploadProxyApp struct {
 	apiServerPublicKey *rsa.PublicKey
 }
 
-func NewUploadProxy(bindAddress string, bindPort uint, client kubernetes.Interface) (UploadApiServer, error) {
+func NewUploadProxy(bindAddress string, bindPort uint, client kubernetes.Interface) (UploadProxyServer, error) {
 	var err error
 	app := &uploadProxyApp{
 		bindAddress: bindAddress,
@@ -188,12 +188,10 @@ func (app *uploadProxyApp) startTLS() error {
 		return err
 	}
 
-	http.HandleFunc(uploadPath, func(w http.ResponseWriter, r *http.Request) {
-		app.handleUploadRequest(w, r)
-	})
+	http.HandleFunc(uploadPath, app.handleUploadRequest)
 
 	go func() {
-		http.ListenAndServeTLS(fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort), certFile, keyFile, nil)
+		errors <- http.ListenAndServeTLS(fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort), certFile, keyFile, nil)
 	}()
 
 	// wait for server to exit
