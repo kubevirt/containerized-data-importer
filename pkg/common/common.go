@@ -35,7 +35,6 @@ const (
 	CLONER_TARGET_PODNAME = "clone-target-pod"
 	CLONER_IMAGE_PATH     = "/tmp/clone/image"
 	CLONER_SOCKET_PATH    = "/tmp/clone/socket"
-	CLONER_SCRIPT_ARGS    = "/tmp/cloner_startup.sh"
 
 	// key names expected in credential secret
 	KeyAccess = "accessKeyId"

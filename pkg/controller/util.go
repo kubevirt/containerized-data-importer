@@ -371,7 +371,6 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, pvcName string, generate
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Command:         []string{"/bin/sh"},
 					Name:            CLONER_SOURCE_PODNAME,
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
@@ -389,7 +388,7 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, pvcName string, generate
 							MountPath: CLONER_SOCKET_PATH + "/" + generatedLabelStr,
 						},
 					},
-					Args: []string{"-c", CLONER_SCRIPT_ARGS + " source " + generatedLabelStr},
+					Args: []string{"source", generatedLabelStr},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyNever,
@@ -471,7 +470,6 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy string, pvc *v1.Persisten
 			},
 			Containers: []v1.Container{
 				{
-					Command:         []string{"/bin/sh"},
 					Name:            CLONER_TARGET_PODNAME,
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
@@ -489,7 +487,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy string, pvc *v1.Persisten
 							MountPath: CLONER_SOCKET_PATH + "/" + generatedLabelStr,
 						},
 					},
-					Args: []string{"-c", CLONER_SCRIPT_ARGS + " target " + generatedLabelStr},
+					Args: []string{"target", generatedLabelStr},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyNever,
