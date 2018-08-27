@@ -23,8 +23,8 @@ source hack/build/common.sh
 ec=0
 out="$(gofmt -l -s ${SOURCE_DIRS} | grep ".*\.go")"
 if [[ ${out} ]]; then
-  echo "FAIL: Format errors found in the following files:"
-  echo "${out}"
-  ec=1
+    echo "FAIL: Format errors found in the following files:"
+    echo "${out}"
+    ec=1
 fi
 exit ${ec}
