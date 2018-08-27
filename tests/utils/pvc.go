@@ -1,8 +1,9 @@
 package utils
 
 import (
-	"fmt"
 	"time"
+
+	"fmt"
 
 	k8sv1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -13,11 +14,14 @@ import (
 )
 
 const (
+	defaultPollInterval = 2 * time.Second
+	defaultPollPeriod   = 30 * time.Second
+
 	DefaultPvcMountPath = "/pvc"
-	pvcPollInterval     = 2 * time.Second
-	PVCCreateTime       = 30 * time.Second
-	PVCDeleteTime       = 30 * time.Second
-	PVCPhaseTime        = 30 * time.Second
+	PVCPollInterval     = defaultPollInterval
+	PVCCreateTime       = defaultPollPeriod
+	PVCDeleteTime       = defaultPollPeriod
+	PVCPhaseTime        = defaultPollPeriod
 )
 
 // Creates a PVC in the passed in namespace from the passed in PersistentVolumeClaim definition.
@@ -25,7 +29,7 @@ const (
 // CreatePVCFromDefinition(client, namespace, NewPVCDefinition(name, size, nil, nil))
 func CreatePVCFromDefinition(clientSet *kubernetes.Clientset, namespace string, def *k8sv1.PersistentVolumeClaim) (*k8sv1.PersistentVolumeClaim, error) {
 	var pvc *k8sv1.PersistentVolumeClaim
-	err := wait.PollImmediate(pvcPollInterval, PVCCreateTime, func() (bool, error) {
+	err := wait.PollImmediate(PVCPollInterval, PVCCreateTime, func() (bool, error) {
 		var err error
 		pvc, err = clientSet.CoreV1().PersistentVolumeClaims(namespace).Create(def)
 		if err == nil || apierrs.IsAlreadyExists(err) {
@@ -41,7 +45,7 @@ func CreatePVCFromDefinition(clientSet *kubernetes.Clientset, namespace string, 
 
 // Delete the passed in PVC
 func DeletePVC(clientSet *kubernetes.Clientset, namespace string, pvc *k8sv1.PersistentVolumeClaim) error {
-	return wait.PollImmediate(pvcPollInterval, PVCDeleteTime, func() (bool, error) {
+	return wait.PollImmediate(PVCPollInterval, PVCDeleteTime, func() (bool, error) {
 		err := clientSet.CoreV1().PersistentVolumeClaims(namespace).Delete(pvc.GetName(), nil)
 		if err == nil || apierrs.IsNotFound(err) {
 			return true, nil
@@ -58,7 +62,7 @@ func FindPVC(clientSet *kubernetes.Clientset, namespace, pvcName string) (*k8sv1
 // Wait for annotation on PVC
 func WaitForPVCAnnotation(clientSet *kubernetes.Clientset, namespace string, pvc *k8sv1.PersistentVolumeClaim, annotation string) (string, bool, error) {
 	var result string
-	err := wait.PollImmediate(pvcPollInterval, PVCCreateTime, func() (bool, error) {
+	err := wait.PollImmediate(PVCPollInterval, PVCCreateTime, func() (bool, error) {
 		var err error
 		var found bool
 		pvc, err = FindPVC(clientSet, namespace, pvc.Name)
@@ -100,7 +104,7 @@ func NewPVCDefinition(pvcName string, size string, annotations, labels map[strin
 
 // Wait for the PVC to be in a particular phase (Pending, Bound, or Lost)
 func WaitForPersistentVolumeClaimPhase(clientSet *kubernetes.Clientset, namespace string, phase k8sv1.PersistentVolumeClaimPhase, pvcName string) error {
-	err := wait.PollImmediate(pvcPollInterval, PVCPhaseTime, func() (bool, error) {
+	err := wait.PollImmediate(PVCPollInterval, PVCPhaseTime, func() (bool, error) {
 		pvc, err := clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(pvcName, metav1.GetOptions{})
 		if err != nil || pvc.Status.Phase != phase {
 			return false, err

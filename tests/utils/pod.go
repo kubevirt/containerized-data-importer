@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	PodCreateTime  = 30 * time.Second
-	PodDeleteTime  = 30 * time.Second
-	PodWaitForTime = 30 * time.Second
+	PodCreateTime  = defaultPollPeriod
+	PodDeleteTime  = defaultPollPeriod
+	PodWaitForTime = defaultPollPeriod
 )
 
 // Create a Pod with the passed in PVC mounted under /pvc. You can then use the executor utilities to
