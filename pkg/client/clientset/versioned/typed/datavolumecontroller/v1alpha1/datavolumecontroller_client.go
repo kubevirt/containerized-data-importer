@@ -21,6 +21,7 @@ package v1alpha1
 import (
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	rest "k8s.io/client-go/rest"
+
 	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
 )

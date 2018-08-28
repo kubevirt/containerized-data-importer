@@ -8,15 +8,17 @@ import (
 	"strconv"
 	"strings"
 
+	"syscall"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	imagesize "kubevirt.io/containerized-data-importer/pkg/lib/size"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/tests/utils"
-	"syscall"
 )
 
 var _ = Describe("Streaming Data Conversion", func() {

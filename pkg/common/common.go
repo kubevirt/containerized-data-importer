@@ -1,8 +1,9 @@
 package common
 
 import (
-	"k8s.io/api/core/v1"
 	"time"
+
+	"k8s.io/api/core/v1"
 )
 
 // Common types and constants used by the importer and controller.

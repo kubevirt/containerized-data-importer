@@ -37,28 +37,28 @@ OPENSHIFT_IMAGE="os-3.10.0@sha256:cdc9f998e19915b28b5c5be1ccc4c6fa2c8336435f38a3
 
 KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER:-k8s-1.10.4}
 
-function allPkgs {
-    ret=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./... | grep -v "pkg/client" | sort -u ))
+function allPkgs() {
+    ret=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./... | grep -v "pkg/client" | sort -u))
     echo "$ret"
 }
 
-function parseTestOpts {
+function parseTestOpts() {
     pkgs=""
     test_args=""
     while [[ $# -gt 0 ]] && [[ $1 != "" ]]; do
         case "${1}" in
-            --test-args=*)
-                test_args="${1#*=}"
-                shift 1
-                ;;
-            ./*...)
-                pkgs="${pkgs} ${1}"
-                shift 1
-                ;;
-            *)
-                echo "ABORT: Unrecognized option \"$1\""
-                exit 1
-                ;;
+        --test-args=*)
+            test_args="${1#*=}"
+            shift 1
+            ;;
+        ./*...)
+            pkgs="${pkgs} ${1}"
+            shift 1
+            ;;
+        *)
+            echo "ABORT: Unrecognized option \"$1\""
+            exit 1
+            ;;
         esac
     done
 }
