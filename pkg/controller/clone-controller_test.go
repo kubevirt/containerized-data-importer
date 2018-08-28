@@ -11,6 +11,7 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	k8stesting "k8s.io/client-go/tools/cache/testing"
+
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 )
 

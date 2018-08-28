@@ -24,6 +24,7 @@ import (
 	"github.com/minio/minio-go"
 	"github.com/pkg/errors"
 	"github.com/ulikunitz/xz"
+
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 )
