@@ -47,17 +47,10 @@ const (
 	// AnnCreatedByUpload marks that a particular resource was created by the upload controller
 	AnnCreatedByUpload = "cdi.kubevirt.io/storage.createdByUploadController"
 
-	// SecretCAKey is the secret containing the ca private key
-	SecretCAKey = "cdi-upload-ca-key"
-	// ConfigCACert is the configmap containing the CA cert
-	ConfigCACert = "cdi-upload-ca-cert"
+	// CASecret is the secret containing the ca private key
+	CASecret = "cdi-upload-ca-key"
 	// CAName is the name of the CA
 	CAName = "upload.cdi.kubevirt.io"
-
-	// SecretUploadClientKey is the key the upload proxy should use to communicate to upload service pods
-	SecretUploadClientKey = "cdi-upload-client-key"
-	// ConfigUploadClientCert is the client cert that the upload service pods will expect
-	ConfigUploadClientCert = "cdi-upload-client-cert"
 )
 
 // UploadController members
@@ -189,7 +182,7 @@ func (c *UploadController) Run(threadiness int, stopCh <-chan struct{}) error {
 func (c *UploadController) initCerts() error {
 	var err error
 
-	c.caKeyPair, err = GetOrCreateCA(c.clientset, GetNamespace(), SecretCAKey, ConfigCACert, CAName, nil)
+	c.caKeyPair, err = GetOrCreateCA(c.clientset, GetNamespace(), CASecret, CAName, nil)
 	if err != nil {
 		return errors.Wrap(err, "Couldn't get/create CA")
 	}

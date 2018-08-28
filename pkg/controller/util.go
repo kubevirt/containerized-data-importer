@@ -520,16 +520,15 @@ func MakeCloneTargetPodSpec(image, pullPolicy, podAffinityNamespace string, pvc 
 func CreateUploadPod(client kubernetes.Interface, caKeyPair *triple.KeyPair, image, verbose, pullPolicy, name string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
 	ns := pvc.Namespace
 	commonName := name + ".namespace"
-	keySecretName := name + "-private-key"
-	certConfigName := name + "-cert"
+	secretName := name + "-server-tls"
 	owner := MakeOwnerReference(pvc)
 
-	_, err := GetOrCreateServerKeyPair(client, ns, keySecretName, certConfigName, caKeyPair, commonName, name, &owner)
+	_, err := GetOrCreateServerKeyPair(client, ns, secretName, caKeyPair, commonName, name, &owner)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating server key pair")
 	}
 
-	pod := MakeUploadPodSpec(image, verbose, pullPolicy, name, pvc, keySecretName, certConfigName)
+	pod := MakeUploadPodSpec(image, verbose, pullPolicy, name, pvc, secretName)
 
 	pod, err = client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
@@ -561,19 +560,11 @@ func MakeOwnerReference(pvc *v1.PersistentVolumeClaim) metav1.OwnerReference {
 }
 
 // MakeUploadPodSpec creates upload service pod manifest
-func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.PersistentVolumeClaim, secretName, configName string) *v1.Pod {
+func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.PersistentVolumeClaim, secretName string) *v1.Pod {
 	const (
-		keyVolumeName = "private-key"
-		keyDir        = "/etc/tls/key"
-		keyFile       = "tls.key"
-
-		certVolumeName = "cert"
-		certDir        = "/etc/tls/cert"
-		certFile       = "tls.cert"
+		secretVolumeName = "tls-secret"
+		secretVolumeDir  = "/etc/tls/uploadserver"
 	)
-
-	keyMode := int32(0600)
-	certMode := int32(0644)
 
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -605,22 +596,18 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 							MountPath: common.UPLOAD_SERVER_DATA_DIR,
 						},
 						{
-							Name:      keyVolumeName,
-							MountPath: keyDir,
-						},
-						{
-							Name:      certVolumeName,
-							MountPath: certDir,
+							Name:      secretName,
+							MountPath: secretVolumeDir,
 						},
 					},
 					Env: []v1.EnvVar{
 						{
 							Name:  "TLS_KEY_FILE",
-							Value: filepath.Join(keyDir, keyFile),
+							Value: filepath.Join(secretVolumeDir, PrivateKeyKeyName),
 						},
 						{
 							Name:  "TLS_CERT_FILE",
-							Value: filepath.Join(certDir, certFile),
+							Value: filepath.Join(secretVolumeDir, CertKeyName),
 						},
 					},
 					Args: []string{"-v=" + verbose},
@@ -638,34 +625,10 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 					},
 				},
 				{
-					Name: keyVolumeName,
+					Name: secretName,
 					VolumeSource: v1.VolumeSource{
 						Secret: &v1.SecretVolumeSource{
 							SecretName: secretName,
-							Items: []v1.KeyToPath{
-								{
-									Key:  PrivateKeyKeyName,
-									Path: keyFile,
-									Mode: &keyMode,
-								},
-							},
-						},
-					},
-				},
-				{
-					Name: certVolumeName,
-					VolumeSource: v1.VolumeSource{
-						ConfigMap: &v1.ConfigMapVolumeSource{
-							LocalObjectReference: v1.LocalObjectReference{
-								Name: configName,
-							},
-							Items: []v1.KeyToPath{
-								{
-									Key:  CertKeyName,
-									Path: certFile,
-									Mode: &certMode,
-								},
-							},
 						},
 					},
 				},
