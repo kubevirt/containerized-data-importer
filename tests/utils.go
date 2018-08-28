@@ -45,6 +45,15 @@ func RunKubectlCommand(f *framework.Framework, args ...string) (string, error) {
 	return string(stdOutBytes), nil
 }
 
+func PrintControllerLog(f *framework.Framework) {
+	log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+	if err == nil {
+		fmt.Fprintf(GinkgoWriter, "INFO: Controller log\n%s\n", log)
+	} else {
+		fmt.Fprintf(GinkgoWriter, "INFO: Unable to get controller log")
+	}
+}
+
 func PanicOnError(err error) {
 	if err != nil {
 		panic(err)
