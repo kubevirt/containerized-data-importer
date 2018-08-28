@@ -77,10 +77,10 @@ func (f *Framework) ExecWithOptions(options ExecOptions) (string, string, error)
 
 // ExecCommandInContainerWithFullOutput executes a command in the
 // specified container and return stdout, stderr and error
-func (f *Framework) ExecCommandInContainerWithFullOutput(podName, containerName string, cmd ...string) (string, string, error) {
+func (f *Framework) ExecCommandInContainerWithFullOutput(namespace, podName, containerName string, cmd ...string) (string, string, error) {
 	return f.ExecWithOptions(ExecOptions{
 		Command:       cmd,
-		Namespace:     f.Namespace.Name,
+		Namespace:     namespace,
 		PodName:       podName,
 		ContainerName: containerName,
 
@@ -92,8 +92,8 @@ func (f *Framework) ExecCommandInContainerWithFullOutput(podName, containerName 
 }
 
 // ExecCommandInContainer executes a command in the specified container.
-func (f *Framework) ExecCommandInContainer(podName, containerName string, cmd ...string) string {
-	stdout, _, err := f.ExecCommandInContainerWithFullOutput(podName, containerName, cmd...)
+func (f *Framework) ExecCommandInContainer(namespace, podName, containerName string, cmd ...string) string {
+	stdout, _, err := f.ExecCommandInContainerWithFullOutput(namespace, podName, containerName, cmd...)
 	Expect(err).NotTo(HaveOccurred(),
 		"failed to execute command in pod %v, container %v: %v",
 		podName, containerName, err)
@@ -104,22 +104,22 @@ func (f *Framework) ExecShellInContainer(podName, containerName string, cmd stri
 	return f.ExecCommandInContainer(podName, containerName, "/bin/sh", "-c", cmd)
 }
 
-func (f *Framework) ExecCommandInPod(podName string, cmd ...string) string {
+func (f *Framework) ExecCommandInPod(podName, namespace string, cmd ...string) string {
+	pod, err := f.K8sClient.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+	Expect(err).NotTo(HaveOccurred(), "failed to get pod")
+	Expect(pod.Spec.Containers).NotTo(BeEmpty())
+	return f.ExecCommandInContainer(namespace, podName, pod.Spec.Containers[0].Name, cmd...)
+}
+
+func (f *Framework) ExecCommandInPodWithFullOutput(namespace, podName string, cmd ...string) (string, string, error) {
 	pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.GetName()).Get(podName, metav1.GetOptions{})
 	Expect(err).NotTo(HaveOccurred(), "failed to get pod")
 	Expect(pod.Spec.Containers).NotTo(BeEmpty())
-	return f.ExecCommandInContainer(podName, pod.Spec.Containers[0].Name, cmd...)
+	return f.ExecCommandInContainerWithFullOutput(namespace, podName, pod.Spec.Containers[0].Name, cmd...)
 }
 
-func (f *Framework) ExecCommandInPodWithFullOutput(podName string, cmd ...string) (string, string, error) {
-	pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.GetName()).Get(podName, metav1.GetOptions{})
-	Expect(err).NotTo(HaveOccurred(), "failed to get pod")
-	Expect(pod.Spec.Containers).NotTo(BeEmpty())
-	return f.ExecCommandInContainerWithFullOutput(podName, pod.Spec.Containers[0].Name, cmd...)
-}
-
-func (f *Framework) ExecShellInPod(podName string, cmd string) string {
-	return f.ExecCommandInPod(podName, "/bin/sh", "-c", cmd)
+func (f *Framework) ExecShellInPod(podName, namespace string, cmd string) string {
+	return f.ExecCommandInPod(podName, namespace, "/bin/sh", "-c", cmd)
 }
 
 func (f *Framework) ExecShellInPodWithFullOutput(podName string, cmd string) (string, string, error) {

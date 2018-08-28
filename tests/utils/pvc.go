@@ -50,6 +50,30 @@ func DeletePVC(clientSet *kubernetes.Clientset, namespace string, pvc *k8sv1.Per
 	})
 }
 
+// Find the passed in PVC
+func FindPVC(clientSet *kubernetes.Clientset, namespace, pvcName string) (*k8sv1.PersistentVolumeClaim, error) {
+	return clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(pvcName, metav1.GetOptions{})
+}
+
+// Wait for annotation on PVC
+func WaitForPVCAnnotation(clientSet *kubernetes.Clientset, namespace string, pvc *k8sv1.PersistentVolumeClaim, annotation string) (string, bool, error) {
+	var result string
+	err := wait.PollImmediate(pvcPollInterval, PVCCreateTime, func() (bool, error) {
+		var err error
+		var found bool
+		pvc, err = FindPVC(clientSet, namespace, pvc.Name)
+		result, found = pvc.ObjectMeta.Annotations[annotation]
+		if err == nil && found {
+			return true, nil
+		}
+		return false, err
+	})
+	if err != nil {
+		return "", false, err
+	}
+	return result, true, nil
+}
+
 // Creates a PVC definition using the passed in name and requested size.
 // You can use the following annotation keys to request an import or clone. The values are defined in the controller package
 // AnnEndpoint
