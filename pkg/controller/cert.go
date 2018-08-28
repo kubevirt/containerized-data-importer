@@ -18,6 +18,7 @@ package controller
 
 import (
 	"crypto/rsa"
+	"crypto/x509"
 	"io/ioutil"
 	"strings"
 
@@ -32,11 +33,14 @@ import (
 )
 
 const (
-	// PrivateKeyKeyName is secret key for private key
+	// PrivateKeyKeyName is the key for the private key
 	PrivateKeyKeyName = "tls.key"
 
-	// CertKeyName is the configmap key for the cert
+	// CertKeyName is the key for the cert
 	CertKeyName = "tls.cert"
+
+	// CACertKeyName is the key for the ca cert
+	CACertKeyName = "ca.cert"
 )
 
 // GetOrCreateCA will get the CA KeyPair, creating it if necessary
@@ -58,19 +62,20 @@ func GetOrCreateCA(client kubernetes.Interface, namespace, secretName, caName st
 		return nil, errors.Wrap(err, "Error creating CA")
 	}
 
-	if err = SaveKeyPair(client, namespace, secretName, keyPair, owner); err != nil {
+	if err = SaveKeyPair(client, namespace, secretName, keyPair, owner, nil); err != nil {
 		return nil, errors.Wrap(err, "Error saving CA")
 	}
 
 	return keyPair, nil
 }
 
-// GetOrCreateServerKeyPair creates a KeyPair for a server
+// GetOrCreateServerKeyPair creates a KeyPair for a upload server
 func GetOrCreateServerKeyPair(client kubernetes.Interface,
 	namespace, secretName string,
 	caKeyPair *triple.KeyPair,
 	commonName, serviceName string,
-	owner *metav1.OwnerReference) (*triple.KeyPair, error) {
+	owner *metav1.OwnerReference,
+	clientCACert *x509.Certificate) (*triple.KeyPair, error) {
 	keyPair, err := GetKeyPair(client, namespace, secretName)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting server key pair")
@@ -86,7 +91,7 @@ func GetOrCreateServerKeyPair(client kubernetes.Interface,
 		return nil, errors.Wrap(err, "Error creating server key pair")
 	}
 
-	if err = SaveKeyPair(client, namespace, secretName, keyPair, owner); err != nil {
+	if err = SaveKeyPair(client, namespace, secretName, keyPair, owner, clientCACert); err != nil {
 		return nil, errors.Wrap(err, "Error saving server key pair")
 	}
 
@@ -99,7 +104,8 @@ func GetOrCreateClientKeyPair(client kubernetes.Interface,
 	caKeyPair *triple.KeyPair,
 	commonName string,
 	organizations []string,
-	owner *metav1.OwnerReference) (*triple.KeyPair, error) {
+	owner *metav1.OwnerReference,
+	serverCACert *x509.Certificate) (*triple.KeyPair, error) {
 	keyPair, err := GetKeyPair(client, namespace, secretName)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting server key pair")
@@ -115,7 +121,7 @@ func GetOrCreateClientKeyPair(client kubernetes.Interface,
 		return nil, errors.Wrap(err, "Error creating client key pair")
 	}
 
-	if err = SaveKeyPair(client, namespace, secretName, keyPair, owner); err != nil {
+	if err = SaveKeyPair(client, namespace, secretName, keyPair, owner, serverCACert); err != nil {
 		return nil, errors.Wrap(err, "Error saving client key pair")
 	}
 
@@ -159,7 +165,7 @@ func GetKeyPair(client kubernetes.Interface, namespace, secretName string) (*tri
 }
 
 // SaveKeyPair saves a private key and cert to kubernetes
-func SaveKeyPair(client kubernetes.Interface, namespace, secretName string, keyPair *triple.KeyPair, owner *metav1.OwnerReference) error {
+func SaveKeyPair(client kubernetes.Interface, namespace, secretName string, keyPair *triple.KeyPair, owner *metav1.OwnerReference, caCert *x509.Certificate) error {
 	privateKeyBytes := cert.EncodePrivateKeyPEM(keyPair.Key)
 	certBytes := cert.EncodeCertPEM(keyPair.Cert)
 	secret := &v1.Secret{
@@ -176,6 +182,11 @@ func SaveKeyPair(client kubernetes.Interface, namespace, secretName string, keyP
 
 	if owner != nil {
 		secret.OwnerReferences = []metav1.OwnerReference{*owner}
+	}
+
+	if caCert != nil {
+		caCertBytes := cert.EncodeCertPEM(caCert)
+		secret.Data[CACertKeyName] = caCertBytes
 	}
 
 	_, err := client.CoreV1().Secrets(namespace).Create(secret)

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang/glog"
+
 	"github.com/pkg/errors"
 
 	"k8s.io/api/core/v1"
@@ -62,6 +64,7 @@ func DecryptToken(encryptedToken string,
 
 	message, err := rsa.DecryptOAEP(hash, rand.Reader, privateDecryptionKey, tokenPayload.EncryptedData, label)
 	if err != nil {
+		glog.Error("DecryptOAEP failed")
 		return nil, err
 	}
 

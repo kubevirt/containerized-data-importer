@@ -37,6 +37,10 @@ const (
 	defaultDestination = common.IMPORTER_WRITE_PATH
 )
 
+type tlsInfo struct {
+	keyFile, certFile, caCertFile string
+}
+
 func init() {
 	flag.Parse()
 }
@@ -48,15 +52,16 @@ func main() {
 
 	pvcDir, destination := getPVCDirAndDestination()
 
-	keyFile, certFile := getTLSKeyAndCert()
+	tls := newTLSInfo()
 
 	server := uploadserver.NewUploadServer(
 		listenAddress,
 		listenPort,
 		pvcDir,
 		destination,
-		keyFile,
-		certFile,
+		tls.keyFile,
+		tls.certFile,
+		tls.caCertFile,
 	)
 
 	glog.Infof("PVC dir: %s, destination: %s", pvcDir, destination)
@@ -105,10 +110,10 @@ func getPVCDirAndDestination() (string, string) {
 	return pvcDir, destination
 }
 
-func getTLSKeyAndCert() (string, string) {
-	key, cert := os.Getenv("TLS_KEY_FILE"), os.Getenv("TLS_CERT_FILE")
-	if key == "" || cert == "" {
-		glog.Fatal("Missing TLS config key: %q, cert %q", key, cert)
+func newTLSInfo() *tlsInfo {
+	return &tlsInfo{
+		keyFile:    os.Getenv("TLS_KEY_FILE"),
+		certFile:   os.Getenv("TLS_CERT_FILE"),
+		caCertFile: os.Getenv("TLS_CA_FILE"),
 	}
-	return key, cert
 }

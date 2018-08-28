@@ -21,7 +21,10 @@ package uploadserver
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"sync"
 
@@ -50,6 +53,7 @@ type uploadServerApp struct {
 	destination string
 	tlsKeyFile  string
 	tlsCertFile string
+	caCertFile  string
 	mux         *http.ServeMux
 	uploading   bool
 	done        bool
@@ -58,7 +62,7 @@ type uploadServerApp struct {
 }
 
 // NewUploadServer returns a new instance of uploadServerApp
-func NewUploadServer(bindAddress string, bindPort uint16, pvcDir, destination, tlsKeyFile, tlsCertFile string) UploadServer {
+func NewUploadServer(bindAddress string, bindPort uint16, pvcDir, destination, tlsKeyFile, tlsCertFile, caCertFile string) UploadServer {
 	server := &uploadServerApp{
 		bindAddress: bindAddress,
 		bindPort:    bindPort,
@@ -66,6 +70,7 @@ func NewUploadServer(bindAddress string, bindPort uint16, pvcDir, destination, t
 		destination: destination,
 		tlsKeyFile:  tlsKeyFile,
 		tlsCertFile: tlsCertFile,
+		caCertFile:  caCertFile,
 		mux:         http.NewServeMux(),
 		uploading:   false,
 		done:        false,
@@ -81,10 +86,34 @@ func (app *uploadServerApp) Run() error {
 		Handler: app,
 	}
 
+	if app.caCertFile != "" {
+		caCert, err := ioutil.ReadFile(app.caCertFile)
+		if err != nil {
+			glog.Fatalf("Error reading ca cert file %s", app.caCertFile)
+		}
+
+		caCertPool := x509.NewCertPool()
+		if ok := caCertPool.AppendCertsFromPEM(caCert); !ok {
+			glog.Fatalf("Invalid ca cert file %s", app.caCertFile)
+		}
+
+		server.TLSConfig = &tls.Config{
+			ClientCAs:  caCertPool,
+			ClientAuth: tls.RequireAndVerifyClientCert,
+		}
+	}
+
 	errChan := make(chan error)
 
 	go func() {
-		errChan <- server.ListenAndServeTLS(app.tlsCertFile, app.tlsKeyFile)
+		if app.tlsCertFile != "" && app.tlsKeyFile != "" {
+			errChan <- server.ListenAndServeTLS(app.tlsCertFile, app.tlsKeyFile)
+			return
+		}
+		if app.caCertFile != "" {
+			glog.Fatal("TLS cert and key required for this config")
+		}
+		errChan <- server.ListenAndServe()
 	}()
 
 	var err error

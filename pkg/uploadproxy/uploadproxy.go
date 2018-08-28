@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -56,6 +57,8 @@ type uploadProxyApp struct {
 
 	// Used to verify token came from our apiserver.
 	apiServerPublicKey *rsa.PublicKey
+
+	uploadServerClient *http.Client
 }
 
 func NewUploadProxy(bindAddress string, bindPort uint, client kubernetes.Interface) (UploadProxyServer, error) {
@@ -89,7 +92,41 @@ func NewUploadProxy(bindAddress string, bindPort uint, client kubernetes.Interfa
 
 	}
 
+	// get upload server http client
+	err = app.getUploadServerClient()
+	if err != nil {
+		return nil, errors.Errorf("Unable to create upload server client: %v\n", errors.WithStack(err))
+	}
+
 	return app, nil
+}
+
+func (app *uploadProxyApp) getUploadServerClient() error {
+	clientCert, err := tls.LoadX509KeyPair("/etc/tls/uploadproxy/tls.cert", "/etc/tls/uploadproxy/tls.key")
+	if err != nil {
+		return err
+	}
+
+	caCertBytes, err := ioutil.ReadFile("/etc/tls/uploadproxy/ca.cert")
+	if err != nil {
+		return err
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCertBytes)
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{clientCert},
+		RootCAs:      caCertPool,
+	}
+	tlsConfig.BuildNameToCertificate()
+
+	transport := &http.Transport{TLSClientConfig: tlsConfig}
+	client := &http.Client{Transport: transport}
+
+	app.uploadServerClient = client
+
+	return nil
 }
 
 func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Request) {
@@ -114,21 +151,15 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 
 func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.ResponseWriter, r *http.Request) {
 	url := fmt.Sprintf("https://%s.default.svc%s", controller.GetUploadResourceName(pvc), uploadserver.GetUploadPath(pvc))
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-
-	client := http.Client{
-		Transport: transport,
-	}
 
 	req, err := http.NewRequest("POST", url, r.Body)
 	req.ContentLength = r.ContentLength
 
 	glog.V(Vdebug).Infof("Posting to: %s", url)
 
-	response, err := client.Do(req)
+	response, err := app.uploadServerClient.Do(req)
 	if err != nil {
+		glog.Errorf("Error proxying %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

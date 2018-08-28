@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"crypto/x509"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -517,13 +518,13 @@ func MakeCloneTargetPodSpec(image, pullPolicy, podAffinityNamespace string, pvc 
 }
 
 // CreateUploadPod creates upload service pod manifest and sends to server
-func CreateUploadPod(client kubernetes.Interface, caKeyPair *triple.KeyPair, image, verbose, pullPolicy, name string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+func CreateUploadPod(client kubernetes.Interface, caKeyPair *triple.KeyPair, clientCACert *x509.Certificate, image, verbose, pullPolicy, name string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
 	ns := pvc.Namespace
 	commonName := name + ".namespace"
 	secretName := name + "-server-tls"
 	owner := MakeOwnerReference(pvc)
 
-	_, err := GetOrCreateServerKeyPair(client, ns, secretName, caKeyPair, commonName, name, &owner)
+	_, err := GetOrCreateServerKeyPair(client, ns, secretName, caKeyPair, commonName, name, &owner, clientCACert)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating server key pair")
 	}
@@ -608,6 +609,10 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 						{
 							Name:  "TLS_CERT_FILE",
 							Value: filepath.Join(secretVolumeDir, CertKeyName),
+						},
+						{
+							Name:  "TLS_CA_FILE",
+							Value: filepath.Join(secretVolumeDir, CACertKeyName),
 						},
 					},
 					Args: []string{"-v=" + verbose},

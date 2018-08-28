@@ -47,10 +47,20 @@ const (
 	// AnnCreatedByUpload marks that a particular resource was created by the upload controller
 	AnnCreatedByUpload = "cdi.kubevirt.io/storage.createdByUploadController"
 
-	// CASecret is the secret containing the ca private key
-	CASecret = "cdi-upload-ca-key"
-	// CAName is the name of the CA
-	CAName = "upload.cdi.kubevirt.io"
+	// ServerCASecret is the secret containing the server CA
+	ServerCASecret = "cdi-upload-server-ca-key"
+	// ServerCAName is the name of the server CA
+	ServerCAName = "server.upload.cdi.kubevirt.io"
+
+	// ClientCASecret is the secret containing the clent CA
+	ClientCASecret = "cdi-upload-client-ca-key"
+	// ClientCAName is the name of the client CA
+	ClientCAName = "client.upload.cdi.kubevirt.io"
+
+	// ClientKeySecret is the secret containing the client key/cert
+	ClientKeySecret = "cdi-upload-client-key"
+	// UploadProxyClientName is the CN for client cert
+	UploadProxyClientName = "uploadproxy.client.upload.cdi.kebevirt.io"
 )
 
 // UploadController members
@@ -67,7 +77,8 @@ type UploadController struct {
 	uploadServiceImage                        string
 	pullPolicy                                string // Options: IfNotPresent, Always, or Never
 	verbose                                   string // verbose levels: 1, 2, ...
-	caKeyPair                                 *triple.KeyPair
+	serverCAKeyPair                           *triple.KeyPair
+	clientCAKeyPair                           *triple.KeyPair
 }
 
 // GetUploadResourceName returns the name given to upload services/pods
@@ -183,9 +194,28 @@ func (c *UploadController) Run(threadiness int, stopCh <-chan struct{}) error {
 func (c *UploadController) initCerts() error {
 	var err error
 
-	c.caKeyPair, err = GetOrCreateCA(c.clientset, GetNamespace(), CASecret, CAName, nil)
+	c.serverCAKeyPair, err = GetOrCreateCA(c.clientset, GetNamespace(), ServerCASecret, ServerCAName, nil)
 	if err != nil {
-		return errors.Wrap(err, "Couldn't get/create CA")
+		return errors.Wrap(err, "Couldn't get/create server CA")
+	}
+
+	c.clientCAKeyPair, err = GetOrCreateCA(c.clientset, GetNamespace(), ClientCASecret, ClientCAName, nil)
+	if err != nil {
+		return errors.Wrap(err, "Couldn't get/create client CA")
+	}
+
+	_, err = GetOrCreateClientKeyPair(
+		c.clientset,
+		GetNamespace(),
+		ClientKeySecret,
+		c.clientCAKeyPair,
+		UploadProxyClientName,
+		[]string{},
+		nil,
+		c.serverCAKeyPair.Cert,
+	)
+	if err != nil {
+		return errors.Wrap(err, "Couldn't get/create client cert")
 	}
 
 	return nil
@@ -361,7 +391,7 @@ func (c *UploadController) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, n
 	pod, err := c.podLister.Pods(pvc.Namespace).Get(name)
 
 	if apierrs.IsNotFound(err) {
-		pod, err = CreateUploadPod(c.clientset, c.caKeyPair, c.uploadServiceImage, c.verbose, c.pullPolicy, name, pvc)
+		pod, err = CreateUploadPod(c.clientset, c.serverCAKeyPair, c.clientCAKeyPair.Cert, c.uploadServiceImage, c.verbose, c.pullPolicy, name, pvc)
 	}
 
 	if pod != nil && !metav1.IsControlledBy(pod, pvc) {

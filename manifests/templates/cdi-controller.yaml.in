@@ -295,6 +295,13 @@ spec:
         image: {{ .DockerRepo }}/cdi-uploadproxy:{{ .DockerTag }}
         imagePullPolicy: {{ .PullPolicy }}
         args: ["-v={{ .Verbosity }}"] # default verbosity; change to 2 or 3 for more detailed logging
+        volumeMounts:
+        - name: client-secret
+          mountPath: /etc/tls/uploadproxy
+      volumes:
+      - name: client-secret
+        secret:
+          secretName: cdi-upload-client-key
 ---
 kind: ServiceAccount
 apiVersion: v1
