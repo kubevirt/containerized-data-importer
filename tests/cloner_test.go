@@ -2,7 +2,6 @@ package tests
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -37,7 +36,7 @@ var _ = Describe(testSuiteName, func() {
 	var sourcePvc *v1.PersistentVolumeClaim
 
 	BeforeEach(func() {
-		sourcePvc = createAndPopulateSourcePVC(f)
+		sourcePvc = f.CreateAndPopulateSourcePVC(sourcePVCName, sourcePodFillerName, fillCommand)
 	})
 
 	AfterEach(func() {
@@ -64,19 +63,6 @@ var _ = Describe(testSuiteName, func() {
 	})
 
 })
-
-func createAndPopulateSourcePVC(f *framework.Framework) *v1.PersistentVolumeClaim {
-	// Create the source PVC and populate it with a file, so we can verify the clone.
-	By("[BeforeEach] Creating the source PVC")
-	sourcePvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil))
-	Expect(err).ToNot(HaveOccurred())
-	By("[BeforeEach] Populating the source PVC with data")
-	pod, err := f.CreatePod(utils.NewPodWithPVC(sourcePodFillerName, fillCommand, sourcePvc))
-	Expect(err).ToNot(HaveOccurred())
-	err = f.WaitTimeoutForPodStatus(pod.Name, v1.PodSucceeded, utils.PodWaitForTime)
-	Expect(err).ToNot(HaveOccurred())
-	return sourcePvc
-}
 
 func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 	// Create targetPvc in new NS.
@@ -115,21 +101,10 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 	Expect(status).Should(BeEquivalentTo(v1.PodSucceeded))
 
 	// Clone is completed, verify the content matches the source.
-	Expect(verifyTargetContent(f, targetNs, targetPvc)).To(BeTrue())
+	Expect(f.VerifyTargetPVCContent(targetNs, targetPvc, testFile, fillData)).To(BeTrue())
 	// Clean up PVC, the AfterEach will also clean it up, through the Namespace delete.
 	if targetPvc != nil {
 		err = utils.DeletePVC(f.K8sClient, targetNs.Name, targetPvc)
 		Expect(err).ToNot(HaveOccurred())
 	}
-}
-
-func verifyTargetContent(f *framework.Framework, namespace *v1.Namespace, pvc *v1.PersistentVolumeClaim) bool {
-	By("Verify target PVC content matches source PVC")
-	executorPod, err := utils.CreateExecutorPodWithPVC(f.K8sClient, "verify-pvc-content", namespace.Name, pvc)
-	Expect(err).ToNot(HaveOccurred())
-	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
-	Expect(err).ToNot(HaveOccurred())
-	output := f.ExecShellInPod(executorPod.Name, namespace.Name, "cat "+testFile)
-	f.DeletePod(executorPod)
-	return strings.Compare(fillData, output) == 0
 }
