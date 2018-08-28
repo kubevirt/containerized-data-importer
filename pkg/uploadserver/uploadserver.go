@@ -43,6 +43,8 @@ type uploadServerApp struct {
 	bindPort    uint16
 	pvcDir      string
 	destination string
+	tlsKeyFile  string
+	tlsCertFile string
 	mux         *http.ServeMux
 	uploading   bool
 	done        bool
@@ -51,12 +53,14 @@ type uploadServerApp struct {
 }
 
 // NewUploadServer returns a new instance of uploadServerApp
-func NewUploadServer(bindAddress string, bindPort uint16, pvcDir, destination string) UploadServer {
+func NewUploadServer(bindAddress string, bindPort uint16, pvcDir, destination, tlsKeyFile, tlsCertFile string) UploadServer {
 	server := &uploadServerApp{
 		bindAddress: bindAddress,
 		bindPort:    bindPort,
 		pvcDir:      pvcDir,
 		destination: destination,
+		tlsKeyFile:  tlsKeyFile,
+		tlsCertFile: tlsCertFile,
 		mux:         http.NewServeMux(),
 		uploading:   false,
 		done:        false,
@@ -75,7 +79,7 @@ func (app *uploadServerApp) Run() error {
 	errChan := make(chan error)
 
 	go func() {
-		errChan <- server.ListenAndServe()
+		errChan <- server.ListenAndServeTLS(app.tlsCertFile, app.tlsKeyFile)
 	}()
 
 	var err error

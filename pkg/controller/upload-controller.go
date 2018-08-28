@@ -1,3 +1,19 @@
+/*
+Copyright 2018 The CDI Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package controller
 
 import (
@@ -14,18 +30,37 @@ import (
 	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/cert/triple"
 	"k8s.io/client-go/util/workqueue"
 )
 
 const (
 	// pvc annotations
-	AnnUploadRequest  = "cdi.kubevirt.io/storage.upload.target"
+
+	// AnnUploadRequest marks that a PVC should be made available for upload
+	AnnUploadRequest = "cdi.kubevirt.io/storage.upload.target"
+	// AnnUploadPodPhase stores the status of the upload pod
 	AnnUploadPodPhase = "cdi.kubevirt.io/storage.upload.pod.phase"
 
-	// upload service pod annotations
+	// pod annotations
+
+	// AnnCreatedByUpload marks that a particular resource was created by the upload controller
 	AnnCreatedByUpload = "cdi.kubevirt.io/storage.createdByUploadController"
+
+	// SecretCAKey is the secret containing the ca private key
+	SecretCAKey = "cdi-upload-ca-key"
+	// ConfigCACert is the configmap containing the CA cert
+	ConfigCACert = "cdi-upload-ca-cert"
+	// CAName is the name of the CA
+	CAName = "upload.cdi.kubevirt.io"
+
+	// SecretUploadClientKey is the key the upload proxy should use to communicate to upload service pods
+	SecretUploadClientKey = "cdi-upload-client-key"
+	// ConfigUploadClientCert is the client cert that the upload service pods will expect
+	ConfigUploadClientCert = "cdi-upload-client-cert"
 )
 
+// UploadController members
 type UploadController struct {
 	clientset                                 kubernetes.Interface
 	queue                                     workqueue.RateLimitingInterface
@@ -39,12 +74,14 @@ type UploadController struct {
 	uploadServiceImage                        string
 	pullPolicy                                string // Options: IfNotPresent, Always, or Never
 	verbose                                   string // verbose levels: 1, 2, ...
+	caKeyPair                                 *triple.KeyPair
 }
 
-func getResourceNames(pvcName string) string {
+func getUploadResourceNames(pvcName string) string {
 	return "cdi-upload-" + pvcName
 }
 
+// NewUploadController returns a new UploadController
 func NewUploadController(client kubernetes.Interface,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	podInformer coreinformers.PodInformer,
@@ -84,7 +121,7 @@ func NewUploadController(client kubernetes.Interface,
 			newDepl := new.(*v1.Pod)
 			oldDepl := old.(*v1.Pod)
 			if newDepl.ResourceVersion == oldDepl.ResourceVersion {
-				// Periodic resync will send update events for all known PVCs.
+				// Periodic resync will send update events for all known Pods.
 				// Two different versions of the same PVCs will always have different RVs.
 				return
 			}
@@ -100,7 +137,7 @@ func NewUploadController(client kubernetes.Interface,
 			newDepl := new.(*v1.Service)
 			oldDepl := old.(*v1.Service)
 			if newDepl.ResourceVersion == oldDepl.ResourceVersion {
-				// Periodic resync will send update events for all known PVCs.
+				// Periodic resync will send update events for all known Services.
 				// Two different versions of the same PVCs will always have different RVs.
 				return
 			}
@@ -110,6 +147,54 @@ func NewUploadController(client kubernetes.Interface,
 	})
 
 	return c
+}
+
+// Run sets up UploadController state and executes main event loop
+func (c *UploadController) Run(threadiness int, stopCh <-chan struct{}) error {
+	defer runtime.HandleCrash()
+	defer c.queue.ShutDown()
+
+	glog.V(2).Infoln("Getting/creating certs")
+
+	if err := c.initCerts(); err != nil {
+		runtime.HandleError(err)
+		return errors.Wrap(err, "Error initializing certificates")
+	}
+
+	glog.V(2).Infoln("Starting cdi upload controller Run loop")
+
+	if threadiness < 1 {
+		return errors.Errorf("expected >0 threads, got %d", threadiness)
+	}
+
+	glog.V(3).Info("Waiting for informer caches to sync")
+
+	if ok := cache.WaitForCacheSync(stopCh, c.pvcsSynced, c.podsSynced, c.servicesSynced); !ok {
+		return errors.New("failed to wait for caches to sync")
+	}
+
+	glog.V(3).Infoln("UploadController cache has synced")
+
+	for i := 0; i < threadiness; i++ {
+		go wait.Until(c.runWorker, time.Second, stopCh)
+	}
+
+	glog.Info("Started workers")
+	<-stopCh
+	glog.Info("Shutting down workers")
+
+	return nil
+}
+
+func (c *UploadController) initCerts() error {
+	var err error
+
+	c.caKeyPair, err = GetOrCreateCA(c.clientset, GetNamespace(), SecretCAKey, ConfigCACert, CAName, nil)
+	if err != nil {
+		return errors.Wrap(err, "Couldn't get/create CA")
+	}
+
+	return nil
 }
 
 func (c *UploadController) handleObject(obj interface{}) {
@@ -142,7 +227,7 @@ func (c *UploadController) handleObject(obj interface{}) {
 			return
 		}
 
-		glog.Infof("queueing pvc %+v!!", pvc)
+		glog.V(3).Infof("queueing pvc %+v!!", pvc)
 
 		c.enqueuePVC(pvc)
 		return
@@ -157,35 +242,6 @@ func (c *UploadController) enqueuePVC(obj interface{}) {
 		return
 	}
 	c.queue.AddRateLimited(key)
-}
-
-func (c *UploadController) Run(threadiness int, stopCh <-chan struct{}) error {
-	defer runtime.HandleCrash()
-	defer c.queue.ShutDown()
-
-	glog.V(2).Infoln("Starting cdi controller Run loop")
-
-	if threadiness < 1 {
-		return errors.Errorf("expected >0 threads, got %d", threadiness)
-	}
-
-	glog.V(3).Info("Waiting for informer caches to sync")
-
-	if ok := cache.WaitForCacheSync(stopCh, c.pvcsSynced, c.podsSynced, c.servicesSynced); !ok {
-		return errors.New("failed to wait for caches to sync")
-	}
-
-	glog.V(3).Infoln("UploadController cache has synced")
-
-	for i := 0; i < threadiness; i++ {
-		go wait.Until(c.runWorker, time.Second, stopCh)
-	}
-
-	glog.Info("Started workers")
-	<-stopCh
-	glog.Info("Shutting down workers")
-
-	return nil
 }
 
 func (c *UploadController) runWorker() {
@@ -246,7 +302,7 @@ func (c *UploadController) syncHandler(key string) error {
 		return errors.Wrapf(err, "error getting PVC %s", key)
 	}
 
-	resourceName := getResourceNames(pvc.Name)
+	resourceName := getUploadResourceNames(pvc.Name)
 
 	if _, exists := pvc.ObjectMeta.Annotations[AnnUploadRequest]; !exists {
 		// delete everything
@@ -311,7 +367,7 @@ func (c *UploadController) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, n
 	pod, err := c.podLister.Pods(pvc.Namespace).Get(name)
 
 	if apierrs.IsNotFound(err) {
-		pod, err = CreateUploadPod(c.clientset, c.uploadServiceImage, c.verbose, c.pullPolicy, name, pvc)
+		pod, err = CreateUploadPod(c.clientset, c.caKeyPair, c.uploadServiceImage, c.verbose, c.pullPolicy, name, pvc)
 	}
 
 	if pod != nil && !metav1.IsControlledBy(pod, pvc) {

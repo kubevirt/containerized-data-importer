@@ -48,7 +48,16 @@ func main() {
 
 	pvcDir, destination := getPVCDirAndDestination()
 
-	server := uploadserver.NewUploadServer(listenAddress, listenPort, pvcDir, destination)
+	keyFile, certFile := getTLSKeyAndCert()
+
+	server := uploadserver.NewUploadServer(
+		listenAddress,
+		listenPort,
+		pvcDir,
+		destination,
+		keyFile,
+		certFile,
+	)
 
 	glog.Infof("PVC dir: %s, destination: %s", pvcDir, destination)
 
@@ -94,4 +103,12 @@ func getPVCDirAndDestination() (string, string) {
 	}
 
 	return pvcDir, destination
+}
+
+func getTLSKeyAndCert() (string, string) {
+	key, cert := os.Getenv("TLS_KEY_FILE"), os.Getenv("TLS_CERT_FILE")
+	if key == "" || cert == "" {
+		glog.Fatal("Missing TLS config key: %q, cert %q", key, cert)
+	}
+	return key, cert
 }

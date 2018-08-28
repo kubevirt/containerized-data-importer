@@ -35,6 +35,9 @@ rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["get", "list", "watch", "create"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch", "create"]
 - apiGroups: ["cdi.kubevirt.io"]
   resources:
    - '*'
