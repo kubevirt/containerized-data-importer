@@ -7,6 +7,7 @@ import (
 	"os/signal"
 
 	"github.com/golang/glog"
+
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 

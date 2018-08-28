@@ -11,6 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/ulikunitz/xz"
+
 	"kubevirt.io/containerized-data-importer/pkg/image"
 )
 
