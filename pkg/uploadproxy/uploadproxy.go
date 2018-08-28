@@ -3,12 +3,15 @@ package uploadproxy
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
 
 	"github.com/golang/glog"
+
 	"github.com/pkg/errors"
 
 	"k8s.io/client-go/kubernetes"
@@ -17,6 +20,8 @@ import (
 
 	apiserver "kubevirt.io/containerized-data-importer/pkg/apiserver"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
+	controller "kubevirt.io/containerized-data-importer/pkg/controller"
+	uploadserver "kubevirt.io/containerized-data-importer/pkg/uploadserver"
 )
 
 const (
@@ -103,7 +108,38 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 	}
 
 	glog.V(Vuser).Infof("Received valid token: pvc: %s, namespace: %s", tokenData.PvcName, tokenData.Namespace)
-	// TODO add proxy logic here.
+
+	app.proxyUploadRequest(tokenData.Namespace, tokenData.PvcName, w, r)
+}
+
+func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.ResponseWriter, r *http.Request) {
+	url := fmt.Sprintf("https://%s.default.svc%s", controller.GetUploadResourceName(pvc), uploadserver.GetUploadPath(pvc))
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
+	client := http.Client{
+		Transport: transport,
+	}
+
+	req, err := http.NewRequest("POST", url, r.Body)
+	req.ContentLength = r.ContentLength
+
+	glog.V(Vdebug).Infof("Posting to: %s", url)
+
+	response, err := client.Do(req)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	glog.V(Vdebug).Infof("Response status for url %s: %d", url, response.StatusCode)
+
+	w.WriteHeader(response.StatusCode)
+	_, err = io.Copy(w, response.Body)
+	if err != nil {
+		glog.Warningf("Error proxying response from url %s", url)
+	}
 }
 
 func (app *uploadProxyApp) generateKeys() error {

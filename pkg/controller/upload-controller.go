@@ -70,7 +70,8 @@ type UploadController struct {
 	caKeyPair                                 *triple.KeyPair
 }
 
-func getUploadResourceNames(pvcName string) string {
+// GetUploadResourceName returns the name given to upload services/pods
+func GetUploadResourceName(pvcName string) string {
 	return "cdi-upload-" + pvcName
 }
 
@@ -295,7 +296,7 @@ func (c *UploadController) syncHandler(key string) error {
 		return errors.Wrapf(err, "error getting PVC %s", key)
 	}
 
-	resourceName := getUploadResourceNames(pvc.Name)
+	resourceName := GetUploadResourceName(pvc.Name)
 
 	if _, exists := pvc.ObjectMeta.Annotations[AnnUploadRequest]; !exists {
 		// delete everything

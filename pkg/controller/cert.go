@@ -140,18 +140,19 @@ func GetKeyPair(client kubernetes.Interface, namespace, secretName string) (*tri
 			return nil, errors.Wrap(err, "Error parsing secret")
 		}
 
-		if key, ok := obj.(*rsa.PrivateKey); ok {
-			keyPair.Key = key
+		key, ok := obj.(*rsa.PrivateKey)
+		if !ok {
+			return nil, errors.New("Invalid pem format")
 		}
-		return nil, errors.New("Invalid pem format")
+		keyPair.Key = key
 	}
 
 	if bytes, ok := secret.Data[CertKeyName]; ok {
 		certs, err := cert.ParseCertsPEM(bytes)
-		if err == nil && len(certs) > 0 {
-			keyPair.Cert = certs[0]
+		if err != nil || len(certs) != 1 {
+			return nil, errors.Errorf("Cert parse error %s, %d", err, len(certs))
 		}
-		return nil, errors.Errorf("Cert parse error %s, %d", err, len(certs))
+		keyPair.Cert = certs[0]
 	}
 
 	return &keyPair, nil

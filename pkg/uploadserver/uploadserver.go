@@ -38,6 +38,11 @@ type UploadServer interface {
 	Run() error
 }
 
+// GetUploadPath returns the path the proxy should post to for a particular pvc
+func GetUploadPath(pvc string) string {
+	return uploadPath
+}
+
 type uploadServerApp struct {
 	bindAddress string
 	bindPort    uint16
