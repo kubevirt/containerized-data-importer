@@ -3,6 +3,8 @@ package uploadproxy
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"io/ioutil"
+	"os"
 	"reflect"
 	"testing"
 
@@ -13,6 +15,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
+	"k8s.io/client-go/util/cert"
+	"k8s.io/client-go/util/cert/triple"
 
 	apiserver "kubevirt.io/containerized-data-importer/pkg/apiserver"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
@@ -168,6 +172,37 @@ func generateTestKeys() (*rsa.PrivateKey, *rsa.PrivateKey, error) {
 		return nil, nil, err
 	}
 	apiKeyPair, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	caKeyPair, err := triple.NewCA("uploadproxytest")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = os.MkdirAll("/etc/tls/uploadproxy", 0664)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// in reality this is the CA for the upload servers not the clients but whatever shouldn't matter here
+	err = ioutil.WriteFile("/etc/tls/uploadproxy/ca.cert", cert.EncodeCertPEM(caKeyPair.Cert), 0600)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	clientKeyPair, err := triple.NewClientKeyPair(caKeyPair, "uploadproxy", []string{})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = ioutil.WriteFile("/etc/tls/uploadproxy/tls.cert", cert.EncodeCertPEM(clientKeyPair.Cert), 0600)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = ioutil.WriteFile("/etc/tls/uploadproxy/tls.key", cert.EncodePrivateKeyPEM(clientKeyPair.Key), 0600)
 	if err != nil {
 		return nil, nil, err
 	}

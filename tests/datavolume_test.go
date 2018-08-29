@@ -14,7 +14,7 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/cdicontroller/v1alpha1"
 )
 
 var _ = Describe("DataVolume tests", func() {
