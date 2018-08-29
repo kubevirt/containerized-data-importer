@@ -29,10 +29,7 @@ const (
 )
 
 var _ = Describe(testSuiteName, func() {
-	f, err := framework.NewFramework(namespacePrefix, framework.Config{})
-	if err != nil {
-		Fail("Unable to create framework struct")
-	}
+	f := framework.NewFrameworkOrDie(namespacePrefix, framework.Config{})
 
 	var sourcePvc *v1.PersistentVolumeClaim
 
@@ -43,7 +40,7 @@ var _ = Describe(testSuiteName, func() {
 	AfterEach(func() {
 		if sourcePvc != nil {
 			By("[AfterEach] Clean up target PVC")
-			err = f.DeletePVC(sourcePvc)
+			err := f.DeletePVC(sourcePvc)
 			Expect(err).ToNot(HaveOccurred())
 		}
 	})

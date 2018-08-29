@@ -96,6 +96,15 @@ func init() {
 	master = flag.String("master", "", "master url:port")
 }
 
+// NewFrameworkOrDie calls NewFramework and handles errors by calling Fail.
+func NewFrameworkOrDie(prefix string, config Config) *Framework {
+	f, err := NewFramework(prefix, config)
+	if err != nil {
+		Fail(fmt.Sprintf("failed to create test framework: %v", err))
+	}
+	return f
+}
+
 // NewFramework makes a new framework and sets up the global BeforeEach/AfterEach's.
 // Test run-time flags are parsed and added to the Framework struct.
 func NewFramework(prefix string, config Config) (*Framework, error) {
