@@ -136,3 +136,11 @@ func podStatus(clientSet *kubernetes.Clientset, podName, namespace string, statu
 		return false, nil
 	}
 }
+
+func PodGetNode(clientSet *kubernetes.Clientset, podName, namespace string) (string, error) {
+	pod, err := clientSet.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	return pod.Spec.NodeName, nil
+}
