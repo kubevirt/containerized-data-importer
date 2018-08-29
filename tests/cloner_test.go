@@ -97,9 +97,9 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 
 	By("Verifying that the source and target pods are scheduled on the same node")
 	Eventually(func() bool {
-		srcNode, err := utils.PodNode(f.K8sClient, sourcePod.Name, sourcePod.Namespace)
+		srcNode, err := utils.PodGetNode(f.K8sClient, sourcePod.Name, sourcePod.Namespace)
 		Expect(err).ToNot(HaveOccurred())
-		tgtNode, err := utils.PodNode(f.K8sClient, targetPod.Name, targetPod.Namespace)
+		tgtNode, err := utils.PodGetNode(f.K8sClient, targetPod.Name, targetPod.Namespace)
 		Expect(err).ToNot(HaveOccurred())
 		fmt.Fprintf(GinkgoWriter, "INFO: Source POD host %s\n", srcNode)
 		fmt.Fprintf(GinkgoWriter, "INFO: Target POD host %s\n", tgtNode)
