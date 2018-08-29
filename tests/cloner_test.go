@@ -110,7 +110,7 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 	Expect(cloneAnnotationFound).To(BeTrue())
 
 	By("Verify the clone status is success on the target PVC")
-	status, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodPhase)
+	status, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnClonePodPhase)
 	Expect(phaseAnnotation).To(BeTrue())
 	Expect(status).Should(BeEquivalentTo(v1.PodSucceeded))
 
