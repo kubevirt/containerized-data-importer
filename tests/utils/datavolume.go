@@ -59,7 +59,7 @@ func NewDataVolumeWithPVCImport(dataVolumeName string, size string, targetPvc *k
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: cdiv1.DataVolumeSource{
-				PVC: &cdiv1.PersistentVolumeClaim{
+				PVC: &cdiv1.DataVolumeSourcePVC{
 					Name:      targetPvc.Name,
 					Namespace: targetPvc.Namespace,
 				},
