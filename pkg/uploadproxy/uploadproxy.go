@@ -150,7 +150,7 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 }
 
 func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.ResponseWriter, r *http.Request) {
-	url := fmt.Sprintf("https://%s.default.svc%s", controller.GetUploadResourceName(pvc), uploadserver.GetUploadPath(pvc))
+	url := fmt.Sprintf("https://%s.%s.svc%s", controller.GetUploadResourceName(pvc), namespace, uploadserver.GetUploadPath(pvc))
 
 	req, err := http.NewRequest("POST", url, r.Body)
 	req.ContentLength = r.ContentLength
