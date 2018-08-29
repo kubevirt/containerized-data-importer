@@ -8,6 +8,7 @@ import (
 
 	"github.com/onsi/ginkgo/extensions/table"
 
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -18,10 +19,25 @@ import (
 
 var _ = Describe("DataVolume tests", func() {
 
+	var sourcePvc *v1.PersistentVolumeClaim
+
+	fillData := "123456789012345678901234567890123456789012345678901234567890"
+	testFile := utils.DefaultPvcMountPath + "/source.txt"
+	fillCommand := "echo \"" + fillData + "\" >> " + testFile
+
 	f, err := framework.NewFramework("dv-func-test", framework.Config{})
 	if err != nil {
 		Fail("Unable to create framework struct")
 	}
+
+	AfterEach(func() {
+		if sourcePvc != nil {
+			By("[AfterEach] Clean up target PVC")
+			err = f.DeletePVC(sourcePvc)
+			Expect(err).ToNot(HaveOccurred())
+			sourcePvc = nil
+		}
+	})
 
 	Describe("Verify DataVolume", func() {
 		table.DescribeTable("with http import source should", func(url string, phase cdiv1.DataVolumePhase, dataVolumeName string) {
@@ -48,8 +64,14 @@ var _ = Describe("DataVolume tests", func() {
 			table.Entry("fail due to file not found", utils.TinyCoreIsoURL+"not.real.file", cdiv1.Failed, "dv-phase-test-3"),
 		)
 
-		table.DescribeTable("with clone source should", func(url string, phase cdiv1.DataVolumePhase, dataVolumeName string) {
-			dataVolume := utils.NewDataVolumeWithHttpImport(dataVolumeName, "1Gi", url)
+		table.DescribeTable("with clone source should", func(command string, phase cdiv1.DataVolumePhase, dataVolumeName string) {
+
+			sourcePVCName := fmt.Sprintf("%s-src-pvc", dataVolumeName)
+			sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
+
+			sourcePvc = f.CreateAndPopulateSourcePVC(sourcePVCName, sourcePodFillerName, command)
+
+			dataVolume := utils.NewDataVolumeWithPVCImport(dataVolumeName, "1Gi", sourcePvc)
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -60,14 +82,20 @@ var _ = Describe("DataVolume tests", func() {
 
 			// verify PVC was created
 			By("verifying pvc was created")
-			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+			targetPvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
 			Expect(err).To(BeNil())
+
+			if phase == cdiv1.Succeeded {
+				By("verifying DataVolume contents are correct")
+				Expect(f.VerifyTargetPVCContent(f.Namespace, targetPvc, testFile, fillData)).To(BeTrue())
+			}
 
 			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).To(BeNil())
 
 		},
-			table.Entry("succeed when given a source PVC with a data", utils.TinyCoreIsoURL, cdiv1.Succeeded, "dv-phase-test-1"),
+			table.Entry("succeed when given a source PVC with a data", fillCommand, cdiv1.Succeeded, "dv-clone-test-1"),
+			table.Entry("fail when given a source PVC without data", "sleep 1", cdiv1.Failed, "dv-clone-test-2"),
 		)
 	})
 })
