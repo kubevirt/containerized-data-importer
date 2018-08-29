@@ -41,7 +41,7 @@ The standard workflow is performed inside a helper container to normalize the bu
     - No `build-cloner` target exists as the code is written in bash
 - `test`: execute all tests (_NOTE:_ `WHAT` is expected to match the go cli pattern for paths e.g. `./pkg/...`.  This differs slightly from rest of the `make` targets)
     - `test-unit`: execute all tests under `./pkg/...`
-    - `test-functional`: execute functional tests under `./tests/...`. Reads from `TEST_ARGS` to pass through flags to tested code
+    - `test-functional`: execute functional tests under `./tests/...`. Additional test flags can be passed to the test binary via the `TEST_ARGS` variable, see below for an example.
 - `build-functest-image-init`: build the init container for the testing file server
 - `build-functest-image-http` build the http container for the testing file server
 - `docker`: compile all binaries and build all containerized
@@ -73,7 +73,7 @@ These may be passed to a target as `$ make VARIABLE=value target`
 - `DOCKER_TAG`: (default: latest) Set global version tags for image and manifest creation
 - `VERBOSITY`: (default: 1) Set global log level verbosity
 - `PULL_POLICY`: (default: IfNotPresent) Set global CDI pull policy
-- `TEST_ARGS`: A list of arguments passed through `go test -args <test args>`
+- `TEST_ARGS`: A variable containing a list of additional ginkgo flags to be passed to functional tests. The string "--test-args=" must prefix the variable value. For example: `make TEST_ARGS="--test-args=-ginkgo.noColor=true" test-functional >& foo`
 - `RELREF`: Required by `release-description`. Must be a commit or tag.  Should be the more recent than `PREREF`
 - `PREREF`: Required by `release-description`. Must also be a commit or tag.  Should be the later than `RELREF`
 
