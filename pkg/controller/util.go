@@ -518,13 +518,20 @@ func MakeCloneTargetPodSpec(image, pullPolicy, podAffinityNamespace string, pvc 
 }
 
 // CreateUploadPod creates upload service pod manifest and sends to server
-func CreateUploadPod(client kubernetes.Interface, caKeyPair *triple.KeyPair, clientCACert *x509.Certificate, image, verbose, pullPolicy, name string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+func CreateUploadPod(client kubernetes.Interface,
+	caKeyPair *triple.KeyPair,
+	clientCACert *x509.Certificate,
+	image string,
+	verbose string,
+	pullPolicy string,
+	name string,
+	pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
 	ns := pvc.Namespace
 	commonName := name + ".namespace"
 	secretName := name + "-server-tls"
 	owner := MakeOwnerReference(pvc)
 
-	_, err := GetOrCreateServerKeyPair(client, ns, secretName, caKeyPair, commonName, name, &owner, clientCACert)
+	err := CreateServerKeyPairAndCert(client, ns, secretName, caKeyPair, clientCACert, commonName, name, false, &owner)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating server key pair")
 	}
@@ -604,15 +611,15 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 					Env: []v1.EnvVar{
 						{
 							Name:  "TLS_KEY_FILE",
-							Value: filepath.Join(secretVolumeDir, PrivateKeyKeyName),
+							Value: filepath.Join(secretVolumeDir, keyStoreTLSKeyFile),
 						},
 						{
 							Name:  "TLS_CERT_FILE",
-							Value: filepath.Join(secretVolumeDir, CertKeyName),
+							Value: filepath.Join(secretVolumeDir, keyStoreTLSCertFile),
 						},
 						{
 							Name:  "TLS_CA_FILE",
-							Value: filepath.Join(secretVolumeDir, CACertKeyName),
+							Value: filepath.Join(secretVolumeDir, keyStoreTLSCAFile),
 						},
 					},
 					Args: []string{"-v=" + verbose},
@@ -681,7 +688,7 @@ func MakeUploadServiceSpec(name string, pvc *v1.PersistentVolumeClaim) *v1.Servi
 				common.CDI_LABEL_KEY: common.CDI_LABEL_VALUE,
 			},
 			OwnerReferences: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion:         "v1",
 					Kind:               "PersistentVolumeClaim",
 					Name:               pvc.Name,

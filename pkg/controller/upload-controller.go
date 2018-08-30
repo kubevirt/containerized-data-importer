@@ -194,25 +194,25 @@ func (c *UploadController) Run(threadiness int, stopCh <-chan struct{}) error {
 func (c *UploadController) initCerts() error {
 	var err error
 
-	c.serverCAKeyPair, err = GetOrCreateCA(c.clientset, GetNamespace(), ServerCASecret, ServerCAName, nil)
+	c.serverCAKeyPair, err = GetOrCreateCA(c.clientset, GetNamespace(), ServerCASecret, ServerCAName)
 	if err != nil {
 		return errors.Wrap(err, "Couldn't get/create server CA")
 	}
 
-	c.clientCAKeyPair, err = GetOrCreateCA(c.clientset, GetNamespace(), ClientCASecret, ClientCAName, nil)
+	c.clientCAKeyPair, err = GetOrCreateCA(c.clientset, GetNamespace(), ClientCASecret, ClientCAName)
 	if err != nil {
 		return errors.Wrap(err, "Couldn't get/create client CA")
 	}
 
-	_, err = GetOrCreateClientKeyPair(
-		c.clientset,
+	err = CreateClientKeyPairAndCert(c.clientset,
 		GetNamespace(),
 		ClientKeySecret,
 		c.clientCAKeyPair,
+		c.serverCAKeyPair.Cert,
 		UploadProxyClientName,
 		[]string{},
+		false,
 		nil,
-		c.serverCAKeyPair.Cert,
 	)
 	if err != nil {
 		return errors.Wrap(err, "Couldn't get/create client cert")
