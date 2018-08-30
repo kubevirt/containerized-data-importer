@@ -62,3 +62,16 @@ function parseTestOpts() {
         esac
     done
 }
+
+function getClusterType() {
+	local image
+	case "${KUBEVIRT_PROVIDER}" in
+	"k8s-1.10.4")
+	    image=$KUBERNETES_IMAGE
+	    ;;
+	"os-3.10.0")
+	    image=$OPENSHIFT_IMAGE
+	    ;;
+	esac
+	echo "$image"
+}

@@ -59,6 +59,8 @@ test-functional:  WHAT = ./tests/...
 test-functional:
 	./hack/build/run-functional-tests.sh ${WHAT} "${TEST_ARGS}"
 
+test-functional-ci: build-functest test-functional
+
 # test-lint runs gofmt and golint tests against src files
 test-lint:
 	${DO} "./hack/build/run-lint-checks.sh"

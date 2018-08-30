@@ -8,6 +8,8 @@ echo $cdi
 source ./hack/build/config.sh
 source ./cluster/gocli.sh
 
+CDI_NAMESPACE=${CDI_NAMESPACE:-kube-system}
+
 registry_port=$($gocli ports registry | tr -d '\r')
 registry=localhost:$registry_port
 
@@ -26,6 +28,11 @@ for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
     echo "node$(printf "%02d" ${i})" "echo \"${container}\" | xargs \-\-max-args=1 sudo docker pull"
     ./cluster/cli.sh ssh "node$(printf "%02d" ${i})" "echo \"${container}\" | xargs \-\-max-args=1 sudo docker pull"
 done
+
+# In order to make the cloner work in open shift, we need to give the cdi-sa Service Account privileged rights.
+if [[ $(getClusterType) == $OPENSHIFT_IMAGE ]]; then
+    ./cluster/kubectl.sh adm policy add-scc-to-user privileged -z cdi-sa -n ${CDI_NAMESPACE}
+fi
 
 # Install CDI
 ./cluster/kubectl.sh apply -f ./manifests/generated/cdi-controller.yaml

@@ -25,7 +25,7 @@ const (
 	testFile              = utils.DefaultPvcMountPath + "/source.txt"
 	fillCommand           = "echo \"" + fillData + "\" >> " + testFile
 	assertionPollInterval = 2 * time.Second
-	cloneCompleteTimeout  = 10 * time.Second
+	cloneCompleteTimeout  = 60 * time.Second
 	testCompleteTimeout   = 300 * time.Second
 )
 
@@ -91,8 +91,14 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 
 	By("Find cloner pods")
 	sourcePod, err := f.FindPodByPrefix(common.CLONER_SOURCE_PODNAME)
+	if err != nil {
+		PrintControllerLog(f)
+	}
 	Expect(err).ToNot(HaveOccurred())
 	targetPod, err := utils.FindPodByPrefix(f.K8sClient, targetNs.Name, common.CLONER_TARGET_PODNAME, common.CDI_LABEL_SELECTOR)
+	if err != nil {
+		PrintControllerLog(f)
+	}
 	Expect(err).ToNot(HaveOccurred())
 
 	By("Verifying that the source and target pods are scheduled on the same node")
@@ -117,9 +123,12 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 	Expect(cloneAnnotationFound).To(BeTrue())
 
 	By("Verify the clone status is success on the target PVC")
-	status, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnClonePodPhase)
-	Expect(phaseAnnotation).To(BeTrue())
-	Expect(status).Should(BeEquivalentTo(v1.PodSucceeded))
+	Eventually(func() string {
+		status, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnClonePodPhase)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(phaseAnnotation).To(BeTrue())
+		return status
+	}, cloneCompleteTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
 
 	// Clone is completed, verify the content matches the source.
 	Expect(verifyTargetContent(f, targetNs, targetPvc)).To(BeTrue())
