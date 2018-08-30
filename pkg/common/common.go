@@ -41,6 +41,12 @@ const (
 	ImporterAccessKeyID = "IMPORTER_ACCESS_KEY_ID"
 	// ImporterSecretKey provides a constant to capture our env variable "IMPORTER_SECRET_KEY"
 	ImporterSecretKey = "IMPORTER_SECRET_KEY"
+	// ImporterSecretProviderType provides a constant to capture our env variable "IMPORTER_SECRET_PROVIDER_TYPE"
+	ImporterSecretProviderType = "IMPORTER_SECRET_PROVIDER_TYPE"
+	// ImporterSecretProviderDomain provides a constant to capture our env variable "IMPORTER_SECRET_PROVIDER_DOMAIN"
+	ImporterSecretProviderDomain = "IMPORTER_SECRET_PROVIDER_DOMAIN"
+	// ImporterSecretProviderIdentity provides a constant to capture our env variable "IMPORTER_SECRET_PROVIDER_IDENTITY"
+	ImporterSecretProviderIdentity = "IMPORTER_SECRET_PROVIDER_IDENTITY"
 
 	// CloningLabelKey provides a constant to use as a label name for pod affinity (controller pkg only)
 	CloningLabelKey = "cloning"
@@ -61,6 +67,12 @@ const (
 	KeyAccess = "accessKeyId"
 	// KeySecret provides a constant to the secretKey label using in controller pkg and transport_test.go
 	KeySecret = "secretKey"
+	// SecretProviderType (controller pkg only)
+	SecretProviderType = "providerType"
+	// SecretDomainName (controller pkg only)
+	SecretDomainName = "domainName"
+	// SecretProviderIdentity (controller pkg only)
+	SecretProviderIdentity = "identityEndpoint"
 
 	// DefaultResyncPeriod sets a 10 minute resync period, used in the controller pkg and the controller cmd executable
 	DefaultResyncPeriod = 10 * time.Minute

@@ -33,9 +33,21 @@ func main() {
 	ep, _ := ParseEnvVar(ImporterEndpoint, false)
 	acc, _ := ParseEnvVar(ImporterAccessKeyID, false)
 	sec, _ := ParseEnvVar(ImporterSecretKey, false)
+	providerType, _ := ParseEnvVar(ImporterSecretProviderType, false)
+	providerDomain, _ := ParseEnvVar(ImporterSecretProviderDomain, false)
+	providerIdentity, _ := ParseEnvVar(ImporterSecretProviderIdentity, false)
+
+	var provider *Provider
+	if len(providerType) > 0 {
+		provider = &Provider{
+			Type:   providerType,
+			Domain: providerDomain,
+			IdentityEndpoint: providerIdentity,
+		}
+	}
 
 	glog.V(1).Infoln("begin import process")
-	err := CopyImage(ImporterWritePath, ep, acc, sec)
+	err := CopyImage(ImporterWritePath, ep, acc, sec, provider)
 	if err != nil {
 		glog.Errorf("%+v", err)
 		os.Exit(1)

@@ -133,7 +133,10 @@ Make copies of the [example manifests](./manifests/example) for editing. The nec
 ###### Edit golden-pvc.yaml:
 1.  `storageClassName:` The default StorageClass will be used if not set.  Otherwise, set to a desired StorageClass.
 
-1.  `cdi.kubevirt.io/storage.import.endpoint:` The full URL to the VM image in the format of: `http://www.myUrl.com/path/of/data` or `s3://bucketName/fileName`.
+1.  `cdi.kubevirt.io/storage.import.endpoint:` The full URL to the VM image in the format of:
+- (http) `http://www.myUrl.com/path/of/data`
+- (s3) `s3://bucketName/fileName`
+- (glance) `http://<glance-ip>:<glance-port>/v2/images/<id>/file`
 
 1.  `cdi.kubevirt.io/storage.import.secretName:` (Optional) The name of the secret containing the authentication credentials required by the file server.
 
@@ -143,9 +146,17 @@ Make copies of the [example manifests](./manifests/example) for editing. The nec
 
 1. `metadata.name:` Arbitrary name of the secret. Must match the PVC's `cdi.kubevirt.io/storage.import.secretName:`
 
-1.  `accessKeyId:` Contains the endpoint's key and/or user name. This value **must be base64 encoded** with no extraneous linefeeds. Use `echo -n "xyzzy" | base64` or `printf "xyzzy" | base64` to avoid a trailing linefeed
+1.  `data.accessKeyId:` Contains the endpoint's key and/or user name. This value **must be base64 encoded** with no extraneous linefeeds. Use `echo -n "xyzzy" | base64` or `printf "xyzzy" | base64` to avoid a trailing linefeed
 
-1.  `secretKey:` the endpoint's secret or password, again **base64 encoded** with no extraneous linefeeds.
+1.  `data.secretKey:` the endpoint's secret or password, again **base64 encoded** with no extraneous linefeeds.
+
+For external provider (e.g. Glance), set also these values:
+
+1.  `stringData.providerType:` Type of external provider, e.g. "glance"
+
+1.  `stringData.domainName:` Domain of external provider, e.g. "Default"
+
+1.  `stringData.identityEndpoint:` Identity URL, e.g. "http://127.0.0.1:5000/v3"
 
 ### Deploy the API Objects
 

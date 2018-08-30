@@ -155,7 +155,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 				testEp := "file://" + testSample
 				testTarget := filepath.Join(tmpTestDir, common.ImporterWriteFile)
 				By(fmt.Sprintf("Importing %q to %q", testEp, testTarget))
-				err = importer.CopyImage(testTarget, testEp, "", "")
+				err = importer.CopyImage(testTarget, testEp, "", "", nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				By(fmt.Sprintf("Checking size of the output file %q", testTarget))

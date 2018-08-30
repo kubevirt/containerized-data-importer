@@ -37,6 +37,9 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
+	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack"
+	"github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	"github.com/minio/minio-go"
 	"github.com/pkg/errors"
 	"github.com/ulikunitz/xz"
@@ -67,11 +70,19 @@ type DataStream struct {
 	Size        int64
 	accessKeyID string
 	secretKey   string
+	provider    *Provider
 }
 
 type reader struct {
 	rdrType int
 	rdr     io.ReadCloser
+}
+
+// Provider struct represents an external service provider (e.g. Glance)
+type Provider struct {
+	Type             string
+	Domain           string
+	IdentityEndpoint string
 }
 
 const (
@@ -97,7 +108,7 @@ var rdrTypM = map[string]int{
 
 // NewDataStream returns a DataStream object after validating the endpoint and constructing the reader/closer chain.
 // Note: the caller must close the `Readers` in reverse order. See Close().
-func NewDataStream(endpt, accKey, secKey string) (*DataStream, error) {
+func NewDataStream(endpt, accKey, secKey string, provider *Provider) (*DataStream, error) {
 	if len(accKey) == 0 || len(secKey) == 0 {
 		glog.V(2).Infof("%s and/or %s are empty\n", common.ImporterAccessKeyID, common.ImporterSecretKey)
 	}
@@ -110,6 +121,7 @@ func NewDataStream(endpt, accKey, secKey string) (*DataStream, error) {
 		buf:         make([]byte, image.MaxExpectedHdrSize),
 		accessKeyID: accKey,
 		secretKey:   secKey,
+		provider:    provider,
 	}
 
 	// establish readers for endpoint's formats and do initial calc of size of raw endpt
@@ -145,16 +157,28 @@ func (d *DataStream) Close() error {
 func (d *DataStream) dataStreamSelector() (err error) {
 	var r io.Reader
 	scheme := d.url.Scheme
-	switch scheme {
-	case "s3":
-		r, err = d.s3()
-	case "http", "https":
-		r, err = d.http()
-	case "file":
-		r, err = d.local()
-	default:
-		return errors.Errorf("invalid url scheme: %q", scheme)
+
+	if d.provider != nil {
+		providerType := strings.ToLower(d.provider.Type)
+		switch providerType {
+		case "glance":
+			r, err = d.glance()
+		default:
+			return errors.Errorf("invalid provider type: %q", providerType)
+		}
+	} else {
+		switch scheme {
+		case "s3":
+			r, err = d.s3()
+		case "http", "https":
+			r, err = d.http(nil)
+		case "file":
+			r, err = d.local()
+		default:
+			return errors.Errorf("invalid url scheme: %q", scheme)
+		}
 	}
+
 	if err == nil && r != nil {
 		d.appendReader(rdrTypM[scheme], r)
 	}
@@ -177,7 +201,7 @@ func (d *DataStream) s3() (io.ReadCloser, error) {
 	return objectReader, nil
 }
 
-func (d *DataStream) http() (io.ReadCloser, error) {
+func (d *DataStream) http(header http.Header) (io.ReadCloser, error) {
 	client := http.Client{
 		CheckRedirect: func(r *http.Request, via []*http.Request) error {
 			r.SetBasicAuth(d.accessKeyID, d.secretKey) // Redirects will lose basic auth, so reset them manually
@@ -188,9 +212,16 @@ func (d *DataStream) http() (io.ReadCloser, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create HTTP request")
 	}
-	if len(d.accessKeyID) > 0 && len(d.secretKey) > 0 {
+
+	if header != nil {
+		glog.V(2).Infof("Merging request header with the specified one")
+		for k, v := range header {
+			req.Header[k] = v
+		}
+	} else if len(d.accessKeyID) > 0 && len(d.secretKey) > 0 {
 		req.SetBasicAuth(d.accessKeyID, d.secretKey)
 	}
+
 	glog.V(2).Infof("Attempting to get object %q via http client\n", d.url.String())
 	resp, err := client.Do(req)
 	if err != nil {
@@ -216,10 +247,41 @@ func (d *DataStream) local() (io.ReadCloser, error) {
 	return f, nil
 }
 
+func (d DataStream) glance() (io.ReadCloser, error) {
+	authOpts := gophercloud.AuthOptions{
+		IdentityEndpoint: d.provider.IdentityEndpoint,
+		DomainName:       d.provider.Domain,
+		Username:         d.accessKeyID,
+		Password:         d.secretKey,
+	}
+
+	glog.V(1).Infof("Authenticating to OpenStack Identiy service. IdentityEndpoint: %s, DomainName: %s",
+		authOpts.IdentityEndpoint, authOpts.DomainName)
+
+	provider, err := openstack.AuthenticatedClient(authOpts)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not get OpenStack AuthenticatedClient")
+	}
+	client, err := openstack.NewIdentityV3(provider, gophercloud.EndpointOpts{})
+	if err != nil {
+		return nil, errors.Wrap(err, "could not get OpenStack IdentityV3")
+	}
+	token, err := tokens.Create(client, &authOpts).ExtractToken()
+	if err != nil {
+		return nil, errors.Wrap(err, "could not extract OpenStack access token")
+	}
+
+	glog.V(1).Infof("Successfully extracted token from OpenStack Identity")
+
+	header := make(http.Header)
+	header.Set("X-Auth-Token", token.ID)
+	return d.http(header)
+}
+
 // CopyImage copies the source endpoint (vm image) to the provided destination path.
-func CopyImage(dest, endpoint, accessKey, secKey string) error {
+func CopyImage(dest, endpoint, accessKey, secKey string, provider *Provider) error {
 	glog.V(1).Infof("copying %q to %q...\n", endpoint, dest)
-	ds, err := NewDataStream(endpoint, accessKey, secKey)
+	ds, err := NewDataStream(endpoint, accessKey, secKey, provider)
 	if err != nil {
 		return errors.Wrapf(err, "unable to create data stream")
 	}

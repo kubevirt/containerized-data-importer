@@ -271,6 +271,7 @@ func makeEnv(endpoint, secret string) []v1.EnvVar {
 			Value: endpoint,
 		},
 	}
+	optional := bool(true)
 	if secret != "" {
 		env = append(env, v1.EnvVar{
 			Name: common.ImporterAccessKeyID,
@@ -290,6 +291,39 @@ func makeEnv(endpoint, secret string) []v1.EnvVar {
 						Name: secret,
 					},
 					Key: common.KeySecret,
+				},
+			},
+		}, v1.EnvVar{
+			Name: common.ImporterSecretProviderType,
+			ValueFrom: &v1.EnvVarSource{
+				SecretKeyRef: &v1.SecretKeySelector{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: secret,
+					},
+					Key:      common.SecretProviderType,
+					Optional: &optional,
+				},
+			},
+		}, v1.EnvVar{
+			Name: common.ImporterSecretProviderDomain,
+			ValueFrom: &v1.EnvVarSource{
+				SecretKeyRef: &v1.SecretKeySelector{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: secret,
+					},
+					Key:      common.SecretDomainName,
+					Optional: &optional,
+				},
+			},
+		}, v1.EnvVar{
+			Name: common.ImporterSecretProviderIdentity,
+			ValueFrom: &v1.EnvVarSource{
+				SecretKeyRef: &v1.SecretKeySelector{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: secret,
+					},
+					Key:      common.SecretProviderIdentity,
+					Optional: &optional,
 				},
 			},
 		})

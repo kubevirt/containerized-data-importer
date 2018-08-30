@@ -60,7 +60,7 @@ func replaceQEMUOperations(replacement image.QEMUOperations, f func()) {
 	f()
 }
 
-func createDataStream(ep, accKey, secKey string) *DataStream {
+func createDataStream(ep, accKey, secKey string, provider *Provider) *DataStream {
 	dsurl, _ := ParseEndpoint(ep)
 
 	ds := &DataStream{
@@ -68,6 +68,7 @@ func createDataStream(ep, accKey, secKey string) *DataStream {
 		buf:         make([]byte, image.MaxExpectedHdrSize),
 		accessKeyID: accKey,
 		secretKey:   secKey,
+		provider:    provider,
 	}
 
 	ds.constructReaders()
@@ -75,13 +76,13 @@ func createDataStream(ep, accKey, secKey string) *DataStream {
 	return ds
 }
 
-func createDataStreamBytes(testfile, ep string, defaultBuf, singlereader bool) (*DataStream, []byte, error) {
+func createDataStreamBytes(testfile, ep string, defaultBuf, singlereader bool, provider *Provider) (*DataStream, []byte, error) {
 	urlPath := filepath.Join(ep, testfile)
 	if len(ep) == 0 {
 		urlPath = getURLPath(testfile)
 	}
 	testFilePath := getTestFilePath(testfile)
-	ds := createDataStream(urlPath, "", "")
+	ds := createDataStream(urlPath, "", "", provider)
 
 	// if no file supplied just return empty byte stream
 	if len(testfile) == 0 && !defaultBuf {
@@ -164,9 +165,10 @@ func startHTTPServer(port int, dir string) (*http.Server, error) {
 
 func TestNewDataStream(t *testing.T) {
 	type args struct {
-		endpt  string
-		accKey string
-		secKey string
+		endpt    string
+		accKey   string
+		secKey   string
+		provider *Provider
 	}
 
 	imageDir, _ := filepath.Abs(TestImagesDir)
@@ -180,26 +182,26 @@ func TestNewDataStream(t *testing.T) {
 	}{
 		{
 			name:    "expect new DataStream to succeed with matching buffers",
-			args:    args{filepath.Join(localImageBase, "cirros-qcow2.img"), "", ""},
-			want:    createDataStream(filepath.Join(localImageBase, "cirros-qcow2.img"), "", ""),
+			args:    args{filepath.Join(localImageBase, "cirros-qcow2.img"), "", "", nil},
+			want:    createDataStream(filepath.Join(localImageBase, "cirros-qcow2.img"), "", "", nil),
 			wantErr: false,
 		},
 		{
 			name:    "expect new DataStream to fail with unsupported file type",
-			args:    args{filepath.Join(localImageBase, "badimage.iso"), "", ""},
+			args:    args{filepath.Join(localImageBase, "badimage.iso"), "", "", nil},
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name:    "expect new DataStream to fail with invalid or missing endpoint",
-			args:    args{"", "", ""},
+			args:    args{"", "", "", nil},
 			want:    nil,
 			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewDataStream(tt.args.endpt, tt.args.accKey, tt.args.secKey)
+			got, err := NewDataStream(tt.args.endpt, tt.args.accKey, tt.args.secKey, tt.args.provider)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewDataStream() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -229,7 +231,7 @@ func Test_dataStream_Read(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds, testBytes, errDs := createDataStreamBytes(tt.testFile, "", true, true)
+			ds, testBytes, errDs := createDataStreamBytes(tt.testFile, "", true, true, nil)
 			if errDs != nil {
 				t.Errorf("error setting up test infrastructure %v", errDs)
 			}
@@ -253,7 +255,7 @@ func Test_dataStream_Read(t *testing.T) {
 }
 
 func Test_dataStream_Close(t *testing.T) {
-	ds, _, errDs := createDataStreamBytes("tinyCore.iso", "", false, false)
+	ds, _, errDs := createDataStreamBytes("tinyCore.iso", "", false, false, nil)
 	defer ds.Close()
 
 	tests := []struct {
@@ -286,6 +288,7 @@ func Test_dataStream_dataStreamSelector(t *testing.T) {
 		name     string
 		testFile string
 		ep       string
+		provider *Provider
 		wantErr  bool
 	}{
 		{
@@ -306,10 +309,24 @@ func Test_dataStream_dataStreamSelector(t *testing.T) {
 			ep:       "fake://somefakefile",
 			wantErr:  true,
 		},
+		{
+			name:     "fail trying to build selector for invalid provider",
+			testFile: "tinyCore.iso",
+			ep:       "http://127.0.0.1:9292/1111/file",
+			provider: &Provider{Type: "invalid", Domain: "Default", IdentityEndpoint: "http://127.0.0.1:5000/v3"},
+			wantErr:  true,
+		},
+		{
+			name:     "fail fetching token for Glance provider (no credentials)",
+			testFile: "tinyCore.iso",
+			ep:       "http://127.0.0.1:9292/1111/file",
+			provider: &Provider{Type: "glance", Domain: "Default", IdentityEndpoint: "http://127.0.0.1:5000/v3"},
+			wantErr:  true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds, _, errDs := createDataStreamBytes(tt.testFile, tt.ep, false, false)
+			ds, _, errDs := createDataStreamBytes(tt.testFile, tt.ep, false, false, tt.provider)
 			defer ds.Close()
 			if errDs != nil {
 				t.Errorf("error setting up test infrastructure %v", errDs)
@@ -329,6 +346,7 @@ func TestCopyImage(t *testing.T) {
 		accessKey      string
 		secKey         string
 		qemuOperations image.QEMUOperations
+		provider       *Provider
 	}
 	imageDir, _ := filepath.Abs(TestImagesDir)
 	localImageBase := filepath.Join("file://", imageDir)
@@ -354,6 +372,7 @@ func TestCopyImage(t *testing.T) {
 				"",
 				"",
 				NewQEMUAllErrors(),
+				nil,
 			},
 			wantErr: false,
 		},
@@ -365,6 +384,7 @@ func TestCopyImage(t *testing.T) {
 				"",
 				"",
 				NewQEMUAllErrors(),
+				nil,
 			},
 			wantErr: true,
 		},
@@ -376,6 +396,7 @@ func TestCopyImage(t *testing.T) {
 				"",
 				"",
 				NewFakeQEMUOperations(errors.New("should not be called"), nil, nil),
+				nil,
 			},
 			wantErr: false,
 		},
@@ -387,6 +408,7 @@ func TestCopyImage(t *testing.T) {
 				"",
 				"",
 				NewFakeQEMUOperations(nil, nil, errors.New("invalid image")),
+				nil,
 			},
 			wantErr: true,
 		},
@@ -398,6 +420,7 @@ func TestCopyImage(t *testing.T) {
 				"",
 				"",
 				NewFakeQEMUOperations(nil, errors.New("exit 1"), nil),
+				nil,
 			},
 			wantErr: true,
 		},
@@ -406,7 +429,7 @@ func TestCopyImage(t *testing.T) {
 		defer os.RemoveAll(tt.args.dest)
 		t.Run(tt.name, func(t *testing.T) {
 			replaceQEMUOperations(tt.args.qemuOperations, func() {
-				if err := CopyImage(tt.args.dest, tt.args.endpoint, tt.args.accessKey, tt.args.secKey); (err != nil) != tt.wantErr {
+				if err := CopyImage(tt.args.dest, tt.args.endpoint, tt.args.accessKey, tt.args.secKey, tt.args.provider); (err != nil) != tt.wantErr {
 					t.Errorf("CopyImage() error = %v, wantErr %v", err, tt.wantErr)
 				}
 			})
@@ -444,35 +467,35 @@ func Test_dataStream_constructReaders(t *testing.T) {
 		{
 			name:    "successfully construct a xz reader",
 			outfile: "tinyCore.iso.xz",
-			ds:      createDataStream(filepath.Join("file://", testfiles[".xz"]), "", ""),
+			ds:      createDataStream(filepath.Join("file://", testfiles[".xz"]), "", "", nil),
 			numRdrs: 4, // [file, multi-r, xz, multi-r]
 			wantErr: false,
 		},
 		{
 			name:    "successfully construct a gz reader",
 			outfile: "tinyCore.iso.gz",
-			ds:      createDataStream(filepath.Join("file://", testfiles[".gz"]), "", ""),
+			ds:      createDataStream(filepath.Join("file://", testfiles[".gz"]), "", "", nil),
 			numRdrs: 4, // [file, multi-r, gz, multi-r]
 			wantErr: false,
 		},
 		{
 			name:    "successfully construct qcow2 reader",
 			outfile: "",
-			ds:      createDataStream(filepath.Join(localImageBase, "cirros-qcow2.img"), "", ""),
+			ds:      createDataStream(filepath.Join(localImageBase, "cirros-qcow2.img"), "", "", nil),
 			numRdrs: 2, // [file, multi-r]
 			wantErr: false,
 		},
 		{
 			name:    "successfully construct .iso reader",
 			outfile: "",
-			ds:      createDataStream(filepath.Join(localImageBase, "tinyCore.iso"), "", ""),
+			ds:      createDataStream(filepath.Join(localImageBase, "tinyCore.iso"), "", "", nil),
 			numRdrs: 2, // [file, multi-r]
 			wantErr: false,
 		},
 		{
 			name:    "fail constructing reader for invalid file path",
 			outfile: "",
-			ds:      createDataStream(filepath.Join(localImageBase, "tinyCorebad.iso"), "", ""),
+			ds:      createDataStream(filepath.Join(localImageBase, "tinyCorebad.iso"), "", "", nil),
 			numRdrs: 0,
 			wantErr: true,
 		},
