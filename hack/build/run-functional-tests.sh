@@ -37,4 +37,9 @@ arg_oc="${KUBECTL:+-oc-path=$KUBECTL}"
 
 test_args="${test_args} -ginkgo.v ${arg_master} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc}"
 
+echo 'Wait until all CDI Pods are ready'
+while [ -n "$(./cluster/kubectl.sh get pods -n $CDI_NAMESPACE -o'custom-columns=status:status.containerStatuses[*].ready' --no-headers | grep false)" ]; do
+    sleep 5
+done
+
 ${script_dir}/run-tests.sh ${pkgs} --test-args="${test_args}"

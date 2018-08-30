@@ -9,14 +9,7 @@ if ! [[ $num_nodes =~ $re ]] || [[ $num_nodes -lt 1 ]] ; then
     num_nodes=1
 fi
 
-case "${KUBEVIRT_PROVIDER}" in
-"k8s-1.10.4")
-    image=$KUBERNETES_IMAGE
-    ;;
-"os-3.10.0")
-    image=$OPENSHIFT_IMAGE
-    ;;
-esac
+image=$(getClusterType)
 echo "Image:${image}"
 if [[ $image == $KUBERNETES_IMAGE ]]; then
     $gocli run --random-ports --nodes ${num_nodes} --background kubevirtci/${image}
@@ -47,11 +40,6 @@ fi
 
 echo 'Wait until all nodes are ready'
 until [[ $(./cluster/kubectl.sh get nodes --no-headers | wc -l) -eq $(./cluster/kubectl.sh get nodes --no-headers | grep " Ready" | wc -l) ]]; do
-    sleep 1
-done
-
-echo 'Wait until all pods are running'
-until [[ $(./cluster/kubectl.sh get pods --all-namespaces --no-headers | wc -l) -eq $(./cluster/kubectl.sh get pods --all-namespaces --no-headers | grep "Running" | wc -l) ]]; do
     sleep 1
 done
 

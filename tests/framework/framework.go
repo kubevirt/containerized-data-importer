@@ -22,12 +22,15 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	"kubevirt.io/containerized-data-importer/tests/utils"
+	"kubevirt.io/qe-tools/pkg/ginkgo-reporters"
 )
 
 const (
 	NsCreateTime  = 30 * time.Second
 	NsDeleteTime  = 5 * time.Minute
 	NsPrefixLabel = "cdi-e2e"
+	CdiPodPrefix  = "cdi-deployment"
 )
 
 // run-time flags
@@ -43,6 +46,8 @@ type Config struct {
 	// Whether to skip creating a namespace. Use this ONLY for tests that do not require
 	// a namespace at all, like basic sanity or other global tests.
 	SkipNamespaceCreation bool
+	// Whether to skip looking up the name of the cdi controller pod.
+	SkipControllerPodLookup bool
 }
 
 // Framework supports common operations used by functional/e2e tests. It holds the k8s and cdi clients,
@@ -65,6 +70,8 @@ type Framework struct {
 	// list of ns to delete beyond the generated ns
 	namespacesToDelete []*v1.Namespace
 
+	ControllerPod *v1.Pod
+
 	// test run-time flags
 	KubectlPath  string
 	OcPath       string
@@ -78,6 +85,10 @@ type Framework struct {
 
 // initialize run-time flags
 func init() {
+	// By accessing something in the ginkgo_reporters package, we are ensuring that the init() is called
+	// That init calls flag.StringVar, and makes sure the --junit-output flag is added before we call
+	// flag.Parse in NewFramework. Without this, the flag is NOT added.
+	fmt.Fprintf(GinkgoWriter, "Making sure junit flag is available"+ginkgo_reporters.JunitOutput)
 	kubectlPath = flag.String("kubectl-path", "kubectl", "The path to the kubectl binary")
 	ocPath = flag.String("oc-path", "oc", "The path to the oc binary")
 	cdiInstallNs = flag.String("cdi-namespace", "kube-system", "The namespace of the CDI controller")
@@ -137,6 +148,15 @@ func (f *Framework) BeforeEach() {
 		cs, err := f.GetCdiClient()
 		Expect(err).NotTo(HaveOccurred())
 		f.CdiClient = cs
+	}
+
+	if !f.SkipControllerPodLookup {
+		if f.ControllerPod == nil {
+			pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, CdiPodPrefix, "")
+			Expect(err).NotTo(HaveOccurred())
+			fmt.Fprintf(GinkgoWriter, "INFO: Located cdi-controller-pod: %q\n", pod.Name)
+			f.ControllerPod = pod
+		}
 	}
 
 	if !f.SkipNamespaceCreation {
