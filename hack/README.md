@@ -42,12 +42,15 @@ The standard workflow is performed inside a helper container to normalize the bu
 - `test`: execute all tests (_NOTE:_ `WHAT` is expected to match the go cli pattern for paths e.g. `./pkg/...`.  This differs slightly from rest of the `make` targets)
     - `test-unit`: execute all tests under `./pkg/...`
     - `test-functional`: execute functional tests under `./tests/...`. Additional test flags can be passed to the test binary via the `TEST_ARGS` variable, see below for an example.
-- `build-functest-image-init`: build the init container for the testing file server
-- `build-functest-image-http` build the http container for the testing file server
+- `build-functest-image-init`: build the init container for the testing file server. (NOTE: the http and s3 components contain no CDI code, so do no require a build)
 - `docker`: compile all binaries and build all containerized
     - `docker-controller`: compile cdi-controller and build cdi-controller image
     - `docker-importer`: compile cdi-importer and build cdi-importer image
     - `docker-cloner`: build the cdi-cloner image (cloner is driven by a shell script, not a binary)
+    - `docker-functest-image`: Compile and build the file host image for functional tests
+        - `docker-functest-image-init`: Compile and build the file host init image for functional tests
+        - `docker-functest-image-http`: Only build the file host http container for functional tests
+        - Note: there is no target for the S3 container, an offical Minio container is used instead
 - `manifests`: Generate a cdi-controller manifest in `manifests/generated/`.  Accepts [make variables](#make-variables) DOCKER_TAG, DOCKER_REPO, VERBOSITY, and PULL_POLICY
 - `push`: compiles, builds, and pushes to the repo passed in `DOCKER_REPO=<my repo>`
     - `push-controller`: compile, build, and push cdi-controller

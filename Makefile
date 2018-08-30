@@ -45,8 +45,6 @@ build-importer: build
 # Note, the cloner is a bash script and has nothing to build
 build-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
 build-functest-image-init: build
-build-functest-image-http: WHAT = tools/cdi-func-test-file-host-http
-build-functest-image-http: build
 build-functest:
 	${DO} ./hack/build/build-functest.sh
 
@@ -74,10 +72,13 @@ docker-importer: WHAT = cmd/cdi-importer
 docker-importer: docker
 docker-cloner: WHAT = cmd/cdi-cloner
 docker-cloner: docker
+
+docker-functest-image: docker-functest-image-http docker-functest-image-init
 docker-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
 docker-functest-image-init: docker
 docker-functest-image-http: WHAT = tools/cdi-func-test-file-host-http
-docker-functest-image-http: docker
+docker-functest-image-http: # no code to compile, just build image
+	./hack/build/build-docker.sh build ${WHAT}
 
 push: docker
 	./hack/build/build-docker.sh push ${WHAT}
