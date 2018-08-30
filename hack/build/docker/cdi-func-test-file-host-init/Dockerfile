@@ -2,7 +2,7 @@ FROM fedora:28
 
 RUN mkdir -p /tmp/shared /tmp/source
 
-RUN yum install -y qemu
+RUN yum install -y qemu-img
 
 COPY cdi-func-test-file-host-init /usr/bin/
 
