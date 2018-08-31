@@ -16,21 +16,27 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	. "kubevirt.io/containerized-data-importer/pkg/common"
+	//. "kubevirt.io/containerized-data-importer/pkg/common"
+	cdi "kubevirt.io/containerized-data-importer/pkg/common"
 	expectations "kubevirt.io/containerized-data-importer/pkg/expectations"
 )
 
 const (
-	// pvc annotations
-	AnnEndpoint  = "cdi.kubevirt.io/storage.import.endpoint"
-	AnnSecret    = "cdi.kubevirt.io/storage.import.secretName"
+	// AnnEndpoint provides a const for our PVC endpoint annotation
+	AnnEndpoint = "cdi.kubevirt.io/storage.import.endpoint"
+	// AnnSecret provides a const for our PVC secretName annotation
+	AnnSecret = "cdi.kubevirt.io/storage.import.secretName"
+	// AnnImportPod provides a const for our PVC importPodName annotation
 	AnnImportPod = "cdi.kubevirt.io/storage.import.importPodName"
-	// importer pod annotations
-	AnnCreatedBy   = "cdi.kubevirt.io/storage.createdByController"
-	AnnPodPhase    = "cdi.kubevirt.io/storage.import.pod.phase"
+	// AnnCreatedBy provides a const for our POD createByController annotation
+	AnnCreatedBy = "cdi.kubevirt.io/storage.createdByController"
+	// AnnPodPhase provides a const for our POD phase annotation
+	AnnPodPhase = "cdi.kubevirt.io/storage.import.pod.phase"
+	// LabelImportPvc provides a const for our importPvcName
 	LabelImportPvc = "cdi.kubevirt.io/storage.import.importPvcName"
 )
 
+// ImportController represents a CDI Import Controller
 type ImportController struct {
 	clientset                kubernetes.Interface
 	queue                    workqueue.RateLimitingInterface
@@ -45,6 +51,8 @@ type ImportController struct {
 	podExpectations          *expectations.UIDTrackingControllerExpectations
 }
 
+// NewImportController sets up an Import Controller, and returns a pointer to
+// the newly created Import Controller
 func NewImportController(client kubernetes.Interface,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	podInformer coreinformers.PodInformer,
@@ -124,9 +132,9 @@ func (c *ImportController) handlePodObject(obj interface{}, verb string) {
 			runtime.HandleError(errors.Errorf("error decoding object tombstone, invalid type"))
 			return
 		}
-		glog.V(Vdebug).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
+		glog.V(3).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
 	}
-	glog.V(Vdebug).Infof("Processing object: %s", object.GetName())
+	glog.V(3).Infof("Processing object: %s", object.GetName())
 	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
 		_, createdByUs := object.GetAnnotations()[AnnCreatedBy]
 
@@ -138,7 +146,7 @@ func (c *ImportController) handlePodObject(obj interface{}, verb string) {
 
 		pvc, err := c.pvcLister.PersistentVolumeClaims(object.GetNamespace()).Get(ownerRef.Name)
 		if err != nil {
-			glog.V(Vdebug).Infof("ignoring orphaned object '%s' of pvc '%s'", object.GetSelfLink(), ownerRef.Name)
+			glog.V(3).Infof("ignoring orphaned object '%s' of pvc '%s'", object.GetSelfLink(), ownerRef.Name)
 			return
 		}
 
@@ -166,11 +174,14 @@ func (c *ImportController) enqueuePVC(obj interface{}) {
 	c.queue.AddRateLimited(key)
 }
 
+// Run kicks off an initialized Import Controller, creating a service that listens for,
+// and process CDI Import Requests
 func (c *ImportController) Run(threadiness int, stopCh <-chan struct{}) error {
+	// TODO: Consider redesigning slightly and using a common Runner for our controllers?
 	defer func() {
 		c.queue.ShutDown()
 	}()
-	glog.V(Vadmin).Infoln("Starting cdi controller Run loop")
+	glog.V(2).Infoln("Starting cdi controller Run loop")
 	if threadiness < 1 {
 		return errors.Errorf("expected >0 threads, got %d", threadiness)
 	}
@@ -181,7 +192,7 @@ func (c *ImportController) Run(threadiness int, stopCh <-chan struct{}) error {
 	if !cache.WaitForCacheSync(stopCh, c.podInformer.HasSynced) {
 		return errors.New("Timeout waiting for pod cache sync")
 	}
-	glog.V(Vdebug).Infoln("ImportController cache has synced")
+	glog.V(3).Infoln("ImportController cache has synced")
 
 	for i := 0; i < threadiness; i++ {
 		go wait.Until(c.runPVCWorkers, time.Second, stopCh)
@@ -207,14 +218,16 @@ func (c *ImportController) syncPvc(key string) error {
 	if !checkPVC(pvc) {
 		return nil
 	}
-	glog.V(Vdebug).Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)
+	glog.V(3).Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)
 	return c.processPvcItem(pvc)
 }
 
-// Select only pvcs with the importer endpoint annotation and that are not being processed.
+// ProcessNextPvcItem processes pvcs with the importer endpoint annotation and that are not being processed.
 // We forget the key unless `processPvcItem` returns an error in which case the key can be
 // retried.
 func (c *ImportController) ProcessNextPvcItem() bool {
+	// TODO: combine this ProcessNextPvcItem with the other controller ProcessNextPvcItem into a single
+	// generalized function?
 	key, shutdown := c.queue.Get()
 	if shutdown {
 		return false
@@ -291,7 +304,7 @@ func (c *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 			return err
 		}
 		if secretName == "" {
-			glog.V(Vadmin).Infof("no secret will be supplied to endpoint %q\n", ep)
+			glog.V(2).Infof("no secret will be supplied to endpoint %q\n", ep)
 		}
 
 		// all checks passed, let's create the importer pod!
@@ -312,8 +325,8 @@ func (c *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	}
 
 	var lab map[string]string
-	if !checkIfLabelExists(pvc, CDI_LABEL_KEY, CDI_LABEL_VALUE) {
-		lab = map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}
+	if !checkIfLabelExists(pvc, cdi.CDI_LABEL_KEY, cdi.CDI_LABEL_VALUE) {
+		lab = map[string]string{cdi.CDI_LABEL_KEY: cdi.CDI_LABEL_VALUE}
 	}
 
 	pvc, err = updatePVC(c.clientset, pvc, anno, lab)
@@ -326,7 +339,7 @@ func (c *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 // forget the passed-in key for this event and optionally log a message.
 func (c *ImportController) forgetKey(key interface{}, msg string) bool {
 	if len(msg) > 0 {
-		glog.V(Vdebug).Info(msg)
+		glog.V(3).Info(msg)
 	}
 	c.queue.Forget(key)
 	return true

@@ -27,4 +27,10 @@ if [[ ${out} ]]; then
     echo "${out}"
     ec=1
 fi
+out="$(golint pkg/controller/...)"
+if [[ ${out} ]]; then
+    echo "FAIL: following golint errors found:"
+    echo "${out}"
+    ec=1
+fi
 exit ${ec}
