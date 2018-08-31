@@ -89,7 +89,7 @@ metadata:
 spec:
   selector:
       cdi.kubevirt.io/testing: ""
-  type: ClusterIP
+  type: NodePort
   ports:
   - name: http-auth
     port: 81
