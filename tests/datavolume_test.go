@@ -25,15 +25,12 @@ var _ = Describe("DataVolume tests", func() {
 	testFile := utils.DefaultPvcMountPath + "/source.txt"
 	fillCommand := "echo \"" + fillData + "\" >> " + testFile
 
-	f, err := framework.NewFramework("dv-func-test", framework.Config{})
-	if err != nil {
-		Fail("Unable to create framework struct")
-	}
+	f := framework.NewFrameworkOrDie("dv-func-test")
 
 	AfterEach(func() {
 		if sourcePvc != nil {
 			By("[AfterEach] Clean up target PVC")
-			err = f.DeletePVC(sourcePvc)
+			err := f.DeletePVC(sourcePvc)
 			Expect(err).ToNot(HaveOccurred())
 			sourcePvc = nil
 		}

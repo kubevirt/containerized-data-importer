@@ -15,12 +15,9 @@ const (
 )
 
 var _ = Describe(TestSuiteName, func() {
-	f, err := framework.NewFramework("sanity", framework.Config{
+	f := framework.NewFrameworkOrDie("sanity", framework.Config{
 		SkipNamespaceCreation: true,
 	})
-	if err != nil {
-		Fail("Unable to create framework struct")
-	}
 
 	Context("CDI service account should exist", func() {
 		It("Should succeed", func() {
