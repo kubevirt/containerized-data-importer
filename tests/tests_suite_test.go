@@ -11,6 +11,7 @@ import (
 )
 
 func TestTests(t *testing.T) {
+	defer GinkgoRecover()
 	RegisterFailHandler(tests.CDIFailHandler)
 	RunSpecsWithDefaultAndCustomReporters(t, "Tests Suite", reporters.NewReporters())
 }
