@@ -29,7 +29,7 @@ const (
 )
 
 var _ = Describe(testSuiteName, func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix, framework.Config{})
+	f := framework.NewFrameworkOrDie(namespacePrefix)
 
 	var sourcePvc *v1.PersistentVolumeClaim
 

@@ -96,11 +96,19 @@ func init() {
 	master = flag.String("master", "", "master url:port")
 }
 
-// NewFrameworkOrDie calls NewFramework and handles errors by calling Fail.
-func NewFrameworkOrDie(prefix string, config Config) *Framework {
-	f, err := NewFramework(prefix, config)
+// NewFrameworkOrDie calls NewFramework and handles errors by calling Fail. Config is optional, but
+// if passed there can only be one.
+func NewFrameworkOrDie(prefix string, config ...Config) *Framework {
+	if len(config) > 1 {
+		Fail("only 1 config can be passed to NewFrameworkOrDie")
+	}
+	cfg := Config{}
+	if len(config) == 1 {
+		cfg = config[0]
+	}
+	f, err := NewFramework(prefix, cfg)
 	if err != nil {
-		Fail(fmt.Sprintf("failed to create test framework: %v", err))
+		Fail(fmt.Sprintf("failed to create test framework with config %+v: %v", cfg, err))
 	}
 	return f
 }
