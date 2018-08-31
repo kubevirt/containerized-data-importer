@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-	cdi "kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 // DataVolName provides a const to use for creating volumes in pod specs
@@ -59,7 +59,7 @@ func checkPVC(pvc *v1.PersistentVolumeClaim) bool {
 
 	// check if we have proper AnnEndPoint annotation
 	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnEndpoint) {
-		glog.V(2).Infof("pvc annotation %q not found, skipping pvc\n", AnnEndpoint)
+		glog.V(common.Vadmin).Infof("pvc annotation %q not found, skipping pvc\n", AnnEndpoint)
 		return false
 	}
 
@@ -92,19 +92,19 @@ func getSecretName(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (
 		} else {
 			msg += "secret name is missing from annotation %q in pvc \"%s/%s\""
 		}
-		glog.V(2).Infof(msg+"\n", AnnSecret, ns, pvc.Name)
+		glog.V(common.Vadmin).Infof(msg+"\n", AnnSecret, ns, pvc.Name)
 		return "", nil // importer pod will not contain secret credentials
 	}
-	glog.V(3).Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, name)
+	glog.V(common.Vdebug).Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, name)
 	_, err := client.CoreV1().Secrets(ns).Get(name, metav1.GetOptions{})
 	if apierrs.IsNotFound(err) {
-		glog.V(1).Infof("secret %q defined in pvc \"%s/%s\" is missing. Importer pod will run once this secret is created\n", name, ns, pvc.Name)
+		glog.V(common.Vuser).Infof("secret %q defined in pvc \"%s/%s\" is missing. Importer pod will run once this secret is created\n", name, ns, pvc.Name)
 		return name, nil
 	}
 	if err != nil {
 		return "", errors.Wrapf(err, "error getting secret %q defined in pvc \"%s/%s\"", name, ns, pvc.Name)
 	}
-	glog.V(1).Infof("retrieved secret %q defined in pvc \"%s/%s\"\n", name, ns, pvc.Name)
+	glog.V(common.Vuser).Infof("retrieved secret %q defined in pvc \"%s/%s\"\n", name, ns, pvc.Name)
 	return name, nil
 }
 
@@ -112,7 +112,7 @@ func getSecretName(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (
 // both can be passed.
 // Note: the only pvc changes supported are annotations and labels.
 func updatePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, anno, label map[string]string) (*v1.PersistentVolumeClaim, error) {
-	glog.V(3).Infof("updatePVC: updating pvc \"%s/%s\" with anno: %+v and label: %+v", pvc.Namespace, pvc.Name, anno, label)
+	glog.V(common.Vdebug).Infof("updatePVC: updating pvc \"%s/%s\" with anno: %+v and label: %+v", pvc.Namespace, pvc.Name, anno, label)
 
 	applyUpdt := func(claim *v1.PersistentVolumeClaim, a, l map[string]string) {
 		if a != nil {
@@ -137,7 +137,7 @@ func updatePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, anno,
 			return true, nil // successful update
 		}
 		if apierrs.IsConflict(e) { // pvc is likely stale
-			glog.V(3).Infof("pvc %q is stale, re-trying\n", nsName)
+			glog.V(common.Vdebug).Infof("pvc %q is stale, re-trying\n", nsName)
 			pvcCopy, e = client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
 			if e == nil {
 				return false, nil // retry update
@@ -150,7 +150,7 @@ func updatePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, anno,
 	})
 
 	if err == nil {
-		glog.V(3).Infof("updatePVC: pvc %q updated", nsName)
+		glog.V(common.Vdebug).Infof("updatePVC: pvc %q updated", nsName)
 		return updtPvc, nil
 	}
 	return pvc, errors.Wrapf(err, "error updating pvc %q\n", nsName)
@@ -158,7 +158,7 @@ func updatePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, anno,
 
 // Sets an annotation `key: val` in the given pvc. Returns the updated pvc.
 func setPVCAnnotation(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, key, val string) (*v1.PersistentVolumeClaim, error) {
-	glog.V(3).Infof("setPVCAnnotation: adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", key, val, pvc.Namespace, pvc.Name)
+	glog.V(common.Vdebug).Infof("setPVCAnnotation: adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", key, val, pvc.Namespace, pvc.Name)
 	return updatePVC(client, pvc, map[string]string{key: val}, nil)
 }
 
@@ -191,14 +191,14 @@ func CreateImporterPod(client kubernetes.Interface, image, verbose, pullPolicy, 
 	if err != nil {
 		return nil, errors.Wrap(err, "importer pod API create errored")
 	}
-	glog.V(1).Infof("importer pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	glog.V(common.Vuser).Infof("importer pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
 	return pod, nil
 }
 
 // MakeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
 func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	// importer pod name contains the pvc name
-	podName := fmt.Sprintf("%s-%s-", cdi.IMPORTER_PODNAME, pvc.Name)
+	podName := fmt.Sprintf("%s-%s-", common.IMPORTER_PODNAME, pvc.Name)
 
 	blockOwnerDeletion := true
 	isController := true
@@ -213,7 +213,7 @@ func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.
 				AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				cdi.CDI_LABEL_KEY: cdi.CDI_LABEL_VALUE,
+				common.CDI_LABEL_KEY: common.CDI_LABEL_VALUE,
 				// this label is used when searching for a pvc's import pod.
 				LabelImportPvc: pvc.Name,
 			},
@@ -231,13 +231,13 @@ func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Name:            cdi.IMPORTER_PODNAME,
+					Name:            common.IMPORTER_PODNAME,
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      DataVolName,
-							MountPath: cdi.IMPORTER_DATA_DIR,
+							MountPath: common.IMPORTER_DATA_DIR,
 						},
 					},
 					Args: []string{"-v=" + verbose},
@@ -265,29 +265,29 @@ func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.
 func makeEnv(endpoint, secret string) []v1.EnvVar {
 	env := []v1.EnvVar{
 		{
-			Name:  cdi.IMPORTER_ENDPOINT,
+			Name:  common.IMPORTER_ENDPOINT,
 			Value: endpoint,
 		},
 	}
 	if secret != "" {
 		env = append(env, v1.EnvVar{
-			Name: cdi.IMPORTER_ACCESS_KEY_ID,
+			Name: common.IMPORTER_ACCESS_KEY_ID,
 			ValueFrom: &v1.EnvVarSource{
 				SecretKeyRef: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
 						Name: secret,
 					},
-					Key: cdi.KeyAccess,
+					Key: common.KeyAccess,
 				},
 			},
 		}, v1.EnvVar{
-			Name: cdi.IMPORTER_SECRET_KEY,
+			Name: common.IMPORTER_SECRET_KEY,
 			ValueFrom: &v1.EnvVarSource{
 				SecretKeyRef: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
 						Name: secret,
 					},
-					Key: cdi.KeySecret,
+					Key: common.KeySecret,
 				},
 			},
 		})
@@ -324,7 +324,7 @@ func getCloneRequestPVC(pvc *v1.PersistentVolumeClaim) (string, error) {
 func ParseSourcePvcAnnotation(sourcePvcAnno, del string) (namespace, name string) {
 	strArr := strings.Split(sourcePvcAnno, del)
 	if strArr == nil || len(strArr) < 2 {
-		glog.V(3).Infof("Bad CloneRequest Annotation")
+		glog.V(common.Vdebug).Infof("Bad CloneRequest Annotation")
 		return "", ""
 	}
 	return strArr[0], strArr[1]
@@ -342,14 +342,14 @@ func CreateCloneSourcePod(client kubernetes.Interface, image string, verbose str
 	if err != nil {
 		return nil, errors.Wrap(err, "source pod API create errored")
 	}
-	glog.V(1).Infof("cloning source pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	glog.V(common.Vuser).Infof("cloning source pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
 	return pod, nil
 }
 
 // MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
 func MakeCloneSourcePodSpec(image, verbose, pullPolicy, sourcePvcName string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	// source pod name contains the pvc name
-	podName := fmt.Sprintf("%s-", cdi.CLONER_SOURCE_PODNAME)
+	podName := fmt.Sprintf("%s-", common.CLONER_SOURCE_PODNAME)
 	id := string(pvc.GetUID())
 	blockOwnerDeletion := true
 	isController := true
@@ -365,8 +365,8 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, sourcePvcName string, pv
 				AnnTargetPodNamespace: pvc.Namespace,
 			},
 			Labels: map[string]string{
-				cdi.CDI_LABEL_KEY:     cdi.CDI_LABEL_VALUE,                //filtered by the podInformer
-				cdi.CLONING_LABEL_KEY: cdi.CLONING_LABEL_VALUE + "-" + id, //used by podAffity
+				common.CDI_LABEL_KEY:     common.CDI_LABEL_VALUE,                //filtered by the podInformer
+				common.CLONING_LABEL_KEY: common.CLONING_LABEL_VALUE + "-" + id, //used by podAffity
 				// this label is used when searching for a pvc's cloner source pod.
 				CloneUniqueID: pvc.Name + "-source-pod",
 			},
@@ -384,7 +384,7 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, sourcePvcName string, pv
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Name:            cdi.CLONER_SOURCE_PODNAME,
+					Name:            common.CLONER_SOURCE_PODNAME,
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
 					SecurityContext: &v1.SecurityContext{
@@ -394,11 +394,11 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, sourcePvcName string, pv
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      ImagePathName,
-							MountPath: cdi.CLONER_IMAGE_PATH,
+							MountPath: common.CLONER_IMAGE_PATH,
 						},
 						{
 							Name:      socketPathName,
-							MountPath: cdi.CLONER_SOCKET_PATH + "/" + id,
+							MountPath: common.CLONER_SOCKET_PATH + "/" + id,
 						},
 					},
 					Args: []string{"source", id},
@@ -419,7 +419,7 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, sourcePvcName string, pv
 					Name: socketPathName,
 					VolumeSource: v1.VolumeSource{
 						HostPath: &v1.HostPathVolumeSource{
-							Path: cdi.CLONER_SOCKET_PATH + "/" + id,
+							Path: common.CLONER_SOCKET_PATH + "/" + id,
 						},
 					},
 				},
@@ -439,14 +439,14 @@ func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose str
 	if err != nil {
 		return nil, errors.Wrap(err, "clone target pod API create errored")
 	}
-	glog.V(1).Infof("cloning target pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	glog.V(common.Vuser).Infof("cloning target pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
 	return pod, nil
 }
 
 // MakeCloneTargetPodSpec creates and returns the clone target pod spec based on the target pvc.
 func MakeCloneTargetPodSpec(image, verbose, pullPolicy, podAffinityNamespace string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	// target pod name contains the pvc name
-	podName := fmt.Sprintf("%s-", cdi.CLONER_TARGET_PODNAME)
+	podName := fmt.Sprintf("%s-", common.CLONER_TARGET_PODNAME)
 	id := string(pvc.GetUID())
 	blockOwnerDeletion := true
 	isController := true
@@ -462,7 +462,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, podAffinityNamespace str
 				AnnTargetPodNamespace: pvc.Namespace,
 			},
 			Labels: map[string]string{
-				cdi.CDI_LABEL_KEY: cdi.CDI_LABEL_VALUE, //filtered by the podInformer
+				common.CDI_LABEL_KEY: common.CDI_LABEL_VALUE, //filtered by the podInformer
 				// this label is used when searching for a pvc's cloner target pod.
 				CloneUniqueID: pvc.Name + "-target-pod",
 			},
@@ -485,21 +485,21 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, podAffinityNamespace str
 							LabelSelector: &metav1.LabelSelector{
 								MatchExpressions: []metav1.LabelSelectorRequirement{
 									{
-										Key:      cdi.CLONING_LABEL_KEY,
+										Key:      common.CLONING_LABEL_KEY,
 										Operator: metav1.LabelSelectorOpIn,
-										Values:   []string{cdi.CLONING_LABEL_VALUE + "-" + id},
+										Values:   []string{common.CLONING_LABEL_VALUE + "-" + id},
 									},
 								},
 							},
 							Namespaces:  []string{podAffinityNamespace}, //the scheduler looks for the namespace of the source pod
-							TopologyKey: cdi.CLONING_TOPOLOGY_KEY,
+							TopologyKey: common.CLONING_TOPOLOGY_KEY,
 						},
 					},
 				},
 			},
 			Containers: []v1.Container{
 				{
-					Name:            cdi.CLONER_TARGET_PODNAME,
+					Name:            common.CLONER_TARGET_PODNAME,
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
 					SecurityContext: &v1.SecurityContext{
@@ -509,11 +509,11 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, podAffinityNamespace str
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      ImagePathName,
-							MountPath: cdi.CLONER_IMAGE_PATH,
+							MountPath: common.CLONER_IMAGE_PATH,
 						},
 						{
 							Name:      socketPathName,
-							MountPath: cdi.CLONER_SOCKET_PATH + "/" + id,
+							MountPath: common.CLONER_SOCKET_PATH + "/" + id,
 						},
 					},
 					Args: []string{"target", id},
@@ -534,7 +534,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, podAffinityNamespace str
 					Name: socketPathName,
 					VolumeSource: v1.VolumeSource{
 						HostPath: &v1.HostPathVolumeSource{
-							Path: cdi.CLONER_SOCKET_PATH + "/" + id,
+							Path: common.CLONER_SOCKET_PATH + "/" + id,
 						},
 					},
 				},
@@ -559,13 +559,13 @@ func checkClonePVC(pvc *v1.PersistentVolumeClaim) bool {
 
 	// check if we have proper AnnCloneRequest annotation on the target pvc
 	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneRequest) {
-		glog.V(2).Infof("pvc annotation %q not found, skipping pvc\n", AnnCloneRequest)
+		glog.V(common.Vadmin).Infof("pvc annotation %q not found, skipping pvc\n", AnnCloneRequest)
 		return false
 	}
 
 	//checking for CloneOf annotation indicating that the clone was already taken care of by the provisioner (smart clone).
 	if metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf) {
-		glog.V(2).Infof("pvc annotation %q exists indicating cloning completed, skipping pvc\n", AnnCloneOf)
+		glog.V(common.Vadmin).Infof("pvc annotation %q exists indicating cloning completed, skipping pvc\n", AnnCloneOf)
 		return false
 	}
 	return true

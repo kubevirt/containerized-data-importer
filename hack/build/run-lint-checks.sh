@@ -43,4 +43,11 @@ if [[ ${out} ]]; then
     echo "${out}"
     ec=1
 fi
+# image
+out="$(golint pkg/image/...)"
+if [[ ${out} ]]; then
+    echo "FAIL: following golint errors found:"
+    echo "${out}"
+    ec=1
+fi
 exit ${ec}

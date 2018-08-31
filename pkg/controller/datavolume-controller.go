@@ -43,6 +43,7 @@ import (
 	cdischeme "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
 	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/datavolumecontroller/v1alpha1"
 	listers "kubevirt.io/containerized-data-importer/pkg/client/listers/datavolumecontroller/v1alpha1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	expectations "kubevirt.io/containerized-data-importer/pkg/expectations"
 )
 
@@ -90,9 +91,9 @@ func NewDataVolumeController(
 	// Add datavolume-controller types to the default Kubernetes Scheme so Events can be
 	// logged for datavolume-controller types.
 	cdischeme.AddToScheme(scheme.Scheme)
-	glog.V(3).Info("Creating event broadcaster")
+	glog.V(common.Vdebug).Info("Creating event broadcaster")
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(glog.V(2).Infof)
+	eventBroadcaster.StartLogging(glog.V(common.Vadmin).Infof)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeclientset.CoreV1().Events("")})
 	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: controllerAgentName})
 
@@ -108,7 +109,7 @@ func NewDataVolumeController(
 		pvcExpectations:   expectations.NewUIDTrackingControllerExpectations(expectations.NewControllerExpectations()),
 	}
 
-	glog.V(2).Info("Setting up event handlers")
+	glog.V(common.Vadmin).Info("Setting up event handlers")
 
 	// Set up an event handler for when DataVolume resources change
 	dataVolumeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -146,23 +147,23 @@ func (c *DataVolumeController) Run(threadiness int, stopCh <-chan struct{}) erro
 	defer c.workqueue.ShutDown()
 
 	// Start the informer factories to begin populating the informer caches
-	glog.V(2).Info("Starting DataVolume controller")
+	glog.V(common.Vadmin).Info("Starting DataVolume controller")
 
 	// Wait for the caches to be synced before starting workers
-	glog.V(2).Info("Waiting for informer caches to sync")
+	glog.V(common.Vadmin).Info("Waiting for informer caches to sync")
 	if ok := cache.WaitForCacheSync(stopCh, c.pvcsSynced, c.dataVolumesSynced); !ok {
 		return errors.Errorf("failed to wait for caches to sync")
 	}
 
-	glog.V(2).Info("Starting workers")
+	glog.V(common.Vadmin).Info("Starting workers")
 	// Launch two workers to process DataVolume resources
 	for i := 0; i < threadiness; i++ {
 		go wait.Until(c.runWorker, time.Second, stopCh)
 	}
 
-	glog.V(2).Info("Started workers")
+	glog.V(common.Vadmin).Info("Started workers")
 	<-stopCh
-	glog.V(2).Info("Shutting down workers")
+	glog.V(common.Vadmin).Info("Shutting down workers")
 
 	return nil
 }
@@ -216,7 +217,7 @@ func (c *DataVolumeController) processNextWorkItem() bool {
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
 		c.workqueue.Forget(obj)
-		glog.V(2).Infof("Successfully synced '%s'", key)
+		glog.V(common.Vadmin).Infof("Successfully synced '%s'", key)
 		return nil
 	}(obj)
 
@@ -399,9 +400,9 @@ func (c *DataVolumeController) handleObject(obj interface{}, verb string) {
 			runtime.HandleError(errors.Errorf("error decoding object tombstone, invalid type"))
 			return
 		}
-		glog.V(3).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
+		glog.V(common.Vdebug).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
 	}
-	glog.V(3).Infof("Processing object: %s", object.GetName())
+	glog.V(common.Vdebug).Infof("Processing object: %s", object.GetName())
 	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
 		// If this object is not owned by a DataVolume, we should not do anything more
 		// with it.
@@ -411,7 +412,7 @@ func (c *DataVolumeController) handleObject(obj interface{}, verb string) {
 
 		dataVolume, err := c.dataVolumesLister.DataVolumes(object.GetNamespace()).Get(ownerRef.Name)
 		if err != nil {
-			glog.V(3).Infof("ignoring orphaned object '%s' of dataVolume '%s'", object.GetSelfLink(), ownerRef.Name)
+			glog.V(common.Vdebug).Infof("ignoring orphaned object '%s' of dataVolume '%s'", object.GetSelfLink(), ownerRef.Name)
 			return
 		}
 
