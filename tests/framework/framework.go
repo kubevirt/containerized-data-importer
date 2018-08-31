@@ -129,6 +129,21 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 		f.RestConfig = restConfig
 	}
 
+	// clients
+	kcs, err := f.GetKubeClient()
+	if err != nil {
+		err = errors.Wrap(err, "ERROR, unable to create K8SClient")
+	} else {
+		f.K8sClient = kcs
+	}
+
+	cs, err := f.GetCdiClient()
+	if err != nil {
+		err = errors.Wrap(err, "ERROR, unable to create CdiClient")
+	} else {
+		f.CdiClient = cs
+	}
+
 	BeforeEach(f.BeforeEach)
 	AfterEach(f.AfterEach)
 
@@ -136,20 +151,6 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 }
 
 func (f *Framework) BeforeEach() {
-	// clients
-	if f.K8sClient == nil {
-		By("Creating a kubernetes client")
-		kcs, err := f.GetKubeClient()
-		Expect(err).NotTo(HaveOccurred())
-		f.K8sClient = kcs
-	}
-	if f.CdiClient == nil {
-		By("Creating a CDI client")
-		cs, err := f.GetCdiClient()
-		Expect(err).NotTo(HaveOccurred())
-		f.CdiClient = cs
-	}
-
 	if !f.SkipControllerPodLookup {
 		if f.ControllerPod == nil {
 			pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, CdiPodPrefix, "")
