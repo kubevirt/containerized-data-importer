@@ -88,7 +88,7 @@ func init() {
 	// By accessing something in the ginkgo_reporters package, we are ensuring that the init() is called
 	// That init calls flag.StringVar, and makes sure the --junit-output flag is added before we call
 	// flag.Parse in NewFramework. Without this, the flag is NOT added.
-	fmt.Fprintf(GinkgoWriter, "Making sure junit flag is available"+ginkgo_reporters.JunitOutput)
+	fmt.Fprintf(GinkgoWriter, "Making sure junit flag is available %v\n", ginkgo_reporters.JunitOutput)
 	kubectlPath = flag.String("kubectl-path", "kubectl", "The path to the kubectl binary")
 	ocPath = flag.String("oc-path", "oc", "The path to the oc binary")
 	cdiInstallNs = flag.String("cdi-namespace", "kube-system", "The namespace of the CDI controller")
