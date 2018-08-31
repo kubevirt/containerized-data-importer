@@ -84,34 +84,32 @@ func NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1
 // Finds the first pod which has the passed in prefix. Returns error if multiple pods with the same prefix are found.
 func FindPodByPrefix(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string) (*k8sv1.Pod, error) {
 	var result k8sv1.Pod
-	var multiplePods bool
+	var foundPod bool
 	err := wait.PollImmediate(2*time.Second, PodCreateTime, func() (bool, error) {
-		multiplePods = false
-		podList, err := clientSet.CoreV1().Pods(namespace).List(metav1.ListOptions{})
+		podList, err := clientSet.CoreV1().Pods(namespace).List(metav1.ListOptions{
+			LabelSelector: labelSelector,
+		})
 		if err == nil {
-			var foundPod bool
 			for _, pod := range podList.Items {
 				if strings.HasPrefix(pod.Name, prefix) {
 					if !foundPod {
 						foundPod = true
 						result = pod
 					} else {
-						fmt.Fprintf(GinkgoWriter, "INFO: First pod name %s\n", result.Name)
-						fmt.Fprintf(GinkgoWriter, "INFO: Second pod name %s\n", pod.Name)
-						multiplePods = true
+						fmt.Fprintf(GinkgoWriter, "INFO: First pod name %s in namespace %s\n", result.Name, result.Namespace)
+						fmt.Fprintf(GinkgoWriter, "INFO: Second pod name %s in namespace %s\n", pod.Name, pod.Namespace)
+						return true, fmt.Errorf("Multiple pods starting with prefix %q in namespace %q", prefix, namespace)
 					}
 				}
 			}
 			if foundPod {
 				return true, nil
 			}
-			return false, fmt.Errorf("Unable to find pod starting with prefix %s", prefix)
-		} else {
-			return false, err
 		}
+		return false, nil
 	})
-	if multiplePods {
-		return nil, fmt.Errorf("Multiple pods starting with prefix %s", prefix)
+	if !foundPod {
+		return nil, fmt.Errorf("Unable to find pod starting with prefix %s", prefix)
 	}
 	return &result, err
 }
