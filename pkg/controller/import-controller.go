@@ -235,7 +235,8 @@ func (c *ImportController) ProcessNextPvcItem() bool {
 	defer c.queue.Done(key)
 
 	err := c.syncPvc(key.(string))
-	if err != nil { // processPvcItem errors may not have been logged so log here
+	if err != nil {
+		// processPvcItem errors may not have been logged so log here
 		glog.Errorf("error processing pvc %q: %v", key, err)
 		return true
 	}

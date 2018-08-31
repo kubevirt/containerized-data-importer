@@ -13,19 +13,19 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-type fakeDataStream struct {
+type FakeDataStream struct {
 	DataRdr     io.ReadCloser
 	url         *url.URL
-	accessKeyId string
+	accessKeyID string
 	secretKey   string
 	err         error
 }
 
-func (d *fakeDataStream) Error() error {
+func (d *FakeDataStream) Error() error {
 	return d.err
 }
 
-func (d *fakeDataStream) fakeDataStreamSelector() io.ReadCloser {
+func (d *FakeDataStream) fakeDataStreamSelector() io.ReadCloser {
 	switch d.url.Scheme {
 	case "s3":
 		return d.s3()
@@ -39,24 +39,24 @@ func (d *fakeDataStream) fakeDataStreamSelector() io.ReadCloser {
 	return nil
 }
 
-func (d *fakeDataStream) s3() io.ReadCloser {
+func (d *FakeDataStream) s3() io.ReadCloser {
 	return ioutil.NopCloser(bytes.NewReader([]byte("s3 dataStream")))
 }
 
-func (d *fakeDataStream) http() io.ReadCloser {
+func (d *FakeDataStream) http() io.ReadCloser {
 	return ioutil.NopCloser(bytes.NewReader([]byte("http dataStream")))
 }
 
-func (d *fakeDataStream) local() io.ReadCloser {
+func (d *FakeDataStream) local() io.ReadCloser {
 	return ioutil.NopCloser(bytes.NewReader([]byte("file dataStream")))
 }
 
-// NewFakeDataStream: construct a new fakeDataStream object from params.
-func NewFakeDataStream(ep *url.URL, accKey, secKey string) *fakeDataStream {
+// NewFakeDataStream: construct a new FakeDataStream object from params.
+func NewFakeDataStream(ep *url.URL, accKey, secKey string) *FakeDataStream {
 
-	ds := &fakeDataStream{
+	ds := &FakeDataStream{
 		url:         ep,
-		accessKeyId: accKey,
+		accessKeyID: accKey,
 		secretKey:   secKey,
 	}
 	rdr := ds.fakeDataStreamSelector()
