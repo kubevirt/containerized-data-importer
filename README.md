@@ -79,7 +79,7 @@ $ wget https://raw.githubusercontent.com/kubevirt/containerized-data-importer/ku
 $ wget https://raw.githubusercontent.com/kubevirt/containerized-data-importer/kubevirt-centric-readme/manifests/example/endpoint-secret.yaml
 ```
 
-### Run the CDI Controller
+### Deploy CDI from a release
 
 Deploying the CDI controller is straight forward. In this document the _default_ namespace is used, but in a production setup a [protected namespace](#protecting-the-golden-image-namespace) that is inaccessible to regular users should be used instead.
 
@@ -97,9 +97,30 @@ $ VERSION=<cdi version>
 $ kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-controller.yaml
 ```
 
-**DEPRECATION NOTICE:** The below method will not be supported in releases following v1.1.0 as `manifests/controller/cdi-controller-deployment.yaml` will be removed.  See [Make Targets (manifests)](./hack/README.md#make-targets) for generating manifests locally.
+### Deploy CDI using a template
 
-`$ kubectl -n default create -f https://raw.githubusercontent.com/kubevirt/containerized-data-importer/master/manifests/cdi-controller-deployment.yaml`
+By default when using `manifests/generated/cdi-controller.yaml` CDI will deploy into the kube-system namespace using default settings.  You can customize the deployment by using the generated `manifests/generated/cdi-controller.yaml.j2` jinja2 template.  This allows you to alter the install namespace, docker image repo, docker image tags, etc.  To deploy using the template follow these steps:
+
+1. Install j2cli:
+
+    `$ pip install j2cli`
+
+1. Install CDI:
+
+    ```
+    $ namespace=default \
+      docker_prefix=kubevirt \
+      docker_tag=v1.1.1 \
+      pull_policy=IfNotPresent \
+      verbosity=1 \
+      j2 manifests/generated/cdi-controller.yaml.j2 | kubectl create -f -
+    ```
+    Check the template file and make sure to supply values for all variables.
+
+> Note: the default verbosity level is set to 1 in the controller deployment file, which is minimal logging. If greater details are desired increase the `-v` number to 2 or 3.
+
+> Note: the importer pod uses the same logging verbosity as the controller. If a different level of logging is required after the controller has been started, the deployment can be edited and applied by using `kubectl apply -f <CDI-MANIFEST>`. This will not alter the running controller's logging level but will affect importer pods created after the change. To change the running controller's log level requires it to be restarted after the deployment has been edited.
+
 
 ### Start Importing Images
 
@@ -128,18 +149,6 @@ Make copies of the [example manifests](./manifests/example) for editing. The nec
 
 ### Deploy the API Objects
 
-1. (Optional) Create the namespace where the controller will run:
-
-    `$ kubectl create ns <CDI-NAMESPACE>`
-
-1. Deploy the CDI controller:
-
-   `$ kubectl -n <CDI-NAMESPACE> create -f manifests/controller/cdi-controller-deployment.yaml`
-
-> Note: the default verbosity level is set to 1 in the controller deployment file, which is minimal logging. If greater details are desired increase the `-v` number to 2 or 3.
-
-> Note: the importer pod uses the same logging verbosity as the controller. If a different level of logging is required after the controller has been started, the deployment can be edited and applied via `kubectl apply -f manifests/controller/cdi-controller-deployment.yaml`. This will not alter the running controller's logging level but will affect importer pods created after the change. To change the running controller's log level requires it to be restarted after the deployment has been edited.
-
 1. (Optional) Create the endpoint secret in the PVC's namespace:
 
    `$ kubectl -n <NAMESPACE> create -f endpoint-secret.yaml`
@@ -159,7 +168,7 @@ Make copies of the [example manifests](./manifests/example) for editing. The nec
      _or_
 
    `kubectl get -n <NAMESPACE> pvc <PVC-NAME> -o yaml | grep "storage.import.pod.phase:"` # to see the status of the importer pod triggered by the pvc
-   
+
 
 ### Cloning VM Images
 
@@ -271,8 +280,6 @@ An additional caveat is that currently the size is under reported for simple iso
 #### RBAC Roles
 
 CDI runs under a custom ServiceAccount (cdi-sa) and uses the [Kubernetes RBAC model](https://kubernetes.io/docs/admin/authorization/rbac/) to apply an application specific custom ClusterRole with rules to properly access needed resources such as PersistentVolumeClaims and Pods.
-
-> NOTE: The cdi-controller-deployment.yaml in the manifests directory should be updated if deploying manually with kubectl to use the correct Namespace where the deployment is running.
 
 
 #### Protecting VM Image Namespaces
