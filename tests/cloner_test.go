@@ -16,15 +16,16 @@ import (
 )
 
 const (
-	testSuiteName        = "Cloner Test Suite"
-	namespacePrefix      = "cloner"
-	sourcePodFillerName  = "fill-source"
-	sourcePVCName        = "source-pvc"
-	fillData             = "123456789012345678901234567890123456789012345678901234567890"
-	testFile             = utils.DefaultPvcMountPath + "/source.txt"
-	fillCommand          = "echo \"" + fillData + "\" >> " + testFile
-	cloneCompleteTimeout = 10 * time.Second
-	testCompleteTimeout  = 300 * time.Second
+	testSuiteName         = "Cloner Test Suite"
+	namespacePrefix       = "cloner"
+	sourcePodFillerName   = "fill-source"
+	sourcePVCName         = "source-pvc"
+	fillData              = "123456789012345678901234567890123456789012345678901234567890"
+	testFile              = utils.DefaultPvcMountPath + "/source.txt"
+	fillCommand           = "echo \"" + fillData + "\" >> " + testFile
+	assertionPollInterval = 2 * time.Second
+	cloneCompleteTimeout  = 60 * time.Second
+	testCompleteTimeout   = 300 * time.Second
 )
 
 var _ = Describe(testSuiteName, func() {
@@ -76,14 +77,26 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 
 	By("Find cloner pods")
 	sourcePod, err := f.FindPodByPrefix(common.CLONER_SOURCE_PODNAME)
+	if err != nil {
+		PrintControllerLog(f)
+	}
 	Expect(err).ToNot(HaveOccurred())
 	targetPod, err := utils.FindPodByPrefix(f.K8sClient, targetNs.Name, common.CLONER_TARGET_PODNAME, common.CDI_LABEL_SELECTOR)
+	if err != nil {
+		PrintControllerLog(f)
+	}
 	Expect(err).ToNot(HaveOccurred())
 
-	By("Source and Target pods have to be on same node")
-	fmt.Fprintf(GinkgoWriter, "INFO: Source POD host %s\n", sourcePod.Spec.NodeName)
-	fmt.Fprintf(GinkgoWriter, "INFO: Target POD host %s\n", targetPod.Spec.NodeName)
-	Expect(sourcePod.Spec.NodeName).To(Equal(targetPod.Spec.NodeName))
+	By("Verifying that the source and target pods are scheduled on the same node")
+	Eventually(func() bool {
+		srcNode, err := utils.PodGetNode(f.K8sClient, sourcePod.Name, sourcePod.Namespace)
+		Expect(err).ToNot(HaveOccurred())
+		tgtNode, err := utils.PodGetNode(f.K8sClient, targetPod.Name, targetPod.Namespace)
+		Expect(err).ToNot(HaveOccurred())
+		fmt.Fprintf(GinkgoWriter, "INFO: Source POD host %s\n", srcNode)
+		fmt.Fprintf(GinkgoWriter, "INFO: Target POD host %s\n", tgtNode)
+		return srcNode == tgtNode
+	}, cloneCompleteTimeout, assertionPollInterval).Should(BeTrue())
 
 	err = f.WaitTimeoutForPodStatus(sourcePod.Name, v1.PodSucceeded, cloneCompleteTimeout)
 	Expect(err).ToNot(HaveOccurred())
@@ -96,9 +109,12 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 	Expect(cloneAnnotationFound).To(BeTrue())
 
 	By("Verify the clone status is success on the target PVC")
-	status, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodPhase)
-	Expect(phaseAnnotation).To(BeTrue())
-	Expect(status).Should(BeEquivalentTo(v1.PodSucceeded))
+	Eventually(func() string {
+		status, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnClonePodPhase)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(phaseAnnotation).To(BeTrue())
+		return status
+	}, cloneCompleteTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
 
 	// Clone is completed, verify the content matches the source.
 	Expect(f.VerifyTargetPVCContent(targetNs, targetPvc, testFile, fillData)).To(BeTrue())

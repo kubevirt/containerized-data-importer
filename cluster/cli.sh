@@ -2,5 +2,9 @@
 
 source ./cluster/gocli.sh
 
-$gocli_interactive "$@"
+if [[ -t 1 ]]; then
+    $gocli_interactive "$@"
+else
+    $gocli "$@"
+fi
 

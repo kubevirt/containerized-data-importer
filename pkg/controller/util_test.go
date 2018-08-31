@@ -1069,7 +1069,7 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, pvcUid string
 				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                    //filtered by the podInformer
 				CLONING_LABEL_KEY: CLONING_LABEL_VALUE + "-" + pvcUid, //used by podAffity
 				// this label is used when searching for a pvc's cloner source pod.
-				CloneUniqeId: pvc.Name + "-source-pod",
+				CloneUniqueID: pvc.Name + "-source-pod",
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -1149,7 +1149,7 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, dvname, pvcUid, podAffinityN
 			Labels: map[string]string{
 				CDI_LABEL_KEY: CDI_LABEL_VALUE, //filtered by the podInformer
 				// this label is used when searching for a pvc's cloner target pod.
-				CloneUniqeId: pvc.Name + "-target-pod",
+				CloneUniqueID: pvc.Name + "-target-pod",
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{

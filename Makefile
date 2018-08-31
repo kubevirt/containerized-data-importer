@@ -36,7 +36,7 @@ clean:
 	${DO} "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile release-announcement"
 
 build:
-	${DO} "./hack/build/build-go.sh clean && ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-go.sh build ${WHAT} && DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} ./hack/build/build-manifests.sh ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
+	${DO} "./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-cdi-func-test-file-host.sh && DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} ./hack/build/build-manifests.sh ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
 
 build-controller: WHAT = cmd/cdi-controller
 build-controller: build
@@ -44,9 +44,7 @@ build-importer: WHAT = cmd/cdi-importer
 build-importer: build
 # Note, the cloner is a bash script and has nothing to build
 build-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
-build-functest-image-init: build
-build-functest-image-http: WHAT = tools/cdi-func-test-file-host-http
-build-functest-image-http: build
+build-functest-image-init:
 build-functest:
 	${DO} ./hack/build/build-functest.sh
 
@@ -61,6 +59,8 @@ test-functional:  WHAT = ./tests/...
 test-functional:
 	./hack/build/run-functional-tests.sh ${WHAT} "${TEST_ARGS}"
 
+test-functional-ci: build-functest test-functional
+
 # test-lint runs gofmt and golint tests against src files
 test-lint:
 	${DO} "./hack/build/run-lint-checks.sh"
@@ -74,10 +74,13 @@ docker-importer: WHAT = cmd/cdi-importer
 docker-importer: docker
 docker-cloner: WHAT = cmd/cdi-cloner
 docker-cloner: docker
+
+docker-functest-image: docker-functest-image-http docker-functest-image-init
 docker-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
 docker-functest-image-init: docker
 docker-functest-image-http: WHAT = tools/cdi-func-test-file-host-http
-docker-functest-image-http: docker
+docker-functest-image-http: # no code to compile, just build image
+	./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-docker.sh build ${WHAT}
 
 push: docker
 	./hack/build/build-docker.sh push ${WHAT}
