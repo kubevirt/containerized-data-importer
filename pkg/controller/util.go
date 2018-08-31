@@ -362,7 +362,7 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, sourcePvcName string, pv
 				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                    //filtered by the podInformer
 				CLONING_LABEL_KEY: CLONING_LABEL_VALUE + "-" + pvcUid, //used by podAffity
 				// this label is used when searching for a pvc's cloner source pod.
-				CloneUniqeId: pvc.Name + "-source-pod",
+				CloneUniqueID: pvc.Name + "-source-pod",
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -457,7 +457,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, podAffinityNamespace str
 			Labels: map[string]string{
 				CDI_LABEL_KEY: CDI_LABEL_VALUE, //filtered by the podInformer
 				// this label is used when searching for a pvc's cloner target pod.
-				CloneUniqeId: pvc.Name + "-target-pod",
+				CloneUniqueID: pvc.Name + "-target-pod",
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{

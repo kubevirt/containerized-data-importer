@@ -27,7 +27,7 @@ const (
 	// cloner pods annotations
 	AnnCloningCreatedBy   = "cdi.kubevirt.io/storage.cloningCreatedByController"
 	AnnClonePodPhase      = "cdi.kubevirt.io/storage.clone.pod.phase"
-	CloneUniqeId          = "cdi.kubevirt.io/storage.clone.cloneUniqeId"
+	CloneUniqueID         = "cdi.kubevirt.io/storage.clone.cloneUniqeId"
 	AnnTargetPodNamespace = "cdi.kubevirt.io/storage.clone.targetPod.namespace"
 )
 
@@ -238,7 +238,7 @@ func (c *CloneController) findClonePodsFromCache(pvc *v1.PersistentVolumeClaim) 
 			return nil, nil, errors.Errorf("Bad CloneRequest Annotation")
 		}
 		//find the source pod
-		selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: map[string]string{CloneUniqeId: pvc.Name + "-source-pod"}})
+		selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: map[string]string{CloneUniqueID: pvc.Name + "-source-pod"}})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -253,7 +253,7 @@ func (c *CloneController) findClonePodsFromCache(pvc *v1.PersistentVolumeClaim) 
 		}
 		sourcePod = podList[0]
 		//find target pod
-		selector, err = metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: map[string]string{CloneUniqeId: pvc.Name + "-target-pod"}})
+		selector, err = metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: map[string]string{CloneUniqueID: pvc.Name + "-target-pod"}})
 		if err != nil {
 			return nil, nil, err
 		}
