@@ -40,3 +40,25 @@ func VerifyPVCIsEmpty(f *Framework, pvc *k8sv1.PersistentVolumeClaim) bool {
 	f.DeletePod(executorPod)
 	return strings.Compare("0", output) == 0
 }
+
+func (f *Framework) CreateAndPopulateSourcePVC(pvcName string, podName string, fillCommand string) *k8sv1.PersistentVolumeClaim {
+	// Create the source PVC and populate it with a file, so we can verify the clone.
+	sourcePvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(pvcName, "1G", nil, nil))
+
+	Expect(err).ToNot(HaveOccurred())
+	pod, err := f.CreatePod(utils.NewPodWithPVC(podName, fillCommand, sourcePvc))
+	Expect(err).ToNot(HaveOccurred())
+	err = f.WaitTimeoutForPodStatus(pod.Name, k8sv1.PodSucceeded, utils.PodWaitForTime)
+	Expect(err).ToNot(HaveOccurred())
+	return sourcePvc
+}
+
+func (f *Framework) VerifyTargetPVCContent(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, fileName string, expectedData string) bool {
+	executorPod, err := utils.CreateExecutorPodWithPVC(f.K8sClient, "verify-pvc-content", namespace.Name, pvc)
+	Expect(err).ToNot(HaveOccurred())
+	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
+	Expect(err).ToNot(HaveOccurred())
+	output := f.ExecShellInPod(executorPod.Name, namespace.Name, "cat "+fileName)
+	f.DeletePod(executorPod)
+	return strings.Compare(expectedData, output) == 0
+}

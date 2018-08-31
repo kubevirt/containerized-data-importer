@@ -61,10 +61,6 @@ The controller scans PVCs within its namespace by looking for specific annotatio
 
 ## Included Manifests
 
-###### cdi-controller-deployment.yaml
-
-Defines the spec used by the controller. There should be nothing to edit in this file unless the "golden" namespace is desired to be hard-coded. Note: no namespace is supplied since the controller is excpected to be created from the "golden" namespace.
-
 ###### endpoint-secret.yaml
 
 One or more endpoint secrets in the "golden" namespace are required for non-public endpoints. If the endpoint is public there is no need to an endpoint secret. No namespace is supplied since the secret is expected to be created from the "golden" namespace.
