@@ -52,6 +52,30 @@ func DeleteDataVolume(clientSet *cdiclientset.Clientset, namespace string, dataV
 	})
 }
 
+func NewDataVolumeWithPVCImport(dataVolumeName string, size string, targetPvc *k8sv1.PersistentVolumeClaim) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dataVolumeName,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
+					Name:      targetPvc.Name,
+					Namespace: targetPvc.Namespace,
+				},
+			},
+			PVC: &k8sv1.PersistentVolumeClaimSpec{
+				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+}
+
 func NewDataVolumeWithHttpImport(dataVolumeName string, size string, httpUrl string) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
