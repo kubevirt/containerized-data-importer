@@ -99,11 +99,8 @@ func init() {
 // NewFrameworkOrDie calls NewFramework and handles errors by calling Fail. Config is optional, but
 // if passed there can only be one.
 func NewFrameworkOrDie(prefix string, config ...Config) *Framework {
-	if len(config) > 1 {
-		Fail("only 1 config can be passed to NewFrameworkOrDie")
-	}
 	cfg := Config{}
-	if len(config) == 1 {
+	if len(config) > 0 {
 		cfg = config[0]
 	}
 	f, err := NewFramework(prefix, cfg)

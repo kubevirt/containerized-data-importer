@@ -30,7 +30,7 @@ var _ = Describe("DataVolume tests", func() {
 	AfterEach(func() {
 		if sourcePvc != nil {
 			By("[AfterEach] Clean up target PVC")
-			err = f.DeletePVC(sourcePvc)
+			err := f.DeletePVC(sourcePvc)
 			Expect(err).ToNot(HaveOccurred())
 			sourcePvc = nil
 		}
