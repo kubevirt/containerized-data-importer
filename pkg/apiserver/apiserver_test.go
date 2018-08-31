@@ -25,7 +25,7 @@ func apiPublicKeyCreateAction(key *rsa.PublicKey) core.Action {
 			Version:  "v1",
 		},
 		"kube-system",
-		newConfigMap(ApiPublicKeyConfigMap, "", key))
+		newConfigMap(APIPublicKeyConfigMap, "", key))
 }
 
 func apiPublicKeyGetAction() core.Action {
@@ -35,18 +35,9 @@ func apiPublicKeyGetAction() core.Action {
 			Version:  "v1",
 		},
 		"kube-system",
-		ApiPublicKeyConfigMap)
+		APIPublicKeyConfigMap)
 }
 
-func proxyPublicKeyGetAction() core.Action {
-	return core.NewGetAction(
-		schema.GroupVersionResource{
-			Resource: "configmaps",
-			Version:  "v1",
-		},
-		"kube-system",
-		UploadProxyPublicKeyConfigMap)
-}
 func apiPrivateKeyGetAction() core.Action {
 	return core.NewGetAction(
 		schema.GroupVersionResource{
@@ -88,6 +79,11 @@ func newAPISecret(name string, namespace string, certBytes, keyBytes, signingCer
 }
 
 func newConfigMap(name string, namespace string, key *rsa.PublicKey) *v1.ConfigMap {
+	encodedKey, err := EncodePublicKey(key)
+	if err != nil {
+		panic("encode public key failed")
+	}
+
 	config := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -96,7 +92,7 @@ func newConfigMap(name string, namespace string, key *rsa.PublicKey) *v1.ConfigM
 			},
 		},
 		Data: map[string]string{
-			"publicKey": EncodePublicKey(key),
+			"publicKey": encodedKey,
 		},
 	}
 	if namespace != "" {
@@ -163,36 +159,31 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 	}
 }
 
-func generateTestKeys() (*rsa.PrivateKey, *rsa.PrivateKey, error) {
-
-	proxyKeyPair, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, nil, err
-	}
+func generateTestKey() (*rsa.PrivateKey, error) {
 	apiKeyPair, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return proxyKeyPair, apiKeyPair, nil
+	return apiKeyPair, nil
 }
 
 func Test_tokenEncrption(t *testing.T) {
-	proxyKeys, apiServerKeys, err := generateTestKeys()
+	apiServerKeys, err := generateTestKey()
 	if err != nil {
 		t.Errorf("error generating keys: %v", err)
 	}
 
-	encryptedToken, err := GenerateEncryptedToken("fakepvc", "fakenamespace", &proxyKeys.PublicKey, apiServerKeys)
+	encryptedToken, err := GenerateToken("fakepvc", "fakenamespace", apiServerKeys)
 
 	if err != nil {
-		t.Errorf("unable to encrypt token: %v", err)
+		t.Errorf("unable to generate token: %v", err)
 	}
 
-	tokenData, err := DecryptToken(encryptedToken, proxyKeys, &apiServerKeys.PublicKey)
+	tokenData, err := VerifyToken(encryptedToken, &apiServerKeys.PublicKey)
 
 	if err != nil {
-		t.Errorf("unable to decrypt token: %v", err)
+		t.Errorf("unable to verify token: %v", err)
 	}
 
 	if tokenData.PvcName != "fakepvc" && tokenData.Namespace != "fakenamespace" {
@@ -201,7 +192,7 @@ func Test_tokenEncrption(t *testing.T) {
 }
 
 func TestKeyRetrieval(t *testing.T) {
-	proxyKeyPair, apiKeyPair, err := generateTestKeys()
+	apiKeyPair, err := generateTestKey()
 	if err != nil {
 		t.Errorf("error generating keys: %v", err)
 	}
@@ -211,18 +202,16 @@ func TestKeyRetrieval(t *testing.T) {
 	signingCertBytes := []byte("madeup")
 
 	kubeobjects := []runtime.Object{}
-	kubeobjects = append(kubeobjects, newConfigMap(ApiPublicKeyConfigMap, "kube-system", &apiKeyPair.PublicKey))
+	kubeobjects = append(kubeobjects, newConfigMap(APIPublicKeyConfigMap, "kube-system", &apiKeyPair.PublicKey))
 	kubeobjects = append(kubeobjects, newAPISecret(apiCertSecretName, "kube-system", certBytes, keyBytes, signingCertBytes))
-	kubeobjects = append(kubeobjects, newConfigMap(UploadProxyPublicKeyConfigMap, "kube-system", &proxyKeyPair.PublicKey))
 
 	actions := []core.Action{}
 	actions = append(actions, apiPrivateKeyGetAction())
 	actions = append(actions, apiPublicKeyGetAction())
-	actions = append(actions, proxyPublicKeyGetAction())
 
 	client := k8sfake.NewSimpleClientset(kubeobjects...)
 
-	app := &uploadApiApp{
+	app := &uploadAPIApp{
 		client: client,
 	}
 
@@ -234,54 +223,16 @@ func TestKeyRetrieval(t *testing.T) {
 	checkActions(actions, client.Actions(), t)
 }
 
-func TestExpectErrIfProxyKeyNotFound(t *testing.T) {
-	_, apiKeyPair, err := generateTestKeys()
-	if err != nil {
-		t.Errorf("error generating keys: %v", err)
-	}
-
-	keyBytes := cert.EncodePrivateKeyPEM(apiKeyPair)
-	certBytes := []byte("madeup")
-	signingCertBytes := []byte("madeup")
-
-	kubeobjects := []runtime.Object{}
-	kubeobjects = append(kubeobjects, newConfigMap(ApiPublicKeyConfigMap, "kube-system", &apiKeyPair.PublicKey))
-	kubeobjects = append(kubeobjects, newAPISecret(apiCertSecretName, "kube-system", certBytes, keyBytes, signingCertBytes))
-
-	actions := []core.Action{}
-	actions = append(actions, apiPrivateKeyGetAction())
-	actions = append(actions, apiPublicKeyGetAction())
-	actions = append(actions, proxyPublicKeyGetAction())
-
-	client := k8sfake.NewSimpleClientset(kubeobjects...)
-
-	app := &uploadApiApp{
-		client: client,
-	}
-
-	err = app.getSelfSignedCert()
-	if err == nil {
-		t.Errorf("Expected err to have occurred because proxy public key is not present in cluster")
-	}
-
-	checkActions(actions, client.Actions(), t)
-}
-
 func TestShouldGenerateCertsAndKeyFirstRun(t *testing.T) {
-	proxyKeyPair, _, err := generateTestKeys()
-	if err != nil {
-		t.Errorf("error generating keys: %v", err)
-	}
 	kubeobjects := []runtime.Object{}
-	kubeobjects = append(kubeobjects, newConfigMap(UploadProxyPublicKeyConfigMap, "kube-system", &proxyKeyPair.PublicKey))
 
 	client := k8sfake.NewSimpleClientset(kubeobjects...)
 
-	app := &uploadApiApp{
+	app := &uploadAPIApp{
 		client: client,
 	}
 
-	err = app.getSelfSignedCert()
+	err := app.getSelfSignedCert()
 	if err != nil {
 		t.Errorf("error creating upload proxy app: %v", err)
 	}
@@ -300,7 +251,6 @@ func TestShouldGenerateCertsAndKeyFirstRun(t *testing.T) {
 	actions = append(actions, apiPrivateKeyCreateAction(app.certBytes, app.keyBytes, app.signingCertBytes))
 	actions = append(actions, apiPublicKeyGetAction())
 	actions = append(actions, apiPublicKeyCreateAction(&privateKey.PublicKey))
-	actions = append(actions, proxyPublicKeyGetAction())
 
 	checkActions(actions, client.Actions(), t)
 }

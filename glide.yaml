@@ -22,3 +22,5 @@ import:
   version: kubernetes-1.10.3
 - package: github.com/emicklei/go-restful
   version: v2.6.0
+- package: gopkg.in/square/go-jose.v2
+  version: ^2.1.8

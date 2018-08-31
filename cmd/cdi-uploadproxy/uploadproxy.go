@@ -60,8 +60,18 @@ func main() {
 	if err != nil {
 		glog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
 	}
+	apiServerPublicKey, err := getAPIServerPublicKey()
+	if err != nil {
+		glog.Fatalf("Unable to get apiserver public key %v\n", errors.WithStack(err))
+	}
 
-	uploadProxy, err := uploadproxy.NewUploadProxy(defaultHost, defaultPort, client)
+	uploadProxy, err := uploadproxy.NewUploadProxy(defaultHost,
+		defaultPort,
+		apiServerPublicKey,
+		os.Getenv("TLS_CLIENT_KEY"),
+		os.Getenv("TLS_CLIENT_CERT"),
+		os.Getenv("TLS_SERVER_CERT"),
+		client)
 	if err != nil {
 		glog.Fatalf("UploadProxy failed to initialize: %v\n", errors.WithStack(err))
 	}
@@ -70,4 +80,13 @@ func main() {
 	if err != nil {
 		glog.Fatalf("TLS server failed: %v\n", errors.WithStack(err))
 	}
+}
+
+func getAPIServerPublicKey() (string, error) {
+	const envName = "APISERVER_PUBLIC_KEY"
+	val, ok := os.LookupEnv(envName)
+	if !ok {
+		return "", errors.New("%s not defined")
+	}
+	return val, nil
 }

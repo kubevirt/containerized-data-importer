@@ -1,5 +1,5 @@
-hash: d76566d47e17a5b4e99a0dd66120dbb97c4e005ea3d2d3a1d0eebafe1746a834
-updated: 2018-08-26T11:08:35.791199312-04:00
+hash: 5e0806ce615b5f75c7fdb18fb908c86d2736e3099252adaff74e31e74314fba2
+updated: 2018-08-30T20:09:10.641503414-04:00
 imports:
 - name: github.com/davecgh/go-spew
   version: 782f4967f2dc4564575ca782fe2d04090b5faca8
@@ -71,6 +71,7 @@ imports:
   version: 9eda700730cba42af70d53180f9dcce9266bc2bc
   subpackages:
   - config
+  - extensions/table
   - internal/codelocation
   - internal/containernode
   - internal/failer
@@ -116,6 +117,9 @@ imports:
 - name: golang.org/x/crypto
   version: 81e90905daefcd6fd217b62423c0908922eadb30
   subpackages:
+  - ed25519
+  - ed25519/internal/edwards25519
+  - pbkdf2
   - ssh/terminal
 - name: golang.org/x/net
   version: 1c05540f6879653db88113bc4a2b70aec4bd491f
@@ -161,6 +165,11 @@ imports:
   - rate
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
+- name: gopkg.in/square/go-jose.v2
+  version: 8254d6c783765f38c8675fae4427a1fe73fbd09d
+  subpackages:
+  - cipher
+  - json
 - name: gopkg.in/yaml.v2
   version: 670d4cfef0544295bc27a114dbac37980d83185a
 - name: k8s.io/api

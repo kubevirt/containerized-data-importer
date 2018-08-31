@@ -150,7 +150,6 @@ rules:
       - secrets
     verbs:
       - get
-      - update
       - create
   - apiGroups:
       - ''
@@ -158,7 +157,6 @@ rules:
       - configmaps
     verbs:
       - get
-      - update
       - create
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
@@ -289,98 +287,29 @@ spec:
       labels:
         cdi.kubevirt.io: "cdi-uploadproxy"
     spec:
-      serviceAccountName: cdi-uploadproxy
       containers:
       - name: cdi-uploadproxy
         image: {{ .DockerRepo }}/cdi-uploadproxy:{{ .DockerTag }}
         imagePullPolicy: {{ .PullPolicy }}
         args: ["-v={{ .Verbosity }}"] # default verbosity; change to 2 or 3 for more detailed logging
-        volumeMounts:
-        - name: client-secret
-          mountPath: /etc/tls/uploadproxy
-      volumes:
-      - name: client-secret
-        secret:
-          secretName: cdi-upload-client-key
----
-kind: ServiceAccount
-apiVersion: v1
-metadata:
-  name: cdi-uploadproxy
-  namespace: {{ .Namespace }}
-  labels:
-    kubevirt.io: ""
----
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: RoleBinding
-metadata:
-  name: cdi-uploadproxy
-  namespace: {{ .Namespace }}
-  labels:
-    kubevirt.io: ""
-roleRef:
-  kind: Role
-  name: cdi-uploadproxy
-  apiGroup: rbac.authorization.k8s.io
-subjects:
-  - kind: ServiceAccount
-    name: cdi-uploadproxy
-    namespace: {{ .Namespace }}
----
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: Role
-metadata:
-  name: cdi-uploadproxy
-  namespace: {{ .Namespace }}
-  labels:
-    kubevirt.io: ""
-rules:
-  - apiGroups:
-      - ''
-    resources:
-      - secrets
-    verbs:
-      - get
-      - update
-      - create
-  - apiGroups:
-      - ''
-    resources:
-      - configmaps
-    verbs:
-      - get
-      - update
-      - create
----
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRoleBinding
-metadata:
-  name: cdi-uploadproxy
-  namespace: {{ .Namespace }}
-  labels:
-    kubevirt.io: ""
-roleRef:
-  kind: ClusterRole
-  name: cdi-uploadproxy
-  apiGroup: rbac.authorization.k8s.io
-subjects:
-  - kind: ServiceAccount
-    name: cdi-uploadproxy
-    namespace: {{ .Namespace }}
----
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRole
-metadata:
-  name: cdi-uploadproxy
-  namespace: {{ .Namespace }}
-  labels:
-    kubevirt.io: ""
-rules:
-  - apiGroups:
-      - ''
-    resources:
-      - pods
-      - persistentvolumeclaims
-    verbs:
-      - get
-      - list
+        env:
+        - name: APISERVER_PUBLIC_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: cdi-api-public
+              key: publicKey
+        - name: TLS_CLIENT_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cdi-upload-client-key
+              key: tls.key
+        - name: TLS_CLIENT_CERT
+          valueFrom:
+            secretKeyRef:
+              name: cdi-upload-client-key
+              key: tls.cert
+        - name: TLS_SERVER_CERT
+          valueFrom:
+            secretKeyRef:
+              name: cdi-upload-client-key
+              key: ca.cert

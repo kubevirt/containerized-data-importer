@@ -1,7 +1,6 @@
 package uploadproxy
 
 import (
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
@@ -10,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
+	"regexp"
 
 	"github.com/golang/glog"
 
@@ -37,7 +37,8 @@ const (
 	uploadPath = "/v1alpha1/upload"
 )
 
-type UploadProxyServer interface {
+// Server is the public interface to the upload proxy
+type Server interface {
 	Start() error
 }
 
@@ -52,16 +53,26 @@ type uploadProxyApp struct {
 	certBytes []byte
 	keyBytes  []byte
 
-	// Used to decrypt token.
-	uploadProxyPrivateKey *rsa.PrivateKey
-
 	// Used to verify token came from our apiserver.
 	apiServerPublicKey *rsa.PublicKey
 
 	uploadServerClient *http.Client
 }
 
-func NewUploadProxy(bindAddress string, bindPort uint, client kubernetes.Interface) (UploadProxyServer, error) {
+var authHeaderMatcher *regexp.Regexp
+
+func init() {
+	authHeaderMatcher = regexp.MustCompile(`(?i)^Bearer\s+([A-Za-z0-9\-\._~\+\/]+)$`)
+}
+
+// NewUploadProxy returns an initialized uploadProxyApp
+func NewUploadProxy(bindAddress string,
+	bindPort uint,
+	apiServerPublicKey string,
+	tlsClientKey string,
+	tlsClientCert string,
+	tlsServerCert string,
+	client kubernetes.Interface) (Server, error) {
 	var err error
 	app := &uploadProxyApp{
 		bindAddress: bindAddress,
@@ -73,14 +84,8 @@ func NewUploadProxy(bindAddress string, bindPort uint, client kubernetes.Interfa
 		return nil, errors.Errorf("Unable to create certs temporary directory: %v\n", errors.WithStack(err))
 	}
 
-	// generate/retrieve RSA key used to decrypt tokens
-	err = app.generateKeys()
-	if err != nil {
-		return nil, errors.Errorf("Unable to generate and retrieve rsa keys: %v", errors.WithStack(err))
-	}
-
 	// retrieve RSA key used by apiserver to sign tokens
-	err = app.getSigningKey()
+	err = app.getSigningKey(apiServerPublicKey)
 	if err != nil {
 		return nil, errors.Errorf("Unable to retrieve apiserver signing key: %v", errors.WithStack(err))
 	}
@@ -93,7 +98,7 @@ func NewUploadProxy(bindAddress string, bindPort uint, client kubernetes.Interfa
 	}
 
 	// get upload server http client
-	err = app.getUploadServerClient()
+	err = app.getUploadServerClient(tlsClientKey, tlsClientCert, tlsServerCert)
 	if err != nil {
 		return nil, errors.Errorf("Unable to create upload server client: %v\n", errors.WithStack(err))
 	}
@@ -101,19 +106,14 @@ func NewUploadProxy(bindAddress string, bindPort uint, client kubernetes.Interfa
 	return app, nil
 }
 
-func (app *uploadProxyApp) getUploadServerClient() error {
-	clientCert, err := tls.LoadX509KeyPair("/etc/tls/uploadproxy/tls.cert", "/etc/tls/uploadproxy/tls.key")
-	if err != nil {
-		return err
-	}
-
-	caCertBytes, err := ioutil.ReadFile("/etc/tls/uploadproxy/ca.cert")
+func (app *uploadProxyApp) getUploadServerClient(tlsClientKey, tlsClientCert, tlsServerCert string) error {
+	clientCert, err := tls.X509KeyPair([]byte(tlsClientCert), []byte(tlsClientKey))
 	if err != nil {
 		return err
 	}
 
 	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCertBytes)
+	caCertPool.AppendCertsFromPEM([]byte(tlsServerCert))
 
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{clientCert},
@@ -130,14 +130,19 @@ func (app *uploadProxyApp) getUploadServerClient() error {
 }
 
 func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Request) {
-
-	encryptedTokenData := r.Header.Get("UPLOAD_TOKEN")
-	if encryptedTokenData == "" {
+	tokenHeader := r.Header.Get("Authorization")
+	if tokenHeader == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	tokenData, err := apiserver.DecryptToken(encryptedTokenData, app.uploadProxyPrivateKey, app.apiServerPublicKey)
+	match := authHeaderMatcher.FindStringSubmatch(tokenHeader)
+	if len(match) != 2 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	tokenData, err := apiserver.VerifyToken(match[1], app.apiServerPublicKey)
 
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -173,42 +178,10 @@ func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.Resp
 	}
 }
 
-func (app *uploadProxyApp) generateKeys() error {
-
-	proxyKeyPair, exists, err := apiserver.GetUploadProxyPrivateKey(app.client)
+func (app *uploadProxyApp) getSigningKey(publicKeyPEM string) error {
+	publicKey, err := apiserver.DecodePublicKey(publicKeyPEM)
 	if err != nil {
 		return err
-	}
-
-	if !exists {
-		proxyKeyPair, err = rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			return err
-		}
-
-		err = apiserver.RecordUploadProxyPrivateKey(app.client, proxyKeyPair)
-		if err != nil {
-			return err
-		}
-
-	}
-
-	err = apiserver.RecordUploadProxyPublicKey(app.client, &proxyKeyPair.PublicKey)
-	if err != nil {
-		return err
-	}
-
-	app.uploadProxyPrivateKey = proxyKeyPair
-	return nil
-}
-
-func (app *uploadProxyApp) getSigningKey() error {
-
-	publicKey, exists, err := apiserver.GetApiPublicKey(app.client)
-	if err != nil {
-		return err
-	} else if !exists {
-		return errors.Errorf("apiserver signing key is not found")
 	}
 
 	app.apiServerPublicKey = publicKey

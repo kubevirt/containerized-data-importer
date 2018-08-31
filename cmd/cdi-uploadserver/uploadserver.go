@@ -37,10 +37,6 @@ const (
 	defaultDestination = common.IMPORTER_WRITE_PATH
 )
 
-type tlsInfo struct {
-	keyFile, certFile, caCertFile string
-}
-
 func init() {
 	flag.Parse()
 }
@@ -52,16 +48,14 @@ func main() {
 
 	pvcDir, destination := getPVCDirAndDestination()
 
-	tls := newTLSInfo()
-
 	server := uploadserver.NewUploadServer(
 		listenAddress,
 		listenPort,
 		pvcDir,
 		destination,
-		tls.keyFile,
-		tls.certFile,
-		tls.caCertFile,
+		os.Getenv("TLS_KEY_FILE"),
+		os.Getenv("TLS_CERT_FILE"),
+		os.Getenv("TLS_CA_FILE"),
 	)
 
 	glog.Infof("PVC dir: %s, destination: %s", pvcDir, destination)
@@ -108,12 +102,4 @@ func getPVCDirAndDestination() (string, string) {
 	}
 
 	return pvcDir, destination
-}
-
-func newTLSInfo() *tlsInfo {
-	return &tlsInfo{
-		keyFile:    os.Getenv("TLS_KEY_FILE"),
-		certFile:   os.Getenv("TLS_CERT_FILE"),
-		caCertFile: os.Getenv("TLS_CA_FILE"),
-	}
 }

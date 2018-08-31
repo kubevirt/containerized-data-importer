@@ -43,11 +43,11 @@ const (
 	signingCertBytesValue = "signing-cert-bytes"
 )
 
-type UploadApiServer interface {
+// UploadAPIServer is the public interface to the upload API
+type UploadAPIServer interface {
 	Start() error
 }
-
-type uploadApiApp struct {
+type uploadAPIApp struct {
 	bindAddress string
 	bindPort    uint
 
@@ -63,13 +63,13 @@ type uploadApiApp struct {
 	clientCABytes              []byte
 	requestHeaderClientCABytes []byte
 
-	privateSigningKey   *rsa.PrivateKey
-	publicEncryptionKey *rsa.PublicKey
+	privateSigningKey *rsa.PrivateKey
 }
 
-func NewUploadApiServer(bindAddress string, bindPort uint, client kubernetes.Interface, aggregatorClient aggregatorclient.Interface, authorizor CdiApiAuthorizor) (UploadApiServer, error) {
+// NewUploadAPIServer returns an initialized upload api server
+func NewUploadAPIServer(bindAddress string, bindPort uint, client kubernetes.Interface, aggregatorClient aggregatorclient.Interface, authorizor CdiApiAuthorizor) (UploadAPIServer, error) {
 	var err error
-	app := &uploadApiApp{
+	app := &uploadAPIApp{
 		bindAddress:      bindAddress,
 		bindPort:         bindPort,
 		client:           client,
@@ -91,12 +91,12 @@ func NewUploadApiServer(bindAddress string, bindPort uint, client kubernetes.Int
 		return nil, errors.Errorf("Unable to get self signed cert: %v\n", errors.WithStack(err))
 	}
 
-	err = app.createApiService()
+	err = app.createAPIService()
 	if err != nil {
 		return nil, errors.Errorf("Unable to register aggregated api service: %v\n", errors.WithStack(err))
 	}
 
-	app.composeUploadTokenApi()
+	app.composeUploadTokenAPI()
 
 	restful.Filter(func(req *restful.Request, resp *restful.Response, chain *restful.FilterChain) {
 		var username = "-"
@@ -121,7 +121,7 @@ func NewUploadApiServer(bindAddress string, bindPort uint, client kubernetes.Int
 	return app, nil
 }
 
-func (app *uploadApiApp) Start() error {
+func (app *uploadAPIApp) Start() error {
 	return app.startTLS()
 }
 
@@ -136,7 +136,7 @@ func deserializeStrings(in string) ([]string, error) {
 	return ret, nil
 }
 
-func (app *uploadApiApp) getClientCert() error {
+func (app *uploadAPIApp) getClientCert() error {
 	authConfigMap, err := app.client.CoreV1().ConfigMaps(metav1.NamespaceSystem).Get("extension-apiserver-authentication", metav1.GetOptions{})
 	if err != nil {
 		return err
@@ -187,7 +187,7 @@ func (app *uploadApiApp) getClientCert() error {
 	return nil
 }
 
-func (app *uploadApiApp) getSelfSignedCert() error {
+func (app *uploadAPIApp) getSelfSignedCert() error {
 	var ok bool
 
 	namespace := GetNamespace()
@@ -254,6 +254,8 @@ func (app *uploadApiApp) getSelfSignedCert() error {
 		}
 	}
 
+	// TODO - not crazy about the fact that we are sharing private key here
+	// replace with dedicated signing key
 	obj, err := cert.ParsePrivateKeyPEM(app.keyBytes)
 	privateKey, ok := obj.(*rsa.PrivateKey)
 	if err != nil {
@@ -263,26 +265,17 @@ func (app *uploadApiApp) getSelfSignedCert() error {
 		return errors.Errorf("unable to parse private key")
 	}
 
-	err = RecordApiPublicKey(app.client, &privateKey.PublicKey)
+	err = RecordAPIPublicKey(app.client, &privateKey.PublicKey)
 	if err != nil {
 		return err
 	}
 
 	app.privateSigningKey = privateKey
 
-	publicKey, exists, err := GetUploadProxyPublicKey(app.client)
-	if err != nil {
-		return err
-	} else if !exists {
-		return errors.Errorf("upload proxy has not generated encryption key yet")
-	}
-
-	app.publicEncryptionKey = publicKey
-
 	return nil
 }
 
-func (app *uploadApiApp) startTLS() error {
+func (app *uploadAPIApp) startTLS() error {
 
 	errors := make(chan error)
 
@@ -349,7 +342,7 @@ func (app *uploadApiApp) startTLS() error {
 	return <-errors
 }
 
-func (app *uploadApiApp) uploadHandler(request *restful.Request, response *restful.Response) {
+func (app *uploadAPIApp) uploadHandler(request *restful.Request, response *restful.Response) {
 
 	allowed, reason, err := app.authorizor.Authorize(request)
 	if err != nil {
@@ -377,9 +370,9 @@ func (app *uploadApiApp) uploadHandler(request *restful.Request, response *restf
 		response.WriteError(http.StatusBadRequest, err)
 	}
 
-	encryptedTokenData, err := GenerateEncryptedToken(uploadToken.Spec.PvcName, namespace, app.publicEncryptionKey, app.privateSigningKey)
+	tokenData, err := GenerateToken(uploadToken.Spec.PvcName, namespace, app.privateSigningKey)
 
-	uploadToken.Status.Token = encryptedTokenData
+	uploadToken.Status.Token = tokenData
 	response.WriteAsJson(uploadToken)
 
 }
@@ -404,7 +397,7 @@ func uploadTokenAPIGroup() metav1.APIGroup {
 	return apiGroup
 }
 
-func (app *uploadApiApp) composeUploadTokenApi() {
+func (app *uploadAPIApp) composeUploadTokenAPI() {
 	objPointer := &cdiv1.UploadToken{}
 	objExample := reflect.ValueOf(objPointer).Elem().Interface()
 	objKind := "uploadtoken"
@@ -491,22 +484,22 @@ func (app *uploadApiApp) composeUploadTokenApi() {
 	restful.Add(ws)
 }
 
-func (app *uploadApiApp) createApiService() error {
+func (app *uploadAPIApp) createAPIService() error {
 	namespace := GetNamespace()
 	apiName := uploadTokenVersion + "." + uploadTokenGroup
 
-	registerApiService := false
+	registerAPIService := false
 
 	apiService, err := app.aggregatorClient.ApiregistrationV1beta1().APIServices().Get(apiName, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			registerApiService = true
+			registerAPIService = true
 		} else {
 			return err
 		}
 	}
 
-	newApiService := &apiregistrationv1beta1.APIService{
+	newAPIService := &apiregistrationv1beta1.APIService{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      apiName,
 			Namespace: namespace,
@@ -527,18 +520,18 @@ func (app *uploadApiApp) createApiService() error {
 		},
 	}
 
-	if registerApiService {
-		_, err = app.aggregatorClient.ApiregistrationV1beta1().APIServices().Create(newApiService)
+	if registerAPIService {
+		_, err = app.aggregatorClient.ApiregistrationV1beta1().APIServices().Create(newAPIService)
 		if err != nil {
 			return err
 		}
 	} else {
 		if apiService.Spec.Service != nil && apiService.Spec.Service.Namespace != namespace {
-			return fmt.Errorf("apiservice [%s] is already registered in a different namespace. Existing apiservice registration must be deleted before virt-api can proceed.", apiName)
+			return fmt.Errorf("apiservice [%s] is already registered in a different namespace. Existing apiservice registration must be deleted before virt-api can proceed", apiName)
 		}
 
 		// Always update spec to latest.
-		apiService.Spec = newApiService.Spec
+		apiService.Spec = newAPIService.Spec
 		_, err := app.aggregatorClient.ApiregistrationV1beta1().APIServices().Update(apiService)
 		if err != nil {
 			return err
