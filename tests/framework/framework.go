@@ -121,13 +121,13 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 	// handle run-time flags
 	if !flag.Parsed() {
 		flag.Parse()
+		fmt.Fprintf(GinkgoWriter, "** Test flags:\n")
+		flag.Visit(func(f *flag.Flag) {
+			fmt.Fprintf(GinkgoWriter, "   %s = %q\n", f.Name, f.Value.String())
+		})
+		fmt.Fprintf(GinkgoWriter, "**\n")
 	}
-	// report flags values passed to test binary
-	fmt.Fprintf(GinkgoWriter, "** Test flags:\n")
-	flag.Visit(func(f *flag.Flag) {
-		fmt.Fprintf(GinkgoWriter, "   %s = %q\n", f.Name, f.Value.String())
-	})
-	fmt.Fprintf(GinkgoWriter, "**\n")
+
 	f.KubectlPath = *kubectlPath
 	f.OcPath = *ocPath
 	f.CdiInstallNs = *cdiInstallNs
