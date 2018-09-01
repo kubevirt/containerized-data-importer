@@ -82,9 +82,9 @@ These may be passed to a target as `$ make VARIABLE=value target`
 
              `make TEST_ARGS="--test-args=-ginkgo.noColor=true" test-functional >& foo`.
 
-  Note: the following extra flags are not supported in TEST_ARGS: master, cdi-namespace, kubeconfig, kubectl-path
-  since these flags are overridden by the _hack/build/run-functional-tests.sh_ script.
-  In fact, to change the default settings for these values the KUBE_MASTER_URL, CDI_NAMESPACE, KUBECONFIG, and KUBECTL variables, respectively, must be set.
+  Note: the following extra flags are not supported in TEST_ARGS: -master, -cdi-namespace, -kubeconfig, -kubectl-path
+since these flags are overridden by the _hack/build/run-functional-tests.sh_ script.
+To change the default settings for these values the KUBE_MASTER_URL, CDI_NAMESPACE, KUBECONFIG, and KUBECTL variables, respectively, must be set.
 - `RELREF`: Required by `release-description`. Must be a commit or tag.  Should be the more recent than `PREREF`
 - `PREREF`: Required by `release-description`. Must also be a commit or tag.  Should be the later than `RELREF`
 
@@ -152,6 +152,12 @@ not supported, then you can use the following example to run Functional Tests.
 ```
  # make test-functional
 ```
+
+6. If you encounter test errors and are following the above steps try:
+```
+ # make clean && make docker
+```
+redeploy the manifests above, and re-run the tests.
 
 ### Submit PRs
 
