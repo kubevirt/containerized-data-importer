@@ -16,21 +16,26 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	. "kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	expectations "kubevirt.io/containerized-data-importer/pkg/expectations"
 )
 
 const (
-	// pvc annotations
+	//AnnCloneRequest sets our expected annotation for a CloneRequest
 	AnnCloneRequest = "k8s.io/CloneRequest"
-	AnnCloneOf      = "k8s.io/CloneOf"
-	// cloner pods annotations
-	AnnCloningCreatedBy   = "cdi.kubevirt.io/storage.cloningCreatedByController"
-	AnnClonePodPhase      = "cdi.kubevirt.io/storage.clone.pod.phase"
-	CloneUniqueID         = "cdi.kubevirt.io/storage.clone.cloneUniqeId"
+	// AnnCloneOf sets our expected annotation to inidcate where a clone originated from
+	AnnCloneOf = "k8s.io/CloneOf"
+	// AnnCloningCreatedBy provides an annotation to indicate the object was created by the CDI controller
+	AnnCloningCreatedBy = "cdi.kubevirt.io/storage.cloningCreatedByController"
+	// AnnClonePodPhase provides an annotation to indicate the pod phase of the our CDI related pod
+	AnnClonePodPhase = "cdi.kubevirt.io/storage.clone.pod.phase"
+	// CloneUniqueID provides an annotation to uniquely identify the Clone object
+	CloneUniqueID = "cdi.kubevirt.io/storage.clone.cloneUniqeId"
+	// AnnTargetPodNamespace provides an annotation to indicate the namespace of the Target Pod in the CDI process
 	AnnTargetPodNamespace = "cdi.kubevirt.io/storage.clone.targetPod.namespace"
 )
 
+// CloneController represents the CDI Clone Controller
 type CloneController struct {
 	clientset                kubernetes.Interface
 	queue                    workqueue.RateLimitingInterface
@@ -45,6 +50,8 @@ type CloneController struct {
 	podExpectations          *expectations.UIDTrackingControllerExpectations
 }
 
+// NewCloneController sets up a Clone Controller, and returns a pointer to
+// to the newly created Controller
 func NewCloneController(client kubernetes.Interface,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	podInformer coreinformers.PodInformer,
@@ -166,6 +173,8 @@ func (c *CloneController) enqueuePVC(obj interface{}) {
 	c.queue.AddRateLimited(key)
 }
 
+// Run kicks off an initialized CloneController, creating a service that listens for,
+// and processes CDI Clone Requests
 func (c *CloneController) Run(threadiness int, stopCh <-chan struct{}) error {
 	defer func() {
 		c.queue.ShutDown()
@@ -211,7 +220,7 @@ func (c *CloneController) syncPvc(key string) error {
 	return c.processPvcItem(pvc)
 }
 
-// Select only pvcs with the 'CloneRequest' annotation and that are not being processed.
+// ProcessNextPvcItem selects pvcs with the 'CloneRequest' annotation and that are not being processed.
 // We forget the key unless `processPvcItem` returns an error in which case the key can be
 // retried.
 func (c *CloneController) ProcessNextPvcItem() bool {
@@ -341,8 +350,8 @@ func (c *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 		anno[AnnCloneOf] = "true"
 	}
 	var lab map[string]string
-	if !checkIfLabelExists(pvc, CDI_LABEL_KEY, CDI_LABEL_VALUE) {
-		lab = map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}
+	if !checkIfLabelExists(pvc, common.CDI_LABEL_KEY, common.CDI_LABEL_VALUE) {
+		lab = map[string]string{common.CDI_LABEL_KEY: common.CDI_LABEL_VALUE}
 	}
 	pvc, err = updatePVC(c.clientset, pvc, anno, lab)
 	if err != nil {
