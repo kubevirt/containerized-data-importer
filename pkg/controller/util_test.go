@@ -2,6 +2,9 @@ package controller
 
 import (
 	"fmt"
+	"reflect"
+	"testing"
+
 	"k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -14,8 +17,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 	expectations "kubevirt.io/containerized-data-importer/pkg/expectations"
-	"reflect"
-	"testing"
 )
 
 func TestController_pvcFromKey(t *testing.T) {
@@ -70,9 +71,9 @@ func TestCloneController_pvcFromKey(t *testing.T) {
 
 	//create staging pvc and pods
 	pvcWithCloneRequestAnno := createPvc("target-pvc", "target-ns", map[string]string{AnnCloneRequest: "source-ns/golden-pvc"}, nil)
-	pvcUid := string(pvcWithCloneRequestAnno.GetUID())
-	sourcePod := createSourcePod(pvcWithCloneRequestAnno, DataVolName, pvcUid)
-	targetPod := createTargetPod(pvcWithCloneRequestAnno, DataVolName, pvcUid, sourcePod.Namespace)
+	id := string(pvcWithCloneRequestAnno.GetUID())
+	sourcePod := createSourcePod(pvcWithCloneRequestAnno, DataVolName, id)
+	targetPod := createTargetPod(pvcWithCloneRequestAnno, DataVolName, id, sourcePod.Namespace)
 
 	//run the informers
 	c, pvc, sourcePod, targetPod, err := createCloneController(pvcWithCloneRequestAnno, sourcePod, targetPod, "target-ns", "sourceNs")
@@ -175,9 +176,9 @@ func TestController_objFromKey(t *testing.T) {
 func TestCloneController_objFromKey(t *testing.T) {
 	//create staging pvc and pods
 	pvcWithCloneRequestAnno := createPvc("testPvcWithCloneRequestAnno", "target-ns", map[string]string{AnnCloneRequest: "source-ns/golden-pvc"}, nil)
-	pvcUid := string(pvcWithCloneRequestAnno.GetUID())
-	sourcePod := createSourcePod(pvcWithCloneRequestAnno, DataVolName, pvcUid)
-	targetPod := createTargetPod(pvcWithCloneRequestAnno, DataVolName, pvcUid, sourcePod.Namespace)
+	id := string(pvcWithCloneRequestAnno.GetUID())
+	sourcePod := createSourcePod(pvcWithCloneRequestAnno, DataVolName, id)
+	targetPod := createTargetPod(pvcWithCloneRequestAnno, DataVolName, id, sourcePod.Namespace)
 
 	//run the informers
 	c, pvc, sourcePod, targetPod, err := createCloneController(pvcWithCloneRequestAnno, sourcePod, targetPod, "target-ns", "source-ns")
@@ -1048,7 +1049,7 @@ func createImportControllerMultiObject(pvcSpecs []*v1.PersistentVolumeClaim, pod
 	return c, pvcs, pods, nil
 }
 
-func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, pvcUid string) *v1.Pod {
+func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, id string) *v1.Pod {
 	_, sourcePvcName := ParseSourcePvcAnnotation(pvc.GetAnnotations()[AnnCloneRequest], "/")
 	// source pod name contains the pvc name
 	podName := fmt.Sprintf("%s-", CLONER_SOURCE_PODNAME)
@@ -1066,8 +1067,8 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, pvcUid string
 				AnnTargetPodNamespace: pvc.Namespace,
 			},
 			Labels: map[string]string{
-				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                    //filtered by the podInformer
-				CLONING_LABEL_KEY: CLONING_LABEL_VALUE + "-" + pvcUid, //used by podAffity
+				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                //filtered by the podInformer
+				CLONING_LABEL_KEY: CLONING_LABEL_VALUE + "-" + id, //used by podAffity
 				// this label is used when searching for a pvc's cloner source pod.
 				CloneUniqueID: pvc.Name + "-source-pod",
 			},
@@ -1099,10 +1100,10 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, pvcUid string
 						},
 						{
 							Name:      socketPathName,
-							MountPath: CLONER_SOCKET_PATH + "/" + pvcUid,
+							MountPath: CLONER_SOCKET_PATH + "/" + id,
 						},
 					},
-					Args: []string{"source", pvcUid},
+					Args: []string{"source", id},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyNever,
@@ -1120,7 +1121,7 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, pvcUid string
 					Name: socketPathName,
 					VolumeSource: v1.VolumeSource{
 						HostPath: &v1.HostPathVolumeSource{
-							Path: CLONER_SOCKET_PATH + "/" + pvcUid,
+							Path: CLONER_SOCKET_PATH + "/" + id,
 						},
 					},
 				},
@@ -1130,7 +1131,7 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, pvcUid string
 	return pod
 }
 
-func createTargetPod(pvc *v1.PersistentVolumeClaim, dvname, pvcUid, podAffinityNamespace string) *v1.Pod {
+func createTargetPod(pvc *v1.PersistentVolumeClaim, dvname, id, podAffinityNamespace string) *v1.Pod {
 	// target pod name contains the pvc name
 	podName := fmt.Sprintf("%s-", CLONER_TARGET_PODNAME)
 	blockOwnerDeletion := true
@@ -1172,7 +1173,7 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, dvname, pvcUid, podAffinityN
 									{
 										Key:      CLONING_LABEL_KEY,
 										Operator: metav1.LabelSelectorOpIn,
-										Values:   []string{CLONING_LABEL_VALUE + "-" + pvcUid},
+										Values:   []string{CLONING_LABEL_VALUE + "-" + id},
 									},
 								},
 							},
@@ -1198,10 +1199,10 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, dvname, pvcUid, podAffinityN
 						},
 						{
 							Name:      socketPathName,
-							MountPath: CLONER_SOCKET_PATH + "/" + pvcUid,
+							MountPath: CLONER_SOCKET_PATH + "/" + id,
 						},
 					},
-					Args: []string{"target", pvcUid},
+					Args: []string{"target", id},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyNever,
@@ -1219,7 +1220,7 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, dvname, pvcUid, podAffinityN
 					Name: socketPathName,
 					VolumeSource: v1.VolumeSource{
 						HostPath: &v1.HostPathVolumeSource{
-							Path: CLONER_SOCKET_PATH + "/" + pvcUid,
+							Path: CLONER_SOCKET_PATH + "/" + id,
 						},
 					},
 				},

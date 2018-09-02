@@ -16,21 +16,26 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	. "kubevirt.io/containerized-data-importer/pkg/common"
+	cdi "kubevirt.io/containerized-data-importer/pkg/common"
 	expectations "kubevirt.io/containerized-data-importer/pkg/expectations"
 )
 
 const (
-	// pvc annotations
+	//AnnCloneRequest sets our expected annotation for a CloneRequest
 	AnnCloneRequest = "k8s.io/CloneRequest"
-	AnnCloneOf      = "k8s.io/CloneOf"
-	// cloner pods annotations
-	AnnCloningCreatedBy   = "cdi.kubevirt.io/storage.cloningCreatedByController"
-	AnnClonePodPhase      = "cdi.kubevirt.io/storage.clone.pod.phase"
-	CloneUniqueID         = "cdi.kubevirt.io/storage.clone.cloneUniqeId"
+	// AnnCloneOf sets our expected annotation to inidcate where a clone originated from
+	AnnCloneOf = "k8s.io/CloneOf"
+	// AnnCloningCreatedBy provides an annotation to indicate a PVC was created by our clone controller
+	AnnCloningCreatedBy = "cdi.kubevirt.io/storage.cloningCreatedByController"
+	// AnnClonePodPhase provides an annotation to indicate the pod phase of the our clone pod
+	AnnClonePodPhase = "cdi.kubevirt.io/storage.clone.pod.phase"
+	// CloneUniqueID provides an annotation to uniquely identify the Clone object
+	CloneUniqueID = "cdi.kubevirt.io/storage.clone.cloneUniqeId"
+	// AnnTargetPodNamespace provides an annotation to indicate the namespace of the Target Pod in the Clone process
 	AnnTargetPodNamespace = "cdi.kubevirt.io/storage.clone.targetPod.namespace"
 )
 
+// CloneController represents the CDI Clone Controller
 type CloneController struct {
 	clientset                kubernetes.Interface
 	queue                    workqueue.RateLimitingInterface
@@ -45,6 +50,8 @@ type CloneController struct {
 	podExpectations          *expectations.UIDTrackingControllerExpectations
 }
 
+// NewCloneController sets up a Clone Controller, and returns a pointer to
+// to the newly created Controller
 func NewCloneController(client kubernetes.Interface,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	podInformer coreinformers.PodInformer,
@@ -124,9 +131,9 @@ func (c *CloneController) handlePodObject(obj interface{}, verb string) {
 			runtime.HandleError(errors.Errorf("error decoding object tombstone, invalid type"))
 			return
 		}
-		glog.V(Vdebug).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
+		glog.V(cdi.Vdebug).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
 	}
-	glog.V(Vdebug).Infof("Processing object: %s", object.GetName())
+	glog.V(cdi.Vdebug).Infof("Processing object: %s", object.GetName())
 	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
 		_, createdByUs := object.GetAnnotations()[AnnCloningCreatedBy]
 
@@ -138,7 +145,7 @@ func (c *CloneController) handlePodObject(obj interface{}, verb string) {
 
 		pvc, err := c.pvcLister.PersistentVolumeClaims(object.GetAnnotations()[AnnTargetPodNamespace]).Get(ownerRef.Name)
 		if err != nil {
-			glog.V(Vdebug).Infof("ignoring orphaned object '%s' of pvc '%s'", object.GetSelfLink(), ownerRef.Name)
+			glog.V(cdi.Vdebug).Infof("ignoring orphaned object '%s' of pvc '%s'", object.GetSelfLink(), ownerRef.Name)
 			return
 		}
 
@@ -166,11 +173,13 @@ func (c *CloneController) enqueuePVC(obj interface{}) {
 	c.queue.AddRateLimited(key)
 }
 
+// Run kicks off an initialized CloneController, creating a service that listens for,
+// and processes CDI Clone Requests
 func (c *CloneController) Run(threadiness int, stopCh <-chan struct{}) error {
 	defer func() {
 		c.queue.ShutDown()
 	}()
-	glog.V(Vadmin).Infoln("Starting clone controller Run loop")
+	glog.V(cdi.Vadmin).Infoln("Starting clone controller Run loop")
 	if threadiness < 1 {
 		return errors.Errorf("expected >0 threads, got %d", threadiness)
 	}
@@ -181,7 +190,7 @@ func (c *CloneController) Run(threadiness int, stopCh <-chan struct{}) error {
 	if !cache.WaitForCacheSync(stopCh, c.podInformer.HasSynced) {
 		return errors.New("Timeout waiting for pod cache sync")
 	}
-	glog.V(Vdebug).Infoln("CloneController cache has synced")
+	glog.V(cdi.Vdebug).Infoln("CloneController cache has synced")
 
 	for i := 0; i < threadiness; i++ {
 		go wait.Until(c.runPVCWorkers, time.Second, stopCh)
@@ -207,11 +216,11 @@ func (c *CloneController) syncPvc(key string) error {
 	if !checkClonePVC(pvc) {
 		return nil
 	}
-	glog.V(Vdebug).Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)
+	glog.V(cdi.Vdebug).Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)
 	return c.processPvcItem(pvc)
 }
 
-// Select only pvcs with the 'CloneRequest' annotation and that are not being processed.
+// ProcessNextPvcItem selects pvcs with the 'CloneRequest' annotation and that are not being processed.
 // We forget the key unless `processPvcItem` returns an error in which case the key can be
 // retried.
 func (c *CloneController) ProcessNextPvcItem() bool {
@@ -341,8 +350,8 @@ func (c *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 		anno[AnnCloneOf] = "true"
 	}
 	var lab map[string]string
-	if !checkIfLabelExists(pvc, CDI_LABEL_KEY, CDI_LABEL_VALUE) {
-		lab = map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}
+	if !checkIfLabelExists(pvc, cdi.CDI_LABEL_KEY, cdi.CDI_LABEL_VALUE) {
+		lab = map[string]string{cdi.CDI_LABEL_KEY: cdi.CDI_LABEL_VALUE}
 	}
 	pvc, err = updatePVC(c.clientset, pvc, anno, lab)
 	if err != nil {
@@ -354,7 +363,7 @@ func (c *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 // forget the passed-in key for this event and optionally log a message.
 func (c *CloneController) forgetKey(key interface{}, msg string) bool {
 	if len(msg) > 0 {
-		glog.V(Vdebug).Info(msg)
+		glog.V(cdi.Vdebug).Info(msg)
 	}
 	c.queue.Forget(key)
 	return true

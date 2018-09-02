@@ -1,5 +1,7 @@
 package size
 
+// should this pkg just be dropped and made an exported function of the datastream pkg?
+
 import (
 	"github.com/pkg/errors"
 
