@@ -27,4 +27,20 @@ if [[ ${out} ]]; then
     echo "${out}"
     ec=1
 fi
+# Once we get everything fixed up we'll just have a single lint check
+# in the meantime add pkgs as they're ready
+# controller
+out="$(golint pkg/controller/...)"
+if [[ ${out} ]]; then
+    echo "FAIL: following golint errors found:"
+    echo "${out}"
+    ec=1
+fi
+# controller
+out="$(golint pkg/importer/...)"
+if [[ ${out} ]]; then
+    echo "FAIL: following golint errors found:"
+    echo "${out}"
+    ec=1
+fi
 exit ${ec}
