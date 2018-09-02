@@ -273,7 +273,7 @@ func makeEnv(endpoint, secret string) []v1.EnvVar {
 					LocalObjectReference: v1.LocalObjectReference{
 						Name: secret,
 					},
-					Key: KeyAccess,
+					Key: KEY_ACCESS,
 				},
 			},
 		}, v1.EnvVar{
@@ -283,7 +283,7 @@ func makeEnv(endpoint, secret string) []v1.EnvVar {
 					LocalObjectReference: v1.LocalObjectReference{
 						Name: secret,
 					},
-					Key: KeySecret,
+					Key: KEY_SECRET,
 				},
 			},
 		})
