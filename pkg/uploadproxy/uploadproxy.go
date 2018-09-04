@@ -21,7 +21,6 @@ import (
 
 	apiserver "kubevirt.io/containerized-data-importer/pkg/apiserver"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
-	controller "kubevirt.io/containerized-data-importer/pkg/controller"
 	uploadserver "kubevirt.io/containerized-data-importer/pkg/uploadserver"
 )
 
@@ -155,7 +154,7 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 }
 
 func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.ResponseWriter, r *http.Request) {
-	url := fmt.Sprintf("https://%s.%s.svc%s", controller.GetUploadResourceName(pvc), namespace, uploadserver.GetUploadPath(pvc))
+	url := uploadserver.GetUploadServerURL(namespace, pvc)
 
 	req, err := http.NewRequest("POST", url, r.Body)
 	req.ContentLength = r.ContentLength

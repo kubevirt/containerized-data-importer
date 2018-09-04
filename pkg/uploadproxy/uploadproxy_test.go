@@ -3,12 +3,9 @@ package uploadproxy
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"io/ioutil"
-	"os"
 	"testing"
 
 	"k8s.io/client-go/util/cert"
-	"k8s.io/client-go/util/cert/triple"
 )
 
 func generateTestKeys() (string, error) {
@@ -19,37 +16,6 @@ func generateTestKeys() (string, error) {
 	}
 
 	publicKeyPem, err := cert.EncodePublicKeyPEM(&apiKeyPair.PublicKey)
-	if err != nil {
-		return "", err
-	}
-
-	caKeyPair, err := triple.NewCA("uploadproxytest")
-	if err != nil {
-		return "", err
-	}
-
-	err = os.MkdirAll("/etc/tls/uploadproxy", 0664)
-	if err != nil {
-		return "", err
-	}
-
-	// in reality this is the CA for the upload servers not the clients but whatever shouldn't matter here
-	err = ioutil.WriteFile("/etc/tls/uploadproxy/ca.cert", cert.EncodeCertPEM(caKeyPair.Cert), 0600)
-	if err != nil {
-		return "", err
-	}
-
-	clientKeyPair, err := triple.NewClientKeyPair(caKeyPair, "uploadproxy", []string{})
-	if err != nil {
-		return "", err
-	}
-
-	err = ioutil.WriteFile("/etc/tls/uploadproxy/tls.cert", cert.EncodeCertPEM(clientKeyPair.Cert), 0600)
-	if err != nil {
-		return "", err
-	}
-
-	err = ioutil.WriteFile("/etc/tls/uploadproxy/tls.key", cert.EncodePrivateKeyPEM(clientKeyPair.Key), 0600)
 	if err != nil {
 		return "", err
 	}

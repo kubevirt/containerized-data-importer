@@ -29,6 +29,7 @@ import (
 	"sync"
 
 	"github.com/golang/glog"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 )
 
@@ -41,9 +42,9 @@ type UploadServer interface {
 	Run() error
 }
 
-// GetUploadPath returns the path the proxy should post to for a particular pvc
-func GetUploadPath(pvc string) string {
-	return uploadPath
+// GetUploadServerURL returns the url the proxy should post to for a particular pvc
+func GetUploadServerURL(namespace, pvc string) string {
+	return fmt.Sprintf("https://%s.%s.svc%s", controller.GetUploadResourceName(pvc), namespace, uploadPath)
 }
 
 type uploadServerApp struct {
