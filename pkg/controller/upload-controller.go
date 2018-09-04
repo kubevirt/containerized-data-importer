@@ -86,6 +86,20 @@ func GetUploadResourceName(pvcName string) string {
 	return "cdi-upload-" + pvcName
 }
 
+// UploadPossibleForPVC is called by the api server to see whether to return an upload token
+func UploadPossibleForPVC(pvc *v1.PersistentVolumeClaim) error {
+	if _, ok := pvc.Annotations[AnnUploadRequest]; !ok {
+		return errors.Errorf("PVC %s is not an upload target", pvc.Name)
+	}
+
+	pvcPodStatus, ok := pvc.Annotations[AnnUploadPodPhase]
+	if !ok || v1.PodPhase(pvcPodStatus) != v1.PodRunning {
+		return errors.Errorf("Upload Server pod not currently running for PVC %s", pvc.Name)
+	}
+
+	return nil
+}
+
 // NewUploadController returns a new UploadController
 func NewUploadController(client kubernetes.Interface,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
@@ -346,13 +360,13 @@ func (c *UploadController) syncHandler(key string) error {
 		return nil
 	}
 
-	podPhaseFromPVC := func(pvc *v1.PersistentVolumeClaim) string {
+	podPhaseFromPVC := func(pvc *v1.PersistentVolumeClaim) v1.PodPhase {
 		phase, _ := pvc.ObjectMeta.Annotations[AnnUploadPodPhase]
-		return phase
+		return v1.PodPhase(phase)
 	}
 
 	podSucceededFromPVC := func(pvc *v1.PersistentVolumeClaim) bool {
-		return (podPhaseFromPVC(pvc) == string(v1.PodSucceeded))
+		return (podPhaseFromPVC(pvc) == v1.PodSucceeded)
 	}
 
 	if !podSucceededFromPVC(pvc) {
@@ -361,10 +375,10 @@ func (c *UploadController) syncHandler(key string) error {
 			return errors.Wrapf(err, "Error creating upload pod for pvc: %s", key)
 		}
 
-		podPhase := string(pod.Status.Phase)
+		podPhase := pod.Status.Phase
 		if podPhase != podPhaseFromPVC(pvc) {
 			var labels map[string]string
-			annotations := map[string]string{AnnUploadPodPhase: podPhase}
+			annotations := map[string]string{AnnUploadPodPhase: string(podPhase)}
 			pvc, err = updatePVC(c.clientset, pvc, annotations, labels)
 			if err != nil {
 				return errors.Wrapf(err, "Error updating pvc %s, pod phase %s", key, podPhase)

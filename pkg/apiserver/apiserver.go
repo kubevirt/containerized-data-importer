@@ -27,6 +27,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/cdicontroller/v1alpha1"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 )
 
 const (
@@ -361,6 +362,7 @@ func (app *uploadAPIApp) uploadHandler(request *restful.Request, response *restf
 	if err != nil {
 		glog.Error(err)
 		response.WriteError(http.StatusBadRequest, err)
+		return
 	}
 
 	uploadToken := &cdiv1.UploadToken{}
@@ -368,9 +370,27 @@ func (app *uploadAPIApp) uploadHandler(request *restful.Request, response *restf
 	if err != nil {
 		glog.Error(err)
 		response.WriteError(http.StatusBadRequest, err)
+		return
 	}
 
-	tokenData, err := GenerateToken(uploadToken.Spec.PvcName, namespace, app.privateSigningKey)
+	pvcName := uploadToken.Spec.PvcName
+	pvc, err := app.client.CoreV1().PersistentVolumeClaims(namespace).Get(pvcName, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			glog.Infof("Rejecting request for PVC %s that doesn't exist", pvcName)
+			response.WriteError(http.StatusBadRequest, err)
+			return
+		}
+		glog.Error(err)
+		response.WriteError(http.StatusInternalServerError, err)
+		return
+	}
+
+	if err = controller.UploadPossibleForPVC(pvc); err != nil {
+		response.WriteError(http.StatusServiceUnavailable, err)
+	}
+
+	tokenData, err := GenerateToken(pvcName, namespace, app.privateSigningKey)
 
 	uploadToken.Status.Token = tokenData
 	response.WriteAsJson(uploadToken)
