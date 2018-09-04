@@ -10,7 +10,6 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: cdi
-  namespace: {{ .Namespace }}
   labels:
     cdi.kubevirt.io: ""
 rules:
@@ -48,7 +47,6 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
 metadata:
   name: cdi-sa
-  namespace: {{ .Namespace }}
   labels:
     cdi.kubevirt.io: ""
 roleRef:
@@ -163,7 +161,6 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
 metadata:
   name: cdi-apiserver
-  namespace: {{ .Namespace }}
   labels:
     kubevirt.io: ""
 roleRef:
@@ -179,7 +176,6 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
   name: cdi-apiserver
-  namespace: {{ .Namespace }}
   labels:
     kubevirt.io: ""
 rules:
@@ -204,7 +200,6 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
 metadata:
   name: cdi-apiserver-auth-delegator
-  namespace: {{ .Namespace }}
   labels:
     kubevirt.io: ""
 roleRef:
