@@ -142,9 +142,8 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 	}
 
 	tokenData, err := apiserver.VerifyToken(match[1], app.apiServerPublicKey)
-
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 

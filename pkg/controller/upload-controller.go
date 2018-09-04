@@ -22,7 +22,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -333,7 +333,7 @@ func (c *UploadController) syncHandler(key string) error {
 
 	pvc, err := c.pvcLister.PersistentVolumeClaims(namespace).Get(name)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			runtime.HandleError(errors.Errorf("PVC '%s' in work queue no longer exists", key))
 			return nil
 		}
@@ -404,7 +404,7 @@ func (c *UploadController) syncHandler(key string) error {
 func (c *UploadController) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, name string) (*v1.Pod, error) {
 	pod, err := c.podLister.Pods(pvc.Namespace).Get(name)
 
-	if apierrs.IsNotFound(err) {
+	if k8serrors.IsNotFound(err) {
 		pod, err = CreateUploadPod(c.clientset, c.serverCAKeyPair, c.clientCAKeyPair.Cert, c.uploadServiceImage, c.verbose, c.pullPolicy, name, pvc)
 	}
 
@@ -418,7 +418,7 @@ func (c *UploadController) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, n
 func (c *UploadController) getOrCreateUploadService(pvc *v1.PersistentVolumeClaim, name string) (*v1.Service, error) {
 	service, err := c.serviceLister.Services(pvc.Namespace).Get(name)
 
-	if apierrs.IsNotFound(err) {
+	if k8serrors.IsNotFound(err) {
 		service, err = CreateUploadService(c.clientset, name, pvc)
 	}
 
@@ -430,23 +430,29 @@ func (c *UploadController) getOrCreateUploadService(pvc *v1.PersistentVolumeClai
 }
 
 func (c *UploadController) deletePod(namespace, name string) error {
-	_, err := c.podLister.Pods(namespace).Get(name)
-	if apierrs.IsNotFound(err) {
+	pod, err := c.podLister.Pods(namespace).Get(name)
+	if k8serrors.IsNotFound(err) {
 		return nil
 	}
-	if err == nil {
+	if err == nil && pod.DeletionTimestamp == nil {
 		err = c.clientset.CoreV1().Pods(namespace).Delete(name, &metav1.DeleteOptions{})
+		if k8serrors.IsNotFound(err) {
+			return nil
+		}
 	}
 	return err
 }
 
 func (c *UploadController) deleteService(namespace, name string) error {
-	_, err := c.serviceLister.Services(namespace).Get(name)
-	if apierrs.IsNotFound(err) {
+	service, err := c.serviceLister.Services(namespace).Get(name)
+	if k8serrors.IsNotFound(err) {
 		return nil
 	}
-	if err == nil {
+	if err == nil && service.DeletionTimestamp == nil {
 		err = c.clientset.CoreV1().Services(namespace).Delete(name, &metav1.DeleteOptions{})
+		if k8serrors.IsNotFound(err) {
+			return nil
+		}
 	}
 	return err
 }

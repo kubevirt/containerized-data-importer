@@ -140,8 +140,8 @@ func (app *uploadServerApp) uploadHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	app.mutex.Lock()
 	exit := func() bool {
+		app.mutex.Lock()
 		defer app.mutex.Unlock()
 
 		if app.uploading {

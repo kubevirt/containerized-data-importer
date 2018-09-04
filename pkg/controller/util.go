@@ -12,7 +12,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -71,7 +71,7 @@ func getSecretName(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (
 	}
 	glog.V(3).Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, name)
 	_, err := client.CoreV1().Secrets(ns).Get(name, metav1.GetOptions{})
-	if apierrs.IsNotFound(err) {
+	if k8serrors.IsNotFound(err) {
 		glog.V(1).Infof("secret %q defined in pvc \"%s/%s\" is missing. Importer pod will run once this secret is created\n", name, ns, pvc.Name)
 		return name, nil
 	}
@@ -109,7 +109,7 @@ func updatePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, anno,
 		if e == nil {
 			return true, nil // successful update
 		}
-		if apierrs.IsConflict(e) { // pvc is likely stale
+		if k8serrors.IsConflict(e) { // pvc is likely stale
 			glog.V(3).Infof("pvc %q is stale, re-trying\n", nsName)
 			pvcCopy, e = client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
 			if e == nil {
@@ -301,7 +301,6 @@ func ParseSourcePvcAnnotation(sourcePvcAnno, del string) (namespace, name string
 		return "", ""
 	}
 	return strArr[0], strArr[1]
-
 }
 
 // CreateCloneSourcePod creates our cloning src pod which will be used for out of band cloning to read the contents of the src PVC
@@ -540,7 +539,7 @@ func CreateUploadPod(client kubernetes.Interface,
 
 	pod, err = client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
-		if apierrs.IsAlreadyExists(err) {
+		if k8serrors.IsAlreadyExists(err) {
 			pod, err = client.CoreV1().Pods(ns).Get(name, metav1.GetOptions{})
 			if err != nil {
 				return nil, errors.Wrap(err, "upload pod should exist but couldn't retrieve it")
@@ -657,7 +656,7 @@ func CreateUploadService(client kubernetes.Interface, name string, pvc *v1.Persi
 
 	service, err := client.CoreV1().Services(ns).Create(service)
 	if err != nil {
-		if apierrs.IsAlreadyExists(err) {
+		if k8serrors.IsAlreadyExists(err) {
 			service, err = client.CoreV1().Services(ns).Get(name, metav1.GetOptions{})
 			if err != nil {
 				return nil, errors.Wrap(err, "upload service should exist but couldn't retrieve it")

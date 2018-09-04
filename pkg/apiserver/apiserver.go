@@ -388,6 +388,7 @@ func (app *uploadAPIApp) uploadHandler(request *restful.Request, response *restf
 
 	if err = controller.UploadPossibleForPVC(pvc); err != nil {
 		response.WriteError(http.StatusServiceUnavailable, err)
+		return
 	}
 
 	tokenData, err := GenerateToken(pvcName, namespace, app.privateSigningKey)
