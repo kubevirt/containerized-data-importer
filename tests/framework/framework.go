@@ -89,12 +89,26 @@ func init() {
 	// By accessing something in the ginkgo_reporters package, we are ensuring that the init() is called
 	// That init calls flag.StringVar, and makes sure the --junit-output flag is added before we call
 	// flag.Parse in NewFramework. Without this, the flag is NOT added.
-	fmt.Fprintf(GinkgoWriter, "Making sure junit flag is available"+ginkgo_reporters.JunitOutput)
+	fmt.Fprintf(GinkgoWriter, "Making sure junit flag is available %v\n", ginkgo_reporters.JunitOutput)
 	kubectlPath = flag.String("kubectl-path", "kubectl", "The path to the kubectl binary")
 	ocPath = flag.String("oc-path", "oc", "The path to the oc binary")
 	cdiInstallNs = flag.String("cdi-namespace", "kube-system", "The namespace of the CDI controller")
 	kubeConfig = flag.String("kubeconfig", "/var/run/kubernetes/admin.kubeconfig", "The absolute path to the kubeconfig file")
 	master = flag.String("master", "", "master url:port")
+}
+
+// NewFrameworkOrDie calls NewFramework and handles errors by calling Fail. Config is optional, but
+// if passed there can only be one.
+func NewFrameworkOrDie(prefix string, config ...Config) *Framework {
+	cfg := Config{}
+	if len(config) > 0 {
+		cfg = config[0]
+	}
+	f, err := NewFramework(prefix, cfg)
+	if err != nil {
+		Fail(fmt.Sprintf("failed to create test framework with config %+v: %v", cfg, err))
+	}
+	return f
 }
 
 // NewFramework makes a new framework and sets up the global BeforeEach/AfterEach's.
@@ -108,13 +122,13 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 	// handle run-time flags
 	if !flag.Parsed() {
 		flag.Parse()
+		fmt.Fprintf(GinkgoWriter, "** Test flags:\n")
+		flag.Visit(func(f *flag.Flag) {
+			fmt.Fprintf(GinkgoWriter, "   %s = %q\n", f.Name, f.Value.String())
+		})
+		fmt.Fprintf(GinkgoWriter, "**\n")
 	}
-	// report flags values passed to test binary
-	fmt.Fprintf(GinkgoWriter, "** Test flags:\n")
-	flag.Visit(func(f *flag.Flag) {
-		fmt.Fprintf(GinkgoWriter, "   %s = %q\n", f.Name, f.Value.String())
-	})
-	fmt.Fprintf(GinkgoWriter, "**\n")
+
 	f.KubectlPath = *kubectlPath
 	f.OcPath = *ocPath
 	f.CdiInstallNs = *cdiInstallNs
@@ -130,6 +144,21 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 		f.RestConfig = restConfig
 	}
 
+	// clients
+	kcs, err := f.GetKubeClient()
+	if err != nil {
+		err = errors.Wrap(err, "ERROR, unable to create K8SClient")
+	} else {
+		f.K8sClient = kcs
+	}
+
+	cs, err := f.GetCdiClient()
+	if err != nil {
+		err = errors.Wrap(err, "ERROR, unable to create CdiClient")
+	} else {
+		f.CdiClient = cs
+	}
+
 	BeforeEach(f.BeforeEach)
 	AfterEach(f.AfterEach)
 
@@ -137,20 +166,6 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 }
 
 func (f *Framework) BeforeEach() {
-	// clients
-	if f.K8sClient == nil {
-		By("Creating a kubernetes client")
-		kcs, err := f.GetKubeClient()
-		Expect(err).NotTo(HaveOccurred())
-		f.K8sClient = kcs
-	}
-	if f.CdiClient == nil {
-		By("Creating a CDI client")
-		cs, err := f.GetCdiClient()
-		Expect(err).NotTo(HaveOccurred())
-		f.CdiClient = cs
-	}
-
 	if !f.SkipControllerPodLookup {
 		if f.ControllerPod == nil {
 			pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, CdiPodPrefix, common.CDI_LABEL_SELECTOR)

@@ -31,8 +31,10 @@ spec:
         imagePullPolicy: {{ .PullPolicy }}
         command: ["/usr/sbin/nginx"]
         ports:
-        - name: http
+        - name: http-no-auth
           containerPort: 80
+        - name: http-auth
+          containerPort: 81
         volumeMounts:
         - name: "images"
           mountPath: "/tmp/shared/"
@@ -89,7 +91,10 @@ spec:
       cdi.kubevirt.io/testing: ""
   type: ClusterIP
   ports:
-  - name: http
+  - name: http-auth
+    port: 81
+    targetPort: 81
+  - name: http-no-auth
     port: 80
     targetPort: 80
   - name: s3
