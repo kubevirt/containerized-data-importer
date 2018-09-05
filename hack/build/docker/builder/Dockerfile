@@ -23,7 +23,8 @@ RUN \
     go install ./... ) && \
     ( go get -d github.com/mattn/goveralls && \
     cd $GOPATH/src/github.com/mattn/goveralls && \
-    go install ./... )
+    go install ./... ) && \
+    ( go get -u golang.org/x/lint/golint )
 
 ADD entrypoint.sh /entrypoint.sh
 
