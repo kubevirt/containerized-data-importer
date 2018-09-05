@@ -49,12 +49,17 @@ import (
 const controllerAgentName = "datavolume-controller"
 
 const (
-	SuccessSynced         = "Synced"
-	ErrResourceExists     = "ErrResourceExists"
+	// SuccessSynced provides a const to represent a Synced status
+	SuccessSynced = "Synced"
+	// ErrResourceExists provides a const to indicate a resource exists error
+	ErrResourceExists = "ErrResourceExists"
+	// MessageResourceExists provides a const to form a resource exists error message
 	MessageResourceExists = "Resource %q already exists and is not managed by DataVolume"
+	// MessageResourceSynced provides a const to standardize a Resource Synced message
 	MessageResourceSynced = "DataVolume synced successfully"
 )
 
+// DataVolumeController represents the CDI Data Volume Controller
 type DataVolumeController struct {
 	// kubeclientset is a standard kubernetes clientset
 	kubeclientset kubernetes.Interface
@@ -73,6 +78,8 @@ type DataVolumeController struct {
 	pvcExpectations *expectations.UIDTrackingControllerExpectations
 }
 
+// NewDataVolumeController sets up a Data Volume Controller, and return a pointer to
+// the newly created Controller
 func NewDataVolumeController(
 	kubeclientset kubernetes.Interface,
 	cdiClientSet clientset.Interface,
