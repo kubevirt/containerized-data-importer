@@ -48,7 +48,7 @@ var _ = Describe("Transport Tests", func() {
 
 	// it() is the body of the test and is executed once per Entry() by DescribeTable()
 	// closes over c and ns
-	it := func(ep string, credentialed bool) {
+	it := func(ep string, credentialed bool, accessKey, secretKey string, shouldSucceed bool) {
 
 		pvcAnn := map[string]string{
 			controller.AnnEndpoint: ep,
@@ -59,13 +59,22 @@ var _ = Describe("Transport Tests", func() {
 			err error // prevent shadowing
 			sec *v1.Secret
 		)
-
+		
+		var stringData map[string]string
 		if credentialed {
 			By(fmt.Sprintf("Creating secret for endpoint %s", ep))
-			stringData := map[string]string{
+			if accessKey != "" && secretKey != "" {
+				stringData = map[string]string{
+				common.KeyAccess: accessKey,
+				common.KeySecret: secretKey,
+				}
+			}else{
+				stringData = map[string]string{
 				common.KeyAccess: utils.AccessKeyValue,
 				common.KeySecret: utils.SecretKeyValue,
+				}
 			}
+						
 			sec, err = utils.CreateSecretFromDefinition(c, utils.NewSecretDefinition(nil, stringData, nil, ns, secretPrefix))
 			Expect(err).NotTo(HaveOccurred(), "Error creating test secret")
 			pvcAnn[controller.AnnSecret] = sec.Name
@@ -78,13 +87,19 @@ var _ = Describe("Transport Tests", func() {
 		err = utils.WaitForPersistentVolumeClaimPhase(c, ns, v1.ClaimBound, pvc.Name)
 		Expect(err).NotTo(HaveOccurred(), "Error waiting for claim phase Bound")
 
-		By("Verifying PVC is not empty")
-		Expect(framework.VerifyPVCIsEmpty(f, pvc)).To(BeFalse())
+		if shouldSucceed {
+			By("Verifying PVC is not empty")
+			Expect(framework.VerifyPVCIsEmpty(f, pvc)).To(BeFalse())
+		}else {
+			By("Verifying PVC is empty")
+			Expect(framework.VerifyPVCIsEmpty(f, pvc)).ToNot(BeFalse())
+		}
 	}
 
 	DescribeTable("Transport Test Table", it,
-		Entry("should connect to http endpoint without credentials", httpNoAuthEp, false),
-		Entry("should connect to http endpoint with credentials", httpAuthEp, true))
+		Entry("should connect to http endpoint without credentials", httpNoAuthEp, false, "", "", true),
+		Entry("should connect to http endpoint with valid credentials", httpAuthEp, true, "", "", true),
+		Entry("should connect to http endpoint with invalid credentials", httpAuthEp, true, "gopats", "bradyisthegoat", false ))
 })
 
 // handelError is intended for use outside It(), BeforeEach() and AfterEach() blocks where Expect() cannot be called.
