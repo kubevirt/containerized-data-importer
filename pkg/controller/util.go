@@ -9,7 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 	"strings"
 	"time"
@@ -19,43 +18,13 @@ const DataVolName = "cdi-data-vol"
 const ImagePathName = "image-path"
 const socketPathName = "socket-path"
 
-// return a pvc pointer based on the passed-in work queue key.
-func (c *ImportController) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, error) {
-	obj, err := c.objFromKey(c.pvcInformer, key)
-	if err != nil {
-		return nil, errors.Wrap(err, "could not get pvc object from key")
-	}
-
-	pvc, ok := obj.(*v1.PersistentVolumeClaim)
-	if !ok {
-		return nil, errors.New("Object not of type *v1.PersistentVolumeClaim")
-	}
-	return pvc, nil
-}
-
-func (c *ImportController) objFromKey(informer cache.SharedIndexInformer, key interface{}) (interface{}, error) {
-	keyString, ok := key.(string)
-	if !ok {
-		return nil, errors.New("keys is not of type string")
-	}
-	obj, ok, err := informer.GetIndexer().GetByKey(keyString)
-	if err != nil {
-		return nil, errors.Wrap(err, "error getting interface obj from store")
-	}
-	if !ok {
-		return nil, errors.New("interface object not found in store")
-	}
-	return obj, nil
-}
-
-func checkPVC(pvc *v1.PersistentVolumeClaim) bool {
+func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string) bool {
 	if pvc.DeletionTimestamp != nil {
 		return false
 	}
-
-	// check if we have proper AnnEndPoint annotation
-	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnEndpoint) {
-		glog.V(Vadmin).Infof("pvc annotation %q not found, skipping pvc\n", AnnEndpoint)
+	// check if we have proper annotation
+	if !metav1.HasAnnotation(pvc.ObjectMeta, annotation) {
+		glog.V(Vadmin).Infof("pvc annotation %q not found, skipping pvc\n", annotation)
 		return false
 	}
 
@@ -355,7 +324,7 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, sourcePvcName string, pv
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: podName,
 			Annotations: map[string]string{
-				AnnCloningCreatedBy:   "yes",
+				AnnCreatedBy:          "yes",
 				AnnTargetPodNamespace: pvc.Namespace,
 			},
 			Labels: map[string]string{
@@ -451,7 +420,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, podAffinityNamespace str
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: podName,
 			Annotations: map[string]string{
-				AnnCloningCreatedBy:   "yes",
+				AnnCreatedBy:          "yes",
 				AnnTargetPodNamespace: pvc.Namespace,
 			},
 			Labels: map[string]string{
@@ -535,72 +504,4 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, podAffinityNamespace str
 		},
 	}
 	return pod
-}
-
-// checkClonePVC verifies that the passed-in pvc is one we care about. Specifically, it must have the
-// CloneRequest annotation and it must not already be "in-progress". If the pvc passes these filters
-// then true is returned and the source and the target pods will be created. `AnnCloneRequest` indicates that the
-// pvc is targeted for the cloning job. `AnnCloneInProgress` indicates the  pvc is being processed.
-// Note: there is a race condition where the AnnCloneInProgress annotation is not seen in time and as
-// a result the source and the target pods can be created twice (or more, presumably). To reduce this window
-// a Get api call can be requested in order to get the latest copy of the pvc before verifying
-// its annotations.
-func checkClonePVC(pvc *v1.PersistentVolumeClaim) bool {
-	if pvc.DeletionTimestamp != nil {
-		return false
-	}
-
-	// check if we have proper AnnCloneRequest annotation on the target pvc
-	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneRequest) {
-		glog.V(Vadmin).Infof("pvc annotation %q not found, skipping pvc\n", AnnCloneRequest)
-		return false
-	}
-
-	//checking for CloneOf annotation indicating that the clone was already taken care of by the provisioner (smart clone).
-	if metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf) {
-		glog.V(Vadmin).Infof("pvc annotation %q exists indicating cloning completed, skipping pvc\n", AnnCloneOf)
-		return false
-	}
-	return true
-}
-
-func (c *CloneController) podFromKey(key interface{}) (*v1.Pod, error) {
-	obj, err := c.objFromKey(c.podInformer, key)
-	if err != nil {
-		return nil, errors.Wrap(err, "could not get pod object from key")
-	}
-
-	pod, ok := obj.(*v1.Pod)
-	if !ok {
-		return nil, errors.New("error casting object to type \"v1.Pod\"")
-	}
-	return pod, nil
-}
-
-func (c *CloneController) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, error) {
-	obj, err := c.objFromKey(c.pvcInformer, key)
-	if err != nil {
-		return nil, errors.Wrap(err, "could not get pvc object from key")
-	}
-
-	pvc, ok := obj.(*v1.PersistentVolumeClaim)
-	if !ok {
-		return nil, errors.New("Object not of type *v1.PersistentVolumeClaim")
-	}
-	return pvc, nil
-}
-
-func (c *CloneController) objFromKey(informer cache.SharedIndexInformer, key interface{}) (interface{}, error) {
-	keyString, ok := key.(string)
-	if !ok {
-		return nil, errors.New("keys is not of type string")
-	}
-	obj, ok, err := informer.GetIndexer().GetByKey(keyString)
-	if err != nil {
-		return nil, errors.Wrap(err, "error getting interface obj from store")
-	}
-	if !ok {
-		return nil, errors.New("interface object not found in store")
-	}
-	return obj, nil
 }

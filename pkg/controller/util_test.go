@@ -13,7 +13,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
-	expectations "kubevirt.io/containerized-data-importer/pkg/expectations"
 	"reflect"
 	"testing"
 )
@@ -253,7 +252,7 @@ func Test_checkPVC(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotOk := checkPVC(tt.pvc)
+			gotOk := checkPVC(tt.pvc, AnnEndpoint)
 			if gotOk != tt.wantOk {
 				t.Errorf("checkPVC() gotOk = %v, want %v", gotOk, tt.wantOk)
 			}
@@ -285,7 +284,7 @@ func Test_checkClonePVC(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotOk := checkClonePVC(tt.pvc)
+			gotOk := checkPVC(tt.pvc, AnnCloneRequest)
 			if gotOk != tt.wantOk {
 				t.Errorf("checkPVC() gotOk = %v, want %v", gotOk, tt.wantOk)
 			}
@@ -929,16 +928,7 @@ func createImportController(pvcSpec *v1.PersistentVolumeClaim, podSpec *v1.Pod, 
 	cache.WaitForCacheSync(stop, pvcInformer.Informer().HasSynced)
 	defer close(stop)
 
-	c := &ImportController{
-		clientset:       myclient,
-		queue:           pvcQueue,
-		pvcInformer:     pvcInformer.Informer(),
-		podInformer:     podInformer.Informer(),
-		importerImage:   "test/image",
-		pullPolicy:      "Always",
-		verbose:         "-v=5",
-		podExpectations: expectations.NewUIDTrackingControllerExpectations(expectations.NewControllerExpectations()),
-	}
+	c := NewImportController(myclient, pvcInformer, podInformer, "test/image", "Always", "-v=5")
 	return c, pvc, pod, nil
 }
 
@@ -982,16 +972,7 @@ func createCloneController(pvcSpec *v1.PersistentVolumeClaim, sourcePodSpec *v1.
 	cache.WaitForCacheSync(stop, pvcInformer.Informer().HasSynced)
 	defer close(stop)
 
-	c := &CloneController{
-		clientset:       myclient,
-		queue:           pvcQueue,
-		pvcInformer:     pvcInformer.Informer(),
-		podInformer:     podInformer.Informer(),
-		cloneImage:      "test/mycloneimage",
-		pullPolicy:      "Always",
-		verbose:         "-v=5",
-		podExpectations: expectations.NewUIDTrackingControllerExpectations(expectations.NewControllerExpectations()),
-	}
+	c := NewCloneController(myclient, pvcInformer, podInformer, "test/mycloneimage", "Always", "-v=5")
 	return c, pvc, sourcePod, targetPod, nil
 }
 
@@ -1035,16 +1016,7 @@ func createImportControllerMultiObject(pvcSpecs []*v1.PersistentVolumeClaim, pod
 	cache.WaitForCacheSync(stop, podInformer.Informer().HasSynced)
 	defer close(stop)
 
-	c := &ImportController{
-		clientset:       myclient,
-		queue:           pvcQueue,
-		pvcInformer:     pvcInformer.Informer(),
-		podInformer:     podInformer.Informer(),
-		importerImage:   "test/image",
-		pullPolicy:      "Always",
-		verbose:         "-v=5",
-		podExpectations: expectations.NewUIDTrackingControllerExpectations(expectations.NewControllerExpectations()),
-	}
+	c := NewImportController(myclient, pvcInformer, podInformer, "test/image", "Always", "-v=5")
 	return c, pvcs, pods, nil
 }
 
@@ -1062,7 +1034,7 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, pvcUid string
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: podName,
 			Annotations: map[string]string{
-				AnnCloningCreatedBy:   "yes",
+				AnnCreatedBy:          "yes",
 				AnnTargetPodNamespace: pvc.Namespace,
 			},
 			Labels: map[string]string{
@@ -1143,7 +1115,7 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, dvname, pvcUid, podAffinityN
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: podName,
 			Annotations: map[string]string{
-				AnnCloningCreatedBy:   "yes",
+				AnnCreatedBy:          "yes",
 				AnnTargetPodNamespace: pvc.Namespace,
 			},
 			Labels: map[string]string{
