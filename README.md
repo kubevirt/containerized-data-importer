@@ -69,7 +69,7 @@ Supported file formats are:
 
 *Or*
 
-`$ git clone https://kubevirt.io/containerized-data-importer.git`
+`$ git clone https://github.com/kubevirt/containerized-data-importer.git $GOPATH/src/kubevirt.io/containerized-data-importer`
 
 *Or download only the yamls:*
 
