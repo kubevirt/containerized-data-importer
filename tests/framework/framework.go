@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 	"kubevirt.io/qe-tools/pkg/ginkgo-reporters"
 )
@@ -146,17 +147,15 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 	// clients
 	kcs, err := f.GetKubeClient()
 	if err != nil {
-		err = errors.Wrap(err, "ERROR, unable to create K8SClient")
-	} else {
-		f.K8sClient = kcs
+		return nil, errors.Wrap(err, "ERROR, unable to create K8SClient")
 	}
+	f.K8sClient = kcs
 
 	cs, err := f.GetCdiClient()
 	if err != nil {
-		err = errors.Wrap(err, "ERROR, unable to create CdiClient")
-	} else {
-		f.CdiClient = cs
+		return nil, errors.Wrap(err, "ERROR, unable to create CdiClient")
 	}
+	f.CdiClient = cs
 
 	BeforeEach(f.BeforeEach)
 	AfterEach(f.AfterEach)
@@ -167,7 +166,7 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 func (f *Framework) BeforeEach() {
 	if !f.SkipControllerPodLookup {
 		if f.ControllerPod == nil {
-			pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, CdiPodPrefix, "")
+			pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, CdiPodPrefix, common.CDI_LABEL_SELECTOR)
 			Expect(err).NotTo(HaveOccurred())
 			fmt.Fprintf(GinkgoWriter, "INFO: Located cdi-controller-pod: %q\n", pod.Name)
 			f.ControllerPod = pod
