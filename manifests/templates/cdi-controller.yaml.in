@@ -91,6 +91,8 @@ spec:
           value: {{ .DockerRepo }}/{{ .UploadServerImage }}:{{ .DockerTag }}  
         - name: PULL_POLICY
           value: {{ .PullPolicy }}
+        - name: UPLOADPROXY_SERVICE
+          value: cdi-uploadproxy
 ---
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
@@ -293,18 +295,28 @@ spec:
             configMapKeyRef:
               name: cdi-api-public
               key: publicKey
-        - name: TLS_CLIENT_KEY
+        - name: UPLOAD_SERVER_CLIENT_KEY
           valueFrom:
             secretKeyRef:
               name: cdi-upload-client-key
               key: tls.key
-        - name: TLS_CLIENT_CERT
+        - name: UPLOAD_SERVER_CLIENT_CERT
           valueFrom:
             secretKeyRef:
               name: cdi-upload-client-key
               key: tls.cert
-        - name: TLS_SERVER_CERT
+        - name: UPLOAD_SERVER_CA_CERT
           valueFrom:
             secretKeyRef:
               name: cdi-upload-client-key
               key: ca.cert
+        - name: SERVICE_TLS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cdi-upload-proxy-server-key
+              key: tls.key
+        - name: SERVICE_TLS_CERT
+          valueFrom:
+            secretKeyRef:
+              name: cdi-upload-proxy-server-key
+              key: tls.cert

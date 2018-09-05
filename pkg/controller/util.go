@@ -526,7 +526,7 @@ func CreateUploadPod(client kubernetes.Interface,
 	name string,
 	pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
 	ns := pvc.Namespace
-	commonName := name + ".namespace"
+	commonName := name + "." + ns
 	secretName := name + "-server-tls"
 	owner := MakeOwnerReference(pvc)
 

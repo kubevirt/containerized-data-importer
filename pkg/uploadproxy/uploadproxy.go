@@ -16,8 +16,6 @@ import (
 	"github.com/pkg/errors"
 
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/util/cert"
-	"k8s.io/client-go/util/cert/triple"
 
 	apiserver "kubevirt.io/containerized-data-importer/pkg/apiserver"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
@@ -68,15 +66,19 @@ func init() {
 func NewUploadProxy(bindAddress string,
 	bindPort uint,
 	apiServerPublicKey string,
-	tlsClientKey string,
-	tlsClientCert string,
-	tlsServerCert string,
+	uploadClientKey string,
+	uploadClientCert string,
+	uploadServerCert string,
+	serviceKey string,
+	serviceCert string,
 	client kubernetes.Interface) (Server, error) {
 	var err error
 	app := &uploadProxyApp{
 		bindAddress: bindAddress,
 		bindPort:    bindPort,
 		client:      client,
+		keyBytes:    []byte(serviceKey),
+		certBytes:   []byte(serviceCert),
 	}
 	app.certsDirectory, err = ioutil.TempDir("", "certsdir")
 	if err != nil {
@@ -89,15 +91,8 @@ func NewUploadProxy(bindAddress string,
 		return nil, errors.Errorf("Unable to retrieve apiserver signing key: %v", errors.WithStack(err))
 	}
 
-	// generate self signed cert
-	err = app.generateSelfSignedCert()
-	if err != nil {
-		return nil, errors.Errorf("Unable to create self signed certs for upload proxy: %v\n", errors.WithStack(err))
-
-	}
-
 	// get upload server http client
-	err = app.getUploadServerClient(tlsClientKey, tlsClientCert, tlsServerCert)
+	err = app.getUploadServerClient(uploadClientKey, uploadClientCert, uploadServerCert)
 	if err != nil {
 		return nil, errors.Errorf("Unable to create upload server client: %v\n", errors.WithStack(err))
 	}
@@ -188,26 +183,6 @@ func (app *uploadProxyApp) getSigningKey(publicKeyPEM string) error {
 
 func (app *uploadProxyApp) Start() error {
 	return app.startTLS()
-}
-
-func (app *uploadProxyApp) generateSelfSignedCert() error {
-	namespace := apiserver.GetNamespace()
-
-	caKeyPair, _ := triple.NewCA("kubecdi.io")
-	keyPair, _ := triple.NewServerKeyPair(
-		caKeyPair,
-		"cdi-api."+namespace+".pod.cluster.local",
-		"cdi-api",
-		namespace,
-		"cluster.local",
-		nil,
-		nil,
-	)
-
-	app.keyBytes = cert.EncodePrivateKeyPEM(keyPair.Key)
-	app.certBytes = cert.EncodeCertPEM(keyPair.Cert)
-
-	return nil
 }
 
 func (app *uploadProxyApp) startTLS() error {

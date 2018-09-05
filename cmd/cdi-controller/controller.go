@@ -21,13 +21,14 @@ import (
 )
 
 var (
-	configPath        string
-	masterURL         string
-	importerImage     string
-	clonerImage       string
-	uploadServerImage string
-	pullPolicy        string
-	verbose           string
+	configPath             string
+	masterURL              string
+	importerImage          string
+	clonerImage            string
+	uploadServerImage      string
+	uploadProxyServiceName string
+	pullPolicy             string
+	verbose                string
 )
 
 // The importer and cloner images are obtained here along with the supported flags. IMPORTER_IMAGE, CLONER_IMAGE, and UPLOADSERVICE_IMAGE
@@ -43,6 +44,7 @@ func init() {
 	importerImage = getRequiredEnvVar("IMPORTER_IMAGE")
 	clonerImage = getRequiredEnvVar("CLONER_IMAGE")
 	uploadServerImage = getRequiredEnvVar("UPLOADSERVER_IMAGE")
+	uploadProxyServiceName = getRequiredEnvVar("UPLOADPROXY_SERVICE")
 
 	pullPolicy = DefaultPullPolicy
 	if pp := os.Getenv(PullPolicy); len(pp) != 0 {
@@ -130,6 +132,7 @@ func main() {
 		podInformer,
 		serviceInformer,
 		uploadServerImage,
+		uploadProxyServiceName,
 		pullPolicy,
 		verbose)
 

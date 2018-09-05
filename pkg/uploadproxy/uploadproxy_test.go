@@ -39,18 +39,3 @@ func TestKeyRetrieval(t *testing.T) {
 		t.Errorf("Failed to create public key")
 	}
 }
-
-func TestGenerateSelfSignedCert(t *testing.T) {
-
-	app := uploadProxyApp{}
-	err := app.generateSelfSignedCert()
-	if err != nil {
-
-		t.Errorf("failed to generate self signed cert: %v", err)
-	}
-
-	if len(app.keyBytes) == 0 || len(app.certBytes) == 0 {
-		t.Errorf("failed to generate self signed cert, bytes are empty")
-	}
-
-}

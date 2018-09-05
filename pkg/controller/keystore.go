@@ -65,8 +65,19 @@ func GetOrCreateCA(client kubernetes.Interface, namespace, secretName, caName st
 		return nil, errors.Wrap(err, "Error creating CA")
 	}
 
-	if err = SaveKeyPairAndCert(client, namespace, secretName, KeyPairAndCert{*keyPair, nil}, false, nil); err != nil {
+	exists, err := SaveKeyPairAndCert(client, namespace, secretName, KeyPairAndCert{*keyPair, nil}, nil)
+	if !exists && err != nil {
 		return nil, errors.Wrap(err, "Error saving CA")
+	}
+
+	// do another get
+	// this should be very unlikely to hit code path
+	if exists {
+		keyPairAndCert, err = GetKeyPairAndCert(client, namespace, secretName)
+		if keyPairAndCert == nil || err != nil {
+			return nil, errors.Wrap(err, "Error getting CA second time around")
+		}
+		keyPair = &keyPairAndCert.KeyPair
 	}
 
 	return keyPair, nil
@@ -87,7 +98,12 @@ func CreateServerKeyPairAndCert(client kubernetes.Interface,
 		return errors.Wrap(err, "Error creating server key pair")
 	}
 
-	if err = SaveKeyPairAndCert(client, namespace, secretName, KeyPairAndCert{*keyPair, clientCACert}, failIfExists, owner); err != nil {
+	exists, err := SaveKeyPairAndCert(client, namespace, secretName, KeyPairAndCert{*keyPair, clientCACert}, owner)
+	if exists && !failIfExists {
+		return nil
+	}
+
+	if err != nil {
 		return errors.Wrap(err, "Error saving server key pair")
 	}
 
@@ -108,7 +124,12 @@ func CreateClientKeyPairAndCert(client kubernetes.Interface,
 		return errors.Wrap(err, "Error creating client key pair")
 	}
 
-	if err = SaveKeyPairAndCert(client, namespace, secretName, KeyPairAndCert{*keyPair, serverCACert}, failIfExists, owner); err != nil {
+	exists, err := SaveKeyPairAndCert(client, namespace, secretName, KeyPairAndCert{*keyPair, serverCACert}, owner)
+	if exists && !failIfExists {
+		return nil
+	}
+
+	if err != nil {
 		return errors.Wrap(err, "Error saving client key pair")
 	}
 
@@ -166,7 +187,7 @@ func GetKeyPairAndCert(client kubernetes.Interface, namespace, secretName string
 }
 
 // SaveKeyPairAndCert saves a private key, cert, and maybe a ca cert to kubernetes
-func SaveKeyPairAndCert(client kubernetes.Interface, namespace, secretName string, keyPairAntCA KeyPairAndCert, failIfExists bool, owner *metav1.OwnerReference) error {
+func SaveKeyPairAndCert(client kubernetes.Interface, namespace, secretName string, keyPairAntCA KeyPairAndCert, owner *metav1.OwnerReference) (bool, error) {
 	privateKeyBytes := cert.EncodePrivateKeyPEM(keyPairAntCA.KeyPair.Key)
 	certBytes := cert.EncodeCertPEM(keyPairAntCA.KeyPair.Cert)
 	secret := &v1.Secret{
@@ -192,13 +213,10 @@ func SaveKeyPairAndCert(client kubernetes.Interface, namespace, secretName strin
 
 	_, err := client.CoreV1().Secrets(namespace).Create(secret)
 	if err != nil {
-		if !failIfExists && k8serrors.IsAlreadyExists(err) {
-			return nil
-		}
-		return errors.Wrap(err, "Error creating cert")
+		return k8serrors.IsAlreadyExists(err), errors.Wrap(err, "Error creating cert")
 	}
 
-	return nil
+	return false, nil
 }
 
 // GetNamespace returns the namespace the pod is executing in

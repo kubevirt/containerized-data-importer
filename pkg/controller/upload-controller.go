@@ -47,6 +47,8 @@ const (
 	// AnnCreatedByUpload marks that a particular resource was created by the upload controller
 	AnnCreatedByUpload = "cdi.kubevirt.io/storage.createdByUploadController"
 
+	// cert/key annotations
+
 	// ServerCASecret is the secret containing the server CA
 	ServerCASecret = "cdi-upload-server-ca-key"
 	// ServerCAName is the name of the server CA
@@ -61,6 +63,10 @@ const (
 	ClientKeySecret = "cdi-upload-client-key"
 	// UploadProxyClientName is the CN for client cert
 	UploadProxyClientName = "uploadproxy.client.upload.cdi.kebevirt.io"
+
+	uploadProxyCAName       = "proxy.upload.cdi.kubevirt.io"
+	uploadProxyCASecret     = "cdi-upload-proxy-ca-key"
+	uploadProxyServerSecret = "cdi-upload-proxy-server-key"
 )
 
 // UploadController members
@@ -79,6 +85,7 @@ type UploadController struct {
 	verbose                                   string // verbose levels: 1, 2, ...
 	serverCAKeyPair                           *triple.KeyPair
 	clientCAKeyPair                           *triple.KeyPair
+	uploadProxyServiceName                    string
 }
 
 // GetUploadResourceName returns the name given to upload services/pods
@@ -106,23 +113,25 @@ func NewUploadController(client kubernetes.Interface,
 	podInformer coreinformers.PodInformer,
 	serviceInformer coreinformers.ServiceInformer,
 	uploadServiceImage string,
+	uploadProxyServiceName string,
 	pullPolicy string,
 	verbose string) *UploadController {
 	c := &UploadController{
-		clientset:          client,
-		queue:              workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
-		pvcInformer:        pvcInformer.Informer(),
-		podInformer:        podInformer.Informer(),
-		serviceInformer:    serviceInformer.Informer(),
-		pvcLister:          pvcInformer.Lister(),
-		podLister:          podInformer.Lister(),
-		serviceLister:      serviceInformer.Lister(),
-		pvcsSynced:         pvcInformer.Informer().HasSynced,
-		podsSynced:         podInformer.Informer().HasSynced,
-		servicesSynced:     serviceInformer.Informer().HasSynced,
-		uploadServiceImage: uploadServiceImage,
-		pullPolicy:         pullPolicy,
-		verbose:            verbose,
+		clientset:              client,
+		queue:                  workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+		pvcInformer:            pvcInformer.Informer(),
+		podInformer:            podInformer.Informer(),
+		serviceInformer:        serviceInformer.Informer(),
+		pvcLister:              pvcInformer.Lister(),
+		podLister:              podInformer.Lister(),
+		serviceLister:          serviceInformer.Lister(),
+		pvcsSynced:             pvcInformer.Informer().HasSynced,
+		podsSynced:             podInformer.Informer().HasSynced,
+		servicesSynced:         serviceInformer.Informer().HasSynced,
+		uploadServiceImage:     uploadServiceImage,
+		uploadProxyServiceName: uploadProxyServiceName,
+		pullPolicy:             pullPolicy,
+		verbose:                verbose,
 	}
 
 	// Bind the pvc SharedIndexInformer to the pvc queue
@@ -208,16 +217,19 @@ func (c *UploadController) Run(threadiness int, stopCh <-chan struct{}) error {
 func (c *UploadController) initCerts() error {
 	var err error
 
+	// CA for Upload Servers
 	c.serverCAKeyPair, err = GetOrCreateCA(c.clientset, GetNamespace(), ServerCASecret, ServerCAName)
 	if err != nil {
 		return errors.Wrap(err, "Couldn't get/create server CA")
 	}
 
+	// CA for Upload Client
 	c.clientCAKeyPair, err = GetOrCreateCA(c.clientset, GetNamespace(), ClientCASecret, ClientCAName)
 	if err != nil {
 		return errors.Wrap(err, "Couldn't get/create client CA")
 	}
 
+	// Upload Server Client Cert
 	err = CreateClientKeyPairAndCert(c.clientset,
 		GetNamespace(),
 		ClientKeySecret,
@@ -225,11 +237,30 @@ func (c *UploadController) initCerts() error {
 		c.serverCAKeyPair.Cert,
 		UploadProxyClientName,
 		[]string{},
-		false,
+		false, // okay if already exists
 		nil,
 	)
 	if err != nil {
 		return errors.Wrap(err, "Couldn't get/create client cert")
+	}
+
+	uploadProxyCAKeyPair, err := GetOrCreateCA(c.clientset, GetNamespace(), uploadProxyCASecret, uploadProxyCAName)
+	if err != nil {
+		return errors.Wrap(err, "Couldn't create upload proxy server cert")
+	}
+
+	err = CreateServerKeyPairAndCert(c.clientset,
+		GetNamespace(),
+		uploadProxyServerSecret,
+		uploadProxyCAKeyPair,
+		nil,
+		c.uploadProxyServiceName+"."+GetNamespace(),
+		c.uploadProxyServiceName,
+		false, // okay if already exists
+		nil,
+	)
+	if err != nil {
+		return errors.Wrap(err, "Error creating upload proxy server key pair")
 	}
 
 	return nil

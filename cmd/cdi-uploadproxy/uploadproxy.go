@@ -68,9 +68,11 @@ func main() {
 	uploadProxy, err := uploadproxy.NewUploadProxy(defaultHost,
 		defaultPort,
 		apiServerPublicKey,
-		os.Getenv("TLS_CLIENT_KEY"),
-		os.Getenv("TLS_CLIENT_CERT"),
-		os.Getenv("TLS_SERVER_CERT"),
+		os.Getenv("UPLOAD_SERVER_CLIENT_KEY"),
+		os.Getenv("UPLOAD_SERVER_CLIENT_CERT"),
+		os.Getenv("UPLOAD_SERVER_CA_CERT"),
+		os.Getenv("SERVICE_TLS_KEY"),
+		os.Getenv("SERVICE_TLS_CERT"),
 		client)
 	if err != nil {
 		glog.Fatalf("UploadProxy failed to initialize: %v\n", errors.WithStack(err))
@@ -86,7 +88,7 @@ func getAPIServerPublicKey() (string, error) {
 	const envName = "APISERVER_PUBLIC_KEY"
 	val, ok := os.LookupEnv(envName)
 	if !ok {
-		return "", errors.New("%s not defined")
+		return "", errors.Errorf("%s not defined", envName)
 	}
 	return val, nil
 }
