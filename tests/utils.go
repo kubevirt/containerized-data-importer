@@ -30,11 +30,12 @@ func CDIFailHandler(message string, callerSkip ...int) {
 	Fail(message, callerSkip...)
 }
 
+//RunKubectlCommand ...
 func RunKubectlCommand(f *framework.Framework, args ...string) (string, error) {
 	kubeconfig := f.KubeConfig
-	kPath := f.KubectlPath
+	path := f.KubectlPath
 
-	cmd := exec.Command(kPath, args...)
+	cmd := exec.Command(path, args...)
 	kubeconfEnv := fmt.Sprintf("KUBECONFIG=%s", kubeconfig)
 	cmd.Env = append(os.Environ(), kubeconfEnv)
 
@@ -45,6 +46,7 @@ func RunKubectlCommand(f *framework.Framework, args ...string) (string, error) {
 	return string(stdOutBytes), nil
 }
 
+//PrintControllerLog ...
 func PrintControllerLog(f *framework.Framework) {
 	log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 	if err == nil {
@@ -54,6 +56,7 @@ func PrintControllerLog(f *framework.Framework) {
 	}
 }
 
+//PanicOnError ...
 func PanicOnError(err error) {
 	if err != nil {
 		panic(err)
@@ -62,6 +65,8 @@ func PanicOnError(err error) {
 
 // TODO: maybe move this to framework and add it to an AfterEach. Current framework will delete
 //       all namespaces that it creates.
+
+//DestroyAllTestNamespaces ...
 func DestroyAllTestNamespaces(client *kubernetes.Clientset) {
 	var namespaces *k8sv1.NamespaceList
 	var err error
