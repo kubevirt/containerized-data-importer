@@ -124,9 +124,9 @@ func (c *CloneController) handlePodObject(obj interface{}, verb string) {
 			runtime.HandleError(errors.Errorf("error decoding object tombstone, invalid type"))
 			return
 		}
-		glog.V(Vdebug).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
+		glog.V(3).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
 	}
-	glog.V(Vdebug).Infof("Processing object: %s", object.GetName())
+	glog.V(3).Infof("Processing object: %s", object.GetName())
 	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
 		_, createdByUs := object.GetAnnotations()[AnnCloningCreatedBy]
 
@@ -138,7 +138,7 @@ func (c *CloneController) handlePodObject(obj interface{}, verb string) {
 
 		pvc, err := c.pvcLister.PersistentVolumeClaims(object.GetAnnotations()[AnnTargetPodNamespace]).Get(ownerRef.Name)
 		if err != nil {
-			glog.V(Vdebug).Infof("ignoring orphaned object '%s' of pvc '%s'", object.GetSelfLink(), ownerRef.Name)
+			glog.V(3).Infof("ignoring orphaned object '%s' of pvc '%s'", object.GetSelfLink(), ownerRef.Name)
 			return
 		}
 
@@ -170,7 +170,7 @@ func (c *CloneController) Run(threadiness int, stopCh <-chan struct{}) error {
 	defer func() {
 		c.queue.ShutDown()
 	}()
-	glog.V(Vadmin).Infoln("Starting clone controller Run loop")
+	glog.V(2).Infoln("Starting clone controller Run loop")
 	if threadiness < 1 {
 		return errors.Errorf("expected >0 threads, got %d", threadiness)
 	}
@@ -181,7 +181,7 @@ func (c *CloneController) Run(threadiness int, stopCh <-chan struct{}) error {
 	if !cache.WaitForCacheSync(stopCh, c.podInformer.HasSynced) {
 		return errors.New("Timeout waiting for pod cache sync")
 	}
-	glog.V(Vdebug).Infoln("CloneController cache has synced")
+	glog.V(3).Infoln("CloneController cache has synced")
 
 	for i := 0; i < threadiness; i++ {
 		go wait.Until(c.runPVCWorkers, time.Second, stopCh)
@@ -207,7 +207,7 @@ func (c *CloneController) syncPvc(key string) error {
 	if !checkClonePVC(pvc) {
 		return nil
 	}
-	glog.V(Vdebug).Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)
+	glog.V(3).Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)
 	return c.processPvcItem(pvc)
 }
 
@@ -354,7 +354,7 @@ func (c *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 // forget the passed-in key for this event and optionally log a message.
 func (c *CloneController) forgetKey(key interface{}, msg string) bool {
 	if len(msg) > 0 {
-		glog.V(Vdebug).Info(msg)
+		glog.V(3).Info(msg)
 	}
 	c.queue.Forget(key)
 	return true

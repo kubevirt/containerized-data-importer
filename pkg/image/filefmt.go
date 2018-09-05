@@ -7,8 +7,6 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
-
-	. "kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 // Size of buffer used to read file headers.
@@ -80,6 +78,6 @@ func (h Header) Size(b []byte) (int64, error) {
 	if err != nil {
 		return 0, errors.Wrapf(err, "unable to determine original file size from %+v", s)
 	}
-	glog.V(Vdebug).Infof("Size: %q size in bytes (at off %d:%d): %d", h.Format, h.SizeOff, h.SizeOff+h.SizeLen, size)
+	glog.V(3).Infof("Size: %q size in bytes (at off %d:%d): %d", h.Format, h.SizeOff, h.SizeOff+h.SizeLen, size)
 	return size, nil
 }

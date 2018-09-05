@@ -2,6 +2,9 @@ package controller
 
 import (
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
@@ -11,8 +14,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
-	"strings"
-	"time"
 )
 
 const DataVolName = "cdi-data-vol"
@@ -55,7 +56,7 @@ func checkPVC(pvc *v1.PersistentVolumeClaim) bool {
 
 	// check if we have proper AnnEndPoint annotation
 	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnEndpoint) {
-		glog.V(Vadmin).Infof("pvc annotation %q not found, skipping pvc \"%s/%s\"\n", AnnEndpoint, pvc.Namespace, pvc.Name)
+		glog.V(2).Infof("pvc annotation %q not found, skipping pvc\n", AnnEndpoint)
 		return false
 	}
 
@@ -88,19 +89,19 @@ func getSecretName(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (
 		} else {
 			msg += "secret name is missing from annotation %q in pvc \"%s/%s\""
 		}
-		glog.V(Vadmin).Infof(msg+"\n", AnnSecret, ns, pvc.Name)
+		glog.V(2).Infof(msg+"\n", AnnSecret, ns, pvc.Name)
 		return "", nil // importer pod will not contain secret credentials
 	}
-	glog.V(Vdebug).Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, name)
+	glog.V(3).Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, name)
 	_, err := client.CoreV1().Secrets(ns).Get(name, metav1.GetOptions{})
 	if apierrs.IsNotFound(err) {
-		glog.V(Vuser).Infof("secret %q defined in pvc \"%s/%s\" is missing. Importer pod will run once this secret is created\n", name, ns, pvc.Name)
+		glog.V(1).Infof("secret %q defined in pvc \"%s/%s\" is missing. Importer pod will run once this secret is created\n", name, ns, pvc.Name)
 		return name, nil
 	}
 	if err != nil {
 		return "", errors.Wrapf(err, "error getting secret %q defined in pvc \"%s/%s\"", name, ns, pvc.Name)
 	}
-	glog.V(Vuser).Infof("retrieved secret %q defined in pvc \"%s/%s\"\n", name, ns, pvc.Name)
+	glog.V(1).Infof("retrieved secret %q defined in pvc \"%s/%s\"\n", name, ns, pvc.Name)
 	return name, nil
 }
 
@@ -108,7 +109,7 @@ func getSecretName(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (
 // both can be passed.
 // Note: the only pvc changes supported are annotations and labels.
 func updatePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, anno, label map[string]string) (*v1.PersistentVolumeClaim, error) {
-	glog.V(Vdebug).Infof("updatePVC: updating pvc \"%s/%s\" with anno: %+v and label: %+v", pvc.Namespace, pvc.Name, anno, label)
+	glog.V(3).Infof("updatePVC: updating pvc \"%s/%s\" with anno: %+v and label: %+v", pvc.Namespace, pvc.Name, anno, label)
 
 	applyUpdt := func(claim *v1.PersistentVolumeClaim, a, l map[string]string) {
 		if a != nil {
@@ -133,7 +134,7 @@ func updatePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, anno,
 			return true, nil // successful update
 		}
 		if apierrs.IsConflict(e) { // pvc is likely stale
-			glog.V(Vdebug).Infof("pvc %q is stale, re-trying\n", nsName)
+			glog.V(3).Infof("pvc %q is stale, re-trying\n", nsName)
 			pvcCopy, e = client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
 			if e == nil {
 				return false, nil // retry update
@@ -146,7 +147,7 @@ func updatePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, anno,
 	})
 
 	if err == nil {
-		glog.V(Vdebug).Infof("updatePVC: pvc %q updated", nsName)
+		glog.V(3).Infof("updatePVC: pvc %q updated", nsName)
 		return updtPvc, nil
 	}
 	return pvc, errors.Wrapf(err, "error updating pvc %q\n", nsName)
@@ -154,7 +155,7 @@ func updatePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, anno,
 
 // Sets an annotation `key: val` in the given pvc. Returns the updated pvc.
 func setPVCAnnotation(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, key, val string) (*v1.PersistentVolumeClaim, error) {
-	glog.V(Vdebug).Infof("setPVCAnnotation: adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", key, val, pvc.Namespace, pvc.Name)
+	glog.V(3).Infof("setPVCAnnotation: adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", key, val, pvc.Namespace, pvc.Name)
 	return updatePVC(client, pvc, map[string]string{key: val}, nil)
 }
 
@@ -187,7 +188,7 @@ func CreateImporterPod(client kubernetes.Interface, image, verbose, pullPolicy, 
 	if err != nil {
 		return nil, errors.Wrap(err, "importer pod API create errored")
 	}
-	glog.V(Vuser).Infof("importer pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	glog.V(1).Infof("importer pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
 	return pod, nil
 }
 
@@ -319,7 +320,7 @@ func getCloneRequestPVC(pvc *v1.PersistentVolumeClaim) (string, error) {
 func ParseSourcePvcAnnotation(sourcePvcAnno, del string) (namespace, name string) {
 	strArr := strings.Split(sourcePvcAnno, del)
 	if strArr == nil || len(strArr) < 2 {
-		glog.V(Vdebug).Infof("Bad CloneRequest Annotation")
+		glog.V(3).Infof("Bad CloneRequest Annotation")
 		return "", ""
 	}
 	return strArr[0], strArr[1]
@@ -336,7 +337,7 @@ func CreateCloneSourcePod(client kubernetes.Interface, image string, verbose str
 	if err != nil {
 		return nil, errors.Wrap(err, "source pod API create errored")
 	}
-	glog.V(Vuser).Infof("cloning source pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	glog.V(1).Infof("cloning source pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
 	return pod, nil
 }
 
@@ -432,7 +433,7 @@ func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose str
 	if err != nil {
 		return nil, errors.Wrap(err, "clone target pod API create errored")
 	}
-	glog.V(Vuser).Infof("cloning target pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	glog.V(1).Infof("cloning target pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
 	return pod, nil
 }
 
@@ -552,13 +553,13 @@ func checkClonePVC(pvc *v1.PersistentVolumeClaim) bool {
 
 	// check if we have proper AnnCloneRequest annotation on the target pvc
 	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneRequest) {
-		glog.V(Vadmin).Infof("pvc annotation %q not found, skipping pvc \"%s/%s\"\n", AnnCloneRequest, pvc.Namespace, pvc.Name)
+		glog.V(2).Infof("pvc annotation %q not found, skipping pvc\n", AnnCloneRequest)
 		return false
 	}
 
 	//checking for CloneOf annotation indicating that the clone was already taken care of by the provisioner (smart clone).
 	if metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf) {
-		glog.V(Vadmin).Infof("pvc annotation %q exists indicating cloning completed, skipping pvc \"%s/%s\"\n", AnnCloneOf, pvc.Namespace, pvc.Name)
+		glog.V(2).Infof("pvc annotation %q exists indicating cloning completed, skipping pvc\n", AnnCloneOf)
 		return false
 	}
 	return true
