@@ -2,6 +2,7 @@ package tests
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -57,6 +58,10 @@ var _ = Describe(testSuiteName, func() {
 			Expect(err).NotTo(HaveOccurred())
 			f.AddNamespaceToDelete(targetNs)
 			doCloneTest(f, targetNs)
+		})
+
+		It("Should not clone anything when CloneOf annotation exists", func() {
+			cloneOfAnnoExistenceTest(f, f.Namespace)
 		})
 	})
 
@@ -120,4 +125,33 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 		err = utils.DeletePVC(f.K8sClient, targetNs.Name, targetPvc)
 		Expect(err).ToNot(HaveOccurred())
 	}
+}
+
+func verifyTargetContent(f *framework.Framework, namespace *v1.Namespace, pvc *v1.PersistentVolumeClaim) bool {
+	By("Verify target PVC content matches source PVC")
+	executorPod, err := utils.CreateExecutorPodWithPVC(f.K8sClient, "verify-pvc-content", namespace.Name, pvc)
+	Expect(err).ToNot(HaveOccurred())
+	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
+	Expect(err).ToNot(HaveOccurred())
+	output := f.ExecShellInPod(executorPod.Name, namespace.Name, "cat "+testFile)
+	f.DeletePod(executorPod)
+	return strings.Compare(fillData, output) == 0
+}
+
+func cloneOfAnnoExistenceTest(f *framework.Framework, targetNs *v1.Namespace) {
+	// Create targetPvc
+	By("Creating target pvc")
+	targetPvc, err := utils.CreatePVCFromDefinition(f.K8sClient, targetNs.Name, utils.NewPVCDefinition(
+		"target-pvc",
+		"1G",
+		map[string]string{controller.AnnCloneRequest: f.Namespace.Name + "/" + sourcePVCName, controller.AnnCloneOf: "true"},
+		nil))
+	Expect(err).ToNot(HaveOccurred())
+	err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)
+
+	By("Checking no cloning pods were created")
+	_, err = f.FindPodByPrefix(common.CLONER_SOURCE_PODNAME)
+	Expect(err).To(HaveOccurred())
+	_, err = utils.FindPodByPrefix(f.K8sClient, targetNs.Name, common.CLONER_TARGET_PODNAME, common.CDI_LABEL_SELECTOR)
+	Expect(err).To(HaveOccurred())
 }
