@@ -43,7 +43,6 @@ import (
 	cdischeme "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
 	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/datavolumecontroller/v1alpha1"
 	listers "kubevirt.io/containerized-data-importer/pkg/client/listers/datavolumecontroller/v1alpha1"
-	. "kubevirt.io/containerized-data-importer/pkg/common"
 	expectations "kubevirt.io/containerized-data-importer/pkg/expectations"
 )
 
@@ -84,9 +83,9 @@ func NewDataVolumeController(
 	// Add datavolume-controller types to the default Kubernetes Scheme so Events can be
 	// logged for datavolume-controller types.
 	cdischeme.AddToScheme(scheme.Scheme)
-	glog.V(Vdebug).Info("Creating event broadcaster")
+	glog.V(3).Info("Creating event broadcaster")
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(glog.V(Vadmin).Infof)
+	eventBroadcaster.StartLogging(glog.V(2).Infof)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeclientset.CoreV1().Events("")})
 	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: controllerAgentName})
 
@@ -102,7 +101,7 @@ func NewDataVolumeController(
 		pvcExpectations:   expectations.NewUIDTrackingControllerExpectations(expectations.NewControllerExpectations()),
 	}
 
-	glog.V(Vadmin).Info("Setting up event handlers")
+	glog.V(2).Info("Setting up event handlers")
 
 	// Set up an event handler for when DataVolume resources change
 	dataVolumeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -140,23 +139,23 @@ func (c *DataVolumeController) Run(threadiness int, stopCh <-chan struct{}) erro
 	defer c.workqueue.ShutDown()
 
 	// Start the informer factories to begin populating the informer caches
-	glog.V(Vadmin).Info("Starting DataVolume controller")
+	glog.V(2).Info("Starting DataVolume controller")
 
 	// Wait for the caches to be synced before starting workers
-	glog.V(Vadmin).Info("Waiting for informer caches to sync")
+	glog.V(2).Info("Waiting for informer caches to sync")
 	if ok := cache.WaitForCacheSync(stopCh, c.pvcsSynced, c.dataVolumesSynced); !ok {
 		return errors.Errorf("failed to wait for caches to sync")
 	}
 
-	glog.V(Vadmin).Info("Starting workers")
+	glog.V(2).Info("Starting workers")
 	// Launch two workers to process DataVolume resources
 	for i := 0; i < threadiness; i++ {
 		go wait.Until(c.runWorker, time.Second, stopCh)
 	}
 
-	glog.V(Vadmin).Info("Started workers")
+	glog.V(2).Info("Started workers")
 	<-stopCh
-	glog.V(Vadmin).Info("Shutting down workers")
+	glog.V(2).Info("Shutting down workers")
 
 	return nil
 }
@@ -210,7 +209,7 @@ func (c *DataVolumeController) processNextWorkItem() bool {
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
 		c.workqueue.Forget(obj)
-		glog.V(Vadmin).Infof("Successfully synced '%s'", key)
+		glog.V(2).Infof("Successfully synced '%s'", key)
 		return nil
 	}(obj)
 
@@ -393,9 +392,9 @@ func (c *DataVolumeController) handleObject(obj interface{}, verb string) {
 			runtime.HandleError(errors.Errorf("error decoding object tombstone, invalid type"))
 			return
 		}
-		glog.V(Vdebug).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
+		glog.V(3).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
 	}
-	glog.V(Vdebug).Infof("Processing object: %s", object.GetName())
+	glog.V(3).Infof("Processing object: %s", object.GetName())
 	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
 		// If this object is not owned by a DataVolume, we should not do anything more
 		// with it.
@@ -405,7 +404,7 @@ func (c *DataVolumeController) handleObject(obj interface{}, verb string) {
 
 		dataVolume, err := c.dataVolumesLister.DataVolumes(object.GetNamespace()).Get(ownerRef.Name)
 		if err != nil {
-			glog.V(Vdebug).Infof("ignoring orphaned object '%s' of dataVolume '%s'", object.GetSelfLink(), ownerRef.Name)
+			glog.V(3).Infof("ignoring orphaned object '%s' of dataVolume '%s'", object.GetSelfLink(), ownerRef.Name)
 			return
 		}
 
