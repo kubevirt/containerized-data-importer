@@ -36,7 +36,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
-	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 const (
@@ -139,7 +138,7 @@ func (r *ControllerExpectations) GetExpectations(controllerKey string) (*Control
 func (r *ControllerExpectations) DeleteExpectations(controllerKey string) {
 	if exp, exists, err := r.GetByKey(controllerKey); err == nil && exists {
 		if err = r.Delete(exp); err != nil {
-			glog.V(common.Vadmin).Infof("Error deleting expectations for controller %v: %v", controllerKey, err)
+			glog.V(2).Infof("Error deleting expectations for controller %v: %v", controllerKey, err)
 		}
 	}
 }
@@ -150,24 +149,25 @@ func (r *ControllerExpectations) DeleteExpectations(controllerKey string) {
 func (r *ControllerExpectations) SatisfiedExpectations(controllerKey string) bool {
 	if exp, exists, err := r.GetExpectations(controllerKey); exists {
 		if exp.Fulfilled() {
-			glog.V(common.Vdebug).Infof("Controller expectations fulfilled %#v", exp)
+			glog.V(3).Infof("Controller expectations fulfilled %#v", exp)
 			return true
 		} else if exp.isExpired() {
-			glog.V(common.Vdebug).Infof("Controller expectations expired %#v", exp)
+			glog.V(3).Infof("Controller expectations expired %#v", exp)
 			return true
 		} else {
-			glog.V(common.Vdebug).Infof("Controller still waiting on expectations %#v", exp)
+			glog.V(3).Infof("Controller still waiting on expectations %#v", exp)
 			return false
 		}
 	} else if err != nil {
-		glog.V(common.Vadmin).Infof("Error encountered while checking expectations %#v, forcing sync", err)
+		glog.V(2).Infof("Error encountered while checking expectations %#v, forcing sync", err)
+
 	} else {
 		// When a new controller is created, it doesn't have expectations.
 		// When it doesn't see expected watch events for > TTL, the expectations expire.
 		//	- In this case it wakes up, creates/deletes controllees, and sets expectations again.
 		// When it has satisfied expectations and no controllees need to be created/destroyed > TTL, the expectations expire.
 		//	- In this case it continues without setting expectations till it needs to create/delete controllees.
-		glog.V(common.Vdebug).Infof("Controller %v either never recorded expectations, or the ttl expired.", controllerKey)
+		glog.V(3).Infof("Controller %v either never recorded expectations, or the ttl expired.", controllerKey)
 	}
 	// Trigger a sync if we either encountered and error (which shouldn't happen since we're
 	// getting from local store) or this controller hasn't established expectations.
@@ -184,7 +184,7 @@ func (exp *ControlleeExpectations) isExpired() bool {
 // SetExpectations registers new expectations for the given controller. Forgets existing expectations.
 func (r *ControllerExpectations) SetExpectations(controllerKey string, add, del int) error {
 	exp := &ControlleeExpectations{add: int64(add), del: int64(del), key: controllerKey, timestamp: clock.RealClock{}.Now()}
-	glog.V(common.Vdebug).Infof("Setting expectations %#v", exp)
+	glog.V(3).Infof("Setting expectations %#v", exp)
 	return r.Add(exp)
 }
 
@@ -203,7 +203,7 @@ func (r *ControllerExpectations) LowerExpectations(controllerKey string, add, de
 	if exp, exists, err := r.GetExpectations(controllerKey); err == nil && exists {
 		exp.Add(int64(-add), int64(-del))
 		// The expectations might've been modified since the update on the previous line.
-		glog.V(common.Vdebug).Infof("Lowered expectations %#v", exp)
+		glog.V(3).Infof("Lowered expectations %#v", exp)
 	}
 }
 
@@ -212,7 +212,7 @@ func (r *ControllerExpectations) RaiseExpectations(controllerKey string, add, de
 	if exp, exists, err := r.GetExpectations(controllerKey); err == nil && exists {
 		exp.Add(int64(add), int64(del))
 		// The expectations might've been modified since the update on the previous line.
-		glog.V(common.Vdebug).Infof("Raised expectations %#v", exp)
+		glog.V(3).Infof("Raised expectations %#v", exp)
 	}
 }
 
@@ -317,7 +317,7 @@ func (u *UIDTrackingControllerExpectations) ExpectDeletions(rcKey string, delete
 	for _, k := range deletedKeys {
 		expectedUIDs.Insert(k)
 	}
-	glog.V(common.Vdebug).Infof("Controller %v waiting on deletions for: %+v", rcKey, deletedKeys)
+	glog.V(3).Infof("Controller %v waiting on deletions for: %+v", rcKey, deletedKeys)
 	if err := u.uidStore.Add(&UIDSet{expectedUIDs, rcKey}); err != nil {
 		return err
 	}
@@ -331,7 +331,7 @@ func (u *UIDTrackingControllerExpectations) DeletionObserved(rcKey, deleteKey st
 
 	uids := u.GetUIDs(rcKey)
 	if uids != nil && uids.Has(deleteKey) {
-		glog.V(common.Vdebug).Infof("Controller %v received delete for pod %v", rcKey, deleteKey)
+		glog.V(3).Infof("Controller %v received delete for pod %v", rcKey, deleteKey)
 		u.ControllerExpectationsInterface.DeletionObserved(rcKey)
 		uids.Delete(deleteKey)
 	}
@@ -346,7 +346,7 @@ func (u *UIDTrackingControllerExpectations) DeleteExpectations(rcKey string) {
 	u.ControllerExpectationsInterface.DeleteExpectations(rcKey)
 	if uidExp, exists, err := u.uidStore.GetByKey(rcKey); err == nil && exists {
 		if err = u.uidStore.Delete(uidExp); err != nil {
-			glog.V(common.Vadmin).Infof("Error deleting uid expectations for controller %v: %v", rcKey, err)
+			glog.V(2).Infof("Error deleting uid expectations for controller %v: %v", rcKey, err)
 		}
 	}
 }

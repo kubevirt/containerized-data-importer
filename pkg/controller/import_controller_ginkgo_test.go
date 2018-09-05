@@ -26,7 +26,7 @@ const (
 	IMPORTER_DEFAULT_IMAGE = "kubevirt/cdi-importer:latest"
 )
 
-var verboseDebug = fmt.Sprintf("%d", Vdebug)
+var verboseDebug = fmt.Sprintf("%d", 3)
 
 var _ = Describe("Controller", func() {
 	var (

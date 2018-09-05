@@ -81,7 +81,7 @@ var rdrTypM = map[string]int{
 // Note: the caller must close the `Readers` in reverse order. See Close().
 func NewDataStream(endpt, accKey, secKey string) (*DataStream, error) {
 	if len(accKey) == 0 || len(secKey) == 0 {
-		glog.V(common.Vadmin).Infof("%s and/or %s are empty\n", common.IMPORTER_ACCESS_KEY_ID, common.IMPORTER_SECRET_KEY)
+		glog.V(2).Infof("%s and/or %s are empty\n", common.IMPORTER_ACCESS_KEY_ID, common.IMPORTER_SECRET_KEY)
 	}
 	ep, err := ParseEndpoint(endpt)
 	if err != nil {
@@ -107,7 +107,7 @@ func NewDataStream(endpt, accKey, secKey string) (*DataStream, error) {
 			return nil, errors.Wrapf(err, "unable to calculate iso file size")
 		}
 	}
-	glog.V(common.Vdebug).Infof("NewDataStream: endpoint %q's computed byte size: %d", ep, ds.Size)
+	glog.V(3).Infof("NewDataStream: endpoint %q's computed byte size: %d", ep, ds.Size)
 	return ds, nil
 }
 
@@ -144,14 +144,14 @@ func (d *DataStream) dataStreamSelector() (err error) {
 }
 
 func (d DataStream) s3() (io.ReadCloser, error) {
-	glog.V(common.Vdebug).Infoln("Using S3 client to get data")
+	glog.V(3).Infoln("Using S3 client to get data")
 	bucket := d.url.Host
 	object := strings.Trim(d.url.Path, "/")
 	mc, err := minio.NewV4(common.IMPORTER_S3_HOST, d.accessKeyID, d.secretKey, false)
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not build minio client for %q", d.url.Host)
 	}
-	glog.V(common.Vadmin).Infof("Attempting to get object %q via S3 client\n", d.url.String())
+	glog.V(2).Infof("Attempting to get object %q via S3 client\n", d.url.String())
 	objectReader, err := mc.GetObject(bucket, object, minio.GetObjectOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not get s3 object: \"%s/%s\"", bucket, object)
@@ -173,7 +173,7 @@ func (d DataStream) http() (io.ReadCloser, error) {
 	if len(d.accessKeyID) > 0 && len(d.secretKey) > 0 {
 		req.SetBasicAuth(d.accessKeyID, d.secretKey)
 	}
-	glog.V(common.Vadmin).Infof("Attempting to get object %q via http client\n", d.url.String())
+	glog.V(2).Infof("Attempting to get object %q via http client\n", d.url.String())
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, errors.Wrap(err, "HTTP request errored")
@@ -200,7 +200,7 @@ func (d DataStream) local() (io.ReadCloser, error) {
 
 // CopyImage copies the source endpoint (vm image) to the provided destination path.
 func CopyImage(dest, endpoint, accessKey, secKey string) error {
-	glog.V(common.Vuser).Infof("copying %q to %q...\n", endpoint, dest)
+	glog.V(1).Infof("copying %q to %q...\n", endpoint, dest)
 	ds, err := NewDataStream(endpoint, accessKey, secKey)
 	if err != nil {
 		return errors.Wrapf(err, "unable to create data stream")
@@ -248,7 +248,7 @@ func CopyImage(dest, endpoint, accessKey, secKey string) error {
 // Note: file extensions are ignored.
 // Note: readers are not closed here, see dataStream.Close().
 func (d *DataStream) constructReaders() error {
-	glog.V(common.Vadmin).Infof("create the initial Reader based on the endpoint's %q scheme", d.url.Scheme)
+	glog.V(2).Infof("create the initial Reader based on the endpoint's %q scheme", d.url.Scheme)
 	// create the scheme-specific source reader and append it to dataStream readers stack
 	err := d.dataStreamSelector()
 	if err != nil {
@@ -259,7 +259,7 @@ func (d *DataStream) constructReaders() error {
 	// note: iso file headers are not processed here due to their much larger size and if
 	//   the iso file is tar'd we can get its size via the tar hdr -- see intro comments.
 	knownHdrs := image.CopyKnownHdrs() // need local copy since keys are removed
-	glog.V(common.Vdebug).Infof("constructReaders: checking compression and archive formats: %s\n", d.url.Path)
+	glog.V(3).Infof("constructReaders: checking compression and archive formats: %s\n", d.url.Path)
 	for {
 		hdr, err := d.matchHeader(&knownHdrs)
 		if err != nil {
@@ -268,7 +268,7 @@ func (d *DataStream) constructReaders() error {
 		if hdr == nil {
 			break // done processing headers, we have the orig source file
 		}
-		glog.V(common.Vadmin).Infof("found header of type %q\n", hdr.Format)
+		glog.V(2).Infof("found header of type %q\n", hdr.Format)
 		// create format-specific reader and append it to dataStream readers stack
 		err = d.fileFormatSelector(hdr)
 		if err != nil {
@@ -283,9 +283,9 @@ func (d *DataStream) constructReaders() error {
 
 	if len(d.Readers) <= 2 {
 		// 1st rdr is source, 2nd rdr is multi-rdr, >2 means we have additional formats
-		glog.V(common.Vdebug).Infof("constructReaders: no headers found for file %q\n", d.url.Path)
+		glog.V(3).Infof("constructReaders: no headers found for file %q\n", d.url.Path)
 	}
-	glog.V(common.Vadmin).Infof("done processing %q headers\n", d.url.Path)
+	glog.V(2).Infof("done processing %q headers\n", d.url.Path)
 	return nil
 }
 
@@ -349,7 +349,7 @@ func (d DataStream) gzReader() (io.ReadCloser, int64, error) {
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "could not create gzip reader")
 	}
-	glog.V(common.Vadmin).Infof("gzip: extracting %q\n", gz.Name)
+	glog.V(2).Infof("gzip: extracting %q\n", gz.Name)
 	size := int64(0) //TODO: implement size
 	return gz, size, nil
 }
@@ -390,7 +390,7 @@ func (d DataStream) tarReader() (io.Reader, int64, error) {
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "could not read tar header")
 	}
-	glog.V(common.Vadmin).Infof("tar: extracting %q\n", hdr.Name)
+	glog.V(2).Infof("tar: extracting %q\n", hdr.Name)
 	return tr, hdr.Size, nil
 }
 
@@ -444,7 +444,7 @@ func (d *DataStream) isoSize() (int64, error) {
 		return 0, nil
 	}
 	if vdtyp != primaryVD && string(buf[idOff:idOff+idLen]) != id {
-		glog.V(common.Vdebug).Infof("isoSize: endpoint %q is not an ISO file", d.url.Path)
+		glog.V(3).Infof("isoSize: endpoint %q is not an ISO file", d.url.Path)
 		return 0, nil
 	}
 
@@ -508,12 +508,12 @@ func (d DataStream) copy(dest string) error {
 // Copy the file using its Reader (r) to the passed-in destination (`out`).
 func copy(r io.Reader, out string, qemu bool) error {
 	out = filepath.Clean(out)
-	glog.V(common.Vadmin).Infof("copying image file to %q", out)
+	glog.V(2).Infof("copying image file to %q", out)
 	dest := out
 	if qemu {
 		// copy to tmp; qemu conversion will write to passed-in destination
 		dest = randTmpName(out)
-		glog.V(common.Vdebug).Infof("Copy: temp file for qcow2 conversion: %q", dest)
+		glog.V(3).Infof("Copy: temp file for qcow2 conversion: %q", dest)
 		defer func(f string) {
 			os.Remove(f)
 		}(dest)
@@ -524,7 +524,7 @@ func copy(r io.Reader, out string, qemu bool) error {
 		return errors.WithMessage(err, fmt.Sprintf("unable to stream data to file %q", dest))
 	}
 	if qemu {
-		glog.V(common.Vadmin).Infoln("converting qcow2 image")
+		glog.V(2).Infoln("converting qcow2 image")
 		err = image.ConvertQcow2ToRaw(dest, out)
 		if err != nil {
 			return errors.WithMessage(err, "unable to copy image")
@@ -547,6 +547,6 @@ func randTmpName(src string) string {
 // parseDataPath only used for debugging
 func (d DataStream) parseDataPath() (string, string) {
 	pathSlice := strings.Split(strings.Trim(d.url.EscapedPath(), "/"), "/")
-	glog.V(common.Vdebug).Infof("parseDataPath: url path: %v", pathSlice)
+	glog.V(3).Infof("parseDataPath: url path: %v", pathSlice)
 	return pathSlice[0], strings.Join(pathSlice[1:], "/")
 }
