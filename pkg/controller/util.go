@@ -55,7 +55,7 @@ func checkPVC(pvc *v1.PersistentVolumeClaim) bool {
 
 	// check if we have proper AnnEndPoint annotation
 	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnEndpoint) {
-		glog.V(Vadmin).Infof("pvc annotation %q not found, skipping pvc\n", AnnEndpoint)
+		glog.V(Vadmin).Infof("pvc annotation %q not found, skipping pvc \"%s/%s\"\n", AnnEndpoint, pvc.Namespace, pvc.Name)
 		return false
 	}
 
@@ -552,13 +552,13 @@ func checkClonePVC(pvc *v1.PersistentVolumeClaim) bool {
 
 	// check if we have proper AnnCloneRequest annotation on the target pvc
 	if !metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneRequest) {
-		glog.V(Vadmin).Infof("pvc annotation %q not found, skipping pvc\n", AnnCloneRequest)
+		glog.V(Vadmin).Infof("pvc annotation %q not found, skipping pvc \"%s/%s\"\n", AnnCloneRequest, pvc.Namespace, pvc.Name)
 		return false
 	}
 
 	//checking for CloneOf annotation indicating that the clone was already taken care of by the provisioner (smart clone).
 	if metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf) {
-		glog.V(Vadmin).Infof("pvc annotation %q exists indicating cloning completed, skipping pvc\n", AnnCloneOf)
+		glog.V(Vadmin).Infof("pvc annotation %q exists indicating cloning completed, skipping pvc \"%s/%s\"\n", AnnCloneOf, pvc.Namespace, pvc.Name)
 		return false
 	}
 	return true

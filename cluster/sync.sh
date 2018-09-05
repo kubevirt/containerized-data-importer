@@ -10,6 +10,9 @@ source ./cluster/gocli.sh
 
 CDI_NAMESPACE=${CDI_NAMESPACE:-kube-system}
 
+# Set controller verbosity to 3 for functional tests.
+export VERBOSITY=3
+
 registry_port=$($gocli ports registry | tr -d '\r')
 registry=localhost:$registry_port
 
