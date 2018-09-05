@@ -63,8 +63,8 @@ var _ = Describe("Transport Tests", func() {
 		if credentialed {
 			By(fmt.Sprintf("Creating secret for endpoint %s", ep))
 			stringData := map[string]string{
-				common.KeyAccess: utils.AccessKeyValue,
-				common.KeySecret: utils.SecretKeyValue,
+				common.KEY_ACCESS: utils.AccessKeyValue,
+				common.KEY_SECRET: utils.SecretKeyValue,
 			}
 			sec, err = utils.CreateSecretFromDefinition(c, utils.NewSecretDefinition(nil, stringData, nil, ns, secretPrefix))
 			Expect(err).NotTo(HaveOccurred(), "Error creating test secret")

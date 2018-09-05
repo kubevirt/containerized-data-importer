@@ -16,6 +16,9 @@
 
 set -euo pipefail
 
+readonly MAX_CDI_WAIT_RETRY=30
+readonly CDI_WAIT_TIME=10
+
 script_dir="$(readlink -f $(dirname $0))"
 source hack/build/config.sh
 source hack/build/common.sh
@@ -38,8 +41,16 @@ arg_oc="${KUBECTL:+-oc-path=$KUBECTL}"
 test_args="${test_args} -ginkgo.v ${arg_master} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc}"
 
 echo 'Wait until all CDI Pods are ready'
-while [ -n "$(./cluster/kubectl.sh get pods -n $CDI_NAMESPACE -o'custom-columns=status:status.containerStatuses[*].ready' --no-headers | grep false)" ]; do
-    sleep 5
+retry_counter=0
+while [ $retry_counter -lt $MAX_CDI_WAIT_RETRY ] && [ -n "$(./cluster/kubectl.sh get pods -n $CDI_NAMESPACE -o'custom-columns=status:status.containerStatuses[*].ready' --no-headers | grep false)" ]; do
+	retry_counter=$((retry_counter++))
+    sleep $CDI_WAIT_TIME
 done
+
+if [ $retry_counter -eq $MAX_CDI_WAIT_RETRY ]; then
+	echo "Not all CDI pods became ready"
+	./cluster/kubectl.sh get pods -n $CDI_NAMESPACE
+	exit 1
+fi
 
 ${script_dir}/run-tests.sh ${pkgs} --test-args="${test_args}"

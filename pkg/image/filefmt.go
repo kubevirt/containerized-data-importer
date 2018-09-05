@@ -9,12 +9,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Size of buffer used to read file headers.
+// MaxExpectedHdrSize defines the Size of buffer used to read file headers.
 // Note: this is the size of tar's header. If a larger number is used the tar unarchive operation
 //   creates the destination file too large, by the difference between this const and 512.
 const MaxExpectedHdrSize = 512
 
-// key is file format, eg. "gz" or "tar", value is metadata describing the layout for this hdr
+// Headers provides a map for header info, key is file format, eg. "gz" or "tar", value is metadata describing the layout for this hdr
 type Headers map[string]Header
 
 var knownHeaders = Headers{
@@ -48,6 +48,7 @@ var knownHeaders = Headers{
 	},
 }
 
+// Header represents our parameters for a file format header
 type Header struct {
 	Format      string
 	magicNumber []byte
@@ -56,7 +57,7 @@ type Header struct {
 	SizeLen     int // in bytes
 }
 
-// simple map copy since := assignment copies the reference to the map, not contents.
+// CopyKnownHdrs performs a simple map copy since := assignment copies the reference to the map, not contents.
 func CopyKnownHdrs() Headers {
 	m := make(Headers)
 	for k, v := range knownHeaders {
@@ -65,10 +66,13 @@ func CopyKnownHdrs() Headers {
 	return m
 }
 
+// Match performs a check to see if the provided byte slice matches the bytes in our header data
 func (h Header) Match(b []byte) bool {
 	return bytes.Equal(b[h.mgOffset:h.mgOffset+len(h.magicNumber)], h.magicNumber)
 }
 
+// Size uses the Header receiver offset and length fields to extract, from the passed-in file header slice (b),
+// the size of the original file. It is not guaranteed that the header is known to cdi and thus 0 may be returned as the size.
 func (h Header) Size(b []byte) (int64, error) {
 	if h.SizeLen == 0 { // no size is supported in this format's header
 		return 0, nil

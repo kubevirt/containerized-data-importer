@@ -39,6 +39,7 @@ import (
 )
 
 const (
+	// ExpectationsTimeout sets a constant timeout value to 5 minutes
 	// If a watch drops a delete event for a pod, it'll take this long
 	// before a dormant controller waiting for those packets is woken up anyway. It is
 	// specifically targeted at the case where some problem prevents an update
@@ -52,6 +53,7 @@ const (
 	ExpectationsTimeout = 5 * time.Minute
 )
 
+//UpdateTaintBackoff provides a variable to hold a wait.Backoff item
 var UpdateTaintBackoff = wait.Backoff{
 	Steps:    5,
 	Duration: 100 * time.Millisecond,
@@ -59,12 +61,14 @@ var UpdateTaintBackoff = wait.Backoff{
 }
 
 var (
+	// KeyFunc is a variable holding cache.DeletionHandlingMetaNamespaceKeyFunc
 	KeyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 )
 
+// ResyncPeriodFunc creates a function type
 type ResyncPeriodFunc func() time.Duration
 
-// Returns 0 for resyncPeriod in case resyncing is not needed.
+// NoResyncPeriodFunc returns 0 for resyncPeriod in case resyncing is not needed.
 func NoResyncPeriodFunc() time.Duration {
 	return 0
 }
@@ -123,11 +127,11 @@ type ControllerExpectations struct {
 
 // GetExpectations returns the ControlleeExpectations of the given controller.
 func (r *ControllerExpectations) GetExpectations(controllerKey string) (*ControlleeExpectations, bool, error) {
-	if exp, exists, err := r.GetByKey(controllerKey); err == nil && exists {
-		return exp.(*ControlleeExpectations), true, nil
-	} else {
-		return nil, false, err
+	exp, exists, err := r.GetByKey(controllerKey)
+	if exp != nil {
+		return exp.(*ControlleeExpectations), exists, err
 	}
+	return nil, exists, err
 }
 
 // DeleteExpectations deletes the expectations of the given controller from the TTLStore.
@@ -156,6 +160,7 @@ func (r *ControllerExpectations) SatisfiedExpectations(controllerKey string) boo
 		}
 	} else if err != nil {
 		glog.V(2).Infof("Error encountered while checking expectations %#v, forcing sync", err)
+
 	} else {
 		// When a new controller is created, it doesn't have expectations.
 		// When it doesn't see expected watch events for > TTL, the expectations expire.
@@ -183,15 +188,17 @@ func (r *ControllerExpectations) SetExpectations(controllerKey string, add, del 
 	return r.Add(exp)
 }
 
+// ExpectCreations wraps SetExpectations for the reciever controller specified, setting creates
 func (r *ControllerExpectations) ExpectCreations(controllerKey string, adds int) error {
 	return r.SetExpectations(controllerKey, adds, 0)
 }
 
+// ExpectDeletions wraps SetExpectations for the reciever controller specified, setting deletions
 func (r *ControllerExpectations) ExpectDeletions(controllerKey string, dels int) error {
 	return r.SetExpectations(controllerKey, 0, dels)
 }
 
-// Decrements the expectation counts of the given controller.
+// LowerExpectations decrements the expectation counts of the given controller.
 func (r *ControllerExpectations) LowerExpectations(controllerKey string, add, del int) {
 	if exp, exists, err := r.GetExpectations(controllerKey); err == nil && exists {
 		exp.Add(int64(-add), int64(-del))
@@ -200,7 +207,7 @@ func (r *ControllerExpectations) LowerExpectations(controllerKey string, add, de
 	}
 }
 
-// Increments the expectation counts of the given controller.
+// RaiseExpectations increments the expectation counts of the given controller.
 func (r *ControllerExpectations) RaiseExpectations(controllerKey string, add, del int) {
 	if exp, exists, err := r.GetExpectations(controllerKey); err == nil && exists {
 		exp.Add(int64(add), int64(del))
@@ -235,20 +242,20 @@ type ControlleeExpectations struct {
 }
 
 // Add increments the add and del counters.
-func (e *ControlleeExpectations) Add(add, del int64) {
-	atomic.AddInt64(&e.add, add)
-	atomic.AddInt64(&e.del, del)
+func (exp *ControlleeExpectations) Add(add, del int64) {
+	atomic.AddInt64(&exp.add, add)
+	atomic.AddInt64(&exp.del, del)
 }
 
 // Fulfilled returns true if this expectation has been fulfilled.
-func (e *ControlleeExpectations) Fulfilled() bool {
+func (exp *ControlleeExpectations) Fulfilled() bool {
 	// TODO: think about why this line being atomic doesn't matter
-	return atomic.LoadInt64(&e.add) <= 0 && atomic.LoadInt64(&e.del) <= 0
+	return atomic.LoadInt64(&exp.add) <= 0 && atomic.LoadInt64(&exp.del) <= 0
 }
 
 // GetExpectations returns the add and del expectations of the controllee.
-func (e *ControlleeExpectations) GetExpectations() (int64, int64) {
-	return atomic.LoadInt64(&e.add), atomic.LoadInt64(&e.del)
+func (exp *ControlleeExpectations) GetExpectations() (int64, int64) {
+	return atomic.LoadInt64(&exp.add), atomic.LoadInt64(&exp.del)
 }
 
 // NewControllerExpectations returns a store for ControllerExpectations.
