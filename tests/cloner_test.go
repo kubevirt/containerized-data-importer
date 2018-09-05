@@ -2,30 +2,28 @@ package tests
 
 import (
 	"fmt"
-	"time"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
 	"k8s.io/api/core/v1"
-
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
+	"strings"
+	"time"
 )
 
 const (
-	testSuiteName         = "Cloner Test Suite"
-	namespacePrefix       = "cloner"
-	sourcePodFillerName   = "fill-source"
-	sourcePVCName         = "source-pvc"
-	fillData              = "123456789012345678901234567890123456789012345678901234567890"
-	testFile              = utils.DefaultPvcMountPath + "/source.txt"
-	fillCommand           = "echo \"" + fillData + "\" >> " + testFile
-	assertionPollInterval = 2 * time.Second
-	cloneCompleteTimeout  = 60 * time.Second
-	shortTimeout          = 2 * time.Second
+	testSuiteName                    = "Cloner Test Suite"
+	namespacePrefix                  = "cloner"
+	sourcePodFillerName              = "fill-source"
+	sourcePVCName                    = "source-pvc"
+	fillData                         = "123456789012345678901234567890123456789012345678901234567890"
+	testFile                         = utils.DefaultPvcMountPath + "/source.txt"
+	fillCommand                      = "echo \"" + fillData + "\" >> " + testFile
+	assertionPollInterval            = 2 * time.Second
+	cloneCompleteTimeout             = 60 * time.Second
+	controllerSkipPVCCompleteTimeout = 60 * time.Second
 )
 
 var _ = Describe(testSuiteName, func() {
@@ -57,6 +55,9 @@ var _ = Describe(testSuiteName, func() {
 			Expect(err).NotTo(HaveOccurred())
 			f.AddNamespaceToDelete(targetNs)
 			doCloneTest(f, targetNs)
+		})
+		It("Should not clone anything when CloneOf annotation exists", func() {
+			cloneOfAnnoExistenceTest(f, f.Namespace.Name)
 		})
 	})
 
@@ -126,4 +127,23 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 	deleted, err = utils.WaitPodDeleted(f.K8sClient, targetPod.Name, targetNs.Name, time.Second*40)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(deleted).To(BeTrue())
+}
+
+func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string) {
+	// Create targetPvc
+	By(fmt.Sprintf("Creating target pvc: %s/target-pvc", targetNamespaceName))
+	_, err := utils.CreatePVCFromDefinition(f.K8sClient, targetNamespaceName, utils.NewPVCDefinition(
+		"target-pvc",
+		"1G",
+		map[string]string{controller.AnnCloneRequest: f.Namespace.Name + "/" + sourcePVCName, controller.AnnCloneOf: "true"},
+		nil))
+	Expect(err).ToNot(HaveOccurred())
+	By("Checking no cloning pods were created")
+
+	Eventually(func() bool {
+		log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+		Expect(err).NotTo(HaveOccurred())
+		return strings.Contains(log, "pvc annotation \""+controller.AnnCloneOf+"\" exists indicating cloning completed, skipping pvc \""+f.Namespace.Name+"/target-pvc\"")
+	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
+	Expect(err).ToNot(HaveOccurred())
 }
