@@ -88,12 +88,26 @@ func init() {
 	// By accessing something in the ginkgo_reporters package, we are ensuring that the init() is called
 	// That init calls flag.StringVar, and makes sure the --junit-output flag is added before we call
 	// flag.Parse in NewFramework. Without this, the flag is NOT added.
-	fmt.Fprintf(GinkgoWriter, "Making sure junit flag is available"+ginkgo_reporters.JunitOutput)
+	fmt.Fprintf(GinkgoWriter, "Making sure junit flag is available %v\n", ginkgo_reporters.JunitOutput)
 	kubectlPath = flag.String("kubectl-path", "kubectl", "The path to the kubectl binary")
 	ocPath = flag.String("oc-path", "oc", "The path to the oc binary")
 	cdiInstallNs = flag.String("cdi-namespace", "kube-system", "The namespace of the CDI controller")
 	kubeConfig = flag.String("kubeconfig", "/var/run/kubernetes/admin.kubeconfig", "The absolute path to the kubeconfig file")
 	master = flag.String("master", "", "master url:port")
+}
+
+// NewFrameworkOrDie calls NewFramework and handles errors by calling Fail. Config is optional, but
+// if passed there can only be one.
+func NewFrameworkOrDie(prefix string, config ...Config) *Framework {
+	cfg := Config{}
+	if len(config) > 0 {
+		cfg = config[0]
+	}
+	f, err := NewFramework(prefix, cfg)
+	if err != nil {
+		Fail(fmt.Sprintf("failed to create test framework with config %+v: %v", cfg, err))
+	}
+	return f
 }
 
 // NewFramework makes a new framework and sets up the global BeforeEach/AfterEach's.
@@ -107,13 +121,13 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 	// handle run-time flags
 	if !flag.Parsed() {
 		flag.Parse()
+		fmt.Fprintf(GinkgoWriter, "** Test flags:\n")
+		flag.Visit(func(f *flag.Flag) {
+			fmt.Fprintf(GinkgoWriter, "   %s = %q\n", f.Name, f.Value.String())
+		})
+		fmt.Fprintf(GinkgoWriter, "**\n")
 	}
-	// report flags values passed to test binary
-	fmt.Fprintf(GinkgoWriter, "** Test flags:\n")
-	flag.Visit(func(f *flag.Flag) {
-		fmt.Fprintf(GinkgoWriter, "   %s = %q\n", f.Name, f.Value.String())
-	})
-	fmt.Fprintf(GinkgoWriter, "**\n")
+
 	f.KubectlPath = *kubectlPath
 	f.OcPath = *ocPath
 	f.CdiInstallNs = *cdiInstallNs

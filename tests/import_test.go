@@ -21,10 +21,7 @@ const (
 )
 
 var _ = Describe(testSuiteName, func() {
-	f, err := framework.NewFramework(namespacePrefix, framework.Config{})
-	if err != nil {
-		Fail("Unable to create framework struct")
-	}
+	f := framework.NewFrameworkOrDie(namespacePrefix)
 
 	It("Should not perform CDI operations on PVC without annotations", func() {
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition("no-import", "1G", nil, nil))
