@@ -19,13 +19,13 @@ import (
 
 const TestImagesDir = "../../tests/images"
 
-func createDataStream(ep, accKey, secKey string) *dataStream {
+func createDataStream(ep, accKey, secKey string) *DataStream {
 	dsurl, _ := ParseEndpoint(ep)
 
-	ds := &dataStream{
-		Url:         dsurl,
+	ds := &DataStream{
+		url:         dsurl,
 		buf:         make([]byte, image.MaxExpectedHdrSize),
-		accessKeyId: accKey,
+		accessKeyID: accKey,
 		secretKey:   secKey,
 	}
 
@@ -34,10 +34,10 @@ func createDataStream(ep, accKey, secKey string) *dataStream {
 	return ds
 }
 
-func createDataStreamBytes(testfile, ep string, defaultBuf, singlereader bool) (*dataStream, []byte, error) {
+func createDataStreamBytes(testfile, ep string, defaultBuf, singlereader bool) (*DataStream, []byte, error) {
 	urlPath := filepath.Join(ep, testfile)
 	if len(ep) == 0 {
-		urlPath = getUrlPath(testfile)
+		urlPath = getURLPath(testfile)
 	}
 	testFilePath := getTestFilePath(testfile)
 	ds := createDataStream(urlPath, "", "")
@@ -81,7 +81,7 @@ func getTestFilePath(testfile string) string {
 	return filepath.Join(imageDir, testfile)
 }
 
-func getUrlPath(testfile string) string {
+func getURLPath(testfile string) string {
 	// CWD is set within go test to the directory of the test
 	// being executed, so using relative path
 	imageDir, _ := filepath.Abs(TestImagesDir)
@@ -101,7 +101,7 @@ func TestNewDataStream(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *dataStream
+		want    *DataStream
 		wantErr bool
 	}{
 		{
@@ -307,7 +307,7 @@ func Test_dataStream_constructReaders(t *testing.T) {
 	tests := []struct {
 		name    string
 		outfile string
-		ds      *dataStream
+		ds      *DataStream
 		numRdrs int
 		wantErr bool
 	}{
@@ -363,15 +363,15 @@ func Test_dataStream_constructReaders(t *testing.T) {
 
 func Test_closeReaders(t *testing.T) {
 	type args struct {
-		readers []Reader
+		readers []reader
 	}
 
 	rdrs1 := ioutil.NopCloser(strings.NewReader("test data for reader 1"))
 	rdrs2 := ioutil.NopCloser(strings.NewReader("test data for reader 2"))
-	rdrA := Reader{4, rdrs1}
-	rdrB := Reader{7, rdrs2}
+	rdrA := reader{4, rdrs1}
+	rdrB := reader{7, rdrs2}
 
-	rdrsTest := []Reader{rdrA, rdrB}
+	rdrsTest := []reader{rdrA, rdrB}
 
 	tests := []struct {
 		name    string
