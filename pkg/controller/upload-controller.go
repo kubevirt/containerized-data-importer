@@ -32,6 +32,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/cert/triple"
 	"k8s.io/client-go/util/workqueue"
+
+	"kubevirt.io/containerized-data-importer/pkg/keys"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -218,20 +221,20 @@ func (c *UploadController) initCerts() error {
 	var err error
 
 	// CA for Upload Servers
-	c.serverCAKeyPair, err = GetOrCreateCA(c.clientset, GetNamespace(), ServerCASecret, ServerCAName)
+	c.serverCAKeyPair, err = keys.GetOrCreateCA(c.clientset, util.GetNamespace(), ServerCASecret, ServerCAName)
 	if err != nil {
 		return errors.Wrap(err, "Couldn't get/create server CA")
 	}
 
 	// CA for Upload Client
-	c.clientCAKeyPair, err = GetOrCreateCA(c.clientset, GetNamespace(), ClientCASecret, ClientCAName)
+	c.clientCAKeyPair, err = keys.GetOrCreateCA(c.clientset, util.GetNamespace(), ClientCASecret, ClientCAName)
 	if err != nil {
 		return errors.Wrap(err, "Couldn't get/create client CA")
 	}
 
 	// Upload Server Client Cert
-	err = CreateClientKeyPairAndCert(c.clientset,
-		GetNamespace(),
+	err = keys.CreateClientKeyPairAndCert(c.clientset,
+		util.GetNamespace(),
 		ClientKeySecret,
 		c.clientCAKeyPair,
 		c.serverCAKeyPair.Cert,
@@ -244,17 +247,17 @@ func (c *UploadController) initCerts() error {
 		return errors.Wrap(err, "Couldn't get/create client cert")
 	}
 
-	uploadProxyCAKeyPair, err := GetOrCreateCA(c.clientset, GetNamespace(), uploadProxyCASecret, uploadProxyCAName)
+	uploadProxyCAKeyPair, err := keys.GetOrCreateCA(c.clientset, util.GetNamespace(), uploadProxyCASecret, uploadProxyCAName)
 	if err != nil {
 		return errors.Wrap(err, "Couldn't create upload proxy server cert")
 	}
 
-	err = CreateServerKeyPairAndCert(c.clientset,
-		GetNamespace(),
+	err = keys.CreateServerKeyPairAndCert(c.clientset,
+		util.GetNamespace(),
 		uploadProxyServerSecret,
 		uploadProxyCAKeyPair,
 		nil,
-		c.uploadProxyServiceName+"."+GetNamespace(),
+		c.uploadProxyServiceName+"."+util.GetNamespace(),
 		c.uploadProxyServiceName,
 		false, // okay if already exists
 		nil,

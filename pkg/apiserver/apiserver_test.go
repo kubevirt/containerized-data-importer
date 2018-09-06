@@ -6,39 +6,36 @@ import (
 	"reflect"
 	"testing"
 
-	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
-	"k8s.io/client-go/util/cert"
-
-	. "kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/keys"
 )
 
-func apiPublicKeyCreateAction(key *rsa.PublicKey) core.Action {
-	return core.NewCreateAction(
-		schema.GroupVersionResource{
-			Resource: "configmaps",
-			Version:  "v1",
-		},
-		"kube-system",
-		newConfigMap(APIPublicKeyConfigMap, "", key))
-}
-
-func apiPublicKeyGetAction() core.Action {
+func signingKeySecretGetAction() core.Action {
 	return core.NewGetAction(
 		schema.GroupVersionResource{
-			Resource: "configmaps",
+			Resource: "secrets",
 			Version:  "v1",
 		},
 		"kube-system",
-		APIPublicKeyConfigMap)
+		apiSigningKeySecretName)
 }
 
-func apiPrivateKeyGetAction() core.Action {
+func signingKeySecretCreateAction(privateKey *rsa.PrivateKey) core.Action {
+	secret, _ := keys.NewPrivateKeySecret("kube-system", apiSigningKeySecretName, privateKey)
+	return core.NewCreateAction(
+		schema.GroupVersionResource{
+			Resource: "secrets",
+			Version:  "v1",
+		},
+		"kube-system",
+		secret)
+}
+
+func tlsSecretGetAction() core.Action {
 	return core.NewGetAction(
 		schema.GroupVersionResource{
 			Resource: "secrets",
@@ -48,57 +45,14 @@ func apiPrivateKeyGetAction() core.Action {
 		apiCertSecretName)
 }
 
-func apiPrivateKeyCreateAction(certBytes, keyBytes, signingCertBytes []byte) core.Action {
+func tlsSecretCreateAction(privateKeyBytes, certBytes, caCertBytes []byte) core.Action {
 	return core.NewCreateAction(
 		schema.GroupVersionResource{
 			Resource: "secrets",
 			Version:  "v1",
 		},
 		"kube-system",
-		newAPISecret(apiCertSecretName, "kube-system", certBytes, keyBytes, signingCertBytes))
-}
-
-func newAPISecret(name string, namespace string, certBytes, keyBytes, signingCertBytes []byte) *v1.Secret {
-
-	secret := &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels: map[string]string{
-				CDI_COMPONENT_LABEL: "cdi-api-aggregator",
-			},
-		},
-		Type: "Opaque",
-		Data: map[string][]byte{
-			certBytesValue:        certBytes,
-			keyBytesValue:         keyBytes,
-			signingCertBytesValue: signingCertBytes,
-		},
-	}
-	return secret
-}
-
-func newConfigMap(name string, namespace string, key *rsa.PublicKey) *v1.ConfigMap {
-	encodedKey, err := EncodePublicKey(key)
-	if err != nil {
-		panic("encode public key failed")
-	}
-
-	config := &v1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-			Labels: map[string]string{
-				CDI_COMPONENT_LABEL: name,
-			},
-		},
-		Data: map[string]string{
-			"publicKey": encodedKey,
-		},
-	}
-	if namespace != "" {
-		config.Namespace = namespace
-	}
-	return config
+		keys.NewTLSSecretFromBytes("kube-system", apiCertSecretName, privateKeyBytes, certBytes, caCertBytes, nil))
 }
 
 func checkActions(expected []core.Action, actual []core.Action, t *testing.T) {
@@ -192,22 +146,29 @@ func Test_tokenEncrption(t *testing.T) {
 }
 
 func TestKeyRetrieval(t *testing.T) {
-	apiKeyPair, err := generateTestKey()
+	signingKey, err := generateTestKey()
 	if err != nil {
 		t.Errorf("error generating keys: %v", err)
 	}
 
-	keyBytes := cert.EncodePrivateKeyPEM(apiKeyPair)
+	keyBytes := []byte("madeup")
 	certBytes := []byte("madeup")
 	signingCertBytes := []byte("madeup")
 
+	signingKeySecret, err := keys.NewPrivateKeySecret("kube-system", apiSigningKeySecretName, signingKey)
+	if err != nil {
+		t.Errorf("error creating secret: %v", err)
+	}
+
+	tlsSecret := keys.NewTLSSecretFromBytes("kube-system", apiCertSecretName, keyBytes, certBytes, signingCertBytes, nil)
+
 	kubeobjects := []runtime.Object{}
-	kubeobjects = append(kubeobjects, newConfigMap(APIPublicKeyConfigMap, "kube-system", &apiKeyPair.PublicKey))
-	kubeobjects = append(kubeobjects, newAPISecret(apiCertSecretName, "kube-system", certBytes, keyBytes, signingCertBytes))
+	kubeobjects = append(kubeobjects, tlsSecret)
+	kubeobjects = append(kubeobjects, signingKeySecret)
 
 	actions := []core.Action{}
-	actions = append(actions, apiPrivateKeyGetAction())
-	actions = append(actions, apiPublicKeyGetAction())
+	actions = append(actions, tlsSecretGetAction())
+	actions = append(actions, signingKeySecretGetAction())
 
 	client := k8sfake.NewSimpleClientset(kubeobjects...)
 
@@ -237,20 +198,12 @@ func TestShouldGenerateCertsAndKeyFirstRun(t *testing.T) {
 		t.Errorf("error creating upload proxy app: %v", err)
 	}
 
-	obj, err := cert.ParsePrivateKeyPEM(app.keyBytes)
-	privateKey, ok := obj.(*rsa.PrivateKey)
-	if err != nil {
-		t.Errorf("Error parsing private key: %v", err)
-	}
-	if !ok {
-		t.Errorf("Unable to parse private key")
-	}
-
 	actions := []core.Action{}
-	actions = append(actions, apiPrivateKeyGetAction())
-	actions = append(actions, apiPrivateKeyCreateAction(app.certBytes, app.keyBytes, app.signingCertBytes))
-	actions = append(actions, apiPublicKeyGetAction())
-	actions = append(actions, apiPublicKeyCreateAction(&privateKey.PublicKey))
+	actions = append(actions, tlsSecretGetAction())
+	actions = append(actions, tlsSecretCreateAction(app.keyBytes, app.certBytes, app.signingCertBytes))
+	actions = append(actions, tlsSecretGetAction())
+	actions = append(actions, signingKeySecretGetAction())
+	actions = append(actions, signingKeySecretCreateAction(app.privateSigningKey))
 
 	checkActions(actions, client.Actions(), t)
 }

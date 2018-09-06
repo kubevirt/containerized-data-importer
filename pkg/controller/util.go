@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/keys"
 )
 
 // DataVolName provides a const to use for creating volumes in pod specs
@@ -530,7 +531,7 @@ func CreateUploadPod(client kubernetes.Interface,
 	secretName := name + "-server-tls"
 	owner := MakeOwnerReference(pvc)
 
-	err := CreateServerKeyPairAndCert(client, ns, secretName, caKeyPair, clientCACert, commonName, name, false, &owner)
+	err := keys.CreateServerKeyPairAndCert(client, ns, secretName, caKeyPair, clientCACert, commonName, name, false, &owner)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating server key pair")
 	}
@@ -585,6 +586,7 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 			},
 			Labels: map[string]string{
 				common.CDI_LABEL_KEY:               common.CDI_LABEL_VALUE,
+				common.CDI_COMPONENT_LABEL:         common.UPLOAD_SERVER_CDI_LABEL,
 				common.UPLOAD_SERVER_SERVICE_LABEL: name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
@@ -610,15 +612,15 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 					Env: []v1.EnvVar{
 						{
 							Name:  "TLS_KEY_FILE",
-							Value: filepath.Join(secretVolumeDir, keyStoreTLSKeyFile),
+							Value: filepath.Join(secretVolumeDir, keys.KeyStoreTLSKeyFile),
 						},
 						{
 							Name:  "TLS_CERT_FILE",
-							Value: filepath.Join(secretVolumeDir, keyStoreTLSCertFile),
+							Value: filepath.Join(secretVolumeDir, keys.KeyStoreTLSCertFile),
 						},
 						{
 							Name:  "TLS_CA_FILE",
-							Value: filepath.Join(secretVolumeDir, keyStoreTLSCAFile),
+							Value: filepath.Join(secretVolumeDir, keys.KeyStoreTLSCAFile),
 						},
 					},
 					Args: []string{"-v=" + verbose},
@@ -684,7 +686,8 @@ func MakeUploadServiceSpec(name string, pvc *v1.PersistentVolumeClaim) *v1.Servi
 				AnnCreatedByUpload: "yes",
 			},
 			Labels: map[string]string{
-				common.CDI_LABEL_KEY: common.CDI_LABEL_VALUE,
+				common.CDI_LABEL_KEY:       common.CDI_LABEL_VALUE,
+				common.CDI_COMPONENT_LABEL: common.UPLOAD_SERVER_CDI_LABEL,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{

@@ -16,7 +16,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/emicklei/go-restful"
-	"k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -28,20 +27,19 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/cdicontroller/v1alpha1"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	"kubevirt.io/containerized-data-importer/pkg/keys"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
 	// selfsigned cert secret name
-	apiCertSecretName = "cdi-api-certs"
+	apiCertSecretName       = "cdi-api-server-cert"
+	apiSigningKeySecretName = "cdi-api-signing-key"
 
 	uploadTokenGroup   = "upload.cdi.kubevirt.io"
 	uploadTokenVersion = "v1alpha1"
 
 	apiServiceName = "cdi-api"
-
-	certBytesValue        = "cert-bytes"
-	keyBytesValue         = "key-bytes"
-	signingCertBytesValue = "signing-cert-bytes"
 )
 
 // UploadAPIServer is the public interface to the upload API
@@ -189,86 +187,49 @@ func (app *uploadAPIApp) getClientCert() error {
 }
 
 func (app *uploadAPIApp) getSelfSignedCert() error {
-	var ok bool
-
-	namespace := GetNamespace()
-	generateCerts := false
-	secret, err := app.client.CoreV1().Secrets(namespace).Get(apiCertSecretName, metav1.GetOptions{})
+	namespace := util.GetNamespace()
+	keyPairAndCertBytes, err := keys.GetKeyPairAndCertBytes(app.client, namespace, apiCertSecretName)
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			generateCerts = true
-		} else {
-			return err
-		}
+		return errors.Wrap(err, "Error getting secret")
 	}
 
-	if generateCerts {
-		// Generate new certs if secret doesn't already exist
-		caKeyPair, _ := triple.NewCA("kubecdi.io")
-		keyPair, _ := triple.NewServerKeyPair(
-			caKeyPair,
-			"cdi-api."+namespace+".pod.cluster.local",
-			"cdi-api",
+	if keyPairAndCertBytes == nil {
+		caKeyPair, err := triple.NewCA("api.cdi.kubevirt.io")
+		if err != nil {
+			return errors.Wrap(err, "Error creating CA")
+		}
+
+		err = keys.CreateServerKeyPairAndCert(app.client,
 			namespace,
-			"cluster.local",
-			nil,
+			apiCertSecretName,
+			caKeyPair,
+			caKeyPair.Cert,
+			apiServiceName+"."+namespace,
+			apiServiceName,
+			false,
 			nil,
 		)
-
-		app.keyBytes = cert.EncodePrivateKeyPEM(keyPair.Key)
-		app.certBytes = cert.EncodeCertPEM(keyPair.Cert)
-		app.signingCertBytes = cert.EncodeCertPEM(caKeyPair.Cert)
-
-		secret := v1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      apiCertSecretName,
-				Namespace: namespace,
-				Labels: map[string]string{
-					CDI_COMPONENT_LABEL: "cdi-api-aggregator",
-				},
-			},
-			Type: "Opaque",
-			Data: map[string][]byte{
-				certBytesValue:        app.certBytes,
-				keyBytesValue:         app.keyBytes,
-				signingCertBytesValue: app.signingCertBytes,
-			},
-		}
-		_, err := app.client.CoreV1().Secrets(namespace).Create(&secret)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "Error creating secret")
 		}
-	} else {
-		// retrieve self signed cert info from secret
 
-		app.certBytes, ok = secret.Data[certBytesValue]
-		if !ok {
-			return errors.Errorf("%s value not found in %s cdi-api secret", certBytesValue, apiCertSecretName)
+		keyPairAndCertBytes, err = keys.GetKeyPairAndCertBytes(app.client, namespace, apiCertSecretName)
+		if err != nil {
+			return errors.Wrap(err, "Error getting secret")
 		}
-		app.keyBytes, ok = secret.Data[keyBytesValue]
-		if !ok {
-			return errors.Errorf("%s value not found in %s cdi-api secret", keyBytesValue, apiCertSecretName)
-		}
-		app.signingCertBytes, ok = secret.Data[signingCertBytesValue]
-		if !ok {
-			return errors.Errorf("%s value not found in %s cdi-api secret", signingCertBytesValue, apiCertSecretName)
+
+		if keyPairAndCertBytes == nil {
+			return errors.Wrap(err, "Error getting secret the second time")
 		}
 	}
 
-	// TODO - not crazy about the fact that we are sharing private key here
-	// replace with dedicated signing key
-	obj, err := cert.ParsePrivateKeyPEM(app.keyBytes)
-	privateKey, ok := obj.(*rsa.PrivateKey)
+	app.keyBytes = keyPairAndCertBytes.PrivateKey
+	app.certBytes = keyPairAndCertBytes.Cert
+	app.signingCertBytes = keyPairAndCertBytes.CACert
+
+	privateKey, err := keys.GetOrCreatePrivateKey(app.client, namespace, apiSigningKeySecretName)
 	if err != nil {
-		return err
-	}
-	if !ok {
-		return errors.Errorf("unable to parse private key")
-	}
-
-	err = RecordAPIPublicKey(app.client, &privateKey.PublicKey)
-	if err != nil {
-		return err
+		return errors.Wrap(err, "Error getting/creating signing key")
 	}
 
 	app.privateSigningKey = privateKey
@@ -506,7 +467,7 @@ func (app *uploadAPIApp) composeUploadTokenAPI() {
 }
 
 func (app *uploadAPIApp) createAPIService() error {
-	namespace := GetNamespace()
+	namespace := util.GetNamespace()
 	apiName := uploadTokenVersion + "." + uploadTokenGroup
 
 	registerAPIService := false

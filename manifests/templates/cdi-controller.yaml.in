@@ -292,9 +292,9 @@ spec:
         env:
         - name: APISERVER_PUBLIC_KEY
           valueFrom:
-            configMapKeyRef:
-              name: cdi-api-public
-              key: publicKey
+            secretKeyRef:
+              name: cdi-api-signing-key
+              key: id_rsa.pub
         - name: UPLOAD_SERVER_CLIENT_KEY
           valueFrom:
             secretKeyRef:

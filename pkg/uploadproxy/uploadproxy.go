@@ -17,9 +17,9 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 
-	apiserver "kubevirt.io/containerized-data-importer/pkg/apiserver"
+	"kubevirt.io/containerized-data-importer/pkg/apiserver"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
-	uploadserver "kubevirt.io/containerized-data-importer/pkg/uploadserver"
+	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 )
 
 const (

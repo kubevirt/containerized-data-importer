@@ -60,6 +60,12 @@ const (
 	// ClonerSocketPath (controller pkg only)
 	ClonerSocketPath = "/tmp/clone/socket"
 
+	// UploadServerCDILabel is the label applied to upload server resources
+	UploadServerCDILabel = "cdi-upload-server"
+
+	// UploadServerCDIPodname is name of the upload server pod container
+	UploadServerCDIPodname = UploadServerCDILabel
+
 	// UploadServerDataDir is the destination directoryfor uploads
 	UploadServerDataDir = ImporterDataDir
 	// UploadServerServiceLabel is the label selector for upload server services
