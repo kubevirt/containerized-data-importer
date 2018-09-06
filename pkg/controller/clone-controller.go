@@ -205,10 +205,13 @@ func (c *CloneController) runPVCWorkers() {
 }
 
 func (c *CloneController) syncPvc(key string) error {
-	pvc, err := c.pvcFromKey(key)
+	pvc, exists, err := c.pvcFromKey(key)
 	if err != nil {
 		return err
+	} else if !exists {
+		c.podExpectations.DeleteExpectations(key)
 	}
+
 	if pvc == nil {
 		return nil
 	}

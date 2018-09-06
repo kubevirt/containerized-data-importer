@@ -50,18 +50,21 @@ func TestController_pvcFromKey(t *testing.T) {
 			name:    "expect to not get pvc object from key",
 			args:    args{fmt.Sprintf("%s/%s", "myns", pvc.Name)},
 			want:    nil,
-			wantErr: true,
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := c.pvcFromKey(tt.args.key)
+			got, exists, err := c.pvcFromKey(tt.args.key)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Controller.pvcFromKey() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Controller.pvcFromKey() = %v, want %v", got, tt.want)
+			}
+			if tt.want == nil && exists {
+				t.Errorf("Controller.pvcFromKey() expected key not to exist")
 			}
 		})
 	}
@@ -101,7 +104,7 @@ func TestCloneController_pvcFromKey(t *testing.T) {
 			name:    "expect to not get pvc object from key",
 			args:    args{fmt.Sprintf("%s/%s", "myns", pvc.Name)},
 			want:    nil,
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name:    "expect to get pvc object from key",
@@ -112,13 +115,16 @@ func TestCloneController_pvcFromKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := c.pvcFromKey(tt.args.key)
+			got, exists, err := c.pvcFromKey(tt.args.key)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Controller.pvcFromKey() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Controller.pvcFromKey() = %v, want %v", got, tt.want)
+			}
+			if tt.want == nil && exists {
+				t.Errorf("Controller.pvcFromKey() expected key not to exist")
 			}
 		})
 	}
@@ -156,18 +162,21 @@ func TestController_objFromKey(t *testing.T) {
 			name:    "expect to not get object key",
 			args:    args{c.pvcInformer, fmt.Sprintf("%s/%s", "myns", pvc.Name)},
 			want:    nil,
-			wantErr: true,
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := c.objFromKey(tt.args.informer, tt.args.key)
+			got, exists, err := c.objFromKey(tt.args.informer, tt.args.key)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Controller.objFromKey() error = %v, wantErr %v  myKey = %v", err, tt.wantErr, tt.args.key)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Controller.objFromKey() = %v, want %v", got, tt.want)
+			}
+			if tt.want == nil && exists {
+				t.Errorf("Controller.pvcFromKey() expected key not to exist")
 			}
 		})
 	}
@@ -207,7 +216,7 @@ func TestCloneController_objFromKey(t *testing.T) {
 			name:    "expect to not get object key",
 			args:    args{c.pvcInformer, fmt.Sprintf("%s/%s", "myns", pvc.Name)},
 			want:    nil,
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name:    "expect to get object key",
@@ -218,13 +227,16 @@ func TestCloneController_objFromKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := c.objFromKey(tt.args.informer, tt.args.key)
+			got, exists, err := c.objFromKey(tt.args.informer, tt.args.key)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Controller.objFromKey() error = %v, wantErr %v  myKey = %v", err, tt.wantErr, tt.args.key)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Controller.objFromKey() = %v, want %v", got, tt.want)
+			}
+			if tt.want == nil && exists {
+				t.Errorf("Controller.pvcFromKey() expected key not to exist")
 			}
 		})
 	}

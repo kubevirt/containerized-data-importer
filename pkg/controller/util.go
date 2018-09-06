@@ -24,32 +24,34 @@ const ImagePathName = "image-path"
 const socketPathName = "socket-path"
 
 // return a pvc pointer based on the passed-in work queue key.
-func (c *ImportController) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, error) {
-	obj, err := c.objFromKey(c.pvcInformer, key)
+func (c *ImportController) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, bool, error) {
+	obj, exists, err := c.objFromKey(c.pvcInformer, key)
 	if err != nil {
-		return nil, errors.Wrap(err, "could not get pvc object from key")
+		return nil, false, errors.Wrap(err, "could not get pvc object from key")
+	} else if !exists {
+		return nil, false, nil
 	}
 
 	pvc, ok := obj.(*v1.PersistentVolumeClaim)
 	if !ok {
-		return nil, errors.New("Object not of type *v1.PersistentVolumeClaim")
+		return nil, false, errors.New("Object not of type *v1.PersistentVolumeClaim")
 	}
-	return pvc, nil
+	return pvc, true, nil
 }
 
-func (c *ImportController) objFromKey(informer cache.SharedIndexInformer, key interface{}) (interface{}, error) {
+func (c *ImportController) objFromKey(informer cache.SharedIndexInformer, key interface{}) (interface{}, bool, error) {
 	keyString, ok := key.(string)
 	if !ok {
-		return nil, errors.New("keys is not of type string")
+		return nil, false, errors.New("keys is not of type string")
 	}
 	obj, ok, err := informer.GetIndexer().GetByKey(keyString)
 	if err != nil {
-		return nil, errors.Wrap(err, "error getting interface obj from store")
+		return nil, false, errors.Wrap(err, "error getting interface obj from store")
 	}
 	if !ok {
-		return nil, errors.New("interface object not found in store")
+		return nil, false, nil
 	}
-	return obj, nil
+	return obj, true, nil
 }
 
 func checkPVC(pvc *v1.PersistentVolumeClaim) bool {
@@ -571,9 +573,11 @@ func checkClonePVC(pvc *v1.PersistentVolumeClaim) bool {
 }
 
 func (c *CloneController) podFromKey(key interface{}) (*v1.Pod, error) {
-	obj, err := c.objFromKey(c.podInformer, key)
+	obj, exists, err := c.objFromKey(c.podInformer, key)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not get pod object from key")
+	} else if !exists {
+		return nil, errors.New("interface object not found in store")
 	}
 
 	pod, ok := obj.(*v1.Pod)
@@ -583,30 +587,32 @@ func (c *CloneController) podFromKey(key interface{}) (*v1.Pod, error) {
 	return pod, nil
 }
 
-func (c *CloneController) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, error) {
-	obj, err := c.objFromKey(c.pvcInformer, key)
+func (c *CloneController) pvcFromKey(key interface{}) (*v1.PersistentVolumeClaim, bool, error) {
+	obj, exists, err := c.objFromKey(c.pvcInformer, key)
 	if err != nil {
-		return nil, errors.Wrap(err, "could not get pvc object from key")
+		return nil, false, errors.Wrap(err, "could not get pvc object from key")
+	} else if !exists {
+		return nil, false, nil
 	}
 
 	pvc, ok := obj.(*v1.PersistentVolumeClaim)
 	if !ok {
-		return nil, errors.New("Object not of type *v1.PersistentVolumeClaim")
+		return nil, false, errors.New("Object not of type *v1.PersistentVolumeClaim")
 	}
-	return pvc, nil
+	return pvc, true, nil
 }
 
-func (c *CloneController) objFromKey(informer cache.SharedIndexInformer, key interface{}) (interface{}, error) {
+func (c *CloneController) objFromKey(informer cache.SharedIndexInformer, key interface{}) (interface{}, bool, error) {
 	keyString, ok := key.(string)
 	if !ok {
-		return nil, errors.New("keys is not of type string")
+		return nil, false, errors.New("keys is not of type string")
 	}
 	obj, ok, err := informer.GetIndexer().GetByKey(keyString)
 	if err != nil {
-		return nil, errors.Wrap(err, "error getting interface obj from store")
+		return nil, false, errors.Wrap(err, "error getting interface obj from store")
 	}
 	if !ok {
-		return nil, errors.New("interface object not found in store")
+		return nil, false, nil
 	}
-	return obj, nil
+	return obj, true, nil
 }
