@@ -110,8 +110,11 @@ func (c *CloneController) handlePodDelete(obj interface{}) {
 	c.handlePodObject(obj, "delete")
 }
 
+func (c *CloneController) initializeExpectations(pvcKey string) error {
+	return c.podExpectations.SetExpectations(pvcKey, 0, 0)
+}
 func (c *CloneController) expectPodCreate(pvcKey string) {
-	c.podExpectations.ExpectCreations(pvcKey, 1)
+	c.podExpectations.RaiseExpectations(pvcKey, 1, 0)
 }
 func (c *CloneController) observePodCreate(pvcKey string) {
 	c.podExpectations.CreationObserved(pvcKey)
@@ -318,6 +321,10 @@ func (c *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	}
 
 	if needsSync && (sourcePod == nil || targetPod == nil) {
+		err := c.initializeExpectations(pvcKey)
+		if err != nil {
+			return err
+		}
 		//create random string to be used for pod labeling and hostpath name
 		if sourcePod == nil {
 			cr, err := getCloneRequestPVC(pvc)
