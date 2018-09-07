@@ -1,40 +1,33 @@
 package util
 
 import (
+	"path/filepath"
 	"regexp"
-	"testing"
+
+	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/gomega"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestRandAlphaNum(t *testing.T) {
-	type args struct {
-		n int
-	}
+const pattern = "^[a-zA-Z0-9]+$"
+const TestImagesDir = "../../tests/images"
 
-	const pattern = "^[a-zA-Z0-9]+$"
+var fileDir, _ = filepath.Abs(TestImagesDir)
 
-	tests := []struct {
-		name        string
-		args        args
-		wantMatches string
-		expectErr   bool
-	}{
-		{
-			name: "Test expected input",
-			args: args{
-				n: 8,
-			},
-			wantMatches: pattern,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := RandAlphaNum(tt.args.n)
-			if len(got) != tt.args.n {
-				t.Errorf("len(RandAlphaNum()) = %v, want %v", len(got), tt.args.n)
-			}
-			if !regexp.MustCompile(tt.wantMatches).Match([]byte(got)) {
-				t.Errorf("RandAlphaNum() = %v, want match %v", got, tt.wantMatches)
-			}
-		})
-	}
-}
+var _ = Describe("Util", func() {
+	It("Should match RandAlphaNum", func() {
+		got := RandAlphaNum(8)
+		Expect(len(got)).To(Equal(8))
+		Expect(regexp.MustCompile(pattern).Match([]byte(got))).To(BeTrue())
+	})
+
+	table.DescribeTable("Find Namespace", func(inputFile, expectedResult string) {
+		result := getNamespace(inputFile)
+		Expect(result).To(Equal(expectedResult))
+	},
+		table.Entry("Valid namespace", filepath.Join(fileDir, "namespace.txt"), "test-namespace"),
+		table.Entry("Invalid file", "doesnotexist", v1.NamespaceSystem),
+	)
+})
