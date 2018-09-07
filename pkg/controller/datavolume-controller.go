@@ -249,6 +249,7 @@ func (c *DataVolumeController) syncHandler(key string) error {
 		// processing.
 		if k8serrors.IsNotFound(err) {
 			runtime.HandleError(errors.Errorf("dataVolume '%s' in work queue no longer exists", key))
+			c.pvcExpectations.DeleteExpectations(key)
 			return nil
 		}
 

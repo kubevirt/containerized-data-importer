@@ -206,10 +206,14 @@ func (c *ImportController) runPVCWorkers() {
 }
 
 func (c *ImportController) syncPvc(key string) error {
-	pvc, err := c.pvcFromKey(key)
+	pvc, exists, err := c.pvcFromKey(key)
 	if err != nil {
 		return err
+	} else if !exists {
+		c.podExpectations.DeleteExpectations(key)
+		return nil
 	}
+
 	if pvc == nil {
 		return nil
 	}
