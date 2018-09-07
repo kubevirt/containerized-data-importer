@@ -30,12 +30,12 @@ func ParseEnvVar(envVarName string, decode bool) (string, error) {
 func ParseEndpoint(endpt string) (*url.URL, error) {
 	var err error
 	if endpt == "" {
-		endpt, err = ParseEnvVar(common.IMPORTER_ENDPOINT, false)
+		endpt, err = ParseEnvVar(common.ImporterEndpoint, false)
 		if err != nil {
 			return nil, err
 		}
 		if endpt == "" {
-			return nil, errors.Errorf("endpoint %q is missing or blank", common.IMPORTER_ENDPOINT)
+			return nil, errors.Errorf("endpoint %q is missing or blank", common.ImporterEndpoint)
 		}
 	}
 	return url.Parse(endpt)

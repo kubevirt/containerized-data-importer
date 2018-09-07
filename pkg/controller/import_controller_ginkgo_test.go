@@ -50,13 +50,13 @@ var _ = Describe("Controller", func() {
 			podSource.Add(pod)
 		}
 
-		pvcInformerFactory := k8sinformers.NewSharedInformerFactory(fakeClient, DEFAULT_RESYNC_PERIOD)
-		podInformerFactory := k8sinformers.NewSharedInformerFactory(fakeClient, DEFAULT_RESYNC_PERIOD)
+		pvcInformerFactory := k8sinformers.NewSharedInformerFactory(fakeClient, DefaultResyncPeriod)
+		podInformerFactory := k8sinformers.NewSharedInformerFactory(fakeClient, DefaultResyncPeriod)
 
 		pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims()
 		podInformer := podInformerFactory.Core().V1().Pods()
 
-		controller = NewImportController(fakeClient, pvcInformer, podInformer, IMPORTER_DEFAULT_IMAGE, DEFAULT_PULL_POLICY, verboseDebug)
+		controller = NewImportController(fakeClient, pvcInformer, podInformer, IMPORTER_DEFAULT_IMAGE, DefaultPullPolicy, verboseDebug)
 
 		go pvcInformerFactory.Start(stop)
 		go podInformerFactory.Start(stop)

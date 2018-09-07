@@ -329,8 +329,8 @@ func (c *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	}
 
 	var lab map[string]string
-	if !checkIfLabelExists(pvc, common.CDI_LABEL_KEY, common.CDI_LABEL_VALUE) {
-		lab = map[string]string{common.CDI_LABEL_KEY: common.CDI_LABEL_VALUE}
+	if !checkIfLabelExists(pvc, common.CDILabelKey, common.CDILabelValue) {
+		lab = map[string]string{common.CDILabelKey: common.CDILabelValue}
 	}
 
 	pvc, err = updatePVC(c.clientset, pvc, anno, lab)
