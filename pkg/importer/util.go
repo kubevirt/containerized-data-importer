@@ -9,6 +9,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 

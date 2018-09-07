@@ -12,6 +12,7 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 
 	"k8s.io/api/core/v1"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 )
