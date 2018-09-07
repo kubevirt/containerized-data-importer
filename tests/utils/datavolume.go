@@ -109,7 +109,7 @@ func WaitForDataVolumePhase(clientSet *cdiclientset.Clientset, namespace string,
 		return true, nil
 	})
 	if err != nil {
-		fmt.Errorf("DataVolume %s not in phase %s within %v", dataVolumeName, phase, DataVolumePhaseTime)
+		return fmt.Errorf("DataVolume %s not in phase %s within %v", dataVolumeName, phase, DataVolumePhaseTime)
 	}
 	return nil
 }
