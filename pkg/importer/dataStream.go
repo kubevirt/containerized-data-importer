@@ -519,7 +519,11 @@ func closeReaders(readers []reader) (rtnerr error) {
 }
 
 func (d *DataStream) isHTTPQcow2() bool {
-	return (d.url.Scheme == "http" || d.url.Scheme == "https") && d.qemu && len(d.Readers) == 2
+	return (d.url.Scheme == "http" || d.url.Scheme == "https") &&
+		d.accessKeyID == "" &&
+		d.secretKey == "" &&
+		d.qemu &&
+		len(d.Readers) == 2
 }
 
 // Copy endpoint to dest based on passed-in reader.
