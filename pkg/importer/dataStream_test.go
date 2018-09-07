@@ -126,7 +126,7 @@ func getURLPath(testfile string) string {
 	// CWD is set within go test to the directory of the test
 	// being executed, so using relative path
 	imageDir, _ := filepath.Abs(TestImagesDir)
-	return "file://" + imageDir + "/" + testfile
+	return "file://" + imageDir + "/" + testfile //TODO: use file server
 }
 
 func startHTTPServer(port int, dir string) (*http.Server, error) {
@@ -170,7 +170,7 @@ func TestNewDataStream(t *testing.T) {
 	}
 
 	imageDir, _ := filepath.Abs(TestImagesDir)
-	localImageBase := filepath.Join("file://", imageDir)
+	localImageBase := filepath.Join("file://", imageDir) //TODO: use file server
 
 	tests := []struct {
 		name    string
@@ -280,7 +280,7 @@ func Test_dataStream_Close(t *testing.T) {
 
 func Test_dataStream_dataStreamSelector(t *testing.T) {
 	imageDir, _ := filepath.Abs(TestImagesDir)
-	localImageBase := filepath.Join("file://", imageDir)
+	localImageBase := filepath.Join("file://", imageDir) //TODO: use file server
 
 	tests := []struct {
 		name     string
@@ -331,7 +331,7 @@ func TestCopyImage(t *testing.T) {
 		qemuOperations image.QEMUOperations
 	}
 	imageDir, _ := filepath.Abs(TestImagesDir)
-	localImageBase := filepath.Join("file://", imageDir)
+	localImageBase := filepath.Join("file://", imageDir) //TODO: use file server
 
 	t.Logf("Image dir '%s' '%s'", imageDir, TestImagesDir)
 	port := 9999
@@ -430,7 +430,7 @@ func createTestData() map[string]string {
 
 func Test_dataStream_constructReaders(t *testing.T) {
 	imageDir, _ := filepath.Abs(TestImagesDir)
-	localImageBase := filepath.Join("file://", imageDir)
+	localImageBase := filepath.Join("file://", imageDir) //TODO: use file server
 
 	testfiles := createTestData()
 
@@ -444,29 +444,29 @@ func Test_dataStream_constructReaders(t *testing.T) {
 		{
 			name:    "successfully construct a xz reader",
 			outfile: "tinyCore.iso.xz",
-			ds:      createDataStream(filepath.Join("file://", testfiles[".xz"]), "", ""),
-			numRdrs: 4, // [file, multi-r, xz, multi-r]
+			ds:      createDataStream(filepath.Join("file://", testfiles[".xz"]), "", ""), //TODO: use file server
+			numRdrs: 4, // [http, multi-r, xz, multi-r]
 			wantErr: false,
 		},
 		{
 			name:    "successfully construct a gz reader",
 			outfile: "tinyCore.iso.gz",
-			ds:      createDataStream(filepath.Join("file://", testfiles[".gz"]), "", ""),
-			numRdrs: 4, // [file, multi-r, gz, multi-r]
+			ds:      createDataStream(filepath.Join("file://", testfiles[".gz"]), "", ""), //TODO: use file server
+			numRdrs: 4, // [http, multi-r, gz, multi-r]
 			wantErr: false,
 		},
 		{
 			name:    "successfully construct qcow2 reader",
 			outfile: "",
 			ds:      createDataStream(filepath.Join(localImageBase, "cirros-qcow2.img"), "", ""),
-			numRdrs: 2, // [file, multi-r]
+			numRdrs: 2, // [http, multi-r]
 			wantErr: false,
 		},
 		{
 			name:    "successfully construct .iso reader",
 			outfile: "",
 			ds:      createDataStream(filepath.Join(localImageBase, "tinyCore.iso"), "", ""),
-			numRdrs: 2, // [file, multi-r]
+			numRdrs: 2, // [http, multi-r]
 			wantErr: false,
 		},
 		{

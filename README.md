@@ -11,10 +11,6 @@ In Addition, the Containerized Data Importer gives the option to clone the impor
 1. [Hacking (WIP)](hack/README.md#getting-started-for-developers)
 1. [Security Configurations](#security-configurations)
 
-> DEPRECATION NOTICE:
-Support for local (file://) endpoints will be removed from CDI in the next release. There is no replacement and no work-around. All import endpoints must reference http(s) or s3 endpoints.
-
-
 ## Overview
 
 ### Purpose
