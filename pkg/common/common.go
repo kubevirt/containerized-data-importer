@@ -38,17 +38,9 @@ const (
 	CLONER_SOCKET_PATH    = "/tmp/clone/socket"
 
 	// key names expected in credential secret
-	KeyAccess = "accessKeyId"
-	KeySecret = "secretKey"
+	KEY_ACCESS = "accessKeyId"
+	KEY_SECRET = "secretKey"
 
 	// Shared informer resync period.
 	DEFAULT_RESYNC_PERIOD = 10 * time.Minute
-
-	// logging verbosity
-	Vuser           = 1
-	Vadmin          = 2
-	Vdebug          = 3
-	DEFAULT_VERBOSE = Vuser
-	// the length of the random generated cloning label
-	GENERATED_CLONING_LABEL_LEN = 10
 )

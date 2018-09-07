@@ -59,8 +59,9 @@ func init() {
 		pullPolicy = pp
 	}
 
-	// get the verbose level so it can be passed to the importer pod
-	defVerbose := fmt.Sprintf("%d", DEFAULT_VERBOSE) // note flag values are strings
+	// NOTE we used to have a constant here and we're now just passing in the level directly
+	// that should be fine since it was a constant and not a mutable variable
+	defVerbose := fmt.Sprintf("%d", 1) // note flag values are strings
 	verbose = defVerbose
 	// visit actual flags passed in and if passed check -v and set verbose
 	flag.Visit(func(f *flag.Flag) {
@@ -69,10 +70,10 @@ func init() {
 		}
 	})
 	if verbose == defVerbose {
-		glog.V(Vuser).Infof("Note: increase the -v level in the controller deployment for more detailed logging, eg. -v=%d or -v=%d\n", Vadmin, Vdebug)
+		glog.V(1).Infof("Note: increase the -v level in the controller deployment for more detailed logging, eg. -v=%d or -v=%d\n", 2, 3)
 	}
 
-	glog.V(Vdebug).Infof("init: complete: cdi controller will create importer using image %q\n", importerImage)
+	glog.V(3).Infof("init: complete: cdi controller will create importer using image %q\n", importerImage)
 }
 
 func main() {
@@ -122,7 +123,7 @@ func main() {
 		pullPolicy,
 		verbose)
 
-	glog.V(Vuser).Infoln("created cdi controllers")
+	glog.V(1).Infoln("created cdi controllers")
 
 	stopCh := handleSignals()
 
@@ -130,7 +131,7 @@ func main() {
 	go pvcInformerFactory.Start(stopCh)
 	go podInformerFactory.Start(stopCh)
 
-	glog.V(Vuser).Infoln("started informers")
+	glog.V(1).Infoln("started informers")
 
 	go func() {
 		err = dataVolumeController.Run(3, stopCh)
@@ -154,7 +155,7 @@ func main() {
 	}()
 
 	<-stopCh
-	glog.V(Vadmin).Infoln("cdi controller exited")
+	glog.V(2).Infoln("cdi controller exited")
 }
 
 // Shutdown gracefully on system signals

@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	// pvc annotations
+	//AnnCloneRequest sets our expected annotation for a CloneRequest
 	AnnCloneRequest = "k8s.io/CloneRequest"
 	AnnCloneOf      = "k8s.io/CloneOf"
 	// cloner pods annotations
@@ -24,10 +24,13 @@ const (
 	AnnTargetPodNamespace = "cdi.kubevirt.io/storage.clone.targetPod.namespace"
 )
 
+// CloneController represents the CDI Clone Controller
 type CloneController struct {
 	Controller
 }
 
+// NewCloneController sets up a Clone Controller, and returns a pointer to
+// to the newly created Controller
 func NewCloneController(client kubernetes.Interface,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	podInformer coreinformers.PodInformer,
@@ -117,6 +120,10 @@ func (cc *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	}
 
 	if needsSync && (sourcePod == nil || targetPod == nil) {
+		err := c.initializeExpectations(pvcKey)
+		if err != nil {
+			return err
+		}
 		//create random string to be used for pod labeling and hostpath name
 		if sourcePod == nil {
 			cr, err := getCloneRequestPVC(pvc)
@@ -152,8 +159,8 @@ func (cc *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 		anno[AnnCloneOf] = "true"
 	}
 	var lab map[string]string
-	if !checkIfLabelExists(pvc, CDI_LABEL_KEY, CDI_LABEL_VALUE) {
-		lab = map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}
+	if !checkIfLabelExists(pvc, common.CDI_LABEL_KEY, common.CDI_LABEL_VALUE) {
+		lab = map[string]string{common.CDI_LABEL_KEY: common.CDI_LABEL_VALUE}
 	}
 	pvc, err = updatePVC(cc.clientset, pvc, anno, lab)
 	if err != nil {

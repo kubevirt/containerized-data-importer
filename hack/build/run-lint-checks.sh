@@ -20,6 +20,9 @@
 source hack/build/config.sh
 source hack/build/common.sh
 
+# Temporary var for pkgs that are ready to enforce linting
+LINTABLE=(pkg/controller pkg/apis pkg/client pkg/controller pkg/expectations pkg/image pkg/importer pkg/lib pkg/util)
+
 ec=0
 out="$(gofmt -l -s ${SOURCE_DIRS} | grep ".*\.go")"
 if [[ ${out} ]]; then
@@ -27,4 +30,15 @@ if [[ ${out} ]]; then
     echo "${out}"
     ec=1
 fi
+
+for p in "${LINTABLE[@]}"; do
+    echo "Performing lint checks on: ${p}"
+    out="$(golint ${p}/...)"
+    if [[ ${out} ]]; then
+        echo "FAIL: following golint errors found:"
+        echo "${out}"
+        ec=1
+    fi
+done
+
 exit ${ec}

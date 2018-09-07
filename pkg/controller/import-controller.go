@@ -16,18 +16,23 @@ import (
 )
 
 const (
-	// pvc annotations
-	AnnEndpoint  = "cdi.kubevirt.io/storage.import.endpoint"
-	AnnSecret    = "cdi.kubevirt.io/storage.import.secretName"
+	// AnnEndpoint provides a const for our PVC endpoint annotation
+	AnnEndpoint = "cdi.kubevirt.io/storage.import.endpoint"
+	// AnnSecret provides a const for our PVC secretName annotation
+	AnnSecret = "cdi.kubevirt.io/storage.import.secretName"
+	// AnnImportPod provides a const for our PVC importPodName annotation
 	AnnImportPod = "cdi.kubevirt.io/storage.import.importPodName"
 	// importer pod annotations
 	LabelImportPvc = "cdi.kubevirt.io/storage.import.importPvcName"
 )
 
+// ImportController represents a CDI Import Controller
 type ImportController struct {
 	Controller
 }
 
+// NewImportController sets up an Import Controller, and returns a pointer to
+// the newly created Import Controller
 func NewImportController(client kubernetes.Interface,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	podInformer coreinformers.PodInformer,
@@ -98,7 +103,7 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 			return err
 		}
 		if secretName == "" {
-			glog.V(Vadmin).Infof("no secret will be supplied to endpoint %q\n", ep)
+			glog.V(2).Infof("no secret will be supplied to endpoint %q\n", ep)
 		}
 		// all checks passed, let's create the importer pod!
 		ic.expectPodCreate(pvcKey)
@@ -118,8 +123,8 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 	}
 
 	var lab map[string]string
-	if !checkIfLabelExists(pvc, CDI_LABEL_KEY, CDI_LABEL_VALUE) {
-		lab = map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}
+	if !checkIfLabelExists(pvc, common.CDI_LABEL_KEY, common.CDI_LABEL_VALUE) {
+		lab = map[string]string{common.CDI_LABEL_KEY: common.CDI_LABEL_VALUE}
 	}
 
 	pvc, err = updatePVC(ic.clientset, pvc, anno, lab)
