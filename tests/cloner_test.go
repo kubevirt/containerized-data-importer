@@ -73,12 +73,12 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 	err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)
 
 	By("Find cloner pods")
-	sourcePod, err := f.FindPodByPrefix(common.CLONER_SOURCE_PODNAME)
+	sourcePod, err := f.FindPodByPrefix(common.ClonerSourcePodName)
 	if err != nil {
 		PrintControllerLog(f)
 	}
 	Expect(err).ToNot(HaveOccurred())
-	targetPod, err := utils.FindPodByPrefix(f.K8sClient, targetNs.Name, common.CLONER_TARGET_PODNAME, common.CDI_LABEL_SELECTOR)
+	targetPod, err := utils.FindPodByPrefix(f.K8sClient, targetNs.Name, common.ClonerTargetPodName, common.CDILabelSelector)
 	if err != nil {
 		PrintControllerLog(f)
 	}

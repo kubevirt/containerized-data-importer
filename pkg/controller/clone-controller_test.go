@@ -233,7 +233,7 @@ func TestCloneObservePod(t *testing.T) {
 	f.kubeobjects = append(f.kubeobjects, targetPod)
 
 	expPvc := pvc.DeepCopy()
-	expPvc.ObjectMeta.Labels = map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}
+	expPvc.ObjectMeta.Labels = map[string]string{CDILabelKey: CDILabelValue}
 	expPvc.ObjectMeta.Annotations = map[string]string{AnnClonePodPhase: string(corev1.PodPending), AnnCloneRequest: "source-ns/golden-pvc"}
 
 	f.expectUpdatePvcAction(expPvc)
@@ -257,7 +257,7 @@ func TestClonePodStatusUpdating(t *testing.T) {
 	targetPod.Namespace = "target-ns"
 
 	pvc.ObjectMeta.Annotations = map[string]string{AnnClonePodPhase: string(corev1.PodPending), AnnCloneRequest: "source-ns/golden-pvc"}
-	pvc.ObjectMeta.Labels = map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}
+	pvc.ObjectMeta.Labels = map[string]string{CDILabelKey: CDILabelValue}
 
 	f.pvcLister = append(f.pvcLister, pvc)
 	f.podLister = append(f.podLister, sourcePod)

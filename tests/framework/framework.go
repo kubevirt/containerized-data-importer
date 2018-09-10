@@ -166,7 +166,7 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 func (f *Framework) BeforeEach() {
 	if !f.SkipControllerPodLookup {
 		if f.ControllerPod == nil {
-			pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, CdiPodPrefix, common.CDI_LABEL_SELECTOR)
+			pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, CdiPodPrefix, common.CDILabelSelector)
 			Expect(err).NotTo(HaveOccurred())
 			fmt.Fprintf(GinkgoWriter, "INFO: Located cdi-controller-pod: %q\n", pod.Name)
 			f.ControllerPod = pod

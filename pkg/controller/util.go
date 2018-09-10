@@ -200,7 +200,7 @@ func CreateImporterPod(client kubernetes.Interface, image, verbose, pullPolicy, 
 // MakeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
 func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	// importer pod name contains the pvc name
-	podName := fmt.Sprintf("%s-%s-", common.IMPORTER_PODNAME, pvc.Name)
+	podName := fmt.Sprintf("%s-%s-", common.ImporterPodName, pvc.Name)
 
 	blockOwnerDeletion := true
 	isController := true
@@ -215,7 +215,7 @@ func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.
 				AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				common.CDI_LABEL_KEY: common.CDI_LABEL_VALUE,
+				common.CDILabelKey: common.CDILabelValue,
 				// this label is used when searching for a pvc's import pod.
 				LabelImportPvc: pvc.Name,
 			},
@@ -233,13 +233,13 @@ func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Name:            common.IMPORTER_PODNAME,
+					Name:            common.ImporterPodName,
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      DataVolName,
-							MountPath: common.IMPORTER_DATA_DIR,
+							MountPath: common.ImporterDataDir,
 						},
 					},
 					Args: []string{"-v=" + verbose},
@@ -267,29 +267,29 @@ func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.
 func makeEnv(endpoint, secret string) []v1.EnvVar {
 	env := []v1.EnvVar{
 		{
-			Name:  common.IMPORTER_ENDPOINT,
+			Name:  common.ImporterEndpoint,
 			Value: endpoint,
 		},
 	}
 	if secret != "" {
 		env = append(env, v1.EnvVar{
-			Name: common.IMPORTER_ACCESS_KEY_ID,
+			Name: common.ImporterAccessKeyID,
 			ValueFrom: &v1.EnvVarSource{
 				SecretKeyRef: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
 						Name: secret,
 					},
-					Key: common.KEY_ACCESS,
+					Key: common.KeyAccess,
 				},
 			},
 		}, v1.EnvVar{
-			Name: common.IMPORTER_SECRET_KEY,
+			Name: common.ImporterSecretKey,
 			ValueFrom: &v1.EnvVarSource{
 				SecretKeyRef: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
 						Name: secret,
 					},
-					Key: common.KEY_SECRET,
+					Key: common.KeySecret,
 				},
 			},
 		})
@@ -351,7 +351,7 @@ func CreateCloneSourcePod(client kubernetes.Interface, image string, verbose str
 // MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
 func MakeCloneSourcePodSpec(image, verbose, pullPolicy, sourcePvcName string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	// source pod name contains the pvc name
-	podName := fmt.Sprintf("%s-", common.CLONER_SOURCE_PODNAME)
+	podName := fmt.Sprintf("%s-", common.ClonerSourcePodName)
 	id := string(pvc.GetUID())
 	blockOwnerDeletion := true
 	isController := true
@@ -367,8 +367,8 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, sourcePvcName string, pv
 				AnnTargetPodNamespace: pvc.Namespace,
 			},
 			Labels: map[string]string{
-				common.CDI_LABEL_KEY:     common.CDI_LABEL_VALUE,                //filtered by the podInformer
-				common.CLONING_LABEL_KEY: common.CLONING_LABEL_VALUE + "-" + id, //used by podAffity
+				common.CDILabelKey:     common.CDILabelValue,                //filtered by the podInformer
+				common.CloningLabelKey: common.CloningLabelValue + "-" + id, //used by podAffity
 				// this label is used when searching for a pvc's cloner source pod.
 				CloneUniqueID: pvc.Name + "-source-pod",
 			},
@@ -386,7 +386,7 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, sourcePvcName string, pv
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Name:            common.CLONER_SOURCE_PODNAME,
+					Name:            common.ClonerSourcePodName,
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
 					SecurityContext: &v1.SecurityContext{
@@ -396,11 +396,11 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, sourcePvcName string, pv
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      ImagePathName,
-							MountPath: common.CLONER_IMAGE_PATH,
+							MountPath: common.ClonerImagePath,
 						},
 						{
 							Name:      socketPathName,
-							MountPath: common.CLONER_SOCKET_PATH + "/" + id,
+							MountPath: common.ClonerSocketPath + "/" + id,
 						},
 					},
 					Args: []string{"source", id},
@@ -421,7 +421,7 @@ func MakeCloneSourcePodSpec(image, verbose, pullPolicy, sourcePvcName string, pv
 					Name: socketPathName,
 					VolumeSource: v1.VolumeSource{
 						HostPath: &v1.HostPathVolumeSource{
-							Path: common.CLONER_SOCKET_PATH + "/" + id,
+							Path: common.ClonerSocketPath + "/" + id,
 						},
 					},
 				},
@@ -448,7 +448,7 @@ func CreateCloneTargetPod(client kubernetes.Interface, image string, verbose str
 // MakeCloneTargetPodSpec creates and returns the clone target pod spec based on the target pvc.
 func MakeCloneTargetPodSpec(image, verbose, pullPolicy, podAffinityNamespace string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	// target pod name contains the pvc name
-	podName := fmt.Sprintf("%s-", common.CLONER_TARGET_PODNAME)
+	podName := fmt.Sprintf("%s-", common.ClonerTargetPodName)
 	id := string(pvc.GetUID())
 	blockOwnerDeletion := true
 	isController := true
@@ -464,7 +464,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, podAffinityNamespace str
 				AnnTargetPodNamespace: pvc.Namespace,
 			},
 			Labels: map[string]string{
-				common.CDI_LABEL_KEY: common.CDI_LABEL_VALUE, //filtered by the podInformer
+				common.CDILabelKey: common.CDILabelValue, //filtered by the podInformer
 				// this label is used when searching for a pvc's cloner target pod.
 				CloneUniqueID: pvc.Name + "-target-pod",
 			},
@@ -487,21 +487,21 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, podAffinityNamespace str
 							LabelSelector: &metav1.LabelSelector{
 								MatchExpressions: []metav1.LabelSelectorRequirement{
 									{
-										Key:      common.CLONING_LABEL_KEY,
+										Key:      common.CloningLabelKey,
 										Operator: metav1.LabelSelectorOpIn,
-										Values:   []string{common.CLONING_LABEL_VALUE + "-" + id},
+										Values:   []string{common.CloningLabelValue + "-" + id},
 									},
 								},
 							},
 							Namespaces:  []string{podAffinityNamespace}, //the scheduler looks for the namespace of the source pod
-							TopologyKey: common.CLONING_TOPOLOGY_KEY,
+							TopologyKey: common.CloningTopologyKey,
 						},
 					},
 				},
 			},
 			Containers: []v1.Container{
 				{
-					Name:            common.CLONER_TARGET_PODNAME,
+					Name:            common.ClonerTargetPodName,
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
 					SecurityContext: &v1.SecurityContext{
@@ -511,11 +511,11 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, podAffinityNamespace str
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      ImagePathName,
-							MountPath: common.CLONER_IMAGE_PATH,
+							MountPath: common.ClonerImagePath,
 						},
 						{
 							Name:      socketPathName,
-							MountPath: common.CLONER_SOCKET_PATH + "/" + id,
+							MountPath: common.ClonerSocketPath + "/" + id,
 						},
 					},
 					Args: []string{"target", id},
@@ -536,7 +536,7 @@ func MakeCloneTargetPodSpec(image, verbose, pullPolicy, podAffinityNamespace str
 					Name: socketPathName,
 					VolumeSource: v1.VolumeSource{
 						HostPath: &v1.HostPathVolumeSource{
-							Path: common.CLONER_SOCKET_PATH + "/" + id,
+							Path: common.ClonerSocketPath + "/" + id,
 						},
 					},
 				},

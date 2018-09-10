@@ -99,7 +99,7 @@ var rdrTypM = map[string]int{
 // Note: the caller must close the `Readers` in reverse order. See Close().
 func NewDataStream(endpt, accKey, secKey string) (*DataStream, error) {
 	if len(accKey) == 0 || len(secKey) == 0 {
-		glog.V(2).Infof("%s and/or %s are empty\n", common.IMPORTER_ACCESS_KEY_ID, common.IMPORTER_SECRET_KEY)
+		glog.V(2).Infof("%s and/or %s are empty\n", common.ImporterAccessKeyID, common.ImporterSecretKey)
 	}
 	ep, err := ParseEndpoint(endpt)
 	if err != nil {
@@ -165,7 +165,7 @@ func (d *DataStream) s3() (io.ReadCloser, error) {
 	glog.V(3).Infoln("Using S3 client to get data")
 	bucket := d.url.Host
 	object := strings.Trim(d.url.Path, "/")
-	mc, err := minio.NewV4(common.IMPORTER_S3_HOST, d.accessKeyID, d.secretKey, false)
+	mc, err := minio.NewV4(common.ImporterS3Host, d.accessKeyID, d.secretKey, false)
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not build minio client for %q", d.url.Host)
 	}

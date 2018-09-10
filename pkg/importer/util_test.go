@@ -99,9 +99,9 @@ func TestParseEndpoint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			os.Setenv(common.IMPORTER_ENDPOINT, "www.google.com")
+			os.Setenv(common.ImporterEndpoint, "www.google.com")
 			if !tt.setEnv {
-				os.Unsetenv(common.IMPORTER_ENDPOINT)
+				os.Unsetenv(common.ImporterEndpoint)
 			}
 			got, err := ParseEndpoint(tt.args.endpt)
 			if (err != nil) != tt.wantErr {
