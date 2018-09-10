@@ -11,7 +11,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
-	. "kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/uploadproxy"
 )
 
@@ -36,7 +35,7 @@ func init() {
 	flag.Parse()
 
 	// get the verbose level so it can be passed to the importer pod
-	defVerbose := fmt.Sprintf("%d", DEFAULT_VERBOSE) // note flag values are strings
+	defVerbose := fmt.Sprintf("%d", 1) // note flag values are strings
 	verbose = defVerbose
 	// visit actual flags passed in and if passed check -v and set verbose
 	flag.Visit(func(f *flag.Flag) {
@@ -45,7 +44,7 @@ func init() {
 		}
 	})
 	if verbose == defVerbose {
-		glog.V(Vuser).Infof("Note: increase the -v level in the api deployment for more detailed logging, eg. -v=%d or -v=%d\n", Vadmin, Vdebug)
+		glog.V(1).Infof("Note: increase the -v level in the api deployment for more detailed logging, eg. -v=%d or -v=%d\n", 2, 3)
 	}
 }
 

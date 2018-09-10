@@ -30,7 +30,7 @@ import (
 	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/cert/triple"
 
-	. "kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 const (
@@ -327,7 +327,7 @@ func newSecret(namespace, secretName string, data map[string][]byte, owner *meta
 			Name:      secretName,
 			Namespace: namespace,
 			Labels: map[string]string{
-				CDI_COMPONENT_LABEL: "keystore",
+				common.CDIComponentLabel: "keystore",
 			},
 		},
 		Type: "Opaque",

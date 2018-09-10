@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang/glog"
 
+	. "kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 
 	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
@@ -98,8 +99,8 @@ func main() {
 	podInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(client, DefaultResyncPeriod, "", func(options *v1.ListOptions) {
 		options.LabelSelector = CDILabelSelector
 	})
-	serviceInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(client, DEFAULT_RESYNC_PERIOD, "", func(options *v1.ListOptions) {
-		options.LabelSelector = CDI_LABEL_SELECTOR
+	serviceInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(client, DefaultResyncPeriod, "", func(options *v1.ListOptions) {
+		options.LabelSelector = CDILabelSelector
 	})
 
 	pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims()

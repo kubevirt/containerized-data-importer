@@ -25,7 +25,7 @@ import (
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/cdicontroller/v1alpha1"
-	. "kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -105,15 +105,15 @@ func NewUploadAPIServer(bindAddress string, bindPort uint, client kubernetes.Int
 			}
 		}
 		chain.ProcessFilter(req, resp)
-		glog.V(Vuser).Infof("----------------------------")
-		glog.V(Vuser).Infof("remoteAddress:%s", strings.Split(req.Request.RemoteAddr, ":")[0])
-		glog.V(Vuser).Infof("username: %s", username)
-		glog.V(Vuser).Infof("method: %s", req.Request.Method)
-		glog.V(Vuser).Infof("url: %s", req.Request.URL.RequestURI())
-		glog.V(Vuser).Infof("proto: %s", req.Request.Proto)
-		glog.V(Vuser).Infof("headers: %v", req.Request.Header)
-		glog.V(Vuser).Infof("statusCode: %d", resp.StatusCode())
-		glog.V(Vuser).Infof("contentLength: %d", resp.ContentLength())
+		glog.V(1).Infof("----------------------------")
+		glog.V(1).Infof("remoteAddress:%s", strings.Split(req.Request.RemoteAddr, ":")[0])
+		glog.V(1).Infof("username: %s", username)
+		glog.V(1).Infof("method: %s", req.Request.Method)
+		glog.V(1).Infof("url: %s", req.Request.URL.RequestURI())
+		glog.V(1).Infof("proto: %s", req.Request.Proto)
+		glog.V(1).Infof("headers: %v", req.Request.Header)
+		glog.V(1).Infof("statusCode: %d", resp.StatusCode())
+		glog.V(1).Infof("contentLength: %d", resp.ContentLength())
 
 	})
 
@@ -486,7 +486,7 @@ func (app *uploadAPIApp) createAPIService() error {
 			Name:      apiName,
 			Namespace: namespace,
 			Labels: map[string]string{
-				CDI_COMPONENT_LABEL: apiServiceName,
+				common.CDI_COMPONENT_LABEL: apiServiceName,
 			},
 		},
 		Spec: apiregistrationv1beta1.APIServiceSpec{

@@ -18,7 +18,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
-	. "kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 )
 
@@ -142,7 +141,7 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	glog.V(Vuser).Infof("Received valid token: pvc: %s, namespace: %s", tokenData.PvcName, tokenData.Namespace)
+	glog.V(1).Infof("Received valid token: pvc: %s, namespace: %s", tokenData.PvcName, tokenData.Namespace)
 
 	app.proxyUploadRequest(tokenData.Namespace, tokenData.PvcName, w, r)
 }
@@ -153,7 +152,7 @@ func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.Resp
 	req, err := http.NewRequest("POST", url, r.Body)
 	req.ContentLength = r.ContentLength
 
-	glog.V(Vdebug).Infof("Posting to: %s", url)
+	glog.V(3).Infof("Posting to: %s", url)
 
 	response, err := app.uploadServerClient.Do(req)
 	if err != nil {
@@ -162,7 +161,7 @@ func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.Resp
 		return
 	}
 
-	glog.V(Vdebug).Infof("Response status for url %s: %d", url, response.StatusCode)
+	glog.V(3).Infof("Response status for url %s: %d", url, response.StatusCode)
 
 	w.WriteHeader(response.StatusCode)
 	_, err = io.Copy(w, response.Body)
