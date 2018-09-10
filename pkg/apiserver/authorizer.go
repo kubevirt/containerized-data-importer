@@ -135,7 +135,7 @@ func (a *authorizor) generateAccessReview(req *restful.Request) (*authorization.
 	}
 
 	// URL example
-	// /apis/upload.cdi.kubevirt.io/v1alpha1/namespaces/default/uploadtoken
+	// /apis/upload.cdi.kubevirt.io/v1alpha1/namespaces/default/uploadtokenrequest
 	pathSplit := strings.Split(url.Path, "/")
 	if len(pathSplit) != 7 {
 		return nil, fmt.Errorf("unknown api endpoint %s", url.Path)
@@ -149,7 +149,7 @@ func (a *authorizor) generateAccessReview(req *restful.Request) (*authorization.
 
 	if group != uploadTokenGroup {
 		return nil, fmt.Errorf("unknown api group %s", group)
-	} else if resource != "uploadtoken" {
+	} else if resource != "uploadtokenrequest" {
 		return nil, fmt.Errorf("unknown resource type %s", resource)
 	}
 
@@ -189,7 +189,7 @@ func isInfoEndpoint(req *restful.Request) bool {
 		return false
 	}
 	// URL example
-	// /apis/upload.cdi.kubevirt.io/v1alpha2/namespaces/default/uploadtokens/test
+	// /apis/upload.cdi.kubevirt.io/v1alpha2/namespaces/default/uploadtokenrequests/test
 	// The /apis/<group>/<version> part of the urls should be accessible without needing authorization
 	pathSplit := strings.Split(httpRequest.URL.Path, "/")
 	if len(pathSplit) <= 4 || (len(pathSplit) > 4 && pathSplit[4] == "version") {

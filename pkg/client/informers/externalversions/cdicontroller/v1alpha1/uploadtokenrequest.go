@@ -31,59 +31,59 @@ import (
 	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/listers/cdicontroller/v1alpha1"
 )
 
-// UploadTokenInformer provides access to a shared informer and lister for
-// UploadTokens.
-type UploadTokenInformer interface {
+// UploadTokenRequestInformer provides access to a shared informer and lister for
+// UploadTokenRequests.
+type UploadTokenRequestInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha1.UploadTokenLister
+	Lister() v1alpha1.UploadTokenRequestLister
 }
 
-type uploadTokenInformer struct {
+type uploadTokenRequestInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewUploadTokenInformer constructs a new informer for UploadToken type.
+// NewUploadTokenRequestInformer constructs a new informer for UploadTokenRequest type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewUploadTokenInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredUploadTokenInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewUploadTokenRequestInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredUploadTokenRequestInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredUploadTokenInformer constructs a new informer for UploadToken type.
+// NewFilteredUploadTokenRequestInformer constructs a new informer for UploadTokenRequest type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredUploadTokenInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredUploadTokenRequestInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CdiV1alpha1().UploadTokens(namespace).List(options)
+				return client.CdiV1alpha1().UploadTokenRequests(namespace).List(options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CdiV1alpha1().UploadTokens(namespace).Watch(options)
+				return client.CdiV1alpha1().UploadTokenRequests(namespace).Watch(options)
 			},
 		},
-		&cdicontrollerv1alpha1.UploadToken{},
+		&cdicontrollerv1alpha1.UploadTokenRequest{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *uploadTokenInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredUploadTokenInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *uploadTokenRequestInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredUploadTokenRequestInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *uploadTokenInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&cdicontrollerv1alpha1.UploadToken{}, f.defaultInformer)
+func (f *uploadTokenRequestInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&cdicontrollerv1alpha1.UploadTokenRequest{}, f.defaultInformer)
 }
 
-func (f *uploadTokenInformer) Lister() v1alpha1.UploadTokenLister {
-	return v1alpha1.NewUploadTokenLister(f.Informer().GetIndexer())
+func (f *uploadTokenRequestInformer) Lister() v1alpha1.UploadTokenRequestLister {
+	return v1alpha1.NewUploadTokenRequestLister(f.Informer().GetIndexer())
 }

@@ -32,8 +32,8 @@ func (c *FakeCdiV1alpha1) DataVolumes(namespace string) v1alpha1.DataVolumeInter
 	return &FakeDataVolumes{c, namespace}
 }
 
-func (c *FakeCdiV1alpha1) UploadTokens(namespace string) v1alpha1.UploadTokenInterface {
-	return &FakeUploadTokens{c, namespace}
+func (c *FakeCdiV1alpha1) UploadTokenRequests(namespace string) v1alpha1.UploadTokenRequestInterface {
+	return &FakeUploadTokenRequests{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

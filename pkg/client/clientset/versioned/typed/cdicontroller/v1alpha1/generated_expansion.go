@@ -20,4 +20,4 @@ package v1alpha1
 
 type DataVolumeExpansion interface{}
 
-type UploadTokenExpansion interface{}
+type UploadTokenRequestExpansion interface{}

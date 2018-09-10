@@ -117,35 +117,35 @@ const (
 	Unknown DataVolumePhase = "Unknown"
 )
 
-// UploadToken is the CR used to initiate a CDI upload
+// UploadTokenRequest is the CR used to initiate a CDI upload
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type UploadToken struct {
+type UploadTokenRequest struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// Spec contains the parameters of the request
-	Spec UploadTokenSpec `json:"spec"`
+	Spec UploadTokenRequestSpec `json:"spec"`
 
 	// Status contains the status of the request
-	Status UploadTokenStatus `json:"status"`
+	Status UploadTokenRequestStatus `json:"status"`
 }
 
-// UploadTokenSpec defines the parameters of the token request
-type UploadTokenSpec struct {
+// UploadTokenRequestSpec defines the parameters of the token request
+type UploadTokenRequestSpec struct {
 	PvcName string `json:"pvcName"`
 }
 
-// UploadTokenStatus stores the status of a token request
-type UploadTokenStatus struct {
+// UploadTokenRequestStatus stores the status of a token request
+type UploadTokenRequestStatus struct {
 	Token string `json:"token,omitempty"`
 }
 
-// UploadTokenList contains a list of UploadTokens
+// UploadTokenRequestList contains a list of UploadTokenRequests
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type UploadTokenList struct {
+type UploadTokenRequestList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []UploadToken `json:"items"`
+	Items []UploadTokenRequest `json:"items"`
 }

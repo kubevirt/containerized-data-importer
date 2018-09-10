@@ -26,8 +26,8 @@ import (
 type Interface interface {
 	// DataVolumes returns a DataVolumeInformer.
 	DataVolumes() DataVolumeInformer
-	// UploadTokens returns a UploadTokenInformer.
-	UploadTokens() UploadTokenInformer
+	// UploadTokenRequests returns a UploadTokenRequestInformer.
+	UploadTokenRequests() UploadTokenRequestInformer
 }
 
 type version struct {
@@ -46,7 +46,7 @@ func (v *version) DataVolumes() DataVolumeInformer {
 	return &dataVolumeInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
-// UploadTokens returns a UploadTokenInformer.
-func (v *version) UploadTokens() UploadTokenInformer {
-	return &uploadTokenInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// UploadTokenRequests returns a UploadTokenRequestInformer.
+func (v *version) UploadTokenRequests() UploadTokenRequestInformer {
+	return &uploadTokenRequestInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

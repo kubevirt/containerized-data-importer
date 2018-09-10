@@ -326,7 +326,7 @@ func (app *uploadAPIApp) uploadHandler(request *restful.Request, response *restf
 		return
 	}
 
-	uploadToken := &cdiv1.UploadToken{}
+	uploadToken := &cdiv1.UploadTokenRequest{}
 	err = json.Unmarshal(body, uploadToken)
 	if err != nil {
 		glog.Error(err)
@@ -380,9 +380,9 @@ func uploadTokenAPIGroup() metav1.APIGroup {
 }
 
 func (app *uploadAPIApp) composeUploadTokenAPI() {
-	objPointer := &cdiv1.UploadToken{}
+	objPointer := &cdiv1.UploadTokenRequest{}
 	objExample := reflect.ValueOf(objPointer).Elem().Interface()
-	objKind := "uploadtoken"
+	objKind := "uploadtokenrequest"
 
 	groupPath := fmt.Sprintf("/apis/%s/%s", uploadTokenGroup, uploadTokenVersion)
 	resourcePath := fmt.Sprintf("/apis/%s/%s", uploadTokenGroup, uploadTokenVersion)
@@ -397,7 +397,7 @@ func (app *uploadAPIApp) composeUploadTokenAPI() {
 		Consumes("application/json").
 		Operation("createNamespaced"+objKind).
 		To(app.uploadHandler).Reads(objExample).Writes(objExample).
-		Doc("Create an UploadToken object.").
+		Doc("Create an UploadTokenRequest object.").
 		Returns(http.StatusOK, "OK", objExample).
 		Returns(http.StatusCreated, "Created", objExample).
 		Returns(http.StatusAccepted, "Accepted", objExample).
@@ -418,14 +418,14 @@ func (app *uploadAPIApp) composeUploadTokenAPI() {
 			list.GroupVersion = uploadTokenGroup + "/" + uploadTokenVersion
 			list.APIVersion = uploadTokenVersion
 			list.APIResources = append(list.APIResources, metav1.APIResource{
-				Name:         "UploadToken",
-				SingularName: "uploadtoken",
+				Name:         "UploadTokenRequest",
+				SingularName: "uploadtokenRequest",
 				Namespaced:   true,
 				Group:        uploadTokenGroup,
 				Version:      uploadTokenVersion,
-				Kind:         "UploadToken",
+				Kind:         "UploadTokenRequest",
 				Verbs:        []string{"create"},
-				ShortNames:   []string{"ut", "uts"},
+				ShortNames:   []string{"utr", "utrs"},
 			})
 			response.WriteAsJson(list)
 		}).
