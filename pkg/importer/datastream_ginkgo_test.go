@@ -153,7 +153,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 				fmt.Fprintf(GinkgoWriter, "INFO: converted source file name is %q\n", testSample)
 
 				testEp := "file://" + testSample
-				testTarget := filepath.Join(tmpTestDir, common.IMPORTER_WRITE_FILE)
+				testTarget := filepath.Join(tmpTestDir, common.ImporterWriteFile)
 				By(fmt.Sprintf("Importing %q to %q", testEp, testTarget))
 				err = importer.CopyImage(testTarget, testEp, "", "")
 				Expect(err).NotTo(HaveOccurred())

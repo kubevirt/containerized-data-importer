@@ -54,8 +54,8 @@ func init() {
 		glog.Fatalf("Environment Variable %q undefined\n", CLONER_IMAGE)
 	}
 
-	pullPolicy = DEFAULT_PULL_POLICY
-	if pp := os.Getenv(PULL_POLICY); len(pp) != 0 {
+	pullPolicy = DefaultPullPolicy
+	if pp := os.Getenv(PullPolicy); len(pp) != 0 {
 		pullPolicy = pp
 	}
 
@@ -93,10 +93,10 @@ func main() {
 		glog.Fatalf("Error building example clientset: %s", err.Error())
 	}
 
-	cdiInformerFactory := informers.NewSharedInformerFactory(cdiClient, DEFAULT_RESYNC_PERIOD)
-	pvcInformerFactory := k8sinformers.NewSharedInformerFactory(client, DEFAULT_RESYNC_PERIOD)
-	podInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(client, DEFAULT_RESYNC_PERIOD, "", func(options *v1.ListOptions) {
-		options.LabelSelector = CDI_LABEL_SELECTOR
+	cdiInformerFactory := informers.NewSharedInformerFactory(cdiClient, DefaultResyncPeriod)
+	pvcInformerFactory := k8sinformers.NewSharedInformerFactory(client, DefaultResyncPeriod)
+	podInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(client, DefaultResyncPeriod, "", func(options *v1.ListOptions) {
+		options.LabelSelector = CDILabelSelector
 	})
 
 	pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims()

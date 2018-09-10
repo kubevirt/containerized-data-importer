@@ -217,7 +217,7 @@ func TestImportPodCreationExpectation(t *testing.T) {
 	f.kubeobjects = append(f.kubeobjects, pvc)
 
 	expPvc := pvc.DeepCopy()
-	expPvc.ObjectMeta.Labels = map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}
+	expPvc.ObjectMeta.Labels = map[string]string{CDILabelKey: CDILabelValue}
 	f.expectUpdatePvcAction(expPvc)
 
 	f.runWithExpectation(getPvcKey(pvc, t))
@@ -238,7 +238,7 @@ func TestImportObservePod(t *testing.T) {
 	f.kubeobjects = append(f.kubeobjects, pod)
 
 	expPvc := pvc.DeepCopy()
-	expPvc.ObjectMeta.Labels = map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}
+	expPvc.ObjectMeta.Labels = map[string]string{CDILabelKey: CDILabelValue}
 	expPvc.ObjectMeta.Annotations = map[string]string{AnnImportPod: pod.Name, AnnPodPhase: string(corev1.PodPending), AnnEndpoint: "http://test"}
 
 	f.expectUpdatePvcAction(expPvc)
@@ -257,7 +257,7 @@ func TestImportPodStatusUpdating(t *testing.T) {
 	pod.Namespace = pvc.Namespace
 
 	pvc.ObjectMeta.Annotations = map[string]string{AnnImportPod: pod.Name, AnnPodPhase: string(corev1.PodPending), AnnEndpoint: "http://test"}
-	pvc.ObjectMeta.Labels = map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}
+	pvc.ObjectMeta.Labels = map[string]string{CDILabelKey: CDILabelValue}
 
 	f.pvcLister = append(f.pvcLister, pvc)
 	f.podLister = append(f.podLister, pod)

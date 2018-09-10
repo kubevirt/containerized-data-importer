@@ -26,5 +26,5 @@ func (f *Framework) WaitTimeoutForPodStatus(podName string, status k8sv1.PodPhas
 }
 
 func (f *Framework) FindPodByPrefix(prefix string) (*k8sv1.Pod, error) {
-	return utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, prefix, common.CDI_LABEL_SELECTOR)
+	return utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, prefix, common.CDILabelSelector)
 }

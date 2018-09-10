@@ -420,8 +420,8 @@ func Test_updatePVC(t *testing.T) {
 	}{
 		{
 			name:    "pvc is updated with annotation and label",
-			args:    args{k8sfake.NewSimpleClientset(pvcNoAnno), pvcNoAnno, map[string]string{AnnCreatedBy: "cdi"}, map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}},
-			want:    createPvc("testPVC1", "default", map[string]string{AnnCreatedBy: "cdi"}, map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}),
+			args:    args{k8sfake.NewSimpleClientset(pvcNoAnno), pvcNoAnno, map[string]string{AnnCreatedBy: "cdi"}, map[string]string{CDILabelKey: CDILabelValue}},
+			want:    createPvc("testPVC1", "default", map[string]string{AnnCreatedBy: "cdi"}, map[string]string{CDILabelKey: CDILabelValue}),
 			wantErr: false,
 		},
 		{
@@ -432,8 +432,8 @@ func Test_updatePVC(t *testing.T) {
 		},
 		{
 			name:    "pvc is updated with label",
-			args:    args{k8sfake.NewSimpleClientset(pvcNoAnno), pvcNoAnno, nil, map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}},
-			want:    createPvc("testPVC1", "default", nil, map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}),
+			args:    args{k8sfake.NewSimpleClientset(pvcNoAnno), pvcNoAnno, nil, map[string]string{CDILabelKey: CDILabelValue}},
+			want:    createPvc("testPVC1", "default", nil, map[string]string{CDILabelKey: CDILabelValue}),
 			wantErr: false,
 		},
 	}
@@ -559,7 +559,7 @@ func Test_checkIfLabelExists(t *testing.T) {
 		val string
 	}
 	//create PVCs
-	pvc := createPvc("testPVC", "default", nil, map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE})
+	pvc := createPvc("testPVC", "default", nil, map[string]string{CDILabelKey: CDILabelValue})
 	pvcNoLbl := createPvc("testPVC2", "default", nil, nil)
 
 	tests := []struct {
@@ -569,7 +569,7 @@ func Test_checkIfLabelExists(t *testing.T) {
 	}{
 		{
 			name: "pvc does have expected label and expected value",
-			args: args{pvc, CDI_LABEL_KEY, CDI_LABEL_VALUE},
+			args: args{pvc, CDILabelKey, CDILabelValue},
 			want: true,
 		},
 		{
@@ -579,12 +579,12 @@ func Test_checkIfLabelExists(t *testing.T) {
 		},
 		{
 			name: "pvc does have expected label but does not have expected value",
-			args: args{pvc, CDI_LABEL_KEY, "something"},
+			args: args{pvc, CDILabelKey, "something"},
 			want: false,
 		},
 		{
 			name: "pvc does not have any labels",
-			args: args{pvcNoLbl, CDI_LABEL_KEY, CDI_LABEL_VALUE},
+			args: args{pvcNoLbl, CDILabelKey, CDILabelValue},
 			want: false,
 		},
 		{
@@ -719,8 +719,8 @@ func Test_addToMap(t *testing.T) {
 	}{
 		{
 			name: "use different key for map1 and map2 expect both maps to be returned",
-			args: args{map[string]string{AnnImportPod: "mypod"}, map[string]string{CDI_LABEL_KEY: CDI_LABEL_VALUE}},
-			want: map[string]string{AnnImportPod: "mypod", CDI_LABEL_KEY: CDI_LABEL_VALUE},
+			args: args{map[string]string{AnnImportPod: "mypod"}, map[string]string{CDILabelKey: CDILabelValue}},
+			want: map[string]string{AnnImportPod: "mypod", CDILabelKey: CDILabelValue},
 		},
 		{
 			name: "use same key for map1 and map2 expect map2 to be returned",
@@ -750,7 +750,7 @@ func createPodWithName(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 
 func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 	// importer pod name contains the pvc name
-	podName := fmt.Sprintf("%s-%s-", IMPORTER_PODNAME, pvc.Name)
+	podName := fmt.Sprintf("%s-%s-", ImporterPodName, pvc.Name)
 
 	blockOwnerDeletion := true
 	isController := true
@@ -766,7 +766,7 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 				AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				CDI_LABEL_KEY:  CDI_LABEL_VALUE,
+				CDILabelKey:    CDILabelValue,
 				LabelImportPvc: pvc.Name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
@@ -783,13 +783,13 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Name:            IMPORTER_PODNAME,
+					Name:            ImporterPodName,
 					Image:           "test/myimage",
 					ImagePullPolicy: v1.PullPolicy("Always"),
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      DataVolName,
-							MountPath: IMPORTER_DATA_DIR,
+							MountPath: ImporterDataDir,
 						},
 					},
 					Args: []string{"-v=5"},
@@ -813,7 +813,7 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 	ep, _ := getEndpoint(pvc)
 	pod.Spec.Containers[0].Env = []v1.EnvVar{
 		{
-			Name:  IMPORTER_ENDPOINT,
+			Name:  ImporterEndpoint,
 			Value: ep,
 		},
 	}
@@ -878,29 +878,29 @@ func createSecret(name, ns, accessKey, secretKey string, labels map[string]strin
 func createEnv(endpoint, secret string) []v1.EnvVar {
 	env := []v1.EnvVar{
 		{
-			Name:  IMPORTER_ENDPOINT,
+			Name:  ImporterEndpoint,
 			Value: endpoint,
 		},
 	}
 	if secret != "" {
 		env = append(env, v1.EnvVar{
-			Name: IMPORTER_ACCESS_KEY_ID,
+			Name: ImporterAccessKeyID,
 			ValueFrom: &v1.EnvVarSource{
 				SecretKeyRef: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
 						Name: secret,
 					},
-					Key: KEY_ACCESS,
+					Key: KeyAccess,
 				},
 			},
 		}, v1.EnvVar{
-			Name: IMPORTER_SECRET_KEY,
+			Name: ImporterSecretKey,
 			ValueFrom: &v1.EnvVarSource{
 				SecretKeyRef: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
 						Name: secret,
 					},
-					Key: KEY_SECRET,
+					Key: KeySecret,
 				},
 			},
 		})
@@ -1065,7 +1065,7 @@ func createImportControllerMultiObject(pvcSpecs []*v1.PersistentVolumeClaim, pod
 func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, id string) *v1.Pod {
 	_, sourcePvcName := ParseSourcePvcAnnotation(pvc.GetAnnotations()[AnnCloneRequest], "/")
 	// source pod name contains the pvc name
-	podName := fmt.Sprintf("%s-", CLONER_SOURCE_PODNAME)
+	podName := fmt.Sprintf("%s-", ClonerSourcePodName)
 	blockOwnerDeletion := true
 	isController := true
 	pod := &v1.Pod{
@@ -1080,8 +1080,8 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, id string) *v
 				AnnTargetPodNamespace: pvc.Namespace,
 			},
 			Labels: map[string]string{
-				CDI_LABEL_KEY:     CDI_LABEL_VALUE,                //filtered by the podInformer
-				CLONING_LABEL_KEY: CLONING_LABEL_VALUE + "-" + id, //used by podAffity
+				CDILabelKey:     CDILabelValue,                //filtered by the podInformer
+				CloningLabelKey: CloningLabelValue + "-" + id, //used by podAffity
 				// this label is used when searching for a pvc's cloner source pod.
 				CloneUniqueID: pvc.Name + "-source-pod",
 			},
@@ -1099,7 +1099,7 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, id string) *v
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Name:            CLONER_SOURCE_PODNAME,
+					Name:            ClonerSourcePodName,
 					Image:           "test/mycloneimage",
 					ImagePullPolicy: v1.PullPolicy("Always"),
 					SecurityContext: &v1.SecurityContext{
@@ -1109,11 +1109,11 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, id string) *v
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      ImagePathName,
-							MountPath: CLONER_IMAGE_PATH,
+							MountPath: ClonerImagePath,
 						},
 						{
 							Name:      socketPathName,
-							MountPath: CLONER_SOCKET_PATH + "/" + id,
+							MountPath: ClonerSocketPath + "/" + id,
 						},
 					},
 					Args: []string{"source", id},
@@ -1134,7 +1134,7 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, id string) *v
 					Name: socketPathName,
 					VolumeSource: v1.VolumeSource{
 						HostPath: &v1.HostPathVolumeSource{
-							Path: CLONER_SOCKET_PATH + "/" + id,
+							Path: ClonerSocketPath + "/" + id,
 						},
 					},
 				},
@@ -1146,7 +1146,7 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, id string) *v
 
 func createTargetPod(pvc *v1.PersistentVolumeClaim, dvname, id, podAffinityNamespace string) *v1.Pod {
 	// target pod name contains the pvc name
-	podName := fmt.Sprintf("%s-", CLONER_TARGET_PODNAME)
+	podName := fmt.Sprintf("%s-", ClonerTargetPodName)
 	blockOwnerDeletion := true
 	isController := true
 	pod := &v1.Pod{
@@ -1161,7 +1161,7 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, dvname, id, podAffinityNames
 				AnnTargetPodNamespace: pvc.Namespace,
 			},
 			Labels: map[string]string{
-				CDI_LABEL_KEY: CDI_LABEL_VALUE, //filtered by the podInformer
+				CDILabelKey: CDILabelValue, //filtered by the podInformer
 				// this label is used when searching for a pvc's cloner target pod.
 				CloneUniqueID: pvc.Name + "-target-pod",
 			},
@@ -1184,21 +1184,21 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, dvname, id, podAffinityNames
 							LabelSelector: &metav1.LabelSelector{
 								MatchExpressions: []metav1.LabelSelectorRequirement{
 									{
-										Key:      CLONING_LABEL_KEY,
+										Key:      CloningLabelKey,
 										Operator: metav1.LabelSelectorOpIn,
-										Values:   []string{CLONING_LABEL_VALUE + "-" + id},
+										Values:   []string{CloningLabelValue + "-" + id},
 									},
 								},
 							},
 							Namespaces:  []string{podAffinityNamespace}, //the scheduler looks for the namespace of the source pod
-							TopologyKey: CLONING_TOPOLOGY_KEY,
+							TopologyKey: CloningTopologyKey,
 						},
 					},
 				},
 			},
 			Containers: []v1.Container{
 				{
-					Name:            CLONER_TARGET_PODNAME,
+					Name:            ClonerTargetPodName,
 					Image:           "test/mycloneimage",
 					ImagePullPolicy: v1.PullPolicy("Always"),
 					SecurityContext: &v1.SecurityContext{
@@ -1208,11 +1208,11 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, dvname, id, podAffinityNames
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      ImagePathName,
-							MountPath: CLONER_IMAGE_PATH,
+							MountPath: ClonerImagePath,
 						},
 						{
 							Name:      socketPathName,
-							MountPath: CLONER_SOCKET_PATH + "/" + id,
+							MountPath: ClonerSocketPath + "/" + id,
 						},
 					},
 					Args: []string{"target", id},
@@ -1233,7 +1233,7 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, dvname, id, podAffinityNames
 					Name: socketPathName,
 					VolumeSource: v1.VolumeSource{
 						HostPath: &v1.HostPathVolumeSource{
-							Path: CLONER_SOCKET_PATH + "/" + id,
+							Path: ClonerSocketPath + "/" + id,
 						},
 					},
 				},
