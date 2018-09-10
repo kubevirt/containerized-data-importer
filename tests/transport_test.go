@@ -20,8 +20,9 @@ import (
 var _ = Describe("Transport Tests", func() {
 
 	const (
-		secretPrefix = "transport-e2e-sec"
-		targetFile   = "tinyCore.iso"
+		secretPrefix   = "transport-e2e-sec"
+		targetFile     = "tinyCore.iso"
+		targetQCOWFile = "tinyCore.qcow2"
 	)
 
 	f, err := framework.NewFramework("", framework.Config{SkipNamespaceCreation: false})
@@ -38,7 +39,9 @@ var _ = Describe("Transport Tests", func() {
 	handelError(err)
 
 	httpAuthEp := fmt.Sprintf("http://%s:%d/%s", fileHostService.Spec.ClusterIP, httoAuthPort, targetFile)
+	httpAuthQCOWEp := fmt.Sprintf("http://%s:%d/%s", fileHostService.Spec.ClusterIP, httoAuthPort, targetQCOWFile)
 	httpNoAuthEp := fmt.Sprintf("http://%s:%d/%s", fileHostService.Spec.ClusterIP, noAuthPort, targetFile)
+	httpNoAuthQCOWEp := fmt.Sprintf("http://%s:%d/%s", fileHostService.Spec.ClusterIP, noAuthPort, targetQCOWFile)
 
 	var ns string
 	BeforeEach(func() {
@@ -85,7 +88,9 @@ var _ = Describe("Transport Tests", func() {
 
 	DescribeTable("Transport Test Table", it,
 		Entry("should connect to http endpoint without credentials", httpNoAuthEp, false),
-		Entry("should connect to http endpoint with credentials", httpAuthEp, true))
+		Entry("should connect to http endpoint with credentials", httpAuthEp, true),
+		Entry("should connect to QCOW http endpoint without credentials", httpNoAuthQCOWEp, false),
+		Entry("should connect to QCOW http endpoint with credentials", httpAuthQCOWEp, true))
 })
 
 // handelError is intended for use outside It(), BeforeEach() and AfterEach() blocks where Expect() cannot be called.

@@ -1,4 +1,4 @@
-FROM fedora:27
+FROM fedora:28
 
 RUN dnf install -y qemu xz gzip git && dnf clean all
 
