@@ -30,5 +30,5 @@ CODEGEN_PKG=${CODEGEN_PKG:-$(
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
 ${CODEGEN_PKG}/generate-groups.sh "deepcopy,client,informer,lister" \
   kubevirt.io/containerized-data-importer/pkg/client kubevirt.io/containerized-data-importer/pkg/apis \
-  cdicontroller:v1alpha1 \
+  "datavolumecontroller:v1alpha1 uploadcontroller:v1alpha1" \
   --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt

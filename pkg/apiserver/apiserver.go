@@ -25,7 +25,7 @@ import (
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/cdicontroller/v1alpha1"
+	uploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
@@ -310,7 +310,7 @@ func (app *uploadAPIApp) uploadHandler(request *restful.Request, response *restf
 		return
 	}
 
-	uploadToken := &cdiv1.UploadTokenRequest{}
+	uploadToken := &uploadv1alpha1.UploadTokenRequest{}
 	err = json.Unmarshal(body, uploadToken)
 	if err != nil {
 		glog.Error(err)
@@ -364,7 +364,7 @@ func uploadTokenAPIGroup() metav1.APIGroup {
 }
 
 func (app *uploadAPIApp) composeUploadTokenAPI() {
-	objPointer := &cdiv1.UploadTokenRequest{}
+	objPointer := &uploadv1alpha1.UploadTokenRequest{}
 	objExample := reflect.ValueOf(objPointer).Elem().Interface()
 	objKind := "uploadtokenrequest"
 
