@@ -3,7 +3,6 @@ package controller
 import (
 	"crypto/x509"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -531,7 +530,7 @@ func CreateUploadPod(client kubernetes.Interface,
 	secretName := name + "-server-tls"
 	owner := MakeOwnerReference(pvc)
 
-	err := keys.CreateServerKeyPairAndCert(client, ns, secretName, caKeyPair, clientCACert, commonName, name, false, &owner)
+	_, err := keys.GetOrCreateServerKeyPairAndCert(client, ns, secretName, caKeyPair, clientCACert, commonName, name, &owner)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating server key pair")
 	}
@@ -569,11 +568,6 @@ func MakeOwnerReference(pvc *v1.PersistentVolumeClaim) metav1.OwnerReference {
 
 // MakeUploadPodSpec creates upload service pod manifest
 func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.PersistentVolumeClaim, secretName string) *v1.Pod {
-	const (
-		secretVolumeName = "tls-secret"
-		secretVolumeDir  = "/etc/tls/uploadserver"
-	)
-
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -604,23 +598,40 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 							Name:      DataVolName,
 							MountPath: common.UPLOAD_SERVER_DATA_DIR,
 						},
-						{
-							Name:      secretName,
-							MountPath: secretVolumeDir,
-						},
 					},
 					Env: []v1.EnvVar{
 						{
-							Name:  "TLS_KEY_FILE",
-							Value: filepath.Join(secretVolumeDir, keys.KeyStoreTLSKeyFile),
+							Name: "TLS_KEY",
+							ValueFrom: &v1.EnvVarSource{
+								SecretKeyRef: &v1.SecretKeySelector{
+									LocalObjectReference: v1.LocalObjectReference{
+										Name: secretName,
+									},
+									Key: keys.KeyStoreTLSKeyFile,
+								},
+							},
 						},
 						{
-							Name:  "TLS_CERT_FILE",
-							Value: filepath.Join(secretVolumeDir, keys.KeyStoreTLSCertFile),
+							Name: "TLS_CERT",
+							ValueFrom: &v1.EnvVarSource{
+								SecretKeyRef: &v1.SecretKeySelector{
+									LocalObjectReference: v1.LocalObjectReference{
+										Name: secretName,
+									},
+									Key: keys.KeyStoreTLSCertFile,
+								},
+							},
 						},
 						{
-							Name:  "TLS_CA_FILE",
-							Value: filepath.Join(secretVolumeDir, keys.KeyStoreTLSCAFile),
+							Name: "CLIENT_CERT",
+							ValueFrom: &v1.EnvVarSource{
+								SecretKeyRef: &v1.SecretKeySelector{
+									LocalObjectReference: v1.LocalObjectReference{
+										Name: secretName,
+									},
+									Key: keys.KeyStoreTLSCAFile,
+								},
+							},
 						},
 					},
 					Args: []string{"-v=" + verbose},
@@ -634,14 +645,6 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
 							ClaimName: pvc.Name,
 							ReadOnly:  false,
-						},
-					},
-				},
-				{
-					Name: secretName,
-					VolumeSource: v1.VolumeSource{
-						Secret: &v1.SecretVolumeSource{
-							SecretName: secretName,
 						},
 					},
 				},

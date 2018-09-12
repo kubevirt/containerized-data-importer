@@ -52,20 +52,20 @@ const (
 
 	// cert/key annotations
 
-	// ServerCASecret is the secret containing the server CA
-	ServerCASecret = "cdi-upload-server-ca-key"
-	// ServerCAName is the name of the server CA
-	ServerCAName = "server.upload.cdi.kubevirt.io"
+	// uploadServerCASecret is the secret containing the server CA
+	uploadServerCASecret = "cdi-upload-server-ca-key"
+	// uploadServerCAName is the name of the server CA
+	uploadServerCAName = "server.upload.cdi.kubevirt.io"
 
-	// ClientCASecret is the secret containing the clent CA
-	ClientCASecret = "cdi-upload-client-ca-key"
-	// ClientCAName is the name of the client CA
-	ClientCAName = "client.upload.cdi.kubevirt.io"
+	// uploadServerClientCASecret is the secret containing the clent CA
+	uploadServerClientCASecret = "cdi-upload-server-client-ca-key"
+	// uploadServerClientCAName is the name of the client CA
+	uploadServerClientCAName = "client.upload-server.cdi.kubevirt.io"
 
-	// ClientKeySecret is the secret containing the client key/cert
-	ClientKeySecret = "cdi-upload-client-key"
-	// UploadProxyClientName is the CN for client cert
-	UploadProxyClientName = "uploadproxy.client.upload.cdi.kebevirt.io"
+	// uploadServerClientKeySecret is the secret containing the client key/cert
+	uploadServerClientKeySecret = "cdi-upload-server-client-key"
+	// uploadProxyClientName is the CN for client cert
+	uploadProxyClientName = "uploadproxy.client.upload-server.cdi.kebevirt.io"
 
 	uploadProxyCAName       = "proxy.upload.cdi.kubevirt.io"
 	uploadProxyCASecret     = "cdi-upload-proxy-ca-key"
@@ -74,7 +74,7 @@ const (
 
 // UploadController members
 type UploadController struct {
-	clientset                                 kubernetes.Interface
+	client                                    kubernetes.Interface
 	queue                                     workqueue.RateLimitingInterface
 	pvcInformer, podInformer, serviceInformer cache.SharedIndexInformer
 	pvcLister                                 corelisters.PersistentVolumeClaimLister
@@ -120,7 +120,7 @@ func NewUploadController(client kubernetes.Interface,
 	pullPolicy string,
 	verbose string) *UploadController {
 	c := &UploadController{
-		clientset:              client,
+		client:                 client,
 		queue:                  workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		pvcInformer:            pvcInformer.Informer(),
 		podInformer:            podInformer.Informer(),
@@ -221,45 +221,43 @@ func (c *UploadController) initCerts() error {
 	var err error
 
 	// CA for Upload Servers
-	c.serverCAKeyPair, err = keys.GetOrCreateCA(c.clientset, util.GetNamespace(), ServerCASecret, ServerCAName)
+	c.serverCAKeyPair, err = keys.GetOrCreateCA(c.client, util.GetNamespace(), uploadServerCASecret, uploadServerCAName)
 	if err != nil {
 		return errors.Wrap(err, "Couldn't get/create server CA")
 	}
 
 	// CA for Upload Client
-	c.clientCAKeyPair, err = keys.GetOrCreateCA(c.clientset, util.GetNamespace(), ClientCASecret, ClientCAName)
+	c.clientCAKeyPair, err = keys.GetOrCreateCA(c.client, util.GetNamespace(), uploadServerClientCASecret, uploadServerClientCAName)
 	if err != nil {
 		return errors.Wrap(err, "Couldn't get/create client CA")
 	}
 
 	// Upload Server Client Cert
-	err = keys.CreateClientKeyPairAndCert(c.clientset,
+	_, err = keys.GetOrCreateClientKeyPairAndCert(c.client,
 		util.GetNamespace(),
-		ClientKeySecret,
+		uploadServerClientKeySecret,
 		c.clientCAKeyPair,
 		c.serverCAKeyPair.Cert,
-		UploadProxyClientName,
+		uploadProxyClientName,
 		[]string{},
-		false, // okay if already exists
 		nil,
 	)
 	if err != nil {
 		return errors.Wrap(err, "Couldn't get/create client cert")
 	}
 
-	uploadProxyCAKeyPair, err := keys.GetOrCreateCA(c.clientset, util.GetNamespace(), uploadProxyCASecret, uploadProxyCAName)
+	uploadProxyCAKeyPair, err := keys.GetOrCreateCA(c.client, util.GetNamespace(), uploadProxyCASecret, uploadProxyCAName)
 	if err != nil {
 		return errors.Wrap(err, "Couldn't create upload proxy server cert")
 	}
 
-	err = keys.CreateServerKeyPairAndCert(c.clientset,
+	_, err = keys.GetOrCreateServerKeyPairAndCert(c.client,
 		util.GetNamespace(),
 		uploadProxyServerSecret,
 		uploadProxyCAKeyPair,
 		nil,
 		c.uploadProxyServiceName+"."+util.GetNamespace(),
 		c.uploadProxyServiceName,
-		false, // okay if already exists
 		nil,
 	)
 	if err != nil {
@@ -413,7 +411,7 @@ func (c *UploadController) syncHandler(key string) error {
 		if podPhase != podPhaseFromPVC(pvc) {
 			var labels map[string]string
 			annotations := map[string]string{AnnUploadPodPhase: string(podPhase)}
-			pvc, err = updatePVC(c.clientset, pvc, annotations, labels)
+			pvc, err = updatePVC(c.client, pvc, annotations, labels)
 			if err != nil {
 				return errors.Wrapf(err, "Error updating pvc %s, pod phase %s", key, podPhase)
 			}
@@ -439,7 +437,7 @@ func (c *UploadController) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, n
 	pod, err := c.podLister.Pods(pvc.Namespace).Get(name)
 
 	if k8serrors.IsNotFound(err) {
-		pod, err = CreateUploadPod(c.clientset, c.serverCAKeyPair, c.clientCAKeyPair.Cert, c.uploadServiceImage, c.verbose, c.pullPolicy, name, pvc)
+		pod, err = CreateUploadPod(c.client, c.serverCAKeyPair, c.clientCAKeyPair.Cert, c.uploadServiceImage, c.verbose, c.pullPolicy, name, pvc)
 	}
 
 	if pod != nil && !metav1.IsControlledBy(pod, pvc) {
@@ -453,7 +451,7 @@ func (c *UploadController) getOrCreateUploadService(pvc *v1.PersistentVolumeClai
 	service, err := c.serviceLister.Services(pvc.Namespace).Get(name)
 
 	if k8serrors.IsNotFound(err) {
-		service, err = CreateUploadService(c.clientset, name, pvc)
+		service, err = CreateUploadService(c.client, name, pvc)
 	}
 
 	if service != nil && !metav1.IsControlledBy(service, pvc) {
@@ -469,7 +467,7 @@ func (c *UploadController) deletePod(namespace, name string) error {
 		return nil
 	}
 	if err == nil && pod.DeletionTimestamp == nil {
-		err = c.clientset.CoreV1().Pods(namespace).Delete(name, &metav1.DeleteOptions{})
+		err = c.client.CoreV1().Pods(namespace).Delete(name, &metav1.DeleteOptions{})
 		if k8serrors.IsNotFound(err) {
 			return nil
 		}
@@ -483,7 +481,7 @@ func (c *UploadController) deleteService(namespace, name string) error {
 		return nil
 	}
 	if err == nil && service.DeletionTimestamp == nil {
-		err = c.clientset.CoreV1().Services(namespace).Delete(name, &metav1.DeleteOptions{})
+		err = c.client.CoreV1().Services(namespace).Delete(name, &metav1.DeleteOptions{})
 		if k8serrors.IsNotFound(err) {
 			return nil
 		}

@@ -102,57 +102,81 @@ func GetOrCreateCA(client kubernetes.Interface, namespace, secretName, caName st
 	return keyPair, nil
 }
 
-// CreateServerKeyPairAndCert creates secret for an upload server
-func CreateServerKeyPairAndCert(client kubernetes.Interface,
+// GetOrCreateServerKeyPairAndCert creates secret for an upload server
+func GetOrCreateServerKeyPairAndCert(client kubernetes.Interface,
 	namespace,
 	secretName string,
 	caKeyPair *triple.KeyPair,
 	clientCACert *x509.Certificate,
 	commonName string,
 	serviceName string,
-	failIfExists bool,
-	owner *metav1.OwnerReference) error {
+	owner *metav1.OwnerReference) (*KeyPairAndCert, error) {
+	keyPairAndCert, err := GetKeyPairAndCert(client, namespace, secretName)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting server cert")
+	}
+
+	if keyPairAndCert != nil {
+		glog.Infof("Retrieved server key/cert %s from kubernetes", commonName)
+		return keyPairAndCert, nil
+	}
+
 	keyPair, err := triple.NewServerKeyPair(caKeyPair, commonName, serviceName, namespace, "cluster.local", []string{}, []string{})
 	if err != nil {
-		return errors.Wrap(err, "Error creating server key pair")
+		return nil, errors.Wrap(err, "Error creating server key pair")
 	}
 
-	exists, err := SaveKeyPairAndCert(client, namespace, secretName, &KeyPairAndCert{*keyPair, clientCACert}, owner)
-	if exists && !failIfExists {
-		return nil
+	keyPairAndCert = &KeyPairAndCert{*keyPair, clientCACert}
+
+	exists, err := SaveKeyPairAndCert(client, namespace, secretName, keyPairAndCert, owner)
+	if !exists && err != nil {
+		return nil, errors.Wrap(err, "Error saving server key pair")
 	}
 
-	if err != nil {
-		return errors.Wrap(err, "Error saving server key pair")
+	if exists {
+		// race condition
+		return GetKeyPairAndCert(client, namespace, secretName)
 	}
 
-	return nil
+	return keyPairAndCert, nil
 }
 
-// CreateClientKeyPairAndCert creates a secret for upload proxy
-func CreateClientKeyPairAndCert(client kubernetes.Interface,
+// GetOrCreateClientKeyPairAndCert creates a secret for upload proxy
+func GetOrCreateClientKeyPairAndCert(client kubernetes.Interface,
 	namespace, secretName string,
 	caKeyPair *triple.KeyPair,
 	caCert *x509.Certificate,
 	commonName string,
 	organizations []string,
-	failIfExists bool,
-	owner *metav1.OwnerReference) error {
+	owner *metav1.OwnerReference) (*KeyPairAndCert, error) {
+	keyPairAndCert, err := GetKeyPairAndCert(client, namespace, secretName)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting client cert")
+	}
+
+	if keyPairAndCert != nil {
+		glog.Infof("Retrieved client key/cert %s from kubernetes", commonName)
+		return keyPairAndCert, nil
+	}
+
 	keyPair, err := triple.NewClientKeyPair(caKeyPair, commonName, organizations)
 	if err != nil {
-		return errors.Wrap(err, "Error creating client key pair")
+		return nil, errors.Wrap(err, "Error creating client key pair")
 	}
 
-	exists, err := SaveKeyPairAndCert(client, namespace, secretName, &KeyPairAndCert{*keyPair, caCert}, owner)
-	if exists && !failIfExists {
-		return nil
+	keyPairAndCert = &KeyPairAndCert{*keyPair, caCert}
+
+	exists, err := SaveKeyPairAndCert(client, namespace, secretName, keyPairAndCert, owner)
+	if !exists && err != nil {
+		return nil, errors.Wrap(err, "Error saving server key pair")
 	}
 
-	if err != nil {
-		return errors.Wrap(err, "Error saving client key pair")
+	if exists {
+		// race condition
+		return GetKeyPairAndCert(client, namespace, secretName)
 	}
 
-	return nil
+	return keyPairAndCert, nil
 }
 
 // GetKeyPairAndCert will return the secret data if it exists
@@ -228,7 +252,7 @@ func GetKeyPairAndCertBytes(client kubernetes.Interface, namespace, secretName s
 
 // SaveKeyPairAndCert saves a private key, cert, and maybe a ca cert to kubernetes
 func SaveKeyPairAndCert(client kubernetes.Interface, namespace, secretName string, keyPairAndCA *KeyPairAndCert, owner *metav1.OwnerReference) (bool, error) {
-	secret := NewTLSSecret(namespace, secretName, keyPairAndCA, owner)
+	secret := newTLSSecret(namespace, secretName, keyPairAndCA, owner)
 
 	_, err := client.CoreV1().Secrets(namespace).Create(secret)
 	if err != nil {
@@ -238,8 +262,8 @@ func SaveKeyPairAndCert(client kubernetes.Interface, namespace, secretName strin
 	return false, nil
 }
 
-// NewTLSSecret returns a new TLS secret from objects
-func NewTLSSecret(namespace, secretName string, keyPairAndCA *KeyPairAndCert, owner *metav1.OwnerReference) *v1.Secret {
+// newTLSSecret returns a new TLS secret from objects
+func newTLSSecret(namespace, secretName string, keyPairAndCA *KeyPairAndCert, owner *metav1.OwnerReference) *v1.Secret {
 	var privateKeyBytes, certBytes, caCertBytes []byte
 	privateKeyBytes = cert.EncodePrivateKeyPEM(keyPairAndCA.KeyPair.Key)
 	certBytes = cert.EncodeCertPEM(keyPairAndCA.KeyPair.Cert)
@@ -248,11 +272,11 @@ func NewTLSSecret(namespace, secretName string, keyPairAndCA *KeyPairAndCert, ow
 		caCertBytes = cert.EncodeCertPEM(keyPairAndCA.CACert)
 	}
 
-	return NewTLSSecretFromBytes(namespace, secretName, privateKeyBytes, certBytes, caCertBytes, owner)
+	return newTLSSecretFromBytes(namespace, secretName, privateKeyBytes, certBytes, caCertBytes, owner)
 }
 
-// NewTLSSecretFromBytes returns a new TLS secret from bytes
-func NewTLSSecretFromBytes(namespace, secretName string, privateKeyBytes, certBytes, caCertBytes []byte, owner *metav1.OwnerReference) *v1.Secret {
+// newTLSSecretFromBytes returns a new TLS secret from bytes
+func newTLSSecretFromBytes(namespace, secretName string, privateKeyBytes, certBytes, caCertBytes []byte, owner *metav1.OwnerReference) *v1.Secret {
 	data := map[string][]byte{
 		KeyStoreTLSKeyFile:  privateKeyBytes,
 		KeyStoreTLSCertFile: certBytes,
@@ -279,7 +303,7 @@ func GetOrCreatePrivateKey(client kubernetes.Interface, namespace, secretName st
 			return nil, errors.Wrap(err, "Error generating key")
 		}
 
-		secret, err = NewPrivateKeySecret(namespace, secretName, privateKey)
+		secret, err = newPrivateKeySecret(namespace, secretName, privateKey)
 		if err != nil {
 			return nil, errors.Wrap(err, "Error creating prvate key secret")
 		}
@@ -305,8 +329,8 @@ func GetOrCreatePrivateKey(client kubernetes.Interface, namespace, secretName st
 	return parsePrivateKey(bytes)
 }
 
-// NewPrivateKeySecret returns a new private key secret
-func NewPrivateKeySecret(namespace, secretName string, privateKey *rsa.PrivateKey) (*v1.Secret, error) {
+// newPrivateKeySecret returns a new private key secret
+func newPrivateKeySecret(namespace, secretName string, privateKey *rsa.PrivateKey) (*v1.Secret, error) {
 	privateKeyBytes := cert.EncodePrivateKeyPEM(privateKey)
 	publicKeyBytes, err := cert.EncodePublicKeyPEM(&privateKey.PublicKey)
 	if err != nil {

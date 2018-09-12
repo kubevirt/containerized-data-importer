@@ -30,10 +30,9 @@ import (
 )
 
 const (
-	defaultListenPort    = uint16(8443)
+	defaultListenPort    = 8443
 	defaultListenAddress = "0.0.0.0"
 
-	defaultPVCDir      = common.IMPORTER_WRITE_DIR
 	defaultDestination = common.IMPORTER_WRITE_PATH
 )
 
@@ -46,19 +45,18 @@ func main() {
 
 	listenAddress, listenPort := getListenAddressAndPort()
 
-	pvcDir, destination := getPVCDirAndDestination()
+	destination := getDestination()
 
 	server := uploadserver.NewUploadServer(
 		listenAddress,
 		listenPort,
-		pvcDir,
 		destination,
-		os.Getenv("TLS_KEY_FILE"),
-		os.Getenv("TLS_CERT_FILE"),
-		os.Getenv("TLS_CA_FILE"),
+		os.Getenv("TLS_KEY"),
+		os.Getenv("TLS_CERT"),
+		os.Getenv("CLIENT_CERT"),
 	)
 
-	glog.Infof("PVC dir: %s, destination: %s", pvcDir, destination)
+	glog.Infof("Upload destination: %s", destination)
 
 	glog.Infof("Running server on %s:%d", listenAddress, listenPort)
 
@@ -71,7 +69,7 @@ func main() {
 	glog.Info("UploadServer successfully exited")
 }
 
-func getListenAddressAndPort() (string, uint16) {
+func getListenAddressAndPort() (string, int) {
 	addr, port := defaultListenAddress, defaultListenPort
 
 	// empty value okay here
@@ -83,23 +81,19 @@ func getListenAddressAndPort() (string, uint16) {
 	if val := os.Getenv("LISTEN_PORT"); len(val) > 0 {
 		n, err := strconv.ParseUint(val, 10, 16)
 		if err == nil {
-			port = uint16(n)
+			port = int(n)
 		}
 	}
 
 	return addr, port
 }
 
-func getPVCDirAndDestination() (string, string) {
-	pvcDir, destination := defaultPVCDir, defaultDestination
-
-	if val := os.Getenv("PVC_DIR"); len(val) > 0 {
-		pvcDir = val
-	}
+func getDestination() string {
+	destination := defaultDestination
 
 	if val := os.Getenv("DESTINATION"); len(val) > 0 {
 		destination = val
 	}
 
-	return pvcDir, destination
+	return destination
 }

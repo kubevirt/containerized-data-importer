@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
@@ -17,6 +18,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	. "kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/keys"
 )
 
 func TestController_pvcFromKey(t *testing.T) {
@@ -1222,4 +1224,144 @@ func getPvcKey(pvc *corev1.PersistentVolumeClaim, t *testing.T) string {
 		return ""
 	}
 	return key
+}
+
+func createUploadPod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
+	name := "cdi-upload-" + pvc.Name
+	secretName := name + "-server-tls"
+
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: pvc.Namespace,
+			Annotations: map[string]string{
+				AnnCreatedByUpload: "yes",
+			},
+			Labels: map[string]string{
+				"app":             "containerized-data-importer",
+				"cdi.kubevirt.io": "cdi-upload-server",
+				"service":         name,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				MakeOwnerReference(pvc),
+			},
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:            "cdi-upload-server",
+					Image:           "test/myimage",
+					ImagePullPolicy: v1.PullPolicy("Always"),
+					VolumeMounts: []v1.VolumeMount{
+						{
+							Name:      DataVolName,
+							MountPath: "/data",
+						},
+					},
+					Env: []v1.EnvVar{
+						{
+							Name: "TLS_KEY",
+							ValueFrom: &v1.EnvVarSource{
+								SecretKeyRef: &v1.SecretKeySelector{
+									LocalObjectReference: v1.LocalObjectReference{
+										Name: secretName,
+									},
+									Key: keys.KeyStoreTLSKeyFile,
+								},
+							},
+						},
+						{
+							Name: "TLS_CERT",
+							ValueFrom: &v1.EnvVarSource{
+								SecretKeyRef: &v1.SecretKeySelector{
+									LocalObjectReference: v1.LocalObjectReference{
+										Name: secretName,
+									},
+									Key: keys.KeyStoreTLSCertFile,
+								},
+							},
+						},
+						{
+							Name: "CLIENT_CERT",
+							ValueFrom: &v1.EnvVarSource{
+								SecretKeyRef: &v1.SecretKeySelector{
+									LocalObjectReference: v1.LocalObjectReference{
+										Name: secretName,
+									},
+									Key: keys.KeyStoreTLSCAFile,
+								},
+							},
+						},
+					},
+					Args: []string{"-v=" + "5"},
+				},
+			},
+			RestartPolicy: v1.RestartPolicyOnFailure,
+			Volumes: []v1.Volume{
+				{
+					Name: DataVolName,
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvc.Name,
+							ReadOnly:  false,
+						},
+					},
+				},
+			},
+		},
+	}
+	return pod
+}
+
+func createUploadService(pvc *v1.PersistentVolumeClaim) *v1.Service {
+	name := "cdi-upload-" + pvc.Name
+	blockOwnerDeletion := true
+	isController := true
+	service := &v1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: pvc.Namespace,
+			Annotations: map[string]string{
+				AnnCreatedByUpload: "yes",
+			},
+			Labels: map[string]string{
+				"app":             "containerized-data-importer",
+				"cdi.kubevirt.io": "cdi-upload-server",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         "v1",
+					Kind:               "PersistentVolumeClaim",
+					Name:               pvc.Name,
+					UID:                pvc.GetUID(),
+					BlockOwnerDeletion: &blockOwnerDeletion,
+					Controller:         &isController,
+				},
+			},
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Protocol: "TCP",
+					Port:     443,
+					TargetPort: intstr.IntOrString{
+						Type:   intstr.Int,
+						IntVal: 8443,
+					},
+				},
+			},
+			Selector: map[string]string{
+				"service": name,
+			},
+		},
+	}
+	return service
 }

@@ -6,12 +6,14 @@ import (
 	"reflect"
 	"testing"
 
+	"k8s.io/client-go/util/cert/triple"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
-	"kubevirt.io/containerized-data-importer/pkg/keys"
+	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
 )
 
 func signingKeySecretGetAction() core.Action {
@@ -25,7 +27,7 @@ func signingKeySecretGetAction() core.Action {
 }
 
 func signingKeySecretCreateAction(privateKey *rsa.PrivateKey) core.Action {
-	secret, _ := keys.NewPrivateKeySecret("kube-system", apiSigningKeySecretName, privateKey)
+	secret, _ := keystest.NewPrivateKeySecret("kube-system", apiSigningKeySecretName, privateKey)
 	return core.NewCreateAction(
 		schema.GroupVersionResource{
 			Resource: "secrets",
@@ -52,7 +54,7 @@ func tlsSecretCreateAction(privateKeyBytes, certBytes, caCertBytes []byte) core.
 			Version:  "v1",
 		},
 		"kube-system",
-		keys.NewTLSSecretFromBytes("kube-system", apiCertSecretName, privateKeyBytes, certBytes, caCertBytes, nil))
+		keystest.NewTLSSecretFromBytes("kube-system", apiCertSecretName, privateKeyBytes, certBytes, caCertBytes, nil))
 }
 
 func checkActions(expected []core.Action, actual []core.Action, t *testing.T) {
@@ -151,16 +153,22 @@ func TestKeyRetrieval(t *testing.T) {
 		t.Errorf("error generating keys: %v", err)
 	}
 
-	keyBytes := []byte("madeup")
-	certBytes := []byte("madeup")
-	signingCertBytes := []byte("madeup")
+	caKeyPair, err := triple.NewCA("myca")
+	if err != nil {
+		t.Errorf("Error creating CA key pair")
+	}
 
-	signingKeySecret, err := keys.NewPrivateKeySecret("kube-system", apiSigningKeySecretName, signingKey)
+	serverKeyPair, err := triple.NewServerKeyPair(caKeyPair, "commonname", "service", "kube-system", "cluster.local", []string{}, []string{})
+	if err != nil {
+		t.Errorf("Error creating server key pair")
+	}
+
+	signingKeySecret, err := keystest.NewPrivateKeySecret("kube-system", apiSigningKeySecretName, signingKey)
 	if err != nil {
 		t.Errorf("error creating secret: %v", err)
 	}
 
-	tlsSecret := keys.NewTLSSecretFromBytes("kube-system", apiCertSecretName, keyBytes, certBytes, signingCertBytes, nil)
+	tlsSecret := keystest.NewTLSSecret("kube-system", apiCertSecretName, serverKeyPair, caKeyPair.Cert, nil)
 
 	kubeobjects := []runtime.Object{}
 	kubeobjects = append(kubeobjects, tlsSecret)
@@ -201,7 +209,6 @@ func TestShouldGenerateCertsAndKeyFirstRun(t *testing.T) {
 	actions := []core.Action{}
 	actions = append(actions, tlsSecretGetAction())
 	actions = append(actions, tlsSecretCreateAction(app.keyBytes, app.certBytes, app.signingCertBytes))
-	actions = append(actions, tlsSecretGetAction())
 	actions = append(actions, signingKeySecretGetAction())
 	actions = append(actions, signingKeySecretCreateAction(app.privateSigningKey))
 

@@ -12,6 +12,8 @@ import (
 	"reflect"
 	"strings"
 
+	"k8s.io/client-go/util/cert/triple"
+
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 
@@ -20,7 +22,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/cert"
-	"k8s.io/client-go/util/cert/triple"
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 
@@ -188,44 +189,27 @@ func (app *uploadAPIApp) getClientCert() error {
 
 func (app *uploadAPIApp) getSelfSignedCert() error {
 	namespace := util.GetNamespace()
-	keyPairAndCertBytes, err := keys.GetKeyPairAndCertBytes(app.client, namespace, apiCertSecretName)
+	caKeyPair, err := triple.NewCA("api.cdi.kubevirt.io")
 	if err != nil {
-		return errors.Wrap(err, "Error getting secret")
+		return errors.Wrap(err, "Error creating CA")
 	}
 
-	if keyPairAndCertBytes == nil {
-		caKeyPair, err := triple.NewCA("api.cdi.kubevirt.io")
-		if err != nil {
-			return errors.Wrap(err, "Error creating CA")
-		}
-
-		err = keys.CreateServerKeyPairAndCert(app.client,
-			namespace,
-			apiCertSecretName,
-			caKeyPair,
-			caKeyPair.Cert,
-			apiServiceName+"."+namespace,
-			apiServiceName,
-			false,
-			nil,
-		)
-		if err != nil {
-			return errors.Wrap(err, "Error creating secret")
-		}
-
-		keyPairAndCertBytes, err = keys.GetKeyPairAndCertBytes(app.client, namespace, apiCertSecretName)
-		if err != nil {
-			return errors.Wrap(err, "Error getting secret")
-		}
-
-		if keyPairAndCertBytes == nil {
-			return errors.Wrap(err, "Error getting secret the second time")
-		}
+	keyPairAndCert, err := keys.GetOrCreateServerKeyPairAndCert(app.client,
+		namespace,
+		apiCertSecretName,
+		caKeyPair,
+		caKeyPair.Cert,
+		apiServiceName+"."+namespace,
+		apiServiceName,
+		nil,
+	)
+	if err != nil {
+		return errors.Wrapf(err, "Error getting/creating secret %s", apiCertSecretName)
 	}
 
-	app.keyBytes = keyPairAndCertBytes.PrivateKey
-	app.certBytes = keyPairAndCertBytes.Cert
-	app.signingCertBytes = keyPairAndCertBytes.CACert
+	app.keyBytes = cert.EncodePrivateKeyPEM(keyPairAndCert.KeyPair.Key)
+	app.certBytes = cert.EncodeCertPEM(keyPairAndCert.KeyPair.Cert)
+	app.signingCertBytes = cert.EncodeCertPEM(keyPairAndCert.CACert)
 
 	privateKey, err := keys.GetOrCreatePrivateKey(app.client, namespace, apiSigningKeySecretName)
 	if err != nil {

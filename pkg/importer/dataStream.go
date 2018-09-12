@@ -104,7 +104,7 @@ func NewDataStream(endpt, accKey, secKey string) (*DataStream, error) {
 }
 
 func newDataStreamFromStream(stream io.ReadCloser) (*DataStream, error) {
-	return newDataStream(fmt.Sprintf("stream://%p", stream), "", "", stream)
+	return newDataStream("stream://data", "", "", stream)
 }
 
 func newDataStream(endpt, accKey, secKey string, stream io.ReadCloser) (*DataStream, error) {

@@ -25,10 +25,15 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/golang/glog"
+	"github.com/pkg/errors"
+
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 )
@@ -42,19 +47,13 @@ type UploadServer interface {
 	Run() error
 }
 
-// GetUploadServerURL returns the url the proxy should post to for a particular pvc
-func GetUploadServerURL(namespace, pvc string) string {
-	return fmt.Sprintf("https://%s.%s.svc%s", controller.GetUploadResourceName(pvc), namespace, uploadPath)
-}
-
 type uploadServerApp struct {
 	bindAddress string
-	bindPort    uint16
-	pvcDir      string
+	bindPort    int
 	destination string
-	tlsKeyFile  string
-	tlsCertFile string
-	caCertFile  string
+	tlsKey      string
+	tlsCert     string
+	clientCert  string
 	mux         *http.ServeMux
 	uploading   bool
 	done        bool
@@ -62,16 +61,23 @@ type uploadServerApp struct {
 	mutex       sync.Mutex
 }
 
+// may be overridden in tests
+var saveStremFunc = importer.SaveStream
+
+// GetUploadServerURL returns the url the proxy should post to for a particular pvc
+func GetUploadServerURL(namespace, pvc string) string {
+	return fmt.Sprintf("https://%s.%s.svc%s", controller.GetUploadResourceName(pvc), namespace, uploadPath)
+}
+
 // NewUploadServer returns a new instance of uploadServerApp
-func NewUploadServer(bindAddress string, bindPort uint16, pvcDir, destination, tlsKeyFile, tlsCertFile, caCertFile string) UploadServer {
+func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsCert, clientCert string) UploadServer {
 	server := &uploadServerApp{
 		bindAddress: bindAddress,
 		bindPort:    bindPort,
-		pvcDir:      pvcDir,
 		destination: destination,
-		tlsKeyFile:  tlsKeyFile,
-		tlsCertFile: tlsCertFile,
-		caCertFile:  caCertFile,
+		tlsKey:      tlsKey,
+		tlsCert:     tlsCert,
+		clientCert:  clientCert,
 		mux:         http.NewServeMux(),
 		uploading:   false,
 		done:        false,
@@ -82,20 +88,36 @@ func NewUploadServer(bindAddress string, bindPort uint16, pvcDir, destination, t
 }
 
 func (app *uploadServerApp) Run() error {
+	var keyFile, certFile string
 	server := &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort),
 		Handler: app,
 	}
 
-	if app.caCertFile != "" {
-		caCert, err := ioutil.ReadFile(app.caCertFile)
+	if app.tlsKey != "" && app.tlsCert != "" {
+		certDir, err := ioutil.TempDir("", "uploadserver-tls")
 		if err != nil {
-			glog.Fatalf("Error reading ca cert file %s", app.caCertFile)
+			return errors.Wrap(err, "Error creating cert dir")
+		}
+		defer os.RemoveAll(certDir)
+
+		keyFile = filepath.Join(certDir, "tls.key")
+		certFile = filepath.Join(certDir, "tls.cert")
+
+		err = ioutil.WriteFile(keyFile, []byte(app.tlsKey), 0600)
+		if err != nil {
+			return errors.Wrap(err, "Error creating key file")
 		}
 
+		err = ioutil.WriteFile(certFile, []byte(app.tlsCert), 0600)
+		if err != nil {
+			return errors.Wrap(err, "Error creating cert file")
+		}
+	}
+
+	if app.clientCert != "" {
 		caCertPool := x509.NewCertPool()
-		if ok := caCertPool.AppendCertsFromPEM(caCert); !ok {
-			glog.Fatalf("Invalid ca cert file %s", app.caCertFile)
+		if ok := caCertPool.AppendCertsFromPEM([]byte(app.clientCert)); !ok {
+			glog.Fatalf("Invalid ca cert file %s", app.clientCert)
 		}
 
 		server.TLSConfig = &tls.Config{
@@ -107,14 +129,23 @@ func (app *uploadServerApp) Run() error {
 	errChan := make(chan error)
 
 	go func() {
-		if app.tlsCertFile != "" && app.tlsKeyFile != "" {
-			errChan <- server.ListenAndServeTLS(app.tlsCertFile, app.tlsKeyFile)
+		listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort))
+		if err != nil {
+			errChan <- err
 			return
 		}
-		if app.caCertFile != "" {
-			glog.Fatal("TLS cert and key required for this config")
+		defer listener.Close()
+
+		// maybe bind port was 0 (unit tests) assign port here
+		app.bindPort = listener.Addr().(*net.TCPAddr).Port
+
+		if keyFile != "" && certFile != "" {
+			errChan <- server.ServeTLS(listener, certFile, keyFile)
+			return
 		}
-		errChan <- server.ListenAndServe()
+
+		// not sure we want to support this code path
+		errChan <- server.Serve(listener)
 	}()
 
 	var err error
@@ -163,7 +194,7 @@ func (app *uploadServerApp) uploadHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	sz, err := importer.SaveStream(r.Body, app.destination)
+	sz, err := saveStremFunc(r.Body, app.destination)
 
 	app.mutex.Lock()
 	defer app.mutex.Unlock()

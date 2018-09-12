@@ -2,6 +2,7 @@ package importer
 
 import (
 	"bufio"
+	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -129,14 +131,22 @@ func getURLPath(testfile string) string {
 	return "file://" + imageDir + "/" + testfile
 }
 
-func startHTTPServer(port int, dir string) (*http.Server, error) {
+func startHTTPServer(dir string) (*http.Server, int, error) {
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return nil, 0, errors.New("Couldn't start listener")
+	}
+
+	port := listener.Addr().(*net.TCPAddr).Port
+
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: http.FileServer(http.Dir(dir)),
 	}
 
 	go func() {
-		if err := server.ListenAndServe(); err != nil {
+		defer listener.Close()
+		if err := server.Serve(listener); err != nil {
 			// cannot panic, because this probably is an intentional close
 			log.Printf("Httpserver: ListenAndServe() error: %s", err)
 		}
@@ -155,11 +165,11 @@ func startHTTPServer(port int, dir string) (*http.Server, error) {
 	}
 
 	if !started {
-		server.Shutdown(nil)
-		return nil, errors.New("Couldn't start http server")
+		server.Shutdown(context.Background())
+		return nil, 0, errors.New("Couldn't start http server")
 	}
 
-	return server, nil
+	return server, port, nil
 }
 
 func TestNewDataStream(t *testing.T) {
@@ -334,12 +344,11 @@ func TestCopyImage(t *testing.T) {
 	localImageBase := filepath.Join("file://", imageDir)
 
 	t.Logf("Image dir '%s' '%s'", imageDir, TestImagesDir)
-	port := 9999
-	server, err := startHTTPServer(port, imageDir)
+	server, port, err := startHTTPServer(imageDir)
 	if err != nil {
 		t.Errorf("Error setting up CopyImage test")
 	}
-	defer server.Shutdown(nil)
+	defer server.Shutdown(context.Background())
 
 	tests := []struct {
 		name    string
@@ -568,6 +577,41 @@ func Test_copy(t *testing.T) {
 			defer os.Remove(tt.args.out)
 			replaceQEMUOperations(tt.args.qemuOperations, func() {
 				if err := copy(tt.args.r, tt.args.out, tt.args.qemu); (err != nil) != tt.wantErr {
+					t.Errorf("copy() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			})
+		})
+	}
+}
+
+func Test_SaveStream(t *testing.T) {
+	type args struct {
+		r              io.ReadCloser
+		out            string
+		qemuOperations image.QEMUOperations
+	}
+
+	imageDir, _ := filepath.Abs(TestImagesDir)
+	file := filepath.Join(imageDir, "cirros-qcow2.img")
+	rdrfile, _ := os.Open(file)
+	rdrs2 := ioutil.NopCloser(bufio.NewReader(rdrfile))
+
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "successfully copy qcow2 reader",
+			args:    args{rdrs2, "testqcow2file", NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil)},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer os.Remove(tt.args.out)
+			replaceQEMUOperations(tt.args.qemuOperations, func() {
+				if _, err := SaveStream(tt.args.r, tt.args.out); (err != nil) != tt.wantErr {
 					t.Errorf("copy() error = %v, wantErr %v", err, tt.wantErr)
 				}
 			})
