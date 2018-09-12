@@ -8,9 +8,8 @@ spec:
       namespace: "source-ns"
       name: "my-data-volume"
   pvc:
-    #storageClassName: "hostpath"
     accessModes:
-      - ReadWriteMany
+      - ReadWriteOnce
     resources:
       requests:
         storage: 500Mi
