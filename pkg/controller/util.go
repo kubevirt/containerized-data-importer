@@ -579,9 +579,9 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 				AnnCreatedByUpload: "yes",
 			},
 			Labels: map[string]string{
-				common.CDI_LABEL_KEY:               common.CDI_LABEL_VALUE,
-				common.CDI_COMPONENT_LABEL:         common.UPLOAD_SERVER_CDI_LABEL,
-				common.UPLOAD_SERVER_SERVICE_LABEL: name,
+				common.CDILabelKey:              common.CDILabelValue,
+				common.CDIComponentLabel:        common.UploadServerCDILabel,
+				common.UploadServerServiceLabel: name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				MakeOwnerReference(pvc),
@@ -590,13 +590,13 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Name:            common.UPLOAD_SERVER_PODNAME,
+					Name:            common.UploadServerPodname,
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      DataVolName,
-							MountPath: common.UPLOAD_SERVER_DATA_DIR,
+							MountPath: common.UploadServerDataDir,
 						},
 					},
 					Env: []v1.EnvVar{
@@ -689,8 +689,8 @@ func MakeUploadServiceSpec(name string, pvc *v1.PersistentVolumeClaim) *v1.Servi
 				AnnCreatedByUpload: "yes",
 			},
 			Labels: map[string]string{
-				common.CDI_LABEL_KEY:       common.CDI_LABEL_VALUE,
-				common.CDI_COMPONENT_LABEL: common.UPLOAD_SERVER_CDI_LABEL,
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: common.UploadServerCDILabel,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -715,7 +715,7 @@ func MakeUploadServiceSpec(name string, pvc *v1.PersistentVolumeClaim) *v1.Servi
 				},
 			},
 			Selector: map[string]string{
-				common.UPLOAD_SERVER_SERVICE_LABEL: name,
+				common.UploadServerServiceLabel: name,
 			},
 		},
 	}

@@ -33,7 +33,7 @@ const (
 	defaultListenPort    = 8443
 	defaultListenAddress = "0.0.0.0"
 
-	defaultDestination = common.IMPORTER_WRITE_PATH
+	defaultDestination = common.ImporterWritePath
 )
 
 func init() {

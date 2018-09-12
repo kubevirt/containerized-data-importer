@@ -63,8 +63,8 @@ const (
 	// UploadServerCDILabel is the label applied to upload server resources
 	UploadServerCDILabel = "cdi-upload-server"
 
-	// UploadServerCDIPodname is name of the upload server pod container
-	UploadServerCDIPodname = UploadServerCDILabel
+	// UploadServerPodname is name of the upload server pod container
+	UploadServerPodname = UploadServerCDILabel
 
 	// UploadServerDataDir is the destination directoryfor uploads
 	UploadServerDataDir = ImporterDataDir

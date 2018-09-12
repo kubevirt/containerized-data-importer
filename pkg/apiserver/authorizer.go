@@ -39,7 +39,8 @@ const (
 	clientBurst           = 400
 )
 
-type CdiApiAuthorizor interface {
+// CdiAPIAuthorizor defines methods to authorize api requests
+type CdiAPIAuthorizor interface {
 	Authorize(req *restful.Request) (bool, string, error)
 	AddUserHeaders(header []string)
 	GetUserHeaders() []string
@@ -251,7 +252,8 @@ func (a *authorizor) Authorize(req *restful.Request) (bool, string, error) {
 	return allowed, reason, nil
 }
 
-func NewAuthorizorFromConfig(config *restclient.Config) (CdiApiAuthorizor, error) {
+// NewAuthorizorFromConfig creates a new CdiAPIAuthorizor
+func NewAuthorizorFromConfig(config *restclient.Config) (CdiAPIAuthorizor, error) {
 	client, err := authorizationclient.NewForConfig(config)
 	if err != nil {
 		return nil, err

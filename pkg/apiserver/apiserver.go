@@ -54,7 +54,7 @@ type uploadAPIApp struct {
 	client           kubernetes.Interface
 	aggregatorClient aggregatorclient.Interface
 
-	authorizor     CdiApiAuthorizor
+	authorizor     CdiAPIAuthorizor
 	certsDirectory string
 
 	signingCertBytes           []byte
@@ -67,7 +67,7 @@ type uploadAPIApp struct {
 }
 
 // NewUploadAPIServer returns an initialized upload api server
-func NewUploadAPIServer(bindAddress string, bindPort uint, client kubernetes.Interface, aggregatorClient aggregatorclient.Interface, authorizor CdiApiAuthorizor) (UploadAPIServer, error) {
+func NewUploadAPIServer(bindAddress string, bindPort uint, client kubernetes.Interface, aggregatorClient aggregatorclient.Interface, authorizor CdiAPIAuthorizor) (UploadAPIServer, error) {
 	var err error
 	app := &uploadAPIApp{
 		bindAddress:      bindAddress,
@@ -470,7 +470,7 @@ func (app *uploadAPIApp) createAPIService() error {
 			Name:      apiName,
 			Namespace: namespace,
 			Labels: map[string]string{
-				common.CDI_COMPONENT_LABEL: apiServiceName,
+				common.CDIComponentLabel: apiServiceName,
 			},
 		},
 		Spec: apiregistrationv1beta1.APIServiceSpec{
