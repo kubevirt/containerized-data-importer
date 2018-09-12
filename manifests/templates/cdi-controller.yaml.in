@@ -298,17 +298,17 @@ spec:
         - name: UPLOAD_SERVER_CLIENT_KEY
           valueFrom:
             secretKeyRef:
-              name: cdi-upload-client-key
+              name: cdi-upload-server-client-key
               key: tls.key
         - name: UPLOAD_SERVER_CLIENT_CERT
           valueFrom:
             secretKeyRef:
-              name: cdi-upload-client-key
+              name: cdi-upload-server-client-key
               key: tls.cert
         - name: UPLOAD_SERVER_CA_CERT
           valueFrom:
             secretKeyRef:
-              name: cdi-upload-client-key
+              name: cdi-upload-server-client-key
               key: ca.cert
         - name: SERVICE_TLS_KEY
           valueFrom:
