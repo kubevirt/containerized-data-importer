@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"gopkg.in/square/go-jose.v2"
-	"k8s.io/client-go/util/cert"
 
 	"github.com/pkg/errors"
 )
@@ -47,7 +46,11 @@ func VerifyToken(token string, publicKey *rsa.PublicKey) (*TokenData, error) {
 	// don't allow expired tokens to be viewed
 	start := tokenData.CreationTimestamp.Unix()
 	now := time.Now().UTC().Unix()
-	if (now - start) > tokenTimeout {
+	diff := now - start
+	if diff < 0 {
+		diff *= -1
+	}
+	if diff > tokenTimeout {
 		return nil, errors.Errorf("Token expired")
 	}
 
@@ -84,23 +87,4 @@ func GenerateToken(pvcName string, namespace string, signingKey *rsa.PrivateKey)
 	}
 
 	return serialized, nil
-}
-
-// DecodePublicKey decodes a PEM encoded public key
-func DecodePublicKey(encodedKey string) (*rsa.PublicKey, error) {
-	keys, err := cert.ParsePublicKeysPEM([]byte(string(encodedKey)))
-	if err != nil {
-		return nil, err
-	}
-
-	if len(keys) != 1 {
-		return nil, errors.New("Unexected number of pulic keys")
-	}
-
-	key, ok := keys[0].(*rsa.PublicKey)
-	if !ok {
-		return nil, err
-	}
-
-	return key, nil
 }

@@ -2,23 +2,20 @@ package importer
 
 import (
 	"bufio"
-	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math/rand"
-	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -129,47 +126,6 @@ func getURLPath(testfile string) string {
 	// being executed, so using relative path
 	imageDir, _ := filepath.Abs(TestImagesDir)
 	return "file://" + imageDir + "/" + testfile
-}
-
-func startHTTPServer(dir string) (*http.Server, int, error) {
-	listener, err := net.Listen("tcp", ":0")
-	if err != nil {
-		return nil, 0, errors.New("Couldn't start listener")
-	}
-
-	port := listener.Addr().(*net.TCPAddr).Port
-
-	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
-		Handler: http.FileServer(http.Dir(dir)),
-	}
-
-	go func() {
-		defer listener.Close()
-		if err := server.Serve(listener); err != nil {
-			// cannot panic, because this probably is an intentional close
-			log.Printf("Httpserver: ListenAndServe() error: %s", err)
-		}
-	}()
-
-	started := false
-	for i := 0; i < 10; i++ {
-		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/", port))
-		if err != nil {
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-		resp.Body.Close()
-		started = true
-		break
-	}
-
-	if !started {
-		server.Shutdown(context.Background())
-		return nil, 0, errors.New("Couldn't start http server")
-	}
-
-	return server, port, nil
 }
 
 func TestNewDataStream(t *testing.T) {
@@ -344,11 +300,8 @@ func TestCopyImage(t *testing.T) {
 	localImageBase := filepath.Join("file://", imageDir)
 
 	t.Logf("Image dir '%s' '%s'", imageDir, TestImagesDir)
-	server, port, err := startHTTPServer(imageDir)
-	if err != nil {
-		t.Errorf("Error setting up CopyImage test")
-	}
-	defer server.Shutdown(context.Background())
+	server := httptest.NewServer(http.FileServer(http.Dir(imageDir)))
+	defer server.Close()
 
 	tests := []struct {
 		name    string
@@ -381,7 +334,7 @@ func TestCopyImage(t *testing.T) {
 			name: "successfully copy streaming image",
 			args: args{
 				filepath.Join(localImageBase, "cirros-qcow2.raw"),
-				fmt.Sprintf("http://localhost:%d/cirros-qcow2.img", port),
+				fmt.Sprintf("%s/cirros-qcow2.img", server.URL),
 				"",
 				"",
 				NewFakeQEMUOperations(errors.New("should not be called"), nil, nil),
@@ -392,7 +345,7 @@ func TestCopyImage(t *testing.T) {
 			name: "streaming image qemu validation fails",
 			args: args{
 				filepath.Join(localImageBase, "cirros-qcow2.raw"),
-				fmt.Sprintf("http://localhost:%d/cirros-qcow2.img", port),
+				fmt.Sprintf("%s/cirros-qcow2.img", server.URL),
 				"",
 				"",
 				NewFakeQEMUOperations(nil, nil, errors.New("invalid image")),
@@ -403,7 +356,7 @@ func TestCopyImage(t *testing.T) {
 			name: "streaming image qemu convert fails",
 			args: args{
 				filepath.Join(localImageBase, "cirros-qcow2.raw"),
-				fmt.Sprintf("http://localhost:%d/cirros-qcow2.img", port),
+				fmt.Sprintf("%s/cirros-qcow2.img", server.URL),
 				"",
 				"",
 				NewFakeQEMUOperations(nil, errors.New("exit 1"), nil),

@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"k8s.io/client-go/util/cert"
-
 	"k8s.io/client-go/util/cert/triple"
 )
 
@@ -53,7 +52,6 @@ func newTLSServer(t *testing.T) (*uploadServerApp, *triple.KeyPair, *x509.Certif
 
 	serverKeyPair, err := triple.NewServerKeyPair(serverCA, "localhost", "localhost", "default", "local", []string{"127.0.0.1"}, []string{"localhost"})
 	if err != nil {
-		t.Logf("XXXXXXX %+v", err)
 		t.Error("Error creating server cert")
 	}
 

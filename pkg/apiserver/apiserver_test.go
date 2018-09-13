@@ -3,11 +3,18 @@ package apiserver
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 
+	restful "github.com/emicklei/go-restful"
+	"k8s.io/api/core/v1"
 	"k8s.io/client-go/util/cert/triple"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
@@ -15,6 +22,102 @@ import (
 	core "k8s.io/client-go/testing"
 	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
 )
+
+type testAuthorizer struct {
+	allowed            bool
+	reason             string
+	err                error
+	userHeaders        []string
+	groupHeaders       []string
+	extraPrefixHeaders []string
+}
+
+func (a *testAuthorizer) Authorize(req *restful.Request) (bool, string, error) {
+	return a.allowed, a.reason, a.err
+}
+
+func (a *testAuthorizer) AddUserHeaders(header []string) {
+	a.userHeaders = append(a.userHeaders, header...)
+}
+
+func (a *testAuthorizer) GetUserHeaders() []string {
+	return a.userHeaders
+}
+
+func (a *testAuthorizer) AddGroupHeaders(header []string) {
+	a.groupHeaders = append(a.groupHeaders, header...)
+}
+
+func (a *testAuthorizer) GetGroupHeaders() []string {
+	return a.groupHeaders
+}
+
+func (a *testAuthorizer) AddExtraPrefixHeaders(header []string) {
+	a.extraPrefixHeaders = append(a.extraPrefixHeaders, header...)
+}
+
+func (a *testAuthorizer) GetExtraPrefixHeaders() []string {
+	return a.extraPrefixHeaders
+}
+
+func newSuccessfulAuthorizer() CdiAPIAuthorizer {
+	return &testAuthorizer{true, "", nil, []string{}, []string{}, []string{}}
+}
+
+func newFailureAuthorizer() CdiAPIAuthorizer {
+	return &testAuthorizer{false, "You are a bad person", fmt.Errorf("Not authorized"), []string{}, []string{}, []string{}}
+}
+
+func getAPIServerConfigMap(t *testing.T) *v1.ConfigMap {
+	return &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "extension-apiserver-authentication",
+			Namespace: "kube-system",
+		},
+		Data: map[string]string{
+			"client-ca-file":                     "bunchofbytes",
+			"requestheader-allowed-names":        "[\"front-proxy-client\"]",
+			"requestheader-client-ca-file":       "morebytes",
+			"requestheader-extra-headers-prefix": "[\"X-Remote-Extra-\"]",
+			"requestheader-group-headers":        "[\"X-Remote-Group\"]",
+			"requestheader-username-headers":     "[\"X-Remote-User\"]",
+		},
+	}
+}
+
+func validateAPIServerConfig(t *testing.T, app *uploadAPIApp) {
+	if string(app.clientCABytes) != "bunchofbytes" {
+		t.Errorf("no match on client-ca-file")
+	}
+
+	if string(app.requestHeaderClientCABytes) != "morebytes" {
+		t.Errorf("no match on requestheader-client-ca-file")
+	}
+
+	if !reflect.DeepEqual(app.authorizer.GetExtraPrefixHeaders(), []string{"X-Remote-Extra-"}) {
+		t.Errorf("no match on requestheader-extra-headers-prefix")
+	}
+
+	if !reflect.DeepEqual(app.authorizer.GetGroupHeaders(), []string{"X-Remote-Group"}) {
+		t.Logf("%+v", app.authorizer.GetGroupHeaders())
+		t.Errorf("requestheader-group-headers")
+	}
+
+	if !reflect.DeepEqual(app.authorizer.GetUserHeaders(), []string{"X-Remote-User"}) {
+		t.Logf("%+v", app.authorizer.GetUserHeaders())
+		t.Errorf("requestheader-username-headers")
+	}
+}
+
+func apiServerConfigMapGetAction() core.Action {
+	return core.NewGetAction(
+		schema.GroupVersionResource{
+			Resource: "configmaps",
+			Version:  "v1",
+		},
+		"kube-system",
+		"extension-apiserver-authentication")
+}
 
 func signingKeySecretGetAction() core.Action {
 	return core.NewGetAction(
@@ -147,7 +250,28 @@ func Test_tokenEncrption(t *testing.T) {
 	}
 }
 
-func TestKeyRetrieval(t *testing.T) {
+func TestGetClientCert(t *testing.T) {
+	kubeobjects := []runtime.Object{}
+	kubeobjects = append(kubeobjects, getAPIServerConfigMap(t))
+
+	client := k8sfake.NewSimpleClientset(kubeobjects...)
+
+	app := &uploadAPIApp{client: client, authorizer: newSuccessfulAuthorizer()}
+
+	actions := []core.Action{}
+	actions = append(actions, apiServerConfigMapGetAction())
+
+	err := app.getClientCert()
+	if err != nil {
+		t.Errorf("getClientCert failed: %+v", err)
+	}
+
+	validateAPIServerConfig(t, app)
+
+	checkActions(actions, client.Actions(), t)
+}
+
+func TestGetSelfSignedCert(t *testing.T) {
 	signingKey, err := generateTestKey()
 	if err != nil {
 		t.Errorf("error generating keys: %v", err)
@@ -213,4 +337,30 @@ func TestShouldGenerateCertsAndKeyFirstRun(t *testing.T) {
 	actions = append(actions, signingKeySecretCreateAction(app.privateSigningKey))
 
 	checkActions(actions, client.Actions(), t)
+}
+
+func TestGetRequest(t *testing.T) {
+	rr := doGetRequest(t, "/apis/upload.cdi.kubevirt.io/v1alpha1")
+
+	resourceList := metav1.APIResourceList{}
+	err := json.Unmarshal(rr.Body.Bytes(), &resourceList)
+	if err != nil {
+		t.Errorf("Couldn't convert to object from JSON: %+v", err)
+	}
+}
+
+func doGetRequest(t *testing.T, url string) *httptest.ResponseRecorder {
+	app := &uploadAPIApp{}
+	app.composeUploadTokenAPI()
+
+	req, _ := http.NewRequest("GET", url, nil)
+	rr := httptest.NewRecorder()
+
+	restful.DefaultContainer.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Wrong status code, expected %d, got %d", http.StatusOK, rr.Code)
+	}
+
+	return rr
 }

@@ -300,6 +300,75 @@ func TestCreatesUploadPodAndService(t *testing.T) {
 	f.expectCreateServiceAction(service)
 
 	f.run(getPvcKey(pvc, t))
+
+}
+
+func TestUpdatePodPhase(t *testing.T) {
+	f := newUploadFixture(t)
+	pvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: ""}, nil)
+	pod := createUploadPod(pvc)
+	service := createUploadService(pvc)
+
+	pod.Status.Phase = corev1.PodRunning
+
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	f.podLister = append(f.podLister, pod)
+	f.kubeobjects = append(f.kubeobjects, pod)
+
+	f.serviceLister = append(f.serviceLister, service)
+	f.kubeobjects = append(f.kubeobjects, service)
+
+	updatedPVC := pvc.DeepCopy()
+	updatedPVC.Annotations[AnnUploadPodPhase] = string(corev1.PodRunning)
+
+	f.expectUpdatePvcAction(updatedPVC)
+
+	f.run(getPvcKey(pvc, t))
+}
+
+func TestUploadComplete(t *testing.T) {
+	f := newUploadFixture(t)
+	pvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: "", AnnUploadPodPhase: "Running"}, nil)
+	pod := createUploadPod(pvc)
+	service := createUploadService(pvc)
+
+	pod.Status.Phase = corev1.PodSucceeded
+
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	f.podLister = append(f.podLister, pod)
+	f.kubeobjects = append(f.kubeobjects, pod)
+
+	f.serviceLister = append(f.serviceLister, service)
+	f.kubeobjects = append(f.kubeobjects, service)
+
+	updatedPVC := pvc.DeepCopy()
+	updatedPVC.Annotations[AnnUploadPodPhase] = string(corev1.PodSucceeded)
+
+	f.expectUpdatePvcAction(updatedPVC)
+	f.expectDeleteServiceAction(service)
+
+	f.run(getPvcKey(pvc, t))
+}
+
+func TestSucceededDoNothing(t *testing.T) {
+	f := newUploadFixture(t)
+	pvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: "", AnnUploadPodPhase: "Succeeded"}, nil)
+
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	f.run(getPvcKey(pvc, t))
+}
+
+func TestPVCNolongerExists(t *testing.T) {
+	f := newUploadFixture(t)
+	pvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: "", AnnUploadPodPhase: "Succeeded"}, nil)
+
+	f.run(getPvcKey(pvc, t))
 }
 
 func TestDeletesUploadPodAndService(t *testing.T) {
@@ -338,5 +407,58 @@ func TestShouldCreateCerts(t *testing.T) {
 	filteredActions := findSecretCreateActions(util.GetNamespace(), client.Actions())
 	if len(filteredActions) != 5 {
 		t.Errorf("Expected 5 certs, got %d", len(filteredActions))
+	}
+}
+
+func TestUploadPossible(t *testing.T) {
+	type args struct {
+		annotations map[string]string
+		expectErr   bool
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			"PVC is ready for upload",
+			args{
+				map[string]string{"cdi.kubevirt.io/storage.upload.target": "",
+					"cdi.kubevirt.io/storage.upload.pod.phase": "Running",
+				},
+				false,
+			},
+		},
+		{
+			"PVC missing target annotation",
+			args{
+				map[string]string{},
+				true,
+			},
+		},
+		{
+			"PVC not ready",
+			args{
+				map[string]string{"cdi.kubevirt.io/storage.upload.target": "",
+					"cdi.kubevirt.io/storage.upload.pod.phase": "Pending",
+				},
+				true,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pvc := createPvc("testPvc1", "default", tt.args.annotations, nil)
+			err := UploadPossibleForPVC(pvc)
+			if (err == nil && tt.args.expectErr) || (err != nil && !tt.args.expectErr) {
+				t.Errorf("Unexpected result expectErr=%t, err=%+v", tt.args.expectErr, err)
+			}
+		})
+	}
+}
+
+func TestResourceName(t *testing.T) {
+	resourceName := GetUploadResourceName("testPvc1")
+	if resourceName != "cdi-upload-testPvc1" {
+		t.Errorf("Unexpected resource name %s", resourceName)
 	}
 }

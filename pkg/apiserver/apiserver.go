@@ -54,7 +54,7 @@ type uploadAPIApp struct {
 	client           kubernetes.Interface
 	aggregatorClient aggregatorclient.Interface
 
-	authorizor     CdiAPIAuthorizor
+	authorizer     CdiAPIAuthorizer
 	certsDirectory string
 
 	signingCertBytes           []byte
@@ -67,14 +67,14 @@ type uploadAPIApp struct {
 }
 
 // NewUploadAPIServer returns an initialized upload api server
-func NewUploadAPIServer(bindAddress string, bindPort uint, client kubernetes.Interface, aggregatorClient aggregatorclient.Interface, authorizor CdiAPIAuthorizor) (UploadAPIServer, error) {
+func NewUploadAPIServer(bindAddress string, bindPort uint, client kubernetes.Interface, aggregatorClient aggregatorclient.Interface, authorizor CdiAPIAuthorizer) (UploadAPIServer, error) {
 	var err error
 	app := &uploadAPIApp{
 		bindAddress:      bindAddress,
 		bindPort:         bindPort,
 		client:           client,
 		aggregatorClient: aggregatorClient,
-		authorizor:       authorizor,
+		authorizer:       authorizor,
 	}
 	app.certsDirectory, err = ioutil.TempDir("", "certsdir")
 	if err != nil {
@@ -163,7 +163,7 @@ func (app *uploadAPIApp) getClientCert() error {
 		if err != nil {
 			return err
 		}
-		app.authorizor.AddUserHeaders(headerList)
+		app.authorizer.AddUserHeaders(headerList)
 	}
 
 	headers, ok = authConfigMap.Data["requestheader-group-headers"]
@@ -172,7 +172,7 @@ func (app *uploadAPIApp) getClientCert() error {
 		if err != nil {
 			return err
 		}
-		app.authorizor.AddGroupHeaders(headerList)
+		app.authorizer.AddGroupHeaders(headerList)
 	}
 
 	headers, ok = authConfigMap.Data["requestheader-extra-headers-prefix"]
@@ -181,7 +181,7 @@ func (app *uploadAPIApp) getClientCert() error {
 		if err != nil {
 			return err
 		}
-		app.authorizor.AddExtraPrefixHeaders(headerList)
+		app.authorizer.AddExtraPrefixHeaders(headerList)
 	}
 
 	return nil
@@ -290,7 +290,7 @@ func (app *uploadAPIApp) startTLS() error {
 
 func (app *uploadAPIApp) uploadHandler(request *restful.Request, response *restful.Response) {
 
-	allowed, reason, err := app.authorizor.Authorize(request)
+	allowed, reason, err := app.authorizer.Authorize(request)
 	if err != nil {
 		glog.Error(err)
 		response.WriteHeader(http.StatusInternalServerError)

@@ -145,7 +145,7 @@ func NewUploadController(client kubernetes.Interface,
 		},
 	})
 
-	// Bind the pod SharedIndexInformer to the pod queue
+	// Bind the pod SharedIndexInformer to the pvc queue
 	c.podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: c.handleObject,
 		UpdateFunc: func(old, new interface{}) {
@@ -161,7 +161,7 @@ func NewUploadController(client kubernetes.Interface,
 		DeleteFunc: c.handleObject,
 	})
 
-	// Bind the pod SharedIndexInformer to the pod queue
+	// Bind the service SharedIndexInformer to the pvc queue
 	c.serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: c.handleObject,
 		UpdateFunc: func(old, new interface{}) {
@@ -401,8 +401,9 @@ func (c *UploadController) syncHandler(key string) error {
 		return (podPhaseFromPVC(pvc) == v1.PodSucceeded)
 	}
 
+	var pod *v1.Pod
 	if !podSucceededFromPVC(pvc) {
-		pod, err := c.getOrCreateUploadPod(pvc, resourceName)
+		pod, err = c.getOrCreateUploadPod(pvc, resourceName)
 		if err != nil {
 			return errors.Wrapf(err, "Error creating upload pod for pvc: %s", key)
 		}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"regexp"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/pkg/errors"
 
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/cert"
 
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
 	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
@@ -44,8 +46,6 @@ type uploadProxyApp struct {
 
 	client kubernetes.Interface
 
-	certsDirectory string
-
 	certBytes []byte
 	keyBytes  []byte
 
@@ -56,6 +56,10 @@ type uploadProxyApp struct {
 }
 
 var authHeaderMatcher *regexp.Regexp
+
+var verifyTokenFunc = apiserver.VerifyToken
+
+var urlLookupFunc = uploadserver.GetUploadServerURL
 
 func init() {
 	authHeaderMatcher = regexp.MustCompile(`(?i)^Bearer\s+([A-Za-z0-9\-\._~\+\/]+)$`)
@@ -79,11 +83,6 @@ func NewUploadProxy(bindAddress string,
 		keyBytes:    []byte(serviceKey),
 		certBytes:   []byte(serviceCert),
 	}
-	app.certsDirectory, err = ioutil.TempDir("", "certsdir")
-	if err != nil {
-		return nil, errors.Errorf("Unable to create certs temporary directory: %v\n", errors.WithStack(err))
-	}
-
 	// retrieve RSA key used by apiserver to sign tokens
 	err = app.getSigningKey(apiServerPublicKey)
 	if err != nil {
@@ -135,7 +134,7 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	tokenData, err := apiserver.VerifyToken(match[1], app.apiServerPublicKey)
+	tokenData, err := verifyTokenFunc(match[1], app.apiServerPublicKey)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
@@ -147,7 +146,7 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 }
 
 func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.ResponseWriter, r *http.Request) {
-	url := uploadserver.GetUploadServerURL(namespace, pvc)
+	url := urlLookupFunc(namespace, pvc)
 
 	req, err := http.NewRequest("POST", url, r.Body)
 	req.ContentLength = r.ContentLength
@@ -171,7 +170,7 @@ func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.Resp
 }
 
 func (app *uploadProxyApp) getSigningKey(publicKeyPEM string) error {
-	publicKey, err := apiserver.DecodePublicKey(publicKeyPEM)
+	publicKey, err := decodePublicKey(publicKeyPEM)
 	if err != nil {
 		return err
 	}
@@ -185,13 +184,18 @@ func (app *uploadProxyApp) Start() error {
 }
 
 func (app *uploadProxyApp) startTLS() error {
+	certsDirectory, err := ioutil.TempDir("", "certsdir")
+	if err != nil {
+		return errors.Errorf("Unable to create certs temporary directory: %v\n", errors.WithStack(err))
+	}
+	defer os.RemoveAll(certsDirectory)
 
-	errors := make(chan error)
+	errChan := make(chan error)
 
-	keyFile := filepath.Join(app.certsDirectory, "/key.pem")
-	certFile := filepath.Join(app.certsDirectory, "/cert.pem")
+	keyFile := filepath.Join(certsDirectory, "/key.pem")
+	certFile := filepath.Join(certsDirectory, "/cert.pem")
 
-	err := ioutil.WriteFile(keyFile, app.keyBytes, 0600)
+	err = ioutil.WriteFile(keyFile, app.keyBytes, 0600)
 	if err != nil {
 		return err
 	}
@@ -203,9 +207,27 @@ func (app *uploadProxyApp) startTLS() error {
 	http.HandleFunc(uploadPath, app.handleUploadRequest)
 
 	go func() {
-		errors <- http.ListenAndServeTLS(fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort), certFile, keyFile, nil)
+		errChan <- http.ListenAndServeTLS(fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort), certFile, keyFile, nil)
 	}()
 
 	// wait for server to exit
-	return <-errors
+	return <-errChan
+}
+
+func decodePublicKey(encodedKey string) (*rsa.PublicKey, error) {
+	keys, err := cert.ParsePublicKeysPEM([]byte(string(encodedKey)))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(keys) != 1 {
+		return nil, errors.New("Unexected number of pulic keys")
+	}
+
+	key, ok := keys[0].(*rsa.PublicKey)
+	if !ok {
+		return nil, errors.New("PEM does not contain RSA key")
+	}
+
+	return key, nil
 }
