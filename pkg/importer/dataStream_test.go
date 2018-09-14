@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/hex"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,17 +14,21 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/golang/glog"
 	"kubevirt.io/containerized-data-importer/pkg/image"
-	mockhttp "kubevirt.io/containerized-data-importer/tests/mock/http"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-const TestImagesDir = "../../tests/images"
+const (
+	TestImagesDir = "../../tests/images"
+	defaultPort   = 9999
+)
+var imageDir, _    = filepath.Abs(TestImagesDir)
+var localImageBase = fmt.Sprintf("http://%s", imageDir)
 
 type fakeQEMUOperations struct {
 	e1 error
@@ -79,7 +84,7 @@ func createDataStreamOrDie(ep, accKey, secKey string) *DataStream {
 	return ds
 }
 
-func createDataStreamBytes(testfile, ep string, defaultBuf, singlereader bool) (*DataStream, []byte, error) {
+func createDataStreamBytes(testfile, ep string, defaultBuf bool) (*DataStream, []byte, error) {
 	urlPath := filepath.Join(ep, testfile)
 	if len(ep) == 0 {
 		urlPath = getURLPath(testfile)
@@ -122,15 +127,13 @@ func getFileSize(testfile string) (int, error) {
 func getTestFilePath(testfile string) string {
 	// CWD is set within go test to the directory of the test
 	// being executed, so using relative path
-	imageDir, _ := filepath.Abs(TestImagesDir)
 	return filepath.Join(imageDir, testfile)
 }
 
 func getURLPath(testfile string) string {
 	// CWD is set within go test to the directory of the test
 	// being executed, so using relative path
-	imageDir, _ := filepath.Abs(TestImagesDir)
-	return "http://" + imageDir + "/" + testfile
+	return fmt.Sprintf("http://%s/%s", imageDir, testfile)
 }
 
 func startHTTPServer(port int, dir string) (*http.Server, error) {
@@ -172,38 +175,50 @@ func TestNewDataStream(t *testing.T) {
 		accKey string
 		secKey string
 	}
-
-	imageDir, _ := filepath.Abs(TestImagesDir)
-	localImageBase := filepath.Join("http://", imageDir)
+	imageBase := fmt.Sprintf("http://%s", imageDir)
 
 	tests := []struct {
 		name    string
 		args    args
-		want    *DataStream
+		qemu	bool
+		rdrCnt	int
 		wantErr bool
 	}{
 		{
-			name:    "expect new DataStream to succeed with matching buffers",
-			args:    args{filepath.Join(localImageBase, "cirros-qcow2.img"), "", ""},
-			want:    createDataStreamOrDie(filepath.Join(localImageBase, "cirros-qcow2.img"), "", ""),
+			name:    "new DataStream for qcow2",
+			args:    args{"cirros-qcow2.img", "", ""},
+			qemu:	 true,
+			rdrCnt:	 2,
 			wantErr: false,
 		},
 		{
-			name:    "expect new DataStream to fail with unsupported file type",
-			args:    args{filepath.Join(localImageBase, "badimage.iso"), "", ""},
-			want:    nil,
+			name:    "new DataStream for iso",
+			args:    args{"tinyCore.iso", "", ""},
+			qemu:	 false,
+			rdrCnt:	 3,
+			wantErr: false,
+		},
+		{
+			name:    "new DataStream should fail with missing endpoint",
+			args:    args{"missingFooImage.iso", "", ""},
 			wantErr: true,
 		},
 		{
-			name:    "expect new DataStream to fail with invalid or missing endpoint",
+			name:    "new DataStream should fail with invalid endpoint",
+			args:    args{"/a/b/c", "", ""},
+			wantErr: true,
+		},
+		{
+			name:    "new DataStream should fail with empty endpoint",
 			args:    args{"", "", ""},
-			want:    nil,
 			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewDataStream(tt.args.endpt, tt.args.accKey, tt.args.secKey)
+			f := filepath.Join(imageBase, tt.args.endpt)
+			t.Logf("testing image %q...", f)
+			got, err := NewDataStream(f, tt.args.accKey, tt.args.secKey)
 			if err != nil {
 				if !tt.wantErr {
 					t.Errorf("NewDataStream error: %v", err)
@@ -214,8 +229,27 @@ func TestNewDataStream(t *testing.T) {
 				t.Error("NewDataStream returned nil ptr and no error")
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewDataStream returned:\n%+v\nwhich != expected:\n%+v", got, tt.want)
+
+			// check various DataStream fields
+			if got.accessKeyID != tt.args.accKey {
+				t.Errorf("NewDataStream access key (%q) != expected (%q)", got.accessKeyID, tt.args.accKey)
+				return
+			}
+			if got.secretKey != tt.args.secKey {
+				t.Errorf("NewDataStream secret key (%q) != expected (%q)", got.secretKey, tt.args.secKey)
+				return
+			}
+			if got.qemu != tt.qemu {
+				t.Errorf("NewDataStream qemu (%v) does not match expected (%v)", got.qemu, tt.qemu)
+				return
+			}
+			if len(got.Readers) != tt.rdrCnt {
+				t.Errorf("NewDataStream number of Readers (%d) does not match expected (%d)", len(got.Readers), tt.rdrCnt)
+				return
+			}
+			if got.Size <= 0 {
+				t.Error("NewDataStream Size field is zero")
+				return
 			}
 		})
 	}
@@ -235,7 +269,7 @@ func Test_dataStream_Read(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds, testBytes, errDs := createDataStreamBytes(tt.testFile, "", true, true)
+			ds, testBytes, errDs := createDataStreamBytes(tt.testFile, "", true)
 			if errDs != nil {
 				t.Errorf("error setting up test infrastructure %v", errDs)
 			}
@@ -259,7 +293,7 @@ func Test_dataStream_Read(t *testing.T) {
 }
 
 func Test_dataStream_Close(t *testing.T) {
-	ds, _, errDs := createDataStreamBytes("tinyCore.iso", "", false, false)
+	ds, _, errDs := createDataStreamBytes("tinyCore.iso", "", false)
 	defer ds.Close()
 
 	tests := []struct {
@@ -285,9 +319,6 @@ func Test_dataStream_Close(t *testing.T) {
 }
 
 func Test_dataStream_dataStreamSelector(t *testing.T) {
-	imageDir, _ := filepath.Abs(TestImagesDir)
-	localImageBase := filepath.Join("http://", imageDir)
-
 	tests := []struct {
 		name     string
 		testFile string
@@ -315,7 +346,7 @@ func Test_dataStream_dataStreamSelector(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds, _, errDs := createDataStreamBytes(tt.testFile, tt.ep, false, false)
+			ds, _, errDs := createDataStreamBytes(tt.testFile, tt.ep, false)
 			defer ds.Close()
 			if errDs != nil {
 				t.Errorf("error setting up test infrastructure %v", errDs)
@@ -336,16 +367,7 @@ func TestCopyImage(t *testing.T) {
 		secKey         string
 		qemuOperations image.QEMUOperations
 	}
-	imageDir, _ := filepath.Abs(TestImagesDir)
-	localImageBase := filepath.Join("http://", imageDir)
-
-	t.Logf("Image dir '%s' '%s'", imageDir, TestImagesDir)
-	port := 9999
-	server, err := startHTTPServer(port, imageDir)
-	if err != nil {
-		t.Errorf("Error setting up CopyImage test")
-	}
-	defer server.Shutdown(nil)
+	t.Logf("Image dir: %q", imageDir)
 
 	tests := []struct {
 		name    string
@@ -353,32 +375,10 @@ func TestCopyImage(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "successfully copy local image",
-			args: args{
-				filepath.Join(os.TempDir(), "cdi-testcopy"),
-				filepath.Join(localImageBase, "tinyCore.iso"),
-				"",
-				"",
-				NewQEMUAllErrors(),
-			},
-			wantErr: false,
-		},
-		{
-			name: "expect failure trying to copy non-existing local image",
-			args: args{
-				filepath.Join(os.TempDir(), "cdi-testcopy"),
-				filepath.Join(localImageBase, "tinyCoreBad.iso"),
-				"",
-				"",
-				NewQEMUAllErrors(),
-			},
-			wantErr: true,
-		},
-		{
 			name: "successfully copy streaming image",
 			args: args{
 				filepath.Join(localImageBase, "cirros-qcow2.raw"),
-				fmt.Sprintf("http://localhost:%d/cirros-qcow2.img", port),
+				fmt.Sprintf("http://localhost:%d/cirros-qcow2.img", defaultPort),
 				"",
 				"",
 				NewFakeQEMUOperations(errors.New("should not be called"), nil, nil),
@@ -389,7 +389,7 @@ func TestCopyImage(t *testing.T) {
 			name: "streaming image qemu validation fails",
 			args: args{
 				filepath.Join(localImageBase, "cirros-qcow2.raw"),
-				fmt.Sprintf("http://localhost:%d/cirros-qcow2.img", port),
+				fmt.Sprintf("http://localhost:%d/cirros-qcow2.img", defaultPort),
 				"",
 				"",
 				NewFakeQEMUOperations(nil, nil, errors.New("invalid image")),
@@ -400,7 +400,7 @@ func TestCopyImage(t *testing.T) {
 			name: "streaming image qemu convert fails",
 			args: args{
 				filepath.Join(localImageBase, "cirros-qcow2.raw"),
-				fmt.Sprintf("http://localhost:%d/cirros-qcow2.img", port),
+				fmt.Sprintf("http://localhost:%d/cirros-qcow2.img", defaultPort),
 				"",
 				"",
 				NewFakeQEMUOperations(nil, errors.New("exit 1"), nil),
@@ -421,8 +421,6 @@ func TestCopyImage(t *testing.T) {
 }
 
 func createTestData() map[string]string {
-	imageDir, _ := filepath.Abs(TestImagesDir)
-
 	xzfile, _ := utils.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), image.ExtXz)
 	gzfile, _ := utils.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), image.ExtGz)
 	xztarfile, _ := utils.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), []string{image.ExtTar, image.ExtGz}...)
@@ -435,9 +433,6 @@ func createTestData() map[string]string {
 }
 
 func Test_dataStream_constructReaders(t *testing.T) {
-	imageDir, _ := filepath.Abs(TestImagesDir)
-	localImageBase := filepath.Join("http://", imageDir)
-
 	testfiles := createTestData()
 
 	tests := []struct {
@@ -450,14 +445,14 @@ func Test_dataStream_constructReaders(t *testing.T) {
 		{
 			name:    "successfully construct a xz reader",
 			outfile: "tinyCore.iso.xz",
-			ds:      createDataStreamOrDie(filepath.Join("http://", testfiles[".xz"]), "", ""),
+			ds:      createDataStreamOrDie(fmt.Sprintf("http://%s", testfiles[".xz"]), "", ""),
 			numRdrs: 4, // [http, multi-r, xz, multi-r]
 			wantErr: false,
 		},
 		{
 			name:    "successfully construct a gz reader",
 			outfile: "tinyCore.iso.gz",
-			ds:      createDataStreamOrDie(filepath.Join("http://", testfiles[".gz"]), "", ""),
+			ds:      createDataStreamOrDie(fmt.Sprintf("http://%s", testfiles[".gz"]), "", ""),
 			numRdrs: 4, // [http, multi-r, gz, multi-r]
 			wantErr: false,
 		},
@@ -538,7 +533,6 @@ func Test_copy(t *testing.T) {
 	}
 	rdrs1 := strings.NewReader("test data for reader 1")
 
-	imageDir, _ := filepath.Abs(TestImagesDir)
 	file := filepath.Join(imageDir, "cirros-qcow2.img")
 	rdrfile, _ := os.Open(file)
 	rdrs2 := bufio.NewReader(rdrfile)
@@ -612,17 +606,26 @@ func Test_randTmpName(t *testing.T) {
 	}
 }
 
-// dataStream_ginko_test.go was added while this PR was sitting
-// it has tests that execute qemu-img.  So disabling for now.
-// But I really think unit tests should not depend on a system process.
-// Not just for philosophical reasons.
-// qwmu-img aborts when doing streaming conversion when run in travis.
-/*
-func TestMain(m *testing.M) {
-	var retCode int
+// testMainWrap: start the local http server in a separate goroutine and shut it down after all
+// tests have run.
+func testMainWrap(m *testing.M, port int) (retCode int) {
+	server, err := startHTTPServer(port, imageDir)
+	if err != nil {
+		glog.Errorf("Error starting local HTTP server: %v", err)
+		return 1
+	}
+	defer server.Shutdown(nil)
+
 	replaceQEMUOperations(NewQEMUAllErrors(), func() {
 		retCode = m.Run()
 	})
-	os.Exit(retCode)
+	return
 }
-*/
+
+// Need to confirm: qwmu-img aborts when doing streaming conversion when run in travis.
+func TestMain(m *testing.M) {
+	// set flag so glog calls are seen in stdout
+	flag.Set("alsologtostderr", fmt.Sprintf("%t", true))
+
+	os.Exit(testMainWrap(m, defaultPort))
+}
