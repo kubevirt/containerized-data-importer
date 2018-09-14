@@ -12,15 +12,15 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
+
 	"github.com/golang/glog"
+	"kubevirt.io/containerized-data-importer/pkg/apiserver"
 
 	"github.com/pkg/errors"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/cert"
-
-	"kubevirt.io/containerized-data-importer/pkg/apiserver"
-	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 )
 
 const (
@@ -40,6 +40,10 @@ type Server interface {
 	Start() error
 }
 
+type verifyTokenFunc func(string, *rsa.PublicKey) (*apiserver.TokenData, error)
+
+type urlLookupFunc func(string, string) string
+
 type uploadProxyApp struct {
 	bindAddress string
 	bindPort    uint
@@ -53,13 +57,13 @@ type uploadProxyApp struct {
 	apiServerPublicKey *rsa.PublicKey
 
 	uploadServerClient *http.Client
+
+	// test hooks
+	tokenVerifier verifyTokenFunc
+	urlResolver   urlLookupFunc
 }
 
 var authHeaderMatcher *regexp.Regexp
-
-var verifyTokenFunc = apiserver.VerifyToken
-
-var urlLookupFunc = uploadserver.GetUploadServerURL
 
 func init() {
 	authHeaderMatcher = regexp.MustCompile(`(?i)^Bearer\s+([A-Za-z0-9\-\._~\+\/]+)$`)
@@ -77,11 +81,13 @@ func NewUploadProxy(bindAddress string,
 	client kubernetes.Interface) (Server, error) {
 	var err error
 	app := &uploadProxyApp{
-		bindAddress: bindAddress,
-		bindPort:    bindPort,
-		client:      client,
-		keyBytes:    []byte(serviceKey),
-		certBytes:   []byte(serviceCert),
+		bindAddress:   bindAddress,
+		bindPort:      bindPort,
+		client:        client,
+		keyBytes:      []byte(serviceKey),
+		certBytes:     []byte(serviceCert),
+		tokenVerifier: apiserver.VerifyToken,
+		urlResolver:   uploadserver.GetUploadServerURL,
 	}
 	// retrieve RSA key used by apiserver to sign tokens
 	err = app.getSigningKey(apiServerPublicKey)
@@ -134,7 +140,7 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	tokenData, err := verifyTokenFunc(match[1], app.apiServerPublicKey)
+	tokenData, err := app.tokenVerifier(match[1], app.apiServerPublicKey)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
@@ -146,7 +152,7 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 }
 
 func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.ResponseWriter, r *http.Request) {
-	url := urlLookupFunc(namespace, pvc)
+	url := app.urlResolver(namespace, pvc)
 
 	req, err := http.NewRequest("POST", url, r.Body)
 	req.ContentLength = r.ContentLength

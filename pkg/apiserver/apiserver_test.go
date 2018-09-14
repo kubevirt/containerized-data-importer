@@ -1,6 +1,7 @@
 package apiserver
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
@@ -20,8 +21,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
+	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
+	aggregatorapifake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
+
+	uploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
 )
+
+var foo aggregatorapifake.Clientset
 
 type testAuthorizer struct {
 	allowed            bool
@@ -160,6 +167,57 @@ func tlsSecretCreateAction(privateKeyBytes, certBytes, caCertBytes []byte) core.
 		keystest.NewTLSSecretFromBytes("kube-system", apiCertSecretName, privateKeyBytes, certBytes, caCertBytes, nil))
 }
 
+func apiServiceGetAction() core.Action {
+	return core.NewRootGetAction(
+		schema.GroupVersionResource{
+			Resource: "apiservices",
+			Version:  "v1",
+		},
+		"v1alpha1.upload.kubevirt.io")
+}
+
+func getExpectedAPIService(certBytes []byte) *apiregistrationv1beta1.APIService {
+	return &apiregistrationv1beta1.APIService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "v1alpha1.upload.cdi.kubevirt.io",
+			Labels: map[string]string{
+				"cdi.kubevirt.io": "cdi-api",
+			},
+		},
+		Spec: apiregistrationv1beta1.APIServiceSpec{
+			Service: &apiregistrationv1beta1.ServiceReference{
+				Namespace: "kube-system",
+				Name:      "cdi-api",
+			},
+			Group:                "upload.cdi.kubevirt.io",
+			Version:              "v1alpha1",
+			CABundle:             certBytes,
+			GroupPriorityMinimum: 1000,
+			VersionPriority:      15,
+		},
+	}
+}
+
+func apiServiceCreateAction(certBytes []byte) core.Action {
+	apiService := getExpectedAPIService(certBytes)
+	return core.NewRootCreateAction(
+		schema.GroupVersionResource{
+			Resource: "apiservices",
+			Version:  "v1",
+		},
+		apiService)
+}
+
+func apiServiceUpdateAction(certBytes []byte) core.Action {
+	apiService := getExpectedAPIService(certBytes)
+	return core.NewRootUpdateAction(
+		schema.GroupVersionResource{
+			Resource: "apiservices",
+			Version:  "v1",
+		},
+		apiService)
+}
+
 func checkActions(expected []core.Action, actual []core.Action, t *testing.T) {
 	for i, action := range actual {
 		if len(expected) < i+1 {
@@ -271,6 +329,31 @@ func TestGetClientCert(t *testing.T) {
 	checkActions(actions, client.Actions(), t)
 }
 
+func TestNewUploadAPIServer(t *testing.T) {
+	kubeobjects := []runtime.Object{}
+	kubeobjects = append(kubeobjects, getAPIServerConfigMap(t))
+
+	client := k8sfake.NewSimpleClientset(kubeobjects...)
+	aggregatorClient := aggregatorapifake.NewSimpleClientset()
+	authorizer := &testAuthorizer{}
+
+	server, err := NewUploadAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer)
+	if err != nil {
+		t.Errorf("Createion upload api server creation failed: %+v", err)
+	}
+
+	app := server.(*uploadAPIApp)
+
+	req, _ := http.NewRequest("GET", "/apis", nil)
+	rr := httptest.NewRecorder()
+
+	app.container.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Unexpected status code %d", rr.Code)
+	}
+}
+
 func TestGetSelfSignedCert(t *testing.T) {
 	signingKey, err := generateTestKey()
 	if err != nil {
@@ -310,7 +393,7 @@ func TestGetSelfSignedCert(t *testing.T) {
 
 	err = app.getSelfSignedCert()
 	if err != nil {
-		t.Errorf("error creating upload proxy app: %v", err)
+		t.Errorf("error creating upload api app: %v", err)
 	}
 
 	checkActions(actions, client.Actions(), t)
@@ -327,7 +410,7 @@ func TestShouldGenerateCertsAndKeyFirstRun(t *testing.T) {
 
 	err := app.getSelfSignedCert()
 	if err != nil {
-		t.Errorf("error creating upload proxy app: %v", err)
+		t.Errorf("error creating upload api app: %v", err)
 	}
 
 	actions := []core.Action{}
@@ -339,13 +422,246 @@ func TestShouldGenerateCertsAndKeyFirstRun(t *testing.T) {
 	checkActions(actions, client.Actions(), t)
 }
 
-func TestGetRequest(t *testing.T) {
+func TestCreateAPIService(t *testing.T) {
+	kubeobjects := []runtime.Object{}
+
+	aggregatorClient := aggregatorapifake.NewSimpleClientset(kubeobjects...)
+
+	app := &uploadAPIApp{
+		aggregatorClient: aggregatorClient,
+		signingCertBytes: []byte("data"),
+	}
+
+	err := app.createAPIService()
+	if err != nil {
+		t.Errorf("error creating upload api app: %v", err)
+	}
+
+	actions := []core.Action{}
+	actions = append(actions, apiServiceGetAction())
+	actions = append(actions, apiServiceCreateAction(app.signingCertBytes))
+
+	checkActions(actions, aggregatorClient.Actions(), t)
+}
+
+func TestUpdateAPIService(t *testing.T) {
+	certBytes := []byte("data")
+	service := getExpectedAPIService(certBytes)
+
+	kubeobjects := []runtime.Object{}
+	kubeobjects = append(kubeobjects, service)
+
+	aggregatorClient := aggregatorapifake.NewSimpleClientset(kubeobjects...)
+
+	app := &uploadAPIApp{
+		aggregatorClient: aggregatorClient,
+		signingCertBytes: certBytes,
+	}
+
+	err := app.createAPIService()
+	if err != nil {
+		t.Errorf("error creating upload api app: %v", err)
+	}
+
+	actions := []core.Action{}
+	actions = append(actions, apiServiceGetAction())
+	actions = append(actions, apiServiceUpdateAction(app.signingCertBytes))
+
+	checkActions(actions, aggregatorClient.Actions(), t)
+}
+
+func TestGetAPIResouceList(t *testing.T) {
 	rr := doGetRequest(t, "/apis/upload.cdi.kubevirt.io/v1alpha1")
 
 	resourceList := metav1.APIResourceList{}
 	err := json.Unmarshal(rr.Body.Bytes(), &resourceList)
 	if err != nil {
 		t.Errorf("Couldn't convert to object from JSON: %+v", err)
+	}
+
+	expectedResourceList := metav1.APIResourceList{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "APIResourceList",
+			APIVersion: "v1",
+		},
+		GroupVersion: "upload.cdi.kubevirt.io/v1alpha1",
+		APIResources: []metav1.APIResource{
+			{
+				Name:         "UploadTokenRequest",
+				SingularName: "uploadtokenRequest",
+				Namespaced:   true,
+				Group:        "upload.cdi.kubevirt.io",
+				Version:      "v1alpha1",
+				Kind:         "UploadTokenRequest",
+				Verbs:        []string{"create"},
+				ShortNames:   []string{"utr", "utrs"},
+			},
+		},
+	}
+
+	checkEqual(t, expectedResourceList, resourceList)
+}
+
+func TestGetAPIGroup(t *testing.T) {
+	rr := doGetRequest(t, "/apis/upload.cdi.kubevirt.io")
+
+	apiGroup := metav1.APIGroup{}
+	err := json.Unmarshal(rr.Body.Bytes(), &apiGroup)
+	if err != nil {
+		t.Errorf("Couldn't convert to object from JSON: %+v", err)
+	}
+
+	expectedAPIGroup := getExpectedAPIGroup()
+
+	checkEqual(t, expectedAPIGroup, apiGroup)
+}
+func TestGetAPIGroupList(t *testing.T) {
+	rr := doGetRequest(t, "/apis")
+
+	apiGroupList := metav1.APIGroupList{}
+	err := json.Unmarshal(rr.Body.Bytes(), &apiGroupList)
+	if err != nil {
+		t.Errorf("Couldn't convert to object from JSON: %+v", err)
+	}
+
+	expectedAPIGroupList := metav1.APIGroupList{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "APIGroupList",
+			APIVersion: "v1",
+		},
+		Groups: []metav1.APIGroup{
+			getExpectedAPIGroup(),
+		},
+	}
+
+	checkEqual(t, expectedAPIGroupList, apiGroupList)
+}
+
+func TestGetToken(t *testing.T) {
+	type args struct {
+		authorizer     CdiAPIAuthorizer
+		pvc            *v1.PersistentVolumeClaim
+		uploadPossible uploadPossibleFunc
+	}
+
+	signingKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	request := &uploadv1alpha1.UploadTokenRequest{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-token",
+			Namespace: "default",
+		},
+		Spec: uploadv1alpha1.UploadTokenRequestSpec{
+			PvcName: "test-pvc",
+		},
+	}
+
+	pvc := &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pvc",
+			Namespace: "default",
+		},
+	}
+
+	serializedRequest, err := json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	authorizeSuccess := &testAuthorizer{allowed: true}
+
+	tests := []struct {
+		name           string
+		args           args
+		expectedStatus int
+		checkToken     bool
+	}{
+		{
+			"authoriser error",
+			args{
+				authorizer: &testAuthorizer{allowed: false, reason: "", err: fmt.Errorf("Error")},
+			},
+			http.StatusInternalServerError,
+			false,
+		},
+		{
+			"authoriser not allowed",
+			args{
+				authorizer: &testAuthorizer{allowed: false, reason: "bad person", err: nil},
+			},
+			http.StatusUnauthorized,
+			false,
+		},
+		{
+			"pvc does not exist",
+			args{
+				authorizer: authorizeSuccess,
+			},
+			http.StatusBadRequest,
+			false,
+		},
+		{
+			"upload not possible",
+			args{
+				authorizer:     authorizeSuccess,
+				pvc:            pvc,
+				uploadPossible: func(*v1.PersistentVolumeClaim) error { return fmt.Errorf("NOPE") },
+			},
+			http.StatusServiceUnavailable,
+			false,
+		},
+		{
+			"upload possible",
+			args{
+				authorizer:     authorizeSuccess,
+				pvc:            pvc,
+				uploadPossible: func(*v1.PersistentVolumeClaim) error { return nil },
+			},
+			http.StatusOK,
+			true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			kubeobjects := []runtime.Object{}
+			if test.args.pvc != nil {
+				kubeobjects = append(kubeobjects, test.args.pvc)
+			}
+			client := k8sfake.NewSimpleClientset(kubeobjects...)
+
+			app := &uploadAPIApp{client: client,
+				privateSigningKey: signingKey,
+				authorizer:        test.args.authorizer,
+				uploadPossible:    test.args.uploadPossible}
+			app.composeUploadTokenAPI()
+
+			req, _ := http.NewRequest("POST",
+				"/apis/upload.cdi.kubevirt.io/v1alpha1/namespaces/default/uploadtokenrequest",
+				bytes.NewReader(serializedRequest))
+			req.Header.Set("Content-Type", "application/json")
+			rr := httptest.NewRecorder()
+
+			app.container.ServeHTTP(rr, req)
+
+			if rr.Code != test.expectedStatus {
+				tt.Fatalf("Wrong status code, expected %d, got %d", test.expectedStatus, rr.Code)
+			}
+
+			if test.checkToken {
+				uploadTokenRequest := &uploadv1alpha1.UploadTokenRequest{}
+				err := json.Unmarshal(rr.Body.Bytes(), &uploadTokenRequest)
+				if err != nil {
+					tt.Fatalf("Deserializing UploadTokenRequest failed: %+v", err)
+				}
+
+				if uploadTokenRequest.Status.Token == "" {
+					tt.Fatal("UploadTokenRequest response does not contain a token")
+				}
+			}
+		})
 	}
 }
 
@@ -356,11 +672,43 @@ func doGetRequest(t *testing.T, url string) *httptest.ResponseRecorder {
 	req, _ := http.NewRequest("GET", url, nil)
 	rr := httptest.NewRecorder()
 
-	restful.DefaultContainer.ServeHTTP(rr, req)
+	app.container.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("Wrong status code, expected %d, got %d", http.StatusOK, rr.Code)
 	}
 
 	return rr
+}
+
+func getExpectedAPIGroup() metav1.APIGroup {
+	return metav1.APIGroup{
+		Name: "upload.cdi.kubevirt.io",
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "APIGroup",
+			APIVersion: "v1",
+		},
+		PreferredVersion: metav1.GroupVersionForDiscovery{
+			GroupVersion: "upload.cdi.kubevirt.io/v1alpha1",
+			Version:      "v1alpha1",
+		},
+		Versions: []metav1.GroupVersionForDiscovery{
+			{
+				GroupVersion: "upload.cdi.kubevirt.io/v1alpha1",
+				Version:      "v1alpha1",
+			},
+		},
+		ServerAddressByClientCIDRs: []metav1.ServerAddressByClientCIDR{
+			{
+				ClientCIDR:    "0.0.0.0/0",
+				ServerAddress: "",
+			},
+		},
+	}
+}
+
+func checkEqual(t *testing.T, expected, actual interface{}) {
+	if !reflect.DeepEqual(expected, actual) {
+		t.Errorf("Objects are not equal\nDiff:\n %s", diff.ObjectGoPrintDiff(expected, actual))
+	}
 }

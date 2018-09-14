@@ -29,18 +29,18 @@ type TokenData struct {
 func VerifyToken(token string, publicKey *rsa.PublicKey) (*TokenData, error) {
 	object, err := jose.ParseSigned(token)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Unable to parse token")
 	}
 
 	message, err := object.Verify(publicKey)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Token verification failed")
 	}
 
 	tokenData := &TokenData{}
 	err = json.Unmarshal(message, tokenData)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Error unmarshaling JSON")
 	}
 
 	// don't allow expired tokens to be viewed
@@ -68,22 +68,22 @@ func GenerateToken(pvcName string, namespace string, signingKey *rsa.PrivateKey)
 
 	message, err := json.Marshal(tokenData)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "JSON Marshal failed")
 	}
 
 	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.PS512, Key: signingKey}, nil)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "Error creating JWT signer")
 	}
 
 	object, err := signer.Sign(message)
 	if err != nil {
-		return "", nil
+		return "", errors.Wrap(err, "Error signing JWT message")
 	}
 
 	serialized, err := object.CompactSerialize()
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "Error serializing JWT message")
 	}
 
 	return serialized, nil

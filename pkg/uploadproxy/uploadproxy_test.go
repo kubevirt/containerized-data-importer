@@ -53,10 +53,6 @@ func getHTTPClientConfig(t *testing.T) *httpClientConfig {
 	}
 }
 
-func newProxyApp() *uploadProxyApp {
-	return &uploadProxyApp{}
-}
-
 func newProxyRequest(t *testing.T, authHeaderValue string) *http.Request {
 	req, err := http.NewRequest("POST", uploadPath, strings.NewReader("data"))
 	if err != nil {
@@ -71,7 +67,7 @@ func newProxyRequest(t *testing.T, authHeaderValue string) *http.Request {
 func submitRequestAndCheckStatus(t *testing.T, request *http.Request, expectedCode int, app *uploadProxyApp) {
 	rr := httptest.NewRecorder()
 	if app == nil {
-		app = newProxyApp()
+		app = &uploadProxyApp{}
 	}
 
 	app.handleUploadRequest(rr, request)
@@ -142,12 +138,13 @@ func TestMalformedAuthHeader(t *testing.T) {
 func setupProxyTests(handler http.HandlerFunc) *uploadProxyApp {
 	server := httptest.NewServer(handler)
 
-	verifyTokenFunc = verifyTokenSuccess
-	urlLookupFunc = func(string, string) string {
+	urlResolver := func(string, string) string {
 		return server.URL
 	}
 
-	app := newProxyApp()
+	app := &uploadProxyApp{}
+	app.tokenVerifier = verifyTokenSuccess
+	app.urlResolver = urlResolver
 	app.uploadServerClient = server.Client()
 
 	return app
@@ -180,9 +177,12 @@ func TestProxy(t *testing.T) {
 }
 
 func TestTokenInvalid(t *testing.T) {
+	app := &uploadProxyApp{}
+	app.tokenVerifier = verifyTokenFailure
+
 	req := newProxyRequest(t, "Bearer valid")
-	verifyTokenFunc = verifyTokenFailure
-	submitRequestAndCheckStatus(t, req, http.StatusUnauthorized, nil)
+
+	submitRequestAndCheckStatus(t, req, http.StatusUnauthorized, app)
 }
 
 func TestNoAuthHeader(t *testing.T) {

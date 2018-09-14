@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"strings"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/client-go/util/cert/triple"
 
 	"github.com/golang/glog"
@@ -47,6 +48,9 @@ const (
 type UploadAPIServer interface {
 	Start() error
 }
+
+type uploadPossibleFunc func(*v1.PersistentVolumeClaim) error
+
 type uploadAPIApp struct {
 	bindAddress string
 	bindPort    uint
@@ -54,8 +58,7 @@ type uploadAPIApp struct {
 	client           kubernetes.Interface
 	aggregatorClient aggregatorclient.Interface
 
-	authorizer     CdiAPIAuthorizer
-	certsDirectory string
+	authorizer CdiAPIAuthorizer
 
 	signingCertBytes           []byte
 	certBytes                  []byte
@@ -64,10 +67,19 @@ type uploadAPIApp struct {
 	requestHeaderClientCABytes []byte
 
 	privateSigningKey *rsa.PrivateKey
+
+	container *restful.Container
+
+	// test hook
+	uploadPossible uploadPossibleFunc
 }
 
 // NewUploadAPIServer returns an initialized upload api server
-func NewUploadAPIServer(bindAddress string, bindPort uint, client kubernetes.Interface, aggregatorClient aggregatorclient.Interface, authorizor CdiAPIAuthorizer) (UploadAPIServer, error) {
+func NewUploadAPIServer(bindAddress string,
+	bindPort uint,
+	client kubernetes.Interface,
+	aggregatorClient aggregatorclient.Interface,
+	authorizor CdiAPIAuthorizer) (UploadAPIServer, error) {
 	var err error
 	app := &uploadAPIApp{
 		bindAddress:      bindAddress,
@@ -75,12 +87,8 @@ func NewUploadAPIServer(bindAddress string, bindPort uint, client kubernetes.Int
 		client:           client,
 		aggregatorClient: aggregatorClient,
 		authorizer:       authorizor,
+		uploadPossible:   controller.UploadPossibleForPVC,
 	}
-	app.certsDirectory, err = ioutil.TempDir("", "certsdir")
-	if err != nil {
-		glog.Fatalf("Unable to create certs temporary directory: %v\n", errors.WithStack(err))
-	}
-
 	err = app.getClientCert()
 	if err != nil {
 		return nil, errors.Errorf("Unable to get client cert: %v\n", errors.WithStack(err))
@@ -98,7 +106,7 @@ func NewUploadAPIServer(bindAddress string, bindPort uint, client kubernetes.Int
 
 	app.composeUploadTokenAPI()
 
-	restful.Filter(func(req *restful.Request, resp *restful.Response, chain *restful.FilterChain) {
+	app.container.Filter(func(req *restful.Request, resp *restful.Response, chain *restful.FilterChain) {
 		var username = "-"
 		if req.Request.URL.User != nil {
 			if name := req.Request.URL.User.Username(); name != "" {
@@ -222,16 +230,19 @@ func (app *uploadAPIApp) getSelfSignedCert() error {
 }
 
 func (app *uploadAPIApp) startTLS() error {
+	certsDirectory, err := ioutil.TempDir("", "certsdir")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(certsDirectory)
 
-	errors := make(chan error)
-
-	keyFile := filepath.Join(app.certsDirectory, "/key.pem")
-	certFile := filepath.Join(app.certsDirectory, "/cert.pem")
-	signingCertFile := filepath.Join(app.certsDirectory, "/signingCert.pem")
-	clientCAFile := filepath.Join(app.certsDirectory, "/clientCA.crt")
+	keyFile := filepath.Join(certsDirectory, "/key.pem")
+	certFile := filepath.Join(certsDirectory, "/cert.pem")
+	signingCertFile := filepath.Join(certsDirectory, "/signingCert.pem")
+	clientCAFile := filepath.Join(certsDirectory, "/clientCA.crt")
 
 	// Write the certs to disk
-	err := ioutil.WriteFile(clientCAFile, app.clientCABytes, 0600)
+	err = ioutil.WriteFile(clientCAFile, app.clientCABytes, 0600)
 	if err != nil {
 		return err
 	}
@@ -262,6 +273,8 @@ func (app *uploadAPIApp) startTLS() error {
 		return err
 	}
 
+	errChan := make(chan error)
+
 	// create the client CA pool.
 	// This ensures we're talking to the k8s api server
 	pool, err := cert.NewPool(clientCAFile)
@@ -279,13 +292,14 @@ func (app *uploadAPIApp) startTLS() error {
 		server := &http.Server{
 			Addr:      fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort),
 			TLSConfig: tlsConfig,
+			Handler:   app.container,
 		}
 
-		errors <- server.ListenAndServeTLS(certFile, keyFile)
+		errChan <- server.ListenAndServeTLS(certFile, keyFile)
 	}()
 
 	// wait for server to exit
-	return <-errors
+	return <-errChan
 }
 
 func (app *uploadAPIApp) uploadHandler(request *restful.Request, response *restful.Response) {
@@ -331,7 +345,7 @@ func (app *uploadAPIApp) uploadHandler(request *restful.Request, response *restf
 		return
 	}
 
-	if err = controller.UploadPossibleForPVC(pvc); err != nil {
+	if err = app.uploadPossible(pvc); err != nil {
 		response.WriteError(http.StatusServiceUnavailable, err)
 		return
 	}
@@ -360,6 +374,7 @@ func uploadTokenAPIGroup() metav1.APIGroup {
 		ServerAddress: "",
 	})
 	apiGroup.Kind = "APIGroup"
+	apiGroup.APIVersion = "v1"
 	return apiGroup
 }
 
@@ -368,9 +383,11 @@ func (app *uploadAPIApp) composeUploadTokenAPI() {
 	objExample := reflect.ValueOf(objPointer).Elem().Interface()
 	objKind := "uploadtokenrequest"
 
-	groupPath := fmt.Sprintf("/apis/%s/%s", uploadTokenGroup, uploadTokenVersion)
+	groupPath := fmt.Sprintf("/apis/%s", uploadTokenGroup)
 	resourcePath := fmt.Sprintf("/apis/%s/%s", uploadTokenGroup, uploadTokenVersion)
 	createPath := fmt.Sprintf("/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/%s", objKind)
+
+	app.container = restful.NewContainer()
 
 	uploadTokenWs := new(restful.WebService)
 	uploadTokenWs.Doc("The CDI Upload API.")
@@ -399,8 +416,8 @@ func (app *uploadAPIApp) composeUploadTokenAPI() {
 			list := &metav1.APIResourceList{}
 
 			list.Kind = "APIResourceList"
+			list.APIVersion = "v1" // this is the version of the resource list
 			list.GroupVersion = uploadTokenGroup + "/" + uploadTokenVersion
-			list.APIVersion = uploadTokenVersion
 			list.APIResources = append(list.APIResources, metav1.APIResource{
 				Name:         "UploadTokenRequest",
 				SingularName: "uploadtokenRequest",
@@ -418,7 +435,7 @@ func (app *uploadAPIApp) composeUploadTokenAPI() {
 		Returns(http.StatusOK, "OK", metav1.APIResourceList{}).
 		Returns(http.StatusNotFound, "Not Found", nil))
 
-	restful.Add(uploadTokenWs)
+	app.container.Add(uploadTokenWs)
 
 	ws := new(restful.WebService)
 
@@ -439,6 +456,7 @@ func (app *uploadAPIApp) composeUploadTokenAPI() {
 		To(func(request *restful.Request, response *restful.Response) {
 			list := &metav1.APIGroupList{}
 			list.Kind = "APIGroupList"
+			list.APIVersion = "v1"
 			list.Groups = append(list.Groups, uploadTokenAPIGroup())
 			response.WriteAsJson(list)
 		}).
@@ -447,7 +465,7 @@ func (app *uploadAPIApp) composeUploadTokenAPI() {
 		Returns(http.StatusOK, "OK", metav1.APIGroupList{}).
 		Returns(http.StatusNotFound, "Not Found", nil))
 
-	restful.Add(ws)
+	app.container.Add(ws)
 }
 
 func (app *uploadAPIApp) createAPIService() error {
@@ -467,8 +485,7 @@ func (app *uploadAPIApp) createAPIService() error {
 
 	newAPIService := &apiregistrationv1beta1.APIService{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      apiName,
-			Namespace: namespace,
+			Name: apiName,
 			Labels: map[string]string{
 				common.CDIComponentLabel: apiServiceName,
 			},
