@@ -27,7 +27,8 @@ const (
 	TestImagesDir = "../../tests/images"
 	defaultPort   = 9999
 )
-var imageDir, _    = filepath.Abs(TestImagesDir)
+
+var imageDir, _ = filepath.Abs(TestImagesDir)
 var localImageBase = fmt.Sprintf("http://%s", imageDir)
 
 type fakeQEMUOperations struct {
@@ -77,8 +78,7 @@ func createDataStreamOrDie(ep, accKey, secKey string) *DataStream {
 	}
 
 	err := ds.constructReaders()
-	if err != nil {
-		
+	if err != nil {//what??
 	}
 
 	return ds
@@ -180,22 +180,22 @@ func TestNewDataStream(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		qemu	bool
-		rdrCnt	int
+		qemu    bool
+		rdrCnt  int
 		wantErr bool
 	}{
 		{
 			name:    "new DataStream for qcow2",
 			args:    args{"cirros-qcow2.img", "", ""},
-			qemu:	 true,
-			rdrCnt:	 2,
+			qemu:    true,
+			rdrCnt:  2,
 			wantErr: false,
 		},
 		{
 			name:    "new DataStream for iso",
 			args:    args{"tinyCore.iso", "", ""},
-			qemu:	 false,
-			rdrCnt:	 3,
+			qemu:    false,
+			rdrCnt:  3,
 			wantErr: false,
 		},
 		{
