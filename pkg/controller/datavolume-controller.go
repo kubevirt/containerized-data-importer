@@ -298,6 +298,42 @@ func (c *DataVolumeController) syncHandler(key string) error {
 	return nil
 }
 
+func (c *DataVolumeController) updateImportStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume) {
+	phase, ok := pvc.Annotations[AnnPodPhase]
+	if ok {
+		switch phase {
+		case string(corev1.PodPending):
+			// TODO: Use a more generic Scheduled, like maybe TransferScheduled.
+			dataVolumeCopy.Status.Phase = cdiv1.ImportScheduled
+		case string(corev1.PodRunning):
+			// TODO: Use a more generic In Progess, like maybe TransferInProgress.
+			dataVolumeCopy.Status.Phase = cdiv1.ImportInProgress
+		case string(corev1.PodFailed):
+			dataVolumeCopy.Status.Phase = cdiv1.Failed
+		case string(corev1.PodSucceeded):
+			dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+		}
+	}
+}
+
+func (c *DataVolumeController) updateCloneStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume) {
+	phase, ok := pvc.Annotations[AnnClonePodPhase]
+	if ok {
+		switch phase {
+		case string(corev1.PodPending):
+			// TODO: Use a more generic Scheduled, like maybe TransferScheduled.
+			dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
+		case string(corev1.PodRunning):
+			// TODO: Use a more generic In Progess, like maybe TransferInProgress.
+			dataVolumeCopy.Status.Phase = cdiv1.CloneInProgress
+		case string(corev1.PodFailed):
+			dataVolumeCopy.Status.Phase = cdiv1.Failed
+		case string(corev1.PodSucceeded):
+			dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+		}
+	}
+}
+
 func (c *DataVolumeController) updateDataVolumeStatus(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
 	dataVolumeCopy := dataVolume.DeepCopy()
 	var err error
@@ -327,21 +363,14 @@ func (c *DataVolumeController) updateDataVolumeStatus(dataVolume *cdiv1.DataVolu
 			_, ok := pvc.Annotations[AnnImportPod]
 			if ok {
 				dataVolumeCopy.Status.Phase = cdiv1.ImportScheduled
+				c.updateImportStatusPhase(pvc, dataVolumeCopy)
+			}
+			_, ok = pvc.Annotations[AnnCloneRequest]
+			if ok {
+				dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
+				c.updateCloneStatusPhase(pvc, dataVolumeCopy)
 			}
 
-			podPhase, ok := pvc.Annotations[AnnPodPhase]
-			if ok {
-				switch podPhase {
-				case string(corev1.PodPending):
-					dataVolumeCopy.Status.Phase = cdiv1.ImportScheduled
-				case string(corev1.PodRunning):
-					dataVolumeCopy.Status.Phase = cdiv1.ImportInProgress
-				case string(corev1.PodFailed):
-					dataVolumeCopy.Status.Phase = cdiv1.Failed
-				case string(corev1.PodSucceeded):
-					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
-				}
-			}
 		case corev1.ClaimLost:
 			dataVolumeCopy.Status.Phase = cdiv1.Failed
 		default:

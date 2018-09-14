@@ -42,7 +42,7 @@ var _ = Describe("DataVolume tests", func() {
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
 			utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
@@ -50,10 +50,10 @@ var _ = Describe("DataVolume tests", func() {
 			// verify PVC was created
 			By("verifying pvc was created")
 			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 		},
 			table.Entry("succeed when given valid url", utils.TinyCoreIsoURL, cdiv1.Succeeded, "dv-phase-test-1"),
@@ -68,19 +68,21 @@ var _ = Describe("DataVolume tests", func() {
 
 			sourcePvc = f.CreateAndPopulateSourcePVC(sourcePVCName, sourcePodFillerName, command)
 
+			By(fmt.Sprintf("creating a new PVC with name %s", sourcePvc.Name))
 			dataVolume := utils.NewDataVolumeWithPVCImport(dataVolumeName, "1Gi", sourcePvc)
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
-			utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
 
 			// verify PVC was created
 			By("verifying pvc was created")
 			targetPvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 			if phase == cdiv1.Succeeded {
 				By("verifying DataVolume contents are correct")
@@ -88,11 +90,10 @@ var _ = Describe("DataVolume tests", func() {
 			}
 
 			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 		},
 			table.Entry("succeed when given a source PVC with a data", fillCommand, cdiv1.Succeeded, "dv-clone-test-1"),
-			table.Entry("fail when given a source PVC without data", "sleep 1", cdiv1.Failed, "dv-clone-test-2"),
 		)
 	})
 })

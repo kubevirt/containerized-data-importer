@@ -69,7 +69,7 @@ func newFixture(t *testing.T) *fixture {
 	return f
 }
 
-func newDataVolume(name string) *cdiv1.DataVolume {
+func newImportDataVolume(name string) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
 		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -80,6 +80,25 @@ func newDataVolume(name string) *cdiv1.DataVolume {
 			Source: cdiv1.DataVolumeSource{
 				HTTP: &cdiv1.DataVolumeSourceHTTP{
 					URL: "http://example.com/data",
+				},
+			},
+			PVC: &corev1.PersistentVolumeClaimSpec{},
+		},
+	}
+}
+
+func newCloneDataVolume(name string) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: metav1.NamespaceDefault,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
+					Name:      "test",
+					Namespace: "default",
 				},
 			},
 			PVC: &corev1.PersistentVolumeClaimSpec{},
@@ -258,7 +277,7 @@ func getKey(dataVolume *cdiv1.DataVolume, t *testing.T) string {
 
 func TestCreatesPersistentVolumeClaim(t *testing.T) {
 	f := newFixture(t)
-	dataVolume := newDataVolume("test")
+	dataVolume := newImportDataVolume("test")
 
 	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
 	f.objects = append(f.objects, dataVolume)
@@ -272,7 +291,7 @@ func TestCreatesPersistentVolumeClaim(t *testing.T) {
 
 func TestDoNothing(t *testing.T) {
 	f := newFixture(t)
-	dataVolume := newDataVolume("test")
+	dataVolume := newImportDataVolume("test")
 	pvc, _ := newPersistentVolumeClaim(dataVolume)
 
 	dataVolume.Status.Phase = cdiv1.PVCBound
@@ -288,7 +307,7 @@ func TestDoNothing(t *testing.T) {
 
 func TestNotControlledByUs(t *testing.T) {
 	f := newFixture(t)
-	dataVolume := newDataVolume("test")
+	dataVolume := newImportDataVolume("test")
 	d, _ := newPersistentVolumeClaim(dataVolume)
 
 	d.ObjectMeta.OwnerReferences = []metav1.OwnerReference{}
@@ -303,7 +322,7 @@ func TestNotControlledByUs(t *testing.T) {
 
 func TestDetectPVCBound(t *testing.T) {
 	f := newFixture(t)
-	dataVolume := newDataVolume("test")
+	dataVolume := newImportDataVolume("test")
 	pvc, _ := newPersistentVolumeClaim(dataVolume)
 
 	dataVolume.Status.Phase = cdiv1.Pending
@@ -322,7 +341,7 @@ func TestDetectPVCBound(t *testing.T) {
 
 func TestImportScheduled(t *testing.T) {
 	f := newFixture(t)
-	dataVolume := newDataVolume("test")
+	dataVolume := newImportDataVolume("test")
 	pvc, _ := newPersistentVolumeClaim(dataVolume)
 
 	dataVolume.Status.Phase = cdiv1.Pending
@@ -342,7 +361,7 @@ func TestImportScheduled(t *testing.T) {
 
 func TestImportInProgress(t *testing.T) {
 	f := newFixture(t)
-	dataVolume := newDataVolume("test")
+	dataVolume := newImportDataVolume("test")
 	pvc, _ := newPersistentVolumeClaim(dataVolume)
 
 	dataVolume.Status.Phase = cdiv1.Pending
@@ -363,7 +382,7 @@ func TestImportInProgress(t *testing.T) {
 
 func TestImportSucceeded(t *testing.T) {
 	f := newFixture(t)
-	dataVolume := newDataVolume("test")
+	dataVolume := newImportDataVolume("test")
 	pvc, _ := newPersistentVolumeClaim(dataVolume)
 
 	dataVolume.Status.Phase = cdiv1.Pending
@@ -384,7 +403,7 @@ func TestImportSucceeded(t *testing.T) {
 
 func TestImportPodFailed(t *testing.T) {
 	f := newFixture(t)
-	dataVolume := newDataVolume("test")
+	dataVolume := newImportDataVolume("test")
 	pvc, _ := newPersistentVolumeClaim(dataVolume)
 
 	dataVolume.Status.Phase = cdiv1.Pending
@@ -405,7 +424,110 @@ func TestImportPodFailed(t *testing.T) {
 
 func TestImportClaimLost(t *testing.T) {
 	f := newFixture(t)
-	dataVolume := newDataVolume("test")
+	dataVolume := newImportDataVolume("test")
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+
+	dataVolume.Status.Phase = cdiv1.Pending
+	pvc.Status.Phase = corev1.ClaimLost
+
+	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
+	f.objects = append(f.objects, dataVolume)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	result := dataVolume.DeepCopy()
+	result.Status.Phase = cdiv1.Failed
+	f.expectUpdateDataVolumeStatusAction(result)
+	f.run(getKey(dataVolume, t))
+}
+
+// Cloning tests
+func TestCloneScheduled(t *testing.T) {
+	f := newFixture(t)
+	dataVolume := newCloneDataVolume("test")
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+
+	dataVolume.Status.Phase = cdiv1.Pending
+	pvc.Status.Phase = corev1.ClaimBound
+	pvc.Annotations[AnnCloneRequest] = "default/test"
+
+	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
+	f.objects = append(f.objects, dataVolume)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	result := dataVolume.DeepCopy()
+	result.Status.Phase = cdiv1.CloneScheduled
+	f.expectUpdateDataVolumeStatusAction(result)
+	f.run(getKey(dataVolume, t))
+}
+
+func TestCloneInProgress(t *testing.T) {
+	f := newFixture(t)
+	dataVolume := newCloneDataVolume("test")
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+
+	dataVolume.Status.Phase = cdiv1.Pending
+	pvc.Status.Phase = corev1.ClaimBound
+	pvc.Annotations[AnnCloneRequest] = "default/test"
+	pvc.Annotations[AnnClonePodPhase] = "Running"
+
+	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
+	f.objects = append(f.objects, dataVolume)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	result := dataVolume.DeepCopy()
+	result.Status.Phase = cdiv1.CloneInProgress
+	f.expectUpdateDataVolumeStatusAction(result)
+	f.run(getKey(dataVolume, t))
+}
+
+func TestCloneSucceeded(t *testing.T) {
+	f := newFixture(t)
+	dataVolume := newCloneDataVolume("test")
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+
+	dataVolume.Status.Phase = cdiv1.Pending
+	pvc.Status.Phase = corev1.ClaimBound
+	pvc.Annotations[AnnCloneRequest] = "default/test"
+	pvc.Annotations[AnnClonePodPhase] = "Succeeded"
+
+	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
+	f.objects = append(f.objects, dataVolume)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	result := dataVolume.DeepCopy()
+	result.Status.Phase = cdiv1.Succeeded
+	f.expectUpdateDataVolumeStatusAction(result)
+	f.run(getKey(dataVolume, t))
+}
+
+func TestClonePodFailed(t *testing.T) {
+	f := newFixture(t)
+	dataVolume := newCloneDataVolume("test")
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+
+	dataVolume.Status.Phase = cdiv1.Pending
+	pvc.Status.Phase = corev1.ClaimBound
+	pvc.Annotations[AnnCloneRequest] = "default/test"
+	pvc.Annotations[AnnClonePodPhase] = "Failed"
+
+	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
+	f.objects = append(f.objects, dataVolume)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	result := dataVolume.DeepCopy()
+	result.Status.Phase = cdiv1.Failed
+	f.expectUpdateDataVolumeStatusAction(result)
+	f.run(getKey(dataVolume, t))
+}
+
+func TestCloneClaimLost(t *testing.T) {
+	f := newFixture(t)
+	dataVolume := newCloneDataVolume("test")
 	pvc, _ := newPersistentVolumeClaim(dataVolume)
 
 	dataVolume.Status.Phase = cdiv1.Pending
