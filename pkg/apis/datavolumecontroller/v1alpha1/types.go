@@ -101,6 +101,12 @@ const (
 	// ImportInProgress represents a data volume with a current phase of ImportInProgress
 	ImportInProgress DataVolumePhase = "ImportInProgress"
 
+	// CloneScheduled represents a data volume with a current phase of CloneScheduled
+	CloneScheduled DataVolumePhase = "CloneScheduled"
+
+	// CloneInProgress represents a data volume with a current phase of CloneInProgress
+	CloneInProgress DataVolumePhase = "CloneInProgress"
+
 	// Succeeded represents a DataVolumePhase of Succeeded
 	Succeeded DataVolumePhase = "Succeeded"
 	// Failed represents a DataVolumePhase of Failed
