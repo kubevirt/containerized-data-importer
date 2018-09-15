@@ -26,9 +26,9 @@ func ParseEnvVar(envVarName string, decode bool) (string, error) {
 	return value, nil
 }
 
-// ParseEndpoint parses the required endpoint and return the url struct.
-func ParseEndpoint(endpt string) (*url.URL, error) {
-	var err error
+// ParseEndpoint parses the required endpoint and returns the url struct. Additional
+// checks are done beyond url.Parse, eg. make sure the Path is not empty.
+func ParseEndpoint(endpt string) (url *url.URL, err error) {
 	if endpt == "" {
 		endpt, err = ParseEnvVar(common.ImporterEndpoint, false)
 		if err != nil {
@@ -38,7 +38,16 @@ func ParseEndpoint(endpt string) (*url.URL, error) {
 			return nil, errors.Errorf("endpoint %q is missing or blank", common.ImporterEndpoint)
 		}
 	}
-	return url.Parse(endpt)
+
+	url, err = url.Parse(endpt)
+	if err != nil || url == nil {
+		return nil, errors.Errorf("endpoint %q parsing error: %v", endpt, err)
+	}
+	if len(url.Path) == 0 {
+		return nil, errors.Errorf("endpoint %q Path is missing", endpt)
+	}
+
+	return url, nil
 }
 
 // StreamDataToFile provides a function to stream the specified io.Reader to the specified local file
