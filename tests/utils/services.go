@@ -66,7 +66,7 @@ func GetServicesInNamespaceByLabel(c *kubernetes.Clientset, ns, labelSelector st
 	return svcList, err
 }
 
-// GetServicePortByName scan's a services ports for names matching `name`.  Returns integer port value (0 on error) and
+// GetServicePortByName scans a service's ports for names matching `name`.  Returns integer port value (0 on error) and
 // error (nil on success).
 func GetServicePortByName(svc *v1.Service, name string) (int, error) {
 	if svc == nil {
@@ -77,6 +77,26 @@ func GetServicePortByName(svc *v1.Service, name string) (int, error) {
 	for _, p := range svc.Spec.Ports {
 		if p.Name == name {
 			port = int(p.Port)
+			break
+		}
+	}
+	if port == 0 {
+		return 0, errors.Errorf("port %q not found", name)
+	}
+	return port, nil
+}
+
+// GetServiceNodePortByName scans a service's nodePorts for a name matching the `name` parameter and returns
+// the associated port integer or an error if not match is found.
+func GetServiceNodePortByName(svc *v1.Service, name string) (int, error) {
+	if svc == nil {
+		return 0, errors.New("nil service")
+	}
+
+	var port int
+	for _, p := range svc.Spec.Ports {
+		if p.Name == name {
+			port = int(p.NodePort)
 			break
 		}
 	}
