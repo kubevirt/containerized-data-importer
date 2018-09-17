@@ -255,7 +255,7 @@ func (d DataStream) glance() (io.ReadCloser, error) {
 		Password:         d.secretKey,
 	}
 
-	glog.V(1).Infof("Authenticating to OpenStack Identiy service. IdentityEndpoint: %s, DomainName: %s",
+	glog.V(1).Infof("Authenticating to OpenStack Identity service. IdentityEndpoint: %s, DomainName: %s",
 		authOpts.IdentityEndpoint, authOpts.DomainName)
 
 	provider, err := openstack.AuthenticatedClient(authOpts)
