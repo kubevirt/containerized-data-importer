@@ -14,22 +14,29 @@ package main
 
 import (
 	"flag"
-	"github.com/golang/glog"
 	"os"
 	"text/template"
+
+	"github.com/golang/glog"
 )
 
 type data struct {
-	DockerRepo string
-	DockerTag  string
-	Verbosity  string
-	PullPolicy string
-	Namespace  string
+	DockerRepo      string
+	DockerTag       string
+	ControllerImage string
+	ImporterImage   string
+	ClonerImage     string
+	Verbosity       string
+	PullPolicy      string
+	Namespace       string
 }
 
 func main() {
 	dockerRepo := flag.String("docker-repo", "", "")
 	dockertag := flag.String("docker-tag", "", "")
+	controllerImage := flag.String("controller-image", "", "")
+	importerImage := flag.String("importer-image", "", "")
+	clonerImage := flag.String("cloner-image", "", "")
 	templFile := flag.String("template", "", "")
 	verbosity := flag.String("verbosity", "1", "")
 	pullPolicy := flag.String("pull-policy", "", "")
@@ -37,11 +44,14 @@ func main() {
 	flag.Parse()
 
 	data := &data{
-		Verbosity:  *verbosity,
-		DockerRepo: *dockerRepo,
-		DockerTag:  *dockertag,
-		PullPolicy: *pullPolicy,
-		Namespace:  *namespace,
+		Verbosity:       *verbosity,
+		DockerRepo:      *dockerRepo,
+		DockerTag:       *dockertag,
+		ControllerImage: *controllerImage,
+		ImporterImage:   *importerImage,
+		ClonerImage:     *clonerImage,
+		PullPolicy:      *pullPolicy,
+		Namespace:       *namespace,
 	}
 
 	file, err := os.OpenFile(*templFile, os.O_RDONLY, 0)
