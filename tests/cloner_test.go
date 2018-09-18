@@ -25,7 +25,6 @@ const (
 	fillCommand           = "echo \"" + fillData + "\" >> " + testFile
 	assertionPollInterval = 2 * time.Second
 	cloneCompleteTimeout  = 60 * time.Second
-	testCompleteTimeout   = 300 * time.Second
 )
 
 var _ = Describe(testSuiteName, func() {
@@ -107,7 +106,7 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 
 	By("Verify the clone status is success on the target PVC")
 	Eventually(func() string {
-		status, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnClonePodPhase)
+		status, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodPhase)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(phaseAnnotation).To(BeTrue())
 		return status

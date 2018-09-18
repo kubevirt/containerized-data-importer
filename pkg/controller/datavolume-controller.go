@@ -317,7 +317,7 @@ func (c *DataVolumeController) updateImportStatusPhase(pvc *corev1.PersistentVol
 }
 
 func (c *DataVolumeController) updateCloneStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume) {
-	phase, ok := pvc.Annotations[AnnClonePodPhase]
+	phase, ok := pvc.Annotations[AnnPodPhase]
 	if ok {
 		switch phase {
 		case string(corev1.PodPending):

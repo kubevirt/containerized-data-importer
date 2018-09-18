@@ -165,7 +165,7 @@ func (f *fixture) runController(dataVolumeName string, startInformers bool, expe
 		}
 
 		expectedAction := f.actions[i]
-		checkAction(expectedAction, action, f.t)
+		checkDVAction(expectedAction, action, f.t)
 	}
 
 	if len(f.actions) > len(actions) {
@@ -180,7 +180,7 @@ func (f *fixture) runController(dataVolumeName string, startInformers bool, expe
 		}
 
 		expectedAction := f.kubeactions[i]
-		checkAction(expectedAction, action, f.t)
+		checkDVAction(expectedAction, action, f.t)
 	}
 
 	if len(f.kubeactions) > len(k8sActions) {
@@ -188,9 +188,9 @@ func (f *fixture) runController(dataVolumeName string, startInformers bool, expe
 	}
 }
 
-// checkAction verifies that expected and actual actions are equal and both have
+// checkDVAction verifies that expected and actual actions are equal and both have
 // same attached resources
-func checkAction(expected, actual core.Action, t *testing.T) {
+func checkDVAction(expected, actual core.Action, t *testing.T) {
 	if !(expected.Matches(actual.GetVerb(), actual.GetResource().Resource) && actual.GetSubresource() == expected.GetSubresource()) {
 		t.Errorf("Expected\n\t%#v\ngot\n\t%#v", expected, actual)
 		return
@@ -470,7 +470,7 @@ func TestCloneInProgress(t *testing.T) {
 	dataVolume.Status.Phase = cdiv1.Pending
 	pvc.Status.Phase = corev1.ClaimBound
 	pvc.Annotations[AnnCloneRequest] = "default/test"
-	pvc.Annotations[AnnClonePodPhase] = "Running"
+	pvc.Annotations[AnnPodPhase] = "Running"
 
 	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
 	f.objects = append(f.objects, dataVolume)
@@ -491,7 +491,7 @@ func TestCloneSucceeded(t *testing.T) {
 	dataVolume.Status.Phase = cdiv1.Pending
 	pvc.Status.Phase = corev1.ClaimBound
 	pvc.Annotations[AnnCloneRequest] = "default/test"
-	pvc.Annotations[AnnClonePodPhase] = "Succeeded"
+	pvc.Annotations[AnnPodPhase] = "Succeeded"
 
 	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
 	f.objects = append(f.objects, dataVolume)
@@ -512,7 +512,7 @@ func TestClonePodFailed(t *testing.T) {
 	dataVolume.Status.Phase = cdiv1.Pending
 	pvc.Status.Phase = corev1.ClaimBound
 	pvc.Annotations[AnnCloneRequest] = "default/test"
-	pvc.Annotations[AnnClonePodPhase] = "Failed"
+	pvc.Annotations[AnnPodPhase] = "Failed"
 
 	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
 	f.objects = append(f.objects, dataVolume)
