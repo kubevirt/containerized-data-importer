@@ -75,14 +75,14 @@ spec:
       serviceAccountName: cdi-sa
       containers:
       - name: cdi-controller
-        image: {{ .DockerRepo }}/cdi-controller:{{ .DockerTag }}
+        image: {{ .DockerRepo }}/{{ .ControllerImage }}:{{ .DockerTag }}
         imagePullPolicy: {{ .PullPolicy }}
         args: ["-v={{ .Verbosity }}"] # default verbosity; change to 2 or 3 for more detailed logging
         env:
         - name: IMPORTER_IMAGE
-          value: {{ .DockerRepo }}/cdi-importer:{{ .DockerTag }}
+          value: {{ .DockerRepo }}/{{ .ImporterImage }}:{{ .DockerTag }}
         - name: CLONER_IMAGE
-          value: {{ .DockerRepo }}/cdi-cloner:{{ .DockerTag }}
+          value: {{ .DockerRepo }}/{{ .ClonerImage }}:{{ .DockerTag }}
         - name: PULL_POLICY
           value: {{ .PullPolicy }}
 ---

@@ -32,6 +32,9 @@ for tmpl in ${templates}; do
     (${generator} -template="${tmpl}" \
         -docker-repo="${DOCKER_REPO}" \
         -docker-tag="${DOCKER_TAG}" \
+        -controller-image="${CONTROLLER_IMAGE_NAME}" \
+        -importer-image="${IMPORTER_IMAGE_NAME}" \
+        -cloner-image="${CLONER_IMAGE_NAME}" \
         -verbosity="${VERBOSITY}" \
         -pull-policy="${PULL_POLICY}" \
         -namespace="${NAMESPACE}"
@@ -40,6 +43,9 @@ for tmpl in ${templates}; do
     (${generator} -template="${tmpl}" \
         -docker-repo="{{ docker_prefix }}" \
         -docker-tag="{{ docker_tag }}" \
+        -controller-image="{{ controller_image }}" \
+        -importer-image="{{ importer_image }}" \
+        -cloner-image="{{ cloner_image }}" \
         -verbosity="{{ verbosity }}" \
         -pull-policy="{{ pull_policy }}" \
         -namespace="{{ namespace }}"
