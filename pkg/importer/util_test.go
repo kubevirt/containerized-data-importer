@@ -79,7 +79,7 @@ func TestParseEndpoint(t *testing.T) {
 			name:    "successfully get url object from endpoint",
 			args:    args{"http://www.bing.com"},
 			want:    true,
-			setEnv:  true,
+			setEnv:  false,
 			wantErr: false,
 		},
 		{
@@ -99,8 +99,9 @@ func TestParseEndpoint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			os.Setenv(common.ImporterEndpoint, "www.google.com")
-			if !tt.setEnv {
+			if tt.setEnv {
+				os.Setenv(common.ImporterEndpoint, "www.google.com")
+			} else {
 				os.Unsetenv(common.ImporterEndpoint)
 			}
 			got, err := ParseEndpoint(tt.args.endpt)
