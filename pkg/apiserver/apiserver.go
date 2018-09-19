@@ -385,7 +385,7 @@ func (app *uploadAPIApp) composeUploadTokenAPI() {
 
 	groupPath := fmt.Sprintf("/apis/%s", uploadTokenGroup)
 	resourcePath := fmt.Sprintf("/apis/%s/%s", uploadTokenGroup, uploadTokenVersion)
-	createPath := fmt.Sprintf("/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/%s", objKind)
+	createPath := fmt.Sprintf("/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/{kind:%ss?}", objKind)
 
 	app.container = restful.NewContainer()
 

@@ -8,26 +8,30 @@ import (
 	. "github.com/onsi/ginkgo"
 
 	k8sv1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 )
 
 const (
-	PodCreateTime  = defaultPollPeriod
-	PodDeleteTime  = defaultPollPeriod
+	// PodWaitForTime is the time to wait for Pod operations to complete
 	PodWaitForTime = defaultPollPeriod
+
+	podCreateTime = defaultPollPeriod
+	podDeleteTime = defaultPollPeriod
 )
 
-// Create a Pod with the passed in PVC mounted under /pvc. You can then use the executor utilities to
+// CreateExecutorPodWithPVC creates a Pod with the passed in PVC mounted under /pvc. You can then use the executor utilities to
 // run commands against the PVC through this Pod.
 func CreateExecutorPodWithPVC(clientSet *kubernetes.Clientset, podName, namespace string, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
 	return CreatePod(clientSet, namespace, newExecutorPodWithPVC(podName, pvc))
 }
 
+// CreatePod calls the Kubernetes API to create a Pod
 func CreatePod(clientSet *kubernetes.Clientset, namespace string, podDef *k8sv1.Pod) (*k8sv1.Pod, error) {
 	var pod *k8sv1.Pod
-	err := wait.PollImmediate(2*time.Second, PodCreateTime, func() (bool, error) {
+	err := wait.PollImmediate(2*time.Second, podCreateTime, func() (bool, error) {
 		var err error
 		pod, err = clientSet.CoreV1().Pods(namespace).Create(podDef)
 		if err != nil {
@@ -38,9 +42,9 @@ func CreatePod(clientSet *kubernetes.Clientset, namespace string, podDef *k8sv1.
 	return pod, err
 }
 
-// Delete the passed in Pod from the passed in Namespace
+// DeletePod deletes the passed in Pod from the passed in Namespace
 func DeletePod(clientSet *kubernetes.Clientset, pod *k8sv1.Pod, namespace string) error {
-	return wait.PollImmediate(2*time.Second, PodDeleteTime, func() (bool, error) {
+	return wait.PollImmediate(2*time.Second, podDeleteTime, func() (bool, error) {
 		err := clientSet.CoreV1().Pods(namespace).Delete(pod.GetName(), &metav1.DeleteOptions{})
 		if err != nil {
 			return false, nil
@@ -49,6 +53,7 @@ func DeletePod(clientSet *kubernetes.Clientset, pod *k8sv1.Pod, namespace string
 	})
 }
 
+// NewPodWithPVC creates a new pod that mounts the given PVC
 func NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1.Pod {
 	return &k8sv1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: podName},
@@ -81,11 +86,11 @@ func NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1
 	}
 }
 
-// Finds the first pod which has the passed in prefix. Returns error if multiple pods with the same prefix are found.
+// FindPodByPrefix finds the first pod which has the passed in prefix. Returns error if multiple pods with the same prefix are found.
 func FindPodByPrefix(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string) (*k8sv1.Pod, error) {
 	var result k8sv1.Pod
 	var foundPod bool
-	err := wait.PollImmediate(2*time.Second, PodCreateTime, func() (bool, error) {
+	err := wait.PollImmediate(2*time.Second, podCreateTime, func() (bool, error) {
 		podList, err := clientSet.CoreV1().Pods(namespace).List(metav1.ListOptions{
 			LabelSelector: labelSelector,
 		})
@@ -118,10 +123,17 @@ func newExecutorPodWithPVC(podName string, pvc *k8sv1.PersistentVolumeClaim) *k8
 	return NewPodWithPVC(podName, "sleep 5; echo I am an executor pod;", pvc)
 }
 
+// WaitTimeoutForPodReady waits for the given pod to be created and ready
 func WaitTimeoutForPodReady(clientSet *kubernetes.Clientset, podName, namespace string, timeout time.Duration) error {
 	return WaitTimeoutForPodStatus(clientSet, podName, namespace, k8sv1.PodRunning, timeout)
 }
 
+// WaitTimeoutForPodSucceeded waits for pod to succeed
+func WaitTimeoutForPodSucceeded(clientSet *kubernetes.Clientset, podName, namespace string, timeout time.Duration) error {
+	return WaitTimeoutForPodStatus(clientSet, podName, namespace, k8sv1.PodSucceeded, timeout)
+}
+
+// WaitTimeoutForPodStatus waits for the given pod to be created and have a expected status
 func WaitTimeoutForPodStatus(clientSet *kubernetes.Clientset, podName, namespace string, status k8sv1.PodPhase, timeout time.Duration) error {
 	return wait.PollImmediate(2*time.Second, timeout, podStatus(clientSet, podName, namespace, status))
 }
@@ -130,6 +142,9 @@ func podStatus(clientSet *kubernetes.Clientset, podName, namespace string, statu
 	return func() (bool, error) {
 		pod, err := clientSet.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
 		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		switch pod.Status.Phase {
@@ -140,10 +155,29 @@ func podStatus(clientSet *kubernetes.Clientset, podName, namespace string, statu
 	}
 }
 
+// PodGetNode returns the node on which a given pod is executing
 func PodGetNode(clientSet *kubernetes.Clientset, podName, namespace string) (string, error) {
 	pod, err := clientSet.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
 	return pod.Spec.NodeName, nil
+}
+
+// WaitPodDeleted waits fo a pod to no longer exist
+// returns whether the pod is deleted along with any error
+func WaitPodDeleted(clientSet *kubernetes.Clientset, podName, namespace string, timeout time.Duration) (bool, error) {
+	var result bool
+	err := wait.PollImmediate(2*time.Second, timeout, func() (bool, error) {
+		_, err := clientSet.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				result = true
+				return true, nil
+			}
+			return false, err
+		}
+		return false, nil
+	})
+	return result, err
 }
