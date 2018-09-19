@@ -38,10 +38,10 @@ const (
 	KeyStoreTLSKeyFile = "tls.key"
 
 	// KeyStoreTLSCertFile is the key in a secret containing the TLS cert
-	KeyStoreTLSCertFile = "tls.cert"
+	KeyStoreTLSCertFile = "tls.crt"
 
 	// KeyStoreTLSCAFile is the key in a secret containing a CA cert
-	KeyStoreTLSCAFile = "ca.cert"
+	KeyStoreTLSCAFile = "ca.crt"
 
 	// KeyStorePrivateKeyFile is the key in a secret containing an RSA private key
 	KeyStorePrivateKeyFile = "id_rsa"

@@ -154,7 +154,7 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.ResponseWriter, r *http.Request) {
 	url := app.urlResolver(namespace, pvc)
 
-	req, err := http.NewRequest("POST", url, r.Body)
+	req, _ := http.NewRequest("POST", url, r.Body)
 	req.ContentLength = r.ContentLength
 
 	glog.V(3).Infof("Posting to: %s", url)
@@ -190,30 +190,43 @@ func (app *uploadProxyApp) Start() error {
 }
 
 func (app *uploadProxyApp) startTLS() error {
-	certsDirectory, err := ioutil.TempDir("", "certsdir")
-	if err != nil {
-		return errors.Errorf("Unable to create certs temporary directory: %v\n", errors.WithStack(err))
+	var serveFunc func() error
+	bindAddr := fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort)
+
+	if len(app.keyBytes) > 0 && len(app.certBytes) > 0 {
+		certsDirectory, err := ioutil.TempDir("", "certsdir")
+		if err != nil {
+			return errors.Errorf("Unable to create certs temporary directory: %v\n", errors.WithStack(err))
+		}
+		defer os.RemoveAll(certsDirectory)
+
+		keyFile := filepath.Join(certsDirectory, "/key.pem")
+		certFile := filepath.Join(certsDirectory, "/cert.pem")
+
+		err = ioutil.WriteFile(keyFile, app.keyBytes, 0600)
+		if err != nil {
+			return err
+		}
+		err = ioutil.WriteFile(certFile, app.certBytes, 0600)
+		if err != nil {
+			return err
+		}
+
+		serveFunc = func() error {
+			return http.ListenAndServeTLS(bindAddr, certFile, keyFile, nil)
+		}
+	} else {
+		serveFunc = func() error {
+			return http.ListenAndServe(bindAddr, nil)
+		}
 	}
-	defer os.RemoveAll(certsDirectory)
 
 	errChan := make(chan error)
-
-	keyFile := filepath.Join(certsDirectory, "/key.pem")
-	certFile := filepath.Join(certsDirectory, "/cert.pem")
-
-	err = ioutil.WriteFile(keyFile, app.keyBytes, 0600)
-	if err != nil {
-		return err
-	}
-	err = ioutil.WriteFile(certFile, app.certBytes, 0600)
-	if err != nil {
-		return err
-	}
 
 	http.HandleFunc(uploadPath, app.handleUploadRequest)
 
 	go func() {
-		errChan <- http.ListenAndServeTLS(fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort), certFile, keyFile, nil)
+		errChan <- serveFunc()
 	}()
 
 	// wait for server to exit

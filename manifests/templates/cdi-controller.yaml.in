@@ -304,12 +304,12 @@ spec:
           valueFrom:
             secretKeyRef:
               name: cdi-upload-server-client-key
-              key: tls.cert
+              key: tls.crt
         - name: UPLOAD_SERVER_CA_CERT
           valueFrom:
             secretKeyRef:
               name: cdi-upload-server-client-key
-              key: ca.cert
+              key: ca.crt
         - name: SERVICE_TLS_KEY
           valueFrom:
             secretKeyRef:
@@ -319,4 +319,4 @@ spec:
           valueFrom:
             secretKeyRef:
               name: cdi-upload-proxy-server-key
-              key: tls.cert
+              key: tls.crt

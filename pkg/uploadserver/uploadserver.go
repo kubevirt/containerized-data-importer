@@ -101,7 +101,7 @@ func (app *uploadServerApp) Run() error {
 		defer os.RemoveAll(certDir)
 
 		keyFile = filepath.Join(certDir, "tls.key")
-		certFile = filepath.Join(certDir, "tls.cert")
+		certFile = filepath.Join(certDir, "tls.crt")
 
 		err = ioutil.WriteFile(keyFile, []byte(app.tlsKey), 0600)
 		if err != nil {

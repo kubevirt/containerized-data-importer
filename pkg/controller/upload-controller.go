@@ -148,7 +148,7 @@ func NewUploadController(client kubernetes.Interface,
 		DeleteFunc: c.handleObject,
 	})
 
-	// Bind the service SharedIndexInformer to the pvc queue
+	// Bind the service SharedIndexInformer to the service queue
 	c.serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: c.handleObject,
 		UpdateFunc: func(old, new interface{}) {
@@ -156,7 +156,7 @@ func NewUploadController(client kubernetes.Interface,
 			oldDepl := old.(*v1.Service)
 			if newDepl.ResourceVersion == oldDepl.ResourceVersion {
 				// Periodic resync will send update events for all known Services.
-				// Two different versions of the same PVCs will always have different RVs.
+				// Two different versions of the same Servicess will always have different RVs.
 				return
 			}
 			c.handleObject(new)

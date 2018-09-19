@@ -45,12 +45,12 @@ func NewTLSSecret(namespace, secretName string, keyPair *triple.KeyPair, caCert 
 // NewTLSSecretFromBytes returns a new TLS secret from bytes
 func NewTLSSecretFromBytes(namespace, secretName string, privateKeyBytes, certBytes, caCertBytes []byte, owner *metav1.OwnerReference) *v1.Secret {
 	data := map[string][]byte{
-		"tls.key":  privateKeyBytes,
-		"tls.cert": certBytes,
+		"tls.key": privateKeyBytes,
+		"tls.crt": certBytes,
 	}
 
 	if caCertBytes != nil {
-		data["ca.cert"] = caCertBytes
+		data["ca.crt"] = caCertBytes
 	}
 
 	return newSecret(namespace, secretName, data, owner)
