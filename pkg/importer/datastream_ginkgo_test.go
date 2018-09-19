@@ -152,7 +152,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 				Expect(err).NotTo(HaveOccurred(), "Error formatting test data.")
 				fmt.Fprintf(GinkgoWriter, "INFO: converted source file name is %q\n", testSample)
 
-				testEp := "file://" + testSample
+				testEp := "file://" + testSample //TODO: use file server
 				testTarget := filepath.Join(tmpTestDir, common.ImporterWriteFile)
 				By(fmt.Sprintf("Importing %q to %q", testEp, testTarget))
 				err = importer.CopyImage(testTarget, testEp, "", "")
@@ -190,7 +190,6 @@ var _ = Describe("Streaming Data Conversion", func() {
 				fmt.Fprintf(GinkgoWriter, "End test on test file %q\n", testSample)
 			})
 		}
-		fmt.Fprintf(GinkgoWriter, "\nDEPRECATION NOTICE:\n   Support for local (file://) endpoints will be removed from CDI in the next release.\n   There is no replacement and no work-around.\n   All import endpoints must reference http(s) or s3 endpoints\n")
 	})
 })
 

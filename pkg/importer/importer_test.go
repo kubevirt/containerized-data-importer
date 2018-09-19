@@ -98,7 +98,7 @@ var _ = Describe("Importer", func() {
 				filename:    "test-local",
 				createFile:  false,
 				expected:    "file dataStream",
-				endpoint:    "file:///tmp/fake-file",
+				endpoint:    "file:///tmp/fake-file", //TODO: use file server
 				expectError: false,
 			},
 			{

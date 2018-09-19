@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+
 	"kubevirt.io/containerized-data-importer/pkg/system"
 )
 
