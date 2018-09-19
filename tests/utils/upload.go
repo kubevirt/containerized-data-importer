@@ -12,8 +12,11 @@ import (
 )
 
 const (
+	// UploadFileMD5 is the expected MD5 of the uploaded file
+	UploadFileMD5 = "2a7a52285c846314d1dbd79e9818270d"
+
 	uploadTargetAnnotation = "cdi.kubevirt.io/storage.upload.target"
-	uploadStatusAnnotation = "cdi.kubevirt.io/storage.upload.pod.phase"
+	uploadStatusAnnotation = "cdi.kubevirt.io/storage.pod.phase"
 
 	tmpDir            = "/tmp/cdi-upload-test"
 	imageFile         = "tinyCore.iso"

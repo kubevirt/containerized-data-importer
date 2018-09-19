@@ -33,6 +33,11 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
+const (
+	uploadRequestAnnotation = "cdi.kubevirt.io/storage.upload.target"
+	podPhaseAnnotation      = "cdi.kubevirt.io/storage.pod.phase"
+)
+
 type uploadFixture struct {
 	t *testing.T
 
@@ -284,7 +289,7 @@ func filterSecretGetAndCreateActions(filterNamespace string, actions []core.Acti
 
 func TestCreatesUploadPodAndService(t *testing.T) {
 	f := newUploadFixture(t)
-	pvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: ""}, nil)
+	pvc := createPvc("testPvc1", "default", map[string]string{uploadRequestAnnotation: ""}, nil)
 
 	f.pvcLister = append(f.pvcLister, pvc)
 	f.kubeobjects = append(f.kubeobjects, pvc)
@@ -305,7 +310,7 @@ func TestCreatesUploadPodAndService(t *testing.T) {
 
 func TestUpdatePodPhase(t *testing.T) {
 	f := newUploadFixture(t)
-	pvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: ""}, nil)
+	pvc := createPvc("testPvc1", "default", map[string]string{uploadRequestAnnotation: ""}, nil)
 	pod := createUploadPod(pvc)
 	service := createUploadService(pvc)
 
@@ -321,7 +326,7 @@ func TestUpdatePodPhase(t *testing.T) {
 	f.kubeobjects = append(f.kubeobjects, service)
 
 	updatedPVC := pvc.DeepCopy()
-	updatedPVC.Annotations[AnnUploadPodPhase] = string(corev1.PodRunning)
+	updatedPVC.Annotations[podPhaseAnnotation] = string(corev1.PodRunning)
 
 	f.expectUpdatePvcAction(updatedPVC)
 
@@ -330,7 +335,7 @@ func TestUpdatePodPhase(t *testing.T) {
 
 func TestUploadComplete(t *testing.T) {
 	f := newUploadFixture(t)
-	pvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: "", AnnUploadPodPhase: "Running"}, nil)
+	pvc := createPvc("testPvc1", "default", map[string]string{uploadRequestAnnotation: "", podPhaseAnnotation: "Running"}, nil)
 	pod := createUploadPod(pvc)
 	service := createUploadService(pvc)
 
@@ -346,7 +351,7 @@ func TestUploadComplete(t *testing.T) {
 	f.kubeobjects = append(f.kubeobjects, service)
 
 	updatedPVC := pvc.DeepCopy()
-	updatedPVC.Annotations[AnnUploadPodPhase] = string(corev1.PodSucceeded)
+	updatedPVC.Annotations[podPhaseAnnotation] = string(corev1.PodSucceeded)
 
 	f.expectUpdatePvcAction(updatedPVC)
 	f.expectDeleteServiceAction(service)
@@ -356,7 +361,7 @@ func TestUploadComplete(t *testing.T) {
 
 func TestSucceededDoNothing(t *testing.T) {
 	f := newUploadFixture(t)
-	pvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: "", AnnUploadPodPhase: "Succeeded"}, nil)
+	pvc := createPvc("testPvc1", "default", map[string]string{uploadRequestAnnotation: "", podPhaseAnnotation: "Succeeded"}, nil)
 
 	f.pvcLister = append(f.pvcLister, pvc)
 	f.kubeobjects = append(f.kubeobjects, pvc)
@@ -366,7 +371,7 @@ func TestSucceededDoNothing(t *testing.T) {
 
 func TestPVCNolongerExists(t *testing.T) {
 	f := newUploadFixture(t)
-	pvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: "", AnnUploadPodPhase: "Succeeded"}, nil)
+	pvc := createPvc("testPvc1", "default", map[string]string{uploadRequestAnnotation: "", podPhaseAnnotation: "Succeeded"}, nil)
 
 	f.run(getPvcKey(pvc, t))
 }
@@ -423,7 +428,7 @@ func TestUploadPossible(t *testing.T) {
 			"PVC is ready for upload",
 			args{
 				map[string]string{"cdi.kubevirt.io/storage.upload.target": "",
-					"cdi.kubevirt.io/storage.upload.pod.phase": "Running",
+					"cdi.kubevirt.io/storage.pod.phase": "Running",
 				},
 				false,
 			},
@@ -439,7 +444,7 @@ func TestUploadPossible(t *testing.T) {
 			"PVC not ready",
 			args{
 				map[string]string{"cdi.kubevirt.io/storage.upload.target": "",
-					"cdi.kubevirt.io/storage.upload.pod.phase": "Pending",
+					"cdi.kubevirt.io/storage.pod.phase": "Pending",
 				},
 				true,
 			},

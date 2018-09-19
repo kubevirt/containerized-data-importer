@@ -576,7 +576,7 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Annotations: map[string]string{
-				AnnCreatedByUpload: "yes",
+				annCreatedByUpload: "yes",
 			},
 			Labels: map[string]string{
 				common.CDILabelKey:              common.CDILabelValue,
@@ -686,7 +686,7 @@ func MakeUploadServiceSpec(name string, pvc *v1.PersistentVolumeClaim) *v1.Servi
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Annotations: map[string]string{
-				AnnCreatedByUpload: "yes",
+				annCreatedByUpload: "yes",
 			},
 			Labels: map[string]string{
 				common.CDILabelKey:       common.CDILabelValue,

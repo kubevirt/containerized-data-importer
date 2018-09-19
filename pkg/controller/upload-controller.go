@@ -38,38 +38,25 @@ import (
 )
 
 const (
-	// pvc annotations
-
 	// AnnUploadRequest marks that a PVC should be made available for upload
 	AnnUploadRequest = "cdi.kubevirt.io/storage.upload.target"
-	// AnnUploadPodPhase stores the status of the upload pod
-	AnnUploadPodPhase = "cdi.kubevirt.io/storage.upload.pod.phase"
 
-	// pod annotations
-
-	// AnnCreatedByUpload marks that a particular resource was created by the upload controller
-	AnnCreatedByUpload = "cdi.kubevirt.io/storage.createdByUploadController"
+	annCreatedByUpload = "cdi.kubevirt.io/storage.createdByUploadController"
 
 	// cert/key annotations
 
-	// uploadServerCASecret is the secret containing the server CA
 	uploadServerCASecret = "cdi-upload-server-ca-key"
-	// uploadServerCAName is the name of the server CA
-	uploadServerCAName = "server.upload.cdi.kubevirt.io"
+	uploadServerCAName   = "server.upload.cdi.kubevirt.io"
 
-	// uploadServerClientCASecret is the secret containing the clent CA
 	uploadServerClientCASecret = "cdi-upload-server-client-ca-key"
-	// uploadServerClientCAName is the name of the client CA
-	uploadServerClientCAName = "client.upload-server.cdi.kubevirt.io"
+	uploadServerClientCAName   = "client.upload-server.cdi.kubevirt.io"
 
-	// uploadServerClientKeySecret is the secret containing the client key/cert
 	uploadServerClientKeySecret = "cdi-upload-server-client-key"
-	// uploadProxyClientName is the CN for client cert
-	uploadProxyClientName = "uploadproxy.client.upload-server.cdi.kebevirt.io"
+	uploadProxyClientName       = "uploadproxy.client.upload-server.cdi.kebevirt.io"
 
-	uploadProxyCAName       = "proxy.upload.cdi.kubevirt.io"
 	uploadProxyCASecret     = "cdi-upload-proxy-ca-key"
 	uploadProxyServerSecret = "cdi-upload-proxy-server-key"
+	uploadProxyCAName       = "proxy.upload.cdi.kubevirt.io"
 )
 
 // UploadController members
@@ -102,7 +89,7 @@ func UploadPossibleForPVC(pvc *v1.PersistentVolumeClaim) error {
 		return errors.Errorf("PVC %s is not an upload target", pvc.Name)
 	}
 
-	pvcPodStatus, ok := pvc.Annotations[AnnUploadPodPhase]
+	pvcPodStatus, ok := pvc.Annotations[AnnPodPhase]
 	if !ok || v1.PodPhase(pvcPodStatus) != v1.PodRunning {
 		return errors.Errorf("Upload Server pod not currently running for PVC %s", pvc.Name)
 	}
@@ -139,9 +126,9 @@ func NewUploadController(client kubernetes.Interface,
 
 	// Bind the pvc SharedIndexInformer to the pvc queue
 	c.pvcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: c.enqueuePVC,
+		AddFunc: c.enqueueObject,
 		UpdateFunc: func(old, new interface{}) {
-			c.enqueuePVC(new)
+			c.enqueueObject(new)
 		},
 	})
 
@@ -285,7 +272,7 @@ func (c *UploadController) handleObject(obj interface{}) {
 	}
 	glog.V(3).Infof("Processing object: %s", object.GetName())
 	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
-		_, createdByUs := object.GetAnnotations()[AnnCreatedByUpload]
+		_, createdByUs := object.GetAnnotations()[annCreatedByUpload]
 
 		if ownerRef.Kind != "PersistentVolumeClaim" || !createdByUs {
 			return
@@ -299,15 +286,14 @@ func (c *UploadController) handleObject(obj interface{}) {
 
 		glog.V(3).Infof("queueing pvc %+v!!", pvc)
 
-		c.enqueuePVC(pvc)
+		c.enqueueObject(pvc)
 		return
 	}
 }
 
-func (c *UploadController) enqueuePVC(obj interface{}) {
-	var key string
-	var err error
-	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
+func (c *UploadController) enqueueObject(obj interface{}) {
+	key, err := cache.MetaNamespaceKeyFunc(obj)
+	if err != nil {
 		runtime.HandleError(err)
 		return
 	}
@@ -393,7 +379,7 @@ func (c *UploadController) syncHandler(key string) error {
 	}
 
 	podPhaseFromPVC := func(pvc *v1.PersistentVolumeClaim) v1.PodPhase {
-		phase, _ := pvc.ObjectMeta.Annotations[AnnUploadPodPhase]
+		phase, _ := pvc.ObjectMeta.Annotations[AnnPodPhase]
 		return v1.PodPhase(phase)
 	}
 
@@ -411,7 +397,7 @@ func (c *UploadController) syncHandler(key string) error {
 		podPhase := pod.Status.Phase
 		if podPhase != podPhaseFromPVC(pvc) {
 			var labels map[string]string
-			annotations := map[string]string{AnnUploadPodPhase: string(podPhase)}
+			annotations := map[string]string{AnnPodPhase: string(podPhase)}
 			pvc, err = updatePVC(c.client, pvc, annotations, labels)
 			if err != nil {
 				return errors.Wrapf(err, "Error updating pvc %s, pod phase %s", key, podPhase)

@@ -12,6 +12,8 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
+const testFile = utils.DefaultPvcMountPath + "/disk.img"
+
 var _ = Describe("Upload tests", func() {
 
 	f := framework.NewFrameworkOrDie("upload-func-test")
@@ -47,6 +49,10 @@ var _ = Describe("Upload tests", func() {
 		By("Wait pod succeeded")
 		err = f.WaitTimeoutForPodStatus(utils.UploadPodName(pvc), k8sv1.PodSucceeded, time.Second*20)
 		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify content")
+		same := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, testFile, utils.UploadFileMD5)
+		Expect(same).To(BeTrue())
 
 		By("Delete upoad PVC")
 		err = f.DeletePVC(pvc)
