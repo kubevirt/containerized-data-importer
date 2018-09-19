@@ -65,6 +65,8 @@ type DataVolumeSourceS3 struct {
 type DataVolumeSourceHTTP struct {
 	//URL is the URL of the http source
 	URL string `json:"url,omitempty"`
+	//SecretRef provides the secret reference needed to access the HTTP source
+	SecretRef string `json:"secretRef,omitempty"`
 }
 
 // DataVolumeStatus provides the parameters to store the phase of the Data Volume
