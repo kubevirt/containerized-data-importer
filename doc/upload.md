@@ -53,7 +53,7 @@ EOF
 Annotating a PVC with `cdi.kubevirt.io/storage.upload.target` marks the PVC as a target for CDI Upload.
 
 Take a look at at `manifests/example/upload-pvc.yaml` for an example.
-```
+```yaml
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -78,7 +78,7 @@ kubectl apply -f manifests/example/upload-pvc.yaml
 Before sending data to the Upload Proxy, and Upload Token must be requested.  The CDI API Server validatees that the user has permissions to `post` to `uploadtokenrequest` resources.
 
 Take a look at at `manifests/example/upload-token.yaml` for an example.
-```
+```yaml
 apiVersion: upload.cdi.kubevirt.io/v1alpha1
 kind: UploadTokenRequest
 metadata:
@@ -106,9 +106,9 @@ status:
   ```
   Save the `token` field of the response status.  It will be used to authorize our CDI Upload request. Tokens are good for 5 minutes.
 
-If you have [jq](https://github.com/stedolan/jq) installed, you can capture the token in an environment variable by doing something like this:
+You can capture the token in an environment variable by doing this:
 ```bash
-TOKEN=`kubectl apply -f manifests/example/upload-token.yaml -o json | jq -r '.status.token'`
+TOKEN=$(kubectl apply -f manifests/example/upload-token.yaml -o="jsonpath={.status.token}")
 ``` 
 
 ## Upload an Image
