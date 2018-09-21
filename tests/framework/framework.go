@@ -41,6 +41,7 @@ var (
 	cdiInstallNs *string
 	kubeConfig   *string
 	master       *string
+	goCLIPath    *string
 )
 
 type Config struct {
@@ -79,6 +80,7 @@ type Framework struct {
 	CdiInstallNs string
 	KubeConfig   string
 	Master       string
+	GoCLIPath    string
 }
 
 // TODO: look into k8s' SynchronizedBeforeSuite() and SynchronizedAfterSuite() code and their general
@@ -95,6 +97,7 @@ func init() {
 	cdiInstallNs = flag.String("cdi-namespace", "kube-system", "The namespace of the CDI controller")
 	kubeConfig = flag.String("kubeconfig", "/var/run/kubernetes/admin.kubeconfig", "The absolute path to the kubeconfig file")
 	master = flag.String("master", "", "master url:port")
+	goCLIPath = flag.String("gocli-path", "cli.sh", "The path to cli script")
 }
 
 // NewFrameworkOrDie calls NewFramework and handles errors by calling Fail. Config is optional, but
@@ -134,6 +137,7 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 	f.CdiInstallNs = *cdiInstallNs
 	f.KubeConfig = *kubeConfig
 	f.Master = *master
+	f.GoCLIPath = *goCLIPath
 
 	restConfig, err := f.LoadConfig()
 	if err != nil {

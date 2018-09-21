@@ -17,6 +17,9 @@ const (
 	// CDILabelSelector provides a constant to use for the selector to identify CDI objects in list
 	CDILabelSelector = CDILabelKey + "=" + CDILabelValue
 
+	// CDIComponentLabel can be added to all CDI resources
+	CDIComponentLabel = "cdi.kubevirt.io"
+
 	// host file constants:
 	importerWriteDir = "/data"
 	// ImporterWriteFile provides a constant for our importer/datastream_ginkgo_test and to build ImporterWritePath
@@ -56,6 +59,17 @@ const (
 	ClonerImagePath = "/tmp/clone/image"
 	// ClonerSocketPath (controller pkg only)
 	ClonerSocketPath = "/tmp/clone/socket"
+
+	// UploadServerCDILabel is the label applied to upload server resources
+	UploadServerCDILabel = "cdi-upload-server"
+
+	// UploadServerPodname is name of the upload server pod container
+	UploadServerPodname = UploadServerCDILabel
+
+	// UploadServerDataDir is the destination directoryfor uploads
+	UploadServerDataDir = ImporterDataDir
+	// UploadServerServiceLabel is the label selector for upload server services
+	UploadServerServiceLabel = "service"
 
 	// KeyAccess provides a constant to the accessKeyId label using in controller pkg and transport_test.go
 	KeyAccess = "accessKeyId"

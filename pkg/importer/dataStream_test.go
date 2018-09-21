@@ -7,16 +7,15 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -70,7 +69,7 @@ func createDataStream(ep, accKey, secKey string) *DataStream {
 		secretKey:   secKey,
 	}
 
-	ds.constructReaders()
+	ds.constructReaders(nil)
 
 	return ds
 }
@@ -127,39 +126,6 @@ func getURLPath(testfile string) string {
 	// being executed, so using relative path
 	imageDir, _ := filepath.Abs(TestImagesDir)
 	return "file://" + imageDir + "/" + testfile
-}
-
-func startHTTPServer(port int, dir string) (*http.Server, error) {
-	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
-		Handler: http.FileServer(http.Dir(dir)),
-	}
-
-	go func() {
-		if err := server.ListenAndServe(); err != nil {
-			// cannot panic, because this probably is an intentional close
-			log.Printf("Httpserver: ListenAndServe() error: %s", err)
-		}
-	}()
-
-	started := false
-	for i := 0; i < 10; i++ {
-		resp, err := http.Get(fmt.Sprintf("http://localhost:%d/", port))
-		if err != nil {
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-		resp.Body.Close()
-		started = true
-		break
-	}
-
-	if !started {
-		server.Shutdown(nil)
-		return nil, errors.New("Couldn't start http server")
-	}
-
-	return server, nil
 }
 
 func TestNewDataStream(t *testing.T) {
@@ -334,12 +300,8 @@ func TestCopyImage(t *testing.T) {
 	localImageBase := filepath.Join("file://", imageDir)
 
 	t.Logf("Image dir '%s' '%s'", imageDir, TestImagesDir)
-	port := 9999
-	server, err := startHTTPServer(port, imageDir)
-	if err != nil {
-		t.Errorf("Error setting up CopyImage test")
-	}
-	defer server.Shutdown(nil)
+	server := httptest.NewServer(http.FileServer(http.Dir(imageDir)))
+	defer server.Close()
 
 	tests := []struct {
 		name    string
@@ -372,7 +334,7 @@ func TestCopyImage(t *testing.T) {
 			name: "successfully copy streaming image",
 			args: args{
 				filepath.Join(localImageBase, "cirros-qcow2.raw"),
-				fmt.Sprintf("http://localhost:%d/cirros-qcow2.img", port),
+				fmt.Sprintf("%s/cirros-qcow2.img", server.URL),
 				"",
 				"",
 				NewFakeQEMUOperations(errors.New("should not be called"), nil, nil),
@@ -383,7 +345,7 @@ func TestCopyImage(t *testing.T) {
 			name: "streaming image qemu validation fails",
 			args: args{
 				filepath.Join(localImageBase, "cirros-qcow2.raw"),
-				fmt.Sprintf("http://localhost:%d/cirros-qcow2.img", port),
+				fmt.Sprintf("%s/cirros-qcow2.img", server.URL),
 				"",
 				"",
 				NewFakeQEMUOperations(nil, nil, errors.New("invalid image")),
@@ -394,7 +356,7 @@ func TestCopyImage(t *testing.T) {
 			name: "streaming image qemu convert fails",
 			args: args{
 				filepath.Join(localImageBase, "cirros-qcow2.raw"),
-				fmt.Sprintf("http://localhost:%d/cirros-qcow2.img", port),
+				fmt.Sprintf("%s/cirros-qcow2.img", server.URL),
 				"",
 				"",
 				NewFakeQEMUOperations(nil, errors.New("exit 1"), nil),
@@ -568,6 +530,41 @@ func Test_copy(t *testing.T) {
 			defer os.Remove(tt.args.out)
 			replaceQEMUOperations(tt.args.qemuOperations, func() {
 				if err := copy(tt.args.r, tt.args.out, tt.args.qemu); (err != nil) != tt.wantErr {
+					t.Errorf("copy() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			})
+		})
+	}
+}
+
+func Test_SaveStream(t *testing.T) {
+	type args struct {
+		r              io.ReadCloser
+		out            string
+		qemuOperations image.QEMUOperations
+	}
+
+	imageDir, _ := filepath.Abs(TestImagesDir)
+	file := filepath.Join(imageDir, "cirros-qcow2.img")
+	rdrfile, _ := os.Open(file)
+	rdrs2 := ioutil.NopCloser(bufio.NewReader(rdrfile))
+
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "successfully copy qcow2 reader",
+			args:    args{rdrs2, "testqcow2file", NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil)},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer os.Remove(tt.args.out)
+			replaceQEMUOperations(tt.args.qemuOperations, func() {
+				if _, err := SaveStream(tt.args.r, tt.args.out); (err != nil) != tt.wantErr {
 					t.Errorf("copy() error = %v, wantErr %v", err, tt.wantErr)
 				}
 			})

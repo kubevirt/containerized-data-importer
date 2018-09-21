@@ -1,18 +1,23 @@
 package controller
 
 import (
+	"crypto/x509"
 	"fmt"
 	"strings"
 	"time"
 
+	"k8s.io/client-go/util/cert/triple"
+
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/keys"
 )
 
 // DataVolName provides a const to use for creating volumes in pod specs
@@ -66,7 +71,7 @@ func getSecretName(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (
 	}
 	glog.V(3).Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, name)
 	_, err := client.CoreV1().Secrets(ns).Get(name, metav1.GetOptions{})
-	if apierrs.IsNotFound(err) {
+	if k8serrors.IsNotFound(err) {
 		glog.V(1).Infof("secret %q defined in pvc \"%s/%s\" is missing. Importer pod will run once this secret is created\n", name, ns, pvc.Name)
 		return name, nil
 	}
@@ -104,7 +109,7 @@ func updatePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, anno,
 		if e == nil {
 			return true, nil // successful update
 		}
-		if apierrs.IsConflict(e) { // pvc is likely stale
+		if k8serrors.IsConflict(e) { // pvc is likely stale
 			glog.V(3).Infof("pvc %q is stale, re-trying\n", nsName)
 			pvcCopy, e = client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
 			if e == nil {
@@ -296,7 +301,6 @@ func ParseSourcePvcAnnotation(sourcePvcAnno, del string) (namespace, name string
 		return "", ""
 	}
 	return strArr[0], strArr[1]
-
 }
 
 // CreateCloneSourcePod creates our cloning src pod which will be used for out of band cloning to read the contents of the src PVC
@@ -510,4 +514,210 @@ func MakeCloneTargetPodSpec(image, pullPolicy, podAffinityNamespace string, pvc 
 		},
 	}
 	return pod
+}
+
+// CreateUploadPod creates upload service pod manifest and sends to server
+func CreateUploadPod(client kubernetes.Interface,
+	caKeyPair *triple.KeyPair,
+	clientCACert *x509.Certificate,
+	image string,
+	verbose string,
+	pullPolicy string,
+	name string,
+	pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+	ns := pvc.Namespace
+	commonName := name + "." + ns
+	secretName := name + "-server-tls"
+	owner := MakeOwnerReference(pvc)
+
+	_, err := keys.GetOrCreateServerKeyPairAndCert(client, ns, secretName, caKeyPair, clientCACert, commonName, name, &owner)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error creating server key pair")
+	}
+
+	pod := MakeUploadPodSpec(image, verbose, pullPolicy, name, pvc, secretName)
+
+	pod, err = client.CoreV1().Pods(ns).Create(pod)
+	if err != nil {
+		if k8serrors.IsAlreadyExists(err) {
+			pod, err = client.CoreV1().Pods(ns).Get(name, metav1.GetOptions{})
+			if err != nil {
+				return nil, errors.Wrap(err, "upload pod should exist but couldn't retrieve it")
+			}
+		} else {
+			return nil, errors.Wrap(err, "upload pod API create errored")
+		}
+	}
+	glog.V(1).Infof("upload pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	return pod, nil
+}
+
+// MakeOwnerReference makes owner reference from a PVC
+func MakeOwnerReference(pvc *v1.PersistentVolumeClaim) metav1.OwnerReference {
+	blockOwnerDeletion := true
+	isController := true
+	return metav1.OwnerReference{
+		APIVersion:         "v1",
+		Kind:               "PersistentVolumeClaim",
+		Name:               pvc.Name,
+		UID:                pvc.GetUID(),
+		BlockOwnerDeletion: &blockOwnerDeletion,
+		Controller:         &isController,
+	}
+}
+
+// MakeUploadPodSpec creates upload service pod manifest
+func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.PersistentVolumeClaim, secretName string) *v1.Pod {
+	pod := &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Annotations: map[string]string{
+				annCreatedByUpload: "yes",
+			},
+			Labels: map[string]string{
+				common.CDILabelKey:              common.CDILabelValue,
+				common.CDIComponentLabel:        common.UploadServerCDILabel,
+				common.UploadServerServiceLabel: name,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				MakeOwnerReference(pvc),
+			},
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:            common.UploadServerPodname,
+					Image:           image,
+					ImagePullPolicy: v1.PullPolicy(pullPolicy),
+					VolumeMounts: []v1.VolumeMount{
+						{
+							Name:      DataVolName,
+							MountPath: common.UploadServerDataDir,
+						},
+					},
+					Env: []v1.EnvVar{
+						{
+							Name: "TLS_KEY",
+							ValueFrom: &v1.EnvVarSource{
+								SecretKeyRef: &v1.SecretKeySelector{
+									LocalObjectReference: v1.LocalObjectReference{
+										Name: secretName,
+									},
+									Key: keys.KeyStoreTLSKeyFile,
+								},
+							},
+						},
+						{
+							Name: "TLS_CERT",
+							ValueFrom: &v1.EnvVarSource{
+								SecretKeyRef: &v1.SecretKeySelector{
+									LocalObjectReference: v1.LocalObjectReference{
+										Name: secretName,
+									},
+									Key: keys.KeyStoreTLSCertFile,
+								},
+							},
+						},
+						{
+							Name: "CLIENT_CERT",
+							ValueFrom: &v1.EnvVarSource{
+								SecretKeyRef: &v1.SecretKeySelector{
+									LocalObjectReference: v1.LocalObjectReference{
+										Name: secretName,
+									},
+									Key: keys.KeyStoreTLSCAFile,
+								},
+							},
+						},
+					},
+					Args: []string{"-v=" + verbose},
+				},
+			},
+			RestartPolicy: v1.RestartPolicyOnFailure,
+			Volumes: []v1.Volume{
+				{
+					Name: DataVolName,
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvc.Name,
+							ReadOnly:  false,
+						},
+					},
+				},
+			},
+		},
+	}
+	return pod
+}
+
+// CreateUploadService creates upload service service manifest and sends to server
+func CreateUploadService(client kubernetes.Interface, name string, pvc *v1.PersistentVolumeClaim) (*v1.Service, error) {
+	ns := pvc.Namespace
+	service := MakeUploadServiceSpec(name, pvc)
+
+	service, err := client.CoreV1().Services(ns).Create(service)
+	if err != nil {
+		if k8serrors.IsAlreadyExists(err) {
+			service, err = client.CoreV1().Services(ns).Get(name, metav1.GetOptions{})
+			if err != nil {
+				return nil, errors.Wrap(err, "upload service should exist but couldn't retrieve it")
+			}
+		} else {
+			return nil, errors.Wrap(err, "upload pod API create errored")
+		}
+	}
+	glog.V(1).Infof("upload service \"%s/%s\" created\n", service.Namespace, service.Name)
+	return service, nil
+}
+
+// MakeUploadServiceSpec creates upload service service manifest
+func MakeUploadServiceSpec(name string, pvc *v1.PersistentVolumeClaim) *v1.Service {
+	blockOwnerDeletion := true
+	isController := true
+	service := &v1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Annotations: map[string]string{
+				annCreatedByUpload: "yes",
+			},
+			Labels: map[string]string{
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: common.UploadServerCDILabel,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         "v1",
+					Kind:               "PersistentVolumeClaim",
+					Name:               pvc.Name,
+					UID:                pvc.GetUID(),
+					BlockOwnerDeletion: &blockOwnerDeletion,
+					Controller:         &isController,
+				},
+			},
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Protocol: "TCP",
+					Port:     443,
+					TargetPort: intstr.IntOrString{
+						Type:   intstr.Int,
+						IntVal: 8443,
+					},
+				},
+			},
+			Selector: map[string]string{
+				common.UploadServerServiceLabel: name,
+			},
+		},
+	}
+	return service
 }

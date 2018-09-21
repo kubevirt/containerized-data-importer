@@ -21,14 +21,17 @@ import (
 )
 
 type data struct {
-	DockerRepo      string
-	DockerTag       string
-	ControllerImage string
-	ImporterImage   string
-	ClonerImage     string
-	Verbosity       string
-	PullPolicy      string
-	Namespace       string
+	DockerRepo        string
+	DockerTag         string
+	ControllerImage   string
+	ImporterImage     string
+	ClonerImage       string
+	APIServerImage    string
+	UploadProxyImage  string
+	UploadServerImage string
+	Verbosity         string
+	PullPolicy        string
+	Namespace         string
 }
 
 func main() {
@@ -37,6 +40,9 @@ func main() {
 	controllerImage := flag.String("controller-image", "", "")
 	importerImage := flag.String("importer-image", "", "")
 	clonerImage := flag.String("cloner-image", "", "")
+	apiServerImage := flag.String("apiserver-image", "", "")
+	uploadProxyImage := flag.String("uploadproxy-image", "", "")
+	uploadServerImage := flag.String("uploadserver-image", "", "")
 	templFile := flag.String("template", "", "")
 	verbosity := flag.String("verbosity", "1", "")
 	pullPolicy := flag.String("pull-policy", "", "")
@@ -44,14 +50,17 @@ func main() {
 	flag.Parse()
 
 	data := &data{
-		Verbosity:       *verbosity,
-		DockerRepo:      *dockerRepo,
-		DockerTag:       *dockertag,
-		ControllerImage: *controllerImage,
-		ImporterImage:   *importerImage,
-		ClonerImage:     *clonerImage,
-		PullPolicy:      *pullPolicy,
-		Namespace:       *namespace,
+		Verbosity:         *verbosity,
+		DockerRepo:        *dockerRepo,
+		DockerTag:         *dockertag,
+		ControllerImage:   *controllerImage,
+		ImporterImage:     *importerImage,
+		ClonerImage:       *clonerImage,
+		APIServerImage:    *apiServerImage,
+		UploadProxyImage:  *uploadProxyImage,
+		UploadServerImage: *uploadServerImage,
+		PullPolicy:        *pullPolicy,
+		Namespace:         *namespace,
 	}
 
 	file, err := os.OpenFile(*templFile, os.O_RDONLY, 0)

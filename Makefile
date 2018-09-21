@@ -12,9 +12,9 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-.PHONY: build build-controller build-importer build-functest-image-init build-functest-image-http build-functest \
-		docker docker-controller docker-cloner docker-importer docker-functest-image-init docker-functest-image-http\
-		cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer \
+.PHONY: build build-controller build-importer build-apiserver build-uploadproxy build-uploadserver build-functest-image-init build-functest-image-http build-functest \
+		docker docker-controller docker-cloner docker-importer docker-apiserver docker-uploadproxy docker-uploadserver docker-functest-image-init docker-functest-image-http\
+		cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer cluster-sync-apiserver cluster-sync-uploadproxy cluster-sync-uploadserver \
 		test test-functional test-unit test-lint \
 		publish \
 		vet \
@@ -42,6 +42,12 @@ build-controller: WHAT = cmd/cdi-controller
 build-controller: build
 build-importer: WHAT = cmd/cdi-importer
 build-importer: build
+build-apiserver: WHAT = cmd/cdi-apiserver
+build-apiserver: build
+build-uploadproxy: WHAT = cmd/cdi-uploadproxy
+build-uploadproxy: build
+build-uploadserver: WHAT = cmd/cdi-uploadserver
+build-uploadserver: build
 # Note, the cloner is a bash script and has nothing to build
 build-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
 build-functest-image-init:
@@ -74,6 +80,12 @@ docker-importer: WHAT = cmd/cdi-importer
 docker-importer: docker
 docker-cloner: WHAT = cmd/cdi-cloner
 docker-cloner: docker
+docker-apiserver: WHAT = cmd/cdi-apiserver
+docker-apiserver: docker
+docker-uploadproxy: WHAT = cmd/cdi-uploadproxy
+docker-uploadproxy: docker
+docker-uploadserver: WHAT = cmd/cdi-uploadserver
+docker-uploadserver: docker
 
 docker-functest-image: docker-functest-image-http docker-functest-image-init
 docker-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
@@ -91,6 +103,12 @@ push-importer: WHAT = cmd/cdi-importer
 push-importer: push
 push-cloner: WHAT = cdm/cdi-cloner
 push-cloner: push
+push-apiserver: WHAT = cmd/cdi-apiserver
+push-apiserver: push
+push-uploadproxy: WHAT = cmd/cdi-uploadproxy
+push-uploadproxy: push
+push-uploadserver: WHAT = cmd/cdi-uploadserver
+push-uploadserver: push
 
 publish: docker
 	./hack/build/build-docker.sh publish ${WHAT}
@@ -128,3 +146,16 @@ cluster-sync-importer: WHAT = cmd/cdi-importer
 cluster-sync-importer: cluster-sync
 cluster-sync-cloner: WHAT = cmd/cdi-cloner
 cluster-sync-cloner: cluster-sync
+cluster-sync-apiserver: WHAT = cmd/cdi-apiserver
+cluster-sync-apiserver: cluster-sync
+cluster-sync-uploadproxy: WHAT = cmd/cdi-uploadproxy
+cluster-sync-uploadproxy: cluster-sync
+cluster-sync-uploadserver: WHAT = cmd/cdi-uploadserver
+cluster-sync-uploadserver: cluster-sync
+
+functest:
+	./hack/build/functests.sh
+
+functest-image-host: WHAT=tools/cdi-func-test-file-host-init
+functest-image-host:  manifests build
+	${DO} ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-docker.sh "tools/cdi-func-test-file-host-init tools/cdi-func-test-file-host-http"
