@@ -62,3 +62,13 @@ func (f *Framework) VerifyTargetPVCContent(namespace *k8sv1.Namespace, pvc *k8sv
 	f.DeletePod(executorPod)
 	return strings.Compare(expectedData, output) == 0
 }
+
+func (f *Framework) VerifyTargetPVCContentMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, fileName string, expectedHash string) bool {
+	executorPod, err := utils.CreateExecutorPodWithPVC(f.K8sClient, "verify-pvc-content", namespace.Name, pvc)
+	Expect(err).ToNot(HaveOccurred())
+	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
+	Expect(err).ToNot(HaveOccurred())
+	output := f.ExecShellInPod(executorPod.Name, namespace.Name, "md5sum "+fileName)
+	f.DeletePod(executorPod)
+	return strings.Compare(expectedHash, output[:32]) == 0
+}

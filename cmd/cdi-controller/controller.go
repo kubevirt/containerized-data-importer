@@ -22,37 +22,30 @@ import (
 )
 
 var (
-	configPath    string
-	masterURL     string
-	importerImage string
-	clonerImage   string
-	pullPolicy    string
-	verbose       string
+	configPath             string
+	masterURL              string
+	importerImage          string
+	clonerImage            string
+	uploadServerImage      string
+	uploadProxyServiceName string
+	pullPolicy             string
+	verbose                string
 )
 
-// The importer and cloner images are obtained here along with the supported flags. IMPORTER_IMAGE and CLONER_IMAGE
+// The importer and cloner images are obtained here along with the supported flags. IMPORTER_IMAGE, CLONER_IMAGE, and UPLOADSERVICE_IMAGE
 // are required by the controller and will cause it to fail if not defined.
 // Note: kubeconfig hierarchy is 1) -kubeconfig flag, 2) $KUBECONFIG exported var. If neither is
 //   specified we do an in-cluster config. For testing it's easiest to export KUBECONFIG.
 func init() {
-	const IMPORTER_IMAGE = "IMPORTER_IMAGE"
-	const CLONER_IMAGE = "CLONER_IMAGE"
-
 	// flags
 	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG")
 	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
 	flag.Parse()
 
-	// env variables
-	importerImage = os.Getenv(IMPORTER_IMAGE)
-	if importerImage == "" {
-		glog.Fatalf("Environment Variable %q undefined\n", IMPORTER_IMAGE)
-	}
-
-	clonerImage = os.Getenv(CLONER_IMAGE)
-	if clonerImage == "" {
-		glog.Fatalf("Environment Variable %q undefined\n", CLONER_IMAGE)
-	}
+	importerImage = getRequiredEnvVar("IMPORTER_IMAGE")
+	clonerImage = getRequiredEnvVar("CLONER_IMAGE")
+	uploadServerImage = getRequiredEnvVar("UPLOADSERVER_IMAGE")
+	uploadProxyServiceName = getRequiredEnvVar("UPLOADPROXY_SERVICE")
 
 	pullPolicy = DefaultPullPolicy
 	if pp := os.Getenv(PullPolicy); len(pp) != 0 {
@@ -74,6 +67,14 @@ func init() {
 	}
 
 	glog.V(3).Infof("init: complete: cdi controller will create importer using image %q\n", importerImage)
+}
+
+func getRequiredEnvVar(name string) string {
+	val := os.Getenv(name)
+	if val == "" {
+		glog.Fatalf("Environment Variable %q undefined\n", name)
+	}
+	return val
 }
 
 func main() {
@@ -98,9 +99,13 @@ func main() {
 	podInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(client, DefaultResyncPeriod, "", func(options *v1.ListOptions) {
 		options.LabelSelector = CDILabelSelector
 	})
+	serviceInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(client, DefaultResyncPeriod, "", func(options *v1.ListOptions) {
+		options.LabelSelector = CDILabelSelector
+	})
 
 	pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims()
 	podInformer := podInformerFactory.Core().V1().Pods()
+	serviceInformer := serviceInformerFactory.Core().V1().Services()
 	dataVolumeInformer := cdiInformerFactory.Cdi().V1alpha1().DataVolumes()
 
 	dataVolumeController := controller.NewDataVolumeController(
@@ -123,6 +128,15 @@ func main() {
 		pullPolicy,
 		verbose)
 
+	uploadController := controller.NewUploadController(client,
+		pvcInformer,
+		podInformer,
+		serviceInformer,
+		uploadServerImage,
+		uploadProxyServiceName,
+		pullPolicy,
+		verbose)
+
 	glog.V(1).Infoln("created cdi controllers")
 
 	stopCh := handleSignals()
@@ -130,6 +144,7 @@ func main() {
 	go cdiInformerFactory.Start(stopCh)
 	go pvcInformerFactory.Start(stopCh)
 	go podInformerFactory.Start(stopCh)
+	go serviceInformerFactory.Start(stopCh)
 
 	glog.V(1).Infoln("started informers")
 
@@ -151,6 +166,13 @@ func main() {
 		err = cloneController.Run(1, stopCh)
 		if err != nil {
 			glog.Fatalln("Error running clone controller: %+v", err)
+		}
+	}()
+
+	go func() {
+		err = uploadController.Run(1, stopCh)
+		if err != nil {
+			glog.Fatalln("Error running upload controller: %+v", err)
 		}
 	}()
 

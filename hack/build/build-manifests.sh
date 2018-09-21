@@ -35,6 +35,9 @@ for tmpl in ${templates}; do
         -controller-image="${CONTROLLER_IMAGE_NAME}" \
         -importer-image="${IMPORTER_IMAGE_NAME}" \
         -cloner-image="${CLONER_IMAGE_NAME}" \
+        -apiserver-image=${APISERVER_IMAGE_NAME} \
+        -uploadproxy-image=${UPLOADPROXY_IMAGE_NAME} \
+        -uploadserver-image=${UPLOADSERVER_IMAGE_NAME} \
         -verbosity="${VERBOSITY}" \
         -pull-policy="${PULL_POLICY}" \
         -namespace="${NAMESPACE}"

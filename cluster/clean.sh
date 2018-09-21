@@ -15,6 +15,7 @@ for i in ${namespaces[@]}; do
     ./cluster/kubectl.sh -n ${i} delete services -l 'cdi.kubevirt.io'
     ./cluster/kubectl.sh -n ${i} delete validatingwebhookconfiguration -l 'cdi.kubevirt.io'
     ./cluster/kubectl.sh -n ${i} delete secrets -l 'cdi.kubevirt.io'
+    ./cluster/kubectl.sh -n ${i} delete configmaps -l 'cdi.kubevirt.io'
     ./cluster/kubectl.sh -n ${i} delete pv -l 'cdi.kubevirt.io'
     ./cluster/kubectl.sh -n ${i} delete pvc -l 'cdi.kubevirt.io'
     ./cluster/kubectl.sh -n ${i} delete ds -l 'cdi.kubevirt.io'

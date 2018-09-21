@@ -26,6 +26,7 @@ source hack/build/common.sh
 # functional testing
 KUBECTL=${KUBECTL:-${CDI_DIR}/cluster/.kubectl}
 KUBECONFIG=${KUBECONFIG:-${CDI_DIR}/cluster/.kubeconfig}
+GOCLI=${GOCLI:-${CDI_DIR}/cluster/cli.sh}
 KUBE_MASTER_URL=${KUBE_MASTER_URL:-""}
 CDI_NAMESPACE=${CDI_NAMESPACE:-kube-system}
 
@@ -37,8 +38,9 @@ arg_namespace="${CDI_NAMESPACE:+-cdi-namespace=$CDI_NAMESPACE}"
 arg_kubeconfig="${KUBECONFIG:+-kubeconfig=$KUBECONFIG}"
 arg_kubectl="${KUBECTL:+-kubectl-path=$KUBECTL}"
 arg_oc="${KUBECTL:+-oc-path=$KUBECTL}"
+arg_gocli="${GOCLI:+-gocli-path=$GOCLI}"
 
-test_args="${test_args} -ginkgo.v ${arg_master} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc}"
+test_args="${test_args} -ginkgo.v ${arg_master} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc} ${arg_gocli}"
 
 echo 'Wait until all CDI Pods are ready'
 retry_counter=0
