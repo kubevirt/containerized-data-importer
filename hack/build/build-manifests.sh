@@ -51,7 +51,7 @@ for tmpl in ${templates}; do
         -cloner-image="{{ cloner_image }}" \
         -verbosity="{{ verbosity }}" \
         -pull-policy="{{ pull_policy }}" \
-        -namespace="{{ namespace }}"
+        -namespace="{{ cdi_namespace }}"
     ) 1>"${MANIFEST_GENERATED_DIR}/${outFile}.j2"
 done
 
