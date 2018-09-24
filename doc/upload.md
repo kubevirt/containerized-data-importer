@@ -27,7 +27,7 @@ EOF
 ## Expose cdi-uploadproxy service
 In order to upload data to your cluster, the cdi-uploadproxy service must be accessible from outside the cluster.  In a production environment, the probably involves setting up a Ingress or a LoadBalancer Service.
 
-For Minikube, you can exexute the following which will create a NodePort service accessible from your host:
+### Minikube
 
 ```bash
 cat <<EOF | kubectl apply -f -
@@ -46,6 +46,25 @@ spec:
       protocol: TCP
   selector:
     cdi.kubevirt.io: cdi-uploadproxy
+EOF
+```
+
+### Minishift
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Route
+metadata:
+  name: cdi-uploadproxy
+  namespace: kube-system 
+spec:
+  host: cdi-uploadproxy
+  to:
+    kind: Service
+    name: cdi-uploadproxy 
+  tls:
+    termination: passthrough
 EOF
 ```
 
@@ -70,7 +89,7 @@ spec:
       storage: 1Gi
 
 ```
-```
+```bash
 kubectl apply -f manifests/example/upload-pvc.yaml
 ```
 
@@ -115,8 +134,16 @@ TOKEN=$(kubectl apply -f manifests/example/upload-token.yaml -o="jsonpath={.stat
 We will be using [curl](https://github.com/curl/curl) to upload `tests/images/cirros-qcow2.img` to the PVC.
 
 Assuming that the environment variable `TOKEN` contains a valid UploadToken, execute the following to upload the image:
+
+### Minikube
 ```bash
 curl -v --insecure -H "Authorization: Bearer $TOKEN" --data-binary @tests/images/cirros-qcow2.img https://$(minikube ip):31001/v1alpha1/upload
+```
+
+### Minishift
+
+```bash
+curl -v --insecure --resolve cdi-uploadproxy:443:$(minishift ip) -H "Authorization: Bearer $TOKEN" --data-binary @tests/images/cirros-qcow2.img https://cdi-uploadproxy/v1alpha1/upload
 ```
 
 Assuming you did not get an error, the PVC `upload-test` should now contain a bootable VM image.
