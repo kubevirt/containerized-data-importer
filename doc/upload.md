@@ -25,7 +25,7 @@ EOF
 ```
 
 ## Expose cdi-uploadproxy service
-In order to upload data to your cluster, the cdi-uploadproxy service must be accessible from outside the cluster.  In a production environment, the probably involves setting up a Ingress or a LoadBalancer Service.
+In order to upload data to your cluster, the cdi-uploadproxy service must be accessible from outside the cluster.  In a production environment, this probably involves setting up a Ingress or a LoadBalancer Service.
 
 ### Minikube
 
