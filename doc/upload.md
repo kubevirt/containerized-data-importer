@@ -52,14 +52,13 @@ EOF
 ### Minishift
 
 ```bash
-cat <<EOF | kubectl apply -f -
+cat <<EOF | oc apply -f -
 apiVersion: v1
 kind: Route
 metadata:
   name: cdi-uploadproxy
   namespace: kube-system 
 spec:
-  host: cdi-uploadproxy
   to:
     kind: Service
     name: cdi-uploadproxy 
