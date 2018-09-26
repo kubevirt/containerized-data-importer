@@ -49,9 +49,12 @@ for tmpl in ${templates}; do
         -controller-image="{{ controller_image }}" \
         -importer-image="{{ importer_image }}" \
         -cloner-image="{{ cloner_image }}" \
+        -apiserver-image="{{ apiserver_image }}" \
+        -uploadproxy-image="{{ uploadproxy_image }}" \
+        -uploadserver-image="{{ uploadserver_image }}" \
         -verbosity="{{ verbosity }}" \
         -pull-policy="{{ pull_policy }}" \
-        -namespace="{{ namespace }}"
+        -namespace="{{ cdi_namespace }}"
     ) 1>"${MANIFEST_GENERATED_DIR}/${outFile}.j2"
 done
 
