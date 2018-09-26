@@ -17,17 +17,80 @@ limitations under the License.
 package system
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"math/rand"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
+	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/gomega"
+
 	"github.com/pkg/errors"
 )
+
+var _ = Describe("Process Limits", func() {
+	limits := &ProcessLimitValues{1, 1}
+	nullLimiter := newTestProcessLimiter(nil, nil)
+
+	table.DescribeTable("exec", func(commandOverride func(string, ...string) *exec.Cmd, limiter ProcessLimiter, limits *ProcessLimitValues, command, output, errString string, args ...string) {
+		replaceExecCommand(commandOverride, func() {
+			replaceLimiter(limiter, func() {
+				output, err := ExecWithLimits(limits, command, args...)
+				strOutput := string(output)
+
+				Expect(strOutput).To(Equal(output))
+
+				if err != nil {
+					if errString == "" {
+						Expect(err).NotTo(HaveOccurred())
+					} else {
+						Expect(errors.Cause(err).Error()).To(Equal(errString))
+					}
+				} else if errString != "" {
+					Expect(err).To(HaveOccurred())
+				}
+			})
+		})
+	},
+		table.Entry("command success with real limits", fakeCommand, nil, &ProcessLimitValues{1 << 30, 10}, "faker", "", "", "0", "", ""),
+		table.Entry("command start fails", badCommand, nullLimiter, limits, "faker", "", "fork/exec /usr/bin/doesnotexist: no such file or directory", "", "", ""),
+		table.Entry("address space limit fails", fakeCommand, newTestProcessLimiter(errors.New("Set address limit fails"), nil), limits, "faker", "", "Set address limit fails", "", "", ""),
+		table.Entry("address space limit fails", fakeCommand, newTestProcessLimiter(nil, errors.New("Set CPU limit fails")), limits, "faker", "", "Set CPU limit fails", "", "", ""),
+		table.Entry("command exit bad", fakeCommand, nullLimiter, limits, "faker", "", "exit status 1", "1", "", ""),
+	)
+
+	table.DescribeTable("limits actually work", func(timeout time.Duration, f limitFunction, command, errString string, args ...string) {
+		_, err := runFakeCommandWithTimeout(timeout, f, command, args...)
+		Expect(err.Error()).To(Equal(errString))
+	},
+		table.Entry("killed by cpu time limit", 10*time.Second, func(p int) error { return SetCPUTimeLimit(p, 1) }, "spinner", "signal: killed", nil),
+		table.Entry("killed by memory limit", 10*time.Second, func(p int) error { return SetAddressSpaceLimit(p, (1<<20)*10) }, "hog", "exit status 2", nil),
+	)
+
+	It("Carriage return split should work", func() {
+		reader := strings.NewReader("This is a line\rThis is line two\nThis is line three")
+		scanner := bufio.NewScanner(reader)
+		scanner.Split(scanLinesWithCR)
+		hasMore := scanner.Scan()
+		Expect(hasMore).Should(BeTrue())
+		Expect(scanner.Text()).To(Equal("This is a line"))
+		hasMore = scanner.Scan()
+		Expect(hasMore).Should(BeTrue())
+		Expect(scanner.Text()).To(Equal("This is line two"))
+		hasMore = scanner.Scan()
+		Expect(hasMore).Should(BeTrue())
+		Expect(scanner.Text()).To(Equal("This is line three"))
+		hasMore = scanner.Scan()
+		Expect(hasMore).Should(BeFalse())
+	})
+})
 
 type testProcessLimiter struct {
 	addressSpaceError error
@@ -59,138 +122,19 @@ func badCommand(string, ...string) *exec.Cmd {
 	return exec.Command("/usr/bin/doesnotexist")
 }
 
-func TestExec(t *testing.T) {
-	type args struct {
-		commandOverride func(string, ...string) *exec.Cmd
-		limiter         ProcessLimiter
-		limits          *ProcessLimitValues
-		command         string
-		args            []string
-	}
-
-	limits := &ProcessLimitValues{1, 1}
-	nullLimiter := newTestProcessLimiter(nil, nil)
-
-	tests := []struct {
-		name      string
-		args      args
-		output    string
-		errString string
-	}{
-		{
-			"command success with real limits",
-			args{fakeCommand, nil, &ProcessLimitValues{1 << 30, 10}, "faker", []string{"0", "", ""}},
-			"",
-			"",
-		},
-		{
-			"command start fails",
-			args{badCommand, nullLimiter, limits, "faker", []string{"", "", ""}},
-			"",
-			"fork/exec /usr/bin/doesnotexist: no such file or directory",
-		},
-		{
-			"address space limit fails",
-			args{fakeCommand, newTestProcessLimiter(errors.New("Set address limit fails"), nil), limits, "faker", []string{"", "", ""}},
-			"",
-			"Set address limit fails",
-		},
-		{
-			"address space limit fails",
-			args{fakeCommand, newTestProcessLimiter(nil, errors.New("Set CPU limit fails")), limits, "faker", []string{"", "", ""}},
-			"",
-			"Set CPU limit fails",
-		},
-		{
-			"command exit bad",
-			args{fakeCommand, nullLimiter, limits, "faker", []string{"1", "", ""}},
-			"",
-			"exit status 1",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			replaceExecCommand(tt.args.commandOverride, func() {
-				replaceLimiter(tt.args.limiter, func() {
-					output, err := ExecWithLimits(tt.args.limits, tt.args.command, tt.args.args...)
-					strOutput := string(output)
-
-					if strOutput != tt.output {
-						t.Errorf("Unexpected output: %s expected: %s", strOutput, tt.output)
-					}
-
-					if err != nil {
-						if tt.errString == "" {
-							t.Errorf("'%s' got unexpected failure: %s", tt.name, err)
-						} else {
-							rootErr := errors.Cause(err)
-							if rootErr.Error() != tt.errString {
-								t.Errorf("'%s' got wrong failure: %s, expected %s", tt.name, rootErr, tt.errString)
-							}
-						}
-
-					} else if tt.errString != "" {
-						t.Errorf("'%s' got unexpected success, expected: %s", tt.name, tt.errString)
-					}
-				})
-			})
-		})
-	}
-}
-
-func TestLimitsActuallyWork(t *testing.T) {
-	type args struct {
-		timeout time.Duration
-		f       limitFunction
-		command string
-		args    []string
-	}
-
-	tests := []struct {
-		name      string
-		args      args
-		errString string
-	}{
-		{
-			"killed by cpu time limit",
-			args{10 * time.Second, func(p int) error { return SetCPUTimeLimit(p, 1) }, "spinner", nil},
-			"signal: killed",
-		},
-		{
-			"killed by memory limit",
-			args{10 * time.Second, func(p int) error { return SetAddressSpaceLimit(p, (1<<20)*10) }, "hog", nil},
-			"exit status 2",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			output, err := runFakeCommandWithTimeout(t, tt.args.timeout, tt.args.f, tt.args.command, tt.args.args...)
-			if err.Error() != tt.errString {
-				t.Log(string(output))
-				t.Errorf("'%s' unexpected error: %s, expected: %s", tt.name, err, tt.errString)
-			}
-		})
-	}
-}
-
 type limitFunction func(int) error
 
-func runFakeCommandWithTimeout(t *testing.T, duration time.Duration, f limitFunction, command string, args ...string) ([]byte, error) {
+func runFakeCommandWithTimeout(duration time.Duration, f limitFunction, command string, args ...string) ([]byte, error) {
 	var buf bytes.Buffer
 	cmd := fakeCommand(command, args...)
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
 	err := cmd.Start()
-	if err != nil {
-		t.Errorf("Command didn't start error is: %s", err)
-	}
+	Expect(err).NotTo(HaveOccurred())
 	defer cmd.Process.Kill()
 
 	err = f(cmd.Process.Pid)
-	if err != nil {
-		t.Errorf("Limit function failed error is: %s", err)
-	}
+	Expect(err).NotTo(HaveOccurred())
 
 	done := make(chan error)
 	go func() { done <- cmd.Wait() }()
@@ -199,7 +143,7 @@ func runFakeCommandWithTimeout(t *testing.T, duration time.Duration, f limitFunc
 
 	select {
 	case <-timeout:
-		t.Errorf("Process was not killed")
+		Fail("Process was not killed")
 	case err := <-done:
 		return buf.Bytes(), err
 	}
