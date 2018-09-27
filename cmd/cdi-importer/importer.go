@@ -18,8 +18,8 @@ import (
 
 	"github.com/golang/glog"
 
-	. "kubevirt.io/containerized-data-importer/pkg/common"
-	. "kubevirt.io/containerized-data-importer/pkg/importer"
+	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/importer"
 )
 
 func init() {
@@ -30,12 +30,12 @@ func main() {
 	defer glog.Flush()
 
 	glog.V(1).Infoln("Starting importer")
-	ep, _ := ParseEnvVar(ImporterEndpoint, false)
-	acc, _ := ParseEnvVar(ImporterAccessKeyID, false)
-	sec, _ := ParseEnvVar(ImporterSecretKey, false)
+	ep, _ := importer.ParseEnvVar(common.ImporterEndpoint, false)
+	acc, _ := importer.ParseEnvVar(common.ImporterAccessKeyID, false)
+	sec, _ := importer.ParseEnvVar(common.ImporterSecretKey, false)
 
 	glog.V(1).Infoln("begin import process")
-	err := CopyImage(ImporterWritePath, ep, acc, sec)
+	err := importer.CopyImage(common.ImporterWritePath, ep, acc, sec)
 	if err != nil {
 		glog.Errorf("%+v", err)
 		os.Exit(1)
