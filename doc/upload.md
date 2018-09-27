@@ -142,7 +142,7 @@ curl -v --insecure -H "Authorization: Bearer $TOKEN" --data-binary @tests/images
 ### Minishift
 
 ```bash
-curl -v --insecure --resolve cdi-uploadproxy:443:$(minishift ip) -H "Authorization: Bearer $TOKEN" --data-binary @tests/images/cirros-qcow2.img https://cdi-uploadproxy/v1alpha1/upload
+curl -v --insecure -H "Authorization: Bearer $TOKEN" --data-binary @tests/images/cirros-qcow2.img https://cdi-uploadproxy-kube-system.$(minishift ip).nip.io/v1alpha1/upload
 ```
 
 Assuming you did not get an error, the PVC `upload-test` should now contain a bootable VM image.
