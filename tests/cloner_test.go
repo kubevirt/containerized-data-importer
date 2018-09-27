@@ -69,7 +69,7 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 		map[string]string{controller.AnnCloneRequest: f.Namespace.Name + "/" + sourcePVCName},
 		nil))
 	Expect(err).ToNot(HaveOccurred())
-	err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)
+	utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)
 
 	By("Find cloner pods")
 	sourcePod, err := f.FindPodByPrefix(common.ClonerSourcePodName)
