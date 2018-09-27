@@ -1,4 +1,7 @@
 # Containerized Data Importer
+[![Go Report Card](https://goreportcard.com/badge/github.com/kubevirt/containerized-data-importer)](https://goreportcard.com/report/github.com/kubevirt/containerized-data-importer)
+[![Coverage Status](https://img.shields.io/coveralls/kubevirt/containerized-data-importer/master.svg)](https://coveralls.io/github/kubevirt/containerized-data-importer?branch=master)
+
 A declarative Kubernetes utility to import Virtual Machine images for use with [Kubevirt](https://github.com/kubevirt/kubevirt). At a high level, a persistent volume claim (PVC), which defines VM-suitable storage via a storage class, is created. A custom controller watches for importer specific claims, and when discovered, starts an import/copy process. The status of the import process is reflected in the same claim, and when the copy completes Kubevirt can create the VM based on the just-imported image.
 In Addition, the Containerized Data Importer gives the option to clone the imported VM image from one PVC to another one across two different namespaces (A.K.A Host-Assisted cloning). 
 
