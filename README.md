@@ -108,7 +108,7 @@ By default when using `manifests/generated/cdi-controller.yaml` CDI will deploy 
 1. Install CDI:
 
     ```
-    $ namespace=default \
+    $ cdi_namespace=default \
       docker_prefix=kubevirt \
       docker_tag=v1.1.1 \
       pull_policy=IfNotPresent \
