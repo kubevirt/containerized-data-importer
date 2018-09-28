@@ -138,6 +138,10 @@ func ExecWithLimits(limits *ProcessLimitValues, command string, args ...string) 
 	}
 
 	err = cmd.Wait()
+
+	// Make sure nothing is left in the buffer.
+	processScanner(scanner, &buf)
+	processScanner(errScanner, &buf)
 	output := buf.Bytes()
 	if err != nil {
 		glog.Errorf("%s %s failed output is:\n", command, args)
