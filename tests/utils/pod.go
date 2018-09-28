@@ -147,6 +147,7 @@ func podStatus(clientSet *kubernetes.Clientset, podName, namespace string, statu
 			}
 			return false, err
 		}
+		By("Checking POD phase: " + string(pod.Status.Phase))
 		switch pod.Status.Phase {
 		case status:
 			return true, nil

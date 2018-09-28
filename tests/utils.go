@@ -48,7 +48,12 @@ func RunKubectlCommand(f *framework.Framework, args ...string) (string, error) {
 
 //PrintControllerLog ...
 func PrintControllerLog(f *framework.Framework) {
-	log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+	PrintPodLog(f, f.ControllerPod.Name, f.CdiInstallNs)
+}
+
+//PrintPodLog ...
+func PrintPodLog(f *framework.Framework, podName, namespace string) {
+	log, err := RunKubectlCommand(f, "logs", podName, "-n", namespace)
 	if err == nil {
 		fmt.Fprintf(GinkgoWriter, "INFO: Controller log\n%s\n", log)
 	} else {
