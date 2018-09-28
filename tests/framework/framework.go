@@ -143,7 +143,7 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 	if err != nil {
 		// Can't use Expect here due this being called outside of an It block, and Expect
 		// requires any calls to it to be inside an It block.
-		err = errors.Wrap(err, "ERROR, unable to load RestConfig")
+		return nil, errors.Wrap(err, "ERROR, unable to load RestConfig")
 	} else {
 		f.RestConfig = restConfig
 	}
