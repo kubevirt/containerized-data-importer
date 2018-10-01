@@ -38,7 +38,7 @@ var _ = Describe("DataVolume tests", func() {
 
 	Describe("Verify DataVolume", func() {
 		table.DescribeTable("with http import source should", func(url string, phase cdiv1.DataVolumePhase, dataVolumeName string) {
-			dataVolume := utils.NewDataVolumeWithHttpImport(dataVolumeName, "1Gi", url)
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)

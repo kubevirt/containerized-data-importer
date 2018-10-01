@@ -88,8 +88,8 @@ var _ = Describe("Transport Tests", func() {
 		Expect(strconv.Atoi(exitCode)).To(BeZero())
 	}
 
-	httpNoAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HttpNoAuthPort)
-	httpAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HttpAuthPort)
+	httpNoAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPNoAuthPort)
+	httpAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPAuthPort)
 	DescribeTable("Transport Test Table", it,
 		Entry("should connect to http endpoint without credentials", httpNoAuthEp, targetFile, "", ""),
 		Entry("should connect to http endpoint with credentials", httpAuthEp, targetFile, utils.AccessKeyValue, utils.SecretKeyValue),
