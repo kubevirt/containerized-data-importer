@@ -16,10 +16,6 @@ limitations under the License.
 
 package importer
 
-// DEPRECATION NOTICE: Support for local (file://) endpoints will be removed from CDI in the next
-// release. There is no replacement and no work-around. All import endpoints must reference http(s)
-// or s3 endpoints\n")
-
 import (
 	"archive/tar"
 	"bytes"
@@ -160,8 +156,6 @@ func (d *DataStream) dataStreamSelector() (err error) {
 		r, err = d.s3()
 	case "http", "https":
 		r, err = d.http()
-	case "file":
-		r, err = d.local()
 	default:
 		return errors.Errorf("invalid url scheme: %q", scheme)
 	}
@@ -217,19 +211,6 @@ func (d *DataStream) http() (io.ReadCloser, error) {
 	return resp.Body, nil
 }
 
-func (d *DataStream) local() (io.ReadCloser, error) {
-	// temporary local import deprecation notice
-	glog.Warningf("\nDEPRECATION NOTICE:\n   Support for local (file://) endpoints will be removed from CDI in the next release.\n   There is no replacement and no work-around.\n   All import endpoints must reference http(s) or s3 endpoints\n")
-	fn := d.url.Path
-
-	f, err := os.Open(fn)
-	if err != nil {
-		return nil, errors.Wrapf(err, "could not open file %q", fn)
-	}
-	//note: if poor perf here consider wrapping this with a buffered i/o Reader
-	return f, nil
-}
-
 // CopyImage copies the source endpoint (vm image) to the provided destination path.
 func CopyImage(dest, endpoint, accessKey, secKey string) error {
 	glog.V(1).Infof("copying %q to %q...\n", endpoint, dest)
@@ -256,10 +237,6 @@ func SaveStream(stream io.ReadCloser, dest string) (int64, error) {
 	return ds.Size, nil
 }
 
-// DEPRECATION NOTICE: Support for local (file://) endpoints will be removed from CDI in the next
-// release. There is no replacement and no work-around. All import endpoints must reference http(s)
-// or s3 endpoints\n")
-//
 // Read the endpoint and determine the file composition (eg. .iso.tar.gz) based on the magic number in
 // each known file format header. Set the Reader slice in the receiver and set the Size field to each
 // reader's original size. Note: if, when this method returns, the Size is still 0 then another method
@@ -280,7 +257,6 @@ func SaveStream(stream io.ReadCloser, dest string) (int64, error) {
 //   "https://foo.iso.gz"        [http, mr, gz, mr, mr*]
 //   "https://foo.iso.tar.gz"    [http, mr, gz, mr, tar, mr]
 //   "https://foo.iso.xz"        [http, mr, xz, mr, mr*]
-//   "file://foo.iso.tar.xz"     [file, mr, xz, mr]
 //   "https://foo.qcow2"         [http, mr]		     note: there is no qcow2 reader
 //   "https://foo.qcow2.tar.gz"  [http, mr, gz, mr, tar, mr] note: there is no qcow2 reader
 //
