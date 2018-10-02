@@ -91,35 +91,44 @@ func scanLinesWithCR(data []byte, atEOF bool) (advance int, token []byte, err er
 	return 0, nil, nil
 }
 
-func processScanner(scanner *bufio.Scanner, buf *bytes.Buffer) {
+func processScanner(scanner *bufio.Scanner, buf *bytes.Buffer, done chan bool) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		buf.WriteString(line)
 		glog.V(1).Info(line)
 	}
+	done <- true
 }
 
 // ExecWithLimits executes a command with process limits
 func ExecWithLimits(limits *ProcessLimitValues, command string, args ...string) ([]byte, error) {
 	var buf bytes.Buffer
+	stdoutDone := make(chan bool)
+	stderrDone := make(chan bool)
 
 	cmd := execCommand(command, args...)
-	stdoutIn, _ := cmd.StdoutPipe()
-	stderrIn, _ := cmd.StderrPipe()
+	stdoutIn, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, errors.Wrapf(err, "Couldn't get stdout for %s", command)
+	}
+	stderrIn, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, errors.Wrapf(err, "Couldn't get stderr for %s", command)
+	}
 
 	scanner := bufio.NewScanner(stdoutIn)
 	scanner.Split(scanLinesWithCR)
 	errScanner := bufio.NewScanner(stderrIn)
 	errScanner.Split(scanLinesWithCR)
 
-	err := cmd.Start()
+	err = cmd.Start()
 	if err != nil {
 		return nil, errors.Wrapf(err, "Couldn't start %s", command)
 	}
 	defer cmd.Process.Kill()
 
-	go processScanner(scanner, &buf)
-	go processScanner(errScanner, &buf)
+	go processScanner(scanner, &buf, stdoutDone)
+	go processScanner(errScanner, &buf, stderrDone)
 
 	if limits != nil {
 		if limits.CPUTimeLimit > 0 {
@@ -138,10 +147,9 @@ func ExecWithLimits(limits *ProcessLimitValues, command string, args ...string) 
 	}
 
 	err = cmd.Wait()
+	<-stdoutDone
+	<-stderrDone
 
-	// Make sure nothing is left in the buffer.
-	processScanner(scanner, &buf)
-	processScanner(errScanner, &buf)
 	output := buf.Bytes()
 	if err != nil {
 		glog.Errorf("%s %s failed output is:\n", command, args)
