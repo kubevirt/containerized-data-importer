@@ -1,7 +1,9 @@
-package importer_test
+package importer
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -25,6 +27,9 @@ func TestDatastream(t *testing.T) {
 }
 
 var _ = AfterSuite(func() {
+	for _, filename := range testfiles {
+		os.Remove(filepath.Join(os.TempDir(), filename))
+	}
 	fmt.Fprintf(GinkgoWriter, "\nINFO: the following file formats are skipped in the `size.Size()` tests:\n")
 	for ex := range sizeExceptions {
 		fmt.Fprintf(GinkgoWriter, "\t%s\n", ex)

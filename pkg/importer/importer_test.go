@@ -31,8 +31,6 @@ func (d *FakeDataStream) fakeDataStreamSelector() io.ReadCloser {
 		return d.s3()
 	case "http", "https":
 		return d.http()
-	case "file":
-		return d.local()
 	default:
 		Fail(fmt.Sprintf("fakeDataStreamSelector: invalid url scheme: %s", d.url.Scheme))
 	}
@@ -45,10 +43,6 @@ func (d *FakeDataStream) s3() io.ReadCloser {
 
 func (d *FakeDataStream) http() io.ReadCloser {
 	return ioutil.NopCloser(bytes.NewReader([]byte("http dataStream")))
-}
-
-func (d *FakeDataStream) local() io.ReadCloser {
-	return ioutil.NopCloser(bytes.NewReader([]byte("file dataStream")))
 }
 
 // NewFakeDataStream: construct a new FakeDataStream object from params.
@@ -93,14 +87,6 @@ var _ = Describe("Importer", func() {
 		})
 
 		tests := []testT{
-			{
-				descr:       "use file",
-				filename:    "test-local",
-				createFile:  false,
-				expected:    "file dataStream",
-				endpoint:    "file:///tmp/fake-file",
-				expectError: false,
-			},
 			{
 				descr:       "use http",
 				filename:    "test-http",
