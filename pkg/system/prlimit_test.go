@@ -42,8 +42,8 @@ var _ = Describe("Process Limits", func() {
 	table.DescribeTable("exec", func(commandOverride func(string, ...string) *exec.Cmd, limiter ProcessLimiter, limits *ProcessLimitValues, command, output, errString string, args ...string) {
 		replaceExecCommand(commandOverride, func() {
 			replaceLimiter(limiter, func() {
-				output, err := ExecWithLimits(limits, command, args...)
-				strOutput := string(output)
+				result, err := ExecWithLimits(limits, command, args...)
+				strOutput := string(result)
 
 				Expect(strOutput).To(Equal(output))
 
@@ -70,8 +70,8 @@ var _ = Describe("Process Limits", func() {
 		_, err := runFakeCommandWithTimeout(timeout, f, command, args...)
 		Expect(err.Error()).To(Equal(errString))
 	},
-		table.Entry("killed by cpu time limit", 10*time.Second, func(p int) error { return SetCPUTimeLimit(p, 1) }, "spinner", "signal: killed", nil),
-		table.Entry("killed by memory limit", 10*time.Second, func(p int) error { return SetAddressSpaceLimit(p, (1<<20)*10) }, "hog", "exit status 2", nil),
+		table.Entry("killed by cpu time limit", 10*time.Second, func(p int) error { return SetCPUTimeLimit(p, 1) }, "spinner", "signal: killed", ""),
+		table.Entry("killed by memory limit", 10*time.Second, func(p int) error { return SetAddressSpaceLimit(p, (1<<21)*10) }, "hog", "exit status 2", ""),
 	)
 
 	It("Carriage return split should work", func() {
