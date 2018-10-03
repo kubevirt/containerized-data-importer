@@ -52,7 +52,8 @@ func (f *ControllerFixture) newController(image, pullPolicy, verbose string) *Co
 		podInformer,
 		image,
 		pullPolicy,
-		verbose)
+		verbose,
+		"Unknown")
 
 	for _, pod := range f.podLister {
 		c.podInformer.GetIndexer().Add(pod)

@@ -1239,7 +1239,7 @@ func createUploadPod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
 			Name:      name,
 			Namespace: pvc.Namespace,
 			Annotations: map[string]string{
-				annCreatedByUpload: "yes",
+				AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
 				"app":             "containerized-data-importer",
@@ -1330,7 +1330,7 @@ func createUploadService(pvc *v1.PersistentVolumeClaim) *v1.Service {
 			Name:      name,
 			Namespace: pvc.Namespace,
 			Annotations: map[string]string{
-				annCreatedByUpload: "yes",
+				AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
 				"app":             "containerized-data-importer",

@@ -401,10 +401,13 @@ func TestShouldCreateCerts(t *testing.T) {
 	kubeobjects := []runtime.Object{}
 
 	client := k8sfake.NewSimpleClientset(kubeobjects...)
+	//controller := NewEmptyController()
+	controller := &Controller{}
+	(*controller).clientset = client
 
-	controller := &UploadController{client: client, uploadProxyServiceName: "cdi-uploadproxy"}
+	uploadController := &UploadController{Controller: *controller, uploadProxyServiceName: "cdi-uploadproxy"}
 
-	err := controller.initCerts()
+	err := uploadController.initCerts()
 	if err != nil {
 		t.Errorf("init certs failed %+v", err)
 	}

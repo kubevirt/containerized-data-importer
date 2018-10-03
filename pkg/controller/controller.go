@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"kubevirt.io/containerized-data-importer/pkg/expectations"
+	"reflect"
 	"time"
 )
 
@@ -36,6 +37,7 @@ type Controller struct {
 	pullPolicy               string // Options: IfNotPresent, Always, or Never
 	verbose                  string // verbose levels: 1, 2, ...
 	podExpectations          *expectations.UIDTrackingControllerExpectations
+	ctlType                  string
 }
 
 //NewController is called when we instantiate any CDI controller.
@@ -44,7 +46,8 @@ func NewController(client kubernetes.Interface,
 	podInformer coreinformers.PodInformer,
 	image string,
 	pullPolicy string,
-	verbose string) *Controller {
+	verbose string,
+	ctlType string) *Controller {
 	c := &Controller{
 		clientset:       client,
 		queue:           workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
@@ -57,14 +60,15 @@ func NewController(client kubernetes.Interface,
 		image:           image,
 		pullPolicy:      pullPolicy,
 		verbose:         verbose,
+		ctlType:         ctlType,
 		podExpectations: expectations.NewUIDTrackingControllerExpectations(expectations.NewControllerExpectations()),
 	}
 
 	// Bind the pvc SharedIndexInformer to the pvc queue
 	c.pvcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: c.enqueuePVC,
+		AddFunc: c.enqueueObject,
 		UpdateFunc: func(old, new interface{}) {
-			c.enqueuePVC(new)
+			c.enqueueObject(new)
 		},
 	})
 
@@ -89,7 +93,14 @@ func NewController(client kubernetes.Interface,
 }
 
 func (c *Controller) handlePodAdd(obj interface{}) {
-	c.handlePodObject(obj, "add")
+	switch c.ctlType {
+	case "uploder":
+		c.handleObject("")
+		break
+	default:
+		c.handlePodObject(obj, "add")
+	}
+
 }
 func (c *Controller) handlePodUpdate(obj interface{}) {
 	c.handlePodObject(obj, "update")
@@ -100,6 +111,10 @@ func (c *Controller) handlePodDelete(obj interface{}) {
 
 func (c *Controller) observePodCreate(pvcKey string) {
 	c.podExpectations.CreationObserved(pvcKey)
+}
+
+func (c *Controller) handleObject(obj interface{}) {
+	c.handlePodObject(obj, "")
 }
 
 func (c *Controller) handlePodObject(obj interface{}, verb string) {
@@ -151,30 +166,25 @@ func (c *Controller) handlePodObject(obj interface{}, verb string) {
 
 			c.observePodCreate(pvcKey)
 		}
-		c.enqueuePVC(pvc)
+		c.enqueueObject(pvc)
 		return
 	}
 }
 
-func (c *Controller) enqueuePVC(obj interface{}) {
-	var key string
-	var err error
-	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
+func (c *Controller) enqueueObject(obj interface{}) {
+	key, err := cache.MetaNamespaceKeyFunc(obj)
+	if err != nil {
 		runtime.HandleError(err)
 		return
 	}
 	c.queue.AddRateLimited(key)
 }
 
-//Run is being called from cdi controllers
-func (c *Controller) run(threadiness int, stopCh <-chan struct{}, controller interface{}) error { //*CloneContorler
-	defer func() {
-		c.queue.ShutDown()
-	}()
-	glog.V(3).Infoln("Starting cdi controller Run loop")
-	if threadiness < 1 {
-		return errors.Errorf("expected >0 threads, got %d", threadiness)
-	}
+func waitForCacheSync(controllerName string, stopCh <-chan struct{}, c *Controller, v reflect.Value, controller interface{},
+	uploadController *UploadController) error {
+
+	glog.V(3).Infof("starting %s Run loop", controllerName)
+	glog.V(3).Infof("Waiting for %s informer caches to sync", controllerName)
 
 	if !cache.WaitForCacheSync(stopCh, c.pvcInformer.HasSynced) {
 		return errors.New("Timeout waiting for pvc cache sync")
@@ -182,15 +192,41 @@ func (c *Controller) run(threadiness int, stopCh <-chan struct{}, controller int
 	if !cache.WaitForCacheSync(stopCh, c.podInformer.HasSynced) {
 		return errors.New("Timeout waiting for pod cache sync")
 	}
-	glog.V(3).Infoln("Controller cache has synced")
-	for i := 0; i < threadiness; i++ {
-		//Go is not pure object oriented language. The command repetition below is a result of that.
-		switch t := controller.(type) {
-		case *ImportController:
-			go wait.Until(t.runPVCWorkers, time.Second, stopCh)
-		case *CloneController:
-			go wait.Until(t.runPVCWorkers, time.Second, stopCh)
+	if v.Type() == reflect.TypeOf(uploadController) {
+		if ok := cache.WaitForCacheSync(stopCh, controller.(*UploadController).servicesSynced); !ok {
+			return errors.New("Timeout waiting for service cache sync")
 		}
+	}
+	glog.V(3).Infof("%s cache has synced", controllerName)
+	return nil
+}
+
+//WorkerRunner is an interface implemented by different types of controllers that use this base controller
+type WorkerRunner interface {
+	RunWorkers()
+	WaitForCacheSync(stopCh <-chan struct{}, c *Controller, v reflect.Value, controller interface{}) error
+}
+
+//Run is being called from cdi controllers
+func (c *Controller) run(threadiness int, stopCh <-chan struct{}, controller interface{}) error {
+	defer func() {
+		runtime.HandleCrash()
+		c.queue.ShutDown()
+	}()
+
+	if threadiness < 1 {
+		return errors.Errorf("expected >0 threads, got %d", threadiness)
+	}
+	ctl := controller.(WorkerRunner)
+	v := reflect.ValueOf(controller)
+	if v.IsValid() {
+		ctl.WaitForCacheSync(stopCh, c, v, controller)
+	} else {
+		return errors.Errorf("controller type is not valid: %v", v)
+	}
+
+	for i := 0; i < threadiness; i++ {
+		go wait.Until(ctl.RunWorkers, time.Second, stopCh)
 	}
 	<-stopCh
 	return nil

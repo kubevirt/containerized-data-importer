@@ -10,6 +10,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"reflect"
 )
 
 const (
@@ -22,6 +23,8 @@ const (
 	//AnnTargetPodNamespace is being used as a pod label to find the related target PVC
 	AnnTargetPodNamespace = "cdi.kubevirt.io/storage.clone.targetPod.namespace"
 )
+
+var cloner = "cloner"
 
 // CloneController represents the CDI Clone Controller
 type CloneController struct {
@@ -37,7 +40,7 @@ func NewCloneController(client kubernetes.Interface,
 	pullPolicy string,
 	verbose string) *CloneController {
 	c := &CloneController{
-		Controller: *NewController(client, pvcInformer, podInformer, image, pullPolicy, verbose),
+		Controller: *NewController(client, pvcInformer, podInformer, image, pullPolicy, verbose, cloner),
 	}
 	return c
 }
@@ -226,7 +229,14 @@ func (cc *CloneController) Run(threadiness int, stopCh <-chan struct{}) error {
 	return nil
 }
 
-func (cc *CloneController) runPVCWorkers() {
+//RunWorkers is declared in Controller WorkerRunner interface
+func (cc *CloneController) RunWorkers() {
 	for cc.ProcessNextPvcItem() {
 	}
+}
+
+//WaitForCacheSync is declared in Controller WorkerRunner interface
+func (cc *CloneController) WaitForCacheSync(stopCh <-chan struct{}, c *Controller, v reflect.Value, controller interface{}) error {
+	waitForCacheSync("CloneController", stopCh, c, v, controller, nil)
+	return nil
 }

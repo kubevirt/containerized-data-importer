@@ -11,6 +11,7 @@ import (
 
 	"fmt"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"reflect"
 )
 
 const (
@@ -23,6 +24,8 @@ const (
 	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
 	LabelImportPvc = "cdi.kubevirt.io/storage.import.importPvcName"
 )
+
+var importer = "importer"
 
 // ImportController represents a CDI Import Controller
 type ImportController struct {
@@ -38,7 +41,7 @@ func NewImportController(client kubernetes.Interface,
 	pullPolicy string,
 	verbose string) *ImportController {
 	c := &ImportController{
-		Controller: *NewController(client, pvcInformer, podInformer, image, pullPolicy, verbose),
+		Controller: *NewController(client, pvcInformer, podInformer, image, pullPolicy, verbose, importer),
 	}
 	return c
 }
@@ -177,7 +180,14 @@ func (ic *ImportController) Run(threadiness int, stopCh <-chan struct{}) error {
 	return nil
 }
 
-func (ic *ImportController) runPVCWorkers() {
+//RunWorkers is declared in Controller WorkerRunner interface
+func (ic *ImportController) RunWorkers() {
 	for ic.ProcessNextPvcItem() {
 	}
+}
+
+//WaitForCacheSync is declared in Controller WorkerRunner interface
+func (ic *ImportController) WaitForCacheSync(stopCh <-chan struct{}, c *Controller, v reflect.Value, controller interface{}) error {
+	waitForCacheSync("ImportController", stopCh, c, v, controller, nil)
+	return nil
 }

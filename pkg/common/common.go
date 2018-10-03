@@ -7,8 +7,6 @@ import (
 )
 
 // Common types and constants used by the importer and controller.
-// TODO: maybe the vm cloner can use these common values
-
 const (
 	// CDILabelKey provides a constant for CDI PVC labels
 	CDILabelKey = "app"
