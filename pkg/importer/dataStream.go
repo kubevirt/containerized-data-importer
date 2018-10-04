@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/golang/glog"
 	"github.com/minio/minio-go"
@@ -92,6 +93,8 @@ var rdrTypM = map[string]int{
 	"xz":     rdrXz,
 	"stream": rdrStream,
 }
+
+const httpClientTimeout = time.Minute * 60
 
 // NewDataStream returns a DataStream object after validating the endpoint and constructing the reader/closer chain.
 // Note: the caller must close the `Readers` in reverse order. See Close().
@@ -188,9 +191,12 @@ func (d *DataStream) s3() (io.ReadCloser, error) {
 func (d *DataStream) http() (io.ReadCloser, error) {
 	client := http.Client{
 		CheckRedirect: func(r *http.Request, via []*http.Request) error {
-			r.SetBasicAuth(d.accessKeyID, d.secretKey) // Redirects will lose basic auth, so reset them manually
+			if len(d.accessKeyID) > 0 && len(d.secretKey) > 0 {
+				r.SetBasicAuth(d.accessKeyID, d.secretKey) // Redirects will lose basic auth, so reset them manually
+			}
 			return nil
 		},
+		Timeout: httpClientTimeout,
 	}
 	req, err := http.NewRequest("GET", d.url.String(), nil)
 	if err != nil {
