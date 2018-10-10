@@ -106,6 +106,22 @@ func newCloneDataVolume(name string) *cdiv1.DataVolume {
 	}
 }
 
+func newUploadDataVolume(name string) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: metav1.NamespaceDefault,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{
+				UPLOAD: &cdiv1.DataVolumeSourceUpload{},
+			},
+			PVC: &corev1.PersistentVolumeClaimSpec{},
+		},
+	}
+}
+
 func (f *fixture) newController() (*DataVolumeController, informers.SharedInformerFactory, kubeinformers.SharedInformerFactory) {
 	f.client = fake.NewSimpleClientset(f.objects...)
 	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
@@ -528,6 +544,109 @@ func TestClonePodFailed(t *testing.T) {
 func TestCloneClaimLost(t *testing.T) {
 	f := newFixture(t)
 	dataVolume := newCloneDataVolume("test")
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+
+	dataVolume.Status.Phase = cdiv1.Pending
+	pvc.Status.Phase = corev1.ClaimLost
+
+	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
+	f.objects = append(f.objects, dataVolume)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	result := dataVolume.DeepCopy()
+	result.Status.Phase = cdiv1.Failed
+	f.expectUpdateDataVolumeStatusAction(result)
+	f.run(getKey(dataVolume, t))
+}
+
+// Upload tests
+func TestUploadScheduled(t *testing.T) {
+	f := newFixture(t)
+	dataVolume := newUploadDataVolume("upload-datavolume")
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+
+	dataVolume.Status.Phase = cdiv1.Pending
+	pvc.Status.Phase = corev1.ClaimBound
+	pvc.Annotations[AnnUploadRequest] = ""
+
+	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
+	f.objects = append(f.objects, dataVolume)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	result := dataVolume.DeepCopy()
+	result.Status.Phase = cdiv1.UploadScheduled
+	f.expectUpdateDataVolumeStatusAction(result)
+	f.run(getKey(dataVolume, t))
+}
+
+func TestUploadReady(t *testing.T) {
+	f := newFixture(t)
+	dataVolume := newUploadDataVolume("upload-datavolume")
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+
+	dataVolume.Status.Phase = cdiv1.Pending
+	pvc.Status.Phase = corev1.ClaimBound
+	pvc.Annotations[AnnUploadRequest] = ""
+	pvc.Annotations[AnnPodPhase] = "Running"
+
+	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
+	f.objects = append(f.objects, dataVolume)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	result := dataVolume.DeepCopy()
+	result.Status.Phase = cdiv1.UploadReady
+	f.expectUpdateDataVolumeStatusAction(result)
+	f.run(getKey(dataVolume, t))
+}
+
+func TestUploadSucceeded(t *testing.T) {
+	f := newFixture(t)
+	dataVolume := newUploadDataVolume("upload-datavolume")
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+
+	dataVolume.Status.Phase = cdiv1.Pending
+	pvc.Status.Phase = corev1.ClaimBound
+	pvc.Annotations[AnnUploadRequest] = ""
+	pvc.Annotations[AnnPodPhase] = "Succeeded"
+
+	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
+	f.objects = append(f.objects, dataVolume)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	result := dataVolume.DeepCopy()
+	result.Status.Phase = cdiv1.Succeeded
+	f.expectUpdateDataVolumeStatusAction(result)
+	f.run(getKey(dataVolume, t))
+}
+
+func TestUploadPodFailed(t *testing.T) {
+	f := newFixture(t)
+	dataVolume := newCloneDataVolume("upload-datavolume")
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+
+	dataVolume.Status.Phase = cdiv1.Pending
+	pvc.Status.Phase = corev1.ClaimBound
+	pvc.Annotations[AnnUploadRequest] = ""
+	pvc.Annotations[AnnPodPhase] = "Failed"
+
+	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
+	f.objects = append(f.objects, dataVolume)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	result := dataVolume.DeepCopy()
+	result.Status.Phase = cdiv1.Failed
+	f.expectUpdateDataVolumeStatusAction(result)
+	f.run(getKey(dataVolume, t))
+}
+
+func TestUploadClaimLost(t *testing.T) {
+	f := newFixture(t)
+	dataVolume := newUploadDataVolume("upload-datavolume")
 	pvc, _ := newPersistentVolumeClaim(dataVolume)
 
 	dataVolume.Status.Phase = cdiv1.Pending

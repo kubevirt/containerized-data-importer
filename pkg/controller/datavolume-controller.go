@@ -334,6 +334,24 @@ func (c *DataVolumeController) updateCloneStatusPhase(pvc *corev1.PersistentVolu
 	}
 }
 
+func (c *DataVolumeController) updateUploadStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume) {
+	phase, ok := pvc.Annotations[AnnPodPhase]
+	if ok {
+		switch phase {
+		case string(corev1.PodPending):
+			// TODO: Use a more generic Scheduled, like maybe TransferScheduled.
+			dataVolumeCopy.Status.Phase = cdiv1.UploadScheduled
+		case string(corev1.PodRunning):
+			// TODO: Use a more generic In Progess, like maybe TransferInProgress.
+			dataVolumeCopy.Status.Phase = cdiv1.UploadReady
+		case string(corev1.PodFailed):
+			dataVolumeCopy.Status.Phase = cdiv1.Failed
+		case string(corev1.PodSucceeded):
+			dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+		}
+	}
+}
+
 func (c *DataVolumeController) updateDataVolumeStatus(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
 	dataVolumeCopy := dataVolume.DeepCopy()
 	var err error
@@ -369,6 +387,11 @@ func (c *DataVolumeController) updateDataVolumeStatus(dataVolume *cdiv1.DataVolu
 			if ok {
 				dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
 				c.updateCloneStatusPhase(pvc, dataVolumeCopy)
+			}
+			_, ok = pvc.Annotations[AnnUploadRequest]
+			if ok {
+				dataVolumeCopy.Status.Phase = cdiv1.UploadScheduled
+				c.updateUploadStatusPhase(pvc, dataVolumeCopy)
 			}
 
 		case corev1.ClaimLost:
@@ -493,7 +516,8 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 		} else {
 			annotations[AnnCloneRequest] = dataVolume.Namespace + "/" + dataVolume.Spec.Source.PVC.Name
 		}
-
+	} else if dataVolume.Spec.Source.UPLOAD != nil {
+		annotations[AnnUploadRequest] = ""
 	} else {
 		return nil, errors.Errorf("no source set for datavolume")
 	}
