@@ -33,6 +33,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/golang/glog"
 	"github.com/minio/minio-go"
 	"github.com/pkg/errors"
@@ -241,6 +243,23 @@ func SaveStream(stream io.ReadCloser, dest string) (int64, error) {
 		return 0, errors.Wrap(err, "data stream copy failed")
 	}
 	return ds.Size, nil
+}
+
+// ExapndImage resizes image to the specified size (if larger than current size)
+func ExapndImage(dest, pvcSize string) error {
+	info, err := qemuOperations.Info(dest)
+	if err != nil {
+		return err
+	}
+	imageSizeQuantity := resource.NewQuantity(info.VirtualSize, resource.BinarySI)
+	pvcSizeQuantity := resource.MustParse(pvcSize)
+	if imageSizeQuantity.Cmp(pvcSizeQuantity) >= 0 {
+		glog.V(1).Infof("No need to expand image. Requested size: %s, Image size: %d.\n", pvcSize, info.VirtualSize)
+		return nil
+	}
+
+	glog.V(1).Infof("Expanding image size to: %s\n", pvcSize)
+	return qemuOperations.Resize(dest, pvcSize)
 }
 
 // Read the endpoint and determine the file composition (eg. .iso.tar.gz) based on the magic number in

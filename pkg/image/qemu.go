@@ -34,10 +34,19 @@ const (
 	maxCPUSecs         = 30      //value from OpenStack Nova
 )
 
+// ImgInfo represents the return value of 'qemu-img info'
+type ImgInfo struct {
+	Format      string `json:"format"`
+	BackingFile string `json:"backing-filename"`
+	VirtualSize int64  `json:"virtual-size"`
+}
+
 // QEMUOperations defines the interface for executing qemu subprocesses
 type QEMUOperations interface {
 	ConvertQcow2ToRaw(string, string) error
 	ConvertQcow2ToRawStream(*url.URL, string) error
+	Resize(string, string) error
+	Info(string) (*ImgInfo, error)
 	Validate(string, string) error
 }
 
@@ -76,22 +85,35 @@ func (o *qemuOperations) ConvertQcow2ToRawStream(url *url.URL, dest string) erro
 	return nil
 }
 
-func (o *qemuOperations) Validate(image, format string) error {
-	type imageInfo struct {
-		Format      string `json:"format"`
-		BackingFile string `json:"backing-filename"`
+func (o *qemuOperations) Resize(image, size string) error {
+	_, err := qemuExecFunction(qemuLimits, "qemu-img", "resize", "-f", "raw", image, size)
+	if err != nil {
+		return errors.Wrapf(err, "Error resizing image %s", image)
 	}
 
+	return nil
+}
+
+func (o *qemuOperations) Info(image string) (*ImgInfo, error) {
 	output, err := qemuExecFunction(qemuLimits, "qemu-img", "info", "--output=json", image)
 	if err != nil {
-		return errors.Wrapf(err, "Error getting info on image %s", image)
+		return nil, errors.Wrapf(err, "Error getting info on image %s", image)
 	}
 
-	var info imageInfo
+	var info ImgInfo
 	err = json.Unmarshal(output, &info)
 	if err != nil {
 		glog.Errorf("Invalid JSON:\n%s\n", string(output))
-		return errors.Wrapf(err, "Invalid json for image %s", image)
+		return nil, errors.Wrapf(err, "Invalid json for image %s", image)
+	}
+
+	return &info, nil
+}
+
+func (o *qemuOperations) Validate(image, format string) error {
+	info, err := qemuIterface.Info(image)
+	if err != nil {
+		return err
 	}
 
 	if info.Format != format {
@@ -114,6 +136,16 @@ func ConvertQcow2ToRaw(src, dest string) error {
 // ConvertQcow2ToRawStream converts an http accessible qcow2 image to raw format without locally caching the qcow2 image
 func ConvertQcow2ToRawStream(url *url.URL, dest string) error {
 	return qemuIterface.ConvertQcow2ToRawStream(url, dest)
+}
+
+// Resize the specified image to the specfied size (using qemu-img resize)
+func Resize(image, size string) error {
+	return qemuIterface.Resize(image, size)
+}
+
+// Info retrun information about the specified image (using qemu-img info)
+func Info(image string) (*ImgInfo, error) {
+	return qemuIterface.Info(image)
 }
 
 // Validate does basic validation of a qemu image

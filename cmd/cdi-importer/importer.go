@@ -33,6 +33,7 @@ func main() {
 	ep, _ := importer.ParseEnvVar(common.ImporterEndpoint, false)
 	acc, _ := importer.ParseEnvVar(common.ImporterAccessKeyID, false)
 	sec, _ := importer.ParseEnvVar(common.ImporterSecretKey, false)
+	pvcSize, _ := importer.ParseEnvVar(common.ImporterPvcSize, false)
 
 	glog.V(1).Infoln("begin import process")
 	err := importer.CopyImage(common.ImporterWritePath, ep, acc, sec)
@@ -41,4 +42,10 @@ func main() {
 		os.Exit(1)
 	}
 	glog.V(1).Infoln("import complete")
+
+	glog.V(1).Infoln("Expanding image (if required)")
+	err = importer.ExapndImage(common.ImporterWritePath, pvcSize)
+	if err != nil {
+		glog.Warningf("Could not expand image, error: %+v", err)
+	}
 }

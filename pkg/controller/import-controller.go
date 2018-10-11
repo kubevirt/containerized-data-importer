@@ -103,9 +103,13 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 		if secretName == "" {
 			glog.V(2).Infof("no secret will be supplied to endpoint %q\n", ep)
 		}
+		pvcSize, err := getPvcSize(pvc)
+		if err != nil {
+			return err
+		}
 		// all checks passed, let's create the importer pod!
 		ic.expectPodCreate(pvcKey)
-		pod, err = CreateImporterPod(ic.clientset, ic.image, ic.verbose, ic.pullPolicy, ep, secretName, pvc)
+		pod, err = CreateImporterPod(ic.clientset, ic.image, ic.verbose, ic.pullPolicy, ep, secretName, pvcSize, pvc)
 		if err != nil {
 			ic.observePodCreate(pvcKey)
 			return err

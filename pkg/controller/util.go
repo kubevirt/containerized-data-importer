@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"k8s.io/client-go/util/cert/triple"
 
 	"github.com/golang/glog"
@@ -82,6 +84,19 @@ func getSecretName(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (
 	return name, nil
 }
 
+// returns the PVC size with fs overhead percentage included.
+func getPvcSize(pvc *v1.PersistentVolumeClaim) (string, error) {
+	pvcSize, found := pvc.Spec.Resources.Requests[v1.ResourceStorage]
+	if !found {
+		return "", errors.Errorf("storage request is missing in pvc \"%s/%s\"", pvc.Namespace, pvc.Name)
+	}
+	// Accounting filesystem overhead - up to 4% according to:
+	// https://rwmj.wordpress.com/2009/11/08/filesystem-metadata-overhead/
+	newSizeValue := int64(float64(pvcSize.Value()) * float64(0.96))
+	newSize := resource.NewQuantity(newSizeValue, resource.BinarySI)
+	return newSize.String(), nil
+}
+
 // Update and return a copy of the passed-in pvc. Only one of the annotation or label maps is required though
 // both can be passed.
 // Note: the only pvc changes supported are annotations and labels.
@@ -156,9 +171,9 @@ func checkIfLabelExists(pvc *v1.PersistentVolumeClaim, lbl string, val string) b
 // CreateImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret
 // name, and pvc. A nil secret means the endpoint credentials are not passed to the
 // importer pod.
-func CreateImporterPod(client kubernetes.Interface, image, verbose, pullPolicy, ep, secretName string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+func CreateImporterPod(client kubernetes.Interface, image, verbose, pullPolicy, ep, secretName, pvcSize string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
 	ns := pvc.Namespace
-	pod := MakeImporterPodSpec(image, verbose, pullPolicy, ep, secretName, pvc)
+	pod := MakeImporterPodSpec(image, verbose, pullPolicy, ep, secretName, pvcSize, pvc)
 
 	pod, err := client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
@@ -169,7 +184,7 @@ func CreateImporterPod(client kubernetes.Interface, image, verbose, pullPolicy, 
 }
 
 // MakeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
-func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
+func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret, pvcSize string, pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	// importer pod name contains the pvc name
 	podName := fmt.Sprintf("%s-%s-", common.ImporterPodName, pvc.Name)
 
@@ -230,18 +245,22 @@ func MakeImporterPodSpec(image, verbose, pullPolicy, ep, secret string, pvc *v1.
 			},
 		},
 	}
-	pod.Spec.Containers[0].Env = makeEnv(ep, secret)
+	pod.Spec.Containers[0].Env = makeEnv(ep, secret, pvcSize)
 	return pod
 }
 
 // return the Env portion for the importer container.
-func makeEnv(endpoint, secret string) []v1.EnvVar {
+func makeEnv(endpoint, secret, pvcSize string) []v1.EnvVar {
 	env := []v1.EnvVar{
 		{
 			Name:  common.ImporterEndpoint,
 			Value: endpoint,
 		},
 	}
+	env = append(env, v1.EnvVar{
+		Name:  common.ImporterPvcSize,
+		Value: pvcSize,
+	})
 	if secret != "" {
 		env = append(env, v1.EnvVar{
 			Name: common.ImporterAccessKeyID,
