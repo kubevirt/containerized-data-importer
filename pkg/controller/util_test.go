@@ -897,6 +897,10 @@ func createEnv(podEnvVar importPodEnvVar, uid string) []v1.EnvVar {
 			Name:  OwnerUID,
 			Value: string(uid),
 		},
+		{
+			Name:  OwnerUID,
+			Value: string(uid),
+		},
 	}
 	if podEnvVar.secretName != "" {
 		env = append(env, v1.EnvVar{
