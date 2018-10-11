@@ -681,6 +681,8 @@ func TestMakeImporterPodSpec(t *testing.T) {
 }
 
 func Test_makeEnv(t *testing.T) {
+	const mockUID = "1111-1111-1111-1111"
+
 	type args struct {
 		podEnvVar importPodEnvVar
 	}
@@ -693,12 +695,12 @@ func Test_makeEnv(t *testing.T) {
 		{
 			name: "env should match",
 			args: args{importPodEnvVar{"myendpoint", "mysecret"}},
-			want: createEnv(importPodEnvVar{"myendpoint", "mysecret"}),
+			want: createEnv(importPodEnvVar{"myendpoint", "mysecret"}, mockUID),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := makeEnv(tt.args.podEnvVar); !reflect.DeepEqual(got, tt.want) {
+			if got := makeEnv(tt.args.podEnvVar, mockUID); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("makeEnv() = %v, want %v", got, tt.want)
 			}
 		})
@@ -764,8 +766,9 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 				AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				CDILabelKey:    CDILabelValue,
-				LabelImportPvc: pvc.Name,
+				CDILabelKey:     CDILabelValue,
+				LabelImportPvc:  pvc.Name,
+				PrometheusLabel: "",
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -791,6 +794,13 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 						},
 					},
 					Args: []string{"-v=5"},
+					Ports: []v1.ContainerPort{
+						{
+							Name:          "metrics",
+							ContainerPort: 8443,
+							Protocol:      v1.ProtocolTCP,
+						},
+					},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyOnFailure,
@@ -813,6 +823,10 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 		{
 			Name:  ImporterEndpoint,
 			Value: ep,
+		},
+		{
+			Name:  OwnerUID,
+			Value: string(pvc.UID),
 		},
 	}
 	return pod
@@ -873,11 +887,15 @@ func createSecret(name, ns, accessKey, secretKey string, labels map[string]strin
 	}
 }
 
-func createEnv(podEnvVar importPodEnvVar) []v1.EnvVar {
+func createEnv(podEnvVar importPodEnvVar, uid string) []v1.EnvVar {
 	env := []v1.EnvVar{
 		{
 			Name:  ImporterEndpoint,
 			Value: podEnvVar.ep,
+		},
+		{
+			Name:  OwnerUID,
+			Value: string(uid),
 		},
 	}
 	if podEnvVar.secretName != "" {

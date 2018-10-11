@@ -14,6 +14,7 @@ import (
 	"k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -196,7 +197,8 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar importPodE
 			Labels: map[string]string{
 				common.CDILabelKey: common.CDILabelValue,
 				// this label is used when searching for a pvc's import pod.
-				LabelImportPvc: pvc.Name,
+				LabelImportPvc:         pvc.Name,
+				common.PrometheusLabel: "",
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -222,6 +224,13 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar importPodE
 						},
 					},
 					Args: []string{"-v=" + verbose},
+					Ports: []v1.ContainerPort{
+						{
+							Name:          "metrics",
+							ContainerPort: 8443,
+							Protocol:      v1.ProtocolTCP,
+						},
+					},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyOnFailure,
@@ -238,16 +247,25 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar importPodE
 			},
 		},
 	}
-	pod.Spec.Containers[0].Env = makeEnv(podEnvVar)
+
+	ownerUID := pvc.UID
+	if len(pvc.OwnerReferences) == 1 {
+		ownerUID = pvc.OwnerReferences[0].UID
+	}
+	pod.Spec.Containers[0].Env = makeEnv(podEnvVar, ownerUID)
 	return pod
 }
 
 // return the Env portion for the importer container.
-func makeEnv(podEnvVar importPodEnvVar) []v1.EnvVar {
+func makeEnv(podEnvVar importPodEnvVar, uid types.UID) []v1.EnvVar {
 	env := []v1.EnvVar{
 		{
 			Name:  common.ImporterEndpoint,
 			Value: podEnvVar.ep,
+		},
+		{
+			Name:  common.OwnerUID,
+			Value: string(uid),
 		},
 	}
 	if podEnvVar.secretName != "" {

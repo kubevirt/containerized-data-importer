@@ -11,6 +11,8 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 type FakeDataStream struct {
@@ -185,7 +187,7 @@ var _ = Describe("Importer", func() {
 			d := test.expected
 			It("use base64", func() {
 				os.Setenv(e, v)
-				Expect(ParseEnvVar(e, b)).To(Equal(d))
+				Expect(util.ParseEnvVar(e, b)).To(Equal(d))
 			})
 		}
 	})

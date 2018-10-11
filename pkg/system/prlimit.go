@@ -91,17 +91,19 @@ func scanLinesWithCR(data []byte, atEOF bool) (advance int, token []byte, err er
 	return 0, nil, nil
 }
 
-func processScanner(scanner *bufio.Scanner, buf *bytes.Buffer, done chan bool) {
+func processScanner(scanner *bufio.Scanner, buf *bytes.Buffer, done chan bool, callback func(string)) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		buf.WriteString(line)
-		glog.V(1).Info(line)
+		if callback != nil {
+			callback(line)
+		}
 	}
 	done <- true
 }
 
 // ExecWithLimits executes a command with process limits
-func ExecWithLimits(limits *ProcessLimitValues, command string, args ...string) ([]byte, error) {
+func ExecWithLimits(limits *ProcessLimitValues, callback func(string), command string, args ...string) ([]byte, error) {
 	var buf bytes.Buffer
 	stdoutDone := make(chan bool)
 	stderrDone := make(chan bool)
@@ -127,8 +129,8 @@ func ExecWithLimits(limits *ProcessLimitValues, command string, args ...string) 
 	}
 	defer cmd.Process.Kill()
 
-	go processScanner(scanner, &buf, stdoutDone)
-	go processScanner(errScanner, &buf, stderrDone)
+	go processScanner(scanner, &buf, stdoutDone, callback)
+	go processScanner(errScanner, &buf, stderrDone, callback)
 
 	if limits != nil {
 		if limits.CPUTimeLimit > 0 {
