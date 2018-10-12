@@ -25,6 +25,7 @@ const (
 	fillCommand           = "echo \"" + fillData + "\" >> " + testFile
 	assertionPollInterval = 2 * time.Second
 	cloneCompleteTimeout  = 60 * time.Second
+	shortTimeout          = 2 * time.Second
 )
 
 var _ = Describe(testSuiteName, func() {
@@ -69,6 +70,7 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 		map[string]string{controller.AnnCloneRequest: f.Namespace.Name + "/" + sourcePVCName},
 		nil))
 	Expect(err).ToNot(HaveOccurred())
+	fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 	utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)
 
 	By("Find cloner pods")
@@ -94,11 +96,6 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 		return srcNode == tgtNode
 	}, cloneCompleteTimeout, assertionPollInterval).Should(BeTrue())
 
-	err = f.WaitTimeoutForPodStatus(sourcePod.Name, v1.PodSucceeded, cloneCompleteTimeout)
-	Expect(err).ToNot(HaveOccurred())
-	err = utils.WaitTimeoutForPodStatus(f.K8sClient, targetPod.Name, targetNs.Name, v1.PodSucceeded, cloneCompleteTimeout)
-	Expect(err).ToNot(HaveOccurred())
-
 	By("Verify the clone annotation is on the target PVC")
 	_, cloneAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnCloneOf)
 	Expect(err).ToNot(HaveOccurred())
@@ -119,4 +116,14 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 		err = utils.DeletePVC(f.K8sClient, targetNs.Name, targetPvc)
 		Expect(err).ToNot(HaveOccurred())
 	}
+
+	By("Verify source pod deleted")
+	deleted, err := utils.WaitPodDeleted(f.K8sClient, sourcePod.Name, targetPod.Namespace, time.Second*40)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(deleted).To(BeTrue())
+
+	By("Verify target pod deleted")
+	deleted, err = utils.WaitPodDeleted(f.K8sClient, targetPod.Name, targetNs.Name, time.Second*40)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(deleted).To(BeTrue())
 }

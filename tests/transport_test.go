@@ -71,7 +71,6 @@ var _ = Describe("Transport Tests", func() {
 		if err != nil {
 			PrintPodLog(f, importer.Name, ns)
 		}
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
 
 		By("Verifying PVC is not empty")
 		Expect(framework.VerifyPVCIsEmpty(f, pvc)).To(BeFalse(), fmt.Sprintf("Found 0 imported files on PVC %q", pvc.Namespace+"/"+pvc.Name))
