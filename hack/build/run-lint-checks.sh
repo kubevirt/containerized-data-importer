@@ -29,13 +29,13 @@ if [[ ${out} ]]; then
     ec=1
 fi
 for p in "${LINTABLE[@]}"; do
-  echo "running golint on directory: ${p}"
-  out="$(golint ${p}/...)"
-  if [[ ${out} ]]; then
-    echo "FAIL: following golint errors found:"
-    echo "${out}"
-    ec=1
-  fi
+    echo "running golint on directory: ${p}"
+    out="$(golint ${p}/...)"
+    if [[ ${out} ]]; then
+        echo "FAIL: following golint errors found:"
+        echo "${out}"
+        ec=1
+    fi
 done
 
 exit ${ec}

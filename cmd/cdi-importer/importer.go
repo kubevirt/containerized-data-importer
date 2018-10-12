@@ -19,6 +19,7 @@ import (
 	"github.com/golang/glog"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 )
 
@@ -33,6 +34,8 @@ func main() {
 	ep, _ := importer.ParseEnvVar(common.ImporterEndpoint, false)
 	acc, _ := importer.ParseEnvVar(common.ImporterAccessKeyID, false)
 	sec, _ := importer.ParseEnvVar(common.ImporterSecretKey, false)
+	resize, _ := importer.ParseEnvVar(common.ImporterResize, false)
+	resizeTo, _ := importer.ParseEnvVar(common.ImporterResizeTo, false)
 
 	glog.V(1).Infoln("begin import process")
 	err := importer.CopyImage(common.ImporterWritePath, ep, acc, sec)
@@ -41,4 +44,14 @@ func main() {
 		os.Exit(1)
 	}
 	glog.V(1).Infoln("import complete")
+
+	if resize == "true" {
+		glog.V(1).Infoln("begin resize process")
+		err := image.Resize(common.ImporterWritePath, resizeTo)
+		if err != nil {
+			glog.Errorf("%+v", err)
+			os.Exit(1)
+		}
+		glog.V(1).Infoln("resize complete")
+	}
 }

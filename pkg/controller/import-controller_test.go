@@ -84,7 +84,7 @@ func (f *ImportFixture) runController(pvcName string,
 // Verifies basic pod creation when new PVC is discovered
 func TestCreatesImportPod(t *testing.T) {
 	f := newImportFixture(t)
-	pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
+	pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: "http://test", AnnResizeTo: "123B"}, nil)
 
 	f.pvcLister = append(f.pvcLister, pvc)
 	f.kubeobjects = append(f.kubeobjects, pvc)

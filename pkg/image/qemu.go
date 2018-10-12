@@ -39,6 +39,7 @@ type QEMUOperations interface {
 	ConvertQcow2ToRaw(string, string) error
 	ConvertQcow2ToRawStream(*url.URL, string) error
 	Validate(string, string) error
+	Resize(string, string) error
 }
 
 type qemuOperations struct{}
@@ -105,6 +106,16 @@ func (o *qemuOperations) Validate(image, format string) error {
 	return nil
 }
 
+func (o *qemuOperations) Resize(image, size string) error {
+	glog.V(2).Infoln("resizing raw image" + image + " to size: " + size)
+	_, err := qemuExecFunction(qemuLimits, "qemu-img", "resize", "-f", "raw", image, size)
+	if err != nil {
+		return errors.Wrap(err, "could not resize disk img to "+size)
+	}
+
+	return nil
+}
+
 // ConvertQcow2ToRaw is a wrapper for qemu-img convert which takes a qcow2 file (specified by src) and converts
 // it to a raw image (written to the provided dest file)
 func ConvertQcow2ToRaw(src, dest string) error {
@@ -119,4 +130,9 @@ func ConvertQcow2ToRawStream(url *url.URL, dest string) error {
 // Validate does basic validation of a qemu image
 func Validate(image, format string) error {
 	return qemuIterface.Validate(image, format)
+}
+
+// Resize change disk.img size to be equal to DataVolume size
+func Resize(image, size string) error {
+	return qemuIterface.Resize(image, size)
 }

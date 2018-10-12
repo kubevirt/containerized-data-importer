@@ -17,6 +17,10 @@ import (
 const (
 	// AnnEndpoint provides a const for our PVC endpoint annotation
 	AnnEndpoint = "cdi.kubevirt.io/storage.import.endpoint"
+	// AnnResize ddada
+	AnnResize = "cdi.kubevirt.io/storage.import.resize"
+	// AnnResizeTo dadad
+	AnnResizeTo = "cdi.kubevirt.io/storage.import.resizeTo"
 	// AnnSecret provides a const for our PVC secretName annotation
 	AnnSecret = "cdi.kubevirt.io/storage.import.secretName"
 	// AnnImportPod provides a const for our PVC importPodName annotation
@@ -31,7 +35,7 @@ type ImportController struct {
 }
 
 type importPodEnvVar struct {
-	ep, secretName string
+	ep, secretName, resizeTo string
 }
 
 // NewImportController sets up an Import Controller, and returns a pointer to
@@ -104,6 +108,13 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 			return err
 		}
 		podEnvVar.secretName, err = getSecretName(ic.clientset, pvc)
+		if err != nil {
+			return err
+		}
+		podEnvVar.resizeTo, err := getResizeTo(pvc)
+		if err != nil {
+			return err
+		}
 		if err != nil {
 			return err
 		}

@@ -96,7 +96,7 @@ var _ = Describe("Controller", func() {
 				ns:          "", // blank used originally in these unit tests
 				name:        "test-pvc",
 				qops:        opAdd,
-				annotations: map[string]string{AnnEndpoint: "http://www.google.com"},
+				annotations: map[string]string{AnnEndpoint: "http://www.google.com", AnnResizeTo: "1231B"},
 				expectError: false,
 			},
 			{
@@ -104,7 +104,7 @@ var _ = Describe("Controller", func() {
 				ns:          "ns-a",
 				name:        "test-pvc",
 				qops:        opAdd,
-				annotations: map[string]string{AnnEndpoint: "http://www.google.com"},
+				annotations: map[string]string{AnnEndpoint: "http://www.google.com", AnnResizeTo: "1231B"},
 				expectError: false,
 			},
 			{
@@ -120,7 +120,7 @@ var _ = Describe("Controller", func() {
 				ns:          "ns-a",
 				name:        "test-pvc",
 				qops:        opUpdate,
-				annotations: map[string]string{AnnEndpoint: "http://www.google.com"},
+				annotations: map[string]string{AnnEndpoint: "http://www.google.com", AnnResizeTo: "1231B"},
 				expectError: false,
 			},
 
@@ -129,7 +129,7 @@ var _ = Describe("Controller", func() {
 				ns:          "ns-a",
 				name:        "test-pvc",
 				qops:        opUpdate,
-				annotations: map[string]string{AnnEndpoint: "http://www.google.com", AnnPodPhase: "Succeeded"},
+				annotations: map[string]string{AnnEndpoint: "http://www.google.com", AnnPodPhase: "Succeeded", AnnResizeTo: "1231B"},
 				expectError: true,
 			},
 		}

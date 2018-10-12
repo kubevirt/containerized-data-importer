@@ -38,6 +38,8 @@ type DataVolumeSpec struct {
 	Source DataVolumeSource `json:"source"`
 	//PVC is a pointer to the PVC Spec we want to use
 	PVC *corev1.PersistentVolumeClaimSpec `json:"pvc"`
+	//Resize define if image on DataVolume should be resized
+	Resize bool `json:"resize,omitempty"`
 }
 
 // DataVolumeSource represents the source for our Data Volume, this can be HTTP, S3 or an existing PVC

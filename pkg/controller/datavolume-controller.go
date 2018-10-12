@@ -614,6 +614,17 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 
 	annotations := make(map[string]string)
 
+	if dataVolume.Spec.Resize {
+		annotations[AnnResize] = "true"
+	} else {
+		annotations[AnnResize] = "false"
+	}
+
+	quant := dataVolume.Spec.PVC.Resources.Requests[corev1.ResourceStorage]
+	// keep 5% free space on the volume
+	sizeTo := quant.Value() - int64(float64(quant.Value())*0.05)
+	annotations[AnnResizeTo] = fmt.Sprint(sizeTo, "B")
+
 	if dataVolume.Spec.Source.HTTP != nil {
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.HTTP.URL
 		if dataVolume.Spec.Source.HTTP.SecretRef != "" {

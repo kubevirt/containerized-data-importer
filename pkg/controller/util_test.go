@@ -612,6 +612,8 @@ func TestCreateImporterPod(t *testing.T) {
 		pullPolicy string
 		podEnvVar  importPodEnvVar
 		pvc        *v1.PersistentVolumeClaim
+		resize     string
+		resizeTo   string
 	}
 
 	// create PVC
@@ -651,6 +653,8 @@ func TestMakeImporterPodSpec(t *testing.T) {
 		pullPolicy string
 		podEnvVar  importPodEnvVar
 		pvc        *v1.PersistentVolumeClaim
+		resize     string
+		resizeTo   string
 	}
 	// create PVC
 	pvc := createPvc("testPVC2", "default", nil, nil)
@@ -809,10 +813,18 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 	}
 
 	ep, _ := getEndpoint(pvc)
+	resize, _ := getResize(pvc)
+	resizeTo, _ := getResizeTo(pvc)
 	pod.Spec.Containers[0].Env = []v1.EnvVar{
 		{
 			Name:  ImporterEndpoint,
 			Value: ep,
+		}, {
+			Name:  ImporterResize,
+			Value: resize,
+		}, {
+			Name:  ImporterResizeTo,
+			Value: resizeTo,
 		},
 	}
 	return pod
@@ -878,6 +890,9 @@ func createEnv(podEnvVar importPodEnvVar) []v1.EnvVar {
 		{
 			Name:  ImporterEndpoint,
 			Value: podEnvVar.ep,
+		}, {
+			Name:  ImporterResizeTo,
+			Value: resizeTo,
 		},
 	}
 	if podEnvVar.secretName != "" {
