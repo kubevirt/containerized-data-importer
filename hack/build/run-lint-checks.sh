@@ -38,12 +38,4 @@ for p in "${LINTABLE[@]}"; do
   fi
 done
 
-#echo "running golint on the pkg directory (golint pkg/...)"
-#out="$(golint pkg/...)"
-#if [[ ${out} ]]; then
-#    echo "FAIL: following golint errors found:"
-#    echo "${out}"
-#    ec=1
-#fi
-
 exit ${ec}
