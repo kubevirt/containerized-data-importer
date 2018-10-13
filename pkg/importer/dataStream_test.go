@@ -330,7 +330,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 		// Disabled until issue 335 is resolved
 		// https://github.com/kubevirt/containerized-data-importer/issues/335
 		//table.Entry("should unpack .tar.xz", baseTestImage, false, image.ExtTar, image.ExtXz),
-		table.Entry("should convert .qcow2", baseTestImage, true, image.ExtQcow2),
+		//table.Entry("should convert .qcow2", baseTestImage, true, image.ExtQcow2),
 		table.Entry("should convert and unpack .qcow2.gz", baseTestImage, false, image.ExtQcow2, image.ExtGz),
 		table.Entry("should convert and unpack .qcow2.xz", baseTestImage, false, image.ExtQcow2, image.ExtXz),
 		table.Entry("should convert and untar .qcow2.tar", baseTestImage, false, image.ExtQcow2, image.ExtTar),
