@@ -6,8 +6,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	k8sv1 "k8s.io/api/core/v1"
-
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -46,15 +44,11 @@ var _ = Describe("Upload tests", func() {
 		err = utils.UploadImageFromNode(f.K8sClient, f.GoCLIPath, token)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Wait pod succeeded")
-		err = f.WaitTimeoutForPodStatus(utils.UploadPodName(pvc), k8sv1.PodSucceeded, time.Second*20)
-		Expect(err).ToNot(HaveOccurred())
-
 		By("Verify content")
 		same := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, testFile, utils.UploadFileMD5)
 		Expect(same).To(BeTrue())
 
-		By("Delete upoad PVC")
+		By("Delete upload PVC")
 		err = f.DeletePVC(pvc)
 		Expect(err).ToNot(HaveOccurred())
 

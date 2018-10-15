@@ -355,7 +355,7 @@ func TestUploadComplete(t *testing.T) {
 
 	f.expectUpdatePvcAction(updatedPVC)
 	f.expectDeleteServiceAction(service)
-
+	f.expectDeletePodAction(pod)
 	f.run(getPvcKey(pvc, t))
 }
 

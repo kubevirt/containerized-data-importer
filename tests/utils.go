@@ -56,7 +56,7 @@ func PrintPodLog(f *framework.Framework, podName, namespace string) {
 	if err == nil {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Controller log\n%s\n", log)
 	} else {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Unable to get controller log")
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Unable to get controller log\n")
 	}
 }
 

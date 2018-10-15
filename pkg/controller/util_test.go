@@ -796,7 +796,7 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 					Args: []string{"-v=5"},
 				},
 			},
-			RestartPolicy: v1.RestartPolicyNever,
+			RestartPolicy: v1.RestartPolicyOnFailure,
 			Volumes: []v1.Volume{
 				{
 					Name: dvname,
