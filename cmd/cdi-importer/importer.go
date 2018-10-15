@@ -49,9 +49,12 @@ func main() {
 	contentType, _ := util.ParseEnvVar(common.ImporterContentType, false)
 	imageSize, _ := util.ParseEnvVar(common.ImporterImageSize, false)
 
-	glog.V(1).Infoln("begin import process")
+	dest := common.ImporterWritePath
+	if contentType == controller.ContentTypeArchive {
+		dest = common.ImporterVolumePath
+	}
 	dso := &importer.DataStreamOptions{
-		common.ImporterWritePath,
+		dest,
 		ep,
 		acc,
 		sec,
@@ -73,7 +76,8 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		err = importer.CopyImage(dso)
+		glog.V(1).Infoln("begin import process")
+		err = importer.CopyData(dso)
 		if err != nil {
 			glog.Errorf("%+v", err)
 			os.Exit(1)

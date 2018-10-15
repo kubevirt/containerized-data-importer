@@ -39,14 +39,18 @@ const TestImagesDir = "../../tests/images"
 var imageDir, _ = filepath.Abs(TestImagesDir)
 var cirrosFileName = "cirros-qcow2.img"
 var tinyCoreFileName = "tinyCore.iso"
+var archiveFileName = "archive.tar"
+var archiveFileNameWithoutExt = strings.TrimSuffix(archiveFileName, filepath.Ext(archiveFileName))
 var cirrosFilePath = filepath.Join(imageDir, cirrosFileName)
 var tinyCoreFilePath = filepath.Join(imageDir, tinyCoreFileName)
 var tinyCoreXzFilePath, _ = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtXz)
 var tinyCoreGzFilePath, _ = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtGz)
 var tinyCoreTarFilePath, _ = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtTar)
-var testfiles = []string{tinyCoreXzFilePath, tinyCoreGzFilePath, tinyCoreTarFilePath}
+var archiveFilePath, _ = utils.ArchiveFiles(archiveFileNameWithoutExt, os.TempDir(), tinyCoreFilePath, cirrosFilePath)
+var testfiles = []string{tinyCoreXzFilePath, tinyCoreGzFilePath, tinyCoreTarFilePath, archiveFilePath}
 var cirrosData, _ = readFile(cirrosFilePath)
 var tinyCoreData, _ = readFile(tinyCoreFilePath)
+var archiveData, _ = readFile(archiveFilePath)
 var stringRdr = strings.NewReader("test data for reader 1")
 var qcow2Rdr, _ = os.Open(cirrosFilePath)
 var testFileRdrs = bufio.NewReader(qcow2Rdr)
@@ -77,18 +81,22 @@ var _ = Describe("Data Stream", func() {
 		ts.Close()
 	})
 
-	table.DescribeTable("with import source should", func(image, accessKeyID, secretKey string, qemu bool, want []byte, wantErr bool) {
+	table.DescribeTable("with import source should", func(image, accessKeyID, secretKey, contentType string, qemu bool, want []byte, wantErr bool) {
 		if image != "" {
 			image = ts.URL + "/" + image
 		}
+		dest := common.ImporterWritePath
+		if contentType == controller.ContentTypeArchive {
+			dest = common.ImporterVolumePath
+		}
 		By(fmt.Sprintf("Creating new datastream for %s", image))
 		ds, err := NewDataStream(&DataStreamOptions{
-			common.ImporterWritePath,
+			dest,
 			image,
 			accessKeyID,
 			secretKey,
 			controller.SourceHTTP,
-			controller.ContentTypeKubevirt,
+			contentType,
 			""})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
@@ -100,16 +108,19 @@ var _ = Describe("Data Stream", func() {
 			ds.Read(resultBuffer)
 			Expect(ds.AccessKey).To(Equal(accessKeyID))
 			Expect(ds.SecKey).To(Equal(secretKey))
+			Expect(ds.ContentType).To(Equal(contentType))
+
 			Expect(ds.qemu).To(Equal(qemu))
 			Expect(reflect.DeepEqual(resultBuffer, want)).To(BeTrue())
 		} else {
 			Expect(err).To(HaveOccurred())
 		}
 	},
-		table.Entry("expect NewDataStream to succeed with valid image", cirrosFileName, "", "", true, cirrosData, false),
-		table.Entry("expect NewDataStream to fail with non existing image", "badimage.iso", "", "", false, nil, true),
-		table.Entry("expect NewDataStream to fail with invalid or missing image", "", "", "", false, nil, true),
-		table.Entry("expect NewDataStream to succeed with valid iso image", tinyCoreFileName, "accessKey", "secretKey", false, tinyCoreData, false),
+		table.Entry("expect NewDataStream to succeed with valid image", cirrosFileName, "", "", controller.ContentTypeKubevirt, true, cirrosData, false),
+		table.Entry("expect NewDataStream to fail with non existing image", "badimage.iso", "", "", controller.ContentTypeKubevirt, false, nil, true),
+		table.Entry("expect NewDataStream to fail with invalid or missing image", "", "", "", controller.ContentTypeKubevirt, false, nil, true),
+		table.Entry("expect NewDataStream to succeed with valid iso image", tinyCoreFileName, "accessKey", "secretKey", controller.ContentTypeKubevirt, false, tinyCoreData, false),
+		table.Entry("expect NewDataStream to fail with a valid image and an incorrect content", cirrosFileName, "", "", controller.ContentTypeArchive, true, cirrosData, true),
 	)
 
 	It("can close all readers", func() {
@@ -157,17 +168,21 @@ var _ = Describe("Data Stream", func() {
 		table.Entry("fail trying to build invalid selector", tinyCoreFileName, "fake://somefakefile", true),
 	)
 
-	table.DescribeTable("can construct readers", func(filename string, numRdrs int, wantErr bool) {
+	table.DescribeTable("can construct readers", func(filename, contentType string, numRdrs int, wantErr bool) {
 		By(fmt.Sprintf("Creating new fileserver for %s and file %s", filepath.Dir(filename), filepath.Base(filename)))
 		tempTestServer := createTestServer(filepath.Dir(filename))
+		dest := common.ImporterWritePath
+		if contentType == controller.ContentTypeArchive {
+			dest = common.ImporterVolumePath
+		}
 		By(fmt.Sprintf("Creating new datastream to %s", tempTestServer.URL+"/"+filepath.Base(filename)))
 		ds, err := NewDataStream(&DataStreamOptions{
-			common.ImporterWritePath,
+			dest,
 			tempTestServer.URL + "/" + filepath.Base(filename),
 			"",
 			"",
 			controller.SourceHTTP,
-			controller.ContentTypeKubevirt,
+			contentType,
 			"20M"})
 		defer func() {
 			tempTestServer.Close()
@@ -186,12 +201,14 @@ var _ = Describe("Data Stream", func() {
 			Expect(err).To(HaveOccurred())
 		}
 	},
-		table.Entry("successfully construct a xz reader", tinyCoreXzFilePath, 5, false),   // [http, multi-r, xz, multi-r]
-		table.Entry("successfully construct a gz reader", tinyCoreGzFilePath, 5, false),   // [http, multi-r, gz, multi-r]
-		table.Entry("successfully construct a tar reader", tinyCoreTarFilePath, 4, false), // [http, multi-r, tar, multi-r]
-		table.Entry("successfully construct qcow2 reader", cirrosFilePath, 2, false),      // [http, multi-r]
-		table.Entry("successfully construct .iso reader", tinyCoreFilePath, 3, false),     // [http, multi-r]
-		table.Entry("fail constructing reader for invalid file path", filepath.Join(imageDir, "tinyCorebad.iso"), 0, true),
+		table.Entry("successfully construct a xz reader", tinyCoreXzFilePath, controller.ContentTypeKubevirt, 5, false),     // [http, multi-r, xz, multi-r]
+		table.Entry("successfully construct a gz reader", tinyCoreGzFilePath, controller.ContentTypeKubevirt, 5, false),     // [http, multi-r, gz, multi-r]
+		table.Entry("successfully construct a tar reader", tinyCoreTarFilePath, controller.ContentTypeKubevirt, 4, false),   // [http, multi-r, tar, multi-r]
+		table.Entry("successfully constructed an archive reader", archiveFilePath, controller.ContentTypeArchive, 4, false), // [http, multi-r, mul-tar, multi-r]
+		table.Entry("successfully construct qcow2 reader", cirrosFilePath, controller.ContentTypeKubevirt, 2, false),        // [http, multi-r]
+		table.Entry("successfully construct .iso reader", tinyCoreFilePath, controller.ContentTypeKubevirt, 3, false),       // [http, multi-r]
+		table.Entry("fail constructing reader for invalid file path", filepath.Join(imageDir, "tinyCorebad.iso"), controller.ContentTypeKubevirt, 0, true),
+		table.Entry("fail constructing reader for a valid archive file and a wrong content", archiveFileName, controller.ContentTypeKubevirt, 0, true),
 	)
 })
 
@@ -230,7 +247,7 @@ var _ = Describe("Copy", func() {
 		By("Replacing QEMU Operations")
 		replaceQEMUOperations(qemuOperations, func() {
 			By("Copying image")
-			err := CopyImage(&DataStreamOptions{
+			err := CopyData(&DataStreamOptions{
 				dest,
 				endpt,
 				"",
@@ -370,9 +387,9 @@ var _ = Describe("Streaming Data Conversion", func() {
 		defer tempTestServer.Close()
 
 		testBase := filepath.Base(testSample)
-		testTarget := filepath.Join(tmpTestDir, common.ImporterWriteFile)
+		testTarget := filepath.Join(tmpTestDir, common.DiskImageName)
 		By(fmt.Sprintf("Importing %q to %q", tempTestServer.URL, testTarget))
-		err = CopyImage(&DataStreamOptions{
+		err = CopyData(&DataStreamOptions{
 			testTarget,
 			tempTestServer.URL + "/" + testBase,
 			"",

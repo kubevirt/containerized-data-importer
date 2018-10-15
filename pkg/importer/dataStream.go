@@ -287,14 +287,20 @@ func (d *DataStream) pollProgress(reader *util.CountingReader, idleTime, pollInt
 	}
 }
 
-// CopyImage copies the source endpoint (vm image) to the provided destination path.
-func CopyImage(dso *DataStreamOptions) error {
+// CopyData copies the source endpoint (vm image) to the provided destination path.
+func CopyData(dso *DataStreamOptions) error {
 	glog.V(1).Infof("copying %q to %q...\n", dso.Endpoint, dso.Dest)
 	ds, err := NewDataStream(dso)
 	if err != nil {
 		return errors.Wrap(err, "unable to create data stream")
 	}
 	defer ds.Close()
+	if dso.ContentType == controller.ContentTypeArchive {
+		if err := UnArchiveTar(ds.topReader(), dso.Dest); err != nil {
+			return errors.Wrap(err, "unable to untar files from endpoint")
+		}
+		return nil
+	}
 	return ds.copy(dso.Dest)
 }
 
@@ -390,6 +396,7 @@ func (d *DataStream) constructReaders(stream io.ReadCloser) error {
 	//   the iso file is tar'd we can get its size via the tar hdr -- see intro comments.
 	knownHdrs := image.CopyKnownHdrs() // need local copy since keys are removed
 	glog.V(3).Infof("constructReaders: checking compression and archive formats: %s\n", d.url.Path)
+	var isTarFile bool
 	for {
 		hdr, err := d.matchHeader(&knownHdrs)
 		if err != nil {
@@ -404,11 +411,16 @@ func (d *DataStream) constructReaders(stream io.ReadCloser) error {
 		if err != nil {
 			return errors.WithMessage(err, "could not create compression/unarchive reader")
 		}
+		isTarFile = isTarFile || hdr.Format == "tar"
 		// exit loop if hdr is qcow2 since that's the equivalent of a raw (iso) file,
 		// mentioned above as the orig source file
 		if hdr.Format == "qcow2" {
 			break
 		}
+	}
+
+	if d.ContentType == controller.ContentTypeArchive && !isTarFile {
+		return errors.Errorf("cannot process a non tar file as an archive")
 	}
 
 	if len(d.Readers) <= 2 {
@@ -515,6 +527,9 @@ func (d *DataStream) xzReader() (io.Reader, int64, error) {
 // Assumes a single file was archived.
 // Note: the size stored in the header is used rather than raw metadata.
 func (d *DataStream) tarReader() (io.Reader, int64, error) {
+	if d.ContentType == controller.ContentTypeArchive {
+		return d.mulFileTarReader()
+	}
 	tr := tar.NewReader(d.topReader())
 	hdr, err := tr.Next() // advance cursor to 1st (and only) file in tarball
 	if err != nil {
@@ -522,6 +537,28 @@ func (d *DataStream) tarReader() (io.Reader, int64, error) {
 	}
 	glog.V(2).Infof("tar: extracting %q\n", hdr.Name)
 	return tr, hdr.Size, nil
+}
+
+// Note - the tar file is processed in dataStream.CopyData
+// directly by calling util.UnArchiveTar.
+func (d *DataStream) mulFileTarReader() (io.Reader, int64, error) {
+	buf, err := ioutil.ReadAll(d.topReader())
+	if err != nil {
+		return nil, 0, err
+	}
+	tr := tar.NewReader(bytes.NewReader(buf))
+	var size int64
+	for {
+		header, err := tr.Next()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, 0, err
+		}
+		size += header.Size
+	}
+	return bytes.NewReader(buf), size, nil
 }
 
 // If the raw endpoint is an ISO file then set the receiver's Size via the iso metadata.
