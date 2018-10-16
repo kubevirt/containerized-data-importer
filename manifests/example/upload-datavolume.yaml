@@ -7,7 +7,7 @@ spec:
       upload:
         target: {}
   pvc:
-    #the storageClassName is optional if we don't want to use the default storage class.
+    #the storageClassName is optional, if missing we use the default storage class.
     #storageClassName: "hostpath"
     accessModes:
       - ReadWriteOnce
