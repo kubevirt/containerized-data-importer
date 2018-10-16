@@ -612,8 +612,6 @@ func TestCreateImporterPod(t *testing.T) {
 		pullPolicy string
 		podEnvVar  importPodEnvVar
 		pvc        *v1.PersistentVolumeClaim
-		resize     string
-		resizeTo   string
 	}
 
 	// create PVC
@@ -627,8 +625,8 @@ func TestCreateImporterPod(t *testing.T) {
 	}{
 		{
 			name:    "expect pod to be created",
-			args:    args{k8sfake.NewSimpleClientset(pvc), "test/image", "-v=5", "Always", importPodEnvVar{"", ""}, pvc},
-			want:    MakeImporterPodSpec("test/image", "-v=5", "Always", importPodEnvVar{"", ""}, pvc),
+			args:    args{k8sfake.NewSimpleClientset(pvc), "test/image", "-v=5", "Always", importPodEnvVar{"", "", "8G"}, pvc},
+			want:    MakeImporterPodSpec("test/image", "-v=5", "Always", importPodEnvVar{"", "", "8G"}, pvc),
 			wantErr: false,
 		},
 	}
@@ -653,8 +651,6 @@ func TestMakeImporterPodSpec(t *testing.T) {
 		pullPolicy string
 		podEnvVar  importPodEnvVar
 		pvc        *v1.PersistentVolumeClaim
-		resize     string
-		resizeTo   string
 	}
 	// create PVC
 	pvc := createPvc("testPVC2", "default", nil, nil)
@@ -668,7 +664,7 @@ func TestMakeImporterPodSpec(t *testing.T) {
 	}{
 		{
 			name:    "expect pod to be created",
-			args:    args{"test/myimage", "5", "Always", importPodEnvVar{"", ""}, pvc},
+			args:    args{"test/myimage", "5", "Always", importPodEnvVar{"", "", ""}, pvc},
 			wantPod: pod,
 		},
 	}
@@ -696,8 +692,8 @@ func Test_makeEnv(t *testing.T) {
 	}{
 		{
 			name: "env should match",
-			args: args{importPodEnvVar{"myendpoint", "mysecret"}},
-			want: createEnv(importPodEnvVar{"myendpoint", "mysecret"}),
+			args: args{importPodEnvVar{"myendpoint", "mysecret", "123318B"}},
+			want: createEnv(importPodEnvVar{"myendpoint", "mysecret", "123318B"}),
 		},
 	}
 	for _, tt := range tests {
@@ -813,15 +809,11 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 	}
 
 	ep, _ := getEndpoint(pvc)
-	resize, _ := getResize(pvc)
 	resizeTo, _ := getResizeTo(pvc)
 	pod.Spec.Containers[0].Env = []v1.EnvVar{
 		{
 			Name:  ImporterEndpoint,
 			Value: ep,
-		}, {
-			Name:  ImporterResize,
-			Value: resize,
 		}, {
 			Name:  ImporterResizeTo,
 			Value: resizeTo,
@@ -892,7 +884,7 @@ func createEnv(podEnvVar importPodEnvVar) []v1.EnvVar {
 			Value: podEnvVar.ep,
 		}, {
 			Name:  ImporterResizeTo,
-			Value: resizeTo,
+			Value: podEnvVar.resizeTo,
 		},
 	}
 	if podEnvVar.secretName != "" {

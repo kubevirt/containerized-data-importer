@@ -21,6 +21,8 @@ import (
 	"reflect"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -614,16 +616,29 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 
 	annotations := make(map[string]string)
 
-	if dataVolume.Spec.Resize {
-		annotations[AnnResize] = "true"
-	} else {
-		annotations[AnnResize] = "false"
+	if dataVolume.Spec.ResizeTo != "" || dataVolume.Spec.ResizeTo == "max" {
+		var resizeToRequested resource.Quantity
+		var resizeTo int64
+		pvcSize := dataVolume.Spec.PVC.Resources.Requests[corev1.ResourceStorage]
+		// calculate 5% overhead for filesystem
+		overhead := resource.NewQuantity(int64(float64(pvcSize.Value())*0.05), pvcSize.Format)
+		pvcSize.Sub(*overhead)
+		if dataVolume.Spec.ResizeTo == "max" {
+			resizeToRequested = pvcSize
+			resizeTo = pvcSize.Value()
+			glog.V(1).Infof("Downloaded image will be resized to max available value of %s.", pvcSize.String())
+		} else {
+			resizeToRequested = resource.MustParse(dataVolume.Spec.ResizeTo)
+			if pvcSize.Value() >= resizeToRequested.Value() {
+				resizeTo = resizeToRequested.Value()
+				glog.V(1).Infof("Downloaded image will be resized to %s.", resizeToRequested.String())
+			} else {
+				resizeTo = pvcSize.Value()
+				glog.V(1).Infof("Can't resize image to %s. Image can by only resized up to %s", resizeToRequested.String(), pvcSize.String())
+			}
+		}
+		annotations[AnnResizeTo] = fmt.Sprint(resizeTo, "B")
 	}
-
-	quant := dataVolume.Spec.PVC.Resources.Requests[corev1.ResourceStorage]
-	// keep 5% free space on the volume
-	sizeTo := quant.Value() - int64(float64(quant.Value())*0.05)
-	annotations[AnnResizeTo] = fmt.Sprint(sizeTo, "B")
 
 	if dataVolume.Spec.Source.HTTP != nil {
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.HTTP.URL

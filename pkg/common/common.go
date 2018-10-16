@@ -44,9 +44,7 @@ const (
 	ImporterAccessKeyID = "IMPORTER_ACCESS_KEY_ID"
 	// ImporterSecretKey provides a constant to capture our env variable "IMPORTER_SECRET_KEY"
 	ImporterSecretKey = "IMPORTER_SECRET_KEY"
-	// ImporterResize  provides a constant to capture our env variable "IMPORTER_RESIZE"
-	ImporterResize = "IMPORTER_RESIZE"
-	// ImporterResizeTo  provides a constant to capture our env variable "IMPORTER_RESIZE"
+	// ImporterResizeTo  provides a constant to capture our env variable "IMPORTER_RESIZE_TO"
 	ImporterResizeTo = "IMPORTER_RESIZE_TO"
 
 	// CloningLabelKey provides a constant to use as a label name for pod affinity (controller pkg only)

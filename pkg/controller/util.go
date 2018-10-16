@@ -62,24 +62,11 @@ func getEndpoint(pvc *v1.PersistentVolumeClaim) (string, error) {
 	return ep, nil
 }
 
-// retruns "ture" if VM image on DataVolume should be resized
-func getResize(pvc *v1.PersistentVolumeClaim) (string, error) {
-	resize, found := pvc.Annotations[AnnResize]
-	if !found || resize == "" || resize == "false" {
-		return "false", nil
-	}
-	return "true", nil
-}
-
 // returns the size to which the image is to be resized
 func getResizeTo(pvc *v1.PersistentVolumeClaim) (string, error) {
 	resizeTo, found := pvc.Annotations[AnnResizeTo]
 	if !found || resizeTo == "" {
-		verb := "empty"
-		if !found {
-			verb = "missing"
-		}
-		return resizeTo, errors.Errorf("annotation %q in pvc \"%s/%s\" is %s\n", AnnResizeTo, pvc.Namespace, pvc.Name, verb)
+		return "", nil
 	}
 	return resizeTo, nil
 }

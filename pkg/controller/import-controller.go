@@ -17,9 +17,7 @@ import (
 const (
 	// AnnEndpoint provides a const for our PVC endpoint annotation
 	AnnEndpoint = "cdi.kubevirt.io/storage.import.endpoint"
-	// AnnResize ddada
-	AnnResize = "cdi.kubevirt.io/storage.import.resize"
-	// AnnResizeTo dadad
+	// AnnResizeTo provides a const for our PVC resizeTo annotation
 	AnnResizeTo = "cdi.kubevirt.io/storage.import.resizeTo"
 	// AnnSecret provides a const for our PVC secretName annotation
 	AnnSecret = "cdi.kubevirt.io/storage.import.secretName"
@@ -111,7 +109,7 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 		if err != nil {
 			return err
 		}
-		podEnvVar.resizeTo, err := getResizeTo(pvc)
+		podEnvVar.resizeTo, err = getResizeTo(pvc)
 		if err != nil {
 			return err
 		}

@@ -11,6 +11,8 @@ package main
 //    ImporterAccessKeyID  Optional. Access key is the user ID that uniquely identifies your
 //			      account.
 //    ImporterSecretKey     Optional. Secret key is the password to your account.
+//    ImporterResizeTo      Optional. If set image downloaded image will be resize to that size.
+//    				Value should by in bytes.
 
 import (
 	"flag"
@@ -34,7 +36,6 @@ func main() {
 	ep, _ := importer.ParseEnvVar(common.ImporterEndpoint, false)
 	acc, _ := importer.ParseEnvVar(common.ImporterAccessKeyID, false)
 	sec, _ := importer.ParseEnvVar(common.ImporterSecretKey, false)
-	resize, _ := importer.ParseEnvVar(common.ImporterResize, false)
 	resizeTo, _ := importer.ParseEnvVar(common.ImporterResizeTo, false)
 
 	glog.V(1).Infoln("begin import process")
@@ -45,7 +46,7 @@ func main() {
 	}
 	glog.V(1).Infoln("import complete")
 
-	if resize == "true" {
+	if resizeTo != "" {
 		glog.V(1).Infoln("begin resize process")
 		err := image.Resize(common.ImporterWritePath, resizeTo)
 		if err != nil {
