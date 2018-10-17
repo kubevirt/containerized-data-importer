@@ -2,6 +2,8 @@ package tests_test
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -11,10 +13,17 @@ import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"kubevirt.io/containerized-data-importer/pkg/controller"
+	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
+)
+
+const (
+	pollingInterval = 2 * time.Second
+	timeout         = 60 * time.Second
 )
 
 var _ = Describe("DataVolume tests", func() {
@@ -37,7 +46,7 @@ var _ = Describe("DataVolume tests", func() {
 	})
 
 	Describe("Verify DataVolume", func() {
-		table.DescribeTable("with http import source should", func(url string, phase cdiv1.DataVolumePhase, dataVolumeName string) {
+		table.DescribeTable("with http import source should", func(url string, phase cdiv1.DataVolumePhase, dataVolumeName string, eventReasons []string) {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
@@ -52,13 +61,24 @@ var _ = Describe("DataVolume tests", func() {
 			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
+			By(fmt.Sprint("Verifying events occured"))
+
+			for _, eventReason := range eventReasons {
+				Eventually(func() bool {
+					events, err := tests.RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
+					Expect(err).NotTo(HaveOccurred())
+					return strings.Contains(events, eventReason)
+				}, timeout, pollingInterval).Should(BeTrue())
+
+			}
+
 			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
 		},
-			table.Entry("succeed when given valid url", utils.TinyCoreIsoURL, cdiv1.Succeeded, "dv-phase-test-1"),
-			table.Entry("fail due to invalid DNS entry", "http://i-made-this-up.kube-system/tinyCore.iso", cdiv1.Failed, "dv-phase-test-2"),
-			table.Entry("fail due to file not found", utils.TinyCoreIsoURL+"not.real.file", cdiv1.Failed, "dv-phase-test-3"),
+			table.Entry("succeed when given valid url", utils.TinyCoreIsoURL, cdiv1.Succeeded, "dv-phase-test-1", []string{controller.ImportScheduled, controller.ImportSucceeded}),
+			table.Entry("fail due to invalid DNS entry", "http://i-made-this-up.kube-system/tinyCore.iso", cdiv1.Failed, "dv-phase-test-2", []string{controller.ImportScheduled, controller.ImportInProgress}),
+			table.Entry("fail due to file not found", utils.TinyCoreIsoURL+"not.real.file", cdiv1.Failed, "dv-phase-test-3", []string{controller.ImportScheduled, controller.ImportInProgress}),
 		)
 
 		table.DescribeTable("with clone source should", func(command string, phase cdiv1.DataVolumePhase, dataVolumeName string) {
@@ -88,6 +108,13 @@ var _ = Describe("DataVolume tests", func() {
 				By("verifying DataVolume contents are correct")
 				Expect(f.VerifyTargetPVCContent(f.Namespace, targetPvc, testFile, fillData)).To(BeTrue())
 			}
+
+			By(fmt.Sprintf("Verifying event %s occured", controller.CloneSucceeded))
+			Eventually(func() bool {
+				events, err := tests.RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
+				Expect(err).NotTo(HaveOccurred())
+				return strings.Contains(events, controller.CloneSucceeded)
+			}, timeout, pollingInterval).Should(BeTrue())
 
 			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
