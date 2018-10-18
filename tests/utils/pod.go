@@ -106,11 +106,8 @@ func FindPodByPrefix(clientSet *kubernetes.Clientset, namespace, prefix, labelSe
 					}
 				}
 			}
-			if foundPod {
-				return true, nil
-			}
 		}
-		return false, nil
+		return foundPod, nil
 	})
 	if !foundPod {
 		return nil, fmt.Errorf("Unable to find pod starting with prefix %s", prefix)

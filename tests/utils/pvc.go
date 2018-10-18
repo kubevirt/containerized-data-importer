@@ -96,7 +96,6 @@ func pollPVCAnnotation(clientSet *kubernetes.Clientset, namespace string, pvc *k
 		if ok {
 			return f(value), nil
 		}
-
 		return false, err
 	})
 	return err
