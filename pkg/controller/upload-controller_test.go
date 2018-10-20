@@ -19,11 +19,13 @@ package controller
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/util/cert/triple"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
@@ -376,9 +378,31 @@ func TestPVCNolongerExists(t *testing.T) {
 	f.run(getPvcKey(pvc, t))
 }
 
-func TestDeletesUploadPodAndService(t *testing.T) {
+func TestDeletesUploadPodAndServiceWhenAnnotationRemoved(t *testing.T) {
 	f := newUploadFixture(t)
 	pvc := createPvc("testPvc1", "default", nil, nil)
+	pod := createUploadPod(pvc)
+	service := createUploadService(pvc)
+
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	f.podLister = append(f.podLister, pod)
+	f.kubeobjects = append(f.kubeobjects, pod)
+
+	f.serviceLister = append(f.serviceLister, service)
+	f.kubeobjects = append(f.kubeobjects, service)
+
+	f.expectDeleteServiceAction(service)
+	f.expectDeletePodAction(pod)
+
+	f.run(getPvcKey(pvc, t))
+}
+
+func TestDeletesUploadPodAndServiceWhenPVCDeleted(t *testing.T) {
+	f := newUploadFixture(t)
+	pvc := createPvc("testPvc1", "default", map[string]string{uploadRequestAnnotation: "", podPhaseAnnotation: "Running"}, nil)
+	pvc.SetDeletionTimestamp(&metav1.Time{Time: time.Now().UTC().Add(-5 * time.Second)})
 	pod := createUploadPod(pvc)
 	service := createUploadService(pvc)
 

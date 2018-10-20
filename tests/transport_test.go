@@ -27,9 +27,10 @@ var _ = Describe("Transport Tests", func() {
 	)
 
 	var (
-		ns string
-		f  = framework.NewFrameworkOrDie("transport", framework.Config{SkipNamespaceCreation: false})
-		c  = f.K8sClient
+		ns  string
+		f   = framework.NewFrameworkOrDie("transport", framework.Config{SkipNamespaceCreation: false})
+		c   = f.K8sClient
+		sec *v1.Secret
 	)
 
 	BeforeEach(func() {
@@ -39,10 +40,11 @@ var _ = Describe("Transport Tests", func() {
 	})
 
 	// it() is the body of the test and is executed once per Entry() by DescribeTable()
-	it := func(ep, file, accessKey, secretKey string) {
+	// closes over c and ns
+	it := func(ep, file, accessKey, secretKey string, shouldSucceed bool) {
+
 		var (
 			err error // prevent shadowing
-			sec *v1.Secret
 		)
 
 		pvcAnn := map[string]string{
@@ -52,10 +54,16 @@ var _ = Describe("Transport Tests", func() {
 
 		if accessKey != "" || secretKey != "" {
 			By(fmt.Sprintf("Creating secret for endpoint %s", ep))
-			stringData := map[string]string{
-				common.KeyAccess: utils.AccessKeyValue,
-				common.KeySecret: utils.SecretKeyValue,
+			if accessKey == "" {
+				accessKey = utils.AccessKeyValue
 			}
+			if secretKey == "" {
+				secretKey = utils.SecretKeyValue
+			}
+			stringData := make(map[string]string)
+			stringData[common.KeyAccess] = accessKey
+			stringData[common.KeySecret] = secretKey
+
 			sec, err = utils.CreateSecretFromDefinition(c, utils.NewSecretDefinition(nil, stringData, nil, ns, secretPrefix))
 			Expect(err).NotTo(HaveOccurred(), "Error creating test secret")
 			pvcAnn[controller.AnnSecret] = sec.Name
@@ -72,26 +80,31 @@ var _ = Describe("Transport Tests", func() {
 			PrintPodLog(f, importer.Name, ns)
 		}
 
-		By("Verifying PVC is not empty")
-		Expect(framework.VerifyPVCIsEmpty(f, pvc)).To(BeFalse(), fmt.Sprintf("Found 0 imported files on PVC %q", pvc.Namespace+"/"+pvc.Name))
+		if shouldSucceed {
+			By("Verifying PVC is not empty")
+			Expect(framework.VerifyPVCIsEmpty(f, pvc)).To(BeFalse(), fmt.Sprintf("Found 0 imported files on PVC %q", pvc.Namespace+"/"+pvc.Name))
 
-		pod, err := utils.CreateExecutorPodWithPVC(c, sizeCheckPod, ns, pvc)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(utils.WaitTimeoutForPodReady(c, sizeCheckPod, ns, 20*time.Second)).To(Succeed())
+			pod, err := utils.CreateExecutorPodWithPVC(c, sizeCheckPod, ns, pvc)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(utils.WaitTimeoutForPodReady(c, sizeCheckPod, ns, 20*time.Second)).To(Succeed())
 
-		// Get the remote file size, the imported file size and compare them
-		command := `expSize=$(curl -s http://cdi-file-host.kube-system | grep -E '"name":"tinyCore.iso"' | grep -Eo '"size":[0-9]+' | tr -d '":[:alpha:]'); haveSize=$(wc -c < /pvc/disk.img); (( $expSize == $haveSize )); echo $?`
-
-		exitCode := f.ExecShellInPod(pod.Name, ns, command)
-		// A 0 exitCode should indicate that $expSize == $haveSize
-		Expect(strconv.Atoi(exitCode)).To(BeZero())
+			// Get the remote file size, the imported file size and compare them
+			command := `expSize=$(curl -s http://cdi-file-host.kube-system | grep -E '"name":"tinyCore.iso"' | grep -Eo '"size":[0-9]+' | tr -d '":[:alpha:]'); haveSize=$(wc -c < /pvc/disk.img); (( $expSize == $haveSize )); echo $?`
+			exitCode := f.ExecShellInPod(pod.Name, ns, command)
+			// A 0 exitCode should indicate that $expSize == $haveSize
+			Expect(strconv.Atoi(exitCode)).To(BeZero())
+		} else {
+			By("Verifying PVC is empty")
+			Expect(framework.VerifyPVCIsEmpty(f, pvc)).To(BeTrue(), fmt.Sprintf("Found 0 imported files on PVC %q", pvc.Namespace+"/"+pvc.Name))
+		}
 	}
 
 	httpNoAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPNoAuthPort)
 	httpAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPAuthPort)
 	DescribeTable("Transport Test Table", it,
-		Entry("should connect to http endpoint without credentials", httpNoAuthEp, targetFile, "", ""),
-		Entry("should connect to http endpoint with credentials", httpAuthEp, targetFile, utils.AccessKeyValue, utils.SecretKeyValue),
-		Entry("should connect to QCOW http endpoint without credentials", httpNoAuthEp, targetQCOWFile, "", ""),
-		Entry("should connect to QCOW http endpoint with credentials", httpAuthEp, targetQCOWFile, utils.AccessKeyValue, utils.SecretKeyValue))
+		Entry("should connect to http endpoint without credentials", httpNoAuthEp, targetFile, "", "", true),
+		Entry("should connect to http endpoint with credentials", httpAuthEp, targetFile, utils.AccessKeyValue, utils.SecretKeyValue, true),
+		Entry("should not connect to http endpoint with invalid credentials", httpAuthEp, targetFile, "gopats", "bradyisthegoat", false),
+		Entry("should connect to QCOW http endpoint without credentials", httpNoAuthEp, targetQCOWFile, "", "", true),
+		Entry("should connect to QCOW http endpoint with credentials", httpAuthEp, targetQCOWFile, utils.AccessKeyValue, utils.SecretKeyValue, true))
 })
