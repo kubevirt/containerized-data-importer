@@ -119,6 +119,13 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 	if pod != nil {
 		anno[AnnImportPod] = string(pod.Name)
 		anno[AnnPodPhase] = string(pod.Status.Phase)
+		//this is for a case where the import container is failing and the restartPolicy is OnFailure. In such case
+		//the pod phase is "Running" although the container state is Waiting. When the container recovers, its state
+		//changes back to "Running".
+		if pod.Status.ContainerStatuses != nil && pod.Status.ContainerStatuses[0].State.Waiting != nil {
+			anno[AnnPodPhase] = string(v1.PodFailed)
+		}
+
 		if pod.Status.Phase == "Succeeded" {
 			dReq := podDeleteRequest{
 				namespace: pod.Namespace,
