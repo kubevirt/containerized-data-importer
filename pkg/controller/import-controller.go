@@ -34,8 +34,6 @@ type importPodEnvVar struct {
 	ep, secretName string
 }
 
-var podEnvVar importPodEnvVar
-
 // NewImportController sets up an Import Controller, and returns a pointer to
 // the newly created Import Controller
 func NewImportController(client kubernetes.Interface,
@@ -99,6 +97,8 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 		needsSync = false
 	}
 	if pod == nil && needsSync {
+		var podEnvVar importPodEnvVar
+
 		podEnvVar.ep, err = getEndpoint(pvc)
 		if err != nil {
 			return err
