@@ -30,6 +30,12 @@ type ImportController struct {
 	Controller
 }
 
+type importPodEnvVar struct {
+	ep, secretName string
+}
+
+var podEnvVar importPodEnvVar
+
 // NewImportController sets up an Import Controller, and returns a pointer to
 // the newly created Import Controller
 func NewImportController(client kubernetes.Interface,
@@ -93,20 +99,20 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 		needsSync = false
 	}
 	if pod == nil && needsSync {
-		ep, err := getEndpoint(pvc)
+		podEnvVar.ep, err = getEndpoint(pvc)
 		if err != nil {
 			return err
 		}
-		secretName, err := getSecretName(ic.clientset, pvc)
+		podEnvVar.secretName, err = getSecretName(ic.clientset, pvc)
 		if err != nil {
 			return err
 		}
-		if secretName == "" {
-			glog.V(2).Infof("no secret will be supplied to endpoint %q\n", ep)
+		if podEnvVar.secretName == "" {
+			glog.V(2).Infof("no secret will be supplied to endpoint %q\n", podEnvVar.ep)
 		}
 		// all checks passed, let's create the importer pod!
 		ic.expectPodCreate(pvcKey)
-		pod, err = CreateImporterPod(ic.clientset, ic.image, ic.verbose, ic.pullPolicy, ep, secretName, pvc)
+		pod, err = CreateImporterPod(ic.clientset, ic.image, ic.verbose, ic.pullPolicy, podEnvVar, pvc)
 		if err != nil {
 			ic.observePodCreate(pvcKey)
 			return err
