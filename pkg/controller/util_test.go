@@ -610,8 +610,7 @@ func TestCreateImporterPod(t *testing.T) {
 		image      string
 		verbose    string
 		pullPolicy string
-		ep         string
-		secretName string
+		podEnvVar  importPodEnvVar
 		pvc        *v1.PersistentVolumeClaim
 	}
 
@@ -626,14 +625,14 @@ func TestCreateImporterPod(t *testing.T) {
 	}{
 		{
 			name:    "expect pod to be created",
-			args:    args{k8sfake.NewSimpleClientset(pvc), "test/image", "-v=5", "Always", "", "", pvc},
-			want:    MakeImporterPodSpec("test/image", "-v=5", "Always", "", "", pvc),
+			args:    args{k8sfake.NewSimpleClientset(pvc), "test/image", "-v=5", "Always", importPodEnvVar{"", ""}, pvc},
+			want:    MakeImporterPodSpec("test/image", "-v=5", "Always", importPodEnvVar{"", ""}, pvc),
 			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CreateImporterPod(tt.args.client, tt.args.image, tt.args.verbose, tt.args.pullPolicy, tt.args.ep, tt.args.secretName, tt.args.pvc)
+			got, err := CreateImporterPod(tt.args.client, tt.args.image, tt.args.verbose, tt.args.pullPolicy, tt.args.podEnvVar, tt.args.pvc)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("CreateImporterPod() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -650,8 +649,7 @@ func TestMakeImporterPodSpec(t *testing.T) {
 		image      string
 		verbose    string
 		pullPolicy string
-		ep         string
-		secret     string
+		podEnvVar  importPodEnvVar
 		pvc        *v1.PersistentVolumeClaim
 	}
 	// create PVC
@@ -666,13 +664,13 @@ func TestMakeImporterPodSpec(t *testing.T) {
 	}{
 		{
 			name:    "expect pod to be created",
-			args:    args{"test/myimage", "5", "Always", "", "", pvc},
+			args:    args{"test/myimage", "5", "Always", importPodEnvVar{"", ""}, pvc},
 			wantPod: pod,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := MakeImporterPodSpec(tt.args.image, tt.args.verbose, tt.args.pullPolicy, tt.args.ep, tt.args.secret, tt.args.pvc)
+			got := MakeImporterPodSpec(tt.args.image, tt.args.verbose, tt.args.pullPolicy, tt.args.podEnvVar, tt.args.pvc)
 
 			if !reflect.DeepEqual(got, tt.wantPod) {
 				t.Errorf("MakeImporterPodSpec() =\n%v\n, want\n%v", got, tt.wantPod)
@@ -684,8 +682,7 @@ func TestMakeImporterPodSpec(t *testing.T) {
 
 func Test_makeEnv(t *testing.T) {
 	type args struct {
-		endpoint string
-		secret   string
+		podEnvVar importPodEnvVar
 	}
 
 	tests := []struct {
@@ -695,13 +692,13 @@ func Test_makeEnv(t *testing.T) {
 	}{
 		{
 			name: "env should match",
-			args: args{"myendpoint", "mysecret"},
-			want: createEnv("myendpoint", "mysecret"),
+			args: args{importPodEnvVar{"myendpoint", "mysecret"}},
+			want: createEnv(importPodEnvVar{"myendpoint", "mysecret"}),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := makeEnv(tt.args.endpoint, tt.args.secret); !reflect.DeepEqual(got, tt.want) {
+			if got := makeEnv(tt.args.podEnvVar); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("makeEnv() = %v, want %v", got, tt.want)
 			}
 		})
@@ -876,20 +873,20 @@ func createSecret(name, ns, accessKey, secretKey string, labels map[string]strin
 	}
 }
 
-func createEnv(endpoint, secret string) []v1.EnvVar {
+func createEnv(podEnvVar importPodEnvVar) []v1.EnvVar {
 	env := []v1.EnvVar{
 		{
 			Name:  ImporterEndpoint,
-			Value: endpoint,
+			Value: podEnvVar.ep,
 		},
 	}
-	if secret != "" {
+	if podEnvVar.secretName != "" {
 		env = append(env, v1.EnvVar{
 			Name: ImporterAccessKeyID,
 			ValueFrom: &v1.EnvVarSource{
 				SecretKeyRef: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
-						Name: secret,
+						Name: podEnvVar.secretName,
 					},
 					Key: KeyAccess,
 				},
@@ -899,7 +896,7 @@ func createEnv(endpoint, secret string) []v1.EnvVar {
 			ValueFrom: &v1.EnvVarSource{
 				SecretKeyRef: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
-						Name: secret,
+						Name: podEnvVar.secretName,
 					},
 					Key: KeySecret,
 				},
