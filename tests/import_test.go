@@ -11,9 +11,6 @@ import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/util/intstr"
-
-	"k8s.io/client-go/kubernetes"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -67,7 +64,7 @@ var _ = Describe(testSuiteName+"-prometheus", func() {
 	f := framework.NewFrameworkOrDie(namespacePrefix)
 
 	BeforeEach(func() {
-		_, err := createPrometheusServiceInNs(f.K8sClient, f.Namespace.Name)
+		_, err := f.CreatePrometheusServiceInNs(f.Namespace.Name)
 		Expect(err).NotTo(HaveOccurred(), "Error creating prometheus service")
 	})
 
@@ -81,7 +78,6 @@ var _ = Describe(testSuiteName+"-prometheus", func() {
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.iso"))
-		//pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-e2e", "20M", pvcAnn, nil))
 		_, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-e2e", "20M", pvcAnn, nil))
 		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
 
@@ -108,32 +104,3 @@ var _ = Describe(testSuiteName+"-prometheus", func() {
 		Expect(endpoint.Subsets[0].Ports[0].Port).To(Equal(int32(443)))
 	})
 })
-
-func createPrometheusServiceInNs(c *kubernetes.Clientset, namespace string) (*v1.Service, error) {
-	service := &v1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kubevirt-prometheus-metrics",
-			Namespace: namespace,
-			Labels: map[string]string{
-				"prometheus.kubevirt.io": "",
-				"kubevirt.io":            "",
-			},
-		},
-		Spec: v1.ServiceSpec{
-			Ports: []v1.ServicePort{
-				{
-					Name: "metrics",
-					Port: 443,
-					TargetPort: intstr.IntOrString{
-						StrVal: "metrics",
-					},
-					Protocol: v1.ProtocolTCP,
-				},
-			},
-			Selector: map[string]string{
-				"prometheus.kubevirt.io": "",
-			},
-		},
-	}
-	return c.CoreV1().Services(namespace).Create(service)
-}

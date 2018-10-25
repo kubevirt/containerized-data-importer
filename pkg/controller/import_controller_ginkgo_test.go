@@ -28,7 +28,7 @@ const (
 
 var verboseDebug = fmt.Sprintf("%d", 3)
 
-var _ = Describe("Controller", func() {
+var _ = Describe("Import Controller", func() {
 	var (
 		controller *ImportController
 		fakeClient *fake.Clientset

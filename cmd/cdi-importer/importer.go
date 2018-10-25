@@ -15,17 +15,13 @@ package main
 import (
 	"flag"
 	"io/ioutil"
-	"net/http"
 	"os"
 
 	"github.com/golang/glog"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
-	"kubevirt.io/containerized-data-importer/pkg/keys"
 	"kubevirt.io/containerized-data-importer/pkg/util"
-
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func init() {
@@ -40,17 +36,7 @@ func main() {
 		panic(err)
 	}
 	defer os.RemoveAll(certsDirectory)
-
-	keyFile, certFile, err := keys.GenerateSelfSignedCert(certsDirectory, "importer", "pod")
-	if err != nil {
-		glog.Fatalf("unable to generate certificates: %v", err)
-	}
-	go func() {
-		http.Handle("/metrics", promhttp.Handler())
-		if err := http.ListenAndServeTLS(":8443", certFile, keyFile, nil); err != nil {
-			glog.Fatalf("Unable to start http server on port 8443", err)
-		}
-	}()
+	util.StartPrometheusEndpoint(certsDirectory)
 
 	glog.V(1).Infoln("Starting importer")
 	ep, _ := util.ParseEnvVar(common.ImporterEndpoint, false)

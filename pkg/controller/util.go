@@ -267,10 +267,6 @@ func makeEnv(podEnvVar importPodEnvVar, uid types.UID) []v1.EnvVar {
 			Name:  common.OwnerUID,
 			Value: string(uid),
 		},
-		{
-			Name:  common.OwnerUID,
-			Value: string(uid),
-		},
 	}
 	if podEnvVar.secretName != "" {
 		env = append(env, v1.EnvVar{
@@ -452,6 +448,11 @@ func MakeCloneTargetPodSpec(image, pullPolicy, podAffinityNamespace string, pvc 
 	id := string(pvc.GetUID())
 	blockOwnerDeletion := true
 	isController := true
+	ownerUID := pvc.UID
+	if len(pvc.OwnerReferences) == 1 {
+		ownerUID = pvc.OwnerReferences[0].UID
+	}
+
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -466,7 +467,8 @@ func MakeCloneTargetPodSpec(image, pullPolicy, podAffinityNamespace string, pvc 
 			Labels: map[string]string{
 				common.CDILabelKey: common.CDILabelValue, //filtered by the podInformer
 				// this label is used when searching for a pvc's cloner target pod.
-				CloneUniqueID: pvc.Name + "-target-pod",
+				CloneUniqueID:          pvc.Name + "-target-pod",
+				common.PrometheusLabel: "",
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -519,6 +521,19 @@ func MakeCloneTargetPodSpec(image, pullPolicy, podAffinityNamespace string, pvc 
 						},
 					},
 					Args: []string{"target", id},
+					Ports: []v1.ContainerPort{
+						{
+							Name:          "metrics",
+							ContainerPort: 8443,
+							Protocol:      v1.ProtocolTCP,
+						},
+					},
+					Env: []v1.EnvVar{
+						{
+							Name:  common.OwnerUID,
+							Value: string(ownerUID),
+						},
+					},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyNever,
