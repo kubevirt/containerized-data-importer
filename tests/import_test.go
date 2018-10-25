@@ -25,6 +25,7 @@ const (
 	assertionPollInterval            = 2 * time.Second
 	controllerSkipPVCCompleteTimeout = 90 * time.Second
 	invalidEndpoint                  = "http://gopats.com/who-is-the-goat.iso"
+	BlankImageCompleteTimeout        = 60 * time.Second
 )
 
 var _ = Describe(testSuiteName, func() {
@@ -67,6 +68,22 @@ var _ = Describe(testSuiteName, func() {
 		By("Verify the pod status is Failed on the target PVC")
 		_, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodPhase)
 		Expect(phaseAnnotation).To(BeTrue())
+	})
+	It("Should create import pod for blank raw image", func() {
+		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
+			"create-image",
+			"1G",
+			map[string]string{controller.AnnSource: controller.SourceNone, controller.AnnContentType: controller.ContentTypeKubevirt},
+			nil))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify the pod status is succeeded on the target PVC")
+		Eventually(func() string {
+			status, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodPhase)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(phaseAnnotation).To(BeTrue())
+			return status
+		}, BlankImageCompleteTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
 	})
 })
 

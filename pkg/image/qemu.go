@@ -25,8 +25,6 @@ import (
 	"strconv"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 
@@ -35,6 +33,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 const (
@@ -61,6 +60,7 @@ type QEMUOperations interface {
 	Resize(string, resource.Quantity) error
 	Info(string) (*ImgInfo, error)
 	Validate(string, string) error
+	CreateBlankImage(dest string, size resource.Quantity) error
 }
 
 type qemuOperations struct{}
@@ -187,4 +187,21 @@ func reportProgress(line string) {
 		v, _ := strconv.ParseFloat(matches[1], 64)
 		progress.WithLabelValues(ownerUID).Set(v)
 	}
+}
+
+// CreateBlankImage creates empty raw image
+func CreateBlankImage(dest string, size resource.Quantity) error {
+	glog.V(1).Infof("creating raw image with size %s", size)
+	return qemuIterface.CreateBlankImage(dest, size)
+}
+
+// CreateBlankImage creates a raw image with a given size
+func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity) error {
+	glog.V(3).Infof("image size is %s", size.String())
+	_, err := qemuExecFunction(qemuLimits, nil, "qemu-img", "create", "-f", "raw", dest, convertQuantityToQemuSize(size))
+	if err != nil {
+		os.Remove(dest)
+		return errors.Wrap(err, fmt.Sprintf("could not create raw image with size %s in %s", size, dest))
+	}
+	return nil
 }

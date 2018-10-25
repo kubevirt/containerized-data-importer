@@ -81,10 +81,25 @@ func (f *ImportFixture) runController(pvcName string,
 	}
 }
 
-// Verifies basic pod creation when new PVC is discovered
-func TestCreatesImportPod(t *testing.T) {
+// Verifies basic pod creation when new PVC with endpoint annotation is discovered
+func TestCreatesImportPodForEndpoint(t *testing.T) {
 	f := newImportFixture(t)
 	pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
+
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	expPod := createPod(pvc, DataVolName)
+
+	f.expectCreatePodAction(expPod)
+
+	f.run(getPvcKey(pvc, t))
+}
+
+// Verifies basic pod creation when new PVC with 'blank' annotation is discovered
+func TestCreatesImportPodForBlankImage(t *testing.T) {
+	f := newImportFixture(t)
+	pvc := createPvc("testPvc1", "default", map[string]string{AnnSource: SourceNone}, nil)
 
 	f.pvcLister = append(f.pvcLister, pvc)
 	f.kubeobjects = append(f.kubeobjects, pvc)
@@ -115,6 +130,7 @@ func TestImportPodCreationExpectation(t *testing.T) {
 func TestImportObservePod(t *testing.T) {
 	f := newImportFixture(t)
 	pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
+
 	pod := createPod(pvc, DataVolName)
 	pod.Name = "madeup-name"
 	pod.Status.Phase = corev1.PodPending
@@ -135,10 +151,9 @@ func TestImportObservePod(t *testing.T) {
 }
 
 // Verifies pod status updates are reflected in PVC annotations
-func TestImportPodStatusUpdating(t *testing.T) {
+func TestImportPodStatusUpdatingForEndpoint(t *testing.T) {
 	f := newImportFixture(t)
 	pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
-
 	pod := createPod(pvc, DataVolName)
 	pod.Name = "madeup-name"
 	pod.Status.Phase = corev1.PodRunning
@@ -155,6 +170,33 @@ func TestImportPodStatusUpdating(t *testing.T) {
 	// expecting pvc's pod status annotation to be updated from pending => running
 	expPvc := pvc.DeepCopy()
 	expPvc.ObjectMeta.Annotations = map[string]string{AnnImportPod: pod.Name, AnnPodPhase: string(pod.Status.Phase), AnnEndpoint: "http://test"}
+
+	f.expectUpdatePvcAction(expPvc)
+
+	f.run(getPvcKey(pvc, t))
+}
+
+// Verifies pod status updates are reflected in PVC annotations
+func TestImportPodStatusUpdatingForBlankImage(t *testing.T) {
+	f := newImportFixture(t)
+	pvc := createPvc("testPvc1", "default", map[string]string{AnnSource: SourceNone}, nil)
+
+	pod := createPod(pvc, DataVolName)
+	pod.Name = "madeup-name"
+	pod.Status.Phase = corev1.PodRunning
+	pod.Namespace = pvc.Namespace
+
+	pvc.ObjectMeta.Annotations = map[string]string{AnnImportPod: pod.Name, AnnPodPhase: string(corev1.PodPending), AnnSource: SourceNone}
+	pvc.ObjectMeta.Labels = map[string]string{CDILabelKey: CDILabelValue}
+
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.podLister = append(f.podLister, pod)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+	f.kubeobjects = append(f.kubeobjects, pod)
+
+	// expecting pvc's pod status annotation to be updated from pending => running
+	expPvc := pvc.DeepCopy()
+	expPvc.ObjectMeta.Annotations = map[string]string{AnnImportPod: pod.Name, AnnPodPhase: string(pod.Status.Phase), AnnSource: SourceNone}
 
 	f.expectUpdatePvcAction(expPvc)
 
@@ -233,6 +275,7 @@ func TestImportIgnorePVC(t *testing.T) {
 func TestImportOwnership(t *testing.T) {
 	f := newImportFixture(t)
 	pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
+
 	pod := createPod(pvc, DataVolName)
 	pod.Name = "madeup-name"
 	pod.Status.Phase = corev1.PodPending

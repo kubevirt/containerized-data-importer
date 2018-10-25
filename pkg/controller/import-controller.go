@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
@@ -8,9 +9,6 @@ import (
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-
-	"fmt"
-
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
@@ -103,27 +101,11 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 		needsSync = false
 	}
 	if pod == nil && needsSync {
-		var podEnvVar importPodEnvVar
-
-		podEnvVar.source = getSource(pvc)
-		podEnvVar.contentType = getContentType(pvc)
-		if podEnvVar.source != SourceNone {
-			podEnvVar.ep, err = getEndpoint(pvc)
-			if err != nil {
-				return err
-			}
-			podEnvVar.secretName, err = getSecretName(ic.clientset, pvc)
-			if err != nil {
-				return err
-			}
-			if podEnvVar.secretName == "" {
-				glog.V(2).Infof("no secret will be supplied to endpoint %q\n", podEnvVar.ep)
-			}
-			podEnvVar.imageSize, err = getImageSize(pvc)
-			if err != nil {
-				return err
-			}
+		podEnvVar, err := createImportEnvVar(pvc, ic)
+		if err != nil {
+			return err
 		}
+
 		// all checks passed, let's create the importer pod!
 		ic.expectPodCreate(pvcKey)
 		pod, err = CreateImporterPod(ic.clientset, ic.image, ic.verbose, ic.pullPolicy, podEnvVar, pvc)
@@ -201,6 +183,7 @@ func (ic *ImportController) syncPvc(key string) error {
 	if pvc == nil {
 		return nil
 	}
+
 	//check if AnnEndPoint or AnnSource annotation exists
 	if !checkPVC(pvc, AnnEndpoint) && !checkPVC(pvc, AnnSource) {
 		return nil

@@ -122,6 +122,22 @@ func newUploadDataVolume(name string) *cdiv1.DataVolume {
 	}
 }
 
+func newBlankImageDataVolume(name string) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: metav1.NamespaceDefault,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{
+				Blank: &cdiv1.DataVolumeBlankImage{},
+			},
+			PVC: &corev1.PersistentVolumeClaimSpec{},
+		},
+	}
+}
+
 func (f *fixture) newController() (*DataVolumeController, informers.SharedInformerFactory, kubeinformers.SharedInformerFactory) {
 	f.client = fake.NewSimpleClientset(f.objects...)
 	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
@@ -647,6 +663,108 @@ func TestUploadPodFailed(t *testing.T) {
 func TestUploadClaimLost(t *testing.T) {
 	f := newFixture(t)
 	dataVolume := newUploadDataVolume("upload-datavolume")
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+
+	dataVolume.Status.Phase = cdiv1.Pending
+	pvc.Status.Phase = corev1.ClaimLost
+
+	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
+	f.objects = append(f.objects, dataVolume)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	result := dataVolume.DeepCopy()
+	result.Status.Phase = cdiv1.Failed
+	f.expectUpdateDataVolumeStatusAction(result)
+	f.run(getKey(dataVolume, t))
+}
+
+func TestBlankImageScheduled(t *testing.T) {
+	f := newFixture(t)
+	dataVolume := newBlankImageDataVolume("blank-image-datavolume")
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+
+	dataVolume.Status.Phase = cdiv1.Pending
+	pvc.Status.Phase = corev1.ClaimBound
+	pvc.Annotations[AnnImportPod] = "somepod"
+
+	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
+	f.objects = append(f.objects, dataVolume)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	result := dataVolume.DeepCopy()
+	result.Status.Phase = cdiv1.ImportScheduled
+	f.expectUpdateDataVolumeStatusAction(result)
+	f.run(getKey(dataVolume, t))
+}
+
+func TestBlankImageInProgress(t *testing.T) {
+	f := newFixture(t)
+	dataVolume := newBlankImageDataVolume("blank-image-datavolume")
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+
+	dataVolume.Status.Phase = cdiv1.Pending
+	pvc.Status.Phase = corev1.ClaimBound
+	pvc.Annotations[AnnImportPod] = "somepod"
+	pvc.Annotations[AnnPodPhase] = "Running"
+
+	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
+	f.objects = append(f.objects, dataVolume)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	result := dataVolume.DeepCopy()
+	result.Status.Phase = cdiv1.ImportInProgress
+	f.expectUpdateDataVolumeStatusAction(result)
+	f.run(getKey(dataVolume, t))
+}
+
+func TestBlankImageSucceeded(t *testing.T) {
+	f := newFixture(t)
+	dataVolume := newBlankImageDataVolume("blank-image-datavolume")
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+
+	dataVolume.Status.Phase = cdiv1.Pending
+	pvc.Status.Phase = corev1.ClaimBound
+	pvc.Annotations[AnnImportPod] = "somepod"
+	pvc.Annotations[AnnPodPhase] = "Succeeded"
+
+	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
+	f.objects = append(f.objects, dataVolume)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	result := dataVolume.DeepCopy()
+	result.Status.Phase = cdiv1.Succeeded
+	f.expectUpdateDataVolumeStatusAction(result)
+	f.run(getKey(dataVolume, t))
+}
+
+func TestBlankImagePodFailed(t *testing.T) {
+	f := newFixture(t)
+	dataVolume := newBlankImageDataVolume("blank-image-datavolume")
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+
+	dataVolume.Status.Phase = cdiv1.Pending
+	pvc.Status.Phase = corev1.ClaimBound
+	pvc.Annotations[AnnImportPod] = "somepod"
+	pvc.Annotations[AnnPodPhase] = "Failed"
+
+	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
+	f.objects = append(f.objects, dataVolume)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	result := dataVolume.DeepCopy()
+	result.Status.Phase = cdiv1.Failed
+	f.expectUpdateDataVolumeStatusAction(result)
+	f.run(getKey(dataVolume, t))
+}
+
+func TestBlankImageClaimLost(t *testing.T) {
+	f := newFixture(t)
+	dataVolume := newBlankImageDataVolume("blank-image-datavolume")
 	pvc, _ := newPersistentVolumeClaim(dataVolume)
 
 	dataVolume.Status.Phase = cdiv1.Pending

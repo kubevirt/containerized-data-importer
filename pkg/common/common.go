@@ -24,11 +24,13 @@ const (
 	PrometheusLabel = "prometheus.kubevirt.io"
 
 	// host file constants:
-	importerWriteDir = "/data"
+
+	// ImporterWriteDir provides a constant to build ImporterWritePath
+	ImporterWriteDir = "/data"
 	// ImporterWriteFile provides a constant for our importer/datastream_ginkgo_test and to build ImporterWritePath
 	ImporterWriteFile = "disk.img"
 	// ImporterWritePath provides a constant for the cmd/cdi-importer/importer.go executable
-	ImporterWritePath = importerWriteDir + "/" + ImporterWriteFile
+	ImporterWritePath = ImporterWriteDir + "/" + ImporterWriteFile
 
 	// ImporterPodName provides a constant to use as a prefix for Pods created by CDI (controller only)
 	ImporterPodName = "importer"
@@ -53,9 +55,6 @@ const (
 	ImporterSecretKey = "IMPORTER_SECRET_KEY"
 	// ImporterImageSize provides a constant to capture our env variable "IMPORTER_IMAGE_SIZE"
 	ImporterImageSize = "IMPORTER_IMAGE_SIZE"
-
-	// OwnerUID provides the UID of the owner entity (either PVC or DV)
-	OwnerUID = "OWNER_UID"
 
 	// CloningLabelKey provides a constant to use as a label name for pod affinity (controller pkg only)
 	CloningLabelKey = "cloning"
@@ -82,6 +81,9 @@ const (
 	UploadServerDataDir = ImporterDataDir
 	// UploadServerServiceLabel is the label selector for upload server services
 	UploadServerServiceLabel = "service"
+
+	// OwnerUID provides the UID of the owner entity (either PVC or DV)
+	OwnerUID = "OWNER_UID"
 
 	// KeyAccess provides a constant to the accessKeyId label using in controller pkg and transport_test.go
 	KeyAccess = "accessKeyId"

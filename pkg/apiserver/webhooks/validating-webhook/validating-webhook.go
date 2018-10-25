@@ -82,7 +82,8 @@ func validateDataVolumeSpec(field *k8sfield.Path, spec *datavolumev1alpha1.DataV
 	var url string
 	var sourceType string
 	// spec source field should not be empty
-	if &spec.Source == nil || (spec.Source.HTTP == nil && spec.Source.S3 == nil && spec.Source.PVC == nil && spec.Source.Upload == nil) {
+	if &spec.Source == nil || (spec.Source.HTTP == nil && spec.Source.S3 == nil && spec.Source.PVC == nil && spec.Source.Upload == nil &&
+		spec.Source.Blank == nil) {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: fmt.Sprintf("Missing Data volume source"),
