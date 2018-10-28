@@ -361,6 +361,7 @@ func Test_getSource(t *testing.T) {
 	pvcNoneAnno := createPvc("testPVCNoneAnno", "default", map[string]string{AnnSource: SourceNone}, nil)
 	pvcGlanceAnno := createPvc("testPVCNoneAnno", "default", map[string]string{AnnSource: SourceGlance}, nil)
 	pvcInvalidValue := createPvc("testPVCInvalidValue", "default", map[string]string{AnnSource: "iaminvalid"}, nil)
+	pvcRegistryAnno := createPvc("testPVCRegistryAnno", "default", map[string]string{AnnSource: SourceRegistry}, nil)
 
 	tests := []struct {
 		name string
@@ -386,6 +387,11 @@ func Test_getSource(t *testing.T) {
 			name: "expected to find glance with glance anno",
 			args: args{pvcGlanceAnno},
 			want: SourceGlance,
+		},
+		{
+			name: "expected to find registry with registry anno",
+			args: args{pvcRegistryAnno},
+			want: SourceRegistry,
 		},
 	}
 	for _, tt := range tests {

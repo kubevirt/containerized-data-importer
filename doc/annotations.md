@@ -5,10 +5,11 @@ All annotations associated with Containerized Data Importer (CDI) have a prefix 
 Source describes the type of data source CDI will be collecting the data from. Based on the value of source, additional annotations may be required to successfully import the data. The full annotation for source is: cdi.kubevirt.io/storage.import.source. The following values are currently available:
 * http
 * S3
+* registry
 * none (don't import, but create data based on the contentType annotation)
 
-### http and s3
-The http and s3 sources require an additional annotation to describe the end point CDI needs to connect to. The annotation is cdi.kubevirt.io/storage.import.endpoint. If the end point requires authentication one can add an optional annotation to point to a Kubernetes Secret to get authentication information from. This annotation is: cdi.kubevirt.io/storage.import.secretName. If the source annotation is missing it will default to "http". 
+### http, s3 and registry
+The http, s3 and registry sources require an additional annotation to describe the end point CDI needs to connect to. The annotation is cdi.kubevirt.io/storage.import.endpoint. If the end point requires authentication one can add an optional annotation to point to a Kubernetes Secret to get authentication information from. This annotation is: cdi.kubevirt.io/storage.import.secretName. If the source annotation is missing it will default to "http".
 
 #### contentType
 There is an additional annotation that determines the content type of the http/s3 source, the content type can be one of the following:
@@ -52,6 +53,29 @@ metadata:
     cdi.kubevirt.io/storage.import.source: "http" #defaults to http if missing or invalid
     cdi.kubevirt.io/storage.contentType: "archive" #defaults to kubevirt if missing or invalid.
     cdi.kubevirt.io/storage.import.endpoint: "http://www.source.example/path/of/data.tar" # http or https is supported
+    cdi.kubevirt.io/storage.import.secretName: "" # Optional. The name of the secret containing credentials for the end point
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi # Request a size that is large enough to accept the data from the source, including conversion
+  # Optional: Set the storage class or omit to accept the default
+  # storageClassName: local
+``` 
+
+Creating a PVC that imports data from an registry source with kubevirt contentType:
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: "example-pvc"
+  labels:
+    app: containerized-data-importer
+  annotations:
+    cdi.kubevirt.io/storage.import.source: "registry" #defaults to http if missing or invalid
+    cdi.kubevirt.io/storage.import.contentType: "kubevirt" #defaults to kubevirt if missing or invalid.
+    cdi.kubevirt.io/storage.import.endpoint: "docker://registry:5000/fedora" # docker, oci
     cdi.kubevirt.io/storage.import.secretName: "" # Optional. The name of the secret containing credentials for the end point
 spec:
   accessModes:

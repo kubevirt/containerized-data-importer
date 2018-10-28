@@ -41,7 +41,7 @@ var _ = Describe("Transport Tests", func() {
 
 	// it() is the body of the test and is executed once per Entry() by DescribeTable()
 	// closes over c and ns
-	it := func(ep, file, accessKey, secretKey string, shouldSucceed bool) {
+	it := func(ep, file, accessKey, secretKey, source string, shouldSucceed bool) {
 
 		var (
 			err error // prevent shadowing
@@ -50,6 +50,7 @@ var _ = Describe("Transport Tests", func() {
 		pvcAnn := map[string]string{
 			controller.AnnEndpoint: ep + "/" + file,
 			controller.AnnSecret:   "",
+			controller.AnnSource:   source,
 		}
 
 		if accessKey != "" || secretKey != "" {
@@ -86,10 +87,15 @@ var _ = Describe("Transport Tests", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(utils.WaitTimeoutForPodReady(c, sizeCheckPod, ns, 20*time.Second)).To(Succeed())
 
-			command := `expSize=20971520; haveSize=$(wc -c < /pvc/disk.img); (( $expSize == $haveSize )); echo $?`
-			exitCode := f.ExecShellInPod(pod.Name, ns, command)
-			// A 0 exitCode should indicate that $expSize == $haveSize
-			Expect(strconv.Atoi(exitCode)).To(BeZero())
+			switch pvcAnn[controller.AnnSource] {
+			case controller.SourceHTTP:
+				command := `expSize=20971520; haveSize=$(wc -c < /pvc/disk.img); (( $expSize == $haveSize )); echo $?`
+				exitCode := f.ExecShellInPod(pod.Name, ns, command)
+				// A 0 exitCode should indicate that $expSize == $haveSize
+				Expect(strconv.Atoi(exitCode)).To(BeZero())
+			case controller.SourceRegistry:
+				// TODO: add functionality tests
+			}
 		} else {
 			By("Verifying PVC is empty")
 			Expect(framework.VerifyPVCIsEmpty(f, pvc)).To(BeTrue(), fmt.Sprintf("Found 0 imported files on PVC %q", pvc.Namespace+"/"+pvc.Name))
@@ -98,10 +104,13 @@ var _ = Describe("Transport Tests", func() {
 
 	httpNoAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPNoAuthPort)
 	httpAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPAuthPort)
+	registryNoAuthEp := fmt.Sprintf("docker://%s", "registry:5000")
 	DescribeTable("Transport Test Table", it,
-		Entry("should connect to http endpoint without credentials", httpNoAuthEp, targetFile, "", "", true),
-		Entry("should connect to http endpoint with credentials", httpAuthEp, targetFile, utils.AccessKeyValue, utils.SecretKeyValue, true),
-		Entry("should not connect to http endpoint with invalid credentials", httpAuthEp, targetFile, "gopats", "bradyisthegoat", false),
-		Entry("should connect to QCOW http endpoint without credentials", httpNoAuthEp, targetQCOWFile, "", "", true),
-		Entry("should connect to QCOW http endpoint with credentials", httpAuthEp, targetQCOWFile, utils.AccessKeyValue, utils.SecretKeyValue, true))
+		Entry("should connect to http endpoint without credentials", httpNoAuthEp, targetFile, "", "", controller.SourceHTTP, true),
+		Entry("should connect to http endpoint with credentials", httpAuthEp, targetFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, true),
+		Entry("should not connect to http endpoint with invalid credentials", httpAuthEp, targetFile, "gopats", "bradyisthegoat", controller.SourceHTTP, false),
+		Entry("should connect to QCOW http endpoint without credentials", httpNoAuthEp, targetQCOWFile, "", "", controller.SourceHTTP, true),
+		Entry("should connect to QCOW http endpoint with credentials", httpAuthEp, targetQCOWFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, true),
+		Entry("should connect to registry endpoint without credentials", registryNoAuthEp, "cdi-importer", "", "", controller.SourceRegistry, true),
+		Entry("should not connect to registry endpoint with invalid credentials", registryNoAuthEp, "cdi-importer", "gopats", "bradyisthegoat", controller.SourceRegistry, false))
 })
