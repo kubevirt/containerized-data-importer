@@ -77,8 +77,8 @@ func TestCloneController_pvcFromKey(t *testing.T) {
 	//create staging pvc and pods
 	pvcWithCloneRequestAnno := createPvc("target-pvc", "target-ns", map[string]string{AnnCloneRequest: "source-ns/golden-pvc"}, nil)
 	id := string(pvcWithCloneRequestAnno.GetUID())
-	sourcePod := createSourcePod(pvcWithCloneRequestAnno, DataVolName, id)
-	targetPod := createTargetPod(pvcWithCloneRequestAnno, DataVolName, id, sourcePod.Namespace)
+	sourcePod := createSourcePod(pvcWithCloneRequestAnno, id)
+	targetPod := createTargetPod(pvcWithCloneRequestAnno, id, sourcePod.Namespace)
 
 	//run the informers
 	c, pvc, sourcePod, targetPod, err := createCloneController(pvcWithCloneRequestAnno, sourcePod, targetPod, "target-ns", "sourceNs")
@@ -188,8 +188,8 @@ func TestCloneController_objFromKey(t *testing.T) {
 	//create staging pvc and pods
 	pvcWithCloneRequestAnno := createPvc("testPvcWithCloneRequestAnno", "target-ns", map[string]string{AnnCloneRequest: "source-ns/golden-pvc"}, nil)
 	id := string(pvcWithCloneRequestAnno.GetUID())
-	sourcePod := createSourcePod(pvcWithCloneRequestAnno, DataVolName, id)
-	targetPod := createTargetPod(pvcWithCloneRequestAnno, DataVolName, id, sourcePod.Namespace)
+	sourcePod := createSourcePod(pvcWithCloneRequestAnno, id)
+	targetPod := createTargetPod(pvcWithCloneRequestAnno, id, sourcePod.Namespace)
 
 	//run the informers
 	c, pvc, sourcePod, targetPod, err := createCloneController(pvcWithCloneRequestAnno, sourcePod, targetPod, "target-ns", "source-ns")
@@ -740,12 +740,6 @@ func Test_addToMap(t *testing.T) {
 	}
 }
 
-func createPodWithName(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
-	pod := createPod(pvc, dvname)
-	pod.Name = fmt.Sprintf("%sgeneratedname", pod.GenerateName)
-	return pod
-}
-
 func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 	// importer pod name contains the pvc name
 	podName := fmt.Sprintf("%s-%s-", ImporterPodName, pvc.Name)
@@ -989,51 +983,7 @@ func createCloneController(pvcSpec *v1.PersistentVolumeClaim, sourcePodSpec *v1.
 	return c, pvc, sourcePod, targetPod, nil
 }
 
-func createImportControllerMultiObject(pvcSpecs []*v1.PersistentVolumeClaim, podSpecs []*v1.Pod, nspaces []string) (*ImportController, []*v1.PersistentVolumeClaim, []*v1.Pod, error) {
-	//Set up environment
-	myclient := k8sfake.NewSimpleClientset()
-	pvcQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	var pvcs []*v1.PersistentVolumeClaim
-	var pods []*v1.Pod
-
-	k8sI := kubeinformers.NewSharedInformerFactory(myclient, noResyncPeriodFunc())
-
-	pvcInformer := k8sI.Core().V1().PersistentVolumeClaims()
-	podInformer := k8sI.Core().V1().Pods()
-
-	//create staging pvc and pod
-	for i, v := range pvcSpecs {
-		pvc, err := myclient.CoreV1().PersistentVolumeClaims(v.Namespace).Create(v)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("createImportController: failed to initialize and create pvc index = %v value = %v error = %v", i, v, err)
-		}
-		k8sI.Core().V1().PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
-		pvcQueue.Add(pvc)
-		pvcs = append(pvcs, pvc)
-	}
-
-	for i, v := range podSpecs {
-		pod, err := myclient.CoreV1().Pods(nspaces[i]).Create(v)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("createImportController: failed to initialize and create pod index = %v value = %v error = %v, Pod Name = %v, Length Specs = %v", i, v, err, v.Name, len(podSpecs))
-		}
-		k8sI.Core().V1().Pods().Informer().GetIndexer().Add(pod)
-		pods = append(pods, pod)
-	}
-
-	//run the informers
-	stop := make(chan struct{})
-	go pvcInformer.Informer().Run(stop)
-	cache.WaitForCacheSync(stop, pvcInformer.Informer().HasSynced)
-	go podInformer.Informer().Run(stop)
-	cache.WaitForCacheSync(stop, podInformer.Informer().HasSynced)
-	defer close(stop)
-
-	c := NewImportController(myclient, pvcInformer, podInformer, "test/image", "Always", "-v=5")
-	return c, pvcs, pods, nil
-}
-
-func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, id string) *v1.Pod {
+func createSourcePod(pvc *v1.PersistentVolumeClaim, id string) *v1.Pod {
 	_, sourcePvcName := ParseSourcePvcAnnotation(pvc.GetAnnotations()[AnnCloneRequest], "/")
 	// source pod name contains the pvc name
 	podName := fmt.Sprintf("%s-", ClonerSourcePodName)
@@ -1115,7 +1065,7 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, dvname string, id string) *v
 	return pod
 }
 
-func createTargetPod(pvc *v1.PersistentVolumeClaim, dvname, id, podAffinityNamespace string) *v1.Pod {
+func createTargetPod(pvc *v1.PersistentVolumeClaim, id, podAffinityNamespace string) *v1.Pod {
 	// target pod name contains the pvc name
 	podName := fmt.Sprintf("%s-", ClonerTargetPodName)
 	blockOwnerDeletion := true

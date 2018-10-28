@@ -45,7 +45,7 @@ type DataVolumeSource struct {
 	HTTP   *DataVolumeSourceHTTP   `json:"http,omitempty"`
 	S3     *DataVolumeSourceS3     `json:"s3,omitempty"`
 	PVC    *DataVolumeSourcePVC    `json:"pvc,omitempty"`
-	UPLOAD *DataVolumeSourceUpload `json:"upload,omitempty"`
+	Upload *DataVolumeSourceUpload `json:"upload,omitempty"`
 }
 
 // DataVolumeSourcePVC provides the parameters to create a Data Volume from an existing PVC

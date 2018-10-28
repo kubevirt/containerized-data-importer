@@ -21,7 +21,6 @@ const (
 	assertionPollInterval            = 2 * time.Second
 	controllerSkipPVCCompleteTimeout = 60 * time.Second
 	invalidEndpoint                  = "http://gopats.com/who-is-the-goat.iso"
-	waitForCDIImportTimeout          = 30 * time.Second
 )
 
 var _ = Describe(testSuiteName, func() {
