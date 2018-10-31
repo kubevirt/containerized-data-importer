@@ -1,10 +1,15 @@
 package util
 
 import (
+	"encoding/base64"
+	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"os"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -32,4 +37,17 @@ func getNamespace(path string) string {
 		}
 	}
 	return v1.NamespaceSystem
+}
+
+// ParseEnvVar provides a wrapper to attempt to fetch the specified env var
+func ParseEnvVar(envVarName string, decode bool) (string, error) {
+	value := os.Getenv(envVarName)
+	if decode {
+		v, err := base64.StdEncoding.DecodeString(value)
+		if err != nil {
+			return "", errors.Errorf("error decoding environment variable %q", envVarName)
+		}
+		value = fmt.Sprintf("%s", v)
+	}
+	return value, nil
 }

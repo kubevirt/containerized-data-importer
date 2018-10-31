@@ -9,7 +9,7 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 
-func TestImporter(t *testing.T) {
+func TestPkgUtil(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecsWithDefaultAndCustomReporters(t, "Utils Suite", reporters.NewReporters())
 }

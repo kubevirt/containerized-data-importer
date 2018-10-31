@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 func TestParseEnvVar(t *testing.T) {
@@ -52,7 +53,7 @@ func TestParseEnvVar(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseEnvVar(tt.args.envVarName, tt.args.decode)
+			got, err := util.ParseEnvVar(tt.args.envVarName, tt.args.decode)
 			if err != nil && !tt.wantErr {
 				t.Errorf("ParseEnvVar() do not expect error but got %v, want %v", err, tt.wantErr)
 			}

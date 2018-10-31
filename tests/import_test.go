@@ -1,6 +1,7 @@
 package tests_test
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -8,7 +9,13 @@ import (
 	. "github.com/onsi/gomega"
 
 	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
+	"k8s.io/client-go/kubernetes"
+
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -40,6 +47,7 @@ var _ = Describe(testSuiteName, func() {
 		Expect(framework.VerifyPVCIsEmpty(f, pvc)).To(BeTrue())
 		// Not deleting PVC as it will be removed with the NS removal.
 	})
+
 	It("Import pod status should be Fail on unavailable endpoint", func() {
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
 			"no-import",
@@ -54,3 +62,78 @@ var _ = Describe(testSuiteName, func() {
 		Expect(status).Should(BeEquivalentTo(v1.PodPending))
 	})
 })
+
+var _ = Describe(testSuiteName+"-prometheus", func() {
+	f := framework.NewFrameworkOrDie(namespacePrefix)
+
+	BeforeEach(func() {
+		_, err := createPrometheusServiceInNs(f.K8sClient, f.Namespace.Name)
+		Expect(err).NotTo(HaveOccurred(), "Error creating prometheus service")
+	})
+
+	It("Import pod should have prometheus stats available while importing", func() {
+		c := f.K8sClient
+		ns := f.Namespace.Name
+		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPNoAuthPort)
+		pvcAnn := map[string]string{
+			controller.AnnEndpoint: httpEp,
+			controller.AnnSecret:   "",
+		}
+
+		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.iso"))
+		//pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-e2e", "20M", pvcAnn, nil))
+		_, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-e2e", "20M", pvcAnn, nil))
+		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
+
+		_, err = utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
+		//importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
+
+		var endpoint *v1.Endpoints
+		var pod v1.Pod
+		l, err := labels.Parse("prometheus.kubevirt.io")
+		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() int {
+			endpoint, err = c.CoreV1().Endpoints(ns).Get("kubevirt-prometheus-metrics", metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			podList, err := c.CoreV1().Pods(ns).List(metav1.ListOptions{LabelSelector: l.String()})
+			pod = podList.Items[0]
+			Expect(err).ToNot(HaveOccurred())
+			return len(endpoint.Subsets)
+		}, 60, 1).Should(Equal(1))
+
+		By("checking if the endpoint contains the metrics port and only one matching subset")
+		Expect(endpoint.Subsets[0].Ports).To(HaveLen(1))
+		Expect(endpoint.Subsets[0].Ports[0].Name).To(Equal("metrics"))
+		Expect(endpoint.Subsets[0].Ports[0].Port).To(Equal(int32(443)))
+	})
+})
+
+func createPrometheusServiceInNs(c *kubernetes.Clientset, namespace string) (*v1.Service, error) {
+	service := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kubevirt-prometheus-metrics",
+			Namespace: namespace,
+			Labels: map[string]string{
+				"prometheus.kubevirt.io": "",
+				"kubevirt.io":            "",
+			},
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Name: "metrics",
+					Port: 443,
+					TargetPort: intstr.IntOrString{
+						StrVal: "metrics",
+					},
+					Protocol: v1.ProtocolTCP,
+				},
+			},
+			Selector: map[string]string{
+				"prometheus.kubevirt.io": "",
+			},
+		},
+	}
+	return c.CoreV1().Services(namespace).Create(service)
+}
