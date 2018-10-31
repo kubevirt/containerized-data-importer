@@ -61,7 +61,7 @@ var _ = Describe("DataVolume tests", func() {
 			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
-			By(fmt.Sprint("Verifying events occured"))
+			By(fmt.Sprint("Verifying events occurred"))
 
 			for _, eventReason := range eventReasons {
 				Eventually(func() bool {
@@ -109,7 +109,7 @@ var _ = Describe("DataVolume tests", func() {
 				Expect(f.VerifyTargetPVCContent(f.Namespace, targetPvc, testFile, fillData)).To(BeTrue())
 			}
 
-			By(fmt.Sprintf("Verifying event %s occured", controller.CloneSucceeded))
+			By(fmt.Sprintf("Verifying event %s occurred", controller.CloneSucceeded))
 			Eventually(func() bool {
 				events, err := tests.RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
 				Expect(err).NotTo(HaveOccurred())
