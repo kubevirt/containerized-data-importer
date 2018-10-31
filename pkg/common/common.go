@@ -24,7 +24,7 @@ const (
 	importerWriteDir = "/data"
 	// ImporterWriteFile provides a constant for our importer/datastream_ginkgo_test and to build ImporterWritePath
 	ImporterWriteFile = "disk.img"
-	//ImporterWritePath provides a constant for for the cmd/cdi-importer/importer.go executable
+	// ImporterWritePath provides a constant for the cmd/cdi-importer/importer.go executable
 	ImporterWritePath = importerWriteDir + "/" + ImporterWriteFile
 
 	// ImporterPodName provides a constant to use as a prefix for Pods created by CDI (controller only)
@@ -38,7 +38,7 @@ const (
 
 	// PullPolicy provides a constant to capture our env variable "PULL_POLICY" (only used by cmd/cdi-controller/controller.go)
 	PullPolicy = "PULL_POLICY"
-	// ImporterEndpoint provides a constant to capture our env variable "IMPOTER_ENDPOINT"
+	// ImporterEndpoint provides a constant to capture our env variable "IMPORTER_ENDPOINT"
 	ImporterEndpoint = "IMPORTER_ENDPOINT"
 	// ImporterAccessKeyID provides a constant to capture our env variable "IMPORTER_ACCES_KEY_ID"
 	ImporterAccessKeyID = "IMPORTER_ACCESS_KEY_ID"
