@@ -23,7 +23,7 @@ import (
 
 const (
 	pollingInterval = 2 * time.Second
-	timeout         = 60 * time.Second
+	timeout         = 90 * time.Second
 )
 
 var _ = Describe("DataVolume tests", func() {
@@ -62,14 +62,12 @@ var _ = Describe("DataVolume tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By(fmt.Sprint("Verifying events occurred"))
-
 			for _, eventReason := range eventReasons {
 				Eventually(func() bool {
 					events, err := tests.RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
 					Expect(err).NotTo(HaveOccurred())
 					return strings.Contains(events, eventReason)
 				}, timeout, pollingInterval).Should(BeTrue())
-
 			}
 
 			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -77,8 +75,8 @@ var _ = Describe("DataVolume tests", func() {
 
 		},
 			table.Entry("succeed when given valid url", utils.TinyCoreIsoURL, cdiv1.Succeeded, "dv-phase-test-1", []string{controller.ImportScheduled, controller.ImportSucceeded}),
-			table.Entry("fail due to invalid DNS entry", "http://i-made-this-up.kube-system/tinyCore.iso", cdiv1.Failed, "dv-phase-test-2", []string{controller.ImportScheduled, controller.ImportInProgress}),
-			table.Entry("fail due to file not found", utils.TinyCoreIsoURL+"not.real.file", cdiv1.Failed, "dv-phase-test-3", []string{controller.ImportScheduled, controller.ImportInProgress}),
+			table.Entry("fail due to invalid DNS entry", "http://i-made-this-up.kube-system/tinyCore.iso", cdiv1.Failed, "dv-phase-test-2", []string{controller.ImportScheduled}),
+			table.Entry("fail due to file not found", utils.TinyCoreIsoURL+"not.real.file", cdiv1.Failed, "dv-phase-test-3", []string{controller.ImportScheduled}),
 		)
 
 		table.DescribeTable("with clone source should", func(command string, phase cdiv1.DataVolumePhase, dataVolumeName string) {
@@ -97,6 +95,12 @@ var _ = Describe("DataVolume tests", func() {
 
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
 			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+			if err != nil {
+				dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				if dverr != nil {
+					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+				}
+			}
 			Expect(err).ToNot(HaveOccurred())
 
 			// verify PVC was created

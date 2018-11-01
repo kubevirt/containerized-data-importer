@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	nsCreateTime = 30 * time.Second
+	nsCreateTime = 60 * time.Second
 	nsDeleteTime = 5 * time.Minute
 	//NsPrefixLabel provides a cdi prefix label to identify the test namespace
 	NsPrefixLabel = "cdi-e2e"
