@@ -1088,6 +1088,7 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, id, podAffinityNamespace str
 	podName := fmt.Sprintf("%s-", ClonerTargetPodName)
 	blockOwnerDeletion := true
 	isController := true
+	ownerUID := pvc.UID
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -1102,7 +1103,8 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, id, podAffinityNamespace str
 			Labels: map[string]string{
 				CDILabelKey: CDILabelValue, //filtered by the podInformer
 				// this label is used when searching for a pvc's cloner target pod.
-				CloneUniqueID: pvc.Name + "-target-pod",
+				CloneUniqueID:   pvc.Name + "-target-pod",
+				PrometheusLabel: "",
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -1155,6 +1157,19 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, id, podAffinityNamespace str
 						},
 					},
 					Args: []string{"target", id},
+					Ports: []v1.ContainerPort{
+						{
+							Name:          "metrics",
+							ContainerPort: 8443,
+							Protocol:      v1.ProtocolTCP,
+						},
+					},
+					Env: []v1.EnvVar{
+						{
+							Name:  OwnerUID,
+							Value: string(ownerUID),
+						},
+					},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyNever,
