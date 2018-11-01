@@ -760,9 +760,10 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 				AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				CDILabelKey:     CDILabelValue,
-				LabelImportPvc:  pvc.Name,
-				PrometheusLabel: "",
+				CDILabelKey:       CDILabelValue,
+				CDIComponentLabel: ImporterPodName,
+				LabelImportPvc:    pvc.Name,
+				PrometheusLabel:   "",
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -1019,8 +1020,9 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, id string) *v1.Pod {
 				AnnTargetPodNamespace: pvc.Namespace,
 			},
 			Labels: map[string]string{
-				CDILabelKey:     CDILabelValue,                //filtered by the podInformer
-				CloningLabelKey: CloningLabelValue + "-" + id, //used by podAffity
+				CDILabelKey:       CDILabelValue, //filtered by the podInformer
+				CDIComponentLabel: ClonerSourcePodName,
+				CloningLabelKey:   CloningLabelValue + "-" + id, //used by podAffity
 				// this label is used when searching for a pvc's cloner source pod.
 				CloneUniqueID: pvc.Name + "-source-pod",
 			},
@@ -1101,7 +1103,8 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, id, podAffinityNamespace str
 				AnnTargetPodNamespace: pvc.Namespace,
 			},
 			Labels: map[string]string{
-				CDILabelKey: CDILabelValue, //filtered by the podInformer
+				CDILabelKey:       CDILabelValue, //filtered by the podInformer
+				CDIComponentLabel: ClonerTargetPodName,
 				// this label is used when searching for a pvc's cloner target pod.
 				CloneUniqueID:   pvc.Name + "-target-pod",
 				PrometheusLabel: "",
