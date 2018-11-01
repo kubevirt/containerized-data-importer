@@ -20,11 +20,14 @@ const (
 	// CDIComponentLabel can be added to all CDI resources
 	CDIComponentLabel = "cdi.kubevirt.io"
 
+	// PrometheusLabel provides the label to indicate prometheus metrics are available in the pods.
+	PrometheusLabel = "prometheus.kubevirt.io"
+
 	// host file constants:
 	importerWriteDir = "/data"
 	// ImporterWriteFile provides a constant for our importer/datastream_ginkgo_test and to build ImporterWritePath
 	ImporterWriteFile = "disk.img"
-	//ImporterWritePath provides a constant for for the cmd/cdi-importer/importer.go executable
+	// ImporterWritePath provides a constant for the cmd/cdi-importer/importer.go executable
 	ImporterWritePath = importerWriteDir + "/" + ImporterWriteFile
 
 	// ImporterPodName provides a constant to use as a prefix for Pods created by CDI (controller only)
@@ -38,12 +41,15 @@ const (
 
 	// PullPolicy provides a constant to capture our env variable "PULL_POLICY" (only used by cmd/cdi-controller/controller.go)
 	PullPolicy = "PULL_POLICY"
-	// ImporterEndpoint provides a constant to capture our env variable "IMPOTER_ENDPOINT"
+	// ImporterEndpoint provides a constant to capture our env variable "IMPORTER_ENDPOINT"
 	ImporterEndpoint = "IMPORTER_ENDPOINT"
 	// ImporterAccessKeyID provides a constant to capture our env variable "IMPORTER_ACCES_KEY_ID"
 	ImporterAccessKeyID = "IMPORTER_ACCESS_KEY_ID"
 	// ImporterSecretKey provides a constant to capture our env variable "IMPORTER_SECRET_KEY"
 	ImporterSecretKey = "IMPORTER_SECRET_KEY"
+
+	// OwnerUID provides the UID of the owner entity (either PVC or DV)
+	OwnerUID = "OWNER_UID"
 
 	// CloningLabelKey provides a constant to use as a label name for pod affinity (controller pkg only)
 	CloningLabelKey = "cloning"

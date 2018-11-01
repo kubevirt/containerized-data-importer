@@ -42,7 +42,7 @@ var _ = Describe("Process Limits", func() {
 	table.DescribeTable("exec", func(commandOverride func(string, ...string) *exec.Cmd, limiter ProcessLimiter, limits *ProcessLimitValues, command, output, errString string, args ...string) {
 		replaceExecCommand(commandOverride, func() {
 			replaceLimiter(limiter, func() {
-				result, err := ExecWithLimits(limits, command, args...)
+				result, err := ExecWithLimits(limits, testProgress, command, args...)
 				strOutput := string(result)
 
 				Expect(strOutput).To(Equal(output))
@@ -107,6 +107,10 @@ func (p *testProcessLimiter) SetAddressSpaceLimit(pid int, value uint64) error {
 
 func (p *testProcessLimiter) SetCPUTimeLimit(pid int, value uint64) error {
 	return p.cpuTimeError
+}
+
+func testProgress(line string) {
+	// No-op
 }
 
 func fakeCommand(command string, args ...string) *exec.Cmd {

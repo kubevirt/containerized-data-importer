@@ -18,9 +18,14 @@ package image
 import (
 	"fmt"
 	"net/url"
-	"testing"
 
 	"github.com/pkg/errors"
+
+	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/gomega"
+
+	dto "github.com/prometheus/client_model/go"
 
 	"kubevirt.io/containerized-data-importer/pkg/system"
 )
@@ -90,131 +95,94 @@ const backingFileValidateJSON = `
 }
 `
 
-type execFunctionType func(*system.ProcessLimitValues, string, ...string) ([]byte, error)
+type progressFunctionType func(string)
 
-type convertTest struct {
-	name      string
-	execFunc  execFunctionType
-	errString string
+type execFunctionType func(*system.ProcessLimitValues, func(string), string, ...string) ([]byte, error)
+
+func init() {
+	ownerUID = "1111-1111-111"
 }
 
-func TestConvertQcow2ToRaw(t *testing.T) {
-	const (
-		source = "/upload/myimage.qcow2"
-		dest   = "/data/disk.img"
+var _ = Describe("Importer", func() {
+	source := "/upload/myimage.qcow2"
+	dest := "/data/disk.img"
+	sourceStream, _ := url.Parse("http://localhost:8080/myimage.qcow2")
+	destStream := "/tmp/myimage.qcow2"
+	imageName := "myimage.qcow2"
+
+	table.DescribeTable("with import source should", func(execfunc execFunctionType, errString string, errFunc func() error) {
+		replaceExecFunction(execfunc, func() {
+			err := errFunc()
+
+			if errString == "" {
+				Expect(err).NotTo(HaveOccurred())
+			} else {
+				Expect(err).To(HaveOccurred())
+				rootErr := errors.Cause(err)
+				if rootErr.Error() != errString {
+					Fail(fmt.Sprintf("Got wrong failure: %s, expected %s", rootErr, errString))
+				}
+			}
+		})
+	},
+		table.Entry("non-streaming convert success", mockExecFunction("", ""), "", func() error { return ConvertQcow2ToRaw(source, dest) }),
+		table.Entry("non-streaming  convert qemu-img failure", mockExecFunction("", "exit status 1"), "exit status 1", func() error { return ConvertQcow2ToRaw(source, dest) }),
+		table.Entry("streaming convert success", mockExecFunction("", ""), "", func() error { return ConvertQcow2ToRawStream(sourceStream, destStream) }),
+		table.Entry("streaming  convert qemu-img failure", mockExecFunction("", "exit status 1"), "exit status 1", func() error { return ConvertQcow2ToRawStream(sourceStream, destStream) }),
 	)
 
-	runConvertTests(t, "non-streaming", func() error { return ConvertQcow2ToRaw(source, dest) })
-}
+	table.DescribeTable("Validate should", func(execfunc execFunctionType, errString string) {
+		replaceExecFunction(execfunc, func() {
+			err := Validate(imageName, "qcow2")
 
-func TestConvertQcow2ToRawStream(t *testing.T) {
-	source, _ := url.Parse("http://localhost:8080/myimage.qcow2")
-	dest := "/tmp/myimage.qcow2"
-
-	runConvertTests(t, "streaming", func() error { return ConvertQcow2ToRawStream(source, dest) })
-}
-
-func runConvertTests(t *testing.T, prefix string, f func() error) {
-	const (
-		source = "/upload/myimage.qcow2"
-		dest   = "/data/disk.img"
+			if errString == "" {
+				Expect(err).NotTo(HaveOccurred())
+			} else {
+				Expect(err).To(HaveOccurred())
+				rootErr := errors.Cause(err)
+				if rootErr.Error() != errString {
+					Fail(fmt.Sprintf("got wrong failure: %s, expected %s", rootErr, errString))
+				}
+			}
+		})
+	},
+		table.Entry("validate success", mockExecFunction(goodValidateJSON, ""), ""),
+		table.Entry("validate error", mockExecFunction("", "exit 1"), "exit 1"),
+		table.Entry("validate bad json", mockExecFunction(badValidateJSON, ""), "unexpected end of JSON input"),
+		table.Entry("validate bad format", mockExecFunction(badFormatValidateJSON, ""), fmt.Sprintf("Invalid format raw for image %s", imageName)),
+		table.Entry("validate has backing file", mockExecFunction(backingFileValidateJSON, ""), fmt.Sprintf("Image %s is invalid because it has backing file backing-file.qcow2", imageName)),
 	)
 
-	tests := []convertTest{
-		{
-			name:      prefix + " convert success",
-			execFunc:  mockExecFunction("", ""),
-			errString: "",
-		},
-		{
-			name:      prefix + " convert qemu-img failure",
-			execFunc:  mockExecFunction("", "exit status 1"),
-			errString: "exit status 1",
-		},
-	}
+})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			replaceExecFunction(tt.execFunc, func() {
-				err := f()
+var _ = Describe("Report Progress", func() {
+	It("Parse valid progress line", func() {
+		By("Verifying the initial value is 0")
+		progress.WithLabelValues(ownerUID).Set(0)
+		metric := &dto.Metric{}
+		progress.WithLabelValues(ownerUID).Write(metric)
+		Expect(*metric.Counter.Value).To(Equal(float64(0)))
+		By("Calling reportProgress with value")
+		reportProgress("(45.34/100%)")
+		progress.WithLabelValues(ownerUID).Write(metric)
+		Expect(*metric.Counter.Value).To(Equal(45.34))
+	})
 
-				if err != nil {
-					if tt.errString == "" {
-						t.Errorf("'%s' got unexpected failure: %s", tt.name, err)
-					} else {
-						rootErr := errors.Cause(err)
-						if rootErr.Error() != tt.errString {
-							t.Errorf("'%s' got wrong failure: %s, expected %s", tt.name, rootErr, tt.errString)
-						}
-					}
-
-				} else if tt.errString != "" {
-					t.Errorf("'%s' got unexpected success, expected: %s", tt.name, tt.errString)
-				}
-			})
-		})
-	}
-}
-
-func TestValidate(t *testing.T) {
-	const imageName = "myimage.qcow2"
-
-	tests := []struct {
-		name      string
-		execFunc  execFunctionType
-		errString string
-	}{
-		{
-			name:      "validate success",
-			execFunc:  mockExecFunction(goodValidateJSON, ""),
-			errString: "",
-		},
-		{
-			name:      "validate error",
-			execFunc:  mockExecFunction("", "exit 1"),
-			errString: "exit 1",
-		},
-		{
-			name:      "validate bad json",
-			execFunc:  mockExecFunction(badValidateJSON, ""),
-			errString: "unexpected end of JSON input",
-		},
-		{
-			name:      "validate bad format",
-			execFunc:  mockExecFunction(badFormatValidateJSON, ""),
-			errString: fmt.Sprintf("Invalid format raw for image %s", imageName),
-		},
-		{
-			name:      "validate has backing file",
-			execFunc:  mockExecFunction(backingFileValidateJSON, ""),
-			errString: fmt.Sprintf("Image %s is invalid because it has backing file backing-file.qcow2", imageName),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			replaceExecFunction(tt.execFunc, func() {
-				err := Validate(imageName, "qcow2")
-
-				if err != nil {
-					if tt.errString == "" {
-						t.Errorf("'%s' got unexpected failure: %s", tt.name, err)
-					} else {
-						rootErr := errors.Cause(err)
-						if rootErr.Error() != tt.errString {
-							t.Errorf("'%s' got wrong failure: %s, expected %s", tt.name, rootErr, tt.errString)
-						}
-					}
-
-				} else if tt.errString != "" {
-					t.Errorf("'%s' got unexpected success, expected: %s", tt.name, tt.errString)
-				}
-			})
-		})
-	}
-}
+	It("Parse invalid progress line", func() {
+		By("Verifying the initial value is 0")
+		progress.WithLabelValues(ownerUID).Set(0)
+		metric := &dto.Metric{}
+		progress.WithLabelValues(ownerUID).Write(metric)
+		Expect(*metric.Counter.Value).To(Equal(float64(0)))
+		By("Calling reportProgress with invalid value")
+		reportProgress("45.34")
+		progress.WithLabelValues(ownerUID).Write(metric)
+		Expect(*metric.Counter.Value).To(Equal(float64(0)))
+	})
+})
 
 func mockExecFunction(output, errString string) execFunctionType {
-	return func(*system.ProcessLimitValues, string, ...string) (bytes []byte, err error) {
+	return func(*system.ProcessLimitValues, func(string), string, ...string) (bytes []byte, err error) {
 		if output != "" {
 			bytes = []byte(output)
 		}

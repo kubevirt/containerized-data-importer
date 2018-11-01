@@ -9,7 +9,7 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 
-func TestImporter(t *testing.T) {
+func TestPrLimit(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecsWithDefaultAndCustomReporters(t, "Prlimit Suite", reporters.NewReporters())
 }

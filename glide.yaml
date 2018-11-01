@@ -24,3 +24,5 @@ import:
   version: v2.6.0
 - package: gopkg.in/square/go-jose.v2
   version: ^2.1.8
+- package: github.com/prometheus/client_golang
+  version: 0.8.0

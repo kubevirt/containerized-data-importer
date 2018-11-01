@@ -14,12 +14,18 @@ package main
 
 import (
 	"flag"
+	"io/ioutil"
+	"net/http"
 	"os"
 
 	"github.com/golang/glog"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
+	"kubevirt.io/containerized-data-importer/pkg/keys"
+	"kubevirt.io/containerized-data-importer/pkg/util"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func init() {
@@ -29,13 +35,30 @@ func init() {
 func main() {
 	defer glog.Flush()
 
+	certsDirectory, err := ioutil.TempDir("", "certsdir")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(certsDirectory)
+
+	keyFile, certFile, err := keys.GenerateSelfSignedCert(certsDirectory, "importer", "pod")
+	if err != nil {
+		glog.Fatalf("unable to generate certificates: %v", err)
+	}
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		if err := http.ListenAndServeTLS(":8443", certFile, keyFile, nil); err != nil {
+			glog.Fatalf("Unable to start http server on port 8443", err)
+		}
+	}()
+
 	glog.V(1).Infoln("Starting importer")
-	ep, _ := importer.ParseEnvVar(common.ImporterEndpoint, false)
-	acc, _ := importer.ParseEnvVar(common.ImporterAccessKeyID, false)
-	sec, _ := importer.ParseEnvVar(common.ImporterSecretKey, false)
+	ep, _ := util.ParseEnvVar(common.ImporterEndpoint, false)
+	acc, _ := util.ParseEnvVar(common.ImporterAccessKeyID, false)
+	sec, _ := util.ParseEnvVar(common.ImporterSecretKey, false)
 
 	glog.V(1).Infoln("begin import process")
-	err := importer.CopyImage(common.ImporterWritePath, ep, acc, sec)
+	err = importer.CopyImage(common.ImporterWritePath, ep, acc, sec)
 	if err != nil {
 		glog.Errorf("%+v", err)
 		os.Exit(1)
