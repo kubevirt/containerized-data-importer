@@ -104,8 +104,8 @@ func (in *DataVolumeSource) DeepCopyInto(out *DataVolumeSource) {
 		*out = new(DataVolumeSourcePVC)
 		**out = **in
 	}
-	if in.UPLOAD != nil {
-		in, out := &in.UPLOAD, &out.UPLOAD
+	if in.Upload != nil {
+		in, out := &in.Upload, &out.Upload
 		*out = new(DataVolumeSourceUpload)
 		**out = **in
 	}

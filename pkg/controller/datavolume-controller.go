@@ -630,7 +630,7 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 		} else {
 			annotations[AnnCloneRequest] = dataVolume.Namespace + "/" + dataVolume.Spec.Source.PVC.Name
 		}
-	} else if dataVolume.Spec.Source.UPLOAD != nil {
+	} else if dataVolume.Spec.Source.Upload != nil {
 		annotations[AnnUploadRequest] = ""
 	} else {
 		return nil, errors.Errorf("no source set for datavolume")
