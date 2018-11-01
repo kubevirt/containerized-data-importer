@@ -115,7 +115,7 @@ func newUploadDataVolume(name string) *cdiv1.DataVolume {
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: cdiv1.DataVolumeSource{
-				UPLOAD: &cdiv1.DataVolumeSourceUpload{},
+				Upload: &cdiv1.DataVolumeSourceUpload{},
 			},
 			PVC: &corev1.PersistentVolumeClaimSpec{},
 		},

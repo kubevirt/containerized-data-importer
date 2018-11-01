@@ -89,9 +89,9 @@ func TestCreatesClonePods(t *testing.T) {
 	f.pvcLister = append(f.pvcLister, pvc)
 	f.kubeobjects = append(f.kubeobjects, pvc)
 	id := string(pvc.GetUID())
-	expSourcePod := createSourcePod(pvc, DataVolName, id)
+	expSourcePod := createSourcePod(pvc, id)
 	f.expectCreatePodAction(expSourcePod)
-	expTargetPod := createTargetPod(pvc, DataVolName, id, "source-ns")
+	expTargetPod := createTargetPod(pvc, id, "source-ns")
 	f.expectCreatePodAction(expTargetPod)
 
 	f.run(getPvcKey(pvc, t))
@@ -103,12 +103,12 @@ func TestCloneObservePod(t *testing.T) {
 	pvc := createPvc("trget-pvc", "target-ns", map[string]string{AnnCloneRequest: "source-ns/golden-pvc"}, nil)
 	id := string(pvc.GetUID())
 
-	sourcePod := createSourcePod(pvc, DataVolName, id)
+	sourcePod := createSourcePod(pvc, id)
 	sourcePod.Name = "madeup-source-name"
 	sourcePod.Status.Phase = corev1.PodPending
 	sourcePod.Namespace = "source-ns"
 
-	targetPod := createTargetPod(pvc, DataVolName, id, sourcePod.Namespace)
+	targetPod := createTargetPod(pvc, id, sourcePod.Namespace)
 	targetPod.Name = "madeup-target-name"
 	targetPod.Status.Phase = corev1.PodPending
 	targetPod.Namespace = "target-ns"
@@ -134,12 +134,12 @@ func TestClonePodStatusUpdating(t *testing.T) {
 	f := newCloneFixture(t)
 	pvc := createPvc("target-pvc", "target-ns", map[string]string{AnnCloneRequest: "source-ns/golden-pvc"}, nil)
 	id := string(pvc.GetUID())
-	sourcePod := createSourcePod(pvc, DataVolName, id)
+	sourcePod := createSourcePod(pvc, id)
 	sourcePod.Name = "madeup-source-name"
 	sourcePod.Status.Phase = corev1.PodRunning
 	sourcePod.Namespace = "source-ns"
 
-	targetPod := createTargetPod(pvc, DataVolName, id, sourcePod.Namespace)
+	targetPod := createTargetPod(pvc, id, sourcePod.Namespace)
 	targetPod.Name = "madeup-target-name"
 	targetPod.Status.Phase = corev1.PodRunning
 	targetPod.Namespace = "target-ns"
@@ -179,13 +179,13 @@ func TestCloneOwnership(t *testing.T) {
 	f := newCloneFixture(t)
 	pvc := createPvc("testPvc1", "default", map[string]string{AnnCloneRequest: "source-ns/golden-pvc"}, nil)
 	id := string(pvc.GetUID())
-	sourcePod := createSourcePod(pvc, DataVolName, id)
+	sourcePod := createSourcePod(pvc, id)
 	sourcePod.Name = "madeup-source-name"
 	sourcePod.Status.Phase = corev1.PodPending
 	sourcePod.Namespace, _ = ParseSourcePvcAnnotation(pvc.GetAnnotations()[AnnCloneRequest], "/")
 	sourcePod.ObjectMeta.OwnerReferences = []metav1.OwnerReference{}
 
-	targetPod := createTargetPod(pvc, DataVolName, id, sourcePod.Namespace)
+	targetPod := createTargetPod(pvc, id, sourcePod.Namespace)
 	targetPod.Status.Phase = corev1.PodPending
 	targetPod.Namespace = pvc.Namespace
 	targetPod.ObjectMeta.OwnerReferences = []metav1.OwnerReference{}
@@ -218,11 +218,11 @@ func TestCloneFindPodsInCacheUpdating(t *testing.T) {
 	}
 
 	id := string(tests[0].pvc.GetUID())
-	tests[0].sourcePod = createSourcePod(tests[0].pvc, DataVolName, id)
+	tests[0].sourcePod = createSourcePod(tests[0].pvc, id)
 	tests[0].sourcePod.Namespace = "source-ns"
 	tests[0].sourcePod.Name = fmt.Sprintf("fakesourcename%d", 1)
 
-	tests[0].targetPod = createTargetPod(tests[0].pvc, DataVolName, id, tests[0].sourcePod.Namespace)
+	tests[0].targetPod = createTargetPod(tests[0].pvc, id, tests[0].sourcePod.Namespace)
 	tests[0].targetPod.Namespace = "target-ns"
 	tests[0].sourcePod.Name = fmt.Sprintf("faketargetname%d", 1)
 
@@ -234,11 +234,11 @@ func TestCloneFindPodsInCacheUpdating(t *testing.T) {
 	f.kubeobjects = append(f.kubeobjects, tests[0].sourcePod)
 	f.kubeobjects = append(f.kubeobjects, tests[0].targetPod)
 
-	tests[1].sourcePod = createSourcePod(tests[1].pvc, DataVolName, id)
+	tests[1].sourcePod = createSourcePod(tests[1].pvc, id)
 	tests[1].sourcePod.Namespace = "source-ns"
 	tests[1].sourcePod.Name = fmt.Sprintf("fakesourcename%d", 2)
 
-	tests[1].targetPod = createTargetPod(tests[1].pvc, DataVolName, id, tests[1].sourcePod.Namespace)
+	tests[1].targetPod = createTargetPod(tests[1].pvc, id, tests[1].sourcePod.Namespace)
 	tests[1].targetPod.Namespace = "target2-ns"
 	tests[1].sourcePod.Name = fmt.Sprintf("faketargetname%d", 2)
 
