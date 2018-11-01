@@ -487,8 +487,8 @@ func TestGetAPIResouceList(t *testing.T) {
 		GroupVersion: "upload.cdi.kubevirt.io/v1alpha1",
 		APIResources: []metav1.APIResource{
 			{
-				Name:         "UploadTokenRequest",
-				SingularName: "uploadtokenRequest",
+				Name:         "uploadtokenrequests",
+				SingularName: "UploadtokenRequest",
 				Namespaced:   true,
 				Group:        "upload.cdi.kubevirt.io",
 				Version:      "v1alpha1",
@@ -639,7 +639,7 @@ func TestGetToken(t *testing.T) {
 			app.composeUploadTokenAPI()
 
 			req, _ := http.NewRequest("POST",
-				"/apis/upload.cdi.kubevirt.io/v1alpha1/namespaces/default/uploadtokenrequest",
+				"/apis/upload.cdi.kubevirt.io/v1alpha1/namespaces/default/uploadtokenrequests",
 				bytes.NewReader(serializedRequest))
 			req.Header.Set("Content-Type", "application/json")
 			rr := httptest.NewRecorder()

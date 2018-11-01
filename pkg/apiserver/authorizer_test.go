@@ -21,7 +21,7 @@ func fakeRequest() *restful.Request {
 	req.Request.Header[userHeader] = []string{"user"}
 	req.Request.Header[groupHeader] = []string{"userGroup"}
 	req.Request.Header[userExtraHeaderPrefix+"test"] = []string{"userExtraValue"}
-	req.Request.URL.Path = "/apis/upload.cdi.kubevirt.io/v1alpha1/namespaces/default/uploadtokenrequest"
+	req.Request.URL.Path = "/apis/upload.cdi.kubevirt.io/v1alpha1/namespaces/default/uploadtokenrequests"
 	return req
 }
 
@@ -96,7 +96,7 @@ func TestGenerateAccessReview(t *testing.T) {
 func TestGenerateAccessReviewPathErrGroup(t *testing.T) {
 	app := newAuthorizor()
 	req := fakeRequest()
-	req.Request.URL.Path = "/apis/NOTOURGROUP/v1alpha1/namespaces/default/uploadtokenrequest"
+	req.Request.URL.Path = "/apis/NOTOURGROUP/v1alpha1/namespaces/default/uploadtokenrequests"
 	authReview, err := app.generateAccessReview(req)
 
 	if err == nil {
