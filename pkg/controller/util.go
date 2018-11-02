@@ -195,7 +195,8 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar importPodE
 				AnnCreatedBy: "yes",
 			},
 			Labels: map[string]string{
-				common.CDILabelKey: common.CDILabelValue,
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: common.ImporterPodName,
 				// this label is used when searching for a pvc's import pod.
 				LabelImportPvc:         pvc.Name,
 				common.PrometheusLabel: "",
@@ -363,8 +364,9 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName string, pvc *v1.Per
 				AnnTargetPodNamespace: pvc.Namespace,
 			},
 			Labels: map[string]string{
-				common.CDILabelKey:     common.CDILabelValue,                //filtered by the podInformer
-				common.CloningLabelKey: common.CloningLabelValue + "-" + id, //used by podAffity
+				common.CDILabelKey:       common.CDILabelValue, //filtered by the podInformer
+				common.CDIComponentLabel: common.ClonerSourcePodName,
+				common.CloningLabelKey:   common.CloningLabelValue + "-" + id, //used by podAffity
 				// this label is used when searching for a pvc's cloner source pod.
 				CloneUniqueID: pvc.Name + "-source-pod",
 			},
@@ -465,7 +467,8 @@ func MakeCloneTargetPodSpec(image, pullPolicy, podAffinityNamespace string, pvc 
 				AnnTargetPodNamespace: pvc.Namespace,
 			},
 			Labels: map[string]string{
-				common.CDILabelKey: common.CDILabelValue, //filtered by the podInformer
+				common.CDILabelKey:       common.CDILabelValue, //filtered by the podInformer
+				common.CDIComponentLabel: common.ClonerTargetPodName,
 				// this label is used when searching for a pvc's cloner target pod.
 				CloneUniqueID:          pvc.Name + "-target-pod",
 				common.PrometheusLabel: "",
