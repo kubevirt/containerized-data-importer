@@ -111,6 +111,63 @@ spec:
     - dvs
     singular: datavolume
   scope: Namespaced
+  validation:
+    openAPIV3Schema:	
+      properties:	
+        apiVersion:	
+          type: string	
+        kind:	
+          type: string
+        metadata: {}	
+        spec:	
+          properties:
+            source:
+              properties:
+                http:
+                  properties:
+                    url:
+                      type: string
+                    secretRef:
+                      type: string
+                  required:
+                  - url
+                s3:
+                  properties:
+                    url:
+                      type: string
+                    secretRef:
+                      type: string
+                  required:
+                  - url
+                pvc:
+                  properties:
+                    namespace:
+                      type: string
+                    name:
+                      type: string
+                  required:
+                  - namespace
+                  - name
+                upload:
+            pvc:
+              properties:
+                resources:
+                  properties:
+                    requests:
+                      properties:
+                        storage:
+                          type: string
+                      required:
+                      - storage
+                  required:
+                  - requests
+                storageClassName:
+                  type: string
+                accessModes:
+                  type: array
+              required:
+              - resources
+    
   version: v1alpha1
 ---
 kind: ServiceAccount
