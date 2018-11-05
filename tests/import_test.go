@@ -23,12 +23,20 @@ const (
 	testSuiteName                    = "Importer Test Suite"
 	namespacePrefix                  = "importer"
 	assertionPollInterval            = 2 * time.Second
-	controllerSkipPVCCompleteTimeout = 60 * time.Second
+	controllerSkipPVCCompleteTimeout = 90 * time.Second
 	invalidEndpoint                  = "http://gopats.com/who-is-the-goat.iso"
 )
 
 var _ = Describe(testSuiteName, func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix)
+	var (
+		ns string
+		f  = framework.NewFrameworkOrDie(namespacePrefix)
+		c  = f.K8sClient
+	)
+
+	BeforeEach(func() {
+		ns = f.Namespace.Name
+	})
 
 	It("Should not perform CDI operations on PVC without annotations", func() {
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition("no-import", "1G", nil, nil))
@@ -36,7 +44,7 @@ var _ = Describe(testSuiteName, func() {
 		Eventually(func() bool {
 			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 			Expect(err).NotTo(HaveOccurred())
-			return strings.Contains(log, "pvc annotation \""+controller.AnnEndpoint+"\" not found, skipping pvc \""+f.Namespace.Name+"/no-import\"")
+			return strings.Contains(log, "pvc annotation \""+controller.AnnEndpoint+"\" not found, skipping pvc \""+ns+"/no-import\"")
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
 		Expect(err).ToNot(HaveOccurred())
 		// Wait a while to see if CDI puts anything in the PVC.
@@ -52,10 +60,13 @@ var _ = Describe(testSuiteName, func() {
 			nil))
 		Expect(err).ToNot(HaveOccurred())
 
+		importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
+		err = utils.WaitTimeoutForPodStatus(c, importer.Name, importer.Namespace, v1.PodFailed, utils.PodWaitForTime)
+
 		By("Verify the pod status is Failed on the target PVC")
-		status, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodPhase)
+		_, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodPhase)
 		Expect(phaseAnnotation).To(BeTrue())
-		Expect(status).Should(BeEquivalentTo(v1.PodPending))
 	})
 })
 

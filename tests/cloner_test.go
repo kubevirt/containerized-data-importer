@@ -23,8 +23,8 @@ const (
 	testFile                         = utils.DefaultPvcMountPath + "/source.txt"
 	fillCommand                      = "echo \"" + fillData + "\" >> " + testFile
 	assertionPollInterval            = 2 * time.Second
-	cloneCompleteTimeout             = 60 * time.Second
-	controllerSkipPVCCompleteTimeout = 60 * time.Second
+	cloneCompleteTimeout             = 90 * time.Second
+	controllerSkipPVCCompleteTimeout = 90 * time.Second
 )
 
 var _ = Describe(testSuiteName, func() {
@@ -120,12 +120,12 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 	}
 
 	By("Verify source pod deleted")
-	deleted, err := utils.WaitPodDeleted(f.K8sClient, sourcePod.Name, targetPod.Namespace, time.Second*40)
+	deleted, err := utils.WaitPodDeleted(f.K8sClient, sourcePod.Name, targetPod.Namespace, defaultTimeout)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(deleted).To(BeTrue())
 
 	By("Verify target pod deleted")
-	deleted, err = utils.WaitPodDeleted(f.K8sClient, targetPod.Name, targetNs.Name, time.Second*40)
+	deleted, err = utils.WaitPodDeleted(f.K8sClient, targetPod.Name, targetNs.Name, defaultTimeout)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(deleted).To(BeTrue())
 }
