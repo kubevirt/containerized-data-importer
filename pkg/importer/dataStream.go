@@ -20,6 +20,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -40,6 +41,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 // DataStreamInterface provides our interface definition required to fulfill a DataStream
@@ -64,6 +66,8 @@ type DataStream struct {
 	Size        int64
 	accessKeyID string
 	secretKey   string
+	ctx         context.Context
+	cancel      context.CancelFunc
 }
 
 type reader struct {
@@ -94,8 +98,6 @@ var rdrTypM = map[string]int{
 	"stream": rdrStream,
 }
 
-const httpClientTimeout = time.Minute * 60
-
 // NewDataStream returns a DataStream object after validating the endpoint and constructing the reader/closer chain.
 // Note: the caller must close the `Readers` in reverse order. See Close().
 func NewDataStream(endpt, accKey, secKey string) (*DataStream, error) {
@@ -114,11 +116,15 @@ func newDataStream(endpt, accKey, secKey string, stream io.ReadCloser) (*DataStr
 	if err != nil {
 		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpt))
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 	ds := &DataStream{
 		url:         ep,
 		buf:         make([]byte, image.MaxExpectedHdrSize),
 		accessKeyID: accKey,
 		secretKey:   secKey,
+		ctx:         ctx,
+		cancel:      cancel,
 	}
 
 	// establish readers for endpoint's formats and do initial calc of size of raw endpt
@@ -146,7 +152,11 @@ func (d *DataStream) Read(buf []byte) (int, error) {
 
 // Close all readers.
 func (d *DataStream) Close() error {
-	return closeReaders(d.Readers)
+	err := closeReaders(d.Readers)
+	if d.cancel != nil {
+		d.cancel()
+	}
+	return err
 }
 
 // Based on the endpoint scheme, append the scheme-specific reader to the receiver's
@@ -196,12 +206,13 @@ func (d *DataStream) http() (io.ReadCloser, error) {
 			}
 			return nil
 		},
-		Timeout: httpClientTimeout,
+		// Don't set timeout here, since that will be an absolute timeout, we need a relative to last progress timeout.
 	}
 	req, err := http.NewRequest("GET", d.url.String(), nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create HTTP request")
 	}
+	req = req.WithContext(d.ctx)
 	if len(d.accessKeyID) > 0 && len(d.secretKey) > 0 {
 		req.SetBasicAuth(d.accessKeyID, d.secretKey)
 	}
@@ -214,7 +225,34 @@ func (d *DataStream) http() (io.ReadCloser, error) {
 		glog.Errorf("http: expected status code 200, got %d", resp.StatusCode)
 		return nil, errors.Errorf("expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
 	}
-	return resp.Body, nil
+	countingReader := &util.CountingReader{
+		Reader:  resp.Body,
+		Current: 0,
+	}
+	go d.pollProgress(countingReader, 10*time.Minute, time.Second)
+	return countingReader, nil
+}
+
+func (d *DataStream) pollProgress(reader *util.CountingReader, idleTime, pollInterval time.Duration) {
+	count := reader.Current
+	lastUpdate := time.Now()
+	for {
+		if count < reader.Current {
+			// Some progress was made, reset now.
+			lastUpdate = time.Now()
+			count = reader.Current
+		}
+		if lastUpdate.Add(idleTime).Sub(time.Now()).Nanoseconds() < 0 {
+			// No progress for the idle time, cancel http client.
+			d.cancel() // This will trigger d.ctx.Done()
+		}
+		select {
+		case <-time.After(pollInterval):
+			continue
+		case <-d.ctx.Done():
+			return // Don't leak, once the transfer is cancelled or completed this is called.
+		}
+	}
 }
 
 // CopyImage copies the source endpoint (vm image) to the provided destination path.
