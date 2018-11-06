@@ -133,7 +133,7 @@ func ExecWithLimits(limits *ProcessLimitValues, callback func(string), command s
 	go processScanner(errScanner, &buf, stderrDone, callback)
 
 	if limits != nil {
-		if limits.CPUTimeLimit > 0 {
+		if limits.AddressSpaceLimit > 0 {
 			err = SetAddressSpaceLimit(cmd.Process.Pid, limits.AddressSpaceLimit)
 			if err != nil {
 				return nil, errors.Wrap(err, "Couldn't set address space limit")
