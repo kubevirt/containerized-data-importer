@@ -27,12 +27,12 @@ RUN \
     ( go get -u golang.org/x/lint/golint ) && \
     ( go get -u github.com/rmohr/go-swagger-utils/swagger-doc ) && \
     ( go get -u -d k8s.io/code-generator/cmd/deepcopy-gen && \
-    go get -u -d k8s.io/code-generator/cmd/openapi-gen ) && \
+    go get -u -d k8s.io/kube-openapi/cmd/openapi-gen ) && \
     ( cd $GOPATH/src/k8s.io/code-generator/cmd/deepcopy-gen && \
     git checkout kubernetes-1.11.2 && \
     go install ./... ) && \
-    ( cd $GOPATH/src/k8s.io/code-generator/cmd/openapi-gen && \
-    git checkout kubernetes-1.11.2 && \
+    ( cd $GOPATH/src/k8s.io/kube-openapi/cmd/openapi-gen && \
+    git checkout a9a16210091c9a2b6a937e06a182955c03654c4c && \
     go install ./... )
 
 
