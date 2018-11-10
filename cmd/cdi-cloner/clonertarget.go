@@ -21,9 +21,8 @@ import (
 )
 
 type prometheusProgressReader struct {
-	reader  io.Reader
-	current int64
-	total   int64
+	util.CountingReader
+	total int64
 }
 
 const (
@@ -80,9 +79,11 @@ func main() {
 	defer out.Close()
 
 	promReader := &prometheusProgressReader{
-		reader:  out,
-		current: 0,
-		total:   total,
+		CountingReader: util.CountingReader{
+			Reader:  out,
+			Current: 0,
+		},
+		total: total,
 	}
 
 	// Start the progress update thread.
@@ -117,7 +118,7 @@ func (r *prometheusProgressReader) timedUpdateProgress() {
 
 func (r *prometheusProgressReader) updateProgress() {
 	if r.total > 0 {
-		currentProgress := float64(r.current) / float64(r.total) * 100.0
+		currentProgress := float64(r.Current) / float64(r.total) * 100.0
 		progress.WithLabelValues(ownerUID).Set(currentProgress)
 		glog.V(1).Infoln(fmt.Sprintf("%.2f", currentProgress))
 	} else {
@@ -141,13 +142,6 @@ func untar(r io.Reader, targetDir string) error {
 		return err
 	}
 	return err
-}
-
-// Read reads bytes from the stream and updates the prometheus clone_progress metric according to the progress.
-func (r *prometheusProgressReader) Read(p []byte) (n int, err error) {
-	n, err = r.reader.Read(p)
-	r.current += int64(n)
-	return n, err
 }
 
 // read total file size from reader, and return the value as an int64

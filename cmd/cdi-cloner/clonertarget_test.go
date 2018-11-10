@@ -49,8 +49,10 @@ var _ = Describe("Update Progress", func() {
 		Expect(*metric.Counter.Value).To(Equal(float64(0)))
 		By("Calling updateProgress with value")
 		promReader := &prometheusProgressReader{
-			current: int64(45),
-			total:   int64(100),
+			CountingReader: util.CountingReader{
+				Current: int64(45),
+			},
+			total: int64(100),
 		}
 		promReader.updateProgress()
 		progress.WithLabelValues(ownerUID).Write(metric)
@@ -65,8 +67,10 @@ var _ = Describe("Update Progress", func() {
 		Expect(*metric.Counter.Value).To(Equal(float64(0)))
 		By("Calling updateProgress with value")
 		promReader := &prometheusProgressReader{
-			current: int64(45),
-			total:   int64(0),
+			CountingReader: util.CountingReader{
+				Current: int64(45),
+			},
+			total: int64(0),
 		}
 		promReader.updateProgress()
 		progress.WithLabelValues(ownerUID).Write(metric)
@@ -121,9 +125,11 @@ var _ = Describe("Read total", func() {
 		Expect(err).NotTo(HaveOccurred())
 		defer tarFileReader.Close()
 		promReader := &prometheusProgressReader{
-			reader:  tarFileReader,
-			current: 0,
-			total:   int64(10240), //10240 is the size of the tar containing the file.
+			CountingReader: util.CountingReader{
+				Reader:  tarFileReader,
+				Current: 0,
+			},
+			total: int64(10240), //10240 is the size of the tar containing the file.
 		}
 		err = untar(promReader, targetDirectory)
 		Expect(err).NotTo(HaveOccurred())
