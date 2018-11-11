@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/base64"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -13,6 +14,12 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// CountingReader is a reader that keeps track of how much has been read
+type CountingReader struct {
+	Reader  io.ReadCloser
+	Current int64
+}
 
 // RandAlphaNum provides an implementation to generate a random alpha numeric string of the specified length
 func RandAlphaNum(n int) string {
@@ -50,4 +57,16 @@ func ParseEnvVar(envVarName string, decode bool) (string, error) {
 		value = fmt.Sprintf("%s", v)
 	}
 	return value, nil
+}
+
+// Read reads bytes from the stream and updates the prometheus clone_progress metric according to the progress.
+func (r *CountingReader) Read(p []byte) (n int, err error) {
+	n, err = r.Reader.Read(p)
+	r.Current += int64(n)
+	return n, err
+}
+
+// Close closes the stream
+func (r *CountingReader) Close() error {
+	return r.Reader.Close()
 }

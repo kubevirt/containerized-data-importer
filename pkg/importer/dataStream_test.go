@@ -2,6 +2,7 @@ package importer
 
 import (
 	"bufio"
+	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"syscall"
 
@@ -44,6 +46,11 @@ type fakeQEMUOperations struct {
 	e1 error
 	e2 error
 	e3 error
+}
+
+// EndlessReader doesn't return any value read, te r
+type EndlessReader struct {
+	Reader io.ReadCloser
 }
 
 var _ = Describe("Data Stream", func() {
@@ -215,6 +222,37 @@ var _ = Describe("Copy", func() {
 		table.Entry("expect error trying to copy invalid format", testFileRdrs, "testinvalidfile", true, NewFakeQEMUOperations(nil, nil, errors.New("invalid format")), true),
 		table.Entry("expect error trying to copy qemu process fails", testFileRdrs, "testinvalidfile", true, NewFakeQEMUOperations(errors.New("exit 1"), nil, nil), true),
 	)
+})
+
+var _ = Describe("http", func() {
+	It("Should properly finish with valid reader", func() {
+		By("Creating context for the transfer, we have the ability to cancel it")
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		ds := &DataStream{
+			ctx:    ctx,
+			cancel: cancel,
+		}
+		By("Creating string reader we can test just the poll progress part")
+		stringReader := ioutil.NopCloser(strings.NewReader("This is a test string"))
+		endlessReader := EndlessReader{
+			Reader: stringReader,
+		}
+		countingReader := &util.CountingReader{
+			Reader:  &endlessReader,
+			Current: 0,
+		}
+		By("Creating pollProgress as go routine, we can use channels to monitor progress")
+		go ds.pollProgress(countingReader, 5*time.Second, time.Second)
+		By("Waiting for timeout or success")
+		select {
+		case <-time.After(10 * time.Second):
+			Fail("Transfer not cancelled after 10 seconds")
+		case <-ds.ctx.Done():
+			By("Having context be done, we confirm finishing of transfer")
+		}
+	})
 })
 
 var _ = Describe("close readers", func() {
@@ -422,4 +460,15 @@ func createTestData() map[string]string {
 		".gz":     gzfile,
 		".tar.xz": xztarfile,
 	}
+}
+
+// Read doesn't return any values
+func (r *EndlessReader) Read(p []byte) (n int, err error) {
+	n, err = r.Reader.Read(p)
+	return 0, nil
+}
+
+// Close closes the stream
+func (r *EndlessReader) Close() error {
+	return r.Reader.Close()
 }
