@@ -356,6 +356,98 @@ func Test_getEndpoint(t *testing.T) {
 	}
 }
 
+func Test_getSource(t *testing.T) {
+	type args struct {
+		pvc *v1.PersistentVolumeClaim
+	}
+
+	pvcNoAnno := createPvc("testPVCNoAnno", "default", nil, nil)
+	pvcNoneAnno := createPvc("testPVCNoneAnno", "default", map[string]string{AnnSource: SourceNone}, nil)
+	pvcGlanceAnno := createPvc("testPVCNoneAnno", "default", map[string]string{AnnSource: SourceGlance}, nil)
+	pvcInvalidValue := createPvc("testPVCInvalidValue", "default", map[string]string{AnnSource: "iaminvalid"}, nil)
+
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "expected to find none anno",
+			args: args{pvcNoneAnno},
+			want: SourceNone,
+		},
+		{
+			name: "expected to find http with invalid value",
+			args: args{pvcInvalidValue},
+			want: SourceHTTP,
+		},
+		{
+			name: "expected to find http with no anno",
+			args: args{pvcNoAnno},
+			want: SourceHTTP,
+		},
+		{
+			name: "expected to find glance with glance anno",
+			args: args{pvcGlanceAnno},
+			want: SourceGlance,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getSource(tt.args.pvc)
+			if got != tt.want {
+				t.Errorf("getSource() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_getContentType(t *testing.T) {
+	type args struct {
+		pvc *v1.PersistentVolumeClaim
+	}
+
+	pvcNoAnno := createPvc("testPVCNoAnno", "default", nil, nil)
+	pvcArchiveAnno := createPvc("testPVCArchiveAnno", "default", map[string]string{AnnContentType: ContentTypeArchive}, nil)
+	pvcKubevirtAnno := createPvc("testPVCKubevirtAnno", "default", map[string]string{AnnContentType: ContentTypeKubevirt}, nil)
+	pvcInvalidValue := createPvc("testPVCInvalidValue", "default", map[string]string{AnnContentType: "iaminvalid"}, nil)
+
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "expected to kubevirt content type",
+			args: args{pvcNoAnno},
+			want: ContentTypeKubevirt,
+		},
+		{
+			name: "expected to find archive content type",
+			args: args{pvcArchiveAnno},
+			want: ContentTypeArchive,
+		},
+		{
+			name: "expected to kubevirt content type",
+			args: args{pvcKubevirtAnno},
+			want: ContentTypeKubevirt,
+		},
+		{
+			name: "expected to find kubevirt with invalid anno",
+			args: args{pvcInvalidValue},
+			want: ContentTypeKubevirt,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getContentType(tt.args.pvc)
+			if got != tt.want {
+				t.Errorf("getSource() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_getSecretName(t *testing.T) {
 	type args struct {
 		client kubernetes.Interface
@@ -625,8 +717,8 @@ func TestCreateImporterPod(t *testing.T) {
 	}{
 		{
 			name:    "expect pod to be created",
-			args:    args{k8sfake.NewSimpleClientset(pvc), "test/image", "-v=5", "Always", importPodEnvVar{"", ""}, pvc},
-			want:    MakeImporterPodSpec("test/image", "-v=5", "Always", importPodEnvVar{"", ""}, pvc),
+			args:    args{k8sfake.NewSimpleClientset(pvc), "test/image", "-v=5", "Always", importPodEnvVar{"", "", "", ""}, pvc},
+			want:    MakeImporterPodSpec("test/image", "-v=5", "Always", importPodEnvVar{"", "", "", ""}, pvc),
 			wantErr: false,
 		},
 	}
@@ -664,7 +756,7 @@ func TestMakeImporterPodSpec(t *testing.T) {
 	}{
 		{
 			name:    "expect pod to be created",
-			args:    args{"test/myimage", "5", "Always", importPodEnvVar{"", ""}, pvc},
+			args:    args{"test/myimage", "5", "Always", importPodEnvVar{"", "", SourceHTTP, ContentTypeKubevirt}, pvc},
 			wantPod: pod,
 		},
 	}
@@ -694,8 +786,8 @@ func Test_makeEnv(t *testing.T) {
 	}{
 		{
 			name: "env should match",
-			args: args{importPodEnvVar{"myendpoint", "mysecret"}},
-			want: createEnv(importPodEnvVar{"myendpoint", "mysecret"}, mockUID),
+			args: args{importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, ContentTypeKubevirt}},
+			want: createEnv(importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, ContentTypeKubevirt}, mockUID),
 		},
 	}
 	for _, tt := range tests {
@@ -814,10 +906,20 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 	}
 
 	ep, _ := getEndpoint(pvc)
+	source := getSource(pvc)
+	contentType := getContentType(pvc)
 	pod.Spec.Containers[0].Env = []v1.EnvVar{
+		{
+			Name:  ImporterSource,
+			Value: source,
+		},
 		{
 			Name:  ImporterEndpoint,
 			Value: ep,
+		},
+		{
+			Name:  ImporterContentType,
+			Value: contentType,
 		},
 		{
 			Name:  OwnerUID,
@@ -885,8 +987,16 @@ func createSecret(name, ns, accessKey, secretKey string, labels map[string]strin
 func createEnv(podEnvVar importPodEnvVar, uid string) []v1.EnvVar {
 	env := []v1.EnvVar{
 		{
+			Name:  ImporterSource,
+			Value: podEnvVar.source,
+		},
+		{
 			Name:  ImporterEndpoint,
 			Value: podEnvVar.ep,
+		},
+		{
+			Name:  ImporterContentType,
+			Value: podEnvVar.contentType,
 		},
 		{
 			Name:  OwnerUID,

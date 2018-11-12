@@ -38,8 +38,6 @@ func main() {
 		[]string{".tar", ".gz"},
 		[]string{".tar", ".xz"},
 		[]string{".qcow2"},
-		[]string{".qcow2", ".gz"},
-		[]string{".qcow2", ".xz"},
 	}
 
 	if err := os.MkdirAll(*outDir, 0777); err != nil {

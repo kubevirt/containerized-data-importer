@@ -27,6 +27,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -71,7 +72,13 @@ var _ = Describe("Data Stream", func() {
 			image = ts.URL + "/" + image
 		}
 		By(fmt.Sprintf("Creating new datastream for %s", image))
-		ds, err := NewDataStream(image, accessKeyID, secretKey)
+		ds, err := NewDataStream(&DataStreamOptions{
+			common.ImporterWritePath,
+			image,
+			accessKeyID,
+			secretKey,
+			controller.SourceHTTP,
+			controller.ContentTypeKubevirt})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
 		}
@@ -80,8 +87,8 @@ var _ = Describe("Data Stream", func() {
 			resultBuffer := make([]byte, len(want))
 			By("Reading data from buffer")
 			ds.Read(resultBuffer)
-			Expect(ds.accessKeyID).To(Equal(accessKeyID))
-			Expect(ds.secretKey).To(Equal(secretKey))
+			Expect(ds.AccessKey).To(Equal(accessKeyID))
+			Expect(ds.SecKey).To(Equal(secretKey))
 			Expect(ds.qemu).To(Equal(qemu))
 			Expect(reflect.DeepEqual(resultBuffer, want)).To(BeTrue())
 		} else {
@@ -96,7 +103,13 @@ var _ = Describe("Data Stream", func() {
 
 	It("can close all readers", func() {
 		By(fmt.Sprintf("Creating new datastream for %s", ts.URL+"/tinyCore.iso"))
-		ds, err := NewDataStream(ts.URL+"/tinyCore.iso", "", "")
+		ds, err := NewDataStream(&DataStreamOptions{
+			common.ImporterWritePath,
+			ts.URL + "/tinyCore.iso",
+			"",
+			"",
+			controller.SourceHTTP,
+			controller.ContentTypeKubevirt})
 		Expect(err).NotTo(HaveOccurred())
 		By("Closing data stream")
 		err = ds.Close()
@@ -108,7 +121,13 @@ var _ = Describe("Data Stream", func() {
 			ep = ts.URL
 		}
 		By(fmt.Sprintf("Creating new datastream for %s", ep+"/"+image))
-		ds, err := NewDataStream(ep+"/"+image, "", "")
+		ds, err := NewDataStream(&DataStreamOptions{
+			common.ImporterWritePath,
+			ep + "/" + image,
+			"",
+			"",
+			controller.SourceHTTP,
+			controller.ContentTypeKubevirt})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
 		}
@@ -129,7 +148,13 @@ var _ = Describe("Data Stream", func() {
 		By(fmt.Sprintf("Creating new fileserver for %s and file %s", filepath.Dir(filename), filepath.Base(filename)))
 		tempTestServer := createTestServer(filepath.Dir(filename))
 		By(fmt.Sprintf("Creating new datastream to %s", tempTestServer.URL+"/"+filepath.Base(filename)))
-		ds, err := NewDataStream(tempTestServer.URL+"/"+filepath.Base(filename), "", "")
+		ds, err := NewDataStream(&DataStreamOptions{
+			common.ImporterWritePath,
+			tempTestServer.URL + "/" + filepath.Base(filename),
+			"",
+			"",
+			controller.SourceHTTP,
+			controller.ContentTypeKubevirt})
 		defer func() {
 			tempTestServer.Close()
 		}()
@@ -190,7 +215,13 @@ var _ = Describe("Copy", func() {
 		By("Replacing QEMU Operations")
 		replaceQEMUOperations(qemuOperations, func() {
 			By("Copying image")
-			err := CopyImage(dest, endpt, "", "")
+			err := CopyImage(&DataStreamOptions{
+				dest,
+				endpt,
+				"",
+				"",
+				controller.SourceHTTP,
+				controller.ContentTypeKubevirt})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
 			} else {
@@ -326,7 +357,13 @@ var _ = Describe("Streaming Data Conversion", func() {
 		testBase := filepath.Base(testSample)
 		testTarget := filepath.Join(tmpTestDir, common.ImporterWriteFile)
 		By(fmt.Sprintf("Importing %q to %q", tempTestServer.URL, testTarget))
-		err = CopyImage(testTarget, tempTestServer.URL+"/"+testBase, "", "")
+		err = CopyImage(&DataStreamOptions{
+			testTarget,
+			tempTestServer.URL + "/" + testBase,
+			"",
+			"",
+			controller.SourceHTTP,
+			controller.ContentTypeKubevirt})
 		Expect(err).NotTo(HaveOccurred())
 
 		By(fmt.Sprintf("Checking size of the output file %q", testTarget))
@@ -353,7 +390,13 @@ var _ = Describe("Streaming Data Conversion", func() {
 				Skip(fmt.Sprintf("*** skipping endpoint extension %q as exception", targetExt))
 			}
 		}
-		ds, err := NewDataStream(tempTestServer.URL+"/"+testBase, "", "")
+		ds, err := NewDataStream(&DataStreamOptions{
+			common.ImporterWritePath,
+			tempTestServer.URL + "/" + testBase,
+			"",
+			"",
+			controller.SourceHTTP,
+			controller.ContentTypeKubevirt})
 
 		Expect(err).NotTo(HaveOccurred())
 		defer ds.Close()
