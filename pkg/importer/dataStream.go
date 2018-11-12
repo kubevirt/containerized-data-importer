@@ -81,7 +81,11 @@ type DataStreamOptions struct {
 	Dest string
 	// Endpoint is the endpoint to get the data from for various Sources.
 	Endpoint string
+<<<<<<< HEAD
 	// AccessKey is the access key for the endpoint, can be blank. This needs to be a base64 encoded string.
+=======
+	// AccessKey is the access key for the endpoint, can be blank.
+>>>>>>> Add source and contentType annotations
 	AccessKey string
 	// SecKey is the security key needed for the endpoint, can be blank.
 	SecKey string
