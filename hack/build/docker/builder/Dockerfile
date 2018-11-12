@@ -32,7 +32,7 @@ RUN \
     git checkout kubernetes-1.11.2 && \
     go install ./... ) && \
     ( cd $GOPATH/src/k8s.io/kube-openapi/cmd/openapi-gen && \
-    git checkout a9a16210091c9a2b6a937e06a182955c03654c4c && \
+    git checkout c59034cc13d587f5ef4e85ca0ade0c1866ae8e1d && \
     go install ./... )
 
 

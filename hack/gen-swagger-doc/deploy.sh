@@ -4,18 +4,18 @@ set -e
 
 GITHUB_FQDN=github.com
 API_REF_REPO=kubevirt/cdi-api-reference
-API_REF_DIR=/tmp/api-reference
-GITHUB_IO_FQDN="https://kubevirt.github.io/cdi-api-reference"
+API_REF_DIR=/tmp/cdi-api-reference
+GITHUB_IO_FQDN="https://kubevirt.io/cdi-api-reference"
 
 TARGET_DIR="$TRAVIS_BRANCH"
 if [ -n "${TRAVIS_TAG}" ]; then
     TARGET_DIR="$TRAVIS_TAG"
 fi
 
+rm -rf "${API_REF_DIR}"
 git clone \
     "https://${API_REFERENCE_PUSH_TOKEN}@${GITHUB_FQDN}/${API_REF_REPO}.git" \
     "${API_REF_DIR}" >/dev/null 2>&1
-rm -rf "${API_REF_DIR}/${TARGET_DIR:?}/"*
 mkdir -p ${API_REF_DIR}/${TARGET_DIR}
 cp -f _out/apidocs/html/*.html "${API_REF_DIR}/${TARGET_DIR}/"
 
@@ -23,12 +23,12 @@ cd "${API_REF_DIR}"
 
 # Generate README.md file
 cat >README.md <<__EOF__
-# KubeVirt API Reference
+# KubeVirt Containerized Data Importer API Reference
 
 Content of this repository is generated from OpenAPI specification of
 [KubeVirt Containerized Data Importer project](https://github.com/kubevirt/containerized-data-importer) .
 
-## KubeVirt API References
+## KubeVirt Containerized Data Importer API References
 
 * [master](${GITHUB_IO_FQDN}/master/index.html)
 __EOF__

@@ -6,7 +6,9 @@ source $(dirname "$0")/../build/common.sh
 
 GITHUB_FQDN=github.com
 CLIENT_PYTHON_REPO=kubevirt/cdi-client-python
-CLIENT_PYTHON_DIR=/tmp/kubevirt-cdi-client-python
+CLIENT_PYTHON_DIR=/tmp/cdi-client-python
+
+rm -rf "${CLIENT_PYTHON_DIR}"
 
 # Reusing API_REFERENCE_PUSH_TOKEN.
 git clone \

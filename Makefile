@@ -38,6 +38,9 @@ clean:
 generate:
 	${DO} "./hack/update-codegen.sh"
 
+generate-verify:
+	${DO} "./hack/verify-codegen.sh"
+
 apidocs:
 	${DO} "./hack/update-codegen.sh && ./hack/gen-swagger-doc/gen-swagger-docs.sh v1alpha1 html"
 
