@@ -150,7 +150,7 @@ var _ = Describe("Data Stream", func() {
 		table.Entry("fail trying to build invalid selector", "tinyCore.iso", "fake://somefakefile", true),
 	)
 
-	table.DescribeTable("can construct readers", func(outfile, filename string, numRdrs int, wantErr bool) {
+	table.DescribeTable("can construct readers", func(filename string, numRdrs int, wantErr bool) {
 		By(fmt.Sprintf("Creating new fileserver for %s and file %s", filepath.Dir(filename), filepath.Base(filename)))
 		tempTestServer := createTestServer(filepath.Dir(filename))
 		By(fmt.Sprintf("Creating new datastream to %s", tempTestServer.URL+"/"+filepath.Base(filename)))
@@ -179,11 +179,11 @@ var _ = Describe("Data Stream", func() {
 			Expect(err).To(HaveOccurred())
 		}
 	},
-		table.Entry("successfully construct a xz reader", "tinyCore.iso.xz", testfiles[".xz"], 5, false),              // [http, multi-r, xz, multi-r]
-		table.Entry("successfully construct a gz reader", "tinyCore.iso.gz", testfiles[".gz"], 5, false),              // [http, multi-r, gz, multi-r]
-		table.Entry("successfully construct qcow2 reader", "", filepath.Join(imageDir, "cirros-qcow2.img"), 2, false), // [http, multi-r]
-		table.Entry("successfully construct .iso reader", "", filepath.Join(imageDir, "tinyCore.iso"), 3, false),      // [http, multi-r]
-		table.Entry("fail constructing reader for invalid file path", "", filepath.Join(imageDir, "tinyCorebad.iso"), 0, true),
+		table.Entry("successfully construct a xz reader", testfiles[".xz"], 5, false),                             // [http, multi-r, xz, multi-r]
+		table.Entry("successfully construct a gz reader", testfiles[".gz"], 5, false),                             // [http, multi-r, gz, multi-r]
+		table.Entry("successfully construct qcow2 reader", filepath.Join(imageDir, "cirros-qcow2.img"), 2, false), // [http, multi-r]
+		table.Entry("successfully construct .iso reader", filepath.Join(imageDir, "tinyCore.iso"), 3, false),      // [http, multi-r]
+		table.Entry("fail constructing reader for invalid file path", filepath.Join(imageDir, "tinyCorebad.iso"), 0, true),
 	)
 })
 
