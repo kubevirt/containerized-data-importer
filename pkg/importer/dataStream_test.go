@@ -43,7 +43,8 @@ var cirrosFilePath = filepath.Join(imageDir, cirrosFileName)
 var tinyCoreFilePath = filepath.Join(imageDir, tinyCoreFileName)
 var tinyCoreXzFilePath, _ = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtXz)
 var tinyCoreGzFilePath, _ = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtGz)
-var testfiles = []string{tinyCoreXzFilePath, tinyCoreGzFilePath}
+var tinyCoreTarFilePath, _ = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtTar)
+var testfiles = []string{tinyCoreXzFilePath, tinyCoreGzFilePath, tinyCoreTarFilePath}
 var cirrosData, _ = readFile(cirrosFilePath)
 var tinyCoreData, _ = readFile(tinyCoreFilePath)
 var stringRdr = strings.NewReader("test data for reader 1")
@@ -185,10 +186,11 @@ var _ = Describe("Data Stream", func() {
 			Expect(err).To(HaveOccurred())
 		}
 	},
-		table.Entry("successfully construct a xz reader", tinyCoreXzFilePath, 5, false), // [http, multi-r, xz, multi-r]
-		table.Entry("successfully construct a gz reader", tinyCoreGzFilePath, 5, false), // [http, multi-r, gz, multi-r]
-		table.Entry("successfully construct qcow2 reader", cirrosFilePath, 2, false),    // [http, multi-r]
-		table.Entry("successfully construct .iso reader", tinyCoreFilePath, 3, false),   // [http, multi-r]
+		table.Entry("successfully construct a xz reader", tinyCoreXzFilePath, 5, false),   // [http, multi-r, xz, multi-r]
+		table.Entry("successfully construct a gz reader", tinyCoreGzFilePath, 5, false),   // [http, multi-r, gz, multi-r]
+		table.Entry("successfully construct a tar reader", tinyCoreTarFilePath, 4, false), // [http, multi-r, tar, multi-r]
+		table.Entry("successfully construct qcow2 reader", cirrosFilePath, 2, false),      // [http, multi-r]
+		table.Entry("successfully construct .iso reader", tinyCoreFilePath, 3, false),     // [http, multi-r]
 		table.Entry("fail constructing reader for invalid file path", filepath.Join(imageDir, "tinyCorebad.iso"), 0, true),
 	)
 })
