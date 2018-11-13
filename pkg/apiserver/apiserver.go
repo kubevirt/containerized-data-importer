@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"strings"
 
+	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/util/cert/triple"
 
@@ -26,7 +27,9 @@ import (
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 
+	datavolumev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
 	uploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1"
+	validatingwebhook "kubevirt.io/containerized-data-importer/pkg/apiserver/webhooks/validating-webhook"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
@@ -42,6 +45,10 @@ const (
 	uploadTokenVersion = "v1alpha1"
 
 	apiServiceName = "cdi-api"
+
+	apiWebhookValidator = "cdi-api-validator"
+
+	dvCreateValidatePath = "/datavolume-validate-create"
 )
 
 // UploadAPIServer is the public interface to the upload API
@@ -125,6 +132,11 @@ func NewUploadAPIServer(bindAddress string,
 		glog.V(1).Infof("contentLength: %d", resp.ContentLength())
 
 	})
+
+	err = app.createWebhook()
+	if err != nil {
+		return nil, errors.Errorf("failed to create webhook: %s", err)
+	}
 
 	return app, nil
 }
@@ -520,5 +532,76 @@ func (app *uploadAPIApp) createAPIService() error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (app *uploadAPIApp) createWebhook() error {
+	dvPathCreate := dvCreateValidatePath
+	namespace := util.GetNamespace()
+	registerWebhook := false
+	webhookRegistration, err := app.client.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Get(apiWebhookValidator, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			registerWebhook = true
+		} else {
+			return err
+		}
+	}
+
+	webHooks := []admissionregistrationv1beta1.Webhook{
+		{
+			Name: "datavolume-create-validator.cdi.kubevirt.io",
+			Rules: []admissionregistrationv1beta1.RuleWithOperations{{
+				Operations: []admissionregistrationv1beta1.OperationType{
+					admissionregistrationv1beta1.Create,
+				},
+				Rule: admissionregistrationv1beta1.Rule{
+					APIGroups:   []string{datavolumev1alpha1.SchemeGroupVersion.Group},
+					APIVersions: []string{datavolumev1alpha1.SchemeGroupVersion.Version},
+					Resources:   []string{"datavolumes"},
+				},
+			}},
+			ClientConfig: admissionregistrationv1beta1.WebhookClientConfig{
+				Service: &admissionregistrationv1beta1.ServiceReference{
+					Namespace: namespace,
+					Name:      apiServiceName,
+					Path:      &dvPathCreate,
+				},
+				CABundle: app.signingCertBytes,
+			},
+		},
+	}
+
+	if registerWebhook {
+		_, err := app.client.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Create(&admissionregistrationv1beta1.ValidatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: apiWebhookValidator,
+			},
+			Webhooks: webHooks,
+		})
+		if err != nil {
+			return err
+		}
+	} else {
+		for _, webhook := range webhookRegistration.Webhooks {
+			if webhook.ClientConfig.Service != nil && webhook.ClientConfig.Service.Namespace != namespace {
+				return fmt.Errorf("ValidatingAdmissionWebhook [%s] is already registered using services endpoints in a different namespace. Existing webhook registration must be deleted before cdi-api can proceed", apiWebhookValidator)
+			}
+		}
+
+		// update registered webhook with our data
+		webhookRegistration.Webhooks = webHooks
+
+		_, err := app.client.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Update(webhookRegistration)
+		if err != nil {
+			return err
+		}
+	}
+
+	app.container.ServeMux.HandleFunc(
+		dvCreateValidatePath, func(w http.ResponseWriter, r *http.Request) {
+			validatingwebhook.ServeDVs(w, r)
+		},
+	)
 	return nil
 }
