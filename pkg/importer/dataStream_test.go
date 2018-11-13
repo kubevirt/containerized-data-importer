@@ -518,12 +518,10 @@ func (o *fakeQEMUOperations) CreateBlankImage(dest string, size resource.Quantit
 func createTestData() map[string]string {
 	xzfile, _ := utils.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), image.ExtXz)
 	gzfile, _ := utils.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), image.ExtGz)
-	xztarfile, _ := utils.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), []string{image.ExtTar, image.ExtGz}...)
 
 	return map[string]string{
-		".xz":     xzfile,
-		".gz":     gzfile,
-		".tar.xz": xztarfile,
+		".xz": xzfile,
+		".gz": gzfile,
 	}
 }
 
