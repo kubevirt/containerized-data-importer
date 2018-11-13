@@ -51,14 +51,14 @@ const (
 	dvCreateValidatePath = "/datavolume-validate-create"
 )
 
-// UploadAPIServer is the public interface to the upload API
-type UploadAPIServer interface {
+// CdiAPIServer is the public interface to the CDI API
+type CdiAPIServer interface {
 	Start() error
 }
 
 type uploadPossibleFunc func(*v1.PersistentVolumeClaim) error
 
-type uploadAPIApp struct {
+type cdiAPIApp struct {
 	bindAddress string
 	bindPort    uint
 
@@ -81,14 +81,14 @@ type uploadAPIApp struct {
 	uploadPossible uploadPossibleFunc
 }
 
-// NewUploadAPIServer returns an initialized upload api server
-func NewUploadAPIServer(bindAddress string,
+// NewCdiAPIServer returns an initialized CDI api server
+func NewCdiAPIServer(bindAddress string,
 	bindPort uint,
 	client kubernetes.Interface,
 	aggregatorClient aggregatorclient.Interface,
-	authorizor CdiAPIAuthorizer) (UploadAPIServer, error) {
+	authorizor CdiAPIAuthorizer) (CdiAPIServer, error) {
 	var err error
-	app := &uploadAPIApp{
+	app := &cdiAPIApp{
 		bindAddress:      bindAddress,
 		bindPort:         bindPort,
 		client:           client,
@@ -141,7 +141,7 @@ func NewUploadAPIServer(bindAddress string,
 	return app, nil
 }
 
-func (app *uploadAPIApp) Start() error {
+func (app *cdiAPIApp) Start() error {
 	return app.startTLS()
 }
 
@@ -156,7 +156,7 @@ func deserializeStrings(in string) ([]string, error) {
 	return ret, nil
 }
 
-func (app *uploadAPIApp) getClientCert() error {
+func (app *cdiAPIApp) getClientCert() error {
 	authConfigMap, err := app.client.CoreV1().ConfigMaps(metav1.NamespaceSystem).Get("extension-apiserver-authentication", metav1.GetOptions{})
 	if err != nil {
 		return err
@@ -207,7 +207,7 @@ func (app *uploadAPIApp) getClientCert() error {
 	return nil
 }
 
-func (app *uploadAPIApp) getSelfSignedCert() error {
+func (app *cdiAPIApp) getSelfSignedCert() error {
 	namespace := util.GetNamespace()
 	caKeyPair, err := triple.NewCA("api.cdi.kubevirt.io")
 	if err != nil {
@@ -241,7 +241,7 @@ func (app *uploadAPIApp) getSelfSignedCert() error {
 	return nil
 }
 
-func (app *uploadAPIApp) startTLS() error {
+func (app *cdiAPIApp) startTLS() error {
 	certsDirectory, err := ioutil.TempDir("", "certsdir")
 	if err != nil {
 		return err
@@ -314,7 +314,7 @@ func (app *uploadAPIApp) startTLS() error {
 	return <-errChan
 }
 
-func (app *uploadAPIApp) uploadHandler(request *restful.Request, response *restful.Response) {
+func (app *cdiAPIApp) uploadHandler(request *restful.Request, response *restful.Response) {
 
 	allowed, reason, err := app.authorizer.Authorize(request)
 	if err != nil {
@@ -390,7 +390,7 @@ func uploadTokenAPIGroup() metav1.APIGroup {
 	return apiGroup
 }
 
-func (app *uploadAPIApp) composeUploadTokenAPI() {
+func (app *cdiAPIApp) composeUploadTokenAPI() {
 	objPointer := &uploadv1alpha1.UploadTokenRequest{}
 	objExample := reflect.ValueOf(objPointer).Elem().Interface()
 	objKind := "uploadtokenrequest"
@@ -443,7 +443,7 @@ func (app *uploadAPIApp) composeUploadTokenAPI() {
 			response.WriteAsJson(list)
 		}).
 		Operation("getAPIResources").
-		Doc("Get a CDI Upload API resources").
+		Doc("Get a CDI API resources").
 		Returns(http.StatusOK, "OK", metav1.APIResourceList{}).
 		Returns(http.StatusNotFound, "Not Found", nil))
 
@@ -458,7 +458,7 @@ func (app *uploadAPIApp) composeUploadTokenAPI() {
 			response.WriteAsJson(uploadTokenAPIGroup())
 		}).
 		Operation("getAPIGroup").
-		Doc("Get a CDI Upload API Group").
+		Doc("Get a CDI API Group").
 		Returns(http.StatusOK, "OK", metav1.APIGroup{}).
 		Returns(http.StatusNotFound, "Not Found", nil))
 
@@ -473,14 +473,14 @@ func (app *uploadAPIApp) composeUploadTokenAPI() {
 			response.WriteAsJson(list)
 		}).
 		Operation("getAPIGroup").
-		Doc("Get a CDI Upload API GroupList").
+		Doc("Get a CDI API GroupList").
 		Returns(http.StatusOK, "OK", metav1.APIGroupList{}).
 		Returns(http.StatusNotFound, "Not Found", nil))
 
 	app.container.Add(ws)
 }
 
-func (app *uploadAPIApp) createAPIService() error {
+func (app *cdiAPIApp) createAPIService() error {
 	namespace := util.GetNamespace()
 	apiName := uploadTokenVersion + "." + uploadTokenGroup
 
@@ -535,7 +535,7 @@ func (app *uploadAPIApp) createAPIService() error {
 	return nil
 }
 
-func (app *uploadAPIApp) createWebhook() error {
+func (app *cdiAPIApp) createWebhook() error {
 	dvPathCreate := dvCreateValidatePath
 	namespace := util.GetNamespace()
 	registerWebhook := false

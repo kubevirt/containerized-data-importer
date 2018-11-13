@@ -92,7 +92,7 @@ func getAPIServerConfigMap(t *testing.T) *v1.ConfigMap {
 	}
 }
 
-func validateAPIServerConfig(t *testing.T, app *uploadAPIApp) {
+func validateAPIServerConfig(t *testing.T, app *cdiAPIApp) {
 	if string(app.clientCABytes) != "bunchofbytes" {
 		t.Errorf("no match on client-ca-file")
 	}
@@ -314,7 +314,7 @@ func TestGetClientCert(t *testing.T) {
 
 	client := k8sfake.NewSimpleClientset(kubeobjects...)
 
-	app := &uploadAPIApp{client: client, authorizer: newSuccessfulAuthorizer()}
+	app := &cdiAPIApp{client: client, authorizer: newSuccessfulAuthorizer()}
 
 	actions := []core.Action{}
 	actions = append(actions, apiServerConfigMapGetAction())
@@ -329,7 +329,7 @@ func TestGetClientCert(t *testing.T) {
 	checkActions(actions, client.Actions(), t)
 }
 
-func TestNewUploadAPIServer(t *testing.T) {
+func TestNewCdiAPIServer(t *testing.T) {
 	kubeobjects := []runtime.Object{}
 	kubeobjects = append(kubeobjects, getAPIServerConfigMap(t))
 
@@ -337,12 +337,12 @@ func TestNewUploadAPIServer(t *testing.T) {
 	aggregatorClient := aggregatorapifake.NewSimpleClientset()
 	authorizer := &testAuthorizer{}
 
-	server, err := NewUploadAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer)
+	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer)
 	if err != nil {
 		t.Errorf("Createion upload api server creation failed: %+v", err)
 	}
 
-	app := server.(*uploadAPIApp)
+	app := server.(*cdiAPIApp)
 
 	req, _ := http.NewRequest("GET", "/apis", nil)
 	rr := httptest.NewRecorder()
@@ -387,7 +387,7 @@ func TestGetSelfSignedCert(t *testing.T) {
 
 	client := k8sfake.NewSimpleClientset(kubeobjects...)
 
-	app := &uploadAPIApp{
+	app := &cdiAPIApp{
 		client: client,
 	}
 
@@ -404,7 +404,7 @@ func TestShouldGenerateCertsAndKeyFirstRun(t *testing.T) {
 
 	client := k8sfake.NewSimpleClientset(kubeobjects...)
 
-	app := &uploadAPIApp{
+	app := &cdiAPIApp{
 		client: client,
 	}
 
@@ -427,7 +427,7 @@ func TestCreateAPIService(t *testing.T) {
 
 	aggregatorClient := aggregatorapifake.NewSimpleClientset(kubeobjects...)
 
-	app := &uploadAPIApp{
+	app := &cdiAPIApp{
 		aggregatorClient: aggregatorClient,
 		signingCertBytes: []byte("data"),
 	}
@@ -453,7 +453,7 @@ func TestUpdateAPIService(t *testing.T) {
 
 	aggregatorClient := aggregatorapifake.NewSimpleClientset(kubeobjects...)
 
-	app := &uploadAPIApp{
+	app := &cdiAPIApp{
 		aggregatorClient: aggregatorClient,
 		signingCertBytes: certBytes,
 	}
@@ -632,7 +632,7 @@ func TestGetToken(t *testing.T) {
 			}
 			client := k8sfake.NewSimpleClientset(kubeobjects...)
 
-			app := &uploadAPIApp{client: client,
+			app := &cdiAPIApp{client: client,
 				privateSigningKey: signingKey,
 				authorizer:        test.args.authorizer,
 				uploadPossible:    test.args.uploadPossible}
@@ -666,7 +666,7 @@ func TestGetToken(t *testing.T) {
 }
 
 func doGetRequest(t *testing.T, url string) *httptest.ResponseRecorder {
-	app := &uploadAPIApp{}
+	app := &cdiAPIApp{}
 	app.composeUploadTokenAPI()
 
 	req, _ := http.NewRequest("GET", url, nil)
