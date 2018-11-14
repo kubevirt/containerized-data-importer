@@ -41,6 +41,10 @@ const (
 
 	// PullPolicy provides a constant to capture our env variable "PULL_POLICY" (only used by cmd/cdi-controller/controller.go)
 	PullPolicy = "PULL_POLICY"
+	// ImporterSource provides a constant to capture our env variable "IMPORTER_SOURCE"
+	ImporterSource = "IMPORTER_SOURCE"
+	// ImporterContentType provides a constant to capture our env variable "IMPORTER_CONTENTTYPE"
+	ImporterContentType = "IMPORTER_CONTENTTYPE"
 	// ImporterEndpoint provides a constant to capture our env variable "IMPORTER_ENDPOINT"
 	ImporterEndpoint = "IMPORTER_ENDPOINT"
 	// ImporterAccessKeyID provides a constant to capture our env variable "IMPORTER_ACCES_KEY_ID"

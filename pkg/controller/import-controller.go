@@ -15,14 +15,20 @@ import (
 )
 
 const (
+	// AnnAPIGroup is the APIGroup for CDI
+	AnnAPIGroup = "cdi.kubevirt.io"
+	// AnnSource provide a const for our PVC import source annotation
+	AnnSource = AnnAPIGroup + "/storage.import.source"
 	// AnnEndpoint provides a const for our PVC endpoint annotation
-	AnnEndpoint = "cdi.kubevirt.io/storage.import.endpoint"
+	AnnEndpoint = AnnAPIGroup + "/storage.import.endpoint"
 	// AnnSecret provides a const for our PVC secretName annotation
-	AnnSecret = "cdi.kubevirt.io/storage.import.secretName"
+	AnnSecret = AnnAPIGroup + "/storage.import.secretName"
+	// AnnContentType provides a const for the PVC content-type
+	AnnContentType = AnnAPIGroup + "/storage.contentType"
 	// AnnImportPod provides a const for our PVC importPodName annotation
-	AnnImportPod = "cdi.kubevirt.io/storage.import.importPodName"
+	AnnImportPod = AnnAPIGroup + "/storage.import.importPodName"
 	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
-	LabelImportPvc = "cdi.kubevirt.io/storage.import.importPvcName"
+	LabelImportPvc = AnnAPIGroup + "/storage.import.importPvcName"
 )
 
 // ImportController represents a CDI Import Controller
@@ -31,7 +37,7 @@ type ImportController struct {
 }
 
 type importPodEnvVar struct {
-	ep, secretName string
+	ep, secretName, source, contentType string
 }
 
 // NewImportController sets up an Import Controller, and returns a pointer to
@@ -99,16 +105,20 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 	if pod == nil && needsSync {
 		var podEnvVar importPodEnvVar
 
-		podEnvVar.ep, err = getEndpoint(pvc)
-		if err != nil {
-			return err
-		}
-		podEnvVar.secretName, err = getSecretName(ic.clientset, pvc)
-		if err != nil {
-			return err
-		}
-		if podEnvVar.secretName == "" {
-			glog.V(2).Infof("no secret will be supplied to endpoint %q\n", podEnvVar.ep)
+		podEnvVar.source = getSource(pvc)
+		podEnvVar.contentType = getContentType(pvc)
+		if podEnvVar.source != SourceNone {
+			podEnvVar.ep, err = getEndpoint(pvc)
+			if err != nil {
+				return err
+			}
+			podEnvVar.secretName, err = getSecretName(ic.clientset, pvc)
+			if err != nil {
+				return err
+			}
+			if podEnvVar.secretName == "" {
+				glog.V(2).Infof("no secret will be supplied to endpoint %q\n", podEnvVar.ep)
+			}
 		}
 		// all checks passed, let's create the importer pod!
 		ic.expectPodCreate(pvcKey)
@@ -187,8 +197,8 @@ func (ic *ImportController) syncPvc(key string) error {
 	if pvc == nil {
 		return nil
 	}
-	//check if AnnoEndPoint annotation exists
-	if !checkPVC(pvc, AnnEndpoint) {
+	//check if AnnEndPoint or AnnSource annotation exists
+	if !checkPVC(pvc, AnnEndpoint) && !checkPVC(pvc, AnnSource) {
 		return nil
 	}
 	glog.V(3).Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)

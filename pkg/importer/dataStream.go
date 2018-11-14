@@ -40,6 +40,7 @@ import (
 	"github.com/ulikunitz/xz"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -59,20 +60,35 @@ var qemuOperations = image.NewQEMUOperations()
 
 // DataStream implements the ReadCloser interface
 type DataStream struct {
-	url         *url.URL
-	Readers     []reader
-	buf         []byte // holds file headers
-	qemu        bool
-	Size        int64
-	accessKeyID string
-	secretKey   string
-	ctx         context.Context
-	cancel      context.CancelFunc
+	*DataStreamOptions
+	url     *url.URL
+	Readers []reader
+	buf     []byte // holds file headers
+	qemu    bool
+	Size    int64
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
 type reader struct {
 	rdrType int
 	rdr     io.ReadCloser
+}
+
+// DataStreamOptions contains all the values needed for importing from a DataStream.
+type DataStreamOptions struct {
+	// Dest is the destination path of the contents of the stream.
+	Dest string
+	// Endpoint is the endpoint to get the data from for various Sources.
+	Endpoint string
+	// AccessKey is the access key for the endpoint, can be blank. This needs to be a base64 encoded string.
+	AccessKey string
+	// SecKey is the security key needed for the endpoint, can be blank.
+	SecKey string
+	// Source is the source type of the data.
+	Source string
+	// ContentType is the content type of the data.
+	ContentType string
 }
 
 const (
@@ -100,31 +116,41 @@ var rdrTypM = map[string]int{
 
 // NewDataStream returns a DataStream object after validating the endpoint and constructing the reader/closer chain.
 // Note: the caller must close the `Readers` in reverse order. See Close().
-func NewDataStream(endpt, accKey, secKey string) (*DataStream, error) {
-	return newDataStream(endpt, accKey, secKey, nil)
+func NewDataStream(dso *DataStreamOptions) (*DataStream, error) {
+	return newDataStream(dso, nil)
 }
 
 func newDataStreamFromStream(stream io.ReadCloser) (*DataStream, error) {
-	return newDataStream("stream://data", "", "", stream)
+	return newDataStream(&DataStreamOptions{
+		common.ImporterWritePath,
+		"stream://data",
+		"",
+		"",
+		controller.SourceHTTP,
+		controller.ContentTypeKubevirt,
+	}, stream)
 }
 
-func newDataStream(endpt, accKey, secKey string, stream io.ReadCloser) (*DataStream, error) {
-	if len(accKey) == 0 || len(secKey) == 0 {
+func newDataStream(dso *DataStreamOptions, stream io.ReadCloser) (*DataStream, error) {
+	if len(dso.AccessKey) == 0 || len(dso.SecKey) == 0 {
 		glog.V(2).Infof("%s and/or %s are empty\n", common.ImporterAccessKeyID, common.ImporterSecretKey)
 	}
-	ep, err := ParseEndpoint(endpt)
-	if err != nil {
-		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpt))
+	var ep *url.URL
+	var err error
+	if dso.Source == controller.SourceHTTP || dso.Source == controller.SourceS3 || dso.Source == controller.SourceGlance {
+		ep, err = ParseEndpoint(dso.Endpoint)
+		if err != nil {
+			return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", dso.Endpoint))
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ds := &DataStream{
-		url:         ep,
-		buf:         make([]byte, image.MaxExpectedHdrSize),
-		accessKeyID: accKey,
-		secretKey:   secKey,
-		ctx:         ctx,
-		cancel:      cancel,
+		DataStreamOptions: dso,
+		url:               ep,
+		buf:               make([]byte, image.MaxExpectedHdrSize),
+		ctx:               ctx,
+		cancel:            cancel,
 	}
 
 	// establish readers for endpoint's formats and do initial calc of size of raw endpt
@@ -186,7 +212,7 @@ func (d *DataStream) s3() (io.ReadCloser, error) {
 	glog.V(3).Infoln("Using S3 client to get data")
 	bucket := d.url.Host
 	object := strings.Trim(d.url.Path, "/")
-	mc, err := minio.NewV4(common.ImporterS3Host, d.accessKeyID, d.secretKey, false)
+	mc, err := minio.NewV4(common.ImporterS3Host, d.AccessKey, d.SecKey, false)
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not build minio client for %q", d.url.Host)
 	}
@@ -201,8 +227,8 @@ func (d *DataStream) s3() (io.ReadCloser, error) {
 func (d *DataStream) http() (io.ReadCloser, error) {
 	client := http.Client{
 		CheckRedirect: func(r *http.Request, via []*http.Request) error {
-			if len(d.accessKeyID) > 0 && len(d.secretKey) > 0 {
-				r.SetBasicAuth(d.accessKeyID, d.secretKey) // Redirects will lose basic auth, so reset them manually
+			if len(d.AccessKey) > 0 && len(d.SecKey) > 0 {
+				r.SetBasicAuth(d.AccessKey, d.SecKey) // Redirects will lose basic auth, so reset them manually
 			}
 			return nil
 		},
@@ -213,8 +239,8 @@ func (d *DataStream) http() (io.ReadCloser, error) {
 		return nil, errors.Wrap(err, "could not create HTTP request")
 	}
 	req = req.WithContext(d.ctx)
-	if len(d.accessKeyID) > 0 && len(d.secretKey) > 0 {
-		req.SetBasicAuth(d.accessKeyID, d.secretKey)
+	if len(d.AccessKey) > 0 && len(d.SecKey) > 0 {
+		req.SetBasicAuth(d.AccessKey, d.SecKey)
 	}
 	glog.V(2).Infof("Attempting to get object %q via http client\n", d.url.String())
 	resp, err := client.Do(req)
@@ -256,14 +282,14 @@ func (d *DataStream) pollProgress(reader *util.CountingReader, idleTime, pollInt
 }
 
 // CopyImage copies the source endpoint (vm image) to the provided destination path.
-func CopyImage(dest, endpoint, accessKey, secKey string) error {
-	glog.V(1).Infof("copying %q to %q...\n", endpoint, dest)
-	ds, err := NewDataStream(endpoint, accessKey, secKey)
+func CopyImage(dso *DataStreamOptions) error {
+	glog.V(1).Infof("copying %q to %q...\n", dso.Endpoint, dso.Dest)
+	ds, err := NewDataStream(dso)
 	if err != nil {
 		return errors.Wrap(err, "unable to create data stream")
 	}
 	defer ds.Close()
-	return ds.copy(dest)
+	return ds.copy(dso.Dest)
 }
 
 // SaveStream reads from a stream and saves data to dest
@@ -574,8 +600,8 @@ func closeReaders(readers []reader) (rtnerr error) {
 
 func (d *DataStream) isHTTPQcow2() bool {
 	return (d.url.Scheme == "http" || d.url.Scheme == "https") &&
-		d.accessKeyID == "" &&
-		d.secretKey == "" &&
+		d.AccessKey == "" &&
+		d.SecKey == "" &&
 		d.qemu &&
 		len(d.Readers) == 2
 }

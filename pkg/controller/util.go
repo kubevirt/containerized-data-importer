@@ -22,12 +22,30 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/keys"
 )
 
-// DataVolName provides a const to use for creating volumes in pod specs
-const DataVolName = "cdi-data-vol"
+const (
+	// DataVolName provides a const to use for creating volumes in pod specs
+	DataVolName = "cdi-data-vol"
 
-// ImagePathName provides a const to use for creating volumes in pod specs
-const ImagePathName = "image-path"
-const socketPathName = "socket-path"
+	// ImagePathName provides a const to use for creating volumes in pod specs
+	ImagePathName  = "image-path"
+	socketPathName = "socket-path"
+
+	// SourceHTTP is the source type HTTP, if unspecified or invalid, it defaults to SourceHTTP
+	SourceHTTP = "http"
+	// SourceS3 is the source type S3
+	SourceS3 = "s3"
+	// SourceGlance is the source type of glance
+	SourceGlance = "glance"
+	// SourceNone means there is no source.
+	SourceNone = "none"
+	// SourceRegistry is the source type of Registry
+	SourceRegistry = "registry"
+
+	// ContentTypeKubevirt is the content-type of the import, defaults to kubevirt
+	ContentTypeKubevirt = "kubevirt"
+	// ContentTypeArchive is the content-type to specify if wanting to extract an archive
+	ContentTypeArchive = "archive"
+)
 
 type podDeleteRequest struct {
 	namespace string
@@ -60,6 +78,45 @@ func getEndpoint(pvc *v1.PersistentVolumeClaim) (string, error) {
 		return ep, errors.Errorf("annotation %q in pvc \"%s/%s\" is %s\n", AnnEndpoint, pvc.Namespace, pvc.Name, verb)
 	}
 	return ep, nil
+}
+
+// returns the source string which determines the type of source. If no source or invalid source found, default to http
+func getSource(pvc *v1.PersistentVolumeClaim) string {
+	source, found := pvc.Annotations[AnnSource]
+	if !found {
+		source = ""
+	}
+	switch source {
+	case
+		SourceHTTP,
+		SourceS3,
+		SourceGlance,
+		SourceNone,
+		SourceRegistry:
+		glog.V(2).Infof("pvc source annotation found for pvc \"%s/%s\", value %s\n", pvc.Namespace, pvc.Name, source)
+	default:
+		glog.V(2).Infof("No valid source annotation found for pvc \"%s/%s\", default to http\n", pvc.Namespace, pvc.Name)
+		source = SourceHTTP
+	}
+	return source
+}
+
+// returns the source string which determines the type of source. If no source or invalid source found, default to http
+func getContentType(pvc *v1.PersistentVolumeClaim) string {
+	contentType, found := pvc.Annotations[AnnContentType]
+	if !found {
+		contentType = ""
+	}
+	switch contentType {
+	case
+		ContentTypeKubevirt,
+		ContentTypeArchive:
+		glog.V(2).Infof("pvc content type annotation found for pvc \"%s/%s\", value %s\n", pvc.Namespace, pvc.Name, contentType)
+	default:
+		glog.V(2).Infof("No content type annotation found for pvc \"%s/%s\", default to kubevirt\n", pvc.Namespace, pvc.Name)
+		contentType = ContentTypeKubevirt
+	}
+	return contentType
 }
 
 // returns the name of the secret containing endpoint credentials consumed by the importer pod.
@@ -261,8 +318,16 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar importPodE
 func makeEnv(podEnvVar importPodEnvVar, uid types.UID) []v1.EnvVar {
 	env := []v1.EnvVar{
 		{
+			Name:  common.ImporterSource,
+			Value: podEnvVar.source,
+		},
+		{
 			Name:  common.ImporterEndpoint,
 			Value: podEnvVar.ep,
+		},
+		{
+			Name:  common.ImporterContentType,
+			Value: podEnvVar.contentType,
 		},
 		{
 			Name:  common.OwnerUID,
