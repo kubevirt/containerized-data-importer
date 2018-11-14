@@ -34,6 +34,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/golang/glog"
 	"github.com/minio/minio-go"
 	"github.com/pkg/errors"
@@ -81,11 +83,7 @@ type DataStreamOptions struct {
 	Dest string
 	// Endpoint is the endpoint to get the data from for various Sources.
 	Endpoint string
-<<<<<<< HEAD
 	// AccessKey is the access key for the endpoint, can be blank. This needs to be a base64 encoded string.
-=======
-	// AccessKey is the access key for the endpoint, can be blank.
->>>>>>> Add source and contentType annotations
 	AccessKey string
 	// SecKey is the security key needed for the endpoint, can be blank.
 	SecKey string
@@ -93,6 +91,8 @@ type DataStreamOptions struct {
 	Source string
 	// ContentType is the content type of the data.
 	ContentType string
+	// ImageSize is the size we want the resulting image to be.
+	ImageSize string
 }
 
 const (
@@ -132,6 +132,7 @@ func newDataStreamFromStream(stream io.ReadCloser) (*DataStream, error) {
 		"",
 		controller.SourceHTTP,
 		controller.ContentTypeKubevirt,
+		"", // Blank means don't resize
 	}, stream)
 }
 
@@ -309,6 +310,29 @@ func SaveStream(stream io.ReadCloser, dest string) (int64, error) {
 		return 0, errors.Wrap(err, "data stream copy failed")
 	}
 	return ds.Size, nil
+}
+
+// ResizeImage resizes the images to match the requested size. Sometimes provisioners misbehave and the available space
+// is not the same as the requested space. For those situations we compare the available space to the requested space and
+// use the smallest of the two values.
+func ResizeImage(dest, imageSize string) error {
+	info, err := qemuOperations.Info(dest)
+	if err != nil {
+		return err
+	}
+	currentImageSizeQuantity := resource.NewQuantity(info.VirtualSize, resource.BinarySI)
+	newImageSizeQuantity := resource.MustParse(imageSize)
+	minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(util.GetAvailableSpace(dest), 0), &newImageSizeQuantity)
+	if minSizeQuantity.Cmp(newImageSizeQuantity) != 0 {
+		// Available dest space is smaller than the size we want to resize to
+		glog.Warningf("Available space less than requested size, resizing image to available space %s.\n", minSizeQuantity.String())
+	}
+	if currentImageSizeQuantity.Cmp(minSizeQuantity) == 0 {
+		glog.V(1).Infof("No need to resize image. Requested size: %s, Image size: %d.\n", imageSize, info.VirtualSize)
+		return nil
+	}
+	glog.V(1).Infof("Expanding image size to: %s\n", minSizeQuantity.String())
+	return qemuOperations.Resize(dest, minSizeQuantity.String())
 }
 
 // Read the endpoint and determine the file composition (eg. .iso.tar.gz) based on the magic number in
@@ -627,11 +651,11 @@ func (d *DataStream) copy(dest string) error {
 
 		return nil
 	}
-	return copy(d.topReader(), dest, d.qemu)
+	return copy(d.topReader(), dest, d.qemu, d.ImageSize)
 }
 
 // Copy the file using its Reader (r) to the passed-in destination (`out`).
-func copy(r io.Reader, out string, qemu bool) error {
+func copy(r io.Reader, out string, qemu bool, imageSize string) error {
 	out = filepath.Clean(out)
 	glog.V(2).Infof("copying image file to %q", out)
 	dest := out
@@ -658,6 +682,12 @@ func copy(r io.Reader, out string, qemu bool) error {
 		err = qemuOperations.ConvertQcow2ToRaw(dest, out)
 		if err != nil {
 			return errors.Wrap(err, "Local qcow to raw conversion failed")
+		}
+		if imageSize != "" {
+			err = qemuOperations.Resize(dest, imageSize)
+		}
+		if err != nil {
+			return errors.Wrap(err, "Resize of image failed")
 		}
 	}
 	return nil

@@ -47,6 +47,8 @@ type fakeQEMUOperations struct {
 	e1 error
 	e2 error
 	e3 error
+	e4 error
+	e5 error
 }
 
 // EndlessReader doesn't return any value read, te r
@@ -78,7 +80,8 @@ var _ = Describe("Data Stream", func() {
 			accessKeyID,
 			secretKey,
 			controller.SourceHTTP,
-			controller.ContentTypeKubevirt})
+			controller.ContentTypeKubevirt,
+			"1G"})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
 		}
@@ -109,7 +112,8 @@ var _ = Describe("Data Stream", func() {
 			"",
 			"",
 			controller.SourceHTTP,
-			controller.ContentTypeKubevirt})
+			controller.ContentTypeKubevirt,
+			"1G"})
 		Expect(err).NotTo(HaveOccurred())
 		By("Closing data stream")
 		err = ds.Close()
@@ -127,7 +131,8 @@ var _ = Describe("Data Stream", func() {
 			"",
 			"",
 			controller.SourceHTTP,
-			controller.ContentTypeKubevirt})
+			controller.ContentTypeKubevirt,
+			"1G"})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
 		}
@@ -154,7 +159,8 @@ var _ = Describe("Data Stream", func() {
 			"",
 			"",
 			controller.SourceHTTP,
-			controller.ContentTypeKubevirt})
+			controller.ContentTypeKubevirt,
+			"1G"})
 		defer func() {
 			tempTestServer.Close()
 		}()
@@ -184,7 +190,7 @@ var _ = Describe("SaveStream", func() {
 
 	It("Should successfully save the stream", func() {
 		defer os.Remove("testqcow2file")
-		replaceQEMUOperations(NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil), func() {
+		replaceQEMUOperations(NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil, nil, nil), func() {
 			rdr, err := os.Open(filepath.Join(imageDir, "cirros-qcow2.img"))
 			Expect(err).NotTo(HaveOccurred())
 			defer rdr.Close()
@@ -221,7 +227,8 @@ var _ = Describe("Copy", func() {
 				"",
 				"",
 				controller.SourceHTTP,
-				controller.ContentTypeKubevirt})
+				controller.ContentTypeKubevirt,
+				"1G"})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
 			} else {
@@ -231,16 +238,16 @@ var _ = Describe("Copy", func() {
 	},
 		table.Entry("successfully copy local image", "tinyCore.raw", "tinyCore.iso", NewQEMUAllErrors(), false),
 		table.Entry("expect failure trying to copy non-existing local image", "cdi-testcopy", "tinyCoreBad.iso", NewQEMUAllErrors(), true),
-		table.Entry("successfully copy streaming image", "cirros-qcow2.raw", "cirros-qcow2.img", NewFakeQEMUOperations(errors.New("should not be called"), nil, nil), false),
-		table.Entry("streaming image qemu validation fails", "cirros-qcow2.raw", "cirros-qcow2.img", NewFakeQEMUOperations(nil, nil, errors.New("invalid image")), true),
-		table.Entry("streaming image qemu convert fails", "cirros-qcow2.raw", "cirros-qcow2.img", NewFakeQEMUOperations(nil, errors.New("exit 1"), nil), true),
+		table.Entry("successfully copy streaming image", "cirros-qcow2.raw", "cirros-qcow2.img", NewFakeQEMUOperations(errors.New("should not be called"), nil, nil, nil, nil), false),
+		table.Entry("streaming image qemu validation fails", "cirros-qcow2.raw", "cirros-qcow2.img", NewFakeQEMUOperations(nil, nil, nil, nil, errors.New("invalid image")), true),
+		table.Entry("streaming image qemu convert fails", "cirros-qcow2.raw", "cirros-qcow2.img", NewFakeQEMUOperations(nil, errors.New("exit 1"), nil, nil, nil), true),
 	)
 
 	table.DescribeTable("internal copy", func(r io.Reader, out string, qemu bool, qemuOperations image.QEMUOperations, wantErr bool) {
 		defer os.Remove(out)
 		By("Replacing QEMU Operations")
 		replaceQEMUOperations(qemuOperations, func() {
-			err := copy(r, out, qemu)
+			err := copy(r, out, qemu, "")
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
 			} else {
@@ -248,10 +255,10 @@ var _ = Describe("Copy", func() {
 			}
 		})
 	},
-		table.Entry("successfully copy reader", stringRdr, "testoutfile", false, NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil), false),
-		table.Entry("successfully copy qcow2 reader", testFileRdrs, "testqcow2file", true, NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil), false),
-		table.Entry("expect error trying to copy invalid format", testFileRdrs, "testinvalidfile", true, NewFakeQEMUOperations(nil, nil, errors.New("invalid format")), true),
-		table.Entry("expect error trying to copy qemu process fails", testFileRdrs, "testinvalidfile", true, NewFakeQEMUOperations(errors.New("exit 1"), nil, nil), true),
+		table.Entry("successfully copy reader", stringRdr, "testoutfile", false, NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil, nil, nil), false),
+		table.Entry("successfully copy qcow2 reader", testFileRdrs, "testqcow2file", true, NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil, nil, nil), false),
+		table.Entry("expect error trying to copy invalid format", testFileRdrs, "testinvalidfile", true, NewFakeQEMUOperations(nil, nil, nil, nil, errors.New("invalid format")), true),
+		table.Entry("expect error trying to copy qemu process fails", testFileRdrs, "testinvalidfile", true, NewFakeQEMUOperations(errors.New("exit 1"), nil, nil, nil, nil), true),
 	)
 })
 
@@ -363,7 +370,8 @@ var _ = Describe("Streaming Data Conversion", func() {
 			"",
 			"",
 			controller.SourceHTTP,
-			controller.ContentTypeKubevirt})
+			controller.ContentTypeKubevirt,
+			"1G"})
 		Expect(err).NotTo(HaveOccurred())
 
 		By(fmt.Sprintf("Checking size of the output file %q", testTarget))
@@ -396,7 +404,8 @@ var _ = Describe("Streaming Data Conversion", func() {
 			"",
 			"",
 			controller.SourceHTTP,
-			controller.ContentTypeKubevirt})
+			controller.ContentTypeKubevirt,
+			"1G"})
 
 		Expect(err).NotTo(HaveOccurred())
 		defer ds.Close()
@@ -474,11 +483,11 @@ func replaceQEMUOperations(replacement image.QEMUOperations, f func()) {
 
 func NewQEMUAllErrors() image.QEMUOperations {
 	err := errors.New("qemu should not be called from this test override with replaceQEMUOperations")
-	return NewFakeQEMUOperations(err, err, err)
+	return NewFakeQEMUOperations(err, err, err, err, err)
 }
 
-func NewFakeQEMUOperations(e1, e2, e3 error) image.QEMUOperations {
-	return &fakeQEMUOperations{e1, e2, e3}
+func NewFakeQEMUOperations(e1, e2, e3, e4, e5 error) image.QEMUOperations {
+	return &fakeQEMUOperations{e1, e2, e3, e4, e5}
 }
 
 func (o *fakeQEMUOperations) ConvertQcow2ToRaw(string, string) error {
@@ -490,7 +499,15 @@ func (o *fakeQEMUOperations) ConvertQcow2ToRawStream(*url.URL, string) error {
 }
 
 func (o *fakeQEMUOperations) Validate(string, string) error {
+	return o.e5
+}
+
+func (o *fakeQEMUOperations) Resize(string, string) error {
 	return o.e3
+}
+
+func (o *fakeQEMUOperations) Info(string) (*image.ImgInfo, error) {
+	return nil, o.e4
 }
 
 func createTestData() map[string]string {

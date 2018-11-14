@@ -80,6 +80,14 @@ func getEndpoint(pvc *v1.PersistentVolumeClaim) (string, error) {
 	return ep, nil
 }
 
+func getImageSize(pvc *v1.PersistentVolumeClaim) (string, error) {
+	pvcSize, found := pvc.Spec.Resources.Requests[v1.ResourceStorage]
+	if !found {
+		return "", errors.Errorf("storage request is missing in pvc \"%s/%s\"", pvc.Namespace, pvc.Name)
+	}
+	return pvcSize.String(), nil
+}
+
 // returns the source string which determines the type of source. If no source or invalid source found, default to http
 func getSource(pvc *v1.PersistentVolumeClaim) string {
 	source, found := pvc.Annotations[AnnSource]
@@ -328,6 +336,10 @@ func makeEnv(podEnvVar importPodEnvVar, uid types.UID) []v1.EnvVar {
 		{
 			Name:  common.ImporterContentType,
 			Value: podEnvVar.contentType,
+		},
+		{
+			Name:  common.ImporterImageSize,
+			Value: podEnvVar.imageSize,
 		},
 		{
 			Name:  common.OwnerUID,
