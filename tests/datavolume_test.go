@@ -70,7 +70,7 @@ var _ = Describe("DataVolume tests", func() {
 				}, timeout, pollingInterval).Should(BeTrue())
 			}
 
-			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume)
+			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 
 		},
@@ -120,11 +120,54 @@ var _ = Describe("DataVolume tests", func() {
 				return strings.Contains(events, controller.CloneSucceeded)
 			}, timeout, pollingInterval).Should(BeTrue())
 
-			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume)
+			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 
 		},
 			table.Entry("succeed when given a source PVC with a data", fillCommand, cdiv1.Succeeded, "dv-clone-test-1"),
 		)
+	})
+
+	Describe("Delete resources of DataVolume with an invalid URL (POD in retry loop)", func() {
+		Context("using invalid import URL for DataVolume", func() {
+			dataVolumeName := "invalid-url-dv"
+			url := "http://nothing.2.c/here.iso"
+			It("should create/delete all resources", func() {
+				dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
+
+				By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+				Expect(err).ToNot(HaveOccurred())
+
+				By(fmt.Sprintf("waiting for datavolume to match phase %s", "Failed"))
+				utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, "Failed", dataVolume.Name)
+
+				// verify PVC was created
+				By("verifying pvc and pod were created")
+				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				pvcName := pvc.Name
+				podName := pvc.Annotations[controller.AnnImportPod]
+
+				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(pvcName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(podName, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("deleting DataVolume")
+				err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolumeName)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("verifying pod was deleted")
+				deleted, err := utils.WaitPodDeleted(f.K8sClient, pod.Name, f.Namespace.Name, timeout)
+				Expect(deleted).To(BeTrue())
+
+				By("verifying pvc was deleted")
+				deleted, err = utils.WaitPVCDeleted(f.K8sClient, pvc.Name, f.Namespace.Name, timeout)
+				Expect(deleted).To(BeTrue())
+			})
+		})
 	})
 })

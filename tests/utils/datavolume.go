@@ -43,10 +43,10 @@ func CreateDataVolumeFromDefinition(clientSet *cdiclientset.Clientset, namespace
 	return dataVolume, nil
 }
 
-// DeleteDataVolume deletes the passed in DataVolume
-func DeleteDataVolume(clientSet *cdiclientset.Clientset, namespace string, dataVolume *cdiv1.DataVolume) error {
+// DeleteDataVolume deletes the DataVolume with the given name
+func DeleteDataVolume(clientSet *cdiclientset.Clientset, namespace, name string) error {
 	return wait.PollImmediate(dataVolumePollInterval, dataVolumeDeleteTime, func() (bool, error) {
-		err := clientSet.CdiV1alpha1().DataVolumes(namespace).Delete(dataVolume.GetName(), nil)
+		err := clientSet.CdiV1alpha1().DataVolumes(namespace).Delete(name, nil)
 		if err == nil || apierrs.IsNotFound(err) {
 			return true, nil
 		}
@@ -54,6 +54,7 @@ func DeleteDataVolume(clientSet *cdiclientset.Clientset, namespace string, dataV
 	})
 }
 
+// NewDataVolumeWithPVCImport initializes a DataVolume struct with PVC annotations
 // NewDataVolumeWithPVCImport initializes a DataVolume struct with PVC annotations
 func NewDataVolumeWithPVCImport(dataVolumeName string, size string, targetPvc *k8sv1.PersistentVolumeClaim) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
