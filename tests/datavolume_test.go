@@ -46,7 +46,7 @@ var _ = Describe("DataVolume tests", func() {
 	})
 
 	Describe("Verify DataVolume", func() {
-		table.DescribeTable("with http import source should", func(url string, phase cdiv1.DataVolumePhase, dataVolumeName string, eventReasons []string) {
+		table.DescribeTable("with http import source should", func(url string, phase cdiv1.DataVolumePhase, dataVolumeName string, eventReason string) {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
@@ -61,22 +61,25 @@ var _ = Describe("DataVolume tests", func() {
 			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
-			By(fmt.Sprint("Verifying events occurred"))
-			for _, eventReason := range eventReasons {
-				Eventually(func() bool {
-					events, err := tests.RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
-					Expect(err).NotTo(HaveOccurred())
+			By(fmt.Sprint("Verifying event occurred"))
+			Eventually(func() bool {
+				events, err := tests.RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
+				if err == nil {
+					fmt.Fprintf(GinkgoWriter, "%s", events)
 					return strings.Contains(events, eventReason)
-				}, timeout, pollingInterval).Should(BeTrue())
-			}
+				} else {
+					fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+					return false
+				}
+			}, timeout, pollingInterval).Should(BeTrue())
 
 			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 
 		},
-			table.Entry("succeed when given valid url", utils.TinyCoreIsoURL, cdiv1.Succeeded, "dv-phase-test-1", []string{controller.ImportScheduled, controller.ImportSucceeded}),
-			table.Entry("fail due to invalid DNS entry", "http://i-made-this-up.kube-system/tinyCore.iso", cdiv1.Failed, "dv-phase-test-2", []string{controller.ImportScheduled}),
-			table.Entry("fail due to file not found", utils.TinyCoreIsoURL+"not.real.file", cdiv1.Failed, "dv-phase-test-3", []string{controller.ImportScheduled}),
+			table.Entry("succeed when given valid url", utils.TinyCoreIsoURL, cdiv1.Succeeded, "dv-phase-test-1", controller.ImportSucceeded),
+			table.Entry("fail due to invalid DNS entry", "http://i-made-this-up.kube-system/tinyCore.iso", cdiv1.Failed, "dv-phase-test-2", controller.ImportFailed),
+			table.Entry("fail due to file not found", utils.TinyCoreIsoURL+"not.real.file", cdiv1.Failed, "dv-phase-test-3", controller.ImportFailed),
 		)
 
 		table.DescribeTable("with clone source should", func(command string, phase cdiv1.DataVolumePhase, dataVolumeName string) {
