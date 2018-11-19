@@ -96,14 +96,12 @@ var _ = Describe(testSuiteName+"-prometheus", func() {
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
 
 		var endpoint *v1.Endpoints
-		var pod v1.Pod
 		l, err := labels.Parse("prometheus.kubevirt.io")
 		Expect(err).ToNot(HaveOccurred())
 		Eventually(func() int {
 			endpoint, err = c.CoreV1().Endpoints(ns).Get("kubevirt-prometheus-metrics", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
-			podList, err := c.CoreV1().Pods(ns).List(metav1.ListOptions{LabelSelector: l.String()})
-			pod = podList.Items[0]
+			_, err := c.CoreV1().Pods(ns).List(metav1.ListOptions{LabelSelector: l.String()})
 			Expect(err).ToNot(HaveOccurred())
 			return len(endpoint.Subsets)
 		}, 60, 1).Should(Equal(1))
