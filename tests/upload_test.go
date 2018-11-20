@@ -6,6 +6,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/api/core/v1"
+
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -42,6 +44,9 @@ var _ = Describe("Upload tests", func() {
 
 		By("Do upload")
 		err = utils.UploadImageFromNode(f.K8sClient, f.GoCLIPath, token)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = f.WaitForPersistentVolumeClaimPhase(v1.ClaimBound, pvc.Name)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify content")

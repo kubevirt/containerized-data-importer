@@ -5,6 +5,7 @@ import (
 
 	"fmt"
 
+	"github.com/onsi/ginkgo"
 	k8sv1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -130,6 +131,7 @@ func NewPVCDefinition(pvcName string, size string, annotations, labels map[strin
 func WaitForPersistentVolumeClaimPhase(clientSet *kubernetes.Clientset, namespace string, phase k8sv1.PersistentVolumeClaimPhase, pvcName string) error {
 	err := wait.PollImmediate(pvcPollInterval, pvcPhaseTime, func() (bool, error) {
 		pvc, err := clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(pvcName, metav1.GetOptions{})
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Checking PVC phase: %s\n", string(pvc.Status.Phase))
 		if err != nil || pvc.Status.Phase != phase {
 			return false, err
 		}

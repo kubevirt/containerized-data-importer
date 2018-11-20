@@ -66,7 +66,7 @@ const (
 	// ImportFailed provides a const to indicate import has failed
 	ImportFailed = "ImportFailed"
 	// ImportSucceeded provides a const to indicate import has succeeded
-	ImportSucceeded = "ImportSucceded"
+	ImportSucceeded = "ImportSucceeded"
 	// CloneScheduled provides a const to indicate clone is scheduled
 	CloneScheduled = "CloneScheduled"
 	// CloneInProgress provides a const to indicate clone is in progress
