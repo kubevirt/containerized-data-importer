@@ -37,7 +37,7 @@ type ImportController struct {
 }
 
 type importPodEnvVar struct {
-	ep, secretName, source, contentType string
+	ep, secretName, source, contentType, imageSize string
 }
 
 // NewImportController sets up an Import Controller, and returns a pointer to
@@ -118,6 +118,10 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 			}
 			if podEnvVar.secretName == "" {
 				glog.V(2).Infof("no secret will be supplied to endpoint %q\n", podEnvVar.ep)
+			}
+			podEnvVar.imageSize, err = getImageSize(pvc)
+			if err != nil {
+				return err
 			}
 		}
 		// all checks passed, let's create the importer pod!

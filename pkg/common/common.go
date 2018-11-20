@@ -51,6 +51,8 @@ const (
 	ImporterAccessKeyID = "IMPORTER_ACCESS_KEY_ID"
 	// ImporterSecretKey provides a constant to capture our env variable "IMPORTER_SECRET_KEY"
 	ImporterSecretKey = "IMPORTER_SECRET_KEY"
+	// ImporterImageSize provides a constant to capture our env variable "IMPORTER_IMAGE_SIZE"
+	ImporterImageSize = "IMPORTER_IMAGE_SIZE"
 
 	// OwnerUID provides the UID of the owner entity (either PVC or DV)
 	OwnerUID = "OWNER_UID"

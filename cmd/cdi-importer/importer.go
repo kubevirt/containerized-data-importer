@@ -44,6 +44,7 @@ func main() {
 	sec, _ := util.ParseEnvVar(common.ImporterSecretKey, false)
 	source, _ := util.ParseEnvVar(common.ImporterSource, false)
 	contentType, _ := util.ParseEnvVar(common.ImporterContentType, false)
+	imageSize, _ := util.ParseEnvVar(common.ImporterImageSize, false)
 
 	glog.V(1).Infoln("begin import process")
 	dso := &importer.DataStreamOptions{
@@ -53,6 +54,7 @@ func main() {
 		sec,
 		source,
 		contentType,
+		imageSize,
 	}
 	err = importer.CopyImage(dso)
 	if err != nil {

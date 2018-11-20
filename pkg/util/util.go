@@ -8,10 +8,12 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
 
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -69,4 +71,19 @@ func (r *CountingReader) Read(p []byte) (n int, err error) {
 // Close closes the stream
 func (r *CountingReader) Close() error {
 	return r.Reader.Close()
+}
+
+// GetAvailableSpace gets the amount of available space at the path specified.
+func GetAvailableSpace(path string) int64 {
+	var stat syscall.Statfs_t
+	syscall.Statfs(path, &stat)
+	return int64(stat.Bavail) * int64(stat.Bsize)
+}
+
+// MinQuantity calculates the minimum of two quantities.
+func MinQuantity(availableSpace, imageSize *resource.Quantity) resource.Quantity {
+	if imageSize.Cmp(*availableSpace) == 1 {
+		return *availableSpace
+	}
+	return *imageSize
 }

@@ -448,6 +448,43 @@ func Test_getContentType(t *testing.T) {
 	}
 }
 
+func Test_getImageSize(t *testing.T) {
+	type args struct {
+		pvc *v1.PersistentVolumeClaim
+	}
+
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name:    "expected to get size 1G",
+			args:    args{createPvc("testPVC", "default", nil, nil)},
+			want:    "1G",
+			wantErr: false,
+		},
+		{
+			name:    "expected to get error, because of missing size",
+			args:    args{createPvcNoSize("testPVC", "default", nil, nil)},
+			want:    "",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getImageSize(tt.args.pvc)
+			if err != nil && !tt.wantErr {
+				t.Errorf("Error retrieving adjusted image size, when not expecting error: %s", err.Error())
+			}
+			if got != tt.want {
+				t.Errorf("getSource() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_getSecretName(t *testing.T) {
 	type args struct {
 		client kubernetes.Interface
@@ -717,8 +754,8 @@ func TestCreateImporterPod(t *testing.T) {
 	}{
 		{
 			name:    "expect pod to be created",
-			args:    args{k8sfake.NewSimpleClientset(pvc), "test/image", "-v=5", "Always", importPodEnvVar{"", "", "", ""}, pvc},
-			want:    MakeImporterPodSpec("test/image", "-v=5", "Always", importPodEnvVar{"", "", "", ""}, pvc),
+			args:    args{k8sfake.NewSimpleClientset(pvc), "test/image", "-v=5", "Always", importPodEnvVar{"", "", "", "", "1G"}, pvc},
+			want:    MakeImporterPodSpec("test/image", "-v=5", "Always", importPodEnvVar{"", "", "", "", "1G"}, pvc),
 			wantErr: false,
 		},
 	}
@@ -756,7 +793,7 @@ func TestMakeImporterPodSpec(t *testing.T) {
 	}{
 		{
 			name:    "expect pod to be created",
-			args:    args{"test/myimage", "5", "Always", importPodEnvVar{"", "", SourceHTTP, ContentTypeKubevirt}, pvc},
+			args:    args{"test/myimage", "5", "Always", importPodEnvVar{"", "", SourceHTTP, ContentTypeKubevirt, "1G"}, pvc},
 			wantPod: pod,
 		},
 	}
@@ -786,8 +823,8 @@ func Test_makeEnv(t *testing.T) {
 	}{
 		{
 			name: "env should match",
-			args: args{importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, ContentTypeKubevirt}},
-			want: createEnv(importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, ContentTypeKubevirt}, mockUID),
+			args: args{importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, ContentTypeKubevirt, "1G"}},
+			want: createEnv(importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, ContentTypeKubevirt, "1G"}, mockUID),
 		},
 	}
 	for _, tt := range tests {
@@ -908,6 +945,7 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 	ep, _ := getEndpoint(pvc)
 	source := getSource(pvc)
 	contentType := getContentType(pvc)
+	imageSize, _ := getImageSize(pvc)
 	pod.Spec.Containers[0].Env = []v1.EnvVar{
 		{
 			Name:  ImporterSource,
@@ -920,6 +958,10 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 		{
 			Name:  ImporterContentType,
 			Value: contentType,
+		},
+		{
+			Name:  ImporterImageSize,
+			Value: imageSize,
 		},
 		{
 			Name:  OwnerUID,
@@ -944,6 +986,17 @@ func createPvc(name, ns string, annotations, labels map[string]string) *v1.Persi
 					v1.ResourceName(v1.ResourceStorage): resource.MustParse("1G"),
 				},
 			},
+		},
+	}
+}
+
+func createPvcNoSize(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
+	return &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Namespace:   ns,
+			Annotations: annotations,
+			Labels:      labels,
 		},
 	}
 }
@@ -997,6 +1050,10 @@ func createEnv(podEnvVar importPodEnvVar, uid string) []v1.EnvVar {
 		{
 			Name:  ImporterContentType,
 			Value: podEnvVar.contentType,
+		},
+		{
+			Name:  ImporterImageSize,
+			Value: podEnvVar.imageSize,
 		},
 		{
 			Name:  OwnerUID,
