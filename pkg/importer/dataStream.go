@@ -684,7 +684,7 @@ func copy(r io.Reader, out string, qemu bool, imageSize string) error {
 			return errors.Wrap(err, "Local qcow to raw conversion failed")
 		}
 		if imageSize != "" {
-			err = qemuOperations.Resize(dest, imageSize)
+			err = ResizeImage(dest, imageSize)
 		}
 		if err != nil {
 			return errors.Wrap(err, "Resize of image failed")
