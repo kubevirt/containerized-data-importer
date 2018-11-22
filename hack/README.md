@@ -108,6 +108,15 @@ To Run Standard *cluster-up/kubevirtci* Tests
  # make test-functional
 ```
 
+To run specific functional tests, you can leverage ginkgo command line options as follows:
+```
+# make TEST_ARGS="--test-args=-ginkgo.focus=<test_suite_name>" test-functional
+```
+E.g. to run the tests in transport_test.go:
+```
+# make TEST_ARGS="--test-args=-ginkgo.focus=Transport" test-functional
+```
+
 Clean Up
 ```
  # make cluster-down
