@@ -55,7 +55,6 @@ func DeleteDataVolume(clientSet *cdiclientset.Clientset, namespace, name string)
 }
 
 // NewDataVolumeWithPVCImport initializes a DataVolume struct with PVC annotations
-// NewDataVolumeWithPVCImport initializes a DataVolume struct with PVC annotations
 func NewDataVolumeWithPVCImport(dataVolumeName string, size string, targetPvc *k8sv1.PersistentVolumeClaim) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
