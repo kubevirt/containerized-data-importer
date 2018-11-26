@@ -1,11 +1,8 @@
 package util
 
 import (
-	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
-	"syscall"
 
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
@@ -45,35 +42,4 @@ var _ = Describe("Compare quantities", func() {
 		result = MinQuantity(big, small)
 		Expect(result).To(Equal(*small))
 	})
-})
-
-var _ = Describe("File system", func() {
-	By("Checking current available space")
-	var stat syscall.Statfs_t
-	syscall.Statfs(".", &stat)
-	blockSize := stat.Bsize
-	fmt.Fprintf(GinkgoWriter, "INFO: Block size: %d\n", blockSize)
-
-	table.DescribeTable("Write file near block size", func(fileSize, usedBlocks int64) {
-		By("Checking current available space")
-		var stat syscall.Statfs_t
-		syscall.Statfs(".", &stat)
-		currentAvailabeBlocks := int64(stat.Bavail)
-		f, err := os.Create("smallerthanblock.txt")
-		defer os.Remove("smallerthanblock.txt")
-		Expect(err).NotTo(HaveOccurred())
-		for i := int64(0); i < fileSize; i++ {
-			f.WriteString("t")
-		}
-		fileInfo, err := f.Stat()
-		fmt.Fprintf(GinkgoWriter, "INFO: Written file size: %d\n", fileInfo.Size())
-		err = f.Close()
-		Expect(err).NotTo(HaveOccurred())
-		newAvailableSpace := GetAvailableSpace(".")
-		Expect(newAvailableSpace).To(Equal((currentAvailabeBlocks - usedBlocks) * blockSize))
-	},
-		table.Entry("< block size", blockSize-int64(1), int64(1)),
-		table.Entry("= block size", blockSize, int64(1)),
-		table.Entry("> block size", blockSize+int64(1), int64(2)),
-	)
 })

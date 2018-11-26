@@ -320,19 +320,22 @@ func ResizeImage(dest, imageSize string) error {
 	if err != nil {
 		return err
 	}
-	currentImageSizeQuantity := resource.NewQuantity(info.VirtualSize, resource.BinarySI)
-	newImageSizeQuantity := resource.MustParse(imageSize)
-	minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(util.GetAvailableSpace(dest), 0), &newImageSizeQuantity)
-	if minSizeQuantity.Cmp(newImageSizeQuantity) != 0 {
-		// Available dest space is smaller than the size we want to resize to
-		glog.Warningf("Available space less than requested size, resizing image to available space %s.\n", minSizeQuantity.String())
+	if imageSize != "" {
+		currentImageSizeQuantity := resource.NewScaledQuantity(info.VirtualSize, 0)
+		newImageSizeQuantity := resource.MustParse(imageSize)
+		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(util.GetAvailableSpace(dest), 0), &newImageSizeQuantity)
+		if minSizeQuantity.Cmp(newImageSizeQuantity) != 0 {
+			// Available dest space is smaller than the size we want to resize to
+			glog.Warningf("Available space less than requested size, resizing image to available space %s.\n", minSizeQuantity.String())
+		}
+		if currentImageSizeQuantity.Cmp(minSizeQuantity) == 0 {
+			glog.V(1).Infof("No need to resize image. Requested size: %s, Image size: %d.\n", imageSize, info.VirtualSize)
+			return nil
+		}
+		glog.V(1).Infof("Expanding image size to: %s\n", minSizeQuantity.String())
+		return qemuOperations.Resize(dest, minSizeQuantity)
 	}
-	if currentImageSizeQuantity.Cmp(minSizeQuantity) == 0 {
-		glog.V(1).Infof("No need to resize image. Requested size: %s, Image size: %d.\n", imageSize, info.VirtualSize)
-		return nil
-	}
-	glog.V(1).Infof("Expanding image size to: %s\n", minSizeQuantity.String())
-	return qemuOperations.Resize(dest, minSizeQuantity.String())
+	return errors.New("Image resize called with blank resize")
 }
 
 // Read the endpoint and determine the file composition (eg. .iso.tar.gz) based on the magic number in
@@ -648,7 +651,12 @@ func (d *DataStream) copy(dest string) error {
 		if err != nil {
 			return errors.Wrap(err, "Streaming qcow2 to raw conversion failed")
 		}
-
+		if d.ImageSize != "" {
+			err = ResizeImage(dest, d.ImageSize)
+		}
+		if err != nil {
+			return errors.Wrap(err, "Resize of image failed")
+		}
 		return nil
 	}
 	return copy(d.topReader(), dest, d.qemu, d.ImageSize)
@@ -683,12 +691,14 @@ func copy(r io.Reader, out string, qemu bool, imageSize string) error {
 		if err != nil {
 			return errors.Wrap(err, "Local qcow to raw conversion failed")
 		}
-		if imageSize != "" {
-			err = ResizeImage(dest, imageSize)
-		}
-		if err != nil {
-			return errors.Wrap(err, "Resize of image failed")
-		}
+		// Set the dest to out, since we just wrote that
+		dest = out
+	}
+	if imageSize != "" {
+		err = ResizeImage(dest, imageSize)
+	}
+	if err != nil {
+		return errors.Wrap(err, "Resize of image failed")
 	}
 	return nil
 }
