@@ -25,6 +25,8 @@ import (
 	"strconv"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 
@@ -56,7 +58,7 @@ type ImgInfo struct {
 type QEMUOperations interface {
 	ConvertQcow2ToRaw(string, string) error
 	ConvertQcow2ToRawStream(*url.URL, string) error
-	Resize(string, string) error
+	Resize(string, resource.Quantity) error
 	Info(string) (*ImgInfo, error)
 	Validate(string, string) error
 }
@@ -111,12 +113,18 @@ func (o *qemuOperations) ConvertQcow2ToRawStream(url *url.URL, dest string) erro
 	return nil
 }
 
-func (o *qemuOperations) Resize(image, size string) error {
+// convertQuantityToQemuSize translates a quantity string into a Qemu compatible string.
+func convertQuantityToQemuSize(size resource.Quantity) string {
 	// size from k8s contains an upper case K, so we need to lower case it before we can pass it to qemu.
 	// Below is the message from qemu that explains what it expects.
 	// qemu-img: Parameter 'size' expects a non-negative number below 2^64 Optional suffix k, M, G, T, P or E means kilo-, mega-, giga-, tera-, peta-and exabytes, respectively.
-	size = strings.Replace(size, "K", "k", -1)
-	_, err := qemuExecFunction(qemuLimits, nil, "qemu-img", "resize", "-f", "raw", image, size)
+	stringSize := strings.Replace(size.String(), "K", "k", -1)
+	stringSize = strings.Replace(stringSize, "i", "", -1)
+	return stringSize
+}
+
+func (o *qemuOperations) Resize(image string, size resource.Quantity) error {
+	_, err := qemuExecFunction(qemuLimits, nil, "qemu-img", "resize", "-f", "raw", image, convertQuantityToQemuSize(size))
 	if err != nil {
 		return errors.Wrapf(err, "Error resizing image %s", image)
 	}
@@ -138,21 +146,9 @@ func (o *qemuOperations) Info(image string) (*ImgInfo, error) {
 }
 
 func (o *qemuOperations) Validate(image, format string) error {
-	type imageInfo struct {
-		Format      string `json:"format"`
-		BackingFile string `json:"backing-filename"`
-	}
-
-	output, err := qemuExecFunction(qemuLimits, reportProgress, "qemu-img", "info", "--output=json", image)
+	info, err := o.Info(image)
 	if err != nil {
-		return errors.Wrapf(err, "Error getting info on image %s", image)
-	}
-
-	var info imageInfo
-	err = json.Unmarshal(output, &info)
-	if err != nil {
-		glog.Errorf("Invalid JSON:\n%s\n", string(output))
-		return errors.Wrapf(err, "Invalid json for image %s", image)
+		return err
 	}
 
 	if info.Format != format {

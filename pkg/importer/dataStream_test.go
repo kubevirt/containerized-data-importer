@@ -18,13 +18,14 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
-
 	"syscall"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -81,7 +82,7 @@ var _ = Describe("Data Stream", func() {
 			secretKey,
 			controller.SourceHTTP,
 			controller.ContentTypeKubevirt,
-			"1G"})
+			""})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
 		}
@@ -132,7 +133,7 @@ var _ = Describe("Data Stream", func() {
 			"",
 			controller.SourceHTTP,
 			controller.ContentTypeKubevirt,
-			"1G"})
+			"20M"})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
 		}
@@ -160,7 +161,7 @@ var _ = Describe("Data Stream", func() {
 			"",
 			controller.SourceHTTP,
 			controller.ContentTypeKubevirt,
-			"1G"})
+			"20M"})
 		defer func() {
 			tempTestServer.Close()
 		}()
@@ -228,7 +229,7 @@ var _ = Describe("Copy", func() {
 				"",
 				controller.SourceHTTP,
 				controller.ContentTypeKubevirt,
-				"1G"})
+				""})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
 			} else {
@@ -371,7 +372,7 @@ var _ = Describe("Streaming Data Conversion", func() {
 			"",
 			controller.SourceHTTP,
 			controller.ContentTypeKubevirt,
-			"1G"})
+			""})
 		Expect(err).NotTo(HaveOccurred())
 
 		By(fmt.Sprintf("Checking size of the output file %q", testTarget))
@@ -379,13 +380,13 @@ var _ = Describe("Streaming Data Conversion", func() {
 		if useVirtSize {
 			By("... using output image's virtual size")
 			targetSize = getImageVirtualSize(testTarget)
-			Expect(targetSize).To(Equal(sourceSize))
+			Expect(targetSize).To(Equal(int64(sourceSize)))
 		} else {
 			By("... using stat()")
 			finfo, err = os.Stat(testTarget)
 			Expect(err).NotTo(HaveOccurred())
 			targetSize = finfo.Size()
-			Expect(targetSize).To(Equal(sourceSize))
+			Expect(targetSize).To(Equal(int64(sourceSize)))
 		}
 		fmt.Fprintf(GinkgoWriter, "INFO: byte size = %d\n", targetSize)
 
@@ -502,7 +503,7 @@ func (o *fakeQEMUOperations) Validate(string, string) error {
 	return o.e5
 }
 
-func (o *fakeQEMUOperations) Resize(string, string) error {
+func (o *fakeQEMUOperations) Resize(string, resource.Quantity) error {
 	return o.e3
 }
 
