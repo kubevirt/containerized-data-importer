@@ -75,10 +75,8 @@ var _ = Describe("Transport Tests", func() {
 
 		importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
+
 		err = utils.WaitTimeoutForPodStatus(c, importer.Name, importer.Namespace, v1.PodSucceeded, utils.PodWaitForTime)
-		if err != nil {
-			PrintPodLog(f, importer.Name, ns)
-		}
 
 		if shouldSucceed {
 			By("Verifying PVC is not empty")
@@ -88,8 +86,7 @@ var _ = Describe("Transport Tests", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(utils.WaitTimeoutForPodReady(c, sizeCheckPod, ns, 20*time.Second)).To(Succeed())
 
-			// Get the remote file size, the imported file size and compare them
-			command := `expSize=$(curl -s http://cdi-file-host.kube-system | grep -E '"name":"tinyCore.iso"' | grep -Eo '"size":[0-9]+' | tr -d '":[:alpha:]'); haveSize=$(wc -c < /pvc/disk.img); (( $expSize == $haveSize )); echo $?`
+			command := `expSize=20971520; haveSize=$(wc -c < /pvc/disk.img); (( $expSize == $haveSize )); echo $?`
 			exitCode := f.ExecShellInPod(pod.Name, ns, command)
 			// A 0 exitCode should indicate that $expSize == $haveSize
 			Expect(strconv.Atoi(exitCode)).To(BeZero())

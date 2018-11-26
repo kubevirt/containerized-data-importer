@@ -25,6 +25,8 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	dto "github.com/prometheus/client_model/go"
 
 	"kubevirt.io/containerized-data-importer/pkg/system"
@@ -178,6 +180,15 @@ var _ = Describe("Report Progress", func() {
 		reportProgress("45.34")
 		progress.WithLabelValues(ownerUID).Write(metric)
 		Expect(*metric.Counter.Value).To(Equal(float64(0)))
+	})
+})
+
+var _ = Describe("quantity to qemu", func() {
+	It("Should properly parse quantity to qemu", func() {
+		result := convertQuantityToQemuSize(resource.MustParse("1Gi"))
+		Expect(result).To(Equal("1G"))
+		result = convertQuantityToQemuSize(resource.MustParse("10Ki"))
+		Expect(result).To(Equal("10k"))
 	})
 })
 
