@@ -1,4 +1,4 @@
-package tests_test
+package tests
 
 import (
 	"fmt"
@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"kubevirt.io/containerized-data-importer/pkg/controller"
-	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 
@@ -63,14 +62,13 @@ var _ = Describe("DataVolume tests", func() {
 
 			By(fmt.Sprint("Verifying event occurred"))
 			Eventually(func() bool {
-				events, err := tests.RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
+				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
 					return strings.Contains(events, eventReason)
-				} else {
-					fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
-					return false
 				}
+				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+				return false
 			}, timeout, pollingInterval).Should(BeTrue())
 
 			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
@@ -99,6 +97,7 @@ var _ = Describe("DataVolume tests", func() {
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
 			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
 			if err != nil {
+				PrintControllerLog(f)
 				dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
 				if dverr != nil {
 					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
@@ -118,7 +117,7 @@ var _ = Describe("DataVolume tests", func() {
 
 			By(fmt.Sprintf("Verifying event %s occurred", controller.CloneSucceeded))
 			Eventually(func() bool {
-				events, err := tests.RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
+				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
 				Expect(err).NotTo(HaveOccurred())
 				return strings.Contains(events, controller.CloneSucceeded)
 			}, timeout, pollingInterval).Should(BeTrue())
