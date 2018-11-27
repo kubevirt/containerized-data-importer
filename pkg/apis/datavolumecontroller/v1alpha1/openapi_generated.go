@@ -29,15 +29,17 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolume":             schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolume(ref),
-		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeList":         schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeList(ref),
-		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSource":       schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSource(ref),
-		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceHTTP":   schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSourceHTTP(ref),
-		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourcePVC":    schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSourcePVC(ref),
-		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceS3":     schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSourceS3(ref),
-		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceUpload": schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSourceUpload(ref),
-		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSpec":         schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSpec(ref),
-		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeStatus":       schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeStatus(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolume":               schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolume(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeBlankImage":     schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeBlankImage(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeList":           schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeList(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSource":         schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSource(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceHTTP":     schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSourceHTTP(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourcePVC":      schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSourcePVC(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceRegistry": schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSourceRegistry(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceS3":       schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSourceS3(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceUpload":   schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSourceUpload(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSpec":           schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSpec(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeStatus":         schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeStatus(ref),
 	}
 }
 
@@ -82,6 +84,18 @@ func schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolume(ref common.Referen
 		},
 		Dependencies: []string{
 			"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSpec", "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeStatus"},
+	}
+}
+
+func schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeBlankImage(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC",
+				Properties:  map[string]spec.Schema{},
+			},
+		},
+		Dependencies: []string{},
 	}
 }
 
@@ -136,7 +150,7 @@ func schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSource(ref common.R
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "DataVolumeSource represents the source for our Data Volume, this can be HTTP, S3 or an existing PVC",
+				Description: "DataVolumeSource represents the source for our Data Volume, this can be HTTP, S3, Registry or an existing PVC",
 				Properties: map[string]spec.Schema{
 					"http": {
 						SchemaProps: spec.SchemaProps{
@@ -146,6 +160,11 @@ func schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSource(ref common.R
 					"s3": {
 						SchemaProps: spec.SchemaProps{
 							Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceS3"),
+						},
+					},
+					"registry": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceRegistry"),
 						},
 					},
 					"pvc": {
@@ -158,11 +177,16 @@ func schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSource(ref common.R
 							Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceUpload"),
 						},
 					},
+					"blank": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeBlankImage"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceHTTP", "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourcePVC", "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceS3", "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceUpload"},
+			"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeBlankImage", "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceHTTP", "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourcePVC", "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceRegistry", "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceS3", "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1.DataVolumeSourceUpload"},
 	}
 }
 
@@ -209,6 +233,33 @@ func schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSourcePVC(ref commo
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{},
+	}
+}
+
+func schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSourceRegistry(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source",
+				Properties: map[string]spec.Schema{
+					"url": {
+						SchemaProps: spec.SchemaProps{
+							Description: "URL is the url of the Registry source",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"secretRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SecretRef provides the secret reference needed to access the Registry source",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 				},

@@ -25,7 +25,7 @@ RUN \
     cd $GOPATH/src/github.com/mattn/goveralls && \
     go install ./... ) && \
     ( go get -u golang.org/x/lint/golint ) && \
-    ( go get -u github.com/mhenriks/go-swagger-utils/swagger-doc ) && \
+    ( go get -u github.com/rmohr/go-swagger-utils/swagger-doc ) && \
     ( go get -u -d k8s.io/code-generator/cmd/deepcopy-gen && \
     go get -u -d k8s.io/kube-openapi/cmd/openapi-gen ) && \
     ( cd $GOPATH/src/k8s.io/code-generator/cmd/deepcopy-gen && \

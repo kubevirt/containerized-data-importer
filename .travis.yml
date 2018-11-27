@@ -98,8 +98,3 @@ deploy:
 #  script: bash hack/gen-swagger-doc/deploy.sh
 #  on:
 #    tags: true
-#- provider: script
-#  skip_cleanup: true
-#  script: bash hack/gen-client-python/deploy.sh
-#  on:
-#    branch: master

@@ -18,13 +18,19 @@ func (DataVolumeSpec) SwaggerDoc() map[string]string {
 
 func (DataVolumeSource) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "DataVolumeSource represents the source for our Data Volume, this can be HTTP, S3 or an existing PVC",
+		"": "DataVolumeSource represents the source for our Data Volume, this can be HTTP, S3, Registry or an existing PVC",
 	}
 }
 
 func (DataVolumeSourcePVC) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"": "DataVolumeSourcePVC provides the parameters to create a Data Volume from an existing PVC",
+	}
+}
+
+func (DataVolumeBlankImage) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC",
 	}
 }
 
@@ -39,6 +45,14 @@ func (DataVolumeSourceS3) SwaggerDoc() map[string]string {
 		"":          "DataVolumeSourceS3 provides the parameters to create a Data Volume from an S3 source",
 		"url":       "URL is the url of the S3 source",
 		"secretRef": "SecretRef provides the secret reference needed to access the S3 source",
+	}
+}
+
+func (DataVolumeSourceRegistry) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":          "DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source",
+		"url":       "URL is the url of the Registry source",
+		"secretRef": "SecretRef provides the secret reference needed to access the Registry source",
 	}
 }
 

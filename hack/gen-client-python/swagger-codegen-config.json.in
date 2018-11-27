@@ -1,6 +1,0 @@
-{
-"packageName": "kubevirt_cdi",
-"projectName": "kubevirt-cdi-py",
-"packageUrl": "https://github.com/kubevirt/cdi-client-python",
-"packageVersion": "$VERSION"
-}

@@ -22,4 +22,3 @@ MANIFEST_TEMPLATE_DIR=${CDI_DIR}/manifests/templates
 MANIFEST_GENERATED_DIR=${CDI_DIR}/manifests/generated
 SOURCE_DIRS="pkg tests tools"
 APIDOCS_OUT_DIR=${OUT_DIR}/apidocs
-PYTHON_CLIENT_OUT_DIR=${OUT_DIR}/cdi-client-python

@@ -44,9 +44,6 @@ generate-verify:
 apidocs:
 	${DO} "./hack/update-codegen.sh && ./hack/gen-swagger-doc/gen-swagger-docs.sh v1alpha1 html"
 
-client-python:
-	${DO} "./hack/update-codegen.sh && TRAVIS_TAG=${TRAVIS_TAG} ./hack/gen-client-python/generate.sh"
-
 build:
 	${DO} "./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-cdi-func-test-file-host.sh && DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} ./hack/build/build-manifests.sh ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
 
