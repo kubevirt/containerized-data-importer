@@ -161,6 +161,7 @@ func newDataStream(dso *DataStreamOptions, stream io.ReadCloser) (*DataStream, e
 	// establish readers for endpoint's formats and do initial calc of size of raw endpt
 	err = ds.constructReaders(stream)
 	if err != nil {
+		ds.Close()
 		return nil, errors.Wrapf(err, "unable to construct readers")
 	}
 
