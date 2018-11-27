@@ -100,6 +100,10 @@ func doCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
 
 	By("Verify the clone annotation is on the target PVC")
 	_, cloneAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnCloneOf)
+	if err != nil {
+		PrintControllerLog(f)
+		PrintPodLog(f, targetPod.Name, targetPod.Namespace)
+	}
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cloneAnnotationFound).To(BeTrue())
 
