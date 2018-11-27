@@ -46,6 +46,7 @@ type DataVolumeSource struct {
 	S3     *DataVolumeSourceS3     `json:"s3,omitempty"`
 	PVC    *DataVolumeSourcePVC    `json:"pvc,omitempty"`
 	Upload *DataVolumeSourceUpload `json:"upload,omitempty"`
+	Blank  *DataVolumeBlankImage   `json:"blank,omitempty"`
 }
 
 // DataVolumeSourcePVC provides the parameters to create a Data Volume from an existing PVC
@@ -53,6 +54,9 @@ type DataVolumeSourcePVC struct {
 	Namespace string `json:"namespace,omitempty"`
 	Name      string `json:"name,omitempty"`
 }
+
+// DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC
+type DataVolumeBlankImage struct{}
 
 // DataVolumeSourceUpload provides the parameters to create a Data Volume by uploading the source
 type DataVolumeSourceUpload struct {

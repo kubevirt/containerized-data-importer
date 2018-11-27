@@ -19,7 +19,10 @@ import (
 
 	"github.com/golang/glog"
 
+	"k8s.io/apimachinery/pkg/api/resource"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
+	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -56,10 +59,25 @@ func main() {
 		contentType,
 		imageSize,
 	}
-	err = importer.CopyImage(dso)
-	if err != nil {
-		glog.Errorf("%+v", err)
-		os.Exit(1)
+
+	if source == controller.SourceNone && contentType == controller.ContentTypeKubevirt {
+		requestImageSizeQuantity := resource.MustParse(imageSize)
+		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(util.GetAvailableSpace(common.ImporterWritePath), 0), &requestImageSizeQuantity)
+		if minSizeQuantity.Cmp(requestImageSizeQuantity) != 0 {
+			// Available dest space is smaller than the size we want to create
+			glog.Warningf("Available space less than requested size, creating blank image sized to availabe space: %s.\n", minSizeQuantity.String())
+		}
+		err := image.CreateBlankImage(common.ImporterWritePath, minSizeQuantity)
+		if err != nil {
+			glog.Errorf("%+v", err)
+			os.Exit(1)
+		}
+	} else {
+		err = importer.CopyImage(dso)
+		if err != nil {
+			glog.Errorf("%+v", err)
+			os.Exit(1)
+		}
 	}
 	glog.V(1).Infoln("import complete")
 }

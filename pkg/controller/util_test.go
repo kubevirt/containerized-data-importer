@@ -344,11 +344,7 @@ func Test_getEndpoint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := getEndpoint(tt.args.pvc)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("getEndpoint() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
+			got, _ := getEndpoint(tt.args.pvc)
 			if got != tt.want {
 				t.Errorf("getEndpoint() = %v, want %v", got, tt.want)
 			}
@@ -474,7 +470,7 @@ func Test_getImageSize(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := getImageSize(tt.args.pvc)
+			got, err := getRequestedImageSize(tt.args.pvc)
 			if err != nil && !tt.wantErr {
 				t.Errorf("Error retrieving adjusted image size, when not expecting error: %s", err.Error())
 			}
@@ -739,7 +735,7 @@ func TestCreateImporterPod(t *testing.T) {
 		image      string
 		verbose    string
 		pullPolicy string
-		podEnvVar  importPodEnvVar
+		podEnvVar  *importPodEnvVar
 		pvc        *v1.PersistentVolumeClaim
 	}
 
@@ -754,8 +750,8 @@ func TestCreateImporterPod(t *testing.T) {
 	}{
 		{
 			name:    "expect pod to be created",
-			args:    args{k8sfake.NewSimpleClientset(pvc), "test/image", "-v=5", "Always", importPodEnvVar{"", "", "", "", "1G"}, pvc},
-			want:    MakeImporterPodSpec("test/image", "-v=5", "Always", importPodEnvVar{"", "", "", "", "1G"}, pvc),
+			args:    args{k8sfake.NewSimpleClientset(pvc), "test/image", "-v=5", "Always", &importPodEnvVar{"", "", "", "", "1G"}, pvc},
+			want:    MakeImporterPodSpec("test/image", "-v=5", "Always", &importPodEnvVar{"", "", "", "", "1G"}, pvc),
 			wantErr: false,
 		},
 	}
@@ -778,12 +774,12 @@ func TestMakeImporterPodSpec(t *testing.T) {
 		image      string
 		verbose    string
 		pullPolicy string
-		podEnvVar  importPodEnvVar
+		podEnvVar  *importPodEnvVar
 		pvc        *v1.PersistentVolumeClaim
 	}
 	// create PVC
 	pvc := createPvc("testPVC2", "default", nil, nil)
-
+	// create POD
 	pod := createPod(pvc, DataVolName)
 
 	tests := []struct {
@@ -793,7 +789,7 @@ func TestMakeImporterPodSpec(t *testing.T) {
 	}{
 		{
 			name:    "expect pod to be created",
-			args:    args{"test/myimage", "5", "Always", importPodEnvVar{"", "", SourceHTTP, ContentTypeKubevirt, "1G"}, pvc},
+			args:    args{"test/myimage", "5", "Always", &importPodEnvVar{"", "", SourceHTTP, ContentTypeKubevirt, "1G"}, pvc},
 			wantPod: pod,
 		},
 	}
@@ -813,7 +809,7 @@ func Test_makeEnv(t *testing.T) {
 	const mockUID = "1111-1111-1111-1111"
 
 	type args struct {
-		podEnvVar importPodEnvVar
+		podEnvVar *importPodEnvVar
 	}
 
 	tests := []struct {
@@ -823,11 +819,13 @@ func Test_makeEnv(t *testing.T) {
 	}{
 		{
 			name: "env should match",
-			args: args{importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, ContentTypeKubevirt, "1G"}},
-			want: createEnv(importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, ContentTypeKubevirt, "1G"}, mockUID),
+			args: args{&importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, ContentTypeKubevirt, "1G"}},
+			want: createEnv(&importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, ContentTypeKubevirt, "1G"}, mockUID),
 		},
 	}
 	for _, tt := range tests {
+		{
+		}
 		t.Run(tt.name, func(t *testing.T) {
 			if got := makeEnv(tt.args.podEnvVar, mockUID); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("makeEnv() = %v, want %v", got, tt.want)
@@ -945,8 +943,9 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 	ep, _ := getEndpoint(pvc)
 	source := getSource(pvc)
 	contentType := getContentType(pvc)
-	imageSize, _ := getImageSize(pvc)
-	pod.Spec.Containers[0].Env = []v1.EnvVar{
+	imageSize, _ := getRequestedImageSize(pvc)
+
+	env := []v1.EnvVar{
 		{
 			Name:  ImporterSource,
 			Value: source,
@@ -968,6 +967,7 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 			Value: string(pvc.UID),
 		},
 	}
+	pod.Spec.Containers[0].Env = env
 	return pod
 }
 
@@ -1037,7 +1037,7 @@ func createSecret(name, ns, accessKey, secretKey string, labels map[string]strin
 	}
 }
 
-func createEnv(podEnvVar importPodEnvVar, uid string) []v1.EnvVar {
+func createEnv(podEnvVar *importPodEnvVar, uid string) []v1.EnvVar {
 	env := []v1.EnvVar{
 		{
 			Name:  ImporterSource,

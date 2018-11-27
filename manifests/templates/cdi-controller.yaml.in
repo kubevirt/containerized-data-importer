@@ -149,6 +149,7 @@ spec:
                   - namespace
                   - name
                 upload:
+                blank:
             pvc:
               properties:
                 resources:

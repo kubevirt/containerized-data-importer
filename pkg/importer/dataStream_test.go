@@ -511,6 +511,10 @@ func (o *fakeQEMUOperations) Info(string) (*image.ImgInfo, error) {
 	return nil, o.e4
 }
 
+func (o *fakeQEMUOperations) CreateBlankImage(dest string, size resource.Quantity) error {
+	return o.e4
+}
+
 func createTestData() map[string]string {
 	xzfile, _ := utils.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), image.ExtXz)
 	gzfile, _ := utils.FormatTestData(filepath.Join(imageDir, "tinyCore.iso"), os.TempDir(), image.ExtGz)

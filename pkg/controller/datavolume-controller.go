@@ -650,6 +650,9 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 		}
 	} else if dataVolume.Spec.Source.Upload != nil {
 		annotations[AnnUploadRequest] = ""
+	} else if dataVolume.Spec.Source.Blank != nil {
+		annotations[AnnSource] = SourceNone
+		annotations[AnnContentType] = ContentTypeKubevirt
 	} else {
 		return nil, errors.Errorf("no source set for datavolume")
 	}
