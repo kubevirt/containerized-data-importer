@@ -85,7 +85,7 @@ type DataStreamOptions struct {
 	Endpoint string
 	// AccessKey is the access key for the endpoint, can be blank. This needs to be a base64 encoded string.
 	AccessKey string
-	// SecKey is the security key needed for the endpoint, can be blank.
+	// SecKey is the security key needed for the endpoint, can be blank. This needs to be a base64 encoded string.
 	SecKey string
 	// Source is the source type of the data.
 	Source string
