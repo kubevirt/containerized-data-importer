@@ -93,7 +93,7 @@ func pollPVCAnnotation(clientSet *kubernetes.Clientset, namespace string, pvc *k
 		if err != nil {
 			return false, err
 		}
-
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: PVC annotations: %v\n", pvc.ObjectMeta.Annotations)
 		value, ok := pvc.ObjectMeta.Annotations[annotation]
 		if ok {
 			return f(value), nil
