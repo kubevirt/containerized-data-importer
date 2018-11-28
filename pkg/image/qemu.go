@@ -201,7 +201,7 @@ func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity) e
 	_, err := qemuExecFunction(qemuLimits, nil, "qemu-img", "create", "-f", "raw", dest, convertQuantityToQemuSize(size))
 	if err != nil {
 		os.Remove(dest)
-		return errors.Wrap(err, fmt.Sprintf("could not create raw image with size %s in %s", size, dest))
+		return errors.Wrap(err, fmt.Sprintf("could not create raw image with size %s in %s", size.String(), dest))
 	}
 	return nil
 }
