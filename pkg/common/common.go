@@ -25,12 +25,12 @@ const (
 
 	// host file constants:
 
-	// ImporterWriteDir provides a constant to build ImporterWritePath
-	ImporterWriteDir = "/data"
-	// ImporterWriteFile provides a constant for our importer/datastream_ginkgo_test and to build ImporterWritePath
-	ImporterWriteFile = "disk.img"
+	// ImporterVolumePath provides a constant for the directory where the PV is mounted.
+	ImporterVolumePath = "/data"
+	// DiskImageName provides a constant for our importer/datastream_ginkgo_test and to build ImporterWritePath
+	DiskImageName = "disk.img"
 	// ImporterWritePath provides a constant for the cmd/cdi-importer/importer.go executable
-	ImporterWritePath = ImporterWriteDir + "/" + ImporterWriteFile
+	ImporterWritePath = ImporterVolumePath + "/" + DiskImageName
 
 	// ImporterPodName provides a constant to use as a prefix for Pods created by CDI (controller only)
 	ImporterPodName = "importer"
