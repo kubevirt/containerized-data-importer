@@ -56,7 +56,7 @@ metadata:
   name: local-pv-allocation-claim
   annotations:
     cdi.kubevirt.io/storage.import.source: "http" #defaults to http if missing or invalid
-    cdi.kubevirt.io/storage.import.contentType: "kubevirt" #defaults to kubevirt if missing or invalid.
+    cdi.kubevirt.io/storage.contentType: "kubevirt" #defaults to kubevirt if missing or invalid.
     cdi.kubevirt.io/storage.import.endpoint: "http://distro.ibiblio.org/tinycorelinux/9.x/x86/release/Core-current.iso" # http or https is supported
     cdi.kubevirt.io/storage.import.secretName: "" # Optional. The name of the secret containing credentials for the end point	    
 spec:
