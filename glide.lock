@@ -1,5 +1,5 @@
 hash: 6df1b14931272ce417bd0064d97ecb4e90b3c142fe54fa79ed91b4097de07944
-updated: 2018-10-22T12:52:37.750819506-04:00
+updated: 2018-11-28T08:50:43.397407624-05:00
 imports:
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
@@ -121,7 +121,7 @@ imports:
 - name: github.com/peterbourgon/diskv
   version: 5f041e8faa004a95c88a202771f4cc3e991971e6
 - name: github.com/pkg/errors
-  version: d58f94251046e7f70ac45aceea6cf6f61415ccca
+  version: 059132a15dd08d6704c67711dae0cf35ab991756
 - name: github.com/prometheus/client_golang
   version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
@@ -144,7 +144,7 @@ imports:
 - name: github.com/spf13/pflag
   version: 583c0c0531f06d5278b7d917446061adc344b5cd
 - name: github.com/ulikunitz/xz
-  version: 636d36a76670e6c700f22fd5f4588679ff2896c4
+  version: 590df8077fbcb06ad62d7714da06c00e5dd2316d
   subpackages:
   - internal/hash
   - internal/xlog
@@ -212,6 +212,7 @@ imports:
 - name: k8s.io/api
   version: 2d6f90ab1293a1fb871cf149423ebb72aa7423aa
   subpackages:
+  - admission/v1beta1
   - admissionregistration/v1alpha1
   - admissionregistration/v1beta1
   - apps/v1
@@ -458,7 +459,7 @@ imports:
 - name: k8s.io/code-generator
   version: 6702109cc68eb6fe6350b83e14407c8d7309fd1a
 - name: k8s.io/gengo
-  version: 7338e4bfd6915369a1375890db1bbda0158c9863
+  version: fd15ee9cc2f77baa4f31e59e6acbf21146455073
 - name: k8s.io/kube-aggregator
   version: 8e086f01c3c3620eca0eb45024cf7eafc0c54ba1
   subpackages:
