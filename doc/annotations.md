@@ -27,7 +27,7 @@ metadata:
     app: containerized-data-importer
   annotations:
     cdi.kubevirt.io/storage.import.source: "http" #defaults to http if missing or invalid
-    cdi.kubevirt.io/storage.import.contentType: "kubevirt" #defaults to kubevirt if missing or invalid.
+    cdi.kubevirt.io/storage.contentType: "kubevirt" #defaults to kubevirt if missing or invalid.
     cdi.kubevirt.io/storage.import.endpoint: "https://www.source.example/path/of/data" # http or https is supported
     cdi.kubevirt.io/storage.import.secretName: "" # Optional. The name of the secret containing credentials for the end point
 spec:
@@ -50,7 +50,7 @@ metadata:
     app: containerized-data-importer
   annotations:
     cdi.kubevirt.io/storage.import.source: "http" #defaults to http if missing or invalid
-    cdi.kubevirt.io/storage.import.contentType: "archive" #defaults to kubevirt if missing or invalid.
+    cdi.kubevirt.io/storage.contentType: "archive" #defaults to kubevirt if missing or invalid.
     cdi.kubevirt.io/storage.import.endpoint: "http://www.source.example/path/of/data.tar" # http or https is supported
     cdi.kubevirt.io/storage.import.secretName: "" # Optional. The name of the secret containing credentials for the end point
 spec:
@@ -80,7 +80,7 @@ metadata:
     app: containerized-data-importer
   annotations:
     cdi.kubevirt.io/storage.import.source: "none"
-    cdi.kubevirt.io/storage.import.contentType: "kubevirt" #defaults to kubevirt if missing or invalid.
+    cdi.kubevirt.io/storage.contentType: "kubevirt" #defaults to kubevirt if missing or invalid.
 spec:
   accessModes:
   - ReadWriteOnce
