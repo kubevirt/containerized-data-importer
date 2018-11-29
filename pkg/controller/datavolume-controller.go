@@ -642,6 +642,12 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 		if dataVolume.Spec.Source.S3.SecretRef != "" {
 			annotations[AnnSecret] = dataVolume.Spec.Source.S3.SecretRef
 		}
+	} else if dataVolume.Spec.Source.Registry != nil {
+		annotations[AnnSource] = SourceRegistry
+		annotations[AnnEndpoint] = dataVolume.Spec.Source.Registry.URL
+		if dataVolume.Spec.Source.Registry.SecretRef != "" {
+			annotations[AnnSecret] = dataVolume.Spec.Source.Registry.SecretRef
+		}
 	} else if dataVolume.Spec.Source.PVC != nil {
 		if dataVolume.Spec.Source.PVC.Namespace != "" {
 			annotations[AnnCloneRequest] = dataVolume.Spec.Source.PVC.Namespace + "/" + dataVolume.Spec.Source.PVC.Name
