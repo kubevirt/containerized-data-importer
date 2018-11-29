@@ -290,18 +290,24 @@ func (d *DataStream) pollProgress(reader *util.CountingReader, idleTime, pollInt
 // CopyData copies the source endpoint (vm image) to the provided destination path.
 func CopyData(dso *DataStreamOptions) error {
 	glog.V(1).Infof("copying %q to %q...\n", dso.Endpoint, dso.Dest)
-	ds, err := NewDataStream(dso)
-	if err != nil {
-		return errors.Wrap(err, "unable to create data stream")
-	}
-	defer ds.Close()
-	if dso.ContentType == controller.ContentTypeArchive {
-		if err := UnArchiveTar(ds.topReader(), dso.Dest); err != nil {
-			return errors.Wrap(err, "unable to untar files from endpoint")
+	switch dso.Source {
+	case controller.SourceRegistry:
+		glog.V(1).Infof("using skopeo to copy from registry")
+		return image.CopyRegistryImage(dso.Endpoint, dso.Dest, dso.AccessKey, dso.SecKey)
+	default:
+		ds, err := NewDataStream(dso)
+		if err != nil {
+			return errors.Wrap(err, "unable to create data stream")
 		}
-		return nil
+		defer ds.Close()
+		if dso.ContentType == controller.ContentTypeArchive {
+			if err := UnArchiveTar(ds.topReader(), dso.Dest); err != nil {
+				return errors.Wrap(err, "unable to untar files from endpoint")
+			}
+			return nil
+		}
+		return ds.copy(dso.Dest)
 	}
-	return ds.copy(dso.Dest)
 }
 
 // SaveStream reads from a stream and saves data to dest

@@ -23,8 +23,6 @@ const (
 	// PrometheusLabel provides the label to indicate prometheus metrics are available in the pods.
 	PrometheusLabel = "prometheus.kubevirt.io"
 
-	// host file constants:
-
 	// ImporterVolumePath provides a constant for the directory where the PV is mounted.
 	ImporterVolumePath = "/data"
 	// DiskImageName provides a constant for our importer/datastream_ginkgo_test and to build ImporterWritePath
