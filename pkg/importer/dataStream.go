@@ -730,6 +730,17 @@ func copy(r io.Reader, out string, qemu bool, imageSize string) error {
 			return errors.Wrap(err, "Local image validation failed")
 		}
 
+		//Verify there is enough space in pvc before conversion
+		isEnoughSpace, err := ValidateSpaceConstraint(dest, filepath.Dir(out))
+
+		if err != nil {
+			return err
+		}
+
+		if !isEnoughSpace {
+			return errors.Wrap(err, "Local qcow2 to raw conversion failed - there is not enough space for conversion")
+		}
+
 		glog.V(2).Infoln("converting qcow2 image")
 		err = qemuOperations.ConvertQcow2ToRaw(dest, out)
 		if err != nil {
@@ -745,6 +756,42 @@ func copy(r io.Reader, out string, qemu bool, imageSize string) error {
 		return errors.Wrap(err, "Resize of image failed")
 	}
 	return nil
+}
+
+//ValidateSpaceConstraint - validates wheather there is enough space in PVC for both qcow2 image and converted raw image
+//Assumes it is possible to retrieve info from qcow2 file by means of qemu-img utility
+//Returns failure if either of the following happens
+//1. info cannot be retrieved from qcow2 file
+//2. Either ActualSize or VirtualSize are 0 - not specifed
+//3. ActualSize and VirtualSize together exceed available PVC Space
+func ValidateSpaceConstraint(qcow2Image string, destDir string) (bool, error) {
+
+	//Verify there is enough space in pvc before conversion
+	info, err := qemuOperations.Info(qcow2Image)
+
+	if err != nil {
+		return false, errors.Wrap(err, "Local image validation failed to retrieve image info")
+	}
+
+	if info == nil {
+		return false, errors.Wrap(err, "Local image validation failed to retrieve image info")
+	}
+
+	if info.VirtualSize == 0 || info.ActualSize == 0 {
+		return false, errors.Wrap(err, "Local image validation failed - no image size info is provided")
+	}
+
+	convRequiredSpace := info.VirtualSize + info.ActualSize
+
+	sysAvailableSpace := util.GetAvailableSpace(destDir)
+
+	if sysAvailableSpace < convRequiredSpace {
+		return false, errors.WithMessage(err, fmt.Sprintf("qcow2 image conversion to raw failed due to insuficient space"))
+	}
+
+	glog.V(2).Infoln("There is enough space in PVC for qcow2 to raw  convesrion - required=%d, available=%", convRequiredSpace, sysAvailableSpace)
+
+	return true, nil
 }
 
 // Return a random temp path with the `src` basename as the prefix and preserving the extension.

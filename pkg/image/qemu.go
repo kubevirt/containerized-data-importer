@@ -49,8 +49,10 @@ type ImgInfo struct {
 	Format string `json:"format"`
 	// BackingFile is the file name of the backing file
 	BackingFile string `json:"backing-filename"`
-	// VirtualSize is the virtual size of the image
+	// VirtualSize is the disk size of the image which will be read by vm
 	VirtualSize int64 `json:"virtual-size"`
+	// ActualSize is the size of the qcow2 image
+	ActualSize int64 `json:"actual-size"`
 }
 
 // QEMUOperations defines the interface for executing qemu subprocesses

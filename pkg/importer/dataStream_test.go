@@ -36,6 +36,17 @@ import (
 
 const TestImagesDir = "../../tests/images"
 
+const (
+	SmallActualSize  = 1024
+	SmallVirtualSize = 1024
+	BigActualSize    = 50000000
+	BigVirtualSize   = 50000000
+)
+
+var fakeBigImageInfo = image.ImgInfo{Format: "", BackingFile: "", VirtualSize: BigVirtualSize, ActualSize: BigActualSize}
+var fakeSmallImageInfo = image.ImgInfo{Format: "", BackingFile: "", VirtualSize: SmallVirtualSize, ActualSize: SmallActualSize}
+var fakeZeroImageInfo = image.ImgInfo{Format: "", BackingFile: "", VirtualSize: 0, ActualSize: 0}
+var fakeInfoRet = fakeInfoOpRetVal{imgInfo: &fakeSmallImageInfo, e: nil}
 var imageDir, _ = filepath.Abs(TestImagesDir)
 var cirrosFileName = "cirros-qcow2.img"
 var tinyCoreFileName = "tinyCore.iso"
@@ -55,12 +66,23 @@ var stringRdr = strings.NewReader("test data for reader 1")
 var qcow2Rdr, _ = os.Open(cirrosFilePath)
 var testFileRdrs = bufio.NewReader(qcow2Rdr)
 
+type fakeInfoOpRetVal struct {
+	imgInfo *image.ImgInfo
+	e       error
+}
+
+func (r *fakeInfoOpRetVal) err(e error) fakeInfoOpRetVal {
+	r.e = e
+	return *r
+}
+
 type fakeQEMUOperations struct {
-	e1 error
-	e2 error
-	e3 error
-	e4 error
-	e5 error
+	e1   error
+	e2   error
+	e3   error
+	ret4 fakeInfoOpRetVal
+	e5   error
+	e6   error
 }
 
 // EndlessReader doesn't return any value read, te r
@@ -216,7 +238,7 @@ var _ = Describe("SaveStream", func() {
 
 	It("Should successfully save the stream", func() {
 		defer os.Remove("testqcow2file")
-		replaceQEMUOperations(NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil, nil, nil), func() {
+		replaceQEMUOperations(NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil, fakeInfoRet, nil, nil), func() {
 			rdr, err := os.Open(cirrosFilePath)
 			Expect(err).NotTo(HaveOccurred())
 			defer rdr.Close()
@@ -241,6 +263,7 @@ var _ = Describe("Copy", func() {
 
 	table.DescribeTable("Image, with import source should", func(dest, endpt string, qemuOperations image.QEMUOperations, wantErr bool) {
 		By("Configuring endpoint")
+
 		endpt = ts.URL + "/" + endpt
 		By(fmt.Sprintf("end point is %s", endpt))
 		defer os.Remove(dest)
@@ -264,9 +287,64 @@ var _ = Describe("Copy", func() {
 	},
 		table.Entry("successfully copy local image", "tinyCore.raw", tinyCoreFileName, NewQEMUAllErrors(), false),
 		table.Entry("expect failure trying to copy non-existing local image", "cdi-testcopy", "tinyCoreBad.iso", NewQEMUAllErrors(), true),
-		table.Entry("successfully copy streaming image", "cirros-qcow2.raw", cirrosFileName, NewFakeQEMUOperations(errors.New("should not be called"), nil, nil, nil, nil), false),
-		table.Entry("streaming image qemu validation fails", "cirros-qcow2.raw", cirrosFileName, NewFakeQEMUOperations(nil, nil, nil, nil, errors.New("invalid image")), true),
-		table.Entry("streaming image qemu convert fails", "cirros-qcow2.raw", cirrosFileName, NewFakeQEMUOperations(nil, errors.New("exit 1"), nil, nil, nil), true),
+		table.Entry("successfully copy streaming image", "cirros-qcow2.raw", "cirros-qcow2.img", NewFakeQEMUOperations(errors.New("should not be called"), nil, nil, fakeInfoRet, nil, nil), false),
+		table.Entry("streaming image qemu validation fails", "cirros-qcow2.raw", "cirros-qcow2.img", NewFakeQEMUOperations(nil, nil, nil, fakeInfoRet, errors.New("invalid image"), nil), true),
+		table.Entry("streaming image qemu convert fails", "cirros-qcow2.raw", "cirros-qcow2.img", NewFakeQEMUOperations(nil, errors.New("exit 1"), nil, fakeInfoRet, nil, nil), true),
+		table.Entry("streaming image qemu convert succeeds since there is no space validation on streaming", "cirros-qcow2.raw", "cirros-qcow2.img", NewFakeQEMUOperations(nil, nil, nil, fakeInfoOpRetVal{&fakeBigImageInfo, nil}, nil, nil), false),
+		table.Entry("streaming image qemu convert suscceeds since there is no space validation on streaming", "cirros-qcow2.raw", "cirros-qcow2.img", NewFakeQEMUOperations(nil, nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, nil}, nil, nil), false),
+	)
+
+	table.DescribeTable("Archived image, with import source should", func(originalFile string, qemuOperations image.QEMUOperations, wantErr bool, expectFormats ...string) {
+		baseTestImage := filepath.Join(imageDir, originalFile)
+		//createt test temp directory
+		tmpTestDir := testDir(os.TempDir())
+		syscall.Umask(0000)
+		err := os.Mkdir(tmpTestDir, 0777)
+		Expect(err).NotTo(HaveOccurred())
+		By(fmt.Sprintf("Converting source file to format: %s", expectFormats))
+		// Generate the expected data format from the random bytes
+		testSample, err := utils.FormatTestData(baseTestImage, tmpTestDir, expectFormats...)
+		Expect(err).NotTo(HaveOccurred(), "Error formatting test data.")
+		fmt.Fprintf(GinkgoWriter, "INFO: converted source file name is %q, in dir %q\n", testSample, tmpTestDir)
+
+		tempTestServer := createTestServer(filepath.Dir(testSample))
+		defer tempTestServer.Close()
+
+		dest := common.DiskImageName
+		testBase := filepath.Base(testSample)
+		testTarget := filepath.Join(tmpTestDir, dest)
+		replaceQEMUOperations(qemuOperations, func() {
+			By(fmt.Sprintf("Importing %q to %q", tempTestServer.URL, testTarget))
+			err = CopyData(&DataStreamOptions{
+				testTarget,
+				tempTestServer.URL + "/" + testBase,
+				"",
+				"",
+				controller.SourceHTTP,
+				controller.ContentTypeKubevirt,
+				"1G"})
+			if wantErr {
+				Expect(err).To(HaveOccurred())
+			} else {
+				Expect(err).NotTo(HaveOccurred())
+			}
+		})
+
+		os.RemoveAll(tmpTestDir)
+	},
+		// Should fail
+		table.Entry("should fail due to insuficient space when trying to convert  qcow2 to raw. Initial format .qcow2.gz", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoOpRetVal{&fakeBigImageInfo, errors.New("qcow2 image conversion to raw failed due to insuficient space")}, nil, nil), true, image.ExtQcow2, image.ExtGz),
+		table.Entry("should fail due to insuficient space when trying to convert  qcow2 to raw. Initial format .qcow2.xz)", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoOpRetVal{&fakeBigImageInfo, errors.New("qcow2 image conversion to raw failed due to insuficient space")}, nil, nil), true, image.ExtQcow2, image.ExtXz),
+		table.Entry("should fail due to insuficient space when trying to convert  qcow2 to raw. Initial format .qcow2.tar", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoOpRetVal{&fakeBigImageInfo, errors.New("qcow2 image conversion to raw failed due to insuficient space")}, nil, nil), true, image.ExtQcow2, image.ExtTar),
+
+		table.Entry("should fails due to invalid size info in qcow2 info struct. Initial format .qcow2.gz", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, errors.New("Local image validation failed - no image size info is provided")}, nil, nil), true, image.ExtQcow2, image.ExtGz),
+		table.Entry("should fails due to invalid size info in qcow2 info struct. Initial format .qcow2.xz", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, errors.New("Local image validation failed - no image size info is provided")}, nil, nil), true, image.ExtQcow2, image.ExtXz),
+		table.Entry("should fails due to invalid size info in qcow2 info struct. Initial format .qcow2.tar", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, errors.New("Local image validation failed - no image size info is provided")}, nil, nil), true, image.ExtQcow2, image.ExtTar),
+
+		//Should succeed
+		table.Entry("should succeed to convert  qcow2 to raw .qcow2.gz", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoRet, nil, nil), false, image.ExtQcow2, image.ExtGz),
+		table.Entry("should succeed to convert  qcow2 to raw .qcow2.xz", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoRet, nil, nil), false, image.ExtQcow2, image.ExtXz),
+		table.Entry("should succeed to convert  qcow2 to raw .qcow2.tar", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoRet, nil, nil), false, image.ExtQcow2, image.ExtTar),
 	)
 
 	table.DescribeTable("internal copy", func(r io.Reader, out string, qemu bool, qemuOperations image.QEMUOperations, wantErr bool) {
@@ -281,10 +359,12 @@ var _ = Describe("Copy", func() {
 			}
 		})
 	},
-		table.Entry("successfully copy reader", stringRdr, "testoutfile", false, NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil, nil, nil), false),
-		table.Entry("successfully copy qcow2 reader", testFileRdrs, "testqcow2file", true, NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil, nil, nil), false),
-		table.Entry("expect error trying to copy invalid format", testFileRdrs, "testinvalidfile", true, NewFakeQEMUOperations(nil, nil, nil, nil, errors.New("invalid format")), true),
-		table.Entry("expect error trying to copy qemu process fails", testFileRdrs, "testinvalidfile", true, NewFakeQEMUOperations(errors.New("exit 1"), nil, nil, nil, nil), true),
+		table.Entry("successfully copy reader", stringRdr, "testoutfile", false, NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil, fakeInfoRet, nil, nil), false),
+		table.Entry("successfully copy qcow2 reader", testFileRdrs, "testqcow2file", true, NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil, fakeInfoRet, nil, nil), false),
+		table.Entry("expect error trying to copy invalid format", testFileRdrs, "testinvalidfile", true, NewFakeQEMUOperations(nil, nil, nil, fakeInfoRet, errors.New("invalid format"), nil), true),
+		table.Entry("expect error trying to copy qemu process fails", testFileRdrs, "testinvalidfile", true, NewFakeQEMUOperations(errors.New("exit 1"), nil, nil, fakeInfoRet, nil, nil), true),
+		table.Entry("copy fails due to insuficient space", testFileRdrs, "testqcow2file", true, NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil, fakeInfoOpRetVal{&fakeBigImageInfo, errors.New("qcow2 image conversion to raw failed due to insuficient space")}, nil, nil), true),
+		table.Entry("copy fails due to invalid info in qcow2 info struct", testFileRdrs, "testqcow2file", true, NewFakeQEMUOperations(nil, errors.New("Shouldn't get this"), nil, fakeInfoOpRetVal{&fakeZeroImageInfo, errors.New("Local image validation failed - no image size info is provided")}, nil, nil), true),
 	)
 })
 
@@ -508,11 +588,11 @@ func replaceQEMUOperations(replacement image.QEMUOperations, f func()) {
 
 func NewQEMUAllErrors() image.QEMUOperations {
 	err := errors.New("qemu should not be called from this test override with replaceQEMUOperations")
-	return NewFakeQEMUOperations(err, err, err, err, err)
+	return NewFakeQEMUOperations(err, err, err, fakeInfoOpRetVal{nil, err}, err, err)
 }
 
-func NewFakeQEMUOperations(e1, e2, e3, e4, e5 error) image.QEMUOperations {
-	return &fakeQEMUOperations{e1, e2, e3, e4, e5}
+func NewFakeQEMUOperations(e1, e2, e3 error, ret4 fakeInfoOpRetVal, e5 error, e6 error) image.QEMUOperations {
+	return &fakeQEMUOperations{e1, e2, e3, ret4, e5, e6}
 }
 
 func (o *fakeQEMUOperations) ConvertQcow2ToRaw(string, string) error {
@@ -532,11 +612,11 @@ func (o *fakeQEMUOperations) Resize(string, resource.Quantity) error {
 }
 
 func (o *fakeQEMUOperations) Info(string) (*image.ImgInfo, error) {
-	return nil, o.e4
+	return o.ret4.imgInfo, o.ret4.e
 }
 
 func (o *fakeQEMUOperations) CreateBlankImage(dest string, size resource.Quantity) error {
-	return o.e4
+	return o.e6
 }
 
 // Read doesn't return any values
