@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/base64"
 	"fmt"
@@ -93,9 +94,10 @@ func MinQuantity(availableSpace, imageSize *resource.Quantity) resource.Quantity
 
 // UnArchiveTar unarchives a tar file and streams its files
 // using the specified io.Reader to the specified destination.
-func UnArchiveTar(reader io.Reader, destDir string) error {
+func UnArchiveTar(reader io.Reader, destDir string, arg ...string) error {
 	glog.V(1).Infof("begin untar...\n")
-	untar := exec.Command("/usr/bin/tar", "-xvC", destDir)
+	args := fmt.Sprintf("-%s%s", strings.Join(arg, ""), "xvC")
+	untar := exec.Command("/usr/bin/tar", args, destDir)
 	untar.Stdin = reader
 	var errBuf bytes.Buffer
 	untar.Stderr = &errBuf
@@ -110,4 +112,14 @@ func UnArchiveTar(reader io.Reader, destDir string) error {
 		return err
 	}
 	return nil
+}
+
+// UnArchiveLocalTar unarchives a local tar file to the specified destination.
+func UnArchiveLocalTar(filePath, destDir string, arg ...string) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return errors.Wrap(err, "could not open tar file")
+	}
+	fileReader := bufio.NewReader(file)
+	return UnArchiveTar(fileReader, destDir, arg...)
 }
