@@ -1,5 +1,5 @@
-hash: ba95291a0e4b936a6cf436071416090ef19cfbac8b44b4253792e28d305252ae
-updated: 2019-01-08T19:15:38.184275352Z
+hash: 65be6b54091a3194f1d3d60aef81dbf98945f380e58318e661deee0a3880ef88
+updated: 2019-01-08T20:51:55.484318811Z
 imports:
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
@@ -514,4 +514,6 @@ imports:
   subpackages:
   - pkg/ginkgo-reporters
   - pkg/polarion-xml
+- name: sigs.k8s.io/controller-runtime
+  version: 5fd1e9e9fac5261e9ad9d47c375afc014fc31d21
 testImports: []
