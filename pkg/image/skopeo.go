@@ -128,7 +128,7 @@ var extractImageLayers = func(dest string) error {
 		}
 		layer := strings.TrimPrefix(layerID, "sha256:")
 		file := fmt.Sprintf("%s%s/%s", dest, dataTmpDir, layer)
-		err := ExtractTar(file, dest)
+		err = ExtractTar(file, dest)
 		if err == nil {
 			err = cleanWhiteoutFiles(dest)
 		}

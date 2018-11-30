@@ -63,11 +63,12 @@ var _ = Describe(testSuiteName, func() {
 
 		importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
-		err = utils.WaitTimeoutForPodStatus(c, importer.Name, importer.Namespace, v1.PodFailed, utils.PodWaitForTime)
+		utils.WaitTimeoutForPodStatus(c, importer.Name, importer.Namespace, v1.PodFailed, utils.PodWaitForTime)
 
 		By("Verify the pod status is Failed on the target PVC")
 		_, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodPhase)
 		Expect(phaseAnnotation).To(BeTrue())
+		Expect(err).NotTo(HaveOccurred())
 	})
 	It("Should create import pod for blank raw image", func() {
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(

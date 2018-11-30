@@ -762,7 +762,7 @@ func copy(r io.Reader, out string, qemu bool, imageSize string) error {
 //Assumes it is possible to retrieve info from qcow2 file by means of qemu-img utility
 //Returns failure if either of the following happens
 //1. info cannot be retrieved from qcow2 file
-//2. Either ActualSize or VirtualSize are 0 - not specifed
+//2. Either ActualSize or VirtualSize are 0 - not specified
 //3. ActualSize and VirtualSize together exceed available PVC Space
 func ValidateSpaceConstraint(qcow2Image string, destDir string) (bool, error) {
 
