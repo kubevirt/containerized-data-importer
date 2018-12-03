@@ -77,7 +77,7 @@ var _ = Describe("Transport Tests", func() {
 		importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
 
-		err = utils.WaitTimeoutForPodStatus(c, importer.Name, importer.Namespace, v1.PodSucceeded, utils.PodWaitForTime)
+		utils.WaitTimeoutForPodStatus(c, importer.Name, importer.Namespace, v1.PodRunning, utils.PodWaitForTime)
 
 		if shouldSucceed {
 			By("Verifying PVC is not empty")
