@@ -77,7 +77,8 @@ var _ = Describe("Transport Tests", func() {
 		importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
 
-		err = utils.WaitTimeoutForPodStatus(c, importer.Name, importer.Namespace, v1.PodSucceeded, utils.PodWaitForTime)
+		err = utils.WaitTimeoutForPodStatus(c, importer.Name, importer.Namespace, v1.PodRunning, 5*utils.PodWaitForTime)
+		Expect(err).NotTo(HaveOccurred(), "Operation timeout on importer pod %q", ns+"/"+common.ImporterPodName)
 
 		if shouldSucceed {
 			By("Verifying PVC is not empty")
@@ -94,7 +95,11 @@ var _ = Describe("Transport Tests", func() {
 				// A 0 exitCode should indicate that $expSize == $haveSize
 				Expect(strconv.Atoi(exitCode)).To(BeZero())
 			case controller.SourceRegistry:
-				// TODO: add functionality tests
+				binFile := "/pvc/bin/" + file
+				command := fmt.Sprintf("[ -e %s ]; echo $?", binFile)
+				exitCode := f.ExecShellInPod(pod.Name, ns, command)
+				// A 0 exitCode should indicate that the bin file exists
+				Expect(strconv.Atoi(exitCode)).To(BeZero())
 			}
 		} else {
 			By("Verifying PVC is empty")
@@ -104,13 +109,13 @@ var _ = Describe("Transport Tests", func() {
 
 	httpNoAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPNoAuthPort)
 	httpAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPAuthPort)
-	registryNoAuthEp := fmt.Sprintf("docker://%s", "registry:5000")
+	registryNoAuthEp := fmt.Sprintf("docker://%s", "docker.io")
 	DescribeTable("Transport Test Table", it,
 		Entry("should connect to http endpoint without credentials", httpNoAuthEp, targetFile, "", "", controller.SourceHTTP, true),
 		Entry("should connect to http endpoint with credentials", httpAuthEp, targetFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, true),
 		Entry("should not connect to http endpoint with invalid credentials", httpAuthEp, targetFile, "gopats", "bradyisthegoat", controller.SourceHTTP, false),
 		Entry("should connect to QCOW http endpoint without credentials", httpNoAuthEp, targetQCOWFile, "", "", controller.SourceHTTP, true),
 		Entry("should connect to QCOW http endpoint with credentials", httpAuthEp, targetQCOWFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, true),
-		Entry("should connect to registry endpoint without credentials", registryNoAuthEp, "cdi-importer", "", "", controller.SourceRegistry, true),
-		Entry("should not connect to registry endpoint with invalid credentials", registryNoAuthEp, "cdi-importer", "gopats", "bradyisthegoat", controller.SourceRegistry, false))
+		Entry("should connect to registry endpoint without credentials", registryNoAuthEp, "registry", "", "", controller.SourceRegistry, true),
+		Entry("should not connect to registry endpoint with invalid credentials", registryNoAuthEp, "registry", "gopats", "bradyisthegoat", controller.SourceRegistry, false))
 })
