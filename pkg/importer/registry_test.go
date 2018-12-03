@@ -11,6 +11,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/image"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 var (
@@ -68,7 +69,9 @@ func NewFakeSkopeoOperations(e1 error) image.SkopeoOperations {
 
 func (o *fakeSkopeoOperations) CopyImage(string, string, string, string) error {
 	if o.e1 == nil {
-		image.ExtractTar(imageFile, imageDir)
+		if err := util.UnArchiveLocalTar(imageFile, imageDir); err != nil {
+			return errors.New("could not extract layer tar")
+		}
 	}
 	return o.e1
 }
