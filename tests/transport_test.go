@@ -109,6 +109,7 @@ var _ = Describe("Transport Tests", func() {
 	httpNoAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPNoAuthPort)
 	httpAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPAuthPort)
 	registryNoAuthEp := fmt.Sprintf("docker://%s", "docker.io")
+	registryAuthEp := fmt.Sprintf("docker://%s", "registry:5000")
 	DescribeTable("Transport Test Table", it,
 		Entry("should connect to http endpoint without credentials", httpNoAuthEp, targetFile, "", "", controller.SourceHTTP, true),
 		Entry("should connect to http endpoint with credentials", httpAuthEp, targetFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, true),
@@ -116,5 +117,5 @@ var _ = Describe("Transport Tests", func() {
 		Entry("should connect to QCOW http endpoint without credentials", httpNoAuthEp, targetQCOWFile, "", "", controller.SourceHTTP, true),
 		Entry("should connect to QCOW http endpoint with credentials", httpAuthEp, targetQCOWFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, true),
 		Entry("should connect to registry endpoint without credentials", registryNoAuthEp, "registry", "", "", controller.SourceRegistry, true),
-		Entry("should not connect to registry endpoint with invalid credentials", registryNoAuthEp, "registry", "gopats", "bradyisthegoat", controller.SourceRegistry, false))
+		Entry("should not connect to registry endpoint with invalid credentials", registryAuthEp, "cdi-importer", "gopats", "bradyisthegoat", controller.SourceRegistry, false))
 })
