@@ -131,7 +131,7 @@ var _ = Describe("Read total", func() {
 			},
 			total: int64(10240), //10240 is the size of the tar containing the file.
 		}
-		err = untar(promReader, targetDirectory)
+		err = util.UnArchiveTar(promReader, targetDirectory)
 		Expect(err).NotTo(HaveOccurred())
 		empty, err = isDirEmpty(targetDirectory)
 		Expect(err).NotTo(HaveOccurred())

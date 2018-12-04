@@ -301,7 +301,7 @@ func CopyData(dso *DataStreamOptions) error {
 		}
 		defer ds.Close()
 		if dso.ContentType == controller.ContentTypeArchive {
-			if err := UnArchiveTar(ds.topReader(), dso.Dest); err != nil {
+			if err := util.UnArchiveTar(ds.topReader(), dso.Dest); err != nil {
 				return errors.Wrap(err, "unable to untar files from endpoint")
 			}
 			return nil
