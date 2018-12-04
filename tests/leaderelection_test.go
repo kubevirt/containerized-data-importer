@@ -23,8 +23,8 @@ const (
 )
 
 var (
-	logCheckLeaderRegEx = regexp.MustCompile("attempting to acquire leader lease  kube-system/cdi-controller-leader-election-helper...")
-	logIsLeaderRegex    = regexp.MustCompile("successfully acquired lease kube-system/cdi-controller-leader-election-helper")
+	logCheckLeaderRegEx = regexp.MustCompile("Attempting to acquire leader lease")
+	logIsLeaderRegex    = regexp.MustCompile("Successfully acquired leadership lease")
 )
 
 func checkLogForRegEx(regEx *regexp.Regexp, log string) bool {

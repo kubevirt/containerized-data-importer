@@ -4,6 +4,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/golang/glog"
+
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,12 +31,10 @@ func startLeaderElection(config *rest.Config, leaderFunc func()) error {
 	client := kubernetes.NewForConfigOrDie(config)
 	namespace := util.GetNamespace()
 
-	// crate manually so it has CDI component label
+	// create manually so it has CDI component label
 	err := createConfigMap(client, namespace, configMapName)
-	if err != nil {
-		if !k8serrors.IsAlreadyExists(err) {
-			return err
-		}
+	if err != nil && !k8serrors.IsAlreadyExists(err) {
+		return err
 	}
 
 	resourceLock, err := createResourceLock(client, namespace, configMapName)
@@ -47,6 +47,7 @@ func startLeaderElection(config *rest.Config, leaderFunc func()) error {
 		return err
 	}
 
+	glog.Info("Attempting to acquire leader lease")
 	go leaderElector.Run()
 
 	return nil
@@ -94,10 +95,11 @@ func createLeaderElector(resourceLock resourcelock.Interface, leaderFunc func())
 		RetryPeriod:   2 * time.Second,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(_ <-chan struct{}) {
+				glog.Info("Successfully acquired leadership lease")
 				leaderFunc()
 			},
 			OnStoppedLeading: func() {
-				panic("NO LONGER LEADER!!")
+				glog.Fatal("NO LONGER LEADER, EXITING")
 			},
 		},
 	})
