@@ -22,6 +22,9 @@ const (
 	// DefaultPvcMountPath is the default mount path used
 	DefaultPvcMountPath = "/pvc"
 
+	// DefaultImagePath is the default destination for images created by CDI
+	DefaultImagePath = DefaultPvcMountPath + "/disk.img"
+
 	pvcPollInterval = defaultPollInterval
 	pvcCreateTime   = defaultPollPeriod
 	pvcDeleteTime   = defaultPollPeriod
