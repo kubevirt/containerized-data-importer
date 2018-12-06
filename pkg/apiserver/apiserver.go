@@ -303,7 +303,7 @@ func (app *cdiAPIApp) startTLS() error {
 
 	tlsConfig := &tls.Config{
 		ClientCAs:  pool,
-		ClientAuth: tls.RequestClientCert,
+		ClientAuth: tls.VerifyClientCertIfGiven,
 	}
 	tlsConfig.BuildNameToCertificate()
 
