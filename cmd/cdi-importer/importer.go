@@ -67,7 +67,7 @@ func main() {
 
 	if source == controller.SourceNone && contentType == controller.ContentTypeKubevirt {
 		requestImageSizeQuantity := resource.MustParse(imageSize)
-		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(util.GetAvailableSpace(common.ImporterWritePath), 0), &requestImageSizeQuantity)
+		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(util.GetAvailableSpace(common.ImporterVolumePath), 0), &requestImageSizeQuantity)
 		if minSizeQuantity.Cmp(requestImageSizeQuantity) != 0 {
 			// Available dest space is smaller than the size we want to create
 			glog.Warningf("Available space less than requested size, creating blank image sized to available space: %s.\n", minSizeQuantity.String())

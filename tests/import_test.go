@@ -26,6 +26,7 @@ const (
 	controllerSkipPVCCompleteTimeout = 90 * time.Second
 	invalidEndpoint                  = "http://gopats.com/who-is-the-goat.iso"
 	BlankImageCompleteTimeout        = 60 * time.Second
+	BlankImageMD5                    = "cd573cfaace07e7949bc0c46028904ff"
 )
 
 var _ = Describe(testSuiteName, func() {
@@ -85,6 +86,10 @@ var _ = Describe(testSuiteName, func() {
 			Expect(phaseAnnotation).To(BeTrue())
 			return status
 		}, BlankImageCompleteTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
+
+		By("Verify the image contents")
+		same := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, BlankImageMD5)
+		Expect(same).To(BeTrue())
 	})
 })
 

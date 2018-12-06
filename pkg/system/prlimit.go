@@ -104,6 +104,8 @@ func processScanner(scanner *bufio.Scanner, buf *bytes.Buffer, done chan bool, c
 
 // ExecWithLimits executes a command with process limits
 func ExecWithLimits(limits *ProcessLimitValues, callback func(string), command string, args ...string) ([]byte, error) {
+	glog.Infof("ExecWithLimits %s, %+v", command, args)
+
 	var buf bytes.Buffer
 	stdoutDone := make(chan bool)
 	stderrDone := make(chan bool)

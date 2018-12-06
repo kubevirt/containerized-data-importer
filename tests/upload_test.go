@@ -12,8 +12,6 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-const testFile = utils.DefaultPvcMountPath + "/disk.img"
-
 var _ = Describe("Upload tests", func() {
 
 	f := framework.NewFrameworkOrDie("upload-func-test")
@@ -50,7 +48,7 @@ var _ = Describe("Upload tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify content")
-		same := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, testFile, utils.UploadFileMD5)
+		same := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5)
 		Expect(same).To(BeTrue())
 
 		By("Delete upload PVC")
