@@ -165,10 +165,12 @@ var _ = Describe("DataVolume tests", func() {
 				By("verifying pod was deleted")
 				deleted, err := utils.WaitPodDeleted(f.K8sClient, pod.Name, f.Namespace.Name, timeout)
 				Expect(deleted).To(BeTrue())
+				Expect(err).ToNot(HaveOccurred())
 
 				By("verifying pvc was deleted")
 				deleted, err = utils.WaitPVCDeleted(f.K8sClient, pvc.Name, f.Namespace.Name, timeout)
 				Expect(deleted).To(BeTrue())
+				Expect(err).ToNot(HaveOccurred())
 			})
 		})
 	})

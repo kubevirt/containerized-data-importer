@@ -57,13 +57,17 @@ var _ = Describe("ParseEnv", func() {
 	It("Parse environment unencoded variables", func() {
 		result, err := ParseEnvVar("value1", false)
 		Expect(result).To(Equal("value1"))
+		Expect(err).ToNot(HaveOccurred())
 		result, err = ParseEnvVar("value1", true)
 		Expect(result).ToNot(Equal("value1"))
+		Expect(err).To(HaveOccurred())
 
 		result, err = ParseEnvVar("value2", false)
 		Expect(result).ToNot(Equal("value2"))
+		Expect(err).ToNot(HaveOccurred())
 		result, err = ParseEnvVar("value2", true)
 		Expect(result).To(Equal("value2"))
+		Expect(err).ToNot(HaveOccurred())
 
 		result, err = ParseEnvVar("value3", true)
 		Expect(err).To(HaveOccurred())
