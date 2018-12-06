@@ -621,7 +621,7 @@ func (o *fakeQEMUOperations) CreateBlankImage(dest string, size resource.Quantit
 
 // Read doesn't return any values
 func (r *EndlessReader) Read(p []byte) (n int, err error) {
-	n, err = r.Reader.Read(p)
+	r.Reader.Read(p)
 	return 0, nil
 }
 
