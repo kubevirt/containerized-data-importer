@@ -88,7 +88,8 @@ var _ = Describe(testSuiteName, func() {
 		}, BlankImageCompleteTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
 
 		By("Verify the image contents")
-		same := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, BlankImageMD5)
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, BlankImageMD5)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
 	})
 })
