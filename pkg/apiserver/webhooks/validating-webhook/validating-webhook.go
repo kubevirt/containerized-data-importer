@@ -92,10 +92,11 @@ func validateDataVolumeSpec(field *k8sfield.Path, spec *datavolumev1alpha1.DataV
 		return causes
 	}
 
-	if (spec.Source.HTTP != nil && (spec.Source.S3 != nil || spec.Source.PVC != nil || spec.Source.Upload != nil || spec.Source.Registry != nil)) ||
-		(spec.Source.S3 != nil && (spec.Source.PVC != nil || spec.Source.Upload != nil || spec.Source.Registry != nil)) ||
-		(spec.Source.PVC != nil && (spec.Source.Upload != nil || spec.Source.Registry != nil)) ||
-		(spec.Source.Upload != nil && spec.Source.Registry != nil) {
+	if (spec.Source.HTTP != nil && (spec.Source.S3 != nil || spec.Source.PVC != nil || spec.Source.Upload != nil || spec.Source.Blank != nil || spec.Source.Registry != nil)) ||
+		(spec.Source.S3 != nil && (spec.Source.PVC != nil || spec.Source.Upload != nil || spec.Source.Blank != nil || spec.Source.Registry != nil)) ||
+		(spec.Source.PVC != nil && (spec.Source.Upload != nil || spec.Source.Blank != nil || spec.Source.Registry != nil)) ||
+		(spec.Source.Upload != nil && (spec.Source.Blank != nil || spec.Source.Registry != nil)) ||
+		(spec.Source.Blank != nil && spec.Source.Registry != nil) {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: fmt.Sprintf("Multiple Data volume sources"),
