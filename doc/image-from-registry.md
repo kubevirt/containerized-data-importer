@@ -44,3 +44,16 @@ $ docker build . -t my-vm-img
 $ docker tag my-vm-img <registry>:5000/my-vm-img
 $ docker push <registry>:5000/my-vm-img
 ```
+
+# Import the registry image into a PVC
+
+Use the following annotations in the PVC yaml:
+```
+...
+annotations:
+    cdi.kubevirt.io/storage.import.source: "registry"
+    cdi.kubevirt.io/storage.import.endpoint: "docker://<registry>:5000/my-vm-img"
+...
+```
+
+Full example is available here: [registry-image-pvc](https://github.com/kubevirt/containerized-data-importer/blob/master/manifests/example/registry-image-pvc.yaml)
