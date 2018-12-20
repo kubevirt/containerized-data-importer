@@ -44,6 +44,26 @@ var _ = Describe("Validating Webhook", func() {
 			resp := admitDVs(ar)
 			Expect(resp.Allowed).To(Equal(true))
 		})
+		It("should accept DataVolume with Registry source on create", func() {
+			dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
+			dvBytes, _ := json.Marshal(&dataVolume)
+
+			ar := &v1beta1.AdmissionReview{
+				Request: &v1beta1.AdmissionRequest{
+					Resource: metav1.GroupVersionResource{
+						Group:    datavolumev1alpha1.SchemeGroupVersion.Group,
+						Version:  datavolumev1alpha1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: dvBytes,
+					},
+				},
+			}
+
+			resp := admitDVs(ar)
+			Expect(resp.Allowed).To(Equal(true))
+		})
 		It("should accept DataVolume with PVC source on create", func() {
 			dataVolume := newPVCDataVolume("testDV", "testNamespace", "test")
 			dvBytes, _ := json.Marshal(&dataVolume)
@@ -194,6 +214,14 @@ func newHTTPDataVolume(name, url string) *datavolumev1alpha1.DataVolume {
 	}
 	pvc := newPVCSpec(5, "M")
 	return newDataVolume(name, httpSource, pvc)
+}
+
+func newRegistryDataVolume(name, url string) *datavolumev1alpha1.DataVolume {
+	registrySource := datavolumev1alpha1.DataVolumeSource{
+		Registry: &datavolumev1alpha1.DataVolumeSourceRegistry{URL: url},
+	}
+	pvc := newPVCSpec(5, "M")
+	return newDataVolume(name, registrySource, pvc)
 }
 
 func newPVCDataVolume(name, pvcNamespace, pvcName string) *datavolumev1alpha1.DataVolume {
