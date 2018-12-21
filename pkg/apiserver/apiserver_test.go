@@ -488,7 +488,7 @@ func TestGetAPIResouceList(t *testing.T) {
 		APIResources: []metav1.APIResource{
 			{
 				Name:         "uploadtokenrequests",
-				SingularName: "UploadtokenRequest",
+				SingularName: "uploadtokenrequest",
 				Namespaced:   true,
 				Group:        "upload.cdi.kubevirt.io",
 				Version:      "v1alpha1",

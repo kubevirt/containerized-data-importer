@@ -440,7 +440,7 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 			list.GroupVersion = uploadTokenGroup + "/" + uploadTokenVersion
 			list.APIResources = append(list.APIResources, metav1.APIResource{
 				Name:         "uploadtokenrequests",
-				SingularName: "UploadtokenRequest",
+				SingularName: "uploadtokenrequest",
 				Namespaced:   true,
 				Group:        uploadTokenGroup,
 				Version:      uploadTokenVersion,
