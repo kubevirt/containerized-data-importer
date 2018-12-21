@@ -24,12 +24,12 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/emicklei/go-restful"
+	restful "github.com/emicklei/go-restful"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
+	"kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
 // code stolen/adapted from https://github.com/kubevirt/kubevirt/blob/master/pkg/virt-api/rest/definitions.go

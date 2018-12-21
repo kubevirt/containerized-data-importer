@@ -25,10 +25,10 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
-	datavolumecontrollerv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
+	corev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	versioned "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	internalinterfaces "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/internalinterfaces"
-	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/listers/datavolumecontroller/v1alpha1"
+	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/listers/core/v1alpha1"
 )
 
 // DataVolumeInformer provides access to a shared informer and lister for
@@ -70,7 +70,7 @@ func NewFilteredDataVolumeInformer(client versioned.Interface, namespace string,
 				return client.CdiV1alpha1().DataVolumes(namespace).Watch(options)
 			},
 		},
-		&datavolumecontrollerv1alpha1.DataVolume{},
+		&corev1alpha1.DataVolume{},
 		resyncPeriod,
 		indexers,
 	)
@@ -81,7 +81,7 @@ func (f *dataVolumeInformer) defaultInformer(client versioned.Interface, resyncP
 }
 
 func (f *dataVolumeInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&datavolumecontrollerv1alpha1.DataVolume{}, f.defaultInformer)
+	return f.factory.InformerFor(&corev1alpha1.DataVolume{}, f.defaultInformer)
 }
 
 func (f *dataVolumeInformer) Lister() v1alpha1.DataVolumeLister {
