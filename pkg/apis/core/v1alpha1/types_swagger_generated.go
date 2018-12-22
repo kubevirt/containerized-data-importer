@@ -78,3 +78,28 @@ func (DataVolumeList) SwaggerDoc() map[string]string {
 		"items": "Items provides a list of DataVolumes",
 	}
 }
+
+func (CDI) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "CDI is the CDI Operator CRD\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
+	}
+}
+
+func (CDISpec) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "CDISpec defines our specification for the CDI installation",
+	}
+}
+
+func (CDIStatus) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "CDIStatus defines the status of the CDI installation",
+	}
+}
+
+func (CDIList) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":      "CDIList provides the needed parameters to do request a list of CDIs from the system\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
+		"items": "Items provides a list of CDIs",
+	}
+}

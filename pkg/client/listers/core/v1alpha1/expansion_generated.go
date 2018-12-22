@@ -18,6 +18,14 @@ limitations under the License.
 
 package v1alpha1
 
+// CDIListerExpansion allows custom methods to be added to
+// CDILister.
+type CDIListerExpansion interface{}
+
+// CDINamespaceListerExpansion allows custom methods to be added to
+// CDINamespaceLister.
+type CDINamespaceListerExpansion interface{}
+
 // DataVolumeListerExpansion allows custom methods to be added to
 // DataVolumeLister.
 type DataVolumeListerExpansion interface{}

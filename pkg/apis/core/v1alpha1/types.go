@@ -157,3 +157,32 @@ const (
 	// Unknown represents a DataVolumePhase of Unknown
 	Unknown DataVolumePhase = "Unknown"
 )
+
+// CDI is the CDI Operator CRD
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type CDI struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   CDISpec   `json:"spec"`
+	Status CDIStatus `json:"status"`
+}
+
+// CDISpec defines our specification for the CDI installation
+type CDISpec struct {
+}
+
+// CDIStatus defines the status of the CDI installation
+type CDIStatus struct {
+}
+
+//CDIList provides the needed parameters to do request a list of CDIs from the system
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type CDIList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	// Items provides a list of CDIs
+	Items []CDI `json:"items"`
+}

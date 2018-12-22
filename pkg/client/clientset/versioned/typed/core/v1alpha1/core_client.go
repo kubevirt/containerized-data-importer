@@ -27,12 +27,17 @@ import (
 
 type CdiV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	CDIsGetter
 	DataVolumesGetter
 }
 
 // CdiV1alpha1Client is used to interact with features provided by the cdi.kubevirt.io group.
 type CdiV1alpha1Client struct {
 	restClient rest.Interface
+}
+
+func (c *CdiV1alpha1Client) CDIs(namespace string) CDIInterface {
+	return newCDIs(c, namespace)
 }
 
 func (c *CdiV1alpha1Client) DataVolumes(namespace string) DataVolumeInterface {
