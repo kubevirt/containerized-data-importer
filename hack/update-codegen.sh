@@ -35,7 +35,7 @@ ${SCRIPT_ROOT}/hack/build/build-go.sh generate
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
 ${CODEGEN_PKG}/generate-groups.sh "client,informer,lister" \
   kubevirt.io/containerized-data-importer/pkg/client kubevirt.io/containerized-data-importer/pkg/apis \
-  "core:v1alpha1 uploadcontroller:v1alpha1" \
+  "core:v1alpha1 upload:v1alpha1" \
   --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
 (cd ${SCRIPT_ROOT}/tools/openapi-spec-generator/ && go build -o ../../bin/openapi-spec-generator)

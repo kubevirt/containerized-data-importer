@@ -25,7 +25,7 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
-	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1"
+	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 )
 
 // FakeUploadTokenRequests implements UploadTokenRequestInterface

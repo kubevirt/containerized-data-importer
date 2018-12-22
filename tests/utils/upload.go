@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	uploadcdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1"
+	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 )
 
@@ -41,12 +41,12 @@ func WaitPVCUploadPodStatusRunning(clientSet *kubernetes.Clientset, pvc *k8sv1.P
 
 // RequestUploadToken sends an upload token request to the server
 func RequestUploadToken(clientSet *cdiClientset.Clientset, pvc *k8sv1.PersistentVolumeClaim) (string, error) {
-	request := &uploadcdiv1.UploadTokenRequest{
+	request := &cdiuploadv1alpha1.UploadTokenRequest{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-token",
 			Namespace: pvc.Namespace,
 		},
-		Spec: uploadcdiv1.UploadTokenRequestSpec{
+		Spec: cdiuploadv1alpha1.UploadTokenRequestSpec{
 			PvcName: pvc.Name,
 		},
 	}

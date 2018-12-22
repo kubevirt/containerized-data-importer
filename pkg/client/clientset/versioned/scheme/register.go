@@ -24,7 +24,7 @@ import (
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	uploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1"
+	uploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 )
 
 var Scheme = runtime.NewScheme()

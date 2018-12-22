@@ -29,14 +29,14 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1.UploadTokenRequest":       schema_pkg_apis_uploadcontroller_v1alpha1_UploadTokenRequest(ref),
-		"kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1.UploadTokenRequestList":   schema_pkg_apis_uploadcontroller_v1alpha1_UploadTokenRequestList(ref),
-		"kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1.UploadTokenRequestSpec":   schema_pkg_apis_uploadcontroller_v1alpha1_UploadTokenRequestSpec(ref),
-		"kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1.UploadTokenRequestStatus": schema_pkg_apis_uploadcontroller_v1alpha1_UploadTokenRequestStatus(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1.UploadTokenRequest":       schema_pkg_apis_upload_v1alpha1_UploadTokenRequest(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1.UploadTokenRequestList":   schema_pkg_apis_upload_v1alpha1_UploadTokenRequestList(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1.UploadTokenRequestSpec":   schema_pkg_apis_upload_v1alpha1_UploadTokenRequestSpec(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1.UploadTokenRequestStatus": schema_pkg_apis_upload_v1alpha1_UploadTokenRequestStatus(ref),
 	}
 }
 
-func schema_pkg_apis_uploadcontroller_v1alpha1_UploadTokenRequest(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_upload_v1alpha1_UploadTokenRequest(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -64,13 +64,13 @@ func schema_pkg_apis_uploadcontroller_v1alpha1_UploadTokenRequest(ref common.Ref
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Spec contains the parameters of the request",
-							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1.UploadTokenRequestSpec"),
+							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1.UploadTokenRequestSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Status contains the status of the request",
-							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1.UploadTokenRequestStatus"),
+							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1.UploadTokenRequestStatus"),
 						},
 					},
 				},
@@ -78,11 +78,11 @@ func schema_pkg_apis_uploadcontroller_v1alpha1_UploadTokenRequest(ref common.Ref
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1.UploadTokenRequestSpec", "kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1.UploadTokenRequestStatus"},
+			"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1.UploadTokenRequestSpec", "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1.UploadTokenRequestStatus"},
 	}
 }
 
-func schema_pkg_apis_uploadcontroller_v1alpha1_UploadTokenRequestList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_upload_v1alpha1_UploadTokenRequestList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -114,7 +114,7 @@ func schema_pkg_apis_uploadcontroller_v1alpha1_UploadTokenRequestList(ref common
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1.UploadTokenRequest"),
+										Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1.UploadTokenRequest"),
 									},
 								},
 							},
@@ -125,11 +125,11 @@ func schema_pkg_apis_uploadcontroller_v1alpha1_UploadTokenRequestList(ref common
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta", "kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1.UploadTokenRequest"},
+			"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta", "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1.UploadTokenRequest"},
 	}
 }
 
-func schema_pkg_apis_uploadcontroller_v1alpha1_UploadTokenRequestSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_upload_v1alpha1_UploadTokenRequestSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -150,7 +150,7 @@ func schema_pkg_apis_uploadcontroller_v1alpha1_UploadTokenRequestSpec(ref common
 	}
 }
 
-func schema_pkg_apis_uploadcontroller_v1alpha1_UploadTokenRequestStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_upload_v1alpha1_UploadTokenRequestStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{

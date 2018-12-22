@@ -25,10 +25,10 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
-	uploadcontrollerv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1"
+	uploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 	versioned "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	internalinterfaces "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/internalinterfaces"
-	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/listers/uploadcontroller/v1alpha1"
+	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/listers/upload/v1alpha1"
 )
 
 // UploadTokenRequestInformer provides access to a shared informer and lister for
@@ -70,7 +70,7 @@ func NewFilteredUploadTokenRequestInformer(client versioned.Interface, namespace
 				return client.UploadV1alpha1().UploadTokenRequests(namespace).Watch(options)
 			},
 		},
-		&uploadcontrollerv1alpha1.UploadTokenRequest{},
+		&uploadv1alpha1.UploadTokenRequest{},
 		resyncPeriod,
 		indexers,
 	)
@@ -81,7 +81,7 @@ func (f *uploadTokenRequestInformer) defaultInformer(client versioned.Interface,
 }
 
 func (f *uploadTokenRequestInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&uploadcontrollerv1alpha1.UploadTokenRequest{}, f.defaultInformer)
+	return f.factory.InformerFor(&uploadv1alpha1.UploadTokenRequest{}, f.defaultInformer)
 }
 
 func (f *uploadTokenRequestInformer) Lister() v1alpha1.UploadTokenRequestLister {

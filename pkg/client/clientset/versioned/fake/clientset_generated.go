@@ -27,8 +27,8 @@ import (
 	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/core/v1alpha1"
 	fakecdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/core/v1alpha1/fake"
-	uploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/uploadcontroller/v1alpha1"
-	fakeuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/uploadcontroller/v1alpha1/fake"
+	uploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/upload/v1alpha1"
+	fakeuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/upload/v1alpha1/fake"
 )
 
 // NewSimpleClientset returns a clientset that will respond with the provided objects.

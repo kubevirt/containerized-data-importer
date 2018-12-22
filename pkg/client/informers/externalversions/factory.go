@@ -30,7 +30,7 @@ import (
 	versioned "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	core "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/core"
 	internalinterfaces "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/internalinterfaces"
-	uploadcontroller "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/uploadcontroller"
+	upload "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/upload"
 )
 
 // SharedInformerOption defines the functional option type for SharedInformerFactory.
@@ -174,13 +174,13 @@ type SharedInformerFactory interface {
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
 	Cdi() core.Interface
-	Upload() uploadcontroller.Interface
+	Upload() upload.Interface
 }
 
 func (f *sharedInformerFactory) Cdi() core.Interface {
 	return core.New(f, f.namespace, f.tweakListOptions)
 }
 
-func (f *sharedInformerFactory) Upload() uploadcontroller.Interface {
-	return uploadcontroller.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Upload() upload.Interface {
+	return upload.New(f, f.namespace, f.tweakListOptions)
 }

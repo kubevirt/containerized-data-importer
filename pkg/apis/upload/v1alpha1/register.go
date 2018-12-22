@@ -5,11 +5,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller"
+	"kubevirt.io/containerized-data-importer/pkg/apis/upload"
 )
 
 // SchemeGroupVersion is group version used to register these objects
-var SchemeGroupVersion = schema.GroupVersion{Group: uploadcontroller.GroupName, Version: "v1alpha1"}
+var SchemeGroupVersion = schema.GroupVersion{Group: upload.GroupName, Version: "v1alpha1"}
 
 // Kind takes an unqualified kind and returns back a Group qualified GroupKind
 func Kind(kind string) schema.GroupKind {

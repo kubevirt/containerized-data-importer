@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
-	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1"
+	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 )
 
 // UploadTokenRequestLister helps list UploadTokenRequests.

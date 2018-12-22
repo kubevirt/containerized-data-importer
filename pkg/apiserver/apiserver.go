@@ -28,7 +28,7 @@ import (
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	uploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1"
+	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 	validatingwebhook "kubevirt.io/containerized-data-importer/pkg/apiserver/webhooks/validating-webhook"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -343,7 +343,7 @@ func (app *cdiAPIApp) uploadHandler(request *restful.Request, response *restful.
 		return
 	}
 
-	uploadToken := &uploadv1alpha1.UploadTokenRequest{}
+	uploadToken := &cdiuploadv1alpha1.UploadTokenRequest{}
 	err = json.Unmarshal(body, uploadToken)
 	if err != nil {
 		glog.Error(err)
@@ -398,7 +398,7 @@ func uploadTokenAPIGroup() metav1.APIGroup {
 }
 
 func (app *cdiAPIApp) composeUploadTokenAPI() {
-	objPointer := &uploadv1alpha1.UploadTokenRequest{}
+	objPointer := &cdiuploadv1alpha1.UploadTokenRequest{}
 	objExample := reflect.ValueOf(objPointer).Elem().Interface()
 	objKind := "UploadTokenRequest"
 	resource := "uploadtokenrequests"
