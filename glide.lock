@@ -1,5 +1,9 @@
 hash: 65be6b54091a3194f1d3d60aef81dbf98945f380e58318e661deee0a3880ef88
+<<<<<<< HEAD
 updated: 2019-01-08T20:51:55.484318811Z
+=======
+updated: 2019-01-08T11:44:29.555482977-05:00
+>>>>>>> operator scaffolding
 imports:
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
@@ -23,6 +27,10 @@ imports:
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ini/ini
   version: 6ed8d5f64cd79a498d1f3fab5880cc376ce41bbe
+- name: github.com/go-logr/logr
+  version: 9fb12b3b21c5415d16ac18dc5cd42c1cfdd40c4e
+- name: github.com/go-logr/zapr
+  version: 7536572e8d55209135cd5e7ccf7fce43dca217ab
 - name: github.com/go-openapi/jsonpointer
   version: 46af16f9f7b149af66e5d1bd010e3574dc06de98
 - name: github.com/go-openapi/jsonreference
@@ -80,6 +88,8 @@ imports:
   - buffer
   - jlexer
   - jwriter
+- name: github.com/mattbaird/jsonpatch
+  version: 81af80346b1a01caae0cbc27fd3c1ba5b11e189f
 - name: github.com/matttproud/golang_protobuf_extensions
   version: fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a
   subpackages:
@@ -174,6 +184,18 @@ imports:
   - lzma
 - name: github.com/xi2/xz
   version: 48954b6210f8d154cb5f8484d3a3e1f83489309e
+- name: go.uber.org/atomic
+  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
+- name: go.uber.org/multierr
+  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
+- name: go.uber.org/zap
+  version: 67bc79d13d155c02fd008f721863ff8cc5f30659
+  subpackages:
+  - buffer
+  - internal/bufferpool
+  - internal/color
+  - internal/exit
+  - zapcore
 - name: golang.org/x/crypto
   version: 49796115aa4b964c318aad4f3084fdb41e9aa067
   subpackages:
@@ -324,6 +346,7 @@ imports:
   subpackages:
   - discovery
   - discovery/fake
+  - dynamic
   - informers
   - informers/admissionregistration
   - informers/admissionregistration/v1alpha1
@@ -458,6 +481,7 @@ imports:
   - plugin/pkg/client/auth/exec
   - rest
   - rest/watch
+  - restmapper
   - testing
   - tools/auth
   - tools/bootstrap/token/api
@@ -516,4 +540,30 @@ imports:
   - pkg/polarion-xml
 - name: sigs.k8s.io/controller-runtime
   version: 5fd1e9e9fac5261e9ad9d47c375afc014fc31d21
+  subpackages:
+  - pkg/cache
+  - pkg/cache/internal
+  - pkg/client
+  - pkg/client/apiutil
+  - pkg/client/config
+  - pkg/controller
+  - pkg/controller/controllerutil
+  - pkg/event
+  - pkg/handler
+  - pkg/internal/controller
+  - pkg/internal/recorder
+  - pkg/leaderelection
+  - pkg/manager
+  - pkg/patch
+  - pkg/predicate
+  - pkg/reconcile
+  - pkg/recorder
+  - pkg/runtime/inject
+  - pkg/runtime/log
+  - pkg/runtime/signals
+  - pkg/source
+  - pkg/source/internal
+  - pkg/webhook/admission
+  - pkg/webhook/admission/types
+  - pkg/webhook/types
 testImports: []
