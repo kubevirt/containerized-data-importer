@@ -528,7 +528,9 @@ var _ = Describe("Streaming Data Conversion", func() {
 		table.Entry("should convert .qcow2", tinyCoreFilePath, true, image.ExtQcow2),
 		table.Entry("should convert and unpack .qcow2.gz", tinyCoreFilePath, false, image.ExtQcow2, image.ExtGz),
 		table.Entry("should convert and unpack .qcow2.xz", tinyCoreFilePath, false, image.ExtQcow2, image.ExtXz),
-		table.Entry("should convert and untar .qcow2.tar", tinyCoreFilePath, false, image.ExtQcow2, image.ExtTar),
+		// Disabled until issue 580 is resolved
+		// https://github.com/kubevirt/containerized-data-importer/issues/580
+		//table.Entry("should convert and untar .qcow2.tar", tinyCoreFilePath, false, image.ExtQcow2, image.ExtTar),
 		table.Entry("should convert and untar and unpack .qcow2.tar.gz", tinyCoreFilePath, false, image.ExtQcow2, image.ExtTar, image.ExtGz),
 		table.Entry("should convert and untar and unpack .qcow2.tar.xz", tinyCoreFilePath, false, image.ExtQcow2, image.ExtTar, image.ExtXz),
 		table.Entry("should pass through unformatted data", tinyCoreFilePath, false, ""),
