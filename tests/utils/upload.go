@@ -62,7 +62,7 @@ func RequestUploadToken(clientSet *cdiClientset.Clientset, pvc *k8sv1.Persistent
 // DownloadImageToNode downloads an image file to node01 in the cluster
 func DownloadImageToNode(clientSet *kubernetes.Clientset, cliCommandPath string) error {
 	RunGoCLICommand(cliCommandPath, "ssh", "node01", "rm -rf "+tmpDir)
-	_, err := RunGoCLICommand(cliCommandPath, "ssh", "node01", "mkdir "+tmpDir)
+	err := RunGoCLICommand(cliCommandPath, "ssh", "node01", "mkdir "+tmpDir)
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func DownloadImageToNode(clientSet *kubernetes.Clientset, cliCommandPath string)
 	}
 
 	downloadURL := fmt.Sprintf("http://%s/%s", fileServerService.Spec.ClusterIP, imageFile)
-	_, err = RunGoCLICommand(cliCommandPath, "ssh", "node01", fmt.Sprintf("curl -o %s %s", imageDownloadPath, downloadURL))
+	err = RunGoCLICommand(cliCommandPath, "ssh", "node01", fmt.Sprintf("curl -o %s %s", imageDownloadPath, downloadURL))
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func UploadImageFromNode(clientSet *kubernetes.Clientset, cliCommandPath, token 
 	curlCommand := fmt.Sprintf("curl -v --insecure -H \"%s\" --data-binary @%s https://%s/v1alpha1/upload",
 		authHeader, imageDownloadPath, uploadProxyService.Spec.ClusterIP)
 
-	_, err = RunGoCLICommand(cliCommandPath, "ssh", "node01", curlCommand)
+	err = RunGoCLICommand(cliCommandPath, "ssh", "node01", curlCommand)
 	if err != nil {
 		return err
 	}
