@@ -25,7 +25,7 @@ const (
 	timeout         = 90 * time.Second
 )
 
-var _ = Describe("DataVolume tests", func() {
+var _ = Describe("[vendor:cnv-qe@redhat.com, level:component]DataVolume tests", func() {
 
 	var sourcePvc *v1.PersistentVolumeClaim
 
@@ -100,21 +100,21 @@ var _ = Describe("DataVolume tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 		},
-			table.Entry("succeed creating import dv with given valid url", "import-http", "", utils.TinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("fail creating import dv due to invalid DNS entry", "import-http", "", "http://i-made-this-up.kube-system/tinyCore.iso", "dv-phase-test-2", controller.ImportFailed, cdiv1.Failed),
-			table.Entry("fail creating import dv due to file not found", "import-http", "", utils.TinyCoreIsoURL+"not.real.file", "dv-phase-test-3", controller.ImportFailed, cdiv1.Failed),
-			table.Entry("succeed creating clone dv", "clone", fillCommand, "", "dv-clone-test-1", controller.CloneSucceeded, cdiv1.Succeeded),
-			table.Entry("succeed creating blank image dv", "blank", "", "", "blank-image-dv", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("succeed creating upload dv", "upload", "", "", "upload-dv", controller.UploadReady, cdiv1.Succeeded),
-			table.Entry("succeed creating import dv with given valid registry url", "import-registry", "", utils.TinyCoreIsoRegistryURL, "dv-phase-test-4", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:1115][crit:high][test_id:1357]succeed creating import dv with given valid url", "import-http", "", utils.TinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1358]fail creating import dv due to invalid DNS entry", "import-http", "", "http://i-made-this-up.kube-system/tinyCore.iso", "dv-phase-test-2", controller.ImportFailed, cdiv1.Failed),
+			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1359]fail creating import dv due to file not found", "import-http", "", utils.TinyCoreIsoURL+"not.real.file", "dv-phase-test-3", controller.ImportFailed, cdiv1.Failed),
+			table.Entry("[rfe_id:1277][crit:high][test_id:1360]succeed creating clone dv", "clone", fillCommand, "", "dv-clone-test-1", controller.CloneSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:1111][crit:high][test_id:1361]succeed creating blank image dv", "blank", "", "", "blank-image-dv", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:138][crit:high][test_id:1362]succeed creating upload dv", "upload", "", "", "upload-dv", controller.UploadReady, cdiv1.Succeeded),
+			table.Entry("[rfe_id:1115][crit:high][test_id:1478]succeed creating import dv with given valid registry url", "import-registry", "", utils.TinyCoreIsoRegistryURL, "dv-phase-test-4", controller.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
 
-	Describe("Delete resources of DataVolume with an invalid URL (POD in retry loop)", func() {
+	Describe("[rfe_id:1115, crit:high, posneg:negative]Delete resources of DataVolume with an invalid URL (POD in retry loop)", func() {
 		Context("using invalid import URL for DataVolume", func() {
 			dataVolumeName := "invalid-url-dv"
 			url := "http://nothing.2.c/here.iso"
-			It("should create/delete all resources", func() {
+			It("[test_id:1363]should create/delete all resources", func() {
 				dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
 
 				By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))

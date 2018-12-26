@@ -22,10 +22,10 @@ const (
 	destinationFile    = "/var/tmp/datavolume_test.yaml"
 )
 
-var _ = Describe("Validation tests", func() {
+var _ = Describe("[rfe_id:1130, crit:medium, vendor:cnv-qe@redhat.com, level:component]Validation tests", func() {
 	f := framework.NewFrameworkOrDie("api-validation-func-test")
 
-	Describe("Verify DataVolume validation", func() {
+	Describe("[posneg:negative]Verify DataVolume validation", func() {
 		Context("when creating Datavolume", func() {
 			dv := map[string]interface{}{}
 
@@ -70,12 +70,12 @@ var _ = Describe("Validation tests", func() {
 				}, timeout, pollingInterval).Should(BeTrue())
 
 			},
-				table.Entry("fail with http source with invalid url format", "http", invalidURLFormat),
-				table.Entry("fail with http source with empty url", "http", ""),
-				table.Entry("fail with s3 source with invalid url format", "s3", invalidURLFormat),
-				table.Entry("fail with s3 source with empty url", "s3", ""),
-				table.Entry("fail with empty PVC source namespace", "pvc", "", "test-pvc"),
-				table.Entry("fail with empty PVC source name", "pvc", "test", ""),
+				table.Entry("[test_id:1321]fail with http source with invalid url format", "http", invalidURLFormat),
+				table.Entry("[test_id:1322]fail with http source with empty url", "http", ""),
+				table.Entry("[test_id:1323, crit:low]fail with s3 source with invalid url format", "s3", invalidURLFormat),
+				table.Entry("[test_id:1324, crit:low]fail with s3 source with empty url", "s3", ""),
+				table.Entry("[test_id:1325]fail with empty PVC source namespace", "pvc", "", "test-pvc"),
+				table.Entry("[test_id:1326]fail with empty PVC source name", "pvc", "test", ""),
 			)
 
 			table.DescribeTable("with Datavolume PVC size should", func(size string) {
@@ -97,9 +97,9 @@ var _ = Describe("Validation tests", func() {
 					return false
 				}, timeout, pollingInterval).Should(BeTrue())
 			},
-				table.Entry("fail with zero PVC size", "0"),
-				table.Entry("fail with negative PVC size", "-500m"),
-				table.Entry("fail with invalid PVC size", "invalid_size"),
+				table.Entry("[test_id:1033]fail with zero PVC size", "0"),
+				table.Entry("[test_id:1327]fail with negative PVC size", "-500m"),
+				table.Entry("[test_id:1328]fail with invalid PVC size", "invalid_size"),
 			)
 
 		})
@@ -117,7 +117,7 @@ var _ = Describe("Validation tests", func() {
 			err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolumeName)
 			Expect(err).ToNot(HaveOccurred())
 		})
-		It("should fail creating an already existing DataVolume", func() {
+		It("[test_id:1030]should fail creating an already existing DataVolume", func() {
 			By(fmt.Sprint("Verifying kubectl create"))
 			Eventually(func() bool {
 

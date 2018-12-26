@@ -20,11 +20,11 @@ const (
 	pvWaitForTime    = 60 * time.Second
 )
 
-var _ = Describe("Local Volume tests", func() {
+var _ = Describe("[rfe_id:1125, crit:high, vendor:cnv-qe@redhat.com, level:component]Local Volume tests", func() {
 
 	f := framework.NewFrameworkOrDie("local-volume-func-test")
 
-	It("Import to PVC should succeed with local PV allocated to specific node", func() {
+	It("[test_id:1367]Import to PVC should succeed with local PV allocated to specific node", func() {
 		By("Creating PV with NodeAffinity and Binding label")
 		pv, err := f.CreatePVFromDefinition(utils.NewPVDefinition("local-volume", "1G", map[string]string{"node": node}, storageClassName))
 		Expect(err).ToNot(HaveOccurred())
