@@ -46,6 +46,10 @@ elif [[ $image == $OPENSHIFT_IMAGE ]]; then
     ./cluster/.kubectl config set-cluster node01:8443 --insecure-skip-tls-verify=true
 fi
 
+# Temporary until image is updated with provisioner that sets this field
+# This field is required by buildah tool
+$gocli ssh node01 -- sudo sysctl -w user.max_user_namespaces=1024
+
 echo 'Wait until all nodes are ready'
 until [[ $(./cluster/kubectl.sh get nodes --no-headers | wc -l) -eq $(./cluster/kubectl.sh get nodes --no-headers | grep " Ready" | wc -l) ]]; do
     sleep 1
