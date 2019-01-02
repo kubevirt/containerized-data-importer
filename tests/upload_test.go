@@ -15,15 +15,39 @@ import (
 
 var _ = Describe("Upload tests", func() {
 
+	var pvc *v1.PersistentVolumeClaim
+	var err error
+
 	f := framework.NewFrameworkOrDie("upload-func-test")
 
-	table.DescribeTable("should", func(validToken bool) {
+	BeforeEach(func() {
+		if pvc != nil {
+			Eventually(func() bool {
+				// Make sure the pvc doesn't still exist. The after each should have called delete.
+				_, err := f.FindPVC(pvc.Name)
+				return err != nil
+			}, timeout, pollingInterval).Should(BeTrue())
+		}
 		By("Creating PVC with upload target annotation")
-		pvc, err := f.CreatePVCFromDefinition(utils.UploadPVCDefinition())
+		pvc, err = f.CreatePVCFromDefinition(utils.UploadPVCDefinition())
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		By("Delete upload PVC")
+		err = f.DeletePVC(pvc)
 		Expect(err).ToNot(HaveOccurred())
 
+		By("Wait for upload pod to be deleted")
+		deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(deleted).To(BeTrue())
+	})
+
+	table.DescribeTable("should", func(validToken bool) {
+
 		By("Verify that upload server POD running")
-		err = f.WaitTimeoutForPodReady(utils.UploadPodName(pvc), time.Second*20)
+		err := f.WaitTimeoutForPodReady(utils.UploadPodName(pvc), time.Second*20)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify PVC status annotation says running")
@@ -61,15 +85,6 @@ var _ = Describe("Upload tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
 		}
-
-		By("Delete upload PVC")
-		err = f.DeletePVC(pvc)
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Wait for upload pod to be deleted")
-		deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(deleted).To(BeTrue())
 	},
 		table.Entry("succeed given a valid token", true),
 		table.Entry("succeed given an invalid token", false),
