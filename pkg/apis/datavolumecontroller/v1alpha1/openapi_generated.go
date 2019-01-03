@@ -326,6 +326,13 @@ func schema_pkg_apis_datavolumecontroller_v1alpha1_DataVolumeSpec(ref common.Ref
 							Ref:         ref("k8s.io/api/core/v1.PersistentVolumeClaimSpec"),
 						},
 					},
+					"contentType": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DataVolumeContentType options: \"kubevirt\", \"archive\"",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"source", "pvc"},
 			},

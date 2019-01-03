@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
 )
@@ -410,8 +411,8 @@ func Test_getContentType(t *testing.T) {
 	}
 
 	pvcNoAnno := createPvc("testPVCNoAnno", "default", nil, nil)
-	pvcArchiveAnno := createPvc("testPVCArchiveAnno", "default", map[string]string{AnnContentType: ContentTypeArchive}, nil)
-	pvcKubevirtAnno := createPvc("testPVCKubevirtAnno", "default", map[string]string{AnnContentType: ContentTypeKubevirt}, nil)
+	pvcArchiveAnno := createPvc("testPVCArchiveAnno", "default", map[string]string{AnnContentType: string(cdiv1.DataVolumeArchive)}, nil)
+	pvcKubevirtAnno := createPvc("testPVCKubevirtAnno", "default", map[string]string{AnnContentType: string(cdiv1.DataVolumeKubeVirt)}, nil)
 	pvcInvalidValue := createPvc("testPVCInvalidValue", "default", map[string]string{AnnContentType: "iaminvalid"}, nil)
 
 	tests := []struct {
@@ -422,22 +423,22 @@ func Test_getContentType(t *testing.T) {
 		{
 			name: "expected to kubevirt content type",
 			args: args{pvcNoAnno},
-			want: ContentTypeKubevirt,
+			want: string(cdiv1.DataVolumeKubeVirt),
 		},
 		{
 			name: "expected to find archive content type",
 			args: args{pvcArchiveAnno},
-			want: ContentTypeArchive,
+			want: string(cdiv1.DataVolumeArchive),
 		},
 		{
 			name: "expected to kubevirt content type",
 			args: args{pvcKubevirtAnno},
-			want: ContentTypeKubevirt,
+			want: string(cdiv1.DataVolumeKubeVirt),
 		},
 		{
 			name: "expected to find kubevirt with invalid anno",
 			args: args{pvcInvalidValue},
-			want: ContentTypeKubevirt,
+			want: string(cdiv1.DataVolumeKubeVirt),
 		},
 	}
 	for _, tt := range tests {
@@ -795,7 +796,7 @@ func TestMakeImporterPodSpec(t *testing.T) {
 	}{
 		{
 			name:    "expect pod to be created",
-			args:    args{"test/myimage", "5", "Always", &importPodEnvVar{"", "", SourceHTTP, ContentTypeKubevirt, "1G"}, pvc},
+			args:    args{"test/myimage", "5", "Always", &importPodEnvVar{"", "", SourceHTTP, string(cdiv1.DataVolumeKubeVirt), "1G"}, pvc},
 			wantPod: pod,
 		},
 	}
@@ -825,8 +826,8 @@ func Test_makeEnv(t *testing.T) {
 	}{
 		{
 			name: "env should match",
-			args: args{&importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, ContentTypeKubevirt, "1G"}},
-			want: createEnv(&importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, ContentTypeKubevirt, "1G"}, mockUID),
+			args: args{&importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, string(cdiv1.DataVolumeKubeVirt), "1G"}},
+			want: createEnv(&importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, string(cdiv1.DataVolumeKubeVirt), "1G"}, mockUID),
 		},
 	}
 	for _, tt := range tests {

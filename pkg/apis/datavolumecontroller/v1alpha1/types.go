@@ -42,7 +42,19 @@ type DataVolumeSpec struct {
 	Source DataVolumeSource `json:"source"`
 	//PVC is a pointer to the PVC Spec we want to use
 	PVC *corev1.PersistentVolumeClaimSpec `json:"pvc"`
+	//DataVolumeContentType options: "kubevirt", "archive"
+	ContentType DataVolumeContentType `json:"contentType,omitempty"`
 }
+
+// DataVolumeContentType represents the types of the imported data
+type DataVolumeContentType string
+
+const (
+	// DataVolumeKubeVirt is the content-type of the imported file, defaults to kubevirt
+	DataVolumeKubeVirt DataVolumeContentType = "kubevirt"
+	// DataVolumeArchive is the content-type to specify if there is a need to extract the imported archive
+	DataVolumeArchive DataVolumeContentType = "archive"
+)
 
 // DataVolumeSource represents the source for our Data Volume, this can be HTTP, S3, Registry or an existing PVC
 type DataVolumeSource struct {

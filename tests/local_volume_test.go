@@ -5,6 +5,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"fmt"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -37,7 +38,7 @@ var _ = Describe("Local Volume tests", func() {
 			"1G",
 			map[string]string{"node": node},
 			map[string]string{controller.AnnSource: controller.SourceHTTP,
-				controller.AnnContentType: controller.ContentTypeKubevirt, controller.AnnEndpoint: httpEp + "/tinyCore.iso"},
+				controller.AnnContentType: string(cdiv1.DataVolumeKubeVirt), controller.AnnEndpoint: httpEp + "/tinyCore.iso"},
 			nil, storageClassName))
 		Expect(err).ToNot(HaveOccurred())
 
