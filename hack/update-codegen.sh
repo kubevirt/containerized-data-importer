@@ -25,7 +25,7 @@ CODEGEN_PKG=${CODEGEN_PKG:-$(
 )}
 
 find "${SCRIPT_ROOT}/pkg/" -name "*generated*.go" -exec rm {} -f \;
-rm -rf "${SCRIPT_ROOT}/pkg/client/*"
+rm -rf "${SCRIPT_ROOT}/pkg/client"
 
 ${SCRIPT_ROOT}/hack/build/build-go.sh generate
 
