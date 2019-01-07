@@ -27,7 +27,7 @@ metadata:
     nginx.org/ssl-services: "cdi-uploadproxy"
     ingress.kubernetes.io/ssl-passthrough: "true"
     nginx.ingress.kubernetes.io/secure-backends: "true"
-    nginx.ingress.kubernetes.io/proxy-body-size: "0
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
 spec:
   rules:
     # change to a valid FQDN in your organization
