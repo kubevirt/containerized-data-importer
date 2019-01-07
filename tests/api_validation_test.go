@@ -18,12 +18,11 @@ const (
 	dataVolumeName     = "test-dv"
 	validURL           = "http://www.example.com/example.img"
 	invalidURLFormat   = "invalidURL"
-	datavolumeTestFile = "tests/manifests/datavolume.yaml"
+	datavolumeTestFile = "manifests/datavolume.yaml"
 	destinationFile    = "/var/tmp/datavolume_test.yaml"
 )
 
 var _ = Describe("Validation tests", func() {
-
 	f := framework.NewFrameworkOrDie("api-validation-func-test")
 
 	Describe("Verify DataVolume validation", func() {
@@ -37,6 +36,7 @@ var _ = Describe("Validation tests", func() {
 
 			table.DescribeTable("with Datavolume source validation should", func(sourceType string, args ...string) {
 
+				By("Reading yaml file from: " + datavolumeTestFile)
 				err := yamlFiletoStruct(datavolumeTestFile, &dv)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -80,6 +80,7 @@ var _ = Describe("Validation tests", func() {
 
 			table.DescribeTable("with Datavolume PVC size should", func(size string) {
 
+				By("Reading yaml file from: " + datavolumeTestFile)
 				err := yamlFiletoStruct(datavolumeTestFile, &dv)
 				Expect(err).ToNot(HaveOccurred())
 
