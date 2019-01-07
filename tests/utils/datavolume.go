@@ -28,6 +28,8 @@ const (
 	TinyCoreIsoRegistryURL = "docker://cdi-docker-registry-host.cdi/tinycoreqcow2"
 	// HTTPSTinyCoreIsoURL provides a test (https) url for the tineyCore iso image
 	HTTPSTinyCoreIsoURL = "https://cdi-file-host.cdi/tinyCore.iso"
+	// TinyCoreQcow2URLRateLimit provides a test url for the tineyCore iso image
+	TinyCoreQcow2URLRateLimit = "http://cdi-file-host.cdi:82/tinyCore.qcow2"
 )
 
 // CreateDataVolumeFromDefinition is used by tests to create a testable Data Volume
