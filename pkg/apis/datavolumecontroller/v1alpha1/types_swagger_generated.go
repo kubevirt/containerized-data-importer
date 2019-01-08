@@ -10,9 +10,10 @@ func (DataVolume) SwaggerDoc() map[string]string {
 
 func (DataVolumeSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":       "DataVolumeSpec defines our specification for a DataVolume type",
-		"source": "Source is the src of the data for the requested DataVolume",
-		"pvc":    "PVC is a pointer to the PVC Spec we want to use",
+		"":            "DataVolumeSpec defines our specification for a DataVolume type",
+		"source":      "Source is the src of the data for the requested DataVolume",
+		"pvc":         "PVC is a pointer to the PVC Spec we want to use",
+		"contentType": "DataVolumeContentType options: \"kubevirt\", \"archive\"",
 	}
 }
 

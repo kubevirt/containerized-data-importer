@@ -27,6 +27,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/image"
@@ -108,7 +109,7 @@ var _ = Describe("Data Stream", func() {
 			image = ts.URL + "/" + image
 		}
 		dest := common.ImporterWritePath
-		if contentType == controller.ContentTypeArchive {
+		if contentType == string(cdiv1.DataVolumeArchive) {
 			dest = common.ImporterVolumePath
 		}
 		By(fmt.Sprintf("Creating new datastream for %s", image))
@@ -138,11 +139,11 @@ var _ = Describe("Data Stream", func() {
 			Expect(err).To(HaveOccurred())
 		}
 	},
-		table.Entry("expect NewDataStream to succeed with valid image", cirrosFileName, "", "", controller.ContentTypeKubevirt, true, cirrosData, false),
-		table.Entry("expect NewDataStream to fail with non existing image", "badimage.iso", "", "", controller.ContentTypeKubevirt, false, nil, true),
-		table.Entry("expect NewDataStream to fail with invalid or missing image", "", "", "", controller.ContentTypeKubevirt, false, nil, true),
-		table.Entry("expect NewDataStream to succeed with valid iso image", tinyCoreFileName, "accessKey", "secretKey", controller.ContentTypeKubevirt, false, tinyCoreData, false),
-		table.Entry("expect NewDataStream to fail with a valid image and an incorrect content", cirrosFileName, "", "", controller.ContentTypeArchive, true, cirrosData, true),
+		table.Entry("expect NewDataStream to succeed with valid image", cirrosFileName, "", "", string(cdiv1.DataVolumeKubeVirt), true, cirrosData, false),
+		table.Entry("expect NewDataStream to fail with non existing image", "badimage.iso", "", "", string(cdiv1.DataVolumeKubeVirt), false, nil, true),
+		table.Entry("expect NewDataStream to fail with invalid or missing image", "", "", "", string(cdiv1.DataVolumeKubeVirt), false, nil, true),
+		table.Entry("expect NewDataStream to succeed with valid iso image", tinyCoreFileName, "accessKey", "secretKey", string(cdiv1.DataVolumeKubeVirt), false, tinyCoreData, false),
+		table.Entry("expect NewDataStream to fail with a valid image and an incorrect content", cirrosFileName, "", "", string(cdiv1.DataVolumeArchive), true, cirrosData, true),
 	)
 
 	It("can close all readers", func() {
@@ -153,7 +154,7 @@ var _ = Describe("Data Stream", func() {
 			"",
 			"",
 			controller.SourceHTTP,
-			controller.ContentTypeKubevirt,
+			string(cdiv1.DataVolumeKubeVirt),
 			"1G"})
 		Expect(err).NotTo(HaveOccurred())
 		By("Closing data stream")
@@ -172,7 +173,7 @@ var _ = Describe("Data Stream", func() {
 			"",
 			"",
 			controller.SourceHTTP,
-			controller.ContentTypeKubevirt,
+			string(cdiv1.DataVolumeKubeVirt),
 			"20M"})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
@@ -194,7 +195,7 @@ var _ = Describe("Data Stream", func() {
 		By(fmt.Sprintf("Creating new fileserver for %s and file %s", filepath.Dir(filename), filepath.Base(filename)))
 		tempTestServer := createTestServer(filepath.Dir(filename))
 		dest := common.ImporterWritePath
-		if contentType == controller.ContentTypeArchive {
+		if contentType == string(cdiv1.DataVolumeArchive) {
 			dest = common.ImporterVolumePath
 		}
 		By(fmt.Sprintf("Creating new datastream to %s", tempTestServer.URL+"/"+filepath.Base(filename)))
@@ -223,14 +224,14 @@ var _ = Describe("Data Stream", func() {
 			Expect(err).To(HaveOccurred())
 		}
 	},
-		table.Entry("successfully construct a xz reader", tinyCoreXzFilePath, controller.ContentTypeKubevirt, 5, false),     // [http, multi-r, xz, multi-r]
-		table.Entry("successfully construct a gz reader", tinyCoreGzFilePath, controller.ContentTypeKubevirt, 5, false),     // [http, multi-r, gz, multi-r]
-		table.Entry("successfully construct a tar reader", tinyCoreTarFilePath, controller.ContentTypeKubevirt, 4, false),   // [http, multi-r, tar, multi-r]
-		table.Entry("successfully constructed an archive reader", archiveFilePath, controller.ContentTypeArchive, 4, false), // [http, multi-r, mul-tar, multi-r]
-		table.Entry("successfully construct qcow2 reader", cirrosFilePath, controller.ContentTypeKubevirt, 2, false),        // [http, multi-r]
-		table.Entry("successfully construct .iso reader", tinyCoreFilePath, controller.ContentTypeKubevirt, 3, false),       // [http, multi-r]
-		table.Entry("fail constructing reader for invalid file path", filepath.Join(imageDir, "tinyCorebad.iso"), controller.ContentTypeKubevirt, 0, true),
-		table.Entry("fail constructing reader for a valid archive file and a wrong content", archiveFileName, controller.ContentTypeKubevirt, 0, true),
+		table.Entry("successfully construct a xz reader", tinyCoreXzFilePath, string(cdiv1.DataVolumeKubeVirt), 5, false),     // [http, multi-r, xz, multi-r]
+		table.Entry("successfully construct a gz reader", tinyCoreGzFilePath, string(cdiv1.DataVolumeKubeVirt), 5, false),     // [http, multi-r, gz, multi-r]
+		table.Entry("successfully construct a tar reader", tinyCoreTarFilePath, string(cdiv1.DataVolumeKubeVirt), 4, false),   // [http, multi-r, tar, multi-r]
+		table.Entry("successfully constructed an archive reader", archiveFilePath, string(cdiv1.DataVolumeArchive), 4, false), // [http, multi-r, mul-tar, multi-r]
+		table.Entry("successfully construct qcow2 reader", cirrosFilePath, string(cdiv1.DataVolumeKubeVirt), 2, false),        // [http, multi-r]
+		table.Entry("successfully construct .iso reader", tinyCoreFilePath, string(cdiv1.DataVolumeKubeVirt), 3, false),       // [http, multi-r]
+		table.Entry("fail constructing reader for invalid file path", filepath.Join(imageDir, "tinyCorebad.iso"), string(cdiv1.DataVolumeKubeVirt), 0, true),
+		table.Entry("fail constructing reader for a valid archive file and a wrong content", archiveFileName, string(cdiv1.DataVolumeKubeVirt), 0, true),
 	)
 })
 
@@ -276,7 +277,7 @@ var _ = Describe("Copy", func() {
 				"",
 				"",
 				controller.SourceHTTP,
-				controller.ContentTypeKubevirt,
+				string(cdiv1.DataVolumeKubeVirt),
 				""})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
@@ -321,7 +322,7 @@ var _ = Describe("Copy", func() {
 				"",
 				"",
 				controller.SourceHTTP,
-				controller.ContentTypeKubevirt,
+				string(cdiv1.DataVolumeKubeVirt),
 				"1G"})
 			if wantErr {
 				Expect(err).To(HaveOccurred())

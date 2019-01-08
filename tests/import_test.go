@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/tests"
@@ -79,7 +80,7 @@ var _ = Describe(testSuiteName, func() {
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
 			"create-image",
 			"1G",
-			map[string]string{controller.AnnSource: controller.SourceNone, controller.AnnContentType: controller.ContentTypeKubevirt},
+			map[string]string{controller.AnnSource: controller.SourceNone, controller.AnnContentType: string(cdiv1.DataVolumeKubeVirt)},
 			nil))
 		Expect(err).ToNot(HaveOccurred())
 
