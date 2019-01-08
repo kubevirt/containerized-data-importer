@@ -15,6 +15,8 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"kubevirt.io/containerized-data-importer/pkg/util"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func init() {
@@ -41,9 +43,19 @@ var _ = Describe("Prometheus Endpoint", func() {
 })
 
 var _ = Describe("Update Progress", func() {
+	BeforeEach(func() {
+		progress = prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "import_progress",
+				Help: "The import progress in percentage",
+			},
+			[]string{"ownerUID"},
+		)
+	})
+
 	It("Parse valid progress update", func() {
 		By("Verifying the initial value is 0")
-		progress.WithLabelValues(ownerUID).Set(0)
+		progress.WithLabelValues(ownerUID).Add(0)
 		metric := &dto.Metric{}
 		progress.WithLabelValues(ownerUID).Write(metric)
 		Expect(*metric.Counter.Value).To(Equal(float64(0)))
@@ -59,12 +71,8 @@ var _ = Describe("Update Progress", func() {
 		Expect(*metric.Counter.Value).To(Equal(float64(45)))
 	})
 
-	It("0 total should return -1", func() {
-		By("Verifying the initial value is 0")
-		progress.WithLabelValues(ownerUID).Set(0)
+	It("0 total should return 0", func() {
 		metric := &dto.Metric{}
-		progress.WithLabelValues(ownerUID).Write(metric)
-		Expect(*metric.Counter.Value).To(Equal(float64(0)))
 		By("Calling updateProgress with value")
 		promReader := &prometheusProgressReader{
 			CountingReader: util.CountingReader{
@@ -74,7 +82,7 @@ var _ = Describe("Update Progress", func() {
 		}
 		promReader.updateProgress()
 		progress.WithLabelValues(ownerUID).Write(metric)
-		Expect(*metric.Counter.Value).To(Equal(float64(-1)))
+		Expect(*metric.Counter.Value).To(Equal(float64(0)))
 	})
 
 })
