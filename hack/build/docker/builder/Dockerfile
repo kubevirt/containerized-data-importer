@@ -33,7 +33,11 @@ RUN \
     go install ./... ) && \
     ( cd $GOPATH/src/k8s.io/kube-openapi/cmd/openapi-gen && \
     git checkout c59034cc13d587f5ef4e85ca0ade0c1866ae8e1d && \
-    go install ./... )
+    go install ./... ) && \
+    (go get -u -d github.com/Masterminds/glide && \
+     cd $GOPATH/src/github.com/Masterminds/glide && \
+     git checkout v0.13.2 -b build-v0.13.2 && \
+     go install ./...)
 
 
 ADD entrypoint.sh /entrypoint.sh
