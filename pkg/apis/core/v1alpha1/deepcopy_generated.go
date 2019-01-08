@@ -200,57 +200,33 @@ func (in *DataVolumeSource) DeepCopyInto(out *DataVolumeSource) {
 	*out = *in
 	if in.HTTP != nil {
 		in, out := &in.HTTP, &out.HTTP
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(DataVolumeSourceHTTP)
-			**out = **in
-		}
+		*out = new(DataVolumeSourceHTTP)
+		**out = **in
 	}
 	if in.S3 != nil {
 		in, out := &in.S3, &out.S3
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(DataVolumeSourceS3)
-			**out = **in
-		}
+		*out = new(DataVolumeSourceS3)
+		**out = **in
 	}
 	if in.Registry != nil {
 		in, out := &in.Registry, &out.Registry
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(DataVolumeSourceRegistry)
-			**out = **in
-		}
+		*out = new(DataVolumeSourceRegistry)
+		**out = **in
 	}
 	if in.PVC != nil {
 		in, out := &in.PVC, &out.PVC
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(DataVolumeSourcePVC)
-			**out = **in
-		}
+		*out = new(DataVolumeSourcePVC)
+		**out = **in
 	}
 	if in.Upload != nil {
 		in, out := &in.Upload, &out.Upload
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(DataVolumeSourceUpload)
-			**out = **in
-		}
+		*out = new(DataVolumeSourceUpload)
+		**out = **in
 	}
 	if in.Blank != nil {
 		in, out := &in.Blank, &out.Blank
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(DataVolumeBlankImage)
-			**out = **in
-		}
+		*out = new(DataVolumeBlankImage)
+		**out = **in
 	}
 	return
 }
@@ -351,12 +327,8 @@ func (in *DataVolumeSpec) DeepCopyInto(out *DataVolumeSpec) {
 	in.Source.DeepCopyInto(&out.Source)
 	if in.PVC != nil {
 		in, out := &in.PVC, &out.PVC
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(v1.PersistentVolumeClaimSpec)
-			(*in).DeepCopyInto(*out)
-		}
+		*out = new(v1.PersistentVolumeClaimSpec)
+		(*in).DeepCopyInto(*out)
 	}
 	return
 }

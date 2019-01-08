@@ -1,9 +1,5 @@
-hash: 65be6b54091a3194f1d3d60aef81dbf98945f380e58318e661deee0a3880ef88
-<<<<<<< HEAD
-updated: 2019-01-08T20:51:55.484318811Z
-=======
-updated: 2019-01-08T11:44:29.555482977-05:00
->>>>>>> operator scaffolding
+hash: 79d152fb584cb4e17e24b60927398c6ae580fce5625a80a6e284aeba8cb9e461
+updated: 2019-01-08T21:10:02.533518921Z
 imports:
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
@@ -79,7 +75,7 @@ imports:
   subpackages:
   - simplelru
 - name: github.com/imdario/mergo
-  version: 6633656539c1639d9d78127b7d47c622b5d7b6dc
+  version: 9316a62528ac99aaecb4e47eadd6dc8aa6533d58
 - name: github.com/json-iterator/go
   version: f2b4162afba35581b6d4a50d3b8f34e33c144682
 - name: github.com/mailru/easyjson
@@ -91,7 +87,7 @@ imports:
 - name: github.com/mattbaird/jsonpatch
   version: 81af80346b1a01caae0cbc27fd3c1ba5b11e189f
 - name: github.com/matttproud/golang_protobuf_extensions
-  version: fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a
+  version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
   - pbutil
 - name: github.com/minio/minio-go
@@ -197,14 +193,14 @@ imports:
   - internal/exit
   - zapcore
 - name: golang.org/x/crypto
-  version: 49796115aa4b964c318aad4f3084fdb41e9aa067
+  version: de0752318171da717af4ce24d0a2e8626afaeb11
   subpackages:
   - ed25519
   - ed25519/internal/edwards25519
   - pbkdf2
   - ssh/terminal
 - name: golang.org/x/net
-  version: 1c05540f6879653db88113bc4a2b70aec4bd491f
+  version: 0ed95abb35c445290478a5348a7b38bb154135fd
   subpackages:
   - context
   - context/ctxhttp
@@ -215,6 +211,13 @@ imports:
   - http2/hpack
   - idna
   - lex/httplex
+- name: golang.org/x/oauth2
+  version: a6bd8cefa1811bd24b86f8902872e4e8225f74c4
+  subpackages:
+  - google
+  - internal
+  - jws
+  - jwt
 - name: golang.org/x/sys
   version: 95c6576299259db960f6c5b9b69ea52422860fce
   subpackages:
@@ -249,6 +252,16 @@ imports:
   version: f51c12702a4d776e4c1fa9b0fabab841babae631
   subpackages:
   - rate
+- name: google.golang.org/appengine
+  version: e9657d882bb81064595ca3b56cbe2546bbabf7b1
+  subpackages:
+  - internal
+  - internal/base
+  - internal/datastore
+  - internal/log
+  - internal/remote_api
+  - internal/urlfetch
+  - urlfetch
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
 - name: gopkg.in/square/go-jose.v2
@@ -259,7 +272,7 @@ imports:
 - name: gopkg.in/yaml.v2
   version: 670d4cfef0544295bc27a114dbac37980d83185a
 - name: k8s.io/api
-  version: 2d6f90ab1293a1fb871cf149423ebb72aa7423aa
+  version: 6db15a15d2d3874a6c3ddb2140ac9f3bc7058428
   subpackages:
   - admission/v1beta1
   - admissionregistration/v1alpha1
@@ -273,10 +286,12 @@ imports:
   - authorization/v1beta1
   - autoscaling/v1
   - autoscaling/v2beta1
+  - autoscaling/v2beta2
   - batch/v1
   - batch/v1beta1
   - batch/v2alpha1
   - certificates/v1beta1
+  - coordination/v1beta1
   - core/v1
   - events/v1beta1
   - extensions/v1beta1
@@ -293,7 +308,7 @@ imports:
   - storage/v1alpha1
   - storage/v1beta1
 - name: k8s.io/apimachinery
-  version: 103fd098999dc9c0c88536f5c9ad2e5da39373ae
+  version: 49ce2735e5074ffc3f8190c8406cf51a96302dad
   subpackages:
   - pkg/api/errors
   - pkg/api/meta
@@ -326,6 +341,7 @@ imports:
   - pkg/util/intstr
   - pkg/util/json
   - pkg/util/mergepatch
+  - pkg/util/naming
   - pkg/util/net
   - pkg/util/remotecommand
   - pkg/util/runtime
@@ -342,7 +358,7 @@ imports:
   - third_party/forked/golang/netutil
   - third_party/forked/golang/reflect
 - name: k8s.io/client-go
-  version: 1f13a808da65775f22cbf47862c4e5898d8f4ca1
+  version: 5e6a3d4e34f694e895b13ae728111e726a5b69df
   subpackages:
   - discovery
   - discovery/fake
@@ -358,12 +374,15 @@ imports:
   - informers/autoscaling
   - informers/autoscaling/v1
   - informers/autoscaling/v2beta1
+  - informers/autoscaling/v2beta2
   - informers/batch
   - informers/batch/v1
   - informers/batch/v1beta1
   - informers/batch/v2alpha1
   - informers/certificates
   - informers/certificates/v1beta1
+  - informers/coordination
+  - informers/coordination/v1beta1
   - informers/core
   - informers/core/v1
   - informers/events
@@ -413,6 +432,8 @@ imports:
   - kubernetes/typed/autoscaling/v1/fake
   - kubernetes/typed/autoscaling/v2beta1
   - kubernetes/typed/autoscaling/v2beta1/fake
+  - kubernetes/typed/autoscaling/v2beta2
+  - kubernetes/typed/autoscaling/v2beta2/fake
   - kubernetes/typed/batch/v1
   - kubernetes/typed/batch/v1/fake
   - kubernetes/typed/batch/v1beta1
@@ -421,6 +442,8 @@ imports:
   - kubernetes/typed/batch/v2alpha1/fake
   - kubernetes/typed/certificates/v1beta1
   - kubernetes/typed/certificates/v1beta1/fake
+  - kubernetes/typed/coordination/v1beta1
+  - kubernetes/typed/coordination/v1beta1/fake
   - kubernetes/typed/core/v1
   - kubernetes/typed/core/v1/fake
   - kubernetes/typed/events/v1beta1
@@ -456,10 +479,12 @@ imports:
   - listers/apps/v1beta2
   - listers/autoscaling/v1
   - listers/autoscaling/v2beta1
+  - listers/autoscaling/v2beta2
   - listers/batch/v1
   - listers/batch/v1beta1
   - listers/batch/v2alpha1
   - listers/certificates/v1beta1
+  - listers/coordination/v1beta1
   - listers/core/v1
   - listers/events/v1beta1
   - listers/extensions/v1beta1
@@ -511,11 +536,11 @@ imports:
   - util/retry
   - util/workqueue
 - name: k8s.io/code-generator
-  version: 6702109cc68eb6fe6350b83e14407c8d7309fd1a
+  version: b1289fc74931d4b6b04bd1a259acfc88a2cb0a66
 - name: k8s.io/gengo
   version: fd15ee9cc2f77baa4f31e59e6acbf21146455073
 - name: k8s.io/kube-aggregator
-  version: 8e086f01c3c3620eca0eb45024cf7eafc0c54ba1
+  version: e95ebe3de8a24c3da1ad7606ca5a2444a64f4c82
   subpackages:
   - pkg/apis/apiregistration
   - pkg/apis/apiregistration/v1
@@ -528,7 +553,7 @@ imports:
   - pkg/client/clientset_generated/clientset/typed/apiregistration/v1beta1
   - pkg/client/clientset_generated/clientset/typed/apiregistration/v1beta1/fake
 - name: k8s.io/kube-openapi
-  version: 91cfa479c814065e420cee7ed227db0f63a5854e
+  version: 0cf8f7e6ed1d2e3d47d02e3b6e559369af24d803
   subpackages:
   - pkg/common
   - pkg/util/proto
@@ -539,7 +564,7 @@ imports:
   - pkg/ginkgo-reporters
   - pkg/polarion-xml
 - name: sigs.k8s.io/controller-runtime
-  version: 5fd1e9e9fac5261e9ad9d47c375afc014fc31d21
+  version: f6f0bc9611363b43664d08fb097ab13243ef621d
   subpackages:
   - pkg/cache
   - pkg/cache/internal
@@ -551,9 +576,11 @@ imports:
   - pkg/event
   - pkg/handler
   - pkg/internal/controller
+  - pkg/internal/controller/metrics
   - pkg/internal/recorder
   - pkg/leaderelection
   - pkg/manager
+  - pkg/metrics
   - pkg/patch
   - pkg/predicate
   - pkg/reconcile
@@ -565,5 +592,6 @@ imports:
   - pkg/source/internal
   - pkg/webhook/admission
   - pkg/webhook/admission/types
+  - pkg/webhook/internal/metrics
   - pkg/webhook/types
 testImports: []
