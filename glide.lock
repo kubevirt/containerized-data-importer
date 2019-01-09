@@ -1,5 +1,5 @@
-hash: 79d152fb584cb4e17e24b60927398c6ae580fce5625a80a6e284aeba8cb9e461
-updated: 2019-01-08T21:10:02.533518921Z
+hash: e0155c8be846dca64d527ca4805bdf6ea796ea8ccc7c19802f408995a7113cab
+updated: 2019-01-09T16:19:14.466534746Z
 imports:
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
@@ -145,7 +145,7 @@ imports:
 - name: github.com/peterbourgon/diskv
   version: 5f041e8faa004a95c88a202771f4cc3e991971e6
 - name: github.com/pkg/errors
-  version: c38ea53d8c3f78ac85b9b0f1247abeb6d38f6988
+  version: ffb6e22f01932bf7ac35e0bad9be11f01d1c8685
 - name: github.com/prometheus/client_golang
   version: 505eaef017263e299324067d40ca2c48f6a2cf50
   subpackages:
@@ -307,6 +307,11 @@ imports:
   - storage/v1
   - storage/v1alpha1
   - storage/v1beta1
+- name: k8s.io/apiextensions-apiserver
+  version: 853f76028711219c2fc251fd5184f23fd44a7aa0
+  subpackages:
+  - pkg/apis/apiextensions
+  - pkg/apis/apiextensions/v1beta1
 - name: k8s.io/apimachinery
   version: 49ce2735e5074ffc3f8190c8406cf51a96302dad
   subpackages:
