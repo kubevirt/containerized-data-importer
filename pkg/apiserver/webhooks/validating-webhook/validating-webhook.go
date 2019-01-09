@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 
-	datavolumev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
+	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
 type admitFunc func(*v1beta1.AdmissionReview) *v1beta1.AdmissionResponse
@@ -77,7 +77,7 @@ func validateSourceURL(sourceURL string) string {
 	return ""
 }
 
-func validateDataVolumeSpec(field *k8sfield.Path, spec *datavolumev1alpha1.DataVolumeSpec) []metav1.StatusCause {
+func validateDataVolumeSpec(field *k8sfield.Path, spec *cdicorev1alpha1.DataVolumeSpec) []metav1.StatusCause {
 	var causes []metav1.StatusCause
 	var url string
 	var sourceType string
@@ -156,8 +156,8 @@ func validateDataVolumeSpec(field *k8sfield.Path, spec *datavolumev1alpha1.DataV
 
 func admitDVs(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	resource := metav1.GroupVersionResource{
-		Group:    datavolumev1alpha1.SchemeGroupVersion.Group,
-		Version:  datavolumev1alpha1.SchemeGroupVersion.Version,
+		Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
+		Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
 		Resource: "datavolumes",
 	}
 	if ar.Request.Resource != resource {
@@ -167,7 +167,7 @@ func admitDVs(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	}
 
 	raw := ar.Request.Object.Raw
-	dv := datavolumev1alpha1.DataVolume{}
+	dv := cdicorev1alpha1.DataVolume{}
 
 	err := json.Unmarshal(raw, &dv)
 

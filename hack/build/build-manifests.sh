@@ -38,6 +38,7 @@ for tmpl in ${templates}; do
         -apiserver-image=${APISERVER_IMAGE_NAME} \
         -uploadproxy-image=${UPLOADPROXY_IMAGE_NAME} \
         -uploadserver-image=${UPLOADSERVER_IMAGE_NAME} \
+        -operator-image=${OPERATOR_IMAGE_NAME} \
         -verbosity="${VERBOSITY}" \
         -pull-policy="${PULL_POLICY}" \
         -namespace="${NAMESPACE}"
@@ -52,6 +53,7 @@ for tmpl in ${templates}; do
         -apiserver-image="{{ apiserver_image }}" \
         -uploadproxy-image="{{ uploadproxy_image }}" \
         -uploadserver-image="{{ uploadserver_image }}" \
+        -operator-image="{{ operator_image }}" \
         -verbosity="{{ verbosity }}" \
         -pull-policy="{{ pull_policy }}" \
         -namespace="{{ cdi_namespace }}"

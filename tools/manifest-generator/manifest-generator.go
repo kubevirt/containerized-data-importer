@@ -29,6 +29,7 @@ type data struct {
 	APIServerImage    string
 	UploadProxyImage  string
 	UploadServerImage string
+	OperatorImage     string
 	Verbosity         string
 	PullPolicy        string
 	Namespace         string
@@ -43,6 +44,7 @@ func main() {
 	apiServerImage := flag.String("apiserver-image", "", "")
 	uploadProxyImage := flag.String("uploadproxy-image", "", "")
 	uploadServerImage := flag.String("uploadserver-image", "", "")
+	operatorImage := flag.String("operator-image", "", "")
 	templFile := flag.String("template", "", "")
 	verbosity := flag.String("verbosity", "1", "")
 	pullPolicy := flag.String("pull-policy", "", "")
@@ -59,6 +61,7 @@ func main() {
 		APIServerImage:    *apiServerImage,
 		UploadProxyImage:  *uploadProxyImage,
 		UploadServerImage: *uploadServerImage,
+		OperatorImage:     *operatorImage,
 		PullPolicy:        *pullPolicy,
 		Namespace:         *namespace,
 	}

@@ -37,11 +37,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/golang/glog"
-	"github.com/minio/minio-go"
+	minio "github.com/minio/minio-go"
 	"github.com/pkg/errors"
 	"github.com/ulikunitz/xz"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/image"

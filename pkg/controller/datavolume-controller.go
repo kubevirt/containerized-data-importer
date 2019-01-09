@@ -38,11 +38,11 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/datavolumecontroller/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	cdischeme "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
-	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/datavolumecontroller/v1alpha1"
-	listers "kubevirt.io/containerized-data-importer/pkg/client/listers/datavolumecontroller/v1alpha1"
+	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/core/v1alpha1"
+	listers "kubevirt.io/containerized-data-importer/pkg/client/listers/core/v1alpha1"
 	expectations "kubevirt.io/containerized-data-importer/pkg/expectations"
 )
 
