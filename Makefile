@@ -12,8 +12,8 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-.PHONY: build build-controller build-importer build-cloner build-apiserver build-uploadproxy build-uploadserver build-functest-image-init build-functest-image-http build-functest-registry-init  build-func-test-registry-populate  build-functest \
-		docker docker-controller docker-cloner docker-importer docker-apiserver docker-uploadproxy docker-uploadserver docker-functest-image-init docker-functest-image-http docker-functest-registry-populate docker-functest-registry docker-functest-registry-init \
+.PHONY: build build-controller build-importer build-cloner build-apiserver build-uploadproxy build-uploadserver build-operator build-functest-image-init build-functest-image-http build-functest-registry-init  build-func-test-registry-populate  build-functest \
+		docker docker-controller docker-cloner docker-importer docker-apiserver docker-uploadproxy docker-uploadserver docker-operator docker-functest-image-init docker-functest-image-http docker-functest-registry-populate docker-functest-registry docker-functest-registry-init \
 		cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer cluster-sync-apiserver cluster-sync-uploadproxy cluster-sync-uploadserver \
 		test test-functional test-unit test-lint \
 		publish \
@@ -62,6 +62,8 @@ build-uploadserver: WHAT = cmd/cdi-uploadserver
 build-uploadserver: build
 build-cloner: WHAT = cmd/cdi-cloner
 build-cloner: build
+build-operator: WHAT = cmd/cdi-operator
+build-operator: build
 build-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
 build-functest-image-init:
 build-functest:
@@ -99,6 +101,8 @@ docker-uploadproxy: WHAT = cmd/cdi-uploadproxy
 docker-uploadproxy: docker
 docker-uploadserver: WHAT = cmd/cdi-uploadserver
 docker-uploadserver: docker
+docker-operator: WHAT = cmd/cdi-operator
+docker-operator: docker
 
 docker-functest-image: docker-functest-image-http docker-functest-image-init docker-functest-registry-init docker-functest-registry-populate docker-functest-registry
 docker-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
@@ -130,6 +134,8 @@ push-uploadproxy: WHAT = cmd/cdi-uploadproxy
 push-uploadproxy: push
 push-uploadserver: WHAT = cmd/cdi-uploadserver
 push-uploadserver: push
+push-operator: WHAT = cmd/cdi-operator
+push-operator: push
 
 publish: docker
 	./hack/build/build-docker.sh publish ${WHAT}

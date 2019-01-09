@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	restful "github.com/emicklei/go-restful"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/util/cert/triple"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,7 +24,7 @@ import (
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	aggregatorapifake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
-	uploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/uploadcontroller/v1alpha1"
+	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
 )
 
@@ -549,12 +549,12 @@ func TestGetToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	request := &uploadv1alpha1.UploadTokenRequest{
+	request := &cdiuploadv1alpha1.UploadTokenRequest{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-token",
 			Namespace: "default",
 		},
-		Spec: uploadv1alpha1.UploadTokenRequestSpec{
+		Spec: cdiuploadv1alpha1.UploadTokenRequestSpec{
 			PvcName: "test-pvc",
 		},
 	}
@@ -651,7 +651,7 @@ func TestGetToken(t *testing.T) {
 			}
 
 			if test.checkToken {
-				uploadTokenRequest := &uploadv1alpha1.UploadTokenRequest{}
+				uploadTokenRequest := &cdiuploadv1alpha1.UploadTokenRequest{}
 				err := json.Unmarshal(rr.Body.Bytes(), &uploadTokenRequest)
 				if err != nil {
 					tt.Fatalf("Deserializing UploadTokenRequest failed: %+v", err)
