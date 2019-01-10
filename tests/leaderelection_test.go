@@ -32,7 +32,7 @@ func checkLogForRegEx(regEx *regexp.Regexp, log string) bool {
 	return len(matches) == 1
 }
 
-var _ = Describe("Leader election tests", func() {
+var _ = Describe("[rfe_id:1250][crit:high][vendor:cnv-qe@redhat.com][level:component]Leader election tests", func() {
 	var err error
 	var deployment *appsv1.Deployment
 	var leaderPodName string
@@ -71,7 +71,7 @@ var _ = Describe("Leader election tests", func() {
 		}
 	})
 
-	It("Should be one active CDI controller", func() {
+	It("[test_id:1364]Should be one active CDI controller", func() {
 		deployment = getDeployment()
 		Expect(*deployment.Spec.Replicas).Should(Equal(int32(1)))
 
@@ -84,7 +84,7 @@ var _ = Describe("Leader election tests", func() {
 		Expect(checkLogForRegEx(logIsLeaderRegex, log)).To(BeTrue())
 	})
 
-	It("Scale controller deployment", func() {
+	It("[test_id:1365]Scale controller deployment", func() {
 		numReplicas := int32(2)
 		deployment.Spec.Replicas = &numReplicas
 
@@ -128,7 +128,7 @@ var _ = Describe("Leader election tests", func() {
 		Expect(checkLogForRegEx(logIsLeaderRegex, log)).To(BeFalse())
 	})
 
-	It("Check scale back down", func() {
+	It("[test_id:1366]Check scale back down", func() {
 		deployment = getDeployment()
 		Expect(*deployment.Spec.Replicas).Should(Equal(int32(1)))
 

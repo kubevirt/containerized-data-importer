@@ -15,7 +15,6 @@ import (
 )
 
 const (
-	testSuiteName                    = "Cloner Test Suite"
 	namespacePrefix                  = "cloner"
 	sourcePodFillerName              = "fill-source"
 	sourcePVCName                    = "source-pvc"
@@ -27,7 +26,7 @@ const (
 	controllerSkipPVCCompleteTimeout = 90 * time.Second
 )
 
-var _ = Describe(testSuiteName, func() {
+var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:component]Cloner Test Suite", func() {
 	f := framework.NewFrameworkOrDie(namespacePrefix)
 
 	var sourcePvc *v1.PersistentVolumeClaim
@@ -45,11 +44,11 @@ var _ = Describe(testSuiteName, func() {
 	})
 
 	Context("A valid source and target given", func() {
-		It("Should clone data within same name space", func() {
+		It("[test_id:1354]Should clone data within same namespace", func() {
 			doCloneTest(f, f.Namespace)
 		})
 
-		It("Should clone data across different namespaces", func() {
+		It("[test_id:1355]Should clone data across different namespaces", func() {
 			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
 				framework.NsPrefixLabel: f.NsPrefix,
 			})
@@ -57,7 +56,7 @@ var _ = Describe(testSuiteName, func() {
 			f.AddNamespaceToDelete(targetNs)
 			doCloneTest(f, targetNs)
 		})
-		It("Should not clone anything when CloneOf annotation exists", func() {
+		It("[test_id:1356]Should not clone anything when CloneOf annotation exists", func() {
 			cloneOfAnnoExistenceTest(f, f.Namespace.Name)
 		})
 	})

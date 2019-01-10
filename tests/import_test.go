@@ -21,7 +21,6 @@ import (
 )
 
 const (
-	testSuiteName                    = "Importer Test Suite"
 	namespacePrefix                  = "importer"
 	assertionPollInterval            = 2 * time.Second
 	controllerSkipPVCCompleteTimeout = 90 * time.Second
@@ -30,7 +29,7 @@ const (
 	BlankImageMD5                    = "cd573cfaace07e7949bc0c46028904ff"
 )
 
-var _ = Describe(testSuiteName, func() {
+var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component]Importer Test Suite", func() {
 	var (
 		ns string
 		f  = framework.NewFrameworkOrDie(namespacePrefix)
@@ -59,7 +58,7 @@ var _ = Describe(testSuiteName, func() {
 		// Not deleting PVC as it will be removed with the NS removal.
 	})
 
-	It("Import pod status should be Fail on unavailable endpoint", func() {
+	It("[posneg:negative]Import pod status should be Fail on unavailable endpoint", func() {
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
 			"no-import-noendpoint",
 			"1G",
@@ -99,7 +98,7 @@ var _ = Describe(testSuiteName, func() {
 	})
 })
 
-var _ = Describe(testSuiteName+"-prometheus", func() {
+var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:component]Importer Test Suite-prometheus", func() {
 	f := framework.NewFrameworkOrDie(namespacePrefix)
 
 	BeforeEach(func() {

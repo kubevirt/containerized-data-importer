@@ -10,16 +10,12 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/framework"
 )
 
-const (
-	TestSuiteName = "Basic Sanity"
-)
-
-var _ = Describe(TestSuiteName, func() {
+var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:component]Basic Sanity", func() {
 	f := framework.NewFrameworkOrDie("sanity", framework.Config{
 		SkipNamespaceCreation: true,
 	})
 
-	Context("CDI service account should exist", func() {
+	Context("[test_id:1348]CDI service account should exist", func() {
 		It("Should succeed", func() {
 			result, err := tests.RunKubectlCommand(f, "get", "sa", "cdi-sa", "-n", f.CdiInstallNs)
 			Expect(err).To(BeNil())
@@ -27,7 +23,7 @@ var _ = Describe(TestSuiteName, func() {
 		})
 	})
 
-	Context("CDI Cluster role should exist", func() {
+	Context("[test_id:1349]CDI Cluster role should exist", func() {
 		It("Should succeed", func() {
 			result, err := tests.RunKubectlCommand(f, "get", "clusterrole", "cdi")
 			Expect(err).To(BeNil())
@@ -35,7 +31,7 @@ var _ = Describe(TestSuiteName, func() {
 		})
 	})
 
-	Context("CDI Cluster role binding should exist", func() {
+	Context("[test_id:1350]CDI Cluster role binding should exist", func() {
 		It("Should succeed", func() {
 			result, err := tests.RunKubectlCommand(f, "get", "clusterrolebinding", "cdi-sa")
 			Expect(err).To(BeNil())
@@ -44,12 +40,12 @@ var _ = Describe(TestSuiteName, func() {
 	})
 
 	Context("CDI deployment should exist", func() {
-		It("Should succeed", func() {
+		It("[test_id:1351]Should succeed", func() {
 			result, err := tests.RunKubectlCommand(f, "get", "deployment", "cdi-deployment", "-n", f.CdiInstallNs)
 			Expect(err).To(BeNil())
 			Expect(result).To(ContainSubstring("cdi-deployment"))
 		})
-		It("There should be 1 replica", func() {
+		It("[test_id:1352]There should be 1 replica", func() {
 			result, err := tests.RunKubectlCommand(f, "get", "deployment", "cdi-deployment", "-o", "jsonpath={.spec.replicas}", "-n", f.CdiInstallNs)
 			Expect(err).To(BeNil())
 			Expect(result).To(ContainSubstring("1"))
@@ -57,7 +53,7 @@ var _ = Describe(TestSuiteName, func() {
 	})
 
 	Context("cdi-sa RBAC rules are correct", func() {
-		It("rules should match expectation", func() {
+		It("[test_id:1353]rules should match expectation", func() {
 			sa := fmt.Sprintf("system:serviceaccount:" + f.CdiInstallNs + ":cdi-sa")
 
 			eventExpectedResult := make(map[string]string)
