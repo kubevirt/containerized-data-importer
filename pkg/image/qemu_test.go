@@ -30,6 +30,8 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"kubevirt.io/containerized-data-importer/pkg/system"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const goodValidateJSON = `
@@ -158,9 +160,19 @@ var _ = Describe("Importer", func() {
 })
 
 var _ = Describe("Report Progress", func() {
+	BeforeEach(func() {
+		progress = prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "import_progress",
+				Help: "The import progress in percentage",
+			},
+			[]string{"ownerUID"},
+		)
+	})
+
 	It("Parse valid progress line", func() {
 		By("Verifying the initial value is 0")
-		progress.WithLabelValues(ownerUID).Set(0)
+		progress.WithLabelValues(ownerUID).Add(0)
 		metric := &dto.Metric{}
 		progress.WithLabelValues(ownerUID).Write(metric)
 		Expect(*metric.Counter.Value).To(Equal(float64(0)))
@@ -172,7 +184,7 @@ var _ = Describe("Report Progress", func() {
 
 	It("Parse invalid progress line", func() {
 		By("Verifying the initial value is 0")
-		progress.WithLabelValues(ownerUID).Set(0)
+		progress.WithLabelValues(ownerUID).Add(0)
 		metric := &dto.Metric{}
 		progress.WithLabelValues(ownerUID).Write(metric)
 		Expect(*metric.Counter.Value).To(Equal(float64(0)))

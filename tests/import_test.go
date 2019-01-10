@@ -8,10 +8,11 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/tests"
@@ -41,22 +42,26 @@ var _ = Describe(testSuiteName, func() {
 	})
 
 	It("Should not perform CDI operations on PVC without annotations", func() {
-		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition("no-import", "1G", nil, nil))
+		// Make sure the PVC name is unique, we have no guarantee on order and we are not
+		// deleting the PVC at the end of the test, so if another runs first we will fail.
+		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition("no-import-ann", "1G", nil, nil))
 		By("Verifying PVC with no annotation remains empty")
 		Eventually(func() bool {
 			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 			Expect(err).NotTo(HaveOccurred())
-			return strings.Contains(log, "pvc annotation \""+controller.AnnEndpoint+"\" not found, skipping pvc \""+ns+"/no-import\"")
+			return strings.Contains(log, "pvc annotation \""+controller.AnnEndpoint+"\" not found, skipping pvc \""+ns+"/no-import-ann\"")
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
 		Expect(err).ToNot(HaveOccurred())
 		// Wait a while to see if CDI puts anything in the PVC.
-		Expect(framework.VerifyPVCIsEmpty(f, pvc)).To(BeTrue())
+		isEmpty, err := framework.VerifyPVCIsEmpty(f, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(isEmpty).To(BeTrue())
 		// Not deleting PVC as it will be removed with the NS removal.
 	})
 
 	It("Import pod status should be Fail on unavailable endpoint", func() {
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
-			"no-import",
+			"no-import-noendpoint",
 			"1G",
 			map[string]string{controller.AnnEndpoint: invalidEndpoint},
 			nil))
@@ -75,7 +80,7 @@ var _ = Describe(testSuiteName, func() {
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
 			"create-image",
 			"1G",
-			map[string]string{controller.AnnSource: controller.SourceNone, controller.AnnContentType: controller.ContentTypeKubevirt},
+			map[string]string{controller.AnnSource: controller.SourceNone, controller.AnnContentType: string(cdiv1.DataVolumeKubeVirt)},
 			nil))
 		Expect(err).ToNot(HaveOccurred())
 
@@ -88,7 +93,8 @@ var _ = Describe(testSuiteName, func() {
 		}, BlankImageCompleteTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
 
 		By("Verify the image contents")
-		same := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, BlankImageMD5)
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, BlankImageMD5)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
 	})
 })

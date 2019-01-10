@@ -27,6 +27,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/image"
@@ -108,7 +109,7 @@ var _ = Describe("Data Stream", func() {
 			image = ts.URL + "/" + image
 		}
 		dest := common.ImporterWritePath
-		if contentType == controller.ContentTypeArchive {
+		if contentType == string(cdiv1.DataVolumeArchive) {
 			dest = common.ImporterVolumePath
 		}
 		By(fmt.Sprintf("Creating new datastream for %s", image))
@@ -138,11 +139,11 @@ var _ = Describe("Data Stream", func() {
 			Expect(err).To(HaveOccurred())
 		}
 	},
-		table.Entry("expect NewDataStream to succeed with valid image", cirrosFileName, "", "", controller.ContentTypeKubevirt, true, cirrosData, false),
-		table.Entry("expect NewDataStream to fail with non existing image", "badimage.iso", "", "", controller.ContentTypeKubevirt, false, nil, true),
-		table.Entry("expect NewDataStream to fail with invalid or missing image", "", "", "", controller.ContentTypeKubevirt, false, nil, true),
-		table.Entry("expect NewDataStream to succeed with valid iso image", tinyCoreFileName, "accessKey", "secretKey", controller.ContentTypeKubevirt, false, tinyCoreData, false),
-		table.Entry("expect NewDataStream to fail with a valid image and an incorrect content", cirrosFileName, "", "", controller.ContentTypeArchive, true, cirrosData, true),
+		table.Entry("expect NewDataStream to succeed with valid image", cirrosFileName, "", "", string(cdiv1.DataVolumeKubeVirt), true, cirrosData, false),
+		table.Entry("expect NewDataStream to fail with non existing image", "badimage.iso", "", "", string(cdiv1.DataVolumeKubeVirt), false, nil, true),
+		table.Entry("expect NewDataStream to fail with invalid or missing image", "", "", "", string(cdiv1.DataVolumeKubeVirt), false, nil, true),
+		table.Entry("expect NewDataStream to succeed with valid iso image", tinyCoreFileName, "accessKey", "secretKey", string(cdiv1.DataVolumeKubeVirt), false, tinyCoreData, false),
+		table.Entry("expect NewDataStream to fail with a valid image and an incorrect content", cirrosFileName, "", "", string(cdiv1.DataVolumeArchive), true, cirrosData, true),
 	)
 
 	It("can close all readers", func() {
@@ -153,7 +154,7 @@ var _ = Describe("Data Stream", func() {
 			"",
 			"",
 			controller.SourceHTTP,
-			controller.ContentTypeKubevirt,
+			string(cdiv1.DataVolumeKubeVirt),
 			"1G"})
 		Expect(err).NotTo(HaveOccurred())
 		By("Closing data stream")
@@ -172,7 +173,7 @@ var _ = Describe("Data Stream", func() {
 			"",
 			"",
 			controller.SourceHTTP,
-			controller.ContentTypeKubevirt,
+			string(cdiv1.DataVolumeKubeVirt),
 			"20M"})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
@@ -194,7 +195,7 @@ var _ = Describe("Data Stream", func() {
 		By(fmt.Sprintf("Creating new fileserver for %s and file %s", filepath.Dir(filename), filepath.Base(filename)))
 		tempTestServer := createTestServer(filepath.Dir(filename))
 		dest := common.ImporterWritePath
-		if contentType == controller.ContentTypeArchive {
+		if contentType == string(cdiv1.DataVolumeArchive) {
 			dest = common.ImporterVolumePath
 		}
 		By(fmt.Sprintf("Creating new datastream to %s", tempTestServer.URL+"/"+filepath.Base(filename)))
@@ -223,14 +224,14 @@ var _ = Describe("Data Stream", func() {
 			Expect(err).To(HaveOccurred())
 		}
 	},
-		table.Entry("successfully construct a xz reader", tinyCoreXzFilePath, controller.ContentTypeKubevirt, 5, false),     // [http, multi-r, xz, multi-r]
-		table.Entry("successfully construct a gz reader", tinyCoreGzFilePath, controller.ContentTypeKubevirt, 5, false),     // [http, multi-r, gz, multi-r]
-		table.Entry("successfully construct a tar reader", tinyCoreTarFilePath, controller.ContentTypeKubevirt, 4, false),   // [http, multi-r, tar, multi-r]
-		table.Entry("successfully constructed an archive reader", archiveFilePath, controller.ContentTypeArchive, 4, false), // [http, multi-r, mul-tar, multi-r]
-		table.Entry("successfully construct qcow2 reader", cirrosFilePath, controller.ContentTypeKubevirt, 2, false),        // [http, multi-r]
-		table.Entry("successfully construct .iso reader", tinyCoreFilePath, controller.ContentTypeKubevirt, 3, false),       // [http, multi-r]
-		table.Entry("fail constructing reader for invalid file path", filepath.Join(imageDir, "tinyCorebad.iso"), controller.ContentTypeKubevirt, 0, true),
-		table.Entry("fail constructing reader for a valid archive file and a wrong content", archiveFileName, controller.ContentTypeKubevirt, 0, true),
+		table.Entry("successfully construct a xz reader", tinyCoreXzFilePath, string(cdiv1.DataVolumeKubeVirt), 5, false),     // [http, multi-r, xz, multi-r]
+		table.Entry("successfully construct a gz reader", tinyCoreGzFilePath, string(cdiv1.DataVolumeKubeVirt), 5, false),     // [http, multi-r, gz, multi-r]
+		table.Entry("successfully construct a tar reader", tinyCoreTarFilePath, string(cdiv1.DataVolumeKubeVirt), 4, false),   // [http, multi-r, tar, multi-r]
+		table.Entry("successfully constructed an archive reader", archiveFilePath, string(cdiv1.DataVolumeArchive), 4, false), // [http, multi-r, mul-tar, multi-r]
+		table.Entry("successfully construct qcow2 reader", cirrosFilePath, string(cdiv1.DataVolumeKubeVirt), 2, false),        // [http, multi-r]
+		table.Entry("successfully construct .iso reader", tinyCoreFilePath, string(cdiv1.DataVolumeKubeVirt), 3, false),       // [http, multi-r]
+		table.Entry("fail constructing reader for invalid file path", filepath.Join(imageDir, "tinyCorebad.iso"), string(cdiv1.DataVolumeKubeVirt), 0, true),
+		table.Entry("fail constructing reader for a valid archive file and a wrong content", archiveFileName, string(cdiv1.DataVolumeKubeVirt), 0, true),
 	)
 })
 
@@ -276,7 +277,7 @@ var _ = Describe("Copy", func() {
 				"",
 				"",
 				controller.SourceHTTP,
-				controller.ContentTypeKubevirt,
+				string(cdiv1.DataVolumeKubeVirt),
 				""})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
@@ -321,7 +322,7 @@ var _ = Describe("Copy", func() {
 				"",
 				"",
 				controller.SourceHTTP,
-				controller.ContentTypeKubevirt,
+				string(cdiv1.DataVolumeKubeVirt),
 				"1G"})
 			if wantErr {
 				Expect(err).To(HaveOccurred())
@@ -432,107 +433,6 @@ var _ = Describe("Random file name", func() {
 		Expect(filepath.Clean(base)).To(Equal(filepath.Dir("testfile.img")))
 		Expect(filepath.Ext(fn)).To(Equal(".img"))
 	})
-})
-
-var _ = Describe("Streaming Data Conversion", func() {
-	var tmpTestDir string
-
-	BeforeEach(func() {
-		By(fmt.Sprintf("[BeforeEach] Creating temporary dir %s", tmpTestDir))
-		tmpTestDir = testDir(os.TempDir())
-		syscall.Umask(0000)
-		err := os.Mkdir(tmpTestDir, 0777)
-		Expect(err).NotTo(HaveOccurred())
-	})
-
-	AfterEach(func() {
-		By(fmt.Sprintf("[AfterEach] Cleaning up temporary dir %s", tmpTestDir))
-		os.RemoveAll(tmpTestDir)
-	})
-
-	table.DescribeTable("when data is in a supported file format", func(originalFile string, useVirtSize bool, expectFormats ...string) {
-		By(fmt.Sprintf("Getting size of source file %q", originalFile))
-		finfo, err := os.Stat(originalFile)
-		Expect(err).NotTo(HaveOccurred())
-		sourceSize := finfo.Size()
-		fmt.Fprintf(GinkgoWriter, "INFO: size = %d\n", sourceSize)
-
-		By(fmt.Sprintf("Converting source file to format: %s", expectFormats))
-		// Generate the expected data format from the random bytes
-		testSample, err := utils.FormatTestData(originalFile, tmpTestDir, expectFormats...)
-		Expect(err).NotTo(HaveOccurred(), "Error formatting test data.")
-		fmt.Fprintf(GinkgoWriter, "INFO: converted source file name is %q, in dir %q\n", testSample, tmpTestDir)
-
-		tempTestServer := createTestServer(filepath.Dir(testSample))
-		defer tempTestServer.Close()
-
-		testBase := filepath.Base(testSample)
-		testTarget := filepath.Join(tmpTestDir, common.DiskImageName)
-		By(fmt.Sprintf("Importing %q to %q", tempTestServer.URL, testTarget))
-		err = CopyData(&DataStreamOptions{
-			testTarget,
-			tempTestServer.URL + "/" + testBase,
-			"",
-			"",
-			controller.SourceHTTP,
-			controller.ContentTypeKubevirt,
-			""})
-		Expect(err).NotTo(HaveOccurred())
-
-		By(fmt.Sprintf("Checking size of the output file %q", testTarget))
-		var targetSize int64
-		if useVirtSize {
-			By("... using output image's virtual size")
-			targetSize = getImageVirtualSize(testTarget)
-			Expect(targetSize).To(Equal(int64(sourceSize)))
-		} else {
-			By("... using stat()")
-			finfo, err = os.Stat(testTarget)
-			Expect(err).NotTo(HaveOccurred())
-			targetSize = finfo.Size()
-			Expect(targetSize).To(Equal(int64(sourceSize)))
-		}
-		fmt.Fprintf(GinkgoWriter, "INFO: byte size = %d\n", targetSize)
-
-		By(fmt.Sprintf("Calling `size.Size()` on same endpoint %q", tempTestServer.URL))
-		// extract the file extension(s) and check if file should be skipped
-		i := strings.Index(testBase, ".")
-		if i > 0 {
-			targetExt := testBase[i:]
-			if _, ok := sizeExceptions[targetExt]; ok {
-				Skip(fmt.Sprintf("*** skipping endpoint extension %q as exception", targetExt))
-			}
-		}
-		ds, err := NewDataStream(&DataStreamOptions{
-			common.ImporterWritePath,
-			tempTestServer.URL + "/" + testBase,
-			"",
-			"",
-			controller.SourceHTTP,
-			controller.ContentTypeKubevirt,
-			"1G"})
-
-		Expect(err).NotTo(HaveOccurred())
-		defer ds.Close()
-		Expect(ds.Size).To(Equal(sourceSize))
-
-		fmt.Fprintf(GinkgoWriter, "End test on test file %q\n", testSample)
-	},
-		table.Entry("should decompress gzip", tinyCoreFilePath, false, image.ExtGz),
-		table.Entry("should decompress xz", tinyCoreFilePath, false, image.ExtXz),
-		table.Entry("should unarchive tar", tinyCoreFilePath, false, image.ExtTar),
-		table.Entry("should unpack .tar.gz", tinyCoreFilePath, false, image.ExtTar, image.ExtGz),
-		// Disabled until issue 335 is resolved
-		// https://github.com/kubevirt/containerized-data-importer/issues/335
-		//table.Entry("should unpack .tar.xz", tinyCoreFilePath, false, image.ExtTar, image.ExtXz),
-		table.Entry("should convert .qcow2", tinyCoreFilePath, true, image.ExtQcow2),
-		table.Entry("should convert and unpack .qcow2.gz", tinyCoreFilePath, false, image.ExtQcow2, image.ExtGz),
-		table.Entry("should convert and unpack .qcow2.xz", tinyCoreFilePath, false, image.ExtQcow2, image.ExtXz),
-		table.Entry("should convert and untar .qcow2.tar", tinyCoreFilePath, false, image.ExtQcow2, image.ExtTar),
-		table.Entry("should convert and untar and unpack .qcow2.tar.gz", tinyCoreFilePath, false, image.ExtQcow2, image.ExtTar, image.ExtGz),
-		table.Entry("should convert and untar and unpack .qcow2.tar.xz", tinyCoreFilePath, false, image.ExtQcow2, image.ExtTar, image.ExtXz),
-		table.Entry("should pass through unformatted data", tinyCoreFilePath, false, ""),
-	)
 })
 
 func getImageVirtualSize(outFile string) int64 {

@@ -9,6 +9,7 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -35,7 +36,7 @@ var _ = Describe("Copy from Registry", func() {
 				"",
 				"",
 				controller.SourceRegistry,
-				controller.ContentTypeKubevirt,
+				string(cdiv1.DataVolumeKubeVirt),
 				"1G"})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())

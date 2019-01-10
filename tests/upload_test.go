@@ -8,22 +8,46 @@ import (
 
 	"k8s.io/api/core/v1"
 
+	"github.com/onsi/ginkgo/extensions/table"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
 var _ = Describe("Upload tests", func() {
 
+	var pvc *v1.PersistentVolumeClaim
+	var err error
+
 	f := framework.NewFrameworkOrDie("upload-func-test")
 
-	It("Upload to PVC should succeed", func() {
-
+	BeforeEach(func() {
+		if pvc != nil {
+			Eventually(func() bool {
+				// Make sure the pvc doesn't still exist. The after each should have called delete.
+				_, err := f.FindPVC(pvc.Name)
+				return err != nil
+			}, timeout, pollingInterval).Should(BeTrue())
+		}
 		By("Creating PVC with upload target annotation")
-		pvc, err := f.CreatePVCFromDefinition(utils.UploadPVCDefinition())
+		pvc, err = f.CreatePVCFromDefinition(utils.UploadPVCDefinition())
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		By("Delete upload PVC")
+		err = f.DeletePVC(pvc)
 		Expect(err).ToNot(HaveOccurred())
 
+		By("Wait for upload pod to be deleted")
+		deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(deleted).To(BeTrue())
+	})
+
+	table.DescribeTable("should", func(validToken bool) {
+
 		By("Verify that upload server POD running")
-		err = f.WaitTimeoutForPodReady(utils.UploadPodName(pvc), time.Second*20)
+		err := f.WaitTimeoutForPodReady(utils.UploadPodName(pvc), time.Second*20)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify PVC status annotation says running")
@@ -40,6 +64,10 @@ var _ = Describe("Upload tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(token).ToNot(BeEmpty())
 
+		if !validToken {
+			token = "abc"
+		}
+
 		By("Do upload")
 		err = utils.UploadImageFromNode(f.K8sClient, f.GoCLIPath, token)
 		Expect(err).ToNot(HaveOccurred())
@@ -47,17 +75,18 @@ var _ = Describe("Upload tests", func() {
 		err = f.WaitForPersistentVolumeClaimPhase(v1.ClaimBound, pvc.Name)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Verify content")
-		same := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5)
-		Expect(same).To(BeTrue())
-
-		By("Delete upload PVC")
-		err = f.DeletePVC(pvc)
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Wait for upload pod to be deleted")
-		deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(deleted).To(BeTrue())
-	})
+		if !validToken {
+			By("Get an error while verifying content")
+			_, err = f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5)
+			Expect(err).To(HaveOccurred())
+		} else {
+			By("Verify content")
+			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(same).To(BeTrue())
+		}
+	},
+		table.Entry("succeed given a valid token", true),
+		table.Entry("succeed given an invalid token", false),
+	)
 })
