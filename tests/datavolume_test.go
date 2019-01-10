@@ -48,20 +48,21 @@ var _ = Describe("DataVolume tests", func() {
 		table.DescribeTable("should", func(name, command, url, dataVolumeName, eventReason string, phase cdiv1.DataVolumePhase) {
 			var dataVolume *cdiv1.DataVolume
 			switch name {
-			case "import":
+			case "import-http":
 				dataVolume = utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
 			case "blank":
 				dataVolume = utils.NewDataVolumeForBlankRawImage(dataVolumeName, "1Gi")
 			case "upload":
 				dataVolume = utils.NewDataVolumeForUpload(dataVolumeName, "1Gi")
-
 			case "clone":
 				sourcePVCName := fmt.Sprintf("%s-src-pvc", dataVolumeName)
 				sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
 				sourcePvc = f.CreateAndPopulateSourcePVC(sourcePVCName, sourcePodFillerName, command)
 
-				By(fmt.Sprintf("creating a new target PVC (databolume) to clone %s", sourcePvc.Name))
+				By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
 				dataVolume = utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)
+			case "import-registry":
+				dataVolume = utils.NewDataVolumeWithRegistryImport(dataVolumeName, "1Gi", url)
 			}
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
@@ -99,12 +100,13 @@ var _ = Describe("DataVolume tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 		},
-			table.Entry("succeed creating import dv with given valid url", "import", "", utils.TinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("fail creating import dv due to invalid DNS entry", "import", "", "http://i-made-this-up.kube-system/tinyCore.iso", "dv-phase-test-2", controller.ImportFailed, cdiv1.Failed),
-			table.Entry("fail creating import dv due to file not found", "import", "", utils.TinyCoreIsoURL+"not.real.file", "dv-phase-test-3", controller.ImportFailed, cdiv1.Failed),
+			table.Entry("succeed creating import dv with given valid url", "import-http", "", utils.TinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("fail creating import dv due to invalid DNS entry", "import-http", "", "http://i-made-this-up.kube-system/tinyCore.iso", "dv-phase-test-2", controller.ImportFailed, cdiv1.Failed),
+			table.Entry("fail creating import dv due to file not found", "import-http", "", utils.TinyCoreIsoURL+"not.real.file", "dv-phase-test-3", controller.ImportFailed, cdiv1.Failed),
 			table.Entry("succeed creating clone dv", "clone", fillCommand, "", "dv-clone-test-1", controller.CloneSucceeded, cdiv1.Succeeded),
 			table.Entry("succeed creating blank image dv", "blank", "", "", "blank-image-dv", controller.ImportSucceeded, cdiv1.Succeeded),
 			table.Entry("succeed creating upload dv", "upload", "", "", "upload-dv", controller.UploadReady, cdiv1.Succeeded),
+			table.Entry("succeed creating import dv with given valid registry url", "import-registry", "", utils.TinyCoreIsoRegistryURL, "dv-phase-test-4", controller.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
 

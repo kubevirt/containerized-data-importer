@@ -24,6 +24,8 @@ const (
 const (
 	// TinyCoreIsoURL provides a test url for the tineyCore iso image
 	TinyCoreIsoURL = "http://cdi-file-host.kube-system/tinyCore.iso"
+	// TinyCoreIsoRegistryURL provides a test url for the tineyCore iso image stored in docker registry
+	TinyCoreIsoRegistryURL = "docker://cdi-docker-registry-host.kube-system/tinycore.qcow2"
 )
 
 // CreateDataVolumeFromDefinition is used by tests to create a testable Data Volume
@@ -158,6 +160,30 @@ func NewDataVolumeForImageCloning(dataVolumeName, size string, namespace, pvcNam
 				PVC: &cdiv1.DataVolumeSourcePVC{
 					Namespace: namespace,
 					Name:      pvcName,
+				},
+			},
+			PVC: &k8sv1.PersistentVolumeClaimSpec{
+				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+}
+
+// NewDataVolumeWithRegistryImport initializes a DataVolume struct with registry annotations
+func NewDataVolumeWithRegistryImport(dataVolumeName string, size string, registryURL string) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dataVolumeName,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{
+				Registry: &cdiv1.DataVolumeSourceRegistry{
+					URL: registryURL,
 				},
 			},
 			PVC: &k8sv1.PersistentVolumeClaimSpec{
