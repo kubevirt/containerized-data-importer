@@ -32,7 +32,7 @@ func checkLogForRegEx(regEx *regexp.Regexp, log string) bool {
 	return len(matches) == 1
 }
 
-var _ = Describe("[rfe_id:1250, crit:high, vendor:cnv-qe@redhat.com, level:component]Leader election tests", func() {
+var _ = Describe("[rfe_id:1250][crit:high][vendor:cnv-qe@redhat.com][level:component]Leader election tests", func() {
 	var err error
 	var deployment *appsv1.Deployment
 	var leaderPodName string

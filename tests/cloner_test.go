@@ -26,7 +26,7 @@ const (
 	controllerSkipPVCCompleteTimeout = 90 * time.Second
 )
 
-var _ = Describe("[rfe_id:1277, crit:high, vendor:cnv-qe@redhat.com, level:component]Cloner Test Suite", func() {
+var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:component]Cloner Test Suite", func() {
 	f := framework.NewFrameworkOrDie(namespacePrefix)
 
 	var sourcePvc *v1.PersistentVolumeClaim

@@ -20,7 +20,7 @@ const (
 	pvWaitForTime    = 60 * time.Second
 )
 
-var _ = Describe("[rfe_id:1125, crit:high, vendor:cnv-qe@redhat.com, level:component]Local Volume tests", func() {
+var _ = Describe("[rfe_id:1125][crit:high][vendor:cnv-qe@redhat.com][level:component]Local Volume tests", func() {
 
 	f := framework.NewFrameworkOrDie("local-volume-func-test")
 

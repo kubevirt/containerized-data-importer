@@ -22,7 +22,7 @@ const (
 	destinationFile    = "/var/tmp/datavolume_test.yaml"
 )
 
-var _ = Describe("[rfe_id:1130, crit:medium, vendor:cnv-qe@redhat.com, level:component]Validation tests", func() {
+var _ = Describe("[rfe_id:1130][crit:medium][vendor:cnv-qe@redhat.com][level:component]Validation tests", func() {
 	f := framework.NewFrameworkOrDie("api-validation-func-test")
 
 	Describe("[posneg:negative]Verify DataVolume validation", func() {
@@ -72,8 +72,8 @@ var _ = Describe("[rfe_id:1130, crit:medium, vendor:cnv-qe@redhat.com, level:com
 			},
 				table.Entry("[test_id:1321]fail with http source with invalid url format", "http", invalidURLFormat),
 				table.Entry("[test_id:1322]fail with http source with empty url", "http", ""),
-				table.Entry("[test_id:1323, crit:low]fail with s3 source with invalid url format", "s3", invalidURLFormat),
-				table.Entry("[test_id:1324, crit:low]fail with s3 source with empty url", "s3", ""),
+				table.Entry("[test_id:1323][crit:low]fail with s3 source with invalid url format", "s3", invalidURLFormat),
+				table.Entry("[test_id:1324][crit:low]fail with s3 source with empty url", "s3", ""),
 				table.Entry("[test_id:1325]fail with empty PVC source namespace", "pvc", "", "test-pvc"),
 				table.Entry("[test_id:1326]fail with empty PVC source name", "pvc", "test", ""),
 			)

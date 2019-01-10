@@ -13,7 +13,7 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-var _ = Describe("[rfe_id:138, crit:high, vendor:cnv-qe@redhat.com, level:component]Upload tests", func() {
+var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component]Upload tests", func() {
 
 	var pvc *v1.PersistentVolumeClaim
 	var err error
@@ -87,6 +87,6 @@ var _ = Describe("[rfe_id:138, crit:high, vendor:cnv-qe@redhat.com, level:compon
 		}
 	},
 		table.Entry("[test_id:1368]succeed given a valid token", true),
-		table.Entry("[posneg:negative, test_id:1369]fail given an invalid token", false),
+		table.Entry("[posneg:negative][test_id:1369]fail given an invalid token", false),
 	)
 })

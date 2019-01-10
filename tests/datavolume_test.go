@@ -25,7 +25,7 @@ const (
 	timeout         = 90 * time.Second
 )
 
-var _ = Describe("[vendor:cnv-qe@redhat.com, level:component]DataVolume tests", func() {
+var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", func() {
 
 	var sourcePvc *v1.PersistentVolumeClaim
 
@@ -110,7 +110,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com, level:component]DataVolume tests", 
 		)
 	})
 
-	Describe("[rfe_id:1115, crit:high, posneg:negative]Delete resources of DataVolume with an invalid URL (POD in retry loop)", func() {
+	Describe("[rfe_id:1115][crit:high][posneg:negative]Delete resources of DataVolume with an invalid URL (POD in retry loop)", func() {
 		Context("using invalid import URL for DataVolume", func() {
 			dataVolumeName := "invalid-url-dv"
 			url := "http://nothing.2.c/here.iso"

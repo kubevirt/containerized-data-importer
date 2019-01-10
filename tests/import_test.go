@@ -29,7 +29,7 @@ const (
 	BlankImageMD5                    = "cd573cfaace07e7949bc0c46028904ff"
 )
 
-var _ = Describe("[rfe_id:1115, crit:high, vendor:cnv-qe@redhat.com, level:component]Importer Test Suite", func() {
+var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component]Importer Test Suite", func() {
 	var (
 		ns string
 		f  = framework.NewFrameworkOrDie(namespacePrefix)
@@ -98,7 +98,7 @@ var _ = Describe("[rfe_id:1115, crit:high, vendor:cnv-qe@redhat.com, level:compo
 	})
 })
 
-var _ = Describe("[rfe_id:1118, crit:high, vendor:cnv-qe@redhat.com, level:component]Importer Test Suite-prometheus", func() {
+var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:component]Importer Test Suite-prometheus", func() {
 	f := framework.NewFrameworkOrDie(namespacePrefix)
 
 	BeforeEach(func() {
