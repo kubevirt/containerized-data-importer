@@ -17,7 +17,7 @@ limitations under the License.
 package cluster
 
 import (
-	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 )
 
 const (
@@ -32,13 +32,13 @@ func createAPIServerResources(args *FactoryArgs) []Resource {
 	}
 }
 
-func createAPIServerClusterRoleBinding(namespace string) *rbacv1beta1.ClusterRoleBinding {
+func createAPIServerClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
 	return createClusterRoleBinding(apiServerResourceName, apiServerResourceName, apiServerResourceName, namespace)
 }
 
-func createAPIServerClusterRole() *rbacv1beta1.ClusterRole {
+func createAPIServerClusterRole() *rbacv1.ClusterRole {
 	clusterRole := createClusterRole(apiServerResourceName)
-	clusterRole.Rules = []rbacv1beta1.PolicyRule{
+	clusterRole.Rules = []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
 				"admissionregistration.k8s.io",
@@ -82,6 +82,6 @@ func createAPIServerClusterRole() *rbacv1beta1.ClusterRole {
 	return clusterRole
 }
 
-func createAPIServerAuthClusterRoleBinding(namespace string) *rbacv1beta1.ClusterRoleBinding {
+func createAPIServerAuthClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
 	return createClusterRoleBinding("cdi-apiserver-auth-delegator", "system:auth-delegator", apiServerResourceName, namespace)
 }

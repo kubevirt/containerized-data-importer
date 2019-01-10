@@ -19,7 +19,7 @@ package namespaced
 import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -48,13 +48,13 @@ func createAPIServerServiceAccount() *corev1.ServiceAccount {
 	return createServiceAccount(apiServerRessouceName)
 }
 
-func createAPIServerRoleBinding(serviceAccountNamespace string) *rbacv1beta1.RoleBinding {
+func createAPIServerRoleBinding(serviceAccountNamespace string) *rbacv1.RoleBinding {
 	return createRoleBinding(apiServerRessouceName, apiServerRessouceName, apiServerRessouceName, serviceAccountNamespace)
 }
 
-func createAPIServerRole() *rbacv1beta1.Role {
+func createAPIServerRole() *rbacv1.Role {
 	role := createRole(apiServerRessouceName)
-	role.Rules = []rbacv1beta1.PolicyRule{
+	role.Rules = []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
 				"",
@@ -72,7 +72,7 @@ func createAPIServerRole() *rbacv1beta1.Role {
 	return role
 }
 
-func createExtensionAPIServerRoleBinding(serviceAccountNamespace string) *rbacv1beta1.RoleBinding {
+func createExtensionAPIServerRoleBinding(serviceAccountNamespace string) *rbacv1.RoleBinding {
 	roleBinding := createRoleBinding(
 		extensionAPIResourceName,
 		extensionAPIResourceName,
@@ -83,9 +83,9 @@ func createExtensionAPIServerRoleBinding(serviceAccountNamespace string) *rbacv1
 	return roleBinding
 }
 
-func createExtensionAPIServerRole() *rbacv1beta1.Role {
+func createExtensionAPIServerRole() *rbacv1.Role {
 	role := createRole(extensionAPIResourceName)
-	role.Rules = []rbacv1beta1.PolicyRule{
+	role.Rules = []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
 				"",

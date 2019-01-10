@@ -17,7 +17,7 @@ limitations under the License.
 package cluster
 
 import (
-	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 )
 
 const (
@@ -32,13 +32,13 @@ func createControllerResources(args *FactoryArgs) []Resource {
 	}
 }
 
-func createControllerClusterRoleBinding(namespace string) *rbacv1beta1.ClusterRoleBinding {
+func createControllerClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
 	return createClusterRoleBinding(controllerServiceAccountName, controlerClusterRoleName, controllerServiceAccountName, namespace)
 }
 
-func createControllerClusterRole() *rbacv1beta1.ClusterRole {
+func createControllerClusterRole() *rbacv1.ClusterRole {
 	clusterRole := createClusterRole(controlerClusterRoleName)
-	clusterRole.Rules = []rbacv1beta1.PolicyRule{
+	clusterRole.Rules = []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
 				"",

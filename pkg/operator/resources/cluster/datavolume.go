@@ -36,7 +36,7 @@ func createDataVolumeCRD() *extv1beta1.CustomResourceDefinition {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "datavolumes.cdi.kubevirt.io",
 			Labels: map[string]string{
-				"cdikubevirt.io": "",
+				"cdi.kubevirt.io": "",
 			},
 		},
 		Spec: extv1beta1.CustomResourceDefinitionSpec{

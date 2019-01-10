@@ -17,14 +17,14 @@ limitations under the License.
 package cluster
 
 import (
-	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func createClusterRoleBinding(name, roleRef, serviceAccount, serviceAccountNamespace string) *rbacv1beta1.ClusterRoleBinding {
-	return &rbacv1beta1.ClusterRoleBinding{
+func createClusterRoleBinding(name, roleRef, serviceAccount, serviceAccountNamespace string) *rbacv1.ClusterRoleBinding {
+	return &rbacv1.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "rbac.authorization.k8s.io/v1beta1",
+			APIVersion: "rbac.authorization.k8s.io/v1",
 			Kind:       "ClusterRoleBinding",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -33,12 +33,12 @@ func createClusterRoleBinding(name, roleRef, serviceAccount, serviceAccountNames
 				"cdi.kubevirt.io": "",
 			},
 		},
-		RoleRef: rbacv1beta1.RoleRef{
+		RoleRef: rbacv1.RoleRef{
 			Kind:     "ClusterRole",
 			Name:     roleRef,
 			APIGroup: "rbac.authorization.k8s.io",
 		},
-		Subjects: []rbacv1beta1.Subject{
+		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
 				Name:      serviceAccount,
@@ -48,10 +48,10 @@ func createClusterRoleBinding(name, roleRef, serviceAccount, serviceAccountNames
 	}
 }
 
-func createClusterRole(name string) *rbacv1beta1.ClusterRole {
-	return &rbacv1beta1.ClusterRole{
+func createClusterRole(name string) *rbacv1.ClusterRole {
+	return &rbacv1.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "rbac.authorization.k8s.io/v1beta1",
+			APIVersion: "rbac.authorization.k8s.io/v1",
 			Kind:       "ClusterRole",
 		},
 		ObjectMeta: metav1.ObjectMeta{

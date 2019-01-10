@@ -21,7 +21,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -57,22 +57,22 @@ func createServiceAccount(name string) *corev1.ServiceAccount {
 	}
 }
 
-func createRoleBinding(name, roleRef, serviceAccount, serviceAccountNamespace string) *rbacv1beta1.RoleBinding {
-	return &rbacv1beta1.RoleBinding{
+func createRoleBinding(name, roleRef, serviceAccount, serviceAccountNamespace string) *rbacv1.RoleBinding {
+	return &rbacv1.RoleBinding{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "rbac.authorization.k8s.io/v1beta1",
+			APIVersion: "rbac.authorization.k8s.io/v1",
 			Kind:       "RoleBinding",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
 			Labels: withCommonLabels(nil),
 		},
-		RoleRef: rbacv1beta1.RoleRef{
+		RoleRef: rbacv1.RoleRef{
 			Kind:     "Role",
 			Name:     roleRef,
 			APIGroup: "rbac.authorization.k8s.io",
 		},
-		Subjects: []rbacv1beta1.Subject{
+		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
 				Name:      serviceAccount,
@@ -82,10 +82,10 @@ func createRoleBinding(name, roleRef, serviceAccount, serviceAccountNamespace st
 	}
 }
 
-func createRole(name string) *rbacv1beta1.Role {
-	return &rbacv1beta1.Role{
+func createRole(name string) *rbacv1.Role {
+	return &rbacv1.Role{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "rbac.authorization.k8s.io/v1beta1",
+			APIVersion: "rbac.authorization.k8s.io/v1",
 			Kind:       "Role",
 		},
 		ObjectMeta: metav1.ObjectMeta{
