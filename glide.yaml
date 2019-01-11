@@ -30,3 +30,5 @@ import:
   version: ^1.0.0
 - package: sigs.k8s.io/controller-runtime
   version: v0.1.9
+- package: k8s.io/apiextensions-apiserver
+  version: kubernetes-1.12.4
