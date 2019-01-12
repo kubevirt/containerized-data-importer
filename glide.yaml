@@ -32,3 +32,6 @@ import:
   version: v0.1.9
 - package: k8s.io/apiextensions-apiserver
   version: kubernetes-1.12.4
+- package: github.com/kelseyhightower/envconfig
+  version: ^v1.3.0
+  
