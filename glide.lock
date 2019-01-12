@@ -1,5 +1,5 @@
-hash: e0155c8be846dca64d527ca4805bdf6ea796ea8ccc7c19802f408995a7113cab
-updated: 2019-01-09T16:19:14.466534746Z
+hash: d2f7e7fe9fbc0b8e142cf198976dea4f934610257a5dfbceed994c85fb55116e
+updated: 2019-01-10T20:23:15.500206516Z
 imports:
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
@@ -78,6 +78,8 @@ imports:
   version: 9316a62528ac99aaecb4e47eadd6dc8aa6533d58
 - name: github.com/json-iterator/go
   version: f2b4162afba35581b6d4a50d3b8f34e33c144682
+- name: github.com/kelseyhightower/envconfig
+  version: f611eb38b3875cc3bd991ca91c51d06446afa14c
 - name: github.com/mailru/easyjson
   version: 2f5df55504ebc322e4d52d34df6a1f5b503bf26d
   subpackages:
