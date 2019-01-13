@@ -24,9 +24,22 @@ function  ready {
     touch $1
 }
 
+#healthy if registry is accessible and can return the list of images
 function health {
     echo "health"
-    touch $1
+    registry=$registry_host":"$registry_port
+    status=$?
+    curl -k -X GET https://$registry/v2/_catalog &> /dev/null
+    if [ $status -eq 0 ]; then 
+       touch $1
+    else 
+       echo "registry is inaccessible"
+    fi
+}
+
+function imageList {
+    registry=$registry_host":"$registry_port
+    echo curl -k -X GET https://$registry/v2/_catalog
 }
 
 #Convert all images to docker build consumable format
