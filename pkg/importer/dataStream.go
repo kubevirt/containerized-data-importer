@@ -682,80 +682,83 @@ func (d *DataStream) isHTTPQcow2() bool {
 		len(d.Readers) == 2
 }
 
+func (d *DataStream) convertQcow2ToRawStream(dest string) error {
+	glog.V(3).Infoln("Validating qcow2 file")
+	err := qemuOperations.Validate(d.url.String(), "qcow2")
+	if err != nil {
+		return errors.Wrap(err, "Streaming image validation failed")
+	}
+	glog.V(3).Infoln("Doing streaming qcow2 to raw conversion")
+	err = qemuOperations.ConvertQcow2ToRawStream(d.url, dest)
+	if err != nil {
+		return errors.Wrap(err, "Streaming qcow2 to raw conversion failed")
+	}
+
+	return nil
+}
+
+func (d *DataStream) convertQcow2ToRaw(src, dest string) error {
+	glog.V(3).Infoln("Validating qcow2 file")
+	err := qemuOperations.Validate(src, "qcow2")
+	if err != nil {
+		return errors.Wrap(err, "Local image validation failed")
+	}
+
+	//Verify there is enough space in pvc before conversion
+	isEnoughSpace, err := ValidateSpaceConstraint(src, filepath.Dir(dest))
+	if err != nil {
+		return err
+	}
+	if !isEnoughSpace {
+		return errors.Wrap(err, "Local qcow2 to raw conversion failed - there is not enough space for conversion")
+	}
+
+	glog.V(2).Infoln("converting qcow2 image")
+	err = qemuOperations.ConvertQcow2ToRaw(src, dest)
+	if err != nil {
+		return errors.Wrap(err, "Local qcow to raw conversion failed")
+	}
+	return nil
+}
+
 // Copy endpoint to dest based on passed-in reader.
 func (d *DataStream) copy(dest string) error {
 	if d.isHTTPQcow2() {
-		glog.V(3).Infoln("Validating qcow2 file")
-		err := qemuOperations.Validate(d.url.String(), "qcow2")
-		if err != nil {
-			return errors.Wrap(err, "Streaming image validation failed")
-		}
-
-		glog.V(3).Infoln("Doing streaming qcow2 to raw conversion")
-		err = qemuOperations.ConvertQcow2ToRawStream(d.url, dest)
-		if err != nil {
-			return errors.Wrap(err, "Streaming qcow2 to raw conversion failed")
-		}
-		if d.ImageSize != "" {
-			err = ResizeImage(dest, d.ImageSize)
-		}
-		if err != nil {
-			return errors.Wrap(err, "Resize of image failed")
-		}
-		return nil
-	}
-	return copy(d.topReader(), dest, d.qemu, d.ImageSize)
-}
-
-// Copy the file using its Reader (r) to the passed-in destination (`out`).
-func copy(r io.Reader, out string, qemu bool, imageSize string) error {
-	out = filepath.Clean(out)
-	glog.V(2).Infof("copying image file to %q", out)
-	dest := out
-	if qemu {
-		// copy to tmp; qemu conversion will write to passed-in destination
-		dest = randTmpName(out)
-		glog.V(3).Infof("Copy: temp file for qcow2 conversion: %q", dest)
-		defer func(f string) {
-			os.Remove(f)
-		}(dest)
-	}
-	// actual copy
-	err := StreamDataToFile(r, dest)
-	if err != nil {
-		return errors.WithMessage(err, fmt.Sprintf("unable to stream data to file %q", dest))
-	}
-	if qemu {
-		err = qemuOperations.Validate(dest, "qcow2")
-		if err != nil {
-			return errors.Wrap(err, "Local image validation failed")
-		}
-
-		//Verify there is enough space in pvc before conversion
-		isEnoughSpace, err := ValidateSpaceConstraint(dest, filepath.Dir(out))
-
+		err := d.convertQcow2ToRawStream(dest)
 		if err != nil {
 			return err
 		}
-
-		if !isEnoughSpace {
-			return errors.Wrap(err, "Local qcow2 to raw conversion failed - there is not enough space for conversion")
+	} else {
+		dest = filepath.Clean(dest)
+		glog.V(2).Infof("copying image file to %q", dest)
+		tmpDest := dest
+		if d.qemu {
+			// copy to tmp; qemu conversion will write to passed-in destination
+			tmpDest = randTmpName(dest)
+			glog.V(3).Infof("Copy: temp file for qcow2 conversion: %q", tmpDest)
+			defer func(f string) {
+				os.Remove(f)
+			}(tmpDest)
 		}
-
-		glog.V(2).Infoln("converting qcow2 image")
-		err = qemuOperations.ConvertQcow2ToRaw(dest, out)
+		// The actual copy
+		err := StreamDataToFile(d.topReader(), tmpDest)
 		if err != nil {
-			return errors.Wrap(err, "Local qcow to raw conversion failed")
+			return errors.WithMessage(err, fmt.Sprintf("unable to stream data to file %q", dest))
 		}
-		// Set the dest to out, since we just wrote that
-		dest = out
+		if d.qemu {
+			err = d.convertQcow2ToRaw(tmpDest, dest)
+			if err != nil {
+				return err
+			}
+		}
 	}
-	if imageSize != "" {
-		err = ResizeImage(dest, imageSize)
+	if d.ImageSize != "" {
+		err := ResizeImage(dest, d.ImageSize)
+		if err != nil {
+			return errors.Wrap(err, "Resize of image failed")
+		}
 	}
-	if err != nil {
-		return errors.Wrap(err, "Resize of image failed")
-	}
+
 	return nil
 }
 
