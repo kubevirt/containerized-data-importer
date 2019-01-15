@@ -234,3 +234,34 @@ type CDIList struct {
 	// Items provides a list of CDIs
 	Items []CDI `json:"items"`
 }
+
+//CDIConfig provides a user configuration for CDI
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type CDIConfig struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   CDIConfigSpec   `json:"spec"`
+	Status CDIConfigStatus `json:"status,omitempty"`
+}
+
+//CDIConfigSpec defines specification for user configuration
+type CDIConfigSpec struct {
+	UploadProxyURLOverride *string `json:"uploadProxyURLOverride,omitempty"`
+}
+
+//CDIConfigStatus provides
+type CDIConfigStatus struct {
+	UploadProxyURL *string `json:"uploadProxyURL,omitempty"`
+}
+
+//CDIConfigList provides the needed parameters to do request a list of CDIConfigs from the system
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type CDIConfigList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	// Items provides a list of CDIConfigs
+	Items []CDIConfig `json:"items"`
+}
