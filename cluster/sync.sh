@@ -38,6 +38,7 @@ done
 # Install CDI
 ./cluster/kubectl.sh apply -f ./manifests/generated/cdi-operator.yaml
 ./cluster/kubectl.sh apply -f ./manifests/generated/cdi-operator-cr.yaml
+./cluster/kubectl.sh wait cdis.cdi.kubevirt.io/cdi --for=condition=running
 # Start functional test HTTP server.
 ./cluster/kubectl.sh apply -f ./manifests/generated/file-host.yaml
 ./cluster/kubectl.sh apply -f ./manifests/generated/registry-host.yaml

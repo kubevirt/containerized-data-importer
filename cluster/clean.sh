@@ -5,7 +5,15 @@ source ./hack/build/config.sh
 
 echo "Cleaning up ..."
 
+OPERATOR_CR_MANIFEST=./manifests/generated/cdi-operator-cr.yaml
 OPERATOR_MANIFEST=./manifests/generated/cdi-operator.yaml
+
+if [ -f "${OPERATOR_CR_MANIFEST}" ]; then
+    if ./cluster/kubectl.sh get crd cdis.cdi.kubevirt.io ; then
+        ./cluster/kubectl.sh delete --ignore-not-found -f "${OPERATOR_CR_MANIFEST}"
+        ./cluster/kubectl.sh wait cdis.cdi.kubevirt.io/cdi --for=delete | echo "this is fine"
+    fi
+fi
 
 if [ -f "${OPERATOR_MANIFEST}" ]; then
     ./cluster/kubectl.sh delete --ignore-not-found -f "${OPERATOR_MANIFEST}"

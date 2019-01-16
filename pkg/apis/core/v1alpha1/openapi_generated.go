@@ -30,6 +30,7 @@ import (
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.CDI":                      schema_pkg_apis_core_v1alpha1_CDI(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.CDICondition":             schema_pkg_apis_core_v1alpha1_CDICondition(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.CDIList":                  schema_pkg_apis_core_v1alpha1_CDIList(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.CDISpec":                  schema_pkg_apis_core_v1alpha1_CDISpec(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.CDIStatus":                schema_pkg_apis_core_v1alpha1_CDIStatus(ref),
@@ -88,6 +89,55 @@ func schema_pkg_apis_core_v1alpha1_CDI(ref common.ReferenceCallback) common.Open
 		},
 		Dependencies: []string{
 			"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.CDISpec", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.CDIStatus"},
+	}
+}
+
+func schema_pkg_apis_core_v1alpha1_CDICondition(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CDICondition represents a condition of a CDI deployment",
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"lastProbeTime": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"lastTransitionTime": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"type", "status"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 	}
 }
 
@@ -169,6 +219,18 @@ func schema_pkg_apis_core_v1alpha1_CDIStatus(ref common.ReferenceCallback) commo
 							Format: "",
 						},
 					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.CDICondition"),
+									},
+								},
+							},
+						},
+					},
 					"operatorVersion": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
@@ -190,7 +252,8 @@ func schema_pkg_apis_core_v1alpha1_CDIStatus(ref common.ReferenceCallback) commo
 				},
 			},
 		},
-		Dependencies: []string{},
+		Dependencies: []string{
+			"kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.CDICondition"},
 	}
 }
 

@@ -20,10 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
-	"strings"
-	"time"
 
 	"github.com/go-logr/logr"
 
@@ -177,10 +174,7 @@ func (r *ReconcileCDI) reconcileCreate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 
 	logger.Info("ConfigMap created successfully")
 
-	cr.Finalizers = append(cr.Finalizers, finalizerName)
-	cr.Status.OperatorVersion = r.namespacedArgs.DockerTag
-	cr.Status.TargetVersion = r.namespacedArgs.DockerTag
-	if err := r.updateCR(cdiv1alpha1.CDIPhaseDeploying, cr); err != nil {
+	if err := r.crInit(cr); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -190,7 +184,7 @@ func (r *ReconcileCDI) reconcileCreate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 }
 
 func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
-	resources, err := r.getAllResources()
+	resources, err := r.getAllResources(cr)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -252,9 +246,9 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		}
 	}
 
-	if cr.Status.Phase != cdiv1alpha1.CDIPhaseRunning {
+	if cr.Status.Phase != cdiv1alpha1.CDIPhaseDeployed {
 		cr.Status.ObservedVersion = r.namespacedArgs.DockerTag
-		if err = r.updateCR(cdiv1alpha1.CDIPhaseDeployed, cr); err != nil {
+		if err = r.crUpdate(cdiv1alpha1.CDIPhaseDeployed, cr); err != nil {
 			return reconcile.Result{}, err
 		}
 
@@ -284,20 +278,22 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	}
 
 	if cr.Status.Phase != cdiv1alpha1.CDIPhaseDeleting {
-		if err := r.updateCR(cdiv1alpha1.CDIPhaseDeleting, cr); err != nil {
+		if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeleting, cr); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
 
-	// wait until all deployments exited
-	deployments, err := r.getAllDeployments()
+	// delete all deployments
+	deployments, err := r.getAllDeployments(cr)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
 	for _, deployment := range deployments {
-		key := client.ObjectKey{Namespace: deployment.Namespace, Name: deployment.Name}
-		err = r.client.Get(context.TODO(), key, deployment)
+		err = r.client.Delete(context.TODO(), deployment, func(opts *client.DeleteOptions) {
+			p := metav1.DeletePropagationForeground
+			opts.PropagationPolicy = &p
+		})
 		if err != nil {
 			if errors.IsNotFound(err) {
 				continue
@@ -305,8 +301,6 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 
 			return reconcile.Result{}, err
 		}
-
-		return reconcile.Result{Requeue: true, RequeueAfter: time.Second * 2}, nil
 	}
 
 	lo := &client.ListOptions{}
@@ -341,7 +335,7 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 
 	cr.Finalizers = append(cr.Finalizers[:i], cr.Finalizers[i+1:]...)
 
-	if err := r.updateCR(cdiv1alpha1.CDIPhaseDeleted, cr); err != nil {
+	if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeleted, cr); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -351,17 +345,15 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 }
 
 func (r *ReconcileCDI) reconcileError(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
-	if cr.Status.Phase != cdiv1alpha1.CDIPhaseError {
-		if err := r.updateCR(cdiv1alpha1.CDIPhaseError, cr); err != nil {
-			return reconcile.Result{}, err
-		}
+	if err := r.crError(cr); err != nil {
+		return reconcile.Result{}, err
 	}
 
 	return reconcile.Result{}, nil
 }
 
 func (r *ReconcileCDI) checkReady(logger logr.Logger, cr *cdiv1alpha1.CDI) error {
-	deployments, err := r.getAllDeployments()
+	deployments, err := r.getAllDeployments(cr)
 	if err != nil {
 		return err
 	}
@@ -374,24 +366,20 @@ func (r *ReconcileCDI) checkReady(logger logr.Logger, cr *cdiv1alpha1.CDI) error
 		}
 
 		if deployment.Status.Replicas != deployment.Status.ReadyReplicas {
-			return nil
+			if err = r.conditionRemove(cdiv1alpha1.CDIConditionRunning, cr); err != nil {
+				return err
+			}
 		}
+
 	}
 
-	logger.Info("Now entering 'Running' state")
+	logger.Info("CDI is running")
 
-	if cr.Status.Phase != cdiv1alpha1.CDIPhaseRunning {
-		if err := r.updateCR(cdiv1alpha1.CDIPhaseRunning, cr); err != nil {
-			return err
-		}
+	if err = r.conditionUpdate(conditionReady, cr); err != nil {
+		return err
 	}
 
 	return nil
-}
-
-func (r *ReconcileCDI) updateCR(phase cdiv1alpha1.CDIPhase, cr *cdiv1alpha1.CDI) error {
-	cr.Status.Phase = phase
-	return r.client.Update(context.TODO(), cr)
 }
 
 func (r *ReconcileCDI) add(mgr manager.Manager) error {
@@ -410,7 +398,7 @@ func (r *ReconcileCDI) watch(c controller.Controller) error {
 		return err
 	}
 
-	resources, err := r.getAllResources()
+	resources, err := r.getAllResources(nil)
 	if err != nil {
 		return err
 	}
@@ -452,10 +440,10 @@ func (r *ReconcileCDI) createConfigMap(cr *cdiv1alpha1.CDI) error {
 	return nil
 }
 
-func (r *ReconcileCDI) getAllDeployments() ([]*appsv1.Deployment, error) {
+func (r *ReconcileCDI) getAllDeployments(cr *cdiv1alpha1.CDI) ([]*appsv1.Deployment, error) {
 	var result []*appsv1.Deployment
 
-	resources, err := r.getAllResources()
+	resources, err := r.getAllResources(cr)
 	if err != nil {
 		return nil, err
 	}
@@ -470,8 +458,9 @@ func (r *ReconcileCDI) getAllDeployments() ([]*appsv1.Deployment, error) {
 	return result, nil
 }
 
-func (r *ReconcileCDI) getAllResources() ([]runtime.Object, error) {
+func (r *ReconcileCDI) getAllResources(cr *cdiv1alpha1.CDI) ([]runtime.Object, error) {
 	var resources []runtime.Object
+	namespacedArgs := *r.namespacedArgs
 
 	if deployClusterResources() {
 		crs, err := cdicluster.CreateAllResources(r.clusterArgs)
@@ -482,7 +471,12 @@ func (r *ReconcileCDI) getAllResources() ([]runtime.Object, error) {
 		resources = append(resources, crs...)
 	}
 
-	nsrs, err := cdinamespaced.CreateAllResources(r.namespacedArgs)
+	// TODO break this out into a function
+	if cr != nil && cr.Spec.ImagePullPolicy != "" {
+		namespacedArgs.PullPolicy = string(cr.Spec.ImagePullPolicy)
+	}
+
+	nsrs, err := cdinamespaced.CreateAllResources(&namespacedArgs)
 	if err != nil {
 		return nil, err
 	}
@@ -516,32 +510,4 @@ func (r *ReconcileCDI) watchTypes(c controller.Controller, resources []runtime.O
 	}
 
 	return nil
-}
-
-func mergeLabelsAndAnnotations(src, dest metav1.Object) {
-	// allow users to add labels but not change ours
-	for k, v := range src.GetLabels() {
-		if dest.GetLabels() == nil {
-			dest.SetLabels(map[string]string{})
-		}
-		_, exists := dest.GetLabels()[k]
-		if !exists {
-			dest.GetLabels()[k] = v
-		}
-	}
-
-	// same for annotations
-	for k, v := range src.GetAnnotations() {
-		if dest.GetAnnotations() == nil {
-			dest.SetAnnotations(map[string]string{})
-		}
-		_, exists := dest.GetAnnotations()[k]
-		if !exists {
-			dest.GetAnnotations()[k] = v
-		}
-	}
-}
-
-func deployClusterResources() bool {
-	return strings.ToLower(os.Getenv("DEPLOY_CLUSTER_RESOURCES")) != "false"
 }
