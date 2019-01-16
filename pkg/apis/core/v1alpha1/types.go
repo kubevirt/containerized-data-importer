@@ -179,10 +179,11 @@ type CDIPhase string
 
 // CDIStatus defines the status of the CDI installation
 type CDIStatus struct {
-	Phase           CDIPhase `json:"phase,omitempty"`
-	OperatorVersion string   `json:"operatorVersion,omitempty" optional:"true"`
-	TargetVersion   string   `json:"targetVersion,omitempty" optional:"true"`
-	ObservedVersion string   `json:"observedVersion,omitempty" optional:"true"`
+	Phase           CDIPhase       `json:"phase,omitempty"`
+	Conditions      []CDICondition `json:"conditions,omitempty" optional:"true"`
+	OperatorVersion string         `json:"operatorVersion,omitempty" optional:"true"`
+	TargetVersion   string         `json:"targetVersion,omitempty" optional:"true"`
+	ObservedVersion string         `json:"observedVersion,omitempty" optional:"true"`
 }
 
 const (
@@ -192,9 +193,6 @@ const (
 	// CDIPhaseDeployed signals that the CDI resources are successflly deployed
 	CDIPhaseDeployed CDIPhase = "Deployed"
 
-	// CDIPhaseRunning signals that the CDI resources are successflly deployed and healthy
-	CDIPhaseRunning CDIPhase = "Running"
-
 	// CDIPhaseDeleting signals that the CDI resources are being removed
 	CDIPhaseDeleting CDIPhase = "Deleting"
 
@@ -203,6 +201,24 @@ const (
 
 	// CDIPhaseError signals that the CDI deployment is in an error state
 	CDIPhaseError CDIPhase = "Error"
+)
+
+// CDICondition represents a condition of a CDI deployment
+type CDICondition struct {
+	Type               CDIConditionType       `json:"type"`
+	Status             corev1.ConditionStatus `json:"status"`
+	LastProbeTime      metav1.Time            `json:"lastProbeTime,omitempty"`
+	LastTransitionTime metav1.Time            `json:"lastTransitionTime,omitempty"`
+	Reason             string                 `json:"reason,omitempty"`
+	Message            string                 `json:"message,omitempty"`
+}
+
+// CDIConditionType is the type of CDI condition
+type CDIConditionType string
+
+const (
+	// CDIConditionRunning means the CDI deployment is up/ready/healthy
+	CDIConditionRunning CDIConditionType = "Running"
 )
 
 //CDIList provides the needed parameters to do request a list of CDIs from the system
