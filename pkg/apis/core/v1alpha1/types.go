@@ -171,11 +171,39 @@ type CDI struct {
 
 // CDISpec defines our specification for the CDI installation
 type CDISpec struct {
+	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty" valid:"required"`
 }
+
+// CDIPhase is the current phase of the CDI deployment
+type CDIPhase string
 
 // CDIStatus defines the status of the CDI installation
 type CDIStatus struct {
+	Phase           CDIPhase `json:"phase,omitempty"`
+	OperatorVersion string   `json:"operatorVersion,omitempty" optional:"true"`
+	TargetVersion   string   `json:"targetVersion,omitempty" optional:"true"`
+	ObservedVersion string   `json:"observedVersion,omitempty" optional:"true"`
 }
+
+const (
+	// CDIPhaseDeploying signals that the CDI resources are being deployed
+	CDIPhaseDeploying CDIPhase = "Deploying"
+
+	// CDIPhaseDeployed signals that the CDI resources are successflly deployed
+	CDIPhaseDeployed CDIPhase = "Deployed"
+
+	// CDIPhaseRunning signals that the CDI resources are successflly deployed and healthy
+	CDIPhaseRunning CDIPhase = "Running"
+
+	// CDIPhaseDeleting signals that the CDI resources are being removed
+	CDIPhaseDeleting CDIPhase = "Deleting"
+
+	// CDIPhaseDeleted signals that the CDI resources are deleted
+	CDIPhaseDeleted CDIPhase = "Deleted"
+
+	// CDIPhaseError signals that the CDI deployment is in an error state
+	CDIPhaseError CDIPhase = "Error"
+)
 
 //CDIList provides the needed parameters to do request a list of CDIs from the system
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
