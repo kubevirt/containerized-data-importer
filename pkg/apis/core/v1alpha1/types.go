@@ -33,7 +33,7 @@ type DataVolume struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   DataVolumeSpec   `json:"spec"`
-	Status DataVolumeStatus `json:"status"`
+	Status DataVolumeStatus `json:"status,omitempty"`
 }
 
 // DataVolumeSpec defines our specification for a DataVolume type
