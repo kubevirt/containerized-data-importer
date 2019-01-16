@@ -18,6 +18,7 @@ package importer
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -61,16 +62,24 @@ var _ DataStreamInterface = &DataStream{}
 
 var qemuOperations = image.NewQEMUOperations()
 
+//DataContext - allows cleanup of temporary data created by specific import method
+type DataContext interface {
+	Cleanup() error
+}
+
 // DataStream implements the ReadCloser interface
 type DataStream struct {
 	*DataStreamOptions
-	url     *url.URL
-	Readers []reader
-	buf     []byte // holds file headers
-	qemu    bool
-	Size    int64
-	ctx     context.Context
-	cancel  context.CancelFunc
+	url         *url.URL
+	Readers     []reader
+	buf         []byte // holds file headers
+	qemu        bool
+	archived    bool
+	tmpDataPath string
+	Size        int64
+	ctx         context.Context
+	cancel      context.CancelFunc
+	dataCtxt    DataContext
 }
 
 type reader struct {
@@ -82,6 +91,8 @@ type reader struct {
 type DataStreamOptions struct {
 	// Dest is the destination path of the contents of the stream.
 	Dest string
+	// DataDir is the destination path where data is stored
+	DataDir string
 	// Endpoint is the endpoint to get the data from for various Sources.
 	Endpoint string
 	// AccessKey is the access key for the endpoint, can be blank. This needs to be a base64 encoded string.
@@ -121,6 +132,25 @@ var rdrTypM = map[string]int{
 	"stream": rdrStream,
 }
 
+//Data stream helper methods
+func (d *DataStream) isQemuStored() bool {
+	//if it is unarchived qcow file that is already stored
+	//then no copy to tmp is required
+	if d.qemu && d.isStored() && !d.archived {
+		return true
+	}
+	return false
+}
+
+func (d *DataStream) isMoveable() bool {
+	//basically raw file that is already stored
+	return d.isStored() && !d.qemu && !d.archived
+}
+
+func (d *DataStream) isStored() bool {
+	return len(d.tmpDataPath) > 0
+}
+
 // NewDataStream returns a DataStream object after validating the endpoint and constructing the reader/closer chain.
 // Note: the caller must close the `Readers` in reverse order. See Close().
 func NewDataStream(dso *DataStreamOptions) (*DataStream, error) {
@@ -130,6 +160,7 @@ func NewDataStream(dso *DataStreamOptions) (*DataStream, error) {
 func newDataStreamFromStream(stream io.ReadCloser) (*DataStream, error) {
 	return newDataStream(&DataStreamOptions{
 		common.ImporterWritePath,
+		"",
 		"stream://data",
 		"",
 		"",
@@ -146,7 +177,8 @@ func newDataStream(dso *DataStreamOptions, stream io.ReadCloser) (*DataStream, e
 	}
 	var ep *url.URL
 	var err error
-	if dso.Source == controller.SourceHTTP || dso.Source == controller.SourceS3 || dso.Source == controller.SourceGlance {
+	if dso.Source == controller.SourceHTTP || dso.Source == controller.SourceS3 ||
+		dso.Source == controller.SourceGlance || dso.Source == controller.SourceRegistry {
 		ep, err = ParseEndpoint(dso.Endpoint)
 		if err != nil {
 			return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", dso.Endpoint))
@@ -160,6 +192,10 @@ func newDataStream(dso *DataStreamOptions, stream io.ReadCloser) (*DataStream, e
 		buf:               make([]byte, image.MaxExpectedHdrSize),
 		ctx:               ctx,
 		cancel:            cancel,
+		tmpDataPath:       "",
+		qemu:              false,
+		archived:          false,
+		dataCtxt:          nil,
 	}
 
 	// establish readers for endpoint's formats and do initial calc of size of raw endpt
@@ -192,22 +228,33 @@ func (d *DataStream) Close() error {
 	if d.cancel != nil {
 		d.cancel()
 	}
+	if d.dataCtxt != nil {
+		dataCtxtErr := d.dataCtxt.Cleanup()
+		if dataCtxtErr != nil {
+			glog.Errorf(dataCtxtErr.Error(), "DataCtxt cleanup failed")
+		}
+	}
 	return err
 }
 
 // Based on the endpoint scheme, append the scheme-specific reader to the receiver's
 // reader stack.
-func (d *DataStream) dataStreamSelector() (err error) {
+func (d *DataStream) dataStreamSelector() error {
 	var r io.Reader
 	scheme := d.url.Scheme
+	var err error
 	switch scheme {
 	case "s3":
 		r, err = d.s3()
 	case "http", "https":
 		r, err = d.http()
+	case "docker", "oci":
+		r, err = d.registry()
 	default:
+		glog.V(1).Infoln("Error in dataStream Selector - invalid url scheme")
 		return errors.Errorf("invalid url scheme: %q", scheme)
 	}
+
 	if err == nil && r != nil {
 		d.appendReader(rdrTypM[scheme], r)
 	}
@@ -269,6 +316,128 @@ func (d *DataStream) http() (io.ReadCloser, error) {
 	return countingReader, nil
 }
 
+//registryData - temporary data used by import from registry flow
+//is deleted as part of dataStream.Close()
+type registryData struct {
+	dataDir string
+	file    *os.File
+}
+
+func (r registryData) Cleanup() error {
+	glog.V(1).Infof("registryData - deleting all the data")
+	if r.file != nil {
+		r.file.Close()
+	}
+	err := os.RemoveAll(r.dataDir)
+	if err != nil {
+		glog.Errorf(" Failed removing directory ", err.Error())
+	}
+	return nil
+}
+
+const (
+	//ContainerDiskImageDir - Expected disk image location in container image as described in
+	//https://github.com/kubevirt/kubevirt/blob/master/docs/container-register-disks.md
+	ContainerDiskImageDir = "disk"
+	//TempContainerDiskDir - Temporary location for pulled containerImage
+	TempContainerDiskDir = "tmp"
+)
+
+//This import source downloads specified container image from registry location
+//Then it extracts the image to a temporary location and expects an image file to be located under /disk directory
+//If such exists it creates a Reader on it and returns it for further processing
+func (d *DataStream) registry() (io.ReadCloser, error) {
+
+	tmpData := registryData{"", nil}
+	tmpData.dataDir = filepath.Join(d.DataDir, TempContainerDiskDir)
+
+	imageDir := filepath.Join(tmpData.dataDir, ContainerDiskImageDir)
+
+	//1. create temporary directory if does not exist to which all the data will be extracted
+	if _, err := os.Stat(tmpData.dataDir); os.IsNotExist(err) {
+		err := os.Mkdir(tmpData.dataDir, os.ModeDir|os.ModePerm)
+		if err != nil {
+			glog.Errorf("Failed to create temporary directory")
+			return nil, errors.Wrapf(err, fmt.Sprintf("Failed to create tempdirectory %s", tmpData.dataDir))
+		}
+	}
+
+	//cleanup in case of failure
+	cleanup := true
+	defer func() {
+		if cleanup {
+			tmpData.Cleanup()
+		}
+	}()
+
+	//2. copy image from registry to the temporary location
+	glog.V(1).Infof("using skopeo to copy from registry")
+	err := image.CopyRegistryImage(d.Endpoint, tmpData.dataDir, ContainerDiskImageDir, d.AccessKey, d.SecKey)
+	if err != nil {
+		glog.Errorf("Failed to read data from registry")
+		return nil, errors.Wrapf(err, fmt.Sprintf("Failed ro read from registry"))
+	}
+
+	//3. Search for file in /disk directory - if not found - failure
+	imageFile, err := getImageFileName(imageDir)
+	if err != nil {
+		glog.Errorf("Error getting Image file from imageDirectory")
+		return nil, errors.Wrapf(err, fmt.Sprintf("Cannot locate image file"))
+	}
+
+	// 4. If found - Create a reader that will read this file and attach it to the dataStream
+	tmpData.file, err = os.Open(filepath.Join(imageDir, imageFile))
+	if err != nil {
+		glog.Errorf("Failed to open image file")
+		return nil, errors.Wrapf(err, fmt.Sprintf("Fail to create data stream from image file"))
+	}
+
+	//got this far - do not cleanup
+	cleanup = false
+
+	d.tmpDataPath = filepath.Join(imageDir, imageFile)
+	d.dataCtxt = tmpData
+	glog.V(3).Infof("Sucecssfully found file. VM disk image filename is %s", imageFile)
+
+	return ioutil.NopCloser(bufio.NewReader(tmpData.file)), nil
+}
+
+func getImageFileName(dir string) (string, error) {
+
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		glog.Errorf("image directory does not exist")
+		return "", errors.Errorf(fmt.Sprintf("image directory does not exist "))
+	}
+
+	entries, err := ioutil.ReadDir(dir)
+	if err != nil {
+		glog.Errorf("Error reading directory")
+		return "", errors.Wrapf(err, fmt.Sprintf("image file does not exist in image directory"))
+	}
+
+	if len(entries) == 0 {
+		glog.Errorf("image file does not exist in image directory - directory is empty ")
+		return "", errors.Errorf(fmt.Sprintf("image file does not exist in image directory - directory is empty"))
+	}
+
+	fileinfo := entries[len(entries)-1]
+	if fileinfo.IsDir() {
+		glog.Errorf("image file does not exist in image directory contains another directory ")
+		return "", errors.Errorf(fmt.Sprintf("image file does not exist in image directory"))
+	}
+
+	filename := fileinfo.Name()
+
+	if len(strings.TrimSpace(filename)) == 0 {
+		glog.Errorf("image file does not exist in image directory - file has no name ")
+		return "", errors.Errorf(fmt.Sprintf("image file does not exist in image directory"))
+	}
+
+	glog.V(1).Infof("VM disk image filename is %s", filename)
+
+	return filename, nil
+}
+
 func (d *DataStream) pollProgress(reader *util.CountingReader, idleTime, pollInterval time.Duration) {
 	count := reader.Current
 	lastUpdate := time.Now()
@@ -294,24 +463,18 @@ func (d *DataStream) pollProgress(reader *util.CountingReader, idleTime, pollInt
 // CopyData copies the source endpoint (vm image) to the provided destination path.
 func CopyData(dso *DataStreamOptions) error {
 	glog.V(1).Infof("copying %q to %q...\n", dso.Endpoint, dso.Dest)
-	switch dso.Source {
-	case controller.SourceRegistry:
-		glog.V(1).Infof("using skopeo to copy from registry")
-		return image.CopyRegistryImage(dso.Endpoint, dso.Dest, common.DiskImageName, dso.AccessKey, dso.SecKey)
-	default:
-		ds, err := NewDataStream(dso)
-		if err != nil {
-			return errors.Wrap(err, "unable to create data stream")
-		}
-		defer ds.Close()
-		if dso.ContentType == string(cdiv1.DataVolumeArchive) {
-			if err := util.UnArchiveTar(ds.topReader(), dso.Dest); err != nil {
-				return errors.Wrap(err, "unable to untar files from endpoint")
-			}
-			return nil
-		}
-		return ds.copy(dso.Dest)
+	ds, err := NewDataStream(dso)
+	if err != nil {
+		return errors.Wrap(err, "unable to create data stream")
 	}
+	defer ds.Close()
+	if dso.ContentType == string(cdiv1.DataVolumeArchive) {
+		if err := util.UnArchiveTar(ds.topReader(), dso.Dest); err != nil {
+			return errors.Wrap(err, "unable to untar files from endpoint")
+		}
+		return nil
+	}
+	return ds.copy(dso.Dest)
 }
 
 // SaveStream reads from a stream and saves data to dest
@@ -395,6 +558,7 @@ func (d *DataStream) constructReaders(stream io.ReadCloser) error {
 		// create the scheme-specific source reader and append it to dataStream readers stack
 		err := d.dataStreamSelector()
 		if err != nil {
+			glog.Errorf("failed to construct dataStream from endpoint")
 			return errors.WithMessage(err, "could not get data reader")
 		}
 	} else {
@@ -475,13 +639,22 @@ func (d *DataStream) fileFormatSelector(hdr *image.Header) (err error) {
 	switch fFmt {
 	case "gz":
 		r, d.Size, err = d.gzReader()
+		if err != nil {
+			d.archived = true
+		}
 	case "qcow2":
 		r, d.Size, err = d.qcow2NopReader(hdr)
 		d.qemu = true
 	case "tar":
 		r, d.Size, err = d.tarReader()
+		if err != nil {
+			d.archived = true
+		}
 	case "xz":
 		r, d.Size, err = d.xzReader()
+		if err != nil {
+			d.archived = true
+		}
 	default:
 		return errors.Errorf("mismatch between supported file formats and this header type: %q", fFmt)
 	}
@@ -737,9 +910,9 @@ func (d *DataStream) convertQcow2ToRaw(src, dest string) error {
 }
 
 // Copy endpoint to dest based on passed-in reader.
-func (d *DataStream) copy(dest string) error {
+func (d *DataStream) copy(dest string) (err error) {
 	if d.isHTTPQcow2() {
-		err := d.convertQcow2ToRawStream(dest)
+		err = d.convertQcow2ToRawStream(dest)
 		if err != nil {
 			return err
 		}
@@ -747,21 +920,39 @@ func (d *DataStream) copy(dest string) error {
 		dest = filepath.Clean(dest)
 		glog.V(2).Infof("copying image file to %q", dest)
 		tmpDest := dest
-		if d.qemu {
-			// copy to tmp; qemu conversion will write to passed-in destination
-			tmpDest = randTmpName(dest)
-			glog.V(3).Infof("Copy: temp file for qcow2 conversion: %q", tmpDest)
-			defer func(f string) {
-				os.Remove(f)
-			}(tmpDest)
+		if !d.isQemuStored() {
+			//it is either not qemu or not stored
+			if d.qemu {
+				// copy to tmp; qemu conversion will write to passed-in destination
+				tmpDest = randTmpName(dest)
+				glog.V(3).Infof("Copy: temp file for qcow2 conversion: %q", tmpDest)
+				defer func(f string) {
+					os.Remove(f)
+				}(tmpDest)
+			}
+			if d.isMoveable() {
+				glog.V(3).Infof("Moving already stored raw from %s to %s", d.tmpDataPath, tmpDest)
+				err = MoveFile(d.tmpDataPath, tmpDest)
+				if err != nil {
+					glog.V(3).Infof("Failing back to copying stored raw from %s to %s", d.tmpDataPath, tmpDest)
+					//Failback to copy since move failed
+					err = StreamDataToFile(d.topReader(), tmpDest)
+				}
+			} else {
+				glog.V(3).Infof("Streaming data of non Movble file to %s", tmpDest)
+				err = StreamDataToFile(d.topReader(), tmpDest)
+			}
+			if err != nil {
+				return errors.WithMessage(err, fmt.Sprintf("unable to stream data to file %q", dest))
+			}
+		} else {
+			//It is a stored qemu file - taking a location where it is stored
+			glog.V(3).Infof("Streaming file to %s", tmpDest)
+			tmpDest = d.tmpDataPath
 		}
 		// The actual copy
-		err := StreamDataToFile(d.topReader(), tmpDest)
-		if err != nil {
-			return errors.WithMessage(err, fmt.Sprintf("unable to stream data to file %q", dest))
-		}
 		if d.qemu {
-			err = d.convertQcow2ToRaw(tmpDest, dest)
+			err := d.convertQcow2ToRaw(tmpDest, dest)
 			if err != nil {
 				return err
 			}

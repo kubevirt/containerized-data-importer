@@ -36,10 +36,7 @@ func main() {
 	ft := &formatTable{
 		[]string{""},
 		[]string{".tar"},
-		[]string{".gz"},
-		[]string{".xz"},
 		[]string{".tar", ".gz"},
-		[]string{".tar", ".xz"},
 		[]string{".qcow2"},
 	}
 

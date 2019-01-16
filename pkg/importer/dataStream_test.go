@@ -116,6 +116,7 @@ var _ = Describe("Data Stream", func() {
 		By(fmt.Sprintf("Creating new datastream for %s", image))
 		ds, err := NewDataStream(&DataStreamOptions{
 			dest,
+			"",
 			image,
 			accessKeyID,
 			secretKey,
@@ -153,6 +154,7 @@ var _ = Describe("Data Stream", func() {
 		By(fmt.Sprintf("Creating new datastream for %s", ts.URL+"/"+tinyCoreFileName))
 		ds, err := NewDataStream(&DataStreamOptions{
 			common.ImporterWritePath,
+			"",
 			ts.URL + "/" + tinyCoreFileName,
 			"",
 			"",
@@ -174,6 +176,7 @@ var _ = Describe("Data Stream", func() {
 		By(fmt.Sprintf("Creating new datastream for %s", ep+"/"+image))
 		ds, err := NewDataStream(&DataStreamOptions{
 			common.ImporterWritePath,
+			"",
 			ep + "/" + image,
 			"",
 			"",
@@ -208,6 +211,7 @@ var _ = Describe("Data Stream", func() {
 		By(fmt.Sprintf("Creating new datastream to %s", tempTestServer.URL+"/"+filepath.Base(filename)))
 		ds, err := NewDataStream(&DataStreamOptions{
 			dest,
+			"",
 			tempTestServer.URL + "/" + filepath.Base(filename),
 			"",
 			"",
@@ -282,6 +286,7 @@ var _ = Describe("Copy", func() {
 			By("Copying image")
 			err := CopyData(&DataStreamOptions{
 				dest,
+				"",
 				endpt,
 				"",
 				"",
@@ -329,6 +334,7 @@ var _ = Describe("Copy", func() {
 			By(fmt.Sprintf("Importing %q to %q", tempTestServer.URL, testTarget))
 			err = CopyData(&DataStreamOptions{
 				testTarget,
+				"",
 				tempTestServer.URL + "/" + testBase,
 				"",
 				"",

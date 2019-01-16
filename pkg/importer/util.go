@@ -27,6 +27,16 @@ func ParseEndpoint(endpt string) (*url.URL, error) {
 	return url.Parse(endpt)
 }
 
+//MoveFile - moves file
+func MoveFile(src, dst string) error {
+	glog.Infof("Moving %s to %s", src, dst)
+	err := os.Rename(src, dst)
+	if err != nil {
+		glog.Errorf(err.Error(), "Failed moving %s to %s, are they in the same lun?")
+	}
+	return err
+}
+
 // StreamDataToFile provides a function to stream the specified io.Reader to the specified local file
 func StreamDataToFile(dataReader io.Reader, filePath string) error {
 	// Attempt to create the file with name filePath.  If it exists, fail.

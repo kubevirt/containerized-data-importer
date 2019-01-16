@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
@@ -16,8 +17,14 @@ import (
 )
 
 var (
-	imageFile = filepath.Join(imageDir, "diskimage.tar")
-	imageData = filepath.Join(imageDir, "data")
+	imageFile            = filepath.Join(imageDir, "registry-image.tar")
+	invalidImageFile     = filepath.Join(imageDir, "docker-image.tar")
+	imageData            = filepath.Join(imageDir, "data")
+	tmpData              = filepath.Join(imageData, "tmp")
+	diskImage            = filepath.Join(imageData, "disk.img")
+	validImageURL        = "docker://image.url"
+	invalidDestIndicator = "invalid"
+	invalidImageURL      = "docker://" + invalidDestIndicator
 )
 
 type fakeSkopeoOperations struct {
@@ -25,14 +32,26 @@ type fakeSkopeoOperations struct {
 }
 
 var _ = Describe("Copy from Registry", func() {
-	table.DescribeTable("Image, with import source should", func(dest string, skopeoOperations image.SkopeoOperations, wantErr bool) {
-		defer os.RemoveAll(dest)
+
+	BeforeEach(func() {
+		By("[BeforeEach] Creating working directory")
+		os.Mkdir(imageData, os.ModeDir|os.ModePerm)
+	})
+
+	AfterEach(func() {
+		By("[AfterEach]  deleting working directory")
+		os.RemoveAll(imageData)
+	})
+
+	table.DescribeTable("Image, with import source should", func(destImage string, dataDir string, url string, skopeoOperations image.SkopeoOperations, wantErr bool) {
+		defer os.RemoveAll(destImage)
 		By("Replacing Skopeo Operations")
 		replaceSkopeoOperations(skopeoOperations, func() {
 			By("Copying image")
 			err := CopyData(&DataStreamOptions{
-				dest,
-				"",
+				destImage,
+				dataDir,
+				url,
 				"",
 				"",
 				controller.SourceRegistry,
@@ -47,8 +66,9 @@ var _ = Describe("Copy from Registry", func() {
 			}
 		})
 	},
-		table.Entry("successfully copy registry image", imageData, NewFakeSkopeoOperations(nil), false),
-		table.Entry("expect failure trying to copy non-existing image", "../fake", NewSkopeoAllErrors(), true),
+		table.Entry("successfully copy registry image", diskImage, imageData, validImageURL, NewFakeSkopeoOperations(nil), false),
+		table.Entry("expect failure trying to copy non-existing image", diskImage, "fake", validImageURL, NewSkopeoAllErrors(), true),
+		table.Entry("expect failure trying to copy invalid image", diskImage, imageData, invalidImageURL, NewSkopeoAllErrors(), true),
 	)
 })
 
@@ -70,10 +90,16 @@ func NewFakeSkopeoOperations(e1 error) image.SkopeoOperations {
 	return &fakeSkopeoOperations{e1}
 }
 
-func (o *fakeSkopeoOperations) CopyImage(string, string, string, string) error {
+func (o *fakeSkopeoOperations) CopyImage(url, dest, accessKey, secKey string) error {
 	if o.e1 == nil {
-		if err := util.UnArchiveLocalTar(imageFile, imageDir); err != nil {
-			return errors.New("could not extract layer tar")
+		if strings.Contains(url, invalidDestIndicator) {
+			if err := util.UnArchiveLocalTar(invalidImageFile, tmpData); err != nil {
+				return errors.New("could not extract layer tar")
+			}
+		} else {
+			if err := util.UnArchiveLocalTar(imageFile, tmpData); err != nil {
+				return errors.New("could not extract layer tar")
+			}
 		}
 	}
 	return o.e1
