@@ -143,7 +143,14 @@ func schema_pkg_apis_core_v1alpha1_CDISpec(ref common.ReferenceCallback) common.
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
 				Description: "CDISpec defines our specification for the CDI installation",
-				Properties:  map[string]spec.Schema{},
+				Properties: map[string]spec.Schema{
+					"imagePullPolicy": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
 			},
 		},
 		Dependencies: []string{},
@@ -155,7 +162,32 @@ func schema_pkg_apis_core_v1alpha1_CDIStatus(ref common.ReferenceCallback) commo
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
 				Description: "CDIStatus defines the status of the CDI installation",
-				Properties:  map[string]spec.Schema{},
+				Properties: map[string]spec.Schema{
+					"phase": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"operatorVersion": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"targetVersion": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"observedVersion": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
 			},
 		},
 		Dependencies: []string{},

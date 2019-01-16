@@ -30,7 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
 
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	"kubevirt.io/containerized-data-importer/pkg/operator"
+	"kubevirt.io/containerized-data-importer/pkg/operator/controller"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -87,7 +87,7 @@ func main() {
 	}
 
 	// Setup the controller
-	if err := operator.Add(mgr); err != nil {
+	if err := controller.Add(mgr); err != nil {
 		log.Error(err, "")
 		os.Exit(1)
 	}

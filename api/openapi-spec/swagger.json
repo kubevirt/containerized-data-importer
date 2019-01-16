@@ -2374,10 +2374,29 @@
     }
    },
    "v1alpha1.CDISpec": {
-    "description": "CDISpec defines our specification for the CDI installation"
+    "description": "CDISpec defines our specification for the CDI installation",
+    "properties": {
+     "imagePullPolicy": {
+      "type": "string"
+     }
+    }
    },
    "v1alpha1.CDIStatus": {
-    "description": "CDIStatus defines the status of the CDI installation"
+    "description": "CDIStatus defines the status of the CDI installation",
+    "properties": {
+     "observedVersion": {
+      "type": "string"
+     },
+     "operatorVersion": {
+      "type": "string"
+     },
+     "phase": {
+      "type": "string"
+     },
+     "targetVersion": {
+      "type": "string"
+     }
+    }
    },
    "v1alpha1.DataVolume": {
     "description": "DataVolume provides a representation of our data volume\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",

@@ -1404,7 +1404,7 @@ func createUploadPod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
 				"service":         name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
-				MakeOwnerReference(pvc),
+				MakePVCOwnerReference(pvc),
 			},
 		},
 		Spec: v1.PodSpec{
