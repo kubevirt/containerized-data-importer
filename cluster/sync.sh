@@ -38,12 +38,7 @@ done
 # Install CDI
 ./cluster/kubectl.sh apply -f ./manifests/generated/cdi-operator.yaml
 ./cluster/kubectl.sh apply -f ./manifests/generated/cdi-operator-cr.yaml
-./cluster/kubectl.sh wait cdis.cdi.kubevirt.io/cdi --for=condition=running
+./cluster/kubectl.sh wait cdis.cdi.kubevirt.io/cdi --for=condition=running --timeout=120s
 # Start functional test HTTP server.
 ./cluster/kubectl.sh apply -f ./manifests/generated/file-host.yaml
 ./cluster/kubectl.sh apply -f ./manifests/generated/registry-host.yaml
-
-# In order to make the cloner work in open shift, we need to give the cdi-sa Service Account privileged rights.
-if [[ $(getClusterType) == $OPENSHIFT_IMAGE ]]; then
-    ./cluster/kubectl.sh adm policy add-scc-to-user privileged -z cdi-sa -n ${CDI_NAMESPACE}
-fi

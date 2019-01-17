@@ -34,4 +34,5 @@ import:
   version: kubernetes-1.12.4
 - package: github.com/kelseyhightower/envconfig
   version: ^v1.3.0
-  
+- package: github.com/openshift/api
+  version: release-3.11
