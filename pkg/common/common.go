@@ -84,6 +84,9 @@ const (
 	// UploadServerServiceLabel is the label selector for upload server services
 	UploadServerServiceLabel = "service"
 
+	// ConfigName is the name of default CDI Config
+	ConfigName = "config"
+
 	// OwnerUID provides the UID of the owner entity (either PVC or DV)
 	OwnerUID = "OWNER_UID"
 
