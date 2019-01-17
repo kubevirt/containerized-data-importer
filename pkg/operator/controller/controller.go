@@ -184,6 +184,10 @@ func (r *ReconcileCDI) reconcileCreate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 }
 
 func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
+	if err := r.syncPrivilegedAccounts(logger, cr, true); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	resources, err := r.getAllResources(cr)
 	if err != nil {
 		return reconcile.Result{}, err
@@ -333,6 +337,10 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		}
 	}
 
+	if err = r.syncPrivilegedAccounts(logger, cr, false); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	cr.Finalizers = append(cr.Finalizers[:i], cr.Finalizers[i+1:]...)
 
 	if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeleted, cr); err != nil {
@@ -369,6 +377,8 @@ func (r *ReconcileCDI) checkReady(logger logr.Logger, cr *cdiv1alpha1.CDI) error
 			if err = r.conditionRemove(cdiv1alpha1.CDIConditionRunning, cr); err != nil {
 				return err
 			}
+
+			return nil
 		}
 
 	}
@@ -449,8 +459,7 @@ func (r *ReconcileCDI) getAllDeployments(cr *cdiv1alpha1.CDI) ([]*appsv1.Deploym
 	}
 
 	for _, resource := range resources {
-		deployment, ok := resource.(*appsv1.Deployment)
-		if ok {
+		if deployment, ok := resource.(*appsv1.Deployment); ok {
 			result = append(result, deployment)
 		}
 	}
@@ -458,9 +467,16 @@ func (r *ReconcileCDI) getAllDeployments(cr *cdiv1alpha1.CDI) ([]*appsv1.Deploym
 	return result, nil
 }
 
+func (r *ReconcileCDI) getNamespacedArgs(cr *cdiv1alpha1.CDI) *cdinamespaced.FactoryArgs {
+	result := *r.namespacedArgs
+	if cr != nil && cr.Spec.ImagePullPolicy != "" {
+		result.PullPolicy = string(cr.Spec.ImagePullPolicy)
+	}
+	return &result
+}
+
 func (r *ReconcileCDI) getAllResources(cr *cdiv1alpha1.CDI) ([]runtime.Object, error) {
 	var resources []runtime.Object
-	namespacedArgs := *r.namespacedArgs
 
 	if deployClusterResources() {
 		crs, err := cdicluster.CreateAllResources(r.clusterArgs)
@@ -471,12 +487,7 @@ func (r *ReconcileCDI) getAllResources(cr *cdiv1alpha1.CDI) ([]runtime.Object, e
 		resources = append(resources, crs...)
 	}
 
-	// TODO break this out into a function
-	if cr != nil && cr.Spec.ImagePullPolicy != "" {
-		namespacedArgs.PullPolicy = string(cr.Spec.ImagePullPolicy)
-	}
-
-	nsrs, err := cdinamespaced.CreateAllResources(&namespacedArgs)
+	nsrs, err := cdinamespaced.CreateAllResources(r.getNamespacedArgs(cr))
 	if err != nil {
 		return nil, err
 	}

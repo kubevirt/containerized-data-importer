@@ -31,7 +31,14 @@ import (
 const (
 	controllerServiceAccount = "cdi-sa"
 	prometheusLabel          = common.PrometheusLabel
+	privilegedAccountPrefix  = "system:serviceaccount"
 )
+
+func getControllerPrivilegedAccounts(args *FactoryArgs) []string {
+	return []string{
+		fmt.Sprintf("%s:%s:%s", privilegedAccountPrefix, args.Namespace, controllerServiceAccount),
+	}
+}
 
 func createControllerResources(args *FactoryArgs) []runtime.Object {
 	return []runtime.Object{

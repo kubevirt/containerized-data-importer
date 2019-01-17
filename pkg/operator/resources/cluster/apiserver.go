@@ -79,6 +79,17 @@ func createAPIServerClusterRole() *rbacv1.ClusterRole {
 				"list",
 			},
 		},
+		{
+			APIGroups: []string{
+				"cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"*",
+			},
+			Verbs: []string{
+				"*",
+			},
+		},
 	}
 	return clusterRole
 }
