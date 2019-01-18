@@ -85,6 +85,8 @@ var _ = Describe("[rfe_id:1250][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	})
 
 	It("[test_id:1365]Scale controller deployment", func() {
+		Skip("Does not work with operator")
+
 		numReplicas := int32(2)
 		deployment.Spec.Replicas = &numReplicas
 
