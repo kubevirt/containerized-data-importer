@@ -79,7 +79,7 @@ func getAPIServerConfigMap(t *testing.T) *v1.ConfigMap {
 	return &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "extension-apiserver-authentication",
-			Namespace: "cdi",
+			Namespace: "kube-system",
 		},
 		Data: map[string]string{
 			"client-ca-file":                     "bunchofbytes",
@@ -423,11 +423,11 @@ func TestShouldGenerateCertsAndKeyFirstRun(t *testing.T) {
 }
 
 func TestCreateAPIService(t *testing.T) {
-	kubeobjects := []runtime.Object{}
-
-	aggregatorClient := aggregatorapifake.NewSimpleClientset(kubeobjects...)
+	client := k8sfake.NewSimpleClientset()
+	aggregatorClient := aggregatorapifake.NewSimpleClientset()
 
 	app := &cdiAPIApp{
+		client:           client,
 		aggregatorClient: aggregatorClient,
 		signingCertBytes: []byte("data"),
 	}
@@ -451,9 +451,11 @@ func TestUpdateAPIService(t *testing.T) {
 	kubeobjects := []runtime.Object{}
 	kubeobjects = append(kubeobjects, service)
 
+	client := k8sfake.NewSimpleClientset()
 	aggregatorClient := aggregatorapifake.NewSimpleClientset(kubeobjects...)
 
 	app := &cdiAPIApp{
+		client:           client,
 		aggregatorClient: aggregatorClient,
 		signingCertBytes: certBytes,
 	}
