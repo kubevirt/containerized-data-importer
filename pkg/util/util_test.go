@@ -11,7 +11,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const pattern = "^[a-zA-Z0-9]+$"
@@ -31,13 +30,13 @@ var _ = Describe("Util", func() {
 		Expect(result).To(Equal(expectedResult))
 	},
 		table.Entry("Valid namespace", filepath.Join(fileDir, "namespace.txt"), "test-namespace"),
-		table.Entry("Invalid file", "doesnotexist", v1.NamespaceSystem),
+		table.Entry("Invalid file", "doesnotexist", "cdi"),
 	)
 })
 
 var _ = Describe("GetNameSpace", func() {
 	It("Report default namespace outside container", func() {
-		Expect(v1.NamespaceSystem).To(Equal(GetNamespace()))
+		Expect("cdi").To(Equal(GetNamespace()))
 	})
 })
 
