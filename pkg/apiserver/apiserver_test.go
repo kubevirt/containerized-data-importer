@@ -339,7 +339,7 @@ func TestNewCdiAPIServer(t *testing.T) {
 
 	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer)
 	if err != nil {
-		t.Errorf("Createion upload api server creation failed: %+v", err)
+		t.Errorf("Upload api server creation failed: %+v", err)
 	}
 
 	app := server.(*cdiAPIApp)
