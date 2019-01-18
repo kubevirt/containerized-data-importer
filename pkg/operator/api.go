@@ -19,6 +19,9 @@ package operator
 import (
 	"fmt"
 
+	// use glog her because all callers currently using that
+	"github.com/golang/glog"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -31,7 +34,8 @@ func SetOwner(client kubernetes.Interface, object metav1.Object) error {
 	namespace := util.GetNamespace()
 	configMap, err := client.CoreV1().ConfigMaps(namespace).Get(controller.ConfigMapName, metav1.GetOptions{})
 	if err != nil {
-		return err
+		glog.Warning("ConfigMap %s does not exist, so not assigning owner", controller.ConfigMapName)
+		return nil
 	}
 
 	configMapOwner := getController(configMap.GetOwnerReferences())
