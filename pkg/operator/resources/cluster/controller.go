@@ -113,6 +113,19 @@ func createControllerClusterRole() *rbacv1.ClusterRole {
 		},
 		{
 			APIGroups: []string{
+				"extensions",
+			},
+			Resources: []string{
+				"ingresses",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
 				"",
 			},
 			Resources: []string{
