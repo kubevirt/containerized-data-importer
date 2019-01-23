@@ -1,7 +1,6 @@
 package importer
 
 import (
-	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -24,30 +23,6 @@ func ParseEndpoint(endpt string) (*url.URL, error) {
 		}
 	}
 	return url.Parse(endpt)
-}
-
-// StreamDataToFile provides a function to stream the specified io.Reader to the specified local file
-func StreamDataToFile(r io.Reader, fileName string) error {
-	var outFile *os.File
-	var err error
-	if util.GetAvailableSpaceBlock(fileName) < 0 {
-		// Attempt to create the file with name filePath.  If it exists, fail.
-		outFile, err = os.OpenFile(fileName, os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.ModePerm)
-	} else {
-		outFile, err = os.OpenFile(fileName, os.O_EXCL|os.O_WRONLY, os.ModePerm)
-	}
-	if err != nil {
-		return errors.Wrapf(err, "could not open file %q", fileName)
-	}
-	defer outFile.Close()
-	klog.V(1).Infof("Writing data...\n")
-	if _, err = io.Copy(outFile, r); err != nil {
-		klog.Errorf("Unable to write file from dataReader: %v\n", err)
-		os.Remove(outFile.Name())
-		return errors.Wrapf(err, "unable to write to file")
-	}
-	err = outFile.Sync()
-	return err
 }
 
 // CleanDir cleans the contents of a directory including its sub directories, but does NOT remove the

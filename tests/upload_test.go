@@ -100,7 +100,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(found).To(BeTrue())
 
 			By("Verify content")
-			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5, false)
+			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
 			fileSize, err := f.RunCommandAndCaptureOutput(pvc, "stat -c \"%s\" /pvc/disk.img")

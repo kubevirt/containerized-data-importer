@@ -110,7 +110,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(found).To(BeTrue())
 
 		By("Verify the image contents")
-		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, BlankImageMD5, false)
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, BlankImageMD5)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
 	})
@@ -282,7 +282,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		}, CompletionTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
 
 		By("Verify content")
-		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", BlockDeviceMD5, true)
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", BlockDeviceMD5)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -59,7 +60,6 @@ func init() {
 func main() {
 	defer klog.Flush()
 	klog.V(1).Infoln("Starting cloner target")
-
 	certsDirectory, err := ioutil.TempDir("", "certsdir")
 	if err != nil {
 		panic(err)
@@ -97,12 +97,20 @@ func main() {
 	// Start the progress update thread.
 	go promReader.timedUpdateProgress()
 
-	err = util.UnArchiveTar(promReader, ".")
+	volumeMode := v1.PersistentVolumeBlock
+	if _, err := os.Stat(common.ImporterWriteBlockPath); os.IsNotExist(err) {
+		volumeMode = v1.PersistentVolumeFilesystem
+	}
+	if volumeMode == v1.PersistentVolumeBlock {
+		err = util.StreamDataToFile(promReader, common.ImporterWriteBlockPath)
+	} else {
+		err = util.UnArchiveTar(promReader, ".")
+	}
+
 	if err != nil {
 		klog.Errorf("%+v", err)
 		os.Exit(1)
 	}
-
 	klog.V(1).Infoln("clone complete")
 }
 
