@@ -99,7 +99,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 		if !validToken {
 			By("Get an error while verifying content")
-			_, err = f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5)
+			_, err = f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5, false)
 			Expect(err).To(HaveOccurred())
 		} else {
 			Eventually(func() bool {
@@ -110,7 +110,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				return true
 			}, 90*time.Second, 2*time.Second).Should(BeFalse())
 			By("Verify content")
-			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5)
+			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5, false)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
 			fileSize, err := f.RunCommandAndCaptureOutput(pvc, "stat -c \"%s\" /pvc/disk.img")

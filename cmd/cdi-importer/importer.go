@@ -18,6 +18,7 @@ import (
 	"os"
 	"strconv"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
@@ -62,16 +63,20 @@ func main() {
 	certDir, _ := util.ParseEnvVar(common.ImporterCertDirVar, false)
 	insecureTLS, _ := strconv.ParseBool(os.Getenv(common.InsecureTLSVar))
 
-	//Registry import currently support only kubevirt content type
-	if contentType != string(cdiv1.DataVolumeKubeVirt) && source == controller.SourceRegistry {
-		klog.Errorf("Unsupported content type %s when importing from registry", contentType)
-		os.Exit(1)
+	volumeMode := v1.PersistentVolumeBlock
+	if _, err := os.Stat(common.ImporterWriteBlockPath); os.IsNotExist(err) {
+		volumeMode = v1.PersistentVolumeFilesystem
 	}
 
 	dest := common.ImporterWritePath
 	if contentType == string(cdiv1.DataVolumeArchive) {
 		dest = common.ImporterVolumePath
 	}
+
+	if volumeMode == v1.PersistentVolumeBlock {
+		dest = common.ImporterWriteBlockPath
+	}
+
 	dataDir := common.ImporterDataDir
 
 	klog.V(1).Infoln("begin import process")
@@ -84,10 +89,11 @@ func main() {
 		Source:             source,
 		ContentType:        contentType,
 		ImageSize:          imageSize,
-		AvailableDestSpace: util.GetAvailableSpace(common.ImporterVolumePath),
+		AvailableDestSpace: util.GetAvailableSpaceByVolumeMode(volumeMode),
 		CertDir:            certDir,
 		InsecureTLS:        insecureTLS,
 		ScratchDataDir:     common.ScratchDataDir,
+		VolumeMode:         volumeMode,
 	}
 
 	if source == controller.SourceNone && contentType == string(cdiv1.DataVolumeKubeVirt) {
@@ -103,7 +109,6 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		klog.V(1).Infoln("begin import process")
 		err = importer.CopyData(dso)
 		if err != nil {
 			klog.Errorf("%+v", err)

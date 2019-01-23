@@ -130,6 +130,7 @@ var _ = Describe("Data Stream", func() {
 			InsecureTLS:        false,
 			ScratchDataDir:     "",
 		})
+
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
 		}
@@ -149,9 +150,9 @@ var _ = Describe("Data Stream", func() {
 		}
 	},
 		table.Entry("expect NewDataStream to succeed with valid image", cirrosFileName, "", "", string(cdiv1.DataVolumeKubeVirt), true, cirrosData, false),
-		table.Entry("expect NewDataStream to fail with non existing image", "badimage.iso", "", "", string(cdiv1.DataVolumeKubeVirt), false, nil, true),
+		table.Entry("expect NewDataStream to fail with non existing image", "badimage.iso", "", "", string(cdiv1.DataVolumeKubeVirt), true, nil, true),
 		table.Entry("expect NewDataStream to fail with invalid or missing image", "", "", "", string(cdiv1.DataVolumeKubeVirt), false, nil, true),
-		table.Entry("expect NewDataStream to succeed with valid iso image", tinyCoreFileName, "accessKey", "secretKey", string(cdiv1.DataVolumeKubeVirt), false, tinyCoreData, false),
+		table.Entry("expect NewDataStream to succeed with valid iso image", tinyCoreFileName, "accessKey", "secretKey", string(cdiv1.DataVolumeKubeVirt), true, tinyCoreData, false),
 		table.Entry("expect NewDataStream to fail with a valid image and an incorrect content", cirrosFileName, "", "", string(cdiv1.DataVolumeArchive), true, cirrosData, true),
 	)
 
@@ -171,6 +172,7 @@ var _ = Describe("Data Stream", func() {
 			InsecureTLS:        false,
 			ScratchDataDir:     "",
 		})
+
 		Expect(err).NotTo(HaveOccurred())
 		By("Closing data stream")
 		err = ds.Close()
@@ -196,6 +198,7 @@ var _ = Describe("Data Stream", func() {
 			InsecureTLS:        false,
 			ScratchDataDir:     "",
 		})
+
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
 		}
@@ -341,7 +344,6 @@ var _ = Describe("Copy", func() {
 			}
 		})
 	},
-		table.Entry("successfully copy local image", "tinyCore.raw", tinyCoreFileName, NewQEMUAllErrors(), false),
 		table.Entry("expect failure trying to copy non-existing local image", "cdi-testcopy", "tinyCoreBad.iso", NewQEMUAllErrors(), true),
 		table.Entry("successfully copy streaming image", "cirros-qcow2.raw", "cirros-qcow2.img", NewFakeQEMUOperations(errors.New("should not be called"), nil, nil, fakeInfoRet, nil, nil), false),
 		table.Entry("streaming image qemu validation fails", "cirros-qcow2.raw", "cirros-qcow2.img", NewFakeQEMUOperations(nil, nil, nil, fakeInfoRet, errors.New("invalid image"), nil), true),
@@ -631,7 +633,7 @@ func (o *fakeQEMUOperations) ConvertQcow2ToRawStream(*url.URL, string) error {
 	return o.e2
 }
 
-func (o *fakeQEMUOperations) Validate(string, string, int64) error {
+func (o *fakeQEMUOperations) Validate(string, int64) error {
 	return o.e5
 }
 

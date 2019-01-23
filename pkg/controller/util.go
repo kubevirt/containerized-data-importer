@@ -143,6 +143,14 @@ func getContentType(pvc *v1.PersistentVolumeClaim) string {
 	return contentType
 }
 
+// returns the volumeMode which determines if the PVC is block PVC or not.
+func getVolumeMode(pvc *v1.PersistentVolumeClaim) v1.PersistentVolumeMode {
+	if pvc.Spec.VolumeMode != nil {
+		return *pvc.Spec.VolumeMode
+	}
+	return v1.PersistentVolumeFilesystem
+}
+
 // returns the name of the secret containing endpoint credentials consumed by the importer pod.
 // A value of "" implies there are no credentials for the endpoint being used. A returned error
 // causes processNextItem() to stop.
@@ -351,13 +359,6 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar *importPod
 		},
 	}
 
-	volumeMounts := []v1.VolumeMount{
-		{
-			Name:      DataVolName,
-			MountPath: common.ImporterDataDir,
-		},
-	}
-
 	if scratchPvcName != nil {
 		volumes = append(volumes, v1.Volume{
 			Name: ScratchVolName,
@@ -367,10 +368,6 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar *importPod
 					ReadOnly:  false,
 				},
 			},
-		})
-		volumeMounts = append(volumeMounts, v1.VolumeMount{
-			Name:      ScratchVolName,
-			MountPath: common.ScratchDataDir,
 		})
 	}
 
@@ -408,7 +405,6 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar *importPod
 					Name:            common.ImporterPodName,
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
-					VolumeMounts:    volumeMounts,
 					Args:            []string{"-v=" + verbose},
 					Ports: []v1.ContainerPort{
 						{
@@ -428,6 +424,20 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar *importPod
 	if len(pvc.OwnerReferences) == 1 {
 		ownerUID = pvc.OwnerReferences[0].UID
 	}
+
+	if getVolumeMode(pvc) == v1.PersistentVolumeBlock {
+		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
+	} else {
+		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts()
+	}
+
+	if scratchPvcName != nil {
+		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, v1.VolumeMount{
+			Name:      ScratchVolName,
+			MountPath: common.ScratchDataDir,
+		})
+	}
+
 	pod.Spec.Containers[0].Env = makeEnv(podEnvVar, ownerUID)
 
 	if podEnvVar.certConfigMap != "" {
@@ -450,8 +460,29 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar *importPod
 		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
 		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
 	}
-
 	return pod
+}
+
+// this is being called for pods using PV with block volume mode
+func addVolumeDevices() []v1.VolumeDevice {
+	volumeDevices := []v1.VolumeDevice{
+		{
+			Name:       DataVolName,
+			DevicePath: common.ImporterWriteBlockPath,
+		},
+	}
+	return volumeDevices
+}
+
+// this is being called for pods using PV with filesystem volume mode
+func addVolumeMounts() []v1.VolumeMount {
+	volumeMounts := []v1.VolumeMount{
+		{
+			Name:      DataVolName,
+			MountPath: common.ImporterDataDir,
+		},
+	}
+	return volumeMounts
 }
 
 // return the Env portion for the importer container.
@@ -611,6 +642,7 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName string, pvc *v1.Per
 						Privileged: &[]bool{true}[0],
 						RunAsUser:  &[]int64{0}[0],
 					},
+
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      ImagePathName,
@@ -733,6 +765,7 @@ func MakeCloneTargetPodSpec(image, pullPolicy, podAffinityNamespace string, pvc 
 						Privileged: &[]bool{true}[0],
 						RunAsUser:  &[]int64{0}[0],
 					},
+
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      ImagePathName,
@@ -1109,7 +1142,6 @@ func createImportEnvVar(client kubernetes.Interface, pvc *v1.PersistentVolumeCla
 	podEnvVar.contentType = getContentType(pvc)
 
 	var err error
-
 	if podEnvVar.source != SourceNone {
 		podEnvVar.ep, err = getEndpoint(pvc)
 		if err != nil {

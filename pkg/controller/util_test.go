@@ -410,6 +410,46 @@ func Test_getSource(t *testing.T) {
 	}
 }
 
+func Test_getVolumeMode(t *testing.T) {
+	type args struct {
+		pvc *v1.PersistentVolumeClaim
+	}
+
+	pvcVolumeModeBlock := createBlockPvc("testPVCVolumeModeBlock", "default", map[string]string{AnnSource: SourceHTTP}, nil)
+	pvcVolumeModeFilesystem := createPvc("testPVCVolumeModeFS", "default", map[string]string{AnnSource: SourceHTTP}, nil)
+	pvcVolumeModeFilesystemDefault := createPvc("testPVCVolumeModeFS", "default", map[string]string{AnnSource: SourceHTTP}, nil)
+
+	tests := []struct {
+		name string
+		args args
+		want corev1.PersistentVolumeMode
+	}{
+		{
+			name: "expected volumeMode to be Block",
+			args: args{pvcVolumeModeBlock},
+			want: corev1.PersistentVolumeBlock,
+		},
+		{
+			name: "expected volumeMode to be Filesystem",
+			args: args{pvcVolumeModeFilesystem},
+			want: corev1.PersistentVolumeFilesystem,
+		},
+		{
+			name: "expected volumeMode to be Filesystem",
+			args: args{pvcVolumeModeFilesystemDefault},
+			want: corev1.PersistentVolumeFilesystem,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getVolumeMode(tt.args.pvc)
+			if got != tt.want {
+				t.Errorf("getVolumeMode() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_getContentType(t *testing.T) {
 	type args struct {
 		pvc *v1.PersistentVolumeClaim
@@ -761,7 +801,7 @@ func TestCreateImporterPod(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "expect pod to be created",
+			name:    "expect pod to be created for PVC with VolumeMode Filesystem",
 			args:    args{k8sfake.NewSimpleClientset(pvc), "test/image", "-v=5", "Always", &importPodEnvVar{"", "", "", "", "1G", "", false}, pvc},
 			want:    MakeImporterPodSpec("test/image", "-v=5", "Always", &importPodEnvVar{"", "", "", "", "1G", "", false}, pvc, nil),
 			wantErr: false,
@@ -789,10 +829,15 @@ func TestMakeImporterPodSpec(t *testing.T) {
 		podEnvVar  *importPodEnvVar
 		pvc        *v1.PersistentVolumeClaim
 	}
-	// create PVC
+	// create PVC with VolumeMode: Filesystem
 	pvc := createPvc("testPVC2", "default", nil, nil)
 	// create POD
 	pod := createPod(pvc, DataVolName, nil)
+
+	// create PVC with VolumeMode: Block
+	pvc1 := createBlockPvc("testPVC2", "default", nil, nil)
+	// create POD
+	pod1 := createPod(pvc1, DataVolName, nil)
 
 	tests := []struct {
 		name    string
@@ -800,9 +845,14 @@ func TestMakeImporterPodSpec(t *testing.T) {
 		wantPod *v1.Pod
 	}{
 		{
-			name:    "expect pod to be created",
+			name:    "expect pod to be created for PVC with VolumeMode: Filesystem",
 			args:    args{"test/myimage", "5", "Always", &importPodEnvVar{"", "", SourceHTTP, string(cdiv1.DataVolumeKubeVirt), "1G", "", false}, pvc},
 			wantPod: pod,
+		},
+		{
+			name:    "expect pod to be created for PVC with VolumeMode: Block",
+			args:    args{"test/myimage", "5", "Always", &importPodEnvVar{"", "", SourceHTTP, string(cdiv1.DataVolumeKubeVirt), "1G", "", false}, pvc1},
+			wantPod: pod1,
 		},
 	}
 	for _, tt := range tests {
@@ -1099,13 +1149,6 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string, scratchPvc *v1.Pers
 		},
 	}
 
-	volumeMounts := []v1.VolumeMount{
-		{
-			Name:      DataVolName,
-			MountPath: common.ImporterDataDir,
-		},
-	}
-
 	if scratchPvc != nil {
 		volumes = append(volumes, v1.Volume{
 			Name: ScratchVolName,
@@ -1115,10 +1158,6 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string, scratchPvc *v1.Pers
 					ReadOnly:  false,
 				},
 			},
-		})
-		volumeMounts = append(volumeMounts, v1.VolumeMount{
-			Name:      ScratchVolName,
-			MountPath: common.ScratchDataDir,
 		})
 	}
 
@@ -1155,7 +1194,6 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string, scratchPvc *v1.Pers
 					Name:            ImporterPodName,
 					Image:           "test/myimage",
 					ImagePullPolicy: v1.PullPolicy("Always"),
-					VolumeMounts:    volumeMounts,
 					Args:            []string{"-v=5"},
 					Ports: []v1.ContainerPort{
 						{
@@ -1175,6 +1213,7 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string, scratchPvc *v1.Pers
 	source := getSource(pvc)
 	contentType := getContentType(pvc)
 	imageSize, _ := getRequestedImageSize(pvc)
+	volumeMode := getVolumeMode(pvc)
 
 	env := []v1.EnvVar{
 		{
@@ -1203,7 +1242,28 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string, scratchPvc *v1.Pers
 		},
 	}
 	pod.Spec.Containers[0].Env = env
+	if volumeMode == v1.PersistentVolumeBlock {
+		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
+
+	} else {
+		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts()
+	}
+
+	if scratchPvc != nil {
+		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, v1.VolumeMount{
+			Name:      ScratchVolName,
+			MountPath: common.ScratchDataDir,
+		})
+	}
+
 	return pod
+}
+
+func createBlockPvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
+	pvcDef := createPvcInStorageClass(name, ns, nil, annotations, labels)
+	volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock)
+	pvcDef.Spec.VolumeMode = &volumeMode
+	return pvcDef
 }
 
 func createPvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
@@ -1333,6 +1393,7 @@ func createEnv(podEnvVar *importPodEnvVar, uid string) []v1.EnvVar {
 			Value: strconv.FormatBool(podEnvVar.insecureTLS),
 		},
 	}
+
 	if podEnvVar.secretName != "" {
 		env = append(env, v1.EnvVar{
 			Name: ImporterAccessKeyID,

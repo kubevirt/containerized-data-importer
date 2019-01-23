@@ -60,7 +60,7 @@ type QEMUOperations interface {
 	ConvertQcow2ToRawStream(*url.URL, string) error
 	Resize(string, resource.Quantity) error
 	Info(string) (*ImgInfo, error)
-	Validate(string, string, int64) error
+	Validate(string, int64) error
 	CreateBlankImage(dest string, size resource.Quantity) error
 }
 
@@ -93,7 +93,7 @@ func NewQEMUOperations() QEMUOperations {
 }
 
 func (o *qemuOperations) ConvertQcow2ToRaw(src, dest string) error {
-	_, err := qemuExecFunction(nil, nil, "qemu-img", "convert", "-p", "-f", "qcow2", "-O", "raw", src, dest)
+	_, err := qemuExecFunction(nil, nil, "qemu-img", "convert", "-p", "-O", "raw", src, dest)
 	if err != nil {
 		os.Remove(dest)
 		return errors.Wrap(err, "could not convert local qcow2 image to raw")
@@ -105,10 +105,10 @@ func (o *qemuOperations) ConvertQcow2ToRaw(src, dest string) error {
 func (o *qemuOperations) ConvertQcow2ToRawStream(url *url.URL, dest string) error {
 	jsonArg := fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", url.Scheme, url, networkTimeoutSecs)
 
-	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", "convert", "-p", "-f", "qcow2", "-O", "raw", jsonArg, dest)
+	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", "convert", "-p", "-O", "raw", jsonArg, dest)
 	if err != nil {
 		os.Remove(dest)
-		return errors.Wrap(err, "could not stream/convert qcow2 image to raw")
+		return errors.Wrap(err, "could not stream/convert qcow2/raw image to raw")
 	}
 
 	return nil
@@ -155,13 +155,13 @@ func (o *qemuOperations) Info(image string) (*ImgInfo, error) {
 	return &info, nil
 }
 
-func (o *qemuOperations) Validate(image, format string, availableSize int64) error {
+func (o *qemuOperations) Validate(image string, availableSize int64) error {
 	info, err := o.Info(image)
 	if err != nil {
 		return err
 	}
 
-	if info.Format != format {
+	if info.Format != "qcow2" && info.Format != "raw" {
 		return errors.Errorf("Invalid format %s for image %s", info.Format, image)
 	}
 
@@ -187,8 +187,8 @@ func ConvertQcow2ToRawStream(url *url.URL, dest string) error {
 }
 
 // Validate does basic validation of a qemu image
-func Validate(image, format string, availableSize int64) error {
-	return qemuIterface.Validate(image, format, availableSize)
+func Validate(image string, availableSize int64) error {
+	return qemuIterface.Validate(image, availableSize)
 }
 
 func reportProgress(line string) {

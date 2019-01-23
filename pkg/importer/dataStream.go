@@ -41,6 +41,8 @@ import (
 	"github.com/ulikunitz/xz"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog"
+
+	v1 "k8s.io/api/core/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -111,6 +113,8 @@ type DataStreamOptions struct {
 	InsecureTLS bool
 	// ScratchDataDir is the path to the scratch space inside the container.
 	ScratchDataDir string
+	// VolumeMode indicates whether the PV we import the disk image to, is a block PV or not
+	VolumeMode v1.PersistentVolumeMode
 }
 
 const (
@@ -190,6 +194,7 @@ func newDataStream(dso *DataStreamOptions, stream io.ReadCloser) (*DataStream, e
 		// at that point, only if ds.size != 0 we know for sure that this is an iso file
 		if ds.Size != 0 {
 			ds.isIsoImage = true
+			ds.qemu = true
 		}
 	}
 	klog.V(3).Infof("NewDataStream: endpoint %q's computed byte size: %d", ep, ds.Size)
@@ -352,7 +357,6 @@ func (d *DataStream) registry() (io.ReadCloser, error) {
 	}
 
 	imageDir := filepath.Join(d.ScratchDataDir, ContainerDiskImageDir)
-
 	//1. copy image from registry to the temporary location
 	klog.V(1).Infof("using skopeo to copy from registry")
 	err := image.CopyRegistryImage(d.Endpoint, d.ScratchDataDir, ContainerDiskImageDir, d.AccessKey, d.SecKey, d.CertDir, d.InsecureTLS)
@@ -445,6 +449,9 @@ func CopyData(dso *DataStreamOptions) error {
 	}
 	defer ds.Close()
 	if dso.ContentType == string(cdiv1.DataVolumeArchive) {
+		if dso.VolumeMode == v1.PersistentVolumeBlock {
+			return errors.Wrap(err, "block pv is not supported for contentType archive")
+		}
 		if err := util.UnArchiveTar(ds.topReader(), dso.Dest); err != nil {
 			return errors.Wrap(err, "unable to untar files from endpoint")
 		}
@@ -864,33 +871,33 @@ func (d *DataStream) calculateTargetSize(dest string) int64 {
 }
 
 func (d *DataStream) convertQcow2ToRawStream(dest string) error {
-	klog.V(3).Infoln("Validating qcow2 file")
+	klog.V(3).Infoln("Validating qcow2/raw file")
 
-	err := qemuOperations.Validate(d.url.String(), "qcow2", d.calculateTargetSize(dest))
+	err := qemuOperations.Validate(d.url.String(), d.calculateTargetSize(dest))
 	if err != nil {
 		return errors.Wrap(err, "Streaming image validation failed")
 	}
-	klog.V(3).Infoln("Doing streaming qcow2 to raw conversion")
+	klog.V(3).Infoln("Doing streaming qcow2/raw to raw conversion")
 	err = qemuOperations.ConvertQcow2ToRawStream(d.url, dest)
 	if err != nil {
-		return errors.Wrap(err, "Streaming qcow2 to raw conversion failed")
+		return errors.Wrap(err, "Conversion failed")
 	}
 
 	return nil
 }
 
 func (d *DataStream) convertQcow2ToRaw(src, dest string) error {
-	klog.V(3).Infoln("Validating qcow2 file")
+	klog.V(3).Infoln("Validating qcow2/raw file")
 	klog.V(3).Infoln(fmt.Sprintf("Available space: %d\n", d.AvailableDestSpace))
-	err := qemuOperations.Validate(src, "qcow2", d.AvailableDestSpace)
+	err := qemuOperations.Validate(src, d.AvailableDestSpace)
 	if err != nil {
 		return errors.Wrap(err, "Local image validation failed")
 	}
 
-	klog.V(2).Infoln("converting qcow2 image")
+	klog.V(2).Infoln("converting qcow2/raw image")
 	err = qemuOperations.ConvertQcow2ToRaw(src, dest)
 	if err != nil {
-		return errors.Wrap(err, "Local qcow to raw conversion failed")
+		return errors.Wrap(err, "Local qcow2/raw to raw conversion failed")
 	}
 	return nil
 }
@@ -932,14 +939,13 @@ func (d *DataStream) copy(dest string) error {
 		}
 	}
 
-	if !d.isIsoImage && d.ImageSize != "" {
+	if !d.isIsoImage && d.ImageSize != "" && d.VolumeMode != v1.PersistentVolumeBlock {
 		klog.V(3).Infoln("Resizing image")
 		err := ResizeImage(dest, d.ImageSize, d.AvailableDestSpace)
 		if err != nil {
 			return errors.Wrap(err, "Resize of image failed")
 		}
 	}
-
 	return nil
 }
 

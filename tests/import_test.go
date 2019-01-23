@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
+	k8sv1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
@@ -30,8 +31,9 @@ const (
 	assertionPollInterval            = 2 * time.Second
 	controllerSkipPVCCompleteTimeout = 90 * time.Second
 	invalidEndpoint                  = "http://gopats.com/who-is-the-goat.iso"
-	BlankImageCompleteTimeout        = 60 * time.Second
+	CompletionTimeout                = 60 * time.Second
 	BlankImageMD5                    = "cd573cfaace07e7949bc0c46028904ff"
+	BlockDeviceMD5                   = "7c55761d39e6428fa27c21d8710a3d19"
 )
 
 var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component]Importer Test Suite", func() {
@@ -108,10 +110,10 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			Expect(err).ToNot(HaveOccurred())
 			Expect(phaseAnnotation).To(BeTrue())
 			return status
-		}, BlankImageCompleteTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
+		}, CompletionTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
 
 		By("Verify the image contents")
-		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, BlankImageMD5)
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, BlankImageMD5, false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
 	})
@@ -223,3 +225,81 @@ func startPrometheusPortForward(f *framework.Framework) (string, *exec.Cmd, erro
 
 	return url, cmd, nil
 }
+
+var _ = Describe("Importer Test Suite-Block_device", func() {
+	f := framework.NewFrameworkOrDie(namespacePrefix)
+	var pv *v1.PersistentVolume
+	var pvscratch *v1.PersistentVolume
+	var storageClass *k8sv1.StorageClass
+	var pod *v1.Pod
+	var err error
+
+	BeforeEach(func() {
+		pod, err = utils.FindPodByPrefix(f.K8sClient, "cdi", "cdi-block-device", "kubevirt.io=cdi-block-device")
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", "cdi"+"/"+"cdi-block-device"))
+
+		nodeName := pod.Spec.NodeName
+
+		By(fmt.Sprintf("Creating storageClass for Block PV"))
+		storageClass, err = f.CreateStorageClassFromDefinition(utils.NewStorageClassForBlockPVDefinition("manual"))
+		Expect(err).ToNot(HaveOccurred())
+
+		By(fmt.Sprintf("Creating Block PV"))
+		pv, err = f.CreatePVFromDefinition(utils.NewBlockPVDefinition("local-volume", "1G", nil, "manual", nodeName))
+		Expect(err).ToNot(HaveOccurred())
+
+		By(fmt.Sprintf("Creating scratch PV"))
+		pvscratch, err = f.CreatePVFromDefinition(utils.NewPVDefinition("local-volume-scratch", "1G", nil, "manual"))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify that PV's phase is Available")
+		err = f.WaitTimeoutForPVReady(pv.Name, 60*time.Second)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify that PV's scratch phase is Available")
+		err = f.WaitTimeoutForPVReady(pvscratch.Name, 60*time.Second)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		err := utils.DeletePV(f.K8sClient, pv)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = utils.DeletePV(f.K8sClient, pvscratch)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = utils.DeleteStorageClass(f.K8sClient, storageClass)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("Should create import pod for block pv", func() {
+		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPNoAuthPort)
+		pvcAnn := map[string]string{
+			controller.AnnEndpoint: httpEp + "/tinyCore.iso",
+		}
+
+		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.iso"))
+
+		pvc, err := f.CreatePVCFromDefinition(utils.NewBlockPVCDefinition(
+			"import-image-to-block-pvc",
+			"1G",
+			pvcAnn,
+			nil,
+			"manual"))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify the pod status is succeeded on the target PVC")
+		Eventually(func() string {
+			status, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodPhase)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(phaseAnnotation).To(BeTrue())
+			return status
+		}, CompletionTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
+
+		By("Verify content")
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", BlockDeviceMD5, true)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(same).To(BeTrue())
+
+	})
+})
