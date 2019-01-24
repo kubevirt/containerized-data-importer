@@ -205,6 +205,114 @@ var _ = Describe("Validating Webhook", func() {
 			resp := admitDVs(ar)
 			Expect(resp.Allowed).To(Equal(false))
 		})
+		It("should accept DataVolume with Blank source and no content type", func() {
+			dataVolume := newBlankDataVolume("blank")
+			dvBytes, _ := json.Marshal(&dataVolume)
+			ar := &v1beta1.AdmissionReview{
+				Request: &v1beta1.AdmissionRequest{
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
+						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: dvBytes,
+					},
+				},
+			}
+
+			resp := admitDVs(ar)
+			Expect(resp.Allowed).To(Equal(true))
+
+		})
+		It("should accept DataVolume with Blank source and kubevirt contentType", func() {
+			dataVolume := newBlankDataVolume("blank")
+			dataVolume.Spec.ContentType = cdicorev1alpha1.DataVolumeKubeVirt
+
+			dvBytes, _ := json.Marshal(&dataVolume)
+			ar := &v1beta1.AdmissionReview{
+				Request: &v1beta1.AdmissionRequest{
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
+						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: dvBytes,
+					},
+				},
+			}
+
+			resp := admitDVs(ar)
+			Expect(resp.Allowed).To(Equal(true))
+
+		})
+		It("should reject DataVolume with Blank source and archive contentType", func() {
+			dataVolume := newBlankDataVolume("blank")
+			dataVolume.Spec.ContentType = cdicorev1alpha1.DataVolumeArchive
+
+			dvBytes, _ := json.Marshal(&dataVolume)
+			ar := &v1beta1.AdmissionReview{
+				Request: &v1beta1.AdmissionRequest{
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
+						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: dvBytes,
+					},
+				},
+			}
+
+			resp := admitDVs(ar)
+			Expect(resp.Allowed).To(Equal(false))
+
+		})
+		It("should reject DataVolume with invalid contentType", func() {
+			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
+			dataVolume.Spec.ContentType = "invalid"
+
+			dvBytes, _ := json.Marshal(&dataVolume)
+			ar := &v1beta1.AdmissionReview{
+				Request: &v1beta1.AdmissionRequest{
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
+						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: dvBytes,
+					},
+				},
+			}
+
+			resp := admitDVs(ar)
+			Expect(resp.Allowed).To(Equal(false))
+
+		})
+		It("should accept DataVolume with archive contentType", func() {
+			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
+			dataVolume.Spec.ContentType = cdicorev1alpha1.DataVolumeArchive
+
+			dvBytes, _ := json.Marshal(&dataVolume)
+			ar := &v1beta1.AdmissionReview{
+				Request: &v1beta1.AdmissionRequest{
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
+						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: dvBytes,
+					},
+				},
+			}
+
+			resp := admitDVs(ar)
+			Expect(resp.Allowed).To(Equal(true))
+
+		})
 	})
 })
 
@@ -222,6 +330,14 @@ func newRegistryDataVolume(name, url string) *cdicorev1alpha1.DataVolume {
 	}
 	pvc := newPVCSpec(5, "M")
 	return newDataVolume(name, registrySource, pvc)
+}
+
+func newBlankDataVolume(name string) *cdicorev1alpha1.DataVolume {
+	blankSource := cdicorev1alpha1.DataVolumeSource{
+		Blank: &cdicorev1alpha1.DataVolumeBlankImage{},
+	}
+	pvc := newPVCSpec(5, "M")
+	return newDataVolume(name, blankSource, pvc)
 }
 
 func newPVCDataVolume(name, pvcNamespace, pvcName string) *cdicorev1alpha1.DataVolume {
