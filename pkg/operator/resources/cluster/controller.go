@@ -164,6 +164,19 @@ func createControllerClusterRole() *rbacv1.ClusterRole {
 		},
 		{
 			APIGroups: []string{
+				"route.openshift.io",
+			},
+			Resources: []string{
+				"routes",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
 				"cdi.kubevirt.io",
 			},
 			Resources: []string{
