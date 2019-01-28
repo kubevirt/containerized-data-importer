@@ -124,6 +124,27 @@ func validateDataVolumeSpec(field *k8sfield.Path, spec *cdicorev1alpha1.DataVolu
 		}
 	}
 
+	// Make sure contentType is either empty (kubevirt), or kubevirt or archive
+	if spec.ContentType != "" && string(spec.ContentType) != string(cdicorev1alpha1.DataVolumeKubeVirt) && string(spec.ContentType) != string(cdicorev1alpha1.DataVolumeArchive) {
+		sourceType = field.Child("contentType").String()
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("ContentType not one of: %s, %s", cdicorev1alpha1.DataVolumeKubeVirt, cdicorev1alpha1.DataVolumeArchive),
+			Field:   sourceType,
+		})
+		return causes
+	}
+
+	if spec.Source.Blank != nil && string(spec.ContentType) == string(cdicorev1alpha1.DataVolumeArchive) {
+		sourceType = field.Child("contentType").String()
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("SourceType cannot be blank and the contentType be archive"),
+			Field:   sourceType,
+		})
+		return causes
+	}
+
 	if spec.Source.PVC != nil && (spec.Source.PVC.Namespace == "" || spec.Source.PVC.Name == "") {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,

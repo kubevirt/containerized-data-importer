@@ -131,6 +131,29 @@ var _ = Describe("[rfe_id:1130][crit:medium][vendor:cnv-qe@redhat.com][level:com
 		})
 	})
 
+	Context("when creating data volumes from manual manifests", func() {
+		table.DescribeTable("with manifests Datavolume should", func(destinationFile string, expectError bool) {
+			By(fmt.Sprint("Verifying kubectl apply"))
+			_, err := RunKubectlCommand(f, "create", "-f", destinationFile, "-n", f.Namespace.Name)
+			if expectError {
+				Expect(err).To(HaveOccurred())
+			} else {
+				Expect(err).ToNot(HaveOccurred())
+			}
+		},
+			table.Entry("fail with blank image source and contentType archive", "manifests/dvBlankArchive.yaml", true),
+			table.Entry("fail with invalid contentType", "manifests/dvInvalidContentType.yaml", true),
+			table.Entry("fail with missing source", "manifests/dvMissingSource.yaml", true),
+			table.Entry("fail with multiple sources", "manifests/dvMultiSource.yaml", true),
+			table.Entry("fail with invalid URL for http source", "manifests/dvInvalidURL.yaml", true),
+			table.Entry("fail with invalid source PVC", "manifests/dvInvalidSourcePVC.yaml", true),
+			table.Entry("succeed with valid source http", "manifests/datavolume.yaml", false),
+			table.Entry("fail with missing PVC spec", "manifests/dvMissingPVCSpec.yaml", true),
+			table.Entry("fail with missing resources spec", "manifests/dvMissingResourcesSpec.yaml", true),
+			table.Entry("fail with 0 size PVC", "manifests/dv0SizePVC.yaml", true),
+		)
+
+	})
 })
 
 func yamlFiletoStruct(fileName string, o *map[string]interface{}) error {
