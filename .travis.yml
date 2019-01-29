@@ -68,11 +68,15 @@ deploy:
   skip_cleanup: true
   file_glob: true
   file:
-  - _out/cmd/cdi-controller/cdi-controller
-  - _out/cmd/cdi-importer/cdi-importer
-  - _out/cmd/cdi-cloner/cloner_startup.sh
-  - manifests/generated/cdi-controller.yaml
-  - manifests/generated/cdi-controller.yaml.j2
+  - _out/cmd/cdi-controller/*
+  - _out/cmd/cdi-importer/*
+  - _out/cmd/cdi-apiserver/*
+  - _out/cmd/cdi-cloner/*
+  - _out/cmd/cdi-operator/*
+  - _out/cmd/cdi-uploadproxy/*
+  - _out/cmd/cdi-uploadserver/*
+  - manifests/generated/*.yaml
+  - manifests/generated/*.yaml.j2
   - manifests/example/*
 - provider: script
   skip_cleanup: true
