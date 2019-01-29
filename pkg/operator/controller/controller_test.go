@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"os"
 	"reflect"
 	"time"
 
@@ -41,6 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	realClient "sigs.k8s.io/controller-runtime/pkg/client"
 	fakeClient "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiviaplha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
@@ -61,6 +63,21 @@ type args struct {
 	reconciler *ReconcileCDI
 }
 
+var (
+	envVars = map[string]string{
+		"DOCKER_REPO":         "kubevirt",
+		"DOCKER_TAG":          version,
+		"CONTROLLER_IMAGE":    "cdi-controller",
+		"IMPORTER_IMAGE":      "cdi-importer",
+		"CLONER_IMAGE":        "cdi-cloner",
+		"UPLOAD_PROXY_IMAGE":  "cdi-uploadproxy",
+		"UPLOAD_SERVER_IMAGE": "cdi-uploadserver",
+		"APISERVER_IMAGE":     "cdi-apiserver",
+		"VERBOSITY":           "1",
+		"PULL_POLICY":         "Always",
+	}
+)
+
 func init() {
 	cdiviaplha1.AddToScheme(scheme.Scheme)
 	extv1beta1.AddToScheme(scheme.Scheme)
@@ -68,6 +85,39 @@ func init() {
 }
 
 var _ = Describe("Controller", func() {
+	Describe("controller runtime bootstrap test", func() {
+		Context("Create manager and controller", func() {
+			BeforeEach(func() {
+				for k, v := range envVars {
+					os.Setenv(k, v)
+				}
+			})
+
+			AfterEach(func() {
+				for k := range envVars {
+					os.Unsetenv(k)
+				}
+			})
+
+			It("should succeed", func() {
+				mgr, err := manager.New(cfg, manager.Options{})
+				Expect(err).ToNot(HaveOccurred())
+
+				err = cdiviaplha1.AddToScheme(mgr.GetScheme())
+				Expect(err).ToNot(HaveOccurred())
+
+				err = extv1beta1.AddToScheme(mgr.GetScheme())
+				Expect(err).ToNot(HaveOccurred())
+
+				err = secv1.Install(mgr.GetScheme())
+				Expect(err).ToNot(HaveOccurred())
+
+				err = Add(mgr)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+	})
+
 	DescribeTable("check can create types", func(obj runtime.Object) {
 		client := createClient(obj)
 
