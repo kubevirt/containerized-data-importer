@@ -96,7 +96,7 @@ var _ reconcile.Reconciler = &ReconcileCDI{}
 
 // ReconcileCDI reconciles a CDI object
 type ReconcileCDI struct {
-	// This client, initialized using mgr.Client() above, is a split client
+	// This Client, initialized using mgr.client() above, is a split Client
 	// that reads objects from the cache and writes to the apiserver
 	client client.Client
 	scheme *runtime.Scheme
@@ -361,6 +361,8 @@ func (r *ReconcileCDI) reconcileError(logger logr.Logger, cr *cdiv1alpha1.CDI) (
 }
 
 func (r *ReconcileCDI) checkReady(logger logr.Logger, cr *cdiv1alpha1.CDI) error {
+	readyCond := conditionReady
+
 	deployments, err := r.getAllDeployments(cr)
 	if err != nil {
 		return err
@@ -373,19 +375,22 @@ func (r *ReconcileCDI) checkReady(logger logr.Logger, cr *cdiv1alpha1.CDI) error
 			return err
 		}
 
-		if deployment.Status.Replicas != deployment.Status.ReadyReplicas {
-			if err = r.conditionRemove(cdiv1alpha1.CDIConditionRunning, cr); err != nil {
-				return err
-			}
+		desiredReplicas := deployment.Spec.Replicas
+		if desiredReplicas == nil {
+			one := int32(1)
+			desiredReplicas = &one
+		}
 
-			return nil
+		if *desiredReplicas != deployment.Status.Replicas ||
+			deployment.Status.Replicas != deployment.Status.ReadyReplicas {
+			readyCond = conditionNotReady
 		}
 
 	}
 
-	logger.Info("CDI is running")
+	logger.Info("CDI Ready check", "Status", readyCond.Status)
 
-	if err = r.conditionUpdate(conditionReady, cr); err != nil {
+	if err = r.conditionUpdate(readyCond, cr); err != nil {
 		return err
 	}
 
