@@ -68,6 +68,16 @@ func secretGetAction(namespace, secretName string) core.Action {
 		secretName)
 }
 
+func cdiConfigGetAction(namespace string) core.Action {
+	return core.NewGetAction(
+		schema.GroupVersionResource{
+			Resource: "configmaps",
+			Version:  "v1",
+		},
+		namespace,
+		"cdi-config")
+}
+
 func checkActions(expected []core.Action, actual []core.Action) {
 	for i, action := range actual {
 		if len(expected) < i+1 {
@@ -141,6 +151,7 @@ var _ = Describe("Create CA", func() {
 
 		actions := []core.Action{}
 		actions = append(actions, secretGetAction(namespace, secret))
+		actions = append(actions, cdiConfigGetAction(namespace))
 		actions = append(actions, tlsSecretCreateAction(namespace, secret, keyPair, nil))
 
 		checkActions(actions, client.Actions())
@@ -199,6 +210,7 @@ var _ = Describe("Create Server Cert", func() {
 
 		actions := []core.Action{}
 		actions = append(actions, secretGetAction(namespace, secret))
+		actions = append(actions, cdiConfigGetAction(namespace))
 		actions = append(actions, tlsSecretCreateAction(namespace, secret, &serverKeyPair.KeyPair, caKeyPair2.Cert))
 
 		checkActions(actions, client.Actions())
@@ -273,6 +285,7 @@ var _ = Describe("Create Client Cert", func() {
 
 		actions := []core.Action{}
 		actions = append(actions, secretGetAction(namespace, secret))
+		actions = append(actions, cdiConfigGetAction(namespace))
 		actions = append(actions, tlsSecretCreateAction(namespace, secret, &clientKeyPair.KeyPair, caKeyPair2.Cert))
 
 		checkActions(actions, client.Actions())
@@ -333,6 +346,7 @@ var _ = Describe("Create Private Key", func() {
 
 		actions := []core.Action{}
 		actions = append(actions, secretGetAction(namespace, secret))
+		actions = append(actions, cdiConfigGetAction(namespace))
 		actions = append(actions, privateKeySecretCreateAction(namespace, secret, privateKey))
 
 		checkActions(actions, client.Actions())

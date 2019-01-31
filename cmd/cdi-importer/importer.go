@@ -26,6 +26,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
 
 func init() {
@@ -40,7 +41,7 @@ func main() {
 		panic(err)
 	}
 	defer os.RemoveAll(certsDirectory)
-	util.StartPrometheusEndpoint(certsDirectory)
+	prometheusutil.StartPrometheusEndpoint(certsDirectory)
 
 	glog.V(1).Infoln("Starting importer")
 	ep, _ := util.ParseEnvVar(common.ImporterEndpoint, false)

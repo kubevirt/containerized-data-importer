@@ -31,7 +31,7 @@ roleRef:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: "cdi-controler-leader-election"
+  name: "cdi-operator-leader-election-helper"
   namespace: {{ .Namespace }}
   labels:
     operator.cdi.kubevirt.io: ""

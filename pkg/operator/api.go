@@ -25,16 +25,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"kubevirt.io/containerized-data-importer/pkg/operator/controller"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+)
+
+const (
+	// ConfigMapName is the name of the CDI Operator config map
+	// used to determine which CDI instance is "active"
+	// and maybe other stuff some day in the future
+	ConfigMapName = "cdi-config"
 )
 
 // SetOwner makes the current "active" CDI CR the owner of the object
 func SetOwner(client kubernetes.Interface, object metav1.Object) error {
 	namespace := util.GetNamespace()
-	configMap, err := client.CoreV1().ConfigMaps(namespace).Get(controller.ConfigMapName, metav1.GetOptions{})
+	configMap, err := client.CoreV1().ConfigMaps(namespace).Get(ConfigMapName, metav1.GetOptions{})
 	if err != nil {
-		glog.Warning("ConfigMap %s does not exist, so not assigning owner", controller.ConfigMapName)
+		glog.Warning("ConfigMap %s does not exist, so not assigning owner", ConfigMapName)
 		return nil
 	}
 
