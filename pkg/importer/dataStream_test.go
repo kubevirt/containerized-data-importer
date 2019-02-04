@@ -352,7 +352,7 @@ var _ = Describe("Copy", func() {
 		defer os.Remove(out)
 		By("Replacing QEMU Operations")
 		replaceQEMUOperations(qemuOperations, func() {
-			err := copy(r, out, qemu, "")
+			err := copy(r, out, qemu, "", int64(500000000))
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
 			} else {
@@ -503,7 +503,7 @@ func (o *fakeQEMUOperations) ConvertQcow2ToRawStream(*url.URL, string) error {
 	return o.e2
 }
 
-func (o *fakeQEMUOperations) Validate(string, string) error {
+func (o *fakeQEMUOperations) Validate(string, string, int64) error {
 	return o.e5
 }
 

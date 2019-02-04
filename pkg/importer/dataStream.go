@@ -682,11 +682,23 @@ func (d *DataStream) isHTTPQcow2() bool {
 		len(d.Readers) == 2
 }
 
+func (d *DataStream) calculateTargetSize(dest string) int64 {
+	targetQuantity := resource.NewScaledQuantity(util.GetAvailableSpace(filepath.Dir(dest)), 0)
+	if d.ImageSize != "" {
+		newImageSizeQuantity := resource.MustParse(d.ImageSize)
+		minQuantity := util.MinQuantity(targetQuantity, &newImageSizeQuantity)
+		targetQuantity = &minQuantity
+	}
+	targetSize, _ := targetQuantity.AsInt64()
+	return targetSize
+}
+
 // Copy endpoint to dest based on passed-in reader.
 func (d *DataStream) copy(dest string) error {
+	targetSize := d.calculateTargetSize(dest)
 	if d.isHTTPQcow2() {
 		glog.V(3).Infoln("Validating qcow2 file")
-		err := qemuOperations.Validate(d.url.String(), "qcow2")
+		err := qemuOperations.Validate(d.url.String(), "qcow2", targetSize)
 		if err != nil {
 			return errors.Wrap(err, "Streaming image validation failed")
 		}
@@ -704,11 +716,11 @@ func (d *DataStream) copy(dest string) error {
 		}
 		return nil
 	}
-	return copy(d.topReader(), dest, d.qemu, d.ImageSize)
+	return copy(d.topReader(), dest, d.qemu, d.ImageSize, targetSize)
 }
 
 // Copy the file using its Reader (r) to the passed-in destination (`out`).
-func copy(r io.Reader, out string, qemu bool, imageSize string) error {
+func copy(r io.Reader, out string, qemu bool, imageSize string, targetSize int64) error {
 	out = filepath.Clean(out)
 	glog.V(2).Infof("copying image file to %q", out)
 	dest := out
@@ -726,7 +738,7 @@ func copy(r io.Reader, out string, qemu bool, imageSize string) error {
 		return errors.WithMessage(err, fmt.Sprintf("unable to stream data to file %q", dest))
 	}
 	if qemu {
-		err = qemuOperations.Validate(dest, "qcow2")
+		err = qemuOperations.Validate(dest, "qcow2", targetSize)
 		if err != nil {
 			return errors.Wrap(err, "Local image validation failed")
 		}
