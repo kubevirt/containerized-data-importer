@@ -483,7 +483,7 @@ func (o *fakeQEMUOperations) ConvertQcow2ToRawStream(*url.URL, string) error {
 	return o.e2
 }
 
-func (o *fakeQEMUOperations) Validate(string, string) error {
+func (o *fakeQEMUOperations) Validate(string, string, int64) error {
 	return o.e5
 }
 

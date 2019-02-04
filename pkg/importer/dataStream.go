@@ -682,9 +682,21 @@ func (d *DataStream) isHTTPQcow2() bool {
 		len(d.Readers) == 2
 }
 
+func (d *DataStream) calculateTargetSize(dest string) int64 {
+	targetQuantity := resource.NewScaledQuantity(util.GetAvailableSpace(filepath.Dir(dest)), 0)
+	if d.ImageSize != "" {
+		newImageSizeQuantity := resource.MustParse(d.ImageSize)
+		minQuantity := util.MinQuantity(targetQuantity, &newImageSizeQuantity)
+		targetQuantity = &minQuantity
+	}
+	targetSize, _ := targetQuantity.AsInt64()
+	return targetSize
+}
+
 func (d *DataStream) convertQcow2ToRawStream(dest string) error {
 	glog.V(3).Infoln("Validating qcow2 file")
-	err := qemuOperations.Validate(d.url.String(), "qcow2")
+
+	err := qemuOperations.Validate(d.url.String(), "qcow2", d.calculateTargetSize(dest))
 	if err != nil {
 		return errors.Wrap(err, "Streaming image validation failed")
 	}
@@ -699,7 +711,7 @@ func (d *DataStream) convertQcow2ToRawStream(dest string) error {
 
 func (d *DataStream) convertQcow2ToRaw(src, dest string) error {
 	glog.V(3).Infoln("Validating qcow2 file")
-	err := qemuOperations.Validate(src, "qcow2")
+	err := qemuOperations.Validate(src, "qcow2", d.calculateTargetSize(dest))
 	if err != nil {
 		return errors.Wrap(err, "Local image validation failed")
 	}
