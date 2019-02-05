@@ -63,7 +63,7 @@ type QEMUOperations interface {
 	ConvertQcow2ToRawStream(*url.URL, string) error
 	Resize(string, resource.Quantity) error
 	Info(string) (*ImgInfo, error)
-	Validate(string, string) error
+	Validate(string, string, int64) error
 	CreateBlankImage(dest string, size resource.Quantity) error
 }
 
@@ -149,7 +149,7 @@ func (o *qemuOperations) Info(image string) (*ImgInfo, error) {
 	return &info, nil
 }
 
-func (o *qemuOperations) Validate(image, format string) error {
+func (o *qemuOperations) Validate(image, format string, availableSize int64) error {
 	info, err := o.Info(image)
 	if err != nil {
 		return err
@@ -163,6 +163,9 @@ func (o *qemuOperations) Validate(image, format string) error {
 		return errors.Errorf("Image %s is invalid because it has backing file %s", image, info.BackingFile)
 	}
 
+	if availableSize < info.VirtualSize {
+		return errors.Errorf("Virtual image size %d is larger than available size %d, shrink not yet supported.", info.VirtualSize, availableSize)
+	}
 	return nil
 }
 
@@ -178,8 +181,8 @@ func ConvertQcow2ToRawStream(url *url.URL, dest string) error {
 }
 
 // Validate does basic validation of a qemu image
-func Validate(image, format string) error {
-	return qemuIterface.Validate(image, format)
+func Validate(image, format string, availableSize int64) error {
+	return qemuIterface.Validate(image, format, availableSize)
 }
 
 func reportProgress(line string) {
