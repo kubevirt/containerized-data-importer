@@ -415,10 +415,11 @@ var _ = Describe("http", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		ds := &DataStream{
+		httpStreamer := httpDataStreamer{
 			ctx:    ctx,
 			cancel: cancel,
 		}
+
 		By("Creating string reader we can test just the poll progress part")
 		stringReader := ioutil.NopCloser(strings.NewReader("This is a test string"))
 		endlessReader := EndlessReader{
@@ -429,12 +430,12 @@ var _ = Describe("http", func() {
 			Current: 0,
 		}
 		By("Creating pollProgress as go routine, we can use channels to monitor progress")
-		go ds.pollProgress(countingReader, 5*time.Second, time.Second)
+		go httpStreamer.pollProgress(countingReader, 5*time.Second, time.Second)
 		By("Waiting for timeout or success")
 		select {
 		case <-time.After(10 * time.Second):
 			Fail("Transfer not cancelled after 10 seconds")
-		case <-ds.ctx.Done():
+		case <-httpStreamer.ctx.Done():
 			By("Having context be done, we confirm finishing of transfer")
 		}
 	})

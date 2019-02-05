@@ -81,14 +81,14 @@ func (o *skopeoOperations) CopyImage(url, dest, accessKey, secKey, certDir strin
 	return nil
 }
 
-// CopyRegistryImage download image from registry with skopeo
+// CopyDirFromRegistryImage download image from registry with skopeo
 // url: source registry url.
 // dest: the scratch space destination.
 // accessKey: accessKey for the registry described in url.
 // secKey: secretKey for the registry decribed in url.
 // certDir: directory public CA keys are stored for registry identity verification
 // insecureRegistry: boolean if true will allow insecure registries.
-func CopyRegistryImage(url, dest, destFile, accessKey, secKey, certDir string, insecureRegistry bool) error {
+func CopyDirFromRegistryImage(url, dest, destFile, accessKey, secKey, certDir string, insecureRegistry bool) error {
 	skopeoDest := "dir:" + filepath.Join(dest, dataTmpDir)
 
 	// Copy to scratch space

@@ -19,7 +19,7 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-var _ = FDescribe("Transport Tests", func() {
+var _ = Describe("Transport Tests", func() {
 
 	const (
 		secretPrefix        = "transport-e2e-sec"

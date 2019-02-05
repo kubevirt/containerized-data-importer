@@ -20,26 +20,19 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"net/url"
-	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
-	minio "github.com/minio/minio-go"
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/pkg/errors"
 	"github.com/ulikunitz/xz"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -61,11 +54,6 @@ var _ DataStreamInterface = &DataStream{}
 
 var qemuOperations = image.NewQEMUOperations()
 
-//DataContext - allows cleanup of temporary data created by specific import method
-type DataContext interface {
-	Cleanup() error
-}
-
 // DataStream implements the ReadCloser interface
 type DataStream struct {
 	*DataStreamOptions
@@ -75,9 +63,8 @@ type DataStream struct {
 	qemu       bool
 	archived   bool
 	Size       int64
-	ctx        context.Context
-	cancel     context.CancelFunc
 	isIsoImage bool
+	dataCtxt   StreamContext
 }
 
 type reader struct {
@@ -163,13 +150,10 @@ func newDataStream(dso *DataStreamOptions, stream io.ReadCloser) (*DataStream, e
 		}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	ds := &DataStream{
 		DataStreamOptions: dso,
 		url:               ep,
 		buf:               make([]byte, image.MaxExpectedHdrSize),
-		ctx:               ctx,
-		cancel:            cancel,
 		qemu:              false,
 		archived:          false,
 	}
@@ -205,30 +189,22 @@ func (d *DataStream) Read(buf []byte) (int, error) {
 // Close all readers.
 func (d *DataStream) Close() error {
 	err := closeReaders(d.Readers)
-	if d.cancel != nil {
-		d.cancel()
+	if d.dataCtxt != nil {
+		dataCtxtErr := d.dataCtxt.cleanup()
+		if dataCtxtErr != nil {
+			klog.Errorf(dataCtxtErr.Error(), fmt.Sprintf("DataCtxt cleanup failed"))
+		}
+		d.dataCtxt = nil
 	}
 	return err
 }
 
 // Based on the endpoint scheme, append the scheme-specific reader to the receiver's
 // reader stack.
-func (d *DataStream) dataStreamSelector() error {
+func (d *DataStream) dataStreamSelector() (err error) {
 	var r io.Reader
 	scheme := d.url.Scheme
-	var err error
-	switch scheme {
-	case "s3":
-		r, err = d.s3()
-	case "http", "https":
-		r, err = d.http()
-	case "docker", "oci":
-		r, err = d.registry()
-	default:
-		klog.V(1).Infoln("Error in dataStream Selector - invalid url scheme")
-		return errors.Errorf("invalid url scheme: %q", scheme)
-	}
-
+	r, d.dataCtxt, err = GetDataStream(scheme, d.url, d.SecKey, d.AccessKey, d.CertDir, d.InsecureTLS, d.ScratchDataDir)
 	if err == nil && r != nil {
 		d.appendReader(rdrTypM[scheme], r)
 	}
@@ -237,203 +213,6 @@ func (d *DataStream) dataStreamSelector() error {
 
 func (d *DataStream) addStream(reader io.ReadCloser) {
 	d.appendReader(rdrTypM["stream"], reader)
-}
-
-func (d *DataStream) s3() (io.ReadCloser, error) {
-	klog.V(3).Infoln("Using S3 client to get data")
-	bucket := d.url.Host
-	object := strings.Trim(d.url.Path, "/")
-	mc, err := minio.NewV4(common.ImporterS3Host, d.AccessKey, d.SecKey, false)
-	if err != nil {
-		return nil, errors.Wrapf(err, "could not build minio client for %q", d.url.Host)
-	}
-	klog.V(2).Infof("Attempting to get object %q via S3 client\n", d.url.String())
-	objectReader, err := mc.GetObject(bucket, object, minio.GetObjectOptions{})
-	if err != nil {
-		return nil, errors.Wrapf(err, "could not get s3 object: \"%s/%s\"", bucket, object)
-	}
-	return objectReader, nil
-}
-
-func (d *DataStream) createHTTPClient() (*http.Client, error) {
-	client := &http.Client{
-		// Don't set timeout here, since that will be an absolute timeout, we need a relative to last progress timeout.
-	}
-
-	if d.CertDir == "" {
-		return client, nil
-	}
-
-	// let's get system certs as well
-	certPool, err := x509.SystemCertPool()
-	if err != nil {
-		return nil, errors.Wrap(err, "Error getting system certs")
-	}
-
-	files, err := ioutil.ReadDir(d.CertDir)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Error listing files in %s", d.CertDir)
-	}
-
-	for _, file := range files {
-		if file.IsDir() || file.Name()[0] == '.' {
-			continue
-		}
-
-		fp := path.Join(d.CertDir, file.Name())
-
-		klog.Infof("Attempting to get certs from %s", fp)
-
-		certs, err := ioutil.ReadFile(fp)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Error reading file %s", fp)
-		}
-
-		if ok := certPool.AppendCertsFromPEM(certs); !ok {
-			klog.Warningf("No certs in %s", fp)
-		}
-	}
-
-	client.Transport = &http.Transport{
-		TLSClientConfig: &tls.Config{
-			RootCAs: certPool,
-		},
-	}
-
-	return client, nil
-}
-
-func (d *DataStream) http() (io.ReadCloser, error) {
-	client, err := d.createHTTPClient()
-	if err != nil {
-		return nil, errors.Wrap(err, "Error creating http client")
-	}
-
-	client.CheckRedirect = func(r *http.Request, via []*http.Request) error {
-		if len(d.AccessKey) > 0 && len(d.SecKey) > 0 {
-			r.SetBasicAuth(d.AccessKey, d.SecKey) // Redirects will lose basic auth, so reset them manually
-		}
-		return nil
-	}
-
-	req, err := http.NewRequest("GET", d.url.String(), nil)
-	if err != nil {
-		return nil, errors.Wrap(err, "could not create HTTP request")
-	}
-	req = req.WithContext(d.ctx)
-	if len(d.AccessKey) > 0 && len(d.SecKey) > 0 {
-		req.SetBasicAuth(d.AccessKey, d.SecKey)
-	}
-	klog.V(2).Infof("Attempting to get object %q via http client\n", d.url.String())
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, errors.Wrap(err, "HTTP request errored")
-	}
-	if resp.StatusCode != 200 {
-		klog.Errorf("http: expected status code 200, got %d", resp.StatusCode)
-		return nil, errors.Errorf("expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
-	}
-	countingReader := &util.CountingReader{
-		Reader:  resp.Body,
-		Current: 0,
-	}
-	go d.pollProgress(countingReader, 10*time.Minute, time.Second)
-	return countingReader, nil
-}
-
-//This import source downloads specified container image from registry location
-//Then it extracts the image to a temporary location and expects an image file to be located under /disk directory
-//If such exists it creates a Reader on it and returns it for further processing
-func (d *DataStream) registry() (io.ReadCloser, error) {
-
-	if util.GetAvailableSpace(d.ScratchDataDir) <= int64(0) {
-		// No scratch space available, exit with code indicating we need scratch space.
-		return nil, ErrRequiresScratchSpace
-	}
-
-	imageDir := filepath.Join(d.ScratchDataDir, ContainerDiskImageDir)
-
-	//1. copy image from registry to the temporary location
-	klog.V(1).Infof("using skopeo to copy from registry")
-	err := image.CopyRegistryImage(d.Endpoint, d.ScratchDataDir, ContainerDiskImageDir, d.AccessKey, d.SecKey, d.CertDir, d.InsecureTLS)
-	if err != nil {
-		klog.Errorf("Failed to read data from registry")
-		return nil, errors.Wrapf(err, fmt.Sprintf("Failed to read from registry"))
-	}
-
-	//2. Search for file in /disk directory - if not found - failure
-	imageFile, err := getImageFileName(imageDir)
-	if err != nil {
-		klog.Errorf("Error getting Image file from imageDirectory")
-		return nil, errors.Wrapf(err, fmt.Sprintf("Cannot locate image file"))
-	}
-
-	// 3. If found - Create a reader that will read this file and attach it to the dataStream
-	file, err := os.Open(filepath.Join(imageDir, imageFile))
-	if err != nil {
-		klog.Errorf("Failed to open image file")
-		return nil, errors.Wrapf(err, fmt.Sprintf("Fail to create data stream from image file"))
-	}
-	klog.V(3).Infof("Successfully found file. VM disk image filename is %s", imageDir)
-	return file, nil
-}
-
-func getImageFileName(dir string) (string, error) {
-
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		klog.Errorf("image directory does not exist")
-		return "", errors.Errorf("image directory does not exist")
-	}
-
-	entries, err := ioutil.ReadDir(dir)
-	if err != nil {
-		klog.Errorf("Error reading directory")
-		return "", errors.Wrapf(err, "image file does not exist in image directory")
-	}
-
-	if len(entries) == 0 {
-		klog.Errorf("image file does not exist in image directory - directory is empty ")
-		return "", errors.Errorf("image file does not exist in image directory - directory is empty")
-	}
-
-	fileinfo := entries[len(entries)-1]
-	if fileinfo.IsDir() {
-		klog.Errorf("image file does not exist in image directory contains another directory ")
-		return "", errors.Errorf("image file does not exist in image directory")
-	}
-
-	filename := fileinfo.Name()
-
-	if len(strings.TrimSpace(filename)) == 0 {
-		klog.Errorf("image file does not exist in image directory - file has no name ")
-		return "", errors.Errorf("image file does not exist in image directory")
-	}
-
-	klog.V(1).Infof("VM disk image filename is %s", filename)
-
-	return filename, nil
-}
-
-func (d *DataStream) pollProgress(reader *util.CountingReader, idleTime, pollInterval time.Duration) {
-	count := reader.Current
-	lastUpdate := time.Now()
-	for {
-		if count < reader.Current {
-			// Some progress was made, reset now.
-			lastUpdate = time.Now()
-			count = reader.Current
-		}
-		if lastUpdate.Add(idleTime).Sub(time.Now()).Nanoseconds() < 0 {
-			// No progress for the idle time, cancel http client.
-			d.cancel() // This will trigger d.ctx.Done()
-		}
-		select {
-		case <-time.After(pollInterval):
-			continue
-		case <-d.ctx.Done():
-			return // Don't leak, once the transfer is cancelled or completed this is called.
-		}
-	}
 }
 
 // CopyData copies the source endpoint (vm image) to the provided destination path.
