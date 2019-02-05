@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -65,7 +66,12 @@ func createConfigMap(client kubernetes.Interface, namespace, name string) error 
 		},
 	}
 
-	_, err := client.CoreV1().ConfigMaps(namespace).Create(cm)
+	err := operator.SetOwner(client, cm)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.CoreV1().ConfigMaps(namespace).Create(cm)
 	return err
 }
 

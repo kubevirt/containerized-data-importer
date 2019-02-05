@@ -14,6 +14,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -57,7 +58,7 @@ func main() {
 		panic(err)
 	}
 	defer os.RemoveAll(certsDirectory)
-	util.StartPrometheusEndpoint(certsDirectory)
+	prometheusutil.StartPrometheusEndpoint(certsDirectory)
 
 	if *namedPipe == "nopipedir" {
 		glog.Errorf("%+v", fmt.Errorf("Missed named pipe flag"))

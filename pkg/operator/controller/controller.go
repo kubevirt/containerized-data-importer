@@ -41,21 +41,17 @@ import (
 	"github.com/kelseyhightower/envconfig"
 
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
-	// ConfigMapName is the name of the CDI Operator config map
-	// used to determine which CDI instance is "active"
-	// and maybe other stuff someday
-	ConfigMapName = "cdi-config"
-
 	finalizerName = "operator.cdi.kubevirt.io"
 )
 
-var log = logf.Log.WithName("controler")
+var log = logf.Log.WithName("cdi-operator")
 
 // Add creates a new CDI Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
@@ -423,7 +419,7 @@ func (r *ReconcileCDI) watch(c controller.Controller) error {
 
 func (r *ReconcileCDI) getConfigMap() (*corev1.ConfigMap, error) {
 	cm := &corev1.ConfigMap{}
-	key := client.ObjectKey{Name: ConfigMapName, Namespace: r.namespace}
+	key := client.ObjectKey{Name: operator.ConfigMapName, Namespace: r.namespace}
 
 	if err := r.client.Get(context.TODO(), key, cm); err != nil {
 		if errors.IsNotFound(err) {
@@ -438,7 +434,7 @@ func (r *ReconcileCDI) getConfigMap() (*corev1.ConfigMap, error) {
 func (r *ReconcileCDI) createConfigMap(cr *cdiv1alpha1.CDI) error {
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ConfigMapName,
+			Name:      operator.ConfigMapName,
 			Namespace: r.namespace,
 			Labels:    map[string]string{"operator.cdi.kubevirt.io": ""},
 		},

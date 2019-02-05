@@ -15,6 +15,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -33,7 +34,7 @@ var _ = Describe("Prometheus Endpoint", func() {
 		empty, err := isDirEmpty(certsDirectory)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(empty).To(BeTrue())
-		util.StartPrometheusEndpoint(certsDirectory)
+		prometheusutil.StartPrometheusEndpoint(certsDirectory)
 		time.Sleep(time.Second)
 		empty, err = isDirEmpty(certsDirectory)
 		Expect(err).NotTo(HaveOccurred())

@@ -157,6 +157,16 @@ func tlsSecretGetAction() core.Action {
 		apiCertSecretName)
 }
 
+func cdiConfigMapGetAction() core.Action {
+	return core.NewGetAction(
+		schema.GroupVersionResource{
+			Resource: "configmaps",
+			Version:  "v1",
+		},
+		"cdi",
+		apiCertSecretName)
+}
+
 func tlsSecretCreateAction(privateKeyBytes, certBytes, caCertBytes []byte) core.Action {
 	return core.NewCreateAction(
 		schema.GroupVersionResource{
@@ -415,8 +425,10 @@ func TestShouldGenerateCertsAndKeyFirstRun(t *testing.T) {
 
 	actions := []core.Action{}
 	actions = append(actions, tlsSecretGetAction())
+	actions = append(actions, cdiConfigMapGetAction())
 	actions = append(actions, tlsSecretCreateAction(app.keyBytes, app.certBytes, app.signingCertBytes))
 	actions = append(actions, signingKeySecretGetAction())
+	actions = append(actions, cdiConfigMapGetAction())
 	actions = append(actions, signingKeySecretCreateAction(app.privateSigningKey))
 
 	checkActions(actions, client.Actions(), t)
