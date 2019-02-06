@@ -2,6 +2,10 @@ package utils
 
 // cdi-file-host pod/service relative values
 const (
+	//RegistryHostName provides a deploymnet and service name for registry
+	RegistryHostName = "cdi-docker-registry-host"
+	// RegistryHostNs provides a deployment ans service namespace for tests
+	RegistryHostNs = "cdi"
 	// FileHostName provides a deployment and service name for tests
 	FileHostName = "cdi-file-host"
 	// FileHostNs provides a deployment ans service namespace for tests

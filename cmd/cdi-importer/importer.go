@@ -51,6 +51,12 @@ func main() {
 	contentType, _ := util.ParseEnvVar(common.ImporterContentType, false)
 	imageSize, _ := util.ParseEnvVar(common.ImporterImageSize, false)
 
+	//Registry import currently support only kubevirt content type
+	if contentType != string(cdiv1.DataVolumeKubeVirt) && source == controller.SourceRegistry {
+		glog.Errorf("Unsupported content type %s when importing from registry", contentType)
+		os.Exit(1)
+	}
+
 	dest := common.ImporterWritePath
 	if contentType == string(cdiv1.DataVolumeArchive) || source == controller.SourceRegistry {
 		dest = common.ImporterVolumePath
