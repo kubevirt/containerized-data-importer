@@ -32,6 +32,7 @@ function health {
 #Convert all images to docker build consumable format
 DIR="-dir"
 DOCKERFILE="Dockerfile"
+VMIMAGEFILENAME="disk.img"
 
 function prepareImages {
    images_in=$1
@@ -45,12 +46,11 @@ function prepareImages {
 
    for FILENAME in $(ls); do
         mkdir -p $FILENAME$DIR
-        cp  $FILENAME $FILENAME$DIR
-
+        cp  $FILENAME $FILENAME$DIR"/"$VMIMAGEFILENAME
         FILE=$FILENAME$DIR"/"$DOCKERFILE
         /bin/cat  >$FILE <<-EOF
                 FROM scratch
-                ADD / $FILENAME
+                COPY $VMIMAGEFILENAME /
 EOF
 
         rm $FILENAME
