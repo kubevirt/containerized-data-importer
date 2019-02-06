@@ -77,25 +77,32 @@ func (o *skopeoOperations) CopyImage(url, dest, accessKey, secKey string) error 
 }
 
 // CopyRegistryImage download image from registry with skopeo
-func CopyRegistryImage(url, dest, accessKey, secKey string) error {
+func CopyRegistryImage(url, dest, destFile, accessKey, secKey string) error {
 	skopeoDest := "dir:" + dest + dataTmpDir
 	err := SkopeoInterface.CopyImage(url, skopeoDest, accessKey, secKey)
 	if err != nil {
 		os.RemoveAll(dest + dataTmpDir)
 		return errors.Wrap(err, "Failed to download from registry")
 	}
-	err = extractImageLayers(dest)
+	err = extractImageLayers(dest, destFile)
 	if err != nil {
 		return errors.Wrap(err, "Failed to extract image layers")
 	}
 
+	//If a specifc file was requested verify it exists, if not - fail
+	if len(destFile) > 0 {
+		if _, err = os.Stat(filepath.Join(dest, destFile)); err != nil {
+			glog.Errorf("Failed to find VM disk image file in the container image")
+			err = errors.New("Failed to find VM disk image file in the container image")
+		}
+	}
 	// Clean temp folder
 	os.RemoveAll(dest + dataTmpDir)
 
 	return err
 }
 
-var extractImageLayers = func(dest string) error {
+var extractImageLayers = func(dest string, arg ...string) error {
 	glog.V(1).Infof("extracting image layers to %q\n", dest)
 	// Parse manifest file
 	manifest, err := getImageManifest(dest + dataTmpDir)
@@ -120,9 +127,16 @@ var extractImageLayers = func(dest string) error {
 		layer := strings.TrimPrefix(layerID, "sha256:")
 		filePath := filepath.Join(dest, dataTmpDir, layer)
 
-		if err := util.UnArchiveLocalTar(filePath, dest, "z"); err != nil {
-			return errors.Wrap(err, "could not extract layer tar")
+		//prepend z option to the beggining of untar arguments
+		args := append([]string{"z"}, arg...)
+
+		if err := util.UnArchiveLocalTar(filePath, dest, args...); err != nil {
+			//ignore errors if specific file extract was requested - we validate whether the file was extracted at the end of the sequence
+			if len(arg) == 0 {
+				return errors.Wrap(err, "could not extract layer tar")
+			}
 		}
+
 		err = cleanWhiteoutFiles(dest)
 	}
 	return err
