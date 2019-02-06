@@ -181,6 +181,7 @@ func NewDataVolumeController(
 		UpdateFunc: func(old, new interface{}) {
 			controller.enqueueDataVolume(new)
 		},
+		DeleteFunc: controller.enqueueDataVolume,
 	})
 	// Set up an event handler for when PVC resources change
 	// handleObject function ensures we filter PVCs not created by this controller
@@ -319,6 +320,10 @@ func (c *DataVolumeController) syncHandler(key string) error {
 		}
 
 		return err
+	}
+
+	if dataVolume.DeletionTimestamp != nil {
+		return nil
 	}
 
 	// Get the pvc with the name specified in DataVolume.spec
