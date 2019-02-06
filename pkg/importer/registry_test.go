@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	imageFile = filepath.Join(imageDir, "docker-image.tar")
+	imageFile = filepath.Join(imageDir, "diskimage.tar")
 	imageData = filepath.Join(imageDir, "data")
 )
 
