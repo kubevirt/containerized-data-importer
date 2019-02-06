@@ -11,10 +11,11 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/image"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 var (
-	imageFile = filepath.Join(imageDir, "docker-image.tar")
+	imageFile = filepath.Join(imageDir, "diskimage.tar")
 	imageData = filepath.Join(imageDir, "data")
 )
 
@@ -68,7 +69,7 @@ func NewFakeSkopeoOperations(e1 error) image.SkopeoOperations {
 
 func (o *fakeSkopeoOperations) CopyImage(string, string, string, string) error {
 	if o.e1 == nil {
-		image.ExtractTar(imageFile, imageDir)
+		util.UnArchiveLocalTar(imageFile, imageDir)
 	}
 	return o.e1
 }

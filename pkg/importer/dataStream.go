@@ -293,7 +293,7 @@ func CopyData(dso *DataStreamOptions) error {
 	switch dso.Source {
 	case controller.SourceRegistry:
 		glog.V(1).Infof("using skopeo to copy from registry")
-		return image.CopyRegistryImage(dso.Endpoint, dso.Dest, dso.AccessKey, dso.SecKey)
+		return image.CopyRegistryImage(dso.Endpoint, dso.Dest, common.DiskImageName, dso.AccessKey, dso.SecKey)
 	default:
 		ds, err := NewDataStream(dso)
 		if err != nil {

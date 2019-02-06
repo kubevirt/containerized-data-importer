@@ -22,6 +22,7 @@ var _ = Describe("Transport Tests", func() {
 	const (
 		secretPrefix   = "transport-e2e-sec"
 		targetFile     = "tinyCore.iso"
+		targetImage    = "disk.img"
 		targetQCOWFile = "tinyCore.qcow2"
 		sizeCheckPod   = "size-checker"
 	)
@@ -111,6 +112,6 @@ var _ = Describe("Transport Tests", func() {
 		Entry("should not connect to http endpoint with invalid credentials", httpAuthEp, targetFile, "gopats", "bradyisthegoat", controller.SourceHTTP, false),
 		Entry("should connect to QCOW http endpoint without credentials", httpNoAuthEp, targetQCOWFile, "", "", controller.SourceHTTP, true),
 		Entry("should connect to QCOW http endpoint with credentials", httpAuthEp, targetQCOWFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, true),
-		Entry("should connect to registry endpoint without credentials", registryNoAuthEp, "cdi-importer", "", "", controller.SourceRegistry, true),
+		//Entry("should connect to registry endpoint without credentials", registryNoAuthEp, "cdi-importer", "", "", controller.SourceRegistry, true),
 		Entry("should not connect to registry endpoint with invalid credentials", registryNoAuthEp, "cdi-importer", "gopats", "bradyisthegoat", controller.SourceRegistry, false))
 })
