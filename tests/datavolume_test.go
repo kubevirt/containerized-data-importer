@@ -154,4 +154,29 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			})
 		})
 	})
+
+	Describe("Create/Delete same datavolume in a loop", func() {
+		Context("retry loop", func() {
+			dataVolumeName := "dv1"
+			url := utils.TinyCoreIsoURL
+			numTries := 5
+			for i := 1; i <= numTries; i++ {
+				It(fmt.Sprintf("should succeed on loop %d", i), func() {
+					dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
+
+					By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+					dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+					Expect(err).ToNot(HaveOccurred())
+
+					By(fmt.Sprintf("waiting for datavolume to match phase %s", cdiv1.Succeeded))
+					utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
+
+					By("deleting DataVolume")
+					err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolumeName)
+					Expect(err).ToNot(HaveOccurred())
+
+				})
+			}
+		})
+	})
 })
