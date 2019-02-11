@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"time"
+
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
@@ -13,7 +15,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"kubevirt.io/containerized-data-importer/pkg/expectations"
-	"time"
 )
 
 const (
@@ -66,6 +67,7 @@ func NewController(client kubernetes.Interface,
 		UpdateFunc: func(old, new interface{}) {
 			c.enqueuePVC(new)
 		},
+		DeleteFunc: c.enqueuePVC,
 	})
 
 	// Bind the pod SharedIndexInformer to the pod queue
@@ -81,7 +83,6 @@ func NewController(client kubernetes.Interface,
 			}
 			c.handlePodUpdate(new)
 		},
-
 		DeleteFunc: c.handlePodDelete,
 	})
 

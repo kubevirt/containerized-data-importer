@@ -74,6 +74,20 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		_, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodPhase)
 		Expect(phaseAnnotation).To(BeTrue())
 		Expect(err).NotTo(HaveOccurred())
+
+		By("deleting PVC")
+		err = utils.DeletePVC(f.K8sClient, pvc.Namespace, pvc)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("verifying pod was deleted")
+		deleted, err := utils.WaitPodDeleted(f.K8sClient, importer.Name, f.Namespace.Name, timeout)
+		Expect(deleted).To(BeTrue())
+		Expect(err).ToNot(HaveOccurred())
+
+		By("verifying pvc was deleted")
+		deleted, err = utils.WaitPVCDeleted(f.K8sClient, pvc.Name, f.Namespace.Name, timeout)
+		Expect(deleted).To(BeTrue())
+		Expect(err).ToNot(HaveOccurred())
 	})
 	It("Should create import pod for blank raw image", func() {
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
