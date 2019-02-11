@@ -37,7 +37,9 @@ var _ = Describe("Copy from Registry", func() {
 				"",
 				controller.SourceRegistry,
 				string(cdiv1.DataVolumeKubeVirt),
-				"1G"})
+				"1G",
+				int64(1234567890),
+			})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
 			} else {
