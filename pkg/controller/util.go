@@ -37,6 +37,9 @@ const (
 	// CertVolName is the name of the volumecontaining certs
 	CertVolName = "cdi-cert-vol"
 
+	// ScratchVolName provides a const to use for creating scratch pvc volumes in pod specs
+	ScratchVolName = "cdi-scratch-vol"
+
 	// ImagePathName provides a const to use for creating volumes in pod specs
 	ImagePathName  = "image-path"
 	socketPathName = "socket-path"
@@ -57,6 +60,13 @@ type podDeleteRequest struct {
 	namespace string
 	podName   string
 	podLister corelisters.PodLister
+	k8sClient kubernetes.Interface
+}
+
+type pvcDeleteRequest struct {
+	namespace string
+	pvcName   string
+	pvcLister corelisters.PersistentVolumeClaimLister
 	k8sClient kubernetes.Interface
 }
 
@@ -233,12 +243,87 @@ func checkIfLabelExists(pvc *v1.PersistentVolumeClaim, lbl string, val string) b
 	return false
 }
 
+// newScratchPersistentVolumeClaimSpec creates a new PVC based on the size of the passed in PVC.
+// It also sets the appropriate OwnerReferences on the resource
+// which allows handleObject to discover the pod resource that 'owns' it, and clean up when needed.
+func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, storageClassName string) *v1.PersistentVolumeClaim {
+	labels := map[string]string{
+		"cdi-controller": pod.Name,
+		"app":            "containerized-data-importer",
+		LabelImportPvc:   pvc.Name,
+	}
+
+	return &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pvc.Name + "-scratch",
+			Namespace: pvc.Namespace,
+			Labels:    labels,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "v1",
+					Kind:       "Pod",
+					Name:       pod.Name,
+					UID:        pod.GetUID(),
+				},
+			},
+		},
+		Spec: v1.PersistentVolumeClaimSpec{
+			AccessModes:      []v1.PersistentVolumeAccessMode{"ReadWriteOnce"},
+			Resources:        pvc.Spec.Resources,
+			StorageClassName: &storageClassName,
+		},
+	}
+}
+
+// CreateScratchPersistentVolumeClaim creates and returns a pointer to a scratch PVC which is created based on the passed-in pvc and storage class name.
+func CreateScratchPersistentVolumeClaim(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, pod *v1.Pod, storageClassName string) (*v1.PersistentVolumeClaim, error) {
+	ns := pvc.Namespace
+	scratchPvcSpec := newScratchPersistentVolumeClaimSpec(pvc, pod, storageClassName)
+	scratchPvc, err := client.CoreV1().PersistentVolumeClaims(ns).Create(scratchPvcSpec)
+	if err != nil {
+		return nil, errors.Wrap(err, "scratch PVC API create errored")
+	}
+	klog.V(3).Infof("scratch PVC \"%s/%s\" created\n", scratchPvc.Namespace, scratchPvc.Name)
+	return scratchPvc, nil
+}
+
+// GetScratchPvcStorageClass tries to determine which storage class to use for use with a scratch persistent
+// volume claim. The order of preference is the following:
+// 1. Defined value in CDI config map.
+// 2. If 1 is not available use the 'default' storage class.
+// 3. If 2 is not available use the storage class name of the original pvc that will own the scratch pvc.
+// 4. If none of those are available, fail with an error.
+func GetScratchPvcStorageClass(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (string, error) {
+	// TODO: Read config map to see if it has a storageClassName field in it.
+
+	// Get the default storage class.
+	storageClassList, err := client.StorageV1().StorageClasses().List(metav1.ListOptions{})
+	if err != nil {
+		return "", err
+	}
+	for _, storageClass := range storageClassList.Items {
+		if defaultClassValue, ok := storageClass.Annotations[AnnDefaultStorageClass]; ok {
+			if defaultClassValue == "true" {
+				return storageClass.Name, nil
+			}
+		}
+	}
+	// Unable to determine default storage class, attempt to read the storage class from the pvc.
+	if pvc.Spec.StorageClassName != nil {
+		storageClassName := *pvc.Spec.StorageClassName
+		if storageClassName != "" {
+			return storageClassName, nil
+		}
+	}
+	return "", errors.New("Unable to determine storage class to use for creating scratch space")
+}
+
 // CreateImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret
 // name, and pvc. A nil secret means the endpoint credentials are not passed to the
 // importer pod.
-func CreateImporterPod(client kubernetes.Interface, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+func CreateImporterPod(client kubernetes.Interface, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *v1.PersistentVolumeClaim, scratchPvcName *string) (*v1.Pod, error) {
 	ns := pvc.Namespace
-	pod := MakeImporterPodSpec(image, verbose, pullPolicy, podEnvVar, pvc)
+	pod := MakeImporterPodSpec(image, verbose, pullPolicy, podEnvVar, pvc, scratchPvcName)
 
 	pod, err := client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
@@ -249,12 +334,48 @@ func CreateImporterPod(client kubernetes.Interface, image, verbose, pullPolicy s
 }
 
 // MakeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
-func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *v1.PersistentVolumeClaim) *v1.Pod {
+func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *v1.PersistentVolumeClaim, scratchPvcName *string) *v1.Pod {
 	// importer pod name contains the pvc name
 	podName := fmt.Sprintf("%s-%s-", common.ImporterPodName, pvc.Name)
 
 	blockOwnerDeletion := true
 	isController := true
+
+	volumes := []v1.Volume{
+		{
+			Name: DataVolName,
+			VolumeSource: v1.VolumeSource{
+				PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+					ClaimName: pvc.Name,
+					ReadOnly:  false,
+				},
+			},
+		},
+	}
+
+	volumeMounts := []v1.VolumeMount{
+		{
+			Name:      DataVolName,
+			MountPath: common.ImporterDataDir,
+		},
+	}
+
+	if scratchPvcName != nil {
+		volumes = append(volumes, v1.Volume{
+			Name: ScratchVolName,
+			VolumeSource: v1.VolumeSource{
+				PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+					ClaimName: *scratchPvcName,
+					ReadOnly:  false,
+				},
+			},
+		})
+		volumeMounts = append(volumeMounts, v1.VolumeMount{
+			Name:      ScratchVolName,
+			MountPath: common.ScratchDataDir,
+		})
+	}
+
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -289,13 +410,8 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar *importPod
 					Name:            common.ImporterPodName,
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
-					VolumeMounts: []v1.VolumeMount{
-						{
-							Name:      DataVolName,
-							MountPath: common.ImporterDataDir,
-						},
-					},
-					Args: []string{"-v=" + verbose},
+					VolumeMounts:    volumeMounts,
+					Args:            []string{"-v=" + verbose},
 					Ports: []v1.ContainerPort{
 						{
 							Name:          "metrics",
@@ -306,17 +422,7 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar *importPod
 				},
 			},
 			RestartPolicy: v1.RestartPolicyOnFailure,
-			Volumes: []v1.Volume{
-				{
-					Name: DataVolName,
-					VolumeSource: v1.VolumeSource{
-						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
-							ClaimName: pvc.Name,
-							ReadOnly:  false,
-						},
-					},
-				},
-			},
+			Volumes:       volumes,
 		},
 	}
 
@@ -688,12 +794,13 @@ func CreateUploadPod(client kubernetes.Interface,
 	verbose string,
 	pullPolicy string,
 	name string,
-	pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+	pvc *v1.PersistentVolumeClaim,
+	scratchPvcName string) (*v1.Pod, error) {
 	ns := pvc.Namespace
 	commonName := name + "." + ns
 	secretName := name + "-server-tls"
 
-	pod := MakeUploadPodSpec(image, verbose, pullPolicy, name, pvc, secretName)
+	pod := MakeUploadPodSpec(image, verbose, pullPolicy, name, pvc, scratchPvcName, secretName)
 
 	pod, err := client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
@@ -750,7 +857,7 @@ func MakePodOwnerReference(pod *v1.Pod) metav1.OwnerReference {
 }
 
 // MakeUploadPodSpec creates upload service pod manifest
-func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.PersistentVolumeClaim, secretName string) *v1.Pod {
+func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.PersistentVolumeClaim, scratchName, secretName string) *v1.Pod {
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -780,6 +887,10 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 						{
 							Name:      DataVolName,
 							MountPath: common.UploadServerDataDir,
+						},
+						{
+							Name:      ScratchVolName,
+							MountPath: common.ScratchDataDir,
 						},
 					},
 					Env: []v1.EnvVar{
@@ -840,6 +951,15 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 					VolumeSource: v1.VolumeSource{
 						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
 							ClaimName: pvc.Name,
+							ReadOnly:  false,
+						},
+					},
+				},
+				{
+					Name: ScratchVolName,
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: scratchName,
 							ReadOnly:  false,
 						},
 					},

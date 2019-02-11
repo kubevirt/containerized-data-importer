@@ -34,6 +34,8 @@ const (
 	ImporterPodName = "importer"
 	// ImporterDataDir provides a constant for the controller pkg to use as a hardcoded path to where content is transferred to/from (controller only)
 	ImporterDataDir = "/data"
+	// ScratchDataDir provides a constant for the controller pkg to use as a hardcoded path to where scratch space is located.
+	ScratchDataDir = "/scratch"
 	// ImporterS3Host provides an S3 string used by importer/dataStream.go only
 	ImporterS3Host = "s3.amazonaws.com"
 	// ImporterCertDir is where the configmap containg certs will be mounted
@@ -102,4 +104,7 @@ const (
 
 	// InsecureRegistryConfigMap is the name of the ConfigMap for insecure registries
 	InsecureRegistryConfigMap = "cdi-insecure-registries"
+
+	// ScratchSpaceNeededExitCode is the exit code that indicates the importer pod requires scratch space to function properly.
+	ScratchSpaceNeededExitCode = 42
 )

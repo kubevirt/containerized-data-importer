@@ -18,7 +18,6 @@ package importer
 
 import (
 	"archive/tar"
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -28,7 +27,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -71,17 +69,15 @@ type DataContext interface {
 // DataStream implements the ReadCloser interface
 type DataStream struct {
 	*DataStreamOptions
-	url         *url.URL
-	Readers     []reader
-	buf         []byte // holds file headers
-	qemu        bool
-	archived    bool
-	tmpDataPath string
-	Size        int64
-	ctx         context.Context
-	cancel      context.CancelFunc
-	dataCtxt    DataContext
-	isIsoImage  bool
+	url        *url.URL
+	Readers    []reader
+	buf        []byte // holds file headers
+	qemu       bool
+	archived   bool
+	Size       int64
+	ctx        context.Context
+	cancel     context.CancelFunc
+	isIsoImage bool
 }
 
 type reader struct {
@@ -113,6 +109,8 @@ type DataStreamOptions struct {
 	CertDir string
 	// InsecureTLS is it okay to skip TLS verification
 	InsecureTLS bool
+	// ScratchDataDir is the path to the scratch space inside the container.
+	ScratchDataDir string
 }
 
 const (
@@ -124,6 +122,10 @@ const (
 	rdrTar
 	rdrXz
 	rdrStream
+
+	//ContainerDiskImageDir - Expected disk image location in container image as described in
+	//https://github.com/kubevirt/kubevirt/blob/master/docs/container-register-disks.md
+	ContainerDiskImageDir = "disk"
 )
 
 // map scheme and format to rdrType
@@ -138,45 +140,13 @@ var rdrTypM = map[string]int{
 	"stream": rdrStream,
 }
 
-//Data stream helper methods
-func (d *DataStream) isQemuStored() bool {
-	//if it is unarchived qcow file that is already stored
-	//then no copy to tmp is required
-	if d.qemu && d.isStored() && !d.archived {
-		return true
-	}
-	return false
-}
-
-func (d *DataStream) isMoveable() bool {
-	//basically raw file that is already stored
-	return d.isStored() && !d.qemu && !d.archived
-}
-
-func (d *DataStream) isStored() bool {
-	return len(d.tmpDataPath) > 0
-}
+// ErrRequiresScratchSpace indicates that we require scratch space.
+var ErrRequiresScratchSpace = fmt.Errorf("Scratch space required and none found")
 
 // NewDataStream returns a DataStream object after validating the endpoint and constructing the reader/closer chain.
 // Note: the caller must close the `Readers` in reverse order. See Close().
 func NewDataStream(dso *DataStreamOptions) (*DataStream, error) {
 	return newDataStream(dso, nil)
-}
-
-func newDataStreamFromStream(stream io.ReadCloser) (*DataStream, error) {
-	return newDataStream(&DataStreamOptions{
-		common.ImporterWritePath,
-		"",
-		"stream://data",
-		"",
-		"",
-		controller.SourceHTTP,
-		string(cdiv1.DataVolumeKubeVirt),
-		"", // Blank means don't resize
-		util.GetAvailableSpace(common.ImporterVolumePath),
-		"",
-		false,
-	}, stream)
 }
 
 func newDataStream(dso *DataStreamOptions, stream io.ReadCloser) (*DataStream, error) {
@@ -200,10 +170,8 @@ func newDataStream(dso *DataStreamOptions, stream io.ReadCloser) (*DataStream, e
 		buf:               make([]byte, image.MaxExpectedHdrSize),
 		ctx:               ctx,
 		cancel:            cancel,
-		tmpDataPath:       "",
 		qemu:              false,
 		archived:          false,
-		dataCtxt:          nil,
 	}
 
 	// establish readers for endpoint's formats and do initial calc of size of raw endpt
@@ -239,12 +207,6 @@ func (d *DataStream) Close() error {
 	err := closeReaders(d.Readers)
 	if d.cancel != nil {
 		d.cancel()
-	}
-	if d.dataCtxt != nil {
-		dataCtxtErr := d.dataCtxt.Cleanup()
-		if dataCtxtErr != nil {
-			klog.Errorf(dataCtxtErr.Error(), "DataCtxt cleanup failed")
-		}
 	}
 	return err
 }
@@ -379,121 +341,72 @@ func (d *DataStream) http() (io.ReadCloser, error) {
 	return countingReader, nil
 }
 
-//registryData - temporary data used by import from registry flow
-//is deleted as part of dataStream.Close()
-type registryData struct {
-	dataDir string
-	file    *os.File
-}
-
-func (r registryData) Cleanup() error {
-	klog.V(1).Infof("registryData - deleting all the data")
-	if r.file != nil {
-		r.file.Close()
-	}
-	err := os.RemoveAll(r.dataDir)
-	if err != nil {
-		klog.Errorf("Failed removing directory %+v", err.Error())
-	}
-	return nil
-}
-
-const (
-	//ContainerDiskImageDir - Expected disk image location in container image as described in
-	//https://github.com/kubevirt/kubevirt/blob/master/docs/container-register-disks.md
-	ContainerDiskImageDir = "disk"
-	//TempContainerDiskDir - Temporary location for pulled containerImage
-	TempContainerDiskDir = "tmp"
-)
-
 //This import source downloads specified container image from registry location
 //Then it extracts the image to a temporary location and expects an image file to be located under /disk directory
 //If such exists it creates a Reader on it and returns it for further processing
 func (d *DataStream) registry() (io.ReadCloser, error) {
 
-	tmpData := registryData{"", nil}
-	tmpData.dataDir = filepath.Join(d.DataDir, TempContainerDiskDir)
-
-	imageDir := filepath.Join(tmpData.dataDir, ContainerDiskImageDir)
-
-	//1. create temporary directory if does not exist to which all the data will be extracted
-	if _, err := os.Stat(tmpData.dataDir); os.IsNotExist(err) {
-		err := os.Mkdir(tmpData.dataDir, os.ModeDir|os.ModePerm)
-		if err != nil {
-			klog.Errorf("Failed to create temporary directory")
-			return nil, errors.Wrapf(err, fmt.Sprintf("Failed to create tempdirectory %s", tmpData.dataDir))
-		}
+	if util.GetAvailableSpace(d.ScratchDataDir) <= int64(0) {
+		// No scratch space available, exit with code indicating we need scratch space.
+		return nil, ErrRequiresScratchSpace
 	}
 
-	//cleanup in case of failure
-	cleanup := true
-	defer func() {
-		if cleanup {
-			tmpData.Cleanup()
-		}
-	}()
+	imageDir := filepath.Join(d.ScratchDataDir, ContainerDiskImageDir)
 
-	//2. copy image from registry to the temporary location
+	//1. copy image from registry to the temporary location
 	klog.V(1).Infof("using skopeo to copy from registry")
-	err := image.CopyRegistryImage(d.Endpoint, tmpData.dataDir, ContainerDiskImageDir, d.AccessKey, d.SecKey, d.CertDir, d.InsecureTLS)
+	err := image.CopyRegistryImage(d.Endpoint, d.ScratchDataDir, ContainerDiskImageDir, d.AccessKey, d.SecKey, d.CertDir, d.InsecureTLS)
 	if err != nil {
 		klog.Errorf("Failed to read data from registry")
-		return nil, errors.Wrapf(err, fmt.Sprintf("Failed ro read from registry"))
+		return nil, errors.Wrapf(err, fmt.Sprintf("Failed to read from registry"))
 	}
 
-	//3. Search for file in /disk directory - if not found - failure
+	//2. Search for file in /disk directory - if not found - failure
 	imageFile, err := getImageFileName(imageDir)
 	if err != nil {
 		klog.Errorf("Error getting Image file from imageDirectory")
 		return nil, errors.Wrapf(err, fmt.Sprintf("Cannot locate image file"))
 	}
 
-	// 4. If found - Create a reader that will read this file and attach it to the dataStream
-	tmpData.file, err = os.Open(filepath.Join(imageDir, imageFile))
+	// 3. If found - Create a reader that will read this file and attach it to the dataStream
+	file, err := os.Open(filepath.Join(imageDir, imageFile))
 	if err != nil {
 		klog.Errorf("Failed to open image file")
 		return nil, errors.Wrapf(err, fmt.Sprintf("Fail to create data stream from image file"))
 	}
-
-	//got this far - do not cleanup
-	cleanup = false
-
-	d.tmpDataPath = filepath.Join(imageDir, imageFile)
-	d.dataCtxt = tmpData
-	klog.V(3).Infof("Sucecssfully found file. VM disk image filename is %s", imageFile)
-
-	return ioutil.NopCloser(bufio.NewReader(tmpData.file)), nil
+	klog.V(3).Infof("Successfully found file. VM disk image filename is %s", imageDir)
+	return file, nil
 }
 
 func getImageFileName(dir string) (string, error) {
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		klog.Errorf("image directory does not exist")
-		return "", errors.Errorf(fmt.Sprintf("image directory does not exist "))
+		return "", errors.Errorf("image directory does not exist")
 	}
 
 	entries, err := ioutil.ReadDir(dir)
 	if err != nil {
 		klog.Errorf("Error reading directory")
-		return "", errors.Wrapf(err, fmt.Sprintf("image file does not exist in image directory"))
+		return "", errors.Wrapf(err, "image file does not exist in image directory")
 	}
 
 	if len(entries) == 0 {
 		klog.Errorf("image file does not exist in image directory - directory is empty ")
-		return "", errors.Errorf(fmt.Sprintf("image file does not exist in image directory - directory is empty"))
+		return "", errors.Errorf("image file does not exist in image directory - directory is empty")
 	}
 
 	fileinfo := entries[len(entries)-1]
 	if fileinfo.IsDir() {
 		klog.Errorf("image file does not exist in image directory contains another directory ")
-		return "", errors.Errorf(fmt.Sprintf("image file does not exist in image directory"))
+		return "", errors.Errorf("image file does not exist in image directory")
 	}
 
 	filename := fileinfo.Name()
 
 	if len(strings.TrimSpace(filename)) == 0 {
 		klog.Errorf("image file does not exist in image directory - file has no name ")
-		return "", errors.Errorf(fmt.Sprintf("image file does not exist in image directory"))
+		return "", errors.Errorf("image file does not exist in image directory")
 	}
 
 	klog.V(1).Infof("VM disk image filename is %s", filename)
@@ -541,9 +454,22 @@ func CopyData(dso *DataStreamOptions) error {
 }
 
 // SaveStream reads from a stream and saves data to dest
-func SaveStream(stream io.ReadCloser, dest string) (int64, error) {
+func SaveStream(stream io.ReadCloser, dest string, diskImageFileName, dataPath, scratchPath string) (int64, error) {
 	klog.V(1).Infof("Saving stream to %q...\n", dest)
-	ds, err := newDataStreamFromStream(stream)
+	ds, err := newDataStream(&DataStreamOptions{
+		Dest:           diskImageFileName,
+		DataDir:        dataPath,
+		Endpoint:       "stream://data",
+		AccessKey:      "",
+		SecKey:         "",
+		Source:         controller.SourceHTTP,
+		ContentType:    string(cdiv1.DataVolumeKubeVirt),
+		ImageSize:      "", // Blank means don't resize
+		AvailableSpace: util.GetAvailableSpace(dataPath),
+		CertDir:        "",
+		InsecureTLS:    false,
+		ScratchDataDir: scratchPath,
+	}, stream)
 	if err != nil {
 		return 0, errors.Wrapf(err, "unable to create data stream from stream")
 	}
@@ -553,6 +479,11 @@ func SaveStream(stream io.ReadCloser, dest string) (int64, error) {
 		return 0, errors.Wrap(err, "data stream copy failed")
 	}
 	return ds.Size, nil
+}
+
+// DefaultSaveStream reads from a stream and saves data to dest using the default disk image/data/scratch paths
+func DefaultSaveStream(stream io.ReadCloser, dest string) (int64, error) {
+	return SaveStream(stream, dest, common.ImporterWritePath, common.ImporterVolumePath, common.ScratchDataDir)
 }
 
 // ResizeImage resizes the images to match the requested size. Sometimes provisioners misbehave and the available space
@@ -955,12 +886,6 @@ func (d *DataStream) convertQcow2ToRaw(src, dest string) error {
 		return errors.Wrap(err, "Local image validation failed")
 	}
 
-	//Verify there is enough space in pvc before conversion
-	err = ValidateSpaceConstraint(src, filepath.Dir(dest))
-	if err != nil {
-		return err
-	}
-
 	klog.V(2).Infoln("converting qcow2 image")
 	err = qemuOperations.ConvertQcow2ToRaw(src, dest)
 	if err != nil {
@@ -970,49 +895,36 @@ func (d *DataStream) convertQcow2ToRaw(src, dest string) error {
 }
 
 // Copy endpoint to dest based on passed-in reader.
-func (d *DataStream) copy(dest string) (err error) {
+func (d *DataStream) copy(dest string) error {
+	if util.GetAvailableSpace(d.ScratchDataDir) > int64(0) {
+		defer CleanDir(d.ScratchDataDir)
+	}
 	if d.isHTTPQcow2() {
-		err = d.convertQcow2ToRawStream(dest)
+		err := d.convertQcow2ToRawStream(dest)
 		if err != nil {
 			return err
 		}
 	} else {
-		dest = filepath.Clean(dest)
-		klog.V(2).Infof("copying image file to %q", dest)
-		tmpDest := dest
-		if !d.isQemuStored() {
-			//it is either not qemu or not stored
-			if d.qemu {
-				// copy to tmp; qemu conversion will write to passed-in destination
-				tmpDest = randTmpName(dest)
-				klog.V(3).Infof("Copy: temp file for qcow2 conversion: %q", tmpDest)
-				defer func(f string) {
-					os.Remove(f)
-				}(tmpDest)
-			}
-			if d.isMoveable() {
-				klog.V(3).Infof("Moving already stored raw from %s to %s", d.tmpDataPath, tmpDest)
-				err = MoveFile(d.tmpDataPath, tmpDest)
-				if err != nil {
-					klog.V(3).Infof("Failing back to copying stored raw from %s to %s", d.tmpDataPath, tmpDest)
-					//Failback to copy since move failed
-					err = StreamDataToFile(d.topReader(), tmpDest)
-				}
-			} else {
-				klog.V(3).Infof("Streaming data of non Movble file to %s", tmpDest)
-				err = StreamDataToFile(d.topReader(), tmpDest)
-			}
-			if err != nil {
-				return errors.WithMessage(err, fmt.Sprintf("unable to stream data to file %q", dest))
-			}
-		} else {
-			//It is a stored qemu file - taking a location where it is stored
-			klog.V(3).Infof("Streaming file to %s", tmpDest)
-			tmpDest = d.tmpDataPath
+		if util.GetAvailableSpace(d.ScratchDataDir) <= int64(0) {
+			//Need scratch space but none provided.
+			return ErrRequiresScratchSpace
 		}
+		// Replace /data/target name with scratch path/target name
+		tmpDest := filepath.Join(d.ScratchDataDir, filepath.Base(dest))
+
+		err := StreamDataToFile(d.topReader(), tmpDest)
+		if err != nil {
+			return err
+		}
+
 		// The actual copy
 		if d.qemu {
-			err := d.convertQcow2ToRaw(tmpDest, dest)
+			err = d.convertQcow2ToRaw(tmpDest, dest)
+			if err != nil {
+				return err
+			}
+		} else {
+			err = util.MoveFileAcrossFs(tmpDest, dest)
 			if err != nil {
 				return err
 			}
@@ -1028,52 +940,6 @@ func (d *DataStream) copy(dest string) (err error) {
 	}
 
 	return nil
-}
-
-//ValidateSpaceConstraint - validates wheather there is enough space in PVC for both qcow2 image and converted raw image
-//Assumes it is possible to retrieve info from qcow2 file by means of qemu-img utility
-//Returns failure if either of the following happens
-//1. info cannot be retrieved from qcow2 file
-//2. Either ActualSize or VirtualSize are 0 - not specified
-//3. The current available space < virtual size
-func ValidateSpaceConstraint(qcow2Image string, destDir string) error {
-
-	//Verify there is enough space in pvc before conversion
-	info, err := qemuOperations.Info(qcow2Image)
-
-	// Failed to get info on source image.
-	if err != nil {
-		return errors.Wrap(err, "Local image validation failed to retrieve image info")
-	}
-
-	// Got some info, but couldn't get virtual or actual size.
-	if info.VirtualSize == 0 || info.ActualSize == 0 {
-		return errors.New("Local image validation failed - no image size info is provided")
-	}
-
-	// The converted file is guaranteed not the be larger than the virtual size, so we need to compare current available space (which is total space
-	// - temporary file actual size) against the worst case scenario which is the conversion actual size equals the virtual size.
-	convRequiredSpace := info.VirtualSize
-	sysAvailableSpace := util.GetAvailableSpace(destDir)
-
-	if sysAvailableSpace < convRequiredSpace {
-		return errors.New("qcow2 image conversion to raw failed due to insuficient space")
-	}
-
-	klog.V(2).Infoln(fmt.Sprintf("There is enough space in PVC for qcow2 to raw  conversion - required=%d, available=%d\n", convRequiredSpace, sysAvailableSpace))
-
-	return nil
-}
-
-// Return a random temp path with the `src` basename as the prefix and preserving the extension.
-// Eg. "/data/disk1d729566c74d1003.img".
-func randTmpName(src string) string {
-	ext := filepath.Ext(src)
-	base := filepath.Base(src)
-	base = base[:len(base)-len(ext)] // exclude extension
-	randName := make([]byte, 8)
-	rand.Read(randName)
-	return filepath.Join(filepath.Dir(src), base+hex.EncodeToString(randName)+ext)
 }
 
 // parseDataPath only used for debugging

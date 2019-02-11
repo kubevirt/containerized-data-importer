@@ -2,8 +2,10 @@ package importer
 
 import (
 	"io"
+	"io/ioutil"
 	"net/url"
 	"os"
+	"path/filepath"
 
 	"github.com/pkg/errors"
 	"k8s.io/klog"
@@ -46,8 +48,26 @@ func StreamDataToFile(dataReader io.Reader, filePath string) error {
 	}
 	klog.V(1).Infof("begin import...\n")
 	if _, err = io.Copy(outFile, dataReader); err != nil {
+		klog.Errorf("Unable to write file from dataReader: %v\n", err)
 		os.Remove(outFile.Name())
 		return errors.Wrapf(err, "unable to write to file")
+	}
+	return nil
+}
+
+// CleanDir cleans the contents of a directory including its sub directories, but does NOT remove the
+// directory itself.
+func CleanDir(dest string) error {
+	dir, err := ioutil.ReadDir(dest)
+	if err != nil {
+		return err
+	}
+	for _, d := range dir {
+		klog.V(3).Infoln("deleting file: " + filepath.Join(dest, d.Name()))
+		err = os.RemoveAll(filepath.Join(dest, d.Name()))
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

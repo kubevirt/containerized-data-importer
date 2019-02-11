@@ -78,7 +78,10 @@ func (r *CountingReader) Close() error {
 // GetAvailableSpace gets the amount of available space at the path specified.
 func GetAvailableSpace(path string) int64 {
 	var stat syscall.Statfs_t
-	syscall.Statfs(path, &stat)
+	err := syscall.Statfs(path, &stat)
+	if err != nil {
+		return int64(-1)
+	}
 	return int64(stat.Bavail) * int64(stat.Bsize)
 }
 
@@ -127,4 +130,34 @@ func UnArchiveLocalTar(filePath, destDir string, arg ...string) error {
 	}
 	fileReader := bufio.NewReader(file)
 	return UnArchiveTar(fileReader, destDir, arg...)
+}
+
+// CopyFile copies a file from one location to another.
+func CopyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+	return out.Close()
+}
+
+// MoveFileAcrossFs moves a file by doing a copy and then removing the source file. This works across file system which os.Rename won't
+func MoveFileAcrossFs(src, dst string) error {
+	err := CopyFile(src, dst)
+	if err != nil {
+		return err
+	}
+	return os.Remove(src)
 }

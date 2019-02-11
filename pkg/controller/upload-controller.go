@@ -440,7 +440,6 @@ func (c *UploadController) syncHandler(key string) error {
 		if err != nil {
 			return errors.Wrapf(err, "Error deleting upload pod for pvc: %s", key)
 		}
-
 	} else {
 		// make sure the service exists
 		if _, err = c.getOrCreateUploadService(pvc, resourceName); err != nil {
@@ -455,14 +454,41 @@ func (c *UploadController) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, n
 	pod, err := c.podLister.Pods(pvc.Namespace).Get(name)
 
 	if k8serrors.IsNotFound(err) {
-		pod, err = CreateUploadPod(c.client, c.serverCAKeyPair, c.clientCAKeyPair.Cert, c.uploadServiceImage, c.verbose, c.pullPolicy, name, pvc)
+		pod, err = CreateUploadPod(c.client, c.serverCAKeyPair, c.clientCAKeyPair.Cert, c.uploadServiceImage, c.verbose, c.pullPolicy, name, pvc, pvc.Name+"-scratch")
+	}
+	// Always try to get or create the scratch PVC for a pod that is not successful yet, if it exists nothing happens otherwise attempt to create.
+	_, err = c.getOrCreateScratchPvc(pvc, pod)
+	if err != nil {
+		return nil, errors.Wrap(err, "Unable to create scratch space for upload")
 	}
 
 	if pod != nil && !metav1.IsControlledBy(pod, pvc) {
 		return nil, errors.Errorf("%s pod not controlled by pvc %s", name, pvc.Name)
 	}
-
 	return pod, err
+}
+
+func (c *UploadController) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, pod *v1.Pod) (*v1.PersistentVolumeClaim, error) {
+	scratchPvc, err := c.pvcLister.PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name + "-scratch")
+	if scratchPvc != nil {
+		// Scratch PVC already exists, maybe the pod crashed and the pvc didn't get cleaned up, verify this pvc is owned by the pod.
+		for _, ownerRef := range scratchPvc.OwnerReferences {
+			if ownerRef.UID == pod.UID {
+				return scratchPvc, nil
+			}
+		}
+		return nil, errors.New("Scratch PVC exists, but is not owned by the right pod")
+	}
+	storageClassName, err := GetScratchPvcStorageClass(c.client, pvc)
+	if err != nil {
+		return nil, err
+	}
+	// Scratch PVC doesn't exist yet, create it. Determine which storage class to use.
+	scratchPvc, err = CreateScratchPersistentVolumeClaim(c.client, pvc, pod, storageClassName)
+	if err != nil {
+		return nil, err
+	}
+	return scratchPvc, nil
 }
 
 func (c *UploadController) getOrCreateUploadService(pvc *v1.PersistentVolumeClaim, name string) (*v1.Service, error) {
