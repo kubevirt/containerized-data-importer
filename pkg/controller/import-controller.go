@@ -2,9 +2,10 @@ package controller
 
 import (
 	"fmt"
+
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -124,7 +125,7 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 		//this is for a case where the import container is failing and the restartPolicy is OnFailure. In such case
 		//the pod phase is "Running" although the container state is Waiting. When the container recovers, its state
 		//changes back to "Running".
-		if pod.Status.ContainerStatuses != nil && pod.Status.ContainerStatuses[0].State.Waiting != nil {
+		if pod.Status.Phase != v1.PodPending && pod.Status.ContainerStatuses != nil && pod.Status.ContainerStatuses[0].State.Waiting != nil {
 			anno[AnnPodPhase] = string(v1.PodFailed)
 		}
 
