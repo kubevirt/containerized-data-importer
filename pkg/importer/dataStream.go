@@ -94,6 +94,8 @@ type DataStreamOptions struct {
 	ContentType string
 	// ImageSize is the size we want the resulting image to be.
 	ImageSize string
+	// Available space is the available space before downloading the image
+	AvailableSpace int64
 }
 
 const (
@@ -134,6 +136,7 @@ func newDataStreamFromStream(stream io.ReadCloser) (*DataStream, error) {
 		controller.SourceHTTP,
 		string(cdiv1.DataVolumeKubeVirt),
 		"", // Blank means don't resize
+		util.GetAvailableSpace(common.ImporterVolumePath),
 	}, stream)
 }
 
@@ -329,7 +332,7 @@ func SaveStream(stream io.ReadCloser, dest string) (int64, error) {
 // ResizeImage resizes the images to match the requested size. Sometimes provisioners misbehave and the available space
 // is not the same as the requested space. For those situations we compare the available space to the requested space and
 // use the smallest of the two values.
-func ResizeImage(dest, imageSize string) error {
+func ResizeImage(dest, imageSize string, totalTargetSpace int64) error {
 	info, err := qemuOperations.Info(dest)
 	if err != nil {
 		return err
@@ -337,7 +340,7 @@ func ResizeImage(dest, imageSize string) error {
 	if imageSize != "" {
 		currentImageSizeQuantity := resource.NewScaledQuantity(info.VirtualSize, 0)
 		newImageSizeQuantity := resource.MustParse(imageSize)
-		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(util.GetAvailableSpace(dest), 0), &newImageSizeQuantity)
+		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(totalTargetSpace, 0), &newImageSizeQuantity)
 		if minSizeQuantity.Cmp(newImageSizeQuantity) != 0 {
 			// Available dest space is smaller than the size we want to resize to
 			glog.Warningf("Available space less than requested size, resizing image to available space %s.\n", minSizeQuantity.String())
@@ -709,18 +712,18 @@ func (d *DataStream) copy(dest string) error {
 			return errors.Wrap(err, "Streaming qcow2 to raw conversion failed")
 		}
 		if d.ImageSize != "" {
-			err = ResizeImage(dest, d.ImageSize)
-		}
-		if err != nil {
-			return errors.Wrap(err, "Resize of image failed")
+			err := ResizeImage(dest, d.ImageSize, d.AvailableSpace)
+			if err != nil {
+				return errors.Wrap(err, "Resize of image failed")
+			}
 		}
 		return nil
 	}
-	return copy(d.topReader(), dest, d.qemu, d.ImageSize, targetSize)
+	return copy(d.topReader(), dest, d.qemu, d.ImageSize, targetSize, d.AvailableSpace)
 }
 
 // Copy the file using its Reader (r) to the passed-in destination (`out`).
-func copy(r io.Reader, out string, qemu bool, imageSize string, targetSize int64) error {
+func copy(r io.Reader, out string, qemu bool, imageSize string, targetSize, availableSpace int64) error {
 	out = filepath.Clean(out)
 	glog.V(2).Infof("copying image file to %q", out)
 	dest := out
@@ -763,7 +766,7 @@ func copy(r io.Reader, out string, qemu bool, imageSize string, targetSize int64
 		dest = out
 	}
 	if imageSize != "" {
-		err = ResizeImage(dest, imageSize)
+		err = ResizeImage(dest, imageSize, availableSpace)
 	}
 	if err != nil {
 		return errors.Wrap(err, "Resize of image failed")

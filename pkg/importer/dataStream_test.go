@@ -52,6 +52,7 @@ var imageDir, _ = filepath.Abs(TestImagesDir)
 var cirrosFileName = "cirros-qcow2.img"
 var tinyCoreFileName = "tinyCore.iso"
 var archiveFileName = "archive.tar"
+var cirrosRaw = "cirros.raw"
 var archiveFileNameWithoutExt = strings.TrimSuffix(archiveFileName, filepath.Ext(archiveFileName))
 var cirrosFilePath = filepath.Join(imageDir, cirrosFileName)
 var tinyCoreFilePath = filepath.Join(imageDir, tinyCoreFileName)
@@ -120,7 +121,9 @@ var _ = Describe("Data Stream", func() {
 			secretKey,
 			controller.SourceHTTP,
 			contentType,
-			""})
+			"",
+			int64(1234567890),
+		})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
 		}
@@ -155,7 +158,9 @@ var _ = Describe("Data Stream", func() {
 			"",
 			controller.SourceHTTP,
 			string(cdiv1.DataVolumeKubeVirt),
-			"1G"})
+			"1G",
+			int64(1234567890),
+		})
 		Expect(err).NotTo(HaveOccurred())
 		By("Closing data stream")
 		err = ds.Close()
@@ -174,7 +179,9 @@ var _ = Describe("Data Stream", func() {
 			"",
 			controller.SourceHTTP,
 			string(cdiv1.DataVolumeKubeVirt),
-			"20M"})
+			"20M",
+			int64(1234567890),
+		})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
 		}
@@ -206,7 +213,9 @@ var _ = Describe("Data Stream", func() {
 			"",
 			controller.SourceHTTP,
 			contentType,
-			"20M"})
+			"20M",
+			int64(1234567890),
+		})
 		defer func() {
 			tempTestServer.Close()
 		}()
@@ -278,7 +287,9 @@ var _ = Describe("Copy", func() {
 				"",
 				controller.SourceHTTP,
 				string(cdiv1.DataVolumeKubeVirt),
-				""})
+				"",
+				int64(1234567890),
+			})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
 			} else {
@@ -323,7 +334,9 @@ var _ = Describe("Copy", func() {
 				"",
 				controller.SourceHTTP,
 				string(cdiv1.DataVolumeKubeVirt),
-				"1G"})
+				"1G",
+				int64(1234567890),
+			})
 			if wantErr {
 				Expect(err).To(HaveOccurred())
 			} else {
@@ -352,7 +365,7 @@ var _ = Describe("Copy", func() {
 		defer os.Remove(out)
 		By("Replacing QEMU Operations")
 		replaceQEMUOperations(qemuOperations, func() {
-			err := copy(r, out, qemu, "", int64(500000000))
+			err := copy(r, out, qemu, "", int64(500000000), int64(50000000000))
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
 			} else {
@@ -398,6 +411,67 @@ var _ = Describe("http", func() {
 			By("Having context be done, we confirm finishing of transfer")
 		}
 	})
+})
+
+var _ = Describe("ResizeImage", func() {
+	var tmpDir string
+	var err error
+
+	BeforeEach(func() {
+		tmpDir, err = ioutil.TempDir("", "imagedir")
+		Expect(err).NotTo(HaveOccurred())
+		input, err := ioutil.ReadFile(filepath.Join(imageDir, cirrosRaw))
+		Expect(err).NotTo(HaveOccurred())
+		err = ioutil.WriteFile(filepath.Join(tmpDir, cirrosRaw), input, 0644)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		os.Remove(tmpDir)
+	})
+
+	It("Should successfully resize, to smaller available", func() {
+		dest := filepath.Join(tmpDir, cirrosRaw)
+		err := ResizeImage(dest, "20M", int64(18874368))
+		Expect(err).NotTo(HaveOccurred())
+		info, err := qemuOperations.Info(dest)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(info.VirtualSize).To(Equal(int64(18874368)))
+	})
+
+	It("Should fail with invalid file", func() {
+		err := ResizeImage(filepath.Join(tmpDir, "invalid"), "20M", int64(18874368))
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("Should successfully resize even if more space available", func() {
+		dest := filepath.Join(tmpDir, cirrosRaw)
+		err := ResizeImage(dest, "20M", int64(200000000))
+		Expect(err).NotTo(HaveOccurred())
+		info, err := qemuOperations.Info(dest)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(info.VirtualSize).To(Equal(int64(20971520)))
+	})
+
+	It("Should successfully not resize if sizes are same.", func() {
+		dest := filepath.Join(tmpDir, cirrosRaw)
+		info, err := qemuOperations.Info(dest)
+		originalSize := info.VirtualSize
+		Expect(err).NotTo(HaveOccurred())
+		err = ResizeImage(dest, strconv.FormatInt(originalSize, 10), int64(200000000))
+		Expect(err).NotTo(HaveOccurred())
+		info, err = qemuOperations.Info(dest)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(info.VirtualSize).To(Equal(originalSize))
+	})
+
+	It("Should fail with valid file, but empty imageSize", func() {
+		dest := filepath.Join(tmpDir, cirrosRaw)
+		err := ResizeImage(dest, "", int64(200000000))
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(Equal("Image resize called with blank resize"))
+	})
+
 })
 
 var _ = Describe("close readers", func() {
