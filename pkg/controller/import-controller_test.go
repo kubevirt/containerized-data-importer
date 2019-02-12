@@ -134,6 +134,13 @@ func TestImportObservePod(t *testing.T) {
 	pod := createPod(pvc, DataVolName)
 	pod.Name = "madeup-name"
 	pod.Status.Phase = corev1.PodPending
+	pod.Status.ContainerStatuses = []corev1.ContainerStatus{
+		{
+			State: corev1.ContainerState{
+				Waiting: &corev1.ContainerStateWaiting{},
+			},
+		},
+	}
 	pod.Namespace = pvc.Namespace
 
 	f.pvcLister = append(f.pvcLister, pvc)
@@ -144,6 +151,36 @@ func TestImportObservePod(t *testing.T) {
 	expPvc := pvc.DeepCopy()
 	expPvc.ObjectMeta.Labels = map[string]string{CDILabelKey: CDILabelValue}
 	expPvc.ObjectMeta.Annotations = map[string]string{AnnImportPod: pod.Name, AnnPodPhase: string(corev1.PodPending), AnnEndpoint: "http://test"}
+
+	f.expectUpdatePvcAction(expPvc)
+
+	f.run(getPvcKey(pvc, t))
+}
+
+func TestFailureObserved(t *testing.T) {
+	f := newImportFixture(t)
+	pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
+
+	pod := createPod(pvc, DataVolName)
+	pod.Name = "madeup-name"
+	pod.Status.Phase = corev1.PodRunning
+	pod.Status.ContainerStatuses = []corev1.ContainerStatus{
+		{
+			State: corev1.ContainerState{
+				Waiting: &corev1.ContainerStateWaiting{},
+			},
+		},
+	}
+	pod.Namespace = pvc.Namespace
+
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.podLister = append(f.podLister, pod)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+	f.kubeobjects = append(f.kubeobjects, pod)
+
+	expPvc := pvc.DeepCopy()
+	expPvc.ObjectMeta.Labels = map[string]string{CDILabelKey: CDILabelValue}
+	expPvc.ObjectMeta.Annotations = map[string]string{AnnImportPod: pod.Name, AnnPodPhase: string(corev1.PodFailed), AnnEndpoint: "http://test"}
 
 	f.expectUpdatePvcAction(expPvc)
 
