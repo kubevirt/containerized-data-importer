@@ -53,16 +53,13 @@ func createUploadProxyRole() *rbacv1.Role {
 	role.Rules = []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
-				"",
+				"apps",
 			},
 			Resources: []string{
-				"endpoints",
+				"deployments",
 			},
 			Verbs: []string{
 				"get",
-			},
-			ResourceNames: []string{
-				"cdi-api",
 			},
 		},
 	}
@@ -170,7 +167,6 @@ func createUploadProxyDeployment(repo, image, tag, verbosity, pullPolicy string)
 		PeriodSeconds:       5,
 	}
 	deployment.Spec.Template.Spec.Containers = []corev1.Container{container}
-
 	deployment.Spec.Template.Spec.InitContainers = []corev1.Container{
 		{
 			Name:    "init",

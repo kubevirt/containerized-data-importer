@@ -14,12 +14,14 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
+set -e
+
 if [ "$#" -eq 0 ]; then
     echo "Script requires max wait time in seconds"
     exit 1
 fi
 
-service="cdi-api"
+deployments=("cdi-deployment" "cdi-apiserver")
 namespace="$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)"
 certfile="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 token="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
@@ -28,18 +30,31 @@ timeout=$1
 i=0
 
 while [ $i -lt $timeout ]; do
-    cnt=$(curl -s --cacert $certfile --header "Authorization: Bearer $token" \
-        https://kubernetes.default.svc/api/v1/namespaces/$namespace/endpoints/$service \
-	    | jq -r '.subsets[].addresses | length')
+    err=0
     
-    if [ $? -eq 0 ] && [ $cnt -gt 0 ]; then
-        echo "$service ready, exiting"
+    for deployment in "${deployments[@]}"; do
+        cnt=$(curl -s --cacert $certfile --header "Authorization: Bearer $token" \
+            https://kubernetes.default.svc/apis/apps/v1/namespaces/$namespace/deployments/$deployment \
+	        | jq -r '.status.readyReplicas // 0')
+
+        if [ $? -ne 0 ] || [ $cnt -eq 0 ]; then
+            echo "Deployment $deployment is NOT ready"
+            err=1
+            break
+        fi
+
+        echo "Deployment $deployment is ready"
+    done
+
+    if [ $err -eq 0 ]; then
+        echo "All deployments ready, exiting"
         exit 0
     fi
 
+    echo "sleeping..."
     sleep 2
-    i=$((i + 2)) 
+    i=$((i + 2))
 done
 
-echo "Service $service not running after $timeout secs"
+echo "Timed out waiting for deployments to start after $timeout seconds"
 exit 1

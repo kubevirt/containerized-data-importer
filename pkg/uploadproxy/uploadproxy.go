@@ -32,9 +32,6 @@ const (
 
 	apiServiceName = "cdi-api"
 
-	certBytesValue = "cert-bytes"
-	keyBytesValue  = "key-bytes"
-
 	uploadPath  = "/v1alpha1/upload"
 	healthzPath = "/healthz"
 
