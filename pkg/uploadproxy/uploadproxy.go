@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 
@@ -32,7 +35,13 @@ const (
 	certBytesValue = "cert-bytes"
 	keyBytesValue  = "key-bytes"
 
-	uploadPath = "/v1alpha1/upload"
+	uploadPath  = "/v1alpha1/upload"
+	healthzPath = "/healthz"
+
+	connectTimeout = 2 * time.Second
+	connectTries   = 5
+
+	proxyRequestTimeout = time.Hour
 )
 
 // Server is the public interface to the upload proxy
@@ -57,6 +66,8 @@ type uploadProxyApp struct {
 	apiServerPublicKey *rsa.PublicKey
 
 	uploadServerClient *http.Client
+
+	mux *http.ServeMux
 
 	// test hooks
 	tokenVerifier verifyTokenFunc
@@ -101,6 +112,8 @@ func NewUploadProxy(bindAddress string,
 		return nil, errors.Errorf("Unable to create upload server client: %v\n", errors.WithStack(err))
 	}
 
+	app.initHandlers()
+
 	return app, nil
 }
 
@@ -120,11 +133,25 @@ func (app *uploadProxyApp) getUploadServerClient(tlsClientKey, tlsClientCert, tl
 	tlsConfig.BuildNameToCertificate()
 
 	transport := &http.Transport{TLSClientConfig: tlsConfig}
-	client := &http.Client{Transport: transport}
+	client := &http.Client{Transport: transport, Timeout: proxyRequestTimeout}
 
 	app.uploadServerClient = client
 
 	return nil
+}
+
+func (app *uploadProxyApp) initHandlers() {
+	app.mux = http.NewServeMux()
+	app.mux.HandleFunc(healthzPath, app.handleHealthzRequest)
+	app.mux.HandleFunc(uploadPath, app.handleUploadRequest)
+}
+
+func (app *uploadProxyApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	app.mux.ServeHTTP(w, r)
+}
+
+func (app *uploadProxyApp) handleHealthzRequest(w http.ResponseWriter, r *http.Request) {
+	io.WriteString(w, "OK")
 }
 
 func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Request) {
@@ -154,6 +181,12 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.ResponseWriter, r *http.Request) {
 	url := app.urlResolver(namespace, pvc)
 
+	if err := app.testConnect(url); err != nil {
+		glog.Errorf("Error connecting to %s: %+v", url, err)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+
 	req, _ := http.NewRequest("POST", url, r.Body)
 	req.ContentLength = r.ContentLength
 
@@ -175,6 +208,45 @@ func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.Resp
 	}
 }
 
+func (app *uploadProxyApp) testConnect(urlString string) error {
+	u, err := url.Parse(urlString)
+	if err != nil {
+		return errors.Wrapf(err, "Error parsing URL %s", urlString)
+	}
+
+	port := u.Port()
+	if port == "" {
+		p, err := net.LookupPort("tcp", u.Scheme)
+		if err != nil {
+			return errors.Wrapf(err, "Error looking up scheme %s", u.Scheme)
+		}
+		port = fmt.Sprintf("%d", p)
+	}
+	hostPort := net.JoinHostPort(u.Hostname(), port)
+
+	for i := 1; i <= connectTries; i++ {
+		d := net.Dialer{Timeout: connectTimeout}
+		conn, err := d.Dial("tcp", hostPort)
+		if err == nil {
+			glog.Infof("Successfully connected to %s on attempt %d", urlString, i)
+			conn.Close()
+			return nil
+		}
+
+		switch ne := err.(type) {
+		case net.Error:
+			if ne.Timeout() {
+				continue
+			}
+			return errors.Wrapf(ne, "Unexpected net.Error dialing %s", urlString)
+		default:
+			return errors.Wrapf(ne, "Unexpected error dialing %s", urlString)
+		}
+	}
+
+	return errors.Errorf("Timed out %d times connecting to %s", connectTries, urlString)
+}
+
 func (app *uploadProxyApp) getSigningKey(publicKeyPEM string) error {
 	publicKey, err := decodePublicKey(publicKeyPEM)
 	if err != nil {
@@ -192,6 +264,11 @@ func (app *uploadProxyApp) Start() error {
 func (app *uploadProxyApp) startTLS() error {
 	var serveFunc func() error
 	bindAddr := fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort)
+
+	server := &http.Server{
+		Addr:    bindAddr,
+		Handler: app,
+	}
 
 	if len(app.keyBytes) > 0 && len(app.certBytes) > 0 {
 		certsDirectory, err := ioutil.TempDir("", "certsdir")
@@ -213,17 +290,15 @@ func (app *uploadProxyApp) startTLS() error {
 		}
 
 		serveFunc = func() error {
-			return http.ListenAndServeTLS(bindAddr, certFile, keyFile, nil)
+			return server.ListenAndServeTLS(certFile, keyFile)
 		}
 	} else {
 		serveFunc = func() error {
-			return http.ListenAndServe(bindAddr, nil)
+			return server.ListenAndServe()
 		}
 	}
 
 	errChan := make(chan error)
-
-	http.HandleFunc(uploadPath, app.handleUploadRequest)
 
 	go func() {
 		errChan <- serveFunc()

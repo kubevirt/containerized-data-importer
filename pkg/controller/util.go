@@ -820,6 +820,19 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 						},
 					},
 					Args: []string{"-v=" + verbose},
+					ReadinessProbe: &v1.Probe{
+						Handler: v1.Handler{
+							HTTPGet: &v1.HTTPGetAction{
+								Path: "/healthz",
+								Port: intstr.IntOrString{
+									Type:   intstr.Int,
+									IntVal: 8080,
+								},
+							},
+						},
+						InitialDelaySeconds: 2,
+						PeriodSeconds:       5,
+					},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyOnFailure,

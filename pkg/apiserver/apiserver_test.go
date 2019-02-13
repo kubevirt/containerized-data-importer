@@ -551,6 +551,15 @@ func TestGetAPIGroupList(t *testing.T) {
 	checkEqual(t, expectedAPIGroupList, apiGroupList)
 }
 
+func TestHealthz(t *testing.T) {
+	rr := doGetRequest(t, "/healthz")
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("/healthz returned wrong status code: got %v want %v",
+			status, http.StatusOK)
+	}
+}
+
 func TestGetToken(t *testing.T) {
 	type args struct {
 		authorizer     CdiAPIAuthorizer
