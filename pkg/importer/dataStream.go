@@ -80,6 +80,7 @@ type DataStream struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	dataCtxt    DataContext
+	isIsoImage  bool
 }
 
 type reader struct {
@@ -210,6 +211,10 @@ func newDataStream(dso *DataStreamOptions, stream io.ReadCloser) (*DataStream, e
 		ds.Size, err = ds.isoSize()
 		if err != nil {
 			return nil, errors.Wrapf(err, "unable to calculate iso file size")
+		}
+		// at that point, only if ds.size != 0 we know for sure that this is an iso file
+		if ds.Size != 0 {
+			ds.isIsoImage = true
 		}
 	}
 	glog.V(3).Infof("NewDataStream: endpoint %q's computed byte size: %d", ep, ds.Size)
@@ -955,7 +960,9 @@ func (d *DataStream) copy(dest string) (err error) {
 			}
 		}
 	}
-	if d.ImageSize != "" {
+
+	if !d.isIsoImage && d.ImageSize != "" {
+		glog.V(3).Infoln("Resizing image")
 		err := ResizeImage(dest, d.ImageSize, d.AvailableSpace)
 		if err != nil {
 			return errors.Wrap(err, "Resize of image failed")
