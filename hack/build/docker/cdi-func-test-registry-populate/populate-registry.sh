@@ -24,9 +24,22 @@ function  ready {
     touch $1
 }
 
+#healthy if registry is accessible and can return the list of images
 function health {
     echo "health"
-    touch $1
+    registry=$registry_host":"$registry_port
+    status=$?
+    curl -k -X GET https://$registry/v2/_catalog &> /dev/null
+    if [ $status -eq 0 ]; then 
+       touch $1
+    else 
+       echo "registry is inaccessible"
+    fi
+}
+
+function imageList {
+    registry=$registry_host":"$registry_port
+    echo curl -k -X GET https://$registry/v2/_catalog
 }
 
 #Convert all images to docker build consumable format
@@ -46,11 +59,19 @@ function prepareImages {
 
    for FILENAME in $(ls); do
         mkdir -p $FILENAME$DIR
-        cp  $FILENAME $FILENAME$DIR"/"$VMIMAGEFILENAME
+        cp  $FILENAME $FILENAME$DIR
+
+        local IMAGE_LOCATION 
+        if [[ $FILENAME == *"gz"* ]]; then
+            IMAGE_LOCATION="/"
+        else
+            IMAGE_LOCATION="/disk"
+        fi
+
         FILE=$FILENAME$DIR"/"$DOCKERFILE
         /bin/cat  >$FILE <<-EOF
-                FROM scratch
-                COPY $VMIMAGEFILENAME /
+                FROM kubevirt/container-disk-v1alpha
+                COPY $FILENAME $IMAGE_LOCATION
 EOF
 
         rm $FILENAME
@@ -76,14 +97,14 @@ function pushImages {
    shopt -s nullglob
    for IMAGEDIR in *$DIR; do
         cd $IMAGEDIR
-        FILE=$(ls | grep -v $DOCKERFILE)
         declare -l FILE
-        FILE=$FILE
-        echo "building image "$FILE
-        buildah bud -t $FILE":buildah" $images"/"$IMAGEDIR"/"; $retval
+        FILE=$(ls | grep -v $DOCKERFILE)
+        IMAGENAME=${FILE//.}
+        echo "building image "$IMAGENAME
+        buildah bud -t $IMAGENAME":latest" $images"/"$IMAGEDIR"/"
 	error $retval	
-        echo "pushing image "$FILE" to registry-service: "$resgistry
-        buildah push $registry_tls  $FILE":buildah" "docker://"$registry"/"$FILE; $retVal
+        echo "pushing image "$IMAGENAME" to registry-service: "$registry
+        buildah push $registry_tls  $IMAGENAME":latest" "docker://"$registry"/"$IMAGENAME
 	error $retval
         cd ../
    done

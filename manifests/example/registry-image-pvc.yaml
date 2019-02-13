@@ -6,7 +6,7 @@ metadata:
     app: containerized-data-importer
   annotations:
     cdi.kubevirt.io/storage.import.source: "registry"
-    cdi.kubevirt.io/storage.import.endpoint: "docker://docker.io/cirros"
+    cdi.kubevirt.io/storage.import.endpoint: "docker://kubevirt/fedora-cloud-registry-disk-demo"
 spec:
   accessModes:
   - ReadWriteOnce

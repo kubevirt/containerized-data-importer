@@ -22,11 +22,14 @@ import (
 var _ = Describe("Transport Tests", func() {
 
 	const (
-		secretPrefix   = "transport-e2e-sec"
-		targetFile     = "tinyCore.iso"
-		targetImage    = "disk.img"
-		targetQCOWFile = "tinyCore.qcow2"
-		sizeCheckPod   = "size-checker"
+		secretPrefix               = "transport-e2e-sec"
+		targetFile                 = "tinyCore.iso"
+		targetQCOWFile             = "tinyCore.qcow2"
+		targetQCOWImage            = "tinycoreqcow2"
+		targetRawImage             = "tinycoreqcow2"
+		targetRegistryInvalidImage = "tinycoreisotargz"
+		targetArchivedImage        = "tinycoreisotar"
+		sizeCheckPod               = "size-checker"
 	)
 
 	var (
@@ -104,7 +107,7 @@ var _ = Describe("Transport Tests", func() {
 			Expect(utils.WaitTimeoutForPodReady(c, sizeCheckPod, ns, 20*time.Second)).To(Succeed())
 
 			switch pvcAnn[controller.AnnSource] {
-			case controller.SourceHTTP:
+			case controller.SourceHTTP, controller.SourceRegistry:
 				command := `expSize=20971520; haveSize=$(wc -c < /pvc/disk.img); (( $expSize == $haveSize )); echo $?`
 				exitCode, _ := f.ExecShellInPod(pod.Name, ns, command)
 				// A 0 exitCode should indicate that $expSize == $haveSize
@@ -125,7 +128,8 @@ var _ = Describe("Transport Tests", func() {
 		Entry("should not connect to http endpoint with invalid credentials", httpAuthEp, targetFile, "gopats", "bradyisthegoat", controller.SourceHTTP, false),
 		Entry("should connect to QCOW http endpoint without credentials", httpNoAuthEp, targetQCOWFile, "", "", controller.SourceHTTP, true),
 		Entry("should connect to QCOW http endpoint with credentials", httpAuthEp, targetQCOWFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, true),
-		Entry("should connect to registry endpoint without credentials", registryNoAuthEp, targetImage, "", "", controller.SourceRegistry, true),
-		//		Entry("should not connect to registry endpoint with invalid credentials", registryNoAuthEp, "registry", "gopats", "bradyisthegoat", controller.SourceRegistry, false),
+		Entry("should succeed to import from registry when image contains valid qcow file", registryNoAuthEp, targetQCOWImage, "", "", controller.SourceRegistry, true),
+		Entry("should succeed to import from registry when image contains valid raw file", registryNoAuthEp, targetRawImage, "", "", controller.SourceRegistry, true),
+		Entry("should succeed to import from registry when image contains valid archived raw file", registryNoAuthEp, targetArchivedImage, "", "", controller.SourceRegistry, true),
 	)
 })
