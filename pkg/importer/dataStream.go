@@ -893,12 +893,9 @@ func (d *DataStream) convertQcow2ToRaw(src, dest string) error {
 	}
 
 	//Verify there is enough space in pvc before conversion
-	isEnoughSpace, err := ValidateSpaceConstraint(src, filepath.Dir(dest))
+	err = ValidateSpaceConstraint(src, filepath.Dir(dest))
 	if err != nil {
 		return err
-	}
-	if !isEnoughSpace {
-		return errors.Wrap(err, "Local qcow2 to raw conversion failed - there is not enough space for conversion")
 	}
 
 	glog.V(2).Infoln("converting qcow2 image")
@@ -973,35 +970,34 @@ func (d *DataStream) copy(dest string) (err error) {
 //Returns failure if either of the following happens
 //1. info cannot be retrieved from qcow2 file
 //2. Either ActualSize or VirtualSize are 0 - not specified
-//3. ActualSize and VirtualSize together exceed available PVC Space
-func ValidateSpaceConstraint(qcow2Image string, destDir string) (bool, error) {
+//3. The current available space < virtual size
+func ValidateSpaceConstraint(qcow2Image string, destDir string) error {
 
 	//Verify there is enough space in pvc before conversion
 	info, err := qemuOperations.Info(qcow2Image)
 
+	// Failed to get info on source image.
 	if err != nil {
-		return false, errors.Wrap(err, "Local image validation failed to retrieve image info")
+		return errors.Wrap(err, "Local image validation failed to retrieve image info")
 	}
 
-	if info == nil {
-		return false, errors.Wrap(err, "Local image validation failed to retrieve image info")
-	}
-
+	// Got some info, but couldn't get virtual or actual size.
 	if info.VirtualSize == 0 || info.ActualSize == 0 {
-		return false, errors.Wrap(err, "Local image validation failed - no image size info is provided")
+		return errors.New("Local image validation failed - no image size info is provided")
 	}
 
-	convRequiredSpace := info.VirtualSize + info.ActualSize
-
+	// The converted file is guaranteed not the be larger than the virtual size, so we need to compare current available space (which is total space
+	// - temporary file actual size) against the worst case scenario which is the conversion actual size equals the virtual size.
+	convRequiredSpace := info.VirtualSize
 	sysAvailableSpace := util.GetAvailableSpace(destDir)
 
 	if sysAvailableSpace < convRequiredSpace {
-		return false, errors.WithMessage(err, fmt.Sprintf("qcow2 image conversion to raw failed due to insuficient space"))
+		return errors.New("qcow2 image conversion to raw failed due to insuficient space")
 	}
 
-	glog.V(2).Infoln("There is enough space in PVC for qcow2 to raw  convesrion - required=%d, available=%", convRequiredSpace, sysAvailableSpace)
+	glog.V(2).Infoln(fmt.Sprintf("There is enough space in PVC for qcow2 to raw  conversion - required=%d, available=%d\n", convRequiredSpace, sysAvailableSpace))
 
-	return true, nil
+	return nil
 }
 
 // Return a random temp path with the `src` basename as the prefix and preserving the extension.
