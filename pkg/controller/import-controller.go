@@ -22,6 +22,8 @@ const (
 	AnnEndpoint = AnnAPIGroup + "/storage.import.endpoint"
 	// AnnSecret provides a const for our PVC secretName annotation
 	AnnSecret = AnnAPIGroup + "/storage.import.secretName"
+	// AnnCertConfigMap is the name of a configmap containing tls certs
+	AnnCertConfigMap = AnnAPIGroup + "/storage.import.certConfigMap"
 	// AnnContentType provides a const for the PVC content-type
 	AnnContentType = AnnAPIGroup + "/storage.contentType"
 	// AnnImportPod provides a const for our PVC importPodName annotation
@@ -36,7 +38,7 @@ type ImportController struct {
 }
 
 type importPodEnvVar struct {
-	ep, secretName, source, contentType, imageSize string
+	ep, secretName, source, contentType, imageSize, certConfigMap string
 }
 
 // NewImportController sets up an Import Controller, and returns a pointer to
@@ -102,7 +104,7 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 		needsSync = false
 	}
 	if pod == nil && needsSync {
-		podEnvVar, err := createImportEnvVar(pvc, ic)
+		podEnvVar, err := createImportEnvVar(ic.clientset, pvc)
 		if err != nil {
 			return err
 		}

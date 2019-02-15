@@ -39,6 +39,7 @@ var _ = Describe("Copy from Registry", func() {
 				string(cdiv1.DataVolumeKubeVirt),
 				"1G",
 				int64(1234567890),
+				"",
 			})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
@@ -70,7 +71,7 @@ func NewFakeSkopeoOperations(e1 error) image.SkopeoOperations {
 	return &fakeSkopeoOperations{e1}
 }
 
-func (o *fakeSkopeoOperations) CopyImage(string, string, string, string) error {
+func (o *fakeSkopeoOperations) CopyImage(url, dest, accessKey, secKey, certDir string) error {
 	if o.e1 == nil {
 		if err := util.UnArchiveLocalTar(imageFile, imageDir); err != nil {
 			return errors.New("could not extract layer tar")

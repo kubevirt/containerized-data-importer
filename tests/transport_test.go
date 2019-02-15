@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -44,7 +44,7 @@ var _ = Describe("Transport Tests", func() {
 
 	// it() is the body of the test and is executed once per Entry() by DescribeTable()
 	// closes over c and ns
-	it := func(ep, file, accessKey, secretKey, source string, shouldSucceed bool) {
+	it := func(ep, file, accessKey, secretKey, source string, useRegistryCert, shouldSucceed bool) {
 
 		var (
 			err error // prevent shadowing
@@ -71,6 +71,12 @@ var _ = Describe("Transport Tests", func() {
 			sec, err = utils.CreateSecretFromDefinition(c, utils.NewSecretDefinition(nil, stringData, nil, ns, secretPrefix))
 			Expect(err).NotTo(HaveOccurred(), "Error creating test secret")
 			pvcAnn[controller.AnnSecret] = sec.Name
+		}
+
+		if useRegistryCert {
+			cm, err := utils.CopyRegistryCertConfigMap(c, ns)
+			Expect(err).To(BeNil())
+			pvcAnn[controller.AnnCertConfigMap] = cm
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", pvcAnn[controller.AnnEndpoint]))
@@ -120,12 +126,12 @@ var _ = Describe("Transport Tests", func() {
 	httpAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPAuthPort)
 	registryNoAuthEp := fmt.Sprintf("docker://%s", utils.RegistryHostName+"."+utils.RegistryHostNs)
 	DescribeTable("Transport Test Table", it,
-		Entry("should connect to http endpoint without credentials", httpNoAuthEp, targetFile, "", "", controller.SourceHTTP, true),
-		Entry("should connect to http endpoint with credentials", httpAuthEp, targetFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, true),
-		Entry("should not connect to http endpoint with invalid credentials", httpAuthEp, targetFile, "gopats", "bradyisthegoat", controller.SourceHTTP, false),
-		Entry("should connect to QCOW http endpoint without credentials", httpNoAuthEp, targetQCOWFile, "", "", controller.SourceHTTP, true),
-		Entry("should connect to QCOW http endpoint with credentials", httpAuthEp, targetQCOWFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, true),
-		Entry("should connect to registry endpoint without credentials", registryNoAuthEp, targetImage, "", "", controller.SourceRegistry, true),
+		Entry("should connect to http endpoint without credentials", httpNoAuthEp, targetFile, "", "", controller.SourceHTTP, false, true),
+		Entry("should connect to http endpoint with credentials", httpAuthEp, targetFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, false, true),
+		Entry("should not connect to http endpoint with invalid credentials", httpAuthEp, targetFile, "gopats", "bradyisthegoat", controller.SourceHTTP, false, false),
+		Entry("should connect to QCOW http endpoint without credentials", httpNoAuthEp, targetQCOWFile, "", "", controller.SourceHTTP, false, true),
+		Entry("should connect to QCOW http endpoint with credentials", httpAuthEp, targetQCOWFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, false, true),
+		Entry("should connect to registry endpoint without credentials", registryNoAuthEp, targetImage, "", "", controller.SourceRegistry, true, true),
 		//		Entry("should not connect to registry endpoint with invalid credentials", registryNoAuthEp, "registry", "gopats", "bradyisthegoat", controller.SourceRegistry, false),
 	)
 })

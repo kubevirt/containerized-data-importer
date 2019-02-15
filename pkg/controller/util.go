@@ -26,6 +26,9 @@ const (
 	// DataVolName provides a const to use for creating volumes in pod specs
 	DataVolName = "cdi-data-vol"
 
+	// CertVolName is the name of the volumecontaining certs
+	CertVolName = "cdi-cert-vol"
+
 	// ImagePathName provides a const to use for creating volumes in pod specs
 	ImagePathName  = "image-path"
 	socketPathName = "socket-path"
@@ -314,6 +317,28 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar *importPod
 		ownerUID = pvc.OwnerReferences[0].UID
 	}
 	pod.Spec.Containers[0].Env = makeEnv(podEnvVar, ownerUID)
+
+	if podEnvVar.certConfigMap != "" {
+		vm := v1.VolumeMount{
+			Name:      CertVolName,
+			MountPath: common.ImporterCertDir,
+		}
+
+		vol := v1.Volume{
+			Name: CertVolName,
+			VolumeSource: v1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: podEnvVar.certConfigMap,
+					},
+				},
+			},
+		}
+
+		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
+		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
+	}
+
 	return pod
 }
 
@@ -362,6 +387,12 @@ func makeEnv(podEnvVar *importPodEnvVar, uid types.UID) []v1.EnvVar {
 					Key: common.KeySecret,
 				},
 			},
+		})
+	}
+	if podEnvVar.certConfigMap != "" {
+		env = append(env, v1.EnvVar{
+			Name:  common.ImporterCertDirVar,
+			Value: common.ImporterCertDir,
 		})
 	}
 	return env
@@ -878,7 +909,7 @@ func deletePod(req podDeleteRequest) error {
 	return err
 }
 
-func createImportEnvVar(pvc *v1.PersistentVolumeClaim, ic *ImportController) (*importPodEnvVar, error) {
+func createImportEnvVar(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (*importPodEnvVar, error) {
 	podEnvVar := &importPodEnvVar{}
 	podEnvVar.source = getSource(pvc)
 	podEnvVar.contentType = getContentType(pvc)
@@ -890,12 +921,16 @@ func createImportEnvVar(pvc *v1.PersistentVolumeClaim, ic *ImportController) (*i
 		if err != nil {
 			return nil, err
 		}
-		podEnvVar.secretName, err = getSecretName(ic.clientset, pvc)
+		podEnvVar.secretName, err = getSecretName(client, pvc)
 		if err != nil {
 			return nil, err
 		}
 		if podEnvVar.secretName == "" {
 			glog.V(2).Infof("no secret will be supplied to endpoint %q\n", podEnvVar.ep)
+		}
+		podEnvVar.certConfigMap, err = getCertConfigMap(client, pvc)
+		if err != nil {
+			return nil, err
 		}
 	}
 	//get the requested image size.
@@ -904,4 +939,23 @@ func createImportEnvVar(pvc *v1.PersistentVolumeClaim, ic *ImportController) (*i
 		return nil, err
 	}
 	return podEnvVar, nil
+}
+
+func getCertConfigMap(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (string, error) {
+	value, ok := pvc.Annotations[AnnCertConfigMap]
+	if !ok || value == "" {
+		return "", nil
+	}
+
+	_, err := client.CoreV1().ConfigMaps(pvc.Namespace).Get(value, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			glog.Warningf("Configmap %s does not exist, pod will not start until it does", value)
+			return value, nil
+		}
+
+		return "", err
+	}
+
+	return value, nil
 }
