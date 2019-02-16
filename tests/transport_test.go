@@ -22,14 +22,13 @@ import (
 var _ = Describe("Transport Tests", func() {
 
 	const (
-		secretPrefix               = "transport-e2e-sec"
-		targetFile                 = "tinyCore.iso"
-		targetQCOWFile             = "tinyCore.qcow2"
-		targetQCOWImage            = "tinycoreqcow2"
-		targetRawImage             = "tinycoreqcow2"
-		targetRegistryInvalidImage = "tinycoreisotargz"
-		targetArchivedImage        = "tinycoreisotar"
-		sizeCheckPod               = "size-checker"
+		secretPrefix        = "transport-e2e-sec"
+		targetFile          = "tinyCore.iso"
+		targetQCOWFile      = "tinyCore.qcow2"
+		targetQCOWImage     = "tinycoreqcow2"
+		targetRawImage      = "tinycoreqcow2"
+		targetArchivedImage = "tinycoreisotar"
+		sizeCheckPod        = "size-checker"
 	)
 
 	var (
@@ -108,10 +107,12 @@ var _ = Describe("Transport Tests", func() {
 
 			switch pvcAnn[controller.AnnSource] {
 			case controller.SourceHTTP, controller.SourceRegistry:
-				command := `expSize=20971520; haveSize=$(wc -c < /pvc/disk.img); (( $expSize == $haveSize )); echo $?`
-				exitCode, _ := f.ExecShellInPod(pod.Name, ns, command)
-				// A 0 exitCode should indicate that $expSize == $haveSize
-				Expect(strconv.Atoi(exitCode)).To(BeZero())
+				if file != targetFile {
+					command := `expSize=20971520; haveSize=$(wc -c < /pvc/disk.img); (( $expSize == $haveSize )); echo $?`
+					exitCode, _ := f.ExecShellInPod(pod.Name, ns, command)
+					// A 0 exitCode should indicate that $expSize == $haveSize
+					Expect(strconv.Atoi(exitCode)).To(BeZero())
+				}
 			}
 		} else {
 			By("Verifying PVC is empty")
