@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -16,6 +17,7 @@ import (
 
 const (
 	dataVolumeName     = "test-dv"
+	pvcName            = "test-pvc"
 	validURL           = "http://www.example.com/example.img"
 	invalidURLFormat   = "invalidURL"
 	datavolumeTestFile = "manifests/datavolume.yaml"
@@ -105,7 +107,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][vendor:cnv-qe@redhat.com][level:com
 		})
 	})
 
-	Context("when creating Datavolume", func() {
+	Context("DataVolume Already Exists", func() {
 		BeforeEach(func() {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "500Mi", validURL)
 
@@ -118,6 +120,34 @@ var _ = Describe("[rfe_id:1130][crit:medium][vendor:cnv-qe@redhat.com][level:com
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("[test_id:1030]should fail creating an already existing DataVolume", func() {
+			By(fmt.Sprint("Verifying kubectl create"))
+			Eventually(func() bool {
+
+				_, err := RunKubectlCommand(f, "create", "-f", datavolumeTestFile, "-n", f.Namespace.Name)
+				if err != nil {
+					return true
+				}
+				return false
+			}, timeout, pollingInterval).Should(BeTrue())
+
+		})
+	})
+
+	Context("DataVolume destination PVC", func() {
+		BeforeEach(func() {
+			pvc := utils.NewPVCDefinition(dataVolumeName, "50Mi", nil, nil)
+
+			pvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, pvc)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(dataVolumeName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			err = utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvc)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("should fail creating a DataVolume with already existing destination pvc", func() {
 			By(fmt.Sprint("Verifying kubectl create"))
 			Eventually(func() bool {
 
