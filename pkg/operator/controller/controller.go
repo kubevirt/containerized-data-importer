@@ -221,6 +221,10 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 				"name", desiredMetaObj.GetName(),
 				"type", fmt.Sprintf("%T", desiredMetaObj))
 		} else {
+			if !r.shouldUpdateObject(currentRuntimeObj) {
+				continue
+			}
+
 			currentMetaObj := currentRuntimeObj.(metav1.Object)
 
 			// allow users to add new annotations (but not change ours)
@@ -260,6 +264,15 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	}
 
 	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileCDI) shouldUpdateObject(obj runtime.Object) bool {
+	switch obj.(type) {
+	case *corev1.ConfigMap:
+	case *corev1.Secret:
+		return false
+	}
+	return true
 }
 
 // I hate that this function exists, but major refactoring required to make CDI CR the owner of all the things

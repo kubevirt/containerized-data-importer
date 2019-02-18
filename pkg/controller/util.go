@@ -4,6 +4,8 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -371,6 +373,10 @@ func makeEnv(podEnvVar *importPodEnvVar, uid types.UID) []v1.EnvVar {
 		{
 			Name:  common.OwnerUID,
 			Value: string(uid),
+		},
+		{
+			Name:  common.InsecureRegistryVar,
+			Value: strconv.FormatBool(podEnvVar.inserureRegistry),
 		},
 	}
 	if podEnvVar.secretName != "" {
@@ -992,6 +998,10 @@ func createImportEnvVar(client kubernetes.Interface, pvc *v1.PersistentVolumeCla
 		if err != nil {
 			return nil, err
 		}
+		podEnvVar.inserureRegistry, err = isInsecureRegistry(client, pvc)
+		if err != nil {
+			return nil, err
+		}
 	}
 	//get the requested image size.
 	podEnvVar.imageSize, err = getRequestedImageSize(pvc)
@@ -1068,4 +1078,33 @@ func IsOpenshift(client kubernetes.Interface) bool {
 		}
 	}
 	return false
+}
+
+func isInsecureRegistry(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (bool, error) {
+	value, ok := pvc.Annotations[AnnEndpoint]
+	if !ok || value == "" {
+		return false, nil
+	}
+
+	url, err := url.Parse(value)
+	if err != nil {
+		return false, err
+	}
+
+	cm, err := client.CoreV1().ConfigMaps(util.GetNamespace()).Get(common.InsecureRegistryConfigMap, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	for host := range cm.Data {
+		if host == url.Host {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }

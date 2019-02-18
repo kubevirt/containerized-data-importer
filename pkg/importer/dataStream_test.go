@@ -125,6 +125,7 @@ var _ = Describe("Data Stream", func() {
 			"",
 			int64(1234567890),
 			"",
+			false,
 		})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
@@ -164,6 +165,7 @@ var _ = Describe("Data Stream", func() {
 			"1G",
 			int64(1234567890),
 			"",
+			false,
 		})
 		Expect(err).NotTo(HaveOccurred())
 		By("Closing data stream")
@@ -187,6 +189,7 @@ var _ = Describe("Data Stream", func() {
 			"20M",
 			int64(1234567890),
 			"",
+			false,
 		})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
@@ -223,6 +226,7 @@ var _ = Describe("Data Stream", func() {
 			"20M",
 			int64(1234567890),
 			"",
+			false,
 		})
 		defer func() {
 			tempTestServer.Close()
@@ -299,6 +303,7 @@ var _ = Describe("Copy", func() {
 				"",
 				int64(1234567890),
 				"",
+				false,
 			})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
@@ -348,6 +353,7 @@ var _ = Describe("Copy", func() {
 				"1G",
 				int64(1234567890),
 				"",
+				false,
 			})
 			if wantErr {
 				Expect(err).To(HaveOccurred())

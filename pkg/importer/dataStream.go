@@ -110,6 +110,8 @@ type DataStreamOptions struct {
 	AvailableSpace int64
 	// CertDir is a directory containing tls certs
 	CertDir string
+	// InsecureRegistry is it okay to skip TLS verification
+	InsecureRegistry bool
 }
 
 const (
@@ -172,6 +174,7 @@ func newDataStreamFromStream(stream io.ReadCloser) (*DataStream, error) {
 		"", // Blank means don't resize
 		util.GetAvailableSpace(common.ImporterVolumePath),
 		"",
+		false,
 	}, stream)
 }
 
@@ -380,7 +383,7 @@ func (d *DataStream) registry() (io.ReadCloser, error) {
 
 	//2. copy image from registry to the temporary location
 	glog.V(1).Infof("using skopeo to copy from registry")
-	err := image.CopyRegistryImage(d.Endpoint, tmpData.dataDir, ContainerDiskImageDir, d.AccessKey, d.SecKey, d.CertDir)
+	err := image.CopyRegistryImage(d.Endpoint, tmpData.dataDir, ContainerDiskImageDir, d.AccessKey, d.SecKey, d.CertDir, d.InsecureRegistry)
 	if err != nil {
 		glog.Errorf("Failed to read data from registry")
 		return nil, errors.Wrapf(err, fmt.Sprintf("Failed ro read from registry"))

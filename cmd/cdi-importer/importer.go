@@ -16,6 +16,7 @@ import (
 	"flag"
 	"io/ioutil"
 	"os"
+	"strconv"
 
 	"github.com/golang/glog"
 
@@ -51,6 +52,7 @@ func main() {
 	contentType, _ := util.ParseEnvVar(common.ImporterContentType, false)
 	imageSize, _ := util.ParseEnvVar(common.ImporterImageSize, false)
 	certDir, _ := util.ParseEnvVar(common.ImporterCertDirVar, false)
+	insecureRegistry, _ := strconv.ParseBool(os.Getenv(common.InsecureRegistryVar))
 
 	//Registry import currently support only kubevirt content type
 	if contentType != string(cdiv1.DataVolumeKubeVirt) && source == controller.SourceRegistry {
@@ -66,16 +68,17 @@ func main() {
 
 	glog.V(1).Infoln("begin import process")
 	dso := &importer.DataStreamOptions{
-		Dest:           dest,
-		DataDir:        dataDir,
-		Endpoint:       ep,
-		AccessKey:      acc,
-		SecKey:         sec,
-		Source:         source,
-		ContentType:    contentType,
-		ImageSize:      imageSize,
-		AvailableSpace: util.GetAvailableSpace(common.ImporterVolumePath),
-		CertDir:        certDir,
+		Dest:             dest,
+		DataDir:          dataDir,
+		Endpoint:         ep,
+		AccessKey:        acc,
+		SecKey:           sec,
+		Source:           source,
+		ContentType:      contentType,
+		ImageSize:        imageSize,
+		AvailableSpace:   util.GetAvailableSpace(common.ImporterVolumePath),
+		CertDir:          certDir,
+		InsecureRegistry: insecureRegistry,
 	}
 
 	if source == controller.SourceNone && contentType == string(cdiv1.DataVolumeKubeVirt) {
