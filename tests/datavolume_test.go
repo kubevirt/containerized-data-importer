@@ -63,6 +63,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				dataVolume = utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)
 			case "import-registry":
 				dataVolume = utils.NewDataVolumeWithRegistryImport(dataVolumeName, "1Gi", url)
+				cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name)
+				Expect(err).To(BeNil())
+				dataVolume.Spec.Source.Registry.CertConfigMap = cm
 			}
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))

@@ -123,6 +123,7 @@ var _ = Describe("Data Stream", func() {
 			contentType,
 			"",
 			int64(1234567890),
+			"",
 		})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
@@ -160,6 +161,7 @@ var _ = Describe("Data Stream", func() {
 			string(cdiv1.DataVolumeKubeVirt),
 			"1G",
 			int64(1234567890),
+			"",
 		})
 		Expect(err).NotTo(HaveOccurred())
 		By("Closing data stream")
@@ -181,6 +183,7 @@ var _ = Describe("Data Stream", func() {
 			string(cdiv1.DataVolumeKubeVirt),
 			"20M",
 			int64(1234567890),
+			"",
 		})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
@@ -215,6 +218,7 @@ var _ = Describe("Data Stream", func() {
 			contentType,
 			"20M",
 			int64(1234567890),
+			"",
 		})
 		defer func() {
 			tempTestServer.Close()
@@ -289,6 +293,7 @@ var _ = Describe("Copy", func() {
 				string(cdiv1.DataVolumeKubeVirt),
 				"",
 				int64(1234567890),
+				"",
 			})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
@@ -336,6 +341,7 @@ var _ = Describe("Copy", func() {
 				string(cdiv1.DataVolumeKubeVirt),
 				"1G",
 				int64(1234567890),
+				"",
 			})
 			if wantErr {
 				Expect(err).To(HaveOccurred())

@@ -12,6 +12,6 @@ spec:
   - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi
+      storage: 5Gi
   # Optional: Set the storage class or omit to accept the default
   storageClassName: local

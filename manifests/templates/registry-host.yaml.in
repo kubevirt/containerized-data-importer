@@ -39,7 +39,7 @@ spec:
       - name: registry-init
         image: {{ .DockerRepo }}/cdi-func-test-registry-init:{{ .DockerTag }}
         imagePullPolicy: {{ .PullPolicy }}
-        args: ["-inCertDir", "/tmp/source/certs", "-outCertDir", "/tmp/shared/certs", "-inFile", "/tmp/source/tinyCore.iso", "-outDir", "/tmp/shared/images"]
+        args: ["-certDir", "/tmp/shared/certs", "-inFile", "/tmp/source/tinyCore.iso", "-outDir", "/tmp/shared/images"]
         volumeMounts:
         - name: "images"
           mountPath: "/tmp/shared"
