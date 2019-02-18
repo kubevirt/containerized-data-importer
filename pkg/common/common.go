@@ -3,7 +3,7 @@ package common
 import (
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 // Common types and constants used by the importer and controller.
@@ -36,6 +36,8 @@ const (
 	ImporterDataDir = "/data"
 	// ImporterS3Host provides an S3 string used by importer/dataStream.go only
 	ImporterS3Host = "s3.amazonaws.com"
+	// ImporterCertDir is where the configmap containg certs will be mounted
+	ImporterCertDir = "/certs"
 	// DefaultPullPolicy imports k8s "IfNotPresent" string for the import_controller_gingko_test and the cdi-controller executable
 	DefaultPullPolicy = string(v1.PullIfNotPresent)
 
@@ -53,6 +55,8 @@ const (
 	ImporterSecretKey = "IMPORTER_SECRET_KEY"
 	// ImporterImageSize provides a constant to capture our env variable "IMPORTER_IMAGE_SIZE"
 	ImporterImageSize = "IMPORTER_IMAGE_SIZE"
+	// ImporterCertDirVar provides a constant to capture our env variable "IMPORTER_CERT_DIR"
+	ImporterCertDirVar = "IMPORTER_CERT_DIR"
 
 	// CloningLabelKey provides a constant to use as a label name for pod affinity (controller pkg only)
 	CloningLabelKey = "cloning"

@@ -51,17 +51,19 @@ func (DataVolumeSourceS3) SwaggerDoc() map[string]string {
 
 func (DataVolumeSourceRegistry) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":          "DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source",
-		"url":       "URL is the url of the Registry source",
-		"secretRef": "SecretRef provides the secret reference needed to access the Registry source",
+		"":              "DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source",
+		"url":           "URL is the url of the Registry source",
+		"secretRef":     "SecretRef provides the secret reference needed to access the Registry source",
+		"certConfigMap": "CertConfigMap provides a reference to the Registry certs",
 	}
 }
 
 func (DataVolumeSourceHTTP) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":          "DataVolumeSourceHTTP provides the parameters to create a Data Volume from an HTTP source",
-		"url":       "URL is the URL of the http source",
-		"secretRef": "SecretRef provides the secret reference needed to access the HTTP source",
+		"":              "DataVolumeSourceHTTP provides the parameters to create a Data Volume from an HTTP source",
+		"url":           "URL is the URL of the http source",
+		"secretRef":     "SecretRef provides the secret reference needed to access the HTTP source",
+		"certConfigMap": "CertConfigMap provides a reference to the Registry certs",
 	}
 }
 

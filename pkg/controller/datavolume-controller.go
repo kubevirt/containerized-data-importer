@@ -648,6 +648,9 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 		if dataVolume.Spec.Source.HTTP.SecretRef != "" {
 			annotations[AnnSecret] = dataVolume.Spec.Source.HTTP.SecretRef
 		}
+		if dataVolume.Spec.Source.HTTP.CertConfigMap != "" {
+			annotations[AnnCertConfigMap] = dataVolume.Spec.Source.HTTP.CertConfigMap
+		}
 	} else if dataVolume.Spec.Source.S3 != nil {
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.S3.URL
 		if dataVolume.Spec.Source.S3.SecretRef != "" {
@@ -658,6 +661,9 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.Registry.URL
 		if dataVolume.Spec.Source.Registry.SecretRef != "" {
 			annotations[AnnSecret] = dataVolume.Spec.Source.Registry.SecretRef
+		}
+		if dataVolume.Spec.Source.Registry.CertConfigMap != "" {
+			annotations[AnnCertConfigMap] = dataVolume.Spec.Source.Registry.CertConfigMap
 		}
 	} else if dataVolume.Spec.Source.PVC != nil {
 		if dataVolume.Spec.Source.PVC.Namespace != "" {
