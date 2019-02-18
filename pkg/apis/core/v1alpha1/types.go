@@ -94,6 +94,8 @@ type DataVolumeSourceRegistry struct {
 	URL string `json:"url,omitempty"`
 	//SecretRef provides the secret reference needed to access the Registry source
 	SecretRef string `json:"secretRef,omitempty"`
+	//CertConfigMap provides a reference to the Registry certs
+	CertConfigMap string `json:"certConfigMap,omitempty"`
 }
 
 // DataVolumeSourceHTTP provides the parameters to create a Data Volume from an HTTP source
@@ -102,6 +104,8 @@ type DataVolumeSourceHTTP struct {
 	URL string `json:"url,omitempty"`
 	//SecretRef provides the secret reference needed to access the HTTP source
 	SecretRef string `json:"secretRef,omitempty"`
+	//CertConfigMap provides a reference to the Registry certs
+	CertConfigMap string `json:"certConfigMap,omitempty"`
 }
 
 // DataVolumeStatus provides the parameters to store the phase of the Data Volume

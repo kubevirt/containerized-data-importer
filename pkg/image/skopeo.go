@@ -35,7 +35,7 @@ const whFilePrefix string = ".wh."
 
 // SkopeoOperations defines the interface for executing skopeo subprocesses
 type SkopeoOperations interface {
-	CopyImage(string, string, string, string) error
+	CopyImage(string, string, string, string, string) error
 }
 
 type skopeoOperations struct{}
@@ -62,14 +62,17 @@ func NewSkopeoOperations() SkopeoOperations {
 	return &skopeoOperations{}
 }
 
-func (o *skopeoOperations) CopyImage(url, dest, accessKey, secKey string) error {
+func (o *skopeoOperations) CopyImage(url, dest, accessKey, secKey, certDir string) error {
 	var err error
-	if len(accessKey) > 0 && len(secKey) > 0 {
-		var creds = "--src-creds=" + accessKey + ":" + secKey
-		_, err = skopeoExecFunction(processLimits, nil, "skopeo", "copy", url, dest, creds)
-	} else {
-		_, err = skopeoExecFunction(processLimits, nil, "skopeo", "copy", url, dest, "--src-tls-verify=false")
+	args := []string{"copy", url, dest}
+	if accessKey != "" && secKey != "" {
+		creds := "--src-creds=" + accessKey + ":" + secKey
+		args = append(args, creds)
 	}
+	if certDir != "" {
+		args = append(args, "--src-cert-dir="+certDir)
+	}
+	_, err = skopeoExecFunction(processLimits, nil, "skopeo", args...)
 	if err != nil {
 		return errors.Wrap(err, "could not copy image")
 	}
@@ -77,9 +80,9 @@ func (o *skopeoOperations) CopyImage(url, dest, accessKey, secKey string) error 
 }
 
 // CopyRegistryImage download image from registry with skopeo
-func CopyRegistryImage(url, dest, destFile, accessKey, secKey string) error {
+func CopyRegistryImage(url, dest, destFile, accessKey, secKey, certDir string) error {
 	skopeoDest := "dir:" + dest + dataTmpDir
-	err := SkopeoInterface.CopyImage(url, skopeoDest, accessKey, secKey)
+	err := SkopeoInterface.CopyImage(url, skopeoDest, accessKey, secKey, certDir)
 	if err != nil {
 		os.RemoveAll(dest + dataTmpDir)
 		return errors.Wrap(err, "Failed to download from registry")

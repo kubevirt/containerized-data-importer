@@ -50,6 +50,7 @@ func main() {
 	source, _ := util.ParseEnvVar(common.ImporterSource, false)
 	contentType, _ := util.ParseEnvVar(common.ImporterContentType, false)
 	imageSize, _ := util.ParseEnvVar(common.ImporterImageSize, false)
+	certDir, _ := util.ParseEnvVar(common.ImporterCertDirVar, false)
 
 	//Registry import currently support only kubevirt content type
 	if contentType != string(cdiv1.DataVolumeKubeVirt) && source == controller.SourceRegistry {
@@ -65,15 +66,16 @@ func main() {
 
 	glog.V(1).Infoln("begin import process")
 	dso := &importer.DataStreamOptions{
-		dest,
-		dataDir,
-		ep,
-		acc,
-		sec,
-		source,
-		contentType,
-		imageSize,
-		util.GetAvailableSpace(common.ImporterVolumePath),
+		Dest:           dest,
+		DataDir:        dataDir,
+		Endpoint:       ep,
+		AccessKey:      acc,
+		SecKey:         sec,
+		Source:         source,
+		ContentType:    contentType,
+		ImageSize:      imageSize,
+		AvailableSpace: util.GetAvailableSpace(common.ImporterVolumePath),
+		CertDir:        certDir,
 	}
 
 	if source == controller.SourceNone && contentType == string(cdiv1.DataVolumeKubeVirt) {

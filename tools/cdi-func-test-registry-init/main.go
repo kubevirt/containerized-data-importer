@@ -14,21 +14,36 @@ package main
 
 import (
 	"flag"
-
-	"io"
 	"io/ioutil"
+	"path"
+
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
+
+	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	certutil "k8s.io/client-go/util/cert"
+
+	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
+const (
+	serviceName   = "cdi-docker-registry-host"
+	configMapName = serviceName + "-certs"
+	certFile      = "domain.crt"
+	keyFile       = "domain.key"
+)
+
 func main() {
-	inCertDir := flag.String("inCertDir", "", "")
-	outCertDir := flag.String("outCertDir", "", "")
+	certDir := flag.String("certDir", "", "")
 	inFile := flag.String("inFile", "", "")
 	outDir := flag.String("outDir", "", "")
 	flag.Parse()
@@ -44,8 +59,8 @@ func main() {
 		glog.Fatal(errors.Wrapf(err, "generating files from %s to %s' errored: ", *inFile, *outDir))
 	}
 
-	if err := ft.copyCertDir(*inCertDir, *outCertDir); err != nil {
-		glog.Fatal(errors.Wrapf(err, "copy certificate directory %s' errored: ", outCertDir))
+	if err := ft.populateCertDir(*certDir); err != nil {
+		glog.Fatal(errors.Wrapf(err, "copy certificate directory %s' errored: ", certDir))
 	}
 }
 
@@ -63,54 +78,69 @@ func (ft formatTable) generateFiles(inFile, outDir string) error {
 	return nil
 }
 
-func (ft formatTable) copyFile(src, dest string, info os.FileInfo) error {
+func (ft formatTable) populateCertDir(certDir string) error {
 
-	if err := os.MkdirAll(filepath.Dir(dest), os.ModePerm); err != nil {
-		return err
-	}
+	glog.Info("Creating key/certificate")
 
-	f, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	if err = os.Chmod(f.Name(), info.Mode()); err != nil {
-		return err
-	}
-
-	s, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer s.Close()
-
-	_, err = io.Copy(f, s)
-	return err
-}
-
-func (ft formatTable) copyCertDir(inCertDir string, outCertDir string) error {
-
-	glog.Info("Copying certificates")
-
-	if err := os.MkdirAll(outCertDir, 0777); err != nil {
-		glog.Fatal(errors.Wrapf(err, "'mkdir %s' errored: ", outCertDir))
-	}
-
-	contents, err := ioutil.ReadDir(inCertDir)
+	config, err := rest.InClusterConfig()
 	if err != nil {
 		return err
 	}
 
-	for _, content := range contents {
-		cs, cd := filepath.Join(inCertDir, content.Name()), filepath.Join(outCertDir, content.Name())
-		if err := ft.copyFile(cs, cd, content); err != nil {
-			// If any error exit
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(certDir, 0777); err != nil {
+		glog.Fatal(errors.Wrapf(err, "'mkdir %s' errored: ", certDir))
+	}
+
+	namespacedName := serviceName + "." + util.GetNamespace()
+
+	certBytes, keyBytes, err := certutil.GenerateSelfSignedCertKey(serviceName, nil, []string{namespacedName, namespacedName + ".svc"})
+	if err != nil {
+		return err
+	}
+
+	cm := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: configMapName,
+		},
+		Data: map[string]string{
+			certFile: string(certBytes),
+		},
+	}
+
+	stored, err := clientset.CoreV1().ConfigMaps(util.GetNamespace()).Get(configMapName, metav1.GetOptions{})
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+
+		_, err := clientset.CoreV1().ConfigMaps(util.GetNamespace()).Create(cm)
+		if err != nil {
+			return err
+		}
+
+	} else {
+		cpy := stored.DeepCopyObject().(*v1.ConfigMap)
+		cpy.Data = cm.Data
+		_, err := clientset.CoreV1().ConfigMaps(util.GetNamespace()).Update(cpy)
+		if err != nil {
 			return err
 		}
 	}
 
-	glog.Info("Copying certificates completed without errors")
+	if err = ioutil.WriteFile(path.Join(certDir, certFile), certBytes, 0644); err != nil {
+		return err
+	}
+
+	if err = ioutil.WriteFile(path.Join(certDir, keyFile), keyBytes, 0600); err != nil {
+		return err
+	}
+
+	glog.Info("Successfully created key/certificate")
 	return nil
 
 }
