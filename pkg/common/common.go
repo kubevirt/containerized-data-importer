@@ -57,8 +57,8 @@ const (
 	ImporterImageSize = "IMPORTER_IMAGE_SIZE"
 	// ImporterCertDirVar provides a constant to capture our env variable "IMPORTER_CERT_DIR"
 	ImporterCertDirVar = "IMPORTER_CERT_DIR"
-	// InsecureRegistryVar provides a constant to capture our env variable "INSECURE_REGISTRY"
-	InsecureRegistryVar = "INSECURE_REGISTRY"
+	// InsecureTLSVar provides a constant to capture our env variable "INSECURE_TLS"
+	InsecureTLSVar = "INSECURE_TLS"
 
 	// CloningLabelKey provides a constant to use as a label name for pod affinity (controller pkg only)
 	CloningLabelKey = "cloning"

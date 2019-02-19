@@ -40,7 +40,7 @@ type ImportController struct {
 
 type importPodEnvVar struct {
 	ep, secretName, source, contentType, imageSize, certConfigMap string
-	inserureRegistry                                              bool
+	inserureTLS                                                   bool
 }
 
 // NewImportController sets up an Import Controller, and returns a pointer to

@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -1003,6 +1004,10 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 			Name:  OwnerUID,
 			Value: string(pvc.UID),
 		},
+		{
+			Name:  InsecureTLSVar,
+			Value: "false",
+		},
 	}
 	pod.Spec.Containers[0].Env = env
 	return pod
@@ -1095,6 +1100,10 @@ func createEnv(podEnvVar *importPodEnvVar, uid string) []v1.EnvVar {
 		{
 			Name:  OwnerUID,
 			Value: string(uid),
+		},
+		{
+			Name:  InsecureTLSVar,
+			Value: strconv.FormatBool(podEnvVar.inserureTLS),
 		},
 	}
 	if podEnvVar.secretName != "" {

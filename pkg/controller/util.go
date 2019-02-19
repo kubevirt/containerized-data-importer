@@ -375,8 +375,8 @@ func makeEnv(podEnvVar *importPodEnvVar, uid types.UID) []v1.EnvVar {
 			Value: string(uid),
 		},
 		{
-			Name:  common.InsecureRegistryVar,
-			Value: strconv.FormatBool(podEnvVar.inserureRegistry),
+			Name:  common.InsecureTLSVar,
+			Value: strconv.FormatBool(podEnvVar.inserureTLS),
 		},
 	}
 	if podEnvVar.secretName != "" {
@@ -998,7 +998,7 @@ func createImportEnvVar(client kubernetes.Interface, pvc *v1.PersistentVolumeCla
 		if err != nil {
 			return nil, err
 		}
-		podEnvVar.inserureRegistry, err = isInsecureRegistry(client, pvc)
+		podEnvVar.inserureTLS, err = isInsecureTLS(client, pvc)
 		if err != nil {
 			return nil, err
 		}
@@ -1080,7 +1080,9 @@ func IsOpenshift(client kubernetes.Interface) bool {
 	return false
 }
 
-func isInsecureRegistry(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (bool, error) {
+func isInsecureTLS(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (bool, error) {
+	var configMapName string
+
 	value, ok := pvc.Annotations[AnnEndpoint]
 	if !ok || value == "" {
 		return false, nil
@@ -1091,7 +1093,14 @@ func isInsecureRegistry(client kubernetes.Interface, pvc *v1.PersistentVolumeCla
 		return false, err
 	}
 
-	cm, err := client.CoreV1().ConfigMaps(util.GetNamespace()).Get(common.InsecureRegistryConfigMap, metav1.GetOptions{})
+	switch url.Scheme {
+	case "docker":
+		configMapName = common.InsecureRegistryConfigMap
+	default:
+		return false, nil
+	}
+
+	cm, err := client.CoreV1().ConfigMaps(util.GetNamespace()).Get(configMapName, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			return false, nil
