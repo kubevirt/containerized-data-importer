@@ -1,9 +1,11 @@
 # Containerized Data Importer
+## This is a test of coveralls, this is only a test
+
 [![Go Report Card](https://goreportcard.com/badge/github.com/kubevirt/containerized-data-importer)](https://goreportcard.com/report/github.com/kubevirt/containerized-data-importer)
 [![Coverage Status](https://img.shields.io/coveralls/kubevirt/containerized-data-importer/master.svg)](https://coveralls.io/github/kubevirt/containerized-data-importer?branch=master)
 
 A declarative Kubernetes utility to import Virtual Machine images for use with [Kubevirt](https://github.com/kubevirt/kubevirt). At a high level, a persistent volume claim (PVC), which defines VM-suitable storage via a storage class, is created. A custom controller watches for importer specific claims, and when discovered, starts an import/copy process. The status of the import process is reflected in the same claim, and when the copy completes Kubevirt can create the VM based on the just-imported image.
-In Addition, the Containerized Data Importer gives the option to clone the imported VM image from one PVC to another one across two different namespaces (A.K.A Host-Assisted cloning). 
+In Addition, the Containerized Data Importer gives the option to clone the imported VM image from one PVC to another one across two different namespaces (A.K.A Host-Assisted cloning).
 
 1. [Purpose](#purpose)
 1. [Versions](#versions)
@@ -171,7 +173,7 @@ Make copies of the [example manifests](./manifests/example) for editing. The nec
 ### Cloning VM Images
 
 Cloning is achieved by creating a new PVC with the 'k8s.io/CloneRequest' annotation indicating the name of the PVC the image is copied from.
-Once the controller detects the PVC, it starts two pods (source and target pods) which are responsible for the cloning of the image from one PVC to another using a unix socket that is created on the host itself. 
+Once the controller detects the PVC, it starts two pods (source and target pods) which are responsible for the cloning of the image from one PVC to another using a unix socket that is created on the host itself.
 When the cloning is completed, the PVC which the image was copied to, is assigned with the 'k8s.io/CloneOf' annotation to indicate cloning completion.
 The copied VM image can be used by a new pod only after the cloning process is completed.
 
