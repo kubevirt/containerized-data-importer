@@ -168,12 +168,12 @@ var _ = Describe("Importer", func() {
 			}
 		})
 	},
-		table.Entry("validate success", mockExecFunction(goodValidateJSON, ""), ""),
-		table.Entry("validate error", mockExecFunction("", "exit 1"), "exit 1"),
-		table.Entry("validate bad json", mockExecFunction(badValidateJSON, ""), "unexpected end of JSON input"),
-		table.Entry("validate bad format", mockExecFunction(badFormatValidateJSON, ""), fmt.Sprintf("Invalid format raw for image %s", imageName)),
-		table.Entry("validate has backing file", mockExecFunction(backingFileValidateJSON, ""), fmt.Sprintf("Image %s is invalid because it has backing file backing-file.qcow2", imageName)),
-		table.Entry("validate shrink", mockExecFunction(hugeValidateJSON, ""), fmt.Sprintf("Virtual image size %d is larger than available size %d, shrink not yet supported.", 52949672960, 42949672960)),
+		table.Entry("validate success", mockExecFunctionWithLimits(goodValidateJSON, ""), ""),
+		table.Entry("validate error", mockExecFunctionWithLimits("", "exit 1"), "exit 1"),
+		table.Entry("validate bad json", mockExecFunctionWithLimits(badValidateJSON, ""), "unexpected end of JSON input"),
+		table.Entry("validate bad format", mockExecFunctionWithLimits(badFormatValidateJSON, ""), fmt.Sprintf("Invalid format raw for image %s", imageName)),
+		table.Entry("validate has backing file", mockExecFunctionWithLimits(backingFileValidateJSON, ""), fmt.Sprintf("Image %s is invalid because it has backing file backing-file.qcow2", imageName)),
+		table.Entry("validate shrink", mockExecFunctionWithLimits(hugeValidateJSON, ""), fmt.Sprintf("Virtual image size %d is larger than available size %d, shrink not yet supported.", 52949672960, 42949672960)),
 	)
 
 })
@@ -224,7 +224,23 @@ var _ = Describe("quantity to qemu", func() {
 })
 
 func mockExecFunction(output, errString string) execFunctionType {
-	return func(*system.ProcessLimitValues, func(string), string, ...string) (bytes []byte, err error) {
+	return func(limits *system.ProcessLimitValues, f func(string), cmd string, args ...string) (bytes []byte, err error) {
+		Expect(limits).To(BeNil())
+		if output != "" {
+			bytes = []byte(output)
+		}
+		if errString != "" {
+			err = errors.New(errString)
+		}
+		return
+	}
+}
+
+func mockExecFunctionWithLimits(output, errString string) execFunctionType {
+	return func(limits *system.ProcessLimitValues, f func(string), cmd string, args ...string) (bytes []byte, err error) {
+		Expect(limits).ToNot(BeNil())
+		Expect(limits.AddressSpaceLimit).Should(Equal(uint64(1 << 30)))
+		Expect(limits.CPUTimeLimit).Should(Equal(uint64(30)))
 		if output != "" {
 			bytes = []byte(output)
 		}
