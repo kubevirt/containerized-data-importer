@@ -71,7 +71,7 @@ type qemuOperations struct{}
 
 var (
 	qemuExecFunction = system.ExecWithLimits
-	qemuLimits       = &system.ProcessLimitValues{AddressSpaceLimit: maxMemory, CPUTimeLimit: maxCPUSecs}
+	qemuInfoLimits   = &system.ProcessLimitValues{AddressSpaceLimit: maxMemory, CPUTimeLimit: maxCPUSecs}
 	qemuIterface     = NewQEMUOperations()
 	re               = regexp.MustCompile(matcherString)
 
@@ -96,7 +96,7 @@ func NewQEMUOperations() QEMUOperations {
 }
 
 func (o *qemuOperations) ConvertQcow2ToRaw(src, dest string) error {
-	_, err := qemuExecFunction(qemuLimits, nil, "qemu-img", "convert", "-p", "-f", "qcow2", "-O", "raw", src, dest)
+	_, err := qemuExecFunction(nil, nil, "qemu-img", "convert", "-p", "-f", "qcow2", "-O", "raw", src, dest)
 	if err != nil {
 		os.Remove(dest)
 		return errors.Wrap(err, "could not convert local qcow2 image to raw")
@@ -108,7 +108,7 @@ func (o *qemuOperations) ConvertQcow2ToRaw(src, dest string) error {
 func (o *qemuOperations) ConvertQcow2ToRawStream(url *url.URL, dest string) error {
 	jsonArg := fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", url.Scheme, url, networkTimeoutSecs)
 
-	_, err := qemuExecFunction(qemuLimits, reportProgress, "qemu-img", "convert", "-p", "-f", "qcow2", "-O", "raw", jsonArg, dest)
+	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", "convert", "-p", "-f", "qcow2", "-O", "raw", jsonArg, dest)
 	if err != nil {
 		os.Remove(dest)
 		return errors.Wrap(err, "could not stream/convert qcow2 image to raw")
@@ -128,7 +128,7 @@ func convertQuantityToQemuSize(size resource.Quantity) string {
 }
 
 func (o *qemuOperations) Resize(image string, size resource.Quantity) error {
-	_, err := qemuExecFunction(qemuLimits, nil, "qemu-img", "resize", "-f", "raw", image, convertQuantityToQemuSize(size))
+	_, err := qemuExecFunction(nil, nil, "qemu-img", "resize", "-f", "raw", image, convertQuantityToQemuSize(size))
 	if err != nil {
 		return errors.Wrapf(err, "Error resizing image %s", image)
 	}
@@ -136,7 +136,7 @@ func (o *qemuOperations) Resize(image string, size resource.Quantity) error {
 }
 
 func (o *qemuOperations) Info(image string) (*ImgInfo, error) {
-	output, err := qemuExecFunction(qemuLimits, nil, "qemu-img", "info", "--output=json", image)
+	output, err := qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", image)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Error getting info on image %s", image)
 	}
@@ -209,7 +209,7 @@ func CreateBlankImage(dest string, size resource.Quantity) error {
 // CreateBlankImage creates a raw image with a given size
 func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity) error {
 	glog.V(3).Infof("image size is %s", size.String())
-	_, err := qemuExecFunction(qemuLimits, nil, "qemu-img", "create", "-f", "raw", dest, convertQuantityToQemuSize(size))
+	_, err := qemuExecFunction(nil, nil, "qemu-img", "create", "-f", "raw", dest, convertQuantityToQemuSize(size))
 	if err != nil {
 		os.Remove(dest)
 		return errors.Wrap(err, fmt.Sprintf("could not create raw image with size %s in %s", size.String(), dest))
