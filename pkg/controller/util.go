@@ -376,7 +376,7 @@ func makeEnv(podEnvVar *importPodEnvVar, uid types.UID) []v1.EnvVar {
 		},
 		{
 			Name:  common.InsecureTLSVar,
-			Value: strconv.FormatBool(podEnvVar.inserureTLS),
+			Value: strconv.FormatBool(podEnvVar.insecureTLS),
 		},
 	}
 	if podEnvVar.secretName != "" {
@@ -998,7 +998,7 @@ func createImportEnvVar(client kubernetes.Interface, pvc *v1.PersistentVolumeCla
 		if err != nil {
 			return nil, err
 		}
-		podEnvVar.inserureTLS, err = isInsecureTLS(client, pvc)
+		podEnvVar.insecureTLS, err = isInsecureTLS(client, pvc)
 		if err != nil {
 			return nil, err
 		}

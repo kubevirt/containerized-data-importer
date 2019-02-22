@@ -18,6 +18,7 @@ package image
 import (
 	"fmt"
 	"net/url"
+	"reflect"
 
 	"github.com/pkg/errors"
 
@@ -131,6 +132,7 @@ var _ = Describe("Importer", func() {
 	sourceStream, _ := url.Parse("http://localhost:8080/myimage.qcow2")
 	destStream := "/tmp/myimage.qcow2"
 	imageName := "myimage.qcow2"
+	expectedLimits := &system.ProcessLimitValues{AddressSpaceLimit: 1 << 30, CPUTimeLimit: 30}
 
 	table.DescribeTable("with import source should", func(execfunc execFunctionType, errString string, errFunc func() error) {
 		replaceExecFunction(execfunc, func() {
@@ -147,10 +149,10 @@ var _ = Describe("Importer", func() {
 			}
 		})
 	},
-		table.Entry("non-streaming convert success", mockExecFunction("", ""), "", func() error { return ConvertQcow2ToRaw(source, dest) }),
-		table.Entry("non-streaming  convert qemu-img failure", mockExecFunction("", "exit status 1"), "exit status 1", func() error { return ConvertQcow2ToRaw(source, dest) }),
-		table.Entry("streaming convert success", mockExecFunction("", ""), "", func() error { return ConvertQcow2ToRawStream(sourceStream, destStream) }),
-		table.Entry("streaming  convert qemu-img failure", mockExecFunction("", "exit status 1"), "exit status 1", func() error { return ConvertQcow2ToRawStream(sourceStream, destStream) }),
+		table.Entry("non-streaming convert success", mockExecFunction("", "", nil), "", func() error { return ConvertQcow2ToRaw(source, dest) }),
+		table.Entry("non-streaming  convert qemu-img failure", mockExecFunction("", "exit status 1", nil), "exit status 1", func() error { return ConvertQcow2ToRaw(source, dest) }),
+		table.Entry("streaming convert success", mockExecFunction("", "", nil), "", func() error { return ConvertQcow2ToRawStream(sourceStream, destStream) }),
+		table.Entry("streaming  convert qemu-img failure", mockExecFunction("", "exit status 1", nil), "exit status 1", func() error { return ConvertQcow2ToRawStream(sourceStream, destStream) }),
 	)
 
 	table.DescribeTable("Validate should", func(execfunc execFunctionType, errString string) {
@@ -168,12 +170,12 @@ var _ = Describe("Importer", func() {
 			}
 		})
 	},
-		table.Entry("validate success", mockExecFunctionWithLimits(goodValidateJSON, ""), ""),
-		table.Entry("validate error", mockExecFunctionWithLimits("", "exit 1"), "exit 1"),
-		table.Entry("validate bad json", mockExecFunctionWithLimits(badValidateJSON, ""), "unexpected end of JSON input"),
-		table.Entry("validate bad format", mockExecFunctionWithLimits(badFormatValidateJSON, ""), fmt.Sprintf("Invalid format raw for image %s", imageName)),
-		table.Entry("validate has backing file", mockExecFunctionWithLimits(backingFileValidateJSON, ""), fmt.Sprintf("Image %s is invalid because it has backing file backing-file.qcow2", imageName)),
-		table.Entry("validate shrink", mockExecFunctionWithLimits(hugeValidateJSON, ""), fmt.Sprintf("Virtual image size %d is larger than available size %d, shrink not yet supported.", 52949672960, 42949672960)),
+		table.Entry("validate success", mockExecFunction(goodValidateJSON, "", expectedLimits), ""),
+		table.Entry("validate error", mockExecFunction("", "exit 1", expectedLimits), "exit 1"),
+		table.Entry("validate bad json", mockExecFunction(badValidateJSON, "", expectedLimits), "unexpected end of JSON input"),
+		table.Entry("validate bad format", mockExecFunction(badFormatValidateJSON, "", expectedLimits), fmt.Sprintf("Invalid format raw for image %s", imageName)),
+		table.Entry("validate has backing file", mockExecFunction(backingFileValidateJSON, "", expectedLimits), fmt.Sprintf("Image %s is invalid because it has backing file backing-file.qcow2", imageName)),
+		table.Entry("validate shrink", mockExecFunction(hugeValidateJSON, "", expectedLimits), fmt.Sprintf("Virtual image size %d is larger than available size %d, shrink not yet supported.", 52949672960, 42949672960)),
 	)
 
 })
@@ -223,30 +225,28 @@ var _ = Describe("quantity to qemu", func() {
 	})
 })
 
-func mockExecFunction(output, errString string) execFunctionType {
+func mockExecFunction(output, errString string, expectedLimits *system.ProcessLimitValues, checkArgs ...string) execFunctionType {
 	return func(limits *system.ProcessLimitValues, f func(string), cmd string, args ...string) (bytes []byte, err error) {
-		Expect(limits).To(BeNil())
-		if output != "" {
-			bytes = []byte(output)
-		}
-		if errString != "" {
-			err = errors.New(errString)
-		}
-		return
-	}
-}
+		Expect(reflect.DeepEqual(expectedLimits, limits)).To(BeTrue())
 
-func mockExecFunctionWithLimits(output, errString string) execFunctionType {
-	return func(limits *system.ProcessLimitValues, f func(string), cmd string, args ...string) (bytes []byte, err error) {
-		Expect(limits).ToNot(BeNil())
-		Expect(limits.AddressSpaceLimit).Should(Equal(uint64(1 << 30)))
-		Expect(limits.CPUTimeLimit).Should(Equal(uint64(30)))
+		for _, ca := range checkArgs {
+			found := false
+			for _, a := range args {
+				if ca == a {
+					found = true
+					break
+				}
+			}
+			Expect(found).To(BeTrue())
+		}
+
 		if output != "" {
 			bytes = []byte(output)
 		}
 		if errString != "" {
 			err = errors.New(errString)
 		}
+
 		return
 	}
 }

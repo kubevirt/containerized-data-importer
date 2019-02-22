@@ -10,6 +10,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -907,6 +908,113 @@ func Test_addToMap(t *testing.T) {
 	}
 }
 
+func Test_getCertConfigMap(t *testing.T) {
+	namespace := "default"
+	configMapName := "foobar"
+
+	testPVC := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				"cdi.kubevirt.io/storage.import.certConfigMap": configMapName,
+			},
+		},
+	}
+
+	testConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      configMapName,
+			Namespace: namespace,
+		},
+	}
+
+	type args struct {
+		pvc    *corev1.PersistentVolumeClaim
+		objs   []runtime.Object
+		result string
+	}
+
+	for _, arg := range []args{
+		{&corev1.PersistentVolumeClaim{}, nil, ""},
+		{testPVC, []runtime.Object{testConfigMap}, configMapName},
+		{testPVC, nil, configMapName},
+	} {
+		client := k8sfake.NewSimpleClientset(arg.objs...)
+
+		result, err := getCertConfigMap(client, arg.pvc)
+
+		if err != nil {
+			t.Errorf("Enexpected error %+v", err)
+		}
+
+		if result != arg.result {
+			t.Errorf("Expected %s got %s", arg.result, result)
+		}
+	}
+}
+
+func Test_getInsecureTLS(t *testing.T) {
+	namespace := "cdi"
+	configMapName := "cdi-insecure-registries"
+	host := "myregistry"
+	endpointNoPort := "docker://" + host
+	hostWithPort := host + ":5000"
+	endpointWithPort := "docker://" + hostWithPort
+
+	type args struct {
+		endpoint       string
+		confiMapExists bool
+		insecureHost   string
+		result         bool
+	}
+
+	for _, arg := range []args{
+		{endpointNoPort, true, host, true},
+		{endpointWithPort, true, hostWithPort, true},
+		{endpointNoPort, true, hostWithPort, false},
+		{endpointWithPort, true, host, false},
+		{endpointNoPort, false, "", false},
+		{"", true, host, false},
+	} {
+		var objs []runtime.Object
+
+		pvc := &corev1.PersistentVolumeClaim{}
+		if arg.endpoint != "" {
+			pvc.Annotations = map[string]string{
+				"cdi.kubevirt.io/storage.import.endpoint": arg.endpoint,
+			}
+		}
+
+		if arg.confiMapExists {
+			cm := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapName,
+					Namespace: namespace,
+				},
+			}
+
+			if arg.insecureHost != "" {
+				cm.Data = map[string]string{
+					arg.insecureHost: "",
+				}
+			}
+
+			objs = append(objs, cm)
+		}
+
+		client := k8sfake.NewSimpleClientset(objs...)
+
+		result, err := isInsecureTLS(client, pvc)
+
+		if err != nil {
+			t.Errorf("Enexpected error %+v", err)
+		}
+
+		if result != arg.result {
+			t.Errorf("Expected %t got %t", arg.result, result)
+		}
+	}
+}
+
 func createPod(pvc *v1.PersistentVolumeClaim, dvname string) *v1.Pod {
 	// importer pod name contains the pvc name
 	podName := fmt.Sprintf("%s-%s-", ImporterPodName, pvc.Name)
@@ -1103,7 +1211,7 @@ func createEnv(podEnvVar *importPodEnvVar, uid string) []v1.EnvVar {
 		},
 		{
 			Name:  InsecureTLSVar,
-			Value: strconv.FormatBool(podEnvVar.inserureTLS),
+			Value: strconv.FormatBool(podEnvVar.insecureTLS),
 		},
 	}
 	if podEnvVar.secretName != "" {

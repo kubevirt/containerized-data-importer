@@ -69,8 +69,10 @@ func (o *skopeoOperations) CopyImage(url, dest, accessKey, secKey, certDir strin
 		args = append(args, creds)
 	}
 	if certDir != "" {
+		glog.Infof("Using user specified TLS certs at %s", certDir)
 		args = append(args, "--src-cert-dir="+certDir)
 	} else if insecureRegistry {
+		glog.Infof("Disabling TLS verification for URL %s", url)
 		args = append(args, "--src-tls-verify=false")
 	}
 	_, err = skopeoExecFunction(nil, nil, "skopeo", args...)
