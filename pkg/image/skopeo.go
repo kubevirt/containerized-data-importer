@@ -52,7 +52,6 @@ type layer struct {
 
 var (
 	skopeoExecFunction = system.ExecWithLimits
-	processLimits      = &system.ProcessLimitValues{AddressSpaceLimit: maxMemory, CPUTimeLimit: maxCPUSecs}
 	// SkopeoInterface the skopeo operations interface
 	SkopeoInterface = NewSkopeoOperations()
 )
@@ -72,7 +71,7 @@ func (o *skopeoOperations) CopyImage(url, dest, accessKey, secKey, certDir strin
 	if certDir != "" {
 		args = append(args, "--src-cert-dir="+certDir)
 	}
-	_, err = skopeoExecFunction(processLimits, nil, "skopeo", args...)
+	_, err = skopeoExecFunction(nil, nil, "skopeo", args...)
 	if err != nil {
 		return errors.Wrap(err, "could not copy image")
 	}
