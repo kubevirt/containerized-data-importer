@@ -5,7 +5,8 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -185,6 +186,29 @@ func (ic *ImportController) syncPvc(key string) error {
 
 	if pvc == nil {
 		return nil
+	}
+
+	if pvc.DeletionTimestamp != nil {
+		glog.V(3).Infof("detected PVC delete request for PVC '%s', cleaning up any associated PODS", pvc.Name)
+		pod, err := ic.findImportPodFromCache(pvc)
+		if err != nil {
+			return err
+		}
+		if pod == nil {
+			glog.V(3).Infof("unable to find POD associated with PVC: %s, already deleted maybe?", pvc.Name)
+			return nil
+		}
+		dReq := podDeleteRequest{
+			namespace: pod.Namespace,
+			podName:   pod.Name,
+			podLister: ic.Controller.podLister,
+			k8sClient: ic.Controller.clientset,
+		}
+		err = deletePod(dReq)
+		if err != nil && !k8serrors.IsNotFound(err) {
+			glog.V(3).Infof("error encountered cleaning up associated PODS for PVC: %v", err)
+			return err
+		}
 	}
 
 	//check if AnnEndPoint or AnnSource annotation exists
