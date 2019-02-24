@@ -8,6 +8,8 @@ import (
 	"os/signal"
 
 	"github.com/golang/glog"
+	route1client "github.com/openshift/client-go/route/clientset/versioned"
+	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -31,6 +33,7 @@ var (
 	clonerImage            string
 	uploadServerImage      string
 	uploadProxyServiceName string
+	configName             string
 	pullPolicy             string
 	verbose                string
 )
@@ -54,6 +57,7 @@ func init() {
 	if pp := os.Getenv(common.PullPolicy); len(pp) != 0 {
 		pullPolicy = pp
 	}
+	configName = common.ConfigName
 
 	// NOTE we used to have a constant here and we're now just passing in the level directly
 	// that should be fine since it was a constant and not a mutable variable
@@ -88,6 +92,13 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		glog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
 	}
 
+	// Create an OpenShift route/v1 client.
+
+	openshiftClient, err := route1client.NewForConfig(cfg)
+	if err != nil {
+		glog.Fatalf("Unable to get openshift client: %v\n", errors.WithStack(err))
+	}
+
 	cdiClient, err := clientset.NewForConfig(cfg)
 	if err != nil {
 		glog.Fatalf("Error building example clientset: %s", err.Error())
@@ -101,11 +112,18 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	serviceInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(client, common.DefaultResyncPeriod, "", func(options *v1.ListOptions) {
 		options.LabelSelector = common.CDILabelSelector
 	})
+	ingressInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(client, common.DefaultResyncPeriod, "", func(options *v1.ListOptions) {
+		options.LabelSelector = common.CDILabelSelector
+	})
+	routeInformerFactory := routeinformers.NewSharedInformerFactory(openshiftClient, common.DefaultResyncPeriod)
 
 	pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims()
 	podInformer := podInformerFactory.Core().V1().Pods()
 	serviceInformer := serviceInformerFactory.Core().V1().Services()
+	ingressInformer := ingressInformerFactory.Extensions().V1beta1().Ingresses()
+	routeInformer := routeInformerFactory.Route().V1().Routes()
 	dataVolumeInformer := cdiInformerFactory.Cdi().V1alpha1().DataVolumes()
+	configInformer := cdiInformerFactory.Cdi().V1alpha1().CDIConfigs()
 
 	dataVolumeController := controller.NewDataVolumeController(
 		client,
@@ -136,12 +154,26 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		pullPolicy,
 		verbose)
 
+	configController := controller.NewConfigController(client,
+		cdiClient,
+		ingressInformer,
+		routeInformer,
+		configInformer,
+		uploadProxyServiceName,
+		configName,
+		pullPolicy,
+		verbose)
+
 	glog.V(1).Infoln("created cdi controllers")
 
 	go cdiInformerFactory.Start(stopCh)
 	go pvcInformerFactory.Start(stopCh)
 	go podInformerFactory.Start(stopCh)
 	go serviceInformerFactory.Start(stopCh)
+	go ingressInformerFactory.Start(stopCh)
+	if isOpenshift := controller.IsOpenshift(client); isOpenshift {
+		go routeInformerFactory.Start(stopCh)
+	}
 
 	glog.V(1).Infoln("started informers")
 
@@ -170,6 +202,13 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		err = uploadController.Run(1, stopCh)
 		if err != nil {
 			glog.Fatalln("Error running upload controller: %+v", err)
+		}
+	}()
+
+	go func() {
+		err = configController.Run(1, stopCh)
+		if err != nil {
+			glog.Fatalln("Error running config controller: %+v", err)
 		}
 	}()
 }

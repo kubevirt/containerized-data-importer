@@ -28,6 +28,7 @@ import (
 type CdiV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	CDIsGetter
+	CDIConfigsGetter
 	DataVolumesGetter
 }
 
@@ -38,6 +39,10 @@ type CdiV1alpha1Client struct {
 
 func (c *CdiV1alpha1Client) CDIs(namespace string) CDIInterface {
 	return newCDIs(c, namespace)
+}
+
+func (c *CdiV1alpha1Client) CDIConfigs(namespace string) CDIConfigInterface {
+	return newCDIConfigs(c, namespace)
 }
 
 func (c *CdiV1alpha1Client) DataVolumes(namespace string) DataVolumeInterface {

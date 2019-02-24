@@ -111,3 +111,28 @@ func (CDIList) SwaggerDoc() map[string]string {
 		"items": "Items provides a list of CDIs",
 	}
 }
+
+func (CDIConfig) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "CDIConfig provides a user configuration for CDI\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
+	}
+}
+
+func (CDIConfigSpec) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "CDIConfigSpec defines specification for user configuration",
+	}
+}
+
+func (CDIConfigStatus) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "CDIConfigStatus provides",
+	}
+}
+
+func (CDIConfigList) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":      "CDIConfigList provides the needed parameters to do request a list of CDIConfigs from the system\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
+		"items": "Items provides a list of CDIConfigs",
+	}
+}
