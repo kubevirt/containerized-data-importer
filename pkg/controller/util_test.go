@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
 )
@@ -841,6 +842,35 @@ func Test_makeEnv(t *testing.T) {
 	}
 }
 
+func TestMakeCDIConfigSpec(t *testing.T) {
+	type args struct {
+		name string
+	}
+	config := createCDIConfig("testConfig", "")
+
+	tests := []struct {
+		name          string
+		args          args
+		wantCDIConfig *cdiv1.CDIConfig
+	}{
+		{
+			name:          "expect CDIConfig to be created",
+			args:          args{"testConfig"},
+			wantCDIConfig: config,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := MakeCDIConfigSpec(tt.args.name)
+
+			if !reflect.DeepEqual(got, tt.wantCDIConfig) {
+				t.Errorf("MakeCDIConfigSpec() =\n%v\n, want\n%v", got, tt.wantCDIConfig)
+			}
+
+		})
+	}
+}
+
 func Test_addToMap(t *testing.T) {
 	type args struct {
 		m1 map[string]string
@@ -1521,4 +1551,24 @@ func createUploadService(pvc *v1.PersistentVolumeClaim) *v1.Service {
 		},
 	}
 	return service
+}
+
+func createCDIConfig(name, ns string) *cdiv1.CDIConfig {
+	return &cdiv1.CDIConfig{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CDIConfig",
+			APIVersion: "cdi.kubevirt.io/v1alpha1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+			Labels: map[string]string{
+				common.CDILabelKey: common.CDILabelValue,
+			},
+		},
+		Spec: cdiv1.CDIConfigSpec{},
+		Status: cdiv1.CDIConfigStatus{
+			UploadProxyURL: nil,
+		},
+	}
 }
