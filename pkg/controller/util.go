@@ -3,12 +3,17 @@ package controller
 import (
 	"crypto/x509"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
+
+	routev1 "github.com/openshift/api/route/v1"
+
 	v1 "k8s.io/api/core/v1"
+	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -18,8 +23,10 @@ import (
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/util/cert/triple"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -388,6 +395,7 @@ func makeEnv(podEnvVar *importPodEnvVar, uid types.UID) []v1.EnvVar {
 				},
 			},
 		})
+
 	}
 	if podEnvVar.certConfigMap != "" {
 		env = append(env, v1.EnvVar{
@@ -892,6 +900,58 @@ func MakeUploadServiceSpec(name string, pvc *v1.PersistentVolumeClaim) *v1.Servi
 	return service
 }
 
+// CreateCDIConfig creates cdi config manifest and sends to server
+func CreateCDIConfig(cdiClient clientset.Interface, name string) (*cdiv1.CDIConfig, error) {
+	ns := util.GetNamespace()
+	cfg := MakeCDIConfigSpec(name)
+
+	cfg, err := cdiClient.CdiV1alpha1().CDIConfigs(ns).Create(cfg)
+	if err != nil {
+		if k8serrors.IsAlreadyExists(err) {
+			cfg, err = cdiClient.CdiV1alpha1().CDIConfigs(ns).Update(cfg)
+			if err != nil {
+				return nil, errors.Wrap(err, "Error updating CDI Config")
+			}
+		} else {
+			return nil, errors.Wrap(err, "CDI config create errored")
+		}
+	}
+	glog.V(1).Infof("CDI config \"%s/%s\" created\n", cfg.Namespace, cfg.Name)
+	return cfg, nil
+}
+
+// MakeCDIConfigSpec creates cdi config manifest
+func MakeCDIConfigSpec(name string) *cdiv1.CDIConfig {
+	config := &cdiv1.CDIConfig{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CDIConfig",
+			APIVersion: "cdi.kubevirt.io/v1alpha1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Labels: map[string]string{
+				common.CDILabelKey: common.CDILabelValue,
+			},
+		},
+		Spec: cdiv1.CDIConfigSpec{},
+	}
+	return config
+
+}
+
+func updateCDIConfig(cdiClient clientset.Interface, config *cdiv1.CDIConfig) error {
+	ns := config.Namespace
+	if ns == "" {
+		ns = util.GetNamespace()
+	}
+
+	_, err := cdiClient.CdiV1alpha1().CDIConfigs(ns).Update(config)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func deletePod(req podDeleteRequest) error {
 	pod, err := req.podLister.Pods(req.namespace).Get(req.podName)
 	if k8serrors.IsNotFound(err) {
@@ -958,4 +1018,54 @@ func getCertConfigMap(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim
 	}
 
 	return value, nil
+}
+
+func getURLFromIngress(ing *extensionsv1beta1.Ingress, uploadProxyServiceName string) string {
+	if ing.Spec.Backend != nil {
+		if ing.Spec.Backend.ServiceName != uploadProxyServiceName {
+			return ""
+		}
+		return ing.Spec.Rules[0].Host
+	}
+	for _, rule := range ing.Spec.Rules {
+		for _, path := range rule.HTTP.Paths {
+			if path.Backend.ServiceName == uploadProxyServiceName {
+				if rule.Host != "" {
+					return rule.Host
+				}
+			}
+		}
+	}
+	return ""
+
+}
+
+func getURLFromRoute(route *routev1.Route, uploadProxyServiceName string) string {
+	if route.Spec.To.Name == uploadProxyServiceName {
+		if len(route.Status.Ingress) > 0 {
+			return route.Status.Ingress[0].Host
+		}
+	}
+	return ""
+
+}
+
+//IsOpenshift checks if we are on OpenShift platform
+func IsOpenshift(client kubernetes.Interface) bool {
+	result := client.Discovery().RESTClient().Get().AbsPath("/oapi/v1").Do()
+	var statusCode int
+	result.StatusCode(&statusCode)
+
+	if result.Error() == nil {
+		// It is OpenShift
+		if statusCode == http.StatusOK {
+			return true
+		}
+	} else {
+		// Got 404 so this is not Openshift
+		if statusCode == http.StatusNotFound {
+			return false
+		}
+	}
+	return false
 }

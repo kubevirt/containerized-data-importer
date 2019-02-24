@@ -147,7 +147,13 @@ imports:
 - name: github.com/openshift/api
   version: 5ad8479f64f1b60ee9c62ce8ef1fe6638838725e
   subpackages:
+  - build/v1
   - security/v1
+- name: github.com/openshift/client-go
+  version: 431ec9a26e5021f35fa41ee9a89842db9bfdb370
+  subpackages:
+  - build/clientset/versioned/scheme
+  - build/clientset/versioned/typed/build/v1
 - name: github.com/pborman/uuid
   version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 - name: github.com/peterbourgon/diskv
