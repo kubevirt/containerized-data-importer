@@ -67,6 +67,12 @@ spec:
 EOF
 ```
 
+### Port forwarding via the API server
+
+`kubectl port-forward -n cdi service/cdi-uploadproxy 8443:443`
+
+(Make sure port 8443 on your system isn't occupied.)
+
 ## Create a PersistentVolumeClaim
 Annotating a PVC with `cdi.kubevirt.io/storage.upload.target` marks the PVC as a target for CDI Upload.
 
