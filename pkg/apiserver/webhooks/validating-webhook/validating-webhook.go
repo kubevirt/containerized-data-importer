@@ -196,6 +196,26 @@ func admitDVs(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		return toAdmissionResponseError(err)
 	}
 
+	client := GetClient()
+	if client != nil {
+		pvcs, err := client.CoreV1().PersistentVolumeClaims(dv.GetNamespace()).List(metav1.ListOptions{})
+		if err != nil {
+			return toAdmissionResponseError(err)
+		}
+		for _, pvc := range pvcs.Items {
+			if pvc.Name == dv.GetName() {
+				glog.Errorf("destination PVC %s/%s already exists", dv.GetNamespace(), dv.GetName())
+				var causes []metav1.StatusCause
+				causes = append(causes, metav1.StatusCause{
+					Type:    metav1.CauseTypeFieldValueDuplicate,
+					Message: fmt.Sprintf("Destination PVC already exists"),
+					Field:   k8sfield.NewPath("DataVolume").Child("Name").String(),
+				})
+				return toRejectedAdmissionResponse(causes)
+			}
+		}
+	}
+
 	causes := validateDataVolumeSpec(k8sfield.NewPath("spec"), &dv.Spec)
 	if len(causes) > 0 {
 		glog.Infof("rejected DataVolume admission")

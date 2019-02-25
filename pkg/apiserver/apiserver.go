@@ -141,6 +141,8 @@ func NewCdiAPIServer(bindAddress string,
 
 	})
 
+	validatingwebhook.SetClient(client)
+
 	err = app.createWebhook()
 	if err != nil {
 		return nil, errors.Errorf("failed to create webhook: %s", err)
