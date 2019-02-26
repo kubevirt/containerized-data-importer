@@ -51,6 +51,7 @@ func createControllerResources(args *FactoryArgs) []runtime.Object {
 			args.DockerTag,
 			args.Verbosity,
 			args.PullPolicy),
+		createInsecureRegConfigMap(),
 	}
 }
 
@@ -111,6 +112,15 @@ func createPrometheusService() *corev1.Service {
 					Protocol: corev1.ProtocolTCP,
 				},
 			},
+		},
+	}
+}
+
+func createInsecureRegConfigMap() *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   common.InsecureRegistryConfigMap,
+			Labels: withCommonLabels(nil),
 		},
 	}
 }

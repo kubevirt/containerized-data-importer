@@ -46,7 +46,7 @@ var _ = Describe("Transport Tests", func() {
 
 	// it() is the body of the test and is executed once per Entry() by DescribeTable()
 	// closes over c and ns
-	it := func(ep, file, accessKey, secretKey, source string, useRegistryCert, shouldSucceed bool) {
+	it := func(ep, file, accessKey, secretKey, source string, useRegistryCert, insecureRegistry, shouldSucceed bool) {
 
 		var (
 			err error // prevent shadowing
@@ -79,6 +79,12 @@ var _ = Describe("Transport Tests", func() {
 			cm, err := utils.CopyRegistryCertConfigMap(c, ns)
 			Expect(err).To(BeNil())
 			pvcAnn[controller.AnnCertConfigMap] = cm
+		}
+
+		if insecureRegistry {
+			err = utils.SetInsecureRegistry(c)
+			Expect(err).To(BeNil())
+			defer utils.ClearInsecureRegistry(c)
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", pvcAnn[controller.AnnEndpoint]))
@@ -130,14 +136,15 @@ var _ = Describe("Transport Tests", func() {
 	httpAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPAuthPort)
 	registryNoAuthEp := fmt.Sprintf("docker://%s", utils.RegistryHostName+"."+utils.RegistryHostNs)
 	DescribeTable("Transport Test Table", it,
-		Entry("should connect to http endpoint without credentials", httpNoAuthEp, targetFile, "", "", controller.SourceHTTP, false, true),
-		Entry("should connect to http endpoint with credentials", httpAuthEp, targetFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, false, true),
-		Entry("should not connect to http endpoint with invalid credentials", httpAuthEp, targetFile, "gopats", "bradyisthegoat", controller.SourceHTTP, false, false),
-		Entry("should connect to QCOW http endpoint without credentials", httpNoAuthEp, targetQCOWFile, "", "", controller.SourceHTTP, false, true),
-		Entry("should connect to QCOW http endpoint with credentials", httpAuthEp, targetQCOWFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, false, true),
-		Entry("should succeed to import from registry when image contains valid qcow file", registryNoAuthEp, targetQCOWImage, "", "", controller.SourceRegistry, true, true),
-		Entry("should fail no certs", registryNoAuthEp, targetQCOWImage, "", "", controller.SourceRegistry, false, false),
-		Entry("should succeed to import from registry when image contains valid raw file", registryNoAuthEp, targetRawImage, "", "", controller.SourceRegistry, true, true),
-		Entry("should succeed to import from registry when image contains valid archived raw file", registryNoAuthEp, targetArchivedImage, "", "", controller.SourceRegistry, true, true),
+		Entry("should connect to http endpoint without credentials", httpNoAuthEp, targetFile, "", "", controller.SourceHTTP, false, false, true),
+		Entry("should connect to http endpoint with credentials", httpAuthEp, targetFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, false, false, true),
+		Entry("should not connect to http endpoint with invalid credentials", httpAuthEp, targetFile, "gopats", "bradyisthegoat", controller.SourceHTTP, false, false, false),
+		Entry("should connect to QCOW http endpoint without credentials", httpNoAuthEp, targetQCOWFile, "", "", controller.SourceHTTP, false, false, true),
+		Entry("should connect to QCOW http endpoint with credentials", httpAuthEp, targetQCOWFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, false, false, true),
+		Entry("should succeed to import from registry when image contains valid qcow file", registryNoAuthEp, targetQCOWImage, "", "", controller.SourceRegistry, true, false, true),
+		Entry("should succeed to import from registry when image contains valid qcow file", registryNoAuthEp, targetQCOWImage, "", "", controller.SourceRegistry, false, true, true),
+		Entry("should fail no certs", registryNoAuthEp, targetQCOWImage, "", "", controller.SourceRegistry, false, false, false),
+		Entry("should succeed to import from registry when image contains valid raw file", registryNoAuthEp, targetRawImage, "", "", controller.SourceRegistry, true, false, true),
+		Entry("should succeed to import from registry when image contains valid archived raw file", registryNoAuthEp, targetArchivedImage, "", "", controller.SourceRegistry, true, false, true),
 	)
 })

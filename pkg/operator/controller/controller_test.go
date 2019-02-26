@@ -51,9 +51,10 @@ import (
 )
 
 const (
-	version       = "v1.5.0"
-	cdiNamespace  = "cdi"
-	configMapName = "cdi-config"
+	version                   = "v1.5.0"
+	cdiNamespace              = "cdi"
+	configMapName             = "cdi-config"
+	insecureRegistryConfigMap = "cdi-insecure-registries"
 )
 
 type args struct {
@@ -308,6 +309,39 @@ var _ = Describe("Controller", func() {
 				Expect(args.cdi.Status.Conditions).Should(HaveLen(1))
 				Expect(args.cdi.Status.Conditions[0].Type).Should(Equal(cdiviaplha1.CDIConditionRunning))
 				Expect(args.cdi.Status.Conditions[0].Status).Should(Equal(corev1.ConditionTrue))
+			})
+
+			It("does not modify insecure registry configmap", func() {
+				args := createArgs()
+				doReconcile(args)
+
+				cm := &corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      insecureRegistryConfigMap,
+						Namespace: cdiNamespace,
+					},
+				}
+
+				obj, err := getObject(args.client, cm)
+				Expect(err).To(BeNil())
+				cm = obj.(*corev1.ConfigMap)
+
+				if cm.Data == nil {
+					cm.Data = make(map[string]string)
+				}
+				data := cm.Data
+				data["foo.bar.com"] = ""
+
+				err = args.client.Update(context.TODO(), cm)
+				Expect(err).To(BeNil())
+
+				doReconcile(args)
+
+				obj, err = getObject(args.client, cm)
+				Expect(err).To(BeNil())
+				cm = obj.(*corev1.ConfigMap)
+
+				Expect(cm.Data).Should(Equal(data))
 			})
 
 			It("should be an error when creating another CDI instance", func() {

@@ -4,6 +4,8 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -371,6 +373,10 @@ func makeEnv(podEnvVar *importPodEnvVar, uid types.UID) []v1.EnvVar {
 		{
 			Name:  common.OwnerUID,
 			Value: string(uid),
+		},
+		{
+			Name:  common.InsecureTLSVar,
+			Value: strconv.FormatBool(podEnvVar.insecureTLS),
 		},
 	}
 	if podEnvVar.secretName != "" {
@@ -992,6 +998,10 @@ func createImportEnvVar(client kubernetes.Interface, pvc *v1.PersistentVolumeCla
 		if err != nil {
 			return nil, err
 		}
+		podEnvVar.insecureTLS, err = isInsecureTLS(client, pvc)
+		if err != nil {
+			return nil, err
+		}
 	}
 	//get the requested image size.
 	podEnvVar.imageSize, err = getRequestedImageSize(pvc)
@@ -1068,4 +1078,42 @@ func IsOpenshift(client kubernetes.Interface) bool {
 		}
 	}
 	return false
+}
+
+func isInsecureTLS(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (bool, error) {
+	var configMapName string
+
+	value, ok := pvc.Annotations[AnnEndpoint]
+	if !ok || value == "" {
+		return false, nil
+	}
+
+	url, err := url.Parse(value)
+	if err != nil {
+		return false, err
+	}
+
+	switch url.Scheme {
+	case "docker":
+		configMapName = common.InsecureRegistryConfigMap
+	default:
+		return false, nil
+	}
+
+	cm, err := client.CoreV1().ConfigMaps(util.GetNamespace()).Get(configMapName, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	for host := range cm.Data {
+		if host == url.Host {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
