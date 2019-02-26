@@ -52,8 +52,10 @@ var _ = Describe("Registry Importer", func() {
 			}
 		})
 	},
-		table.Entry("copy success", mockExecFunction("", ""), "", func() error { return CopyRegistryImage(source, dest, "", "", "", "") }),
-		table.Entry("copy failure", mockExecFunction("", "Failed to find VM disk image file in the container image"), "Failed to find VM disk image file in the container image", func() error { return CopyRegistryImage(source, dest, "", "", "", "") }),
+		table.Entry("copy success", mockExecFunction("", "", nil), "", func() error { return CopyRegistryImage(source, dest, "", "", "", "", false) }),
+		table.Entry("copy success with certs", mockExecFunction("", "", nil, "--src-cert-dir=/foo/bar"), "", func() error { return CopyRegistryImage(source, dest, "", "", "", "/foo/bar", false) }),
+		table.Entry("copy success insecure", mockExecFunction("", "", nil, "--src-tls-verify=false"), "", func() error { return CopyRegistryImage(source, dest, "", "", "", "", true) }),
+		table.Entry("copy failure", mockExecFunction("", "Failed to find VM disk image file in the container image", nil), "Failed to find VM disk image file in the container image", func() error { return CopyRegistryImage(source, dest, "", "", "", "", false) }),
 	)
 
 })

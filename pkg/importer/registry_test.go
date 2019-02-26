@@ -59,6 +59,7 @@ var _ = Describe("Copy from Registry", func() {
 				"1G",
 				int64(1234567890),
 				"",
+				false,
 			})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
@@ -91,7 +92,7 @@ func NewFakeSkopeoOperations(e1 error) image.SkopeoOperations {
 	return &fakeSkopeoOperations{e1}
 }
 
-func (o *fakeSkopeoOperations) CopyImage(url, dest, accessKey, secKey, certDir string) error {
+func (o *fakeSkopeoOperations) CopyImage(url, dest, accessKey, secKey, certDir string, insecureRegistry bool) error {
 	if o.e1 == nil {
 		if strings.Contains(url, invalidDestIndicator) {
 			if err := util.UnArchiveLocalTar(invalidImageFile, tmpData); err != nil {
