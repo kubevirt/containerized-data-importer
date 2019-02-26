@@ -1,22 +1,34 @@
 package tests_test
 
 import (
+	"crypto/tls"
+	"fmt"
+	"net/http"
+	"os"
+	"os/exec"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/onsi/ginkgo/extensions/table"
+
+	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
 var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component]Upload tests", func() {
 
-	var pvc *v1.PersistentVolumeClaim
-	var err error
+	var (
+		pvc *v1.PersistentVolumeClaim
+		err error
+
+		uploadProxyURL string
+		portForwardCmd *exec.Cmd
+	)
 
 	f := framework.NewFrameworkOrDie("upload-func-test")
 
@@ -31,9 +43,21 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		By("Creating PVC with upload target annotation")
 		pvc, err = f.CreatePVCFromDefinition(utils.UploadPVCDefinition())
 		Expect(err).ToNot(HaveOccurred())
+
+		By("Set up port forwarding")
+		uploadProxyURL, portForwardCmd, err = startUploadProxyPortForward(f)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
+		By("Stop port forwarding")
+		if portForwardCmd != nil {
+			err = portForwardCmd.Process.Kill()
+			Expect(err).ToNot(HaveOccurred())
+			portForwardCmd.Wait()
+			portForwardCmd = nil
+		}
+
 		By("Delete upload PVC")
 		err = f.DeletePVC(pvc)
 		Expect(err).ToNot(HaveOccurred())
@@ -44,7 +68,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(deleted).To(BeTrue())
 	})
 
-	table.DescribeTable("should", func(validToken bool) {
+	table.DescribeTable("should", func(validToken bool, expectedStatus int) {
 
 		By("Verify that upload server POD running")
 		err := f.WaitTimeoutForPodReady(utils.UploadPodName(pvc), time.Second*20)
@@ -54,10 +78,6 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		found, err := utils.WaitPVCUploadPodStatusRunning(f.K8sClient, pvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(found).To(BeTrue())
-
-		By("Prep for upload")
-		err = utils.DownloadImageToNode(f.K8sClient, f.GoCLIPath)
-		Expect(err).ToNot(HaveOccurred())
 
 		By("Get an upload token")
 		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
@@ -69,7 +89,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		}
 
 		By("Do upload")
-		err = utils.UploadImageFromNode(f.K8sClient, f.GoCLIPath, token)
+		err = uploadImage(uploadProxyURL, token, expectedStatus)
 		Expect(err).ToNot(HaveOccurred())
 
 		err = f.WaitForPersistentVolumeClaimPhase(v1.ClaimBound, pvc.Name)
@@ -86,7 +106,56 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(same).To(BeTrue())
 		}
 	},
-		table.Entry("[test_id:1368]succeed given a valid token", true),
-		table.Entry("[posneg:negative][test_id:1369]fail given an invalid token", false),
+		table.Entry("[test_id:1368]succeed given a valid token", true, http.StatusOK),
+		table.Entry("[posneg:negative][test_id:1369]fail given an invalid token", false, http.StatusUnauthorized),
 	)
 })
+
+func startUploadProxyPortForward(f *framework.Framework) (string, *exec.Cmd, error) {
+	lp := "18443"
+	pm := lp + ":443"
+	url := "https://127.0.0.1:" + lp
+
+	cmd := tests.CreateKubectlCommand(f, "-n", f.CdiInstallNs, "port-forward", "svc/cdi-uploadproxy", pm)
+	err := cmd.Start()
+	if err != nil {
+		return "", nil, err
+	}
+
+	return url, cmd, nil
+}
+
+func uploadImage(portForwardURL, token string, expectedStatus int) error {
+	url := portForwardURL + "/v1alpha1/upload"
+
+	f, err := os.Open("./images/tinyCore.iso")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	req, err := http.NewRequest("POST", url, f)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Add("Content-Type", "application/octet-stream")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != expectedStatus {
+		return fmt.Errorf("Unexpected return value %d expected %d", resp.StatusCode, expectedStatus)
+	}
+
+	return nil
+}
