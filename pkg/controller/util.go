@@ -943,7 +943,8 @@ func MakeCDIConfigSpec(name string) *cdiv1.CDIConfig {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
-				common.CDILabelKey: common.CDILabelValue,
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: "",
 			},
 		},
 		Spec: cdiv1.CDIConfigSpec{},
