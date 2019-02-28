@@ -78,6 +78,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][vendor:cnv-qe@redhat.com][level:com
 				table.Entry("[test_id:1324][crit:low]fail with s3 source with empty url", "s3", ""),
 				table.Entry("[test_id:1325]fail with empty PVC source namespace", "pvc", "", "test-pvc"),
 				table.Entry("[test_id:1326]fail with empty PVC source name", "pvc", "test", ""),
+				table.Entry("fail with source PVC doesn't exist", "pvc", "test", "test-pvc"),
 			)
 
 			table.DescribeTable("with Datavolume PVC size should", func(size string) {
