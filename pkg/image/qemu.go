@@ -211,7 +211,7 @@ func reportProgress(line string) {
 
 // CreateBlankImage creates empty raw image
 func CreateBlankImage(dest string, size resource.Quantity) error {
-	glog.V(1).Infof("creating raw image with size %s", size)
+	glog.V(1).Infof("creating raw image with size %s", size.String())
 	return qemuIterface.CreateBlankImage(dest, size)
 }
 

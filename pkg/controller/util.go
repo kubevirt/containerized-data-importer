@@ -28,6 +28,7 @@ import (
 	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -907,14 +908,19 @@ func MakeUploadServiceSpec(name string, pvc *v1.PersistentVolumeClaim) *v1.Servi
 }
 
 // CreateCDIConfig creates cdi config manifest and sends to server
-func CreateCDIConfig(cdiClient clientset.Interface, name string) (*cdiv1.CDIConfig, error) {
+func CreateCDIConfig(client kubernetes.Interface, cdiClient clientset.Interface, name string) (*cdiv1.CDIConfig, error) {
 	ns := util.GetNamespace()
 	cfg := MakeCDIConfigSpec(name)
 
-	cfg, err := cdiClient.CdiV1alpha1().CDIConfigs(ns).Create(cfg)
+	err := operator.SetOwner(client, cfg)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error setting CDI config owner ref")
+	}
+
+	config, err := cdiClient.CdiV1alpha1().CDIConfigs(ns).Create(cfg)
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {
-			cfg, err = cdiClient.CdiV1alpha1().CDIConfigs(ns).Update(cfg)
+			config, err = cdiClient.CdiV1alpha1().CDIConfigs(ns).Update(cfg)
 			if err != nil {
 				return nil, errors.Wrap(err, "Error updating CDI Config")
 			}
@@ -922,8 +928,9 @@ func CreateCDIConfig(cdiClient clientset.Interface, name string) (*cdiv1.CDIConf
 			return nil, errors.Wrap(err, "CDI config create errored")
 		}
 	}
-	glog.V(1).Infof("CDI config \"%s/%s\" created\n", cfg.Namespace, cfg.Name)
-	return cfg, nil
+
+	glog.V(1).Infof("CDI config \"%s/%s\" created\n", config.Namespace, config.Name)
+	return config, nil
 }
 
 // MakeCDIConfigSpec creates cdi config manifest
@@ -936,7 +943,8 @@ func MakeCDIConfigSpec(name string) *cdiv1.CDIConfig {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
-				common.CDILabelKey: common.CDILabelValue,
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: "",
 			},
 		},
 		Spec: cdiv1.CDIConfigSpec{},
