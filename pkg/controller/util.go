@@ -917,10 +917,10 @@ func CreateCDIConfig(client kubernetes.Interface, cdiClient clientset.Interface,
 		return nil, errors.Wrap(err, "Error setting CDI config owner ref")
 	}
 
-	cfg, err = cdiClient.CdiV1alpha1().CDIConfigs(ns).Create(cfg)
+	config, err := cdiClient.CdiV1alpha1().CDIConfigs(ns).Create(cfg)
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {
-			cfg, err = cdiClient.CdiV1alpha1().CDIConfigs(ns).Update(cfg)
+			config, err = cdiClient.CdiV1alpha1().CDIConfigs(ns).Update(cfg)
 			if err != nil {
 				return nil, errors.Wrap(err, "Error updating CDI Config")
 			}
@@ -929,8 +929,8 @@ func CreateCDIConfig(client kubernetes.Interface, cdiClient clientset.Interface,
 		}
 	}
 
-	glog.V(1).Infof("CDI config \"%s/%s\" created\n", cfg.Namespace, cfg.Name)
-	return cfg, nil
+	glog.V(1).Infof("CDI config \"%s/%s\" created\n", config.Namespace, config.Name)
+	return config, nil
 }
 
 // MakeCDIConfigSpec creates cdi config manifest
