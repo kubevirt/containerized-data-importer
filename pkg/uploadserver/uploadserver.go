@@ -152,7 +152,7 @@ func (app *uploadServerApp) Run() error {
 
 	select {
 	case err = <-errChan:
-		glog.Error("HTTP server returned error %s", err.Error())
+		glog.Errorf("HTTP server returned error %s", err.Error())
 	case <-app.doneChan:
 		glog.Info("Shutting down http server after successful upload")
 		server.Shutdown(context.Background())
