@@ -17,11 +17,8 @@ limitations under the License.
 package namespaced
 
 import (
-	"fmt"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -32,38 +29,9 @@ const (
 
 func createUploadProxyResources(args *FactoryArgs) []runtime.Object {
 	return []runtime.Object{
-		createUploadProxyServiceAccount(),
-		createUploadProxyRoleBinding(args.Namespace),
-		createUploadProxyRole(),
 		createUploadProxyService(),
 		createUploadProxyDeployment(args.DockerRepo, args.UploadProxyImage, args.DockerTag, args.Verbosity, args.PullPolicy),
 	}
-}
-
-func createUploadProxyServiceAccount() *corev1.ServiceAccount {
-	return createServiceAccount(uploadProxyResourceName)
-}
-
-func createUploadProxyRoleBinding(serviceAccountNamespace string) *rbacv1.RoleBinding {
-	return createRoleBinding(uploadProxyResourceName, uploadProxyResourceName, uploadProxyResourceName, serviceAccountNamespace)
-}
-
-func createUploadProxyRole() *rbacv1.Role {
-	role := createRole(uploadProxyResourceName)
-	role.Rules = []rbacv1.PolicyRule{
-		{
-			APIGroups: []string{
-				"apps",
-			},
-			Resources: []string{
-				"deployments",
-			},
-			Verbs: []string{
-				"get",
-			},
-		},
-	}
-	return role
 }
 
 func createUploadProxyService() *corev1.Service {
@@ -82,7 +50,7 @@ func createUploadProxyService() *corev1.Service {
 }
 
 func createUploadProxyDeployment(repo, image, tag, verbosity, pullPolicy string) *appsv1.Deployment {
-	deployment := createDeployment(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, uploadProxyResourceName, int32(1))
+	deployment := createDeployment(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, "", int32(1))
 	container := createContainer(uploadProxyResourceName, repo, image, tag, verbosity, corev1.PullPolicy(pullPolicy))
 	container.Env = []corev1.EnvVar{
 		{
@@ -167,14 +135,6 @@ func createUploadProxyDeployment(repo, image, tag, verbosity, pullPolicy string)
 		PeriodSeconds:       5,
 	}
 	deployment.Spec.Template.Spec.Containers = []corev1.Container{container}
-	deployment.Spec.Template.Spec.InitContainers = []corev1.Container{
-		{
-			Name:    "init",
-			Image:   fmt.Sprintf("%s/%s:%s", repo, image, tag),
-			Command: []string{"/usr/bin/cdi-uploadproxy-init.sh"},
-			Args:    []string{"120"},
-		},
-	}
 
 	return deployment
 }

@@ -217,7 +217,7 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	go func() {
 		err = configController.Run(1, stopCh)
 		if err != nil {
-			glog.Fatalln("Error running config controller: %+v", err)
+			glog.Fatalf("Error running config controller: %+v", err)
 		}
 	}()
 
