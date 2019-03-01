@@ -142,6 +142,24 @@ func TestGetFails(t *testing.T) {
 	})
 }
 
+func TestHealthz(t *testing.T) {
+	req, err := http.NewRequest("GET", healthzPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+
+	app := uploadServerApp{}
+	server, _ := app.createHealthzServer()
+	server.Handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusOK)
+	}
+}
+
 func TestInProcessUnavailable(t *testing.T) {
 	withSaveStreamSuccess(func() {
 		req := newRequest(t)

@@ -62,7 +62,7 @@ func main() {
 
 	err := server.Run()
 	if err != nil {
-		glog.Error("UploadServer failed: %s", err)
+		glog.Errorf("UploadServer failed: %s", err)
 		os.Exit(1)
 	}
 
