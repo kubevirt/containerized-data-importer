@@ -80,6 +80,15 @@ func createControllerDeployment(repo, controllerImage, importerImage, clonerImag
 			Value: uploadProxyResourceName,
 		},
 	}
+	container.ReadinessProbe = &corev1.Probe{
+		Handler: corev1.Handler{
+			Exec: &corev1.ExecAction{
+				Command: []string{"cat", "/tmp/ready"},
+			},
+		},
+		InitialDelaySeconds: 2,
+		PeriodSeconds:       5,
+	}
 	deployment.Spec.Template.Spec.Containers = []corev1.Container{container}
 	return deployment
 }

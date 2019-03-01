@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -50,6 +51,8 @@ const (
 	apiWebhookValidator = "cdi-api-validator"
 
 	dvCreateValidatePath = "/datavolume-validate-create"
+
+	healthzPath = "/healthz"
 )
 
 // CdiAPIServer is the public interface to the CDI API
@@ -488,7 +491,13 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 		Returns(http.StatusOK, "OK", metav1.APIGroupList{}).
 		Returns(http.StatusNotFound, "Not Found", nil))
 
+	ws.Route(ws.GET(healthzPath).To(app.healthzHandler))
+
 	app.container.Add(ws)
+}
+
+func (app *cdiAPIApp) healthzHandler(req *restful.Request, resp *restful.Response) {
+	io.WriteString(resp, "OK")
 }
 
 func (app *cdiAPIApp) createAPIService() error {

@@ -1602,6 +1602,19 @@ func createUploadPod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
 						},
 					},
 					Args: []string{"-v=" + "5"},
+					ReadinessProbe: &v1.Probe{
+						Handler: v1.Handler{
+							HTTPGet: &v1.HTTPGetAction{
+								Path: "/healthz",
+								Port: intstr.IntOrString{
+									Type:   intstr.Int,
+									IntVal: 8080,
+								},
+							},
+						},
+						InitialDelaySeconds: 2,
+						PeriodSeconds:       5,
+					},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyOnFailure,
