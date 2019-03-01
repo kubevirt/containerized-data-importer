@@ -341,7 +341,7 @@ func (r registryData) Cleanup() error {
 	}
 	err := os.RemoveAll(r.dataDir)
 	if err != nil {
-		glog.Errorf(" Failed removing directory ", err.Error())
+		glog.Errorf("Failed removing directory %+v", err.Error())
 	}
 	return nil
 }

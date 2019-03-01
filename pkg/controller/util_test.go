@@ -1680,7 +1680,8 @@ func createCDIConfig(name, ns string) *cdiv1.CDIConfig {
 			Name:      name,
 			Namespace: ns,
 			Labels: map[string]string{
-				common.CDILabelKey: common.CDILabelValue,
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: "",
 			},
 		},
 		Spec: cdiv1.CDIConfigSpec{},

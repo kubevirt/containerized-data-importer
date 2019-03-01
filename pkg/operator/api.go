@@ -40,7 +40,7 @@ func SetOwner(client kubernetes.Interface, object metav1.Object) error {
 	namespace := util.GetNamespace()
 	configMap, err := client.CoreV1().ConfigMaps(namespace).Get(ConfigMapName, metav1.GetOptions{})
 	if err != nil {
-		glog.Warning("ConfigMap %s does not exist, so not assigning owner", ConfigMapName)
+		glog.Warningf("ConfigMap %s does not exist, so not assigning owner", ConfigMapName)
 		return nil
 	}
 
