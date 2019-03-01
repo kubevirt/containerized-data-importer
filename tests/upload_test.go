@@ -79,6 +79,9 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(err).ToNot(HaveOccurred())
 		Expect(found).To(BeTrue())
 
+		err = f.WaitForPersistentVolumeClaimPhase(v1.ClaimBound, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+
 		By("Get an upload token")
 		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
 		Expect(err).ToNot(HaveOccurred())
@@ -90,9 +93,6 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 		By("Do upload")
 		err = uploadImage(uploadProxyURL, token, expectedStatus)
-		Expect(err).ToNot(HaveOccurred())
-
-		err = f.WaitForPersistentVolumeClaimPhase(v1.ClaimBound, pvc.Name)
 		Expect(err).ToNot(HaveOccurred())
 
 		if !validToken {

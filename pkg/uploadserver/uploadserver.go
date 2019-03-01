@@ -24,10 +24,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
-	"os"
 	"path/filepath"
 	"sync"
 
@@ -40,6 +40,9 @@ import (
 
 const (
 	uploadPath = "/v1alpha1/upload"
+
+	healthzPort = 8080
+	healthzPath = "/healthz"
 )
 
 // UploadServer is the interface to uploadServerApp
@@ -54,6 +57,8 @@ type uploadServerApp struct {
 	tlsKey      string
 	tlsCert     string
 	clientCert  string
+	keyFile     string
+	certFile    string
 	mux         *http.ServeMux
 	uploading   bool
 	done        bool
@@ -83,12 +88,68 @@ func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsC
 		done:        false,
 		doneChan:    make(chan struct{}),
 	}
+	server.mux.HandleFunc(healthzPath, server.healthzHandler)
 	server.mux.HandleFunc(uploadPath, server.uploadHandler)
 	return server
 }
 
 func (app *uploadServerApp) Run() error {
-	var keyFile, certFile string
+	uploadServer, err := app.createUploadServer()
+	if err != nil {
+		return errors.Wrap(err, "Error creating upload http server")
+	}
+
+	healthzServer, err := app.createHealthzServer()
+	if err != nil {
+		return errors.Wrap(err, "Error creating healthz http server")
+	}
+
+	uploadListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort))
+	if err != nil {
+		return errors.Wrap(err, "Error creating upload listerner")
+	}
+
+	healthzListener, err := net.Listen("tcp", fmt.Sprintf(":%d", healthzPort))
+	if err != nil {
+		return errors.Wrap(err, "Error creating healthz listerner")
+	}
+
+	errChan := make(chan error)
+
+	go func() {
+		defer uploadListener.Close()
+
+		// maybe bind port was 0 (unit tests) assign port here
+		app.bindPort = uploadListener.Addr().(*net.TCPAddr).Port
+
+		if app.keyFile != "" && app.certFile != "" {
+			errChan <- uploadServer.ServeTLS(uploadListener, app.certFile, app.keyFile)
+			return
+		}
+
+		// not sure we want to support this code path
+		errChan <- uploadServer.Serve(uploadListener)
+	}()
+
+	go func() {
+		defer healthzServer.Close()
+
+		errChan <- healthzServer.Serve(healthzListener)
+	}()
+
+	select {
+	case err = <-errChan:
+		glog.Errorf("HTTP server returned error %s", err.Error())
+	case <-app.doneChan:
+		glog.Info("Shutting down http server after successful upload")
+		healthzServer.Shutdown(context.Background())
+		uploadServer.Shutdown(context.Background())
+	}
+
+	return err
+}
+
+func (app *uploadServerApp) createUploadServer() (*http.Server, error) {
 	server := &http.Server{
 		Handler: app,
 	}
@@ -96,21 +157,20 @@ func (app *uploadServerApp) Run() error {
 	if app.tlsKey != "" && app.tlsCert != "" {
 		certDir, err := ioutil.TempDir("", "uploadserver-tls")
 		if err != nil {
-			return errors.Wrap(err, "Error creating cert dir")
-		}
-		defer os.RemoveAll(certDir)
-
-		keyFile = filepath.Join(certDir, "tls.key")
-		certFile = filepath.Join(certDir, "tls.crt")
-
-		err = ioutil.WriteFile(keyFile, []byte(app.tlsKey), 0600)
-		if err != nil {
-			return errors.Wrap(err, "Error creating key file")
+			return nil, errors.Wrap(err, "Error creating cert dir")
 		}
 
-		err = ioutil.WriteFile(certFile, []byte(app.tlsCert), 0600)
+		app.keyFile = filepath.Join(certDir, "tls.key")
+		app.certFile = filepath.Join(certDir, "tls.crt")
+
+		err = ioutil.WriteFile(app.keyFile, []byte(app.tlsKey), 0600)
 		if err != nil {
-			return errors.Wrap(err, "Error creating cert file")
+			return nil, errors.Wrap(err, "Error creating key file")
+		}
+
+		err = ioutil.WriteFile(app.certFile, []byte(app.tlsCert), 0600)
+		if err != nil {
+			return nil, errors.Wrap(err, "Error creating cert file")
 		}
 	}
 
@@ -126,43 +186,21 @@ func (app *uploadServerApp) Run() error {
 		}
 	}
 
-	errChan := make(chan error)
+	return server, nil
+}
 
-	go func() {
-		listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", app.bindAddress, app.bindPort))
-		if err != nil {
-			errChan <- err
-			return
-		}
-		defer listener.Close()
-
-		// maybe bind port was 0 (unit tests) assign port here
-		app.bindPort = listener.Addr().(*net.TCPAddr).Port
-
-		if keyFile != "" && certFile != "" {
-			errChan <- server.ServeTLS(listener, certFile, keyFile)
-			return
-		}
-
-		// not sure we want to support this code path
-		errChan <- server.Serve(listener)
-	}()
-
-	var err error
-
-	select {
-	case err = <-errChan:
-		glog.Errorf("HTTP server returned error %s", err.Error())
-	case <-app.doneChan:
-		glog.Info("Shutting down http server after successful upload")
-		server.Shutdown(context.Background())
-	}
-
-	return err
+func (app *uploadServerApp) createHealthzServer() (*http.Server, error) {
+	mux := http.NewServeMux()
+	mux.HandleFunc(healthzPath, app.healthzHandler)
+	return &http.Server{Handler: mux}, nil
 }
 
 func (app *uploadServerApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	app.mux.ServeHTTP(w, r)
+}
+
+func (app *uploadServerApp) healthzHandler(w http.ResponseWriter, r *http.Request) {
+	io.WriteString(w, "OK")
 }
 
 func (app *uploadServerApp) uploadHandler(w http.ResponseWriter, r *http.Request) {
