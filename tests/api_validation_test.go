@@ -24,10 +24,10 @@ const (
 	destinationFile    = "/var/tmp/datavolume_test.yaml"
 )
 
-var _ = Describe("[rfe_id:1130][crit:medium][vendor:cnv-qe@redhat.com][level:component]Validation tests", func() {
+var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redhat.com][level:component]Validation tests", func() {
 	f := framework.NewFrameworkOrDie("api-validation-func-test")
 
-	Describe("[posneg:negative]Verify DataVolume validation", func() {
+	Describe("Verify DataVolume validation", func() {
 		Context("when creating Datavolume", func() {
 			dv := map[string]interface{}{}
 
