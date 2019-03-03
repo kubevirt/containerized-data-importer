@@ -62,7 +62,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				err = structToYamlFile(destinationFile, dv)
 				Expect(err).ToNot(HaveOccurred())
 
-				By(fmt.Sprint("Verifying kubectl create"))
+				By("Verifying kubectl create")
 				Eventually(func() bool {
 					_, err := RunKubectlCommand(f, "create", "-f", destinationFile, "-n", f.Namespace.Name)
 					if err != nil {
@@ -90,7 +90,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				err = structToYamlFile(destinationFile, dv)
 				Expect(err).ToNot(HaveOccurred())
 
-				By(fmt.Sprint("Verifying kubectl apply"))
+				By("Verifying kubectl apply")
 				Eventually(func() bool {
 					_, err := RunKubectlCommand(f, "create", "-f", destinationFile, "-n", f.Namespace.Name)
 					if err != nil {
@@ -120,7 +120,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("[test_id:1030]should fail creating an already existing DataVolume", func() {
-			By(fmt.Sprint("Verifying kubectl create"))
+			By("Verifying kubectl create")
 			Eventually(func() bool {
 
 				_, err := RunKubectlCommand(f, "create", "-f", datavolumeTestFile, "-n", f.Namespace.Name)
@@ -147,8 +147,8 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			err = utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvc)
 			Expect(err).ToNot(HaveOccurred())
 		})
-		It("should fail creating a DataVolume with already existing destination pvc", func() {
-			By(fmt.Sprint("Verifying kubectl create"))
+		It("[test_id:1759]should fail creating a DataVolume with already existing destination pvc", func() {
+			By("Verifying kubectl create")
 			Eventually(func() bool {
 
 				_, err := RunKubectlCommand(f, "create", "-f", datavolumeTestFile, "-n", f.Namespace.Name)
@@ -163,7 +163,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 
 	Context("when creating data volumes from manual manifests", func() {
 		table.DescribeTable("with manifests Datavolume should", func(destinationFile string, expectError bool) {
-			By(fmt.Sprint("Verifying kubectl apply"))
+			By("Verifying kubectl apply")
 			_, err := RunKubectlCommand(f, "create", "-f", destinationFile, "-n", f.Namespace.Name)
 			if expectError {
 				Expect(err).To(HaveOccurred())
@@ -171,16 +171,16 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				Expect(err).ToNot(HaveOccurred())
 			}
 		},
-			table.Entry("fail with blank image source and contentType archive", "manifests/dvBlankArchive.yaml", true),
-			table.Entry("fail with invalid contentType", "manifests/dvInvalidContentType.yaml", true),
-			table.Entry("fail with missing source", "manifests/dvMissingSource.yaml", true),
-			table.Entry("fail with multiple sources", "manifests/dvMultiSource.yaml", true),
-			table.Entry("fail with invalid URL for http source", "manifests/dvInvalidURL.yaml", true),
-			table.Entry("fail with invalid source PVC", "manifests/dvInvalidSourcePVC.yaml", true),
-			table.Entry("[posneg:positive]succeed with valid source http", "manifests/datavolume.yaml", false),
-			table.Entry("fail with missing PVC spec", "manifests/dvMissingPVCSpec.yaml", true),
-			table.Entry("fail with missing resources spec", "manifests/dvMissingResourcesSpec.yaml", true),
-			table.Entry("fail with 0 size PVC", "manifests/dv0SizePVC.yaml", true),
+			table.Entry("[test_id:1760]fail with blank image source and contentType archive", "manifests/dvBlankArchive.yaml", true),
+			table.Entry("[test_id:1761]fail with invalid contentType", "manifests/dvInvalidContentType.yaml", true),
+			table.Entry("[test_id:1762]fail with missing source", "manifests/dvMissingSource.yaml", true),
+			table.Entry("[test_id:1763]fail with multiple sources", "manifests/dvMultiSource.yaml", true),
+			table.Entry("[test_id:1764]fail with invalid URL for http source", "manifests/dvInvalidURL.yaml", true),
+			table.Entry("[test_id:1765]fail with invalid source PVC", "manifests/dvInvalidSourcePVC.yaml", true),
+			table.Entry("[test_id:1766][posneg:positive]succeed with valid source http", "manifests/datavolume.yaml", false),
+			table.Entry("[test_id:1767]fail with missing PVC spec", "manifests/dvMissingPVCSpec.yaml", true),
+			table.Entry("[test_id:1768]fail with missing resources spec", "manifests/dvMissingResourcesSpec.yaml", true),
+			table.Entry("[test_id:1769]fail with 0 size PVC", "manifests/dv0SizePVC.yaml", true),
 		)
 
 	})
