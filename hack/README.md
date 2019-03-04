@@ -52,6 +52,7 @@ The standard workflow is performed inside a helper container to normalize the bu
 - `clean`: cleans up previous build artifacts
 - `cluster-up`: start a default Kubernetes or Open Shift cluster. set KUBEVIRT_PROVIDER environment variable to either 'k8s-1.11.0' or 'os-3.11.0' to select the type of cluster. set KUBEVIRT_NUM_NODES to something higher than 1 to have more than one node.
 - `cluster-down`: stop the cluster, doing a make cluster-down && make cluster-up will basically restart the cluster into an empty fresh state.
+- `cluster-down-purge`: cluster-down and cleanup all cached images from docker registry. Accepts [make variables](#make-variables) DOCKER_REPO. Removes all images of the specified repository. If not specified removes localhost repository of current cluster instance.
 - `cluster-sync`: builds the controller/importer/cloner, and pushes it into a running cluster. The cluster must be up before running a cluster sync. Also generates a manifest and applies it to the running cluster after pushing the images to it.
     - `cluster-sync-controller`: builds the controller and pushes it into a running cluster. 
     - `cluster-sync-importer`: builds the importer and pushes it into a running cluster.
@@ -69,7 +70,7 @@ The standard workflow is performed inside a helper container to normalize the bu
     - `docker-uploadproxy`: compile cdi-uploadproxy and build cdi-uploadproxy image
     - `docker-uploadserver`: compile cdi-uploadserver and build cdi-uploadserver image
     - `docker-operator`: compile cdi-operator and build cdi-operator image
-    - `docker-registry-cleanup`: remove all images of specifed repo from local docker registry. if not specified removes from localhost repo. Accepts [make variables](#make-variables) DOCKER_REPO.  
+    - `docker-registry-cleanup`: remove all images of specifed repo from local docker registry. if not specified removes from localhost repo of current cluster instance. Accepts [make variables](#make-variables) DOCKER_REPO.  
     - `docker-functest-images`: compile and build the file host and docker registry images for functional tests
         - `docker-functest-image-init`: compile and build the file host init image for functional tests
         - `docker-functest-image-http`: only build the file host http container for functional tests
@@ -154,6 +155,11 @@ Clean Up
  # make cluster-down
 ```
 
+Clean Up with docker container cache cleanup
+To cleanup all container images from local registry and to free a considerable amount of disk space. Note: caveat - cluser-sync will take longer since will have to fetch all the data again 
+```
+ # make cluster-down-purge
+``` 
 #### Execute Alternative Environment Functional Tests
 
 If running in a non-standard environment such as Mac or Cloud where the *kubevirtci framework* is

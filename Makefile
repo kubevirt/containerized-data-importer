@@ -121,6 +121,10 @@ docker-functest-registry: WHAT = tools/cdi-func-test-registry
 docker-functest-registry: # no code to compile, just build image
 	./hack/build/build-cdi-func-test-registry-host.sh && ./hack/build/build-docker.sh build ${WHAT}
 
+docker-registry-cleanup: 
+	./hack/build/cleanup_docker.sh 
+
+
 push: docker
 	./hack/build/build-docker.sh push ${WHAT}
 
@@ -160,8 +164,10 @@ release-description:
 cluster-up:
 	./cluster/up.sh
 
-cluster-down:
+cluster-down: 
 	./cluster/down.sh
+
+cluster-down-purge: docker-registry-cleanup cluster-down
 
 cluster-clean:
 	./cluster/clean.sh
