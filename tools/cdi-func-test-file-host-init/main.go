@@ -14,16 +14,26 @@ package main
 
 import (
 	"flag"
-
-	"github.com/golang/glog"
-	"github.com/pkg/errors"
-	"kubevirt.io/containerized-data-importer/tests/utils"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/golang/glog"
+	"github.com/pkg/errors"
+
+	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/tests/utils"
+)
+
+const (
+	serviceName   = "cdi-file-host"
+	configMapName = serviceName + "-certs"
+	certFile      = "tls.crt"
+	keyFile       = "tls.key"
 )
 
 func main() {
+	certDir := flag.String("certDir", "", "")
 	inFile := flag.String("inFile", "", "")
 	outDir := flag.String("outDir", "", "")
 	flag.Parse()
@@ -39,6 +49,10 @@ func main() {
 		[]string{".qcow2"},
 	}
 
+	if err := utils.CreateCertForTestService(util.GetNamespace(), serviceName, configMapName, *certDir, certFile, keyFile); err != nil {
+		glog.Fatal(errors.Wrapf(err, "populate certificate directory %s' errored: ", *certDir))
+	}
+
 	if err := os.MkdirAll(*outDir, 0777); err != nil {
 		glog.Fatal(errors.Wrapf(err, "'mkdir %s' errored: ", *outDir))
 	}
@@ -51,7 +65,7 @@ func main() {
 type formatTable [][]string
 
 func (ft formatTable) initializeTestFiles(inFile, outDir string) error {
-	sem := make(chan bool, 3)
+	sem := make(chan bool, 2)
 	errChan := make(chan error, len(ft))
 
 	reportError := func(err error, msg string, format ...interface{}) {
