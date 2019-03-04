@@ -1,8 +1,8 @@
 FROM fedora:28
 
-RUN dnf install -y qemu xz gzip git gradle && dnf clean all
+RUN dnf install -y qemu xz gzip git gradle gcc && dnf clean all
 
-ENV GIMME_GO_VERSION=1.10 GOPATH="/go" KUBEBUILDER_VERSION="1.0.7" ARCH="amd64"
+ENV GIMME_GO_VERSION=1.11.5 GOPATH="/go" KUBEBUILDER_VERSION="1.0.7" ARCH="amd64"
 
 RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
 

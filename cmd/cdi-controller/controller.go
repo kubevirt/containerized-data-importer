@@ -26,6 +26,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+const (
+	readyFile = "/tmp/ready"
+)
+
 var (
 	configPath             string
 	masterURL              string
@@ -166,6 +170,11 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 
 	glog.V(1).Infoln("created cdi controllers")
 
+	err = uploadController.Init()
+	if err != nil {
+		glog.Fatalf("Error initializing upload controller: %+v", err)
+	}
+
 	go cdiInformerFactory.Start(stopCh)
 	go pvcInformerFactory.Start(stopCh)
 	go podInformerFactory.Start(stopCh)
@@ -180,37 +189,41 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	go func() {
 		err = dataVolumeController.Run(3, stopCh)
 		if err != nil {
-			glog.Fatalln("Error running dataVolume controller: %+v", err)
+			glog.Fatalf("Error running dataVolume controller: %+v", err)
 		}
 	}()
 
 	go func() {
 		err = importController.Run(1, stopCh)
 		if err != nil {
-			glog.Fatalln("Error running import controller: %+v", err)
+			glog.Fatalf("Error running import controller: %+v", err)
 		}
 	}()
 
 	go func() {
 		err = cloneController.Run(1, stopCh)
 		if err != nil {
-			glog.Fatalln("Error running clone controller: %+v", err)
+			glog.Fatalf("Error running clone controller: %+v", err)
 		}
 	}()
 
 	go func() {
 		err = uploadController.Run(1, stopCh)
 		if err != nil {
-			glog.Fatalln("Error running upload controller: %+v", err)
+			glog.Fatalf("Error running upload controller: %+v", err)
 		}
 	}()
 
 	go func() {
 		err = configController.Run(1, stopCh)
 		if err != nil {
-			glog.Fatalln("Error running config controller: %+v", err)
+			glog.Fatalf("Error running config controller: %+v", err)
 		}
 	}()
+
+	if err = createReadyFile(); err != nil {
+		glog.Fatalf("Error creating ready file: %+v", err)
+	}
 }
 
 func main() {
@@ -232,7 +245,23 @@ func main() {
 	}
 
 	<-stopCh
+
+	deleteReadyFile()
+
 	glog.V(2).Infoln("cdi controller exited")
+}
+
+func createReadyFile() error {
+	f, err := os.Create(readyFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return nil
+}
+
+func deleteReadyFile() {
+	os.Remove(readyFile)
 }
 
 // Shutdown gracefully on system signals

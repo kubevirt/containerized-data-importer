@@ -21,7 +21,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
@@ -167,17 +167,22 @@ func NewUploadController(client kubernetes.Interface,
 	return c
 }
 
-// Run sets up UploadController state and executes main event loop
-func (c *UploadController) Run(threadiness int, stopCh <-chan struct{}) error {
-	defer runtime.HandleCrash()
-	defer c.queue.ShutDown()
-
+// Init does synchronous initialization before being considered "ready"
+func (c *UploadController) Init() error {
 	glog.V(2).Infoln("Getting/creating certs")
 
 	if err := c.initCerts(); err != nil {
 		runtime.HandleError(err)
 		return errors.Wrap(err, "Error initializing certificates")
 	}
+
+	return nil
+}
+
+// Run sets up UploadController state and executes main event loop
+func (c *UploadController) Run(threadiness int, stopCh <-chan struct{}) error {
+	defer runtime.HandleCrash()
+	defer c.queue.ShutDown()
 
 	glog.V(2).Infoln("Starting cdi upload controller Run loop")
 

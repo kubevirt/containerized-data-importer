@@ -315,7 +315,7 @@ func (c *ConfigController) Run(threadiness int, stopCh <-chan struct{}) error {
 	}()
 
 	glog.V(3).Infoln("Creating CDI config")
-	if _, err := CreateCDIConfig(c.cdiClientSet, c.configName); err != nil {
+	if _, err := CreateCDIConfig(c.client, c.cdiClientSet, c.configName); err != nil {
 		runtime.HandleError(err)
 		return errors.Wrap(err, "Error creating CDI config")
 	}

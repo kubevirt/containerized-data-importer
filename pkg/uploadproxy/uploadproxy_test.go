@@ -67,10 +67,10 @@ func newProxyRequest(t *testing.T, authHeaderValue string) *http.Request {
 func submitRequestAndCheckStatus(t *testing.T, request *http.Request, expectedCode int, app *uploadProxyApp) {
 	rr := httptest.NewRecorder()
 	if app == nil {
-		app = &uploadProxyApp{}
+		app = createApp()
 	}
 
-	app.handleUploadRequest(rr, request)
+	app.ServeHTTP(rr, request)
 
 	if rr.Code != expectedCode {
 		t.Errorf("handler returned wrong status code: got %v want %v",
@@ -89,9 +89,15 @@ func verifyTokenSuccess(token string, publicKey *rsa.PublicKey) (*apiserver.Toke
 	return tokenData, nil
 }
 
+func createApp() *uploadProxyApp {
+	app := &uploadProxyApp{}
+	app.initHandlers()
+	return app
+}
+
 func TestGetSigningKey(t *testing.T) {
 	publicKeyPEM := getPublicKeyEncoded(t)
-	app := uploadProxyApp{}
+	app := createApp()
 
 	err := app.getSigningKey(publicKeyPEM)
 	if err != nil {
@@ -105,7 +111,7 @@ func TestGetSigningKey(t *testing.T) {
 
 func TestGetUploadServerClient(t *testing.T) {
 	certs := getHTTPClientConfig(t)
-	app := uploadProxyApp{}
+	app := createApp()
 
 	err := app.getUploadServerClient(certs.key, certs.cert, certs.caCert)
 	if err != nil {
@@ -142,7 +148,7 @@ func setupProxyTests(handler http.HandlerFunc) *uploadProxyApp {
 		return server.URL
 	}
 
-	app := &uploadProxyApp{}
+	app := createApp()
 	app.tokenVerifier = verifyTokenSuccess
 	app.urlResolver = urlResolver
 	app.uploadServerClient = server.Client()
@@ -177,7 +183,7 @@ func TestProxy(t *testing.T) {
 }
 
 func TestTokenInvalid(t *testing.T) {
-	app := &uploadProxyApp{}
+	app := createApp()
 	app.tokenVerifier = verifyTokenFailure
 
 	req := newProxyRequest(t, "Bearer valid")
@@ -188,4 +194,13 @@ func TestTokenInvalid(t *testing.T) {
 func TestNoAuthHeader(t *testing.T) {
 	req := newProxyRequest(t, "")
 	submitRequestAndCheckStatus(t, req, http.StatusBadRequest, nil)
+}
+
+func TestHealthz(t *testing.T) {
+	req, err := http.NewRequest("GET", healthzPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	submitRequestAndCheckStatus(t, req, http.StatusOK, nil)
 }

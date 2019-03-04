@@ -48,15 +48,22 @@ $docker push vmdisks/fedora28:latest
 
 ```
 
-# Import the registry image into a PVC
+# Import the registry image into a Data volume
 
-Use the following annotations in the PVC yaml:
+Use the following to import a fedora cloud image from docker hub:
+```yaml
+apiVersion: cdi.kubevirt.io/v1alpha1
+kind: DataVolume
+metadata:
+  name: registry-image-datavolume
+spec:
+  source:
+      registry: "docker://kubevirt/fedora-cloud-registry-disk-demo"
+  pvc:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 5Gi
 ```
-...
-annotations:
-    cdi.kubevirt.io/storage.import.source: "registry"
-    cdi.kubevirt.io/storage.import.endpoint: "docker://docker.io/kubevirt/cirros-registry-disk-demo"
-...
-```
-
-Full example is available here: [registry-image-pvc](https://github.com/kubevirt/containerized-data-importer/blob/master/manifests/example/registry-image-pvc.yaml)
+Full example is available here: [registry-image-pvc](../manifests/example/registry-image-datavolume.yaml)

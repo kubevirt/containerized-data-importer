@@ -5,7 +5,7 @@ language: go
 go_import_path: kubevirt.io/containerized-data-importer
 
 go:
-- 1.10.x
+- 1.11.5
 
 services:
 - docker
