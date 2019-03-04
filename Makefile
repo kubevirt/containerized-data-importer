@@ -188,10 +188,3 @@ cluster-sync-uploadproxy: cluster-sync
 cluster-sync-uploadserver: WHAT = cmd/cdi-uploadserver
 cluster-sync-uploadserver: cluster-sync
 
-functest:
-	./hack/build/functests.sh
-
-functest-image-host: WHAT=tools/cdi-func-test-file-host-init
-functest-image-host:  manifests build
-	${DO} ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-docker.sh "tools/cdi-func-test-file-host-init tools/cdi-func-test-file-host-http tools/cdi-func-test-registry-init tools/cdi-func-test-registry tools/cdi-func-test-registry-populate"
-
