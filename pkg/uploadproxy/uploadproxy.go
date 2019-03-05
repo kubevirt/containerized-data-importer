@@ -222,7 +222,7 @@ func (app *uploadProxyApp) testConnect(urlString string) error {
 		d := net.Dialer{Timeout: connectTimeout}
 		conn, err := d.Dial("tcp", hostPort)
 		if err == nil {
-			klog.Infof("Successfully connected to %s on attempt %d", urlString, i)
+			klog.V(3).Infof("Successfully connected to %s on attempt %d", urlString, i)
 			conn.Close()
 			return nil
 		}
@@ -230,11 +230,12 @@ func (app *uploadProxyApp) testConnect(urlString string) error {
 		switch ne := err.(type) {
 		case net.Error:
 			if ne.Timeout() {
+				klog.V(3).Infof("Timeout connecting to %s on iteration %d", hostPort, i)
 				continue
 			}
-			return errors.Wrapf(ne, "Unexpected net.Error dialing %s", urlString)
+			klog.V(3).Infof("Unexpected net error connecting to %s on iteration %d %+v", hostPort, i, err)
 		default:
-			return errors.Wrapf(ne, "Unexpected error dialing %s", urlString)
+			klog.V(3).Infof("Unexpected error connecting to %s on iteration %d %+v", hostPort, i, err)
 		}
 	}
 

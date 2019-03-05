@@ -314,7 +314,7 @@ func (f *Framework) CreatePrometheusServiceInNs(namespace string) (*v1.Service, 
 			Ports: []v1.ServicePort{
 				{
 					Name: "metrics",
-					Port: 443,
+					Port: 8443,
 					TargetPort: intstr.IntOrString{
 						StrVal: "metrics",
 					},
