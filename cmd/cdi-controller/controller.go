@@ -173,7 +173,7 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 
 	err = configController.Init()
 	if err != nil {
-		glog.Fatalf("Error initializing config controller: %+v", err)
+		klog.Fatalf("Error initializing config controller: %+v", err)
 	}
 
 	go cdiInformerFactory.Start(stopCh)

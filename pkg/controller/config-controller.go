@@ -290,7 +290,7 @@ func (c *ConfigController) syncHandler(key string) error {
 
 // Init is meant to be called synchroniously when the the controller is starting
 func (c *ConfigController) Init() error {
-	glog.V(3).Infoln("Creating CDI config if necessary")
+	klog.V(3).Infoln("Creating CDI config if necessary")
 
 	if err := EnsureCDIConfigExists(c.client, c.cdiClientSet, c.configName); err != nil {
 		runtime.HandleError(err)
