@@ -93,3 +93,16 @@ function getClusterType() {
     esac
     echo "$image"
 }
+
+function getTestPullPolicy() {
+    local pp
+    case "${KUBEVIRT_PROVIDER}" in
+    "k8s-1.11.0")
+        pp=$PULL_POLICY
+        ;;
+    "os-3.11.0")
+        pp=Always
+        ;;
+    esac
+    echo "$pp"
+}
