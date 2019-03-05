@@ -1,5 +1,5 @@
-hash: 384b06c66c287b878232f18844dd0b80c9220f60064d813b16f36e6ef342e51d
-updated: 2019-01-28T21:20:00.476189869Z
+hash: 845b2d8794e7e8fbe69bab87914697935de2fe1f1619d9c751f352cc247fb7bd
+updated: 2019-03-05T13:59:02.532270442-05:00
 imports:
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
@@ -22,7 +22,7 @@ imports:
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ini/ini
-  version: 6ed8d5f64cd79a498d1f3fab5880cc376ce41bbe
+  version: ece0e89bb05aec0d6768f7bc1e77f11f03da0d11
 - name: github.com/go-logr/logr
   version: 9fb12b3b21c5415d16ac18dc5cd42c1cfdd40c4e
 - name: github.com/go-logr/zapr
@@ -147,19 +147,27 @@ imports:
 - name: github.com/openshift/api
   version: 5ad8479f64f1b60ee9c62ce8ef1fe6638838725e
   subpackages:
-  - build/v1
+  - route/v1
   - security/v1
 - name: github.com/openshift/client-go
   version: 431ec9a26e5021f35fa41ee9a89842db9bfdb370
   subpackages:
-  - build/clientset/versioned/scheme
-  - build/clientset/versioned/typed/build/v1
+  - route/clientset/versioned
+  - route/clientset/versioned/fake
+  - route/clientset/versioned/scheme
+  - route/clientset/versioned/typed/route/v1
+  - route/clientset/versioned/typed/route/v1/fake
+  - route/informers/externalversions
+  - route/informers/externalversions/internalinterfaces
+  - route/informers/externalversions/route
+  - route/informers/externalversions/route/v1
+  - route/listers/route/v1
 - name: github.com/pborman/uuid
   version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 - name: github.com/peterbourgon/diskv
   version: 5f041e8faa004a95c88a202771f4cc3e991971e6
 - name: github.com/pkg/errors
-  version: ffb6e22f01932bf7ac35e0bad9be11f01d1c8685
+  version: 27936f6d90f9c8e1145f11ed52ffffbfdb9e0af7
 - name: github.com/prometheus/client_golang
   version: 505eaef017263e299324067d40ca2c48f6a2cf50
   subpackages:
@@ -187,7 +195,7 @@ imports:
 - name: github.com/spf13/pflag
   version: 583c0c0531f06d5278b7d917446061adc344b5cd
 - name: github.com/ulikunitz/xz
-  version: 590df8077fbcb06ad62d7714da06c00e5dd2316d
+  version: 6f934d456d51e742b4eeab20d925a827ef22320a
   subpackages:
   - internal/hash
   - internal/xlog
@@ -199,7 +207,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: 82e3b47c1fe49387143b1a051a9ab6f34a08678d
+  version: d2a364dac1d9b70c651d9f47381c5912361e5596
   subpackages:
   - buffer
   - internal/bufferpool
@@ -267,7 +275,7 @@ imports:
   subpackages:
   - rate
 - name: google.golang.org/appengine
-  version: e9657d882bb81064595ca3b56cbe2546bbabf7b1
+  version: 54a98f90d1c46b7731eb8fb305d2a321c30ef610
   subpackages:
   - internal
   - internal/base
@@ -279,7 +287,7 @@ imports:
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
 - name: gopkg.in/square/go-jose.v2
-  version: e94fb177d3668d35ab39c61cbb2f311550557e83
+  version: 628223f44a71f715d2881ea69afc795a1e9c01be
   subpackages:
   - cipher
   - json
@@ -620,7 +628,7 @@ imports:
   - pkg/webhook/internal/metrics
   - pkg/webhook/types
 - name: sigs.k8s.io/testing_frameworks
-  version: d348cb12705b516376e0c323bacca72b00a78425
+  version: 57f07443c2d47d9c7f932a9a4fc87fbf3408215d
   subpackages:
   - integration
   - integration/addr
