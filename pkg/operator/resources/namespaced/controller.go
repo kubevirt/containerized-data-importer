@@ -79,6 +79,10 @@ func createControllerDeployment(repo, controllerImage, importerImage, clonerImag
 			Name:  "UPLOADPROXY_SERVICE",
 			Value: uploadProxyResourceName,
 		},
+		{
+			Name:  "PULL_POLICY",
+			Value: pullPolicy,
+		},
 	}
 	container.ReadinessProbe = &corev1.Probe{
 		Handler: corev1.Handler{
