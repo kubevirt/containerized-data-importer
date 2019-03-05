@@ -38,6 +38,8 @@ spec:
           containerPort: 80
         - name: http-auth
           containerPort: 81
+        - name: rate-limit
+          containerPort: 82
         volumeMounts:
         - name: "images"
           mountPath: "/tmp/shared/"
@@ -94,6 +96,9 @@ spec:
       cdi.kubevirt.io/testing: ""
   type: NodePort
   ports:
+  - name: rate-limit
+    port: 82
+    targetPort: 82
   - name: http-auth
     port: 81
     targetPort: 81
