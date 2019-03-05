@@ -9,11 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/glog"
-	"github.com/pkg/errors"
-
 	routev1 "github.com/openshift/api/route/v1"
-
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -24,6 +21,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/util/cert/triple"
+	"k8s.io/klog"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -68,7 +66,7 @@ func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string) bool {
 	}
 	// check if we have proper annotation
 	if !metav1.HasAnnotation(pvc.ObjectMeta, annotation) {
-		glog.V(2).Infof("pvc annotation %q not found, skipping pvc \"%s/%s\"\n", annotation, pvc.Namespace, pvc.Name)
+		klog.V(2).Infof("pvc annotation %q not found, skipping pvc \"%s/%s\"\n", annotation, pvc.Namespace, pvc.Name)
 		return false
 	}
 
@@ -109,9 +107,9 @@ func getSource(pvc *v1.PersistentVolumeClaim) string {
 		SourceGlance,
 		SourceNone,
 		SourceRegistry:
-		glog.V(2).Infof("pvc source annotation found for pvc \"%s/%s\", value %s\n", pvc.Namespace, pvc.Name, source)
+		klog.V(2).Infof("pvc source annotation found for pvc \"%s/%s\", value %s\n", pvc.Namespace, pvc.Name, source)
 	default:
-		glog.V(2).Infof("No valid source annotation found for pvc \"%s/%s\", default to http\n", pvc.Namespace, pvc.Name)
+		klog.V(2).Infof("No valid source annotation found for pvc \"%s/%s\", default to http\n", pvc.Namespace, pvc.Name)
 		source = SourceHTTP
 	}
 	return source
@@ -127,9 +125,9 @@ func getContentType(pvc *v1.PersistentVolumeClaim) string {
 	case
 		string(cdiv1.DataVolumeKubeVirt),
 		string(cdiv1.DataVolumeArchive):
-		glog.V(2).Infof("pvc content type annotation found for pvc \"%s/%s\", value %s\n", pvc.Namespace, pvc.Name, contentType)
+		klog.V(2).Infof("pvc content type annotation found for pvc \"%s/%s\", value %s\n", pvc.Namespace, pvc.Name, contentType)
 	default:
-		glog.V(2).Infof("No content type annotation found for pvc \"%s/%s\", default to kubevirt\n", pvc.Namespace, pvc.Name)
+		klog.V(2).Infof("No content type annotation found for pvc \"%s/%s\", default to kubevirt\n", pvc.Namespace, pvc.Name)
 		contentType = string(cdiv1.DataVolumeKubeVirt)
 	}
 	return contentType
@@ -148,19 +146,19 @@ func getSecretName(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (
 		} else {
 			msg += "secret name is missing from annotation %q in pvc \"%s/%s\""
 		}
-		glog.V(2).Infof(msg+"\n", AnnSecret, ns, pvc.Name)
+		klog.V(2).Infof(msg+"\n", AnnSecret, ns, pvc.Name)
 		return "", nil // importer pod will not contain secret credentials
 	}
-	glog.V(3).Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, name)
+	klog.V(3).Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, name)
 	_, err := client.CoreV1().Secrets(ns).Get(name, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
-		glog.V(1).Infof("secret %q defined in pvc \"%s/%s\" is missing. Importer pod will run once this secret is created\n", name, ns, pvc.Name)
+		klog.V(1).Infof("secret %q defined in pvc \"%s/%s\" is missing. Importer pod will run once this secret is created\n", name, ns, pvc.Name)
 		return name, nil
 	}
 	if err != nil {
 		return "", errors.Wrapf(err, "error getting secret %q defined in pvc \"%s/%s\"", name, ns, pvc.Name)
 	}
-	glog.V(1).Infof("retrieved secret %q defined in pvc \"%s/%s\"\n", name, ns, pvc.Name)
+	klog.V(1).Infof("retrieved secret %q defined in pvc \"%s/%s\"\n", name, ns, pvc.Name)
 	return name, nil
 }
 
@@ -168,7 +166,7 @@ func getSecretName(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (
 // both can be passed.
 // Note: the only pvc changes supported are annotations and labels.
 func updatePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, anno, label map[string]string) (*v1.PersistentVolumeClaim, error) {
-	glog.V(3).Infof("updatePVC: updating pvc \"%s/%s\" with anno: %+v and label: %+v", pvc.Namespace, pvc.Name, anno, label)
+	klog.V(3).Infof("updatePVC: updating pvc \"%s/%s\" with anno: %+v and label: %+v", pvc.Namespace, pvc.Name, anno, label)
 	applyUpdt := func(claim *v1.PersistentVolumeClaim, a, l map[string]string) {
 		if a != nil {
 			claim.ObjectMeta.Annotations = addToMap(claim.ObjectMeta.Annotations, a)
@@ -192,7 +190,7 @@ func updatePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, anno,
 			return true, nil // successful update
 		}
 		if k8serrors.IsConflict(e) { // pvc is likely stale
-			glog.V(3).Infof("pvc %q is stale, re-trying\n", nsName)
+			klog.V(3).Infof("pvc %q is stale, re-trying\n", nsName)
 			pvcCopy, e = client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
 			if e == nil {
 				return false, nil // retry update
@@ -200,12 +198,12 @@ func updatePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, anno,
 			// Get failed, start over
 			pvcCopy = pvc.DeepCopy()
 		}
-		glog.Errorf("%q update/get error: %v\n", nsName, e)
+		klog.Errorf("%q update/get error: %v\n", nsName, e)
 		return false, nil // retry
 	})
 
 	if err == nil {
-		glog.V(3).Infof("updatePVC: pvc %q updated", nsName)
+		klog.V(3).Infof("updatePVC: pvc %q updated", nsName)
 		return updtPvc, nil
 	}
 	return pvc, errors.Wrapf(err, "error updating pvc %q\n", nsName)
@@ -213,7 +211,7 @@ func updatePVC(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, anno,
 
 // Sets an annotation `key: val` in the given pvc. Returns the updated pvc.
 func setPVCAnnotation(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, key, val string) (*v1.PersistentVolumeClaim, error) {
-	glog.V(3).Infof("setPVCAnnotation: adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", key, val, pvc.Namespace, pvc.Name)
+	klog.V(3).Infof("setPVCAnnotation: adding annotation \"%s: %s\" to pvc \"%s/%s\"\n", key, val, pvc.Namespace, pvc.Name)
 	return updatePVC(client, pvc, map[string]string{key: val}, nil)
 }
 
@@ -246,7 +244,7 @@ func CreateImporterPod(client kubernetes.Interface, image, verbose, pullPolicy s
 	if err != nil {
 		return nil, errors.Wrap(err, "importer pod API create errored")
 	}
-	glog.V(3).Infof("importer pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	klog.V(3).Infof("importer pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
 	return pod, nil
 }
 
@@ -442,7 +440,7 @@ func getCloneRequestPVC(pvc *v1.PersistentVolumeClaim) (string, error) {
 func ParseSourcePvcAnnotation(sourcePvcAnno, del string) (namespace, name string) {
 	strArr := strings.Split(sourcePvcAnno, del)
 	if strArr == nil || len(strArr) < 2 {
-		glog.V(3).Infof("Bad CloneRequest Annotation")
+		klog.V(3).Infof("Bad CloneRequest Annotation")
 		return "", ""
 	}
 	return strArr[0], strArr[1]
@@ -459,7 +457,7 @@ func CreateCloneSourcePod(client kubernetes.Interface, image string, pullPolicy 
 	if err != nil {
 		return nil, errors.Wrap(err, "source pod API create errored")
 	}
-	glog.V(1).Infof("cloning source pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	klog.V(1).Infof("cloning source pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
 	return pod, nil
 }
 
@@ -557,7 +555,7 @@ func CreateCloneTargetPod(client kubernetes.Interface, image string, pullPolicy 
 	if err != nil {
 		return nil, errors.Wrap(err, "clone target pod API create errored")
 	}
-	glog.V(1).Infof("cloning target pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	klog.V(1).Infof("cloning target pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
 	return pod, nil
 }
 
@@ -718,7 +716,7 @@ func CreateUploadPod(client kubernetes.Interface,
 		return nil, errors.Wrap(err, "Error creating server key pair")
 	}
 
-	glog.V(1).Infof("upload pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	klog.V(1).Infof("upload pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
 
 	return pod, nil
 }
@@ -868,7 +866,7 @@ func CreateUploadService(client kubernetes.Interface, name string, pvc *v1.Persi
 			return nil, errors.Wrap(err, "upload pod API create errored")
 		}
 	}
-	glog.V(1).Infof("upload service \"%s/%s\" created\n", service.Namespace, service.Name)
+	klog.V(1).Infof("upload service \"%s/%s\" created\n", service.Namespace, service.Name)
 	return service, nil
 }
 
@@ -942,7 +940,7 @@ func CreateCDIConfig(client kubernetes.Interface, cdiClient clientset.Interface,
 		}
 	}
 
-	glog.V(1).Infof("CDI config \"%s/%s\" created\n", config.Namespace, config.Name)
+	klog.V(1).Infof("CDI config \"%s/%s\" created\n", config.Namespace, config.Name)
 	return config, nil
 }
 
@@ -991,7 +989,7 @@ func deletePod(req podDeleteRequest) error {
 		}
 	}
 	if err != nil {
-		glog.V(1).Infof("error encountered deleting pod (%s): %s", req.podName, err.Error())
+		klog.V(1).Infof("error encountered deleting pod (%s): %s", req.podName, err.Error())
 	}
 	return err
 }
@@ -1013,7 +1011,7 @@ func createImportEnvVar(client kubernetes.Interface, pvc *v1.PersistentVolumeCla
 			return nil, err
 		}
 		if podEnvVar.secretName == "" {
-			glog.V(2).Infof("no secret will be supplied to endpoint %q\n", podEnvVar.ep)
+			klog.V(2).Infof("no secret will be supplied to endpoint %q\n", podEnvVar.ep)
 		}
 		podEnvVar.certConfigMap, err = getCertConfigMap(client, pvc)
 		if err != nil {
@@ -1041,7 +1039,7 @@ func getCertConfigMap(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim
 	_, err := client.CoreV1().ConfigMaps(pvc.Namespace).Get(value, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			glog.Warningf("Configmap %s does not exist, pod will not start until it does", value)
+			klog.Warningf("Configmap %s does not exist, pod will not start until it does", value)
 			return value, nil
 		}
 

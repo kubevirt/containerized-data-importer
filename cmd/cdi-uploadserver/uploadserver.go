@@ -24,7 +24,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 )
@@ -41,7 +41,7 @@ func init() {
 }
 
 func main() {
-	defer glog.Flush()
+	defer klog.Flush()
 
 	listenAddress, listenPort := getListenAddressAndPort()
 
@@ -56,17 +56,17 @@ func main() {
 		os.Getenv("CLIENT_CERT"),
 	)
 
-	glog.Infof("Upload destination: %s", destination)
+	klog.Infof("Upload destination: %s", destination)
 
-	glog.Infof("Running server on %s:%d", listenAddress, listenPort)
+	klog.Infof("Running server on %s:%d", listenAddress, listenPort)
 
 	err := server.Run()
 	if err != nil {
-		glog.Errorf("UploadServer failed: %s", err)
+		klog.Errorf("UploadServer failed: %s", err)
 		os.Exit(1)
 	}
 
-	glog.Info("UploadServer successfully exited")
+	klog.Info("UploadServer successfully exited")
 }
 
 func getListenAddressAndPort() (string, int) {

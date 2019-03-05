@@ -23,9 +23,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/golang/glog"
 	"github.com/pkg/errors"
-
+	"k8s.io/klog"
 	"kubevirt.io/containerized-data-importer/pkg/system"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -69,10 +68,10 @@ func (o *skopeoOperations) CopyImage(url, dest, accessKey, secKey, certDir strin
 		args = append(args, creds)
 	}
 	if certDir != "" {
-		glog.Infof("Using user specified TLS certs at %s", certDir)
+		klog.Infof("Using user specified TLS certs at %s", certDir)
 		args = append(args, "--src-cert-dir="+certDir)
 	} else if insecureRegistry {
-		glog.Infof("Disabling TLS verification for URL %s", url)
+		klog.Infof("Disabling TLS verification for URL %s", url)
 		args = append(args, "--src-tls-verify=false")
 	}
 	_, err = skopeoExecFunction(nil, nil, "skopeo", args...)
@@ -98,7 +97,7 @@ func CopyRegistryImage(url, dest, destFile, accessKey, secKey, certDir string, i
 	//If a specifc file was requested verify it exists, if not - fail
 	if len(destFile) > 0 {
 		if _, err = os.Stat(filepath.Join(dest, destFile)); err != nil {
-			glog.Errorf("Failed to find VM disk image file in the container image")
+			klog.Errorf("Failed to find VM disk image file in the container image")
 			err = errors.New("Failed to find VM disk image file in the container image")
 		}
 	}
@@ -109,7 +108,7 @@ func CopyRegistryImage(url, dest, destFile, accessKey, secKey, certDir string, i
 }
 
 var extractImageLayers = func(dest string, arg ...string) error {
-	glog.V(1).Infof("extracting image layers to %q\n", dest)
+	klog.V(1).Infof("extracting image layers to %q\n", dest)
 	// Parse manifest file
 	manifest, err := getImageManifest(dest + dataTmpDir)
 	if err != nil {

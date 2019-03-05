@@ -15,15 +15,12 @@ import (
 	"regexp"
 	"time"
 
-	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
-
-	"github.com/golang/glog"
-	"kubevirt.io/containerized-data-importer/pkg/apiserver"
-
 	"github.com/pkg/errors"
-
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/cert"
+	"k8s.io/klog"
+	"kubevirt.io/containerized-data-importer/pkg/apiserver"
+	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 )
 
 const (
@@ -170,7 +167,7 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	glog.V(1).Infof("Received valid token: pvc: %s, namespace: %s", tokenData.PvcName, tokenData.Namespace)
+	klog.V(1).Infof("Received valid token: pvc: %s, namespace: %s", tokenData.PvcName, tokenData.Namespace)
 
 	app.proxyUploadRequest(tokenData.Namespace, tokenData.PvcName, w, r)
 }
@@ -179,7 +176,7 @@ func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.Resp
 	url := app.urlResolver(namespace, pvc)
 
 	if err := app.testConnect(url); err != nil {
-		glog.Errorf("Error connecting to %s: %+v", url, err)
+		klog.Errorf("Error connecting to %s: %+v", url, err)
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
@@ -187,21 +184,21 @@ func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.Resp
 	req, _ := http.NewRequest("POST", url, r.Body)
 	req.ContentLength = r.ContentLength
 
-	glog.V(3).Infof("Posting to: %s", url)
+	klog.V(3).Infof("Posting to: %s", url)
 
 	response, err := app.uploadServerClient.Do(req)
 	if err != nil {
-		glog.Errorf("Error proxying %s", err)
+		klog.Errorf("Error proxying %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	glog.V(3).Infof("Response status for url %s: %d", url, response.StatusCode)
+	klog.V(3).Infof("Response status for url %s: %d", url, response.StatusCode)
 
 	w.WriteHeader(response.StatusCode)
 	_, err = io.Copy(w, response.Body)
 	if err != nil {
-		glog.Warningf("Error proxying response from url %s", url)
+		klog.Warningf("Error proxying response from url %s", url)
 	}
 }
 
@@ -225,7 +222,7 @@ func (app *uploadProxyApp) testConnect(urlString string) error {
 		d := net.Dialer{Timeout: connectTimeout}
 		conn, err := d.Dial("tcp", hostPort)
 		if err == nil {
-			glog.Infof("Successfully connected to %s on attempt %d", urlString, i)
+			klog.Infof("Successfully connected to %s on attempt %d", urlString, i)
 			conn.Close()
 			return nil
 		}

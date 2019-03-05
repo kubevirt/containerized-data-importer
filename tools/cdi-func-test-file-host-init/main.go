@@ -14,13 +14,13 @@ package main
 
 import (
 	"flag"
-
-	"github.com/golang/glog"
-	"github.com/pkg/errors"
-	"kubevirt.io/containerized-data-importer/tests/utils"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/pkg/errors"
+	"k8s.io/klog"
+	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
 func main() {
@@ -28,7 +28,7 @@ func main() {
 	outDir := flag.String("outDir", "", "")
 	flag.Parse()
 
-	glog.Info("Generating test files")
+	klog.Info("Generating test files")
 	ft := &formatTable{
 		[]string{""},
 		[]string{".tar"},
@@ -40,12 +40,12 @@ func main() {
 	}
 
 	if err := os.MkdirAll(*outDir, 0777); err != nil {
-		glog.Fatal(errors.Wrapf(err, "'mkdir %s' errored: ", *outDir))
+		klog.Fatal(errors.Wrapf(err, "'mkdir %s' errored: ", *outDir))
 	}
 	if err := ft.initializeTestFiles(*inFile, *outDir); err != nil {
-		glog.Fatal(err)
+		klog.Fatal(err)
 	}
-	glog.Info("File initialization completed without error.")
+	klog.Info("File initialization completed without error.")
 }
 
 type formatTable [][]string
@@ -56,7 +56,7 @@ func (ft formatTable) initializeTestFiles(inFile, outDir string) error {
 
 	reportError := func(err error, msg string, format ...interface{}) {
 		e := errors.Wrapf(err, msg, format...)
-		glog.Error(e)
+		klog.Error(e)
 		errChan <- e
 		return
 	}
@@ -66,7 +66,7 @@ func (ft formatTable) initializeTestFiles(inFile, outDir string) error {
 
 		go func(i, o string, f []string) {
 			defer func() { <-sem }()
-			glog.Infof("Generating file %s\n", f)
+			klog.Infof("Generating file %s\n", f)
 
 			ext := strings.Join(f, "")
 			tmpDir := filepath.Join(o, "tmp"+ext)
@@ -81,7 +81,7 @@ func (ft formatTable) initializeTestFiles(inFile, outDir string) error {
 				}
 			}()
 
-			glog.Infof("Mkdir %s\n", tmpDir)
+			klog.Infof("Mkdir %s\n", tmpDir)
 
 			p, err := utils.FormatTestData(i, tmpDir, f...)
 			if err != nil {
@@ -94,7 +94,7 @@ func (ft formatTable) initializeTestFiles(inFile, outDir string) error {
 				return
 			}
 
-			glog.Infof("Generated file %q\n", p)
+			klog.Infof("Generated file %q\n", p)
 		}(inFile, outDir, fList)
 	}
 	for i := 0; i < cap(sem); i++ {
@@ -104,7 +104,7 @@ func (ft formatTable) initializeTestFiles(inFile, outDir string) error {
 
 	if len(errChan) > 0 {
 		for err := range errChan {
-			glog.Error(err)
+			klog.Error(err)
 		}
 		return errors.New("Error(s) occurred during file conversion")
 	}

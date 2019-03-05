@@ -35,13 +35,11 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
-	"github.com/golang/glog"
 	minio "github.com/minio/minio-go"
 	"github.com/pkg/errors"
 	"github.com/ulikunitz/xz"
-
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/klog"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -180,7 +178,7 @@ func newDataStreamFromStream(stream io.ReadCloser) (*DataStream, error) {
 
 func newDataStream(dso *DataStreamOptions, stream io.ReadCloser) (*DataStream, error) {
 	if len(dso.AccessKey) == 0 || len(dso.SecKey) == 0 {
-		glog.V(2).Infof("%s and/or %s are empty\n", common.ImporterAccessKeyID, common.ImporterSecretKey)
+		klog.V(2).Infof("%s and/or %s are empty\n", common.ImporterAccessKeyID, common.ImporterSecretKey)
 	}
 	var ep *url.URL
 	var err error
@@ -223,7 +221,7 @@ func newDataStream(dso *DataStreamOptions, stream io.ReadCloser) (*DataStream, e
 			ds.isIsoImage = true
 		}
 	}
-	glog.V(3).Infof("NewDataStream: endpoint %q's computed byte size: %d", ep, ds.Size)
+	klog.V(3).Infof("NewDataStream: endpoint %q's computed byte size: %d", ep, ds.Size)
 	return ds, nil
 }
 
@@ -242,7 +240,7 @@ func (d *DataStream) Close() error {
 	if d.dataCtxt != nil {
 		dataCtxtErr := d.dataCtxt.Cleanup()
 		if dataCtxtErr != nil {
-			glog.Errorf(dataCtxtErr.Error(), "DataCtxt cleanup failed")
+			klog.Errorf(dataCtxtErr.Error(), "DataCtxt cleanup failed")
 		}
 	}
 	return err
@@ -262,7 +260,7 @@ func (d *DataStream) dataStreamSelector() error {
 	case "docker", "oci":
 		r, err = d.registry()
 	default:
-		glog.V(1).Infoln("Error in dataStream Selector - invalid url scheme")
+		klog.V(1).Infoln("Error in dataStream Selector - invalid url scheme")
 		return errors.Errorf("invalid url scheme: %q", scheme)
 	}
 
@@ -277,14 +275,14 @@ func (d *DataStream) addStream(reader io.ReadCloser) {
 }
 
 func (d *DataStream) s3() (io.ReadCloser, error) {
-	glog.V(3).Infoln("Using S3 client to get data")
+	klog.V(3).Infoln("Using S3 client to get data")
 	bucket := d.url.Host
 	object := strings.Trim(d.url.Path, "/")
 	mc, err := minio.NewV4(common.ImporterS3Host, d.AccessKey, d.SecKey, false)
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not build minio client for %q", d.url.Host)
 	}
-	glog.V(2).Infof("Attempting to get object %q via S3 client\n", d.url.String())
+	klog.V(2).Infof("Attempting to get object %q via S3 client\n", d.url.String())
 	objectReader, err := mc.GetObject(bucket, object, minio.GetObjectOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not get s3 object: \"%s/%s\"", bucket, object)
@@ -310,13 +308,13 @@ func (d *DataStream) http() (io.ReadCloser, error) {
 	if len(d.AccessKey) > 0 && len(d.SecKey) > 0 {
 		req.SetBasicAuth(d.AccessKey, d.SecKey)
 	}
-	glog.V(2).Infof("Attempting to get object %q via http client\n", d.url.String())
+	klog.V(2).Infof("Attempting to get object %q via http client\n", d.url.String())
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, errors.Wrap(err, "HTTP request errored")
 	}
 	if resp.StatusCode != 200 {
-		glog.Errorf("http: expected status code 200, got %d", resp.StatusCode)
+		klog.Errorf("http: expected status code 200, got %d", resp.StatusCode)
 		return nil, errors.Errorf("expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
 	}
 	countingReader := &util.CountingReader{
@@ -335,13 +333,13 @@ type registryData struct {
 }
 
 func (r registryData) Cleanup() error {
-	glog.V(1).Infof("registryData - deleting all the data")
+	klog.V(1).Infof("registryData - deleting all the data")
 	if r.file != nil {
 		r.file.Close()
 	}
 	err := os.RemoveAll(r.dataDir)
 	if err != nil {
-		glog.Errorf("Failed removing directory %+v", err.Error())
+		klog.Errorf("Failed removing directory %+v", err.Error())
 	}
 	return nil
 }
@@ -368,7 +366,7 @@ func (d *DataStream) registry() (io.ReadCloser, error) {
 	if _, err := os.Stat(tmpData.dataDir); os.IsNotExist(err) {
 		err := os.Mkdir(tmpData.dataDir, os.ModeDir|os.ModePerm)
 		if err != nil {
-			glog.Errorf("Failed to create temporary directory")
+			klog.Errorf("Failed to create temporary directory")
 			return nil, errors.Wrapf(err, fmt.Sprintf("Failed to create tempdirectory %s", tmpData.dataDir))
 		}
 	}
@@ -382,24 +380,24 @@ func (d *DataStream) registry() (io.ReadCloser, error) {
 	}()
 
 	//2. copy image from registry to the temporary location
-	glog.V(1).Infof("using skopeo to copy from registry")
+	klog.V(1).Infof("using skopeo to copy from registry")
 	err := image.CopyRegistryImage(d.Endpoint, tmpData.dataDir, ContainerDiskImageDir, d.AccessKey, d.SecKey, d.CertDir, d.InsecureTLS)
 	if err != nil {
-		glog.Errorf("Failed to read data from registry")
+		klog.Errorf("Failed to read data from registry")
 		return nil, errors.Wrapf(err, fmt.Sprintf("Failed ro read from registry"))
 	}
 
 	//3. Search for file in /disk directory - if not found - failure
 	imageFile, err := getImageFileName(imageDir)
 	if err != nil {
-		glog.Errorf("Error getting Image file from imageDirectory")
+		klog.Errorf("Error getting Image file from imageDirectory")
 		return nil, errors.Wrapf(err, fmt.Sprintf("Cannot locate image file"))
 	}
 
 	// 4. If found - Create a reader that will read this file and attach it to the dataStream
 	tmpData.file, err = os.Open(filepath.Join(imageDir, imageFile))
 	if err != nil {
-		glog.Errorf("Failed to open image file")
+		klog.Errorf("Failed to open image file")
 		return nil, errors.Wrapf(err, fmt.Sprintf("Fail to create data stream from image file"))
 	}
 
@@ -408,7 +406,7 @@ func (d *DataStream) registry() (io.ReadCloser, error) {
 
 	d.tmpDataPath = filepath.Join(imageDir, imageFile)
 	d.dataCtxt = tmpData
-	glog.V(3).Infof("Sucecssfully found file. VM disk image filename is %s", imageFile)
+	klog.V(3).Infof("Sucecssfully found file. VM disk image filename is %s", imageFile)
 
 	return ioutil.NopCloser(bufio.NewReader(tmpData.file)), nil
 }
@@ -416,35 +414,35 @@ func (d *DataStream) registry() (io.ReadCloser, error) {
 func getImageFileName(dir string) (string, error) {
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		glog.Errorf("image directory does not exist")
+		klog.Errorf("image directory does not exist")
 		return "", errors.Errorf(fmt.Sprintf("image directory does not exist "))
 	}
 
 	entries, err := ioutil.ReadDir(dir)
 	if err != nil {
-		glog.Errorf("Error reading directory")
+		klog.Errorf("Error reading directory")
 		return "", errors.Wrapf(err, fmt.Sprintf("image file does not exist in image directory"))
 	}
 
 	if len(entries) == 0 {
-		glog.Errorf("image file does not exist in image directory - directory is empty ")
+		klog.Errorf("image file does not exist in image directory - directory is empty ")
 		return "", errors.Errorf(fmt.Sprintf("image file does not exist in image directory - directory is empty"))
 	}
 
 	fileinfo := entries[len(entries)-1]
 	if fileinfo.IsDir() {
-		glog.Errorf("image file does not exist in image directory contains another directory ")
+		klog.Errorf("image file does not exist in image directory contains another directory ")
 		return "", errors.Errorf(fmt.Sprintf("image file does not exist in image directory"))
 	}
 
 	filename := fileinfo.Name()
 
 	if len(strings.TrimSpace(filename)) == 0 {
-		glog.Errorf("image file does not exist in image directory - file has no name ")
+		klog.Errorf("image file does not exist in image directory - file has no name ")
 		return "", errors.Errorf(fmt.Sprintf("image file does not exist in image directory"))
 	}
 
-	glog.V(1).Infof("VM disk image filename is %s", filename)
+	klog.V(1).Infof("VM disk image filename is %s", filename)
 
 	return filename, nil
 }
@@ -473,7 +471,7 @@ func (d *DataStream) pollProgress(reader *util.CountingReader, idleTime, pollInt
 
 // CopyData copies the source endpoint (vm image) to the provided destination path.
 func CopyData(dso *DataStreamOptions) error {
-	glog.V(1).Infof("copying %q to %q...\n", dso.Endpoint, dso.Dest)
+	klog.V(1).Infof("copying %q to %q...\n", dso.Endpoint, dso.Dest)
 	ds, err := NewDataStream(dso)
 	if err != nil {
 		return errors.Wrap(err, "unable to create data stream")
@@ -490,7 +488,7 @@ func CopyData(dso *DataStreamOptions) error {
 
 // SaveStream reads from a stream and saves data to dest
 func SaveStream(stream io.ReadCloser, dest string) (int64, error) {
-	glog.V(1).Infof("Saving stream to %q...\n", dest)
+	klog.V(1).Infof("Saving stream to %q...\n", dest)
 	ds, err := newDataStreamFromStream(stream)
 	if err != nil {
 		return 0, errors.Wrapf(err, "unable to create data stream from stream")
@@ -517,13 +515,13 @@ func ResizeImage(dest, imageSize string, totalTargetSpace int64) error {
 		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(totalTargetSpace, 0), &newImageSizeQuantity)
 		if minSizeQuantity.Cmp(newImageSizeQuantity) != 0 {
 			// Available dest space is smaller than the size we want to resize to
-			glog.Warningf("Available space less than requested size, resizing image to available space %s.\n", minSizeQuantity.String())
+			klog.Warningf("Available space less than requested size, resizing image to available space %s.\n", minSizeQuantity.String())
 		}
 		if currentImageSizeQuantity.Cmp(minSizeQuantity) == 0 {
-			glog.V(1).Infof("No need to resize image. Requested size: %s, Image size: %d.\n", imageSize, info.VirtualSize)
+			klog.V(1).Infof("No need to resize image. Requested size: %s, Image size: %d.\n", imageSize, info.VirtualSize)
 			return nil
 		}
-		glog.V(1).Infof("Expanding image size to: %s\n", minSizeQuantity.String())
+		klog.V(1).Infof("Expanding image size to: %s\n", minSizeQuantity.String())
 		return qemuOperations.Resize(dest, minSizeQuantity)
 	}
 	return errors.New("Image resize called with blank resize")
@@ -563,13 +561,13 @@ func ResizeImage(dest, imageSize string, totalTargetSpace int64) error {
 // Note: file extensions are ignored.
 // Note: readers are not closed here, see dataStream.Close().
 func (d *DataStream) constructReaders(stream io.ReadCloser) error {
-	glog.V(2).Infof("create the initial Reader based on the endpoint's %q scheme", d.url.Scheme)
+	klog.V(2).Infof("create the initial Reader based on the endpoint's %q scheme", d.url.Scheme)
 
 	if stream == nil {
 		// create the scheme-specific source reader and append it to dataStream readers stack
 		err := d.dataStreamSelector()
 		if err != nil {
-			glog.Errorf("failed to construct dataStream from endpoint")
+			klog.Errorf("failed to construct dataStream from endpoint")
 			return errors.WithMessage(err, "could not get data reader")
 		}
 	} else {
@@ -580,7 +578,7 @@ func (d *DataStream) constructReaders(stream io.ReadCloser) error {
 	// note: iso file headers are not processed here due to their much larger size and if
 	//   the iso file is tar'd we can get its size via the tar hdr -- see intro comments.
 	knownHdrs := image.CopyKnownHdrs() // need local copy since keys are removed
-	glog.V(3).Infof("constructReaders: checking compression and archive formats: %s\n", d.url.Path)
+	klog.V(3).Infof("constructReaders: checking compression and archive formats: %s\n", d.url.Path)
 	var isTarFile bool
 	for {
 		hdr, err := d.matchHeader(&knownHdrs)
@@ -590,7 +588,7 @@ func (d *DataStream) constructReaders(stream io.ReadCloser) error {
 		if hdr == nil {
 			break // done processing headers, we have the orig source file
 		}
-		glog.V(2).Infof("found header of type %q\n", hdr.Format)
+		klog.V(2).Infof("found header of type %q\n", hdr.Format)
 		// create format-specific reader and append it to dataStream readers stack
 		err = d.fileFormatSelector(hdr)
 		if err != nil {
@@ -610,9 +608,9 @@ func (d *DataStream) constructReaders(stream io.ReadCloser) error {
 
 	if len(d.Readers) <= 2 {
 		// 1st rdr is source, 2nd rdr is multi-rdr, >2 means we have additional formats
-		glog.V(3).Infof("constructReaders: no headers found for file %q\n", d.url.Path)
+		klog.V(3).Infof("constructReaders: no headers found for file %q\n", d.url.Path)
 	}
-	glog.V(2).Infof("done processing %q headers\n", d.url.Path)
+	klog.V(2).Infof("done processing %q headers\n", d.url.Path)
 	return nil
 }
 
@@ -625,7 +623,7 @@ func (d *DataStream) appendReader(rType int, x interface{}) {
 	}
 	r, ok := x.(io.Reader)
 	if !ok {
-		glog.Errorf("internal error: unexpected reader type passed to appendReader()")
+		klog.Errorf("internal error: unexpected reader type passed to appendReader()")
 		return
 	}
 	if rType == rdrMulti {
@@ -685,7 +683,7 @@ func (d *DataStream) gzReader() (io.ReadCloser, int64, error) {
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "could not create gzip reader")
 	}
-	glog.V(2).Infof("gzip: extracting %q\n", gz.Name)
+	klog.V(2).Infof("gzip: extracting %q\n", gz.Name)
 	size := int64(0) //TODO: implement size
 	return gz, size, nil
 }
@@ -729,7 +727,7 @@ func (d *DataStream) tarReader() (io.Reader, int64, error) {
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "could not read tar header")
 	}
-	glog.V(2).Infof("tar: extracting %q\n", hdr.Name)
+	klog.V(2).Infof("tar: extracting %q\n", hdr.Name)
 	return tr, hdr.Size, nil
 }
 
@@ -801,11 +799,11 @@ func (d *DataStream) isoSize() (int64, error) {
 	// ensure we have an iso file by checking the type and id value
 	vdtyp, err := strconv.Atoi(hex.EncodeToString(buf[typeOff : typeOff+typeLen]))
 	if err != nil {
-		glog.Errorf("isoSize: Atoi error on endpoint %q: %v", d.url.Path, err)
+		klog.Errorf("isoSize: Atoi error on endpoint %q: %v", d.url.Path, err)
 		return 0, nil
 	}
 	if vdtyp != primaryVD && string(buf[idOff:idOff+idLen]) != id {
-		glog.V(3).Infof("isoSize: endpoint %q is not an ISO file", d.url.Path)
+		klog.V(3).Infof("isoSize: endpoint %q is not an ISO file", d.url.Path)
 		return 0, nil
 	}
 
@@ -813,14 +811,14 @@ func (d *DataStream) isoSize() (int64, error) {
 	s := hex.EncodeToString(buf[sectorSizeOff : sectorSizeOff+sectorSizeLen])
 	sectSize, err := strconv.ParseInt(s, 16, 64)
 	if err != nil {
-		glog.Errorf("isoSize: sector size ParseInt error on endpoint %q: %v", d.url.Path, err)
+		klog.Errorf("isoSize: sector size ParseInt error on endpoint %q: %v", d.url.Path, err)
 		return 0, nil
 	}
 	// get the number sectors
 	s = hex.EncodeToString(buf[numSectorsOff : numSectorsOff+numSectorsLen])
 	numSects, err := strconv.ParseInt(s, 16, 64)
 	if err != nil {
-		glog.Errorf("isoSize: sector count ParseInt error on endpoint %q: %v", d.url.Path, err)
+		klog.Errorf("isoSize: sector count ParseInt error on endpoint %q: %v", d.url.Path, err)
 		return 0, nil
 	}
 	return int64(numSects * sectSize), nil
@@ -881,13 +879,13 @@ func (d *DataStream) calculateTargetSize(dest string) int64 {
 }
 
 func (d *DataStream) convertQcow2ToRawStream(dest string) error {
-	glog.V(3).Infoln("Validating qcow2 file")
+	klog.V(3).Infoln("Validating qcow2 file")
 
 	err := qemuOperations.Validate(d.url.String(), "qcow2", d.calculateTargetSize(dest))
 	if err != nil {
 		return errors.Wrap(err, "Streaming image validation failed")
 	}
-	glog.V(3).Infoln("Doing streaming qcow2 to raw conversion")
+	klog.V(3).Infoln("Doing streaming qcow2 to raw conversion")
 	err = qemuOperations.ConvertQcow2ToRawStream(d.url, dest)
 	if err != nil {
 		return errors.Wrap(err, "Streaming qcow2 to raw conversion failed")
@@ -897,7 +895,7 @@ func (d *DataStream) convertQcow2ToRawStream(dest string) error {
 }
 
 func (d *DataStream) convertQcow2ToRaw(src, dest string) error {
-	glog.V(3).Infoln("Validating qcow2 file")
+	klog.V(3).Infoln("Validating qcow2 file")
 	err := qemuOperations.Validate(src, "qcow2", d.calculateTargetSize(dest))
 	if err != nil {
 		return errors.Wrap(err, "Local image validation failed")
@@ -909,7 +907,7 @@ func (d *DataStream) convertQcow2ToRaw(src, dest string) error {
 		return err
 	}
 
-	glog.V(2).Infoln("converting qcow2 image")
+	klog.V(2).Infoln("converting qcow2 image")
 	err = qemuOperations.ConvertQcow2ToRaw(src, dest)
 	if err != nil {
 		return errors.Wrap(err, "Local qcow to raw conversion failed")
@@ -926,28 +924,28 @@ func (d *DataStream) copy(dest string) (err error) {
 		}
 	} else {
 		dest = filepath.Clean(dest)
-		glog.V(2).Infof("copying image file to %q", dest)
+		klog.V(2).Infof("copying image file to %q", dest)
 		tmpDest := dest
 		if !d.isQemuStored() {
 			//it is either not qemu or not stored
 			if d.qemu {
 				// copy to tmp; qemu conversion will write to passed-in destination
 				tmpDest = randTmpName(dest)
-				glog.V(3).Infof("Copy: temp file for qcow2 conversion: %q", tmpDest)
+				klog.V(3).Infof("Copy: temp file for qcow2 conversion: %q", tmpDest)
 				defer func(f string) {
 					os.Remove(f)
 				}(tmpDest)
 			}
 			if d.isMoveable() {
-				glog.V(3).Infof("Moving already stored raw from %s to %s", d.tmpDataPath, tmpDest)
+				klog.V(3).Infof("Moving already stored raw from %s to %s", d.tmpDataPath, tmpDest)
 				err = MoveFile(d.tmpDataPath, tmpDest)
 				if err != nil {
-					glog.V(3).Infof("Failing back to copying stored raw from %s to %s", d.tmpDataPath, tmpDest)
+					klog.V(3).Infof("Failing back to copying stored raw from %s to %s", d.tmpDataPath, tmpDest)
 					//Failback to copy since move failed
 					err = StreamDataToFile(d.topReader(), tmpDest)
 				}
 			} else {
-				glog.V(3).Infof("Streaming data of non Movble file to %s", tmpDest)
+				klog.V(3).Infof("Streaming data of non Movble file to %s", tmpDest)
 				err = StreamDataToFile(d.topReader(), tmpDest)
 			}
 			if err != nil {
@@ -955,7 +953,7 @@ func (d *DataStream) copy(dest string) (err error) {
 			}
 		} else {
 			//It is a stored qemu file - taking a location where it is stored
-			glog.V(3).Infof("Streaming file to %s", tmpDest)
+			klog.V(3).Infof("Streaming file to %s", tmpDest)
 			tmpDest = d.tmpDataPath
 		}
 		// The actual copy
@@ -968,7 +966,7 @@ func (d *DataStream) copy(dest string) (err error) {
 	}
 
 	if !d.isIsoImage && d.ImageSize != "" {
-		glog.V(3).Infoln("Resizing image")
+		klog.V(3).Infoln("Resizing image")
 		err := ResizeImage(dest, d.ImageSize, d.AvailableSpace)
 		if err != nil {
 			return errors.Wrap(err, "Resize of image failed")
@@ -1008,7 +1006,7 @@ func ValidateSpaceConstraint(qcow2Image string, destDir string) error {
 		return errors.New("qcow2 image conversion to raw failed due to insuficient space")
 	}
 
-	glog.V(2).Infoln(fmt.Sprintf("There is enough space in PVC for qcow2 to raw  conversion - required=%d, available=%d\n", convRequiredSpace, sysAvailableSpace))
+	klog.V(2).Infoln(fmt.Sprintf("There is enough space in PVC for qcow2 to raw  conversion - required=%d, available=%d\n", convRequiredSpace, sysAvailableSpace))
 
 	return nil
 }
@@ -1027,6 +1025,6 @@ func randTmpName(src string) string {
 // parseDataPath only used for debugging
 func (d *DataStream) parseDataPath() (string, string) {
 	pathSlice := strings.Split(strings.Trim(d.url.EscapedPath(), "/"), "/")
-	glog.V(3).Infof("parseDataPath: url path: %v", pathSlice)
+	klog.V(3).Infof("parseDataPath: url path: %v", pathSlice)
 	return pathSlice[0], strings.Join(pathSlice[1:], "/")
 }

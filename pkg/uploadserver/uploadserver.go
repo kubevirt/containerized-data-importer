@@ -31,9 +31,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/golang/glog"
 	"github.com/pkg/errors"
-
+	"k8s.io/klog"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 )
@@ -139,9 +138,9 @@ func (app *uploadServerApp) Run() error {
 
 	select {
 	case err = <-errChan:
-		glog.Errorf("HTTP server returned error %s", err.Error())
+		klog.Errorf("HTTP server returned error %s", err.Error())
 	case <-app.doneChan:
-		glog.Info("Shutting down http server after successful upload")
+		klog.Info("Shutting down http server after successful upload")
 		healthzServer.Shutdown(context.Background())
 		uploadServer.Shutdown(context.Background())
 	}
@@ -177,7 +176,7 @@ func (app *uploadServerApp) createUploadServer() (*http.Server, error) {
 	if app.clientCert != "" {
 		caCertPool := x509.NewCertPool()
 		if ok := caCertPool.AppendCertsFromPEM([]byte(app.clientCert)); !ok {
-			glog.Fatalf("Invalid ca cert file %s", app.clientCert)
+			klog.Fatalf("Invalid ca cert file %s", app.clientCert)
 		}
 
 		server.TLSConfig = &tls.Config{
@@ -228,7 +227,7 @@ func (app *uploadServerApp) uploadHandler(w http.ResponseWriter, r *http.Request
 	}()
 
 	if exit {
-		glog.Warning("Got concurrent upload request")
+		klog.Warning("Got concurrent upload request")
 		return
 	}
 
@@ -238,7 +237,7 @@ func (app *uploadServerApp) uploadHandler(w http.ResponseWriter, r *http.Request
 	defer app.mutex.Unlock()
 
 	if err != nil {
-		glog.Errorf("Saving stream failed: %s", err)
+		klog.Errorf("Saving stream failed: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		app.uploading = false
 		return
@@ -249,5 +248,5 @@ func (app *uploadServerApp) uploadHandler(w http.ResponseWriter, r *http.Request
 
 	close(app.doneChan)
 
-	glog.Infof("Wrote %d bytes to %s", sz, app.destination)
+	klog.Infof("Wrote %d bytes to %s", sz, app.destination)
 }

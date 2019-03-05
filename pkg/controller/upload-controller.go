@@ -19,7 +19,6 @@ package controller
 import (
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,7 +31,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/cert/triple"
 	"k8s.io/client-go/util/workqueue"
-
+	"k8s.io/klog"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -169,7 +168,7 @@ func NewUploadController(client kubernetes.Interface,
 
 // Init does synchronous initialization before being considered "ready"
 func (c *UploadController) Init() error {
-	glog.V(2).Infoln("Getting/creating certs")
+	klog.V(2).Infoln("Getting/creating certs")
 
 	if err := c.initCerts(); err != nil {
 		runtime.HandleError(err)
@@ -184,27 +183,27 @@ func (c *UploadController) Run(threadiness int, stopCh <-chan struct{}) error {
 	defer runtime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	glog.V(2).Infoln("Starting cdi upload controller Run loop")
+	klog.V(2).Infoln("Starting cdi upload controller Run loop")
 
 	if threadiness < 1 {
 		return errors.Errorf("expected >0 threads, got %d", threadiness)
 	}
 
-	glog.V(3).Info("Waiting for informer caches to sync")
+	klog.V(3).Info("Waiting for informer caches to sync")
 
 	if ok := cache.WaitForCacheSync(stopCh, c.pvcsSynced, c.podsSynced, c.servicesSynced); !ok {
 		return errors.New("failed to wait for caches to sync")
 	}
 
-	glog.V(3).Infoln("UploadController cache has synced")
+	klog.V(3).Infoln("UploadController cache has synced")
 
 	for i := 0; i < threadiness; i++ {
 		go wait.Until(c.runWorker, time.Second, stopCh)
 	}
 
-	glog.Info("Started workers")
+	klog.Info("Started workers")
 	<-stopCh
-	glog.Info("Shutting down workers")
+	klog.Info("Shutting down workers")
 
 	return nil
 }
@@ -273,9 +272,9 @@ func (c *UploadController) handleObject(obj interface{}) {
 			runtime.HandleError(errors.Errorf("error decoding object tombstone, invalid type"))
 			return
 		}
-		glog.V(3).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
+		klog.V(3).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
 	}
-	glog.V(3).Infof("Processing object: %s", object.GetName())
+	klog.V(3).Infof("Processing object: %s", object.GetName())
 	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
 		_, createdByUs := object.GetAnnotations()[annCreatedByUpload]
 
@@ -285,11 +284,11 @@ func (c *UploadController) handleObject(obj interface{}) {
 
 		pvc, err := c.pvcLister.PersistentVolumeClaims(object.GetNamespace()).Get(ownerRef.Name)
 		if err != nil {
-			glog.V(3).Infof("ignoring orphaned object '%s' of pvc '%s'", object.GetSelfLink(), ownerRef.Name)
+			klog.V(3).Infof("ignoring orphaned object '%s' of pvc '%s'", object.GetSelfLink(), ownerRef.Name)
 			return
 		}
 
-		glog.V(3).Infof("queueing pvc %+v!!", pvc)
+		klog.V(3).Infof("queueing pvc %+v!!", pvc)
 
 		c.enqueueObject(pvc)
 		return
@@ -334,7 +333,7 @@ func (c *UploadController) processNextWorkItem() bool {
 		}
 
 		c.queue.Forget(obj)
-		glog.Infof("Successfully synced '%s'", key)
+		klog.Infof("Successfully synced '%s'", key)
 		return nil
 
 	}(obj)

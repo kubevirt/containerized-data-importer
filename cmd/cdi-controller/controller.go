@@ -7,23 +7,19 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/golang/glog"
 	route1client "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
-
-	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
-
-	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
-	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions"
-
 	"github.com/pkg/errors"
-
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog"
+	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions"
+	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 )
 
 const (
@@ -74,38 +70,38 @@ func init() {
 		}
 	})
 	if verbose == defVerbose {
-		glog.V(1).Infof("Note: increase the -v level in the controller deployment for more detailed logging, eg. -v=%d or -v=%d\n", 2, 3)
+		klog.V(1).Infof("Note: increase the -v level in the controller deployment for more detailed logging, eg. -v=%d or -v=%d\n", 2, 3)
 	}
 
-	glog.V(3).Infof("init: complete: cdi controller will create importer using image %q\n", importerImage)
+	klog.V(3).Infof("init: complete: cdi controller will create importer using image %q\n", importerImage)
 }
 
 func getRequiredEnvVar(name string) string {
 	val := os.Getenv(name)
 	if val == "" {
-		glog.Fatalf("Environment Variable %q undefined\n", name)
+		klog.Fatalf("Environment Variable %q undefined\n", name)
 	}
 	return val
 }
 
 func start(cfg *rest.Config, stopCh <-chan struct{}) {
-	glog.Info("Starting CDI controller components")
+	klog.Info("Starting CDI controller components")
 
 	client, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
-		glog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
+		klog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
 	}
 
 	// Create an OpenShift route/v1 client.
 
 	openshiftClient, err := route1client.NewForConfig(cfg)
 	if err != nil {
-		glog.Fatalf("Unable to get openshift client: %v\n", errors.WithStack(err))
+		klog.Fatalf("Unable to get openshift client: %v\n", errors.WithStack(err))
 	}
 
 	cdiClient, err := clientset.NewForConfig(cfg)
 	if err != nil {
-		glog.Fatalf("Error building example clientset: %s", err.Error())
+		klog.Fatalf("Error building example clientset: %s", err.Error())
 	}
 
 	cdiInformerFactory := informers.NewSharedInformerFactory(cdiClient, common.DefaultResyncPeriod)
@@ -168,11 +164,11 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		pullPolicy,
 		verbose)
 
-	glog.V(1).Infoln("created cdi controllers")
+	klog.V(1).Infoln("created cdi controllers")
 
 	err = uploadController.Init()
 	if err != nil {
-		glog.Fatalf("Error initializing upload controller: %+v", err)
+		klog.Fatalf("Error initializing upload controller: %+v", err)
 	}
 
 	go cdiInformerFactory.Start(stopCh)
@@ -184,54 +180,54 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		go routeInformerFactory.Start(stopCh)
 	}
 
-	glog.V(1).Infoln("started informers")
+	klog.V(1).Infoln("started informers")
 
 	go func() {
 		err = dataVolumeController.Run(3, stopCh)
 		if err != nil {
-			glog.Fatalf("Error running dataVolume controller: %+v", err)
+			klog.Fatalf("Error running dataVolume controller: %+v", err)
 		}
 	}()
 
 	go func() {
 		err = importController.Run(1, stopCh)
 		if err != nil {
-			glog.Fatalf("Error running import controller: %+v", err)
+			klog.Fatalf("Error running import controller: %+v", err)
 		}
 	}()
 
 	go func() {
 		err = cloneController.Run(1, stopCh)
 		if err != nil {
-			glog.Fatalf("Error running clone controller: %+v", err)
+			klog.Fatalf("Error running clone controller: %+v", err)
 		}
 	}()
 
 	go func() {
 		err = uploadController.Run(1, stopCh)
 		if err != nil {
-			glog.Fatalf("Error running upload controller: %+v", err)
+			klog.Fatalf("Error running upload controller: %+v", err)
 		}
 	}()
 
 	go func() {
 		err = configController.Run(1, stopCh)
 		if err != nil {
-			glog.Fatalf("Error running config controller: %+v", err)
+			klog.Fatalf("Error running config controller: %+v", err)
 		}
 	}()
 
 	if err = createReadyFile(); err != nil {
-		glog.Fatalf("Error creating ready file: %+v", err)
+		klog.Fatalf("Error creating ready file: %+v", err)
 	}
 }
 
 func main() {
-	defer glog.Flush()
+	defer klog.Flush()
 
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, configPath)
 	if err != nil {
-		glog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
+		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
 	}
 
 	stopCh := handleSignals()
@@ -241,14 +237,14 @@ func main() {
 	})
 
 	if err != nil {
-		glog.Fatalf("Unable to start leader election: %v\n", errors.WithStack(err))
+		klog.Fatalf("Unable to start leader election: %v\n", errors.WithStack(err))
 	}
 
 	<-stopCh
 
 	deleteReadyFile()
 
-	glog.V(2).Infoln("cdi controller exited")
+	klog.V(2).Infoln("cdi controller exited")
 }
 
 func createReadyFile() error {
