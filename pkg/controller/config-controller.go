@@ -152,19 +152,9 @@ func (c *ConfigController) handleObject(obj interface{}, verb string) {
 	klog.V(3).Infof("Processing object: %s", object.GetName())
 
 	var config *cdiv1.CDIConfig
-	configs, err := c.configLister.CDIConfigs(metav1.NamespaceAll).List(labels.NewSelector())
+	config, err := c.configLister.Get(c.configName)
 	if err != nil {
-		runtime.HandleError(errors.Errorf("error listing CDI configs: %s", err))
-		return
-	}
-	for _, conf := range configs {
-		if conf.Name == c.configName {
-			config = conf
-		}
-	}
-
-	if config == nil {
-		runtime.HandleError(errors.Errorf("error getting CDI config"))
+		runtime.HandleError(errors.Errorf("error getting CDI config: %s", err))
 		return
 	}
 
@@ -237,24 +227,14 @@ func (c *ConfigController) processNextWorkItem() bool {
 }
 
 func (c *ConfigController) syncHandler(key string) error {
-	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		runtime.HandleError(errors.Errorf("invalid resource key: %s", key))
 		return nil
 	}
 
-	var config *cdiv1.CDIConfig
-	configs, err := c.configLister.CDIConfigs(namespace).List(labels.NewSelector())
+	config, err := c.configLister.Get(name)
 	if err != nil {
-		return err
-	}
-	for _, conf := range configs {
-		if conf.Name == name {
-			config = conf
-		}
-	}
-
-	if config == nil {
 		runtime.HandleError(errors.Errorf("CDIConfig '%s' in work queue no longer exists", key))
 		return nil
 	}
@@ -308,17 +288,23 @@ func (c *ConfigController) syncHandler(key string) error {
 	return nil
 }
 
+// Init is meant to be called synchroniously when the the controller is starting
+func (c *ConfigController) Init() error {
+	glog.V(3).Infoln("Creating CDI config if necessary")
+
+	if err := EnsureCDIConfigExists(c.client, c.cdiClientSet, c.configName); err != nil {
+		runtime.HandleError(err)
+		return errors.Wrap(err, "Error creating CDI config")
+	}
+
+	return nil
+}
+
 // Run sets up ConfigController state and executes main event loop
 func (c *ConfigController) Run(threadiness int, stopCh <-chan struct{}) error {
 	defer func() {
 		c.queue.ShutDown()
 	}()
-
-	klog.V(3).Infoln("Creating CDI config")
-	if _, err := CreateCDIConfig(c.client, c.cdiClientSet, c.configName); err != nil {
-		runtime.HandleError(err)
-		return errors.Wrap(err, "Error creating CDI config")
-	}
 
 	klog.V(3).Infoln("Starting config controller Run loop")
 	if threadiness < 1 {

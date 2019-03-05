@@ -162,6 +162,10 @@ const (
 	Unknown DataVolumePhase = "Unknown"
 )
 
+// this has to be here otherwise informer-gen doesn't recognize it
+// see https://github.com/kubernetes/code-generator/issues/59
+// +genclient:nonNamespaced
+
 // CDI is the CDI Operator CRD
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -235,7 +239,11 @@ type CDIList struct {
 	Items []CDI `json:"items"`
 }
 
-//CDIConfig provides a user configuration for CDI
+// this has to be here otherwise informer-gen doesn't recognize it
+// see https://github.com/kubernetes/code-generator/issues/59
+// +genclient:nonNamespaced
+
+// CDIConfig provides a user configuration for CDI
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type CDIConfig struct {

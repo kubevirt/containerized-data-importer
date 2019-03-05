@@ -171,6 +171,11 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		klog.Fatalf("Error initializing upload controller: %+v", err)
 	}
 
+	err = configController.Init()
+	if err != nil {
+		glog.Fatalf("Error initializing config controller: %+v", err)
+	}
+
 	go cdiInformerFactory.Start(stopCh)
 	go pvcInformerFactory.Start(stopCh)
 	go podInformerFactory.Start(stopCh)
