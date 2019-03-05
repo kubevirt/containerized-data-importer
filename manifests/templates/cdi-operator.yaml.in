@@ -60,7 +60,7 @@ spec:
           ports:
           - containerPort: 60000
             name: metrics
-          imagePullPolicy: Always
+          imagePullPolicy: {{ .PullPolicy }}
           env:
           - name: DEPLOY_CLUSTER_RESOURCES
             value: 'true'
