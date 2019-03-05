@@ -848,7 +848,7 @@ func TestMakeCDIConfigSpec(t *testing.T) {
 	type args struct {
 		name string
 	}
-	config := createCDIConfig("testConfig", "")
+	config := createCDIConfig("testConfig")
 
 	tests := []struct {
 		name          string
@@ -863,10 +863,10 @@ func TestMakeCDIConfigSpec(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := MakeCDIConfigSpec(tt.args.name)
+			got := MakeEmptyCDIConfigSpec(tt.args.name)
 
 			if !reflect.DeepEqual(got, tt.wantCDIConfig) {
-				t.Errorf("MakeCDIConfigSpec() =\n%v\n, want\n%v", got, tt.wantCDIConfig)
+				t.Errorf("MakeEmptyCDIConfigSpec() =\n%v\n, want\n%v", got, tt.wantCDIConfig)
 			}
 
 		})
@@ -1683,23 +1683,14 @@ func createUploadService(pvc *v1.PersistentVolumeClaim) *v1.Service {
 	return service
 }
 
-func createCDIConfig(name, ns string) *cdiv1.CDIConfig {
+func createCDIConfig(name string) *cdiv1.CDIConfig {
 	return &cdiv1.CDIConfig{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "CDIConfig",
-			APIVersion: "cdi.kubevirt.io/v1alpha1",
-		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: ns,
+			Name: name,
 			Labels: map[string]string{
 				common.CDILabelKey:       common.CDILabelValue,
 				common.CDIComponentLabel: "",
 			},
-		},
-		Spec: cdiv1.CDIConfigSpec{},
-		Status: cdiv1.CDIConfigStatus{
-			UploadProxyURL: nil,
 		},
 	}
 }
