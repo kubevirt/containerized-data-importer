@@ -20,6 +20,8 @@ const (
 	HTTPAuthPort = 81
 	// HttpNoAuthPort provides a cdi-file-host service no-auth port for tests, requires AccessKeyValue and SecretKeyValue
 	HTTPNoAuthPort = 80
+	// HTTPRateLimitPort provides a cdi-file-host service rate limit port for tests, speed is limited to 25k/s to allow for testing slow connection behavior. No auth.
+	HTTPRateLimitPort = 82
 	// S3Port provides a cdi-file-host service S3 port, requires AccessKey and SecretKeyValue
 	S3Port = 9000
 	// RegistryConfigMap is the ConfigMap where the cert for the docker registry is stored
