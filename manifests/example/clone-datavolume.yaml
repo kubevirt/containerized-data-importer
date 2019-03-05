@@ -1,12 +1,13 @@
+# This example assumes you are using a default storage class
 apiVersion: cdi.kubevirt.io/v1alpha1
 kind: DataVolume
 metadata:
-  name: cloner-datavolume
+  name: cloned-datavolume
 spec:
   source:
     pvc:
-      namespace: "source-ns"
-      name: "my-data-volume"
+      namespace: source-ns
+      name: source-datavolume
   pvc:
     accessModes:
       - ReadWriteOnce
