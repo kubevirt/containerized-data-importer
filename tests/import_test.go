@@ -1,7 +1,12 @@
 package tests_test
 
 import (
+	"crypto/tls"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 
@@ -113,6 +118,14 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 })
 
 var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:component]Importer Test Suite-prometheus", func() {
+	var prometheusURL string
+	var portForwardCmd *exec.Cmd
+	var err error
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
 	f := framework.NewFrameworkOrDie(namespacePrefix)
 
 	BeforeEach(func() {
@@ -120,25 +133,37 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(err).NotTo(HaveOccurred(), "Error creating prometheus service")
 	})
 
+	AfterEach(func() {
+		By("Stop port forwarding")
+		if portForwardCmd != nil {
+			err = portForwardCmd.Process.Kill()
+			Expect(err).ToNot(HaveOccurred())
+			portForwardCmd.Wait()
+			portForwardCmd = nil
+		}
+	})
+
 	It("Import pod should have prometheus stats available while importing", func() {
 		c := f.K8sClient
 		ns := f.Namespace.Name
-		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPNoAuthPort)
+		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPRateLimitPort)
 		pvcAnn := map[string]string{
-			controller.AnnEndpoint: httpEp,
+			controller.AnnEndpoint: httpEp + "/tinyCore.qcow2",
 			controller.AnnSecret:   "",
 		}
 
-		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.iso"))
-		_, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-e2e", "20M", pvcAnn, nil))
+		By("Verifying no end points exist before pvc is created")
+		endpoint, err := c.CoreV1().Endpoints(ns).Get("kubevirt-prometheus-metrics", metav1.GetOptions{})
+		Expect(err).To(HaveOccurred())
+
+		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.qcow2"))
+		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-e2e", "20M", pvcAnn, nil))
 		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
 
-		_, err = utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
-		//importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
+		importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
 
-		var endpoint *v1.Endpoints
-		l, err := labels.Parse("prometheus.kubevirt.io")
+		l, err := labels.Parse(common.PrometheusLabel)
 		Expect(err).ToNot(HaveOccurred())
 		Eventually(func() int {
 			endpoint, err = c.CoreV1().Endpoints(ns).Get("kubevirt-prometheus-metrics", metav1.GetOptions{})
@@ -148,9 +173,53 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			return len(endpoint.Subsets)
 		}, 60, 1).Should(Equal(1))
 
+		By("Set up port forwarding")
+		prometheusURL, portForwardCmd, err = startPrometheusPortForward(f)
+		Expect(err).ToNot(HaveOccurred())
+
 		By("checking if the endpoint contains the metrics port and only one matching subset")
 		Expect(endpoint.Subsets[0].Ports).To(HaveLen(1))
 		Expect(endpoint.Subsets[0].Ports[0].Name).To(Equal("metrics"))
-		Expect(endpoint.Subsets[0].Ports[0].Port).To(Equal(int32(443)))
+		Expect(endpoint.Subsets[0].Ports[0].Port).To(Equal(int32(8443)))
+
+		if importer.OwnerReferences[0].UID == pvc.GetUID() {
+			var importRegExp = regexp.MustCompile("progress\\{ownerUID\\=\"" + string(pvc.GetUID()) + "\"\\} (\\d{1,3}\\.?\\d*)")
+			Eventually(func() bool {
+				fmt.Fprintf(GinkgoWriter, "INFO: Connecting to URL: %s\n", prometheusURL+"/metrics")
+				resp, err := client.Get(prometheusURL + "/metrics")
+				if err == nil {
+					defer resp.Body.Close()
+					if resp.StatusCode == http.StatusOK {
+						bodyBytes, err := ioutil.ReadAll(resp.Body)
+						Expect(err).NotTo(HaveOccurred())
+						match := importRegExp.FindStringSubmatch(string(bodyBytes))
+						if match != nil {
+							return true
+						}
+					} else {
+						fmt.Fprintf(GinkgoWriter, "INFO: received status code: %d\n", resp.StatusCode)
+					}
+				} else {
+					fmt.Fprintf(GinkgoWriter, "INFO: collecting metrics failed: %v\n", err)
+				}
+				return false
+			}, 90, 1).Should(BeTrue())
+		} else {
+			Fail("importer owner reference doesn't match PVC")
+		}
 	})
 })
+
+func startPrometheusPortForward(f *framework.Framework) (string, *exec.Cmd, error) {
+	lp := "28443"
+	pm := lp + ":8443"
+	url := "https://127.0.0.1:" + lp
+
+	cmd := tests.CreateKubectlCommand(f, "-n", f.Namespace.Name, "port-forward", "svc/kubevirt-prometheus-metrics", pm)
+	err := cmd.Start()
+	if err != nil {
+		return "", nil, err
+	}
+
+	return url, cmd, nil
+}

@@ -136,7 +136,16 @@ func (o *qemuOperations) Resize(image string, size resource.Quantity) error {
 }
 
 func (o *qemuOperations) Info(image string) (*ImgInfo, error) {
-	output, err := qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", image)
+	url, err := url.Parse(image)
+	var output []byte
+
+	if url != nil && len(url.Scheme) > 0 {
+		// Image is a URL, make sure the timeout is long enough.
+		jsonArg := fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", url.Scheme, url, networkTimeoutSecs)
+		output, err = qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", jsonArg)
+	} else {
+		output, err = qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", image)
+	}
 	if err != nil {
 		return nil, errors.Wrapf(err, "Error getting info on image %s", image)
 	}
