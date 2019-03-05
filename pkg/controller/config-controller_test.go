@@ -279,7 +279,7 @@ func (f *configFixture) expectUpdateConfigAction(config *cdiv1.CDIConfig) {
 
 func TestCreatesCDIConfig(t *testing.T) {
 	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig", "default")
+	config := createCDIConfig("testConfig")
 
 	f.configLister = append(f.configLister, config)
 	f.objects = append(f.objects, config)
@@ -289,7 +289,7 @@ func TestCreatesCDIConfig(t *testing.T) {
 
 func TestCDIConfigStatusChanged(t *testing.T) {
 	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig", "default")
+	config := createCDIConfig("testConfig")
 	url := "www.example.com"
 	config.Spec.UploadProxyURLOverride = &url
 
@@ -306,7 +306,7 @@ func TestCDIConfigStatusChanged(t *testing.T) {
 
 func TestCreatesRoute(t *testing.T) {
 	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig", "default")
+	config := createCDIConfig("testConfig")
 
 	f.configLister = append(f.configLister, config)
 	f.objects = append(f.objects, config)
@@ -327,7 +327,7 @@ func TestCreatesRoute(t *testing.T) {
 
 func TestCreatesRouteOverrideExists(t *testing.T) {
 	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig", "default")
+	config := createCDIConfig("testConfig")
 	newURL := "www.override.com"
 	config.Spec.UploadProxyURLOverride = &newURL
 
@@ -348,7 +348,7 @@ func TestCreatesRouteOverrideExists(t *testing.T) {
 
 func TestCreatesRouteDifferentService(t *testing.T) {
 	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig", "default")
+	config := createCDIConfig("testConfig")
 
 	f.configLister = append(f.configLister, config)
 	f.objects = append(f.objects, config)
@@ -361,7 +361,7 @@ func TestCreatesRouteDifferentService(t *testing.T) {
 }
 func TestCreatesIngress(t *testing.T) {
 	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig", "default")
+	config := createCDIConfig("testConfig")
 
 	f.configLister = append(f.configLister, config)
 	f.objects = append(f.objects, config)
@@ -381,7 +381,7 @@ func TestCreatesIngress(t *testing.T) {
 
 func TestCreatesIngressOverrideExists(t *testing.T) {
 	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig", "default")
+	config := createCDIConfig("testConfig")
 	newURL := "www.override.com"
 	config.Spec.UploadProxyURLOverride = &newURL
 
@@ -403,7 +403,7 @@ func TestCreatesIngressOverrideExists(t *testing.T) {
 
 func TestCreatesIngressDifferentService(t *testing.T) {
 	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig", "default")
+	config := createCDIConfig("testConfig")
 
 	f.configLister = append(f.configLister, config)
 	f.objects = append(f.objects, config)
