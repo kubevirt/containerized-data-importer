@@ -1,6 +1,6 @@
 package: kubevirt.io/containerized-data-importer
 import:
-- package: github.com/golang/glog
+- package: k8s.io/klog
 - package: github.com/gorilla/mux
   version: ^1.6.1
 - package: github.com/minio/minio-go
