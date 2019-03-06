@@ -1,5 +1,5 @@
-hash: 845b2d8794e7e8fbe69bab87914697935de2fe1f1619d9c751f352cc247fb7bd
-updated: 2019-03-05T13:59:02.532270442-05:00
+hash: d084cb6b6a3f3a73f904cc37ac72a84165b7f776659c4681b868e11cfb755b9f
+updated: 2019-03-06T23:19:52.96702+09:00
 imports:
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
@@ -41,7 +41,7 @@ imports:
   - proto
   - sortkeys
 - name: github.com/golang/glog
-  version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
+  version: 44145f04b68cf362d9c4df2182967c2275eaefed
 - name: github.com/golang/groupcache
   version: 02826c3e79038b59d737d3b1c0a1d937f71a4433
   subpackages:
@@ -568,7 +568,9 @@ imports:
 - name: k8s.io/code-generator
   version: b1289fc74931d4b6b04bd1a259acfc88a2cb0a66
 - name: k8s.io/gengo
-  version: 0689ccc1d7d65d9dd1bedcc3b0b1ed7df91ba266
+  version: 7a1b7fb0289f3b6f206589cdcfcad73009b6e840
+- name: k8s.io/klog
+  version: 8e90cee79f823779174776412c13478955131846
 - name: k8s.io/kube-aggregator
   version: e95ebe3de8a24c3da1ad7606ca5a2444a64f4c82
   subpackages:
