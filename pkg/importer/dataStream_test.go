@@ -3,6 +3,7 @@ package importer
 import (
 	"bufio"
 	"context"
+	"crypto/x509"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -26,6 +28,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/client-go/util/cert"
+	"k8s.io/client-go/util/cert/triple"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -504,6 +508,50 @@ var _ = Describe("Random file name", func() {
 		Expect(len(fn)).To(Equal(len("testfile.img") + len(wantString)))
 		Expect(filepath.Clean(base)).To(Equal(filepath.Dir("testfile.img")))
 		Expect(filepath.Ext(fn)).To(Equal(".img"))
+	})
+})
+
+var _ = Describe("test certs get loaded", func() {
+	var tempDir string
+
+	BeforeEach(func() {
+		var err error
+
+		tempDir, err = ioutil.TempDir("/tmp", "cert-test")
+		Expect(err).ToNot(HaveOccurred())
+
+		keyPair, err := triple.NewCA("datastream.cdi.kubevirt.io")
+		Expect(err).ToNot(HaveOccurred())
+
+		certBytes := cert.EncodeCertPEM(keyPair.Cert)
+
+		err = ioutil.WriteFile(path.Join(tempDir, "tls.crt"), certBytes, 0644)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		if tempDir != "" {
+			os.RemoveAll(tempDir)
+		}
+	})
+
+	It("should load the cert", func() {
+		dso := &DataStreamOptions{CertDir: tempDir}
+		ds := &DataStream{DataStreamOptions: dso}
+
+		client, err := ds.createHTTPClient()
+		Expect(err).ToNot(HaveOccurred())
+
+		transport := client.Transport.(*http.Transport)
+		Expect(transport).ToNot(BeNil())
+
+		activeCAs := transport.TLSClientConfig.RootCAs
+		Expect(transport).ToNot(BeNil())
+
+		systemCAs, err := x509.SystemCertPool()
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(len(activeCAs.Subjects())).Should(Equal(len(systemCAs.Subjects()) + 1))
 	})
 })
 
