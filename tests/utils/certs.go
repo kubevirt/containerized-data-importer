@@ -5,7 +5,6 @@ import (
 	"os"
 	"path"
 
-	"github.com/golang/glog"
 	"github.com/pkg/errors"
 
 	v1 "k8s.io/api/core/v1"
@@ -14,12 +13,13 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
+	"k8s.io/klog"
 )
 
 // CreateCertForTestService creates a TLS key/cert for a service, writes them to files
 // and creates a config map containing the cert
 func CreateCertForTestService(namespace, serviceName, configMapName, certDir, certFileName, keyFileName string) error {
-	glog.Info("Creating key/certificate")
+	klog.Info("Creating key/certificate")
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -79,6 +79,6 @@ func CreateCertForTestService(namespace, serviceName, configMapName, certDir, ce
 		return err
 	}
 
-	glog.Info("Successfully created key/certificate")
+	klog.Info("Successfully created key/certificate")
 	return nil
 }

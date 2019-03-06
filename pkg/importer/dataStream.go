@@ -320,7 +320,7 @@ func (d *DataStream) createHTTPClient() (*http.Client, error) {
 
 		fp := path.Join(d.CertDir, file.Name())
 
-		glog.Infof("Attempting to get certs from %s", fp)
+		klog.Infof("Attempting to get certs from %s", fp)
 
 		certs, err := ioutil.ReadFile(fp)
 		if err != nil {
@@ -328,7 +328,7 @@ func (d *DataStream) createHTTPClient() (*http.Client, error) {
 		}
 
 		if ok := certPool.AppendCertsFromPEM(certs); !ok {
-			glog.Warningf("No certs in %s", fp)
+			klog.Warningf("No certs in %s", fp)
 		}
 	}
 
