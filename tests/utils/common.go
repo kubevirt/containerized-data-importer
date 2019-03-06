@@ -24,6 +24,10 @@ const (
 	HTTPRateLimitPort = 82
 	// S3Port provides a cdi-file-host service S3 port, requires AccessKey and SecretKeyValue
 	S3Port = 9000
-	// RegistryConfigMap is the ConfigMap where the cert for the docker registry is stored
-	RegistryConfigMap = "cdi-docker-registry-host-certs"
+	// HTTPSPort is the https port of cdi-file-host
+	HTTPSNoAuthPort = 443
+	// RegistryCertConfigMap is the ConfigMap where the cert for the docker registry is stored
+	RegistryCertConfigMap = "cdi-docker-registry-host-certs"
+	// FileHostCertConfigMap is the ConfigMap where the cert fir the file host is stored
+	FileHostCertConfigMap = "cdi-file-host-certs"
 )

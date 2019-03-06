@@ -50,6 +50,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			switch name {
 			case "import-http":
 				dataVolume = utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
+			case "import-https":
+				dataVolume = utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
+				cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name)
+				Expect(err).To(BeNil())
+				dataVolume.Spec.Source.HTTP.CertConfigMap = cm
 			case "blank":
 				dataVolume = utils.NewDataVolumeForBlankRawImage(dataVolumeName, "1Gi")
 			case "upload":
@@ -110,6 +115,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[rfe_id:1111][crit:high][test_id:1361]succeed creating blank image dv", "blank", "", "", "blank-image-dv", controller.ImportSucceeded, cdiv1.Succeeded),
 			table.Entry("[rfe_id:138][crit:high][test_id:1362]succeed creating upload dv", "upload", "", "", "upload-dv", controller.UploadReady, cdiv1.Succeeded),
 			table.Entry("[rfe_id:1115][crit:high][test_id:1478]succeed creating import dv with given valid registry url", "import-registry", "", utils.TinyCoreIsoRegistryURL, "dv-phase-test-4", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid url (https)", "import-https", "", utils.HTTPSTinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
 
