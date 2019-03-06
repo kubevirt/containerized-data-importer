@@ -9,6 +9,7 @@ import (
 
 	"github.com/golang/glog"
 	"k8s.io/api/admission/v1beta1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
@@ -145,13 +146,29 @@ func validateDataVolumeSpec(field *k8sfield.Path, spec *cdicorev1alpha1.DataVolu
 		return causes
 	}
 
-	if spec.Source.PVC != nil && (spec.Source.PVC.Namespace == "" || spec.Source.PVC.Name == "") {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("%s source PVC is not valid", field.Child("source", "PVC").String()),
-			Field:   field.Child("source", "PVC").String(),
-		})
-		return causes
+	if spec.Source.PVC != nil {
+		if spec.Source.PVC.Namespace == "" || spec.Source.PVC.Name == "" {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("%s source PVC is not valid", field.Child("source", "PVC").String()),
+				Field:   field.Child("source", "PVC").String(),
+			})
+			return causes
+		}
+		client := GetClient()
+		if client != nil {
+			_, err := client.CoreV1().PersistentVolumeClaims(spec.Source.PVC.Namespace).Get(spec.Source.PVC.Name, metav1.GetOptions{})
+			if err != nil {
+				if k8serrors.IsNotFound(err) {
+					causes = append(causes, metav1.StatusCause{
+						Type:    metav1.CauseTypeFieldValueNotFound,
+						Message: fmt.Sprintf("Source PVC %s/%s doesn't exist", spec.Source.PVC.Namespace, spec.Source.PVC.Name),
+						Field:   field.Child("source", "PVC").String(),
+					})
+					return causes
+				}
+			}
+		}
 	}
 
 	if spec.PVC == nil {
