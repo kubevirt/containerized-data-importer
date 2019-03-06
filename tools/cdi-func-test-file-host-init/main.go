@@ -18,8 +18,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"k8s.io/klog"
 	"github.com/pkg/errors"
+	"k8s.io/klog"
 
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/tests/utils"
