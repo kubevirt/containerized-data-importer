@@ -22,6 +22,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -30,6 +32,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -292,16 +295,67 @@ func (d *DataStream) s3() (io.ReadCloser, error) {
 	return objectReader, nil
 }
 
-func (d *DataStream) http() (io.ReadCloser, error) {
-	client := http.Client{
-		CheckRedirect: func(r *http.Request, via []*http.Request) error {
-			if len(d.AccessKey) > 0 && len(d.SecKey) > 0 {
-				r.SetBasicAuth(d.AccessKey, d.SecKey) // Redirects will lose basic auth, so reset them manually
-			}
-			return nil
-		},
+func (d *DataStream) createHTTPClient() (*http.Client, error) {
+	client := &http.Client{
 		// Don't set timeout here, since that will be an absolute timeout, we need a relative to last progress timeout.
 	}
+
+	if d.CertDir == "" {
+		return client, nil
+	}
+
+	// let's get system certs as well
+	certPool, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, errors.Wrap(err, "Error getting system certs")
+	}
+
+	files, err := ioutil.ReadDir(d.CertDir)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Error listing files in %s", d.CertDir)
+	}
+
+	for _, file := range files {
+		if file.IsDir() || file.Name()[0] == '.' {
+			continue
+		}
+
+		fp := path.Join(d.CertDir, file.Name())
+
+		glog.Infof("Attempting to get certs from %s", fp)
+
+		certs, err := ioutil.ReadFile(fp)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Error reading file %s", fp)
+		}
+
+		if ok := certPool.AppendCertsFromPEM(certs); !ok {
+			glog.Warningf("No certs in %s", fp)
+		}
+	}
+
+	client.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{
+			RootCAs: certPool,
+		},
+	}
+
+	return client, nil
+}
+
+func (d *DataStream) http() (io.ReadCloser, error) {
+	client, err := d.createHTTPClient()
+	if err != nil {
+		return nil, errors.Wrap(err, "Error creating http client")
+	}
+
+	client.CheckRedirect = func(r *http.Request, via []*http.Request) error {
+		if len(d.AccessKey) > 0 && len(d.SecKey) > 0 {
+			r.SetBasicAuth(d.AccessKey, d.SecKey) // Redirects will lose basic auth, so reset them manually
+		}
+		return nil
+	}
+
 	req, err := http.NewRequest("GET", d.url.String(), nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create HTTP request")
