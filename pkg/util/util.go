@@ -14,10 +14,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/pkg/errors"
-
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/klog"
 )
 
 // CountingReader is a reader that keeps track of how much has been read
@@ -94,7 +93,7 @@ func MinQuantity(availableSpace, imageSize *resource.Quantity) resource.Quantity
 // UnArchiveTar unarchives a tar file and streams its files
 // using the specified io.Reader to the specified destination.
 func UnArchiveTar(reader io.Reader, destDir string, arg ...string) error {
-	glog.V(1).Infof("begin untar...\n")
+	klog.V(1).Infof("begin untar...\n")
 
 	var tarOptions string
 	var args = arg
@@ -113,8 +112,8 @@ func UnArchiveTar(reader io.Reader, destDir string, arg ...string) error {
 	}
 	err = untar.Wait()
 	if err != nil {
-		glog.V(3).Infof("%s\n", string(errBuf.Bytes()))
-		glog.Errorf("%s\n", err.Error())
+		klog.V(3).Infof("%s\n", string(errBuf.Bytes()))
+		klog.Errorf("%s\n", err.Error())
 		return err
 	}
 	return nil

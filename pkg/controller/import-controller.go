@@ -3,7 +3,6 @@ package controller
 import (
 	"fmt"
 
-	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -11,6 +10,7 @@ import (
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
@@ -171,7 +171,7 @@ func (ic *ImportController) ProcessNextPvcItem() bool {
 
 	err := ic.syncPvc(key.(string))
 	if err != nil { // processPvcItem errors may not have been logged so log here
-		glog.Errorf("error processing pvc %q: %v", key, err)
+		klog.Errorf("error processing pvc %q: %v", key, err)
 		return true
 	}
 	return ic.forgetKey(key, fmt.Sprintf("ProcessNextPvcItem: processing pvc %q completed", key))
@@ -190,13 +190,13 @@ func (ic *ImportController) syncPvc(key string) error {
 	}
 
 	if pvc.DeletionTimestamp != nil {
-		glog.V(3).Infof("detected PVC delete request for PVC '%s', cleaning up any associated PODS", pvc.Name)
+		klog.V(3).Infof("detected PVC delete request for PVC '%s', cleaning up any associated PODS", pvc.Name)
 		pod, err := ic.findImportPodFromCache(pvc)
 		if err != nil {
 			return err
 		}
 		if pod == nil {
-			glog.V(3).Infof("unable to find POD associated with PVC: %s, already deleted maybe?", pvc.Name)
+			klog.V(3).Infof("unable to find POD associated with PVC: %s, already deleted maybe?", pvc.Name)
 			return nil
 		}
 		dReq := podDeleteRequest{
@@ -207,7 +207,7 @@ func (ic *ImportController) syncPvc(key string) error {
 		}
 		err = deletePod(dReq)
 		if err != nil && !k8serrors.IsNotFound(err) {
-			glog.V(3).Infof("error encountered cleaning up associated PODS for PVC: %v", err)
+			klog.V(3).Infof("error encountered cleaning up associated PODS for PVC: %v", err)
 			return err
 		}
 	}
@@ -216,7 +216,7 @@ func (ic *ImportController) syncPvc(key string) error {
 	if !checkPVC(pvc, AnnEndpoint) && !checkPVC(pvc, AnnSource) {
 		return nil
 	}
-	glog.V(3).Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)
+	klog.V(3).Infof("ProcessNextPvcItem: next pvc to process: %s\n", key)
 	return ic.processPvcItem(pvc)
 }
 

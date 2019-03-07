@@ -7,13 +7,12 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/golang/glog"
 	"k8s.io/api/admission/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
-
+	"k8s.io/klog"
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
@@ -199,7 +198,7 @@ func admitDVs(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		Resource: "datavolumes",
 	}
 	if ar.Request.Resource != resource {
-		glog.Errorf("resource is %s but request is: %s", resource, ar.Request.Resource)
+		klog.Errorf("resource is %s but request is: %s", resource, ar.Request.Resource)
 		err := fmt.Errorf("expect resource to be '%s'", resource.Resource)
 		return toAdmissionResponseError(err)
 	}
@@ -221,7 +220,7 @@ func admitDVs(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		}
 		for _, pvc := range pvcs.Items {
 			if pvc.Name == dv.GetName() {
-				glog.Errorf("destination PVC %s/%s already exists", dv.GetNamespace(), dv.GetName())
+				klog.Errorf("destination PVC %s/%s already exists", dv.GetNamespace(), dv.GetName())
 				var causes []metav1.StatusCause
 				causes = append(causes, metav1.StatusCause{
 					Type:    metav1.CauseTypeFieldValueDuplicate,
@@ -235,7 +234,7 @@ func admitDVs(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 
 	causes := validateDataVolumeSpec(k8sfield.NewPath("spec"), &dv.Spec)
 	if len(causes) > 0 {
-		glog.Infof("rejected DataVolume admission")
+		klog.Infof("rejected DataVolume admission")
 		return toRejectedAdmissionResponse(causes)
 	}
 
@@ -265,12 +264,12 @@ func serve(resp http.ResponseWriter, req *http.Request, admit admitFunc) {
 
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
-		glog.Errorf("failed json encode webhook response: %s", err)
+		klog.Errorf("failed json encode webhook response: %s", err)
 		resp.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	if _, err := resp.Write(responseBytes); err != nil {
-		glog.Errorf("failed to write webhook response: %s", err)
+		klog.Errorf("failed to write webhook response: %s", err)
 		resp.WriteHeader(http.StatusBadRequest)
 		return
 	}
