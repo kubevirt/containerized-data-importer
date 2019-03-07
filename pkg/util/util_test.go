@@ -1,7 +1,11 @@
 package util
 
 import (
+	"crypto/md5"
 	"encoding/base64"
+	"encoding/hex"
+	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -83,3 +87,76 @@ var _ = Describe("Compare quantities", func() {
 		Expect(result).To(Equal(*small))
 	})
 })
+
+var _ = Describe("Copy files", func() {
+	var destTmp string
+	var err error
+
+	BeforeEach(func() {
+		destTmp, err = ioutil.TempDir("", "dest")
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		err = os.RemoveAll(destTmp)
+		Expect(err).NotTo(HaveOccurred())
+		os.Remove("test.txt")
+	})
+
+	It("Should copy file from source to dest, with valid source and dest", func() {
+		err = CopyFile(filepath.Join(TestImagesDir, "content.tar"), filepath.Join(destTmp, "target.tar"))
+		Expect(err).ToNot(HaveOccurred())
+		sourceMd5, err := md5sum(filepath.Join(TestImagesDir, "content.tar"))
+		Expect(err).ToNot(HaveOccurred())
+		targetMd5, err := md5sum(filepath.Join(destTmp, "target.tar"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sourceMd5).Should(Equal(targetMd5))
+	})
+
+	It("Should not copy file from source to dest, with invalid source", func() {
+		err = CopyFile(filepath.Join(TestImagesDir, "content.tar22"), filepath.Join(destTmp, "target.tar"))
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("Should not copy file from source to dest, with invalid target", func() {
+		err = CopyFile(filepath.Join(TestImagesDir, "content.tar"), filepath.Join("/invalidpath", "target.tar"))
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("Should move file from source to dest, with valid source and dest", func() {
+		err = ioutil.WriteFile("test.txt", []byte("Test"), 0644)
+		Expect(err).ToNot(HaveOccurred())
+		err = MoveFileAcrossFs("test.txt", filepath.Join(destTmp, "test.txt"))
+		Expect(err).ToNot(HaveOccurred())
+		_, err = os.Stat("test.txt")
+		Expect(os.IsNotExist(err)).To(BeTrue())
+	})
+
+	It("Should not move file from source to dest, with invalid source or dest", func() {
+		err = MoveFileAcrossFs("test.txt", filepath.Join(destTmp, "test.txt"))
+		Expect(err).To(HaveOccurred())
+		_, err = os.Stat("test.txt")
+		Expect(os.IsNotExist(err)).To(BeTrue())
+	})
+})
+
+func md5sum(filePath string) (string, error) {
+	var returnMD5String string
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return returnMD5String, err
+	}
+	defer file.Close()
+
+	hash := md5.New()
+
+	if _, err := io.Copy(hash, file); err != nil {
+		return returnMD5String, err
+	}
+
+	hashInBytes := hash.Sum(nil)[:16]
+	returnMD5String = hex.EncodeToString(hashInBytes)
+
+	return returnMD5String, nil
+}

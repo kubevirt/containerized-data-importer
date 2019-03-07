@@ -87,6 +87,7 @@ func main() {
 		AvailableSpace: util.GetAvailableSpace(common.ImporterVolumePath),
 		CertDir:        certDir,
 		InsecureTLS:    insecureTLS,
+		ScratchDataDir: common.ScratchDataDir,
 	}
 
 	if source == controller.SourceNone && contentType == string(cdiv1.DataVolumeKubeVirt) {
@@ -106,6 +107,9 @@ func main() {
 		err = importer.CopyData(dso)
 		if err != nil {
 			klog.Errorf("%+v", err)
+			if err == importer.ErrRequiresScratchSpace {
+				os.Exit(common.ScratchSpaceNeededExitCode)
+			}
 			os.Exit(1)
 		}
 	}

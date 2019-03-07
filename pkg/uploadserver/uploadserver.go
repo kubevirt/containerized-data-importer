@@ -66,7 +66,7 @@ type uploadServerApp struct {
 }
 
 // may be overridden in tests
-var saveStremFunc = importer.SaveStream
+var saveStremFunc = importer.DefaultSaveStream
 
 // GetUploadServerURL returns the url the proxy should post to for a particular pvc
 func GetUploadServerURL(namespace, pvc string) string {

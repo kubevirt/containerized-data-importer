@@ -18,10 +18,12 @@ import (
 )
 
 const (
+	// AnnAPIGroup is the APIGroup for CDI
+	AnnAPIGroup = "cdi.kubevirt.io"
 	//AnnCreatedBy is a pod annotation indicating if the pod was created by the PVC
-	AnnCreatedBy = "cdi.kubevirt.io/storage.createdByController"
+	AnnCreatedBy = AnnAPIGroup + "/storage.createdByController"
 	//AnnPodPhase is a PVC annotation indicating the related pod progress (phase)
-	AnnPodPhase = "cdi.kubevirt.io/storage.pod.phase"
+	AnnPodPhase = AnnAPIGroup + "/storage.pod.phase"
 )
 
 //Controller is a struct that contains common information and functionality used by all CDI controllers.

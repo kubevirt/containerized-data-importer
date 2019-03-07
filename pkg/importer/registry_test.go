@@ -2,6 +2,8 @@ package importer
 
 import (
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,7 +22,7 @@ var (
 	imageFile            = filepath.Join(imageDir, "registry-image.tar")
 	invalidImageFile     = filepath.Join(imageDir, "docker-image.tar")
 	imageData            = filepath.Join(imageDir, "data")
-	tmpData              = filepath.Join(imageData, "tmp")
+	tmpDir               string
 	diskImage            = filepath.Join(imageData, "disk.img")
 	validImageURL        = "docker://image.url"
 	invalidDestIndicator = "invalid"
@@ -32,8 +34,11 @@ type fakeSkopeoOperations struct {
 }
 
 var _ = Describe("Copy from Registry", func() {
+	var err error
 
 	BeforeEach(func() {
+		tmpDir, err = ioutil.TempDir("", "imagedir")
+		Expect(err).ToNot(HaveOccurred())
 		By("[BeforeEach] Creating working directory")
 		os.Mkdir(imageData, os.ModeDir|os.ModePerm)
 	})
@@ -41,6 +46,7 @@ var _ = Describe("Copy from Registry", func() {
 	AfterEach(func() {
 		By("[AfterEach]  deleting working directory")
 		os.RemoveAll(imageData)
+		os.Remove(tmpDir)
 	})
 
 	table.DescribeTable("Image, with import source should", func(destImage string, dataDir string, url string, skopeoOperations image.SkopeoOperations, wantErr bool) {
@@ -49,17 +55,18 @@ var _ = Describe("Copy from Registry", func() {
 		replaceSkopeoOperations(skopeoOperations, func() {
 			By("Copying image")
 			err := CopyData(&DataStreamOptions{
-				destImage,
-				dataDir,
-				url,
-				"",
-				"",
-				controller.SourceRegistry,
-				string(cdiv1.DataVolumeKubeVirt),
-				"1G",
-				int64(1234567890),
-				"",
-				false,
+				Dest:           destImage,
+				DataDir:        dataDir,
+				Endpoint:       url,
+				AccessKey:      "",
+				SecKey:         "",
+				Source:         controller.SourceRegistry,
+				ContentType:    string(cdiv1.DataVolumeKubeVirt),
+				ImageSize:      "1G",
+				AvailableSpace: int64(1234567890),
+				CertDir:        "",
+				InsecureTLS:    false,
+				ScratchDataDir: tmpDir,
 			})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
@@ -95,12 +102,13 @@ func NewFakeSkopeoOperations(e1 error) image.SkopeoOperations {
 func (o *fakeSkopeoOperations) CopyImage(url, dest, accessKey, secKey, certDir string, insecureRegistry bool) error {
 	if o.e1 == nil {
 		if strings.Contains(url, invalidDestIndicator) {
-			if err := util.UnArchiveLocalTar(invalidImageFile, tmpData); err != nil {
+			if err := util.UnArchiveLocalTar(invalidImageFile, tmpDir); err != nil {
 				return errors.New("could not extract layer tar")
 			}
 		} else {
-			if err := util.UnArchiveLocalTar(imageFile, tmpData); err != nil {
-				return errors.New("could not extract layer tar")
+			By("Imagefile: " + imageFile + ", tmpData: " + tmpDir)
+			if err := util.UnArchiveLocalTar(imageFile, tmpDir); err != nil {
+				return errors.New(fmt.Errorf("could not extract layer tar: %s", err.Error()).Error())
 			}
 		}
 	}
