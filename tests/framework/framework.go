@@ -131,6 +131,16 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 	// handle run-time flags
 	if !flag.Parsed() {
 		flag.Parse()
+		klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
+		klog.InitFlags(klogFlags)
+		flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
+			f2 := klogFlags.Lookup(f1.Name)
+			if f2 != nil {
+				value := f1.Value.String()
+				f2.Value.Set(value)
+			}
+		})
+
 		fmt.Fprintf(ginkgo.GinkgoWriter, "** Test flags:\n")
 		flag.Visit(func(f *flag.Flag) {
 			fmt.Fprintf(ginkgo.GinkgoWriter, "   %s = %q\n", f.Name, f.Value.String())
