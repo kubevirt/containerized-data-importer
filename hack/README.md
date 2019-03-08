@@ -44,11 +44,15 @@ The standard workflow is performed inside a helper container to normalize the bu
     - `build-uploadserver`: compile cdi-uploadserver binary
     - `build-operator`: compile cdi-operator binary
     - No `build-cloner` target exists as the code is written in bash
-- `build-functest-image-init`: build the init container for the testing file server. (NOTE: the http and s3 components contain no CDI code, so do no require a build)
-- `build-functest-image-http` build the http container for the testing file server
+- `build-functest-file-image-init`: build the init container for the testing file server. (NOTE: the http and s3 components contain no CDI code, so do no require a build)
+- `build-functest-image-http`: build the http container for the testing file server
+- `build-functest-registry-init`: build the init container for the testing docker registry server
+- `docker-functest-registry-populate`: build the container that popuplates registry server with various container images 
+- `docker-functest-registry`: build the container that hosts docker registry
 - `clean`: cleans up previous build artifacts
 - `cluster-up`: start a default Kubernetes or Open Shift cluster. set KUBEVIRT_PROVIDER environment variable to either 'k8s-1.11.0' or 'os-3.11.0' to select the type of cluster. set KUBEVIRT_NUM_NODES to something higher than 1 to have more than one node.
 - `cluster-down`: stop the cluster, doing a make cluster-down && make cluster-up will basically restart the cluster into an empty fresh state.
+- `cluster-down-purge`: cluster-down and cleanup all cached images from docker registry. Accepts [make variables](#make-variables) DOCKER_REPO. Removes all images of the specified repository. If not specified removes localhost repository of current cluster instance.
 - `cluster-sync`: builds the controller/importer/cloner, and pushes it into a running cluster. The cluster must be up before running a cluster sync. Also generates a manifest and applies it to the running cluster after pushing the images to it.
     - `cluster-sync-controller`: builds the controller and pushes it into a running cluster. 
     - `cluster-sync-importer`: builds the importer and pushes it into a running cluster.
@@ -66,12 +70,13 @@ The standard workflow is performed inside a helper container to normalize the bu
     - `docker-uploadproxy`: compile cdi-uploadproxy and build cdi-uploadproxy image
     - `docker-uploadserver`: compile cdi-uploadserver and build cdi-uploadserver image
     - `docker-operator`: compile cdi-operator and build cdi-operator image
-    - `docker-functest-image`: compile and build the file host image for functional tests
+    - `docker-registry-cleanup`: remove all images of specifed repo from local docker registry. if not specified removes from localhost repo of current cluster instance. Accepts [make variables](#make-variables) DOCKER_REPO.  
+    - `docker-functest-images`: compile and build the file host and docker registry images for functional tests
         - `docker-functest-image-init`: compile and build the file host init image for functional tests
         - `docker-functest-image-http`: only build the file host http container for functional tests
         - `docker-functest-registry-init`:compile and build the registry init image for functional tests
-        - `docker-functest-registry-populate`: build registry-populate container for functional tests
-        - `docker-functest-registry`: build docker-registry container for functional tests
+        - `docker-functest-registry-populate`: only build registry-populate container for functional tests
+        - `docker-functest-registry`: only build docker-registry container for functional tests
         - Note: there is no target for the S3 container, an offical Minio container is used instead
 - `format`: execute `shfmt`, `goimports`, and `go vet` on all CDI packages.  Writes back to the source files.
 - `generate`: generate client-go deepcopy functions, clientset, listers and informers.
@@ -150,6 +155,11 @@ Clean Up
  # make cluster-down
 ```
 
+Clean Up with docker container cache cleanup
+To cleanup all container images from local registry and to free a considerable amount of disk space. Note: caveat - cluser-sync will take longer since will have to fetch all the data again 
+```
+ # make cluster-down-purge
+``` 
 #### Execute Alternative Environment Functional Tests
 
 If running in a non-standard environment such as Mac or Cloud where the *kubevirtci framework* is
@@ -163,7 +173,7 @@ not supported, then you can use the following example to run Functional Tests.
 
    - To generate latest manifests
    ```
-   # make manifests
+   # make manifests 
    ```
    *To customize environment variables see [make targets](#make-targets)*
 
@@ -178,12 +188,25 @@ not supported, then you can use the following example to run Functional Tests.
      customresourcedefinition.apiextensions.k8s.io/datavolumes.cdi.kubevirt.io created
    ```
 
-4. Run the host-file-server
-
-   - host-file-server is required by the functional tests and provides an
+4. Build and run the func test servers
+   In order to run fucntional tests the below servers have to be run
+   - *host-file-server* is required by the functional tests and provides an
      endpoint server for image files and s3 buckets
+   - *registry-server* is required by the functional tests and provides an endpoint server for container images.
+
+
+   Build and Push to registry 
    ```
-   # make docker-functest-image
+   # DOCKER_REPO=<repo> DOCKER_TAG=<tag> make docker-functest-images
+   ```
+   Generate manifests
+   ```
+   # DOCKER_REPO=<repo> DOCKER_TAG=<tag> make manifests 
+   ```
+   Run servers
+   ```
+   # ./cluster/kubectl.sh apply -f ./manifests/generated/file-host.yaml
+   # ./cluster/kubectl.sh apply -f ./manifests/generated/registry-host.yaml
    ```
 
 5. Run the tests
