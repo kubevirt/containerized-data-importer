@@ -52,19 +52,9 @@ EOF
 ### Minishift
 
 ```bash
-cat <<EOF | oc apply -f -
-apiVersion: v1
-kind: Route
-metadata:
-  name: cdi-uploadproxy
-  namespace: cdi
-spec:
-  to:
-    kind: Service
-    name: cdi-uploadproxy 
-  tls:
-    termination: passthrough
-EOF
+oc get secret -n cdi cdi-upload-proxy-ca-key -o=jsonpath="{.data['tls\.crt']}" | base64 -d > tls.crt && \
+oc create route reencrypt -n cdi --service=cdi-uploadproxy --dest-ca-cert=tls.crt && \
+rm tls.crt
 ```
 
 ### Port forwarding via the API server
