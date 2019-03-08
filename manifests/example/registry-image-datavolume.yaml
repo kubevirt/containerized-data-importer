@@ -5,7 +5,8 @@ metadata:
   name: registry-image-datavolume
 spec:
   source:
-      registry: "docker://kubevirt/fedora-cloud-registry-disk-demo"
+    registry:
+      url: "docker://kubevirt/fedora-cloud-registry-disk-demo"
   pvc:
     accessModes:
       - ReadWriteOnce
