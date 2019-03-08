@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/glog"
 	routev1 "github.com/openshift/api/route/v1"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions/route/v1"
 	routelisters "github.com/openshift/client-go/route/listers/route/v1"
@@ -19,6 +18,7 @@ import (
 	extensionlisters "k8s.io/client-go/listers/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/core/v1alpha1"
@@ -147,9 +147,9 @@ func (c *ConfigController) handleObject(obj interface{}, verb string) {
 			runtime.HandleError(errors.Errorf("error decoding object tombstone, invalid type"))
 			return
 		}
-		glog.V(3).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
+		klog.V(3).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
 	}
-	glog.V(3).Infof("Processing object: %s", object.GetName())
+	klog.V(3).Infof("Processing object: %s", object.GetName())
 
 	var config *cdiv1.CDIConfig
 	config, err := c.configLister.Get(c.configName)
@@ -213,7 +213,7 @@ func (c *ConfigController) processNextWorkItem() bool {
 		}
 
 		c.queue.Forget(obj)
-		glog.Infof("Successfully synced '%s'", key)
+		klog.Infof("Successfully synced '%s'", key)
 		return nil
 
 	}(obj)
@@ -290,7 +290,7 @@ func (c *ConfigController) syncHandler(key string) error {
 
 // Init is meant to be called synchroniously when the the controller is starting
 func (c *ConfigController) Init() error {
-	glog.V(3).Infoln("Creating CDI config if necessary")
+	klog.V(3).Infoln("Creating CDI config if necessary")
 
 	if err := EnsureCDIConfigExists(c.client, c.cdiClientSet, c.configName); err != nil {
 		runtime.HandleError(err)
@@ -306,7 +306,7 @@ func (c *ConfigController) Run(threadiness int, stopCh <-chan struct{}) error {
 		c.queue.ShutDown()
 	}()
 
-	glog.V(3).Infoln("Starting config controller Run loop")
+	klog.V(3).Infoln("Starting config controller Run loop")
 	if threadiness < 1 {
 		return errors.Errorf("expected >0 threads, got %d", threadiness)
 	}
@@ -315,15 +315,15 @@ func (c *ConfigController) Run(threadiness int, stopCh <-chan struct{}) error {
 		return errors.New("failed to wait for caches to sync")
 	}
 
-	glog.V(3).Infoln("ConfigController cache has synced")
+	klog.V(3).Infoln("ConfigController cache has synced")
 
 	for i := 0; i < threadiness; i++ {
 		go wait.Until(c.runWorker, time.Second, stopCh)
 	}
 
-	glog.Info("Started workers")
+	klog.Info("Started workers")
 	<-stopCh
-	glog.Info("Shutting down workers")
+	klog.Info("Shutting down workers")
 	return nil
 }
 

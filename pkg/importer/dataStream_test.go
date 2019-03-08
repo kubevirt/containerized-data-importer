@@ -4,12 +4,10 @@ import (
 	"bufio"
 	"context"
 	"crypto/x509"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -119,17 +117,18 @@ var _ = Describe("Data Stream", func() {
 		}
 		By(fmt.Sprintf("Creating new datastream for %s", image))
 		ds, err := NewDataStream(&DataStreamOptions{
-			dest,
-			"",
-			image,
-			accessKeyID,
-			secretKey,
-			controller.SourceHTTP,
-			contentType,
-			"",
-			int64(1234567890),
-			"",
-			false,
+			Dest:           dest,
+			DataDir:        "",
+			Endpoint:       image,
+			AccessKey:      accessKeyID,
+			SecKey:         secretKey,
+			Source:         controller.SourceHTTP,
+			ContentType:    contentType,
+			ImageSize:      "",
+			AvailableSpace: int64(1234567890),
+			CertDir:        "",
+			InsecureTLS:    false,
+			ScratchDataDir: "",
 		})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
@@ -159,17 +158,18 @@ var _ = Describe("Data Stream", func() {
 	It("can close all readers", func() {
 		By(fmt.Sprintf("Creating new datastream for %s", ts.URL+"/"+tinyCoreFileName))
 		ds, err := NewDataStream(&DataStreamOptions{
-			common.ImporterWritePath,
-			"",
-			ts.URL + "/" + tinyCoreFileName,
-			"",
-			"",
-			controller.SourceHTTP,
-			string(cdiv1.DataVolumeKubeVirt),
-			"1G",
-			int64(1234567890),
-			"",
-			false,
+			Dest:           common.ImporterWritePath,
+			DataDir:        "",
+			Endpoint:       ts.URL + "/" + tinyCoreFileName,
+			AccessKey:      "",
+			SecKey:         "",
+			Source:         controller.SourceHTTP,
+			ContentType:    string(cdiv1.DataVolumeKubeVirt),
+			ImageSize:      "1G",
+			AvailableSpace: int64(1234567890),
+			CertDir:        "",
+			InsecureTLS:    false,
+			ScratchDataDir: "",
 		})
 		Expect(err).NotTo(HaveOccurred())
 		By("Closing data stream")
@@ -183,17 +183,18 @@ var _ = Describe("Data Stream", func() {
 		}
 		By(fmt.Sprintf("Creating new datastream for %s", ep+"/"+image))
 		ds, err := NewDataStream(&DataStreamOptions{
-			common.ImporterWritePath,
-			"",
-			ep + "/" + image,
-			"",
-			"",
-			controller.SourceHTTP,
-			string(cdiv1.DataVolumeKubeVirt),
-			"20M",
-			int64(1234567890),
-			"",
-			false,
+			Dest:           common.ImporterWritePath,
+			DataDir:        "",
+			Endpoint:       ep + "/" + image,
+			AccessKey:      "",
+			SecKey:         "",
+			Source:         controller.SourceHTTP,
+			ContentType:    string(cdiv1.DataVolumeKubeVirt),
+			ImageSize:      "20M",
+			AvailableSpace: int64(1234567890),
+			CertDir:        "",
+			InsecureTLS:    false,
+			ScratchDataDir: "",
 		})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
@@ -220,17 +221,18 @@ var _ = Describe("Data Stream", func() {
 		}
 		By(fmt.Sprintf("Creating new datastream to %s", tempTestServer.URL+"/"+filepath.Base(filename)))
 		ds, err := NewDataStream(&DataStreamOptions{
-			dest,
-			"",
-			tempTestServer.URL + "/" + filepath.Base(filename),
-			"",
-			"",
-			controller.SourceHTTP,
-			contentType,
-			"20M",
-			int64(1234567890),
-			"",
-			false,
+			Dest:           dest,
+			DataDir:        "",
+			Endpoint:       tempTestServer.URL + "/" + filepath.Base(filename),
+			AccessKey:      "",
+			SecKey:         "",
+			Source:         controller.SourceHTTP,
+			ContentType:    contentType,
+			ImageSize:      "20M",
+			AvailableSpace: int64(1234567890),
+			CertDir:        "",
+			InsecureTLS:    false,
+			ScratchDataDir: "",
 		})
 		defer func() {
 			tempTestServer.Close()
@@ -261,6 +263,20 @@ var _ = Describe("Data Stream", func() {
 })
 
 var _ = Describe("SaveStream", func() {
+	var dataDir, tmpDir string
+	var err error
+
+	BeforeEach(func() {
+		dataDir, err = ioutil.TempDir("", "data-test")
+		Expect(err).NotTo(HaveOccurred())
+		tmpDir, err = ioutil.TempDir("", "scratch-test")
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		os.RemoveAll(dataDir)
+		os.RemoveAll(tmpDir)
+	})
 
 	It("Should successfully save the stream", func() {
 		defer os.Remove("testqcow2file")
@@ -268,23 +284,31 @@ var _ = Describe("SaveStream", func() {
 			rdr, err := os.Open(cirrosFilePath)
 			Expect(err).NotTo(HaveOccurred())
 			defer rdr.Close()
-			_, err = SaveStream(rdr, "testqcow2file")
+			_, err = SaveStream(rdr, "testqcow2file", filepath.Join(dataDir, "disk.img"), dataDir, tmpDir)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 })
 
 var _ = Describe("Copy", func() {
+	var tmpDir, dataDir string
+	var err error
 	var ts *httptest.Server
 
 	BeforeEach(func() {
 		By("[BeforeEach] Creating test server")
 		ts = createTestServer(imageDir)
+		dataDir, err = ioutil.TempDir("", "data-test")
+		Expect(err).NotTo(HaveOccurred())
+		tmpDir, err = ioutil.TempDir("", "copy-test")
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		By("[AfterEach] closing test server")
 		ts.Close()
+		os.RemoveAll(dataDir)
+		os.RemoveAll(tmpDir)
 	})
 
 	table.DescribeTable("Image, with import source should", func(dest, endpt string, qemuOperations image.QEMUOperations, wantErr bool) {
@@ -297,17 +321,18 @@ var _ = Describe("Copy", func() {
 		replaceQEMUOperations(qemuOperations, func() {
 			By("Copying image")
 			err := CopyData(&DataStreamOptions{
-				dest,
-				"",
-				endpt,
-				"",
-				"",
-				controller.SourceHTTP,
-				string(cdiv1.DataVolumeKubeVirt),
-				"",
-				int64(1234567890),
-				"",
-				false,
+				Dest:           dest,
+				DataDir:        dataDir,
+				Endpoint:       endpt,
+				AccessKey:      "",
+				SecKey:         "",
+				Source:         controller.SourceHTTP,
+				ContentType:    string(cdiv1.DataVolumeKubeVirt),
+				ImageSize:      "",
+				AvailableSpace: int64(1234567890),
+				CertDir:        "",
+				InsecureTLS:    false,
+				ScratchDataDir: tmpDir,
 			})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
@@ -325,7 +350,7 @@ var _ = Describe("Copy", func() {
 		table.Entry("streaming image qemu convert succeeds since there is no space validation on streaming", "cirros-qcow2.raw", "cirros-qcow2.img", NewFakeQEMUOperations(nil, nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, nil}, nil, nil), false),
 	)
 
-	table.DescribeTable("Archived image, with import source should", func(originalFile string, qemuOperations image.QEMUOperations, wantErr bool, expectFormats ...string) {
+	table.DescribeTable("Archived image, no scratch space, with import source should", func(originalFile string, qemuOperations image.QEMUOperations, wantErr bool, expectFormats ...string) {
 		baseTestImage := filepath.Join(imageDir, originalFile)
 		//createt test temp directory
 		tmpTestDir := testDir(os.TempDir())
@@ -347,17 +372,18 @@ var _ = Describe("Copy", func() {
 		replaceQEMUOperations(qemuOperations, func() {
 			By(fmt.Sprintf("Importing %q to %q", tempTestServer.URL, testTarget))
 			err = CopyData(&DataStreamOptions{
-				testTarget,
-				"",
-				tempTestServer.URL + "/" + testBase,
-				"",
-				"",
-				controller.SourceHTTP,
-				string(cdiv1.DataVolumeKubeVirt),
-				"1G",
-				int64(1234567890),
-				"",
-				false,
+				Dest:           testTarget,
+				DataDir:        "",
+				Endpoint:       tempTestServer.URL + "/" + testBase,
+				AccessKey:      "",
+				SecKey:         "",
+				Source:         controller.SourceHTTP,
+				ContentType:    string(cdiv1.DataVolumeKubeVirt),
+				ImageSize:      "1G",
+				AvailableSpace: int64(1234567890),
+				CertDir:        "",
+				InsecureTLS:    false,
+				ScratchDataDir: "",
 			})
 			if wantErr {
 				Expect(err).To(HaveOccurred())
@@ -377,10 +403,9 @@ var _ = Describe("Copy", func() {
 		table.Entry("should fails due to invalid size info in qcow2 info struct. Initial format .qcow2.xz", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, errors.New("Local image validation failed - no image size info is provided")}, nil, nil), true, image.ExtQcow2, image.ExtXz),
 		table.Entry("should fails due to invalid size info in qcow2 info struct. Initial format .qcow2.tar", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, errors.New("Local image validation failed - no image size info is provided")}, nil, nil), true, image.ExtQcow2, image.ExtTar),
 
-		//Should succeed
-		table.Entry("should succeed to convert  qcow2 to raw .qcow2.gz", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoRet, nil, nil), false, image.ExtQcow2, image.ExtGz),
-		table.Entry("should succeed to convert  qcow2 to raw .qcow2.xz", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoRet, nil, nil), false, image.ExtQcow2, image.ExtXz),
-		table.Entry("should succeed to convert  qcow2 to raw .qcow2.tar", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoRet, nil, nil), false, image.ExtQcow2, image.ExtTar),
+		table.Entry("should succeed to convert  qcow2 to raw .qcow2.gz", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, errors.New("Scratch space required, and none found ")}, nil, nil), true, image.ExtQcow2, image.ExtGz),
+		table.Entry("should succeed to convert  qcow2 to raw .qcow2.xz", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, errors.New("Scratch space required, and none found ")}, nil, nil), true, image.ExtQcow2, image.ExtXz),
+		table.Entry("should succeed to convert  qcow2 to raw .qcow2.tar", "tinyCore.iso", NewFakeQEMUOperations(nil, nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, errors.New("Scratch space required, and none found ")}, nil, nil), true, image.ExtQcow2, image.ExtTar),
 	)
 })
 
@@ -491,23 +516,6 @@ var _ = Describe("close readers", func() {
 	It("Should successfully close readers", func() {
 		err := closeReaders(rdrsTest)
 		Expect(err).NotTo(HaveOccurred())
-	})
-})
-
-var _ = Describe("Random file name", func() {
-	const numbyte = 8
-
-	It("create expected random name", func() {
-		randName := make([]byte, numbyte)
-		rand.Read(randName)
-		wantString := hex.EncodeToString(randName)
-
-		got := randTmpName("testfile.img")
-		base, fn := filepath.Split(got)
-
-		Expect(len(fn)).To(Equal(len("testfile.img") + len(wantString)))
-		Expect(filepath.Clean(base)).To(Equal(filepath.Dir("testfile.img")))
-		Expect(filepath.Ext(fn)).To(Equal(".img"))
 	})
 })
 

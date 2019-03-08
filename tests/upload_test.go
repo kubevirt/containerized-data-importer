@@ -12,6 +12,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/onsi/ginkgo/extensions/table"
 
@@ -100,6 +102,13 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			_, err = f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5)
 			Expect(err).To(HaveOccurred())
 		} else {
+			Eventually(func() bool {
+				_, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(utils.UploadPodName(pvc), metav1.GetOptions{})
+				if err != nil && k8serrors.IsNotFound(err) {
+					return false
+				}
+				return true
+			}, 90*time.Second, 2*time.Second).Should(BeFalse())
 			By("Verify content")
 			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5)
 			Expect(err).ToNot(HaveOccurred())

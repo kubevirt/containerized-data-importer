@@ -79,7 +79,6 @@ func (f *uploadFixture) newController() (*UploadController, kubeinformers.Shared
 	}
 
 	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
-
 	i := kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
 
 	pvcInformer := i.Core().V1().PersistentVolumeClaims()
@@ -177,6 +176,11 @@ func (f *uploadFixture) expectDeletePodAction(p *corev1.Pod) {
 		core.NewDeleteAction(schema.GroupVersionResource{Resource: "pods", Version: "v1"}, p.Namespace, p.Name))
 }
 
+func (f *uploadFixture) expectDeletePvcAction(pvc *corev1.PersistentVolumeClaim) {
+	f.kubeactions = append(f.kubeactions,
+		core.NewDeleteAction(schema.GroupVersionResource{Resource: "persistentvolumeclaims", Version: "v1"}, pvc.Namespace, pvc.Name))
+}
+
 func (f *uploadFixture) expectCreateServiceAction(s *corev1.Service) {
 	f.kubeactions = append(f.kubeactions,
 		core.NewCreateAction(schema.GroupVersionResource{Resource: "services", Version: "v1"}, s.Namespace, s))
@@ -187,9 +191,19 @@ func (f *uploadFixture) expectDeleteServiceAction(s *corev1.Service) {
 		core.NewDeleteAction(schema.GroupVersionResource{Resource: "services", Version: "v1"}, s.Namespace, s.Name))
 }
 
+func (f *uploadFixture) expectCreatePvcAction(pvc *corev1.PersistentVolumeClaim) {
+	f.kubeactions = append(f.kubeactions,
+		core.NewCreateAction(schema.GroupVersionResource{Resource: "persistentvolumeclaims", Version: "v1"}, pvc.Namespace, pvc))
+}
+
 func (f *uploadFixture) expectUpdatePvcAction(pvc *corev1.PersistentVolumeClaim) {
 	f.kubeactions = append(f.kubeactions,
 		core.NewUpdateAction(schema.GroupVersionResource{Resource: "persistentvolumeclaims", Version: "v1"}, pvc.Namespace, pvc))
+}
+
+func (f *uploadFixture) expectListStorageClass() {
+	f.kubeactions = append(f.kubeactions,
+		core.NewRootListAction(schema.GroupVersionResource{Resource: "storageclasses", Version: "v1"}, schema.GroupVersionKind{Group: "storage.k8s.io", Version: "v1", Kind: "StorageClass"}, metav1.ListOptions{}))
 }
 
 // really should be expect keystore actions but they are the only secrets created for now
@@ -291,16 +305,21 @@ func filterSecretGetAndCreateActions(filterNamespace string, actions []core.Acti
 
 func TestCreatesUploadPodAndService(t *testing.T) {
 	f := newUploadFixture(t)
-	pvc := createPvc("testPvc1", "default", map[string]string{uploadRequestAnnotation: ""}, nil)
-
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	f.expectSecretActions("default", 1, 1)
-
+	storageClassName := "test"
+	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{uploadRequestAnnotation: ""}, nil)
 	pod := createUploadPod(pvc)
 	pod.Namespace = ""
+	scratchPvc := createScratchPvc(pvc, pod, storageClassName)
 	f.expectCreatePodAction(pod)
+
+	f.podLister = append(f.podLister, pod)
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+	f.kubeobjects = append(f.kubeobjects, pod)
+
+	f.expectListStorageClass()
+	f.expectCreatePvcAction(scratchPvc)
+	f.expectSecretActions("default", 1, 1)
 
 	service := createUploadService(pvc)
 	service.Namespace = ""
@@ -312,9 +331,11 @@ func TestCreatesUploadPodAndService(t *testing.T) {
 
 func TestUpdatePodPhase(t *testing.T) {
 	f := newUploadFixture(t)
-	pvc := createPvc("testPvc1", "default", map[string]string{uploadRequestAnnotation: ""}, nil)
+	storageClassName := "test"
+	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{uploadRequestAnnotation: ""}, nil)
 	pod := createUploadPod(pvc)
 	service := createUploadService(pvc)
+	scratchPvc := createScratchPvc(pvc, pod, storageClassName)
 
 	pod.Status.Phase = corev1.PodRunning
 
@@ -330,6 +351,8 @@ func TestUpdatePodPhase(t *testing.T) {
 	updatedPVC := pvc.DeepCopy()
 	updatedPVC.Annotations[podPhaseAnnotation] = string(corev1.PodRunning)
 
+	f.expectListStorageClass()
+	f.expectCreatePvcAction(scratchPvc)
 	f.expectUpdatePvcAction(updatedPVC)
 
 	f.run(getPvcKey(pvc, t))
@@ -337,14 +360,18 @@ func TestUpdatePodPhase(t *testing.T) {
 
 func TestUploadComplete(t *testing.T) {
 	f := newUploadFixture(t)
-	pvc := createPvc("testPvc1", "default", map[string]string{uploadRequestAnnotation: "", podPhaseAnnotation: "Running"}, nil)
+	storageClassName := "test"
+	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{uploadRequestAnnotation: "", podPhaseAnnotation: "Running"}, nil)
 	pod := createUploadPod(pvc)
+	scratchPvc := createScratchPvc(pvc, pod, storageClassName)
 	service := createUploadService(pvc)
 
 	pod.Status.Phase = corev1.PodSucceeded
 
 	f.pvcLister = append(f.pvcLister, pvc)
+	f.pvcLister = append(f.pvcLister, scratchPvc)
 	f.kubeobjects = append(f.kubeobjects, pvc)
+	f.kubeobjects = append(f.kubeobjects, scratchPvc)
 
 	f.podLister = append(f.podLister, pod)
 	f.kubeobjects = append(f.kubeobjects, pod)
@@ -363,10 +390,15 @@ func TestUploadComplete(t *testing.T) {
 
 func TestSucceededDoNothing(t *testing.T) {
 	f := newUploadFixture(t)
-	pvc := createPvc("testPvc1", "default", map[string]string{uploadRequestAnnotation: "", podPhaseAnnotation: "Succeeded"}, nil)
+	storageClassName := "test"
+	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{uploadRequestAnnotation: "", podPhaseAnnotation: "Succeeded"}, nil)
+	pod := createUploadPod(pvc)
+	scratchPvc := createScratchPvc(pvc, pod, storageClassName)
 
 	f.pvcLister = append(f.pvcLister, pvc)
+	f.pvcLister = append(f.pvcLister, scratchPvc)
 	f.kubeobjects = append(f.kubeobjects, pvc)
+	f.kubeobjects = append(f.kubeobjects, scratchPvc)
 
 	f.run(getPvcKey(pvc, t))
 }

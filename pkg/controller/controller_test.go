@@ -135,3 +135,13 @@ func (f *ControllerFixture) expectCreatePodAction(d *corev1.Pod) {
 func (f *ControllerFixture) expectUpdatePvcAction(d *corev1.PersistentVolumeClaim) {
 	f.kubeactions = append(f.kubeactions, core.NewUpdateAction(schema.GroupVersionResource{Resource: "persistentvolumeclaims", Version: "v1"}, d.Namespace, d))
 }
+
+func (f *ControllerFixture) expectDeletePvcAction(pvc *corev1.PersistentVolumeClaim) {
+	f.kubeactions = append(f.kubeactions,
+		core.NewDeleteAction(schema.GroupVersionResource{Resource: "persistentvolumeclaims", Version: "v1"}, pvc.Namespace, pvc.Name))
+}
+
+func (f *ControllerFixture) expectDeletePodAction(p *corev1.Pod) {
+	f.kubeactions = append(f.kubeactions,
+		core.NewDeleteAction(schema.GroupVersionResource{Resource: "pods", Version: "v1"}, p.Namespace, p.Name))
+}

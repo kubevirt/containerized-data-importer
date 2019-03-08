@@ -25,17 +25,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/golang/glog"
 	"github.com/pkg/errors"
-
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/klog"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/system"
 	"kubevirt.io/containerized-data-importer/pkg/util"
-
-	dto "github.com/prometheus/client_model/go"
-
-	"github.com/prometheus/client_golang/prometheus"
-	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 const (
@@ -152,7 +149,7 @@ func (o *qemuOperations) Info(image string) (*ImgInfo, error) {
 	var info ImgInfo
 	err = json.Unmarshal(output, &info)
 	if err != nil {
-		glog.Errorf("Invalid JSON:\n%s\n", string(output))
+		klog.Errorf("Invalid JSON:\n%s\n", string(output))
 		return nil, errors.Wrapf(err, "Invalid json for image %s", image)
 	}
 	return &info, nil
@@ -198,7 +195,7 @@ func reportProgress(line string) {
 	// (45.34/100%)
 	matches := re.FindStringSubmatch(line)
 	if len(matches) == 2 && ownerUID != "" {
-		glog.V(1).Info(matches[1])
+		klog.V(1).Info(matches[1])
 		// Don't need to check for an error, the regex made sure its a number we can parse.
 		v, _ := strconv.ParseFloat(matches[1], 64)
 		metric := &dto.Metric{}
@@ -211,13 +208,13 @@ func reportProgress(line string) {
 
 // CreateBlankImage creates empty raw image
 func CreateBlankImage(dest string, size resource.Quantity) error {
-	glog.V(1).Infof("creating raw image with size %s", size.String())
+	klog.V(1).Infof("creating raw image with size %s", size.String())
 	return qemuIterface.CreateBlankImage(dest, size)
 }
 
 // CreateBlankImage creates a raw image with a given size
 func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity) error {
-	glog.V(3).Infof("image size is %s", size.String())
+	klog.V(3).Infof("image size is %s", size.String())
 	_, err := qemuExecFunction(nil, nil, "qemu-img", "create", "-f", "raw", dest, convertQuantityToQemuSize(size))
 	if err != nil {
 		os.Remove(dest)
