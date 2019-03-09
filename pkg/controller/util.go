@@ -858,6 +858,7 @@ func MakePodOwnerReference(pod *v1.Pod) metav1.OwnerReference {
 
 // MakeUploadPodSpec creates upload service pod manifest
 func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.PersistentVolumeClaim, scratchName, secretName string) *v1.Pod {
+	requestImageSize, _ := getRequestedImageSize(pvc)
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -926,6 +927,10 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 									Key: keys.KeyStoreTLSCAFile,
 								},
 							},
+						},
+						{
+							Name:  common.UploadImageSize,
+							Value: requestImageSize,
 						},
 					},
 					Args: []string{"-v=" + verbose},

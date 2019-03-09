@@ -454,8 +454,8 @@ func CopyData(dso *DataStreamOptions) error {
 }
 
 // SaveStream reads from a stream and saves data to dest
-func SaveStream(stream io.ReadCloser, dest string, diskImageFileName, dataPath, scratchPath string) (int64, error) {
-	klog.V(1).Infof("Saving stream to %q...\n", dest)
+func SaveStream(stream io.ReadCloser, dest string, diskImageFileName, dataPath, scratchPath, imageSize string) (int64, error) {
+	klog.V(1).Infof("Saving stream to %q, size %s...\n", dest, imageSize)
 	ds, err := newDataStream(&DataStreamOptions{
 		Dest:           diskImageFileName,
 		DataDir:        dataPath,
@@ -464,7 +464,7 @@ func SaveStream(stream io.ReadCloser, dest string, diskImageFileName, dataPath, 
 		SecKey:         "",
 		Source:         controller.SourceHTTP,
 		ContentType:    string(cdiv1.DataVolumeKubeVirt),
-		ImageSize:      "", // Blank means don't resize
+		ImageSize:      imageSize,
 		AvailableSpace: util.GetAvailableSpace(dataPath),
 		CertDir:        "",
 		InsecureTLS:    false,
@@ -482,8 +482,8 @@ func SaveStream(stream io.ReadCloser, dest string, diskImageFileName, dataPath, 
 }
 
 // DefaultSaveStream reads from a stream and saves data to dest using the default disk image/data/scratch paths
-func DefaultSaveStream(stream io.ReadCloser, dest string) (int64, error) {
-	return SaveStream(stream, dest, common.ImporterWritePath, common.ImporterVolumePath, common.ScratchDataDir)
+func DefaultSaveStream(stream io.ReadCloser, dest, imageSize string) (int64, error) {
+	return SaveStream(stream, dest, common.ImporterWritePath, common.ImporterVolumePath, common.ScratchDataDir, imageSize)
 }
 
 // ResizeImage resizes the images to match the requested size. Sometimes provisioners misbehave and the available space

@@ -58,6 +58,7 @@ type uploadServerApp struct {
 	clientCert  string
 	keyFile     string
 	certFile    string
+	imageSize   string
 	mux         *http.ServeMux
 	uploading   bool
 	done        bool
@@ -74,7 +75,7 @@ func GetUploadServerURL(namespace, pvc string) string {
 }
 
 // NewUploadServer returns a new instance of uploadServerApp
-func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsCert, clientCert string) UploadServer {
+func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsCert, clientCert, imageSize string) UploadServer {
 	server := &uploadServerApp{
 		bindAddress: bindAddress,
 		bindPort:    bindPort,
@@ -82,6 +83,7 @@ func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsC
 		tlsKey:      tlsKey,
 		tlsCert:     tlsCert,
 		clientCert:  clientCert,
+		imageSize:   imageSize,
 		mux:         http.NewServeMux(),
 		uploading:   false,
 		done:        false,
@@ -231,7 +233,7 @@ func (app *uploadServerApp) uploadHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	sz, err := saveStremFunc(r.Body, app.destination)
+	sz, err := saveStremFunc(r.Body, app.destination, app.imageSize)
 
 	app.mutex.Lock()
 	defer app.mutex.Unlock()

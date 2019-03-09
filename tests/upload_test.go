@@ -113,6 +113,9 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
+			fileSize, err := f.RunCommandAndCaptureOutput(pvc, "stat -c \"%s\" /pvc/disk.img")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(fileSize).To(Equal("1073741824")) // 1G
 		}
 	},
 		table.Entry("[test_id:1368]succeed given a valid token", true, http.StatusOK),
@@ -137,7 +140,7 @@ func startUploadProxyPortForward(f *framework.Framework) (string, *exec.Cmd, err
 func uploadImage(portForwardURL, token string, expectedStatus int) error {
 	url := portForwardURL + "/v1alpha1/upload"
 
-	f, err := os.Open("./images/tinyCore.iso")
+	f, err := os.Open("./images/cirros-qcow2.img")
 	if err != nil {
 		return err
 	}

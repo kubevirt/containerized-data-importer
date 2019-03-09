@@ -1587,6 +1587,7 @@ func getPvcKey(pvc *corev1.PersistentVolumeClaim, t *testing.T) string {
 func createUploadPod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	name := "cdi-upload-" + pvc.Name
 	secretName := name + "-server-tls"
+	requestImageSize, _ := getRequestedImageSize(pvc)
 
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -1657,6 +1658,10 @@ func createUploadPod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
 									Key: keys.KeyStoreTLSCAFile,
 								},
 							},
+						},
+						{
+							Name:  common.UploadImageSize,
+							Value: requestImageSize,
 						},
 					},
 					Args: []string{"-v=" + "5"},
