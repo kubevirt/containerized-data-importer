@@ -17,7 +17,6 @@ limitations under the License.
 package image
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -128,49 +127,6 @@ func (o *qemuOperations) Resize(image string, size resource.Quantity) error {
 	_, err := qemuExecFunction(nil, nil, "qemu-img", "resize", "-f", "raw", image, convertQuantityToQemuSize(size))
 	if err != nil {
 		return errors.Wrapf(err, "Error resizing image %s", image)
-	}
-	return nil
-}
-
-func (o *qemuOperations) Info(image string) (*ImgInfo, error) {
-	url, err := url.Parse(image)
-	var output []byte
-
-	if url != nil && len(url.Scheme) > 0 {
-		// Image is a URL, make sure the timeout is long enough.
-		jsonArg := fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", url.Scheme, url, networkTimeoutSecs)
-		output, err = qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", jsonArg)
-	} else {
-		output, err = qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", image)
-	}
-	if err != nil {
-		return nil, errors.Wrapf(err, "Error getting info on image %s", image)
-	}
-	var info ImgInfo
-	err = json.Unmarshal(output, &info)
-	if err != nil {
-		klog.Errorf("Invalid JSON:\n%s\n", string(output))
-		return nil, errors.Wrapf(err, "Invalid json for image %s", image)
-	}
-	return &info, nil
-}
-
-func (o *qemuOperations) Validate(image, format string, availableSize int64) error {
-	info, err := o.Info(image)
-	if err != nil {
-		return err
-	}
-
-	if info.Format != format {
-		return errors.Errorf("Invalid format %s for image %s", info.Format, image)
-	}
-
-	if len(info.BackingFile) > 0 {
-		return errors.Errorf("Image %s is invalid because it has backing file %s", image, info.BackingFile)
-	}
-
-	if availableSize < info.VirtualSize {
-		return errors.Errorf("Virtual image size %d is larger than available size %d, shrink not yet supported.", info.VirtualSize, availableSize)
 	}
 	return nil
 }
