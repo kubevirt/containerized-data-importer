@@ -227,6 +227,7 @@ func (c *ConfigController) processNextWorkItem() bool {
 }
 
 func (c *ConfigController) syncHandler(key string) error {
+	updateConfig := false
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		runtime.HandleError(errors.Errorf("invalid resource key: %s", key))
@@ -267,25 +268,63 @@ func (c *ConfigController) syncHandler(key string) error {
 			}
 		}
 	}
+
 	if (config.Status.UploadProxyURL != nil && url == *config.Status.UploadProxyURL) || (config.Status.UploadProxyURL == nil && url == "") {
-		//status already stores the URL
-		return nil
-	}
-
-	newConfig := config.DeepCopy()
-	// mutate newConfig
-	if url == "" {
-		newConfig.Status.UploadProxyURL = nil
+		updateConfig = false
 	} else {
-		newConfig.Status.UploadProxyURL = &url
+		updateConfig = true
+	}
+	newConfig := config.DeepCopy()
+	if updateConfig {
+		// mutate newConfig
+		if url == "" {
+			newConfig.Status.UploadProxyURL = nil
+		} else {
+			newConfig.Status.UploadProxyURL = &url
+		}
 	}
 
-	err = updateCDIConfig(c.cdiClientSet, newConfig)
-	if err != nil {
-		return fmt.Errorf("Error updating CDI Config %s: %s", key, err)
+	storageClass, err := c.scratchSpaceStorageClassStatus(config)
+
+	if storageClass == config.Status.ScratchSpaceStorageClass {
+		updateConfig = updateConfig || false
+	} else {
+		newConfig.Status.ScratchSpaceStorageClass = storageClass
+		updateConfig = true
+	}
+
+	if updateConfig {
+		err = updateCDIConfig(c.cdiClientSet, newConfig)
+		if err != nil {
+			return fmt.Errorf("Error updating CDI Config %s: %s", key, err)
+		}
 	}
 
 	return nil
+}
+
+func (c *ConfigController) scratchSpaceStorageClassStatus(config *cdiv1.CDIConfig) (string, error) {
+	storageClassList, err := c.client.StorageV1().StorageClasses().List(metav1.ListOptions{})
+	if err != nil {
+		klog.Warningf("Unable to find storage classes, %v\n", err)
+	}
+	// Check config for scratch space class
+	if config.Spec.ScratchSpaceStorageClass != nil {
+		for _, storageClass := range storageClassList.Items {
+			if storageClass.Name == *config.Spec.ScratchSpaceStorageClass {
+				return storageClass.Name, nil
+			}
+		}
+	}
+	// Check for default storage class.
+	for _, storageClass := range storageClassList.Items {
+		if defaultClassValue, ok := storageClass.Annotations[AnnDefaultStorageClass]; ok {
+			if defaultClassValue == "true" {
+				return storageClass.Name, nil
+			}
+		}
+	}
+	return "", nil
 }
 
 // Init is meant to be called synchroniously when the the controller is starting

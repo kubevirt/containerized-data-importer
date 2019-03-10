@@ -8,6 +8,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -20,6 +21,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
@@ -848,7 +850,7 @@ func TestMakeCDIConfigSpec(t *testing.T) {
 	type args struct {
 		name string
 	}
-	config := createCDIConfig("testConfig")
+	config := createCDIConfigWithStorageClass("testConfig", "")
 
 	tests := []struct {
 		name          string
@@ -1012,6 +1014,78 @@ func Test_getInsecureTLS(t *testing.T) {
 		if result != arg.result {
 			t.Errorf("Expected %t got %t", arg.result, result)
 		}
+	}
+}
+
+func Test_GetScratchPvcStorageClassDefault(t *testing.T) {
+	var objs []runtime.Object
+	objs = append(objs, createStorageClass("test1", nil))
+	objs = append(objs, createStorageClass("test2", nil))
+	objs = append(objs, createStorageClass("test3", map[string]string{
+		AnnDefaultStorageClass: "true",
+	}))
+	client := k8sfake.NewSimpleClientset(objs...)
+
+	storageClassName := "test3"
+	var cdiObjs []runtime.Object
+	cdiObjs = append(cdiObjs, createCDIConfigWithStorageClass(common.ConfigName, storageClassName))
+	cdiclient := cdifake.NewSimpleClientset(cdiObjs...)
+
+	pvc := createPvc("test", "test", nil, nil)
+	result, err := GetScratchPvcStorageClass(client, cdiclient, pvc)
+
+	if err != nil {
+		t.Errorf("Enexpected error %+v", err)
+	}
+	if result != storageClassName {
+		t.Error("Storage class is not test3")
+	}
+}
+
+func Test_GetScratchPvcStorageClassConfig(t *testing.T) {
+	var objs []runtime.Object
+	objs = append(objs, createStorageClass("test1", nil))
+	objs = append(objs, createStorageClass("test2", nil))
+	objs = append(objs, createStorageClass("test3", map[string]string{
+		AnnDefaultStorageClass: "true",
+	}))
+	client := k8sfake.NewSimpleClientset(objs...)
+
+	storageClassName := "test1"
+	var cdiObjs []runtime.Object
+	config := createCDIConfigWithStorageClass(common.ConfigName, storageClassName)
+	config.Spec.ScratchSpaceStorageClass = &storageClassName
+	cdiObjs = append(cdiObjs, config)
+	cdiclient := cdifake.NewSimpleClientset(cdiObjs...)
+
+	pvc := createPvc("test", "test", nil, nil)
+	result, err := GetScratchPvcStorageClass(client, cdiclient, pvc)
+
+	if err != nil {
+		t.Errorf("Enexpected error %+v", err)
+	}
+	if result != storageClassName {
+		t.Error("Storage class is not test1")
+	}
+}
+
+func Test_GetScratchPvcStorageClassPvc(t *testing.T) {
+	var objs []runtime.Object
+	client := k8sfake.NewSimpleClientset(objs...)
+
+	storageClass := "storageClass"
+	var cdiObjs []runtime.Object
+	cdiObjs = append(cdiObjs, createCDIConfigWithStorageClass(common.ConfigName, storageClass))
+	cdiclient := cdifake.NewSimpleClientset(cdiObjs...)
+
+	pvc := createPvcInStorageClass("test", "test", &storageClass, nil, nil)
+	result, err := GetScratchPvcStorageClass(client, cdiclient, pvc)
+
+	if err != nil {
+		t.Errorf("Enexpected error %+v", err)
+	}
+	if result != storageClass {
+		t.Error("Storage class is not storageClass")
 	}
 }
 
@@ -1297,6 +1371,7 @@ func createEnv(podEnvVar *importPodEnvVar, uid string) []v1.EnvVar {
 func createImportController(pvcSpec *v1.PersistentVolumeClaim, podSpec *v1.Pod, ns string) (*ImportController, *v1.PersistentVolumeClaim, *v1.Pod, error) {
 	//Set up environment
 	myclient := k8sfake.NewSimpleClientset()
+	cdiclient := cdifake.NewSimpleClientset()
 
 	//create staging pvc and pod
 	pvc, err := myclient.CoreV1().PersistentVolumeClaims(ns).Create(pvcSpec)
@@ -1329,7 +1404,7 @@ func createImportController(pvcSpec *v1.PersistentVolumeClaim, podSpec *v1.Pod, 
 	cache.WaitForCacheSync(stop, pvcInformer.Informer().HasSynced)
 	defer close(stop)
 
-	c := NewImportController(myclient, pvcInformer, podInformer, "test/image", "Always", "-v=5")
+	c := NewImportController(myclient, cdiclient, pvcInformer, podInformer, "test/image", "Always", "-v=5")
 	return c, pvc, pod, nil
 }
 
@@ -1756,6 +1831,10 @@ func createUploadService(pvc *v1.PersistentVolumeClaim) *v1.Service {
 }
 
 func createCDIConfig(name string) *cdiv1.CDIConfig {
+	return createCDIConfigWithStorageClass(name, "")
+}
+
+func createCDIConfigWithStorageClass(name string, storageClass string) *cdiv1.CDIConfig {
 	return &cdiv1.CDIConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -1763,6 +1842,18 @@ func createCDIConfig(name string) *cdiv1.CDIConfig {
 				common.CDILabelKey:       common.CDILabelValue,
 				common.CDIComponentLabel: "",
 			},
+		},
+		Status: cdiv1.CDIConfigStatus{
+			ScratchSpaceStorageClass: storageClass,
+		},
+	}
+}
+
+func createStorageClass(name string, annotations map[string]string) *storagev1.StorageClass {
+	return &storagev1.StorageClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Annotations: annotations,
 		},
 	}
 }

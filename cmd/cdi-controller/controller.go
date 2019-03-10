@@ -140,7 +140,9 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		pvcInformer,
 		dataVolumeInformer)
 
-	importController := controller.NewImportController(client,
+	importController := controller.NewImportController(
+		client,
+		cdiClient,
 		pvcInformer,
 		podInformer,
 		importerImage,
@@ -154,7 +156,9 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		pullPolicy,
 		verbose)
 
-	uploadController := controller.NewUploadController(client,
+	uploadController := controller.NewUploadController(
+		client,
+		cdiClient,
 		pvcInformer,
 		podInformer,
 		serviceInformer,

@@ -14,6 +14,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	k8stesting "k8s.io/client-go/tools/cache/testing"
 
+	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
+
 	. "kubevirt.io/containerized-data-importer/pkg/common"
 	. "kubevirt.io/containerized-data-importer/pkg/controller"
 )
@@ -31,11 +33,12 @@ var verboseDebug = fmt.Sprintf("%d", 3)
 
 var _ = Describe("Import Controller", func() {
 	var (
-		controller *ImportController
-		fakeClient *fake.Clientset
-		pvcSource  *k8stesting.FakePVCControllerSource
-		podSource  *k8stesting.FakeControllerSource
-		stop       chan struct{}
+		controller    *ImportController
+		fakeClient    *fake.Clientset
+		fakeCdiClient *cdifake.Clientset
+		pvcSource     *k8stesting.FakePVCControllerSource
+		podSource     *k8stesting.FakeControllerSource
+		stop          chan struct{}
 	)
 
 	setUpInformers := func(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, ns string, op operation, stop <-chan struct{}) {
@@ -57,7 +60,7 @@ var _ = Describe("Import Controller", func() {
 		pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims()
 		podInformer := podInformerFactory.Core().V1().Pods()
 
-		controller = NewImportController(fakeClient, pvcInformer, podInformer, IMPORTER_DEFAULT_IMAGE, DefaultPullPolicy, verboseDebug)
+		controller = NewImportController(fakeClient, fakeCdiClient, pvcInformer, podInformer, IMPORTER_DEFAULT_IMAGE, DefaultPullPolicy, verboseDebug)
 
 		go pvcInformerFactory.Start(stop)
 		go podInformerFactory.Start(stop)
@@ -68,6 +71,8 @@ var _ = Describe("Import Controller", func() {
 	BeforeEach(func() {
 		By("Setting up new fake kubernetes client")
 		fakeClient = fake.NewSimpleClientset()
+		By("Setting up new fake cdi client")
+		fakeCdiClient = cdifake.NewSimpleClientset()
 		stop = make(chan struct{})
 
 		By("Setting up new fake controller sources")

@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
+	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
@@ -39,6 +40,7 @@ const (
 
 // ImportController represents a CDI Import Controller
 type ImportController struct {
+	cdiClient clientset.Interface
 	Controller
 }
 
@@ -50,12 +52,14 @@ type importPodEnvVar struct {
 // NewImportController sets up an Import Controller, and returns a pointer to
 // the newly created Import Controller
 func NewImportController(client kubernetes.Interface,
+	cdiClientSet clientset.Interface,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	podInformer coreinformers.PodInformer,
 	image string,
 	pullPolicy string,
 	verbose string) *ImportController {
 	c := &ImportController{
+		cdiClient:  cdiClientSet,
 		Controller: *NewController(client, pvcInformer, podInformer, image, pullPolicy, verbose),
 	}
 	return c
@@ -229,7 +233,7 @@ func (ic *ImportController) createScratchPvcForPod(pvc *v1.PersistentVolumeClaim
 		return err
 	}
 	if scratchPvc == nil {
-		storageClassName, err := GetScratchPvcStorageClass(ic.clientset, pvc)
+		storageClassName, err := GetScratchPvcStorageClass(ic.clientset, ic.cdiClient, pvc)
 		if err != nil {
 			return err
 		}
