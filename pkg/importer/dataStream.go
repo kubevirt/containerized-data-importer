@@ -863,19 +863,29 @@ func (d *DataStream) calculateTargetSize(dest string) int64 {
 	return targetSize
 }
 
-func (d *DataStream) convertQcow2ToRawStream(dest string) error {
-	klog.V(3).Infoln("Validating qcow2 file")
-
-	err := qemuOperations.Validate(d.url.String(), "qcow2", d.calculateTargetSize(dest))
-	if err != nil {
-		return errors.Wrap(err, "Streaming image validation failed")
+func (d *DataStream) streamFileToDest(dest string) error {
+	if !d.isIsoImage {
+		klog.V(3).Infoln("Validating qcow2 file")
+		err := qemuOperations.Validate(d.url.String(), "qcow2", d.calculateTargetSize(dest))
+		if err != nil {
+			return errors.Wrap(err, "Streaming image validation failed")
+		}
+		klog.V(3).Infoln("Doing streaming qcow2 to raw conversion")
+		err = qemuOperations.ConvertQcow2ToRawStream(d.url, dest)
+		if err != nil {
+			return errors.Wrap(err, "Streaming qcow2 to raw conversion failed")
+		}
+	} else {
+		klog.V(3).Infoln("Validating raw file")
+		err := qemuOperations.Validate(d.url.String(), "raw", d.calculateTargetSize(dest))
+		if err != nil {
+			return errors.Wrap(err, "Streaming image validation failed")
+		}
+		err = StreamDataToFile(d.topReader(), dest)
+		if err != nil {
+			return err
+		}
 	}
-	klog.V(3).Infoln("Doing streaming qcow2 to raw conversion")
-	err = qemuOperations.ConvertQcow2ToRawStream(d.url, dest)
-	if err != nil {
-		return errors.Wrap(err, "Streaming qcow2 to raw conversion failed")
-	}
-
 	return nil
 }
 
@@ -899,8 +909,9 @@ func (d *DataStream) copy(dest string) error {
 	if util.GetAvailableSpace(d.ScratchDataDir) > int64(0) {
 		defer CleanDir(d.ScratchDataDir)
 	}
-	if d.isHTTPQcow2() {
-		err := d.convertQcow2ToRawStream(dest)
+	var err error
+	if d.isHTTPQcow2() || d.isIsoImage {
+		err = d.streamFileToDest(dest)
 		if err != nil {
 			return err
 		}
@@ -938,7 +949,6 @@ func (d *DataStream) copy(dest string) error {
 			return errors.Wrap(err, "Resize of image failed")
 		}
 	}
-
 	return nil
 }
 
