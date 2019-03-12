@@ -26,8 +26,10 @@ import (
 
 //StreamContext - allows cleanup of temporary data created by specific import method
 type StreamContext interface {
-	getDataFilePath() string //returns a path to retrieved data file in case it is stored
-	cleanup() error          //frees all resources allocated by specifc importer for temporary usage
+	getDataFilePath() string  //returns a path to retrieved data file in case it is stored
+	isEncryptedChannel() bool //return true if the data is streamed from encrypted channel
+	isRemoteStreaming() bool  //return true if the data is streamed form remote endpoint and not from locally saved
+	cleanup() error           //frees all resources allocated by specifc importer for temporary usage
 }
 
 //Streamer - generic interface that defines streaming method API

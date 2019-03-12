@@ -25,7 +25,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/url"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -44,7 +43,7 @@ import (
 // DataStreamInterface provides our interface definition required to fulfill a DataStream
 type DataStreamInterface interface {
 	dataStreamSelector() error
-	fileFormatSelector(h *image.Header) error
+	fileFormatSelector(h *image.Header, dataFormat *GenericDataFormat) error
 	parseDataPath() (string, string)
 	Read(p []byte) (int, error)
 	Close() error
@@ -52,7 +51,7 @@ type DataStreamInterface interface {
 
 var _ DataStreamInterface = &DataStream{}
 
-var qemuOperations = image.NewQEMUOperations()
+//var qemuOperations = image.NewQEMUOperations()
 
 // DataStream implements the ReadCloser interface
 type DataStream struct {
@@ -60,10 +59,9 @@ type DataStream struct {
 	url        *url.URL
 	Readers    []reader
 	buf        []byte // holds file headers
-	qemu       bool
-	archived   bool
 	Size       int64
 	isIsoImage bool
+	dataFormat DataFormatInterface
 	dataCtxt   StreamContext
 }
 
@@ -154,8 +152,6 @@ func newDataStream(dso *DataStreamOptions, stream io.ReadCloser) (*DataStream, e
 		DataStreamOptions: dso,
 		url:               ep,
 		buf:               make([]byte, image.MaxExpectedHdrSize),
-		qemu:              false,
-		archived:          false,
 	}
 
 	// establish readers for endpoint's formats and do initial calc of size of raw endpt
@@ -344,6 +340,8 @@ func (d *DataStream) constructReaders(stream io.ReadCloser) error {
 	knownHdrs := image.CopyKnownHdrs() // need local copy since keys are removed
 	klog.V(3).Infof("constructReaders: checking compression and archive formats: %s\n", d.url.Path)
 	var isTarFile bool
+	var dataFormat GenericDataFormat
+	dataFormat.ImageSize = d.ImageSize
 	for {
 		hdr, err := d.matchHeader(&knownHdrs)
 		if err != nil {
@@ -354,7 +352,7 @@ func (d *DataStream) constructReaders(stream io.ReadCloser) error {
 		}
 		klog.V(2).Infof("found header of type %q\n", hdr.Format)
 		// create format-specific reader and append it to dataStream readers stack
-		err = d.fileFormatSelector(hdr)
+		err = d.fileFormatSelector(hdr, &dataFormat)
 		if err != nil {
 			return errors.WithMessage(err, "could not create compression/unarchive reader")
 		}
@@ -365,6 +363,16 @@ func (d *DataStream) constructReaders(stream io.ReadCloser) error {
 			break
 		}
 	}
+
+	var err error
+	d.dataFormat, err = NewDataFormat(dataFormat)
+	if err != nil {
+		return errors.WithMessage(err, "could not create DataFormat")
+	}
+	//in case data ws stored locally by the streamer - set file location to dataFormat
+	d.dataFormat.setLocalPath(d.dataCtxt.getDataFilePath())
+	//per data format per streamining technique decide weather direct streaming is possible
+	d.dataFormat.setDirectStreaming(d.dataCtxt.isEncryptedChannel(), d.dataCtxt.isRemoteStreaming(), d.url)
 
 	if d.ContentType == string(cdiv1.DataVolumeArchive) && !isTarFile {
 		return errors.Errorf("cannot process a non tar file as an archive")
@@ -406,27 +414,27 @@ func (d *DataStream) topReader() io.ReadCloser {
 
 // Based on the passed in header, append the format-specific reader to the readers stack,
 // and update the receiver Size field. Note: a bool is set in the receiver for qcow2 files.
-func (d *DataStream) fileFormatSelector(hdr *image.Header) (err error) {
+func (d *DataStream) fileFormatSelector(hdr *image.Header, dataFormat *GenericDataFormat) (err error) {
 	var r io.Reader
 	fFmt := hdr.Format
 	switch fFmt {
 	case "gz":
 		r, d.Size, err = d.gzReader()
 		if err != nil {
-			d.archived = true
+			dataFormat.archived = true
 		}
 	case "qcow2":
 		r, d.Size, err = d.qcow2NopReader(hdr)
-		d.qemu = true
+		dataFormat.qemu = true
 	case "tar":
 		r, d.Size, err = d.tarReader()
 		if err != nil {
-			d.archived = true
+			dataFormat.archived = true
 		}
 	case "xz":
 		r, d.Size, err = d.xzReader()
 		if err != nil {
-			d.archived = true
+			dataFormat.archived = true
 		}
 	default:
 		return errors.Errorf("mismatch between supported file formats and this header type: %q", fFmt)
@@ -623,99 +631,20 @@ func closeReaders(readers []reader) (rtnerr error) {
 	return rtnerr
 }
 
-func (d *DataStream) isHTTPQcow2() bool {
-	return (d.url.Scheme == "http" || d.url.Scheme == "https") &&
-		d.AccessKey == "" &&
-		d.SecKey == "" &&
-		d.qemu &&
-		len(d.Readers) == 2
-}
-
-func (d *DataStream) calculateTargetSize(dest string) int64 {
-	targetQuantity := resource.NewScaledQuantity(util.GetAvailableSpace(filepath.Dir(dest)), 0)
-	if d.ImageSize != "" {
-		newImageSizeQuantity := resource.MustParse(d.ImageSize)
-		minQuantity := util.MinQuantity(targetQuantity, &newImageSizeQuantity)
-		targetQuantity = &minQuantity
-	}
-	targetSize, _ := targetQuantity.AsInt64()
-	return targetSize
-}
-
-func (d *DataStream) convertQcow2ToRawStream(dest string) error {
-	klog.V(3).Infoln("Validating qcow2 file")
-
-	err := qemuOperations.Validate(d.url.String(), "qcow2", d.calculateTargetSize(dest))
-	if err != nil {
-		return errors.Wrap(err, "Streaming image validation failed")
-	}
-	klog.V(3).Infoln("Doing streaming qcow2 to raw conversion")
-	err = qemuOperations.ConvertQcow2ToRawStream(d.url, dest)
-	if err != nil {
-		return errors.Wrap(err, "Streaming qcow2 to raw conversion failed")
-	}
-
-	return nil
-}
-
-func (d *DataStream) convertQcow2ToRaw(src, dest string) error {
-	klog.V(3).Infoln("Validating qcow2 file")
-	err := qemuOperations.Validate(src, "qcow2", d.calculateTargetSize(dest))
-	if err != nil {
-		return errors.Wrap(err, "Local image validation failed")
-	}
-
-	klog.V(2).Infoln("converting qcow2 image")
-	err = qemuOperations.ConvertQcow2ToRaw(src, dest)
-	if err != nil {
-		return errors.Wrap(err, "Local qcow to raw conversion failed")
-	}
-	return nil
-}
-
 // Copy endpoint to dest based on passed-in reader.
 func (d *DataStream) copy(dest string) error {
 	if util.GetAvailableSpace(d.ScratchDataDir) > int64(0) {
 		defer CleanDir(d.ScratchDataDir)
 	}
-	if d.isHTTPQcow2() {
-		err := d.convertQcow2ToRawStream(dest)
-		if err != nil {
-			return err
-		}
-	} else {
-		if util.GetAvailableSpace(d.ScratchDataDir) <= int64(0) {
-			//Need scratch space but none provided.
-			return ErrRequiresScratchSpace
-		}
-		// Replace /data/target name with scratch path/target name
-		tmpDest := filepath.Join(d.ScratchDataDir, filepath.Base(dest))
 
-		err := StreamDataToFile(d.topReader(), tmpDest)
-		if err != nil {
-			return err
-		}
-
-		// The actual copy
-		if d.qemu {
-			err = d.convertQcow2ToRaw(tmpDest, dest)
-			if err != nil {
-				return err
-			}
-		} else {
-			err = util.MoveFileAcrossFs(tmpDest, dest)
-			if err != nil {
-				return err
-			}
-		}
+	err := d.dataFormat.store(d.topReader(), dest, d.ScratchDataDir)
+	if err != nil {
+		return errors.Wrap(err, "Resize of image failed")
 	}
 
-	if !d.isIsoImage && d.ImageSize != "" {
-		klog.V(3).Infoln("Resizing image")
-		err := ResizeImage(dest, d.ImageSize, d.AvailableSpace)
-		if err != nil {
-			return errors.Wrap(err, "Resize of image failed")
-		}
+	err = d.dataFormat.resizeImage(dest, d.ImageSize, d.AvailableSpace)
+	if err != nil {
+		return errors.Wrap(err, "Resize of image failed")
 	}
 
 	return nil

@@ -43,6 +43,22 @@ func S3DataStreamer(url *url.URL, secKey, accessKey, certDir string, insecureTLS
 	}
 }
 
+func (i s3DataStreamer) getDataFilePath() string {
+	return ""
+}
+
+func (i s3DataStreamer) cleanup() error {
+	return nil
+}
+
+func (i s3DataStreamer) isEncryptedChannel() bool {
+	return (i.accessKey != "" && i.secKey != "")
+}
+
+func (i s3DataStreamer) isRemoteStreaming() bool {
+	return true
+}
+
 func (i s3DataStreamer) stream() (io.ReadCloser, StreamContext, error) {
 	klog.V(3).Infoln("Using S3 client to get data")
 	bucket := i.url.Host
@@ -56,5 +72,5 @@ func (i s3DataStreamer) stream() (io.ReadCloser, StreamContext, error) {
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "could not get s3 object: \"%s/%s\"", bucket, object)
 	}
-	return objectReader, nil, nil
+	return objectReader, &i, nil
 }

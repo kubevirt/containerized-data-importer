@@ -34,31 +34,42 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
-type httpDataStreamer struct {
+//HttpDataStreamer - represents DataStreamer that streams from http target
+type HttpDataStreamer struct {
 	secKey    string
 	accessKey string
 	certDir   string
-	url       string
+	url       *url.URL
 	ctx       context.Context
 	cancel    context.CancelFunc
 }
 
-func (i httpDataStreamer) cleanup() error {
+func (i HttpDataStreamer) cleanup() error {
 	if i.cancel != nil {
 		i.cancel()
 	}
 	return nil
 }
 
-func (i httpDataStreamer) getDataFilePath() string {
+func (i HttpDataStreamer) isEncryptedChannel() bool {
+	return (i.url.Scheme == "https" &&
+		i.accessKey != "" &&
+		i.secKey != "")
+}
+
+func (i HttpDataStreamer) isRemoteStreaming() bool {
+	return true
+}
+
+func (i HttpDataStreamer) getDataFilePath() string {
 	return ""
 }
 
 //HTTPDataStreamer  -creates a streamer that fetches file froem http source
-func HTTPDataStreamer(url *url.URL, secKey, accessKey string, certDir string, insecureTLS bool) Streamer {
+func HTTPDataStreamer(url *url.URL, secKey, accessKey string, certDir string, insecureTLS bool) HttpDataStreamer {
 	ctx, cancel := context.WithCancel(context.Background())
-	return httpDataStreamer{
-		url:       url.String(),
+	return HttpDataStreamer{
+		url:       url,
 		secKey:    secKey,
 		accessKey: accessKey,
 		certDir:   certDir,
@@ -67,7 +78,7 @@ func HTTPDataStreamer(url *url.URL, secKey, accessKey string, certDir string, in
 	}
 }
 
-func (i httpDataStreamer) createHTTPClient() (*http.Client, error) {
+func (i HttpDataStreamer) createHTTPClient() (*http.Client, error) {
 	client := &http.Client{
 		// Don't set timeout here, since that will be an absolute timeout, we need a relative to last progress timeout.
 	}
@@ -115,7 +126,7 @@ func (i httpDataStreamer) createHTTPClient() (*http.Client, error) {
 	return client, nil
 }
 
-func (i httpDataStreamer) stream() (io.ReadCloser, StreamContext, error) {
+func (i HttpDataStreamer) stream() (io.ReadCloser, StreamContext, error) {
 	client, err := i.createHTTPClient()
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "Error creating http client")
@@ -128,7 +139,7 @@ func (i httpDataStreamer) stream() (io.ReadCloser, StreamContext, error) {
 		return nil
 	}
 
-	req, err := http.NewRequest("GET", i.url, nil)
+	req, err := http.NewRequest("GET", i.url.String(), nil)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "could not create HTTP request")
 	}
@@ -153,7 +164,7 @@ func (i httpDataStreamer) stream() (io.ReadCloser, StreamContext, error) {
 	return countingReader, i, nil
 }
 
-func (i httpDataStreamer) pollProgress(reader *util.CountingReader, idleTime, pollInterval time.Duration) {
+func (i HttpDataStreamer) pollProgress(reader *util.CountingReader, idleTime, pollInterval time.Duration) {
 	count := reader.Current
 	lastUpdate := time.Now()
 	for {

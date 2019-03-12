@@ -33,9 +33,10 @@ import (
 )
 
 type registryData struct {
-	dataDir  string
-	filePath string
-	file     *os.File
+	dataDir     string
+	filePath    string
+	file        *os.File
+	insecureTLS bool
 }
 
 //Implementtaion of StreamContext interfaces
@@ -53,6 +54,14 @@ func (i registryData) cleanup() error {
 		i.dataDir = ""
 	}
 	return nil
+}
+
+func (i registryData) isEncryptedChannel() bool {
+	return i.insecureTLS
+}
+
+func (i registryData) isRemoteStreaming() bool {
+	return false
 }
 
 func (i registryData) getDataFilePath() string {
@@ -91,7 +100,7 @@ const (
 //If such exists it creates a Reader on it and returns it for further processing
 func (i regisitryDataStreamer) stream() (io.ReadCloser, StreamContext, error) {
 
-	tmpData := registryData{"", "", nil}
+	tmpData := registryData{"", "", nil, i.insecureTLS}
 	tmpData.dataDir = filepath.Join(i.dataDir, TempContainerDiskDir)
 
 	imageDir := filepath.Join(tmpData.dataDir, ContainerDiskImageDir)

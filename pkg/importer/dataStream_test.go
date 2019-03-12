@@ -142,7 +142,7 @@ var _ = Describe("Data Stream", func() {
 			Expect(ds.SecKey).To(Equal(secretKey))
 			Expect(ds.ContentType).To(Equal(contentType))
 
-			Expect(ds.qemu).To(Equal(qemu))
+			Expect(reflect.TypeOf(ds.dataFormat).String()).To(Equal("QCOWDataFormat"))
 			Expect(reflect.DeepEqual(resultBuffer, want)).To(BeTrue())
 		} else {
 			Expect(err).To(HaveOccurred())
@@ -415,7 +415,7 @@ var _ = Describe("http", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		httpStreamer := httpDataStreamer{
+		httpStreamer := HttpDataStreamer{
 			ctx:    ctx,
 			cancel: cancel,
 		}
@@ -548,7 +548,7 @@ var _ = Describe("test certs get loaded", func() {
 		dso := &DataStreamOptions{CertDir: tempDir}
 		ds := &DataStream{DataStreamOptions: dso}
 
-		client, err := ds.createHTTPClient()
+		client, err := HTTPDataStreamer(ds.url, ds.SecKey, ds.AccessKey, ds.CertDir, ds.InsecureTLS).createHTTPClient()
 		Expect(err).ToNot(HaveOccurred())
 
 		transport := client.Transport.(*http.Transport)
