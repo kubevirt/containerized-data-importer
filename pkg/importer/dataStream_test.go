@@ -284,7 +284,7 @@ var _ = Describe("SaveStream", func() {
 			rdr, err := os.Open(cirrosFilePath)
 			Expect(err).NotTo(HaveOccurred())
 			defer rdr.Close()
-			_, err = SaveStream(rdr, "testqcow2file", filepath.Join(dataDir, "disk.img"), dataDir, tmpDir)
+			_, err = SaveStream(rdr, "testqcow2file", filepath.Join(dataDir, "disk.img"), dataDir, tmpDir, "")
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})

@@ -11,7 +11,7 @@ import (
 
 const (
 	// UploadFileMD5 is the expected MD5 of the uploaded file
-	UploadFileMD5 = "2a7a52285c846314d1dbd79e9818270d"
+	UploadFileMD5 = "bf07a12664935c64c472e907e5cbce7e"
 
 	uploadTargetAnnotation = "cdi.kubevirt.io/storage.upload.target"
 	uploadStatusAnnotation = "cdi.kubevirt.io/storage.pod.phase"

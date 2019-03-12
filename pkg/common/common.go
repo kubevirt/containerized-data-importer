@@ -87,6 +87,8 @@ const (
 	UploadServerDataDir = ImporterDataDir
 	// UploadServerServiceLabel is the label selector for upload server services
 	UploadServerServiceLabel = "service"
+	// UploadImageSize provides a constant to capture our env variable "UPLOAD_IMAGE_SIZE"
+	UploadImageSize = "UPLOAD_IMAGE_SIZE"
 
 	// ConfigName is the name of default CDI Config
 	ConfigName = "config"
