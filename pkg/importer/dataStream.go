@@ -104,7 +104,7 @@ type DataStreamOptions struct {
 	// ImageSize is the size we want the resulting image to be.
 	ImageSize string
 	// Available space is the available space before downloading the image
-	AvailableSpace int64
+	AvailableDestSpace int64
 	// CertDir is a directory containing tls certs
 	CertDir string
 	// InsecureTLS is it okay to skip TLS verification
@@ -457,18 +457,18 @@ func CopyData(dso *DataStreamOptions) error {
 func SaveStream(stream io.ReadCloser, dest string, diskImageFileName, dataPath, scratchPath, imageSize string) (int64, error) {
 	klog.V(1).Infof("Saving stream to %q, size %s...\n", dest, imageSize)
 	ds, err := newDataStream(&DataStreamOptions{
-		Dest:           diskImageFileName,
-		DataDir:        dataPath,
-		Endpoint:       "stream://data",
-		AccessKey:      "",
-		SecKey:         "",
-		Source:         controller.SourceHTTP,
-		ContentType:    string(cdiv1.DataVolumeKubeVirt),
-		ImageSize:      imageSize,
-		AvailableSpace: util.GetAvailableSpace(dataPath),
-		CertDir:        "",
-		InsecureTLS:    false,
-		ScratchDataDir: scratchPath,
+		Dest:               diskImageFileName,
+		DataDir:            dataPath,
+		Endpoint:           "stream://data",
+		AccessKey:          "",
+		SecKey:             "",
+		Source:             controller.SourceHTTP,
+		ContentType:        string(cdiv1.DataVolumeKubeVirt),
+		ImageSize:          imageSize,
+		AvailableDestSpace: util.GetAvailableSpace(dataPath),
+		CertDir:            "",
+		InsecureTLS:        false,
+		ScratchDataDir:     scratchPath,
 	}, stream)
 	if err != nil {
 		return 0, errors.Wrapf(err, "unable to create data stream from stream")
@@ -853,7 +853,7 @@ func (d *DataStream) isHTTPQcow2() bool {
 }
 
 func (d *DataStream) calculateTargetSize(dest string) int64 {
-	targetQuantity := resource.NewScaledQuantity(util.GetAvailableSpace(filepath.Dir(dest)), 0)
+	targetQuantity := resource.NewScaledQuantity(d.AvailableDestSpace, 0)
 	if d.ImageSize != "" {
 		newImageSizeQuantity := resource.MustParse(d.ImageSize)
 		minQuantity := util.MinQuantity(targetQuantity, &newImageSizeQuantity)
@@ -881,7 +881,8 @@ func (d *DataStream) convertQcow2ToRawStream(dest string) error {
 
 func (d *DataStream) convertQcow2ToRaw(src, dest string) error {
 	klog.V(3).Infoln("Validating qcow2 file")
-	err := qemuOperations.Validate(src, "qcow2", d.calculateTargetSize(dest))
+	klog.V(3).Infoln(fmt.Sprintf("Available space: %d\n", d.AvailableDestSpace))
+	err := qemuOperations.Validate(src, "qcow2", d.AvailableDestSpace)
 	if err != nil {
 		return errors.Wrap(err, "Local image validation failed")
 	}
@@ -933,7 +934,7 @@ func (d *DataStream) copy(dest string) error {
 
 	if !d.isIsoImage && d.ImageSize != "" {
 		klog.V(3).Infoln("Resizing image")
-		err := ResizeImage(dest, d.ImageSize, d.AvailableSpace)
+		err := ResizeImage(dest, d.ImageSize, d.AvailableDestSpace)
 		if err != nil {
 			return errors.Wrap(err, "Resize of image failed")
 		}
