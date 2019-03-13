@@ -131,6 +131,10 @@ func createPrometheusService() *corev1.Service {
 
 func createInsecureRegConfigMap() *corev1.ConfigMap {
 	return &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   common.InsecureRegistryConfigMap,
 			Labels: withCommonLabels(nil),
