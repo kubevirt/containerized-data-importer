@@ -98,33 +98,33 @@ func newRequest(t *testing.T) *http.Request {
 	return req
 }
 
-func saveStreamSuccess(stream io.ReadCloser, dest, imageSize string) (int64, error) {
-	return 1024, nil
+func saveProcessorSuccess(stream io.ReadCloser, dest, imageSize string) error {
+	return nil
 }
 
-func saveStreamFailure(stream io.ReadCloser, dest, imageSize string) (int64, error) {
-	return 0, fmt.Errorf("Error using datastream")
+func saveProcessorFailure(stream io.ReadCloser, dest, imageSize string) error {
+	return fmt.Errorf("Error using datastream")
 }
 
-func withSaveStreamSuccess(f func()) {
-	replaceStreamFunc(saveStreamSuccess, f)
+func withProcessorSuccess(f func()) {
+	replaceProcessorFunc(saveProcessorSuccess, f)
 }
 
-func withSaveStreamFailure(f func()) {
-	replaceStreamFunc(saveStreamFailure, f)
+func withProcessorFailure(f func()) {
+	replaceProcessorFunc(saveProcessorFailure, f)
 }
 
-func replaceStreamFunc(replacement func(io.ReadCloser, string, string) (int64, error), f func()) {
-	origStreamFunc := saveStremFunc
-	saveStremFunc = replacement
+func replaceProcessorFunc(replacement func(io.ReadCloser, string, string) error, f func()) {
+	origProcessorFunc := uploadProcessorFunc
+	uploadProcessorFunc = replacement
 	defer func() {
-		saveStremFunc = origStreamFunc
+		uploadProcessorFunc = origProcessorFunc
 	}()
 	f()
 }
 
 func TestGetFails(t *testing.T) {
-	withSaveStreamSuccess(func() {
+	withProcessorSuccess(func() {
 		req, err := http.NewRequest("GET", uploadPath, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -161,7 +161,7 @@ func TestHealthz(t *testing.T) {
 }
 
 func TestInProcessUnavailable(t *testing.T) {
-	withSaveStreamSuccess(func() {
+	withProcessorSuccess(func() {
 		req := newRequest(t)
 
 		rr := httptest.NewRecorder()
@@ -178,7 +178,7 @@ func TestInProcessUnavailable(t *testing.T) {
 }
 
 func TestCompletedConflict(t *testing.T) {
-	withSaveStreamSuccess(func() {
+	withProcessorSuccess(func() {
 		req := newRequest(t)
 
 		rr := httptest.NewRecorder()
@@ -195,7 +195,7 @@ func TestCompletedConflict(t *testing.T) {
 }
 
 func TestSuccess(t *testing.T) {
-	withSaveStreamSuccess(func() {
+	withProcessorSuccess(func() {
 		req := newRequest(t)
 
 		rr := httptest.NewRecorder()
@@ -211,7 +211,7 @@ func TestSuccess(t *testing.T) {
 }
 
 func TestStreamFail(t *testing.T) {
-	withSaveStreamFailure(func() {
+	withProcessorFailure(func() {
 		req := newRequest(t)
 
 		rr := httptest.NewRecorder()
@@ -227,7 +227,7 @@ func TestStreamFail(t *testing.T) {
 }
 
 func TestRealSuccess(t *testing.T) {
-	withSaveStreamSuccess(func() {
+	withProcessorSuccess(func() {
 		server, clientKeyPair, serverCACert := newTLSServer(t)
 
 		client := newHTTPClient(t, clientKeyPair, serverCACert)

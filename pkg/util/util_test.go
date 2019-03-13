@@ -122,22 +122,6 @@ var _ = Describe("Copy files", func() {
 		err = CopyFile(filepath.Join(TestImagesDir, "content.tar"), filepath.Join("/invalidpath", "target.tar"))
 		Expect(err).To(HaveOccurred())
 	})
-
-	It("Should move file from source to dest, with valid source and dest", func() {
-		err = ioutil.WriteFile("test.txt", []byte("Test"), 0644)
-		Expect(err).ToNot(HaveOccurred())
-		err = MoveFileAcrossFs("test.txt", filepath.Join(destTmp, "test.txt"))
-		Expect(err).ToNot(HaveOccurred())
-		_, err = os.Stat("test.txt")
-		Expect(os.IsNotExist(err)).To(BeTrue())
-	})
-
-	It("Should not move file from source to dest, with invalid source or dest", func() {
-		err = MoveFileAcrossFs("test.txt", filepath.Join(destTmp, "test.txt"))
-		Expect(err).To(HaveOccurred())
-		_, err = os.Stat("test.txt")
-		Expect(os.IsNotExist(err)).To(BeTrue())
-	})
 })
 
 func md5sum(filePath string) (string, error) {

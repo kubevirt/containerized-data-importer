@@ -98,17 +98,19 @@ func GetAvailableSpace(path string) int64 {
 }
 
 // GetAvailableSpaceBlock gets the amount of available space at the block device path specified.
-func GetAvailableSpaceBlock(path string) int64 {
-	cmd := fmt.Sprintf("lsblk -n -b -o SIZE %s", path)
-	out, err := exec.Command("sh", "-c", cmd).Output()
+func GetAvailableSpaceBlock(deviceName string) int64 {
+	cmd := exec.Command("/usr/bin/lsblk", "-n", "-b", "-o", "SIZE", deviceName)
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
 	if err != nil {
-		return 0
+		return int64(-1)
 	}
-	sOut := string(out)
-	sOut = strings.Trim(sOut, "\n")
-	i, err := strconv.ParseInt(sOut, 10, 64)
+	i, err := strconv.ParseInt(strings.TrimSpace(string(out.Bytes())), 10, 64)
 	if err != nil {
-		panic(err)
+		return int64(-1)
 	}
 	return i
 }
@@ -179,13 +181,4 @@ func CopyFile(src, dst string) error {
 		return err
 	}
 	return out.Close()
-}
-
-// MoveFileAcrossFs moves a file by doing a copy and then removing the source file. This works across file system which os.Rename won't
-func MoveFileAcrossFs(src, dst string) error {
-	err := CopyFile(src, dst)
-	if err != nil {
-		return err
-	}
-	return os.Remove(src)
 }

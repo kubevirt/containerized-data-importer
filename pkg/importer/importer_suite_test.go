@@ -23,6 +23,8 @@ var sizeExceptions = map[string]struct{}{
 	".iso.xz": {},
 }
 
+var testfiles = []string{tinyCoreXzFilePath, tinyCoreGzFilePath, tinyCoreTarFilePath, archiveFilePath}
+
 func TestImporter(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecsWithDefaultAndCustomReporters(t, "Importer Suite", reporters.NewReporters())
