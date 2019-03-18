@@ -81,7 +81,7 @@ func WaitForPVCAnnotation(clientSet *kubernetes.Clientset, namespace string, pvc
 	return result, called, err
 }
 
-// WaitForPVCAnnotationWithValue waits  for an annotation with a specific value on a PVC
+// WaitForPVCAnnotationWithValue waits for an annotation with a specific value on a PVC
 func WaitForPVCAnnotationWithValue(clientSet *kubernetes.Clientset, namespace string, pvc *k8sv1.PersistentVolumeClaim, annotation, expected string) (bool, error) {
 	var result bool
 	err := pollPVCAnnotation(clientSet, namespace, pvc, annotation, func(value string) bool {
@@ -89,6 +89,21 @@ func WaitForPVCAnnotationWithValue(clientSet *kubernetes.Clientset, namespace st
 		return result
 	})
 	return result, err
+}
+
+// WaitPVCPodStatusRunning waits for the pod status annotation to be Running
+func WaitPVCPodStatusRunning(clientSet *kubernetes.Clientset, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
+	return WaitForPVCAnnotationWithValue(clientSet, pvc.Namespace, pvc, uploadStatusAnnotation, string(k8sv1.PodRunning))
+}
+
+// WaitPVCPodStatusSucceeded waits for the pod status annotation to be Succeeded
+func WaitPVCPodStatusSucceeded(clientSet *kubernetes.Clientset, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
+	return WaitForPVCAnnotationWithValue(clientSet, pvc.Namespace, pvc, uploadStatusAnnotation, string(k8sv1.PodSucceeded))
+}
+
+// WaitPVCPodStatusFailed waits for the pod status annotation to be Failed
+func WaitPVCPodStatusFailed(clientSet *kubernetes.Clientset, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
+	return WaitForPVCAnnotationWithValue(clientSet, pvc.Namespace, pvc, uploadStatusAnnotation, string(k8sv1.PodFailed))
 }
 
 type pollPVCAnnotationFunc = func(string) bool

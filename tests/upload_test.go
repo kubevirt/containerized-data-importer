@@ -12,8 +12,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/onsi/ginkgo/extensions/table"
 
@@ -77,19 +75,17 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify PVC status annotation says running")
-		found, err := utils.WaitPVCUploadPodStatusRunning(f.K8sClient, pvc)
+		found, err := utils.WaitPVCPodStatusRunning(f.K8sClient, pvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(found).To(BeTrue())
 
-		err = f.WaitForPersistentVolumeClaimPhase(v1.ClaimBound, pvc.Name)
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Get an upload token")
-		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(token).ToNot(BeEmpty())
-
-		if !validToken {
+		var token string
+		if validToken {
+			By("Get an upload token")
+			token, err = utils.RequestUploadToken(f.CdiClient, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(token).ToNot(BeEmpty())
+		} else {
 			token = "abc"
 		}
 
@@ -97,18 +93,12 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		err = uploadImage(uploadProxyURL, token, expectedStatus)
 		Expect(err).ToNot(HaveOccurred())
 
-		if !validToken {
-			By("Get an error while verifying content")
-			_, err = f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5, false)
-			Expect(err).To(HaveOccurred())
-		} else {
-			Eventually(func() bool {
-				_, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(utils.UploadPodName(pvc), metav1.GetOptions{})
-				if err != nil && k8serrors.IsNotFound(err) {
-					return false
-				}
-				return true
-			}, 90*time.Second, 2*time.Second).Should(BeFalse())
+		if validToken {
+			By("Verify PVC status annotation says succeeded")
+			found, err := utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue())
+
 			By("Verify content")
 			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5, false)
 			Expect(err).ToNot(HaveOccurred())
@@ -116,6 +106,10 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			fileSize, err := f.RunCommandAndCaptureOutput(pvc, "stat -c \"%s\" /pvc/disk.img")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(fileSize).To(Equal("1073741824")) // 1G
+		} else {
+			By("Verify PVC empty")
+			_, err = framework.VerifyPVCIsEmpty(f, pvc)
+			Expect(err).ToNot(HaveOccurred())
 		}
 	},
 		table.Entry("[test_id:1368]succeed given a valid token", true, http.StatusOK),
