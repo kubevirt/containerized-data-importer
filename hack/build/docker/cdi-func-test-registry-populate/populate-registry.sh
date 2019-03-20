@@ -93,7 +93,6 @@ function pushImages {
    registry_tls=$4
    registry=$registry_host":"$registry_port
    
-   retval=$?
    shopt -s nullglob
    for IMAGEDIR in *$DIR; do
         cd $IMAGEDIR
@@ -102,10 +101,10 @@ function pushImages {
         IMAGENAME=${FILE//.}
         echo "building image "$IMAGENAME
         buildah bud -t $IMAGENAME":latest" $images"/"$IMAGEDIR"/"
-	error $retval	
+	error $?	
         echo "pushing image "$IMAGENAME" to registry-service: "$registry
         buildah push $registry_tls  $IMAGENAME":latest" "docker://"$registry"/"$IMAGENAME
-	error $retval
+	error $?
         cd ../
    done
 }
