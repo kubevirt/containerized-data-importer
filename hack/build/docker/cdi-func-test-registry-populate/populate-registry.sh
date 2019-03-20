@@ -110,6 +110,8 @@ function pushImages {
    done
 }
 
+#remove storage.conf if exists 
+rm -rf /etc/containers/storage.conf
 
 #start health beat
 health $HEALTH_PATH $HEALTH_PERIOD &
