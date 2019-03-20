@@ -27,8 +27,8 @@ Note: In development environment you can push to
 2. Globally accessible registry that is used for image caching and is accessible via `registry:5000` host name
 
 ```bash
-$buildah bud -t vmidisk/fedora28:latest /tmp/vmdisk
-$buildah push --tls-verify=false vmidisk/fedora28:latest docker://cdi-docker-registry-host.cdi/fedora28:latest
+buildah bud -t vmidisk/fedora28:latest /tmp/vmdisk
+buildah push --tls-verify=false vmidisk/fedora28:latest docker://cdi-docker-registry-host.cdi/fedora28:latest
 
 ```
 ## Create a container image with Docker
@@ -43,8 +43,8 @@ ADD fedora28.qcow2 /disk
 Build, tag and push the image:
 
 ```bash
-$docker build -t vmdisks/fedora28:latest /tmp/vmdisk
-$docker push vmdisks/fedora28:latest
+docker build -t vmdisks/fedora28:latest /tmp/vmdisk
+docker push vmdisks/fedora28:latest
 
 ```
 
@@ -58,7 +58,8 @@ metadata:
   name: registry-image-datavolume
 spec:
   source:
-      registry: "docker://kubevirt/fedora-cloud-registry-disk-demo"
+    registry:
+      url: "docker://kubevirt/fedora-cloud-registry-disk-demo"
   pvc:
     accessModes:
       - ReadWriteOnce
@@ -67,3 +68,62 @@ spec:
         storage: 5Gi
 ```
 Full example is available here: [registry-image-pvc](../manifests/example/registry-image-datavolume.yaml)
+
+# Registry security
+
+## Private registry
+
+If your docker registry requires authentication:
+
+Create a `Secret` in the same namespace as the DataVolume to store user credentials.  See [endpoint-secret](../manifests/example/endpoint-secret.yaml)
+
+Add `SecretRef` to `DataVolume` spec.
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1alpha1
+kind: DataVolume
+...
+spec:
+  source:
+    registry: 
+      url: "docker://my-private-registry:5000/my-username/my-image"
+      secretRef: my-docker-creds 
+...
+```
+
+## TLS certificate configuration
+
+If your registry TLS certificate is not signed by a trusted CA:
+
+Create a `ConfigMap` containing all certificates required to trust the registry.
+
+```bash
+kubectl create configmap my-registry-certs --from-file=my-registry.crt
+```
+
+The `ConfigMap` may contain multiple entries if necessary.  Key name is irrelevant.
+
+Add `CertConfigMap` to `DataVolume` spec.
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1alpha1
+kind: DataVolume
+...
+spec:
+  source:
+    registry: 
+      url: "docker://my-private-registry:5000/my-username/my-image"
+      certConfigMap: my-registry-certs 
+...
+```
+
+## Insecure registry
+
+To disable TLS security for a registry:
+
+Add the registry to the `cdi-insecure-registries` `ConfigMap` in the `cdi` namespace.
+
+```bash
+patch configmap cdi-insecure-registries -n cdi \
+  --type merge -p '{"data":{"my-private-registry:5000": ""}}'
+```
