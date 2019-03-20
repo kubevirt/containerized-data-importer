@@ -76,23 +76,23 @@ func main() {
 
 	klog.V(1).Infoln("begin import process")
 	dso := &importer.DataStreamOptions{
-		Dest:           dest,
-		DataDir:        dataDir,
-		Endpoint:       ep,
-		AccessKey:      acc,
-		SecKey:         sec,
-		Source:         source,
-		ContentType:    contentType,
-		ImageSize:      imageSize,
-		AvailableSpace: util.GetAvailableSpace(common.ImporterVolumePath),
-		CertDir:        certDir,
-		InsecureTLS:    insecureTLS,
-		ScratchDataDir: common.ScratchDataDir,
+		Dest:               dest,
+		DataDir:            dataDir,
+		Endpoint:           ep,
+		AccessKey:          acc,
+		SecKey:             sec,
+		Source:             source,
+		ContentType:        contentType,
+		ImageSize:          imageSize,
+		AvailableDestSpace: util.GetAvailableSpace(common.ImporterVolumePath),
+		CertDir:            certDir,
+		InsecureTLS:        insecureTLS,
+		ScratchDataDir:     common.ScratchDataDir,
 	}
 
 	if source == controller.SourceNone && contentType == string(cdiv1.DataVolumeKubeVirt) {
 		requestImageSizeQuantity := resource.MustParse(imageSize)
-		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(dso.AvailableSpace, 0), &requestImageSizeQuantity)
+		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(dso.AvailableDestSpace, 0), &requestImageSizeQuantity)
 		if minSizeQuantity.Cmp(requestImageSizeQuantity) != 0 {
 			// Available dest space is smaller than the size we want to create
 			klog.Warningf("Available space less than requested size, creating blank image sized to available space: %s.\n", minSizeQuantity.String())
