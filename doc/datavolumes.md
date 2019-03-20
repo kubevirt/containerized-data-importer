@@ -29,6 +29,7 @@ spec:
       http:
          url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img" # Or S3
          secretRef: "" # Optional
+         certConfigMap: "" # Optional
   pvc:
     accessModes:
       - ReadWriteOnce
@@ -36,8 +37,15 @@ spec:
       requests:
         storage: "64Mi"
 ```
-[Get example](../manifests/example/example-import-dv.yaml)
-[Get secret example](../manifest/example/endpoint-secret.yaml)
+[Get example](../manifests/example/import-kubevirt-datavolume.yaml)
+[Get secret example](../manifests/example/endpoint-secret.yaml)
+[Get certificate example](../manifests/example/cert-configmap.yaml)
+
+Alternatively, if your certificate is stored in a local file, you can create the `ConfigMap` like this:
+
+```bash
+kubectl create configmap import-certs --from-file=ca.pem
+```
 
 ### Content-type
 You can specify the content type of the source image. The following content-type is valid:
