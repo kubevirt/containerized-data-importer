@@ -117,18 +117,18 @@ var _ = Describe("Data Stream", func() {
 		}
 		By(fmt.Sprintf("Creating new datastream for %s", image))
 		ds, err := NewDataStream(&DataStreamOptions{
-			Dest:           dest,
-			DataDir:        "",
-			Endpoint:       image,
-			AccessKey:      accessKeyID,
-			SecKey:         secretKey,
-			Source:         controller.SourceHTTP,
-			ContentType:    contentType,
-			ImageSize:      "",
-			AvailableSpace: int64(1234567890),
-			CertDir:        "",
-			InsecureTLS:    false,
-			ScratchDataDir: "",
+			Dest:               dest,
+			DataDir:            "",
+			Endpoint:           image,
+			AccessKey:          accessKeyID,
+			SecKey:             secretKey,
+			Source:             controller.SourceHTTP,
+			ContentType:        contentType,
+			ImageSize:          "",
+			AvailableDestSpace: int64(1234567890),
+			CertDir:            "",
+			InsecureTLS:        false,
+			ScratchDataDir:     "",
 		})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
@@ -158,18 +158,18 @@ var _ = Describe("Data Stream", func() {
 	It("can close all readers", func() {
 		By(fmt.Sprintf("Creating new datastream for %s", ts.URL+"/"+tinyCoreFileName))
 		ds, err := NewDataStream(&DataStreamOptions{
-			Dest:           common.ImporterWritePath,
-			DataDir:        "",
-			Endpoint:       ts.URL + "/" + tinyCoreFileName,
-			AccessKey:      "",
-			SecKey:         "",
-			Source:         controller.SourceHTTP,
-			ContentType:    string(cdiv1.DataVolumeKubeVirt),
-			ImageSize:      "1G",
-			AvailableSpace: int64(1234567890),
-			CertDir:        "",
-			InsecureTLS:    false,
-			ScratchDataDir: "",
+			Dest:               common.ImporterWritePath,
+			DataDir:            "",
+			Endpoint:           ts.URL + "/" + tinyCoreFileName,
+			AccessKey:          "",
+			SecKey:             "",
+			Source:             controller.SourceHTTP,
+			ContentType:        string(cdiv1.DataVolumeKubeVirt),
+			ImageSize:          "1G",
+			AvailableDestSpace: int64(1234567890),
+			CertDir:            "",
+			InsecureTLS:        false,
+			ScratchDataDir:     "",
 		})
 		Expect(err).NotTo(HaveOccurred())
 		By("Closing data stream")
@@ -183,18 +183,18 @@ var _ = Describe("Data Stream", func() {
 		}
 		By(fmt.Sprintf("Creating new datastream for %s", ep+"/"+image))
 		ds, err := NewDataStream(&DataStreamOptions{
-			Dest:           common.ImporterWritePath,
-			DataDir:        "",
-			Endpoint:       ep + "/" + image,
-			AccessKey:      "",
-			SecKey:         "",
-			Source:         controller.SourceHTTP,
-			ContentType:    string(cdiv1.DataVolumeKubeVirt),
-			ImageSize:      "20M",
-			AvailableSpace: int64(1234567890),
-			CertDir:        "",
-			InsecureTLS:    false,
-			ScratchDataDir: "",
+			Dest:               common.ImporterWritePath,
+			DataDir:            "",
+			Endpoint:           ep + "/" + image,
+			AccessKey:          "",
+			SecKey:             "",
+			Source:             controller.SourceHTTP,
+			ContentType:        string(cdiv1.DataVolumeKubeVirt),
+			ImageSize:          "20M",
+			AvailableDestSpace: int64(1234567890),
+			CertDir:            "",
+			InsecureTLS:        false,
+			ScratchDataDir:     "",
 		})
 		if ds != nil && len(ds.Readers) > 0 {
 			defer ds.Close()
@@ -221,18 +221,18 @@ var _ = Describe("Data Stream", func() {
 		}
 		By(fmt.Sprintf("Creating new datastream to %s", tempTestServer.URL+"/"+filepath.Base(filename)))
 		ds, err := NewDataStream(&DataStreamOptions{
-			Dest:           dest,
-			DataDir:        "",
-			Endpoint:       tempTestServer.URL + "/" + filepath.Base(filename),
-			AccessKey:      "",
-			SecKey:         "",
-			Source:         controller.SourceHTTP,
-			ContentType:    contentType,
-			ImageSize:      "20M",
-			AvailableSpace: int64(1234567890),
-			CertDir:        "",
-			InsecureTLS:    false,
-			ScratchDataDir: "",
+			Dest:               dest,
+			DataDir:            "",
+			Endpoint:           tempTestServer.URL + "/" + filepath.Base(filename),
+			AccessKey:          "",
+			SecKey:             "",
+			Source:             controller.SourceHTTP,
+			ContentType:        contentType,
+			ImageSize:          "20M",
+			AvailableDestSpace: int64(1234567890),
+			CertDir:            "",
+			InsecureTLS:        false,
+			ScratchDataDir:     "",
 		})
 		defer func() {
 			tempTestServer.Close()
@@ -321,18 +321,18 @@ var _ = Describe("Copy", func() {
 		replaceQEMUOperations(qemuOperations, func() {
 			By("Copying image")
 			err := CopyData(&DataStreamOptions{
-				Dest:           dest,
-				DataDir:        dataDir,
-				Endpoint:       endpt,
-				AccessKey:      "",
-				SecKey:         "",
-				Source:         controller.SourceHTTP,
-				ContentType:    string(cdiv1.DataVolumeKubeVirt),
-				ImageSize:      "",
-				AvailableSpace: int64(1234567890),
-				CertDir:        "",
-				InsecureTLS:    false,
-				ScratchDataDir: tmpDir,
+				Dest:               dest,
+				DataDir:            dataDir,
+				Endpoint:           endpt,
+				AccessKey:          "",
+				SecKey:             "",
+				Source:             controller.SourceHTTP,
+				ContentType:        string(cdiv1.DataVolumeKubeVirt),
+				ImageSize:          "",
+				AvailableDestSpace: int64(1234567890),
+				CertDir:            "",
+				InsecureTLS:        false,
+				ScratchDataDir:     tmpDir,
 			})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
@@ -372,18 +372,18 @@ var _ = Describe("Copy", func() {
 		replaceQEMUOperations(qemuOperations, func() {
 			By(fmt.Sprintf("Importing %q to %q", tempTestServer.URL, testTarget))
 			err = CopyData(&DataStreamOptions{
-				Dest:           testTarget,
-				DataDir:        "",
-				Endpoint:       tempTestServer.URL + "/" + testBase,
-				AccessKey:      "",
-				SecKey:         "",
-				Source:         controller.SourceHTTP,
-				ContentType:    string(cdiv1.DataVolumeKubeVirt),
-				ImageSize:      "1G",
-				AvailableSpace: int64(1234567890),
-				CertDir:        "",
-				InsecureTLS:    false,
-				ScratchDataDir: "",
+				Dest:               testTarget,
+				DataDir:            "",
+				Endpoint:           tempTestServer.URL + "/" + testBase,
+				AccessKey:          "",
+				SecKey:             "",
+				Source:             controller.SourceHTTP,
+				ContentType:        string(cdiv1.DataVolumeKubeVirt),
+				ImageSize:          "1G",
+				AvailableDestSpace: int64(1234567890),
+				CertDir:            "",
+				InsecureTLS:        false,
+				ScratchDataDir:     "",
 			})
 			if wantErr {
 				Expect(err).To(HaveOccurred())
