@@ -11,6 +11,7 @@ import (
 	"k8s.io/klog"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
+	"kubevirt.io/containerized-data-importer/pkg/version/verflag"
 )
 
 const (
@@ -58,6 +59,8 @@ func init() {
 
 func main() {
 	defer klog.Flush()
+
+	verflag.PrintAndExitIfRequested()
 
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, configPath)
 	if err != nil {
