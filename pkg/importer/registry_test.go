@@ -55,18 +55,18 @@ var _ = Describe("Copy from Registry", func() {
 		replaceSkopeoOperations(skopeoOperations, func() {
 			By("Copying image")
 			err := CopyData(&DataStreamOptions{
-				Dest:           destImage,
-				DataDir:        dataDir,
-				Endpoint:       url,
-				AccessKey:      "",
-				SecKey:         "",
-				Source:         controller.SourceRegistry,
-				ContentType:    string(cdiv1.DataVolumeKubeVirt),
-				ImageSize:      "1G",
-				AvailableSpace: int64(1234567890),
-				CertDir:        "",
-				InsecureTLS:    false,
-				ScratchDataDir: tmpDir,
+				Dest:               destImage,
+				DataDir:            dataDir,
+				Endpoint:           url,
+				AccessKey:          "",
+				SecKey:             "",
+				Source:             controller.SourceRegistry,
+				ContentType:        string(cdiv1.DataVolumeKubeVirt),
+				ImageSize:          "1G",
+				AvailableDestSpace: int64(1234567890),
+				CertDir:            "",
+				InsecureTLS:        false,
+				ScratchDataDir:     tmpDir,
 			})
 			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
