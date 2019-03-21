@@ -17,7 +17,7 @@ limitations under the License.
 // Used https://github.com/kubernetes/kubernetes/blob/master/pkg/version/verflag/verflag.go as a template
 
 // Package verflag defines utility functions to handle command line flags
-// related to version of Kubernetes.
+// related to version of CDI.
 package verflag
 
 import (
@@ -31,10 +31,11 @@ import (
 
 type versionValue int
 
+// Enum specifying which format to use for printing CDI version
 const (
-	VersionFalse versionValue = 0
-	VersionTrue  versionValue = 1
-	VersionRaw   versionValue = 2
+	versionFalse versionValue = 0
+	versionTrue  versionValue = 1
+	versionRaw   versionValue = 2
 )
 
 const strRawVersion string = "raw"
@@ -49,23 +50,23 @@ func (v *versionValue) Get() interface{} {
 
 func (v *versionValue) Set(s string) error {
 	if s == strRawVersion {
-		*v = VersionRaw
+		*v = versionRaw
 		return nil
 	}
 	boolVal, err := strconv.ParseBool(s)
 	if boolVal {
-		*v = VersionTrue
+		*v = versionTrue
 	} else {
-		*v = VersionFalse
+		*v = versionFalse
 	}
 	return err
 }
 
 func (v *versionValue) String() string {
-	if *v == VersionRaw {
+	if *v == versionRaw {
 		return strRawVersion
 	}
-	return fmt.Sprintf("%v", bool(*v == VersionTrue))
+	return fmt.Sprintf("%v", bool(*v == versionTrue))
 }
 
 // The type of the flag as required by the pflag.Value interface
@@ -73,30 +74,31 @@ func (v *versionValue) Type() string {
 	return "version"
 }
 
-func VersionVar(p *versionValue, name string, value versionValue, usage string) {
+// versionVar defines a "version" flag
+func versionVar(p *versionValue, name string, value versionValue, usage string) {
 	*p = value
 	flag.Var(p, name, usage)
 }
 
-func Version(name string, value versionValue, usage string) *versionValue {
+func verflag(name string, value versionValue, usage string) *versionValue {
 	p := new(versionValue)
-	VersionVar(p, name, value, usage)
+	versionVar(p, name, value, usage)
 	return p
 }
 
 const versionFlagName = "version"
 
 var (
-	versionFlag = Version(versionFlagName, VersionFalse, "Print version information and quit")
+	versionFlag = verflag(versionFlagName, versionFalse, "Print version information and quit")
 )
 
 // PrintAndExitIfRequested will check if the -version flag was passed
 // and, if so, print the version and exit.
 func PrintAndExitIfRequested() {
-	if *versionFlag == VersionRaw {
+	if *versionFlag == versionRaw {
 		fmt.Printf("%#v\n", version.Get())
 		os.Exit(0)
-	} else if *versionFlag == VersionTrue {
+	} else if *versionFlag == versionTrue {
 		fmt.Printf("Containerized Data Importer %s\n", version.Get())
 		os.Exit(0)
 	}

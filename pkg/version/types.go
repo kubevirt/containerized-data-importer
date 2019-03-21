@@ -18,6 +18,7 @@ limitations under the License.
 
 package version
 
+// Info contains versioning information.
 type Info struct {
 	GitVersion   string `json:"gitVersion"`
 	GitCommit    string `json:"gitCommit"`
