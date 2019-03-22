@@ -34,6 +34,8 @@ import (
 	"k8s.io/klog"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+
+	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 )
 
 const (
@@ -61,6 +63,7 @@ const (
 // UploadController members
 type UploadController struct {
 	client                                    kubernetes.Interface
+	cdiClient                                 clientset.Interface
 	queue                                     workqueue.RateLimitingInterface
 	pvcInformer, podInformer, serviceInformer cache.SharedIndexInformer
 	pvcLister                                 corelisters.PersistentVolumeClaimLister
@@ -98,6 +101,7 @@ func UploadPossibleForPVC(pvc *v1.PersistentVolumeClaim) error {
 
 // NewUploadController returns a new UploadController
 func NewUploadController(client kubernetes.Interface,
+	cdiClientSet clientset.Interface,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	podInformer coreinformers.PodInformer,
 	serviceInformer coreinformers.ServiceInformer,
@@ -107,6 +111,7 @@ func NewUploadController(client kubernetes.Interface,
 	verbose string) *UploadController {
 	c := &UploadController{
 		client:                 client,
+		cdiClient:              cdiClientSet,
 		queue:                  workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		pvcInformer:            pvcInformer.Informer(),
 		podInformer:            podInformer.Informer(),
@@ -479,7 +484,7 @@ func (c *UploadController) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, 
 		}
 		return nil, errors.New("Scratch PVC exists, but is not owned by the right pod")
 	}
-	storageClassName, err := GetScratchPvcStorageClass(c.client, pvc)
+	storageClassName, err := GetScratchPvcStorageClass(c.client, c.cdiClient, pvc)
 	if err != nil {
 		return nil, err
 	}

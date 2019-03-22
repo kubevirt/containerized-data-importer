@@ -277,6 +277,11 @@ func (f *configFixture) expectUpdateConfigAction(config *cdiv1.CDIConfig) {
 	f.actions = append(f.actions, action)
 }
 
+func (f *configFixture) expectListStorageClass() {
+	f.kubeactions = append(f.kubeactions,
+		core.NewRootListAction(schema.GroupVersionResource{Resource: "storageclasses", Version: "v1"}, schema.GroupVersionKind{Group: "storage.k8s.io", Version: "v1", Kind: "StorageClass"}, metav1.ListOptions{}))
+}
+
 func TestCreatesCDIConfig(t *testing.T) {
 	f := newConfigFixture(t)
 	config := createCDIConfig("testConfig")
@@ -284,6 +289,7 @@ func TestCreatesCDIConfig(t *testing.T) {
 	f.configLister = append(f.configLister, config)
 	f.objects = append(f.objects, config)
 
+	f.expectListStorageClass()
 	f.run(getConfigKey(config, t))
 }
 
@@ -299,6 +305,7 @@ func TestCDIConfigStatusChanged(t *testing.T) {
 	result := config.DeepCopy()
 	result.Status.UploadProxyURL = &url
 
+	f.expectListStorageClass()
 	f.expectUpdateConfigAction(result)
 
 	f.run(getConfigKey(config, t))
@@ -320,6 +327,7 @@ func TestCreatesRoute(t *testing.T) {
 	result := config.DeepCopy()
 	result.Status.UploadProxyURL = &url
 
+	f.expectListStorageClass()
 	f.expectUpdateConfigAction(result)
 
 	f.run(getConfigKey(config, t))
@@ -341,6 +349,7 @@ func TestCreatesRouteOverrideExists(t *testing.T) {
 	result := config.DeepCopy()
 	result.Status.UploadProxyURL = &newURL
 
+	f.expectListStorageClass()
 	f.expectUpdateConfigAction(result)
 
 	f.run(getConfigKey(config, t))
@@ -357,6 +366,7 @@ func TestCreatesRouteDifferentService(t *testing.T) {
 
 	f.routeLister = append(f.routeLister, route)
 
+	f.expectListStorageClass()
 	f.run(getConfigKey(config, t))
 }
 func TestCreatesIngress(t *testing.T) {
@@ -374,6 +384,7 @@ func TestCreatesIngress(t *testing.T) {
 
 	result := config.DeepCopy()
 	result.Status.UploadProxyURL = &url
+	f.expectListStorageClass()
 	f.expectUpdateConfigAction(result)
 
 	f.run(getConfigKey(config, t))
@@ -396,6 +407,7 @@ func TestCreatesIngressOverrideExists(t *testing.T) {
 
 	result := config.DeepCopy()
 	result.Status.UploadProxyURL = &newURL
+	f.expectListStorageClass()
 	f.expectUpdateConfigAction(result)
 
 	f.run(getConfigKey(config, t))
@@ -413,6 +425,53 @@ func TestCreatesIngressDifferentService(t *testing.T) {
 
 	f.ingressLister = append(f.ingressLister, ing)
 	f.kubeobjects = append(f.kubeobjects, ing)
+	f.expectListStorageClass()
+	f.run(getConfigKey(config, t))
+}
+
+func TestCreatesScratchStorageClassOverrideExists(t *testing.T) {
+	f := newConfigFixture(t)
+
+	f.kubeobjects = append(f.kubeobjects, createStorageClass("test1", nil))
+	f.kubeobjects = append(f.kubeobjects, createStorageClass("test2", nil))
+	f.kubeobjects = append(f.kubeobjects, createStorageClass("test3", map[string]string{
+		AnnDefaultStorageClass: "true",
+	}))
+
+	config := createCDIConfig("testConfig")
+	scratchStorageClass := "test2"
+	config.Spec.ScratchSpaceStorageClass = &scratchStorageClass
+
+	f.configLister = append(f.configLister, config)
+	f.objects = append(f.objects, config)
+
+	result := config.DeepCopy()
+	result.Status.ScratchSpaceStorageClass = scratchStorageClass
+	f.expectListStorageClass()
+	f.expectUpdateConfigAction(result)
+
+	f.run(getConfigKey(config, t))
+}
+
+func TestCreatesScratchStorageClassOverrideMissing(t *testing.T) {
+	f := newConfigFixture(t)
+
+	f.kubeobjects = append(f.kubeobjects, createStorageClass("test1", nil))
+	f.kubeobjects = append(f.kubeobjects, createStorageClass("test2", nil))
+	f.kubeobjects = append(f.kubeobjects, createStorageClass("test3", map[string]string{
+		AnnDefaultStorageClass: "true",
+	}))
+
+	config := createCDIConfig("testConfig")
+	scratchStorageClass := "test3"
+
+	f.configLister = append(f.configLister, config)
+	f.objects = append(f.objects, config)
+
+	result := config.DeepCopy()
+	result.Status.ScratchSpaceStorageClass = scratchStorageClass
+	f.expectListStorageClass()
+	f.expectUpdateConfigAction(result)
 
 	f.run(getConfigKey(config, t))
 }

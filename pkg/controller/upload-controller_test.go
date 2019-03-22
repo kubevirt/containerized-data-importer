@@ -32,6 +32,8 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 
+	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -44,6 +46,7 @@ type uploadFixture struct {
 	t *testing.T
 
 	kubeclient *k8sfake.Clientset
+	cdiclient  *cdifake.Clientset
 
 	// Objects to put in the store.
 	pvcLister     []*corev1.PersistentVolumeClaim
@@ -55,6 +58,7 @@ type uploadFixture struct {
 
 	// Objects from here preloaded into NewSimpleFake.
 	kubeobjects []runtime.Object
+	cdiobjects  []runtime.Object
 
 	expectedSecretNamespace                   string
 	expectedSecretGets, expectedSecretCreates int
@@ -64,6 +68,7 @@ func newUploadFixture(t *testing.T) *uploadFixture {
 	f := &uploadFixture{}
 	f.t = t
 	f.kubeobjects = []runtime.Object{}
+	f.cdiobjects = []runtime.Object{}
 	return f
 }
 
@@ -79,6 +84,7 @@ func (f *uploadFixture) newController() (*UploadController, kubeinformers.Shared
 	}
 
 	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
+	f.cdiclient = cdifake.NewSimpleClientset(f.cdiobjects...)
 	i := kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
 
 	pvcInformer := i.Core().V1().PersistentVolumeClaims()
@@ -86,6 +92,7 @@ func (f *uploadFixture) newController() (*UploadController, kubeinformers.Shared
 	serviceInformer := i.Core().V1().Services()
 
 	c := NewUploadController(f.kubeclient,
+		f.cdiclient,
 		pvcInformer,
 		podInformer,
 		serviceInformer,
@@ -316,8 +323,9 @@ func TestCreatesUploadPodAndService(t *testing.T) {
 	f.pvcLister = append(f.pvcLister, pvc)
 	f.kubeobjects = append(f.kubeobjects, pvc)
 	f.kubeobjects = append(f.kubeobjects, pod)
+	cdiConfig := createCDIConfig(common.ConfigName)
+	f.cdiobjects = append(f.cdiobjects, cdiConfig)
 
-	f.expectListStorageClass()
 	f.expectCreatePvcAction(scratchPvc)
 	f.expectSecretActions("default", 1, 1)
 
@@ -347,11 +355,12 @@ func TestUpdatePodPhase(t *testing.T) {
 
 	f.serviceLister = append(f.serviceLister, service)
 	f.kubeobjects = append(f.kubeobjects, service)
+	cdiConfig := createCDIConfig(common.ConfigName)
+	f.cdiobjects = append(f.cdiobjects, cdiConfig)
 
 	updatedPVC := pvc.DeepCopy()
 	updatedPVC.Annotations[podPhaseAnnotation] = string(corev1.PodRunning)
 
-	f.expectListStorageClass()
 	f.expectCreatePvcAction(scratchPvc)
 	f.expectUpdatePvcAction(updatedPVC)
 

@@ -293,27 +293,22 @@ func CreateScratchPersistentVolumeClaim(client kubernetes.Interface, pvc *v1.Per
 // 2. If 1 is not available use the 'default' storage class.
 // 3. If 2 is not available use the storage class name of the original pvc that will own the scratch pvc.
 // 4. If none of those are available, fail with an error.
-func GetScratchPvcStorageClass(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (string, error) {
-	// TODO: Read config map to see if it has a storageClassName field in it.
-
-	// Get the default storage class.
-	storageClassList, err := client.StorageV1().StorageClasses().List(metav1.ListOptions{})
+func GetScratchPvcStorageClass(client kubernetes.Interface, cdiclient clientset.Interface, pvc *v1.PersistentVolumeClaim) (string, error) {
+	config, err := cdiclient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
 	if err != nil {
-		return "", err
+		klog.Warningf("Unable to find CDI configuration, %v\n", err)
 	}
-	for _, storageClass := range storageClassList.Items {
-		if defaultClassValue, ok := storageClass.Annotations[AnnDefaultStorageClass]; ok {
-			if defaultClassValue == "true" {
-				return storageClass.Name, nil
+	storageClassName := config.Status.ScratchSpaceStorageClass
+	if storageClassName == "" {
+		// Unable to determine default storage class, attempt to read the storage class from the pvc.
+		if pvc.Spec.StorageClassName != nil {
+			storageClassName = *pvc.Spec.StorageClassName
+			if storageClassName != "" {
+				return storageClassName, nil
 			}
 		}
-	}
-	// Unable to determine default storage class, attempt to read the storage class from the pvc.
-	if pvc.Spec.StorageClassName != nil {
-		storageClassName := *pvc.Spec.StorageClassName
-		if storageClassName != "" {
-			return storageClassName, nil
-		}
+	} else {
+		return storageClassName, nil
 	}
 	return "", errors.New("Unable to determine storage class to use for creating scratch space")
 }
