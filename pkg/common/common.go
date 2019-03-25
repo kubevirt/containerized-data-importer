@@ -78,6 +78,9 @@ const (
 	// ClonerSocketPath (controller pkg only)
 	ClonerSocketPath = "/tmp/clone/socket"
 
+	// SmartClonerCDILabel is the label applied to resources created by the smart-clone controller
+	SmartClonerCDILabel = "cdi-smart-clone"
+
 	// UploadServerCDILabel is the label applied to upload server resources
 	UploadServerCDILabel = "cdi-upload-server"
 	// UploadServerPodname is name of the upload server pod container

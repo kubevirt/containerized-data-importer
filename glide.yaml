@@ -40,3 +40,5 @@ import:
   version: rebase-1.13.4
 - package: github.com/openshift/client-go
   version: rebase-1.13.4
+- package: github.com/kubernetes-csi/external-snapshotter/pkg/apis
+  version: e49856eb417cbafa51e5a3fb3bd0ac9e31ab1873
