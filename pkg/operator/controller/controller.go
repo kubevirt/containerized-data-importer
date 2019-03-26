@@ -273,7 +273,6 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 
 func (r *ReconcileCDI) isMutable(obj runtime.Object) bool {
 	switch obj.(type) {
-	case *corev1.Secret:
 	case *corev1.ConfigMap:
 		return true
 	}
