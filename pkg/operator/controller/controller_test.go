@@ -26,9 +26,8 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
-
-	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -36,6 +35,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+
+	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
 	"k8s.io/client-go/kubernetes/scheme"
 
@@ -83,6 +84,7 @@ func init() {
 	cdiviaplha1.AddToScheme(scheme.Scheme)
 	extv1beta1.AddToScheme(scheme.Scheme)
 	secv1.Install(scheme.Scheme)
+	routev1.Install(scheme.Scheme)
 }
 
 var _ = Describe("Controller", func() {
@@ -128,6 +130,7 @@ var _ = Describe("Controller", func() {
 		Entry("CDI type", createCDI("cdi", "good uid")),
 		Entry("CDR type", &extv1beta1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "crd"}}),
 		Entry("SSC type", &secv1.SecurityContextConstraints{ObjectMeta: metav1.ObjectMeta{Name: "scc"}}),
+		Entry("Route type", &routev1.Route{ObjectMeta: metav1.ObjectMeta{Name: "route"}}),
 	)
 
 	Describe("Deploying CDI", func() {
@@ -224,6 +227,8 @@ var _ = Describe("Controller", func() {
 				Expect(err).ToNot(HaveOccurred())
 				running := false
 
+				createUploadProxyCACertSecret(args.client)
+
 				for _, r := range resources {
 					d, ok := r.(*appsv1.Deployment)
 					if !ok {
@@ -248,6 +253,21 @@ var _ = Describe("Controller", func() {
 				}
 
 				Expect(running).To(BeTrue())
+
+				route := &routev1.Route{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      uploadProxyRouteName,
+						Namespace: cdiNamespace,
+					},
+				}
+
+				obj, err := getObject(args.client, route)
+				Expect(err).To(BeNil())
+				route = obj.(*routev1.Route)
+
+				Expect(route.Spec.To.Kind).Should(Equal("Service"))
+				Expect(route.Spec.To.Name).Should(Equal(uploadProxyServiceName))
+				Expect(route.Spec.TLS.DestinationCACertificate).Should(Equal("hello world"))
 			})
 
 			It("can become become ready, un-ready, and ready again", func() {
@@ -258,6 +278,8 @@ var _ = Describe("Controller", func() {
 
 				resources, err := getAllResources(args.reconciler)
 				Expect(err).ToNot(HaveOccurred())
+
+				createUploadProxyCACertSecret(args.client)
 
 				for _, r := range resources {
 					d, ok := r.(*appsv1.Deployment)
@@ -517,4 +539,22 @@ func createReconciler(client realClient.Client) *ReconcileCDI {
 		clusterArgs:    clusterArgs,
 		namespacedArgs: namespacedArgs,
 	}
+}
+
+func createUploadProxyCACertSecret(client realClient.Client) {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cdi-upload-proxy-ca-key",
+			Namespace: "cdi",
+		},
+		Data: map[string][]byte{
+			"tls.crt": []byte("hello world"),
+		},
+	}
+
+	err := client.Create(context.TODO(), secret)
+	if errors.IsAlreadyExists(err) {
+		return
+	}
+	Expect(err).ToNot(HaveOccurred())
 }
