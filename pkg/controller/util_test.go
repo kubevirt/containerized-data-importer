@@ -1032,11 +1032,8 @@ func Test_GetScratchPvcStorageClassDefault(t *testing.T) {
 	cdiclient := cdifake.NewSimpleClientset(cdiObjs...)
 
 	pvc := createPvc("test", "test", nil, nil)
-	result, err := GetScratchPvcStorageClass(client, cdiclient, pvc)
+	result := GetScratchPvcStorageClass(client, cdiclient, pvc)
 
-	if err != nil {
-		t.Errorf("Enexpected error %+v", err)
-	}
 	if result != storageClassName {
 		t.Error("Storage class is not test3")
 	}
@@ -1059,11 +1056,8 @@ func Test_GetScratchPvcStorageClassConfig(t *testing.T) {
 	cdiclient := cdifake.NewSimpleClientset(cdiObjs...)
 
 	pvc := createPvc("test", "test", nil, nil)
-	result, err := GetScratchPvcStorageClass(client, cdiclient, pvc)
+	result := GetScratchPvcStorageClass(client, cdiclient, pvc)
 
-	if err != nil {
-		t.Errorf("Enexpected error %+v", err)
-	}
 	if result != storageClassName {
 		t.Error("Storage class is not test1")
 	}
@@ -1079,11 +1073,8 @@ func Test_GetScratchPvcStorageClassPvc(t *testing.T) {
 	cdiclient := cdifake.NewSimpleClientset(cdiObjs...)
 
 	pvc := createPvcInStorageClass("test", "test", &storageClass, nil, nil)
-	result, err := GetScratchPvcStorageClass(client, cdiclient, pvc)
+	result := GetScratchPvcStorageClass(client, cdiclient, pvc)
 
-	if err != nil {
-		t.Errorf("Enexpected error %+v", err)
-	}
 	if result != storageClass {
 		t.Error("Storage class is not storageClass")
 	}

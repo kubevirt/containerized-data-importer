@@ -253,7 +253,7 @@ func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.
 		LabelImportPvc:   pvc.Name,
 	}
 
-	return &v1.PersistentVolumeClaim{
+	pvcDef := &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      pvc.Name + "-scratch",
 			Namespace: pvc.Namespace,
@@ -268,11 +268,14 @@ func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.
 			},
 		},
 		Spec: v1.PersistentVolumeClaimSpec{
-			AccessModes:      []v1.PersistentVolumeAccessMode{"ReadWriteOnce"},
-			Resources:        pvc.Spec.Resources,
-			StorageClassName: &storageClassName,
+			AccessModes: []v1.PersistentVolumeAccessMode{"ReadWriteOnce"},
+			Resources:   pvc.Spec.Resources,
 		},
 	}
+	if storageClassName != "" {
+		pvcDef.Spec.StorageClassName = &storageClassName
+	}
+	return pvcDef
 }
 
 // CreateScratchPersistentVolumeClaim creates and returns a pointer to a scratch PVC which is created based on the passed-in pvc and storage class name.
@@ -292,11 +295,11 @@ func CreateScratchPersistentVolumeClaim(client kubernetes.Interface, pvc *v1.Per
 // 1. Defined value in CDI config map.
 // 2. If 1 is not available use the 'default' storage class.
 // 3. If 2 is not available use the storage class name of the original pvc that will own the scratch pvc.
-// 4. If none of those are available, fail with an error.
-func GetScratchPvcStorageClass(client kubernetes.Interface, cdiclient clientset.Interface, pvc *v1.PersistentVolumeClaim) (string, error) {
+// 4. If none of those are available, return blank.
+func GetScratchPvcStorageClass(client kubernetes.Interface, cdiclient clientset.Interface, pvc *v1.PersistentVolumeClaim) string {
 	config, err := cdiclient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
 	if err != nil {
-		klog.Warningf("Unable to find CDI configuration, %v\n", err)
+		klog.Errorf("Unable to find CDI configuration, %v\n", err)
 	}
 	storageClassName := config.Status.ScratchSpaceStorageClass
 	if storageClassName == "" {
@@ -304,13 +307,13 @@ func GetScratchPvcStorageClass(client kubernetes.Interface, cdiclient clientset.
 		if pvc.Spec.StorageClassName != nil {
 			storageClassName = *pvc.Spec.StorageClassName
 			if storageClassName != "" {
-				return storageClassName, nil
+				return storageClassName
 			}
 		}
 	} else {
-		return storageClassName, nil
+		return storageClassName
 	}
-	return "", errors.New("Unable to determine storage class to use for creating scratch space")
+	return ""
 }
 
 // CreateImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret
