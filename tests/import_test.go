@@ -229,7 +229,6 @@ func startPrometheusPortForward(f *framework.Framework) (string, *exec.Cmd, erro
 var _ = Describe("Importer Test Suite-Block_device", func() {
 	f := framework.NewFrameworkOrDie(namespacePrefix)
 	var pv *v1.PersistentVolume
-	var pvscratch *v1.PersistentVolume
 	var storageClass *k8sv1.StorageClass
 	var pod *v1.Pod
 	var err error
@@ -248,24 +247,13 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		pv, err = f.CreatePVFromDefinition(utils.NewBlockPVDefinition("local-volume", "1G", nil, "manual", nodeName))
 		Expect(err).ToNot(HaveOccurred())
 
-		By(fmt.Sprintf("Creating scratch PV"))
-		pvscratch, err = f.CreatePVFromDefinition(utils.NewPVDefinition("local-volume-scratch", "1G", nil, "manual"))
-		Expect(err).ToNot(HaveOccurred())
-
 		By("Verify that PV's phase is Available")
 		err = f.WaitTimeoutForPVReady(pv.Name, 60*time.Second)
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Verify that PV's scratch phase is Available")
-		err = f.WaitTimeoutForPVReady(pvscratch.Name, 60*time.Second)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		err := utils.DeletePV(f.K8sClient, pv)
-		Expect(err).ToNot(HaveOccurred())
-
-		err = utils.DeletePV(f.K8sClient, pvscratch)
 		Expect(err).ToNot(HaveOccurred())
 
 		err = utils.DeleteStorageClass(f.K8sClient, storageClass)
