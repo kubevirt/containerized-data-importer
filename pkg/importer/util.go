@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 	"k8s.io/klog"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -41,7 +42,9 @@ func MoveFile(src, dst string) error {
 // StreamDataToFile provides a function to stream the specified io.Reader to the specified local file
 func StreamDataToFile(dataReader io.Reader, filePath string) error {
 	// Attempt to create the file with name filePath.  If it exists, fail.
-	outFile, err := os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.ModePerm)
+	var outFile *os.File
+	var err error
+	outFile, err = os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.ModePerm)
 	defer outFile.Close()
 	if err != nil {
 		return errors.Wrapf(err, "could not open file %q", filePath)

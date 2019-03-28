@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 )
@@ -105,6 +105,35 @@ func NewDataVolumeWithHTTPImport(dataVolumeName string, size string, httpURL str
 			},
 		},
 	}
+}
+
+// NewDataVolumeWithHTTPImportToBlockPV initializes a DataVolume struct with HTTP annotations to import to block PV
+func NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName string, size string, httpURL string) *cdiv1.DataVolume {
+	volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock)
+	storageClassName := "manual"
+	dataVolume := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dataVolumeName,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{
+					URL: httpURL,
+				},
+			},
+			PVC: &k8sv1.PersistentVolumeClaimSpec{
+				VolumeMode:       &volumeMode,
+				StorageClassName: &storageClassName,
+				AccessModes:      []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+	return dataVolume
 }
 
 // NewDataVolumeForUpload initializes a DataVolume struct with Upload annotations

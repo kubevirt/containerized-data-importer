@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/onsi/ginkgo"
+	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -24,6 +25,8 @@ const (
 
 	// DefaultImagePath is the default destination for images created by CDI
 	DefaultImagePath = DefaultPvcMountPath + "/disk.img"
+	// DefaultImageBlockDevice is the default block device destination
+	DefaultImageBlockDevice = "/dev/blockDevice"
 
 	pvcPollInterval = defaultPollInterval
 	pvcCreateTime   = defaultPollPeriod
@@ -152,6 +155,15 @@ func NewPVCDefinition(pvcName string, size string, annotations, labels map[strin
 			},
 		},
 	}
+}
+
+// NewBlockPVCDefinition creates a PVC definition with volumeMode 'Block'
+func NewBlockPVCDefinition(pvcName string, size string, annotations, labels map[string]string, storageClassName string) *k8sv1.PersistentVolumeClaim {
+	pvcDef := NewPVCDefinition(pvcName, size, annotations, labels)
+	pvcDef.Spec.StorageClassName = &storageClassName
+	volumeMode := corev1.PersistentVolumeBlock
+	pvcDef.Spec.VolumeMode = &volumeMode
+	return pvcDef
 }
 
 // WaitForPersistentVolumeClaimPhase waits for the PVC to be in a particular phase (Pending, Bound, or Lost)

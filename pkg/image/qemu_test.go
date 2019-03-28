@@ -93,7 +93,7 @@ const badFormatValidateJSON = `
     "virtual-size": 4294967296,
     "filename": "myimage.qcow2",
     "cluster-size": 65536,
-    "format": "raw",
+    "format": "raw2",
     "actual-size": 262152192,
     "dirty-flag": false
 }
@@ -157,7 +157,7 @@ var _ = Describe("Importer", func() {
 
 	table.DescribeTable("Validate should", func(execfunc execFunctionType, errString string) {
 		replaceExecFunction(execfunc, func() {
-			err := Validate(imageName, "qcow2", 42949672960)
+			err := Validate(imageName, 42949672960)
 
 			if errString == "" {
 				Expect(err).NotTo(HaveOccurred())
@@ -173,7 +173,7 @@ var _ = Describe("Importer", func() {
 		table.Entry("validate success", mockExecFunction(goodValidateJSON, "", expectedLimits), ""),
 		table.Entry("validate error", mockExecFunction("", "exit 1", expectedLimits), "exit 1"),
 		table.Entry("validate bad json", mockExecFunction(badValidateJSON, "", expectedLimits), "unexpected end of JSON input"),
-		table.Entry("validate bad format", mockExecFunction(badFormatValidateJSON, "", expectedLimits), fmt.Sprintf("Invalid format raw for image %s", imageName)),
+		table.Entry("validate bad format", mockExecFunction(badFormatValidateJSON, "", expectedLimits), fmt.Sprintf("Invalid format raw2 for image %s", imageName)),
 		table.Entry("validate has backing file", mockExecFunction(backingFileValidateJSON, "", expectedLimits), fmt.Sprintf("Image %s is invalid because it has backing file backing-file.qcow2", imageName)),
 		table.Entry("validate shrink", mockExecFunction(hugeValidateJSON, "", expectedLimits), fmt.Sprintf("Virtual image size %d is larger than available size %d, shrink not yet supported.", 52949672960, 42949672960)),
 	)

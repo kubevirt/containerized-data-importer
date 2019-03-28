@@ -96,10 +96,40 @@ func TestCreatesImportPodForEndpoint(t *testing.T) {
 	f.run(getPvcKey(pvc, t))
 }
 
+// Verifies basic pod creation when new PVC (VolumeMode:Block) with endpoint annotation is discovered
+func TestCreatesImportPodForEndpointBlockPV(t *testing.T) {
+	f := newImportFixture(t)
+	pvc := createBlockPvc("testPvc1", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
+
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	expPod := createPod(pvc, DataVolName, nil)
+
+	f.expectCreatePodAction(expPod)
+
+	f.run(getPvcKey(pvc, t))
+}
+
 // Verifies basic pod creation when new PVC with 'blank' annotation is discovered
 func TestCreatesImportPodForBlankImage(t *testing.T) {
 	f := newImportFixture(t)
 	pvc := createPvc("testPvc1", "default", map[string]string{AnnSource: SourceNone}, nil)
+
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	expPod := createPod(pvc, DataVolName, nil)
+
+	f.expectCreatePodAction(expPod)
+
+	f.run(getPvcKey(pvc, t))
+}
+
+// Verifies basic pod creation when new PVC (VolumeMode: Block) with 'blank' annotation is discovered
+func TestCreatesImportPodForBlankImageBlockPV(t *testing.T) {
+	f := newImportFixture(t)
+	pvc := createBlockPvc("testPvc1", "default", map[string]string{AnnSource: SourceNone}, nil)
 
 	f.pvcLister = append(f.pvcLister, pvc)
 	f.kubeobjects = append(f.kubeobjects, pvc)
