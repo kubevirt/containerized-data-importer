@@ -168,20 +168,20 @@ func (cc *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	if err != nil {
 		return errors.WithMessage(err, "could not update pvc %q annotation and/or label")
 	} else if pvc.Annotations[AnnCloneOf] == "true" {
-		cc.deleteClonePods(sourcePod.Namespace, sourcePod.Name, targetPod.Name)
+		cc.deleteClonePods(sourcePod.Namespace, sourcePod.Name, targetPod.Namespace, targetPod.Name)
 	}
 	return nil
 }
 
-func (cc *CloneController) deleteClonePods(namespace, srcName, tgtName string) {
+func (cc *CloneController) deleteClonePods(srcNamespace, srcName, tgtNamespace, tgtName string) {
 	srcReq := podDeleteRequest{
-		namespace: namespace,
+		namespace: srcNamespace,
 		podName:   srcName,
 		podLister: cc.Controller.podLister,
 		k8sClient: cc.Controller.clientset,
 	}
 	tgtReq := podDeleteRequest{
-		namespace: namespace,
+		namespace: tgtNamespace,
 		podName:   tgtName,
 		podLister: cc.Controller.podLister,
 		k8sClient: cc.Controller.clientset,
