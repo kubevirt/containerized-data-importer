@@ -13,7 +13,6 @@ import (
 
 	restful "github.com/emicklei/go-restful"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/util/cert/triple"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -26,6 +25,7 @@ import (
 
 	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
+	keysutil "kubevirt.io/containerized-data-importer/pkg/keys/util"
 )
 
 var foo aggregatorapifake.Clientset
@@ -370,12 +370,12 @@ func TestGetSelfSignedCert(t *testing.T) {
 		t.Errorf("error generating keys: %v", err)
 	}
 
-	caKeyPair, err := triple.NewCA("myca")
+	caKeyPair, err := keysutil.NewCA("myca")
 	if err != nil {
 		t.Errorf("Error creating CA key pair")
 	}
 
-	serverKeyPair, err := triple.NewServerKeyPair(caKeyPair, "commonname", "service", "cdi", "cluster.local", []string{}, []string{})
+	serverKeyPair, err := keysutil.NewServerKeyPair(caKeyPair, "commonname", "service", "cdi", "cluster.local", []string{}, []string{})
 	if err != nil {
 		t.Errorf("Error creating server key pair")
 	}

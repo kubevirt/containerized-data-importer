@@ -21,7 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/cert"
-	"k8s.io/client-go/util/cert/triple"
 	"k8s.io/klog"
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
@@ -30,6 +29,7 @@ import (
 	validatingwebhook "kubevirt.io/containerized-data-importer/pkg/apiserver/webhooks/validating-webhook"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	keysutil "kubevirt.io/containerized-data-importer/pkg/keys/util"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -219,7 +219,7 @@ func (app *cdiAPIApp) getClientCert() error {
 
 func (app *cdiAPIApp) getSelfSignedCert() error {
 	namespace := util.GetNamespace()
-	caKeyPair, err := triple.NewCA("api.cdi.kubevirt.io")
+	caKeyPair, err := keysutil.NewCA("api.cdi.kubevirt.io")
 	if err != nil {
 		return errors.Wrap(err, "Error creating CA")
 	}

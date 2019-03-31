@@ -31,7 +31,7 @@ import (
 	"time"
 
 	"k8s.io/client-go/util/cert"
-	"k8s.io/client-go/util/cert/triple"
+	keysutil "kubevirt.io/containerized-data-importer/pkg/keys/util"
 )
 
 func newServer() *uploadServerApp {
@@ -39,18 +39,18 @@ func newServer() *uploadServerApp {
 	return server.(*uploadServerApp)
 }
 
-func newTLSServer(t *testing.T) (*uploadServerApp, *triple.KeyPair, *x509.Certificate) {
-	serverCA, err := triple.NewCA("server")
+func newTLSServer(t *testing.T) (*uploadServerApp, *keysutil.KeyPair, *x509.Certificate) {
+	serverCA, err := keysutil.NewCA("server")
 	if err != nil {
 		t.Error("Error creating CA")
 	}
 
-	clientCA, err := triple.NewCA("client")
+	clientCA, err := keysutil.NewCA("client")
 	if err != nil {
 		t.Error("Error creating CA")
 	}
 
-	serverKeyPair, err := triple.NewServerKeyPair(serverCA, "localhost", "localhost", "default", "local", []string{"127.0.0.1"}, []string{"localhost"})
+	serverKeyPair, err := keysutil.NewServerKeyPair(serverCA, "localhost", "localhost", "default", "local", []string{"127.0.0.1"}, []string{"localhost"})
 	if err != nil {
 		t.Error("Error creating server cert")
 	}
@@ -61,7 +61,7 @@ func newTLSServer(t *testing.T) (*uploadServerApp, *triple.KeyPair, *x509.Certif
 
 	server := NewUploadServer("127.0.0.1", 0, "disk.img", tlsKey, tlsCert, clientCert, "").(*uploadServerApp)
 
-	clientKeyPair, err := triple.NewClientKeyPair(clientCA, "client", []string{})
+	clientKeyPair, err := keysutil.NewClientKeyPair(clientCA, "client", []string{})
 	if err != nil {
 		t.Error("Error creating client cert")
 	}
@@ -69,7 +69,7 @@ func newTLSServer(t *testing.T) (*uploadServerApp, *triple.KeyPair, *x509.Certif
 	return server, clientKeyPair, serverCA.Cert
 }
 
-func newHTTPClient(t *testing.T, clientKeyPair *triple.KeyPair, serverCACert *x509.Certificate) *http.Client {
+func newHTTPClient(t *testing.T, clientKeyPair *keysutil.KeyPair, serverCACert *x509.Certificate) *http.Client {
 	clientCert, err := tls.X509KeyPair(cert.EncodeCertPEM(clientKeyPair.Cert), cert.EncodePrivateKeyPEM(clientKeyPair.Key))
 	if err != nil {
 		t.Error("Could not create tls.Certificate")

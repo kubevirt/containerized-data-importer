@@ -20,17 +20,16 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 
-	"k8s.io/client-go/util/cert/triple"
-
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	keysutil "kubevirt.io/containerized-data-importer/pkg/keys/util"
 )
 
 // NewTLSSecret returns a new TLS secret from objects
-func NewTLSSecret(namespace, secretName string, keyPair *triple.KeyPair, caCert *x509.Certificate, owner *metav1.OwnerReference) *v1.Secret {
+func NewTLSSecret(namespace, secretName string, keyPair *keysutil.KeyPair, caCert *x509.Certificate, owner *metav1.OwnerReference) *v1.Secret {
 	var privateKeyBytes, certBytes, caCertBytes []byte
 	privateKeyBytes = cert.EncodePrivateKeyPEM(keyPair.Key)
 	certBytes = cert.EncodeCertPEM(keyPair.Cert)

@@ -33,11 +33,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
-	"k8s.io/client-go/util/cert/triple"
 	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
+	keysutil "kubevirt.io/containerized-data-importer/pkg/keys/util"
 )
 
-func tlsSecretCreateAction(namespace, secretName string, keyPair *triple.KeyPair, caCert *x509.Certificate) core.Action {
+func tlsSecretCreateAction(namespace, secretName string, keyPair *keysutil.KeyPair, caCert *x509.Certificate) core.Action {
 	return core.NewCreateAction(
 		schema.GroupVersionResource{
 			Resource: "secrets",
@@ -160,7 +160,7 @@ var _ = Describe("Create CA", func() {
 	It("Should get an existing CA", func() {
 		kubeobjects := []runtime.Object{}
 
-		caKeyPair, err := triple.NewCA("myca")
+		caKeyPair, err := keysutil.NewCA("myca")
 		Expect(err).NotTo(HaveOccurred())
 
 		tlsSecret := keystest.NewTLSSecret(namespace, secret, caKeyPair, nil, nil)
@@ -191,10 +191,10 @@ var _ = Describe("Create Server Cert", func() {
 
 		client := k8sfake.NewSimpleClientset(kubeobjects...)
 
-		caKeyPair, err := triple.NewCA("myca")
+		caKeyPair, err := keysutil.NewCA("myca")
 		Expect(err).NotTo(HaveOccurred())
 
-		caKeyPair2, err := triple.NewCA("myca2")
+		caKeyPair2, err := keysutil.NewCA("myca2")
 		Expect(err).NotTo(HaveOccurred())
 
 		serverKeyPair, err := GetOrCreateServerKeyPairAndCert(client,
@@ -219,13 +219,13 @@ var _ = Describe("Create Server Cert", func() {
 	It("Should get an existing Server Cert", func() {
 		kubeobjects := []runtime.Object{}
 
-		caKeyPair, err := triple.NewCA("myca")
+		caKeyPair, err := keysutil.NewCA("myca")
 		Expect(err).NotTo(HaveOccurred())
 
-		caKeyPair2, err := triple.NewCA("myca2")
+		caKeyPair2, err := keysutil.NewCA("myca2")
 		Expect(err).NotTo(HaveOccurred())
 
-		keyPair, err := triple.NewServerKeyPair(caKeyPair, "commonname", "service", namespace, "cluster.local", []string{}, []string{})
+		keyPair, err := keysutil.NewServerKeyPair(caKeyPair, "commonname", "service", namespace, "cluster.local", []string{}, []string{})
 		Expect(err).NotTo(HaveOccurred())
 
 		tlsSecret := keystest.NewTLSSecret(namespace, secret, keyPair, caKeyPair2.Cert, nil)
@@ -266,10 +266,10 @@ var _ = Describe("Create Client Cert", func() {
 
 		client := k8sfake.NewSimpleClientset(kubeobjects...)
 
-		caKeyPair, err := triple.NewCA("myca")
+		caKeyPair, err := keysutil.NewCA("myca")
 		Expect(err).NotTo(HaveOccurred())
 
-		caKeyPair2, err := triple.NewCA("myca2")
+		caKeyPair2, err := keysutil.NewCA("myca2")
 		Expect(err).NotTo(HaveOccurred())
 
 		clientKeyPair, err := GetOrCreateClientKeyPairAndCert(client,
@@ -294,13 +294,13 @@ var _ = Describe("Create Client Cert", func() {
 	It("Should get an existing Client Cert", func() {
 		kubeobjects := []runtime.Object{}
 
-		caKeyPair, err := triple.NewCA("myca")
+		caKeyPair, err := keysutil.NewCA("myca")
 		Expect(err).NotTo(HaveOccurred())
 
-		caKeyPair2, err := triple.NewCA("myca2")
+		caKeyPair2, err := keysutil.NewCA("myca2")
 		Expect(err).NotTo(HaveOccurred())
 
-		keyPair, err := triple.NewClientKeyPair(caKeyPair, "commonname", []string{"myorg"})
+		keyPair, err := keysutil.NewClientKeyPair(caKeyPair, "commonname", []string{"myorg"})
 		Expect(err).NotTo(HaveOccurred())
 
 		tlsSecret := keystest.NewTLSSecret(namespace, secret, keyPair, caKeyPair2.Cert, nil)

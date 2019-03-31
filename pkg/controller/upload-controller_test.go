@@ -22,7 +22,6 @@ import (
 	"time"
 
 	kubeinformers "k8s.io/client-go/informers"
-	"k8s.io/client-go/util/cert/triple"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +33,7 @@ import (
 
 	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/keys"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -73,12 +73,12 @@ func newUploadFixture(t *testing.T) *uploadFixture {
 }
 
 func (f *uploadFixture) newController() (*UploadController, kubeinformers.SharedInformerFactory) {
-	serverCAKeypair, err := triple.NewCA("serverca")
+	serverCAKeypair, err := keys.NewCA("serverca")
 	if err != nil {
 		f.t.Errorf("Error creating CA cert")
 	}
 
-	clientCAKeypair, err := triple.NewCA("clientca")
+	clientCAKeypair, err := keys.NewCA("clientca")
 	if err != nil {
 		f.t.Errorf("Error creating CA cert")
 	}

@@ -29,10 +29,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/cert"
-	"k8s.io/client-go/util/cert/triple"
 	"k8s.io/klog"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
+	keysutil "kubevirt.io/containerized-data-importer/pkg/keys/util"
 )
 
 const (
@@ -56,7 +56,7 @@ const (
 // In the case of a server key pair, the CA is the CA that signed client certs
 // In the case of a client key pair, the CA is the CA that signed the server cert
 type KeyPairAndCert struct {
-	KeyPair triple.KeyPair
+	KeyPair keysutil.KeyPair
 	CACert  *x509.Certificate
 }
 
@@ -68,7 +68,7 @@ type KeyPairAndCertBytes struct {
 }
 
 // GetOrCreateCA will get the CA KeyPair, creating it if necessary
-func GetOrCreateCA(client kubernetes.Interface, namespace, secretName, caName string) (*triple.KeyPair, error) {
+func GetOrCreateCA(client kubernetes.Interface, namespace, secretName, caName string) (*keysutil.KeyPair, error) {
 	keyPairAndCert, err := GetKeyPairAndCert(client, namespace, secretName)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting CA")
@@ -81,7 +81,7 @@ func GetOrCreateCA(client kubernetes.Interface, namespace, secretName, caName st
 
 	klog.Infof("Recreating CA %s", caName)
 
-	keyPair, err := triple.NewCA(caName)
+	keyPair, err := keysutil.NewCA(caName)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating CA")
 	}
@@ -108,7 +108,7 @@ func GetOrCreateCA(client kubernetes.Interface, namespace, secretName, caName st
 func GetOrCreateServerKeyPairAndCert(client kubernetes.Interface,
 	namespace,
 	secretName string,
-	caKeyPair *triple.KeyPair,
+	caKeyPair *keysutil.KeyPair,
 	clientCACert *x509.Certificate,
 	commonName string,
 	serviceName string,
@@ -123,7 +123,7 @@ func GetOrCreateServerKeyPairAndCert(client kubernetes.Interface,
 		return keyPairAndCert, nil
 	}
 
-	keyPair, err := triple.NewServerKeyPair(caKeyPair, commonName, serviceName, namespace, "cluster.local", []string{}, []string{})
+	keyPair, err := keysutil.NewServerKeyPair(caKeyPair, commonName, serviceName, namespace, "cluster.local", []string{}, []string{})
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating server key pair")
 	}
@@ -146,7 +146,7 @@ func GetOrCreateServerKeyPairAndCert(client kubernetes.Interface,
 // GetOrCreateClientKeyPairAndCert creates a secret for upload proxy
 func GetOrCreateClientKeyPairAndCert(client kubernetes.Interface,
 	namespace, secretName string,
-	caKeyPair *triple.KeyPair,
+	caKeyPair *keysutil.KeyPair,
 	caCert *x509.Certificate,
 	commonName string,
 	organizations []string,
@@ -161,7 +161,7 @@ func GetOrCreateClientKeyPairAndCert(client kubernetes.Interface,
 		return keyPairAndCert, nil
 	}
 
-	keyPair, err := triple.NewClientKeyPair(caKeyPair, commonName, organizations)
+	keyPair, err := keysutil.NewClientKeyPair(caKeyPair, commonName, organizations)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating client key pair")
 	}
@@ -416,8 +416,8 @@ func parsePrivateKey(bytes []byte) (*rsa.PrivateKey, error) {
 // The caller is responsible for creating a writeable directory and cleaning up the generated files afterwards.
 func GenerateSelfSignedCert(certsDirectory string, name string, namespace string) (string, string, error) {
 	// Generic self signed CA.
-	caKeyPair, _ := triple.NewCA("cdi.kubevirt.io")
-	keyPair, _ := triple.NewServerKeyPair(
+	caKeyPair, _ := keysutil.NewCA("cdi.kubevirt.io")
+	keyPair, _ := keysutil.NewServerKeyPair(
 		caKeyPair,
 		name+"."+namespace+".pod.cluster.local",
 		name,

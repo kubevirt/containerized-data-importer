@@ -27,12 +27,12 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/util/cert"
-	"k8s.io/client-go/util/cert/triple"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/image"
+	keysutil "kubevirt.io/containerized-data-importer/pkg/keys/util"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -530,7 +530,7 @@ var _ = Describe("test certs get loaded", func() {
 		tempDir, err = ioutil.TempDir("/tmp", "cert-test")
 		Expect(err).ToNot(HaveOccurred())
 
-		keyPair, err := triple.NewCA("datastream.cdi.kubevirt.io")
+		keyPair, err := keysutil.NewCA("datastream.cdi.kubevirt.io")
 		Expect(err).ToNot(HaveOccurred())
 
 		certBytes := cert.EncodeCertPEM(keyPair.Cert)

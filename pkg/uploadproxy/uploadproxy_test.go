@@ -10,11 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/client-go/util/cert/triple"
-
 	"k8s.io/client-go/util/cert"
 
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
+	keysutil "kubevirt.io/containerized-data-importer/pkg/keys/util"
 )
 
 type httpClientConfig struct {
@@ -37,12 +36,12 @@ func getPublicKeyEncoded(t *testing.T) string {
 }
 
 func getHTTPClientConfig(t *testing.T) *httpClientConfig {
-	caKeyPair, err := triple.NewCA("myca")
+	caKeyPair, err := keysutil.NewCA("myca")
 	if err != nil {
 		panic("Error creating CA cert")
 	}
 
-	clientKeyPair, err := triple.NewClientKeyPair(caKeyPair, "testclient", []string{})
+	clientKeyPair, err := keysutil.NewClientKeyPair(caKeyPair, "testclient", []string{})
 	if err != nil {
 		panic("Error creating client cert")
 	}

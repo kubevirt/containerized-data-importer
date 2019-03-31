@@ -20,12 +20,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/util/cert/triple"
 	"k8s.io/klog"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
+	keysutil "kubevirt.io/containerized-data-importer/pkg/keys/util"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -819,7 +819,7 @@ func MakeCloneTargetPodSpec(image, pullPolicy, podAffinityNamespace string, pvc 
 
 // CreateUploadPod creates upload service pod manifest and sends to server
 func CreateUploadPod(client kubernetes.Interface,
-	caKeyPair *triple.KeyPair,
+	caKeyPair *keysutil.KeyPair,
 	clientCACert *x509.Certificate,
 	image string,
 	verbose string,
