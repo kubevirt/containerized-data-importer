@@ -1,0 +1,14 @@
+apiVersion: cdi.kubevirt.io/v1alpha1
+kind: DataVolume
+metadata:
+  name: upload-block-datavolume
+spec:
+  source:
+      upload: {}
+  pvc:
+    volumeMode: Block
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 500Mi

@@ -995,16 +995,6 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 					Name:            common.UploadServerPodname,
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
-					VolumeMounts: []v1.VolumeMount{
-						{
-							Name:      DataVolName,
-							MountPath: common.UploadServerDataDir,
-						},
-						{
-							Name:      ScratchVolName,
-							MountPath: common.ScratchDataDir,
-						},
-					},
 					Env: []v1.EnvVar{
 						{
 							Name: "TLS_KEY",
@@ -1083,7 +1073,42 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 			},
 		},
 	}
+	if getVolumeMode(pvc) == v1.PersistentVolumeBlock {
+		pod.Spec.Containers[0].VolumeDevices = addVolumeDevicesForUpload()
+		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, v1.EnvVar{
+			Name:  "DESTINATION",
+			Value: "/dev/blockDevice",
+		})
+
+	} else {
+		pod.Spec.Containers[0].VolumeMounts = addVolumeMountsForUpload()
+	}
+
+	pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, v1.VolumeMount{
+		Name:      ScratchVolName,
+		MountPath: common.ScratchDataDir,
+	})
 	return pod
+}
+
+func addVolumeDevicesForUpload() []v1.VolumeDevice {
+	volumeDevices := []v1.VolumeDevice{
+		{
+			Name:       DataVolName,
+			DevicePath: common.ImporterWriteBlockPath,
+		},
+	}
+	return volumeDevices
+}
+
+func addVolumeMountsForUpload() []v1.VolumeMount {
+	volumeMounts := []v1.VolumeMount{
+		{
+			Name:      DataVolName,
+			MountPath: common.UploadServerDataDir,
+		},
+	}
+	return volumeMounts
 }
 
 // CreateUploadService creates upload service service manifest and sends to server
