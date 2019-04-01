@@ -36,7 +36,7 @@ The standard workflow is performed inside a helper container to normalize the bu
 
 - `all`: cleans up previous build artifacts, compiles all CDI packages and builds containers
 - `apidocs`: generate client-go code (same as 'make generate') and swagger docs.  
-- `build`: compile all CDI binary artifacts and generate controller manifest
+- `build`: compile all CDI binary artifacts and generate controller and operator manifests
     - `build-controller`: compile cdi-controller binary
     - `build-importer`: compile cdi-importer binary
     - `build-apiserver`: compile cdi-apiserver binary
@@ -82,8 +82,10 @@ The standard workflow is performed inside a helper container to normalize the bu
 - `generate`: generate client-go deepcopy functions, clientset, listers and informers.
 - `generate-verify`: generate client-go deepcopy functions, clientset, listers and informers and validate codegen.
 - `goveralls`: run code coverage tracking system.
-- `manifests`: generate a cdi-controller manifest in `manifests/generated/`.  Accepts [make variables](#make-variables) DOCKER_TAG, DOCKER_REPO, VERBOSITY, and PULL_POLICY
+- `manifests`: generate a cdi-controller and operator manifests in `_out/manifests/`.  Accepts [make variables](#make-variables) DOCKER_TAG, DOCKER_REPO, VERBOSITY, PULL_POLICY, CSV_VERSION, QUAY_REPOSITORY, QUAY_NAMESPACE
 - `publish`: CI ONLY - this recipe is not intended for use by developers
+- `olm-verify`: verify generated olm manifests 
+- `olm-push`: push generated operator bundle to quay.io. Accepts [make_variables](#make-variables) CSV_VERSION, QUAY_USER, QUAY_PASSWORD, QUAY_REPOSITORY 
 - `push`: compiles, builds, and pushes to the repo passed in `DOCKER_REPO=<my repo>`
     - `push-controller`: compile, build, and push cdi-controller
     - `push-importer`: compile, build, and push cdi-importer
@@ -112,6 +114,11 @@ These may be passed to a target as `$ make VARIABLE=value target`
 - `DOCKER_TAG`: (default: latest) Set global version tags for image and manifest creation
 - `VERBOSITY`: (default: 1) Set global log level verbosity
 - `PULL_POLICY`: (default: IfNotPresent) Set global CDI pull policy
+- `CSV_VERSION`: (default: v0.0.0) Set CSV version of cdi-operator for OLM manifests
+- `QUAY_USERNAME`: (default: N/A) username to quay.io 
+- `QUAY_PASSWORD`: (default: N/A) password for quay.io
+- `QUAY_NAMESPACE`: (default: kubevirt) namespace where cdi application is located
+- `QUAY_REPOSITORY`: (default: cdi) application name 
 - `TEST_ARGS`: A variable containing a list of additional ginkgo flags to be passed to functional tests. The string "--test-args=" must prefix the variable value. For example:
 
              `make TEST_ARGS="--test-args=-ginkgo.noColor=true" test-functional >& foo`.
@@ -177,22 +184,58 @@ not supported, then you can use the following example to run Functional Tests.
    ```
    *To customize environment variables see [make targets](#make-targets)*
 
-   - Run the generated latest manfifest
+   - Run the generated latest manifests
+     There are two options to deploy cdi directly via cdi-controller.yaml or to deploy it via operator
+   ##### Direct deployment
    ```
-   # kubectl create -f manifests/generated/cdi-controller.yaml
-
-     serviceaccount/cdi-sa created
+     #kubectl create -f ./_out/manifests/cdi-controller.yaml
+     
+     namespace/cdi created
+     customresourcedefinition.apiextensions.k8s.io/datavolumes.cdi.kubevirt.io created
+     customresourcedefinition.apiextensions.k8s.io/cdiconfigs.cdi.kubevirt.io created
      clusterrole.rbac.authorization.k8s.io/cdi created
      clusterrolebinding.rbac.authorization.k8s.io/cdi-sa created
+     clusterrole.rbac.authorization.k8s.io/cdi-apiserver created
+     clusterrolebinding.rbac.authorization.k8s.io/cdi-apiserver created
+     clusterrolebinding.rbac.authorization.k8s.io/cdi-apiserver-auth-delegator created
+     serviceaccount/cdi-sa created
      deployment.apps/cdi-deployment created
-     customresourcedefinition.apiextensions.k8s.io/datavolumes.cdi.kubevirt.io created
+     configmap/cdi-insecure-registries created
+     serviceaccount/cdi-apiserver created
+     rolebinding.rbac.authorization.k8s.io/cdi-apiserver created
+     role.rbac.authorization.k8s.io/cdi-apiserver created
+     rolebinding.rbac.authorization.k8s.io/cdi-extension-apiserver-authentication created
+     role.rbac.authorization.k8s.io/cdi-extension-apiserver-authentication created
+     service/cdi-api created
+     deployment.apps/cdi-apiserver created
+     service/cdi-uploadproxy created
+     deployment.apps/cdi-uploadproxy created
+
+   ```
+   ##### Deployment via operator
+   ```
+     #./cluster/kubectl.sh apply -f "./_out/manifests/release/cdi-operator.yaml" 
+     namespace/cdi created
+     customresourcedefinition.apiextensions.k8s.io/cdis.cdi.kubevirt.io created
+     configmap/cdi-operator-leader-election-helper created
+     clusterrole.rbac.authorization.k8s.io/cdi.kubevirt.io:operator created
+     serviceaccount/cdi-operator created
+     clusterrole.rbac.authorization.k8s.io/cdi-operator-cluster-permissions created
+     clusterrolebinding.rbac.authorization.k8s.io/cdi-operator created
+     deployment.apps/cdi-operator created
+
+     #./cluster/kubectl.sh apply -f "./_out/manifests/release/cdi-operator-cr.yaml"
+     cdi.cdi.kubevirt.io/cdi created
+
    ```
 
 4. Build and run the func test servers
    In order to run fucntional tests the below servers have to be run
    - *host-file-server* is required by the functional tests and provides an
      endpoint server for image files and s3 buckets
-   - *registry-server* is required by the functional tests and provides an endpoint server for container images.
+   - *registry-server* is required by the functional tests and provides an endpoint server for container images. 
+     Note: for this server to run the follwoing setting is required in each cluster node 
+     ``` systemctl -w user.max_user_namespaces=1024 ```
 
 
    Build and Push to registry 
@@ -201,12 +244,14 @@ not supported, then you can use the following example to run Functional Tests.
    ```
    Generate manifests
    ```
-   # DOCKER_REPO=<repo> DOCKER_TAG=<tag> make manifests 
+   # DOCKER_REPO=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY=<verbosity> CSV_VERSION=<CSV version> QUAY_NAMESPACE=<namespace> QUAY_REPOSITORY=<application name> make manifests 
    ```
    Run servers
    ```
-   # ./cluster/kubectl.sh apply -f ./manifests/generated/file-host.yaml
-   # ./cluster/kubectl.sh apply -f ./manifests/generated/registry-host.yaml
+   # ./cluster/kubectl.sh apply -f ./_out/manifests/file-host.yaml
+   # ./cluster/kubectl.sh apply -f ./_out/manifests/registry-host.yaml
+   # ./cluster/kubectl.sh apply -f ./_out/manifests/block-device.yaml
+
    ```
 
 5. Run the tests

@@ -18,93 +18,35 @@ script_dir="$(readlink -f $(dirname $0))"
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
-templates="$(find "${MANIFEST_TEMPLATE_DIR}" -name "*.in" -type f)"
 generator="${BIN_DIR}/manifest-generator"
 
 (cd "${CDI_DIR}/tools/manifest-generator/" && go build -o "${generator}" ./...)
 
+
+source "${script_dir}"/resource-generator.sh
+
+
 mkdir -p "${MANIFEST_GENERATED_DIR}/"
+#generate controller related manifests used to deploy cdi without operator
+generateResourceManifest $generator $MANIFEST_GENERATED_DIR "controller-rbac" "cdi-controller.k8s.rbac.yaml" 
+generateResourceManifest $generator $MANIFEST_GENERATED_DIR "apiserver-rbac" "cdi-apiserver.k8s.rbac.yaml" 
+generateResourceManifest $generator $MANIFEST_GENERATED_DIR "crd-resources" "cdi-resources.yaml" 
+generateResourceManifest $generator $MANIFEST_GENERATED_DIR "apiserver" "cdi-apiserver.yaml" 
+generateResourceManifest $generator $MANIFEST_GENERATED_DIR "controller" "cdi-controller.yaml" 
+generateResourceManifest $generator $MANIFEST_GENERATED_DIR "uploadproxy" "cdi-uploadproxy.yaml" 
 
-for tmpl in ${templates}; do
-    tmpl=$(readlink -f "${tmpl}")
-    outFile=$(basename -s .in "${tmpl}")
-    rm -rf "${MANIFEST_GENERATED_DIR}/${outFile}"
-    (${generator} -template="${tmpl}" \
-        -docker-repo="${DOCKER_REPO}" \
-        -docker-tag="${DOCKER_TAG}" \
-        -controller-image="${CONTROLLER_IMAGE_NAME}" \
-        -importer-image="${IMPORTER_IMAGE_NAME}" \
-        -cloner-image="${CLONER_IMAGE_NAME}" \
-        -apiserver-image=${APISERVER_IMAGE_NAME} \
-        -uploadproxy-image=${UPLOADPROXY_IMAGE_NAME} \
-        -uploadserver-image=${UPLOADSERVER_IMAGE_NAME} \
-        -operator-image=${OPERATOR_IMAGE_NAME} \
-        -verbosity="${VERBOSITY}" \
-        -pull-policy="${PULL_POLICY}" \
-        -namespace="${NAMESPACE}"
-    ) 1>"${MANIFEST_GENERATED_DIR}/${outFile}"
 
-    (${generator} -template="${tmpl}" \
-        -docker-repo="{{ docker_prefix }}" \
-        -docker-tag="{{ docker_tag }}" \
-        -controller-image="{{ controller_image }}" \
-        -importer-image="{{ importer_image }}" \
-        -cloner-image="{{ cloner_image }}" \
-        -apiserver-image="{{ apiserver_image }}" \
-        -uploadproxy-image="{{ uploadproxy_image }}" \
-        -uploadserver-image="{{ uploadserver_image }}" \
-        -operator-image="{{ operator_image }}" \
-        -verbosity="{{ verbosity }}" \
-        -pull-policy="{{ pull_policy }}" \
-        -namespace="{{ cdi_namespace }}"
-    ) 1>"${MANIFEST_GENERATED_DIR}/${outFile}.j2"
-done
+#generate operator related manifests used to deploy cdi with operator-framework
+generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator-rbac" "rbac-operator.authorization.k8s.yaml.in" 
+generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator-deployment" "cdi-operator-deployment.yaml" 
+generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator-cdi-crd" "cdi-crd.yaml" 
+generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator-configmap-cr" "cdi-configmap-cr.yaml" 
 
-cat > "${MANIFEST_GENERATED_DIR}/cdi-controller.yaml" << EOF
-apiVersion: v1
-kind: Namespace
-metadata:
-  labels:
-    cdi.kubevirt.io: ""
-  name: cdi
-EOF
+#process templated manifests and populate them with generated manifests
+tempDir=${MANIFEST_TEMPLATE_DIR}
+processDirTemplates ${tempDir} ${OUT_DIR}/manifests ${OUT_DIR}/manifests/templates ${generator} ${MANIFEST_GENERATED_DIR} 
+processDirTemplates ${tempDir}/release ${OUT_DIR}/manifests/release ${OUT_DIR}/manifests/templates/release ${generator} ${MANIFEST_GENERATED_DIR}
+processDirTemplates ${tempDir}/release/olm ${OUT_DIR}/manifests/release/olm ${OUT_DIR}/manifests/templates/release/olm ${generator} ${MANIFEST_GENERATED_DIR}
+processDirTemplates ${tempDir}/release/olm/bundle ${OUT_DIR}/manifests/release/olm/bundle ${OUT_DIR}/manifests/templates/release/olm/bundle ${generator} ${MANIFEST_GENERATED_DIR}
 
-(${generator} -code-group=everything \
-    -docker-repo="${DOCKER_REPO}" \
-    -docker-tag="${DOCKER_TAG}" \
-    -controller-image="${CONTROLLER_IMAGE_NAME}" \
-    -importer-image="${IMPORTER_IMAGE_NAME}" \
-    -cloner-image="${CLONER_IMAGE_NAME}" \
-    -apiserver-image=${APISERVER_IMAGE_NAME} \
-    -uploadproxy-image=${UPLOADPROXY_IMAGE_NAME} \
-    -uploadserver-image=${UPLOADSERVER_IMAGE_NAME} \
-    -verbosity="${VERBOSITY}" \
-    -pull-policy="${PULL_POLICY}" \
-    -namespace="${NAMESPACE}"
-) 1>>"${MANIFEST_GENERATED_DIR}/cdi-controller.yaml"
 
-cat > "${MANIFEST_GENERATED_DIR}/cdi-controller.yaml.j2" << EOF
-apiVersion: v1
-kind: Namespace
-metadata:
-  labels:
-    cdi.kubevirt.io: ""
-  name: {{ cdi_namespace }}
-EOF
-
-(${generator} -code-group=everything \
-    -docker-repo="{{ docker_prefix }}" \
-    -docker-tag="{{ docker_tag }}" \
-    -controller-image="{{ controller_image }}" \
-    -importer-image="{{ importer_image }}" \
-    -cloner-image="{{ cloner_image }}" \
-    -apiserver-image="{{ apiserver_image }}" \
-    -uploadproxy-image="{{ uploadproxy_image }}" \
-    -uploadserver-image="{{ uploadserver_image }}" \
-    -verbosity="{{ verbosity }}" \
-    -pull-policy="{{ pull_policy }}" \
-    -namespace="{{ cdi_namespace }}"
-) 1>>"${MANIFEST_GENERATED_DIR}/cdi-controller.yaml.j2"
-
-# Remove empty lines at the end of files which are added by go templating
-find ${MANIFEST_GENERATED_DIR}/ -type f -exec sed -i {} -e '${/^$/d;}' \;

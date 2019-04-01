@@ -1,0 +1,4 @@
+packageName: {{.QuayRepository}}
+channels:
+  - name: beta
+    currentCSV: cdioperator.{{.CsvVersion}}

@@ -1,6 +1,8 @@
 FROM fedora:29
 
-RUN dnf install -y qemu xz gzip git gradle gcc && dnf clean all
+RUN dnf install -y qemu xz gzip git gradle gcc autoconf automake libtool python jq && dnf clean all
+
+RUN pip3 install j2cli && pip3 install operator-courier
 
 ENV GIMME_GO_VERSION=1.11.5 GOPATH="/go" KUBEBUILDER_VERSION="1.0.7" ARCH="amd64"
 
