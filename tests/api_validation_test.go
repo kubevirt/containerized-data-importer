@@ -179,6 +179,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			table.Entry("[test_id:1765]fail with invalid source PVC", "manifests/dvInvalidSourcePVC.yaml", true),
 			table.Entry("[test_id:1766][posneg:positive]succeed with valid source http", "manifests/datavolume.yaml", false),
 			table.Entry("[test_id:1767]fail with missing PVC spec", "manifests/dvMissingPVCSpec.yaml", true),
+			table.Entry("fail with missing PVC accessModes", "manifests/dvMissingPVCAccessModes.yaml", true),
 			table.Entry("[test_id:1768]fail with missing resources spec", "manifests/dvMissingResourcesSpec.yaml", true),
 			table.Entry("[test_id:1769]fail with 0 size PVC", "manifests/dv0SizePVC.yaml", true),
 		)
