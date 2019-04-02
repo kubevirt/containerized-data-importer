@@ -61,11 +61,11 @@ metadata:
 spec:
   # Optional: Set the storage class or omit to accept the default
   storageClassName: local
-  volumeMode: Block
   source:
       http:
          url: "http://distro.ibiblio.org/tinycorelinux/9.x/x86/release/Core-current.iso"
   pvc:
+    volumeMode: Block
     accessModes:
       - ReadWriteOnce
     resources:
