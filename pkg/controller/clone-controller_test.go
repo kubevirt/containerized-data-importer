@@ -234,6 +234,8 @@ func TestCloneFindPodsInCacheUpdating(t *testing.T) {
 	f.kubeobjects = append(f.kubeobjects, tests[0].sourcePod)
 	f.kubeobjects = append(f.kubeobjects, tests[0].targetPod)
 
+	tests[1].pvc.SetUID("pvc-uid-clone1")
+	id = string(tests[1].pvc.GetUID())
 	tests[1].sourcePod = createSourcePod(tests[1].pvc, id)
 	tests[1].sourcePod.Namespace = "source-ns"
 	tests[1].sourcePod.Name = fmt.Sprintf("fakesourcename%d", 2)
