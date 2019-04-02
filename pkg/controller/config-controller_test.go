@@ -453,6 +453,7 @@ func TestCreatesScratchStorageClassOverrideExists(t *testing.T) {
 	f.run(getConfigKey(config, t))
 }
 
+// TODO Enable me when we refactor the controller.
 //func TestCreatesScratchStorageClassOverrideMissing(t *testing.T) {
 //	f := newConfigFixture(t)
 //
