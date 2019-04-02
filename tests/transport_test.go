@@ -3,7 +3,6 @@ package tests
 import (
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -11,7 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -90,25 +89,12 @@ var _ = Describe("Transport Tests", func() {
 		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("transport-e2e", "20M", pvcAnn, nil))
 		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
 
-		_, err = utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
-
 		if shouldSucceed {
-			By("Waiting for the pod to complete, make sure the next tests are valid")
-			Eventually(func() bool {
-				podList, err := c.CoreV1().Pods(ns).List(metav1.ListOptions{
-					LabelSelector: common.CDILabelSelector,
-				})
-				if err == nil {
-					for _, pod := range podList.Items {
-						if strings.HasPrefix(pod.Name, common.ImporterPodName) {
-							return false
-						}
-					}
-					return true
-				}
-				return false
-			}, timeout, pollingInterval).Should(BeTrue())
+			By("Verify PVC status annotation says succeeded")
+			found, err := utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue())
+
 			By("Verifying PVC is not empty")
 			Expect(framework.VerifyPVCIsEmpty(f, pvc)).To(BeFalse(), fmt.Sprintf("Found 0 imported files on PVC %q", pvc.Namespace+"/"+pvc.Name))
 
@@ -126,6 +112,11 @@ var _ = Describe("Transport Tests", func() {
 				}
 			}
 		} else {
+			By("Verify PVC status annotation says failed")
+			found, err := utils.WaitPVCPodStatusFailed(f.K8sClient, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeTrue())
+
 			By("Verifying PVC is empty")
 			Expect(framework.VerifyPVCIsEmpty(f, pvc)).To(BeTrue(), fmt.Sprintf("Found 0 imported files on PVC %q", pvc.Namespace+"/"+pvc.Name))
 		}
