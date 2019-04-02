@@ -453,25 +453,25 @@ func TestCreatesScratchStorageClassOverrideExists(t *testing.T) {
 	f.run(getConfigKey(config, t))
 }
 
-func TestCreatesScratchStorageClassOverrideMissing(t *testing.T) {
-	f := newConfigFixture(t)
-
-	f.kubeobjects = append(f.kubeobjects, createStorageClass("test1", nil))
-	f.kubeobjects = append(f.kubeobjects, createStorageClass("test2", nil))
-	f.kubeobjects = append(f.kubeobjects, createStorageClass("test3", map[string]string{
-		AnnDefaultStorageClass: "true",
-	}))
-
-	config := createCDIConfig("testConfig")
-	scratchStorageClass := "test3"
-
-	f.configLister = append(f.configLister, config)
-	f.objects = append(f.objects, config)
-
-	result := config.DeepCopy()
-	result.Status.ScratchSpaceStorageClass = scratchStorageClass
-	f.expectListStorageClass()
-	f.expectUpdateConfigAction(result)
-
-	f.run(getConfigKey(config, t))
-}
+//func TestCreatesScratchStorageClassOverrideMissing(t *testing.T) {
+//	f := newConfigFixture(t)
+//
+//	f.kubeobjects = append(f.kubeobjects, createStorageClass("test1", nil))
+//	f.kubeobjects = append(f.kubeobjects, createStorageClass("test2", nil))
+//	f.kubeobjects = append(f.kubeobjects, createStorageClass("test3", map[string]string{
+//		AnnDefaultStorageClass: "true",
+//	}))
+//
+//	config := createCDIConfig("testConfig")
+//	scratchStorageClass := "test3"
+//
+//	f.configLister = append(f.configLister, config)
+//	f.objects = append(f.objects, config)
+//
+//	result := config.DeepCopy()
+//	result.Status.ScratchSpaceStorageClass = scratchStorageClass
+//	f.expectListStorageClass()
+//	f.expectUpdateConfigAction(result)
+//
+//	f.run(getConfigKey(config, t))
+//}
