@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	storageV1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
@@ -53,7 +53,7 @@ func (cc *CloneController) findClonePodsFromCache(pvc *v1.PersistentVolumeClaim)
 			return nil, nil, errors.Errorf("Bad CloneRequest Annotation")
 		}
 		//find the source pod
-		selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: map[string]string{CloneUniqueID: pvc.Name + "-source-pod"}})
+		selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: map[string]string{CloneUniqueID: string(pvc.GetUID()) + "-source-pod"}})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -68,7 +68,7 @@ func (cc *CloneController) findClonePodsFromCache(pvc *v1.PersistentVolumeClaim)
 		}
 		sourcePod = podList[0]
 		//find target pod
-		selector, err = metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: map[string]string{CloneUniqueID: pvc.Name + "-target-pod"}})
+		selector, err = metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: map[string]string{CloneUniqueID: string(pvc.GetUID()) + "-target-pod"}})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -126,7 +126,7 @@ func (cc *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 		if err != nil {
 			return err
 		}
-		//create random string to be used for pod labeling and hostpath name
+
 		if sourcePod == nil {
 			cr, err := getCloneRequestPVC(pvc)
 			if err != nil {

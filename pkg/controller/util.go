@@ -603,6 +603,7 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName string, pvc *v1.Per
 	id := string(pvc.GetUID())
 	blockOwnerDeletion := true
 	isController := true
+
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -619,7 +620,7 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName string, pvc *v1.Per
 				common.CDIComponentLabel: common.ClonerSourcePodName,
 				common.CloningLabelKey:   common.CloningLabelValue + "-" + id, //used by podAffity
 				// this label is used when searching for a pvc's cloner source pod.
-				CloneUniqueID: pvc.Name + "-source-pod",
+				CloneUniqueID: id + "-source-pod",
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -722,7 +723,7 @@ func MakeCloneTargetPodSpec(image, pullPolicy, podAffinityNamespace string, pvc 
 				common.CDILabelKey:       common.CDILabelValue, //filtered by the podInformer
 				common.CDIComponentLabel: common.ClonerTargetPodName,
 				// this label is used when searching for a pvc's cloner target pod.
-				CloneUniqueID:          pvc.Name + "-target-pod",
+				CloneUniqueID:          id + "-target-pod",
 				common.PrometheusLabel: "",
 			},
 			OwnerReferences: []metav1.OwnerReference{

@@ -1277,6 +1277,7 @@ func createPvcInStorageClass(name, ns string, storageClassName *string, annotati
 			Namespace:   ns,
 			Annotations: annotations,
 			Labels:      labels,
+			UID:         "pvc-uid",
 		},
 		Spec: v1.PersistentVolumeClaimSpec{
 			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany, v1.ReadWriteOnce},
@@ -1504,7 +1505,7 @@ func createCloneController(pvcSpec *v1.PersistentVolumeClaim, sourcePodSpec *v1.
 	return c, pvc, sourcePod, targetPod, nil
 }
 
-func createSourcePod(pvc *v1.PersistentVolumeClaim, id string) *v1.Pod {
+func createSourcePod(pvc *v1.PersistentVolumeClaim, pvcUID string) *v1.Pod {
 	_, sourcePvcName := ParseSourcePvcAnnotation(pvc.GetAnnotations()[AnnCloneRequest], "/")
 	// source pod name contains the pvc name
 	podName := fmt.Sprintf("%s-", ClonerSourcePodName)
@@ -1524,9 +1525,9 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, id string) *v1.Pod {
 			Labels: map[string]string{
 				CDILabelKey:       CDILabelValue, //filtered by the podInformer
 				CDIComponentLabel: ClonerSourcePodName,
-				CloningLabelKey:   CloningLabelValue + "-" + id, //used by podAffity
+				CloningLabelKey:   CloningLabelValue + "-" + pvcUID, //used by podAffity
 				// this label is used when searching for a pvc's cloner source pod.
-				CloneUniqueID: pvc.Name + "-source-pod",
+				CloneUniqueID: pvcUID + "-source-pod",
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -1556,10 +1557,10 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, id string) *v1.Pod {
 						},
 						{
 							Name:      socketPathName,
-							MountPath: ClonerSocketPath + "/" + id,
+							MountPath: ClonerSocketPath + "/" + pvcUID,
 						},
 					},
-					Args: []string{"source", id},
+					Args: []string{"source", pvcUID},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyNever,
@@ -1577,7 +1578,7 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, id string) *v1.Pod {
 					Name: socketPathName,
 					VolumeSource: v1.VolumeSource{
 						HostPath: &v1.HostPathVolumeSource{
-							Path: ClonerSocketPath + "/" + id,
+							Path: ClonerSocketPath + "/" + pvcUID,
 						},
 					},
 				},
@@ -1587,7 +1588,7 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, id string) *v1.Pod {
 	return pod
 }
 
-func createTargetPod(pvc *v1.PersistentVolumeClaim, id, podAffinityNamespace string) *v1.Pod {
+func createTargetPod(pvc *v1.PersistentVolumeClaim, pvcUID, podAffinityNamespace string) *v1.Pod {
 	// target pod name contains the pvc name
 	podName := fmt.Sprintf("%s-", ClonerTargetPodName)
 	blockOwnerDeletion := true
@@ -1608,7 +1609,7 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, id, podAffinityNamespace str
 				CDILabelKey:       CDILabelValue, //filtered by the podInformer
 				CDIComponentLabel: ClonerTargetPodName,
 				// this label is used when searching for a pvc's cloner target pod.
-				CloneUniqueID:   pvc.Name + "-target-pod",
+				CloneUniqueID:   pvcUID + "-target-pod",
 				PrometheusLabel: "",
 			},
 			OwnerReferences: []metav1.OwnerReference{
@@ -1632,7 +1633,7 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, id, podAffinityNamespace str
 									{
 										Key:      CloningLabelKey,
 										Operator: metav1.LabelSelectorOpIn,
-										Values:   []string{CloningLabelValue + "-" + id},
+										Values:   []string{CloningLabelValue + "-" + pvcUID},
 									},
 								},
 							},
@@ -1658,10 +1659,10 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, id, podAffinityNamespace str
 						},
 						{
 							Name:      socketPathName,
-							MountPath: ClonerSocketPath + "/" + id,
+							MountPath: ClonerSocketPath + "/" + pvcUID,
 						},
 					},
-					Args: []string{"target", id},
+					Args: []string{"target", pvcUID},
 					Ports: []v1.ContainerPort{
 						{
 							Name:          "metrics",
@@ -1692,7 +1693,7 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, id, podAffinityNamespace str
 					Name: socketPathName,
 					VolumeSource: v1.VolumeSource{
 						HostPath: &v1.HostPathVolumeSource{
-							Path: ClonerSocketPath + "/" + id,
+							Path: ClonerSocketPath + "/" + pvcUID,
 						},
 					},
 				},
