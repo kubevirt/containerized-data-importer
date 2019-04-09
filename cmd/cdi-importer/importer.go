@@ -18,6 +18,8 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/pkg/errors"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog"
@@ -108,6 +110,9 @@ func main() {
 			klog.Errorf("%+v", err)
 			os.Exit(1)
 		}
+	} else if source == controller.SourceNone && contentType == string(cdiv1.DataVolumeArchive) {
+		klog.Errorf("%+v", errors.New("Cannot create empty disk with content type archive"))
+		os.Exit(1)
 	} else {
 		err = importer.CopyData(dso)
 		if err != nil {
