@@ -2,6 +2,7 @@ package tests
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -266,6 +267,34 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 				})
 			}
+		})
+	})
+
+	Describe("Progress reporting on import datavolume", func() {
+		It("Should report progress while importing", func() {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", utils.TinyCoreQcow2URLRateLimit)
+			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			//Due to the rate limit, this will take a while, so we can expect the phase to be in progress.
+			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
+			utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
+			if err != nil {
+				PrintControllerLog(f)
+				dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				if dverr != nil {
+					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+				}
+			}
+			Expect(err).ToNot(HaveOccurred())
+			progressRegExp := regexp.MustCompile("\\d{1,3}\\.?\\d{1,2}%")
+			Eventually(func() bool {
+				dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				progress := dv.Status.Progress
+				return progressRegExp.MatchString(string(progress))
+			}, timeout, pollingInterval).Should(BeTrue())
 		})
 	})
 })

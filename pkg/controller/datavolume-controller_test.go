@@ -429,6 +429,7 @@ func TestImportSucceeded(t *testing.T) {
 
 	result := dataVolume.DeepCopy()
 	result.Status.Phase = cdiv1.Succeeded
+	result.Status.Progress = "100.0%"
 	f.expectUpdateDataVolumeStatusAction(result)
 	f.run(getKey(dataVolume, t))
 }
@@ -532,6 +533,7 @@ func TestCloneSucceeded(t *testing.T) {
 
 	result := dataVolume.DeepCopy()
 	result.Status.Phase = cdiv1.Succeeded
+	result.Status.Progress = "100.0%"
 	f.expectUpdateDataVolumeStatusAction(result)
 	f.run(getKey(dataVolume, t))
 }
@@ -641,7 +643,7 @@ func TestUploadSucceeded(t *testing.T) {
 
 func TestUploadPodFailed(t *testing.T) {
 	f := newFixture(t)
-	dataVolume := newCloneDataVolume("upload-datavolume")
+	dataVolume := newUploadDataVolume("upload-datavolume")
 	pvc, _ := newPersistentVolumeClaim(dataVolume)
 
 	dataVolume.Status.Phase = cdiv1.Pending
@@ -737,6 +739,7 @@ func TestBlankImageSucceeded(t *testing.T) {
 
 	result := dataVolume.DeepCopy()
 	result.Status.Phase = cdiv1.Succeeded
+	result.Status.Progress = "100.0%"
 	f.expectUpdateDataVolumeStatusAction(result)
 	f.run(getKey(dataVolume, t))
 }
