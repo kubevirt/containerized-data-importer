@@ -7,22 +7,15 @@ import (
 	"io/ioutil"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
-
-type prometheusProgressReader struct {
-	util.CountingReader
-	total uint64
-}
 
 const (
 	maxSizeLength = 20
@@ -87,17 +80,8 @@ func main() {
 	}
 	defer out.Close()
 
-	promReader := &prometheusProgressReader{
-		CountingReader: util.CountingReader{
-			Reader:  out,
-			Current: 0,
-		},
-		total: total,
-	}
-
-	// Start the progress update thread.
-	go promReader.timedUpdateProgress()
-
+	promReader := prometheusutil.NewProgressReader(out, total, progress, ownerUID)
+	promReader.StartTimedUpdate()
 	volumeMode := v1.PersistentVolumeBlock
 	if _, err := os.Stat(common.ImporterWriteBlockPath); os.IsNotExist(err) {
 		volumeMode = v1.PersistentVolumeFilesystem
@@ -125,26 +109,6 @@ func collectTotalSize() (uint64, error) {
 	}
 	defer out.Close()
 	return readTotal(out)
-}
-
-func (r *prometheusProgressReader) timedUpdateProgress() {
-	for true {
-		// Update every second.
-		time.Sleep(time.Second)
-		r.updateProgress()
-	}
-}
-
-func (r *prometheusProgressReader) updateProgress() {
-	if r.total > 0 {
-		currentProgress := float64(r.Current) / float64(r.total) * 100.0
-		metric := &dto.Metric{}
-		progress.WithLabelValues(ownerUID).Write(metric)
-		if currentProgress > *metric.Counter.Value {
-			progress.WithLabelValues(ownerUID).Add(currentProgress - *metric.Counter.Value)
-		}
-		klog.V(1).Infoln(fmt.Sprintf("%.2f", currentProgress))
-	}
 }
 
 // read total file size from reader, and return the value as an int64
