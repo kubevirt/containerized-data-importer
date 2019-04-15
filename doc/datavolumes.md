@@ -131,6 +131,30 @@ spec:
         storage: 1Gi
 ```
 
+## Block Volume Mode
+You can import, clone and upload a disk image to a raw block persistent volume.
+This is done by assigning the value 'Block' to the PVC volumeMode field in the DataVolume yaml.
+The following is an exmaple to import disk image to a raw block volume:
+```yaml
+apiVersion: cdi.kubevirt.io/v1alpha1
+kind: DataVolume
+metadata:
+  name: "example-import-dv"
+spec:
+  source:
+      http:
+         url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img" # Or S3
+         secretRef: "" # Optional
+         certConfigMap: "" # Optional
+  pvc:
+    blockVolume: Block
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: "64Mi"
+```
+
 ## Kubevirt integration
 [Kubevirt](https://github.com/kubevirt/kubevirt) is an extension to Kubernetes that allows one to run Virtual Machines(VM) on the same infra structure as the containers managed by Kubernetes. CDI provides a mechanism to get a disk image into a PVC in order for Kubevirt to consume it. The following steps have to be taken in order for Kubevirt to consume a CDI provided disk image.
 1. Create a PVC with an annotation to for instance import from an external URL.
