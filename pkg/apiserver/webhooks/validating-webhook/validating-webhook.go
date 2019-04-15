@@ -178,11 +178,19 @@ func validateDataVolumeSpec(field *k8sfield.Path, spec *cdicorev1alpha1.DataVolu
 		})
 		return causes
 	}
-	pvcSize := spec.PVC.Resources.Requests["storage"]
-	if pvcSize.IsZero() || pvcSize.Value() < 0 {
+	if pvcSize, ok := spec.PVC.Resources.Requests["storage"]; ok {
+		if pvcSize.IsZero() || pvcSize.Value() < 0 {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("PVC size can't be equal or less than zero"),
+				Field:   field.Child("PVC", "resources", "requests", "size").String(),
+			})
+			return causes
+		}
+	} else {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("PVC size can't be equal or less than zero"),
+			Message: fmt.Sprintf("PVC size is missing"),
 			Field:   field.Child("PVC", "resources", "requests", "size").String(),
 		})
 		return causes
