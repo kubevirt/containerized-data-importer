@@ -62,9 +62,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			case "upload":
 				dataVolume = utils.NewDataVolumeForUpload(dataVolumeName, "1Gi")
 			case "clone":
-				sourcePVCName := fmt.Sprintf("%s-src-pvc", dataVolumeName)
 				sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
-				sourcePvc = f.CreateAndPopulateSourcePVC(sourcePVCName, sourcePodFillerName, command)
+				pvcDef := utils.NewPVCDefinition(pvcName, "1G", nil, nil)
+				sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
 
 				By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
 				dataVolume = utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)

@@ -93,7 +93,21 @@ func TestCreatesClonePods(t *testing.T) {
 	f.expectCreatePodAction(expSourcePod)
 	expTargetPod := createTargetPod(pvc, id, "source-ns")
 	f.expectCreatePodAction(expTargetPod)
+	f.run(getPvcKey(pvc, t))
+}
 
+// Verifies basic pods creation when new PVC is discovered
+func TestCreatesClonePodsBlockPvc(t *testing.T) {
+	f := newCloneFixture(t)
+	pvc := createCloneBlockPvc("target-pvc", "target-ns", map[string]string{AnnCloneRequest: "source-ns/golden-pvc"}, nil)
+
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+	id := string(pvc.GetUID())
+	expSourcePod := createSourcePod(pvc, id)
+	f.expectCreatePodAction(expSourcePod)
+	expTargetPod := createTargetPod(pvc, id, "source-ns")
+	f.expectCreatePodAction(expTargetPod)
 	f.run(getPvcKey(pvc, t))
 }
 

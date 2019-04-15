@@ -20,8 +20,10 @@ spec:
           image: {{.DockerRepo}}/cdi-func-test-block-device:{{.DockerTag}}
           imagePullPolicy: {{ .PullPolicy }}
           volumeMounts:
-          - name: local-storage
+          - name: local-storage-device0
             mountPath: /local-storage/block-device
+          - name: local-storage-device1
+            mountPath: /local-storage/block-device1
           securityContext:
             privileged: true
           readinessProbe:
@@ -32,7 +34,12 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 5
       volumes:
-        - name: local-storage
+        - name: local-storage-device0
           hostPath:
             path: /mnt/local-storage/block-device
             type: DirectoryOrCreate
+        - name: local-storage-device1
+          hostPath:
+            path: /mnt/local-storage/block-device1
+            type: DirectoryOrCreate
+            

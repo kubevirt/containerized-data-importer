@@ -1,0 +1,17 @@
+apiVersion: cdi.kubevirt.io/v1alpha1
+kind: DataVolume
+metadata:
+  name: clone-block-datavolume
+spec:
+  source:
+    pvc:
+      namespace: default 
+      name: import-kubevirt-block-datavolume 
+  pvc:
+    volumeMode: Block
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 1Gi
+
