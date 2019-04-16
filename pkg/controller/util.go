@@ -559,7 +559,7 @@ func addToMap(m1, m2 map[string]string) map[string]string {
 }
 
 // returns the CloneRequest string which contains the pvc name (and namespace) from which we want to clone the image.
-func getCloneRequestPVC(pvc *v1.PersistentVolumeClaim) (string, error) {
+func getCloneRequestPVCAnnotation(pvc *v1.PersistentVolumeClaim) (string, error) {
 	cr, found := pvc.Annotations[AnnCloneRequest]
 	if !found || cr == "" {
 		verb := "empty"
@@ -571,7 +571,21 @@ func getCloneRequestPVC(pvc *v1.PersistentVolumeClaim) (string, error) {
 	return cr, nil
 }
 
-// ParseSourcePvcAnnotation parses out the annotations for a CDI PVC
+// returns the CloneRequest string which contains the pvc name (and namespace) from which we want to clone the image.
+func getCloneRequestSourcePVC(pvc *v1.PersistentVolumeClaim, pvcLister corelisters.PersistentVolumeClaimLister) (*v1.PersistentVolumeClaim, error) {
+	ann, err := getCloneRequestPVCAnnotation(pvc)
+	if err != nil {
+		return nil, err
+	}
+	namespace, name := ParseSourcePvcAnnotation(ann, "/")
+	if namespace == "" || name == "" {
+		return nil, errors.New("Unable to parse to source PVC annotation")
+	}
+	return pvcLister.PersistentVolumeClaims(namespace).Get(name)
+
+}
+
+// ParseSourcePvcAnnotation parses out the annotations for a CDI PVC, splitting the string based on the delimiter argument
 func ParseSourcePvcAnnotation(sourcePvcAnno, del string) (namespace, name string) {
 	strArr := strings.Split(sourcePvcAnno, del)
 	if strArr == nil || len(strArr) < 2 {
@@ -579,6 +593,30 @@ func ParseSourcePvcAnnotation(sourcePvcAnno, del string) (namespace, name string
 		return "", ""
 	}
 	return strArr[0], strArr[1]
+}
+
+// ValidateCanCloneSourceAndTargetSpec validates the specs passed in are compatible for cloning.
+func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *v1.PersistentVolumeClaimSpec) error {
+	sourceRequest := sourceSpec.Resources.Requests[v1.ResourceStorage]
+	targetRequest := targetSpec.Resources.Requests[v1.ResourceStorage]
+	// Verify that the target PVC size is equal or larger than the source.
+	if sourceRequest.Value() > targetRequest.Value() {
+		return errors.New("Target resources requests storage size is smaller than the source")
+	}
+	// Verify that the source and target volume modes are the same.
+	sourceVolumeMode := v1.PersistentVolumeFilesystem
+	if sourceSpec.VolumeMode != nil && *sourceSpec.VolumeMode == v1.PersistentVolumeBlock {
+		sourceVolumeMode = v1.PersistentVolumeBlock
+	}
+	targetVolumeMode := v1.PersistentVolumeFilesystem
+	if targetSpec.VolumeMode != nil && *targetSpec.VolumeMode == v1.PersistentVolumeBlock {
+		targetVolumeMode = v1.PersistentVolumeBlock
+	}
+	if sourceVolumeMode != targetVolumeMode {
+		return errors.New("Source and target volume modes do not match")
+	}
+	// Can clone.
+	return nil
 }
 
 // CreateCloneSourcePod creates our cloning src pod which will be used for out of band cloning to read the contents of the src PVC
