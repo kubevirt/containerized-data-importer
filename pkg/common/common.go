@@ -21,7 +21,7 @@ const (
 	CDIComponentLabel = "cdi.kubevirt.io"
 
 	// PrometheusLabel provides the label to indicate prometheus metrics are available in the pods.
-	PrometheusLabel = "prometheus.kubevirt.io"
+	PrometheusLabel = "prometheus.cdi.kubevirt.io"
 
 	// ImporterVolumePath provides a constant for the directory where the PV is mounted.
 	ImporterVolumePath = "/data"
