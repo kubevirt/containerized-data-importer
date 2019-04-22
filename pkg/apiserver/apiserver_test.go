@@ -529,6 +529,29 @@ func TestGetAPIGroup(t *testing.T) {
 
 	checkEqual(t, expectedAPIGroup, apiGroup)
 }
+
+func TestGetRootPaths(t *testing.T) {
+	rr := doGetRequest(t, "/")
+
+	rootPaths := metav1.RootPaths{}
+	err := json.Unmarshal(rr.Body.Bytes(), &rootPaths)
+	if err != nil {
+		t.Errorf("Couldn't convert to object from JSON: %+v", err)
+	}
+
+	expectedRootPaths := metav1.RootPaths{
+		Paths: []string{
+			"/apis",
+			"/apis/",
+			"/apis/upload.cdi.kubevirt.io",
+			"/apis/upload.cdi.kubevirt.io/v1alpha1",
+			"/healthz",
+		},
+	}
+
+	checkEqual(t, expectedRootPaths, rootPaths)
+}
+
 func TestGetAPIGroupList(t *testing.T) {
 	rr := doGetRequest(t, "/apis")
 
