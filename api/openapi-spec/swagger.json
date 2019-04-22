@@ -2421,6 +2421,12 @@
     "properties": {
      "imagePullPolicy": {
       "type": "string"
+     },
+     "imageRegistry": {
+      "type": "string"
+     },
+     "imageTag": {
+      "type": "string"
      }
     }
    },

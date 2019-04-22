@@ -8,7 +8,7 @@ The first column represents the available content-types, Kubevirt and Archive. K
 | | http | https | http basic auth | Registry | S3 Bucket | Upload |
 |--------------|---------|-|--|-------|--------|------------|
 | KubeVirt(QCOW2)        |<ul><li>[x] QCOW2</li><li>[x] GZ\*</li><li>[x] XZ\*</li><li>[x] TAR\*</li></ul> |<ul><li>[x] QCOW2\*\*</li><li>[x] GZ\*</li><li>[x] XZ\*</li><li>[x] TAR\*</li></ul> |<ul><li>[x] QCOW2</li><li>[x] GZ\*</li><li>[x] XZ\*</li><li>[x] TAR\*</li></ul> | <ul><li>[ ] QCOW2</li><li>[ ] GZ</li><li>[ ] XZ</li><li>[ ] TAR</li></ul> | <ul><li>[x] QCOW2\*</li><li>[x] GZ\*</li><li>[x] XZ\*</li><li>[x] TAR\*</li></ul> | <ul><li>[x] QCOW2\*</li><li>[x] GZ\*</li><li>[x] XZ\*</li><li>[x] TAR\*</li></ul> |
-| KubeVirt (RAW)          |<ul><li>[x] RAW</li><li>[x] GZ</li><li>[x] XZ</li><li>[x] TAR</li></ul> |<ul><li>[x] RAW</li><li>[x] GZ</li><li>[x] XZ</li><li>[x] TAR</li></ul> | <ul><li>[x] RAW</li><li>[x] GZ</li><li>[x] XZ</li><li>[x] TAR</li></ul> | <ul><li>[x] RAW*</li><li>[ ] GZ</li><li>[ ] XZ</li><li>[ ] TAR</li></ul> | <ul><li>[x] RAW</li><li>[x] GZ</li><li>[x] XZ</li><li>[x] TAR</li></ul> | <ul><li>[x] RAW</li><li>[x] GZ</li><li>[x] XZ</li><li>[x] TAR</li></ul> |
+| KubeVirt (RAW)          |<ul><li>[x] RAW</li><li>[x] GZ</li><li>[x] XZ</li><li>[x] TAR</li></ul> |<ul><li>[x] RAW</li><li>[x] GZ</li><li>[x] XZ</li><li>[x] TAR</li></ul> | <ul><li>[x] RAW</li><li>[x] GZ</li><li>[x] XZ</li><li>[x] TAR</li></ul> | <ul><li>[x] RAW*</li><li>[ ] GZ</li><li>[ ] XZ</li><li>[ ] TAR</li></ul> | <ul><li>[x] RAW</li><li>[x] GZ</li><li>[x] XZ</li><li>[x] TAR</li></ul> | <ul><li>[x] RAW*</li><li>[x] GZ*</li><li>[x] XZ*</li><li>[x] TAR*</li></ul> |
 | Archive+ | <ul><li>[x] TAR</li></ul> | <ul><li>[x] TAR</li></ul> | <ul><li>[x] TAR</li></ul> | <ul><li>[ ] TAR</li></ul> | <ul><li>[ ] TAR</li></ul> | <ul><li>[ ] TAR</li></ul> |
 
 \* Requires [scratch space](scratch-space.md)
@@ -16,3 +16,5 @@ The first column represents the available content-types, Kubevirt and Archive. K
 \*\* Requires [scratch space](scratch-space.md) if a custom CA is required.
 
 \+ Archive does not support block mode DVs
+
+From a technical perspective uploading a RAW kubevirt image doesn't require scratch space, however we can't tell ahead of time if the data coming in is raw or not, so we have to attach scratch to the upload server pod even if we don't use it. 
