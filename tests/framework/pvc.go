@@ -1,8 +1,10 @@
 package framework
 
 import (
+	"fmt"
 	"strings"
 
+	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	k8sv1 "k8s.io/api/core/v1"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -97,6 +99,7 @@ func (f *Framework) VerifyTargetPVCContentMD5(namespace *k8sv1.Namespace, pvc *k
 	if err != nil {
 		return false, err
 	}
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: md5sum found %s\n", string(output[:32]))
 	return strings.Compare(expectedHash, output[:32]) == 0, nil
 }
 
