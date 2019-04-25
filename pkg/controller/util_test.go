@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -578,6 +579,61 @@ func Test_getSecretName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_getCloneRequestPVCAnnotation(t *testing.T) {
+	tests := []struct {
+		name       string
+		wantOk     bool
+		annKey     string
+		annValue   string
+		annErrType string
+	}{
+		{
+			name:       "pvc without annotation should return error",
+			wantOk:     false,
+			annKey:     "",
+			annValue:   "",
+			annErrType: "missing",
+		},
+		{
+			name:       "pvc with blank annotation should return error",
+			wantOk:     false,
+			annKey:     AnnCloneRequest,
+			annValue:   "",
+			annErrType: "empty",
+		},
+		{
+			name:       "pvc with valid clone annotation",
+			wantOk:     true,
+			annKey:     AnnCloneRequest,
+			annValue:   "default/pvc-name",
+			annErrType: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pvc := createPvc("test", "default", map[string]string{tt.annKey: tt.annValue}, nil)
+			ann, err := getCloneRequestPVCAnnotation(pvc)
+			if !tt.wantOk && err == nil {
+				t.Error("Got no error when expecting one")
+			} else if tt.wantOk && err != nil {
+				t.Errorf("Got error %+v when not expecting one", err)
+			}
+			if !tt.wantOk && err != nil {
+				// Verify that the error contains what we are expecting.
+				if !strings.Contains(err.Error(), tt.annErrType) {
+					t.Errorf("Expecting error message to contain %s, but not found", tt.annErrType)
+				}
+			} else if tt.wantOk && err == nil {
+				if ann != tt.annValue {
+					t.Error("expected annotation did not match found annotation")
+				}
+			}
+		})
+	}
+
 }
 
 func Test_updatePVC(t *testing.T) {
@@ -1332,6 +1388,10 @@ func createPvcNoSize(name, ns string, annotations, labels map[string]string) *v1
 }
 
 func createClonePvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
+	return createClonePvcWithSize(name, ns, annotations, labels, "1G")
+}
+
+func createClonePvcWithSize(name, ns string, annotations, labels map[string]string, size string) *v1.PersistentVolumeClaim {
 	return &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
@@ -1344,7 +1404,7 @@ func createClonePvc(name, ns string, annotations, labels map[string]string) *v1.
 			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany, v1.ReadWriteOnce},
 			Resources: v1.ResourceRequirements{
 				Requests: v1.ResourceList{
-					v1.ResourceName(v1.ResourceStorage): resource.MustParse("1G"),
+					v1.ResourceName(v1.ResourceStorage): resource.MustParse(size),
 				},
 			},
 		},
