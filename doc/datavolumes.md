@@ -93,7 +93,7 @@ spec:
       requests:
         storage: "128Mi"
 ```
-[Get example](../manifests/example/example-clone-dv.yaml)
+[Get example](../manifests/example/clone-datavolume.yaml)
 
 ## Upload Data Volumes
 You can upload a virtual disk image directly into a data volume as well, just like with PVCs. The steps to follow are identical as [upload for PVC](upload.md) except that the yaml for a Data Volume is slightly different.
@@ -173,53 +173,53 @@ We now have a fully controlled mechanism where we can define a VM using a DV wit
 
 ### Example VM using DV
 ```yaml
-apiVersion: kubevirt.io/v1alpha2
+apiVersion: kubevirt.io/v1alpha3
 kind: VirtualMachine
 metadata:
+  creationTimestamp: null
   labels:
-    kubevirt.io/vm: example-vm
-  name: example-vm
+    kubevirt.io/vm: vm-fedora-datavolume
+  name: vm-fedora-datavolume
 spec:
   dataVolumeTemplates:
   - metadata:
-      name: example-dv
+      creationTimestamp: null
+      name: fedora-dv
     spec:
       pvc:
         accessModes:
         - ReadWriteOnce
         resources:
           requests:
-            storage: 64Mi
+            storage: 100M
+        storageClassName: hdd
       source:
-          http:
-             url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img"
+        http:
+          url: https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img
   running: false
   template:
     metadata:
       labels:
-        kubevirt.io/vm: example-vm
+        kubevirt.io/vm: vm-datavolume
     spec:
       domain:
-        cpu:
-          cores: 1
         devices:
           disks:
           - disk:
               bus: virtio
-            name: disk0
-            volumeName: example-datavolume
+            name: datavolumevolume
         machine:
-          type: q35
+          type: ""
         resources:
           requests:
-            memory: 64Mi
+            memory: 64M
       terminationGracePeriodSeconds: 0
       volumes:
       - dataVolume:
-          name: example-dv
-        name: example-datavolume
+          name: fedora-dv
+        name: datavolumevolume
 ```
-[Get example](../manifests/example/example-vm-dv.yaml)
+[Get example](../manifests/example/vm-dv.yaml)
 
 This example combines all the different pieces into a single yaml.
 * Creation of a VM definition (example-vm)
