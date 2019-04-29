@@ -30,12 +30,14 @@ func ParseEndpoint(endpt string) (*url.URL, error) {
 func CleanDir(dest string) error {
 	dir, err := ioutil.ReadDir(dest)
 	if err != nil {
+		klog.Errorf("Unable read directory to clean: %s, %v", dest, err)
 		return err
 	}
 	for _, d := range dir {
-		klog.V(3).Infoln("deleting file: " + filepath.Join(dest, d.Name()))
+		klog.V(1).Infoln("deleting file: " + filepath.Join(dest, d.Name()))
 		err = os.RemoveAll(filepath.Join(dest, d.Name()))
 		if err != nil {
+			klog.Errorf("Unable to delete file: %s, %v", filepath.Join(dest, d.Name()), err)
 			return err
 		}
 	}
