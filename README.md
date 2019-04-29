@@ -47,7 +47,7 @@ Deploying the CDI controller is straightforward. In this document the _default_ 
 Create a DataVolume and populate it with data from an http source
 
 ```
-$ kubectl create -f https://raw.githubusercontent.com/kubevirt/containerized-data-importer/$VERSION/manifests/example/datavolume.yaml
+$ kubectl create -f https://raw.githubusercontent.com/kubevirt/containerized-data-importer/$VERSION/manifests/example/import-kubevirt-datavolume.yaml
 ```
 
 There are quite a few examples in the [example manifests](https://github.com/kubevirt/containerized-data-importer/tree/master/manifests/example), check them out as a reference to create DataVolumes from additional sources like registries, S3 and your local system.
