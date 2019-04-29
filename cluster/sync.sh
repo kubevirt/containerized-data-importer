@@ -6,45 +6,45 @@ cdi="${cdi##*/}"
 echo $cdi
 
 source ./hack/build/config.sh
+source ./hack/build/common.sh
 source ./cluster/gocli.sh
+source ./cluster/${KUBEVIRT_PROVIDER}/provider.sh
 
 CDI_NAMESPACE=${CDI_NAMESPACE:-cdi}
 
 # Set controller verbosity to 3 for functional tests.
 export VERBOSITY=3
 
-registry_port=$($gocli ports registry | tr -d '\r')
-registry=localhost:$registry_port
+PULL_POLICY=$(getTestPullPolicy)
+# The default DOCKER_REPO is set to kubevirt and used for builds, however we don't use that for cluster-sync
+# instead we use a local registry; so here we'll check for anything != "external"
+# wel also confuse this by swapping the setting of the DOCKER_REPO variable around based on it's context, for
+# build and push it's localhost, but for manifests, we sneak in a change to point a registry container on the
+# kubernetes cluster.  So, we introduced this MANIFEST_REGISTRY variable specifically to deal with that and not
+# have to refactor/rewrite any of the code that works currently.
+MANIFEST_REGISTRY=$DOCKER_REPO
+if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
+  registry_port=$($gocli ports registry | tr -d '\r')
+  registry=${IMAGE_REGISTRY:-localhost:$registry_port}
+  DOCKER_REPO=${registry}
+  MANIFEST_REGISTRY="registry:5000"
+fi
 
-DOCKER_REPO=${registry} make docker push
-DOCKER_REPO="registry:5000" PULL_POLICY=$(getTestPullPolicy) make manifests
+# Need to set the DOCKER_REPO appropriately in the call to `make docker push`, otherwise make will just pass in the default `kubevirt`
+DOCKER_REPO=$DOCKER_REPO make docker push
+DOCKER_REPO=$MANIFEST_REGISTRY PULL_POLICY=$(getTestPullPolicy) make manifests
 
-# Make sure that all nodes use the newest images
-container=""
-container_alias=""
-images="${@:-${DOCKER_IMAGES}}"
-for arg in $images; do
-    name=$(basename $arg)
-    container="${container} registry:5000/${name}:latest"
-done
-for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
-    echo "node$(printf "%02d" ${i})" "echo \"${container}\" | xargs \-\-max-args=1 sudo docker pull"
-    ./cluster/cli.sh ssh "node$(printf "%02d" ${i})" "echo \"${container}\" | xargs \-\-max-args=1 sudo docker pull"
-    # Temporary until image is updated with provisioner that sets this field
-    # This field is required by buildah tool
-    ./cluster/cli.sh ssh "node$(printf "%02d" ${i})" "sudo sysctl -w user.max_user_namespaces=1024"
-done
+seed_images
 
-
-./cluster/kubectl.sh apply -f "./_out/manifests/release/cdi-operator.yaml" 
-./cluster/kubectl.sh apply -f "./_out/manifests/release/cdi-cr.yaml"
-
-
-./cluster/kubectl.sh wait cdis.cdi.kubevirt.io/cdi --for=condition=running --timeout=120s
+# Install CDI
+_kubectl apply -f "./_out/manifests/release/cdi-operator.yaml" 
+_kubectl apply -f "./_out/manifests/release/cdi-cr.yaml"
+_kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=running --timeout=120s
 
 # Start functional test HTTP server.
-./cluster/kubectl.sh apply -f "./_out/manifests/file-host.yaml"
-./cluster/kubectl.sh apply -f "./_out/manifests/registry-host.yaml"
-./cluster/kubectl.sh apply -f "./_out/manifests/block-device.yaml"
-
-
+# We skip the functional test additions for external provider for now, as they're specific
+if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
+_kubectl apply -f "./_out/manifests/file-host.yaml"
+_kubectl apply -f "./_out/manifests/registry-host.yaml"
+_kubectl apply -f "./_out/manifests/block-device.yaml"
+fi
