@@ -231,6 +231,9 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 	var err error
 
 	BeforeEach(func() {
+		err = f.ClearBlockPV()
+		Expect(err).NotTo(HaveOccurred())
+
 		pod, err = utils.FindPodByPrefix(f.K8sClient, "cdi", "cdi-block-device", "kubevirt.io=cdi-block-device")
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", "cdi"+"/"+"cdi-block-device"))
 
@@ -241,7 +244,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By(fmt.Sprintf("Creating Block PV"))
-		pv, err = f.CreatePVFromDefinition(utils.NewBlockPVDefinition("local-volume", "1G", nil, "manual", nodeName))
+		pv, err = f.CreatePVFromDefinition(utils.NewBlockPVDefinition("local-volume", "500M", nil, "manual", nodeName))
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify that PV's phase is Available")
@@ -267,7 +270,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 
 		pvc, err := f.CreatePVCFromDefinition(utils.NewBlockPVCDefinition(
 			"import-image-to-block-pvc",
-			"1G",
+			"500M",
 			pvcAnn,
 			nil,
 			"manual"))

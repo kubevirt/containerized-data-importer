@@ -49,7 +49,7 @@ if [ "$obj" == "source" ]; then
         size=$(du -sb . | cut -f1)
         echo size is $size
         #Write the size to the pipe so the other end can read it.
-        echo "$size" >$pipe_dir
+        printf "%016x" $size >$pipe_dir
         tar cv --sparse . >$pipe_dir
         popd
     elif [ "$volumeMode" == "block" ]; then
@@ -57,9 +57,9 @@ if [ "$obj" == "source" ]; then
         size=$(lsblk -n -b -o SIZE $image_dir) 
         echo size is $size
         #Write the size to the pipe so the other end can read it.
-        echo "$size" >$pipe_dir
+        printf "%016x" $size >$pipe_dir
         echo "cloner: writing the image to $pipe_dir"
-        dd if=$image_dir bs=64K of=$pipe_dir 
+	    dd if=$image_dir bs=64K of=$pipe_dir
     fi
     echo "cloner: finished writing image to $pipe_dir"
     exit 0
