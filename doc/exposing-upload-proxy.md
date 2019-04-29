@@ -11,7 +11,7 @@ This can be achieved using Ingress (Kubernetes) or Route (Openshift).
 ### Kubernetes
 
 Before starting to work with Ingress resource, you will need to setup an Ingress Controller. Simply creating the resource will take no affect.
-There are number of [Ingress controllers](https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-controllers) you can choose from.
+There are number of [Ingress controllers](https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/) you can choose from.
 
 Create Ingress for the upload proxy:
 
