@@ -77,6 +77,7 @@ func main() {
 		klog.Errorf("%+v", err)
 		os.Exit(1)
 	}
+	klog.V(3).Infof("Size read: %d\n", total)
 
 	//re-open pipe with fresh start.
 	out, err := os.OpenFile(*namedPipe, os.O_RDONLY, os.ModeNamedPipe)
@@ -102,8 +103,10 @@ func main() {
 		volumeMode = v1.PersistentVolumeFilesystem
 	}
 	if volumeMode == v1.PersistentVolumeBlock {
+		klog.V(3).Infoln("Writing data to block device")
 		err = util.StreamDataToFile(promReader, common.ImporterWriteBlockPath)
 	} else {
+		klog.V(3).Infoln("Writing data to file system")
 		err = util.UnArchiveTar(promReader, ".")
 	}
 
