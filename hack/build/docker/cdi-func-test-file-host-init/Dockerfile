@@ -15,5 +15,6 @@ COPY cdi-func-test-file-host-init /usr/bin/
 RUN chmod u+x /usr/bin/cdi-func-test-file-host-init
 
 COPY tinyCore.iso /tmp/source/tinyCore.iso
+COPY archive.tar /tmp/source/archive.tar
 
 ENTRYPOINT ["cdi-func-test-file-host-init", "-alsologtostderr"]

@@ -57,6 +57,8 @@ var _ = Describe("S3 data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(filepath.Join(imageDir, "content.tar"))
 		Expect(err).NotTo(HaveOccurred())
+		err = file.Close()
+		Expect(err).NotTo(HaveOccurred())
 		sd, err = NewS3DataSource("http://amazon.com", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.

@@ -11,7 +11,6 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -42,12 +41,12 @@ var _ = Describe("Format Readers", func() {
 		}
 	})
 
-	table.DescribeTable("can construct readers", func(filename string, contentType cdiv1.DataVolumeContentType, numRdrs int, wantErr, archived, convert bool) {
+	table.DescribeTable("can construct readers", func(filename string, numRdrs int, wantErr, archived, convert bool) {
 		f, err := os.Open(filename)
 		Expect(err).ToNot(HaveOccurred())
 		defer f.Close()
 
-		fr, err = NewFormatReaders(f, contentType)
+		fr, err = NewFormatReaders(f)
 		if wantErr {
 			Expect(err).To(HaveOccurred())
 		} else {
@@ -60,20 +59,18 @@ var _ = Describe("Format Readers", func() {
 			Expect(archived).To(Equal(fr.Archived))
 		}
 	},
-		table.Entry("successfully construct a xz reader", tinyCoreXzFilePath, cdiv1.DataVolumeKubeVirt, 4, false, true, false),     // [stream, multi-r, xz, multi-r] convert = false
-		table.Entry("successfully construct a gz reader", tinyCoreGzFilePath, cdiv1.DataVolumeKubeVirt, 4, false, true, false),     // [stream, multi-r, gz, multi-r] convert = false
-		table.Entry("successfully construct a tar reader", tinyCoreTarFilePath, cdiv1.DataVolumeKubeVirt, 4, false, true, false),   // [stream, multi-r, tar, multi-r] convert = false
-		table.Entry("successfully constructed an archive reader", archiveFilePath, cdiv1.DataVolumeArchive, 4, false, true, false), // [stream, multi-r, mul-tar, multi-r] convert = false
-		table.Entry("successfully construct qcow2 reader", cirrosFilePath, cdiv1.DataVolumeKubeVirt, 2, false, false, true),        // [stream, multi-r] convert = true
-		table.Entry("successfully construct .iso reader", tinyCoreFilePath, cdiv1.DataVolumeKubeVirt, 2, false, false, false),      // [stream, multi-r] convert = false
-		table.Entry("Fail to construct a gz reader with archive contentType", tinyCoreGzFilePath, cdiv1.DataVolumeArchive, 0, true, false, false),
+		table.Entry("successfully construct a xz reader", tinyCoreXzFilePath, 4, false, true, false),              // [stream, multi-r, xz, multi-r] convert = false
+		table.Entry("successfully construct a gz reader", tinyCoreGzFilePath, 4, false, true, false),              // [stream, multi-r, gz, multi-r] convert = false
+		table.Entry("successfully return the base reader when archived", archiveFilePath, 3, false, false, false), // [stream, multi-r, multi-r] convert = false
+		table.Entry("successfully construct qcow2 reader", cirrosFilePath, 2, false, false, true),                 // [stream, multi-r] convert = true
+		table.Entry("successfully construct .iso reader", tinyCoreFilePath, 2, false, false, false),               // [stream, multi-r] convert = false
 	)
 
 	table.DescribeTable("can append readers", func(rType int, r interface{}, numRdrs int, isCloser bool) {
 		f, err := os.Open(cirrosFilePath)
 		Expect(err).ToNot(HaveOccurred())
 		defer f.Close()
-		fr, err = NewFormatReaders(f, cdiv1.DataVolumeKubeVirt)
+		fr, err = NewFormatReaders(f)
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying there are currently 2 readers")
 		Expect(len(fr.readers)).To(Equal(2))
@@ -87,9 +84,9 @@ var _ = Describe("Format Readers", func() {
 			}
 		}
 	},
-		table.Entry("should not append nil reader", rdrTar, nil, 2, false),
-		table.Entry("should not append non reader", rdrTar, cdiv1.DataVolumeKubeVirt, 2, false),
-		table.Entry("should append io.reader", rdrTar, stringRdr, 3, false),
+		table.Entry("should not append nil reader", rdrGz, nil, 2, false),
+		table.Entry("should not append non reader", rdrGz, nil, 2, false),
+		table.Entry("should append io.reader", rdrGz, stringRdr, 3, false),
 		table.Entry("should append io.Multireader", rdrMulti, stringRdr, 3, false),
 	)
 })

@@ -31,9 +31,11 @@ var _ = Describe("Upload data source", func() {
 		os.RemoveAll(tmpDir)
 	})
 
-	It("Info should return Error, when passed in an invalid image", func() {
+	It("Info should return Error, when passed in an image that cannot be read", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(filepath.Join(imageDir, "content.tar"))
+		Expect(err).NotTo(HaveOccurred())
+		err = file.Close()
 		Expect(err).NotTo(HaveOccurred())
 		ud = NewUploadDataSource(file)
 		result, err := ud.Info()

@@ -100,7 +100,10 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 // Info is called to get initial information about the data.
 func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 	var err error
-	hs.readers, err = NewFormatReaders(hs.httpReader, hs.contentType)
+	hs.readers, err = NewFormatReaders(hs.httpReader)
+	if hs.contentType == cdiv1.DataVolumeArchive {
+		return ProcessingPhaseTransferDataDir, nil
+	}
 	if err != nil {
 		klog.Errorf("Error creating readers: %v", err)
 		return ProcessingPhaseError, err
@@ -111,9 +114,6 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 		// We can pass straight to conversion from the endpoint. No scratch required.
 		hs.url = hs.endpoint
 		return ProcessingPhaseConvert, nil
-	}
-	if hs.contentType == cdiv1.DataVolumeArchive {
-		return ProcessingPhaseTransferDataDir, nil
 	}
 	if !hs.readers.Convert {
 		return ProcessingPhaseTransferDataFile, nil
