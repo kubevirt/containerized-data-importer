@@ -432,6 +432,10 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar *importPod
 		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
 	} else {
 		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts()
+		pod.Spec.SecurityContext = &v1.PodSecurityContext{
+			RunAsNonRoot: &[]bool{true}[0],
+			RunAsUser:    &[]int64{common.RunAsUser}[0],
+		}
 	}
 
 	if scratchPvcName != nil {
@@ -1123,6 +1127,10 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 
 	} else {
 		pod.Spec.Containers[0].VolumeMounts = addVolumeMountsForUpload()
+		pod.Spec.SecurityContext = &v1.PodSecurityContext{
+			RunAsNonRoot: &[]bool{true}[0],
+			RunAsUser:    &[]int64{common.RunAsUser}[0],
+		}
 	}
 
 	pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, v1.VolumeMount{

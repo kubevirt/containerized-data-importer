@@ -11,6 +11,11 @@ RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
 	mv /etc/yum.repos.d/old/* /etc/yum.repos.d/ && \
 	rmdir /etc/yum.repos.d/old
 
+# Create non-root user
+RUN useradd -u 1001 --create-home -s /bin/bash cdi-uploadproxy
+WORKDIR /home/cdi-uploadproxy
+USER 1001
+
 COPY ./cdi-uploadproxy /usr/bin/cdi-uploadproxy
 
 ENTRYPOINT [ "/usr/bin/cdi-uploadproxy", "-alsologtostderr"]

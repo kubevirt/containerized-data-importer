@@ -1306,6 +1306,10 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string, scratchPvc *v1.Pers
 
 	} else {
 		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts()
+		pod.Spec.SecurityContext = &v1.PodSecurityContext{
+			RunAsNonRoot: &[]bool{true}[0],
+			RunAsUser:    &[]int64{1001}[0],
+		}
 	}
 
 	if scratchPvc != nil {
@@ -1847,6 +1851,10 @@ func createUploadPod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
 			},
 		},
 		Spec: v1.PodSpec{
+			SecurityContext: &v1.PodSecurityContext{
+				RunAsNonRoot: &[]bool{true}[0],
+				RunAsUser:    &[]int64{1001}[0],
+			},
 			Containers: []v1.Container{
 				{
 					Name:            "cdi-upload-server",
