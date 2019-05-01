@@ -112,7 +112,4 @@ const (
 
 	// ScratchSpaceNeededExitCode is the exit code that indicates the importer pod requires scratch space to function properly.
 	ScratchSpaceNeededExitCode = 42
-
-	// RunAsUser is the system user id to request when non-root
-	RunAsUser int64 = 1001
 )

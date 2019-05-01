@@ -157,7 +157,6 @@ func CreateOperatorDeploymentSpec(name, namespace, matchKey, matchValue, service
 			Spec: corev1.PodSpec{
 				SecurityContext: &corev1.PodSecurityContext{
 					RunAsNonRoot: &[]bool{true}[0],
-					RunAsUser:    &[]int64{common.RunAsUser}[0],
 				},
 			},
 		},
@@ -215,7 +214,6 @@ func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numRepl
 				Spec: corev1.PodSpec{
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: &[]bool{true}[0],
-						RunAsUser:    &[]int64{common.RunAsUser}[0],
 					},
 				},
 			},
