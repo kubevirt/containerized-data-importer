@@ -68,16 +68,17 @@ type args struct {
 
 var (
 	envVars = map[string]string{
-		"DOCKER_REPO":         "kubevirt",
-		"DOCKER_TAG":          version,
-		"CONTROLLER_IMAGE":    "cdi-controller",
-		"IMPORTER_IMAGE":      "cdi-importer",
-		"CLONER_IMAGE":        "cdi-cloner",
-		"UPLOAD_PROXY_IMAGE":  "cdi-uploadproxy",
-		"UPLOAD_SERVER_IMAGE": "cdi-uploadserver",
-		"APISERVER_IMAGE":     "cdi-apiserver",
-		"VERBOSITY":           "1",
-		"PULL_POLICY":         "Always",
+		"DOCKER_REPO":              "kubevirt",
+		"DOCKER_TAG":               version,
+		"DEPLOY_CLUSTER_RESOURCES": "true",
+		"CONTROLLER_IMAGE":         "cdi-controller",
+		"IMPORTER_IMAGE":           "cdi-importer",
+		"CLONER_IMAGE":             "cdi-cloner",
+		"UPLOAD_PROXY_IMAGE":       "cdi-uploadproxy",
+		"UPLOAD_SERVER_IMAGE":      "cdi-uploadserver",
+		"APISERVER_IMAGE":          "cdi-apiserver",
+		"VERBOSITY":                "1",
+		"PULL_POLICY":              "Always",
 	}
 )
 
@@ -593,17 +594,18 @@ func createReconciler(client realClient.Client) *ReconcileCDI {
 	namespace := "cdi"
 	clusterArgs := &clusterResources.FactoryArgs{Namespace: namespace}
 	namespacedArgs := &namespaceResources.FactoryArgs{
-		DockerRepo:        "kubevirt",
-		DockerTag:         version,
-		ControllerImage:   "cdi-controller",
-		ImporterImage:     "cdi-importer",
-		ClonerImage:       "cdi-cloner",
-		APIServerImage:    "cdi-apiserver",
-		UploadProxyImage:  "cdi-uploadproxy",
-		UploadServerImage: "cdi-uploadserver",
-		Verbosity:         "1",
-		PullPolicy:        "Always",
-		Namespace:         namespace,
+		DockerRepo:             "kubevirt",
+		DockerTag:              version,
+		DeployClusterResources: "true",
+		ControllerImage:        "cdi-controller",
+		ImporterImage:          "cdi-importer",
+		ClonerImage:            "cdi-cloner",
+		APIServerImage:         "cdi-apiserver",
+		UploadProxyImage:       "cdi-uploadproxy",
+		UploadServerImage:      "cdi-uploadserver",
+		Verbosity:              "1",
+		PullPolicy:             "Always",
+		Namespace:              namespace,
 	}
 
 	return &ReconcileCDI{

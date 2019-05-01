@@ -35,11 +35,16 @@ for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
     ./cluster/cli.sh ssh "node$(printf "%02d" ${i})" "sudo sysctl -w user.max_user_namespaces=1024"
 done
 
-# Install CDI
-./cluster/kubectl.sh apply -f ./manifests/generated/cdi-operator.yaml
-./cluster/kubectl.sh apply -f ./manifests/generated/cdi-operator-cr.yaml
+
+./cluster/kubectl.sh apply -f "./_out/manifests/release/cdi-operator.yaml" 
+./cluster/kubectl.sh apply -f "./_out/manifests/release/cdi-operator-cr.yaml"
+
+
 ./cluster/kubectl.sh wait cdis.cdi.kubevirt.io/cdi --for=condition=running --timeout=120s
+
 # Start functional test HTTP server.
-./cluster/kubectl.sh apply -f ./manifests/generated/file-host.yaml
-./cluster/kubectl.sh apply -f ./manifests/generated/registry-host.yaml
-./cluster/kubectl.sh apply -f ./manifests/generated/block-device.yaml
+./cluster/kubectl.sh apply -f "./_out/manifests/file-host.yaml"
+./cluster/kubectl.sh apply -f "./_out/manifests/registry-host.yaml"
+./cluster/kubectl.sh apply -f "./_out/manifests/block-device.yaml"
+
+

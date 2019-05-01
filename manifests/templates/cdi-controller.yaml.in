@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    cdi.kubevirt.io: ""
+  name: {{.Namespace}}
+{{index .GeneratedManifests "cdi-resources.yaml"}}
+{{index .GeneratedManifests ""}}
+{{index .GeneratedManifests "cdi-controller.k8s.rbac.yaml"}}
+{{index .GeneratedManifests "cdi-apiserver.k8s.rbac.yaml"}}
+{{index .GeneratedManifests "cdi-controller.yaml"}}
+{{index .GeneratedManifests "cdi-apiserver.yaml"}}
+{{index .GeneratedManifests "cdi-uploadproxy.yaml"}}
+
