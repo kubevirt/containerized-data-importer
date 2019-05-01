@@ -59,7 +59,7 @@ if [ "$obj" == "source" ]; then
         #Write the size to the pipe so the other end can read it.
         printf "%016x" $size >$pipe_dir
         echo "cloner: writing the image to $pipe_dir"
-	    dd if=$image_dir bs=64K of=$pipe_dir
+	    dd conv=sparse if=$image_dir bs=64K of=$pipe_dir
     fi
     echo "cloner: finished writing image to $pipe_dir"
     exit 0
