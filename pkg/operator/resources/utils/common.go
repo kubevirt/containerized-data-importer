@@ -154,6 +154,12 @@ func CreateOperatorDeploymentSpec(name, namespace, matchKey, matchValue, service
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: WithOperatorLabels(matchMap),
 			},
+			Spec: corev1.PodSpec{
+				SecurityContext: &corev1.PodSecurityContext{
+					RunAsNonRoot: &[]bool{true}[0],
+					RunAsUser:    &[]int64{common.RunAsUser}[0],
+				},
+			},
 		},
 	}
 
@@ -205,6 +211,12 @@ func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numRepl
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: WithCommonLabels(matchMap),
+				},
+				Spec: corev1.PodSpec{
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsNonRoot: &[]bool{true}[0],
+						RunAsUser:    &[]int64{common.RunAsUser}[0],
+					},
 				},
 			},
 		},

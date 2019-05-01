@@ -291,7 +291,7 @@ var _ = Describe("Block PV upload Test", func() {
 			Expect(err).ToNot(HaveOccurred())
 		}
 	},
-		table.Entry("[test_id:1368]succeed given a valid token", true, http.StatusOK),
-		table.Entry("[posneg:negative][test_id:1369]fail given an invalid token", false, http.StatusUnauthorized),
+		table.Entry("[test_id:1368]succeed given a valid token (block)", true, http.StatusOK),
+		table.Entry("[posneg:negative][test_id:1369]fail given an invalid token (block)", false, http.StatusUnauthorized),
 	)
 })
