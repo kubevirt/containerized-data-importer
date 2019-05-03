@@ -2189,6 +2189,21 @@
      }
     }
    },
+   "v1.RootPaths": {
+    "description": "RootPaths lists the paths available at root. For example: \"/healthz\", \"/apis\".",
+    "required": [
+     "paths"
+    ],
+    "properties": {
+     "paths": {
+      "description": "paths are the paths available at root.",
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   },
    "v1.ServerAddressByClientCIDR": {
     "description": "ServerAddressByClientCIDR helps the client to determine the server address that they should use, depending on the clientCIDR that they match.",
     "required": [
