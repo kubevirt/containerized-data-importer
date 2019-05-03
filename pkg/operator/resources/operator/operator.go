@@ -187,6 +187,7 @@ func getOperatorClusterRules() *[]rbacv1.PolicyRule {
 				"update",
 				"patch",
 				"list",
+				"watch",
 			},
 		},
 		{
@@ -338,6 +339,21 @@ func getOperatorClusterRules() *[]rbacv1.PolicyRule {
 				"get",
 				"list",
 				"watch",
+				"create",
+				"update",
+				"patch",
+			},
+		},
+		{
+			APIGroups: []string{
+				"route.openshift.io",
+			},
+			Resources: []string{
+				"routes/custom-host",
+			},
+			Verbs: []string{
+				"create",
+				"update",
 			},
 		},
 	}
