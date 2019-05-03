@@ -8,6 +8,7 @@ import (
 	"net/url"
 
 	"k8s.io/api/admission/v1beta1"
+	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -206,6 +207,24 @@ func validateDataVolumeSpec(field *k8sfield.Path, spec *cdicorev1alpha1.DataVolu
 		return causes
 	}
 
+	accessModes := spec.PVC.AccessModes
+	if len(accessModes) > 1 {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("PVC multiple accessModes"),
+			Field:   field.Child("PVC", "accessModes").String(),
+		})
+		return causes
+	}
+	// We know we have one access mode
+	if accessModes[0] != v1.ReadWriteOnce && accessModes[0] != v1.ReadOnlyMany && accessModes[0] != v1.ReadWriteMany {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Unsupported value: \"%s\": supported values: \"ReadOnlyMany\", \"ReadWriteMany\", \"ReadWriteOnce\"", string(accessModes[0])),
+			Field:   field.Child("PVC", "accessModes").String(),
+		})
+		return causes
+	}
 	return causes
 }
 
