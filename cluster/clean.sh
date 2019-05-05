@@ -5,8 +5,8 @@ source ./hack/build/config.sh
 
 echo "Cleaning up ..."
 
-OPERATOR_CR_MANIFEST=./manifests/generated/cdi-operator-cr.yaml
-OPERATOR_MANIFEST=./manifests/generated/cdi-operator.yaml
+OPERATOR_CR_MANIFEST=./_out/manifests/release/cdi-cr.yaml
+OPERATOR_MANIFEST=./_out/manifests/release/cdi-operator.yaml
 
 if [ -f "${OPERATOR_CR_MANIFEST}" ]; then
     if ./cluster/kubectl.sh get crd cdis.cdi.kubevirt.io ; then

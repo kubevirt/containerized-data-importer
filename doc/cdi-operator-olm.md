@@ -70,7 +70,7 @@ cluster/kubectl.sh apply -f  _out/manifests/release/olm/cdi-subscription.yaml
 ```
 - Now cdi-operator starts running but in order for it to succeed we need to deploy cdi cr
 ```bash
-cluster/kubectl.sh apply -f  _out/manifests/release/cdi-operator-cr.yaml
+cluster/kubectl.sh apply -f  _out/manifests/release/cdi-cr.yaml
 ```
 Now the operator should finish its deployment succefully
 
