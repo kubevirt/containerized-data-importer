@@ -111,7 +111,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 		BeforeEach(func() {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "500Mi", validURL)
 
-			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -137,7 +137,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 		BeforeEach(func() {
 			pvc := utils.NewPVCDefinition(dataVolumeName, "50Mi", nil, nil)
 
-			pvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, pvc)
+			_, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, pvc)
 			Expect(err).ToNot(HaveOccurred())
 		})
 

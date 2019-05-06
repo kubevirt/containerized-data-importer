@@ -39,7 +39,7 @@ const (
 	ScratchDataDir = "/scratch"
 	// ImporterS3Host provides an S3 string used by importer/dataStream.go only
 	ImporterS3Host = "s3.amazonaws.com"
-	// ImporterCertDir is where the configmap containg certs will be mounted
+	// ImporterCertDir is where the configmap containing certs will be mounted
 	ImporterCertDir = "/certs"
 	// DefaultPullPolicy imports k8s "IfNotPresent" string for the import_controller_gingko_test and the cdi-controller executable
 	DefaultPullPolicy = string(v1.PullIfNotPresent)

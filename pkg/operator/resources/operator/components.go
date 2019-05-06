@@ -23,17 +23,17 @@ import (
 )
 
 const (
-	//ControllerImageDefault - defualt value
+	//ControllerImageDefault - default value
 	ControllerImageDefault = "cdi-controller"
-	//ImporterImageDefault - defualt value
+	//ImporterImageDefault - default value
 	ImporterImageDefault = "cdi-importer"
-	//ClonerImageDefault - defualt value
+	//ClonerImageDefault - default value
 	ClonerImageDefault = "cdi-cloner"
-	//APIServerImageDefault - defualt value
+	//APIServerImageDefault - default value
 	APIServerImageDefault = "cdi-apiserver"
-	//UploadProxyImageDefault - defualt value
+	//UploadProxyImageDefault - default value
 	UploadProxyImageDefault = "cdi-uploadproxy"
-	//UploadServerImageDefault - defualt value
+	//UploadServerImageDefault - default value
 	UploadServerImageDefault = "cdi-uploadserver"
 )
 
