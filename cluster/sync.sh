@@ -37,7 +37,7 @@ done
 
 
 ./cluster/kubectl.sh apply -f "./_out/manifests/release/cdi-operator.yaml" 
-./cluster/kubectl.sh apply -f "./_out/manifests/release/cdi-operator-cr.yaml"
+./cluster/kubectl.sh apply -f "./_out/manifests/release/cdi-cr.yaml"
 
 
 ./cluster/kubectl.sh wait cdis.cdi.kubevirt.io/cdi --for=condition=running --timeout=120s
