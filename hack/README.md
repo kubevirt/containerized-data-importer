@@ -1,17 +1,18 @@
 ## Getting Started For Developers
 
-* [Download CDI](#download-cdi)
-    * [Lint, Test, Build](#lint-test-build)
-        * [Make Targets](#make-targets)
-        * [Make Variables](#make-variables)
-        * [Execute Standard Environment Functional Tests](#execute-standard-environment-functional-tests)
-        * [Execute Alternative Environment Functional Tests](#execute-alternative-environment-functional-tests)
-        * [Submit PRs](#submit-prs)
-        * [Releases](#releases)
-        * [Vendoring Dependencies](#vendoring-dependencies)
-        * [S3 Compatible Client Setup](#s3-compatible-client-setup)
-            * [AWS S3 CLI](#aws-s3-cli)
-            * [Minio CLI](#minio-cli)
+- [Getting Started For Developers](#getting-started-for-developers)
+  - [Download CDI](#download-cdi)
+  - [Lint, Test, Build](#lint-test-build)
+    - [Make Targets](#make-targets)
+    - [Make Variables](#make-variables)
+    - [Execute Standard Environment Functional Tests](#execute-standard-environment-functional-tests)
+    - [Execute Alternative Environment Functional Tests](#execute-alternative-environment-functional-tests)
+  - [Submit PRs](#submit-prs)
+  - [Releases](#releases)
+  - [Vendoring Dependencies](#vendoring-dependencies)
+  - [S3-compatible client setup:](#s3-compatible-client-setup)
+    - [AWS S3 cli](#aws-s3-cli)
+    - [Minio cli](#minio-cli)
 
 ### Download CDI
 
@@ -224,7 +225,7 @@ not supported, then you can use the following example to run Functional Tests.
      clusterrolebinding.rbac.authorization.k8s.io/cdi-operator created
      deployment.apps/cdi-operator created
 
-     #./cluster/kubectl.sh apply -f "./_out/manifests/release/cdi-operator-cr.yaml"
+     #./cluster/kubectl.sh apply -f "./_out/manifests/release/cdi-cr.yaml"
      cdi.cdi.kubevirt.io/cdi created
 
    ```
