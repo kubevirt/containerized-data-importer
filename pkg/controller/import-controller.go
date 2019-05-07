@@ -235,7 +235,7 @@ func (ic *ImportController) createScratchPvcForPod(pvc *v1.PersistentVolumeClaim
 	if scratchPvc == nil {
 		storageClassName := GetScratchPvcStorageClass(ic.clientset, ic.cdiClient, pvc)
 		// Scratch PVC doesn't exist yet, create it. Determine which storage class to use.
-		scratchPvc, err = CreateScratchPersistentVolumeClaim(ic.clientset, pvc, pod, storageClassName)
+		_, err = CreateScratchPersistentVolumeClaim(ic.clientset, pvc, pod, storageClassName)
 		if err != nil {
 			return err
 		}

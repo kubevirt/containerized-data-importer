@@ -72,7 +72,7 @@ var _ = Describe("ParseEnv", func() {
 		Expect(result).To(Equal("value2"))
 		Expect(err).ToNot(HaveOccurred())
 
-		result, err = ParseEnvVar("value3", true)
+		_, err = ParseEnvVar("value3", true)
 		Expect(err).To(HaveOccurred())
 	})
 })
