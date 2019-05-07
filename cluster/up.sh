@@ -2,6 +2,7 @@
 
 source ./cluster/gocli.sh
 source ./hack/build/config.sh
+source ./cluster/$KUBEVIRT_PROVIDER/provider.sh
 
 num_nodes=${KUBEVIRT_NUM_NODES:-1}
 mem_size=${KUBEVIRT_MEMORY_SIZE:-5120M}
@@ -13,7 +14,9 @@ fi
 
 image=$(getClusterType)
 echo "Image:${image}"
-if [[ $image == $KUBERNETES_IMAGE ]]; then
+if [[ $KUBEVIRT_PROVIDER == "external" ]]; then
+  echo "using external cluster"
+elif [[ $image == $KUBERNETES_IMAGE ]]; then
     $gocli run --enable-ceph --random-ports --nodes ${num_nodes} --memory ${mem_size} --background kubevirtci/${image}
     cluster_port=$($gocli ports k8s | tr -d '\r')
     $gocli scp /usr/bin/kubectl - > ./cluster/.kubectl
@@ -47,7 +50,8 @@ elif [[ $image == $OPENSHIFT_IMAGE ]]; then
 fi
 
 echo 'Wait until all nodes are ready'
-until [[ $(./cluster/kubectl.sh get nodes --no-headers | wc -l) -eq $(./cluster/kubectl.sh get nodes --no-headers | grep " Ready" | wc -l) ]]; do
+until [[ $(_kubectl get nodes --no-headers | wc -l) -eq $(_kubectl get nodes --no-headers | grep " Ready" | wc -l) ]]; do
     sleep 1
 done
+echo "cluster node are ready!"
 
