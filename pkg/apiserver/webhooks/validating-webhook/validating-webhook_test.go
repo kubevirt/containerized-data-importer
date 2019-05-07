@@ -408,6 +408,9 @@ func newPVCSpec(sizeValue int64, sizeFormat resource.Format) *corev1.PersistentV
 	requests["storage"] = *resource.NewQuantity(sizeValue, sizeFormat)
 
 	pvc := &corev1.PersistentVolumeClaimSpec{
+		AccessModes: []corev1.PersistentVolumeAccessMode{
+			corev1.ReadWriteOnce,
+		},
 		Resources: corev1.ResourceRequirements{
 			Requests: requests,
 		},
