@@ -1,8 +1,10 @@
 package tests
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
@@ -162,27 +164,41 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 	})
 
 	Context("when creating data volumes from manual manifests", func() {
-		table.DescribeTable("with manifests Datavolume should", func(destinationFile string, expectError bool) {
+		table.DescribeTable("with manifests Datavolume should", func(destinationFile string, expectError bool, errorContains string) {
 			By("Verifying kubectl apply")
-			_, err := RunKubectlCommand(f, "create", "-f", destinationFile, "-n", f.Namespace.Name)
+			out, err := RunKubectlCommand(f, "create", "-f", destinationFile, "-n", f.Namespace.Name)
+			fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
 			if expectError {
 				Expect(err).To(HaveOccurred())
+				By("Verifying stderr contains: " + errorContains)
+				Expect(strings.Contains(out, errorContains)).To(BeTrue())
 			} else {
 				Expect(err).ToNot(HaveOccurred())
 			}
 		},
-			table.Entry("[test_id:1760]fail with blank image source and contentType archive", "manifests/dvBlankArchive.yaml", true),
-			table.Entry("[test_id:1761]fail with invalid contentType", "manifests/dvInvalidContentType.yaml", true),
-			table.Entry("[test_id:1762]fail with missing source", "manifests/dvMissingSource.yaml", true),
-			table.Entry("[test_id:1763]fail with multiple sources", "manifests/dvMultiSource.yaml", true),
-			table.Entry("[test_id:1764]fail with invalid URL for http source", "manifests/dvInvalidURL.yaml", true),
-			table.Entry("[test_id:1765]fail with invalid source PVC", "manifests/dvInvalidSourcePVC.yaml", true),
-			table.Entry("[test_id:1766][posneg:positive]succeed with valid source http", "manifests/datavolume.yaml", false),
-			table.Entry("[test_id:1767]fail with missing PVC spec", "manifests/dvMissingPVCSpec.yaml", true),
-			table.Entry("fail with missing PVC accessModes", "manifests/dvMissingPVCAccessModes.yaml", true),
-			table.Entry("[test_id:1768]fail with missing resources spec", "manifests/dvMissingResourcesSpec.yaml", true),
-			table.Entry("fail with missing PVC size", "manifests/dvMissingPVCSize.yaml", true),
-			table.Entry("[test_id:1769]fail with 0 size PVC", "manifests/dv0SizePVC.yaml", true),
+			table.Entry("[test_id:1760]fail with blank image source and contentType archive", "manifests/dvBlankArchive.yaml", true, "SourceType cannot be blank and the contentType be archive"),
+			table.Entry("[test_id:1761]fail with invalid contentType", "manifests/dvInvalidContentType.yaml", true, "ContentType not one of: kubevirt, archive"),
+			table.Entry("[test_id:1762]fail with missing source", "manifests/dvMissingSource.yaml", true, "Missing Data volume source"),
+			table.Entry("[test_id:1763]fail with multiple sources", "manifests/dvMultiSource.yaml", true, "Multiple Data volume sources"),
+			table.Entry("[test_id:1764]fail with invalid URL for http source", "manifests/dvInvalidURL.yaml", true, "spec.source Invalid source URL"),
+			table.Entry("[test_id:1765]fail with invalid source PVC", "manifests/dvInvalidSourcePVC.yaml", true, "spec.source.pvc.name in body is required"),
+			table.Entry("[test_id:1766][posneg:positive]succeed with valid source http", "manifests/datavolume.yaml", false, ""),
+			table.Entry("[test_id:1767]fail with missing PVC spec", "manifests/dvMissingPVCSpec.yaml", true, "Missing Data volume PVC"),
+			table.Entry("fail with missing PVC accessModes", "manifests/dvMissingPVCAccessModes.yaml", true, "spec.pvc.accessModes in body is required"),
+			table.Entry("[test_id:1768]fail with missing resources spec", "manifests/dvMissingResourceSpec.yaml", true, "spec.pvc.resources in body is required"),
+			table.Entry("fail with missing PVC size", "manifests/dvMissingPVCSize.yaml", true, "PVC size is missing"),
+			table.Entry("[test_id:1769]fail with 0 size PVC", "manifests/dv0SizePVC.yaml", true, "PVC size can't be equal or less than zero"),
+			table.Entry("fail with invalid content type on blank image", "manifests/dvBlankInvalidContentType.yaml", true, "ContentType not one of: kubevirt, archive"),
+			table.Entry("succeed with leading zero in in requests storage size", "manifests/dvLeadingZero.yaml", false, ""),
+			table.Entry("fail with invalid request storage size", "manifests/dvInvalidStorageSizeQuantity.yaml", true, "quantities must match the regular expression '^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$"),
+			table.Entry("fail with missing storage size", "manifests/dvMissingRequestSpec.yaml", true, "PVC size is missing"),
+			table.Entry("fail with invalid access modes", "manifests/dvInvalidAccessModes.yaml", true, "supported values: \"ReadOnlyMany\", \"ReadWriteMany\", \"ReadWriteOnce\""),
+			table.Entry("fail with multiple access modes", "manifests/dvMultipleAccessModes.yaml", true, "PVC multiple accessModes"),
+			table.Entry("fail with missing source (but source key)", "manifests/dvMissingSource2.yaml", true, "Missing Data volume source"),
+			table.Entry("fail with missing http url key", "manifests/dvMissingSourceHttp.yaml", true, "Missing Data volume source"),
+			table.Entry("fail with missing datavolume spec", "manifests/dvMissingCompleteSpec.yaml", true, "Missing Data volume source"),
+			table.Entry("fail without datavolume name", "manifests/dvNoName.yaml", true, "Required value: name or generateName is required"),
+			table.Entry("fail without meta data", "manifests/dvNoMetaData.yaml", true, "Required value: name or generateName is required"),
 		)
 
 	})
