@@ -274,9 +274,9 @@ var resourcesTable = map[string]resourceTuple{
 func generateFromCode(codeGroup string) {
 	var resources []runtime.Object
 
-	for r, disptach := range resourcesTable {
-		if disptach.resourcetype(codeGroup) {
-			crs, err := disptach.resourceGet(codeGroup)
+	for r, dispatch := range resourcesTable {
+		if dispatch.resourcetype(codeGroup) {
+			crs, err := dispatch.resourceGet(codeGroup)
 			if err != nil {
 				klog.Fatalf("Error getting %s resources: %v\n", r, err)
 			}
