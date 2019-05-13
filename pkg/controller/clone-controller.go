@@ -14,7 +14,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog"
-	cdischeme "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
@@ -50,9 +49,6 @@ func NewCloneController(client kubernetes.Interface,
 	verbose string) *CloneController {
 
 	// Create event broadcaster
-	// Add datavolume-controller types to the default Kubernetes Scheme so Events can be
-	// logged for datavolume-controller types.
-	cdischeme.AddToScheme(scheme.Scheme)
 	klog.V(3).Info("Creating event broadcaster")
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.V(2).Infof)
