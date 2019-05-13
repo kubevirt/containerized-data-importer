@@ -14,7 +14,7 @@ import:
 - package: k8s.io/gengo
 - package: github.com/ulikunitz/xz
 - package: kubevirt.io/qe-tools
-  version: 13fc8573324cd2af42c88043b5a7c6e03bf39f95
+  version: v0.1.3
   repo: https://github.com/kubevirt/qe-tools.git
 - package: github.com/spf13/pflag
 - package: github.com/xi2/xz
