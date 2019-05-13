@@ -34,7 +34,7 @@ var _ = Describe("[rfe_id:1125][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Creating PVC with a selector field matches the PV's label")
-		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPNoAuthPort)
+		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
 		_, err = f.CreatePVCFromDefinition(utils.NewPVCDefinitionWithSelector("local-volume-pvc",
 			"1G",
 			map[string]string{"node": node},

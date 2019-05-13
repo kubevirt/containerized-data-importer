@@ -37,6 +37,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	f := framework.NewFrameworkOrDie("dv-func-test")
 
+	tinyCoreIsoURL := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
+	httpsTinyCoreIsoURL := fmt.Sprintf(utils.HTTPSTinyCoreIsoURL, f.CdiInstallNs)
+	tinyCoreIsoRegistryURL := fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs)
+
 	AfterEach(func() {
 		if sourcePvc != nil {
 			By("[AfterEach] Clean up target PVC")
@@ -54,7 +58,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				dataVolume = utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
 			case "import-https":
 				dataVolume = utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
-				cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name)
+				cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 				Expect(err).To(BeNil())
 				dataVolume.Spec.Source.HTTP.CertConfigMap = cm
 			case "blank":
@@ -70,7 +74,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				dataVolume = utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)
 			case "import-registry":
 				dataVolume = utils.NewDataVolumeWithRegistryImport(dataVolumeName, "1Gi", url)
-				cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name)
+				cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 				Expect(err).To(BeNil())
 				dataVolume.Spec.Source.Registry.CertConfigMap = cm
 			}
@@ -110,14 +114,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 		},
-			table.Entry("[rfe_id:1115][crit:high][test_id:1357]succeed creating import dv with given valid url", "import-http", "", utils.TinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:1115][crit:high][test_id:1357]succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
 			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1358]fail creating import dv due to invalid DNS entry", "import-http", "", "http://i-made-this-up.kube-system/tinyCore.iso", "dv-phase-test-2", controller.ImportFailed, cdiv1.Failed),
-			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1359]fail creating import dv due to file not found", "import-http", "", utils.TinyCoreIsoURL+"not.real.file", "dv-phase-test-3", controller.ImportFailed, cdiv1.Failed),
+			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1359]fail creating import dv due to file not found", "import-http", "", tinyCoreIsoURL+"not.real.file", "dv-phase-test-3", controller.ImportFailed, cdiv1.Failed),
 			table.Entry("[rfe_id:1277][crit:high][test_id:1360]succeed creating clone dv", "clone", fillCommand, "", "dv-clone-test-1", controller.CloneSucceeded, cdiv1.Succeeded),
 			table.Entry("[rfe_id:1111][crit:high][test_id:1361]succeed creating blank image dv", "blank", "", "", "blank-image-dv", controller.ImportSucceeded, cdiv1.Succeeded),
 			table.Entry("[rfe_id:138][crit:high][test_id:1362]succeed creating upload dv", "upload", "", "", "upload-dv", controller.UploadReady, cdiv1.Succeeded),
-			table.Entry("[rfe_id:1115][crit:high][test_id:1478]succeed creating import dv with given valid registry url", "import-registry", "", utils.TinyCoreIsoRegistryURL, "dv-phase-test-4", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid url (https)", "import-https", "", utils.HTTPSTinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:1115][crit:high][test_id:1478]succeed creating import dv with given valid registry url", "import-registry", "", tinyCoreIsoRegistryURL, "dv-phase-test-4", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid url (https)", "import-https", "", httpsTinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
 
@@ -132,8 +136,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			storageClass, err = f.CreateStorageClassFromDefinition(utils.NewStorageClassForBlockPVDefinition("manual"))
 			Expect(err).ToNot(HaveOccurred())
 
-			pod, err = utils.FindPodByPrefix(f.K8sClient, "cdi", "cdi-block-device", "kubevirt.io=cdi-block-device")
-			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", "cdi"+"/"+"cdi-block-device"))
+			pod, err = utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "cdi-block-device", "kubevirt.io=cdi-block-device")
+			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", f.CdiInstallNs+"/"+"cdi-block-device"))
 
 			nodeName := pod.Spec.NodeName
 
@@ -196,7 +200,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 		},
-			table.Entry("succeed creating import dv with given valid url", "import-http", "", utils.TinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
 
@@ -248,7 +252,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	Describe("Create/Delete same datavolume in a loop", func() {
 		Context("retry loop", func() {
 			dataVolumeName := "dv1"
-			url := utils.TinyCoreIsoURL
+			url := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
 			numTries := 5
 			for i := 1; i <= numTries; i++ {
 				It(fmt.Sprintf("should succeed on loop %d", i), func() {
@@ -272,7 +276,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	Describe("Progress reporting on import datavolume", func() {
 		It("Should report progress while importing", func() {
-			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", utils.TinyCoreQcow2URLRateLimit)
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs))
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())

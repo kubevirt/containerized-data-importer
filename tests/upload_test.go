@@ -185,8 +185,8 @@ var _ = Describe("Block PV upload Test", func() {
 		err := f.ClearBlockPV()
 		Expect(err).NotTo(HaveOccurred())
 
-		pod, err := utils.FindPodByPrefix(f.K8sClient, "cdi", "cdi-block-device", "kubevirt.io=cdi-block-device")
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", "cdi"+"/"+"cdi-block-device"))
+		pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "cdi-block-device", "kubevirt.io=cdi-block-device")
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", f.CdiInstallNs+"/"+"cdi-block-device"))
 
 		nodeName := pod.Spec.NodeName
 
