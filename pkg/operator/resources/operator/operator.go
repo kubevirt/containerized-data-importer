@@ -462,6 +462,9 @@ func createCDIListCRD() *extv1beta1.CustomResourceDefinition {
 				ListKind: "CDIList",
 				Plural:   "cdis",
 				Singular: "cdi",
+				Categories: []string{
+					"all",
+				},
 			},
 			Version: "v1alpha1",
 			Scope:   "Cluster",
