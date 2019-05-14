@@ -35,7 +35,7 @@ var _ = Describe("Polarion Test Cases Generator", func() {
 	var testSrc = `
 package test
 
-var _ = Describe("Test Case Generator", func() {
+var _ = Describe("[component:Storage][vendor:cnv-qe.redhat.com][crit:medium]Test Case Generator", func() {
 	BeforeEach(func() {
 		By("Before each test")
 	})
@@ -50,30 +50,25 @@ var _ = Describe("Test Case Generator", func() {
 		return 1
 	}
 
-	table.DescribeTable("table test", func() {
-		// +polarion:caseposneg=positive
-		// +polarion:caseimportance=medium
+	table.DescribeTable("[rfe_id:1][posneg:negative][vendor:cnv-qe.redhat.com][level:integration]table test", func() {
 		By("Testing the table")
 		testNameFunc("table")
 		testFunc1()
 
 	},
-		table.Entry("entry 1"),
-		table.Entry("entry 2"),
+		table.Entry("[test_id:1]entry 1"),
+		table.Entry("[component:Virt]entry 2"),
 	)
 	
-	Context("test context", func() {
-	    It("test it 1", func() {
-			// +polarion:caseimportance=critical
-			// +polarion:caseposneg=negative
+	Context("[posneg:negative][crit:low][vendor:cnv-qe.redhat.com]test context", func() {
+	    It("[test_id:3]test it 1", func() {
 			By("Testing it 1")
 			testFunc1()
 			By("Testing it 1")
 		})
 	})
 	
-	It("test it 2", func() {
-		// +polarion:caseimportance=low
+	It("[test_id:4][rfe_id:5][crit:high][vendor:cnv-qe.redhat.com][level:system]test it 2", func() {
 		testFunc1()
 		By("Testing it 2")
 		By("Testing it 2")
@@ -89,7 +84,7 @@ var _ = Describe("Test Case Generator", func() {
 		cmap := ast.NewCommentMap(fset, f, f.Comments)
 
 		testCases = &polarion_xml.TestCases{}
-		FillPolarionTestCases(f, testCases, &cmap)
+		FillPolarionTestCases(f, testCases, &cmap, "myscript.go", "")
 
 		Expect(len(testCases.TestCases)).To(Equal(4))
 	})
@@ -104,6 +99,18 @@ var _ = Describe("Test Case Generator", func() {
 
 		for i := range generateNames {
 			Expect(testCases.TestCases[i].Title.Content).To(Equal(generateNames[i]))
+		}
+	})
+
+	It("should generate correct test ID", func() {
+		generatedTestIDs := map[int]string{
+			0: "-1",
+			2: "-3",
+			3: "-4",
+		}
+
+		for i := range generatedTestIDs {
+			Expect(testCases.TestCases[i].ID).To(Equal(generatedTestIDs[i]))
 		}
 	})
 
@@ -235,19 +242,29 @@ var _ = Describe("Test Case Generator", func() {
 		generatedCustomFields := map[int]polarion_xml.TestCaseCustomFields{
 			0: {
 				CustomFields: []polarion_xml.TestCaseCustomField{
-					{Content: "positive", ID: "caseposneg"},
 					{Content: "medium", ID: "caseimportance"},
+					{Content: "negative", ID: "caseposneg"},
+					{Content: "integration", ID: "caselevel"},
+					{Content: "Storage", ID: "casecomponent"},
 					{Content: "automated", ID: "caseautomation"},
 					{Content: "functional", ID: "testtype"},
+					{Content: "-", ID: "subtype1"},
+					{Content: "-", ID: "subtype2"},
+					{Content: "myscript.go", ID: "automation_script"},
 					{Content: "yes", ID: "upstream"},
 				},
 			},
 			1: {
 				CustomFields: []polarion_xml.TestCaseCustomField{
-					{Content: "positive", ID: "caseposneg"},
 					{Content: "medium", ID: "caseimportance"},
+					{Content: "negative", ID: "caseposneg"},
+					{Content: "integration", ID: "caselevel"},
+					{Content: "Virt", ID: "casecomponent"},
 					{Content: "automated", ID: "caseautomation"},
 					{Content: "functional", ID: "testtype"},
+					{Content: "-", ID: "subtype1"},
+					{Content: "-", ID: "subtype2"},
+					{Content: "myscript.go", ID: "automation_script"},
 					{Content: "yes", ID: "upstream"},
 				},
 			},
@@ -255,17 +272,28 @@ var _ = Describe("Test Case Generator", func() {
 				CustomFields: []polarion_xml.TestCaseCustomField{
 					{Content: "automated", ID: "caseautomation"},
 					{Content: "functional", ID: "testtype"},
+					{Content: "-", ID: "subtype1"},
+					{Content: "-", ID: "subtype2"},
+					{Content: "myscript.go", ID: "automation_script"},
 					{Content: "yes", ID: "upstream"},
-					{Content: "critical", ID: "caseimportance"},
+					{Content: "low", ID: "caseimportance"},
 					{Content: "negative", ID: "caseposneg"},
+					{Content: "component", ID: "caselevel"},
+					{Content: "Storage", ID: "casecomponent"},
 				},
 			},
 			3: {
 				CustomFields: []polarion_xml.TestCaseCustomField{
 					{Content: "automated", ID: "caseautomation"},
 					{Content: "functional", ID: "testtype"},
+					{Content: "-", ID: "subtype1"},
+					{Content: "-", ID: "subtype2"},
+					{Content: "myscript.go", ID: "automation_script"},
 					{Content: "yes", ID: "upstream"},
-					{Content: "low", ID: "caseimportance"},
+					{Content: "high", ID: "caseimportance"},
+					{Content: "positive", ID: "caseposneg"},
+					{Content: "system", ID: "caselevel"},
+					{Content: "Storage", ID: "casecomponent"},
 				},
 			},
 		}

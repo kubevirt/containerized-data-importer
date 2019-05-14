@@ -27,6 +27,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"kubevirt.io/qe-tools/pkg/polarion-xml"
@@ -41,13 +42,6 @@ const (
 	ginkgoBy       = "By"
 	ginkgoIt       = "It"
 )
-
-const polarionPrefix = "+polarion:"
-
-var polarionCustomFields = map[string][]string{
-	"caseimportance": {"critical", "high", "medium", "low"},
-	"caseposneg":     {"positive", "negative"},
-}
 
 type ginkgoBlock struct {
 	content     []string
@@ -68,6 +62,54 @@ func addCustomField(customFields *polarion_xml.TestCaseCustomFields, id, content
 			Content: content,
 			ID:      id,
 		})
+}
+
+func addLinkedWorkItem(linkedWorkItems *polarion_xml.TestCaseLinkedWorkItems, id string) {
+	linkedWorkItems.LinkedWorkItems = append(
+		linkedWorkItems.LinkedWorkItems, polarion_xml.TestCaseLinkedWorkItem{
+			ID:   id,
+			Role: "verifies",
+		})
+}
+
+func parseTagsFromTitle(testCase *polarion_xml.TestCase, title string, component string, projectID string) {
+	posneg := "positive"
+	caselevel := "component"
+	criticality := "medium"
+	rfeID := ""
+	title = strings.Replace(title, "]", ",", -1)
+	title = strings.Replace(title, "[", ",", -1)
+	attrList := strings.Split(title, ",")
+
+	for i := 0; i < len(attrList); i++ {
+		attrList[i] = strings.Trim(attrList[i], " ")
+		if strings.Contains(attrList[i], "test_id:") {
+			testID := strings.Split(strings.Trim(strings.Split(attrList[i], "test_id:")[1], " "), " ")[0]
+			testCase.ID = projectID + "-" + testID
+
+		} else if strings.Contains(attrList[i], "rfe_id:") {
+			rfeID = projectID + "-" + strings.Split(strings.Trim(strings.Split(attrList[i], "rfe_id:")[1], " "), " ")[0]
+		} else if strings.Contains(attrList[i], "crit:") {
+			criticality = strings.Split(strings.Trim(strings.Split(attrList[i], "crit:")[1], " "), " ")[0]
+
+		} else if strings.Contains(attrList[i], "posneg:") {
+			posneg = strings.Split(strings.Trim(strings.Split(attrList[i], "posneg:")[1], " "), " ")[0]
+
+		} else if strings.Contains(attrList[i], "level:") {
+			caselevel = strings.Split(strings.Trim(strings.Split(attrList[i], "level:")[1], " "), " ")[0]
+
+		} else if strings.Contains(attrList[i], "component:") {
+			component = strings.Split(strings.Trim(strings.Split(attrList[i], "component:")[1], " "), " ")[0]
+		}
+	}
+
+	addCustomField(&testCase.TestCaseCustomFields, "caseimportance", criticality)
+	addCustomField(&testCase.TestCaseCustomFields, "caseposneg", posneg)
+	addCustomField(&testCase.TestCaseCustomFields, "caselevel", caselevel)
+	addLinkedWorkItem(&testCase.TestCaseLinkedWorkItems, rfeID)
+	if component != "" {
+		addCustomField(&testCase.TestCaseCustomFields, "casecomponent", component)
+	}
 }
 
 func addTestStep(testCaseSteps *polarion_xml.TestCaseSteps, content string, prepend bool) {
@@ -177,7 +219,7 @@ func parseIt(testcase *polarion_xml.TestCase, block *ginkgoBlock, funcBody *ast.
 	})
 }
 
-func parseTable(testcases *polarion_xml.TestCases, block *ginkgoBlock, exprs []ast.Expr, customFields *polarion_xml.TestCaseCustomFields) {
+func parseTable(testcases *polarion_xml.TestCases, block *ginkgoBlock, exprs []ast.Expr, customFields *polarion_xml.TestCaseCustomFields, filename string, component string) {
 	lit := exprs[0].(*ast.BasicLit)
 	baseName := strings.Trim(lit.Value, "\"")
 
@@ -211,55 +253,30 @@ func parseTable(testcases *polarion_xml.TestCases, block *ginkgoBlock, exprs []a
 			baseName,
 			value,
 		)
+
+		var re = regexp.MustCompile(`\[.*?\]`)
+		titleNoTags := re.ReplaceAllString(title, `$1`)
+
 		testCase := &polarion_xml.TestCase{
-			Title:                polarion_xml.Title{Content: title},
+			Title:                polarion_xml.Title{Content: titleNoTags},
 			Description:          polarion_xml.Description{Content: title},
 			TestCaseCustomFields: *customFields,
 			TestCaseSteps:        tempCase.TestCaseSteps,
 		}
+
+		parseTagsFromTitle(testCase, title, component, testcases.ProjectID)
 		addCustomField(&testCase.TestCaseCustomFields, "caseautomation", "automated")
 		addCustomField(&testCase.TestCaseCustomFields, "testtype", "functional")
+		addCustomField(&testCase.TestCaseCustomFields, "subtype1", "-")
+		addCustomField(&testCase.TestCaseCustomFields, "subtype2", "-")
+		addCustomField(&testCase.TestCaseCustomFields, "automation_script", filename)
 		addCustomField(&testCase.TestCaseCustomFields, "upstream", "yes")
 		testcases.TestCases = append(testcases.TestCases, *testCase)
 	}
 }
 
-func parseComments(n ast.Node, commentMap *ast.CommentMap, customFields *polarion_xml.TestCaseCustomFields) {
-	for _, cg := range commentMap.Filter(n).Comments() {
-		for _, c := range cg.List {
-			if !strings.HasPrefix(strings.Trim(c.Text, "// "), polarionPrefix) {
-				continue
-			}
-			if polarionComment := strings.Split(c.Text, ":"); len(polarionComment) != 2 {
-				panic(fmt.Errorf("polarion comment %s has incorrect format", c.Text))
-			} else if polarionField := strings.Split(polarionComment[1], "="); len(polarionField) != 2 {
-				panic(fmt.Errorf("polarion comment %s has incorrect custom field format", c.Text))
-			} else {
-				supportedValues, ok := polarionCustomFields[polarionField[0]]
-				if !ok {
-					panic(fmt.Errorf("usupported polarion custom field id %s", polarionField[0]))
-				}
-				if isFieldValueSupported(polarionField[1], supportedValues) {
-					addCustomField(customFields, polarionField[0], polarionField[1])
-				} else {
-					panic(fmt.Errorf("usupported value %s for polarion custom field %s", polarionField[1], polarionField[0]))
-				}
-			}
-		}
-	}
-}
-
-func isFieldValueSupported(value string, supportedValues []string) bool {
-	for _, v := range supportedValues {
-		if v == value {
-			return true
-		}
-	}
-	return false
-}
-
 // FillPolarionTestCases parse ginkgo format test and fill polarion test cases struct accordingly
-func FillPolarionTestCases(f *ast.File, testCases *polarion_xml.TestCases, commentMap *ast.CommentMap) error {
+func FillPolarionTestCases(f *ast.File, testCases *polarion_xml.TestCases, commentMap *ast.CommentMap, filename string, component string) error {
 	var block *ginkgoBlock
 
 	ast.Inspect(f, func(n ast.Node) bool {
@@ -328,8 +345,7 @@ func FillPolarionTestCases(f *ast.File, testCases *polarion_xml.TestCases, comme
 				block.stepContext = append(block.stepContext, block.rparenPos[len(block.rparenPos)-1])
 			case ginkgoTable:
 				customFields := polarion_xml.TestCaseCustomFields{}
-				parseComments(x, commentMap, &customFields)
-				parseTable(testCases, block, x.Args, &customFields)
+				parseTable(testCases, block, x.Args, &customFields, filename, component)
 				return false
 			case ginkgoIt, ginkgoSpecify:
 				for i := len(block.rparenPos) - 1; i >= 0; i-- {
@@ -344,19 +360,28 @@ func FillPolarionTestCases(f *ast.File, testCases *polarion_xml.TestCases, comme
 				if len(block.content[1:]) > 0 {
 					title = fmt.Sprintf("%s: %s %s", block.content[0], strings.Join(block.content[1:], " "), value)
 				}
+
+				var re = regexp.MustCompile(`\[.*?\]`)
+				titleNoTags := re.ReplaceAllString(title, `$1`)
+
+				testCase := &polarion_xml.TestCase{
+					Title:       polarion_xml.Title{Content: titleNoTags},
+					Description: polarion_xml.Description{Content: title},
+				}
+
 				customFields := polarion_xml.TestCaseCustomFields{}
 				addCustomField(&customFields, "caseautomation", "automated")
 				addCustomField(&customFields, "testtype", "functional")
+				addCustomField(&customFields, "subtype1", "-")
+				addCustomField(&customFields, "subtype2", "-")
+				addCustomField(&customFields, "automation_script", filename)
 				addCustomField(&customFields, "upstream", "yes")
-				testCase := polarion_xml.TestCase{
-					Title:       polarion_xml.Title{Content: title},
-					Description: polarion_xml.Description{Content: title},
-				}
-				parseComments(x, commentMap, &customFields)
+
 				testCase.TestCaseCustomFields = customFields
 				funLit := x.Args[1].(*ast.FuncLit)
-				parseIt(&testCase, block, funLit.Body)
-				testCases.TestCases = append(testCases.TestCases, testCase)
+				parseIt(testCase, block, funLit.Body)
+				parseTagsFromTitle(testCase, title, component, testCases.ProjectID)
+				testCases.TestCases = append(testCases.TestCases, *testCase)
 				return false
 			}
 		}
@@ -369,8 +394,9 @@ func main() {
 	// parse input flags
 	testsDir := flag.String("tests-dir", ".", "Directory with tests files")
 	outputFile := flag.String("output-file", "polarion.xml", "Generated polarion test cases")
-	polarionProjectId := flag.String("project-id", "", "Set the Polarion project ID")
+	polarionProjectID := flag.String("project-id", "", "Set the Polarion project ID")
 	dryRun := flag.String("dry-run", "false", "Dry-run property")
+	component := flag.String("component", "", "Component name")
 	flag.Parse()
 
 	// collect all test files from the directory
@@ -392,12 +418,12 @@ func main() {
 
 	// parse all test files and fill polarion test cases
 	var testCases = &polarion_xml.TestCases{
-		ProjectID: *polarionProjectId,
+		ProjectID: *polarionProjectID,
 		Properties: polarion_xml.PolarionProperties{
 			Property: []polarion_xml.PolarionProperty{
 				{
 					Name:  "lookup-method",
-					Value: "name",
+					Value: "id",
 				},
 				{
 					Name:  "dry-run",
@@ -417,7 +443,9 @@ func main() {
 		cmap := ast.NewCommentMap(fset, f, f.Comments)
 
 		// fill polarion test cases struct
-		FillPolarionTestCases(f, testCases, &cmap)
+		pathToFile := strings.Split(file, "/")
+		filenameShort := pathToFile[len(pathToFile)-1]
+		FillPolarionTestCases(f, testCases, &cmap, filenameShort, *component)
 	}
 
 	// generate polarion test cases XML file
