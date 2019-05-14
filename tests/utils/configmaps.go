@@ -12,8 +12,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
-//const registryHostname = RegistryHostName + "." + RegistryHostNs
-
 // CopyRegistryCertConfigMap copies the test registry configmap, it assumes the Registry host is in the CDI namespace
 func CopyRegistryCertConfigMap(client kubernetes.Interface, destNamespace, cdiNamespace string) (string, error) {
 	n, err := CopyConfigMap(client, cdiNamespace, RegistryCertConfigMap, destNamespace, "")
