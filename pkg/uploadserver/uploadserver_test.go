@@ -31,7 +31,7 @@ import (
 	"time"
 
 	"k8s.io/client-go/util/cert"
-	"k8s.io/client-go/util/cert/triple"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
 func newServer() *uploadServerApp {
