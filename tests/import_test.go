@@ -96,6 +96,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(deleted).To(BeTrue())
 		Expect(err).ToNot(HaveOccurred())
 	})
+
 	It("Should create import pod for blank raw image", func() {
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
 			"create-image",
@@ -289,5 +290,33 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
 
+	})
+})
+
+var _ = Describe("Importer Archive ContentType", func() {
+	f := framework.NewFrameworkOrDie(namespacePrefix)
+
+	It("Should import archive content type tar file", func() {
+		c := f.K8sClient
+		ns := f.Namespace.Name
+		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPNoAuthPort)
+		pvcAnn := map[string]string{
+			controller.AnnEndpoint:    httpEp + "/archive.tar",
+			controller.AnnContentType: "archive",
+		}
+
+		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/archive.tar"))
+		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-archive", "100M", pvcAnn, nil))
+		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
+
+		By("Verify the pod status is succeeded on the target PVC")
+		found, err := utils.WaitPVCPodStatusSucceeded(c, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+
+		By("Verify the target PVC contents")
+		same, err := f.VerifyTargetPVCArchiveContent(f.Namespace, pvc, "3")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(same).To(BeTrue())
 	})
 })

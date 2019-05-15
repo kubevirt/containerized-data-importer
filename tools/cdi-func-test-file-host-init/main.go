@@ -50,12 +50,11 @@ func main() {
 	klog.Info("Generating test files")
 	ft := &formatTable{
 		[]string{""},
-		[]string{".tar"},
 		[]string{".gz"},
 		[]string{".xz"},
-		[]string{".tar", ".gz"},
-		[]string{".tar", ".xz"},
 		[]string{".qcow2"},
+		[]string{".qcow2", ".gz"},
+		[]string{".qcow2", ".xz"},
 	}
 
 	if err := utils.CreateCertForTestService(util.GetNamespace(), serviceName, configMapName, *certDir, certFile, keyFile); err != nil {
@@ -68,6 +67,12 @@ func main() {
 	if err := ft.initializeTestFiles(*inFile, *outDir); err != nil {
 		klog.Fatal(err)
 	}
+
+	// copy archive file
+	if err := util.CopyFile("/tmp/source/archive.tar", filepath.Join(*outDir, "archive.tar")); err != nil {
+		klog.Fatal(err)
+	}
+
 	klog.Info("File initialization completed without error.")
 }
 

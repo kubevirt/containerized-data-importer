@@ -114,9 +114,8 @@ var _ = Describe("Http data source", func() {
 		}
 	},
 		table.Entry("return Convert phase ", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseConvert, cirrosData, false),
-		table.Entry("return Error with archive content type but not archive endpoint ", cirrosFileName, cdiv1.DataVolumeArchive, ProcessingPhaseError, cirrosData, true),
+		table.Entry("return TransferTarget with archive content type but not archive endpoint ", cirrosFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, cirrosData, false),
 		table.Entry("return TransferTarget with archive content type and archive endpoint ", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, diskimageArchiveData, false),
-		table.Entry("return Transfer with kubevirt content type and archive qcow2 endpoint ", cirrosQCow2TarFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseTransferScratch, diskimageArchiveData, false),
 	)
 
 	It("calling info with raw image should return TransferDataFile", func() {
@@ -164,21 +163,6 @@ var _ = Describe("Http data source", func() {
 		table.Entry("return Error with invalid target path and archive", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseError, "/imaninvalidpath", cirrosData, true),
 		table.Entry("return Process with scratch space and valid qcow file", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseProcess, "", cirrosData, false),
 	)
-
-	It("Transfer should fail on reader error", func() {
-		image := ts.URL + "/" + cirrosQCow2TarFileName
-		dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt)
-		Expect(err).NotTo(HaveOccurred())
-
-		nextPhase, err := dp.Info()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferScratch).To(Equal(nextPhase))
-		err = dp.Close()
-		Expect(err).NotTo(HaveOccurred())
-		result, err := dp.Transfer(tmpDir)
-		Expect(err).To(HaveOccurred())
-		Expect(ProcessingPhaseError).To(Equal(result))
-	})
 
 	It("TransferFile should succeed when writing to valid file, and reading raw gz", func() {
 		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
