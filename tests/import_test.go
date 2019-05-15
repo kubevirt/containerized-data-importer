@@ -299,7 +299,7 @@ var _ = Describe("Importer Archive ContentType", func() {
 	It("Should import archive content type tar file", func() {
 		c := f.K8sClient
 		ns := f.Namespace.Name
-		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPNoAuthPort)
+		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
 		pvcAnn := map[string]string{
 			controller.AnnEndpoint:    httpEp + "/archive.tar",
 			controller.AnnContentType: "archive",
