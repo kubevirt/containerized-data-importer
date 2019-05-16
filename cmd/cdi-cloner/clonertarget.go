@@ -35,16 +35,8 @@ var (
 
 func init() {
 	namedPipe = flag.String("pipedir", "nopipedir", "The name and directory of the named pipe to read from")
+	klog.InitFlags(nil)
 	flag.Parse()
-	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
-	klog.InitFlags(klogFlags)
-	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
-		f2 := klogFlags.Lookup(f1.Name)
-		if f2 != nil {
-			value := f1.Value.String()
-			f2.Value.Set(value)
-		}
-	})
 
 	prometheus.MustRegister(progress)
 	ownerUID, _ = util.ParseEnvVar(common.OwnerUID, false)

@@ -20,10 +20,10 @@ import (
 	. "github.com/onsi/gomega"
 
 	"k8s.io/client-go/util/cert"
-	"k8s.io/client-go/util/cert/triple"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
 var (

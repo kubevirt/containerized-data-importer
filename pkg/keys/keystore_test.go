@@ -33,8 +33,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
-	"k8s.io/client-go/util/cert/triple"
+
 	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
 func tlsSecretCreateAction(namespace, secretName string, keyPair *triple.KeyPair, caCert *x509.Certificate) core.Action {

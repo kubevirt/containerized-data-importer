@@ -4,7 +4,7 @@ RUN dnf install -y qemu xz gzip git gradle gcc autoconf automake libtool python 
 
 RUN pip3 install j2cli && pip3 install operator-courier
 
-ENV GIMME_GO_VERSION=1.11.5 GOPATH="/go" KUBEBUILDER_VERSION="1.0.7" ARCH="amd64"
+ENV GIMME_GO_VERSION=1.11.5 GOPATH="/go" KUBEBUILDER_VERSION="1.0.8" ARCH="amd64"
 
 RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
 
@@ -34,7 +34,7 @@ RUN \
     git checkout kubernetes-1.12.4 && \
     go install ./... ) && \
     ( cd $GOPATH/src/k8s.io/kube-openapi/cmd/openapi-gen && \
-    git checkout 0317810137be915b9cf888946c6e115c1bfac693 && \
+    git checkout a01b7d5d6c2258c80a4a10070f3dee9cd575d9c7 && \
     go install ./... ) && \
     (go get -u -d github.com/Masterminds/glide && \
      cd $GOPATH/src/github.com/Masterminds/glide && \
