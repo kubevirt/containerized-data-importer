@@ -9,5 +9,6 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     TARGET="${TARGET#*.}"
     echo "TARGET=$TARGET"
     export TARGET
+    cp automation/check-patch.yumrepos hack/build/docker/builder/fedora.repo
     exec automation/test.sh
 fi
