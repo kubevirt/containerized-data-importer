@@ -25,6 +25,8 @@ elif [[ $image == $KUBERNETES_IMAGE ]]; then
     export KUBECONFIG=./cluster/.kubeconfig
     ./cluster/.kubectl config set-cluster kubernetes --server=https://127.0.0.1:$cluster_port
     ./cluster/.kubectl config set-cluster kubernetes --insecure-skip-tls-verify=true
+    ./cluster/.kubectl patch storageclass local -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+    ./cluster/.kubectl patch storageclass csi-rbd -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
 
 elif [[ $image == $OPENSHIFT_IMAGE ]]; then
 
