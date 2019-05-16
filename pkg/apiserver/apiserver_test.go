@@ -13,8 +13,6 @@ import (
 
 	restful "github.com/emicklei/go-restful"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/util/cert/triple"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -26,6 +24,7 @@ import (
 
 	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
 var foo aggregatorapifake.Clientset
