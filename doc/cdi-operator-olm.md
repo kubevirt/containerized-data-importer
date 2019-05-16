@@ -1,5 +1,5 @@
 # OLM (Operator Lifecycle Management) intergartion
-##OLM Overview
+## OLM Overview
 https://github.com/kubevirt/kubevirt/blob/master/docs/devel/olm-integration.md
 
 
@@ -23,7 +23,7 @@ make olm-verify
 CSV_VERSION=<CSV version>  QUAY_USERNAME=<quay account username> QUAY_PASSWORD=<quay account password> QUAY_NAMESPACE=<namespace> QUAY_REPOSITORY=<application name> make olm-push
 ```
 
-##CDI OLM installation 
+## Containerized Data Importer (CDI) OLM installation 
 ### Prerequisites
 #### Build OLM manifests and push them to quay
 - Build OLM manifests and push to quay. Specify your DOCKER_REPO, DOCKER_TAG, QUAY_NAMESPACE, QUAY_REPOSITORY, CSV_VERSION.
@@ -34,27 +34,35 @@ DOCKER_REPO=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY=<
 ```bash
 QUAY_NAMESPACE=<quay namespace> QUAY_REPOSITORY=<quay repo> QUAY_USERNAME=<quay username> QUAY_PASSWORD=<quay password> CSV_VERSION=<csv version > make olm-push
 ```
-#### Install OLM and Marketplace operators on cluster
-- Install OLM operator from cloned operator-lifecycle-manager repo 
+#### Install OLM and marketplace operators on cluster
+- Install OLM operator from cloned operator-lifecycle-manager repo and wait untill all pods are Running and Ready. 
 
 ```bash
 kubectl apply -f $GOPATH/src/github.com/operator-framework/operator-lifecycle-manager/deploy/upstream/quickstart/olm.yaml
 ```
-- Install marketplace operator from cloned operator-marketplace repo
+- Install marketplace operator from cloned operator-marketplace repo and wait until all pods are Running and Ready.
 ```bash
 kubectl apply -f $GOPATH/src/github.com/operator-framework/operator-marketplace/deploy/upstream/ --validate=false
 ```
-###CDI installation by means of OLM and Marketplace operators
+- Wait till marketplace-operator is Running and Ready.
+```bash
+kubectl get pods -n marketplace 
+NAME                                   READY   STATUS    RESTARTS   AGE
+cdi-7c7fc4f774-bdbsh                   1/1     Running   0          37s
+marketplace-operator-d8cc985d4-mv7xp   1/1     Running   0          2m40s
+
+```
+### CDI installation by means of OLM and marketplace operators
 - Install CDI operatorsource manifest that specifies the location of CDI OLM bundle in quay
 ```bash
-kubectl apply -f _out/manifests/release/olm/cdi-operatorsource.yaml_
+kubectl apply -f _out/manifests/release/olm/cdi-operatorsource.yaml
 ```
 - Handle marketplace namespace workarouond
 
   Move _catalogsourceconfig.operators.coreos.com/cdi_ from _markeplace_ namespace to _olm_ namespace by modifying *targetNamespace* field to 'olm' from 'marketplace'
 ```bash
-cluster/kubectl.sh get operatorsource,catalogsourceconfig,catalogsource,subscription,installplan --all-namespaces
-cluster/kubectl.sh edit catalogsourceconfig.operators.coreos.com/cdi -n marketplace
+kubectl get operatorsource,catalogsourceconfig,catalogsource,subscription,installplan --all-namespaces
+kubectl edit catalogsourceconfig.operators.coreos.com/cdi -n marketplace
 ```
 - Create CDI namespace
 ```bash
@@ -62,27 +70,35 @@ kubectl create ns cdi
 ```
 - Configure namespace to be allowed to create operators there
 ```bash
-cluster/kubectl.sh apply -f _out/manifests/release/olm/operatorgroup.yaml
+kubectl apply -f _out/manifests/release/olm/operatorgroup.yaml
 ```
 - Install subscription that will point from which channel the app is downloaded
 ```bash
-cluster/kubectl.sh apply -f  _out/manifests/release/olm/cdi-subscription.yaml
+kubectl apply -f  _out/manifests/release/olm/cdi-subscription.yaml
+```
+- Verify CDI installation plan was created
+```bash
+kubectl get operatorsource,catalogsourceconfig,catalogsource,subscription,installplan -n cdi
+NAME                                    PACKAGE   SOURCE   CHANNEL
+subscription.operators.coreos.com/cdi   cdi       cdi      beta
+
+NAME                                             CSV                 SOURCE   APPROVAL    APPROVED
+installplan.operators.coreos.com/install-995l9   cdioperator.0.0.0            Automatic   true
+
 ```
 - Now cdi-operator starts running but in order for it to succeed we need to deploy cdi cr
 ```bash
 cluster/kubectl.sh apply -f  _out/manifests/release/cdi-operator-cr.yaml
 ```
-Now the operator should finish its deployment succefully
+Now the operator should finish its deployment successfully
 
-###OKD UI
+### OKD UI
 - Grant cluster-admin permissions to kube-system:default
 ```bash
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: kube-system-admin
-  labels:
-    operator.cdi.kubevirt.io: ""
 subjects:
 - kind: ServiceAccount
   name: default
