@@ -28,20 +28,26 @@ if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
   registry=${IMAGE_REGISTRY:-localhost:$(_port registry)}
   DOCKER_PREFIX=${registry}
   MANIFEST_REGISTRY="registry:5000"
+  QUAY_NAMESPACE="none"
 fi
 
 # Need to set the DOCKER_PREFIX appropriately in the call to `make docker push`, otherwise make will just pass in the default `kubevirt`
+QUAY_NAMESPACE=$QUAY_NAMESPACE DOCKER_PREFIX=$MANIFEST_REGISTRY PULL_POLICY=$(getTestPullPolicy) make manifests
 DOCKER_PREFIX=$DOCKER_PREFIX make docker push
-DOCKER_PREFIX=$MANIFEST_REGISTRY PULL_POLICY=$(getTestPullPolicy) make manifests
 
 seed_images
 
 configure_local_storage
 
 # Install CDI
-_kubectl apply -f "./_out/manifests/release/cdi-operator.yaml" 
+install_cdi
+
+#wait cdi crd is installed with 120s timeout
+wait_cdi_crd_installed 120
+
 _kubectl apply -f "./_out/manifests/release/cdi-cr.yaml"
 _kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=running --timeout=120s
+
 
 # Start functional test HTTP server.
 # We skip the functional test additions for external provider for now, as they're specific
