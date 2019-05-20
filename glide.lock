@@ -1,5 +1,5 @@
-hash: 017a56fcd0a1df5f134329ef8570a2728b823748621c728c13d287f70e91285e
-updated: 2019-05-15T08:28:52.7344063Z
+hash: 1aa17cf68605325907751b9dee5bb31dc90ef5135ed97547c05a0b248bf21a51
+updated: 2019-05-19T09:08:43.794386139Z
 imports:
 - name: github.com/appscode/jsonpatch
   version: 7c0e3b262f30165a8ec3d0b4c6059fd92703bfb2
@@ -67,7 +67,7 @@ imports:
   - compiler
   - extensions
 - name: github.com/gorilla/mux
-  version: c5c6c98bc25355028a63748a498942a6398ccd22
+  version: ed099d42384823742bba0bf9a72b53b55c9e2e38
 - name: github.com/gregjones/httpcache
   version: 787624de3eb7bd915c329cba748687a3b22666a6
   subpackages:
@@ -89,6 +89,11 @@ imports:
   version: ab8a2e0c74be9d3be70b3184d9acc634935ded82
 - name: github.com/kelseyhightower/envconfig
   version: f611eb38b3875cc3bd991ca91c51d06446afa14c
+- name: github.com/kubernetes-csi/external-snapshotter
+  version: e49856eb417cbafa51e5a3fb3bd0ac9e31ab1873
+  subpackages:
+  - pkg/apis
+  - pkg/apis/volumesnapshot/v1alpha1
 - name: github.com/mailru/easyjson
   version: 2f5df55504ebc322e4d52d34df6a1f5b503bf26d
   subpackages:
@@ -136,7 +141,7 @@ imports:
   - reporters/stenographer/support/go-isatty
   - types
 - name: github.com/onsi/gomega
-  version: f0e010e04c08c48a875f83d17df37b04eb3a985b
+  version: 6a48b4839f850fe696893f09085e3fc485d74a4a
   subpackages:
   - format
   - gbytes
@@ -350,8 +355,15 @@ imports:
   - pkg/apis/apiextensions
   - pkg/apis/apiextensions/v1beta1
   - pkg/client/clientset/clientset
+  - pkg/client/clientset/clientset/fake
   - pkg/client/clientset/clientset/scheme
   - pkg/client/clientset/clientset/typed/apiextensions/v1beta1
+  - pkg/client/clientset/clientset/typed/apiextensions/v1beta1/fake
+  - pkg/client/informers/externalversions
+  - pkg/client/informers/externalversions/apiextensions
+  - pkg/client/informers/externalversions/apiextensions/v1beta1
+  - pkg/client/informers/externalversions/internalinterfaces
+  - pkg/client/listers/apiextensions/v1beta1
 - name: k8s.io/apimachinery
   version: 86fb29eff6288413d76bd8506874fddd9fccdff0
   subpackages:

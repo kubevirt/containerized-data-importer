@@ -32,9 +32,11 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 
+	extfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions"
+	csifake "kubevirt.io/containerized-data-importer/pkg/snapshot-client/clientset/versioned/fake"
 )
 
 var (
@@ -46,7 +48,9 @@ type fixture struct {
 	t *testing.T
 
 	client     *fake.Clientset
+	csiclient  *csifake.Clientset
 	kubeclient *k8sfake.Clientset
+	extclient  *extfake.Clientset
 
 	// Objects to put in the store.
 	dataVolumeLister []*cdiv1.DataVolume
@@ -59,6 +63,8 @@ type fixture struct {
 	// Objects from here preloaded into NewSimpleFake.
 	kubeobjects []runtime.Object
 	objects     []runtime.Object
+	csiobjects  []runtime.Object
+	extobjects  []runtime.Object
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -66,6 +72,14 @@ func newFixture(t *testing.T) *fixture {
 	f.t = t
 	f.objects = []runtime.Object{}
 	f.kubeobjects = []runtime.Object{}
+	f.csiobjects = []runtime.Object{}
+	f.extobjects = []runtime.Object{}
+	return f
+}
+
+func newFixtureCsiCrds(t *testing.T) *fixture {
+	f := newFixture(t)
+	f.extobjects = append(f.extobjects, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 	return f
 }
 
@@ -88,6 +102,10 @@ func newImportDataVolume(name string) *cdiv1.DataVolume {
 }
 
 func newCloneDataVolume(name string) *cdiv1.DataVolume {
+	return newCloneDataVolumeWithPVCNS(name, "default")
+}
+
+func newCloneDataVolumeWithPVCNS(name string, pvcNamespace string) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
 		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -98,7 +116,7 @@ func newCloneDataVolume(name string) *cdiv1.DataVolume {
 			Source: cdiv1.DataVolumeSource{
 				PVC: &cdiv1.DataVolumeSourcePVC{
 					Name:      "test",
-					Namespace: "default",
+					Namespace: pvcNamespace,
 				},
 			},
 			PVC: &corev1.PersistentVolumeClaimSpec{},
@@ -140,7 +158,9 @@ func newBlankImageDataVolume(name string) *cdiv1.DataVolume {
 
 func (f *fixture) newController() (*DataVolumeController, informers.SharedInformerFactory, kubeinformers.SharedInformerFactory) {
 	f.client = fake.NewSimpleClientset(f.objects...)
+	f.csiclient = csifake.NewSimpleClientset(f.csiobjects...)
 	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
+	f.extclient = extfake.NewSimpleClientset(f.extobjects...)
 
 	i := informers.NewSharedInformerFactory(f.client, noResyncPeriodFunc())
 	k8sI := kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
@@ -155,6 +175,8 @@ func (f *fixture) newController() (*DataVolumeController, informers.SharedInform
 
 	c := NewDataVolumeController(f.kubeclient,
 		f.client,
+		f.csiclient,
+		f.extclient,
 		k8sI.Core().V1().PersistentVolumeClaims(),
 		i.Cdi().V1alpha1().DataVolumes())
 
@@ -782,4 +804,130 @@ func TestBlankImageClaimLost(t *testing.T) {
 	result.Status.Phase = cdiv1.Failed
 	f.expectUpdateDataVolumeStatusAction(result)
 	f.run(getKey(dataVolume, t))
+
+}
+
+// Smart-clone test
+func TestSmartCloneNoPVCSource(t *testing.T) {
+	f := newFixtureCsiCrds(t)
+	dataVolume := newImportDataVolume("test")
+	c, _, _ := f.newController()
+	snapClass := c.getSnapshotClassForSmartClone(dataVolume)
+	if snapClass != "" {
+		t.Errorf("Should not be smart-clone applicable, no source PVC")
+	}
+}
+
+func TestSmartCloneNoCsiCrds(t *testing.T) {
+	f := newFixture(t)
+	scName := "test"
+	sc := createStorageClass(scName, map[string]string{
+		AnnDefaultStorageClass: "true",
+	})
+	f.kubeobjects = append(f.kubeobjects, sc)
+	dataVolume := newCloneDataVolume("test")
+	pvc := createPvcInStorageClass("test", "default", &scName, nil, nil)
+	f.pvcLister = append(f.pvcLister, pvc)
+	c, _, _ := f.newController()
+	snapClass := c.getSnapshotClassForSmartClone(dataVolume)
+	if snapClass != "" {
+		t.Errorf("Should not be smart-clone applicable, no CSI CRDs")
+	}
+}
+
+func TestSmartClonePVCSourceDifferentSC(t *testing.T) {
+	f := newFixtureCsiCrds(t)
+	sc := createStorageClass("test2", map[string]string{
+		AnnDefaultStorageClass: "true",
+	})
+	f.kubeobjects = append(f.kubeobjects, sc)
+	dataVolume := newCloneDataVolume("test")
+	sourceScName := "test"
+	pvc := createPvcInStorageClass("test", "default", &sourceScName, nil, nil)
+	f.pvcLister = append(f.pvcLister, pvc)
+	c, _, _ := f.newController()
+
+	snapClass := c.getSnapshotClassForSmartClone(dataVolume)
+	if snapClass != "" {
+		t.Errorf("Should not be smart-clone applicable, different Storage classes source/target PVC")
+	}
+}
+
+func TestNoSmartClonePVCSourceDifferentNS(t *testing.T) {
+	f := newFixtureCsiCrds(t)
+	sc := createStorageClass("test", map[string]string{
+		AnnDefaultStorageClass: "true",
+	})
+	f.kubeobjects = append(f.kubeobjects, sc)
+	dataVolume := newCloneDataVolumeWithPVCNS("test", "namespace2")
+	sourceScName := "test"
+	pvc := createPvcInStorageClass("test", "namespace2", &sourceScName, nil, nil)
+	f.pvcLister = append(f.pvcLister, pvc)
+	c, _, _ := f.newController()
+
+	snapClass := c.getSnapshotClassForSmartClone(dataVolume)
+	if snapClass != "" {
+		t.Errorf("Should not be smart-clone applicable, different NameSpaces source/target PVC")
+	}
+}
+
+func TestNoSmartCloneNoSnapshotClass(t *testing.T) {
+	f := newFixtureCsiCrds(t)
+	scName := "test"
+	sc := createStorageClass(scName, map[string]string{
+		AnnDefaultStorageClass: "true",
+	})
+	f.kubeobjects = append(f.kubeobjects, sc)
+	dataVolume := newCloneDataVolume("test")
+	pvc := createPvcInStorageClass("test", "default", &scName, nil, nil)
+	f.pvcLister = append(f.pvcLister, pvc)
+	c, _, _ := f.newController()
+
+	snapClass := c.getSnapshotClassForSmartClone(dataVolume)
+	if snapClass != "" {
+		t.Errorf("Should not be smart-clone applicable, different NameSpaces soure/target PVC")
+	}
+}
+
+func TestSmartCloneNotMatchingStorageClass(t *testing.T) {
+	f := newFixtureCsiCrds(t)
+	scName := "test"
+	sc := createStorageClass(scName, map[string]string{
+		AnnDefaultStorageClass: "true",
+	})
+	f.kubeobjects = append(f.kubeobjects, sc)
+	snapClass := createSnapshotClass("snap-class", nil, "csi-snap")
+	f.csiobjects = append(f.csiobjects, snapClass)
+	dataVolume := newCloneDataVolume("test")
+	pvc := createPvcInStorageClass("test", "default", &scName, nil, nil)
+	f.pvcLister = append(f.pvcLister, pvc)
+
+	c, _, _ := f.newController()
+
+	resultSnapClass := c.getSnapshotClassForSmartClone(dataVolume)
+	if resultSnapClass != "" {
+		t.Errorf("Should not be smart-clone applicable, No matching Snapshot Class")
+	}
+}
+func TestSmartCloneMatchingStorageClass(t *testing.T) {
+	f := newFixtureCsiCrds(t)
+	scName := "test"
+	sc := createStorageClassWithProvisioner(scName, map[string]string{
+		AnnDefaultStorageClass: "true",
+	}, "csi-plugin")
+	f.kubeobjects = append(f.kubeobjects, sc)
+	expectedSnapshotClass := "snap-class"
+	snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
+	f.csiobjects = append(f.csiobjects, snapClass)
+	dataVolume := newCloneDataVolume("test")
+	pvc := createPvcInStorageClass("test", "default", &scName, nil, nil)
+	f.pvcLister = append(f.pvcLister, pvc)
+
+	c, _, _ := f.newController()
+
+	snapClassName := c.getSnapshotClassForSmartClone(dataVolume)
+
+	if snapClassName != expectedSnapshotClass {
+		t.Errorf("Should be expected SnapshotClass")
+	}
 }

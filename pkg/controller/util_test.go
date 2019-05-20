@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -21,6 +22,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
 
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -2013,6 +2016,92 @@ func createStorageClass(name string, annotations map[string]string) *storagev1.S
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Annotations: annotations,
+		},
+	}
+}
+
+func createStorageClassWithProvisioner(name string, annotations map[string]string, provisioner string) *storagev1.StorageClass {
+	return &storagev1.StorageClass{
+		Provisioner: provisioner,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Annotations: annotations,
+		},
+	}
+}
+func createSnapshotClass(name string, annotations map[string]string, snapshotter string) *snapshotv1.VolumeSnapshotClass {
+	return &snapshotv1.VolumeSnapshotClass{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "VolumeSnapshotClass",
+			APIVersion: snapshotv1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Annotations: annotations,
+		},
+		Snapshotter: snapshotter,
+	}
+}
+
+func createVolumeSnapshotContentCrd() *apiextensionsv1beta1.CustomResourceDefinition {
+	return &apiextensionsv1beta1.CustomResourceDefinition{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CustomResourceDefinition",
+			APIVersion: apiextensionsv1beta1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdv1.VolumeSnapshotContentResourcePlural + "." + crdv1.GroupName,
+		},
+		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
+			Group:   crdv1.GroupName,
+			Version: crdv1.SchemeGroupVersion.Version,
+			Scope:   apiextensionsv1beta1.ClusterScoped,
+			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
+				Plural: crdv1.VolumeSnapshotContentResourcePlural,
+				Kind:   reflect.TypeOf(crdv1.VolumeSnapshotContent{}).Name(),
+			},
+		},
+	}
+}
+
+func createVolumeSnapshotClassCrd() *apiextensionsv1beta1.CustomResourceDefinition {
+	return &apiextensionsv1beta1.CustomResourceDefinition{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CustomResourceDefinition",
+			APIVersion: apiextensionsv1beta1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdv1.VolumeSnapshotClassResourcePlural + "." + crdv1.GroupName,
+		},
+		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
+			Group:   crdv1.GroupName,
+			Version: crdv1.SchemeGroupVersion.Version,
+			Scope:   apiextensionsv1beta1.ClusterScoped,
+			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
+				Plural: crdv1.VolumeSnapshotClassResourcePlural,
+				Kind:   reflect.TypeOf(crdv1.VolumeSnapshotClass{}).Name(),
+			},
+		},
+	}
+}
+
+func createVolumeSnapshotCrd() *apiextensionsv1beta1.CustomResourceDefinition {
+	return &apiextensionsv1beta1.CustomResourceDefinition{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CustomResourceDefinition",
+			APIVersion: apiextensionsv1beta1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdv1.VolumeSnapshotResourcePlural + "." + crdv1.GroupName,
+		},
+		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
+			Group:   crdv1.GroupName,
+			Version: crdv1.SchemeGroupVersion.Version,
+			Scope:   apiextensionsv1beta1.NamespaceScoped,
+			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
+				Plural: crdv1.VolumeSnapshotResourcePlural,
+				Kind:   reflect.TypeOf(crdv1.VolumeSnapshot{}).Name(),
+			},
 		},
 	}
 }

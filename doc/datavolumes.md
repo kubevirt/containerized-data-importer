@@ -12,6 +12,7 @@ The following statuses are possible.
 * PVCBound: The PVC associated with the operation has been bound.
 * Import/Clone/UploadScheduled: The operation (import/clone/upload) has been scheduled.
 * Import/Clone/UploadInProgress: The operation (import/clone/upload) is in progress.
+* SnapshotForSmartClone/SmartClonePVCInProgress: The Smart-Cloning operation is in progress.
 * Succeeded: The operation has succeeded.
 * Failed: The operation has failed.
 * Unknown: Unknown status.

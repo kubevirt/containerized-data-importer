@@ -297,6 +297,7 @@ func getOperatorClusterRules() *[]rbacv1.PolicyRule {
 			Resources: []string{
 				"pods",
 				"persistentvolumeclaims",
+				"volumesnapshots",
 			},
 			Verbs: []string{
 				"get",
@@ -315,6 +316,7 @@ func getOperatorClusterRules() *[]rbacv1.PolicyRule {
 			Resources: []string{
 				"persistentvolumeclaims/finalizers",
 				"pods/finalizers",
+				"volumesnapshots/finalizers",
 			},
 			Verbs: []string{
 				"update",
@@ -387,6 +389,28 @@ func getOperatorClusterRules() *[]rbacv1.PolicyRule {
 			Verbs: []string{
 				"create",
 				"update",
+			},
+		},
+		{
+			APIGroups: []string{
+				"snapshot.storage.k8s.io",
+			},
+			Resources: []string{
+				"*",
+			},
+			Verbs: []string{
+				"*",
+			},
+		},
+		{
+			APIGroups: []string{
+				"apiextensions.k8s.io",
+			},
+			Resources: []string{
+				"customresourcedefinitions",
+			},
+			Verbs: []string{
+				"*",
 			},
 		},
 	}
