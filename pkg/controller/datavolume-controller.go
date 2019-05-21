@@ -962,6 +962,7 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 	} else if dataVolume.Spec.Source.Registry != nil {
 		annotations[AnnSource] = SourceRegistry
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.Registry.URL
+		annotations[AnnContentType] = string(dataVolume.Spec.ContentType)
 		if dataVolume.Spec.Source.Registry.SecretRef != "" {
 			annotations[AnnSecret] = dataVolume.Spec.Source.Registry.SecretRef
 		}
