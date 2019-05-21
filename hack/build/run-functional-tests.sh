@@ -39,8 +39,9 @@ arg_kubeconfig="${KUBECONFIG:+-kubeconfig=$KUBECONFIG}"
 arg_kubectl="${KUBECTL:+-kubectl-path=$KUBECTL}"
 arg_oc="${KUBECTL:+-oc-path=$KUBECTL}"
 arg_gocli="${GOCLI:+-gocli-path=$GOCLI}"
+arg_sc_snap="-snapshot-sc=csi-rbd"
 
-test_args="${test_args} -ginkgo.v ${arg_master} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc} ${arg_gocli}"
+test_args="${test_args} -ginkgo.v ${arg_master} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc} ${arg_gocli} ${arg_sc_snap}"
 
 echo 'Wait until all CDI Pods are ready'
 retry_counter=0

@@ -26,6 +26,7 @@ CODEGEN_PKG=${CODEGEN_PKG:-$(
 
 find "${SCRIPT_ROOT}/pkg/" -name "*generated*.go" -exec rm {} -f \;
 rm -rf "${SCRIPT_ROOT}/pkg/client"
+rm -rf "${SCRIPT_ROOT}/pkg/snapshot-client"
 
 ${SCRIPT_ROOT}/hack/build/build-go.sh generate
 
@@ -36,6 +37,11 @@ ${SCRIPT_ROOT}/hack/build/build-go.sh generate
 ${CODEGEN_PKG}/generate-groups.sh "client,informer,lister" \
   kubevirt.io/containerized-data-importer/pkg/client kubevirt.io/containerized-data-importer/pkg/apis \
   "core:v1alpha1 upload:v1alpha1" \
+  --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
+
+${CODEGEN_PKG}/generate-groups.sh "client,informer,lister" \
+  kubevirt.io/containerized-data-importer/pkg/snapshot-client github.com/kubernetes-csi/external-snapshotter/pkg/apis \
+  volumesnapshot:v1alpha1 \
   --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
 (cd ${SCRIPT_ROOT}/tools/openapi-spec-generator/ && go build -o ../../bin/openapi-spec-generator)

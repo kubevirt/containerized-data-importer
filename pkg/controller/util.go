@@ -9,10 +9,12 @@ import (
 	"strings"
 	"time"
 
+	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	routev1 "github.com/openshift/api/route/v1"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
+	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -1420,4 +1422,26 @@ func isInsecureTLS(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (
 	}
 
 	return false, nil
+}
+
+// IsCsiCrdsDeployed checks whether the CSI snapshotter CRD are deployed
+func IsCsiCrdsDeployed(c extclientset.Interface) bool {
+	vsClass := crdv1alpha1.VolumeSnapshotClassResourcePlural + "." + crdv1alpha1.GroupName
+	vsContent := crdv1alpha1.VolumeSnapshotContentResourcePlural + "." + crdv1alpha1.GroupName
+	vs := crdv1alpha1.VolumeSnapshotResourcePlural + "." + crdv1alpha1.GroupName
+
+	return isCrdDeployed(c, vsClass) &&
+		isCrdDeployed(c, vsContent) &&
+		isCrdDeployed(c, vs)
+}
+
+func isCrdDeployed(c extclientset.Interface, name string) bool {
+	obj, err := c.ApiextensionsV1beta1().CustomResourceDefinitions().Get(name, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return false
+		}
+		return false
+	}
+	return obj != nil
 }

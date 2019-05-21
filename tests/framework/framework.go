@@ -40,12 +40,13 @@ const (
 
 // run-time flags
 var (
-	kubectlPath  *string
-	ocPath       *string
-	cdiInstallNs *string
-	kubeConfig   *string
-	master       *string
-	goCLIPath    *string
+	kubectlPath    *string
+	ocPath         *string
+	cdiInstallNs   *string
+	kubeConfig     *string
+	master         *string
+	goCLIPath      *string
+	snapshotSCName *string
 )
 
 // Config provides some basic test config options
@@ -91,6 +92,8 @@ type Framework struct {
 	Master string
 	// GoCliPath is a test run-time flag to store the location of gocli
 	GoCLIPath string
+	// SnapshotSCName is the Storage Class name that supports Snapshots
+	SnapshotSCName string
 }
 
 // TODO: look into k8s' SynchronizedBeforeSuite() and SynchronizedAfterSuite() code and their general
@@ -108,6 +111,7 @@ func init() {
 	kubeConfig = flag.String("kubeconfig", "/var/run/kubernetes/admin.kubeconfig", "The absolute path to the kubeconfig file")
 	master = flag.String("master", "", "master url:port")
 	goCLIPath = flag.String("gocli-path", "cli.sh", "The path to cli script")
+	snapshotSCName = flag.String("snapshot-sc", "", "The Storage Class supporting snapshots")
 }
 
 // NewFrameworkOrDie calls NewFramework and handles errors by calling Fail. Config is optional, but
@@ -158,6 +162,7 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 	f.KubeConfig = *kubeConfig
 	f.Master = *master
 	f.GoCLIPath = *goCLIPath
+	f.SnapshotSCName = *snapshotSCName
 
 	restConfig, err := f.LoadConfig()
 	if err != nil {
