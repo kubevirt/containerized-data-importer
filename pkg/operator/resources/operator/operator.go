@@ -393,6 +393,17 @@ func getOperatorClusterRules() *[]rbacv1.PolicyRule {
 		},
 		{
 			APIGroups: []string{
+				"route.openshift.io",
+			},
+			Resources: []string{
+				"routes/status",
+			},
+			Verbs: []string{
+				"get",
+			},
+		},
+		{
+			APIGroups: []string{
 				"snapshot.storage.k8s.io",
 			},
 			Resources: []string{
