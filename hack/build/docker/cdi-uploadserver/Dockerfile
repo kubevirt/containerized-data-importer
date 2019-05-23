@@ -1,12 +1,16 @@
-FROM fedora:29
+FROM registry.fedoraproject.org/fedora-minimal:30
+MAINTAINER "The KubeVirt Project" <kubevirt-dev@googlegroups.com>
 
-COPY fedora.repo /tmp/fedora_ci.dnf.conf
+COPY fedora.repo /tmp/fedora_ci.dnf.repo
 
-RUN mv /etc/dnf/dnf.conf /etc/dnf/dnf.conf.org && \
-    mv /tmp/fedora_ci.dnf.conf /etc/dnf/dnf.conf && \
-	dnf install -y qemu-img && dnf clean all && \
-	mv /etc/dnf/dnf.conf /tmp/fedora_ci.dnf.conf && \
-	mv /etc/dnf/dnf.conf.org /etc/dnf/dnf.conf
+RUN sed -i 's/proxy = None/proxy =/gI' /tmp/fedora_ci.dnf.repo && \
+	mv /etc/yum.repos.d/fedora.repo /etc/yum.repos.d/fedora.repo.orig  && \
+	mv /etc/yum.repos.d/fedora-updates.repo /etc/yum.repos.d/fedora-updates.repo.orig && \
+	mv /tmp/fedora_ci.dnf.repo /etc/yum.repos.d/fedora.repo && \
+	microdnf update -y && \
+	microdnf install -y qemu-img && microdnf clean all && \
+	mv /etc/yum.repos.d/fedora.repo.orig /etc/yum.repos.d/fedora.repo  && \
+	mv /etc/yum.repos.d/fedora-updates.repo.orig /etc/yum.repos.d/fedora-updates.repo
 
 RUN mkdir /data
 
