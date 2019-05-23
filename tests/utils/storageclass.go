@@ -22,7 +22,7 @@ func CreateStorageClassFromDefinition(clientSet *kubernetes.Clientset, def *stor
 	err := wait.PollImmediate(storageClassPollInterval, storageClassCreateTime, func() (bool, error) {
 		var err error
 		storageClass, err = clientSet.StorageV1().StorageClasses().Create(def)
-		if err == nil || apierrs.IsAlreadyExists(err) {
+		if err == nil {
 			return true, nil
 		}
 		return false, err
