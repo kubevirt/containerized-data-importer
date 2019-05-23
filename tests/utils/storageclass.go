@@ -57,3 +57,21 @@ func DeleteStorageClass(clientSet *kubernetes.Clientset, storageClass *storageV1
 		return false, err
 	})
 }
+
+// GetStorageClass uses the provided client to attempt to get the specified storage class by name
+func GetStorageClass(clientSet *kubernetes.Clientset, scName string) (*storageV1.StorageClass, error) {
+	sc, err := clientSet.StorageV1().StorageClasses().Get(scName, metav1.GetOptions{})
+	return sc, err
+}
+
+// StorageClassExists is a simple check to see if the given SC exists or not
+func StorageClassExists(clientSet *kubernetes.Clientset, scName string) (bool, error) {
+	_, err := GetStorageClass(clientSet, scName)
+	if err != nil {
+		if apierrs.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}

@@ -131,77 +131,135 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		var pod *v1.Pod
 		var pv *v1.PersistentVolume
 
-		BeforeEach(func() {
-			By(fmt.Sprintf("Creating storageClass for Block PV"))
-			storageClass, err = f.CreateStorageClassFromDefinition(utils.NewStorageClassForBlockPVDefinition("manual"))
-			Expect(err).ToNot(HaveOccurred())
+		Context("using manual block pv creation", func() {
+			sc := "manual"
+			BeforeEach(func() {
+				By(fmt.Sprintf("Creating storageClass for Block PV"))
+				storageClass, err = f.CreateStorageClassFromDefinition(utils.NewStorageClassForBlockPVDefinition(sc))
+				Expect(err).ToNot(HaveOccurred())
 
-			pod, err = utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "cdi-block-device", "kubevirt.io=cdi-block-device")
-			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", f.CdiInstallNs+"/"+"cdi-block-device"))
+				pod, err = utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "cdi-block-device", "kubevirt.io=cdi-block-device")
+				Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", f.CdiInstallNs+"/"+"cdi-block-device"))
 
-			nodeName := pod.Spec.NodeName
+				nodeName := pod.Spec.NodeName
 
-			By(fmt.Sprintf("Creating Block PV"))
-			pv, err = f.CreatePVFromDefinition(utils.NewBlockPVDefinition("local-volume1", "1G", nil, "manual", nodeName))
-			Expect(err).ToNot(HaveOccurred())
+				By(fmt.Sprintf("Creating Block PV"))
+				pv, err = f.CreatePVFromDefinition(utils.NewBlockPVDefinition("local-volume1", "1G", nil, "manual", nodeName))
+				Expect(err).ToNot(HaveOccurred())
 
-			By("Verify that PV's phase is Available.")
-			err = f.WaitTimeoutForPVReady(pv.Name, 60*time.Second)
-			Expect(err).ToNot(HaveOccurred())
-		})
+				By("Verify that PV's phase is Available.")
+				err = f.WaitTimeoutForPVReady(pv.Name, 60*time.Second)
+				Expect(err).ToNot(HaveOccurred())
+			})
 
-		AfterEach(func() {
-			err := utils.DeletePV(f.K8sClient, pv)
-			Expect(err).ToNot(HaveOccurred())
+			AfterEach(func() {
+				err := utils.DeletePV(f.K8sClient, pv)
+				Expect(err).ToNot(HaveOccurred())
 
-			err = utils.DeleteStorageClass(f.K8sClient, storageClass)
-			Expect(err).ToNot(HaveOccurred())
-		})
+				err = utils.DeleteStorageClass(f.K8sClient, storageClass)
+				Expect(err).ToNot(HaveOccurred())
+			})
 
-		table.DescribeTable("should", func(name, command, url, dataVolumeName, eventReason string, phase cdiv1.DataVolumePhase) {
-			var dataVolume *cdiv1.DataVolume
+			table.DescribeTable("should", func(name, command, url, dataVolumeName, eventReason string, phase cdiv1.DataVolumePhase) {
+				var dataVolume *cdiv1.DataVolume
 
-			switch name {
-			case "import-http":
-				dataVolume = utils.NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName, "1G", url)
-			}
-			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
-			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
-			Expect(err).ToNot(HaveOccurred())
-
-			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
-			utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
-			if err != nil {
-				PrintControllerLog(f)
-				dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
-				if dverr != nil {
-					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+				switch name {
+				case "import-http":
+					dataVolume = utils.NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName, "1G", url, sc)
 				}
-			}
-			Expect(err).ToNot(HaveOccurred())
+				By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+				dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+				Expect(err).ToNot(HaveOccurred())
 
-			// verify PVC was created
-			By("verifying pvc was created")
-			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-
-			By(fmt.Sprint("Verifying event occurred"))
-			Eventually(func() bool {
-				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
-				if err == nil {
-					fmt.Fprintf(GinkgoWriter, "%s", events)
-					return strings.Contains(events, eventReason)
+				By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
+				utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+				if err != nil {
+					PrintControllerLog(f)
+					dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+					if dverr != nil {
+						Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+					}
 				}
-				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
-				return false
-			}, timeout, pollingInterval).Should(BeTrue())
+				Expect(err).ToNot(HaveOccurred())
 
-			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
+				// verify PVC was created
+				By("verifying pvc was created")
+				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
 
-		},
-			table.Entry("succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
-		)
+				By(fmt.Sprint("Verifying event occurred"))
+				Eventually(func() bool {
+					events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
+					if err == nil {
+						fmt.Fprintf(GinkgoWriter, "%s", events)
+						return strings.Contains(events, eventReason)
+					}
+					fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+					return false
+				}, timeout, pollingInterval).Should(BeTrue())
+
+				err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+
+			},
+				table.Entry("succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
+			)
+		})
+		Context("using csi-rbd storage class", func() {
+			sc := "csi-rbd"
+			BeforeEach(func() {
+
+				csiEnabled, err := utils.StorageClassExists(f.K8sClient, sc)
+				if !csiEnabled && err == nil {
+					Skip("Skip csi-rbd Block tests when csi-rbd is not present")
+				}
+			})
+			table.DescribeTable("should", func(name, command, url, dataVolumeName, eventReason string, phase cdiv1.DataVolumePhase) {
+				var dataVolume *cdiv1.DataVolume
+
+				switch name {
+				case "import-http":
+					dataVolume = utils.NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName, "1G", url, sc)
+				}
+				By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+				dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+				Expect(err).ToNot(HaveOccurred())
+
+				By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
+				utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+				if err != nil {
+					PrintControllerLog(f)
+					dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+					if dverr != nil {
+						Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+					}
+				}
+				Expect(err).ToNot(HaveOccurred())
+
+				// verify PVC was created
+				By("verifying pvc was created")
+				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By(fmt.Sprint("Verifying event occurred"))
+				Eventually(func() bool {
+					events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
+					if err == nil {
+						fmt.Fprintf(GinkgoWriter, "%s", events)
+						return strings.Contains(events, eventReason)
+					}
+					fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+					return false
+				}, timeout, pollingInterval).Should(BeTrue())
+
+				err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+
+			},
+				table.Entry("succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
+			)
+
+		})
 	})
 
 	Describe("[rfe_id:1115][crit:high][posneg:negative]Delete resources of DataVolume with an invalid URL (POD in retry loop)", func() {
