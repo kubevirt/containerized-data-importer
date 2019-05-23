@@ -62,7 +62,7 @@ func NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1
 			Containers: []k8sv1.Container{
 				{
 					Name:    "runner",
-					Image:   "fedora:29",
+					Image:   "registry.fedoraproject.org/fedora-minimal:30",
 					Command: []string{"/bin/sh", "-c", cmd},
 				},
 			},
