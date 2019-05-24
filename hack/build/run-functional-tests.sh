@@ -35,6 +35,8 @@ KUBECTL=${BASE_PATH}/$KUBEVIRT_PROVIDER/.kubectl
 GOCLI=${GOCLI:-${CDI_DIR}/cluster-up/cli.sh}
 KUBE_MASTER_URL=${KUBE_MASTER_URL:-""}
 CDI_NAMESPACE=${CDI_NAMESPACE:-cdi}
+SNAPSHOT_SC=${SNAPSHOT_SC:-csi-rbd}
+BLOCK_SC=${BLOCK_SC:-csi-rdb}
 
 # parsetTestOpts sets 'pkgs' and test_args
 parseTestOpts "${@}"
@@ -48,9 +50,10 @@ arg_kubeconfig="${KUBECONFIG:+-kubeconfig=$KUBECONFIG}"
 arg_kubectl="${KUBECTL:+-kubectl-path=$KUBECTL}"
 arg_oc="${KUBECTL:+-oc-path=$KUBECTL}"
 arg_gocli="${GOCLI:+-gocli-path=$GOCLI}"
-arg_sc_snap="-snapshot-sc=csi-rbd"
+arg_sc_snap="${SNAPSHOT_SC:+-snapshot-sc=$SNAPSHOT_SC}"
+arg_sc_block="${BLOCK_SC:+-block-sc=$BLOCK_SC}"
 
-test_args="${test_args} -ginkgo.v ${arg_master} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc} ${arg_gocli} ${arg_sc_snap}"
+test_args="${test_args} -ginkgo.v ${arg_master} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc} ${arg_gocli} ${arg_sc_snap} ${arg_sc_block}"
 
 echo 'Wait until all CDI Pods are ready'
 retry_counter=0

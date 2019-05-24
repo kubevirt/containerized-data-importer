@@ -10,7 +10,6 @@ import (
 	. "github.com/onsi/gomega"
 	k8sv1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
-	storageV1 "k8s.io/api/storage/v1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -77,40 +76,9 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 var _ = Describe("Block PV Cloner Test", func() {
 	var (
 		sourcePvc, targetPvc *v1.PersistentVolumeClaim
-		sourcePV, targetPV   *v1.PersistentVolume
-		storageClass         *storageV1.StorageClass
 	)
 
 	f := framework.NewFrameworkOrDie(namespacePrefix)
-
-	BeforeEach(func() {
-		err := f.ClearBlockPV()
-		Expect(err).NotTo(HaveOccurred())
-
-		pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "cdi-block-device", "kubevirt.io=cdi-block-device")
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", f.CdiInstallNs+"/"+"cdi-block-device"))
-		nodeName := pod.Spec.NodeName
-
-		By(fmt.Sprintf("Creating storageClass for Block PVs"))
-		storageClass, err = f.CreateStorageClassFromDefinition(utils.NewStorageClassForBlockPVDefinition("manual"))
-		Expect(err).ToNot(HaveOccurred())
-
-		By(fmt.Sprintf("Creating Block PV for source PVC"))
-		sourcePV, err = f.CreatePVFromDefinition(utils.NewBlockPVDefinition("local-source-volume", "500M", nil, "manual", nodeName))
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Verify that source PV's phase is Available")
-		err = f.WaitTimeoutForPVReady(sourcePV.Name, 60*time.Second)
-		Expect(err).ToNot(HaveOccurred())
-
-		By(fmt.Sprintf("Creating Block PV for target PVC"))
-		targetPV, err = f.CreatePVFromDefinition(utils.NewTargetBlockPVDefinition("local-target-volume", "500M", nil, "manual", nodeName))
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Verify that target PV's phase is Available")
-		err = f.WaitTimeoutForPVReady(targetPV.Name, 60*time.Second)
-		Expect(err).ToNot(HaveOccurred())
-	})
 
 	AfterEach(func() {
 		if sourcePvc != nil {
@@ -123,25 +91,13 @@ var _ = Describe("Block PV Cloner Test", func() {
 			err := f.DeletePVC(targetPvc)
 			Expect(err).ToNot(HaveOccurred())
 		}
-		if sourcePV != nil {
-			By("[AfterEach] Clean up source Block PV")
-			err := utils.DeletePV(f.K8sClient, sourcePV)
-			Expect(err).ToNot(HaveOccurred())
-		}
-		if targetPV != nil {
-			By("[AfterEach] Clean up target Block PV")
-			err := utils.DeletePV(f.K8sClient, targetPV)
-			Expect(err).ToNot(HaveOccurred())
-		}
-		if storageClass != nil {
-			By("[AfterEach] Clean up storage class for block PVs")
-			err := utils.DeleteStorageClass(f.K8sClient, storageClass)
-			Expect(err).ToNot(HaveOccurred())
-		}
 	})
 
 	It("Should clone data within same namespace", func() {
-		pvcDef := utils.NewBlockPVCDefinition(sourcePVCName, "500M", nil, nil, "manual")
+		if !f.IsBlockVolumeStorageClassAvailable() {
+			Skip("Storage Class for block volume is not available")
+		}
+		pvcDef := utils.NewBlockPVCDefinition(sourcePVCName, "500M", nil, nil, f.BlockSCName)
 		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, "fill-source-block-pod", fillCommand)
 		// Create targetPvc in new NS for block PV.
 		targetPvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, utils.NewBlockPVCDefinition(
@@ -149,7 +105,7 @@ var _ = Describe("Block PV Cloner Test", func() {
 			"500M",
 			map[string]string{controller.AnnCloneRequest: f.Namespace.Name + "/" + sourcePVCName},
 			nil,
-			"manual"))
+			f.BlockSCName))
 		Expect(err).ToNot(HaveOccurred())
 		fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)

@@ -38,7 +38,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 
 	Describe("Verify DataVolume Smart Cloning - Positive flow", func() {
 		It("succeed creating smart-clone dv", func() {
-			if !IsSnapshotStorageClassAvailable(f) {
+			if !f.IsSnapshotStorageClassAvailable() {
 				Skip("Storage Class for clone via snapshot is not available")
 			}
 			dataVolume := createDataVolume("dv-smart-clone-test-1", sourcePvc, fillCommand, f.SnapshotSCName, f)
@@ -62,7 +62,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 
 	Describe("Verify DataVolume Smart Cloning - Negative flow", func() {
 		It("verify inapplicable smart-clone dv", func() {
-			if controller.IsOpenshift(f.K8sClient) {
+			if !f.IsSnapshotStorageClassAvailable() {
 				Skip("Test not available in openshift")
 			}
 			dataVolume := createDataVolume("dv-smart-clone-test-negative", sourcePvc, fillCommand, "", f)
@@ -100,14 +100,6 @@ func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f
 			Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 		}
 	}
-}
-
-func IsSnapshotStorageClassAvailable(f *framework.Framework) bool {
-	sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
-	if err != nil {
-		return false
-	}
-	return sc.Name == f.SnapshotSCName
 }
 
 func createDataVolume(dataVolumeName string, sourcePvc *v1.PersistentVolumeClaim, command string, scName string, f *framework.Framework) *cdiv1.DataVolume {

@@ -14,7 +14,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
-	k8sv1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
@@ -223,42 +222,19 @@ func startPrometheusPortForward(f *framework.Framework) (string, *exec.Cmd, erro
 
 var _ = Describe("Importer Test Suite-Block_device", func() {
 	f := framework.NewFrameworkOrDie(namespacePrefix)
-	var pv *v1.PersistentVolume
-	var storageClass *k8sv1.StorageClass
-	var pod *v1.Pod
+	var pvc *v1.PersistentVolumeClaim
 	var err error
 
-	BeforeEach(func() {
-		err = f.ClearBlockPV()
-		Expect(err).NotTo(HaveOccurred())
-
-		pod, err = utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "cdi-block-device", "kubevirt.io=cdi-block-device")
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", f.CdiInstallNs+"/"+"cdi-block-device"))
-
-		nodeName := pod.Spec.NodeName
-
-		By(fmt.Sprintf("Creating storageClass for Block PV"))
-		storageClass, err = f.CreateStorageClassFromDefinition(utils.NewStorageClassForBlockPVDefinition("manual"))
-		Expect(err).ToNot(HaveOccurred())
-
-		By(fmt.Sprintf("Creating Block PV"))
-		pv, err = f.CreatePVFromDefinition(utils.NewBlockPVDefinition("local-volume", "500M", nil, "manual", nodeName))
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Verify that PV's phase is Available")
-		err = f.WaitTimeoutForPVReady(pv.Name, 60*time.Second)
-		Expect(err).ToNot(HaveOccurred())
-	})
-
 	AfterEach(func() {
-		err := utils.DeletePV(f.K8sClient, pv)
-		Expect(err).ToNot(HaveOccurred())
-
-		err = utils.DeleteStorageClass(f.K8sClient, storageClass)
-		Expect(err).ToNot(HaveOccurred())
+		if pvc != nil {
+			f.DeletePVC(pvc)
+		}
 	})
 
 	It("Should create import pod for block pv", func() {
+		if !f.IsBlockVolumeStorageClassAvailable() {
+			Skip("Storage Class for block volume is not available")
+		}
 		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
 		pvcAnn := map[string]string{
 			controller.AnnEndpoint: httpEp + "/tinyCore.iso",
@@ -266,12 +242,12 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.iso"))
 
-		pvc, err := f.CreatePVCFromDefinition(utils.NewBlockPVCDefinition(
+		pvc, err = f.CreatePVCFromDefinition(utils.NewBlockPVCDefinition(
 			"import-image-to-block-pvc",
 			"500M",
 			pvcAnn,
 			nil,
-			"manual"))
+			f.BlockSCName))
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify the pod status is succeeded on the target PVC")
