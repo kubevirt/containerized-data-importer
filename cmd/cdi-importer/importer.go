@@ -57,6 +57,12 @@ func main() {
 	certDir, _ := util.ParseEnvVar(common.ImporterCertDirVar, false)
 	insecureTLS, _ := strconv.ParseBool(os.Getenv(common.InsecureTLSVar))
 
+	//Registry import currently support kubevirt content type only
+	if contentType != string(cdiv1.DataVolumeKubeVirt) && source == controller.SourceRegistry {
+		klog.Errorf("Unsupported content type %s when importing from registry", contentType)
+		os.Exit(1)
+	}
+
 	volumeMode := v1.PersistentVolumeBlock
 	if _, err := os.Stat(common.ImporterWriteBlockPath); os.IsNotExist(err) {
 		volumeMode = v1.PersistentVolumeFilesystem
