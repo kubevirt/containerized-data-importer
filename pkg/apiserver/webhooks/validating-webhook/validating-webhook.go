@@ -147,6 +147,16 @@ func validateDataVolumeSpec(field *k8sfield.Path, spec *cdicorev1alpha1.DataVolu
 		return causes
 	}
 
+	if spec.Source.Registry != nil && spec.ContentType != "" && string(spec.ContentType) != string(cdicorev1alpha1.DataVolumeKubeVirt) {
+		sourceType = field.Child("contentType").String()
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("ContentType must be" + string(cdicorev1alpha1.DataVolumeKubeVirt) + "when Source is Registry"),
+			Field:   sourceType,
+		})
+		return causes
+	}
+
 	if spec.Source.PVC != nil {
 		if spec.Source.PVC.Namespace == "" || spec.Source.PVC.Name == "" {
 			causes = append(causes, metav1.StatusCause{
