@@ -1,7 +1,6 @@
 [fedora-base-fc30]
 clean_requirements_on_remove=True
 tsflags=nodocs
-reposdir=/dev/null
 name=Fedora $releasever - $basearch
 failovermethod=priority
 #baseurl=http://download.fedoraproject.org/pub/fedora/linux/releases/$releasever/Everything/$basearch/os/
@@ -17,7 +16,6 @@ skip_if_unavailable=False
 [fedora-updates-fc30]
 clean_requirements_on_remove=True
 tsflags=nodocs
-reposdir=/dev/null
 name=Fedora $releasever - $basearch - Updates
 failovermethod=priority
 #baseurl=http://download.fedoraproject.org/pub/fedora/linux/updates/$releasever/Everything/$basearch/
