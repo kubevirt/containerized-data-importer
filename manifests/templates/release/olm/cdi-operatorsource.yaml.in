@@ -2,7 +2,7 @@ apiVersion: operators.coreos.com/v1
 kind: OperatorSource
 metadata:
   name: cdi
-  namespace: marketplace
+  namespace: openshift-marketplace
 spec:
   type: appregistry
   endpoint: https://quay.io/cnr

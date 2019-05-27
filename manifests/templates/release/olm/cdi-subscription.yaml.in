@@ -7,4 +7,4 @@ spec:
   channel: beta
   name: cdi
   source: cdi
-  sourceNamespace: olm 
+  sourceNamespace: openshift-operator-lifecycle-manager 
