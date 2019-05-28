@@ -16,6 +16,7 @@
  * Copyright 2019 Red Hat, Inc.
  *
  */
+
 package helper
 
 import (
@@ -31,28 +32,35 @@ import (
 
 	"github.com/operator-framework/operator-marketplace/pkg/datastore"
 	v1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+
+	"k8s.io/klog"
 )
 
+//Channel from which OLM bundle is consumed
 type Channel struct {
 	Name       string `yaml:"name"`
 	CurrentCSV string `yaml:"currentCSV"`
 }
 
+//Pkg - Package to be consumed
 type Pkg struct {
 	PkgName  string    `yaml:"packageName"`
 	Channels []Channel `yaml:"channels"`
 }
 
+//Data - OLM bundle wrapper
 type Data struct {
 	CSVs     string `yaml:"clusterServiceVersions"`
 	CRDs     string `yaml:"customResourceDefinitions"`
 	Packages string `yaml:"packages"`
 }
 
+//Bundle - OLM bundle
 type Bundle struct {
 	Data Data `yaml:"data"`
 }
 
+//BundleHelper - object that provides logic of fetching OLM bundle from marketplace quay repo
 type BundleHelper struct {
 	repo      string
 	namespace string
@@ -61,12 +69,14 @@ type BundleHelper struct {
 	CSVs      []yaml.MapSlice
 }
 
+//NewBundleHelper - Ctor
 func NewBundleHelper(repo, namespace string) (*BundleHelper, error) {
 	bh := &BundleHelper{
 		repo:      repo,
 		namespace: namespace,
 	}
 	if err := bh.downloadAndParseBundle(); err != nil {
+		klog.Errorf("Failed to  download bundle", err)
 		return nil, err
 	}
 	return bh, nil
@@ -81,26 +91,29 @@ func (bh *BundleHelper) downloadAndParseBundle() error {
 	}
 	client, err := appregistry.NewClientFactory().New(options)
 	if err != nil {
+		klog.Errorf("Failed to  create new appregistry client", err)
 		return err
 	}
 
 	// get latest bundle info
 	bundles, err := client.ListPackages(bh.namespace)
 	if err != nil {
+		klog.Errorf("Failed to  list packages", err)
 		return err
 	}
 
 	if len(bundles) == 0 {
-		fmt.Errorf("no old bundles found\n")
+		klog.Infof("no new bundles")
 		return nil
 	}
 	cdiBundles, err := bh.getRepoBundles(bundles)
 	if err != nil {
+		klog.Errorf("Failed to  get repo bundles", err)
 		return err
 	}
 
-	if len(cdiBundles) == 0 {
-		fmt.Errorf("no old cdi bundles found\n")
+	if len(cdiBundles) == 0 || cdiBundles[0] == nil {
+		klog.Infof("no new bundles")
 		return nil
 	}
 
@@ -109,29 +122,35 @@ func (bh *BundleHelper) downloadAndParseBundle() error {
 	// download bundle
 	data, err := client.RetrieveOne(bundleMetaData.ID(), bundleMetaData.Release)
 	if err != nil {
+		klog.Errorf("Failed to retriev bundle data", err)
 		return err
 	}
 
 	// parse bundle into package, CRDs and CSVs
 	bundle := Bundle{}
 	if err := yaml.Unmarshal(data.RawYAML, &bundle); err != nil {
+		klog.Errorf("Failed to unmarshal bundle data", err)
 		return err
 	}
 
 	if err := yaml.Unmarshal([]byte(bundle.Data.Packages), &bh.Pkgs); err != nil {
+		klog.Errorf("Failed to unmarshal package data", err)
 		return err
 	}
 
 	if err := yaml.Unmarshal([]byte(bundle.Data.CSVs), &bh.CSVs); err != nil {
+		klog.Errorf("Failed to unmarshal CSV data", err)
 		return err
 	}
 
 	// use k8s json unmarshaller for CRDs for filling metadata correctly
 	crds, err := yaml2.YAMLToJSON([]byte(bundle.Data.CRDs))
 	if err != nil {
+		klog.Errorf("Failed to convert CRD data to json format", err)
 		return err
 	}
 	if err := json.Unmarshal([]byte(crds), &bh.CRDs); err != nil {
+		klog.Errorf("Failed to unmarshal CRD data", err)
 		return err
 	}
 
@@ -164,13 +183,16 @@ func (bh *BundleHelper) getRepoBundles(bundles []*datastore.RegistryMetadata) ([
 	return list, nil
 }
 
+//AddOldManifests - downloads old CRDs and CSVs to outDir with respect to currentCSVVersion
 func (bh *BundleHelper) AddOldManifests(outDir string, currentCSVVersion string) error {
 
 	if err := bh.addOldCRDs(outDir); err != nil {
+		klog.Errorf("Failed to add old CRDs to %s", outDir, err)
 		return err
 	}
 
 	if err := bh.addOldCSVs(outDir, currentCSVVersion); err != nil {
+		klog.Errorf("Failed to add old CSVs to %s", outDir, err)
 		return err
 	}
 
@@ -189,11 +211,13 @@ func (bh *BundleHelper) addOldCRDs(outDir string) error {
 		// write old CRD to the out dir
 		bytes, err := json.Marshal(crd)
 		if err != nil {
+			klog.Errorf("Failed to marshal old CRDs ", err)
 			return err
 		}
 		filename := fmt.Sprintf("%v/%v-%v.crd.yaml", outDir, crd.Name, crd.Spec.Version)
 		err = ioutil.WriteFile(filename, bytes, 0644)
 		if err != nil {
+			klog.Errorf("Failed to write old CRDs in %s", filename, err)
 			return err
 		}
 	}
@@ -213,11 +237,13 @@ func (bh *BundleHelper) addOldCSVs(outDir string, currentCSVVersion string) erro
 		// write old CSV to the out dir
 		bytes, err := yaml.Marshal(csv)
 		if err != nil {
+			klog.Errorf("Failed to marshal old CSVs in ", err)
 			return err
 		}
 		filename := fmt.Sprintf("%v/%v.csv.yaml", outDir, GetCSVName(csv))
 		err = ioutil.WriteFile(filename, bytes, 0644)
 		if err != nil {
+			klog.Errorf("Failed to write old CSVs in %s", filename, err)
 			return err
 		}
 	}
@@ -225,6 +251,7 @@ func (bh *BundleHelper) addOldCSVs(outDir string, currentCSVVersion string) erro
 	return nil
 }
 
+//GetCSVVersion - retrievs CSV Version from provided CSV manifest
 func GetCSVVersion(csv yaml.MapSlice) string {
 	for _, rootItem := range csv {
 		if rootItem.Key == "spec" {
@@ -240,6 +267,7 @@ func GetCSVVersion(csv yaml.MapSlice) string {
 	return ""
 }
 
+//GetCSVName -retrieves CSV name from provided CSV manifest
 func GetCSVName(csv yaml.MapSlice) string {
 	for _, rootItem := range csv {
 		if rootItem.Key == "metadata" {
@@ -264,7 +292,7 @@ func (bh *BundleHelper) GetLatestPublishedCSVVersion() string {
 	return bh.Pkgs[0].Channels[0].CurrentCSV
 }
 
-//VerifyNotPublishedCSVVersion - returns latest CSV version that exist
+//VerifyNotPublishedCSVVersion - returns latest CSV version that exists
 func (bh *BundleHelper) VerifyNotPublishedCSVVersion(currentCSVVersion string) bool {
 
 	for _, csv := range bh.CSVs {
@@ -273,6 +301,7 @@ func (bh *BundleHelper) VerifyNotPublishedCSVVersion(currentCSVVersion string) b
 
 		if version == currentCSVVersion {
 			// the current version already exist
+			klog.Infof("CSV version %s already published in marketplace", currentCSVVersion)
 			return false
 		}
 	}
