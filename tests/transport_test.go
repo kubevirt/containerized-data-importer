@@ -100,7 +100,7 @@ var _ = Describe("Transport Tests", func() {
 
 			pod, err := utils.CreateExecutorPodWithPVC(c, sizeCheckPod, ns, pvc)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(utils.WaitTimeoutForPodReady(c, sizeCheckPod, ns, 20*time.Second)).To(Succeed())
+			Expect(utils.WaitTimeoutForPodReady(c, sizeCheckPod, ns, 90*time.Second)).To(Succeed())
 
 			switch pvcAnn[controller.AnnSource] {
 			case controller.SourceHTTP, controller.SourceRegistry:
