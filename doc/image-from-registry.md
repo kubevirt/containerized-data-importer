@@ -125,5 +125,5 @@ Add the registry to the `cdi-insecure-registries` `ConfigMap` in the `cdi` names
 
 ```bash
 kubectl patch configmap cdi-insecure-registries -n cdi \
-  --type merge -p '{"data":{"my-private-registry-host": ""}}'
+  --type merge -p '{"data":{"mykey": "my-private-registry-host:5000"}}'
 ```
