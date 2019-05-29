@@ -112,7 +112,7 @@ kind: DataVolume
 spec:
   source:
     registry: 
-      url: "docker://my-private-registry:5000/my-username/my-image"
+      url: "docker://my-private-registry-host:5000/my-username/my-image"
       certConfigMap: my-registry-certs 
 ...
 ```
@@ -124,6 +124,6 @@ To disable TLS security for a registry:
 Add the registry to the `cdi-insecure-registries` `ConfigMap` in the `cdi` namespace.
 
 ```bash
-patch configmap cdi-insecure-registries -n cdi \
-  --type merge -p '{"data":{"my-private-registry:5000": ""}}'
+kubectl patch configmap cdi-insecure-registries -n cdi \
+  --type merge -p '{"data":{"my-private-registry-host": ""}}'
 ```
