@@ -38,7 +38,7 @@ UPLOADPROXY_MAIN="cmd/${UPLOADPROXY}"
 UPLOADSERVER_MAIN="cmd/${UPLOADSERVER}"
 
 DOCKER_IMAGES="cmd/${OPERATOR} cmd/${CONTROLLER} cmd/${IMPORTER} cmd/${CLONER} cmd/${APISERVER} cmd/${UPLOADPROXY} cmd/${UPLOADSERVER} cmd/${OPERATOR} tools/${FUNC_TEST_INIT} tools/${FUNC_TEST_HTTP} tools/${FUNC_TEST_REGISTRY} tools/${FUNC_TEST_REGISTRY_POPULATE} tools/${FUNC_TEST_REGISTRY_INIT} tools/${FUNC_TEST_BLOCK_DEVICE}"
-DOCKER_REPO=${DOCKER_REPO:-kubevirt}
+DOCKER_PREFIX=${DOCKER_PREFIX:-kubevirt}
 CONTROLLER_IMAGE_NAME=${CONTROLLER_IMAGE_NAME:-cdi-controller}
 IMPORTER_IMAGE_NAME=${IMPORTER_IMAGE_NAME:-cdi-importer}
 CLONER_IMAGE_NAME=${CLONER_IMAGE_NAME:-cdi-cloner}
@@ -90,6 +90,9 @@ function getTestPullPolicy() {
         pp=$PULL_POLICY
         ;;
     "os-3.11.0")
+        pp=Always
+        ;;
+    "okd-4.1.0")
         pp=Always
         ;;
     esac

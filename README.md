@@ -54,14 +54,14 @@ There are quite a few examples in the [example manifests](https://github.com/kub
 
 ## Hack it
 
-CDI includes a self contained development and test environment.  We use Docker to build, and we provide a simple way to get a test cluster up and running on your laptop.
+CDI includes a self contained development and test environment.  We use Docker to build, and we provide a simple way to get a test cluster up and running on your laptop. The development tools include a version of kubectl that you can use to communicate with the cluster. A wrapper script to communicate with the cluster can be invoked using ./cluster-up/kubectl.sh.
 
 ```
 $ mkdir $GOPATH/src/kubevirt.io && cd $GOPATH/src/kubevirt.io
 $ git clone https://github.com/kubevirt/containerized-data-importer && cd containerized-data-importer
 $ make cluster-up
 $ make cluster-sync
-$ ./cluster/kubect.sh .....
+$ ./cluster-up/kubectl.sh .....
 ```
 
 ## Connect with us

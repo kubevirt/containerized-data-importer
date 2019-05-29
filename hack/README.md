@@ -53,7 +53,7 @@ The standard workflow is performed inside a helper container to normalize the bu
 - `clean`: cleans up previous build artifacts
 - `cluster-up`: start a default Kubernetes or Open Shift cluster. set KUBEVIRT_PROVIDER environment variable to either 'k8s-1.13.3' or 'os-3.11.0' to select the type of cluster. set KUBEVIRT_NUM_NODES to something higher than 1 to have more than one node.
 - `cluster-down`: stop the cluster, doing a make cluster-down && make cluster-up will basically restart the cluster into an empty fresh state.
-- `cluster-down-purge`: cluster-down and cleanup all cached images from docker registry. Accepts [make variables](#make-variables) DOCKER_REPO. Removes all images of the specified repository. If not specified removes localhost repository of current cluster instance.
+- `cluster-down-purge`: cluster-down and cleanup all cached images from docker registry. Accepts [make variables](#make-variables) DOCKER_PREFIX. Removes all images of the specified repository. If not specified removes localhost repository of current cluster instance.
 - `cluster-sync`: builds the controller/importer/cloner, and pushes it into a running cluster. The cluster must be up before running a cluster sync. Also generates a manifest and applies it to the running cluster after pushing the images to it.
     - `cluster-sync-controller`: builds the controller and pushes it into a running cluster. 
     - `cluster-sync-importer`: builds the importer and pushes it into a running cluster.
@@ -71,7 +71,7 @@ The standard workflow is performed inside a helper container to normalize the bu
     - `docker-uploadproxy`: compile cdi-uploadproxy and build cdi-uploadproxy image
     - `docker-uploadserver`: compile cdi-uploadserver and build cdi-uploadserver image
     - `docker-operator`: compile cdi-operator and build cdi-operator image
-    - `docker-registry-cleanup`: remove all images of specifed repo from local docker registry. if not specified removes from localhost repo of current cluster instance. Accepts [make variables](#make-variables) DOCKER_REPO.  
+    - `docker-registry-cleanup`: remove all images of specifed repo from local docker registry. if not specified removes from localhost repo of current cluster instance. Accepts [make variables](#make-variables) DOCKER_PREFIX.  
     - `docker-functest-images`: compile and build the file host and docker registry images for functional tests
         - `docker-functest-image-init`: compile and build the file host init image for functional tests
         - `docker-functest-image-http`: only build the file host http container for functional tests
@@ -83,11 +83,11 @@ The standard workflow is performed inside a helper container to normalize the bu
 - `generate`: generate client-go deepcopy functions, clientset, listers and informers.
 - `generate-verify`: generate client-go deepcopy functions, clientset, listers and informers and validate codegen.
 - `goveralls`: run code coverage tracking system.
-- `manifests`: generate a cdi-controller and operator manifests in `_out/manifests/`.  Accepts [make variables](#make-variables) DOCKER_TAG, DOCKER_REPO, VERBOSITY, PULL_POLICY, CSV_VERSION, QUAY_REPOSITORY, QUAY_NAMESPACE
+- `manifests`: generate a cdi-controller and operator manifests in `_out/manifests/`.  Accepts [make variables](#make-variables) DOCKER_TAG, DOCKER_PREFIX, VERBOSITY, PULL_POLICY, CSV_VERSION, QUAY_REPOSITORY, QUAY_NAMESPACE
 - `publish`: CI ONLY - this recipe is not intended for use by developers
 - `olm-verify`: verify generated olm manifests 
 - `olm-push`: push generated operator bundle to quay.io. Accepts [make_variables](#make-variables) CSV_VERSION, QUAY_USER, QUAY_PASSWORD, QUAY_REPOSITORY 
-- `push`: compiles, builds, and pushes to the repo passed in `DOCKER_REPO=<my repo>`
+- `push`: compiles, builds, and pushes to the repo passed in `DOCKER_PREFIX=<my repo>`
     - `push-controller`: compile, build, and push cdi-controller
     - `push-importer`: compile, build, and push cdi-importer
     - `push-cloner`: compile, build, and push cdi-cloner
@@ -111,7 +111,7 @@ Several variables are provided to alter the targets of the above `Makefile` reci
 These may be passed to a target as `$ make VARIABLE=value target`
 
 - `WHAT`:  The path from the repository root to a target directory (e.g. `make test WHAT=pkg/importer`)
-- `DOCKER_REPO`: (default: kubevirt) Set repo globally for image and manifest creation
+- `DOCKER_PREFIX`: (default: kubevirt) Set repo globally for image and manifest creation
 - `DOCKER_TAG`: (default: latest) Set global version tags for image and manifest creation
 - `VERBOSITY`: (default: 1) Set global log level verbosity
 - `PULL_POLICY`: (default: IfNotPresent) Set global CDI pull policy
@@ -137,10 +137,11 @@ virtualization is supported then the standard *kubevirtci framework* can be used
 
 Environment Variables and Supported Values
 
-| Env Variable       | Default       | Additional Values  |
-|--------------------|---------------|--------------------|
-|KUBEVIRT_PROVIDER   | k8s-1.13.3    | os-3.11.0          |
-|NUM_NODES           | 1             | 2-5                |
+| Env Variable       | Default       | Additional Values           |
+|--------------------|---------------|-----------------------------|
+|KUBEVIRT_PROVIDER   | k8s-1.13.3    | os-3.11.0-crio or okd-4.1.0 |
+|KUBEVIRT_PROVIDER_EXTRA_ARGS |      | --enable-ceph (for providers that support this argument like k8s-1.13.3 |
+|NUM_NODES           | 1             | 2-5                         |
 
 To Run Standard *cluster-up/kubevirtci* Tests
 ```
@@ -215,7 +216,7 @@ not supported, then you can use the following example to run Functional Tests.
    ```
    ##### Deployment via operator
    ```
-     #./cluster/kubectl.sh apply -f "./_out/manifests/release/cdi-operator.yaml" 
+     #./cluster-up/kubectl.sh apply -f "./_out/manifests/release/cdi-operator.yaml" 
      namespace/cdi created
      customresourcedefinition.apiextensions.k8s.io/cdis.cdi.kubevirt.io created
      configmap/cdi-operator-leader-election-helper created
@@ -225,7 +226,7 @@ not supported, then you can use the following example to run Functional Tests.
      clusterrolebinding.rbac.authorization.k8s.io/cdi-operator created
      deployment.apps/cdi-operator created
 
-     #./cluster/kubectl.sh apply -f "./_out/manifests/release/cdi-cr.yaml"
+     #./cluster-up/kubectl.sh apply -f "./_out/manifests/release/cdi-cr.yaml"
      cdi.cdi.kubevirt.io/cdi created
 
    ```
@@ -241,17 +242,17 @@ not supported, then you can use the following example to run Functional Tests.
 
    Build and Push to registry 
    ```
-   # DOCKER_REPO=<repo> DOCKER_TAG=<tag> make docker-functest-images
+   # DOCKER_PREFIX=<repo> DOCKER_TAG=<tag> make docker-functest-images
    ```
    Generate manifests
    ```
-   # DOCKER_REPO=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY=<verbosity> CSV_VERSION=<CSV version> QUAY_NAMESPACE=<namespace> QUAY_REPOSITORY=<application name> make manifests 
+   # DOCKER_PREFIX=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY=<verbosity> CSV_VERSION=<CSV version> QUAY_NAMESPACE=<namespace> QUAY_REPOSITORY=<application name> make manifests 
    ```
    Run servers
    ```
-   # ./cluster/kubectl.sh apply -f ./_out/manifests/file-host.yaml
-   # ./cluster/kubectl.sh apply -f ./_out/manifests/registry-host.yaml
-   # ./cluster/kubectl.sh apply -f ./_out/manifests/block-device.yaml
+   # ./cluster-up/kubectl.sh apply -f ./_out/manifests/file-host.yaml
+   # ./cluster-up/kubectl.sh apply -f ./_out/manifests/registry-host.yaml
+   # ./cluster-up/kubectl.sh apply -f ./_out/manifests/block-device.yaml
 
    ```
 

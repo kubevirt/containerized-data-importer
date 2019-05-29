@@ -27,7 +27,7 @@ OUT_PATH="${OUT_DIR}/tools"
 
 mkdir -p "${OUT_PATH}/${FILE_INIT}" "${OUT_PATH}/${FILE_HOST}"
 
-DOCKER_REPO=""
+DOCKER_PREFIX=""
 
 ${BUILD_DIR}/build-copy-artifacts.sh "${FILE_INIT_PATH}"
 

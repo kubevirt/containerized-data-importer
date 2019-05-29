@@ -14,7 +14,7 @@
 
 .PHONY: build build-controller build-importer build-cloner build-apiserver build-uploadproxy build-uploadserver build-operator build-functest-file-image-init build-functest-registry-image-init  build-functest \
 		docker docker-controller docker-cloner docker-importer docker-apiserver docker-uploadproxy docker-uploadserver docker-operator docker-functest-image-init docker-functest-image-http docker-functest-registry-populate docker-functest-registry docker-functest-registry-init docker-functest-block-device \
-		cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer cluster-sync-apiserver cluster-sync-uploadproxy cluster-sync-uploadserver \
+		cluster-up cluster-down cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer cluster-sync-apiserver cluster-sync-uploadproxy cluster-sync-uploadserver \
 		olm-verify olm-push \
 		test test-functional test-unit test-lint \
 		publish \
@@ -49,7 +49,7 @@ apidocs:
 	${DO} "./hack/update-codegen.sh && ./hack/gen-swagger-doc/gen-swagger-docs.sh v1alpha1 html"
 
 build:
-	${DO} "./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-cdi-func-test-registry-host.sh && ./hack/build/build-cdi-func-test-block-device.sh && DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} QUAY_NAMESPACE=${QUAY_NAMESPACE} QUAY_REPOSITORY=${QUAY_REPOSITORY} CSV_VERSION=${CSV_VERSION} ./hack/build/build-manifests.sh ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
+	${DO} "./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-cdi-func-test-registry-host.sh && ./hack/build/build-cdi-func-test-block-device.sh && DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} QUAY_NAMESPACE=${QUAY_NAMESPACE} QUAY_REPOSITORY=${QUAY_REPOSITORY} CSV_VERSION=${CSV_VERSION} ./hack/build/build-manifests.sh ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
 
 build-controller: WHAT = cmd/cdi-controller
 build-controller: build
@@ -163,7 +163,7 @@ format:
 	${DO} "./hack/build/format.sh"
 
 manifests:
-	${DO} "CSV_VERSION=${CSV_VERSION} QUAY_NAMESPACE=${QUAY_NAMESPACE} QUAY_REPOSITORY=${QUAY_REPOSITORY} DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} NAMESPACE=${NAMESPACE} ./hack/build/build-manifests.sh"
+	${DO} "CSV_VERSION=${CSV_VERSION} QUAY_NAMESPACE=${QUAY_NAMESPACE} QUAY_REPOSITORY=${QUAY_REPOSITORY} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} NAMESPACE=${NAMESPACE} ./hack/build/build-manifests.sh"
 
 goveralls:
 	${DO} "TRAVIS_JOB_ID=${TRAVIS_JOB_ID} TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST} TRAVIS_BRANCH=${TRAVIS_BRANCH} ./hack/build/goveralls.sh"
@@ -172,18 +172,18 @@ release-description:
 	./hack/build/release-description.sh ${RELREF} ${PREREF}
 
 cluster-up:
-	./cluster/up.sh
+	./cluster-up/up.sh
 
 cluster-down: 
-	./cluster/down.sh
+	./cluster-up/down.sh
 
 cluster-down-purge: docker-registry-cleanup cluster-down
 
 cluster-clean:
-	./cluster/clean.sh
+	./cluster-sync/clean.sh
 
 cluster-sync: cluster-clean
-	./cluster/sync.sh
+	./cluster-sync/sync.sh DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG}
 
 cluster-sync-controller: WHAT = cmd/cdi-controller
 cluster-sync-controller: cluster-sync

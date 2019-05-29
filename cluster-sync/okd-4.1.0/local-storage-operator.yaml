@@ -1,0 +1,33 @@
+apiVersion: operators.coreos.com/v1alpha2
+kind: OperatorGroup
+metadata:
+  name: local-operator-group
+  namespace: local-storage
+  spec:
+    targetNamespaces:
+    - local-storage
+
+---
+
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: local-storage-manifests
+  namespace: local-storage
+spec:
+  sourceType: grpc
+  image: quay.io/gnufied/local-registry:latest
+
+---
+
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: local-storage-subscription-2
+  namespace: local-storage
+spec:
+  channel: alpha
+  name: local-storage
+  source: local-storage-manifests
+  sourceNamespace: local-storage
+

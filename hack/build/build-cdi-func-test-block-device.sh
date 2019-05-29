@@ -23,6 +23,6 @@ source "${script_dir}"/config.sh
 OUT_PATH="${OUT_DIR}/tools"
 
 mkdir -p "${OUT_PATH}/${FUNC_TEST_BLOCK_DEVICE}"
-DOCKER_REPO=""
+DOCKER_PREFIX=""
 cp ${BUILD_DIR}/docker/${FUNC_TEST_BLOCK_DEVICE}/* ${OUT_PATH}/${FUNC_TEST_BLOCK_DEVICE}/
 

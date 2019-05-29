@@ -6,7 +6,7 @@ https://github.com/kubevirt/kubevirt/blob/master/docs/devel/olm-integration.md
 ## CDI OLM manifests 
 1. Generate OLM manifests
 ```bash
-DOCKER_REPO=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY=<verbosity> CSV_VERSION=<CSV version> QUAY_NAMESPACE=<namespace> QUAY_REPOSITORY=<application name> make manifests
+DOCKER_PREFIX=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY=<verbosity> CSV_VERSION=<CSV version> QUAY_NAMESPACE=<namespace> QUAY_REPOSITORY=<application name> make manifests
 ```
 The generated final olm manifests will be located in _out/manifests/release/olm/bundle/_ directory
 
@@ -26,9 +26,9 @@ CSV_VERSION=<CSV version>  QUAY_USERNAME=<quay account username> QUAY_PASSWORD=<
 ## Containerized Data Importer (CDI) OLM installation 
 ### Prerequisites
 #### Build OLM manifests and push them to quay
-- Build OLM manifests and push to quay. Specify your DOCKER_REPO, DOCKER_TAG, QUAY_NAMESPACE, QUAY_REPOSITORY, CSV_VERSION.
+- Build OLM manifests and push to quay. Specify your DOCKER_PREFIX, DOCKER_TAG, QUAY_NAMESPACE, QUAY_REPOSITORY, CSV_VERSION.
 ```bash
-DOCKER_REPO=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY=<verbosity> CSV_VERSION=<CSV version> QUAY_NAMESPACE=<namespace> QUAY_REPOSITORY=<application name> make manifests
+DOCKER_PREFIX=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY=<verbosity> CSV_VERSION=<CSV version> QUAY_NAMESPACE=<namespace> QUAY_REPOSITORY=<application name> make manifests
 ```
 - Push OLM bundle to quay. Provide  QUAY_NAMESPACE, QUAY_REPOSITORY, QUAY_USERNAME, QUAY_PASSWORD, CSV_VERSION 
 ```bash

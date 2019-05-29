@@ -23,15 +23,24 @@ script_dir="$(readlink -f $(dirname $0))"
 source hack/build/config.sh
 source hack/build/common.sh
 
+KUBEVIRTCI_CONFIG_PATH="$(
+    cd "$(dirname "$BASH_SOURCE[0]")/../../"
+    echo "$(pwd)/_ci-configs"
+)"
+
 # functional testing
-KUBECTL=${KUBECTL:-${CDI_DIR}/cluster/.kubectl}
-KUBECONFIG=${KUBECONFIG:-${CDI_DIR}/cluster/.kubeconfig}
-GOCLI=${GOCLI:-${CDI_DIR}/cluster/cli.sh}
+BASE_PATH=${KUBEVIRTCI_CONFIG_PATH:-$PWD}
+KUBECONFIG=${BASE_PATH}/$KUBEVIRT_PROVIDER/.kubeconfig
+KUBECTL=${BASE_PATH}/$KUBEVIRT_PROVIDER/.kubectl
+GOCLI=${GOCLI:-${CDI_DIR}/cluster-up/cli.sh}
 KUBE_MASTER_URL=${KUBE_MASTER_URL:-""}
 CDI_NAMESPACE=${CDI_NAMESPACE:-cdi}
 
 # parsetTestOpts sets 'pkgs' and test_args
 parseTestOpts "${@}"
+
+echo $KUBECONFIG
+echo $KUBECTL
 
 arg_master="${KUBE_MASTER_URL:+-master=$KUBE_MASTER_URL}"
 arg_namespace="${CDI_NAMESPACE:+-cdi-namespace=$CDI_NAMESPACE}"
@@ -45,18 +54,18 @@ test_args="${test_args} -ginkgo.v ${arg_master} ${arg_namespace} ${arg_kubeconfi
 
 echo 'Wait until all CDI Pods are ready'
 retry_counter=0
-while [ $retry_counter -lt $MAX_CDI_WAIT_RETRY ] && [ -n "$(./cluster/kubectl.sh get pods -n $CDI_NAMESPACE -o'custom-columns=status:status.containerStatuses[*].ready' --no-headers | grep false)" ]; do
+while [ $retry_counter -lt $MAX_CDI_WAIT_RETRY ] && [ -n "$(./cluster-up/kubectl.sh get pods -n $CDI_NAMESPACE -o'custom-columns=status:status.containerStatuses[*].ready' --no-headers | grep false)" ]; do
     retry_counter=$((retry_counter + 1))
     sleep $CDI_WAIT_TIME
     echo "Checking CDI pods again, count $retry_counter"
     if [ $retry_counter -gt 1 ] && [ "$((retry_counter % 6))" -eq 0 ]; then
-        ./cluster/kubectl.sh get pods -n $CDI_NAMESPACE
+        ./cluster-up/kubectl.sh get pods -n $CDI_NAMESPACE
     fi
 done
 
 if [ $retry_counter -eq $MAX_CDI_WAIT_RETRY ]; then
     echo "Not all CDI pods became ready"
-    ./cluster/kubectl.sh get pods -n $CDI_NAMESPACE
+    ./cluster-up/kubectl.sh get pods -n $CDI_NAMESPACE
     exit 1
 fi
 
