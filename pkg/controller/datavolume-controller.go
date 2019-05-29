@@ -200,7 +200,6 @@ func NewDataVolumeController(
 		recorder:          recorder,
 		pvcExpectations:   expectations.NewUIDTrackingControllerExpectations(expectations.NewControllerExpectations()),
 	}
-
 	klog.V(2).Info("Setting up event handlers")
 
 	// Set up an event handler for when DataVolume resources change
