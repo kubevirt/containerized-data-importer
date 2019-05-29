@@ -171,7 +171,7 @@ func evalOlmCsvUpdateVersion(inFile, csvVersion, bundleOutDir, quayNamespace, qu
 		bundleHelper, err := helper.NewBundleHelper("cdi", quayNamespace)
 
 		if err != nil {
-			klog.Fatalf("Failed to access quay namespace %s, repo s%\n", quayNamespace, quayRepository, err)
+			klog.Fatalf("Failed to access quay namespace %s, repo %s, %v\n", quayNamespace, quayRepository, err)
 		}
 		if !bundleHelper.VerifyNotPublishedCSVVersion(csvVersion) {
 			klog.Fatalf("CSV version %s is already published!", csvVersion)
@@ -218,7 +218,7 @@ func generateFromFile(templFile string) {
 
 	data.ReplacesCsvVersion, err = evalOlmCsvUpdateVersion(templFile, *csvVersion, *bundleOut, *quayNamespace, *quayRepository)
 	if err != nil {
-		klog.Fatalf("Failed to evaluate CSV Replaces Version!", csvVersion)
+		klog.Fatalf("Failed to evaluate CSV Replaces Version! %s, %v", *csvVersion, err)
 	}
 
 	data.QuayRepository = *quayRepository
@@ -257,7 +257,7 @@ func generateFromFile(templFile string) {
 func getCdiLogo(path string) string {
 	file, err := os.Open(path)
 	if err != nil {
-		klog.Fatalf("Error retrieving cdi logo file: %v, %s\n", err, path)
+		klog.Fatalf("Error retrieving cdi logo file: %s, %v\n", path, err)
 	}
 
 	// Read entire file into byte slice.

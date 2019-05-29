@@ -76,7 +76,7 @@ func NewBundleHelper(repo, namespace string) (*BundleHelper, error) {
 		namespace: namespace,
 	}
 	if err := bh.downloadAndParseBundle(); err != nil {
-		klog.Errorf("Failed to  download bundle", err)
+		klog.Errorf("Failed to  download bundle %v", err)
 		return nil, err
 	}
 	return bh, nil
@@ -91,29 +91,29 @@ func (bh *BundleHelper) downloadAndParseBundle() error {
 	}
 	client, err := appregistry.NewClientFactory().New(options)
 	if err != nil {
-		klog.Errorf("Failed to  create new appregistry client", err)
+		klog.Errorf("Failed to  create new appregistry client %v", err)
 		return err
 	}
 
 	// get latest bundle info
 	bundles, err := client.ListPackages(bh.namespace)
 	if err != nil {
-		klog.Errorf("Failed to  list packages", err)
+		klog.Errorf("Failed to  list packages %v", err)
 		return err
 	}
 
 	if len(bundles) == 0 {
-		klog.Infof("no new bundles")
+		klog.Infoln("no new bundles")
 		return nil
 	}
 	cdiBundles, err := bh.getRepoBundles(bundles)
 	if err != nil {
-		klog.Errorf("Failed to  get repo bundles", err)
+		klog.Errorf("Failed to  get repo bundles %v", err)
 		return err
 	}
 
 	if len(cdiBundles) == 0 || cdiBundles[0] == nil {
-		klog.Infof("no new bundles")
+		klog.Infoln("no new bundles")
 		return nil
 	}
 
@@ -122,35 +122,35 @@ func (bh *BundleHelper) downloadAndParseBundle() error {
 	// download bundle
 	data, err := client.RetrieveOne(bundleMetaData.ID(), bundleMetaData.Release)
 	if err != nil {
-		klog.Errorf("Failed to retriev bundle data", err)
+		klog.Errorf("Failed to retriev bundle data %v", err)
 		return err
 	}
 
 	// parse bundle into package, CRDs and CSVs
 	bundle := Bundle{}
 	if err := yaml.Unmarshal(data.RawYAML, &bundle); err != nil {
-		klog.Errorf("Failed to unmarshal bundle data", err)
+		klog.Errorf("Failed to unmarshal bundle data %v", err)
 		return err
 	}
 
 	if err := yaml.Unmarshal([]byte(bundle.Data.Packages), &bh.Pkgs); err != nil {
-		klog.Errorf("Failed to unmarshal package data", err)
+		klog.Errorf("Failed to unmarshal package data %v", err)
 		return err
 	}
 
 	if err := yaml.Unmarshal([]byte(bundle.Data.CSVs), &bh.CSVs); err != nil {
-		klog.Errorf("Failed to unmarshal CSV data", err)
+		klog.Errorf("Failed to unmarshal CSV data %v", err)
 		return err
 	}
 
 	// use k8s json unmarshaller for CRDs for filling metadata correctly
 	crds, err := yaml2.YAMLToJSON([]byte(bundle.Data.CRDs))
 	if err != nil {
-		klog.Errorf("Failed to convert CRD data to json format", err)
+		klog.Errorf("Failed to convert CRD data to json format %v", err)
 		return err
 	}
 	if err := json.Unmarshal([]byte(crds), &bh.CRDs); err != nil {
-		klog.Errorf("Failed to unmarshal CRD data", err)
+		klog.Errorf("Failed to unmarshal CRD data %v", err)
 		return err
 	}
 
@@ -158,11 +158,9 @@ func (bh *BundleHelper) downloadAndParseBundle() error {
 }
 
 func (bh *BundleHelper) getRepoBundles(bundles []*datastore.RegistryMetadata) ([]*datastore.RegistryMetadata, error) {
-	list := make([]*datastore.RegistryMetadata, len(bundles))
-	i := 0
-	for j := 0; j < len(bundles); j++ {
-		bundle := bundles[j]
 
+	list := make([]*datastore.RegistryMetadata, 0)
+	for _, bundle := range bundles {
 		if bh.repo == bundle.Repository {
 			metadata := &datastore.RegistryMetadata{
 				Namespace:  bundle.Namespace,
@@ -174,10 +172,8 @@ func (bh *BundleHelper) getRepoBundles(bundles []*datastore.RegistryMetadata) ([
 				// Getting 'Digest' would require an additional call to the app
 				// registry, so it is being defaulted.
 			}
-
-			list[i] = metadata
-			i++
-		} //copy bundle info onlky if repo matches
+			list = append(list, metadata)
+		} //copy bundle info only if repo matches
 	}
 
 	return list, nil
@@ -187,12 +183,12 @@ func (bh *BundleHelper) getRepoBundles(bundles []*datastore.RegistryMetadata) ([
 func (bh *BundleHelper) AddOldManifests(outDir string, currentCSVVersion string) error {
 
 	if err := bh.addOldCRDs(outDir); err != nil {
-		klog.Errorf("Failed to add old CRDs to %s", outDir, err)
+		klog.Errorf("Failed to add old CRDs to %s, %v", outDir, err)
 		return err
 	}
 
 	if err := bh.addOldCSVs(outDir, currentCSVVersion); err != nil {
-		klog.Errorf("Failed to add old CSVs to %s", outDir, err)
+		klog.Errorf("Failed to add old CSVs to %s, %v", outDir, err)
 		return err
 	}
 
@@ -211,13 +207,13 @@ func (bh *BundleHelper) addOldCRDs(outDir string) error {
 		// write old CRD to the out dir
 		bytes, err := json.Marshal(crd)
 		if err != nil {
-			klog.Errorf("Failed to marshal old CRDs ", err)
+			klog.Errorf("Failed to marshal old CRDs %v", err)
 			return err
 		}
 		filename := fmt.Sprintf("%v/%v-%v.crd.yaml", outDir, crd.Name, crd.Spec.Version)
 		err = ioutil.WriteFile(filename, bytes, 0644)
 		if err != nil {
-			klog.Errorf("Failed to write old CRDs in %s", filename, err)
+			klog.Errorf("Failed to write old CRDs in %s %v", filename, err)
 			return err
 		}
 	}
@@ -237,13 +233,13 @@ func (bh *BundleHelper) addOldCSVs(outDir string, currentCSVVersion string) erro
 		// write old CSV to the out dir
 		bytes, err := yaml.Marshal(csv)
 		if err != nil {
-			klog.Errorf("Failed to marshal old CSVs in ", err)
+			klog.Errorf("Failed to marshal old CSVs %v", err)
 			return err
 		}
 		filename := fmt.Sprintf("%v/%v.csv.yaml", outDir, GetCSVName(csv))
 		err = ioutil.WriteFile(filename, bytes, 0644)
 		if err != nil {
-			klog.Errorf("Failed to write old CSVs in %s", filename, err)
+			klog.Errorf("Failed to write old CSVs in %s, %v", filename, err)
 			return err
 		}
 	}

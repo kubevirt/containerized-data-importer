@@ -91,11 +91,11 @@ NAME                                             CSV                 SOURCE   AP
 installplan.operators.coreos.com/install-995l9   cdioperator.0.0.0            Automatic   true
 
 ```
-- Now cdi-operator starts running but in order for it to succeed we need to deploy cdi cr
+- Now cdi-operator starts running but in to install CDI we need to deploy cdi cr
 ```bash
 cluster/kubectl.sh apply -f  _out/manifests/release/cdi-cr.yaml
 ```
-Now the operator should finish its deployment successfully
+Now CDI deployment should finish its deployment successfully
 
 #### k8s cluster
 - Install CDI operatorsource manifest that specifies the location of CDI OLM bundle in quay
@@ -141,7 +141,7 @@ Now the operator should finish its deployment successfully
 ### CDI OLM update
 OLM mechanism supports operator update via subscription mechanism. Once subscription manifest is installed on cluster, it monitors the operator source and when new OLM bundle appears, OLM can trigger update of the operator.
 
-*Note:* Currently CDI operator does **not** support upgrade, but it can be updated via OLM. In such case OLM update will effectivley terminate current _cdi-operaor_ instance and install the new one - specified in the new CSV bundle.
+*Note:* Currently CDI operator does **not** support upgrades of the CDI installation, but it can be updated via OLM. In such case OLM update will effectivley terminate current _cdi-operaor_ instance and install the new one - specified in the new CSV bundle.
 
 #### Generate OLM bundle 
 Command ```make manifests``` fetches previous CSV_VERSION of CDI from  QUAY_REPOSITORY in QUAY_NAMESPACE  inorder to set it in *ReplacesVersion* field in new CSV manifest.
