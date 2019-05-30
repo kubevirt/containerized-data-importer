@@ -90,3 +90,6 @@ spec:
   - name: sec-docker-reg
     port: 443
     targetPort: 443
+  - name: alt-sec-docker-reg
+    port: 5000
+    targetPort: 443
