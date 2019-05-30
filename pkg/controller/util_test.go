@@ -1105,7 +1105,7 @@ func Test_getInsecureTLS(t *testing.T) {
 
 			if arg.insecureHost != "" {
 				cm.Data = map[string]string{
-					arg.insecureHost: "",
+					"test-registry": arg.insecureHost,
 				}
 			}
 
