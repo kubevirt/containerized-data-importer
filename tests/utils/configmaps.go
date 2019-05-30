@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"net/url"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -61,8 +62,10 @@ func CopyConfigMap(client kubernetes.Interface, srcNamespace, srcName, destNames
 	return destName, nil
 }
 
+const insecureRegistryKey = "test-registry"
+
 // SetInsecureRegistry sets the configmap entry to mark the registry as okay to be insecure
-func SetInsecureRegistry(client kubernetes.Interface, cdiNamespace string) error {
+func SetInsecureRegistry(client kubernetes.Interface, cdiNamespace, registryURL string) error {
 	cm, err := client.CoreV1().ConfigMaps(cdiNamespace).Get(common.InsecureRegistryConfigMap, metav1.GetOptions{})
 	if err != nil {
 		return err
@@ -72,7 +75,12 @@ func SetInsecureRegistry(client kubernetes.Interface, cdiNamespace string) error
 		cm.Data = map[string]string{}
 	}
 
-	cm.Data[RegistryHostName+"."+cdiNamespace] = ""
+	parsedURL, err := url.Parse(registryURL)
+	if err != nil {
+		return err
+	}
+
+	cm.Data[insecureRegistryKey] = parsedURL.Host
 
 	_, err = client.CoreV1().ConfigMaps(cdiNamespace).Update(cm)
 	if err != nil {
@@ -89,7 +97,7 @@ func ClearInsecureRegistry(client kubernetes.Interface, cdiNamespace string) err
 		return err
 	}
 
-	delete(cm.Data, RegistryHostName+"."+cdiNamespace)
+	delete(cm.Data, insecureRegistryKey)
 
 	_, err = client.CoreV1().ConfigMaps(cdiNamespace).Update(cm)
 	if err != nil {
