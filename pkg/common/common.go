@@ -31,6 +31,8 @@ const (
 	ImporterWritePath = ImporterVolumePath + "/" + DiskImageName
 	// ImporterWriteBlockPath provides a constant for the path where the PV is mounted.
 	ImporterWriteBlockPath = "/dev/blockDevice"
+	// PodTerminationMessageFile is the name of the file to write the termination message to.
+	PodTerminationMessageFile = "/dev/termination-log"
 	// ImporterPodName provides a constant to use as a prefix for Pods created by CDI (controller only)
 	ImporterPodName = "importer"
 	// ImporterDataDir provides a constant for the controller pkg to use as a hardcoded path to where content is transferred to/from (controller only)

@@ -206,3 +206,21 @@ func CopyFile(src, dst string) error {
 	}
 	return out.Close()
 }
+
+// WriteTerminationMessage writes the passed in message to the default termination message file
+func WriteTerminationMessage(message string) error {
+	return WriteTerminationMessageToFile(common.PodTerminationMessageFile, message)
+}
+
+// WriteTerminationMessageToFile writes the passed in message to the passed in message file
+func WriteTerminationMessageToFile(file, message string) error {
+	// Only write the first line of the message.
+	scanner := bufio.NewScanner(strings.NewReader(message))
+	if scanner.Scan() {
+		err := ioutil.WriteFile(file, []byte(scanner.Text()), os.ModeAppend)
+		if err != nil {
+			return errors.Wrap(err, "could not create termination message file")
+		}
+	}
+	return nil
+}

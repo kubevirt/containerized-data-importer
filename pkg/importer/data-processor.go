@@ -120,7 +120,7 @@ func (dp *DataProcessor) ProcessData() error {
 		// Clean up before trying to write, in case a previous attempt left a mess. Note the deferred cleanup is intentional.
 		err = CleanDir(dp.scratchDataDir)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "Failure cleaning up temporary scratch space")
 		}
 		// Attempt to be a good citizen and clean up my mess at the end.
 		defer CleanDir(dp.scratchDataDir)
@@ -129,34 +129,53 @@ func (dp *DataProcessor) ProcessData() error {
 		// Clean up data dir before trying to write in case a previous attempt failed and left some stuff behind.
 		err = CleanDir(dp.dataDir)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "Failure cleaning up target space")
 		}
 	}
 	for dp.currentPhase != ProcessingPhaseComplete {
 		switch dp.currentPhase {
 		case ProcessingPhaseInfo:
 			dp.currentPhase, err = dp.source.Info()
+			if err != nil {
+				err = errors.Wrap(err, "Unable to obtain information about data source")
+			}
 		case ProcessingPhaseTransferScratch:
 			dp.currentPhase, err = dp.source.Transfer(dp.scratchDataDir)
 			if err == ErrInvalidPath {
 				// Passed in invalid scratch space path, return scratch space needed error.
 				err = ErrRequiresScratchSpace
+			} else if err != nil {
+				err = errors.Wrap(err, "Unable to transfer source data to scratch space")
 			}
 		case ProcessingPhaseTransferDataDir:
 			dp.currentPhase, err = dp.source.Transfer(dp.dataDir)
+			if err != nil {
+				err = errors.Wrap(err, "Unable to transfer source data to target directory")
+			}
 		case ProcessingPhaseTransferDataFile:
 			dp.currentPhase, err = dp.source.TransferFile(dp.dataFile)
 			if err == nil {
 				// dataFile is a known good url, so we know parse will never fail.
 				url, _ := url.Parse(dp.dataFile)
 				err = dp.validate(url)
+			} else {
+				err = errors.Wrap(err, "Unable to transfer source data to target file")
 			}
 		case ProcessingPhaseProcess:
 			dp.currentPhase, err = dp.source.Process()
+			if err != nil {
+				err = errors.Wrap(err, "Unable to process source data to intermediate state before transferring to target")
+			}
 		case ProcessingPhaseConvert:
 			dp.currentPhase, err = dp.convert(dp.source.GetURL())
+			if err != nil {
+				err = errors.Wrap(err, "Unable to convert source data to target format")
+			}
 		case ProcessingPhaseResize:
 			dp.currentPhase, err = dp.resize()
+			if err != nil {
+				err = errors.Wrap(err, "Unable to resize disk image to requested size")
+			}
 		default:
 			return errors.Errorf("Unknown processing phase %s", dp.currentPhase)
 		}
