@@ -17,7 +17,7 @@ import (
 
 const (
 	cdiDeploymentName = "cdi-deployment"
-	newDeploymentName = "cdi-deployment-new"
+	newDeploymentName = "cdi-new-deployment"
 
 	pollingInterval = 2 * time.Second
 	timeout         = 90 * time.Second
