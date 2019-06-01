@@ -6,12 +6,20 @@ import (
 	"os"
 	"strings"
 
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
+
+	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -202,7 +210,181 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 		)
 
 	})
+
+	Describe("Verify auth portions of webhooks", func() {
+		const sourcePVCName = "source-pvc"
+
+		Context("Authorization checks", func() {
+			var err error
+			var targetNamespace *corev1.Namespace
+			var targetServiceAccount string
+
+			BeforeEach(func() {
+				targetNamespace, err = f.CreateNamespace("cdi-webhook-auth-test", nil)
+				Expect(err).ToNot(HaveOccurred())
+
+				targetServiceAccount = createAuthServiceAccount(f.K8sClient, targetNamespace.Name)
+			})
+
+			AfterEach(func() {
+				if targetNamespace != nil {
+					err = f.K8sClient.CoreV1().Namespaces().Delete(targetNamespace.Name, &metav1.DeleteOptions{})
+					Expect(err).ToNot(HaveOccurred())
+				}
+			})
+
+			It("should deny unauthorized user when creating datavolume", func() {
+				srcPVCDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+				f.CreateAndPopulateSourcePVC(srcPVCDef, "fill-source", fmt.Sprintf("echo \"hello world\" > %s/data.txt", utils.DefaultPvcMountPath))
+
+				targetDV := utils.NewCloningDataVolume("target-dv", "1G", srcPVCDef)
+
+				config := getRESTConfigForServiceAccount(f.RestConfig, f.K8sClient, targetNamespace.Name, targetServiceAccount)
+				client, err := cdiclient.NewForConfig(config)
+				Expect(err).ToNot(HaveOccurred())
+
+				// can't list dvs in source
+				_, err = client.CdiV1alpha1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
+				Expect(err).To(HaveOccurred())
+
+				// can list dvs in dest
+				_, err = client.CdiV1alpha1().DataVolumes(targetNamespace.Name).List(metav1.ListOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				// can't create clone of dv in source
+				_, err = client.CdiV1alpha1().DataVolumes(targetNamespace.Name).Create(targetDV)
+				Expect(err).To(HaveOccurred())
+			})
+
+			It("should deny unauthorized user when creating PVC directly", func() {
+				srcPVCDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+				f.CreateAndPopulateSourcePVC(srcPVCDef, "fill-source", fmt.Sprintf("echo \"hello world\" > %s/data.txt", utils.DefaultPvcMountPath))
+				targetPVCDef := utils.NewPVCDefinition(
+					"target-pvc",
+					"1G",
+					map[string]string{controller.AnnCloneRequest: f.Namespace.Name + "/" + sourcePVCName},
+					nil)
+
+				config := getRESTConfigForServiceAccount(f.RestConfig, f.K8sClient, targetNamespace.Name, targetServiceAccount)
+				client, err := kubernetes.NewForConfig(config)
+				Expect(err).ToNot(HaveOccurred())
+
+				// can't list pvcs in source
+				_, err = client.CoreV1().PersistentVolumeClaims(f.Namespace.Name).List(metav1.ListOptions{})
+				Expect(err).To(HaveOccurred())
+
+				// can list pvcs in dest
+				_, err = client.CoreV1().PersistentVolumeClaims(targetNamespace.Name).List(metav1.ListOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				// can't create clone of pvc in source
+				_, err = client.CoreV1().PersistentVolumeClaims(targetNamespace.Name).Create(targetPVCDef)
+				Expect(err).To(HaveOccurred())
+			})
+		})
+	})
 })
+
+const authServiceAccountName = "cdi-auth-test"
+
+func getRESTConfigForServiceAccount(defaultConfig *rest.Config, client kubernetes.Interface, namespace, name string) *rest.Config {
+	sl, err := client.CoreV1().Secrets(namespace).List(metav1.ListOptions{})
+	Expect(err).ToNot(HaveOccurred())
+
+	var secretName string
+	for _, s := range sl.Items {
+		if s.Type == corev1.SecretTypeServiceAccountToken {
+			n := s.Name
+			if len(n) > 12 && n[0:len(n)-12] == name {
+				secretName = s.Name
+				break
+			}
+		}
+	}
+	Expect(secretName).ShouldNot(BeEmpty())
+
+	secret, err := client.CoreV1().Secrets(namespace).Get(secretName, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+
+	token, ok := secret.Data["token"]
+	Expect(ok).Should(BeTrue())
+
+	return &rest.Config{
+		Host:        defaultConfig.Host,
+		APIPath:     defaultConfig.APIPath,
+		BearerToken: string(token),
+		TLSClientConfig: rest.TLSClientConfig{
+			Insecure: true,
+		},
+	}
+}
+
+func createAuthServiceAccount(client kubernetes.Interface, namespace string) string {
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: authServiceAccountName,
+		},
+	}
+
+	_, err := client.CoreV1().ServiceAccounts(namespace).Create(sa)
+	Expect(err).ToNot(HaveOccurred())
+
+	role := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: authServiceAccountName,
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{
+					"",
+				},
+				Resources: []string{
+					"persistentvolumeclaims",
+				},
+				Verbs: []string{
+					"*",
+				},
+			},
+			{
+				APIGroups: []string{
+					"cdi.kubevirt.io",
+				},
+				Resources: []string{
+					"datavolumes",
+				},
+				Verbs: []string{
+					"*",
+				},
+			},
+		},
+	}
+
+	_, err = client.RbacV1().Roles(namespace).Create(role)
+	Expect(err).ToNot(HaveOccurred())
+
+	rb := &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: authServiceAccountName,
+		},
+		RoleRef: rbacv1.RoleRef{
+			Kind:     "Role",
+			Name:     authServiceAccountName,
+			APIGroup: "rbac.authorization.k8s.io",
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      authServiceAccountName,
+				Namespace: namespace,
+			},
+		},
+	}
+
+	_, err = client.RbacV1().RoleBindings(namespace).Create(rb)
+	Expect(err).ToNot(HaveOccurred())
+
+	return authServiceAccountName
+}
 
 func yamlFiletoStruct(fileName string, o *map[string]interface{}) error {
 	yamlFile, err := ioutil.ReadFile(fileName)

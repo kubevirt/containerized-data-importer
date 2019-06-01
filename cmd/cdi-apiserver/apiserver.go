@@ -81,6 +81,7 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
 	}
+
 	client, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
@@ -92,7 +93,7 @@ func main() {
 
 	authConfigWatcher := apiserver.NewAuthConfigWatcher(client, ch)
 
-	authorizor, err := apiserver.NewAuthorizorFromConfig(cfg, authConfigWatcher)
+	authorizor, err := apiserver.NewAuthorizorFromConfig(client, authConfigWatcher)
 	if err != nil {
 		klog.Fatalf("Unable to create authorizor: %v\n", errors.WithStack(err))
 	}

@@ -59,7 +59,7 @@ func TestRejectUnauthenticatedUser(t *testing.T) {
 
 	kubeobjects := []runtime.Object{}
 	client := k8sfake.NewSimpleClientset(kubeobjects...)
-	authClient := client.AuthorizationV1beta1()
+	authClient := client.AuthorizationV1()
 
 	app := newAuthorizor()
 	app.subjectAccessReview = authClient.SubjectAccessReviews()
@@ -79,7 +79,7 @@ func TestRejectUnauthorizedUser(t *testing.T) {
 	fakecert, fakecert2 := &x509.Certificate{}, &x509.Certificate{}
 	kubeobjects := []runtime.Object{}
 	client := k8sfake.NewSimpleClientset(kubeobjects...)
-	authClient := client.AuthorizationV1beta1()
+	authClient := client.AuthorizationV1()
 
 	app := newAuthorizor()
 	app.subjectAccessReview = authClient.SubjectAccessReviews()

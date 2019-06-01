@@ -68,7 +68,9 @@ const (
 
 	apiWebhookValidator = "cdi-api-validator"
 
-	dvCreateValidatePath = "/datavolume-validate-create"
+	dvValidatePath = "/datavolume-validate"
+
+	pvcValidatePath = "/pvc-validate"
 
 	healthzPath = "/healthz"
 )
@@ -161,8 +163,6 @@ func NewCdiAPIServer(bindAddress string,
 		klog.V(3).Infof("contentLength: %d", resp.ContentLength())
 
 	})
-
-	validatingwebhook.SetClient(client)
 
 	err = app.createWebhook()
 	if err != nil {
@@ -539,7 +539,8 @@ func (app *cdiAPIApp) createAPIService() error {
 }
 
 func (app *cdiAPIApp) createWebhook() error {
-	dvPathCreate := dvCreateValidatePath
+	dvPath := dvValidatePath
+	pvcPath := pvcValidatePath
 	namespace := util.GetNamespace()
 	registerWebhook := false
 	webhookRegistration, err := app.client.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Get(apiWebhookValidator, metav1.GetOptions{})
@@ -553,10 +554,11 @@ func (app *cdiAPIApp) createWebhook() error {
 
 	webHooks := []admissionregistrationv1beta1.Webhook{
 		{
-			Name: "datavolume-create-validator.cdi.kubevirt.io",
+			Name: "datavolume-validator.cdi.kubevirt.io",
 			Rules: []admissionregistrationv1beta1.RuleWithOperations{{
 				Operations: []admissionregistrationv1beta1.OperationType{
 					admissionregistrationv1beta1.Create,
+					admissionregistrationv1beta1.Update,
 				},
 				Rule: admissionregistrationv1beta1.Rule{
 					APIGroups:   []string{cdicorev1alpha1.SchemeGroupVersion.Group},
@@ -568,7 +570,29 @@ func (app *cdiAPIApp) createWebhook() error {
 				Service: &admissionregistrationv1beta1.ServiceReference{
 					Namespace: namespace,
 					Name:      apiServiceName,
-					Path:      &dvPathCreate,
+					Path:      &dvPath,
+				},
+				CABundle: app.serverCACertBytes,
+			},
+		},
+		{
+			Name: "pvc-validator.cdi.kubevirt.io",
+			Rules: []admissionregistrationv1beta1.RuleWithOperations{{
+				Operations: []admissionregistrationv1beta1.OperationType{
+					admissionregistrationv1beta1.Create,
+					admissionregistrationv1beta1.Update,
+				},
+				Rule: admissionregistrationv1beta1.Rule{
+					APIGroups:   []string{""},
+					APIVersions: []string{"v1"},
+					Resources:   []string{"persistentvolumeclaims"},
+				},
+			}},
+			ClientConfig: admissionregistrationv1beta1.WebhookClientConfig{
+				Service: &admissionregistrationv1beta1.ServiceReference{
+					Namespace: namespace,
+					Name:      apiServiceName,
+					Path:      &pvcPath,
 				},
 				CABundle: app.serverCACertBytes,
 			},
@@ -576,12 +600,18 @@ func (app *cdiAPIApp) createWebhook() error {
 	}
 
 	if registerWebhook {
-		_, err := app.client.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Create(&admissionregistrationv1beta1.ValidatingWebhookConfiguration{
+		webhookConfig := &admissionregistrationv1beta1.ValidatingWebhookConfiguration{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: apiWebhookValidator,
 			},
 			Webhooks: webHooks,
-		})
+		}
+
+		if err = operator.SetOwner(app.client, webhookConfig); err != nil {
+			return err
+		}
+
+		_, err := app.client.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Create(webhookConfig)
 		if err != nil {
 			return err
 		}
@@ -601,10 +631,11 @@ func (app *cdiAPIApp) createWebhook() error {
 		}
 	}
 
-	app.container.ServeMux.HandleFunc(
-		dvCreateValidatePath, func(w http.ResponseWriter, r *http.Request) {
-			validatingwebhook.ServeDVs(w, r)
-		},
-	)
+	dvWebhook := validatingwebhook.NewDataVolumeWebhook(app.client)
+	app.container.ServeMux.Handle(dvValidatePath, dvWebhook)
+
+	pvcWebhook := validatingwebhook.NewPVCWebhook(app.client)
+	app.container.ServeMux.Handle(pvcValidatePath, pvcWebhook)
+
 	return nil
 }

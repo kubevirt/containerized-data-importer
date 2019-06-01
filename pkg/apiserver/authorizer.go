@@ -24,13 +24,14 @@ import (
 	"net/http"
 	"strings"
 
+	"k8s.io/client-go/kubernetes"
+
 	"k8s.io/klog"
 
 	"github.com/emicklei/go-restful"
 
-	authorization "k8s.io/api/authorization/v1beta1"
-	authorizationclient "k8s.io/client-go/kubernetes/typed/authorization/v1beta1"
-	restclient "k8s.io/client-go/rest"
+	authorization "k8s.io/api/authorization/v1"
+	authorizationclient "k8s.io/client-go/kubernetes/typed/authorization/v1"
 )
 
 const (
@@ -223,13 +224,8 @@ func (a *authorizor) Authorize(req *restful.Request) (bool, string, error) {
 }
 
 // NewAuthorizorFromConfig creates a new CdiAPIAuthorizor
-func NewAuthorizorFromConfig(config *restclient.Config, authConfigWatcher AuthConfigWatcher) (CdiAPIAuthorizer, error) {
-	client, err := authorizationclient.NewForConfig(config)
-	if err != nil {
-		return nil, err
-	}
-
-	subjectAccessReview := client.SubjectAccessReviews()
+func NewAuthorizorFromConfig(client kubernetes.Interface, authConfigWatcher AuthConfigWatcher) (CdiAPIAuthorizer, error) {
+	subjectAccessReview := client.AuthorizationV1().SubjectAccessReviews()
 
 	a := &authorizor{
 		authConfigWatcher:   authConfigWatcher,

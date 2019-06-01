@@ -7,18 +7,49 @@ import (
 	"net/http"
 	"net/url"
 
+	"k8s.io/client-go/kubernetes"
+
 	"k8s.io/api/admission/v1beta1"
+	authentication "k8s.io/api/authentication/v1"
+	authorization "k8s.io/api/authorization/v1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog"
+
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 )
 
-type admitFunc func(*v1beta1.AdmissionReview) *v1beta1.AdmissionResponse
+// ValidatingWebhook is the interfave implemented by webhooks
+type ValidatingWebhook interface {
+	http.Handler
+	Admit(*v1beta1.AdmissionReview) *v1beta1.AdmissionResponse
+}
+
+type dataVolumeWebhook struct {
+	client kubernetes.Interface
+}
+
+type pvcWebhook struct {
+	client kubernetes.Interface
+}
+
+var _ ValidatingWebhook = &dataVolumeWebhook{}
+
+var _ ValidatingWebhook = &pvcWebhook{}
+
+// NewDataVolumeWebhook creates a new DataVolume webhook
+func NewDataVolumeWebhook(client kubernetes.Interface) ValidatingWebhook {
+	return &dataVolumeWebhook{client: client}
+}
+
+// NewPVCWebhook creates a new DataVolume webhook
+func NewPVCWebhook(client kubernetes.Interface) ValidatingWebhook {
+	return &pvcWebhook{client: client}
+}
 
 func toAdmissionReview(r *http.Request) (*v1beta1.AdmissionReview, error) {
 	var body []byte
@@ -57,6 +88,7 @@ func toRejectedAdmissionResponse(causes []metav1.StatusCause) *v1beta1.Admission
 }
 
 func toAdmissionResponseError(err error) *v1beta1.AdmissionResponse {
+	klog.Infof("Returning admission response error %s", err)
 	return &v1beta1.AdmissionResponse{
 		Result: &metav1.Status{
 			Message: err.Error(),
@@ -79,7 +111,7 @@ func validateSourceURL(sourceURL string) string {
 	return ""
 }
 
-func validateDataVolumeSpec(field *k8sfield.Path, spec *cdicorev1alpha1.DataVolumeSpec) []metav1.StatusCause {
+func (wh *dataVolumeWebhook) validateDataVolumeSpec(field *k8sfield.Path, spec *cdicorev1alpha1.DataVolumeSpec, userInfo authentication.UserInfo) []metav1.StatusCause {
 	var causes []metav1.StatusCause
 	var url string
 	var sourceType string
@@ -166,28 +198,45 @@ func validateDataVolumeSpec(field *k8sfield.Path, spec *cdicorev1alpha1.DataVolu
 			})
 			return causes
 		}
-		client := GetClient()
-		if client != nil {
-			sourcePVC, err := client.CoreV1().PersistentVolumeClaims(spec.Source.PVC.Namespace).Get(spec.Source.PVC.Name, metav1.GetOptions{})
-			if err != nil {
-				if k8serrors.IsNotFound(err) {
-					causes = append(causes, metav1.StatusCause{
-						Type:    metav1.CauseTypeFieldValueNotFound,
-						Message: fmt.Sprintf("Source PVC %s/%s doesn't exist", spec.Source.PVC.Namespace, spec.Source.PVC.Name),
-						Field:   field.Child("source", "PVC").String(),
-					})
-					return causes
-				}
-			}
-			err = controller.ValidateCanCloneSourceAndTargetSpec(&sourcePVC.Spec, spec.PVC)
-			if err != nil {
+
+		sourcePVC, err := wh.client.CoreV1().PersistentVolumeClaims(spec.Source.PVC.Namespace).Get(spec.Source.PVC.Name, metav1.GetOptions{})
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
 				causes = append(causes, metav1.StatusCause{
-					Type:    metav1.CauseTypeFieldValueInvalid,
-					Message: err.Error(),
-					Field:   field.Child("PVC").String(),
+					Type:    metav1.CauseTypeFieldValueNotFound,
+					Message: fmt.Sprintf("Source PVC %s/%s doesn't exist", spec.Source.PVC.Namespace, spec.Source.PVC.Name),
+					Field:   field.Child("source", "PVC").String(),
 				})
 				return causes
 			}
+		}
+		err = controller.ValidateCanCloneSourceAndTargetSpec(&sourcePVC.Spec, spec.PVC)
+		if err != nil {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: err.Error(),
+				Field:   field.Child("PVC").String(),
+			})
+			return causes
+		}
+
+		ok, reason, err := canCreatePodInNamespace(wh.client, spec.Source.PVC.Namespace, userInfo)
+		if err != nil {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeUnexpectedServerResponse,
+				Message: err.Error(),
+				Field:   field.Child("source", "PVC", "namespace").String(),
+			})
+			return causes
+		}
+
+		if !ok {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: reason,
+				Field:   field.Child("source", "PVC", "namespace").String(),
+			})
+			return causes
 		}
 	}
 
@@ -238,7 +287,7 @@ func validateDataVolumeSpec(field *k8sfield.Path, spec *cdicorev1alpha1.DataVolu
 	return causes
 }
 
-func admitDVs(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+func (wh *dataVolumeWebhook) Admit(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	resource := metav1.GroupVersionResource{
 		Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
 		Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
@@ -259,38 +308,39 @@ func admitDVs(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		return toAdmissionResponseError(err)
 	}
 
-	client := GetClient()
-	if client != nil {
-		pvcs, err := client.CoreV1().PersistentVolumeClaims(dv.GetNamespace()).List(metav1.ListOptions{})
-		if err != nil {
-			return toAdmissionResponseError(err)
-		}
-		for _, pvc := range pvcs.Items {
-			if pvc.Name == dv.GetName() {
-				klog.Errorf("destination PVC %s/%s already exists", dv.GetNamespace(), dv.GetName())
-				var causes []metav1.StatusCause
-				causes = append(causes, metav1.StatusCause{
-					Type:    metav1.CauseTypeFieldValueDuplicate,
-					Message: fmt.Sprintf("Destination PVC already exists"),
-					Field:   k8sfield.NewPath("DataVolume").Child("Name").String(),
-				})
-				return toRejectedAdmissionResponse(causes)
-			}
+	pvcs, err := wh.client.CoreV1().PersistentVolumeClaims(dv.GetNamespace()).List(metav1.ListOptions{})
+	if err != nil {
+		return toAdmissionResponseError(err)
+	}
+	for _, pvc := range pvcs.Items {
+		if pvc.Name == dv.GetName() {
+			klog.Errorf("destination PVC %s/%s already exists", dv.GetNamespace(), dv.GetName())
+			var causes []metav1.StatusCause
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueDuplicate,
+				Message: fmt.Sprintf("Destination PVC already exists"),
+				Field:   k8sfield.NewPath("DataVolume").Child("Name").String(),
+			})
+			return toRejectedAdmissionResponse(causes)
 		}
 	}
 
-	causes := validateDataVolumeSpec(k8sfield.NewPath("spec"), &dv.Spec)
+	causes := wh.validateDataVolumeSpec(k8sfield.NewPath("spec"), &dv.Spec, ar.Request.UserInfo)
 	if len(causes) > 0 {
 		klog.Infof("rejected DataVolume admission")
 		return toRejectedAdmissionResponse(causes)
 	}
 
-	reviewResponse := v1beta1.AdmissionResponse{}
-	reviewResponse.Allowed = true
-	return &reviewResponse
+	return allowed()
 }
 
-func serve(resp http.ResponseWriter, req *http.Request, admit admitFunc) {
+func allowed() *v1beta1.AdmissionResponse {
+	response := &v1beta1.AdmissionResponse{}
+	response.Allowed = true
+	return response
+}
+
+func serve(wh ValidatingWebhook, resp http.ResponseWriter, req *http.Request) {
 
 	response := v1beta1.AdmissionReview{}
 	review, err := toAdmissionReview(req)
@@ -300,7 +350,7 @@ func serve(resp http.ResponseWriter, req *http.Request, admit admitFunc) {
 		return
 	}
 
-	reviewResponse := admit(review)
+	reviewResponse := wh.Admit(review)
 	if reviewResponse != nil {
 		response.Response = reviewResponse
 		response.Response.UID = review.Request.UID
@@ -323,7 +373,111 @@ func serve(resp http.ResponseWriter, req *http.Request, admit admitFunc) {
 	resp.WriteHeader(http.StatusOK)
 }
 
-// ServeDVs ..
-func ServeDVs(resp http.ResponseWriter, req *http.Request) {
-	serve(resp, req, admitDVs)
+func (wh *dataVolumeWebhook) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+	serve(wh, resp, req)
+}
+
+func (wh *pvcWebhook) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+	serve(wh, resp, req)
+}
+
+func (wh *pvcWebhook) Admit(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+	resource := metav1.GroupVersionResource{
+		Group:    "",
+		Version:  "v1",
+		Resource: "persistentvolumeclaims",
+	}
+	if ar.Request.Resource != resource {
+		klog.Errorf("resource is %s but request is: %s", resource, ar.Request.Resource)
+		err := fmt.Errorf("expect resource to be '%s'", resource.Resource)
+		return toAdmissionResponseError(err)
+	}
+
+	pvc, oldPVC := &v1.PersistentVolumeClaim{}, &v1.PersistentVolumeClaim{}
+
+	err := json.Unmarshal(ar.Request.Object.Raw, &pvc)
+	if err != nil {
+		return toAdmissionResponseError(err)
+	}
+
+	cloneSrc, exists := pvc.Annotations[controller.AnnCloneRequest]
+	if !exists {
+		return allowed()
+	}
+
+	if len(ar.Request.OldObject.Raw) > 0 {
+		err := json.Unmarshal(ar.Request.OldObject.Raw, &oldPVC)
+		if err != nil {
+			return toAdmissionResponseError(err)
+		}
+
+		oldCloneSrc, exists := oldPVC.Annotations[controller.AnnCloneRequest]
+		if exists && cloneSrc == oldCloneSrc {
+			// already checked
+			return allowed()
+		}
+	}
+
+	namespace, name := controller.ParseSourcePvcAnnotation(cloneSrc, "/")
+	if namespace == "" || name == "" {
+		return allowed()
+	}
+
+	ok, reason, err := canCreatePodInNamespace(wh.client, namespace, ar.Request.UserInfo)
+	if err != nil {
+		return toAdmissionResponseError(err)
+	}
+
+	if !ok {
+		causes := []metav1.StatusCause{
+			{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: reason,
+				Field:   k8sfield.NewPath("PersistentVolumeClaim").Child("Annotations").String(),
+			},
+		}
+		return toRejectedAdmissionResponse(causes)
+	}
+
+	return allowed()
+}
+
+func canCreatePodInNamespace(client kubernetes.Interface, namespace string, userInfo authentication.UserInfo) (bool, string, error) {
+	var newExtra map[string]authorization.ExtraValue
+	if len(userInfo.Extra) > 0 {
+		newExtra = make(map[string]authorization.ExtraValue)
+		for k, v := range userInfo.Extra {
+			newExtra[k] = authorization.ExtraValue(v)
+		}
+	}
+
+	sar := &authorization.SubjectAccessReview{
+		Spec: authorization.SubjectAccessReviewSpec{
+			User:   userInfo.Username,
+			Groups: userInfo.Groups,
+			Extra:  newExtra,
+			ResourceAttributes: &authorization.ResourceAttributes{
+				Namespace: namespace,
+				Verb:      "create",
+				Group:     "",
+				Version:   "v1",
+				Resource:  "pods",
+			},
+		},
+	}
+
+	klog.V(3).Infof("Sending SubjectAccessReview %+v", sar)
+
+	response, err := client.AuthorizationV1().SubjectAccessReviews().Create(sar)
+	if err != nil {
+		return false, "", err
+	}
+
+	klog.V(3).Infof("SubjectAccessReview response %+v", response)
+
+	if !response.Status.Allowed {
+		return false, fmt.Sprintf("User %s has insufficient permissions in clone source namespace %s", userInfo.Username, namespace), nil
+	}
+
+	return true, "", nil
 }
