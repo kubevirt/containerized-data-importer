@@ -261,21 +261,19 @@ func admitDVs(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 
 	client := GetClient()
 	if client != nil {
-		pvcs, err := client.CoreV1().PersistentVolumeClaims(dv.GetNamespace()).List(metav1.ListOptions{})
-		if err != nil {
+		pvc, err := client.CoreV1().PersistentVolumeClaims(dv.GetNamespace()).Get(dv.GetName(), metav1.GetOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
 			return toAdmissionResponseError(err)
 		}
-		for _, pvc := range pvcs.Items {
-			if pvc.Name == dv.GetName() {
-				klog.Errorf("destination PVC %s/%s already exists", dv.GetNamespace(), dv.GetName())
-				var causes []metav1.StatusCause
-				causes = append(causes, metav1.StatusCause{
-					Type:    metav1.CauseTypeFieldValueDuplicate,
-					Message: fmt.Sprintf("Destination PVC already exists"),
-					Field:   k8sfield.NewPath("DataVolume").Child("Name").String(),
-				})
-				return toRejectedAdmissionResponse(causes)
-			}
+		if pvc != nil && pvc.Name != "" {
+			klog.Errorf("destination PVC %s/%s already exists", dv.GetNamespace(), dv.GetName())
+			var causes []metav1.StatusCause
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueDuplicate,
+				Message: fmt.Sprintf("Destination PVC already exists"),
+				Field:   k8sfield.NewPath("DataVolume").Child("Name").String(),
+			})
+			return toRejectedAdmissionResponse(causes)
 		}
 	}
 
