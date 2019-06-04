@@ -1,11 +1,11 @@
 # OLM (Operator Lifecycle Management) CDI (Containerized Data Importer) intergartion
 
 ## Table of Contents 
-[OLM Overview](#overview)
-[CDI OLM manifests](#manifests)
-[OLM installation](#installation)
-[OLM update](#update)
-[OKD UI](#okdui)
+* [OLM Overview](#overview)
+* [CDI OLM manifests](#manifests)
+* [OLM installation](#installation)
+* [OLM update](#update)
+* [OKD UI](#okdui)
 
 <a name="overview"></a>
 ## OLM Overview
@@ -45,8 +45,8 @@ DOCKER_PREFIX=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY
 QUAY_NAMESPACE=<quay namespace> QUAY_REPOSITORY=<quay repo> QUAY_USERNAME=<quay username> QUAY_PASSWORD=<quay password> CSV_VERSION=<csv version > make olm-push
 ```
 #### Install OLM and marketplace operators on cluster
-This setp is required when installing on k8s cluster. On OKD4.x cluster OLM amd markteplace operators are present and there is no need to install them.
-- Install OLM operator from cloned operator-lifecycle-manager repo and wait untill all pods are Running and Ready. 
+This setup is required when installing on k8s cluster. On OKD4.x cluster OLM amd markteplace operators are present and there is no need to install them.
+- Install OLM operator from cloned operator-lifecycle-manager repo and wait until all pods are Running and Ready. 
 
 ```bash
 kubectl apply -f $GOPATH/src/github.com/operator-framework/operator-lifecycle-manager/deploy/upstream/quickstart/olm.yaml
@@ -99,6 +99,7 @@ Now CDI deployment should finish its deployment successfully
 
 #### k8s cluster
 - Install CDI operatorsource manifest that specifies the location of CDI OLM bundle in quay
+**Note:** Currently, namespace in _cdi-operatorsource.yaml_ is set to _openshift-marketplace_. In k8s environment this must be changed to _olm_
 ```bash
 kubectl apply -f _out/manifests/release/olm/cdi-operatorsource.yaml
 ```
@@ -118,6 +119,7 @@ kubectl create ns cdi
 kubectl apply -f _out/manifests/release/olm/operatorgroup.yaml
 ```
 - Install subscription that will point from which channel the app is downloaded
+**Note:** Currently, namespace in _cdi-subscription.yaml_ is set to _openshift-operator-lifecycle-manager_. In k8s environmnet this msute be changed to _olm_.
 ```bash
 kubectl apply -f  _out/manifests/release/olm/cdi-subscription.yaml
 ```
@@ -141,10 +143,10 @@ Now the operator should finish its deployment successfully
 ### CDI OLM update
 OLM mechanism supports operator update via subscription mechanism. Once subscription manifest is installed on cluster, it monitors the operator source and when new OLM bundle appears, OLM can trigger update of the operator.
 
-*Note:* Currently CDI operator does **not** support upgrades of the CDI installation, but it can be updated via OLM. In such case OLM update will effectivley terminate current _cdi-operaor_ instance and install the new one - specified in the new CSV bundle.
+*Note:* Currently CDI operator does **not** support upgrades of the CDI installation, but it can be updated via OLM. In such case OLM update will effectivley terminate current _cdi-operator_ instance and install the new one - specified in the new CSV bundle.
 
 #### Generate OLM bundle 
-Command ```make manifests``` fetches previous CSV_VERSION of CDI from  QUAY_REPOSITORY in QUAY_NAMESPACE  inorder to set it in *ReplacesVersion* field in new CSV manifest.
+Command ```make manifests``` fetches previous CSV_VERSION of CDI from  QUAY_REPOSITORY in QUAY_NAMESPACE  in order to set it in *ReplacesVersion* field in new CSV manifest.
 ```bash
 DOCKER_REPO=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY=<verbosity> CSV_VERSION=<CSV version> QUAY_NAMESPACE=<namespace> QUAY_REPOSITORY=<application name> make manifests
 ```
