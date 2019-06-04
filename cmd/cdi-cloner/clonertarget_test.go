@@ -15,12 +15,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	dto "github.com/prometheus/client_model/go"
-
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
-
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 func init() {
@@ -44,51 +40,6 @@ var _ = Describe("Prometheus Endpoint", func() {
 		Expect(empty).To(BeFalse())
 		defer os.RemoveAll(certsDirectory)
 	})
-})
-
-var _ = Describe("Update Progress", func() {
-	BeforeEach(func() {
-		progress = prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "import_progress",
-				Help: "The import progress in percentage",
-			},
-			[]string{"ownerUID"},
-		)
-	})
-
-	It("Parse valid progress update", func() {
-		By("Verifying the initial value is 0")
-		progress.WithLabelValues(ownerUID).Add(0)
-		metric := &dto.Metric{}
-		progress.WithLabelValues(ownerUID).Write(metric)
-		Expect(*metric.Counter.Value).To(Equal(float64(0)))
-		By("Calling updateProgress with value")
-		promReader := &prometheusProgressReader{
-			CountingReader: util.CountingReader{
-				Current: uint64(45),
-			},
-			total: uint64(100),
-		}
-		promReader.updateProgress()
-		progress.WithLabelValues(ownerUID).Write(metric)
-		Expect(*metric.Counter.Value).To(Equal(float64(45)))
-	})
-
-	It("0 total should return 0", func() {
-		metric := &dto.Metric{}
-		By("Calling updateProgress with value")
-		promReader := &prometheusProgressReader{
-			CountingReader: util.CountingReader{
-				Current: uint64(45),
-			},
-			total: uint64(0),
-		}
-		promReader.updateProgress()
-		progress.WithLabelValues(ownerUID).Write(metric)
-		Expect(*metric.Counter.Value).To(Equal(float64(0)))
-	})
-
 })
 
 var _ = Describe("Read total", func() {
@@ -156,13 +107,7 @@ var _ = Describe("Read total", func() {
 		tarFileReader, err := os.Open(tarFileName)
 		Expect(err).NotTo(HaveOccurred())
 		defer tarFileReader.Close()
-		promReader := &prometheusProgressReader{
-			CountingReader: util.CountingReader{
-				Reader:  tarFileReader,
-				Current: 0,
-			},
-			total: uint64(10240), //10240 is the size of the tar containing the file.
-		}
+		promReader := prometheusutil.NewProgressReader(tarFileReader, uint64(10240), progress, ownerUID)
 		err = util.UnArchiveTar(promReader, targetDirectory)
 		Expect(err).NotTo(HaveOccurred())
 		empty, err = isDirEmpty(targetDirectory)

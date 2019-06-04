@@ -46,7 +46,7 @@ var _ = Describe("Format Readers", func() {
 		Expect(err).ToNot(HaveOccurred())
 		defer f.Close()
 
-		fr, err = NewFormatReaders(f)
+		fr, err = NewFormatReaders(f, uint64(0))
 		if wantErr {
 			Expect(err).To(HaveOccurred())
 		} else {
@@ -70,7 +70,7 @@ var _ = Describe("Format Readers", func() {
 		f, err := os.Open(cirrosFilePath)
 		Expect(err).ToNot(HaveOccurred())
 		defer f.Close()
-		fr, err = NewFormatReaders(f)
+		fr, err = NewFormatReaders(f, uint64(0))
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying there are currently 2 readers")
 		Expect(len(fr.readers)).To(Equal(2))
