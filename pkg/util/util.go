@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -223,4 +224,42 @@ func WriteTerminationMessageToFile(file, message string) error {
 		}
 	}
 	return nil
+}
+
+// CopyDir copies a dir from one location to another.
+func CopyDir(source string, dest string) (err error) {
+	// get properties of source dir
+	sourceinfo, err := os.Stat(source)
+	if err != nil {
+		return err
+	}
+
+	// create dest dir
+	err = os.MkdirAll(dest, sourceinfo.Mode())
+	if err != nil {
+		return err
+	}
+
+	directory, _ := os.Open(source)
+	objects, err := directory.Readdir(-1)
+
+	for _, obj := range objects {
+		src := filepath.Join(source, obj.Name())
+		dst := filepath.Join(dest, obj.Name())
+
+		if obj.IsDir() {
+			// create sub-directories - recursively
+			err = CopyDir(src, dst)
+			if err != nil {
+				fmt.Println(err)
+			}
+		} else {
+			// perform copy
+			err = CopyFile(src, dst)
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+	}
+	return
 }

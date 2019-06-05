@@ -65,6 +65,11 @@ func main() {
 		klog.Fatal(err)
 	}
 
+	// copy invalid qcow files
+	if err := util.CopyDir("/tmp/source/invalid_qcow_images", filepath.Join(*outDir, "invalid_qcow_images")); err != nil {
+		klog.Fatal(err)
+	}
+
 	klog.Info("File initialization completed without error.")
 }
 
