@@ -430,6 +430,9 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar *importPod
 
 	if getVolumeMode(pvc) == v1.PersistentVolumeBlock {
 		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
+		pod.Spec.SecurityContext = &v1.PodSecurityContext{
+			RunAsUser: &[]int64{0}[0],
+		}
 	} else {
 		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts()
 		pod.Spec.SecurityContext = &v1.PodSecurityContext{
@@ -1123,7 +1126,9 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 			Name:  "DESTINATION",
 			Value: "/dev/blockDevice",
 		})
-
+		pod.Spec.SecurityContext = &v1.PodSecurityContext{
+			RunAsUser: &[]int64{0}[0],
+		}
 	} else {
 		pod.Spec.Containers[0].VolumeMounts = addVolumeMountsForUpload()
 		pod.Spec.SecurityContext = &v1.PodSecurityContext{

@@ -17,6 +17,7 @@ RUN mkdir /data
 # Create non-root user
 RUN useradd -u 1001 --create-home -s /bin/bash cdi-importer
 WORKDIR /home/cdi-importer
+USER 1001
 
 COPY ./cdi-importer /usr/bin/cdi-importer
 

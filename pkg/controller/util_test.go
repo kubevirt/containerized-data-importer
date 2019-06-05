@@ -1303,7 +1303,9 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string, scratchPvc *v1.Pers
 	pod.Spec.Containers[0].Env = env
 	if volumeMode == v1.PersistentVolumeBlock {
 		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
-
+		pod.Spec.SecurityContext = &v1.PodSecurityContext{
+			RunAsUser: &[]int64{0}[0],
+		}
 	} else {
 		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts()
 		pod.Spec.SecurityContext = &v1.PodSecurityContext{

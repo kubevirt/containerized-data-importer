@@ -17,6 +17,7 @@ RUN mkdir /data
 # Create non-root user
 RUN useradd -u 1001 --create-home -s /bin/bash cdi-uploadserver
 WORKDIR /home/cdi-uploadserver
+USER 1001
 
 COPY ./cdi-uploadserver /usr/bin/cdi-uploadserver
 
