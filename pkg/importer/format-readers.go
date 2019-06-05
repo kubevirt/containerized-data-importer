@@ -29,8 +29,36 @@ import (
 
 	"k8s.io/klog"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
+	"kubevirt.io/containerized-data-importer/pkg/util"
+	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
+
+var (
+	progress = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "import_progress",
+			Help: "The import progress in percentage",
+		},
+		[]string{"ownerUID"},
+	)
+	ownerUID string
+)
+
+func init() {
+	if err := prometheus.Register(progress); err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			// A counter for that metric has been registered before.
+			// Use the old counter from now on.
+			progress = are.ExistingCollector.(*prometheus.CounterVec)
+		} else {
+			klog.Errorf("Unable to create prometheus progress counter")
+		}
+	}
+	ownerUID, _ = util.ParseEnvVar(common.OwnerUID, false)
+}
 
 type reader struct {
 	rdrType int
@@ -39,10 +67,11 @@ type reader struct {
 
 // FormatReaders contains the stack of readers needed to get information from the input stream (io.ReadCloser)
 type FormatReaders struct {
-	readers  []reader
-	buf      []byte // holds file headers
-	Convert  bool
-	Archived bool
+	readers        []reader
+	buf            []byte // holds file headers
+	Convert        bool
+	Archived       bool
+	progressReader *prometheusutil.ProgressReader
 }
 
 const (
@@ -60,11 +89,17 @@ var rdrTypM = map[string]int{
 }
 
 // NewFormatReaders creates a new instance of FormatReaders using the input stream and content type passed in.
-func NewFormatReaders(stream io.ReadCloser) (*FormatReaders, error) {
+func NewFormatReaders(stream io.ReadCloser, total uint64) (*FormatReaders, error) {
+	var err error
 	readers := &FormatReaders{
 		buf: make([]byte, image.MaxExpectedHdrSize),
 	}
-	err := readers.constructReaders(stream)
+	if total > uint64(0) {
+		readers.progressReader = prometheusutil.NewProgressReader(stream, total, progress, ownerUID)
+		err = readers.constructReaders(readers.progressReader)
+	} else {
+		err = readers.constructReaders(stream)
+	}
 	return readers, err
 }
 
@@ -223,4 +258,9 @@ func (fr *FormatReaders) Close() (rtnerr error) {
 		}
 	}
 	return rtnerr
+}
+
+// StartProgressUpdate starts the go routine to automatically update the progress on a set interval.
+func (fr *FormatReaders) StartProgressUpdate() {
+	fr.progressReader.StartTimedUpdate()
 }

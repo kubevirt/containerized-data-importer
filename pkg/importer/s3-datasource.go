@@ -65,7 +65,7 @@ func NewS3DataSource(endpoint, accessKey, secKey string) (*S3DataSource, error) 
 // Info is called to get initial information about the data.
 func (sd *S3DataSource) Info() (ProcessingPhase, error) {
 	var err error
-	sd.readers, err = NewFormatReaders(sd.s3Reader)
+	sd.readers, err = NewFormatReaders(sd.s3Reader, uint64(0))
 	if err != nil {
 		klog.Errorf("Error creating readers: %v", err)
 		return ProcessingPhaseError, err
