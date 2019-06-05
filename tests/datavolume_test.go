@@ -40,6 +40,18 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	tinyCoreIsoURL := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
 	httpsTinyCoreIsoURL := fmt.Sprintf(utils.HTTPSTinyCoreIsoURL, f.CdiInstallNs)
 	tinyCoreIsoRegistryURL := fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs)
+	InvalidQcowImagesURL := fmt.Sprintf(utils.InvalidQcowImagesURL, f.CdiInstallNs)
+
+	// Invalid (malicious) QCOW images:
+
+	// An image that causes qemu-img to allocate 152T (original image is 516 bytes)
+	invalidQcowLargeSizeURL := InvalidQcowImagesURL + "invalid-qcow-large-size.img"
+	// An image that causes qemu-img info to output half a million lines of JSON
+	invalidQcowLargeJSONURL := InvalidQcowImagesURL + "invalid-qcow-large-json.img"
+	// An image that causes qemu-img info to allocate large amounts of RAM
+	invalidQcowLargeMemoryURL := InvalidQcowImagesURL + "invalid-qcow-large-memory.img"
+	// An image with a backing file - should be rejected when converted to raw
+	invalidQcowBackingFileURL := InvalidQcowImagesURL + "invalid-qcow-backing-file.img"
 
 	AfterEach(func() {
 		if sourcePvc != nil {
@@ -51,7 +63,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	})
 
 	Describe("Verify DataVolume", func() {
-		table.DescribeTable("should", func(name, command, url, dataVolumeName, eventReason string, phase cdiv1.DataVolumePhase) {
+		table.DescribeTable("should", func(name, command, url, dataVolumeName, errorMessage, eventReason string, phase cdiv1.DataVolumePhase) {
 			var dataVolume *cdiv1.DataVolume
 			switch name {
 			case "import-http":
@@ -104,7 +116,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
 				if err == nil {
 					fmt.Fprintf(GinkgoWriter, "%s", events)
-					return strings.Contains(events, eventReason)
+					return strings.Contains(events, eventReason) && strings.Contains(events, errorMessage)
 				}
 				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
 				return false
@@ -114,14 +126,18 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 		},
-			table.Entry("[rfe_id:1115][crit:high][test_id:1357]succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1358]fail creating import dv due to invalid DNS entry", "import-http", "", "http://i-made-this-up.kube-system/tinyCore.iso", "dv-phase-test-2", controller.ImportFailed, cdiv1.Failed),
-			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1359]fail creating import dv due to file not found", "import-http", "", tinyCoreIsoURL+"not.real.file", "dv-phase-test-3", controller.ImportFailed, cdiv1.Failed),
-			table.Entry("[rfe_id:1277][crit:high][test_id:1360]succeed creating clone dv", "clone", fillCommand, "", "dv-clone-test-1", controller.CloneSucceeded, cdiv1.Succeeded),
-			table.Entry("[rfe_id:1111][crit:high][test_id:1361]succeed creating blank image dv", "blank", "", "", "blank-image-dv", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[rfe_id:138][crit:high][test_id:1362]succeed creating upload dv", "upload", "", "", "upload-dv", controller.UploadReady, cdiv1.Succeeded),
-			table.Entry("[rfe_id:1115][crit:high][test_id:1478]succeed creating import dv with given valid registry url", "import-registry", "", tinyCoreIsoRegistryURL, "dv-phase-test-4", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid url (https)", "import-https", "", httpsTinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:1115][crit:high][test_id:1357]succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1358]fail creating import dv due to invalid DNS entry", "import-http", "", "http://i-made-this-up.kube-system/tinyCore.iso", "dv-phase-test-2", "Unable to connect to http data source", controller.ImportFailed, cdiv1.Failed),
+			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1359]fail creating import dv due to file not found", "import-http", "", tinyCoreIsoURL+"not.real.file", "dv-phase-test-3", "Unable to connect to http data source", controller.ImportFailed, cdiv1.Failed),
+			table.Entry("[rfe_id:1277][crit:high][test_id:1360]succeed creating clone dv", "clone", fillCommand, "", "dv-clone-test-1", "", controller.CloneSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:1111][crit:high][test_id:1361]succeed creating blank image dv", "blank", "", "", "blank-image-dv", "", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:138][crit:high][test_id:1362]succeed creating upload dv", "upload", "", "", "upload-dv", "", controller.UploadReady, cdiv1.Succeeded),
+			table.Entry("[rfe_id:1115][crit:high][test_id:1478]succeed creating import dv with given valid registry url", "import-registry", "", tinyCoreIsoRegistryURL, "dv-phase-test-4", "", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid url (https)", "import-https", "", httpsTinyCoreIsoURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:2139][crit:high][posneg:negative][test_id:2139]fail creating import dv: invalid qcow large size", "import-http", "", invalidQcowLargeSizeURL, "dv-invalid-qcow-large-size", "Unable to process data: Invalid format qcow for image", controller.ImportFailed, cdiv1.Failed),
+			table.Entry("[rfe_id:2139][crit:high][posneg:negative][test_id:2139]fail creating import dv: invalid qcow large json", "import-http", "", invalidQcowLargeJSONURL, "dv-invalid-qcow-large-json", "Unable to process data: exit status 1", controller.ImportFailed, cdiv1.Failed),
+			table.Entry("[rfe_id:2139][crit:high][posneg:negative][test_id:2139]fail creating import dv: invalid qcow large memory", "import-http", "", invalidQcowLargeMemoryURL, "dv-invalid-qcow-large-memory", "Unable to process data: exit status 1", controller.ImportFailed, cdiv1.Failed),
+			table.Entry("[rfe_id:2139][crit:high][posneg:negative][test_id:2139]fail creating import dv: invalid qcow backing file", "import-http", "", invalidQcowBackingFileURL, "dv-invalid-qcow-backing-file", "Unable to process data: exit status 1", controller.ImportFailed, cdiv1.Failed),
 		)
 	})
 
