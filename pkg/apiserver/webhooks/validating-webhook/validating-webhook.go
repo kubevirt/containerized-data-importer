@@ -151,7 +151,7 @@ func validateDataVolumeSpec(field *k8sfield.Path, spec *cdicorev1alpha1.DataVolu
 		sourceType = field.Child("contentType").String()
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("ContentType must be" + string(cdicorev1alpha1.DataVolumeKubeVirt) + "when Source is Registry"),
+			Message: fmt.Sprintf("ContentType must be " + string(cdicorev1alpha1.DataVolumeKubeVirt) + " when Source is Registry"),
 			Field:   sourceType,
 		})
 		return causes
