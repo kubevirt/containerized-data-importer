@@ -30,6 +30,8 @@ const (
 	HTTPSTinyCoreIsoURL = "https://cdi-file-host.%s/tinyCore.iso"
 	// TinyCoreQcow2URLRateLimit provides a test url for the tineyCore iso image
 	TinyCoreQcow2URLRateLimit = "http://cdi-file-host.%s:82/tinyCore.qcow2"
+	// InvalidQcowImagesURL provides a test url for invalid qcow images
+	InvalidQcowImagesURL = "http://cdi-file-host.%s/invalid_qcow_images/"
 )
 
 // CreateDataVolumeFromDefinition is used by tests to create a testable Data Volume
