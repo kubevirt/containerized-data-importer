@@ -11,6 +11,11 @@ RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
 	mv /etc/yum.repos.d/old/* /etc/yum.repos.d/ && \
 	rmdir /etc/yum.repos.d/old
 
+# Create non-root user
+RUN useradd -u 1001 --create-home -s /bin/bash cdi-operator
+WORKDIR /home/cdi-operator
+USER 1001
+
 COPY ./cdi-operator /usr/bin/cdi-operator
 
 ENTRYPOINT [ "/usr/bin/cdi-operator"]
