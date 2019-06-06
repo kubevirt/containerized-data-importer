@@ -148,7 +148,7 @@ spec:
          secretRef: "" # Optional
          certConfigMap: "" # Optional
   pvc:
-    blockVolume: Block
+    volumeMode: Block
     accessModes:
       - ReadWriteOnce
     resources:
