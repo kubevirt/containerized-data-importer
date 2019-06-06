@@ -25,3 +25,10 @@ function seed_images(){
 
 }
 
+function verify() {
+	echo 'Wait until all nodes are ready'
+	until [[ $(_kubectl get nodes --no-headers | wc -l) -eq $(_kubectl get nodes --no-headers | grep " Ready" | wc -l) ]]; do
+	    sleep 1
+	done
+	echo "cluster node are ready!"
+}

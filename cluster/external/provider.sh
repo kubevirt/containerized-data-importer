@@ -7,3 +7,7 @@ function _kubectl(){
 function seed_images(){
   echo "seed_images is a noop for external provider"
 }
+
+function up() {
+  echo "using external cluster"
+}
