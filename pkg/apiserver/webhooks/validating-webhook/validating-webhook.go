@@ -312,16 +312,18 @@ func (wh *dataVolumeWebhook) Admit(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 	if err != nil {
 		return toAdmissionResponseError(err)
 	}
-	for _, pvc := range pvcs.Items {
-		if pvc.Name == dv.GetName() {
-			klog.Errorf("destination PVC %s/%s already exists", dv.GetNamespace(), dv.GetName())
-			var causes []metav1.StatusCause
-			causes = append(causes, metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueDuplicate,
-				Message: fmt.Sprintf("Destination PVC already exists"),
-				Field:   k8sfield.NewPath("DataVolume").Child("Name").String(),
-			})
-			return toRejectedAdmissionResponse(causes)
+	if ar.Request.Operation == v1beta1.Create {
+		for _, pvc := range pvcs.Items {
+			if pvc.Name == dv.GetName() {
+				klog.Errorf("destination PVC %s/%s already exists", dv.GetNamespace(), dv.GetName())
+				var causes []metav1.StatusCause
+				causes = append(causes, metav1.StatusCause{
+					Type:    metav1.CauseTypeFieldValueDuplicate,
+					Message: fmt.Sprintf("Destination PVC already exists"),
+					Field:   k8sfield.NewPath("DataVolume").Child("Name").String(),
+				})
+				return toRejectedAdmissionResponse(causes)
+			}
 		}
 	}
 
