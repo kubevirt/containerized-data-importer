@@ -32,6 +32,8 @@ const (
 	TinyCoreQcow2URLRateLimit = "http://cdi-file-host.%s:82/tinyCore.qcow2"
 	// InvalidQcowImagesURL provides a test url for invalid qcow images
 	InvalidQcowImagesURL = "http://cdi-file-host.%s/invalid_qcow_images/"
+	// TarArchiveURL provides a test url for a tar achive file
+	TarArchiveURL = "http://cdi-file-host.%s/archive.tar"
 )
 
 // CreateDataVolumeFromDefinition is used by tests to create a testable Data Volume
@@ -246,4 +248,29 @@ func WaitForDataVolumePhase(clientSet *cdiclientset.Clientset, namespace string,
 		return fmt.Errorf("DataVolume %s not in phase %s within %v", dataVolumeName, phase, dataVolumePhaseTime)
 	}
 	return nil
+}
+
+// NewDataVolumeWithArchiveContent initializes a DataVolume struct with 'archive' ContentType
+func NewDataVolumeWithArchiveContent(dataVolumeName string, size string, httpURL string) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dataVolumeName,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{
+					URL: httpURL,
+				},
+			},
+			ContentType: "archive",
+			PVC: &k8sv1.PersistentVolumeClaimSpec{
+				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
 }

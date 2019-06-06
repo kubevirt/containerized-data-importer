@@ -40,10 +40,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	tinyCoreIsoURL := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
 	httpsTinyCoreIsoURL := fmt.Sprintf(utils.HTTPSTinyCoreIsoURL, f.CdiInstallNs)
 	tinyCoreIsoRegistryURL := fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs)
+	tarArchiveURL := fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs)
 	InvalidQcowImagesURL := fmt.Sprintf(utils.InvalidQcowImagesURL, f.CdiInstallNs)
 
 	// Invalid (malicious) QCOW images:
-
 	// An image that causes qemu-img to allocate 152T (original image is 516 bytes)
 	invalidQcowLargeSizeURL := InvalidQcowImagesURL + "invalid-qcow-large-size.img"
 	// An image that causes qemu-img info to output half a million lines of JSON
@@ -89,6 +89,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 				Expect(err).To(BeNil())
 				dataVolume.Spec.Source.Registry.CertConfigMap = cm
+			case "import-archive":
+				dataVolume = utils.NewDataVolumeWithArchiveContent(dataVolumeName, "1Gi", url)
 			}
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
@@ -138,6 +140,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[rfe_id:2139][crit:high][posneg:negative][test_id:2139]fail creating import dv: invalid qcow large json", "import-http", "", invalidQcowLargeJSONURL, "dv-invalid-qcow-large-json", "Unable to process data: exit status 1", controller.ImportFailed, cdiv1.Failed),
 			table.Entry("[rfe_id:2139][crit:high][posneg:negative][test_id:2139]fail creating import dv: invalid qcow large memory", "import-http", "", invalidQcowLargeMemoryURL, "dv-invalid-qcow-large-memory", "Unable to process data: exit status 1", controller.ImportFailed, cdiv1.Failed),
 			table.Entry("[rfe_id:2139][crit:high][posneg:negative][test_id:2139]fail creating import dv: invalid qcow backing file", "import-http", "", invalidQcowBackingFileURL, "dv-invalid-qcow-backing-file", "Unable to process data: exit status 1", controller.ImportFailed, cdiv1.Failed),
+			table.Entry("[rfe_id:1947][crit:high][test_id:2145]succeed creating import dv with given tar archive url", "import-archive", "", tarArchiveURL, "tar-archive-dv", "", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:1947][crit:high][test_id:2220]fail creating import dv with non tar archive url", "import-archive", "", tinyCoreIsoURL, "non-tar-archive-dv", "Unable to process data: exit status 2", controller.ImportFailed, cdiv1.Failed),
 		)
 	})
 
