@@ -47,6 +47,8 @@ tempDir=${MANIFEST_TEMPLATE_DIR}
 processDirTemplates ${tempDir} ${OUT_DIR}/manifests ${OUT_DIR}/manifests/templates ${generator} ${MANIFEST_GENERATED_DIR} 
 processDirTemplates ${tempDir}/release ${OUT_DIR}/manifests/release ${OUT_DIR}/manifests/templates/release ${generator} ${MANIFEST_GENERATED_DIR}
 processDirTemplates ${tempDir}/release/olm ${OUT_DIR}/manifests/release/olm ${OUT_DIR}/manifests/templates/release/olm ${generator} ${MANIFEST_GENERATED_DIR}
+processDirTemplates ${tempDir}/release/olm/k8s ${OUT_DIR}/manifests/release/olm/k8s ${OUT_DIR}/manifests/templates/release/olm/k8s ${generator} ${MANIFEST_GENERATED_DIR}
+processDirTemplates ${tempDir}/release/olm/os ${OUT_DIR}/manifests/release/olm/os ${OUT_DIR}/manifests/templates/release/olm/os ${generator} ${MANIFEST_GENERATED_DIR}
 processDirTemplates ${tempDir}/release/olm/bundle ${OUT_DIR}/manifests/release/olm/bundle ${OUT_DIR}/manifests/templates/release/olm/bundle ${generator} ${MANIFEST_GENERATED_DIR}
 
 

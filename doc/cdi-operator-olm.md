@@ -11,6 +11,16 @@
 ## OLM Overview
 https://github.com/kubevirt/kubevirt/blob/master/docs/devel/olm-integration.md
 
+### Basic Concepts
+
+| Term        | Description           | Documentation|
+| ------------- |:-------------|:--------------|
+| _OperatorSource_     | Is used to define the external datastore we are using to store operator bundles |https://github.com/operator-framework/operator-marketplace/blob/master/README.md|
+| _CatalogSourceConfig_      | Is used to enable an operator present in the _OperatorSource_ to your cluster. Behind the scenes, it will configure an OLM CatalogSource so that the operator can then be managed by OLM.      | https://github.com/operator-framework/operator-marketplace/blob/master/README.md|
+| _Subscription_ |  Monitors CatalogSource  for updates    | https://github.com/operator-framework/operator-lifecycle-manager/tree/274df58592c2ffd1d8ea56156c73c7746f57efc0#discovery-catalogs-and-automated-upgrades |
+| _OperatorGroup_ |  An OperatorGroup is an OLM resource that provides rudimentary multitenant configuration to OLM installed operators.     | https://github.com/operator-framework/operator-lifecycle-manager/blob/master/Documentation/design/operatorgroups.md|
+
+
 
 <a name="manifests"></a>
 ## CDI OLM manifests 
@@ -46,10 +56,12 @@ QUAY_NAMESPACE=<quay namespace> QUAY_REPOSITORY=<quay repo> QUAY_USERNAME=<quay 
 ```
 #### Install OLM and marketplace operators on cluster
 This setup is required when installing on k8s cluster. On OKD4.x cluster OLM amd markteplace operators are present and there is no need to install them.
-- Install OLM operator from cloned operator-lifecycle-manager repo and wait until all pods are Running and Ready. 
+- Install OLM operator and wait until all pods are Running and Ready. 
 
 ```bash
-kubectl apply -f $GOPATH/src/github.com/operator-framework/operator-lifecycle-manager/deploy/upstream/quickstart/olm.yaml
+curl -L https://github.com/operator-framework/operator-lifecycle-manager/releases/download/0.10.0/install.sh -o install.sh
+chmod +x install.sh
+./install.sh 0.10.0 
 ```
 - Install marketplace operator from cloned operator-marketplace repo and wait until all pods are Running and Ready.
 ```bash
@@ -67,7 +79,7 @@ marketplace-operator-d8cc985d4-mv7xp   1/1     Running   0          2m40s
 #### OKD4.x cluster
 - Install CDI operatorsource manifest that specifies the location of CDI OLM bundle in quay
 ```bash
-kubectl apply -f _out/manifests/release/olm/cdi-operatorsource.yaml
+kubectl apply -f _out/manifests/release/olm/os/cdi-operatorsource.yaml
 ```
 - Create CDI namespace
 ```bash
@@ -77,9 +89,13 @@ kubectl create ns cdi
 ```bash
 kubectl apply -f _out/manifests/release/olm/operatorgroup.yaml
 ```
+- Install catalogsourceconfig resource
+```bash
+kubectl apply -f _out/manifests/release/olm/os/cdi-subscription.yaml
+```
 - Install subscription that will point from which channel the app is downloaded
 ```bash
-kubectl apply -f  _out/manifests/release/olm/cdi-subscription.yaml
+kubectl apply -f  _out/manifests/release/olm/os/cdi-subscription.yaml
 ```
 - Verify CDI installation plan was created
 ```bash
@@ -99,16 +115,9 @@ Now CDI deployment should finish its deployment successfully
 
 #### k8s cluster
 - Install CDI operatorsource manifest that specifies the location of CDI OLM bundle in quay
-**Note:** Currently, namespace in _cdi-operatorsource.yaml_ is set to _openshift-marketplace_. In k8s environment this must be changed to _olm_
+**Vocabulary**: _OperatorSource_ is used to define the external datastore we are using to store operator bundles
 ```bash
-kubectl apply -f _out/manifests/release/olm/cdi-operatorsource.yaml
-```
-- Handle marketplace namespace workarouond
-
-  Move _catalogsourceconfig.operators.coreos.com/cdi_ from _markeplace_ namespace to _olm_ namespace by modifying *targetNamespace* field to 'olm' from 'marketplace'
-```bash
-kubectl get operatorsource,catalogsourceconfig,catalogsource,subscription,installplan --all-namespaces
-kubectl edit catalogsourceconfig.operators.coreos.com/cdi -n marketplace
+kubectl apply -f _out/manifests/release/olm/k8s/cdi-operatorsource.yaml
 ```
 - Create CDI namespace
 ```bash
@@ -118,10 +127,14 @@ kubectl create ns cdi
 ```bash
 kubectl apply -f _out/manifests/release/olm/operatorgroup.yaml
 ```
-- Install subscription that will point from which channel the app is downloaded
-**Note:** Currently, namespace in _cdi-subscription.yaml_ is set to _openshift-operator-lifecycle-manager_. In k8s environmnet this msute be changed to _olm_.
+- Install CatalogSourceConfig resource
+**Vocabulary**: _CatalogSourceConfig_ is used fto enable an operator present in the _OperatorSource_ to your cluster. Behind the scenes, it will configure an OLM CatalogSource so that the operator can then be managed by OLM.
 ```bash
-kubectl apply -f  _out/manifests/release/olm/cdi-subscription.yaml
+kubectl create --save-config -f _out/manifests/release/olm/k8s/cdi-catalogsource.yaml
+```
+- Install subscription that will point from which channel the app is downloaded
+```bash
+kubectl apply -f  _out/manifests/release/olm/k8s/cdi-subscription.yaml
 ```
 - Verify CDI installation plan was created
 ```bash
@@ -141,9 +154,13 @@ Now the operator should finish its deployment successfully
 
 <a name="update"></a>
 ### CDI OLM update
-OLM mechanism supports operator update via subscription mechanism. Once subscription manifest is installed on cluster, it monitors the operator source and when new OLM bundle appears, OLM can trigger update of the operator.
+OLM mechanism supports operator update via subscription mechanism. Once subscription manifest is installed on cluster, it monitors the catalog source. CatalogSource in its turn monitors the location in quay and when new OLM bundle appears, OLM can trigger update of the operator.
 
-*Note:* Currently CDI operator does **not** support upgrades of the CDI installation, but it can be updated via OLM. In such case OLM update will effectivley terminate current _cdi-operator_ instance and install the new one - specified in the new CSV bundle.
+**Note**: 
+Currently quay polling is once in **60** minutes. It is hardcoded in _marketplace_ operator. There are plans to add configuration to _OperatorSource_ that will set polling interval per OperatorSource. Currently, it is not configurable.
+To trigger update manually one can restart catalogsource pod
+
+**Note:** Currently CDI operator does **not** support upgrades of the CDI installation, but it can be updated via OLM. In such case OLM update will effectivley terminate current _cdi-operator_ instance and install the new one - specified in the new CSV bundle.
 
 #### Generate OLM bundle 
 Command ```make manifests``` fetches previous CSV_VERSION of CDI from  QUAY_REPOSITORY in QUAY_NAMESPACE  in order to set it in *ReplacesVersion* field in new CSV manifest.

@@ -1,0 +1,8 @@
+apiVersion: operators.coreos.com/v1
+kind: CatalogSourceConfig
+metadata:
+  name: cdi
+  namespace: marketplace
+spec:
+  targetNamespace: {{.Namespace}}
+  packages: {{.QuayRepository}}
