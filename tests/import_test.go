@@ -144,6 +144,7 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	})
 
 	It("Import pod should have prometheus stats available while importing", func() {
+		var endpoint *v1.Endpoints
 		c := f.K8sClient
 		ns := f.Namespace.Name
 		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPRateLimitPort)
@@ -151,10 +152,6 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			controller.AnnEndpoint: httpEp + "/tinyCore.qcow2",
 			controller.AnnSecret:   "",
 		}
-
-		By("Verifying no end points exist before pvc is created")
-		endpoint, err := c.CoreV1().Endpoints(ns).Get("kubevirt-prometheus-metrics", metav1.GetOptions{})
-		Expect(err).To(HaveOccurred())
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.qcow2"))
 		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-e2e", "20M", pvcAnn, nil))
