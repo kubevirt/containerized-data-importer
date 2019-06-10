@@ -437,6 +437,7 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar *importPod
 		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts()
 		pod.Spec.SecurityContext = &v1.PodSecurityContext{
 			RunAsNonRoot: &[]bool{true}[0],
+			RunAsUser:    &[]int64{1001}[0],
 		}
 	}
 
@@ -1133,6 +1134,7 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 		pod.Spec.Containers[0].VolumeMounts = addVolumeMountsForUpload()
 		pod.Spec.SecurityContext = &v1.PodSecurityContext{
 			RunAsNonRoot: &[]bool{true}[0],
+			RunAsUser:    &[]int64{1001}[0],
 		}
 	}
 
