@@ -12,8 +12,6 @@ import (
 
 	"k8s.io/client-go/util/cert/triple"
 
-	"k8s.io/client-go/util/cert"
-
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 
