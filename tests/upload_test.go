@@ -116,6 +116,36 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		table.Entry("[test_id:1368]succeed given a valid token", true, http.StatusOK),
 		table.Entry("[posneg:negative][test_id:1369]fail given an invalid token", false, http.StatusUnauthorized),
 	)
+	It("Verify upload to the same pvc fails", func() {
+		By("Verify that upload server POD running")
+		err := f.WaitTimeoutForPodReady(utils.UploadPodName(pvc), time.Second*90)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC status annotation says running")
+		found, err := utils.WaitPVCPodStatusRunning(f.K8sClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+
+		var token string
+		By("Get an upload token")
+		token, err = utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
+		By("Do upload")
+		err = uploadImage(uploadProxyURL, token, http.StatusOK)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC status annotation says succeeded")
+		found, err = utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+
+		By("Try upload again")
+		err = uploadImage(uploadProxyURL, token, http.StatusServiceUnavailable)
+		Expect(err).ToNot(HaveOccurred())
+
+	})
 })
 
 func startUploadProxyPortForward(f *framework.Framework) (string, *exec.Cmd, error) {
