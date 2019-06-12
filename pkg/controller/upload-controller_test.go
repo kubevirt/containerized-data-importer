@@ -505,15 +505,6 @@ func TestUploadPossible(t *testing.T) {
 				true,
 			},
 		},
-		{
-			"PVC not ready",
-			args{
-				map[string]string{"cdi.kubevirt.io/storage.upload.target": "",
-					"cdi.kubevirt.io/storage.pod.phase": "Pending",
-				},
-				true,
-			},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

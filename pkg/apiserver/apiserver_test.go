@@ -1,3 +1,21 @@
+/*
+ * This file is part of the CDI project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Copyright 2019 Red Hat, Inc.
+ *
+ */
 package apiserver
 
 import (
@@ -19,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
+
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
@@ -31,89 +50,21 @@ import (
 var foo aggregatorapifake.Clientset
 
 type testAuthorizer struct {
-	allowed            bool
-	reason             string
-	err                error
-	userHeaders        []string
-	groupHeaders       []string
-	extraPrefixHeaders []string
+	allowed bool
+	reason  string
+	err     error
 }
 
 func (a *testAuthorizer) Authorize(req *restful.Request) (bool, string, error) {
 	return a.allowed, a.reason, a.err
 }
 
-func (a *testAuthorizer) AddUserHeaders(header []string) {
-	a.userHeaders = append(a.userHeaders, header...)
-}
-
-func (a *testAuthorizer) GetUserHeaders() []string {
-	return a.userHeaders
-}
-
-func (a *testAuthorizer) AddGroupHeaders(header []string) {
-	a.groupHeaders = append(a.groupHeaders, header...)
-}
-
-func (a *testAuthorizer) GetGroupHeaders() []string {
-	return a.groupHeaders
-}
-
-func (a *testAuthorizer) AddExtraPrefixHeaders(header []string) {
-	a.extraPrefixHeaders = append(a.extraPrefixHeaders, header...)
-}
-
-func (a *testAuthorizer) GetExtraPrefixHeaders() []string {
-	return a.extraPrefixHeaders
-}
-
 func newSuccessfulAuthorizer() CdiAPIAuthorizer {
-	return &testAuthorizer{true, "", nil, []string{}, []string{}, []string{}}
+	return &testAuthorizer{true, "", nil}
 }
 
 func newFailureAuthorizer() CdiAPIAuthorizer {
-	return &testAuthorizer{false, "You are a bad person", fmt.Errorf("Not authorized"), []string{}, []string{}, []string{}}
-}
-
-func getAPIServerConfigMap(t *testing.T) *v1.ConfigMap {
-	return &v1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "extension-apiserver-authentication",
-			Namespace: "kube-system",
-		},
-		Data: map[string]string{
-			"client-ca-file":                     "bunchofbytes",
-			"requestheader-allowed-names":        "[\"front-proxy-client\"]",
-			"requestheader-client-ca-file":       "morebytes",
-			"requestheader-extra-headers-prefix": "[\"X-Remote-Extra-\"]",
-			"requestheader-group-headers":        "[\"X-Remote-Group\"]",
-			"requestheader-username-headers":     "[\"X-Remote-User\"]",
-		},
-	}
-}
-
-func validateAPIServerConfig(t *testing.T, app *cdiAPIApp) {
-	if string(app.clientCABytes) != "bunchofbytes" {
-		t.Errorf("no match on client-ca-file")
-	}
-
-	if string(app.requestHeaderClientCABytes) != "morebytes" {
-		t.Errorf("no match on requestheader-client-ca-file")
-	}
-
-	if !reflect.DeepEqual(app.authorizer.GetExtraPrefixHeaders(), []string{"X-Remote-Extra-"}) {
-		t.Errorf("no match on requestheader-extra-headers-prefix")
-	}
-
-	if !reflect.DeepEqual(app.authorizer.GetGroupHeaders(), []string{"X-Remote-Group"}) {
-		t.Logf("%+v", app.authorizer.GetGroupHeaders())
-		t.Errorf("requestheader-group-headers")
-	}
-
-	if !reflect.DeepEqual(app.authorizer.GetUserHeaders(), []string{"X-Remote-User"}) {
-		t.Logf("%+v", app.authorizer.GetUserHeaders())
-		t.Errorf("requestheader-username-headers")
-	}
+	return &testAuthorizer{false, "You are a bad person", fmt.Errorf("Not authorized")}
 }
 
 func apiServerConfigMapGetAction() core.Action {
@@ -318,52 +269,6 @@ func Test_tokenEncrption(t *testing.T) {
 	}
 }
 
-func TestGetClientCert(t *testing.T) {
-	kubeobjects := []runtime.Object{}
-	kubeobjects = append(kubeobjects, getAPIServerConfigMap(t))
-
-	client := k8sfake.NewSimpleClientset(kubeobjects...)
-
-	app := &cdiAPIApp{client: client, authorizer: newSuccessfulAuthorizer()}
-
-	actions := []core.Action{}
-	actions = append(actions, apiServerConfigMapGetAction())
-
-	err := app.getClientCert()
-	if err != nil {
-		t.Errorf("getClientCert failed: %+v", err)
-	}
-
-	validateAPIServerConfig(t, app)
-
-	checkActions(actions, client.Actions(), t)
-}
-
-func TestNewCdiAPIServer(t *testing.T) {
-	kubeobjects := []runtime.Object{}
-	kubeobjects = append(kubeobjects, getAPIServerConfigMap(t))
-
-	client := k8sfake.NewSimpleClientset(kubeobjects...)
-	aggregatorClient := aggregatorapifake.NewSimpleClientset()
-	authorizer := &testAuthorizer{}
-
-	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer)
-	if err != nil {
-		t.Errorf("Upload api server creation failed: %+v", err)
-	}
-
-	app := server.(*cdiAPIApp)
-
-	req, _ := http.NewRequest("GET", "/apis", nil)
-	rr := httptest.NewRecorder()
-
-	app.container.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("Unexpected status code %d", rr.Code)
-	}
-}
-
 func TestGetSelfSignedCert(t *testing.T) {
 	signingKey, err := generateTestKey()
 	if err != nil {
@@ -401,7 +306,7 @@ func TestGetSelfSignedCert(t *testing.T) {
 		client: client,
 	}
 
-	err = app.getSelfSignedCert()
+	err = app.getKeysAndCerts()
 	if err != nil {
 		t.Errorf("error creating upload api app: %v", err)
 	}
@@ -418,7 +323,7 @@ func TestShouldGenerateCertsAndKeyFirstRun(t *testing.T) {
 		client: client,
 	}
 
-	err := app.getSelfSignedCert()
+	err := app.getKeysAndCerts()
 	if err != nil {
 		t.Errorf("error creating upload api app: %v", err)
 	}
@@ -426,7 +331,7 @@ func TestShouldGenerateCertsAndKeyFirstRun(t *testing.T) {
 	actions := []core.Action{}
 	actions = append(actions, tlsSecretGetAction())
 	actions = append(actions, cdiConfigMapGetAction())
-	actions = append(actions, tlsSecretCreateAction(app.keyBytes, app.certBytes, app.signingCertBytes))
+	actions = append(actions, tlsSecretCreateAction(app.serverKeyBytes, app.serverCertBytes, app.serverCACertBytes))
 	actions = append(actions, signingKeySecretGetAction())
 	actions = append(actions, cdiConfigMapGetAction())
 	actions = append(actions, signingKeySecretCreateAction(app.privateSigningKey))
@@ -439,9 +344,9 @@ func TestCreateAPIService(t *testing.T) {
 	aggregatorClient := aggregatorapifake.NewSimpleClientset()
 
 	app := &cdiAPIApp{
-		client:           client,
-		aggregatorClient: aggregatorClient,
-		signingCertBytes: []byte("data"),
+		client:            client,
+		aggregatorClient:  aggregatorClient,
+		serverCACertBytes: []byte("data"),
 	}
 
 	err := app.createAPIService()
@@ -451,7 +356,7 @@ func TestCreateAPIService(t *testing.T) {
 
 	actions := []core.Action{}
 	actions = append(actions, apiServiceGetAction())
-	actions = append(actions, apiServiceCreateAction(app.signingCertBytes))
+	actions = append(actions, apiServiceCreateAction(app.serverCACertBytes))
 
 	checkActions(actions, aggregatorClient.Actions(), t)
 }
@@ -467,9 +372,9 @@ func TestUpdateAPIService(t *testing.T) {
 	aggregatorClient := aggregatorapifake.NewSimpleClientset(kubeobjects...)
 
 	app := &cdiAPIApp{
-		client:           client,
-		aggregatorClient: aggregatorClient,
-		signingCertBytes: certBytes,
+		client:            client,
+		aggregatorClient:  aggregatorClient,
+		serverCACertBytes: certBytes,
 	}
 
 	err := app.createAPIService()
@@ -479,7 +384,7 @@ func TestUpdateAPIService(t *testing.T) {
 
 	actions := []core.Action{}
 	actions = append(actions, apiServiceGetAction())
-	actions = append(actions, apiServiceUpdateAction(app.signingCertBytes))
+	actions = append(actions, apiServiceUpdateAction(app.serverCACertBytes))
 
 	checkActions(actions, aggregatorClient.Actions(), t)
 }
