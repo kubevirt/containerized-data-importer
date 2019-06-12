@@ -128,7 +128,7 @@ kubectl create ns cdi
 kubectl apply -f _out/manifests/release/olm/operatorgroup.yaml
 ```
 - Install CatalogSourceConfig resource
-**Vocabulary**: _CatalogSourceConfig_ is used fto enable an operator present in the _OperatorSource_ to your cluster. Behind the scenes, it will configure an OLM CatalogSource so that the operator can then be managed by OLM.
+**Vocabulary**: _CatalogSourceConfig_ is used to enable an operator present in the _OperatorSource_ to your cluster. Behind the scenes, it will configure an OLM CatalogSource so that the operator can then be managed by OLM.
 ```bash
 kubectl create --save-config -f _out/manifests/release/olm/k8s/cdi-catalogsource.yaml
 ```
@@ -158,7 +158,7 @@ OLM mechanism supports operator update via subscription mechanism. Once subscrip
 
 **Note**: 
 Currently quay polling is once in **60** minutes. It is hardcoded in _marketplace_ operator. There are plans to add configuration to _OperatorSource_ that will set polling interval per OperatorSource. Currently, it is not configurable.
-To trigger update manually one can restart catalogsource pod
+To trigger update manually one can remove status of OperatorSource cr.
 
 **Note:** Currently CDI operator does **not** support upgrades of the CDI installation, but it can be updated via OLM. In such case OLM update will effectivley terminate current _cdi-operator_ instance and install the new one - specified in the new CSV bundle.
 

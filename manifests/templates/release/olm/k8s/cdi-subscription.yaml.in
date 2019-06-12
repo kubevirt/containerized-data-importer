@@ -5,6 +5,10 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   channel: beta
-  name: cdi
-  source: cdi
+  name: {{.QuayRepository}}
+  source: {{.QuayRepository}}
   sourceNamespace: {{.Namespace}}
+
+
+
+

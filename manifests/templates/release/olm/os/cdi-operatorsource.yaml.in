@@ -1,7 +1,7 @@
 apiVersion: operators.coreos.com/v1
 kind: OperatorSource
 metadata:
-  name: cdi
+  name: {{.QuayRepository}}
   namespace: openshift-marketplace
 spec:
   type: appregistry
@@ -9,4 +9,6 @@ spec:
   registryNamespace: {{.QuayNamespace}}
   displayName: "CDI"
   publisher: "CDI project"
+
+
 

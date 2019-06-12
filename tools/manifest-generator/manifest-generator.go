@@ -168,7 +168,7 @@ func fixResourceString(in string, indention int) string {
 func evalOlmCsvUpdateVersion(inFile, csvVersion, bundleOutDir, quayNamespace, quayRepository string) (string, error) {
 	replacesCsvVersion := ""
 	if strings.Contains(inFile, ".csv.yaml") && bundleOutDir != "" {
-		bundleHelper, err := helper.NewBundleHelper("cdi", quayNamespace)
+		bundleHelper, err := helper.NewBundleHelper(quayRepository, quayNamespace)
 
 		if err != nil {
 			klog.Fatalf("Failed to access quay namespace %s, repo %s, %v\n", quayNamespace, quayRepository, err)
