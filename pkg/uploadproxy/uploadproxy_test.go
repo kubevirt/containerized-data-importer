@@ -12,9 +12,15 @@ import (
 
 	"k8s.io/client-go/util/cert/triple"
 
-	"k8s.io/client-go/util/cert"
-
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
+
+	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/util/cert"
 )
 
 type httpClientConfig struct {
@@ -148,7 +154,15 @@ func setupProxyTests(handler http.HandlerFunc) *uploadProxyApp {
 		return server.URL
 	}
 
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name:      controller.GetUploadResourceName("testpvc"),
+		Namespace: "default",
+	}}
+	pod.Status.Phase = v1.PodPending
+	objects := []runtime.Object{}
+	objects = append(objects, pod)
 	app := createApp()
+	app.client = k8sfake.NewSimpleClientset(objects...)
 	app.tokenVerifier = verifyTokenSuccess
 	app.urlResolver = urlResolver
 	app.uploadServerClient = server.Client()
