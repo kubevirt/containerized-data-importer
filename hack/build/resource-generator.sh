@@ -31,7 +31,7 @@ function generateResourceManifest {
     rm -rf ${targetDir}/$manifestName
     rm -rf ${targetDir}/$manifestNamej2
     (${generator} -code-group=${codeGroup} \
-        -docker-repo="${DOCKER_REPO}" \
+        -docker-repo="${DOCKER_PREFIX}" \
         -docker-tag="${DOCKER_TAG}" \
         -deploy-cluster-resources="true" \
         -operator-image="${OPERATOR_IMAGE_NAME}" \
@@ -109,7 +109,7 @@ function populateResourceManifest {
         outfile=${outfile/VERSION/${CSV_VERSION}}
     fi
     (${generator} -template="${tmpl}" \
-        -docker-repo="${DOCKER_REPO}" \
+        -docker-repo="${DOCKER_PREFIX}" \
         -docker-tag="${DOCKER_TAG}" \
         -deploy-cluster-resources="true" \
         -operator-image="${OPERATOR_IMAGE_NAME}" \

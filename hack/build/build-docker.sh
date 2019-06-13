@@ -29,16 +29,16 @@ printf "Building targets: %s\n" "${targets}"
 for tgt in ${targets}; do
     BIN_NAME="$(basename ${tgt})"
     BIN_PATH="${tgt%/}"
-    IMAGE="${DOCKER_REPO}/${BIN_NAME}:${DOCKER_TAG}"
+    IMAGE="${DOCKER_PREFIX}/${BIN_NAME}:${DOCKER_TAG}"
     if [ "${docker_opt}" == "build" ]; then
         (
             cd "${OUT_DIR}/${BIN_PATH}"
             docker "${docker_opt}" -t ${IMAGE} .
         )
     elif [ "${docker_opt}" == "push" ]; then
-        if [ "${DOCKER_REPO}" == "kubevirt" ]; then
+        if [ "${DOCKER_PREFIX}" == "kubevirt" ]; then
             echo "Pushes to docker.io/kubevirt should only be performed by CI."
-            echo "Set DOCKER_REPO and DOCKER_TAG (default :latest) to target other repositories."
+            echo "Set DOCKER_PREFIX and DOCKER_TAG (default :latest) to target other repositories."
             exit 1
         fi
         docker "${docker_opt}" "${IMAGE}"

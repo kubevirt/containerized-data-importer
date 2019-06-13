@@ -1,0 +1,11 @@
+apiVersion: "local.storage.openshift.io/v1alpha1"
+kind: "LocalVolume"
+metadata:
+  name: "local-disks"
+spec:
+  storageClassDevices:
+    - storageClassName: "local-sc"
+      volumeMode: Filesystem
+      fsType: ext4
+      deviceNames:
+        - disk

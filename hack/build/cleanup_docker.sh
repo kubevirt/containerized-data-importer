@@ -1,8 +1,11 @@
 #!/bin/bash
-source ./cluster/gocli.sh
+set -e
+
+source ./cluster-up/hack/common.sh
+source ./cluster-up/cluster/ephemeral-provider-common.sh
 
 LOCAL="localhost"
-REPO=${DOCKER_REPO:-$LOCAL}
+REPO=${DOCKER_PREFIX:-$LOCAL}
 
 function conditionLog {
     err=$1
@@ -16,13 +19,13 @@ function conditionLog {
 }
 
 function usage {
-    echo "USAGE: cleanup_docker.sh [DOCKER_REPO=<repo to purge>]"
+    echo "USAGE: cleanup_docker.sh [DOCKER_PREFIX=<repo to purge>]"
 }
 
 
 function setRepo {
-    if [ "$REPO" = $LOCAL ]  && [ "$DOCKER_REPO" = "" ]; then
-        registry_port=$($gocli ports registry | tr -d '\r') 
+    if [ "$REPO" = $LOCAL ]  && [ "$DOCKER_PREFIX" = "" ]; then
+        registry_port=$(_port registry)
         if [ -n "$registry_port" ] && [ "$registry_port" -eq "$registry_port" ] 2>/dev/null; then
             REPO=$LOCAL":"$registry_port
         else
@@ -52,6 +55,8 @@ function dockerCleanup {
    done 
 }
 
+echo "Setting repo"
 setRepo 
+echo "Cleaning up"
 dockerCleanup
 

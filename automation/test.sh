@@ -35,14 +35,17 @@ readonly ARTIFACTS_PATH="exported-artifacts"
 mkdir -p "${WORKSPACE}/${ARTIFACTS_PATH}"
 
 if [[ $TARGET =~ openshift-.* ]]; then
-  export KUBEVIRT_PROVIDER="os-3.11.0"
+  export KUBEVIRT_PROVIDER="os-3.11.0-crio"
+elif [[ $TARGET =~ okd-.* ]]; then
+  export KUBEVIRT_PROVIDER="okd-4.1.0"
 elif [[ $TARGET =~ k8s-.* ]]; then
   export KUBEVIRT_PROVIDER="k8s-1.13.3"
+  export KUBEVIRT_PROVIDER_EXTRA_ARGS="--enable-ceph"
 fi
 
 export KUBEVIRT_NUM_NODES=2
 
-kubectl() { cluster/kubectl.sh "$@"; }
+kubectl() { cluster-up/kubectl.sh "$@"; }
 
 export CDI_NAMESPACE="${CDI_NAMESPACE:-cdi}"
 

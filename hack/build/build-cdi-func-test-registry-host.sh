@@ -28,7 +28,7 @@ mkdir -p "${OUT_PATH}/${FUNC_TEST_REGISTRY}"
 mkdir -p "${OUT_PATH}/${FUNC_TEST_REGISTRY_POPULATE}"
 mkdir -p "${OUT_PATH}/${FUNC_TEST_REGISTRY_INIT}"
 
-DOCKER_REPO=""
+DOCKER_PREFIX=""
 
 ${BUILD_DIR}/build-copy-artifacts.sh "${REGISTRY_INIT_PATH}"
 

@@ -38,7 +38,7 @@ UPLOADPROXY_MAIN="cmd/${UPLOADPROXY}"
 UPLOADSERVER_MAIN="cmd/${UPLOADSERVER}"
 
 DOCKER_IMAGES="cmd/${OPERATOR} cmd/${CONTROLLER} cmd/${IMPORTER} cmd/${CLONER} cmd/${APISERVER} cmd/${UPLOADPROXY} cmd/${UPLOADSERVER} cmd/${OPERATOR} tools/${FUNC_TEST_INIT} tools/${FUNC_TEST_HTTP} tools/${FUNC_TEST_REGISTRY} tools/${FUNC_TEST_REGISTRY_POPULATE} tools/${FUNC_TEST_REGISTRY_INIT} tools/${FUNC_TEST_BLOCK_DEVICE}"
-DOCKER_REPO=${DOCKER_REPO:-kubevirt}
+DOCKER_PREFIX=${DOCKER_PREFIX:-kubevirt}
 CONTROLLER_IMAGE_NAME=${CONTROLLER_IMAGE_NAME:-cdi-controller}
 IMPORTER_IMAGE_NAME=${IMPORTER_IMAGE_NAME:-cdi-importer}
 CLONER_IMAGE_NAME=${CLONER_IMAGE_NAME:-cdi-cloner}
@@ -54,10 +54,6 @@ CSV_VERSION=${CSV_VERSION:-0.0.0}
 QUAY_REPOSITORY=${QUAY_REPOSITORY:-cdi}
 QUAY_NAMESPACE=${QUAY_NAMESPACE:-kubevirt}
 CDI_LOGO_PATH=${CDI_LOGO_PATH:-"assets/cdi_logo.png"}
-
-KUBERNETES_IMAGE="k8s-1.13.3@sha256:bc0f02d6b970650eb16d12f97e5aa1376b3a13b0ffed6227db98675be2ca1184"
-OPENSHIFT_IMAGE="os-3.11.0-crio@sha256:3f11a6f437fcdf2d70de4fcc31e0383656f994d0d05f9a83face114ea7254bc0"
-
 
 KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER:-k8s-1.13.3}
 
@@ -87,19 +83,6 @@ function parseTestOpts() {
     done
 }
 
-function getClusterType() {
-    local image
-    case "${KUBEVIRT_PROVIDER}" in
-    "k8s-1.13.3")
-        image=$KUBERNETES_IMAGE
-        ;;
-    "os-3.11.0")
-        image=$OPENSHIFT_IMAGE
-        ;;
-    esac
-    echo "$image"
-}
-
 function getTestPullPolicy() {
     local pp
     case "${KUBEVIRT_PROVIDER}" in
@@ -107,6 +90,9 @@ function getTestPullPolicy() {
         pp=$PULL_POLICY
         ;;
     "os-3.11.0")
+        pp=Always
+        ;;
+    "okd-4.1.0")
         pp=Always
         ;;
     esac
