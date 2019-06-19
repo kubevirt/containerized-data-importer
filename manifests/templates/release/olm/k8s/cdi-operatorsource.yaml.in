@@ -1,0 +1,13 @@
+apiVersion: operators.coreos.com/v1
+kind: OperatorSource
+metadata:
+  name: {{.QuayRepository}}
+  namespace: marketplace
+spec:
+  type: appregistry
+  endpoint: https://quay.io/cnr
+  registryNamespace: {{.QuayNamespace}}
+  displayName: "CDI"
+  publisher: "CDI project"
+
+

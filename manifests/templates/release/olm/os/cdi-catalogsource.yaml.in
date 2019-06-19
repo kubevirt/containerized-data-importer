@@ -1,0 +1,9 @@
+apiVersion: operators.coreos.com/v1
+kind: CatalogSourceConfig
+metadata:
+  name: {{.QuayRepository}}
+  namespace: openshift-marketplace
+spec:
+  targetNamespace: {{.Namespace}}
+  packages: {{.QuayRepository}}
+

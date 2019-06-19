@@ -89,24 +89,30 @@ function processDirTemplates {
     templates="$(find "${inTmplPath}" -maxdepth 1 -name "*.in"  -type f)"
     for tmpl in ${templates}; do
         tmpl=$(readlink -f "${tmpl}")
-        populateResourceManifest  $generator $outFinalManifestPath $outTmplPath $tmpl $genManifestsDir
+        populateResourceManifest  $generator $outFinalManifestPath $outTmplPath $tmpl $genManifestsDir $outFinalManifestPath
     done
 }
 
 
 # all templated final manifsets are located in _out/manifests/
 # all templated  manifsets are located in _out/manifests/templates
-function populateResourceManifest {
-    tmpl=$4
+function populateResourceManifest {    
     generator=$1
     targetDir=$2
     tmplTargetDir=$3
-    generatedManifests=$5
+    tmpl=$4
+    generatedManifests=$5    
+    outDir=$6
 
+    bundleOut="none"
+    tmplBundleOut="none"
     outfile=$(basename -s .in "${tmpl}")
 
     if [[ $tmpl == *"VERSION"* ]]; then
+        #if the processed template is CSV - pass output directory for olm bundle
         outfile=${outfile/VERSION/${CSV_VERSION}}
+        bundleOut="${outDir}"
+        tmplBundleOut="${tmplTargetDir}"
     fi
     (${generator} -template="${tmpl}" \
         -docker-repo="${DOCKER_PREFIX}" \
@@ -116,17 +122,18 @@ function populateResourceManifest {
         -controller-image="${CONTROLLER_IMAGE_NAME}" \
         -importer-image="${IMPORTER_IMAGE_NAME}" \
         -cloner-image="${CLONER_IMAGE_NAME}" \
-        -apiserver-image=${APISERVER_IMAGE_NAME} \
-        -uploadproxy-image=${UPLOADPROXY_IMAGE_NAME} \
-        -uploadserver-image=${UPLOADSERVER_IMAGE_NAME} \
-        -csv-version=${CSV_VERSION} \
-        -cdi-logo-path=${CDI_LOGO_PATH} \
+        -apiserver-image="${APISERVER_IMAGE_NAME}" \
+        -uploadproxy-image="${UPLOADPROXY_IMAGE_NAME}" \
+        -uploadserver-image="${UPLOADSERVER_IMAGE_NAME}" \
+        -csv-version="${CSV_VERSION}" \
+        -cdi-logo-path="${CDI_LOGO_PATH}" \
         -generated-manifests-path=${generatedManifests} \
         -quay-namespace="${QUAY_NAMESPACE}" \
         -quay-repository="${QUAY_REPOSITORY}" \
         -verbosity="${VERBOSITY}" \
         -pull-policy="${PULL_POLICY}" \
-        -namespace="${NAMESPACE}"
+        -namespace="${NAMESPACE}" \
+        -olm-bundle-dir="${bundleOut}" \        
     ) 1>>"${targetDir}/"$outfile
 
     (${generator} -template="${tmpl}" \
@@ -140,14 +147,15 @@ function populateResourceManifest {
         -apiserver-image="{{ apiserver_image }}" \
         -uploadproxy-image="{{ uploadproxy_image }}" \
         -uploadserver-image="{{ uploadserver_image }}" \
-        -csv-version=${CSV_VERSION} \
-        -cdi-logo-path=${CDI_LOGO_PATH} \
+        -csv-version="${CSV_VERSION}" \
+        -cdi-logo-path="${CDI_LOGO_PATH}" \
         -generated-manifests-path=${generatedManifests} \
         -quay-namespace="{{ quay_namespace }}" \
         -quay-namespace="{{ quay_repository }}" \
         -verbosity="${VERBOSITY}" \
         -pull-policy="{{ pull_policy }}" \
-        -namespace="{{ cdi_namespace }}"
+        -namespace="{{ cdi_namespace }}" \
+        -olm-bundle-dir="${tmplBundleOut}" \
     ) 1>>"${tmplTargetDir}/"$outfile".j2"
 
     # Remove empty lines at the end of files which are added by go templating

@@ -1,6 +1,9 @@
 package: kubevirt.io/containerized-data-importer
 import:
 - package: k8s.io/klog
+- package: github.com/operator-framework/operator-marketplace
+  subpackages:
+  - pkg/appregistry
 - package: github.com/gorilla/mux
   version: ^1.6.1
 - package: github.com/minio/minio-go
@@ -30,6 +33,20 @@ import:
   version: ^2.1.8
 - package: github.com/prometheus/client_golang
   version: 0.9.2
+- package: github.com/go-openapi/spec
+  version: v0.17.0
+- package: github.com/go-openapi/validate
+  version: v0.17.0
+- package: github.com/go-openapi/errors
+  version: v0.17.0
+- package: github.com/go-openapi/analysis
+  version: v0.17.0
+- package: github.com/go-openapi/strfmt
+  version: v0.17.0
+- package: github.com/go-openapi/loads
+  version: v0.17.0
+- package: github.com/go-openapi/runtime
+  version: v0.17.0
 - package: github.com/emicklei/go-restful-openapi
   version: ^1.0.0
 - package: sigs.k8s.io/controller-runtime

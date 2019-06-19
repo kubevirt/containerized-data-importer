@@ -1,8 +1,28 @@
-# OLM (Operator Lifecycle Management) intergartion
+# OLM (Operator Lifecycle Management) CDI (Containerized Data Importer) intergartion
+
+## Table of Contents 
+* [OLM Overview](#overview)
+* [CDI OLM manifests](#manifests)
+* [OLM installation](#installation)
+* [OLM update](#update)
+* [OKD UI](#okdui)
+
+<a name="overview"></a>
 ## OLM Overview
 https://github.com/kubevirt/kubevirt/blob/master/docs/devel/olm-integration.md
 
+### Basic Concepts
 
+| Term        | Description           | Documentation|
+| ------------- |:-------------|:--------------|
+| _OperatorSource_     | Is used to define the external datastore we are using to store operator bundles |https://github.com/operator-framework/operator-marketplace/blob/master/README.md|
+| _CatalogSourceConfig_      | Is used to enable an operator present in the _OperatorSource_ to your cluster. Behind the scenes, it will configure an OLM CatalogSource so that the operator can then be managed by OLM.      | https://github.com/operator-framework/operator-marketplace/blob/master/README.md|
+| _Subscription_ |  Monitors CatalogSource  for updates    | https://github.com/operator-framework/operator-lifecycle-manager/tree/274df58592c2ffd1d8ea56156c73c7746f57efc0#discovery-catalogs-and-automated-upgrades |
+| _OperatorGroup_ |  An OperatorGroup is an OLM resource that provides rudimentary multitenant configuration to OLM installed operators.     | https://github.com/operator-framework/operator-lifecycle-manager/blob/master/Documentation/design/operatorgroups.md|
+
+
+
+<a name="manifests"></a>
 ## CDI OLM manifests 
 1. Generate OLM manifests
 ```bash
@@ -22,8 +42,8 @@ make olm-verify
 ```bash
 CSV_VERSION=<CSV version>  QUAY_USERNAME=<quay account username> QUAY_PASSWORD=<quay account password> QUAY_NAMESPACE=<namespace> QUAY_REPOSITORY=<application name> make olm-push
 ```
-
-## Containerized Data Importer (CDI) OLM installation 
+<a name="installation"></a>
+## CDI installation via OLM
 ### Prerequisites
 #### Build OLM manifests and push them to quay
 - Build OLM manifests and push to quay. Specify your DOCKER_PREFIX, DOCKER_TAG, QUAY_NAMESPACE, QUAY_REPOSITORY, CSV_VERSION.
@@ -35,10 +55,13 @@ DOCKER_PREFIX=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY
 QUAY_NAMESPACE=<quay namespace> QUAY_REPOSITORY=<quay repo> QUAY_USERNAME=<quay username> QUAY_PASSWORD=<quay password> CSV_VERSION=<csv version > make olm-push
 ```
 #### Install OLM and marketplace operators on cluster
-- Install OLM operator from cloned operator-lifecycle-manager repo and wait untill all pods are Running and Ready. 
+This setup is required when installing on k8s cluster. On OKD4.x cluster OLM and marketplace operators are present and there is no need to install them.
+- Install OLM operator and wait until all pods are Running and Ready. 
 
 ```bash
-kubectl apply -f $GOPATH/src/github.com/operator-framework/operator-lifecycle-manager/deploy/upstream/quickstart/olm.yaml
+curl -L https://github.com/operator-framework/operator-lifecycle-manager/releases/download/0.10.0/install.sh -o install.sh
+chmod +x install.sh
+./install.sh 0.10.0 
 ```
 - Install marketplace operator from cloned operator-marketplace repo and wait until all pods are Running and Ready.
 ```bash
@@ -52,17 +75,11 @@ cdi-7c7fc4f774-bdbsh                   1/1     Running   0          37s
 marketplace-operator-d8cc985d4-mv7xp   1/1     Running   0          2m40s
 
 ```
-### CDI installation by means of OLM and marketplace operators
+### CDI installation via OLM and marketplace operators 
+#### OKD4.x cluster
 - Install CDI operatorsource manifest that specifies the location of CDI OLM bundle in quay
 ```bash
-kubectl apply -f _out/manifests/release/olm/cdi-operatorsource.yaml
-```
-- Handle marketplace namespace workarouond
-
-  Move _catalogsourceconfig.operators.coreos.com/cdi_ from _markeplace_ namespace to _olm_ namespace by modifying *targetNamespace* field to 'olm' from 'marketplace'
-```bash
-kubectl get operatorsource,catalogsourceconfig,catalogsource,subscription,installplan --all-namespaces
-kubectl edit catalogsourceconfig.operators.coreos.com/cdi -n marketplace
+kubectl apply -f _out/manifests/release/olm/os/cdi-operatorsource.yaml
 ```
 - Create CDI namespace
 ```bash
@@ -72,9 +89,52 @@ kubectl create ns cdi
 ```bash
 kubectl apply -f _out/manifests/release/olm/operatorgroup.yaml
 ```
+- Install catalogsourceconfig resource
+```bash
+kubectl apply -f _out/manifests/release/olm/os/cdi-subscription.yaml
+```
 - Install subscription that will point from which channel the app is downloaded
 ```bash
-kubectl apply -f  _out/manifests/release/olm/cdi-subscription.yaml
+kubectl apply -f  _out/manifests/release/olm/os/cdi-subscription.yaml
+```
+- Verify CDI installation plan was created
+```bash
+kubectl get operatorsource,catalogsourceconfig,catalogsource,subscription,installplan -n cdi
+NAME                                    PACKAGE   SOURCE   CHANNEL
+subscription.operators.coreos.com/cdi   cdi       cdi      beta
+
+NAME                                             CSV                 SOURCE   APPROVAL    APPROVED
+installplan.operators.coreos.com/install-995l9   cdioperator.0.0.0            Automatic   true
+
+```
+- Now cdi-operator starts running but in order to install CDI we need to deploy cdi cr
+```bash
+cluster/kubectl.sh apply -f  _out/manifests/release/cdi-cr.yaml
+```
+Now CDI deployment should finish its deployment successfully
+
+#### k8s cluster
+- Install CDI operatorsource manifest that specifies the location of CDI OLM bundle in quay
+**Vocabulary**: _OperatorSource_ is used to define the external datastore we are using to store operator bundles
+```bash
+kubectl apply -f _out/manifests/release/olm/k8s/cdi-operatorsource.yaml
+```
+- Create CDI namespace
+```bash
+kubectl create ns cdi 
+```
+- Configure namespace to be allowed to create operators there
+```bash
+kubectl apply -f _out/manifests/release/olm/operatorgroup.yaml
+```
+- Install CatalogSourceConfig resource
+**Vocabulary**: _CatalogSourceConfig_ is used to enable an operator present in the _OperatorSource_ to your cluster. Behind the scenes, it will configure an OLM CatalogSource so that the operator can then be managed by OLM.
+```bash
+kubectl create --save-config -f _out/manifests/release/olm/k8s/cdi-catalogsource.yaml
+```
+- Install subscription that will point from which channel the app is downloaded
+```bash
+kubectl apply -f  _out/manifests/release/olm/k8s/cdi-subscription.yaml
 ```
 - Verify CDI installation plan was created
 ```bash
@@ -92,6 +152,27 @@ cluster/kubectl.sh apply -f  _out/manifests/release/cdi-cr.yaml
 ```
 Now the operator should finish its deployment successfully
 
+<a name="update"></a>
+### CDI OLM update
+OLM mechanism supports operator update via subscription mechanism. Once subscription manifest is installed on cluster, it monitors the catalog source. CatalogSource in its turn monitors the location in quay and when new OLM bundle appears, OLM can trigger update of the operator.
+
+**Note**: 
+Currently quay polling is once in **60** minutes. It is hardcoded in _marketplace_ operator. There are plans to add configuration to _OperatorSource_ that will set polling interval per OperatorSource. Currently, it is not configurable.
+To trigger update manually one can remove status of OperatorSource cr.
+
+**Note:** Currently CDI operator does **not** support upgrades of the CDI installation, but it can be updated via OLM. In such case OLM update will effectivley terminate current _cdi-operator_ instance and install the new one - specified in the new CSV bundle.
+
+#### Generate OLM bundle 
+Command ```make manifests``` fetches previous CSV_VERSION of CDI from  QUAY_REPOSITORY in QUAY_NAMESPACE  in order to set it in *ReplacesVersion* field in new CSV manifest.
+```bash
+DOCKER_REPO=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY=<verbosity> CSV_VERSION=<CSV version> QUAY_NAMESPACE=<namespace> QUAY_REPOSITORY=<application name> make manifests
+```
+#### Push OLM bundle to marketplace
+- Push generated OLM bundle to quay. Provide  QUAY_NAMESPACE, QUAY_REPOSITORY, QUAY_USERNAME, QUAY_PASSWORD, CSV_VERSION 
+```bash
+QUAY_NAMESPACE=<quay namespace> QUAY_REPOSITORY=<quay repo> QUAY_USERNAME=<quay username> QUAY_PASSWORD=<quay password> CSV_VERSION=<csv version > make olm-push
+```
+<a name="okdui"></a>
 ### OKD UI
 - Grant cluster-admin permissions to kube-system:default
 ```bash

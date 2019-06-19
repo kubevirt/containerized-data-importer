@@ -1,8 +1,10 @@
-hash: 1aa17cf68605325907751b9dee5bb31dc90ef5135ed97547c05a0b248bf21a51
-updated: 2019-05-19T09:08:43.794386139Z
+hash: a69b992f3f92ce82c3a33dd7f3e855876b1b6a9d5c8f3e37e8331603eeea96bc
+updated: 2019-05-27T12:53:04.836844479Z
 imports:
 - name: github.com/appscode/jsonpatch
   version: 7c0e3b262f30165a8ec3d0b4c6059fd92703bfb2
+- name: github.com/asaskevich/govalidator
+  version: f9ffefc3facfbe0caee3fea233cbb6e8208f4541
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
   subpackages:
@@ -24,21 +26,48 @@ imports:
 - name: github.com/evanphx/json-patch
   version: 5858425f75500d40c52783dce87d085a483ce135
 - name: github.com/ghodss/yaml
-  version: c7ce16629ff4cd059ed96ed06419dd3856fd3577
+  version: 25d852aebe32c875e9c044af3eef9c7dc6bc777f
+- name: github.com/globalsign/mgo
+  version: eeefdecb41b842af6dc652aaea4026e8403e62df
+  subpackages:
+  - bson
+  - internal/json
 - name: github.com/go-ini/ini
   version: 3be5ad479f69d4e08d7fe25edf79bf3346bd658e
 - name: github.com/go-logr/logr
   version: 9fb12b3b21c5415d16ac18dc5cd42c1cfdd40c4e
 - name: github.com/go-logr/zapr
   version: 03f06a783fbb7dfaf3f629c7825480e43a7105e6
+- name: github.com/go-openapi/analysis
+  version: c701774f4e604d952e4e8c56dee260be696e33c3
+  subpackages:
+  - internal
+- name: github.com/go-openapi/errors
+  version: d9664f9fab8994271e573ed69cf2adfc09b7a800
 - name: github.com/go-openapi/jsonpointer
   version: ef5f0afec364d3b9396b7b77b43dbe26bf1f8004
 - name: github.com/go-openapi/jsonreference
   version: 8483a886a90412cd6858df4ea3483dce9c8e35a3
+- name: github.com/go-openapi/loads
+  version: 150d36912387ec2f607be674c5be309ddccc0eed
+- name: github.com/go-openapi/runtime
+  version: 231d7876b7019dbcbfc97a7ba764379497b67c1d
+  subpackages:
+  - client
+  - logger
+  - middleware
+  - middleware/denco
+  - middleware/header
+  - middleware/untyped
+  - security
 - name: github.com/go-openapi/spec
   version: 5bae59e25b21498baea7f9d46e9c147ec106a42e
+- name: github.com/go-openapi/strfmt
+  version: 35fe47352985e13cc75f13120d70d26fd764ed51
 - name: github.com/go-openapi/swag
   version: 5899d5c5e619fda5fa86e14795a835f473ca284c
+- name: github.com/go-openapi/validate
+  version: d2eab7d93009e9215fc85b2faa2c2f2a98c2af48
 - name: github.com/gogo/protobuf
   version: 342cbe0a04158f6dcb03ca0079991a51a4248c02
   subpackages:
@@ -48,6 +77,10 @@ imports:
   version: 02826c3e79038b59d737d3b1c0a1d937f71a4433
   subpackages:
   - lru
+- name: github.com/golang/mock
+  version: 140ae90f29eaaadc229f8d4b78f074b7f0611c1e
+  subpackages:
+  - gomock
 - name: github.com/golang/protobuf
   version: b4deda0973fb4c70b50d226b1af49f3da59f5265
   subpackages:
@@ -88,7 +121,7 @@ imports:
 - name: github.com/json-iterator/go
   version: ab8a2e0c74be9d3be70b3184d9acc634935ded82
 - name: github.com/kelseyhightower/envconfig
-  version: f611eb38b3875cc3bd991ca91c51d06446afa14c
+  version: 0b417c4ec4a8a82eecc22a1459a504aa55163d61
 - name: github.com/kubernetes-csi/external-snapshotter
   version: e49856eb417cbafa51e5a3fb3bd0ac9e31ab1873
   subpackages:
@@ -115,6 +148,8 @@ imports:
   - pkg/set
 - name: github.com/mitchellh/go-homedir
   version: af06845cf3004701891bf4fdb884bfe4920b3727
+- name: github.com/mitchellh/mapstructure
+  version: 53818660ed4955e899c0bcafa97299a388bd7c8e
 - name: github.com/modern-go/concurrent
   version: bacd9c7ef1dd9b15be4a9909b8ac7a4e313eec94
 - name: github.com/modern-go/reflect2
@@ -141,7 +176,7 @@ imports:
   - reporters/stenographer/support/go-isatty
   - types
 - name: github.com/onsi/gomega
-  version: 6a48b4839f850fe696893f09085e3fc485d74a4a
+  version: efe19c39ca106ee4ed42a1b25e1a80a53be4831a
   subpackages:
   - format
   - gbytes
@@ -177,6 +212,22 @@ imports:
   - security/clientset/versioned
   - security/clientset/versioned/scheme
   - security/clientset/versioned/typed/security/v1
+- name: github.com/operator-framework/go-appr
+  version: f2aef88446f2a736fcb18db8ae57d708c52fdad0
+  subpackages:
+  - appregistry
+  - appregistry/appr
+  - appregistry/blobs
+  - appregistry/channel
+  - appregistry/info
+  - appregistry/package_appr
+  - models
+- name: github.com/operator-framework/operator-marketplace
+  version: 5b0afc4a17f23503bb89d1ffc80bd7f48eb2f6d6
+  subpackages:
+  - pkg/apis/operators/v1
+  - pkg/appregistry
+  - pkg/datastore
 - name: github.com/pborman/uuid
   version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 - name: github.com/peterbourgon/diskv
@@ -656,6 +707,7 @@ imports:
   - pkg/recorder
   - pkg/runtime/inject
   - pkg/runtime/log
+  - pkg/runtime/scheme
   - pkg/runtime/signals
   - pkg/source
   - pkg/source/internal
