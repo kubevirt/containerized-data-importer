@@ -55,7 +55,7 @@ DOCKER_PREFIX=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY
 QUAY_NAMESPACE=<quay namespace> QUAY_REPOSITORY=<quay repo> QUAY_USERNAME=<quay username> QUAY_PASSWORD=<quay password> CSV_VERSION=<csv version > make olm-push
 ```
 #### Install OLM and marketplace operators on cluster
-This setup is required when installing on k8s cluster. On OKD4.x cluster OLM amd markteplace operators are present and there is no need to install them.
+This setup is required when installing on k8s cluster. On OKD4.x cluster OLM and marketplace operators are present and there is no need to install them.
 - Install OLM operator and wait until all pods are Running and Ready. 
 
 ```bash
@@ -107,7 +107,7 @@ NAME                                             CSV                 SOURCE   AP
 installplan.operators.coreos.com/install-995l9   cdioperator.0.0.0            Automatic   true
 
 ```
-- Now cdi-operator starts running but in to install CDI we need to deploy cdi cr
+- Now cdi-operator starts running but in order to install CDI we need to deploy cdi cr
 ```bash
 cluster/kubectl.sh apply -f  _out/manifests/release/cdi-cr.yaml
 ```
