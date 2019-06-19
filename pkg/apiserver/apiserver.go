@@ -47,7 +47,7 @@ import (
 
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
-	validatingwebhook "kubevirt.io/containerized-data-importer/pkg/apiserver/webhooks/validating-webhook"
+	"kubevirt.io/containerized-data-importer/pkg/apiserver/webhooks"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
@@ -161,8 +161,6 @@ func NewCdiAPIServer(bindAddress string,
 		klog.V(3).Infof("contentLength: %d", resp.ContentLength())
 
 	})
-
-	validatingwebhook.SetClient(client)
 
 	err = app.createWebhook()
 	if err != nil {
@@ -540,6 +538,7 @@ func (app *cdiAPIApp) createAPIService() error {
 
 func (app *cdiAPIApp) createWebhook() error {
 	dvPathCreate := dvCreateValidatePath
+	failurePolicy := admissionregistrationv1beta1.Fail
 	namespace := util.GetNamespace()
 	registerWebhook := false
 	webhookRegistration, err := app.client.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Get(apiWebhookValidator, metav1.GetOptions{})
@@ -557,6 +556,7 @@ func (app *cdiAPIApp) createWebhook() error {
 			Rules: []admissionregistrationv1beta1.RuleWithOperations{{
 				Operations: []admissionregistrationv1beta1.OperationType{
 					admissionregistrationv1beta1.Create,
+					admissionregistrationv1beta1.Update,
 				},
 				Rule: admissionregistrationv1beta1.Rule{
 					APIGroups:   []string{cdicorev1alpha1.SchemeGroupVersion.Group},
@@ -572,6 +572,7 @@ func (app *cdiAPIApp) createWebhook() error {
 				},
 				CABundle: app.serverCACertBytes,
 			},
+			FailurePolicy: &failurePolicy,
 		},
 	}
 
@@ -601,10 +602,6 @@ func (app *cdiAPIApp) createWebhook() error {
 		}
 	}
 
-	app.container.ServeMux.HandleFunc(
-		dvCreateValidatePath, func(w http.ResponseWriter, r *http.Request) {
-			validatingwebhook.ServeDVs(w, r)
-		},
-	)
+	app.container.ServeMux.Handle(dvPathCreate, webhooks.NewDataVolumeValidationWebhook(app.client))
 	return nil
 }
