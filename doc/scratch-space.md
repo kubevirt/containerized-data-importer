@@ -9,6 +9,8 @@ CDI uses the following mechanism to determine which storage class to use:
 
 If none of those exist, then CDI will be unable to create scratch space. This means that none of the operations that require scratch space will work, however operations that do not require scratch space will continue to operate normally.
 
+**Important note:** CDI always requests scratch space with a `file` volume mode regardless of the volume mode of the related DataVolume.  Therefore, when using block mode DataVolumes you must ensure that a storage class capable of provisioning file mode PVCs is configured according to the instructions above. This limitation will be removed in a future release.
+
 Operations that require scratch space are:
 
 | Type | Reason|
