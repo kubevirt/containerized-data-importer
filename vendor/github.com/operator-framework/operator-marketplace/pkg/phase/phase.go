@@ -3,7 +3,7 @@ package phase
 import (
 	"errors"
 
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/shared"
 )
 
 // The following list is the set of phases a Marketplace object can be in while
@@ -13,10 +13,11 @@ const (
 	// attribute is empty.
 	Initial = ""
 
-	// In this phase, for OperatorSource objects we ensure that a corresponding
-	// CatalogSourceConfig object is created. For CatalogSourceConfig objects,
-	// we ensure that an Operator-Registry pod is created and is associated with a
-	// CatalogSource.
+	// In this phase, we connect to the specified registry, download available
+	// manifest metadata and save them to the underlying datastore. For OperatorSource
+	// objects we ensure that a corresponding CatalogSourceConfig object is created.
+	// For CatalogSourceConfig objects, we ensure that an Operator-Registry pod is
+	// created and is associated with a CatalogSource.
 	Configuring = "Configuring"
 
 	// This phase indicates that the object has been successfully reconciled.
@@ -30,10 +31,6 @@ const (
 const (
 	// In this phase we validate the OperatorSource object.
 	OperatorSourceValidating = "Validating"
-
-	// In this phase, we connect to the specified registry, download available
-	// manifest(s) and save them to the underlying datastore.
-	OperatorSourceDownloading = "Downloading"
 
 	// In this phase, the given OperatorSource object is purged. All resource(s)
 	// created as a result of reconciliation are removed in this phase.
@@ -49,12 +46,11 @@ const (
 var (
 	// Default descriptive message associated with each phase.
 	phaseMessages = map[string]string{
-		OperatorSourceValidating:  "Scheduled for validation",
-		OperatorSourceDownloading: "Scheduled for download of operator manifest(s)",
-		OperatorSourcePurging:     "Scheduled for purging",
-		Configuring:               "Scheduled for configuration",
-		Succeeded:                 "The object has been successfully reconciled",
-		Failed:                    "Reconciliation has failed",
+		OperatorSourceValidating: "Scheduled for validation",
+		OperatorSourcePurging:    "Scheduled for purging",
+		Configuring:              "Scheduled for configuration",
+		Succeeded:                "The object has been successfully reconciled",
+		Failed:                   "Reconciliation has failed",
 
 		// This message is set by Marketplace operator when an OperatorSource
 		// object has been purged and scheduled for reconciliation from the
@@ -73,11 +69,11 @@ func GetMessage(phaseName string) string {
 }
 
 // GetNext returns a Phase object with the given phase name and default message
-func GetNext(name string) *marketplace.Phase {
-	return marketplace.NewPhase(name, GetMessage(name))
+func GetNext(name string) *shared.Phase {
+	return shared.NewPhase(name, GetMessage(name))
 }
 
 // GetNextWithMessage returns a Phase object with the given phase name and default message
-func GetNextWithMessage(name string, message string) *marketplace.Phase {
-	return marketplace.NewPhase(name, message)
+func GetNextWithMessage(name string, message string) *shared.Phase {
+	return shared.NewPhase(name, message)
 }

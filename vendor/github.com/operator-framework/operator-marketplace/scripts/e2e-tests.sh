@@ -1,7 +1,12 @@
 #!/bin/bash
-set -e
+set -eu
 
-TEST_NAMESPACE="openshift-marketplace"
+ARG1=${1-}
+if [ "$ARG1" = "minikube" ]; then
+    TEST_NAMESPACE="marketplace"
+else
+    TEST_NAMESPACE="openshift-marketplace"
+fi
 
 # Run the tests through the operator-sdk
 echo "Running operator-sdk test"

@@ -31,9 +31,11 @@ If you want an `OperatorSource` to work with private app-registry repositories, 
 
 On adding an `OperatorSource` to an OKD cluster, operators will be visible in the [OperatorHub UI](https://github.com/openshift/console/tree/master/frontend/public/components/operator-hub) in the OKD console. There is no equivalent UI in the Kubernetes console.
 
+The creation of an `OperatorSource` results in the creation of an OLM `CatalogSource` in the same namespace the marketplace operator is running in. This `CatalogSource` will be populated with operators from the `OperatorSource` ready to be managed by OLM.
+
 #### CatalogSourceConfig
 
-`CatalogSourceConfig` is used to enable an operator present in the `OperatorSource` to your cluster. Behind the scenes, it will configure an OLM `CatalogSource` so that the operator can then be managed by OLM.
+`CatalogSourceConfig` is used to create OLM `CatalogSources` consisting of operators from one or more `OperatorSources` so that these operators can then be managed by OLM.
 
 Here is a description of the spec fields:
 
@@ -74,84 +76,41 @@ upstream-community-operators   federationv2,svcat,metering,etcd,prometheus,autom
 ```
 **_Note_**: Please do not install [upstream-community-operators] and [community-operators] `OperatorSources` on the same cluster. The rule of thumb is to install [community-operators] on OpenShift clusters and [upstream-community-operators] on upstream Kubernetes clusters.
 
-Now if you want to install the `descheduler` and `jaeger` operators, create a `CatalogSourceConfig` CR as shown below:
-```
-apiVersion: operators.coreos.com/v1
-kind: CatalogSourceConfig
-metadata:
-  name: installed-upstream-community-operators
-  namespace: marketplace
-spec:
-  targetNamespace: local-operators
-  packages: descheduler,jaeger
-  csDisplayName: "Upstream Community Operators"
-  csPublisher: "Red Hat"
-```
-Note, that in the example above, `local-operators` is a namespace that OLM is watching. Deployment of this CR will cause a `CatalogSource` called `installed-upstream-community-operators` to be created in the `local-operators` namespace. This can be confirmed by `oc get catalogsource installed-upstream-community-operators -n local-operators`. Note that you can reuse the same `CatalogSourceConfig` for adding more operators.
+Now if you want to install the `descheduler` and `jaeger` operators, create OLM [`Subscriptions`](https://github.com/operator-framework/operator-lifecycle-manager/tree/274df58592c2ffd1d8ea56156c73c7746f57efc0#discovery-catalogs-and-automated-upgrades) for `desheduler` and `jaeger` in the appropriate namespace. For upstream Kubernetes, this will be `marketplace` (i.e. the same namespace the `CatalogSource` created by the `OperatorSource` is in). This is because `marketplace` is not a global catalog namespace in upstream Kubernetes.
 
-Now you can create OLM [`Subscriptions`](https://github.com/operator-framework/operator-lifecycle-manager/tree/274df58592c2ffd1d8ea56156c73c7746f57efc0#discovery-catalogs-and-automated-upgrades) for `desheduler` and `jaeger`.
 ```
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
   name: jaeger
-  namespace: local-operators
+  namespace: marketplace
 spec:
   channel: alpha
   name: jaeger
-  source: installed-upstream-community-operators
-  sourceNamespace: local-operators
+  source: upstream-community-operators
+  sourceNamespace: marketplace
 ```
 
-For OLM to act on your subscription please note that an [`OperatorGroup`](https://github.com/operator-framework/operator-lifecycle-manager/blob/274df58592c2ffd1d8ea56156c73c7746f57efc0/Documentation/design/architecture.md#operator-group-design) that matches the [`InstallMode(s)`](https://github.com/operator-framework/operator-lifecycle-manager/blob/274df58592c2ffd1d8ea56156c73c7746f57efc0/Documentation/design/building-your-csv.md#operator-metadata) in your [`CSV`](https://github.com/operator-framework/operator-lifecycle-manager/blob/274df58592c2ffd1d8ea56156c73c7746f57efc0/Documentation/design/building-your-csv.md#what-is-a-cluster-service-version-csv) needs to be present in the subscription namespace.
+For OLM to act on your subscription please note that an [`OperatorGroup`](https://github.com/operator-framework/operator-lifecycle-manager/blob/274df58592c2ffd1d8ea56156c73c7746f57efc0/Documentation/design/architecture.md#operator-group-design) that matches the [`InstallMode(s)`](https://github.com/operator-framework/operator-lifecycle-manager/blob/274df58592c2ffd1d8ea56156c73c7746f57efc0/Documentation/design/building-your-csv.md#operator-metadata) in your [`CSV`](https://github.com/operator-framework/operator-lifecycle-manager/blob/274df58592c2ffd1d8ea56156c73c7746f57efc0/Documentation/design/building-your-csv.md#what-is-a-cluster-service-version-csv) needs to be present in the subscription namespace (which is `marketplace` in this example).
+
+For OKD, the `openshift-marketplace` namespace is the global catalog namespace, so a subscription to an operator from a `CatalogSource` in the `openshift-marketplace` namespace can be created in any namespace.
 
 #### Uninstalling an operator via the CLI
 
 After an operator has been installed, to uninstall the operator you need to delete the following resources. Below we uninstall the `jaeger` operator as an example.
 
-Delete the `Subscription` in the `targetNamespace` that the operator was installed into. If created via the OpenShift OperatorHub UI, it will be named after the operator's packageName.
+Delete the `Subscription` in the namespace that the operator was installed into. For upstream Kubernetes, this is the `marketplace` namespace. Keeping to the above example subscription `jaeger`, we can run the following command to delete it from the command line:
 
 ```bash
-$ kubectl delete subscription jaeger -n local-operators
+$ kubectl delete subscription jaeger -n marketplace
 ```
 
-Delete the `ClusterServiceVersion` in the `targetNamespace` that the operator was installed into. This will also delete the operator deployment, pod(s), rbac, and other resources that OLM created for the operator. This also deletes any corresponding CSVs that OLM "Copied" into other namespaces watched by the operator.
+For OKD, if the install was done via the OpenShift OperatorHub UI, the subscription will be named after the operator's packageName and will be located in the namespace you chose in the UI. By modifying the namespace in the above command it can be used to delete the appropriate subscription.
+
+Delete the `ClusterServiceVersion` in the namespace that the operator was installed into. This will also delete the operator deployment, pod(s), rbac, and other resources that OLM created for the operator. This also deletes any corresponding CSVs that OLM "Copied" into other namespaces watched by the operator.
 
 ```bash
-$ kubectl delete clusterserviceversion jaeger-operator.v1.8.2 -n local-operators
-```
-
-Edit the installation `CatalogSourceConfig` and modify the `spec.packages` field to remove the operator's packageName with the following command:
-
-```bash
-$ kubectl edit catalogsourceconfig installed-upstream-community-operators -n marketplace
-```
-
-This will open up your terminal's default editor. Look at the `spec` section of the `CatalogSourceConfig`:
-
-```bash
-spec:
-  targetNamespace: local-operators
-  packages: descheduler,jaeger
-  csDisplayName: "Upstream Community Operators"
-  csPublisher: "Red Hat"
-```
-
-Remove `jaeger` from `spec.packages`:
-
-```bash
-spec:
-  csDisplayName: Community Operators
-  csPublisher: Community
-  packages: descheduler
-```
-
-Save the change and the marketplace-operator will reconcile the `CatalogSourceConfig`.
-
-If only one operator is installed into the `CatalogSourceConfig`, delete the installation `CatalogSourceConfig`. If created via the OpenShift OperatorHub UI, it will be named `installed-<OPERATORSOURCE>-<TARGETNAMESPACE>` based on the `OperatorSource` that the operator comes from and the `targetNamespace` that the operator was installed to.
-
-```bash
-$ kubectl delete catalogsourceconfig installed-upstream-community-operators -n marketplace
+$ kubectl delete clusterserviceversion jaeger-operator.v1.8.2 -n marketplace
 ```
 
 ## Populating your own App Registry OperatorSource

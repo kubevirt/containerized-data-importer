@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/shared"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v2"
 	"github.com/operator-framework/operator-marketplace/pkg/datastore"
-	"github.com/operator-framework/operator-marketplace/pkg/operatorsource"
 	"github.com/operator-framework/operator-marketplace/pkg/phase"
 
 	log "github.com/sirupsen/logrus"
@@ -52,9 +52,9 @@ type triggerer struct {
 
 func (t *triggerer) Trigger(notification datastore.PackageUpdateNotification) error {
 	options := &client.ListOptions{}
-	options.SetLabelSelector(fmt.Sprintf("%s!=true", operatorsource.DatastoreLabel))
+	options.SetLabelSelector(fmt.Sprintf("%s!=true", datastore.DatastoreLabel))
 
-	cscs := &marketplace.CatalogSourceConfigList{}
+	cscs := &v2.CatalogSourceConfigList{}
 	if err := t.client.List(context.TODO(), options, cscs); err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (t *triggerer) Trigger(notification datastore.PackageUpdateNotification) er
 	return utilerrors.NewAggregate(allErrors)
 }
 
-func (t *triggerer) setPackages(instance *marketplace.CatalogSourceConfig, notification datastore.PackageUpdateNotification) (packages string, updateNeeded bool) {
+func (t *triggerer) setPackages(instance *v2.CatalogSourceConfig, notification datastore.PackageUpdateNotification) (packages string, updateNeeded bool) {
 	packageList := make([]string, 0)
 	for _, pkg := range instance.GetPackageIDs() {
 		// If this is a refresh notification, we need to access the datastore to determine
@@ -126,11 +126,11 @@ func (t *triggerer) setPackages(instance *marketplace.CatalogSourceConfig, notif
 	return
 }
 
-func (t *triggerer) update(instance *marketplace.CatalogSourceConfig, packages string) error {
+func (t *triggerer) update(instance *v2.CatalogSourceConfig, packages string) error {
 	out := instance.DeepCopy()
 
 	// We want to Set the phase to Initial to kick off reconciliation anew.
-	nextPhase := &marketplace.Phase{
+	nextPhase := &shared.Phase{
 		Name:    phase.Initial,
 		Message: "Package(s) have update(s), scheduling for reconciliation",
 	}

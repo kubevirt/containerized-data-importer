@@ -1,5 +1,5 @@
-hash: a69b992f3f92ce82c3a33dd7f3e855876b1b6a9d5c8f3e37e8331603eeea96bc
-updated: 2019-05-27T12:53:04.836844479Z
+hash: 0e72fc1b3276effcddfeddfcadb0245b25448a0a02997e38eb6be6f3296cb0f4
+updated: 2019-06-24T18:59:38.106669179Z
 imports:
 - name: github.com/appscode/jsonpatch
   version: 7c0e3b262f30165a8ec3d0b4c6059fd92703bfb2
@@ -18,11 +18,11 @@ imports:
   subpackages:
   - spdy
 - name: github.com/emicklei/go-restful
-  version: 26b41036311f2da8242db402557a0dbd09dc83da
+  version: 6ac3b8eb89d325e5c750d77f344a6870464d03c3
   subpackages:
   - log
 - name: github.com/emicklei/go-restful-openapi
-  version: b7062368c258c9e8f8cbe9dd2e6aebfa1b747be6
+  version: 3a2469535f7276c560a2a6dc90cdac077a914427
 - name: github.com/evanphx/json-patch
   version: 5858425f75500d40c52783dce87d085a483ce135
 - name: github.com/ghodss/yaml
@@ -223,8 +223,9 @@ imports:
   - appregistry/package_appr
   - models
 - name: github.com/operator-framework/operator-marketplace
-  version: 5b0afc4a17f23503bb89d1ffc80bd7f48eb2f6d6
+  version: 1cbd326243493ff9ec589a542fa335fdc84dc3e7
   subpackages:
+  - pkg/apis/operators/shared
   - pkg/apis/operators/v1
   - pkg/appregistry
   - pkg/datastore
@@ -341,7 +342,7 @@ imports:
   subpackages:
   - rate
 - name: google.golang.org/appengine
-  version: 311d3c5cf9373249645db030e53c37c209a8b378
+  version: b2f4a3cf3c67576a2ee09e1fe62656a5086ce880
   subpackages:
   - internal
   - internal/base

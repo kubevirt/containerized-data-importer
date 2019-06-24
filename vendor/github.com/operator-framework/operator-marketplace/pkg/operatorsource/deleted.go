@@ -3,17 +3,29 @@ package operatorsource
 import (
 	"context"
 
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/grpccatalog"
+
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/shared"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	wrapper "github.com/operator-framework/operator-marketplace/pkg/client"
 	"github.com/operator-framework/operator-marketplace/pkg/datastore"
 	"github.com/operator-framework/operator-marketplace/pkg/phase"
 	log "github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // NewDeletedReconciler returns a Reconciler that reconciles
 // an OperatorSource that has been marked for deletion.
 func NewDeletedReconciler(logger *log.Entry, datastore datastore.Writer, client client.Client) Reconciler {
+	return NewDeletedReconcilerWithClientInterface(logger, datastore, wrapper.NewClient(client))
+}
+
+// NewDeletedReconcilerWithClientInterface returns a Reconciler that reconciles
+// an OperatorSource that has been marked for deletion. It uses the Client
+// interface which is a wrapper to the raw client provided by the operator-sdk,
+// instead of the raw client itself. Using this interface facilitates mocking of
+// kube client interaction with the cluster, while using fakeclient during unit testing.
+func NewDeletedReconcilerWithClientInterface(logger *log.Entry, datastore datastore.Writer, client wrapper.Client) Reconciler {
 	return &deletedReconciler{
 		logger:    logger,
 		datastore: datastore,
@@ -26,7 +38,7 @@ func NewDeletedReconciler(logger *log.Entry, datastore datastore.Writer, client 
 type deletedReconciler struct {
 	logger    *log.Entry
 	datastore datastore.Writer
-	client    client.Client
+	client    wrapper.Client
 }
 
 // Reconcile reconciles an OperatorSource object that is marked for deletion.
@@ -44,14 +56,16 @@ type deletedReconciler struct {
 //
 // nextPhase represents the next desired phase for the given OperatorSource
 // object. If nil is returned, it implies that no phase transition is expected.
-func (r *deletedReconciler) Reconcile(ctx context.Context, in *marketplace.OperatorSource) (out *marketplace.OperatorSource, nextPhase *marketplace.Phase, err error) {
+func (r *deletedReconciler) Reconcile(ctx context.Context, in *v1.OperatorSource) (out *v1.OperatorSource, nextPhase *shared.Phase, err error) {
 	out = in
 
 	// Delete the operator source manifests.
 	r.datastore.RemoveOperatorSource(out.UID)
+	grpcCatalog := grpccatalog.New(r.logger, nil, r.client)
 
-	// Delete the owned CatalogSourceConfig
-	err = r.deleteCreatedResources(ctx, in.Name, in.Namespace)
+	// Delete the owned registry resources.
+	err = grpcCatalog.DeleteResources(ctx, in.Name, in.Namespace, in.Namespace)
+
 	if err != nil {
 		// Something went wrong before we removed the finalizer, let's retry.
 		nextPhase = phase.GetNextWithMessage(in.Status.CurrentPhase.Name, err.Error())
@@ -73,33 +87,6 @@ func (r *deletedReconciler) Reconcile(ctx context.Context, in *marketplace.Opera
 	}
 
 	r.logger.Info("Finalizer removed, now garbage collector will clean it up.")
-
-	return
-}
-
-// Delete all resources owned by the operator source
-func (r *deletedReconciler) deleteCreatedResources(ctx context.Context, name, namespace string) (err error) {
-	labelMap := map[string]string{
-		OpsrcOwnerNameLabel:      name,
-		OpsrcOwnerNamespaceLabel: namespace,
-	}
-	labelSelector := labels.SelectorFromSet(labelMap)
-	options := &client.ListOptions{LabelSelector: labelSelector}
-
-	// Delete Catalog Source Configs
-	catalogSourceConfigs := &marketplace.CatalogSourceConfigList{}
-	err = r.client.List(ctx, options, catalogSourceConfigs)
-	if err != nil {
-		return err
-	}
-
-	for _, catalogSourceConfig := range catalogSourceConfigs.Items {
-		r.logger.Infof("Removing catalogSourceConfig %s from namespace %s", catalogSourceConfig.Name, catalogSourceConfig.Namespace)
-		err = r.client.Delete(ctx, &catalogSourceConfig)
-		if err != nil {
-			return err
-		}
-	}
 
 	return
 }

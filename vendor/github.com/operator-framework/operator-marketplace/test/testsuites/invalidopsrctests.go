@@ -2,16 +2,14 @@ package testsuites
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
-	operator "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
 	"github.com/operator-framework/operator-marketplace/test/helpers"
 	"github.com/operator-framework/operator-sdk/pkg/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 const (
@@ -30,7 +28,7 @@ func InvalidOpSrc(t *testing.T) {
 }
 
 // Create OperatorSource with invalid endpoint
-// Expected result: OperatorSource stuck in downloading state
+// Expected result: OperatorSource stuck in configuring state
 func testOpSrcWithInvalidEndpoint(t *testing.T) {
 	opSrcName := "invalid-endpoint-opsrc"
 	// invalidEndpoint is the invalid endpoint for the OperatorSource
@@ -46,15 +44,15 @@ func testOpSrcWithInvalidEndpoint(t *testing.T) {
 	namespace, err := ctx.GetNamespace()
 	require.NoError(t, err, "Could not get namespace")
 
-	invalidURLOperatorSource := &operator.OperatorSource{
+	invalidURLOperatorSource := &v1.OperatorSource{
 		TypeMeta: metav1.TypeMeta{
-			Kind: operator.OperatorSourceKind,
+			Kind: v1.OperatorSourceKind,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      opSrcName,
 			Namespace: namespace,
 		},
-		Spec: operator.OperatorSourceSpec{
+		Spec: v1.OperatorSourceSpec{
 			Type:              endpointType,
 			Endpoint:          invalidEndpoint,
 			RegistryNamespace: marketplaceRegistryNamespace,
@@ -63,21 +61,14 @@ func testOpSrcWithInvalidEndpoint(t *testing.T) {
 	err = helpers.CreateRuntimeObject(client, ctx, invalidURLOperatorSource)
 	require.NoError(t, err, "Could not create OperatorSource")
 
-	// Check that OperatorSource is in "Downloading" state with appropriate message
-	resultOperatorSource := &operator.OperatorSource{}
-	expectedPhase := "Downloading"
-	err = wait.Poll(helpers.RetryInterval, helpers.Timeout, func() (bool, error) {
-		err = helpers.WaitForResult(client, resultOperatorSource, namespace, opSrcName)
-		if err != nil {
-			return false, err
-		}
-		if resultOperatorSource.Status.CurrentPhase.Name == expectedPhase &&
-			strings.Contains(resultOperatorSource.Status.CurrentPhase.Message, "no such host") {
-			return true, nil
-		}
-		return false, nil
-	})
+	// Check that OperatorSource is in "Configuring" state with appropriate message
+	expectedPhase := "Configuring"
+	err = helpers.WaitForOpSrcExpectedPhaseAndMessage(client, opSrcName, namespace, expectedPhase, "no such host")
 	assert.NoError(t, err, fmt.Sprintf("OperatorSource never reached expected phase/message, expected %v", expectedPhase))
+
+	// Delete the OperatorSource
+	err = helpers.DeleteRuntimeObject(client, invalidURLOperatorSource)
+	require.NoError(t, err, "Could not delete OperatorSource")
 }
 
 // Create OperatorSource with invalid URL
@@ -97,15 +88,15 @@ func testOpSrcWithInvalidURL(t *testing.T) {
 	namespace, err := ctx.GetNamespace()
 	require.NoError(t, err, "Could not get namespace")
 
-	invalidURLOperatorSource := &operator.OperatorSource{
+	invalidURLOperatorSource := &v1.OperatorSource{
 		TypeMeta: metav1.TypeMeta{
-			Kind: operator.OperatorSourceKind,
+			Kind: v1.OperatorSourceKind,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      opSrcName,
 			Namespace: namespace,
 		},
-		Spec: operator.OperatorSourceSpec{
+		Spec: v1.OperatorSourceSpec{
 			Type:              endpointType,
 			Endpoint:          invalidURL,
 			RegistryNamespace: marketplaceRegistryNamespace,
@@ -115,20 +106,13 @@ func testOpSrcWithInvalidURL(t *testing.T) {
 	require.NoError(t, err, "Could not create OperatorSource")
 
 	// Check that OperatorSource reaches "Failed" state eventually
-	resultOperatorSource := &operator.OperatorSource{}
 	expectedPhase := "Failed"
-	err = wait.Poll(helpers.RetryInterval, helpers.Timeout, func() (bool, error) {
-		err = helpers.WaitForResult(client, resultOperatorSource, namespace, opSrcName)
-		if err != nil {
-			return false, err
-		}
-		if resultOperatorSource.Status.CurrentPhase.Name == expectedPhase &&
-			strings.Contains(resultOperatorSource.Status.CurrentPhase.Message, "Invalid operator source endpoint") {
-			return true, nil
-		}
-		return false, nil
-	})
+	err = helpers.WaitForOpSrcExpectedPhaseAndMessage(client, opSrcName, namespace, expectedPhase, "Invalid OperatorSource endpoint")
 	assert.NoError(t, err, fmt.Sprintf("OperatorSource never reached expected phase/message, expected %v", expectedPhase))
+
+	// Delete the OperatorSource
+	err = helpers.DeleteRuntimeObject(client, invalidURLOperatorSource)
+	require.NoError(t, err, "Could not delete OperatorSource")
 }
 
 // Create OperatorSource with valid URL but non-existent registry namespace
@@ -151,15 +135,15 @@ func testOpSrcWithNonexistentRegistryNamespace(t *testing.T) {
 	// Get test namespace
 	namespace, err := ctx.GetNamespace()
 	require.NoError(t, err, "Could not get namespace")
-	nonexistentRegistryNamespaceOperatorSource := &operator.OperatorSource{
+	nonexistentRegistryNamespaceOperatorSource := &v1.OperatorSource{
 		TypeMeta: metav1.TypeMeta{
-			Kind: operator.OperatorSourceKind,
+			Kind: v1.OperatorSourceKind,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      opSrcName,
 			Namespace: namespace,
 		},
-		Spec: operator.OperatorSourceSpec{
+		Spec: v1.OperatorSourceSpec{
 			Type:              endpointType,
 			Endpoint:          validURL,
 			RegistryNamespace: nonexistentRegistryNamespace,
@@ -169,18 +153,11 @@ func testOpSrcWithNonexistentRegistryNamespace(t *testing.T) {
 	require.NoError(t, err, "Could not create OperatorSource")
 
 	// Check that OperatorSource reaches "Failed" state eventually
-	resultOperatorSource := &operator.OperatorSource{}
 	expectedPhase := "Failed"
-	err = wait.Poll(helpers.RetryInterval, helpers.Timeout, func() (bool, error) {
-		err = helpers.WaitForResult(client, resultOperatorSource, namespace, opSrcName)
-		if err != nil {
-			return false, err
-		}
-		if resultOperatorSource.Status.CurrentPhase.Name == expectedPhase &&
-			strings.Contains(resultOperatorSource.Status.CurrentPhase.Message, "The operator source endpoint returned an empty manifest list") {
-			return true, nil
-		}
-		return false, nil
-	})
+	err = helpers.WaitForOpSrcExpectedPhaseAndMessage(client, opSrcName, namespace, expectedPhase, "The OperatorSource endpoint returned an empty manifest list")
 	assert.NoError(t, err, fmt.Sprintf("OperatorSource never reached expected phase/message, expected %v", expectedPhase))
+
+	// Delete the OperatorSource
+	err = helpers.DeleteRuntimeObject(client, nonexistentRegistryNamespaceOperatorSource)
+	require.NoError(t, err, "Could not delete OperatorSource")
 }

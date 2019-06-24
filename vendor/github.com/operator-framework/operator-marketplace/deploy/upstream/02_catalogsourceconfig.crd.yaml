@@ -15,7 +15,14 @@ spec:
     shortNames:
     - csc
   scope: Namespaced
-  version: v1
+  version: v2
+  versions:
+  - name: v2
+    served: true
+    storage: true
+  - name: v1
+    served: true
+    storage: false
   additionalPrinterColumns:
   - name: Status
     type: string

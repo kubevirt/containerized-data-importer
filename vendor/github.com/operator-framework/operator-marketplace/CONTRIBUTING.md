@@ -13,7 +13,7 @@ $ oc apply -f deploy/examples/cvo.override.yaml
 ``` 
 - Delete the marketplace-operator deployment
 ```
-$ oc delete deployment openshift-marketplace -n marketplace-operator
+$ oc delete deployment marketplace-operator -n openshift-marketplace
 ```
 - Install [Operator-SDK](https://github.com/operator-framework/operator-sdk).
 - Compile the marketplace-operator and start the operator in your dev environment

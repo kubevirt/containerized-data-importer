@@ -14,3 +14,23 @@ export KUBECONFIG=mycluster.conf
 export IMAGE_PULL_POLICY=Always
 make cluster-up
 ```
+
+## Building and pushing to the registry
+
+```bash
+make cluster-build
+```
+
+## Installing Kubevirt artifacts on the cluster
+
+```bash
+make cluster-deploy
+```
+
+## Or do the build and deploy in one step
+
+```bash
+make cluster-sync
+```
+```
+

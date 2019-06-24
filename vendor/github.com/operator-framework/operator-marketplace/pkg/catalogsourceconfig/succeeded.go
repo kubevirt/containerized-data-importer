@@ -3,7 +3,8 @@ package catalogsourceconfig
 import (
 	"context"
 
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/shared"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v2"
 	"github.com/operator-framework/operator-marketplace/pkg/phase"
 	"github.com/sirupsen/logrus"
 )
@@ -28,7 +29,7 @@ type succeededReconciler struct {
 //
 // Given that nil is returned here, it implies that no phase transition is
 // expected.
-func (r *succeededReconciler) Reconcile(ctx context.Context, in *marketplace.CatalogSourceConfig) (out *marketplace.CatalogSourceConfig, nextPhase *marketplace.Phase, err error) {
+func (r *succeededReconciler) Reconcile(ctx context.Context, in *v2.CatalogSourceConfig) (out *v2.CatalogSourceConfig, nextPhase *shared.Phase, err error) {
 	if in.Status.CurrentPhase.Name != phase.Succeeded {
 		err = phase.ErrWrongReconcilerInvoked
 		return

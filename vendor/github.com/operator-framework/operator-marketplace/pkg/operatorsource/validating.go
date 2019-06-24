@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"net/url"
 
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/shared"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
 	"github.com/operator-framework/operator-marketplace/pkg/datastore"
 	"github.com/operator-framework/operator-marketplace/pkg/phase"
 	log "github.com/sirupsen/logrus"
@@ -40,9 +41,9 @@ type validatingReconciler struct {
 // nextPhase represents the next desired phase for the given OperatorSource
 // object. If nil is returned, it implies that no phase transition is expected.
 //
-// On success, it returns "Downloading" as the next phase.
+// On success, it returns "Configuring" as the next phase.
 // On error, it returns "Failed" as the next phase.
-func (r *validatingReconciler) Reconcile(ctx context.Context, in *marketplace.OperatorSource) (out *marketplace.OperatorSource, nextPhase *marketplace.Phase, err error) {
+func (r *validatingReconciler) Reconcile(ctx context.Context, in *v1.OperatorSource) (out *v1.OperatorSource, nextPhase *shared.Phase, err error) {
 	if in.GetCurrentPhaseName() != phase.OperatorSourceValidating {
 		err = phase.ErrWrongReconcilerInvoked
 		return
@@ -56,12 +57,12 @@ func (r *validatingReconciler) Reconcile(ctx context.Context, in *marketplace.Op
 	if err != nil {
 		// This needs manual intervention. So flag it as 'Failed'.
 		nextPhase = phase.GetNextWithMessage(phase.Failed,
-			fmt.Sprintf("Invalid operator source endpoint - %s", err.Error()))
+			fmt.Sprintf("Invalid OperatorSource endpoint - %s", err.Error()))
 		return
 	}
 
-	r.logger.Info("Scheduling for download")
+	r.logger.Info("Scheduling for configuration")
 
-	nextPhase = phase.GetNext(phase.OperatorSourceDownloading)
+	nextPhase = phase.GetNext(phase.Configuring)
 	return
 }

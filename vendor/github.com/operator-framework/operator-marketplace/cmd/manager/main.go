@@ -13,6 +13,7 @@ import (
 	"github.com/operator-framework/operator-marketplace/pkg/catalogsourceconfig"
 	"github.com/operator-framework/operator-marketplace/pkg/controller"
 	"github.com/operator-framework/operator-marketplace/pkg/operatorsource"
+	"github.com/operator-framework/operator-marketplace/pkg/registry"
 	"github.com/operator-framework/operator-marketplace/pkg/status"
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
@@ -41,8 +42,8 @@ func main() {
 	printVersion()
 
 	// Parse the command line arguments for the registry server image
-	flag.StringVar(&catalogsourceconfig.RegistryServerImage, "registryServerImage",
-		catalogsourceconfig.DefaultRegistryServerImage, "the image to use for creating the operator registry pod")
+	flag.StringVar(&registry.ServerImage, "registryServerImage",
+		registry.DefaultServerImage, "the image to use for creating the operator registry pod")
 	flag.Parse()
 
 	namespace, err := k8sutil.GetWatchNamespace()

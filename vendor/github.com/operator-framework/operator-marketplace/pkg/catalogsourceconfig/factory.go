@@ -5,7 +5,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v2"
 	"github.com/operator-framework/operator-marketplace/pkg/datastore"
 
 	"github.com/operator-framework/operator-marketplace/pkg/phase"
@@ -27,7 +27,7 @@ import (
 //
 //  On error, the object is transitioned into "Failed" phase.
 type PhaseReconcilerFactory interface {
-	GetPhaseReconciler(log *logrus.Entry, csc *marketplace.CatalogSourceConfig) (Reconciler, error)
+	GetPhaseReconciler(log *logrus.Entry, csc *v2.CatalogSourceConfig) (Reconciler, error)
 }
 
 // phaseReconcilerFactory implements PhaseReconcilerFactory interface.
@@ -37,7 +37,7 @@ type phaseReconcilerFactory struct {
 	cache  Cache
 }
 
-func (f *phaseReconcilerFactory) GetPhaseReconciler(log *logrus.Entry, csc *marketplace.CatalogSourceConfig) (Reconciler, error) {
+func (f *phaseReconcilerFactory) GetPhaseReconciler(log *logrus.Entry, csc *v2.CatalogSourceConfig) (Reconciler, error) {
 	// If the object has a deletion timestamp, it means it has been marked for
 	// deletion. Return a deleted reconciler to remove that csc data from
 	// the cache, and remove the finalizer so the garbage collector can

@@ -3,7 +3,8 @@ package operatorsource
 import (
 	"context"
 
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/shared"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
 )
 
 // Reconciler is the interface that wraps the Reconcile method.
@@ -32,5 +33,5 @@ import (
 // Reconcile operation is expected to be idempotent so that in the event of
 // multiple invocations there would be no adverse or side effect.
 type Reconciler interface {
-	Reconcile(ctx context.Context, in *marketplace.OperatorSource) (out *marketplace.OperatorSource, nextPhase *marketplace.Phase, err error)
+	Reconcile(ctx context.Context, in *v1.OperatorSource) (out *v1.OperatorSource, nextPhase *shared.Phase, err error)
 }

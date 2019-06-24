@@ -6,7 +6,8 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/shared"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
 	"github.com/operator-framework/operator-marketplace/pkg/datastore"
 	mocks "github.com/operator-framework/operator-marketplace/pkg/mocks/operatorsource_mocks"
 	"github.com/operator-framework/operator-marketplace/pkg/operatorsource"
@@ -47,7 +48,7 @@ func TestHandle_PhaseHasChanged_UpdateExpected(t *testing.T) {
 	cacheReconciler.EXPECT().Reconcile(ctx, opsrcIn).Return(opsrcOut, nil, nil)
 
 	// We expect the phase reconciler to successfully reconcile the object inside event.
-	nextPhaseExpected := &marketplace.Phase{
+	nextPhaseExpected := &shared.Phase{
 		Name:    "validating",
 		Message: "validation is in progress",
 	}
@@ -62,7 +63,7 @@ func TestHandle_PhaseHasChanged_UpdateExpected(t *testing.T) {
 
 	// We expect the object to be updated successfully.
 	namespacedName := types.NamespacedName{Name: "foo", Namespace: "marketplace"}
-	opsrcGot := &marketplace.OperatorSource{}
+	opsrcGot := &v1.OperatorSource{}
 
 	fakeclient.Get(ctx, namespacedName, opsrcGot)
 	assert.Equal(t, opsrcOut, opsrcGot)
@@ -111,7 +112,7 @@ func TestHandle_PhaseHasNotChanged_NoUpdateExpected(t *testing.T) {
 
 	// We expect no changes to the object
 	namespacedName := types.NamespacedName{Name: "foo", Namespace: "namespace"}
-	opsrcGot := &marketplace.OperatorSource{}
+	opsrcGot := &v1.OperatorSource{}
 
 	fakeclient.Get(ctx, namespacedName, opsrcGot)
 	assert.Equal(t, opsrcIn, opsrcGot)
@@ -148,7 +149,7 @@ func TestHandle_UpdateError_ReconciliationErrorReturned(t *testing.T) {
 
 	// We expect the phase reconciler to throw an error.
 	reconcileErrorExpected := errors.New("reconciliation error")
-	nextPhaseExpected := &marketplace.Phase{
+	nextPhaseExpected := &shared.Phase{
 		Name:    "Failed",
 		Message: "Reconciliation has failed",
 	}

@@ -3,7 +3,8 @@ package operatorsource
 import (
 	"context"
 
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/shared"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
 	"github.com/operator-framework/operator-marketplace/pkg/appregistry"
 	"github.com/operator-framework/operator-marketplace/pkg/datastore"
 	"github.com/operator-framework/operator-marketplace/pkg/phase"
@@ -45,7 +46,7 @@ func NewHandler(mgr manager.Manager, client client.Client) Handler {
 // ctx represents the parent context.
 // event encapsulates the event fired by operator sdk.
 type Handler interface {
-	Handle(ctx context.Context, operatorSource *marketplace.OperatorSource) error
+	Handle(ctx context.Context, operatorSource *v1.OperatorSource) error
 }
 
 // operatorsourcehandler implements the Handler interface
@@ -59,7 +60,7 @@ type operatorsourcehandler struct {
 	newCacheReconciler NewOutOfSyncCacheReconcilerFunc
 }
 
-func (h *operatorsourcehandler) Handle(ctx context.Context, in *marketplace.OperatorSource) error {
+func (h *operatorsourcehandler) Handle(ctx context.Context, in *v1.OperatorSource) error {
 	logger := log.WithFields(log.Fields{
 		"type":      in.TypeMeta.Kind,
 		"namespace": in.GetNamespace(),
@@ -95,7 +96,7 @@ func (h *operatorsourcehandler) Handle(ctx context.Context, in *marketplace.Oper
 	return h.transition(ctx, logger, out, status, err)
 }
 
-func (h *operatorsourcehandler) transition(ctx context.Context, logger *log.Entry, opsrc *marketplace.OperatorSource, nextPhase *marketplace.Phase, reconciliationErr error) error {
+func (h *operatorsourcehandler) transition(ctx context.Context, logger *log.Entry, opsrc *v1.OperatorSource, nextPhase *shared.Phase, reconciliationErr error) error {
 	// If reconciliation threw an error, we can't quit just yet. We need to
 	// figure out whether the OperatorSource object needs to be updated.
 
