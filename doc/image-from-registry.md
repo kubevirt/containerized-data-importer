@@ -95,7 +95,7 @@ spec:
 
 If your registry TLS certificate is not signed by a trusted CA:
 
-Create a `ConfigMap` containing all certificates required to trust the registry.
+Create a `ConfigMap`  in the same namespace as the DataVolume containing all certificates required to trust the registry.
 
 ```bash
 kubectl create configmap my-registry-certs --from-file=my-registry.crt
@@ -103,7 +103,7 @@ kubectl create configmap my-registry-certs --from-file=my-registry.crt
 
 The `ConfigMap` may contain multiple entries if necessary.  Key name is irrelevant.
 
-Add `CertConfigMap` to `DataVolume` spec.
+Add `certConfigMap` to `DataVolume` spec.
 
 ```yaml
 apiVersion: cdi.kubevirt.io/v1alpha1
