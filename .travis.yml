@@ -24,9 +24,9 @@ notifications:
 
 install:
   - make generate-verify
-  - make docker
   - make manifests
   - make olm-verify
+  - make docker
   - make apidocs
 
 before_script:
