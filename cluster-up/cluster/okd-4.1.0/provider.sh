@@ -16,6 +16,10 @@ function up() {
         params=" --nfs-data $RHEL_NFS_DIR ${params}"
     fi
 
+    if [[ ! -z "${OKD_CONSOLE_PORT}" ]]; then
+        params=" --ocp-console-port $OKD_CONSOLE_PORT ${params}"
+    fi
+
     ${_cli} run okd ${params}
 
     # Copy k8s config and kubectl
