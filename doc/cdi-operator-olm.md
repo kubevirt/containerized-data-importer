@@ -1,4 +1,4 @@
-# OLM (Operator Lifecycle Management) CDI (Containerized Data Importer) intergartion
+# OLM (Operator Lifecycle Management) CDI (Containerized Data Importer) integration
 
 ## Table of Contents 
 * [OLM Overview](#overview)

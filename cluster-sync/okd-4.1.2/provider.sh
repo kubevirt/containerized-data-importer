@@ -48,14 +48,3 @@ function configure_local_storage() {
   fi
 }
 
-
-function install_cdi {
-  #Install CDI via OLM
-  _kubectl create ns $NAMESPACE
-  _kubectl apply -f _out/manifests/release/olm/operatorgroup.yaml
-  _kubectl apply -f _out/manifests/release/olm/k8s/cdi-catalogsource-registry.yaml
-  _kubectl apply -f _out/manifests/release/olm/k8s/cdi-subscription.yaml
-}
-
-
-
