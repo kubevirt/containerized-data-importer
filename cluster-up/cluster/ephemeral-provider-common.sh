@@ -2,6 +2,7 @@
 
 set -e
 
+KUBEVIRT_PROVIDER_EXTRA_ARGS="${KUBEVIRT_PROVIDER_EXTRA_ARGS} --enable-ceph"
 _cli_container="kubevirtci/gocli@sha256:caf1c3f63dc5f3137795084e492a48c802a7ef2e7f7fbe1d67e5cff684d376a3"
 _cli_with_tty="docker run --privileged --net=host --rm -t -v /var/run/docker.sock:/var/run/docker.sock ${_cli_container}"
 _cli="docker run --privileged --net=host --rm ${USE_TTY} -v /var/run/docker.sock:/var/run/docker.sock ${_cli_container}"
@@ -24,6 +25,10 @@ gocli=${BASE_PATH}/../cluster-up/cli.sh
 docker_prefix=localhost:$(_port registry)/kubevirt
 manifest_docker_prefix=registry:5000/kubevirt
 EOF
+
+_kubectl patch storageclass local -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+_kubectl patch storageclass csi-rbd -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
 }
 
 function _registry_volume() {
