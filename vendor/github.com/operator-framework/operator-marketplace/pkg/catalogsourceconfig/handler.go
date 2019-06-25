@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v2"
 	"github.com/sirupsen/logrus"
 )
 
@@ -29,7 +29,7 @@ func NewHandler(mgr manager.Manager, client client.Client) Handler {
 
 // Handler is the interface that wraps the Handle method
 type Handler interface {
-	Handle(ctx context.Context, catalogSourceConfig *marketplace.CatalogSourceConfig) error
+	Handle(ctx context.Context, catalogSourceConfig *v2.CatalogSourceConfig) error
 }
 
 type catalogsourceconfighandler struct {
@@ -45,7 +45,7 @@ type catalogsourceconfighandler struct {
 }
 
 // Handle handles a new event associated with the CatalogSourceConfig type.
-func (h *catalogsourceconfighandler) Handle(ctx context.Context, in *marketplace.CatalogSourceConfig) error {
+func (h *catalogsourceconfighandler) Handle(ctx context.Context, in *v2.CatalogSourceConfig) error {
 
 	log := getLoggerWithCatalogSourceConfigTypeFields(in)
 	reconciler, err := h.factory.GetPhaseReconciler(log, in)
@@ -88,7 +88,7 @@ func (h *catalogsourceconfighandler) Handle(ctx context.Context, in *marketplace
 
 // getLoggerWithCatalogSourceConfigTypeFields returns a logger entry that can be
 // used for consistent logging.
-func getLoggerWithCatalogSourceConfigTypeFields(csc *marketplace.CatalogSourceConfig) *logrus.Entry {
+func getLoggerWithCatalogSourceConfigTypeFields(csc *v2.CatalogSourceConfig) *logrus.Entry {
 	return logrus.WithFields(logrus.Fields{
 		"type":            csc.TypeMeta.Kind,
 		"targetNamespace": csc.Spec.TargetNamespace,

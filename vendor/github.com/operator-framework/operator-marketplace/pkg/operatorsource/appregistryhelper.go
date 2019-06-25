@@ -3,8 +3,9 @@ package operatorsource
 import (
 	"context"
 
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
 	"github.com/operator-framework/operator-marketplace/pkg/appregistry"
+	interface_client "github.com/operator-framework/operator-marketplace/pkg/client"
 
 	corev1 "k8s.io/api/core/v1"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -13,7 +14,7 @@ import (
 // SetupAppRegistryOptions generates an Options object based on the OperatorSource spec. It passes along
 // the opsrc endpoint and, if defined, retrieves the authorization token from the specified Secret
 // object.
-func SetupAppRegistryOptions(client k8sclient.Client, spec *marketplace.OperatorSourceSpec, namespace string) (appregistry.Options, error) {
+func SetupAppRegistryOptions(client interface_client.Client, spec *v1.OperatorSourceSpec, namespace string) (appregistry.Options, error) {
 	options := appregistry.Options{
 		Source: spec.Endpoint,
 	}

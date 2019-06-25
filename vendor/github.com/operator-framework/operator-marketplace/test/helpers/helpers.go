@@ -2,10 +2,12 @@ package helpers
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	olm "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v2"
 	"github.com/operator-framework/operator-sdk/pkg/test"
 	apps "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -83,7 +85,7 @@ func WaitForSuccessfulDeployment(client test.FrameworkClient, deployment apps.De
 // If expectedMessage is an empty string, only the expectedPhase is checked.
 func WaitForExpectedPhaseAndMessage(client test.FrameworkClient, cscName string, namespace string, expectedPhase, expectedMessage string) error {
 	// Check that the CatalogSourceConfig exists.
-	resultCatalogSourceConfig := &marketplace.CatalogSourceConfig{}
+	resultCatalogSourceConfig := &v2.CatalogSourceConfig{}
 	return wait.PollImmediate(RetryInterval, Timeout, func() (bool, error) {
 		err := WaitForResult(client, resultCatalogSourceConfig, namespace, cscName)
 		if err != nil {
@@ -99,6 +101,27 @@ func WaitForExpectedPhaseAndMessage(client test.FrameworkClient, cscName string,
 		}
 		return false, nil
 	})
+}
+
+// WaitForOpSrcExpectedPhaseAndMessage checks if a OperatorSource with the given name exists in the namespace
+// and makes sure that the phase and message matches the expected values.
+func WaitForOpSrcExpectedPhaseAndMessage(client test.FrameworkClient, opSrcName string, namespace string, expectedPhase string, expectedMessage string) error {
+	resultOperatorSource := &v1.OperatorSource{}
+	err := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
+		err := WaitForResult(client, resultOperatorSource, namespace, opSrcName)
+		if err != nil {
+			return false, err
+		}
+		if resultOperatorSource.Status.CurrentPhase.Name == expectedPhase &&
+			strings.Contains(resultOperatorSource.Status.CurrentPhase.Message, expectedMessage) {
+			return true, nil
+		}
+		return false, nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // WaitForNotFound polls the cluster for a particular resource name and namespace
@@ -156,25 +179,26 @@ func DeleteRuntimeObject(client test.FrameworkClient, obj runtime.Object) error 
 
 // CreateOperatorSourceDefinition returns an OperatorSource definition that can be turned into
 // a runtime object for tests that rely on an OperatorSource
-func CreateOperatorSourceDefinition(namespace string) *marketplace.OperatorSource {
-	return &marketplace.OperatorSource{
+func CreateOperatorSourceDefinition(name string, namespace string) *v1.OperatorSource {
+	return &v1.OperatorSource{
 		TypeMeta: metav1.TypeMeta{
-			Kind: marketplace.OperatorSourceKind,
+			Kind: v1.OperatorSourceKind,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      TestOperatorSourceName,
+			Name:      name,
 			Namespace: namespace,
 			Labels: map[string]string{
 				TestOperatorSourceLabelKey: TestOperatorSourceLabelValue,
 			},
 		},
-		Spec: marketplace.OperatorSourceSpec{
+		Spec: v1.OperatorSourceSpec{
 			Type:              "appregistry",
 			Endpoint:          "https://quay.io/cnr",
 			RegistryNamespace: "marketplace_e2e",
 		},
 	}
 }
+
 // CheckCscChildResourcesCreated checks that a CatalogSourceConfig's
 // child resources were deployed.
 func CheckCscChildResourcesCreated(client test.FrameworkClient, cscName string, namespace string, targetNamespace string) error {
@@ -237,7 +261,7 @@ func CheckCscChildResourcesDeleted(client test.FrameworkClient, cscName string, 
 // and it's child resources were deployed.
 func CheckCscSuccessfulCreation(client test.FrameworkClient, cscName string, namespace string, targetNamespace string) error {
 	// Check that the CatalogSourceConfig was created.
-	resultCatalogSourceConfig := &marketplace.CatalogSourceConfig{}
+	resultCatalogSourceConfig := &v2.CatalogSourceConfig{}
 	err := WaitForResult(client, resultCatalogSourceConfig, namespace, cscName)
 	if err != nil {
 		return err
@@ -256,7 +280,7 @@ func CheckCscSuccessfulCreation(client test.FrameworkClient, cscName string, nam
 // and it's child resources were deleted.
 func CheckCscSuccessfulDeletion(client test.FrameworkClient, cscName string, namespace string, targetNamespace string) error {
 	// Check that the CatalogSourceConfig was deleted.
-	resultCatalogSourceConfig := &marketplace.CatalogSourceConfig{}
+	resultCatalogSourceConfig := &v2.CatalogSourceConfig{}
 	err := WaitForNotFound(client, resultCatalogSourceConfig, namespace, cscName)
 	if err != nil {
 		return err
@@ -268,5 +292,63 @@ func CheckCscSuccessfulDeletion(client test.FrameworkClient, cscName string, nam
 		return err
 	}
 
+	return nil
+}
+
+// CheckOpsrcChildResourcesCreated checks that a OperatorSource's
+// child resources were deployed.
+func CheckOpsrcChildResourcesCreated(client test.FrameworkClient, opsrcName string, namespace string) error {
+	// Check that the CatalogSource was created.
+	resultCatalogSource := &olm.CatalogSource{}
+	err := WaitForResult(client, resultCatalogSource, namespace, opsrcName)
+	if err != nil {
+		return err
+	}
+
+	// Check that the Service was created.
+	resultService := &corev1.Service{}
+	err = WaitForResult(client, resultService, namespace, opsrcName)
+	if err != nil {
+		return err
+	}
+
+	// Check that the Deployment was created.
+	resultDeployment := &apps.Deployment{}
+	err = WaitForResult(client, resultDeployment, namespace, opsrcName)
+	if err != nil {
+		return err
+	}
+
+	// Now check that the Deployment is ready.
+	err = WaitForSuccessfulDeployment(client, *resultDeployment)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// CheckOpsrcChildResourcesDeleted checks that an OperatorSource's
+// child resources were deleted.
+func CheckOpsrcChildResourcesDeleted(client test.FrameworkClient, opsrcName string, namespace string) error {
+	// Check that the CatalogSource was deleted.
+	resultCatalogSource := &olm.CatalogSource{}
+	err := WaitForNotFound(client, resultCatalogSource, namespace, opsrcName)
+	if err != nil {
+		return err
+	}
+
+	// Check that the Service was deleted.
+	resultService := &corev1.Service{}
+	err = WaitForNotFound(client, resultService, namespace, opsrcName)
+	if err != nil {
+		return err
+	}
+
+	// Check that the Deployment was deleted.
+	resultDeployment := &apps.Deployment{}
+	err = WaitForNotFound(client, resultDeployment, namespace, opsrcName)
+	if err != nil {
+		return err
+	}
 	return nil
 }

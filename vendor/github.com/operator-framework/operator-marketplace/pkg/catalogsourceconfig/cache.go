@@ -3,7 +3,7 @@ package catalogsourceconfig
 import (
 	"sort"
 
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v2"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -18,7 +18,7 @@ import (
 // app-registry repositories being added or removed but with existing
 // repositories being updated.
 type cache struct {
-	entries map[types.UID]*marketplace.CatalogSourceConfigSpec
+	entries map[types.UID]*v2.CatalogSourceConfigSpec
 }
 
 // Cache is the interface for the CatalogSourceConfig caching functions.
@@ -26,32 +26,32 @@ type Cache interface {
 	// Get returns the cached CatalogSourceConfigSpec of the CatalogSourceConfig
 	// object if it is present in the cache. The bool value indicates if the
 	// Spec for the object was in the cache or not.
-	Get(csc *marketplace.CatalogSourceConfig) (*marketplace.CatalogSourceConfigSpec, bool)
+	Get(csc *v2.CatalogSourceConfig) (*v2.CatalogSourceConfigSpec, bool)
 
 	// IsEntryStale figures out if the CatalogSourceConfigSpec in the
 	// CatalogSourceConfig object matches its entry in the cache. Cache is
 	// considered stale if it does not match. pkgStale is true then the Packages
 	// have changed. If targetStale is true then the TargetNamespace has
 	// changed. This implies that pkgStale is also true.
-	IsEntryStale(csc *marketplace.CatalogSourceConfig) (pkgStale bool, targetStale bool)
+	IsEntryStale(csc *v2.CatalogSourceConfig) (pkgStale bool, targetStale bool)
 
 	// Evict removes the entry for the CatalogSourceConfig object from the cache.
-	Evict(csc *marketplace.CatalogSourceConfig)
+	Evict(csc *v2.CatalogSourceConfig)
 
 	// Set adds the CatalogSourceConfigSpec for the CatalogSourceConfig object
 	// into the cache.
-	Set(csc *marketplace.CatalogSourceConfig)
+	Set(csc *v2.CatalogSourceConfig)
 }
 
-func (c *cache) Get(csc *marketplace.CatalogSourceConfig) (*marketplace.CatalogSourceConfigSpec, bool) {
+func (c *cache) Get(csc *v2.CatalogSourceConfig) (*v2.CatalogSourceConfigSpec, bool) {
 	entry, found := c.entries[csc.ObjectMeta.UID]
 	if !found {
-		return &marketplace.CatalogSourceConfigSpec{}, false
+		return &v2.CatalogSourceConfigSpec{}, false
 	}
 	return entry, true
 }
 
-func (c *cache) IsEntryStale(csc *marketplace.CatalogSourceConfig) (bool, bool) {
+func (c *cache) IsEntryStale(csc *v2.CatalogSourceConfig) (bool, bool) {
 	spec, found := c.Get(csc)
 	// Found is false if the CSC wasn't found in the cache. So it must be stale.
 	if !found {
@@ -79,7 +79,7 @@ func (c *cache) IsEntryStale(csc *marketplace.CatalogSourceConfig) (bool, bool) 
 	return false, false
 }
 
-func (c *cache) Evict(csc *marketplace.CatalogSourceConfig) {
+func (c *cache) Evict(csc *v2.CatalogSourceConfig) {
 	UID := csc.ObjectMeta.UID
 	_, found := c.entries[UID]
 	if !found {
@@ -88,8 +88,8 @@ func (c *cache) Evict(csc *marketplace.CatalogSourceConfig) {
 	delete(c.entries, UID)
 }
 
-func (c *cache) Set(csc *marketplace.CatalogSourceConfig) {
-	c.entries[csc.ObjectMeta.UID] = &marketplace.CatalogSourceConfigSpec{
+func (c *cache) Set(csc *v2.CatalogSourceConfig) {
+	c.entries[csc.ObjectMeta.UID] = &v2.CatalogSourceConfigSpec{
 		Packages:        csc.GetPackages(),
 		TargetNamespace: csc.Spec.TargetNamespace,
 	}
@@ -98,6 +98,6 @@ func (c *cache) Set(csc *marketplace.CatalogSourceConfig) {
 // NewCache returns an initialized Cache
 func NewCache() Cache {
 	return &cache{
-		entries: make(map[types.UID]*marketplace.CatalogSourceConfigSpec),
+		entries: make(map[types.UID]*v2.CatalogSourceConfigSpec),
 	}
 }

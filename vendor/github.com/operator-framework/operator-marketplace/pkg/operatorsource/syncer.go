@@ -3,13 +3,13 @@ package operatorsource
 import (
 	"time"
 
+	wrapper "github.com/operator-framework/operator-marketplace/pkg/client"
 	"github.com/operator-framework/operator-marketplace/pkg/datastore"
 	log "github.com/sirupsen/logrus"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // NewRegistrySyncer returns a new instance of RegistrySyncer interface.
-func NewRegistrySyncer(client client.Client, initialWait time.Duration, resyncInterval time.Duration, updateNotificationSendWait time.Duration, sender PackageUpdateNotificationSender, refresher PackageRefreshNotificationSender) RegistrySyncer {
+func NewRegistrySyncer(client wrapper.Client, initialWait time.Duration, resyncInterval time.Duration, updateNotificationSendWait time.Duration, sender PackageUpdateNotificationSender, refresher PackageRefreshNotificationSender) RegistrySyncer {
 	return &registrySyncer{
 		initialWait:    initialWait,
 		resyncInterval: resyncInterval,

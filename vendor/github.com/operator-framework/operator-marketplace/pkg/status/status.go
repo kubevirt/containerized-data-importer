@@ -247,15 +247,17 @@ func (s *status) updateStatus(previousStatus *configv1.ClusterOperatorStatus) er
 			}
 		}
 
+		// Log Conditions
+		log.Infof("[status] Attempting to set the ClusterOperator status conditions to:")
+		for _, statusCondition := range s.clusterOperator.Status.Conditions {
+			log.Infof("[status] ConditionType: %v ConditionStatus: ConditionMessage: %v", statusCondition.Type, statusCondition.Status, statusCondition.Message)
+		}
+
 		_, err := s.configClient.ClusterOperators().UpdateStatus(s.clusterOperator)
 		if err != nil {
 			return fmt.Errorf("Error %v updating ClusterOperator", err)
 		}
-		// Log Conditions
-		log.Infof("[status] Current ClusterOperator conditions:")
-		for _, statusCondition := range s.clusterOperator.Status.Conditions {
-			log.Infof("[status] ConditionType: %v\tConditionStatus: %v\tConditionMessage: %v", statusCondition.Type, statusCondition.Status, statusCondition.Message)
-		}
+		log.Info("[status] ClusterOperator status conditions updated.")
 	}
 	return err
 }
@@ -292,10 +294,11 @@ func (s *status) monitorClusterStatus() {
 		case <-s.stopCh:
 			// If the stopCh is closed, the operator will exit and CO should
 			// be set to degraded.
+			msg := "The operator has exited and is no longer reporting status."
 			conditionListBuilder := clusterStatusListBuilder()
-			conditionListBuilder(configv1.OperatorProgressing, configv1.ConditionFalse, "")
-			conditionListBuilder(configv1.OperatorAvailable, configv1.ConditionFalse, "The operator has exited and is no longer reporting status.")
-			statusConditions := conditionListBuilder(configv1.OperatorDegraded, configv1.ConditionFalse, "")
+			conditionListBuilder(configv1.OperatorProgressing, configv1.ConditionFalse, msg)
+			conditionListBuilder(configv1.OperatorAvailable, configv1.ConditionFalse, msg)
+			statusConditions := conditionListBuilder(configv1.OperatorDegraded, configv1.ConditionFalse, msg)
 			statusErr := s.setStatus(statusConditions)
 			if statusErr != nil {
 				log.Error("[status] " + statusErr.Error())
@@ -317,8 +320,9 @@ func (s *status) monitorClusterStatus() {
 			if s.clusterOperator == nil {
 				conditionListBuilder := clusterStatusListBuilder()
 				conditionListBuilder(configv1.OperatorProgressing, configv1.ConditionTrue, fmt.Sprintf("Progressing towards release version: %s", s.version))
-				conditionListBuilder(configv1.OperatorAvailable, configv1.ConditionFalse, "")
-				statusConditions := conditionListBuilder(configv1.OperatorDegraded, configv1.ConditionFalse, "")
+				msg := fmt.Sprintf("Determining status")
+				conditionListBuilder(configv1.OperatorAvailable, configv1.ConditionFalse, msg)
+				statusConditions := conditionListBuilder(configv1.OperatorDegraded, configv1.ConditionFalse, msg)
 				statusErr = s.setStatus(statusConditions)
 				break
 			}
@@ -333,7 +337,7 @@ func (s *status) monitorClusterStatus() {
 			// Report that marketplace is available after meeting minimal syncs.
 			if cohelpers.IsStatusConditionFalse(s.clusterOperator.Status.Conditions, configv1.OperatorAvailable) {
 				conditionListBuilder := clusterStatusListBuilder()
-				conditionListBuilder(configv1.OperatorProgressing, configv1.ConditionFalse, "")
+				conditionListBuilder(configv1.OperatorProgressing, configv1.ConditionFalse, fmt.Sprintf("Successfully progressed to release version: %s", s.version))
 				statusConditions := conditionListBuilder(configv1.OperatorAvailable, configv1.ConditionTrue, fmt.Sprintf("Available release version: %s", s.version))
 				statusErr = s.setStatus(statusConditions)
 				break
@@ -345,7 +349,7 @@ func (s *status) monitorClusterStatus() {
 				var statusConditions []configv1.ClusterOperatorStatusCondition
 				conditionListBuilder := clusterStatusListBuilder()
 				if isSucceeding {
-					statusConditions = conditionListBuilder(configv1.OperatorDegraded, configv1.ConditionFalse, "")
+					statusConditions = conditionListBuilder(configv1.OperatorDegraded, configv1.ConditionFalse, fmt.Sprintf("Current CR sync ratio (%g) meets the expected success ratio (%g)", *ratio, successRatio))
 				} else {
 					statusConditions = conditionListBuilder(configv1.OperatorDegraded, configv1.ConditionTrue, fmt.Sprintf("Current CR sync ratio (%g) does not meet the expected success ratio (%g)", *ratio, successRatio))
 				}

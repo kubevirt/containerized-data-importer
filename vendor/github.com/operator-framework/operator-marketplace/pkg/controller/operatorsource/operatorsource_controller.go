@@ -3,7 +3,7 @@ package operatorsource
 import (
 	"context"
 
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
 	operatorsourcehandler "github.com/operator-framework/operator-marketplace/pkg/operatorsource"
 	"github.com/operator-framework/operator-marketplace/pkg/status"
 	log "github.com/sirupsen/logrus"
@@ -41,7 +41,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	}
 
 	// Watch for changes to primary resource OperatorSource
-	err = c.Watch(&source.Kind{Type: &marketplace.OperatorSource{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(&source.Kind{Type: &v1.OperatorSource{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func (r *ReconcileOperatorSource) Reconcile(request reconcile.Request) (reconcil
 		}
 	}()
 	// Fetch the OperatorSource instance
-	instance := &marketplace.OperatorSource{}
+	instance := &v1.OperatorSource{}
 	err = r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		if errors.IsNotFound(err) {

@@ -20,11 +20,11 @@ func OperatorSourceTestGroup(t *testing.T) {
 	require.NoError(t, err, "Could not get namespace")
 
 	// Create the OperatorSource.
-	err = helpers.CreateRuntimeObject(test.Global.Client, ctx, helpers.CreateOperatorSourceDefinition(namespace))
+	err = helpers.CreateRuntimeObject(test.Global.Client, ctx, helpers.CreateOperatorSourceDefinition(helpers.TestOperatorSourceName, namespace))
 	require.NoError(t, err, "Could not create OperatorSource")
 
 	// Run the test suites.
 	t.Run("opsrc-creation-test-suite", testsuites.OpSrcCreation)
 	t.Run("csc-target-namespace-test-suite", testsuites.CscTargetNamespace)
-	t.Run("csc-packages-test-suite", testsuites.TestCscWithNonExistingPackage)
+	t.Run("packages-test-suite", testsuites.PackageTests)
 }

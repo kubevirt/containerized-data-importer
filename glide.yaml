@@ -4,6 +4,7 @@ import:
 - package: github.com/operator-framework/operator-marketplace
   subpackages:
   - pkg/appregistry
+  version: 1cbd326243493ff9ec589a542fa335fdc84dc3e7
 - package: github.com/gorilla/mux
   version: ^1.6.1
 - package: github.com/minio/minio-go
@@ -28,7 +29,7 @@ import:
 - package: github.com/spf13/pflag
 - package: github.com/xi2/xz
 - package: github.com/emicklei/go-restful
-  version: v2.6.0
+  version: ^v2.9.6
 - package: gopkg.in/square/go-jose.v2
   version: ^2.1.8
 - package: github.com/prometheus/client_golang
@@ -48,7 +49,7 @@ import:
 - package: github.com/go-openapi/runtime
   version: v0.17.0
 - package: github.com/emicklei/go-restful-openapi
-  version: ^1.0.0
+  version: ^1.2.0
 - package: sigs.k8s.io/controller-runtime
   version: v0.1.10
 - package: github.com/kelseyhightower/envconfig

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
 	"github.com/operator-framework/operator-marketplace/pkg/datastore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +23,7 @@ func TestWrite(t *testing.T) {
 		"service-catalog",
 	}
 
-	opsrc := &marketplace.OperatorSource{
+	opsrc := &v1.OperatorSource{
 		ObjectMeta: metav1.ObjectMeta{
 			UID: types.UID("123456"),
 		},
@@ -61,13 +61,13 @@ func TestWrite(t *testing.T) {
 // when we do a read the metadata that associates the repository to the opsrc
 // is maintained.
 func TestReadOpsrcMeta(t *testing.T) {
-	opsrc := &marketplace.OperatorSource{
+	opsrc := &v1.OperatorSource{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       types.UID("123456"),
 			Name:      "operators-opsrc",
 			Namespace: "operators",
 		},
-		Spec: marketplace.OperatorSourceSpec{
+		Spec: v1.OperatorSourceSpec{
 			Endpoint:          "https://quay.io/cnr",
 			RegistryNamespace: "registry-namespace",
 		},
@@ -102,13 +102,13 @@ func TestReadOpsrcMeta(t *testing.T) {
 // In this test we make sure that we properly relate multiple opsrcs
 // to the correct repositories.
 func TestReadOpsrcMetaMultipleOpsrc(t *testing.T) {
-	opsrc := &marketplace.OperatorSource{
+	opsrc := &v1.OperatorSource{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       types.UID("123456"),
 			Name:      "operators-opsrc",
 			Namespace: "operators",
 		},
-		Spec: marketplace.OperatorSourceSpec{
+		Spec: v1.OperatorSourceSpec{
 			Endpoint:          "https://quay.io/cnr",
 			RegistryNamespace: "registry-namespace",
 		},
@@ -129,13 +129,13 @@ func TestReadOpsrcMetaMultipleOpsrc(t *testing.T) {
 	_, err := ds.Write(opsrc, metadata)
 	require.NoError(t, err)
 
-	opsrc2 := &marketplace.OperatorSource{
+	opsrc2 := &v1.OperatorSource{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       types.UID("456789"),
 			Name:      "operators-different",
 			Namespace: "operators",
 		},
-		Spec: marketplace.OperatorSourceSpec{
+		Spec: v1.OperatorSourceSpec{
 			Endpoint:          "https://quay-diff.io/cnr",
 			RegistryNamespace: "registry-namespace-diff",
 		},

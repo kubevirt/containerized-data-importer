@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/operator-framework/operator-marketplace/pkg/appregistry"
+	wrapper "github.com/operator-framework/operator-marketplace/pkg/client"
 	"github.com/operator-framework/operator-marketplace/pkg/datastore"
 	"github.com/operator-framework/operator-marketplace/pkg/phase"
 	log "github.com/sirupsen/logrus"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -16,7 +16,7 @@ var (
 )
 
 // NewPoller returns a new instance of Poller interface.
-func NewPoller(client client.Client, updateNotificationSendWait time.Duration, sender PackageUpdateNotificationSender, refresher PackageRefreshNotificationSender) Poller {
+func NewPoller(client wrapper.Client, updateNotificationSendWait time.Duration, sender PackageUpdateNotificationSender, refresher PackageRefreshNotificationSender) Poller {
 	poller := &poller{
 		datastore: datastore.Cache,
 		sender:    sender,

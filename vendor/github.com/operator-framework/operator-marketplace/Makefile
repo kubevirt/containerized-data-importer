@@ -54,3 +54,6 @@ e2e-test:
 
 e2e-job:
 	./scripts/run-e2e-job.sh
+
+e2e-test-minikube:
+	./scripts/e2e-tests.sh minikube

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v2"
 	"github.com/operator-framework/operator-marketplace/test/helpers"
 	"github.com/operator-framework/operator-sdk/pkg/test"
 	"github.com/stretchr/testify/assert"
@@ -26,14 +26,14 @@ func CscTargetNamespace(t *testing.T) {
 	require.NoError(t, err, "Could not get namespace")
 
 	// Create a new CatalogSourceConfig with a non-existing targetNamespace.
-	nonExistingTargetNamespaceCsc := &marketplace.CatalogSourceConfig{
+	nonExistingTargetNamespaceCsc := &v2.CatalogSourceConfig{
 		TypeMeta: metav1.TypeMeta{
-			Kind: marketplace.CatalogSourceConfigKind,
+			Kind: v2.CatalogSourceConfigKind,
 		}, ObjectMeta: metav1.ObjectMeta{
 			Name:      cscName,
 			Namespace: namespace,
 		},
-		Spec: marketplace.CatalogSourceConfigSpec{
+		Spec: v2.CatalogSourceConfigSpec{
 			TargetNamespace: targetNamespace,
 			Packages:        "camel-k-marketplace-e2e-tests",
 		}}

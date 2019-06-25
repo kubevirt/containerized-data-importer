@@ -26,15 +26,15 @@ func testDeleteOpSrc(t *testing.T) {
 	namespace, err := test.NewTestCtx(t).GetNamespace()
 	require.NoError(t, err, "Could not get namespace.")
 
-	testOperatorSource := helpers.CreateOperatorSourceDefinition(namespace)
+	testOperatorSource := helpers.CreateOperatorSourceDefinition(helpers.TestOperatorSourceName, namespace)
 
 	// Create the OperatorSource with no cleanup options.
 	err = helpers.CreateRuntimeObjectNoCleanup(client, testOperatorSource)
-	require.NoError(t, err, "Could not create operator source.")
+	require.NoError(t, err, "Could not create OperatorSource.")
 
-	// Check for the datastore CatalogSourceConfig and its child resources.
-	err = helpers.CheckCscSuccessfulCreation(test.Global.Client, testOperatorSource.Name, namespace, namespace)
-	require.NoError(t, err, "Could not ensure that CatalogSourceConfig and its child resources were deleted")
+	// Check for the child resources.
+	err = helpers.CheckOpsrcChildResourcesCreated(test.Global.Client, testOperatorSource.Name, namespace)
+	require.NoError(t, err, "Could not ensure that child resources were created")
 
 	// Now let's delete the OperatorSource
 	err = helpers.DeleteRuntimeObject(client, testOperatorSource)
@@ -42,6 +42,6 @@ func testDeleteOpSrc(t *testing.T) {
 
 	// Now let's wait until the OperatorSource is successfully deleted and the
 	// child resources are removed.
-	err = helpers.CheckCscSuccessfulDeletion(test.Global.Client, testOperatorSource.Name, namespace, targetNamespace)
-	require.NoError(t, err, "Could not ensure that CatalogSourceConfig and its child resources were deleted.")
+	err = helpers.CheckOpsrcChildResourcesDeleted(test.Global.Client, testOperatorSource.Name, namespace)
+	require.NoError(t, err, "Could not ensure child resources were deleted.")
 }

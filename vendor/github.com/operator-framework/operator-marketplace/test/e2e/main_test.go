@@ -7,13 +7,16 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	olm "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-marketplace/pkg/apis"
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/v2"
 
 	"github.com/operator-framework/operator-marketplace/test/testgroups"
 	"github.com/operator-framework/operator-sdk/pkg/test"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+var coAPINotPresent = true
 
 func TestMain(m *testing.M) {
 	test.MainEntry(m)
@@ -24,7 +27,9 @@ func TestMarketplace(t *testing.T) {
 	initTestingFramework(t)
 
 	// Run Test Groups
-	t.Run("cluster-operator-status-test-group", testgroups.ClusterOperatorTestGroup)
+	if coAPINotPresent {
+		t.Run("cluster-operator-status-test-group", testgroups.ClusterOperatorTestGroup)
+	}
 	t.Run("operator-source-test-group", testgroups.OperatorSourceTestGroup)
 	t.Run("no-setup-test-group", testgroups.NoSetupTestGroup)
 }
@@ -33,18 +38,18 @@ func TestMarketplace(t *testing.T) {
 // olm CatalogSource type to the framework scheme.
 func initTestingFramework(t *testing.T) {
 	// Add marketplace types to test framework scheme.
-	operatorSource := &marketplace.OperatorSource{
+	operatorSource := &v1.OperatorSource{
 		TypeMeta: metav1.TypeMeta{
-			Kind: marketplace.OperatorSourceKind,
+			Kind: v1.OperatorSourceKind,
 			APIVersion: fmt.Sprintf("%s/%s",
-				marketplace.SchemeGroupVersion.Group, marketplace.SchemeGroupVersion.Version),
+				v1.SchemeGroupVersion.Group, v1.SchemeGroupVersion.Version),
 		},
 	}
-	catalogSourceConfig := &marketplace.CatalogSourceConfig{
+	catalogSourceConfig := &v2.CatalogSourceConfig{
 		TypeMeta: metav1.TypeMeta{
-			Kind: marketplace.CatalogSourceConfigKind,
+			Kind: v2.CatalogSourceConfigKind,
 			APIVersion: fmt.Sprintf("%s/%s",
-				marketplace.SchemeGroupVersion.Group, marketplace.SchemeGroupVersion.Version),
+				v2.SchemeGroupVersion.Group, v2.SchemeGroupVersion.Version),
 		},
 	}
 	err := test.AddToFrameworkScheme(apis.AddToScheme, operatorSource)
@@ -74,8 +79,13 @@ func initTestingFramework(t *testing.T) {
 				configv1.SchemeGroupVersion.Group, configv1.SchemeGroupVersion.Version),
 		},
 	}
+
+	// We are assuming that ClusterOperator API will always be added successfully
+	// on an OpenShift cluster. This is to allow the tests be run on non-OpenSHift
+	// clusters
 	err = test.AddToFrameworkScheme(configv1.Install, clusterOperator)
 	if err != nil {
-		t.Fatalf("failed to add ClusterOperator custom resource scheme to framework: %v", err)
+		t.Logf("failed to add ClusterOperator custom resource scheme to framework: %v. ClusterOperator test will not run.", err)
+		coAPINotPresent = false
 	}
 }

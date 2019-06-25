@@ -9,9 +9,9 @@ Note that all examples in this doc are are meant to be ran against an OpenShift 
 Table of contents
 ===================
 
-1. [No packages show up in the UI (No OperatorHub Items Found)](#no-packages-show-up-in-the-ui-(no-operatorhub-items-found))
+1. [No packages show up in the UI (No OperatorHub Items Found)](#no-packages-show-up-in-the-ui-no-operatorhub-items-found)
 2. [OperatorSource failing to connect to the datastore](#operatorSource-failing-to-connect-to-the-datastore)
-3. [OperatorSource `MESSAGE` reads unknown error (status 404)](#operatorsource-`message`-reads-unknown-error-(status-404)) 
+3. [Operators(s) in an OperatorSource fail to show up in the UI](#operators-in-an-operatorsource-fail-to-show-up-in-the-ui) 
 4. [Conflicting Package Names](#conflicting-package-names)
 
 
@@ -34,22 +34,9 @@ redhat-operators      appregistry   https://quay.io/cnr   redhat-operators      
 ```
 
 If the status of any of the OperatorSource is anything other than `Succeeded`, you can investigate the OperatorSource with 
-`oc describe opsrc <Name-of-OperatorSource> -n openshift-marketplace`. [This section](#operatorSource-failing-to-download-from-datastore) of the doc also contains helpful information about debugging an OperatorSource. 
+`oc describe opsrc <Name-of-OperatorSource> -n openshift-marketplace`. [This section](#operatorSource-failing-to-connect-to-the-datastore) and [the following section](#operators-in-an-operatorsource-fail-to-show-up-in-the-ui) of the doc also contains helpful information about debugging an OperatorSource. 
 
-If the OperatorSources look healthy, check that the CatalogSourceConfigs for the corresponding OperatorSources were created.
-
-```
-$ oc get csc -n openshift-marketplace
-
-NAME                  STATUS      MESSAGE                                       AGE
-certified-operators   Succeeded   The object has been successfully reconciled   23h
-community-operators   Succeeded   The object has been successfully reconciled   23h
-redhat-operators      Succeeded   The object has been successfully reconciled   23h
-```
-
-If the status of any of the CatalogSourceConfigs is anything other than `Succeeded`, inspect the CatalogSourceConfig with `oc describe csc <Name-of-CatalogSourceConfig>`. [This section](#catalogsourceconfig-stuck-in-configuring-phase) of the doc also contains helpful information about debugging a CatalogSourceConfig. 
-
-If the CatalogSourceConfigs look healthy, make sure that there's a pod corresponding to each CatalogSourceConfig and that they are in the `Running` state.
+If the OperatorSources look healthy, make sure that there's a pod corresponding to each OperatorSource and that they are in the `Running` state.
 
 ```
 $ oc get pods -n openshift-marketplace

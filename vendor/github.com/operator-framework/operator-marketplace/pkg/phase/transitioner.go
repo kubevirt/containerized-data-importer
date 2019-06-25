@@ -1,7 +1,7 @@
 package phase
 
 import (
-	marketplace "github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1"
+	"github.com/operator-framework/operator-marketplace/pkg/apis/operators/shared"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 )
@@ -29,7 +29,7 @@ func NewTransitioner() Transitioner {
 // no transition took place. If a new phase is being set then LastTransitionTime
 // is set appropriately, otherwise it is left untouched.
 type Transitioner interface {
-	TransitionInto(currentPhase *marketplace.ObjectPhase, nextPhase *marketplace.Phase) (changed bool)
+	TransitionInto(currentPhase *shared.ObjectPhase, nextPhase *shared.Phase) (changed bool)
 }
 
 // transitioner implements Transitioner interface.
@@ -37,7 +37,7 @@ type transitioner struct {
 	clock clock.Clock
 }
 
-func (t *transitioner) TransitionInto(currentPhase *marketplace.ObjectPhase, nextPhase *marketplace.Phase) (changed bool) {
+func (t *transitioner) TransitionInto(currentPhase *shared.ObjectPhase, nextPhase *shared.Phase) (changed bool) {
 	if currentPhase == nil || nextPhase == nil {
 		return false
 	}
@@ -63,7 +63,7 @@ func (t *transitioner) TransitionInto(currentPhase *marketplace.ObjectPhase, nex
 //
 // If both Phase and Message are equal, the function will return false
 // indicating no change. Otherwise, the function will return true.
-func hasPhaseChanged(currentPhase *marketplace.ObjectPhase, nextPhase *marketplace.Phase) bool {
+func hasPhaseChanged(currentPhase *shared.ObjectPhase, nextPhase *shared.Phase) bool {
 	if currentPhase.Name == nextPhase.Name && currentPhase.Message == nextPhase.Message {
 		return false
 	}

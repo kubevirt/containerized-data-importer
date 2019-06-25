@@ -52,6 +52,7 @@ rules:
   - delete
   - update
   - list
+  - watch
 - apiGroups:
   - apps
   resources:
@@ -62,6 +63,7 @@ rules:
   - delete
   - update
   - list
+  - watch
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
@@ -73,3 +75,4 @@ rules:
   - delete
   - update
   - list
+  - watch
