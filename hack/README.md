@@ -139,7 +139,7 @@ Environment Variables and Supported Values
 
 | Env Variable       | Default       | Additional Values           |
 |--------------------|---------------|-----------------------------|
-|KUBEVIRT_PROVIDER   | k8s-1.13.3    | os-3.11.0-crio or okd-4.1.0 |
+|KUBEVIRT_PROVIDER   | k8s-1.13.3    | os-3.11.0-crio or okd-4.1.2 |
 |KUBEVIRT_PROVIDER_EXTRA_ARGS |      | --enable-ceph (for providers that support this argument like k8s-1.13.3 |
 |NUM_NODES           | 1             | 2-5                         |
 

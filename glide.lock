@@ -1,8 +1,8 @@
 hash: 0e72fc1b3276effcddfeddfcadb0245b25448a0a02997e38eb6be6f3296cb0f4
-updated: 2019-06-24T18:59:38.106669179Z
+updated: 2019-06-26T17:11:00.363299177Z
 imports:
 - name: github.com/appscode/jsonpatch
-  version: 7c0e3b262f30165a8ec3d0b4c6059fd92703bfb2
+  version: e8422f09d27ee2c8cfb2c7f8089eb9eeb0764849
 - name: github.com/asaskevich/govalidator
   version: f9ffefc3facfbe0caee3fea233cbb6e8208f4541
 - name: github.com/beorn7/perks
