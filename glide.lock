@@ -1,5 +1,5 @@
-hash: 0e72fc1b3276effcddfeddfcadb0245b25448a0a02997e38eb6be6f3296cb0f4
-updated: 2019-06-26T17:11:00.363299177Z
+hash: 3b7f147f88ea81ed85e278d641744b9540e6a601f9872e5151f488299bbaa167
+updated: 2019-06-27T09:01:47.768925038Z
 imports:
 - name: github.com/appscode/jsonpatch
   version: e8422f09d27ee2c8cfb2c7f8089eb9eeb0764849
@@ -9,6 +9,8 @@ imports:
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
   subpackages:
   - quantile
+- name: github.com/blang/semver
+  version: 1a9109f8c4a1d669a78442f567dfe8eedf982793
 - name: github.com/davecgh/go-spew
   version: 782f4967f2dc4564575ca782fe2d04090b5faca8
   subpackages:
@@ -222,6 +224,12 @@ imports:
   - appregistry/info
   - appregistry/package_appr
   - models
+- name: github.com/operator-framework/operator-lifecycle-manager
+  version: 73c00f855607f246bfb413566bff78e404eb8302
+  subpackages:
+  - pkg/api/apis/operators
+  - pkg/api/apis/operators/v1alpha1
+  - pkg/lib/version
 - name: github.com/operator-framework/operator-marketplace
   version: 1cbd326243493ff9ec589a542fa335fdc84dc3e7
   subpackages:

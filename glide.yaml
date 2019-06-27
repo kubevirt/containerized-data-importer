@@ -5,6 +5,10 @@ import:
   subpackages:
   - pkg/appregistry
   version: 1cbd326243493ff9ec589a542fa335fdc84dc3e7
+- package: github.com/operator-framework/operator-lifecycle-manager
+  subpackages:
+  - pkg/api/apis/operators/v1alpha1
+  version: 73c00f855607f246bfb413566bff78e404eb8302
 - package: github.com/gorilla/mux
   version: ^1.6.1
 - package: github.com/minio/minio-go
