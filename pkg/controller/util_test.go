@@ -1311,6 +1311,7 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string, scratchPvc *v1.Pers
 		pod.Spec.SecurityContext = &v1.PodSecurityContext{
 			RunAsNonRoot: &[]bool{true}[0],
 			RunAsUser:    &[]int64{1001}[0],
+			FSGroup:      &[]int64{1001}[0],
 		}
 	}
 
@@ -1856,6 +1857,7 @@ func createUploadPod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
 			SecurityContext: &v1.PodSecurityContext{
 				RunAsNonRoot: &[]bool{true}[0],
 				RunAsUser:    &[]int64{1001}[0],
+				FSGroup:      &[]int64{1001}[0],
 			},
 			Containers: []v1.Container{
 				{
