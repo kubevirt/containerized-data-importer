@@ -18,6 +18,7 @@ package klog
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	stdLog "log"
@@ -87,6 +88,7 @@ func contains(s severity, str string, t *testing.T) bool {
 // setFlags configures the logging flags how the test expects them.
 func setFlags() {
 	logging.toStderr = false
+	logging.addDirHeader = false
 }
 
 // Test that Info works as advertised.
@@ -185,6 +187,30 @@ func TestHeader(t *testing.T) {
 	Info("test")
 	var line int
 	format := "I0102 15:04:05.067890    1234 klog_test.go:%d] test\n"
+	n, err := fmt.Sscanf(contents(infoLog), format, &line)
+	if n != 1 || err != nil {
+		t.Errorf("log format error: %d elements, error %s:\n%s", n, err, contents(infoLog))
+	}
+	// Scanf treats multiple spaces as equivalent to a single space,
+	// so check for correct space-padding also.
+	want := fmt.Sprintf(format, line)
+	if contents(infoLog) != want {
+		t.Errorf("log format error: got:\n\t%q\nwant:\t%q", contents(infoLog), want)
+	}
+}
+
+func TestHeaderWithDir(t *testing.T) {
+	setFlags()
+	logging.addDirHeader = true
+	defer logging.swap(logging.newBuffers())
+	defer func(previous func() time.Time) { timeNow = previous }(timeNow)
+	timeNow = func() time.Time {
+		return time.Date(2006, 1, 2, 15, 4, 5, .067890e9, time.Local)
+	}
+	pid = 1234
+	Info("test")
+	var line int
+	format := "I0102 15:04:05.067890    1234 klog/klog_test.go:%d] test\n"
 	n, err := fmt.Sscanf(contents(infoLog), format, &line)
 	if n != 1 || err != nil {
 		t.Errorf("log format error: %d elements, error %s:\n%s", n, err, contents(infoLog))
@@ -339,7 +365,6 @@ func TestRollover(t *testing.T) {
 	}
 	defer func(previous uint64) { MaxSize = previous }(MaxSize)
 	MaxSize = 512
-
 	Info("x") // Be sure we have a file.
 	info, ok := logging.file[infoLog].(*syncBuffer)
 	if !ok {
@@ -370,7 +395,7 @@ func TestRollover(t *testing.T) {
 	if fname0 == fname1 {
 		t.Errorf("info.f.Name did not change: %v", fname0)
 	}
-	if info.nbytes >= MaxSize {
+	if info.nbytes >= info.maxbytes {
 		t.Errorf("file size was not reset: %d", info.nbytes)
 	}
 }
@@ -473,7 +498,7 @@ func TestLogBacktraceAt(t *testing.T) {
 		// Need 2 appearances, one in the log header and one in the trace:
 		//   log_test.go:281: I0511 16:36:06.952398 02238 log_test.go:280] we want a stack trace here
 		//   ...
-		//   github.com/glog/glog_test.go:280 (0x41ba91)
+		//   k8s.io/klog/klog_test.go:280 (0x41ba91)
 		//   ...
 		// We could be more precise but that would require knowing the details
 		// of the traceback format, which may not be dependable.
@@ -485,5 +510,76 @@ func BenchmarkHeader(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		buf, _, _ := logging.header(infoLog, 0)
 		logging.putBuffer(buf)
+	}
+}
+
+func BenchmarkHeaderWithDir(b *testing.B) {
+	logging.addDirHeader = true
+	for i := 0; i < b.N; i++ {
+		buf, _, _ := logging.header(infoLog, 0)
+		logging.putBuffer(buf)
+	}
+}
+
+// Test the logic on checking log size limitation.
+func TestFileSizeCheck(t *testing.T) {
+	setFlags()
+	testData := map[string]struct {
+		testLogFile          string
+		testLogFileMaxSizeMB uint64
+		testCurrentSize      uint64
+		expectedResult       bool
+	}{
+		"logFile not specified, exceeds max size": {
+			testLogFile:          "",
+			testLogFileMaxSizeMB: 1,
+			testCurrentSize:      1024 * 1024 * 2000, //exceeds the maxSize
+			expectedResult:       true,
+		},
+
+		"logFile not specified, not exceeds max size": {
+			testLogFile:          "",
+			testLogFileMaxSizeMB: 1,
+			testCurrentSize:      1024 * 1024 * 1000, //smaller than the maxSize
+			expectedResult:       false,
+		},
+		"logFile specified, exceeds max size": {
+			testLogFile:          "/tmp/test.log",
+			testLogFileMaxSizeMB: 500,                // 500MB
+			testCurrentSize:      1024 * 1024 * 1000, //exceeds the logFileMaxSizeMB
+			expectedResult:       true,
+		},
+		"logFile specified, not exceeds max size": {
+			testLogFile:          "/tmp/test.log",
+			testLogFileMaxSizeMB: 500,               // 500MB
+			testCurrentSize:      1024 * 1024 * 300, //smaller than the logFileMaxSizeMB
+			expectedResult:       false,
+		},
+	}
+
+	for name, test := range testData {
+		logging.logFile = test.testLogFile
+		logging.logFileMaxSizeMB = test.testLogFileMaxSizeMB
+		actualResult := test.testCurrentSize >= CalculateMaxSize()
+		if test.expectedResult != actualResult {
+			t.Fatalf("Error on test case '%v': Was expecting result equals %v, got %v",
+				name, test.expectedResult, actualResult)
+		}
+	}
+}
+
+func TestInitFlags(t *testing.T) {
+	fs1 := flag.NewFlagSet("test1", flag.PanicOnError)
+	InitFlags(fs1)
+	fs1.Set("log_dir", "/test1")
+	fs1.Set("log_file_max_size", "1")
+	fs2 := flag.NewFlagSet("test2", flag.PanicOnError)
+	InitFlags(fs2)
+	if logging.logDir != "/test1" {
+		t.Fatalf("Expected log_dir to be %q, got %q", "/test1", logging.logDir)
+	}
+	fs2.Set("log_file_max_size", "2048")
+	if logging.logFileMaxSizeMB != 2048 {
+		t.Fatal("Expected log_file_max_size to be 2048")
 	}
 }

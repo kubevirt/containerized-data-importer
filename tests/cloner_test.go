@@ -52,19 +52,21 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 	It("[test_id:1354]Should clone data within same namespace", func() {
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+		pvcDef.Namespace = f.Namespace.Name
 		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
-		doFileBasedCloneTest(f, f.Namespace)
+		doFileBasedCloneTest(f, pvcDef, f.Namespace)
 	})
 
 	It("[test_id:1355]Should clone data across different namespaces", func() {
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+		pvcDef.Namespace = f.Namespace.Name
 		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
 		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
 			framework.NsPrefixLabel: f.NsPrefix,
 		})
 		Expect(err).NotTo(HaveOccurred())
 		f.AddNamespaceToDelete(targetNs)
-		doFileBasedCloneTest(f, targetNs)
+		doFileBasedCloneTest(f, pvcDef, targetNs)
 	})
 
 	It("[test_id:1356]Should not clone anything when CloneOf annotation exists", func() {
@@ -146,28 +148,28 @@ var _ = Describe("Block PV Cloner Test", func() {
 		sourceMD5, err := f.GetMD5(f.Namespace, sourcePvc, testBaseDir, 0)
 		Expect(err).ToNot(HaveOccurred())
 
-		// Create targetPvc in new NS for block PV.
-		targetPvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, utils.NewBlockPVCDefinition(
-			"target-pvc",
-			"500M",
-			map[string]string{controller.AnnCloneRequest: f.Namespace.Name + "/" + sourcePVCName},
-			nil,
-			"manual"))
+		targetDV := utils.NewDataVolumeCloneToBlockPV("target-dv", "500M", sourcePvc.Namespace, sourcePvc.Name)
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, sourcePvc.Namespace, targetDV)
 		Expect(err).ToNot(HaveOccurred())
+
+		targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
 		fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
 		completeClone(f, f.Namespace, targetPvc, testBaseDir, sourceMD5)
 	})
 })
 
-func doFileBasedCloneTest(f *framework.Framework, targetNs *v1.Namespace) {
+func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClaim, targetNs *v1.Namespace) {
 	// Create targetPvc in new NS.
-	targetPvc, err := utils.CreatePVCFromDefinition(f.K8sClient, targetNs.Name, utils.NewPVCDefinition(
-		"target-pvc",
-		"1G",
-		map[string]string{controller.AnnCloneRequest: f.Namespace.Name + "/" + sourcePVCName},
-		nil))
+	targetDV := utils.NewCloningDataVolume("target-dv", "1G", srcPVCDef)
+	dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 	Expect(err).ToNot(HaveOccurred())
+
+	targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+	Expect(err).ToNot(HaveOccurred())
+
 	fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 	utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)
 	completeClone(f, targetNs, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum)

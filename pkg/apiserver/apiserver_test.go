@@ -246,29 +246,6 @@ func generateTestKey() (*rsa.PrivateKey, error) {
 	return apiKeyPair, nil
 }
 
-func Test_tokenEncrption(t *testing.T) {
-	apiServerKeys, err := generateTestKey()
-	if err != nil {
-		t.Errorf("error generating keys: %v", err)
-	}
-
-	encryptedToken, err := GenerateToken("fakepvc", "fakenamespace", apiServerKeys)
-
-	if err != nil {
-		t.Errorf("unable to generate token: %v", err)
-	}
-
-	tokenData, err := VerifyToken(encryptedToken, &apiServerKeys.PublicKey)
-
-	if err != nil {
-		t.Errorf("unable to verify token: %v", err)
-	}
-
-	if tokenData.PvcName != "fakepvc" && tokenData.Namespace != "fakenamespace" {
-		t.Errorf("unexpected token generated")
-	}
-}
-
 func TestGetSelfSignedCert(t *testing.T) {
 	signingKey, err := generateTestKey()
 	if err != nil {
@@ -586,7 +563,8 @@ func TestGetToken(t *testing.T) {
 			app := &cdiAPIApp{client: client,
 				privateSigningKey: signingKey,
 				authorizer:        test.args.authorizer,
-				uploadPossible:    test.args.uploadPossible}
+				uploadPossible:    test.args.uploadPossible,
+				tokenGenerator:    newUploadTokenGenerator(signingKey)}
 			app.composeUploadTokenAPI()
 
 			req, _ := http.NewRequest("POST",

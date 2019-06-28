@@ -35,7 +35,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 )
 
-type dataVolumeValidationWebhook struct {
+type dataVolumeValidatingWebhook struct {
 	client kubernetes.Interface
 }
 
@@ -53,7 +53,7 @@ func validateSourceURL(sourceURL string) string {
 	return ""
 }
 
-func (wh *dataVolumeValidationWebhook) validateDataVolumeSpec(field *k8sfield.Path, spec *cdicorev1alpha1.DataVolumeSpec) []metav1.StatusCause {
+func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.AdmissionRequest, field *k8sfield.Path, spec *cdicorev1alpha1.DataVolumeSpec) []metav1.StatusCause {
 	var causes []metav1.StatusCause
 	var url string
 	var sourceType string
@@ -131,7 +131,7 @@ func (wh *dataVolumeValidationWebhook) validateDataVolumeSpec(field *k8sfield.Pa
 			return causes
 		}
 
-		if wh.client != nil {
+		if wh.client != nil && request.Operation == v1beta1.Create {
 			sourcePVC, err := wh.client.CoreV1().PersistentVolumeClaims(spec.Source.PVC.Namespace).Get(spec.Source.PVC.Name, metav1.GetOptions{})
 			if err != nil {
 				if k8serrors.IsNotFound(err) {
@@ -184,15 +184,8 @@ func (wh *dataVolumeValidationWebhook) validateDataVolumeSpec(field *k8sfield.Pa
 	return causes
 }
 
-func (wh *dataVolumeValidationWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	resource := metav1.GroupVersionResource{
-		Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-		Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-		Resource: "datavolumes",
-	}
-	if ar.Request.Resource != resource {
-		klog.Errorf("resource is %s but request is: %s", resource, ar.Request.Resource)
-		err := fmt.Errorf("expect resource to be '%s'", resource.Resource)
+func (wh *dataVolumeValidatingWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+	if err := validateDataVolumeResource(ar); err != nil {
 		return toAdmissionResponseError(err)
 	}
 
@@ -205,7 +198,7 @@ func (wh *dataVolumeValidationWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta
 		return toAdmissionResponseError(err)
 	}
 
-	if wh.client != nil {
+	if wh.client != nil && ar.Request.Operation == v1beta1.Create {
 		pvcs, err := wh.client.CoreV1().PersistentVolumeClaims(dv.GetNamespace()).List(metav1.ListOptions{})
 		if err != nil {
 			return toAdmissionResponseError(err)
@@ -224,7 +217,7 @@ func (wh *dataVolumeValidationWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta
 		}
 	}
 
-	causes := wh.validateDataVolumeSpec(k8sfield.NewPath("spec"), &dv.Spec)
+	causes := wh.validateDataVolumeSpec(ar.Request, k8sfield.NewPath("spec"), &dv.Spec)
 	if len(causes) > 0 {
 		klog.Infof("rejected DataVolume admission")
 		return toRejectedAdmissionResponse(causes)
