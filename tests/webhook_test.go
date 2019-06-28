@@ -100,7 +100,7 @@ func addPermissionToNamespace(client kubernetes.Interface, sa, saNamespace, targ
 				},
 				Resources: []string{
 					"datavolumes",
-					"datavolumes/clone-init",
+					"datavolumes/source",
 				},
 				Verbs: []string{
 					"*",
