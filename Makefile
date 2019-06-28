@@ -13,7 +13,7 @@
 #limitations under the License.
 
 .PHONY: build build-controller build-importer build-cloner build-apiserver build-uploadproxy build-uploadserver build-operator build-functest-file-image-init build-functest-registry-image-init  build-functest \
-		docker docker-controller docker-cloner docker-importer docker-apiserver docker-uploadproxy docker-uploadserver docker-operator docker-functest-image-init docker-functest-image-http docker-functest-registry-populate docker-functest-registry docker-functest-registry-init docker-functest-block-device \
+		docker docker-controller docker-cloner docker-importer docker-apiserver docker-uploadproxy docker-uploadserver docker-operator docker-functest-image-init docker-functest-image-http docker-functest-registry-populate docker-functest-registry docker-functest-registry-init \
 		cluster-up cluster-down cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer cluster-sync-apiserver cluster-sync-uploadproxy cluster-sync-uploadserver \
 		olm-verify olm-push \
 		test test-functional test-unit test-lint \
@@ -49,7 +49,7 @@ apidocs:
 	${DO} "./hack/update-codegen.sh && ./hack/gen-swagger-doc/gen-swagger-docs.sh v1alpha1 html"
 
 build:
-	${DO} "./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-cdi-func-test-registry-host.sh && ./hack/build/build-cdi-func-test-block-device.sh && DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} QUAY_NAMESPACE=${QUAY_NAMESPACE} QUAY_REPOSITORY=${QUAY_REPOSITORY} CSV_VERSION=${CSV_VERSION} ./hack/build/build-manifests.sh ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
+	${DO} "./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-cdi-func-test-registry-host.sh && DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} QUAY_NAMESPACE=${QUAY_NAMESPACE} QUAY_REPOSITORY=${QUAY_REPOSITORY} CSV_VERSION=${CSV_VERSION} ./hack/build/build-manifests.sh ${WHAT} && ./hack/build/build-copy-artifacts.sh ${WHAT}"
 
 build-controller: WHAT = cmd/cdi-controller
 build-controller: build
@@ -106,7 +106,7 @@ docker-uploadserver: WHAT = cmd/cdi-uploadserver
 docker-uploadserver: docker
 docker-operator: WHAT = cmd/cdi-operator
 docker-operator: docker
-docker-functest-images: docker-functest-image-http docker-functest-image-init docker-functest-registry-init docker-functest-registry-populate docker-functest-registry docker-functest-block-device
+docker-functest-images: docker-functest-image-http docker-functest-image-init docker-functest-registry-init docker-functest-registry-populate docker-functest-registry
 docker-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
 docker-functest-image-init: docker
 docker-functest-image-http: WHAT = tools/cdi-func-test-file-host-http
@@ -121,9 +121,6 @@ docker-functest-registry-populate: # no code to compile, just build image
 docker-functest-registry: WHAT = tools/cdi-func-test-registry
 docker-functest-registry: # no code to compile, just build image
 	./hack/build/build-cdi-func-test-registry-host.sh && ./hack/build/build-docker.sh build ${WHAT}
-docker-functest-block-device: WHAT = tools/cdi-func-test-block-device
-docker-functest-block-device: # no code to compile, just build image
-	./hack/build/build-cdi-func-test-block-device.sh && ./hack/build/build-docker.sh build ${WHAT}
 
 docker-registry-cleanup: 
 	./hack/build/cleanup_docker.sh 

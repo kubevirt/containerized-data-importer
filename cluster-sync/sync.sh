@@ -48,5 +48,4 @@ _kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=running --timeout=120s
 if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
 _kubectl apply -f "./_out/manifests/file-host.yaml"
 _kubectl apply -f "./_out/manifests/registry-host.yaml"
-_kubectl apply -f "./_out/manifests/block-device.yaml"
 fi

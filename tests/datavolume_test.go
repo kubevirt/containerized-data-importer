@@ -12,7 +12,6 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 
 	v1 "k8s.io/api/core/v1"
-	storageV1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -147,43 +146,23 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	Describe("Verify DataVolume with block mode", func() {
 		var err error
-		var storageClass *storageV1.StorageClass
-		var pod *v1.Pod
-		var pv *v1.PersistentVolume
-
-		BeforeEach(func() {
-			By(fmt.Sprintf("Creating storageClass for Block PV"))
-			storageClass, err = f.CreateStorageClassFromDefinition(utils.NewStorageClassForBlockPVDefinition("manual"))
-			Expect(err).ToNot(HaveOccurred())
-
-			pod, err = utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "cdi-block-device", "kubevirt.io=cdi-block-device")
-			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", f.CdiInstallNs+"/"+"cdi-block-device"))
-
-			nodeName := pod.Spec.NodeName
-
-			By(fmt.Sprintf("Creating Block PV"))
-			pv, err = f.CreatePVFromDefinition(utils.NewBlockPVDefinition("local-volume1", "1G", nil, "manual", nodeName))
-			Expect(err).ToNot(HaveOccurred())
-
-			By("Verify that PV's phase is Available.")
-			err = f.WaitTimeoutForPVReady(pv.Name, 60*time.Second)
-			Expect(err).ToNot(HaveOccurred())
-		})
+		var dataVolume *cdiv1.DataVolume
 
 		AfterEach(func() {
-			err := utils.DeletePV(f.K8sClient, pv)
-			Expect(err).ToNot(HaveOccurred())
-
-			err = utils.DeleteStorageClass(f.K8sClient, storageClass)
-			Expect(err).ToNot(HaveOccurred())
+			if dataVolume != nil {
+				err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+			}
 		})
 
 		table.DescribeTable("should", func(name, command, url, dataVolumeName, eventReason string, phase cdiv1.DataVolumePhase) {
-			var dataVolume *cdiv1.DataVolume
+			if !f.IsBlockVolumeStorageClassAvailable() {
+				Skip("Storage Class for block volume is not available")
+			}
 
 			switch name {
 			case "import-http":
-				dataVolume = utils.NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName, "1G", url)
+				dataVolume = utils.NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName, "1G", url, f.BlockSCName)
 			}
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -215,10 +194,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
 				return false
 			}, timeout, pollingInterval).Should(BeTrue())
-
-			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
-
 		},
 			table.Entry("succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
 		)

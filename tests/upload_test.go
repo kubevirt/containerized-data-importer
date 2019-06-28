@@ -12,7 +12,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
-	k8sv1 "k8s.io/api/storage/v1"
 
 	"github.com/onsi/ginkgo/extensions/table"
 
@@ -204,34 +203,11 @@ var _ = Describe("Block PV upload Test", func() {
 
 		uploadProxyURL string
 		portForwardCmd *exec.Cmd
-
-		pv           *v1.PersistentVolume
-		storageClass *k8sv1.StorageClass
 	)
 
 	f := framework.NewFrameworkOrDie(namespacePrefix)
 
 	BeforeEach(func() {
-		err := f.ClearBlockPV()
-		Expect(err).NotTo(HaveOccurred())
-
-		pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "cdi-block-device", "kubevirt.io=cdi-block-device")
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", f.CdiInstallNs+"/"+"cdi-block-device"))
-
-		nodeName := pod.Spec.NodeName
-
-		By(fmt.Sprintf("Creating storageClass for Block PV"))
-		storageClass, err = f.CreateStorageClassFromDefinition(utils.NewStorageClassForBlockPVDefinition("manual"))
-		Expect(err).ToNot(HaveOccurred())
-
-		By(fmt.Sprintf("Creating Block PV"))
-		pv, err = f.CreatePVFromDefinition(utils.NewBlockPVDefinition("local-volume", "500M", nil, "manual", nodeName))
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Verify that PV's phase is Available")
-		err = f.WaitTimeoutForPVReady(pv.Name, 60*time.Second)
-		Expect(err).ToNot(HaveOccurred())
-
 		if pvc != nil {
 			Eventually(func() bool {
 				// Make sure the pvc doesn't still exist. The after each should have called delete.
@@ -241,7 +217,7 @@ var _ = Describe("Block PV upload Test", func() {
 		}
 
 		By("Creating PVC with upload target annotation")
-		pvc, err = f.CreatePVCFromDefinition(utils.UploadBlockPVCDefinition())
+		pvc, err = f.CreatePVCFromDefinition(utils.UploadBlockPVCDefinition(f.BlockSCName))
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Set up port forwarding")
@@ -265,21 +241,12 @@ var _ = Describe("Block PV upload Test", func() {
 		deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(deleted).To(BeTrue())
-
-		if pv != nil {
-			By("Delete PV for block PV")
-			err := utils.DeletePV(f.K8sClient, pv)
-			Expect(err).ToNot(HaveOccurred())
-		}
-
-		if storageClass != nil {
-			By("Delete storageClass for block PV")
-			err = utils.DeleteStorageClass(f.K8sClient, storageClass)
-			Expect(err).ToNot(HaveOccurred())
-		}
 	})
 
 	table.DescribeTable("should", func(validToken bool, expectedStatus int) {
+		if !f.IsBlockVolumeStorageClassAvailable() {
+			Skip("Storage Class for block volume is not available")
+		}
 		By("Verify that upload server POD running")
 		err := f.WaitTimeoutForPodReady(utils.UploadPodName(pvc), time.Second*90)
 		Expect(err).ToNot(HaveOccurred())

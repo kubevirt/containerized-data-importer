@@ -47,6 +47,7 @@ var (
 	master         *string
 	goCLIPath      *string
 	snapshotSCName *string
+	blockSCName    *string
 )
 
 // Config provides some basic test config options
@@ -94,6 +95,8 @@ type Framework struct {
 	GoCLIPath string
 	// SnapshotSCName is the Storage Class name that supports Snapshots
 	SnapshotSCName string
+	// BlockSCName is the Storage Class name that supports block mode
+	BlockSCName string
 }
 
 // TODO: look into k8s' SynchronizedBeforeSuite() and SynchronizedAfterSuite() code and their general
@@ -112,6 +115,7 @@ func init() {
 	master = flag.String("master", "", "master url:port")
 	goCLIPath = flag.String("gocli-path", "cli.sh", "The path to cli script")
 	snapshotSCName = flag.String("snapshot-sc", "", "The Storage Class supporting snapshots")
+	blockSCName = flag.String("block-sc", "", "The Storage Class supporting block mode volumes")
 }
 
 // NewFrameworkOrDie calls NewFramework and handles errors by calling Fail. Config is optional, but
@@ -163,6 +167,7 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 	f.Master = *master
 	f.GoCLIPath = *goCLIPath
 	f.SnapshotSCName = *snapshotSCName
+	f.BlockSCName = *blockSCName
 
 	restConfig, err := f.LoadConfig()
 	if err != nil {
@@ -351,6 +356,24 @@ func (f *Framework) CreatePrometheusServiceInNs(namespace string) (*v1.Service, 
 		},
 	}
 	return f.K8sClient.CoreV1().Services(namespace).Create(service)
+}
+
+// IsSnapshotStorageClassAvailable checks if the snapshot storage class exists.
+func (f *Framework) IsSnapshotStorageClassAvailable() bool {
+	sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
+	if err != nil {
+		return false
+	}
+	return sc.Name == f.SnapshotSCName
+}
+
+// IsBlockVolumeStorageClassAvailable checks if the block volume storage class exists.
+func (f *Framework) IsBlockVolumeStorageClassAvailable() bool {
+	sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.BlockSCName, metav1.GetOptions{})
+	if err != nil {
+		return false
+	}
+	return sc.Name == f.BlockSCName
 }
 
 func (f *Framework) dumpLogs() {
