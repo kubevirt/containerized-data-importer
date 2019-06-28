@@ -111,6 +111,9 @@ func newCloneDataVolumeWithPVCNS(name string, pvcNamespace string) *cdiv1.DataVo
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: metav1.NamespaceDefault,
+			Annotations: map[string]string{
+				AnnCloneToken: "foobar",
+			},
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: cdiv1.DataVolumeSource{

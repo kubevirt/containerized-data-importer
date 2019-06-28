@@ -435,6 +435,11 @@ func newPVCSpec(sizeValue int64, sizeFormat resource.Format) *corev1.PersistentV
 }
 
 func validateDVs(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+	wh := NewDataVolumeValidatingWebhook(nil)
+	return serve(ar, wh)
+}
+
+func serve(ar *v1beta1.AdmissionReview, handler http.Handler) *v1beta1.AdmissionResponse {
 	reqBytes, _ := json.Marshal(ar)
 	req, err := http.NewRequest("POST", "/foobar", bytes.NewReader(reqBytes))
 	Expect(err).ToNot(HaveOccurred())
@@ -442,8 +447,7 @@ func validateDVs(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	req.Header.Set("Content-Type", "application/json")
 
 	rr := httptest.NewRecorder()
-	wh := NewDataVolumeValidationWebhook(nil)
-	wh.ServeHTTP(rr, req)
+	handler.ServeHTTP(rr, req)
 
 	var response v1beta1.AdmissionReview
 	err = json.NewDecoder(rr.Body).Decode(&response)
