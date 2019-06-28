@@ -147,10 +147,10 @@ func (wh *dataVolumeMutatingWebhook) canClonePVC(namespace, name string, userInf
 			ResourceAttributes: &authorization.ResourceAttributes{
 				Namespace:   namespace,
 				Verb:        "create",
-				Group:       "cdi.kubevirt.io",
-				Version:     "v1alpha1",
+				Group:       cdiv1alpha1.SchemeGroupVersion.Group,
+				Version:     cdiv1alpha1.SchemeGroupVersion.Version,
 				Resource:    "datavolumes",
-				Subresource: "clone-init",
+				Subresource: cdiv1alpha1.DataVolumeCloneSourceSubresource,
 				Name:        name,
 			},
 		},
