@@ -20,6 +20,12 @@ script_dir="$(readlink -f $(dirname $0))"
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
+csv_tool="${BIN_DIR}/cdi-olm-catalog"
+
+(cd "${CDI_DIR}/tools/cdi-olm-catalog/" && go build -o "${csv_tool}" ./...)
+
+
+
 
 OUT_PATH="${OUT_DIR}"
 OLM_CATALOG_INIT_PATH="tools/${CDI_OLM_CATALOG}"
@@ -37,7 +43,7 @@ mkdir -p  "${OLM_CATALOG_OUT_PATH}"
 function getCSVCRDVersion {
     csv=$1
     local crdVersion
-    crdVersion=$(${OLM_CATALOG_OUT_PATH}/cdi-olm-catalog --cmd get-csv-crd-version --csv-file $csv --crd-kind "CDI")
+    crdVersion=$(${csv_tool} --cmd get-csv-crd-version --csv-file $csv --crd-kind "CDI")
     echo $crdVersion
 }
 
@@ -50,7 +56,7 @@ function getCRD {
     crdfilename="none"
     for crd in $(ls $crdslocation); do
        if [[ $crd =~ "crd" ]]; then
-           if [[ $(${OLM_CATALOG_OUT_PATH}/cdi-olm-catalog --cmd get-crd-version --crd-file $crdslocation/$crd --crd-kind "CDI") == "$crdVersion" ]]; then
+           if [[ $(${csv_tool} --cmd get-crd-version --crd-file $crdslocation/$crd --crd-kind "CDI") == "$crdVersion" ]]; then
              crdfilename=$crd
              break
           fi
@@ -95,7 +101,6 @@ function packBundles {
    
     csvs=$1
     crds=${OLM_TMP_CRDS}
-
     mkdir -p $crds
     prepareCRDFiles  $crds
 

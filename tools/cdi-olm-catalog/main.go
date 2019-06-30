@@ -159,8 +159,8 @@ func getCRDVersion(crdFile, crdKind string) (string, error) {
 	}
 
 	//sanity
-	if strings.Compare(crdKind, crdStruct.Kind) != 0 {
-		return "", errors.New("CRD kind " + crdStruct.Kind + " does not match provided crdKind " + crdKind)
+	if strings.Compare(crdKind, crdStruct.Spec.Names.Kind) != 0 {
+		return "", errors.New("CRD kind " + crdStruct.Spec.Names.Kind + " does not match provided crdKind " + crdKind)
 	}
 
 	return crdStruct.Spec.Version, nil

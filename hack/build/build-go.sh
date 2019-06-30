@@ -56,7 +56,6 @@ elif [ "${go_opt}" == "build" ]; then
         rm -f ${outLink}
         (
             cd $tgt
-
             # Only build executables for linux amd64
             GOOS=linux GOARCH=amd64 go build -o ${outFile} -ldflags '-extldflags "static"' -ldflags "$(cdi::version::ldflags)"
 

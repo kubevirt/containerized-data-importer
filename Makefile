@@ -12,13 +12,11 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-.PHONY: build build-controller build-importer build-cloner build-apiserver build-uploadproxy build-uploadserver build-operator build-functest-file-image-init build-functest-registry-image-init  build-cdi-olm-catalog build-functest \
-		docker docker-controller docker-cloner docker-importer docker-apiserver docker-uploadproxy docker-uploadserver docker-operator docker-functest-image-init docker-functest-image-http docker-functest-registry-populate docker-functest-registry docker-functest-registry-init \
-		cluster-up cluster-down cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer cluster-sync-apiserver cluster-sync-uploadproxy cluster-sync-uploadserver \
+.PHONY: build build-controller build-importer build-cloner build-apiserver build-uploadproxy build-uploadserver build-operator build-functest-file-image-init build-functest-registry-image-init build-functest \
+	    manifests \
 		olm-verify olm-push \
-		manifests \
-    	docker docker-controller docker-cloner docker-importer docker-apiserver docker-uploadproxy docker-uploadserver docker-operator docker-functest-image-init docker-functest-image-http docker-functest-registry-populate docker-functest-registry docker-functest-registry-init docker-functest-block-device docker-olm-catalog \
-		cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer cluster-sync-apiserver cluster-sync-uploadproxy cluster-sync-uploadserver \
+    	docker docker-controller docker-cloner docker-importer docker-apiserver docker-uploadproxy docker-uploadserver docker-operator docker-functest-image-init docker-functest-image-http docker-functest-registry-populate docker-functest-registry docker-functest-registry-init docker-olm-catalog \
+		cluster-up cluster-down cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer cluster-sync-apiserver cluster-sync-uploadproxy cluster-sync-uploadserver \
 		test test-functional test-unit test-lint \
 		publish \
 		vet \
@@ -51,7 +49,7 @@ apidocs:
 	${DO} "./hack/update-codegen.sh && ./hack/gen-swagger-doc/gen-swagger-docs.sh v1alpha1 html"
 
 build:
-	${DO} "DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} QUAY_NAMESPACE=${QUAY_NAMESPACE} QUAY_REPOSITORY=${QUAY_REPOSITORY} CSV_VERSION=${CSV_VERSION} ./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-cdi-func-test-registry-host.sh && ./hack/build/build-copy-artifacts.sh ${WHAT}"
+	${DO} "DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} QUAY_NAMESPACE=${QUAY_NAMESPACE} QUAY_REPOSITORY=${QUAY_REPOSITORY} CSV_VERSION=${CSV_VERSION} ./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-cdi-func-test-registry-host.sh && ./hack/build/build-cdi-olm-catalog.sh && ./hack/build/build-copy-artifacts.sh ${WHAT}"
 
 build-controller: WHAT = cmd/cdi-controller
 build-controller: build
@@ -67,8 +65,8 @@ build-cloner: WHAT = cmd/cdi-cloner
 build-cloner: build
 build-operator: WHAT = cmd/cdi-operator
 build-operator: build
-build-cdi-olm-catalog: WHAT = tools/cdi-olm-catalog
-build-cdi-olm-catalog: build
+#build-cdi-olm-catalog: WHAT = tools/cdi-olm-catalog
+#build-cdi-olm-catalog:  
 build-functest-file-image-init: WHAT = tools/cdi-func-test-file-host-init
 build-functest-file-image-init:
 build-functest-registry-image-init: WHAT= tools/cdi-func-test-registry-init
@@ -111,8 +109,8 @@ docker-uploadserver: docker
 docker-operator: WHAT = cmd/cdi-operator
 docker-operator: docker
 docker-olm-catalog: WHAT = tools/cdi-olm-catalog
-docker-olm-catalog: 
-	${DO} ./hack/build/build-cdi-olm-catalog.sh && ./hack/build/build-docker.sh build ${WHAT} 
+docker-olm-catalog:
+	${DO} "./hack/build/build-cdi-olm-catalog.sh && ./hack/build/build-docker.sh build ${WHAT}" 
 docker-functest-images: docker-functest-image-http docker-functest-image-init docker-functest-registry-init docker-functest-registry-populate docker-functest-registry docker-functest-block-device docker-olm-catalog
 docker-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
 docker-functest-image-init: docker

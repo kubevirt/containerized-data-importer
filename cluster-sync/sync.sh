@@ -42,8 +42,8 @@ configure_local_storage
 # Install CDI
 install_cdi
 
-#wait cdi crd is installed with 120s timeout
-wait_cdi_crd_installed 120
+#wait cdi crd is installed with timeout
+wait_cdi_crd_installed $CDI_INSTALL_TIMEOUT
 
 _kubectl apply -f "./_out/manifests/release/cdi-cr.yaml"
 _kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=running --timeout=120s
