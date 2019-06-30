@@ -25,8 +25,6 @@ csv_tool="${BIN_DIR}/cdi-olm-catalog"
 (cd "${CDI_DIR}/tools/cdi-olm-catalog/" && go build -o "${csv_tool}" ./...)
 
 
-
-
 OUT_PATH="${OUT_DIR}"
 OLM_CATALOG_INIT_PATH="tools/${CDI_OLM_CATALOG}"
 OLM_CATALOG_OUT_PATH=${OUT_PATH}/${OLM_CATALOG_INIT_PATH}
@@ -138,10 +136,3 @@ mkdir -p ${OLM_CATALOG_OUT_PATH}/${OLM_MANIFESTS_DIR}/${OLM_PACKAGE}
 cp ${OLM_MANIFESTS_SRC_PATH}/*package* ${OLM_CATALOG_OUT_PATH}/${OLM_MANIFESTS_DIR}/${OLM_PACKAGE}/
 
 packBundles ${OLM_MANIFESTS_SRC_PATH}
-
-
-
-
-
-
-

@@ -8,6 +8,3 @@ spec:
   image: {{ .DockerRepo }}/cdi-olm-catalog:{{ .DockerTag }}
   displayName: KubeVirt CDI
   publisher: Red Hat
-
-
-
