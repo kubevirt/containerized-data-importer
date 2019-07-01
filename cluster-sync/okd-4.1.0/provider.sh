@@ -14,7 +14,7 @@ function configure_local_storage() {
   	# local storage namespace doesn't exist, assume that we need to install local storage.
     for node in {"master-0", "worker-0"}
     do
-  	  ./cluster-up/ssh.sh $node -oStrictHostKeyChecking=no < cluster-sync/okd-4.1.0/create-local-storage-volumes.sh
+      ./cluster-up/ssh.sh $node < cluster-sync/okd-4.1.0/create-local-storage-volumes.sh
     done
 
     #Create the local-storage namespace

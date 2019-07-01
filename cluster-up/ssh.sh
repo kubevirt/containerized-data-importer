@@ -26,7 +26,7 @@ if [ -z "$node" ]; then
     exit 1
 fi
 
-if [[ $provider_prefix =~ okd.* ]]; then
+if [[ $KUBEVIRT_PROVIDER =~ okd.* ]]; then
     ports=$(${KUBEVIRTCI_PATH}cli.sh --prefix $provider_prefix ports --container-name cluster)
 
     if [[ $node =~ worker-0.* ]]; then
