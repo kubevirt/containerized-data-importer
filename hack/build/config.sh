@@ -91,7 +91,7 @@ function getTestPullPolicy() {
     "os-3.11.0")
         pp=Always
         ;;
-    "okd-4.1.0")
+    "okd-4.1.2")
         pp=Always
         ;;
     esac

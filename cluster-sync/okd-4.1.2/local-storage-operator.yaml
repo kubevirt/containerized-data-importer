@@ -16,7 +16,7 @@ metadata:
   namespace: local-storage
 spec:
   sourceType: grpc
-  image: quay.io/gnufied/local-registry:latest
+  image: quay.io/gnufied/local-registry:stable
 
 ---
 

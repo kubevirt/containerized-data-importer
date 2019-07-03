@@ -14,14 +14,14 @@ function configure_local_storage() {
   	# local storage namespace doesn't exist, assume that we need to install local storage.
     for node in {"master-0", "worker-0"}
     do
-      ./cluster-up/ssh.sh $node < cluster-sync/okd-4.1.0/create-local-storage-volumes.sh
+  	  ./cluster-up/ssh.sh $node < cluster-sync/$KUBEVIRT_PROVIDER/create-local-storage-volumes.sh
     done
 
     #Create the local-storage namespace
     _kubectl new-project local-storage
 
     #Create the olm provisioner operator
-    _kubectl create -f cluster-sync/okd-4.1.0/local-storage-operator.yaml
+    _kubectl create -f cluster-sync/$KUBEVIRT_PROVIDER/local-storage-operator.yaml
     set +e
     
     _kubectl get LocalVolume
@@ -31,7 +31,7 @@ function configure_local_storage() {
     	_kubectl get LocalVolume
     done
     #Create the cr object.
-    _kubectl create -f cluster-sync/okd-4.1.0/create-local-storage-cr.yaml
+    _kubectl create -f cluster-sync/$KUBEVIRT_PROVIDER/create-local-storage-cr.yaml
 
 	SC="$(_kubectl get sc local-sc --no-headers -o custom-columns=name:.metadata.name --ignore-not-found)"
 	while [ "$SC" == "" ]
