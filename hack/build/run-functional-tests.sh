@@ -36,7 +36,7 @@ GOCLI=${GOCLI:-${CDI_DIR}/cluster-up/cli.sh}
 KUBE_MASTER_URL=${KUBE_MASTER_URL:-""}
 CDI_NAMESPACE=${CDI_NAMESPACE:-cdi}
 SNAPSHOT_SC=${SNAPSHOT_SC:-csi-rbd}
-BLOCK_SC=${BLOCK_SC:-csi-rdb}
+BLOCK_SC=${BLOCK_SC:-csi-rbd}
 
 # parsetTestOpts sets 'pkgs' and test_args
 parseTestOpts "${@}"

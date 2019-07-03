@@ -88,19 +88,28 @@ func (f *Framework) VerifyTargetPVCContent(namespace *k8sv1.Namespace, pvc *k8sv
 
 // VerifyTargetPVCContentMD5 provides a function to check the md5 of data on a PVC and ensure it matches that which is provided
 func (f *Framework) VerifyTargetPVCContentMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, fileName string, expectedHash string) (bool, error) {
+	md5, err := f.GetMD5(namespace, pvc, fileName)
+	if err != nil {
+		return false, err
+	}
+	return expectedHash == md5, nil
+}
+
+// GetMD5 returns the MD5 of a file on a PVC
+func (f *Framework) GetMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, fileName string) (string, error) {
 	var executorPod *k8sv1.Pod
 	var err error
 
-	executorPod, err = utils.CreateExecutorPodWithPVC(f.K8sClient, "verify-pvc-md5", namespace.Name, pvc)
+	executorPod, err = utils.CreateExecutorPodWithPVC(f.K8sClient, "get-md5-"+pvc.Name, namespace.Name, pvc)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	output, err := f.ExecShellInPod(executorPod.Name, namespace.Name, "md5sum "+fileName)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: md5sum found %s\n", string(output[:32]))
-	return strings.Compare(expectedHash, output[:32]) == 0, nil
+	return output[:32], nil
 }
 
 // VerifyTargetPVCArchiveContent provides a function to check if the number of files extracted from an archive matches the passed in value
