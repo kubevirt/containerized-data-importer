@@ -672,30 +672,10 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName string, pvc *v1.Per
 			},
 		},
 		Spec: v1.PodSpec{
-			// We create initContainer just to set the pod as privileged.
-			// The pod has to be privileged as it has to have access to the hostPath in the node.
-			// However, currently there is a bug that we cannot attach block device to the pod if the pod (container)
-			// is privileged:
-			//https://github.com/kubernetes/kubernetes/issues/58251
-			//https://github.com/kubernetes/kubernetes/issues/62560
-			// As a result of that, instead setting the SecurityContext field as Privileged, in the main container
-			// where we need to have access to  the hostPath, we set the SecurityContext field in the initContainer,
-			// and that will do it.
-			InitContainers: []v1.Container{
-				{
-					Name:  "init",
-					Image: image,
-					VolumeMounts: []v1.VolumeMount{
-						{
-							Name:      socketPathName,
-							MountPath: common.ClonerSocketPath + "/" + id,
-						},
-					},
-					SecurityContext: &v1.SecurityContext{
-						Privileged: &[]bool{true}[0],
-						RunAsUser:  &[]int64{0}[0],
-					},
-					Command: []string{"sh", "-c", "echo setting the pod as privileged"},
+			SecurityContext: &v1.PodSecurityContext{
+				RunAsUser: &[]int64{0}[0],
+				SELinuxOptions: &v1.SELinuxOptions{
+					Type: "spc_t",
 				},
 			},
 			Containers: []v1.Container{
@@ -850,33 +830,12 @@ func MakeCloneTargetPodSpec(image, pullPolicy, podAffinityNamespace string, pvc 
 					},
 				},
 			},
-			// We create initContainer just to set the pod as privileged.
-			// The pod has to be privileged as it has to have access to the hostPath in the node.
-			// However, currently there is a bug that we cannot attach block device to the pod if the pod (container)
-			// is privileged:
-			//https://github.com/kubernetes/kubernetes/issues/58251
-			//https://github.com/kubernetes/kubernetes/issues/62560
-			// As a result of that, instead setting the SecurityContext field as Privileged, in the main container
-			// where we need to have access to  the hostPath, we set the SecurityContext field in the initContainer,
-			// and that will do it.
-			InitContainers: []v1.Container{
-				{
-					Name:  "init",
-					Image: image,
-					VolumeMounts: []v1.VolumeMount{
-						{
-							Name:      socketPathName,
-							MountPath: common.ClonerSocketPath + "/" + id,
-						},
-					},
-					SecurityContext: &v1.SecurityContext{
-						Privileged: &[]bool{true}[0],
-						RunAsUser:  &[]int64{0}[0],
-					},
-					Command: []string{"sh", "-c", "echo setting the pod as privileged"},
+			SecurityContext: &v1.PodSecurityContext{
+				RunAsUser: &[]int64{0}[0],
+				SELinuxOptions: &v1.SELinuxOptions{
+					Type: "spc_t",
 				},
 			},
-
 			Containers: []v1.Container{
 				{
 					Name:            common.ClonerTargetPodName,
