@@ -285,7 +285,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		}, CompletionTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
 
 		By("Verify content")
-		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", BlockDeviceMD5)
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", utils.UploadFileMD5, utils.UploadFileSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
 

@@ -4,7 +4,6 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
-	"strings"
 
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
@@ -177,23 +176,6 @@ var _ = Describe("Data Processor", func() {
 		replaceQEMUOperations(qemuOperations, func() {
 			err := dp.ProcessData()
 			Expect(err).ToNot(HaveOccurred())
-			Expect(2).To(Equal(len(mdp.calledPhases)))
-			Expect(ProcessingPhaseInfo).To(Equal(mdp.calledPhases[0]))
-			Expect(ProcessingPhaseTransferDataFile).To(Equal(mdp.calledPhases[1]))
-		})
-	})
-
-	It("should fail when validate fails for TransferDataFile", func() {
-		mdp := &MockDataProvider{
-			infoResponse:     ProcessingPhaseTransferDataFile,
-			transferResponse: ProcessingPhaseComplete,
-		}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G")
-		qemuOperations := NewQEMUAllErrors()
-		replaceQEMUOperations(qemuOperations, func() {
-			err := dp.ProcessData()
-			Expect(err).To(HaveOccurred())
-			Expect(strings.Contains(err.Error(), "Image validation failed")).To(BeTrue())
 			Expect(2).To(Equal(len(mdp.calledPhases)))
 			Expect(ProcessingPhaseInfo).To(Equal(mdp.calledPhases[0]))
 			Expect(ProcessingPhaseTransferDataFile).To(Equal(mdp.calledPhases[1]))
