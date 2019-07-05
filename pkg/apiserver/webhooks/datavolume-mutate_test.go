@@ -51,7 +51,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 
 			resp := mutateDVs(key, ar, true)
 			Expect(resp.Allowed).To(BeFalse())
-			Expect(resp.Result.Message).ShouldNot(BeEmpty())
+			Expect(resp.Result.Message).Should(Equal("AdmissionReview.Request is nil"))
 		})
 
 		It("should allow a DataVolume with HTTP source", func() {
