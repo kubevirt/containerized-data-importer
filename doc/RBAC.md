@@ -95,7 +95,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: joe-cdi-cloner
-  namespace: project1
+  namespace: golden-images
 subjects:
 - kind: User
   name: Joe
