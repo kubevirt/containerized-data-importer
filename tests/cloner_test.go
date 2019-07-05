@@ -99,7 +99,7 @@ var _ = Describe("Block PV Cloner Test", func() {
 		}
 		pvcDef := utils.NewBlockPVCDefinition(sourcePVCName, "500M", nil, nil, f.BlockSCName)
 		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, "fill-source-block-pod", blockFillCommand)
-		sourceMD5, err := f.GetMD5(f.Namespace, sourcePvc, testBaseDir)
+		sourceMD5, err := f.GetMD5(f.Namespace, sourcePvc, testBaseDir, 0)
 		Expect(err).ToNot(HaveOccurred())
 
 		// Create targetPvc in new NS for block PV.
