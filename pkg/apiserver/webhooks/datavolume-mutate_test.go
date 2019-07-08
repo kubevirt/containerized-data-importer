@@ -168,7 +168,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 
 func mutateDVs(key *rsa.PrivateKey, ar *v1beta1.AdmissionReview, isAuthorized bool) *v1beta1.AdmissionResponse {
 	client := fakeclient.NewSimpleClientset()
-	client.PrependReactor("create", "subjectaccessreviews", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+	client.PrependReactor("create", "subjectaccessreviews", func(action k8stesting.Action) (bool, runtime.Object, error) {
 		if action.GetResource().Resource != "subjectaccessreviews" {
 			return false, nil, nil
 		}
