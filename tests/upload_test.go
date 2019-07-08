@@ -9,11 +9,10 @@ import (
 	"time"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
-
-	"github.com/onsi/ginkgo/extensions/table"
 
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -68,7 +67,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(deleted).To(BeTrue())
 	})
 
-	table.DescribeTable("should", func(validToken bool, expectedStatus int) {
+	DescribeTable("should", func(validToken bool, expectedStatus int) {
 
 		By("Verify that upload server POD running")
 		err := f.WaitTimeoutForPodReady(utils.UploadPodName(pvc), time.Second*90)
@@ -100,7 +99,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(found).To(BeTrue())
 
 			By("Verify content")
-			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5)
+			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5Extended)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
 			fileSize, err := f.RunCommandAndCaptureOutput(pvc, "stat -c \"%s\" /pvc/disk.img")
@@ -112,8 +111,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(err).ToNot(HaveOccurred())
 		}
 	},
-		table.Entry("[test_id:1368]succeed given a valid token", true, http.StatusOK),
-		table.Entry("[posneg:negative][test_id:1369]fail given an invalid token", false, http.StatusUnauthorized),
+		Entry("[test_id:1368]succeed given a valid token", true, http.StatusOK),
+		Entry("[posneg:negative][test_id:1369]fail given an invalid token", false, http.StatusUnauthorized),
 	)
 	It("Verify upload to the same pvc fails", func() {
 		By("Verify that upload server POD running")
@@ -164,7 +163,7 @@ func startUploadProxyPortForward(f *framework.Framework) (string, *exec.Cmd, err
 func uploadImage(portForwardURL, token string, expectedStatus int) error {
 	url := portForwardURL + "/v1alpha1/upload"
 
-	f, err := os.Open("./images/cirros-qcow2.img")
+	f, err := os.Open(utils.UploadFile)
 	if err != nil {
 		return err
 	}
@@ -243,7 +242,7 @@ var _ = Describe("Block PV upload Test", func() {
 		Expect(deleted).To(BeTrue())
 	})
 
-	table.DescribeTable("should", func(validToken bool, expectedStatus int) {
+	DescribeTable("should", func(validToken bool, expectedStatus int) {
 		if !f.IsBlockVolumeStorageClassAvailable() {
 			Skip("Storage Class for block volume is not available")
 		}
@@ -276,19 +275,16 @@ var _ = Describe("Block PV upload Test", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(found).To(BeTrue())
 
-			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultPvcMountPath, utils.UploadBlockDeviceMD5)
+			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultPvcMountPath, utils.UploadFileMD5, utils.UploadFileSize)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
-			fileSize, err := f.RunCommandAndCaptureOutput(pvc, "lsblk -n -b -o SIZE /pvc")
-			Expect(err).ToNot(HaveOccurred())
-			Expect(fileSize).To(Equal("524288000")) // 500M
 		} else {
 			By("Verify PVC empty")
 			_, err = framework.VerifyPVCIsEmpty(f, pvc)
 			Expect(err).ToNot(HaveOccurred())
 		}
 	},
-		table.Entry("[test_id:1368]succeed given a valid token (block)", true, http.StatusOK),
-		table.Entry("[posneg:negative][test_id:1369]fail given an invalid token (block)", false, http.StatusUnauthorized),
+		Entry("[test_id:1368]succeed given a valid token (block)", true, http.StatusOK),
+		Entry("[posneg:negative][test_id:1369]fail given an invalid token (block)", false, http.StatusUnauthorized),
 	)
 })

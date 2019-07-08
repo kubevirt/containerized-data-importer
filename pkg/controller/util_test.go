@@ -1616,21 +1616,10 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, pvcUID string) *v1.Pod {
 			},
 		},
 		Spec: v1.PodSpec{
-			InitContainers: []v1.Container{
-				{
-					Name:  "init",
-					Image: "test/mycloneimage",
-					VolumeMounts: []v1.VolumeMount{
-						{
-							Name:      socketPathName,
-							MountPath: ClonerSocketPath + "/" + pvcUID,
-						},
-					},
-					SecurityContext: &v1.SecurityContext{
-						Privileged: &[]bool{true}[0],
-						RunAsUser:  &[]int64{0}[0],
-					},
-					Command: []string{"sh", "-c", "echo setting the pod as privileged"},
+			SecurityContext: &v1.PodSecurityContext{
+				RunAsUser: &[]int64{0}[0],
+				SELinuxOptions: &v1.SELinuxOptions{
+					Type: "spc_t",
 				},
 			},
 			Containers: []v1.Container{
@@ -1740,24 +1729,12 @@ func createTargetPod(pvc *v1.PersistentVolumeClaim, pvcUID, podAffinityNamespace
 					},
 				},
 			},
-			InitContainers: []v1.Container{
-				{
-					Name:  "init",
-					Image: "test/mycloneimage",
-					VolumeMounts: []v1.VolumeMount{
-						{
-							Name:      socketPathName,
-							MountPath: ClonerSocketPath + "/" + pvcUID,
-						},
-					},
-					SecurityContext: &v1.SecurityContext{
-						Privileged: &[]bool{true}[0],
-						RunAsUser:  &[]int64{0}[0],
-					},
-					Command: []string{"sh", "-c", "echo setting the pod as privileged"},
+			SecurityContext: &v1.PodSecurityContext{
+				RunAsUser: &[]int64{0}[0],
+				SELinuxOptions: &v1.SELinuxOptions{
+					Type: "spc_t",
 				},
 			},
-
 			Containers: []v1.Container{
 				{
 					Name:            common.ClonerTargetPodName,
