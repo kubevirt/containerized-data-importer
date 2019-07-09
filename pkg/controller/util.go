@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/util/cert"
 	"k8s.io/klog"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
@@ -29,6 +31,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
+	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
@@ -627,6 +630,48 @@ func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *v1.PersistentVo
 	}
 	// Can clone.
 	return nil
+}
+
+func validateCloneToken(validator token.Validator, source, target *v1.PersistentVolumeClaim) error {
+	tok, ok := target.Annotations[AnnCloneToken]
+	if !ok {
+		return errors.New("clone token missing")
+	}
+
+	tokenData, err := validator.Validate(tok)
+	if err != nil {
+		return errors.Wrap(err, "error verifying token")
+	}
+
+	if tokenData.Operation != token.OperationClone ||
+		tokenData.Name != source.Name ||
+		tokenData.Namespace != source.Namespace ||
+		tokenData.Resource.Resource != "persistentvolumeclaims" ||
+		tokenData.Params["targetNamespace"] != target.Namespace ||
+		tokenData.Params["targetName"] != target.Name {
+		return errors.Wrap(err, "invalid token")
+	}
+
+	return nil
+}
+
+// DecodePublicKey turns a bunch of bytes into a public key
+func DecodePublicKey(keyBytes []byte) (*rsa.PublicKey, error) {
+	keys, err := cert.ParsePublicKeysPEM(keyBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(keys) != 1 {
+		return nil, errors.New("unexected number of pulic keys")
+	}
+
+	key, ok := keys[0].(*rsa.PublicKey)
+	if !ok {
+		return nil, errors.New("PEM does not contain RSA key")
+	}
+
+	return key, nil
 }
 
 // CreateCloneSourcePod creates our cloning src pod which will be used for out of band cloning to read the contents of the src PVC

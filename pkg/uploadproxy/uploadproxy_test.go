@@ -8,17 +8,16 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
-	"k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/util/cert"
 
-	"kubevirt.io/containerized-data-importer/pkg/apiserver"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
@@ -26,6 +25,27 @@ type httpClientConfig struct {
 	key    string
 	cert   string
 	caCert string
+}
+
+type validateSuccess struct{}
+
+type validateFailure struct{}
+
+func (*validateSuccess) Validate(string) (*token.Payload, error) {
+	return &token.Payload{
+		Operation: token.OperationUpload,
+		Name:      "testpvc",
+		Namespace: "default",
+		Resource: metav1.GroupVersionResource{
+			Group:    "",
+			Version:  "v1",
+			Resource: "persistentvolumeclaims",
+		},
+	}, nil
+}
+
+func (*validateFailure) Validate(string) (*token.Payload, error) {
+	return nil, fmt.Errorf("Bad token")
 }
 
 func getPublicKeyEncoded(t *testing.T) string {
@@ -83,17 +103,6 @@ func submitRequestAndCheckStatus(t *testing.T, request *http.Request, expectedCo
 	}
 }
 
-func verifyTokenFailure(token string, publicKey *rsa.PublicKey) (*apiserver.TokenData, error) {
-	return nil, fmt.Errorf("Bad token")
-}
-
-func verifyTokenSuccess(token string, publicKey *rsa.PublicKey) (*apiserver.TokenData, error) {
-	tokenData := &apiserver.TokenData{PvcName: "testpvc",
-		Namespace:         "default",
-		CreationTimestamp: time.Now().UTC()}
-	return tokenData, nil
-}
-
 func createApp() *uploadProxyApp {
 	app := &uploadProxyApp{}
 	app.initHandlers()
@@ -109,8 +118,8 @@ func TestGetSigningKey(t *testing.T) {
 		t.Errorf("Failed to parse public key pem")
 	}
 
-	if app.apiServerPublicKey == nil {
-		t.Errorf("Failed to create public key")
+	if app.tokenValidator == nil {
+		t.Errorf("Failed to create token validator")
 	}
 }
 
@@ -162,7 +171,7 @@ func setupProxyTests(handler http.HandlerFunc) *uploadProxyApp {
 	objects = append(objects, pod)
 	app := createApp()
 	app.client = k8sfake.NewSimpleClientset(objects...)
-	app.tokenVerifier = verifyTokenSuccess
+	app.tokenValidator = &validateSuccess{}
 	app.urlResolver = urlResolver
 	app.uploadServerClient = server.Client()
 
@@ -197,7 +206,7 @@ func TestProxy(t *testing.T) {
 
 func TestTokenInvalid(t *testing.T) {
 	app := createApp()
-	app.tokenVerifier = verifyTokenFailure
+	app.tokenValidator = &validateFailure{}
 
 	req := newProxyRequest(t, "Bearer valid")
 

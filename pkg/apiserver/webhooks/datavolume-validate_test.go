@@ -1,9 +1,30 @@
-package validatingwebhook
+/*
+ * This file is part of the CDI project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Copyright 2019 Red Hat, Inc.
+ *
+ */
+
+package webhooks
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"testing"
+	"net/http"
+	"net/http/httptest"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -16,11 +37,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
-
-func TestValidatingWebhook(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "ValidatingWebhook Suite")
-}
 
 var _ = Describe("Validating Webhook", func() {
 	Context("with DataVolume admission review", func() {
@@ -41,7 +57,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := admitDVs(ar)
+			resp := validateDVs(ar)
 			Expect(resp.Allowed).To(Equal(true))
 		})
 		It("should accept DataVolume with Registry source on create", func() {
@@ -61,7 +77,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := admitDVs(ar)
+			resp := validateDVs(ar)
 			Expect(resp.Allowed).To(Equal(true))
 		})
 		It("should accept DataVolume with PVC source on create", func() {
@@ -81,7 +97,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := admitDVs(ar)
+			resp := validateDVs(ar)
 			Expect(resp.Allowed).To(Equal(true))
 		})
 
@@ -102,7 +118,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := admitDVs(ar)
+			resp := validateDVs(ar)
 			Expect(resp.Allowed).To(Equal(false))
 		})
 		It("should reject invalid DataVolume source PVC name on create", func() {
@@ -122,7 +138,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := admitDVs(ar)
+			resp := validateDVs(ar)
 			Expect(resp.Allowed).To(Equal(false))
 		})
 		It("should reject DataVolume source with invalid URL on create", func() {
@@ -142,7 +158,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := admitDVs(ar)
+			resp := validateDVs(ar)
 			Expect(resp.Allowed).To(Equal(false))
 		})
 		It("should reject DataVolume with multiple sources on create", func() {
@@ -162,7 +178,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := admitDVs(ar)
+			resp := validateDVs(ar)
 			Expect(resp.Allowed).To(Equal(false))
 		})
 		It("should reject DataVolume with empty PVC create", func() {
@@ -182,7 +198,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := admitDVs(ar)
+			resp := validateDVs(ar)
 			Expect(resp.Allowed).To(Equal(false))
 		})
 		It("should reject DataVolume with PVC size 0", func() {
@@ -202,7 +218,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := admitDVs(ar)
+			resp := validateDVs(ar)
 			Expect(resp.Allowed).To(Equal(false))
 		})
 		It("should accept DataVolume with Blank source and no content type", func() {
@@ -221,7 +237,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := admitDVs(ar)
+			resp := validateDVs(ar)
 			Expect(resp.Allowed).To(Equal(true))
 
 		})
@@ -243,7 +259,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := admitDVs(ar)
+			resp := validateDVs(ar)
 			Expect(resp.Allowed).To(Equal(true))
 
 		})
@@ -265,7 +281,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := admitDVs(ar)
+			resp := validateDVs(ar)
 			Expect(resp.Allowed).To(Equal(false))
 
 		})
@@ -287,7 +303,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := admitDVs(ar)
+			resp := validateDVs(ar)
 			Expect(resp.Allowed).To(Equal(false))
 
 		})
@@ -309,7 +325,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := admitDVs(ar)
+			resp := validateDVs(ar)
 			Expect(resp.Allowed).To(Equal(true))
 
 		})
@@ -416,4 +432,26 @@ func newPVCSpec(sizeValue int64, sizeFormat resource.Format) *corev1.PersistentV
 		},
 	}
 	return pvc
+}
+
+func validateDVs(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+	wh := NewDataVolumeValidatingWebhook(nil)
+	return serve(ar, wh)
+}
+
+func serve(ar *v1beta1.AdmissionReview, handler http.Handler) *v1beta1.AdmissionResponse {
+	reqBytes, _ := json.Marshal(ar)
+	req, err := http.NewRequest("POST", "/foobar", bytes.NewReader(reqBytes))
+	Expect(err).ToNot(HaveOccurred())
+
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	var response v1beta1.AdmissionReview
+	err = json.NewDecoder(rr.Body).Decode(&response)
+	Expect(err).ToNot(HaveOccurred())
+
+	return response.Response
 }

@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/signal"
 
@@ -169,7 +171,8 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		podInformer,
 		clonerImage,
 		pullPolicy,
-		verbose)
+		verbose,
+		getAPIServerPublicKey())
 
 	smartCloneController := controller.NewSmartCloneController(client,
 		cdiClient,
@@ -353,4 +356,18 @@ func startSmartController(extclient extclientset.Interface, csiInformerFactory c
 			}
 		}()
 	}
+}
+
+func getAPIServerPublicKey() *rsa.PublicKey {
+	keyBytes, err := ioutil.ReadFile(controller.APIServerPublicKeyPath)
+	if err != nil {
+		klog.Fatalf("Error reading apiserver public key")
+	}
+
+	key, err := controller.DecodePublicKey(keyBytes)
+	if err != nil {
+		klog.Fatalf("Error decoding public key")
+	}
+
+	return key
 }
