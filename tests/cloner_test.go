@@ -95,7 +95,7 @@ var _ = Describe("Block PV Cloner Test", func() {
 		}
 	})
 
-	It("Should clone data within same namespace", func() {
+	It("Should clone data across namespaces", func() {
 		if !f.IsBlockVolumeStorageClassAvailable() {
 			Skip("Storage Class for block volume is not available")
 		}
@@ -104,8 +104,14 @@ var _ = Describe("Block PV Cloner Test", func() {
 		sourceMD5, err := f.GetMD5(f.Namespace, sourcePvc, testBaseDir, 0)
 		Expect(err).ToNot(HaveOccurred())
 
-		targetDV := utils.NewDataVolumeCloneToBlockPV("target-dv", "500M", sourcePvc.Namespace, sourcePvc.Name)
-		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, sourcePvc.Namespace, targetDV)
+		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+			framework.NsPrefixLabel: f.NsPrefix,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		f.AddNamespaceToDelete(targetNs)
+
+		targetDV := utils.NewDataVolumeCloneToBlockPV("target-dv", "500M", sourcePvc.Namespace, sourcePvc.Name, f.BlockSCName)
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 		Expect(err).ToNot(HaveOccurred())
 
 		targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
@@ -113,7 +119,7 @@ var _ = Describe("Block PV Cloner Test", func() {
 
 		fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
-		completeClone(f, f.Namespace, targetPvc, testBaseDir, sourceMD5)
+		completeClone(f, targetNs, targetPvc, testBaseDir, sourceMD5)
 	})
 })
 
