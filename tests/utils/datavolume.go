@@ -139,9 +139,8 @@ func NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName string, size string, ht
 }
 
 // NewDataVolumeCloneToBlockPV initializes a DataVolume for block cloning
-func NewDataVolumeCloneToBlockPV(dataVolumeName string, size string, srcNamespace, srcName string) *cdiv1.DataVolume {
+func NewDataVolumeCloneToBlockPV(dataVolumeName string, size string, srcNamespace, srcName, storageClassName string) *cdiv1.DataVolume {
 	volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock)
-	storageClassName := "manual"
 	dataVolume := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
