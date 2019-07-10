@@ -41,6 +41,9 @@ function configure_local_storage() {
 	done
     #Set the default storage class.
     _kubectl patch storageclass local-sc -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+	#Switch back to default project
+	_kubectl project default
     set -e
   fi
 }
