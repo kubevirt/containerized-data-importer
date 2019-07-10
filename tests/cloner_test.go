@@ -154,7 +154,7 @@ var _ = Describe("Block PV Cloner Test", func() {
 		Expect(err).NotTo(HaveOccurred())
 		f.AddNamespaceToDelete(targetNs)
 
-		targetDV := utils.NewDataVolumeCloneToBlockPV("target-dv", "500M", sourcePvc.Namespace, sourcePvc.Name, f.BlockSCName)
+		targetDV := utils.NewDataVolumeCloneToBlockPV("target-dv", "500M", sourcePvc.Namespace, sourcePvc.Name, "manual")
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 		Expect(err).ToNot(HaveOccurred())
 

@@ -1,5 +1,5 @@
-hash: cedb83f51bb315e3c0fe5e76e47de06e64bc7bb90adddb8664548263b3e32d10
-updated: 2019-07-10T16:49:22.376724007Z
+hash: 9cf293ea37ceaf306a1d6c7521041c7fa3181706b44abb81d4cfb3d82d9c192b
+updated: 2019-07-10T21:03:06.515231593Z
 imports:
 - name: github.com/appscode/jsonpatch
   version: 7c0e3b262f30165a8ec3d0b4c6059fd92703bfb2
@@ -16,7 +16,7 @@ imports:
   subpackages:
   - spdy
 - name: github.com/emicklei/go-restful
-  version: 26b41036311f2da8242db402557a0dbd09dc83da
+  version: 6ac3b8eb89d325e5c750d77f344a6870464d03c3
   subpackages:
   - log
 - name: github.com/emicklei/go-restful-openapi
