@@ -1,6 +1,8 @@
-hash: d084cb6b6a3f3a73f904cc37ac72a84165b7f776659c4681b868e11cfb755b9f
-updated: 2019-03-06T23:19:52.96702+09:00
+hash: 9cf293ea37ceaf306a1d6c7521041c7fa3181706b44abb81d4cfb3d82d9c192b
+updated: 2019-07-10T21:03:06.515231593Z
 imports:
+- name: github.com/appscode/jsonpatch
+  version: 7c0e3b262f30165a8ec3d0b4c6059fd92703bfb2
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
   subpackages:
@@ -14,19 +16,19 @@ imports:
   subpackages:
   - spdy
 - name: github.com/emicklei/go-restful
-  version: 26b41036311f2da8242db402557a0dbd09dc83da
+  version: 6ac3b8eb89d325e5c750d77f344a6870464d03c3
   subpackages:
   - log
 - name: github.com/emicklei/go-restful-openapi
-  version: b7062368c258c9e8f8cbe9dd2e6aebfa1b747be6
+  version: 3a2469535f7276c560a2a6dc90cdac077a914427
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ini/ini
-  version: ece0e89bb05aec0d6768f7bc1e77f11f03da0d11
+  version: 8659100d2d9ecf3760a41838b1886db49426d001
 - name: github.com/go-logr/logr
   version: 9fb12b3b21c5415d16ac18dc5cd42c1cfdd40c4e
 - name: github.com/go-logr/zapr
-  version: 7536572e8d55209135cd5e7ccf7fce43dca217ab
+  version: 03f06a783fbb7dfaf3f629c7825480e43a7105e6
 - name: github.com/go-openapi/jsonpointer
   version: 46af16f9f7b149af66e5d1bd010e3574dc06de98
 - name: github.com/go-openapi/jsonreference
@@ -65,7 +67,7 @@ imports:
   - compiler
   - extensions
 - name: github.com/gorilla/mux
-  version: a7962380ca08b5a188038c69871b8d3fbdf31e89
+  version: 00bdffe0f3c77e27d2cf6f5c70232a2d3e4d9c15
 - name: github.com/gregjones/httpcache
   version: 787624de3eb7bd915c329cba748687a3b22666a6
   subpackages:
@@ -79,7 +81,7 @@ imports:
 - name: github.com/json-iterator/go
   version: f2b4162afba35581b6d4a50d3b8f34e33c144682
 - name: github.com/kelseyhightower/envconfig
-  version: f611eb38b3875cc3bd991ca91c51d06446afa14c
+  version: 0b417c4ec4a8a82eecc22a1459a504aa55163d61
 - name: github.com/mailru/easyjson
   version: 2f5df55504ebc322e4d52d34df6a1f5b503bf26d
   subpackages:
@@ -129,7 +131,7 @@ imports:
   - reporters/stenographer/support/go-isatty
   - types
 - name: github.com/onsi/gomega
-  version: 5533ce8a0da374da682cd53d70ddcc54adf1a710
+  version: efe19c39ca106ee4ed42a1b25e1a80a53be4831a
   subpackages:
   - format
   - gbytes
@@ -145,7 +147,7 @@ imports:
   - matchers/support/goraph/util
   - types
 - name: github.com/openshift/api
-  version: 5ad8479f64f1b60ee9c62ce8ef1fe6638838725e
+  version: 8741ff068a473be041d7bafb4502c12e4f10aab5
   subpackages:
   - route/v1
   - security/v1
@@ -162,6 +164,9 @@ imports:
   - route/informers/externalversions/route
   - route/informers/externalversions/route/v1
   - route/listers/route/v1
+  - security/clientset/versioned
+  - security/clientset/versioned/scheme
+  - security/clientset/versioned/typed/security/v1
 - name: github.com/pborman/uuid
   version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 - name: github.com/peterbourgon/diskv
@@ -203,11 +208,11 @@ imports:
 - name: github.com/xi2/xz
   version: 48954b6210f8d154cb5f8484d3a3e1f83489309e
 - name: go.uber.org/atomic
-  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
+  version: df976f2515e274675050de7b3f42545de80594fd
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: d2a364dac1d9b70c651d9f47381c5912361e5596
+  version: 9a9fa7d4b5f07a9b634983678a65b5525f81e58b
   subpackages:
   - buffer
   - internal/bufferpool
@@ -275,7 +280,7 @@ imports:
   subpackages:
   - rate
 - name: google.golang.org/appengine
-  version: 54a98f90d1c46b7731eb8fb305d2a321c30ef610
+  version: b2f4a3cf3c67576a2ee09e1fe62656a5086ce880
   subpackages:
   - internal
   - internal/base
@@ -287,10 +292,11 @@ imports:
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
 - name: gopkg.in/square/go-jose.v2
-  version: 628223f44a71f715d2881ea69afc795a1e9c01be
+  version: 730df5f748271903322feb182be83b43ebbbe27d
   subpackages:
   - cipher
   - json
+  - jwt
 - name: gopkg.in/yaml.v2
   version: 670d4cfef0544295bc27a114dbac37980d83185a
 - name: k8s.io/api
@@ -568,9 +574,9 @@ imports:
 - name: k8s.io/code-generator
   version: b1289fc74931d4b6b04bd1a259acfc88a2cb0a66
 - name: k8s.io/gengo
-  version: 7a1b7fb0289f3b6f206589cdcfcad73009b6e840
+  version: e17681d19d3ac4837a019ece36c2a0ec31ffe985
 - name: k8s.io/klog
-  version: 8e90cee79f823779174776412c13478955131846
+  version: aeddeeced515f4c31fa65bfc24332b3e7763cc5c
 - name: k8s.io/kube-aggregator
   version: e95ebe3de8a24c3da1ad7606ca5a2444a64f4c82
   subpackages:

@@ -93,6 +93,9 @@ func newCloneDataVolume(name string) *cdiv1.DataVolume {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: metav1.NamespaceDefault,
+			Annotations: map[string]string{
+				AnnCloneToken: "foobar",
+			},
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: cdiv1.DataVolumeSource{
