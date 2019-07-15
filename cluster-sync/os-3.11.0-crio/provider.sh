@@ -9,3 +9,6 @@ re='^-?[0-9]+$'
 if ! [[ $num_nodes =~ $re ]] || [[ $num_nodes -lt 1 ]] ; then
     num_nodes=1
 fi
+
+
+

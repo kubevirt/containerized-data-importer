@@ -47,3 +47,4 @@ function configure_local_storage() {
     set -e
   fi
 }
+

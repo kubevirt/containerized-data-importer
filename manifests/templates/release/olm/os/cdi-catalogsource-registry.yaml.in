@@ -1,0 +1,10 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: cdi-operatorhub
+  namespace: {{.Namespace}}
+spec:
+  sourceType: grpc
+  image: {{ .DockerRepo }}/cdi-olm-catalog:{{ .DockerTag }}
+  displayName: KubeVirt CDI
+  publisher: Red Hat

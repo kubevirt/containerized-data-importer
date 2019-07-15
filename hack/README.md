@@ -71,7 +71,8 @@ The standard workflow is performed inside a helper container to normalize the bu
     - `docker-uploadproxy`: compile cdi-uploadproxy and build cdi-uploadproxy image
     - `docker-uploadserver`: compile cdi-uploadserver and build cdi-uploadserver image
     - `docker-operator`: compile cdi-operator and build cdi-operator image
-    - `docker-registry-cleanup`: remove all images of specifed repo from local docker registry. if not specified removes from localhost repo of current cluster instance. Accepts [make variables](#make-variables) DOCKER_PREFIX.  
+    - `docker-olm-catalog`: pack OLM bundles in dedicated directories under olm-catalog and build olm-catalog-registry container image. Accepts [make variables](#make-variables) QUAY_NAMESPACE, QUAY_REPOSITORY, CSV_VERSION.
+    - `docker-registry-cleanup`: remove all images of specifed repo from local docker registry. if not specified removes from localhost repo of current cluster instance. Accepts [make variables](#make-variables) DOCKER_REPO.  
     - `docker-functest-images`: compile and build the file host and docker registry images for functional tests
         - `docker-functest-image-init`: compile and build the file host init image for functional tests
         - `docker-functest-image-http`: only build the file host http container for functional tests

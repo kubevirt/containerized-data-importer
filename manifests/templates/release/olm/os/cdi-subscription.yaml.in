@@ -9,4 +9,3 @@ spec:
   source: {{.QuayRepository}}
   sourceNamespace: {{.Namespace}}
 
-

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+source cluster-sync/install.sh
+
 function seed_images(){
   container=""
   container_alias=""
