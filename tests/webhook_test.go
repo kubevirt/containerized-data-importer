@@ -2,6 +2,7 @@ package tests
 
 import (
 	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -66,8 +67,10 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				addPermissionToNamespace(f.K8sClient, serviceAccountName, targetNamespace.Name, f.Namespace.Name)
 
 				// now can list dvs in source
-				_, err = client.CdiV1alpha1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				Eventually(func() error {
+					_, err = client.CdiV1alpha1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
+					return err
+				}, 60*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
 
 				// now can create clone of dv in source
 				_, err = client.CdiV1alpha1().DataVolumes(targetNamespace.Name).Create(targetDV)
