@@ -76,7 +76,7 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) 
 
 	sourceNamespace, sourceName := pvcSource.Namespace, pvcSource.Name
 	if sourceNamespace == "" {
-		sourceNamespace = ar.Request.Namespace
+		sourceNamespace = targetNamespace
 	}
 
 	if ar.Request.Operation == admissionv1beta1.Update {
