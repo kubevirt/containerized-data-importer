@@ -31,7 +31,7 @@ else
 DO=eval
 endif
 
-all: docker
+all: manifests docker
 
 clean:
 	${DO} "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile release-announcement"
