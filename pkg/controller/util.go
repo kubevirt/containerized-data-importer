@@ -649,7 +649,7 @@ func validateCloneToken(validator token.Validator, source, target *v1.Persistent
 		tokenData.Resource.Resource != "persistentvolumeclaims" ||
 		tokenData.Params["targetNamespace"] != target.Namespace ||
 		tokenData.Params["targetName"] != target.Name {
-		return errors.Wrap(err, "invalid token")
+		return errors.New("invalid token")
 	}
 
 	return nil
