@@ -149,7 +149,7 @@ push-uploadserver: push
 push-operator: WHAT = cmd/cdi-operator
 push-operator: push
 
-publish: docker
+publish: manifests docker
 	./hack/build/build-docker.sh publish ${WHAT}
 
 olm-verify:
