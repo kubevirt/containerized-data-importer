@@ -13,6 +13,8 @@ CDI works with standard core Kubernetes resources and is storage device agnostic
 
 # Introduction
 
+blah blah blah
+
 ## Kubernetes extension to populate PVCs with VM images
 CDI provides the ability to populate PVCs with VM images upon creation.  Multiple image formats and sources are supported:
 
