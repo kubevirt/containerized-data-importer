@@ -1202,6 +1202,90 @@ func Test_DecodePublicKey(t *testing.T) {
 	}
 }
 
+func Test_TokenValidation(t *testing.T) {
+
+	goodTokenData := func() *token.Payload {
+		return &token.Payload{
+			Operation: token.OperationClone,
+			Name:      "source",
+			Namespace: "sourcens",
+			Resource: metav1.GroupVersionResource{
+				Resource: "persistentvolumeclaims",
+			},
+			Params: map[string]string{
+				"targetName":      "target",
+				"targetNamespace": "targetns",
+			},
+		}
+	}
+
+	badOperation := goodTokenData()
+	badOperation.Operation = token.OperationUpload
+
+	badSourceName := goodTokenData()
+	badSourceName.Name = "foo"
+
+	badSourceNamespace := goodTokenData()
+	badSourceNamespace.Namespace = "foo"
+
+	badResource := goodTokenData()
+	badResource.Resource.Resource = "foo"
+
+	badTargetName := goodTokenData()
+	badTargetName.Params["targetName"] = "foo"
+
+	badTargetNamespace := goodTokenData()
+	badTargetNamespace.Params["targetNamespace"] = "foo"
+
+	missingParams := goodTokenData()
+	missingParams.Params = nil
+
+	g := token.NewGenerator(common.CloneTokenIssuer, getAPIServerKey(), 5*time.Minute)
+	v := newCloneTokenValidator(&getAPIServerKey().PublicKey)
+
+	payloads := []*token.Payload{
+		goodTokenData(),
+		badOperation,
+		badSourceName,
+		badSourceNamespace,
+		badResource,
+		badTargetName,
+		badTargetNamespace,
+		missingParams,
+	}
+
+	for _, p := range payloads {
+		tokenString, err := g.Generate(p)
+		if err != nil {
+			panic("error generating token")
+		}
+
+		source := &v1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "source",
+				Namespace: "sourcens",
+			},
+		}
+
+		target := &v1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "target",
+				Namespace: "targetns",
+				Annotations: map[string]string{
+					AnnCloneToken: tokenString,
+				},
+			},
+		}
+
+		err = validateCloneToken(v, source, target)
+		if err == nil && !reflect.DeepEqual(p, goodTokenData()) {
+			t.Error("validation should have failed")
+		} else if err != nil && reflect.DeepEqual(p, goodTokenData()) {
+			t.Error("validation should have succeeded")
+		}
+	}
+}
+
 func createPod(pvc *v1.PersistentVolumeClaim, dvname string, scratchPvc *v1.PersistentVolumeClaim) *v1.Pod {
 	// importer pod name contains the pvc name
 	podName := fmt.Sprintf("%s-%s-", ImporterPodName, pvc.Name)
@@ -1416,6 +1500,10 @@ func createClonePvcWithSize(sourceNamespace, sourceName, targetNamespace, target
 			Group:    "",
 			Version:  "v1",
 			Resource: "persistentvolumeclaims",
+		},
+		Params: map[string]string{
+			"targetNamespace": targetNamespace,
+			"targetName":      targetName,
 		},
 	}
 

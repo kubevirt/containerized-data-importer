@@ -312,9 +312,10 @@ var _ = Describe("Block PV upload Test", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
 		} else {
-			By("Verify PVC empty")
-			_, err = framework.VerifyPVCIsEmpty(f, pvc)
-			Expect(err).ToNot(HaveOccurred())
+			// TODO framework.VerifyPVCIsEmpty doesn't make sense for block devices
+			//By("Verify PVC empty")
+			//_, err = framework.VerifyPVCIsEmpty(f, pvc)
+			//Expect(err).ToNot(HaveOccurred())
 		}
 	},
 		Entry("[test_id:1368]succeed given a valid token (block)", true, http.StatusOK),
