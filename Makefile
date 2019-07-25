@@ -49,7 +49,7 @@ apidocs:
 	${DO} "./hack/update-codegen.sh && ./hack/gen-swagger-doc/gen-swagger-docs.sh v1alpha1 html"
 
 build:
-	${DO} "DOCKER_REPO=${DOCKER_REPO} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} QUAY_NAMESPACE=${QUAY_NAMESPACE} QUAY_REPOSITORY=${QUAY_REPOSITORY} CSV_VERSION=${CSV_VERSION} ./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-cdi-func-test-registry-host.sh && ./hack/build/build-cdi-olm-catalog.sh && ./hack/build/build-copy-artifacts.sh ${WHAT}"
+	${DO} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} QUAY_NAMESPACE=${QUAY_NAMESPACE} QUAY_REPOSITORY=${QUAY_REPOSITORY} CSV_VERSION=${CSV_VERSION} ./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-cdi-func-test-registry-host.sh && ./hack/build/build-cdi-olm-catalog.sh && ./hack/build/build-copy-artifacts.sh ${WHAT}"
 
 build-controller: WHAT = cmd/cdi-controller
 build-controller: build
@@ -149,7 +149,7 @@ push-uploadserver: push
 push-operator: WHAT = cmd/cdi-operator
 push-operator: push
 
-publish: docker
+publish: manifests docker
 	./hack/build/build-docker.sh publish ${WHAT}
 
 olm-verify:

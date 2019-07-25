@@ -44,14 +44,14 @@ before_deploy:
 deploy:
   # Release :latest images
 - provider: script
-  script: make publish
+  script: env CSV_VERSION=$TRAVIS_TAG make publish
   skip_cleanup: true
   on:
     branch: master
     repo: kubevirt/containerized-data-importer
  # Release versioned images
 - provider: script
-  script: make publish
+  script: env CSV_VERSION=$TRAVIS_TAG make publish
   branches:
       only: /v[0-9]+\.[0-9]+\.[0-9]+(-alpha\.[0-9]+){0,1}/
   on:
