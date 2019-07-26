@@ -22,6 +22,14 @@ generator="${BIN_DIR}/manifest-generator"
 
 (cd "${CDI_DIR}/tools/manifest-generator/" && go build -o "${generator}" ./...)
 
+echo "CSV_VERSION=${CSV_VERSION}"
+echo "QUAY_NAMESPACE=${QUAY_NAMESPACE}"
+echo "QUAY_REPOSITORY=${QUAY_REPOSITORY}"
+echo "DOCKER_PREFIX=${DOCKER_PREFIX}"
+echo "DOCKER_TAG=${DOCKER_TAG}"
+echo "VERBOSITY=${VERBOSITY}"
+echo "PULL_POLICY=${PULL_POLICY}"
+echo "NAMESPACE=${NAMESPACE}"
 
 source "${script_dir}"/resource-generator.sh
 
