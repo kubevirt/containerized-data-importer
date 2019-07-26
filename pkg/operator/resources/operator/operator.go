@@ -99,7 +99,7 @@ func getOperatorClusterRules() *[]rbacv1.PolicyRule {
 				"securitycontextconstraints",
 			},
 			ResourceNames: []string{
-				"privileged",
+				"anyuid",
 			},
 			Verbs: []string{
 				"get",

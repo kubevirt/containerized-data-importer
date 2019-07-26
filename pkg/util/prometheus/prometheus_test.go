@@ -2,9 +2,10 @@ package prometheus
 
 import (
 	"bytes"
+	"io/ioutil"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"io/ioutil"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -93,6 +94,7 @@ var _ = Describe("Update Progress", func() {
 		promReader := &ProgressReader{
 			CountingReader: util.CountingReader{
 				Current: uint64(1000),
+				Done:    true,
 			},
 			total:    uint64(1000),
 			progress: progress,

@@ -163,18 +163,20 @@ var _ = Describe("Controller", func() {
 				Expect(cm.OwnerReferences[0].UID).Should(Equal(args.cdi.UID))
 			})
 
-			It("should be privileged", func() {
+			It("should be anyuid", func() {
 				var err error
 
 				args := createArgs()
 				doReconcile(args)
 
 				expectedUsers := namespaceResources.GetPrivilegedAccounts(args.reconciler.namespacedArgs)
+				Expect(expectedUsers).To(HaveLen(1))
+				Expect(expectedUsers).To(HaveKey("anyuid"))
 
 				args.scc, err = getSCC(args.client, args.scc)
 				Expect(err).ToNot(HaveOccurred())
 
-				for _, eu := range expectedUsers {
+				for _, eu := range expectedUsers["anyuid"] {
 					found := false
 					for _, au := range args.scc.Users {
 						if eu == au {
@@ -587,7 +589,7 @@ func createCDI(name, uid string) *cdiviaplha1.CDI {
 }
 
 func createSCC() *secv1.SecurityContextConstraints {
-	return &secv1.SecurityContextConstraints{ObjectMeta: metav1.ObjectMeta{Name: "privileged"}}
+	return &secv1.SecurityContextConstraints{ObjectMeta: metav1.ObjectMeta{Name: "anyuid"}}
 }
 
 func createReconciler(client realClient.Client) *ReconcileCDI {

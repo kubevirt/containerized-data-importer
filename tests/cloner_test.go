@@ -144,28 +144,12 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *k8
 		PrintControllerLog(f)
 	}
 	Expect(err).ToNot(HaveOccurred())
-	targetPod, err := utils.FindPodByPrefix(f.K8sClient, targetNs.Name, common.ClonerTargetPodName, common.CDILabelSelector)
-	if err != nil {
-		PrintControllerLog(f)
-	}
-	Expect(err).ToNot(HaveOccurred())
-
-	By("Verifying that the source and target pods are scheduled on the same node")
-	Eventually(func() bool {
-		srcNode, err := utils.PodGetNode(f.K8sClient, sourcePod.Name, sourcePod.Namespace)
-		Expect(err).ToNot(HaveOccurred())
-		tgtNode, err := utils.PodGetNode(f.K8sClient, targetPod.Name, targetPod.Namespace)
-		Expect(err).ToNot(HaveOccurred())
-		fmt.Fprintf(GinkgoWriter, "INFO: Source POD host %s\n", srcNode)
-		fmt.Fprintf(GinkgoWriter, "INFO: Target POD host %s\n", tgtNode)
-		return srcNode == tgtNode
-	}, cloneCompleteTimeout, assertionPollInterval).Should(BeTrue())
 
 	By("Verify the clone annotation is on the target PVC")
 	_, cloneAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnCloneOf)
 	if err != nil {
 		PrintControllerLog(f)
-		PrintPodLog(f, targetPod.Name, targetPod.Namespace)
+		PrintPodLog(f, sourcePod.Name, sourcePod.Namespace)
 	}
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cloneAnnotationFound).To(BeTrue())
@@ -186,12 +170,7 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *k8
 	}
 
 	By("Verify source pod deleted")
-	deleted, err := utils.WaitPodDeleted(f.K8sClient, sourcePod.Name, targetPod.Namespace, defaultTimeout)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(deleted).To(BeTrue())
-
-	By("Verify target pod deleted")
-	deleted, err = utils.WaitPodDeleted(f.K8sClient, targetPod.Name, targetNs.Name, defaultTimeout)
+	deleted, err := utils.WaitPodDeleted(f.K8sClient, sourcePod.Name, sourcePod.Namespace, defaultTimeout)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(deleted).To(BeTrue())
 }
@@ -202,7 +181,11 @@ func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string
 	_, err := utils.CreatePVCFromDefinition(f.K8sClient, targetNamespaceName, utils.NewPVCDefinition(
 		"target-pvc",
 		"1G",
-		map[string]string{controller.AnnCloneRequest: f.Namespace.Name + "/" + sourcePVCName, controller.AnnCloneOf: "true"},
+		map[string]string{
+			controller.AnnCloneRequest: f.Namespace.Name + "/" + sourcePVCName,
+			controller.AnnCloneOf:      "true",
+			controller.AnnPodPhase:     "Succeeded",
+		},
 		nil))
 	Expect(err).ToNot(HaveOccurred())
 	By("Checking no cloning pods were created")
@@ -210,7 +193,14 @@ func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string
 	Eventually(func() bool {
 		log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 		Expect(err).NotTo(HaveOccurred())
-		return strings.Contains(log, "pvc annotation \""+controller.AnnCloneOf+"\" exists indicating cloning completed, skipping pvc \""+f.Namespace.Name+"/target-pvc\"")
+		return strings.Contains(log, targetNamespaceName+"/target-pvc not doing anything with: upload=false, clone=true, succeeded=true")
+	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
+	Expect(err).ToNot(HaveOccurred())
+
+	Eventually(func() bool {
+		log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+		Expect(err).NotTo(HaveOccurred())
+		return strings.Contains(log, fmt.Sprintf("Cleaning up for PVC %s/target-pvc", targetNamespaceName))
 	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
 	Expect(err).ToNot(HaveOccurred())
 }

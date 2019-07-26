@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -48,7 +49,7 @@ func TestController_pvcFromKey(t *testing.T) {
 	}
 
 	type args struct {
-		key interface{}
+		key string
 	}
 	tests := []struct {
 		name    string
@@ -86,66 +87,6 @@ func TestController_pvcFromKey(t *testing.T) {
 	}
 }
 
-func TestCloneController_pvcFromKey(t *testing.T) {
-
-	//create staging pvc and pods
-	pvcWithCloneRequestAnno := createPvc("target-pvc", "target-ns", map[string]string{AnnCloneRequest: "source-ns/golden-pvc"}, nil)
-	id := string(pvcWithCloneRequestAnno.GetUID())
-	sourcePod := createSourcePod(pvcWithCloneRequestAnno, id)
-	targetPod := createTargetPod(pvcWithCloneRequestAnno, id, sourcePod.Namespace)
-
-	//run the informers
-	c, pvc, sourcePod, targetPod, err := createCloneController(pvcWithCloneRequestAnno, sourcePod, targetPod, "target-ns", "sourceNs")
-	if err != nil {
-		t.Errorf("Controller.pvcFromKey() failed to initialize fake clone controller error = %v", err)
-		return
-	}
-
-	type args struct {
-		key interface{}
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    *v1.PersistentVolumeClaim
-		wantErr bool
-	}{
-		{
-			name:    "expect to get pvc object from key",
-			args:    args{fmt.Sprintf("%s/%s", sourcePod.GetAnnotations()[AnnTargetPodNamespace], pvc.Name)},
-			want:    pvc,
-			wantErr: false,
-		},
-		{
-			name:    "expect to not get pvc object from key",
-			args:    args{fmt.Sprintf("%s/%s", "myns", pvc.Name)},
-			want:    nil,
-			wantErr: false,
-		},
-		{
-			name:    "expect to get pvc object from key",
-			args:    args{fmt.Sprintf("%s/%s", targetPod.Namespace, pvc.Name)},
-			want:    pvc,
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, exists, err := c.pvcFromKey(tt.args.key)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Controller.pvcFromKey() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Controller.pvcFromKey() = %v, want %v", got, tt.want)
-			}
-			if tt.want == nil && exists {
-				t.Errorf("Controller.pvcFromKey() expected key not to exist")
-			}
-		})
-	}
-}
-
 func TestController_objFromKey(t *testing.T) {
 	//create staging pvc and pod
 	pvcWithEndPointAnno := createPvc("testPvcWithEndPointAnno", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
@@ -160,7 +101,7 @@ func TestController_objFromKey(t *testing.T) {
 
 	type args struct {
 		informer cache.SharedIndexInformer
-		key      interface{}
+		key      string
 	}
 	tests := []struct {
 		name    string
@@ -178,66 +119,6 @@ func TestController_objFromKey(t *testing.T) {
 			name:    "expect to not get object key",
 			args:    args{c.pvcInformer, fmt.Sprintf("%s/%s", "myns", pvc.Name)},
 			want:    nil,
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, exists, err := c.objFromKey(tt.args.informer, tt.args.key)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Controller.objFromKey() error = %v, wantErr %v  myKey = %v", err, tt.wantErr, tt.args.key)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Controller.objFromKey() = %v, want %v", got, tt.want)
-			}
-			if tt.want == nil && exists {
-				t.Errorf("Controller.pvcFromKey() expected key not to exist")
-			}
-		})
-	}
-}
-
-func TestCloneController_objFromKey(t *testing.T) {
-	//create staging pvc and pods
-	pvcWithCloneRequestAnno := createPvc("testPvcWithCloneRequestAnno", "target-ns", map[string]string{AnnCloneRequest: "source-ns/golden-pvc"}, nil)
-	id := string(pvcWithCloneRequestAnno.GetUID())
-	sourcePod := createSourcePod(pvcWithCloneRequestAnno, id)
-	targetPod := createTargetPod(pvcWithCloneRequestAnno, id, sourcePod.Namespace)
-
-	//run the informers
-	c, pvc, sourcePod, targetPod, err := createCloneController(pvcWithCloneRequestAnno, sourcePod, targetPod, "target-ns", "source-ns")
-	if err != nil {
-		t.Errorf("Controller.objFromKey() failed to initialize fake clone controller error = %v", err)
-		return
-	}
-
-	type args struct {
-		informer cache.SharedIndexInformer
-		key      interface{}
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    interface{}
-		wantErr bool
-	}{
-		{
-			name:    "expect to get object key",
-			args:    args{c.pvcInformer, fmt.Sprintf("%s/%s", sourcePod.GetAnnotations()[AnnTargetPodNamespace], pvc.Name)},
-			want:    pvc,
-			wantErr: false,
-		},
-		{
-			name:    "expect to not get object key",
-			args:    args{c.pvcInformer, fmt.Sprintf("%s/%s", "myns", pvc.Name)},
-			want:    nil,
-			wantErr: false,
-		},
-		{
-			name:    "expect to get object key",
-			args:    args{c.pvcInformer, fmt.Sprintf("%s/%s", targetPod.Namespace, pvc.Name)},
-			want:    pvc,
 			wantErr: false,
 		},
 	}
@@ -1408,10 +1289,6 @@ func createPod(pvc *v1.PersistentVolumeClaim, dvname string, scratchPvc *v1.Pers
 		}
 	} else {
 		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts()
-		pod.Spec.SecurityContext = &v1.PodSecurityContext{
-			RunAsNonRoot: &[]bool{true}[0],
-			RunAsUser:    &[]int64{1001}[0],
-		}
 	}
 
 	if scratchPvc != nil {
@@ -1442,7 +1319,7 @@ func createPvcInStorageClass(name, ns string, storageClassName *string, annotati
 			Namespace:   ns,
 			Annotations: annotations,
 			Labels:      labels,
-			UID:         "pvc-uid",
+			UID:         types.UID(ns + "/" + name),
 		},
 		Spec: v1.PersistentVolumeClaimSpec{
 			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadOnlyMany, v1.ReadWriteOnce},
@@ -1714,53 +1591,55 @@ func createCloneController(pvcSpec *v1.PersistentVolumeClaim, sourcePodSpec *v1.
 
 func createSourcePod(pvc *v1.PersistentVolumeClaim, pvcUID string) *v1.Pod {
 	_, sourcePvcName := ParseSourcePvcAnnotation(pvc.GetAnnotations()[AnnCloneRequest], "/")
-	podName := fmt.Sprintf("%s-", common.ClonerSourcePodName)
-	blockOwnerDeletion := true
-	isController := true
+	podName := fmt.Sprintf("%s-%s-", common.ClonerSourcePodName, sourcePvcName)
 	pod := &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: podName,
 			Annotations: map[string]string{
-				AnnCreatedBy:          "yes",
-				AnnTargetPodNamespace: pvc.Namespace,
+				AnnCreatedBy: "yes",
+				AnnOwnerRef:  fmt.Sprintf("%s/%s", pvc.Namespace, pvc.Name),
 			},
 			Labels: map[string]string{
 				CDILabelKey:       CDILabelValue, //filtered by the podInformer
 				CDIComponentLabel: ClonerSourcePodName,
-				CloningLabelKey:   CloningLabelValue + "-" + pvcUID, //used by podAffity
 				// this label is used when searching for a pvc's cloner source pod.
 				CloneUniqueID: pvcUID + "-source-pod",
-			},
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion:         "v1",
-					Kind:               "PersistentVolumeClaim",
-					Name:               pvc.Name,
-					UID:                pvc.GetUID(),
-					BlockOwnerDeletion: &blockOwnerDeletion,
-					Controller:         &isController,
-				},
 			},
 		},
 		Spec: v1.PodSpec{
 			SecurityContext: &v1.PodSecurityContext{
 				RunAsUser: &[]int64{0}[0],
-				SELinuxOptions: &v1.SELinuxOptions{
-					Type: "spc_t",
-				},
 			},
 			Containers: []v1.Container{
 				{
 					Name:            common.ClonerSourcePodName,
 					Image:           "test/mycloneimage",
 					ImagePullPolicy: v1.PullPolicy("Always"),
+					Env: []v1.EnvVar{
+						{
+							Name:  "CLIENT_KEY",
+							Value: string(testUploadServerClientKeySecret.Data["tls.key"]),
+						},
+						{
+							Name:  "CLIENT_CERT",
+							Value: string(testUploadServerClientKeySecret.Data["tls.crt"]),
+						},
+						{
+							Name:  "SERVER_CA_CERT",
+							Value: string(testUploadServerClientKeySecret.Data["ca.crt"]),
+						},
+						{
+							Name:  "UPLOAD_URL",
+							Value: GetUploadServerURL(pvc.Namespace, pvc.Name),
+						},
+						{
+							Name:  common.OwnerUID,
+							Value: pvcUID,
+						},
+					},
 				},
 			},
-			RestartPolicy: v1.RestartPolicyNever,
+			RestartPolicy: v1.RestartPolicyOnFailure,
 			Volumes: []v1.Volume{
 				{
 					Name: DataVolName,
@@ -1771,19 +1650,13 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, pvcUID string) *v1.Pod {
 						},
 					},
 				},
-				{
-					Name: socketPathName,
-					VolumeSource: v1.VolumeSource{
-						HostPath: &v1.HostPathVolumeSource{
-							Path: ClonerSocketPath + "/" + pvcUID,
-						},
-					},
-				},
 			},
 		},
 	}
 
 	var volumeMode v1.PersistentVolumeMode
+	var addVars []v1.EnvVar
+
 	if pvc.Spec.VolumeMode != nil {
 		volumeMode = *pvc.Spec.VolumeMode
 	} else {
@@ -1792,137 +1665,40 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, pvcUID string) *v1.Pod {
 
 	if volumeMode == v1.PersistentVolumeBlock {
 		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
-		pod.Spec.Containers[0].VolumeMounts = addCloneVolumeMounts("Block", pvcUID)
-		pod.Spec.Containers[0].Args = addArgs("source", pvcUID, "block")
+		addVars = []v1.EnvVar{
+			{
+				Name:  "VOLUME_MODE",
+				Value: "block",
+			},
+			{
+				Name:  "MOUNT_POINT",
+				Value: common.ImporterWriteBlockPath,
+			},
+		}
+		pod.Spec.SecurityContext = &v1.PodSecurityContext{
+			RunAsUser: &[]int64{0}[0],
+		}
 	} else {
-		pod.Spec.Containers[0].VolumeMounts = addCloneVolumeMounts("FS", pvcUID)
-		pod.Spec.Containers[0].Args = addArgs("source", pvcUID, "FS")
-	}
-	return pod
-}
-
-func createTargetPod(pvc *v1.PersistentVolumeClaim, pvcUID, podAffinityNamespace string) *v1.Pod {
-	// target pod name contains the pvc name
-	podName := fmt.Sprintf("%s-", ClonerTargetPodName)
-	blockOwnerDeletion := true
-	isController := true
-	ownerUID := pvc.UID
-	if len(pvc.OwnerReferences) == 1 {
-		ownerUID = pvc.OwnerReferences[0].UID
-	}
-
-	pod := &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: podName,
-			Annotations: map[string]string{
-				AnnCreatedBy:          "yes",
-				AnnTargetPodNamespace: pvc.Namespace,
+		pod.Spec.Containers[0].VolumeMounts = []v1.VolumeMount{
+			{
+				Name:      DataVolName,
+				MountPath: common.ClonerMountPath,
 			},
-			Labels: map[string]string{
-				common.CDILabelKey:       common.CDILabelValue, //filtered by the podInformer
-				common.CDIComponentLabel: common.ClonerTargetPodName,
-				// this label is used when searching for a pvc's cloner target pod.
-				CloneUniqueID:   pvcUID + "-target-pod",
-				PrometheusLabel: "",
+		}
+		addVars = []v1.EnvVar{
+			{
+				Name:  "VOLUME_MODE",
+				Value: "filesystem",
 			},
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion:         "v1",
-					Kind:               "PersistentVolumeClaim",
-					Name:               pvc.Name,
-					UID:                pvc.GetUID(),
-					BlockOwnerDeletion: &blockOwnerDeletion,
-					Controller:         &isController,
-				},
+			{
+				Name:  "MOUNT_POINT",
+				Value: common.ClonerMountPath,
 			},
-		},
-		Spec: v1.PodSpec{
-			Affinity: &v1.Affinity{
-				PodAffinity: &v1.PodAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
-						{
-							LabelSelector: &metav1.LabelSelector{
-								MatchExpressions: []metav1.LabelSelectorRequirement{
-									{
-										Key:      common.CloningLabelKey,
-										Operator: metav1.LabelSelectorOpIn,
-										Values:   []string{CloningLabelValue + "-" + pvcUID},
-									},
-								},
-							},
-							Namespaces:  []string{podAffinityNamespace}, //the scheduler looks for the namespace of the source pod
-							TopologyKey: common.CloningTopologyKey,
-						},
-					},
-				},
-			},
-			SecurityContext: &v1.PodSecurityContext{
-				RunAsUser: &[]int64{0}[0],
-				SELinuxOptions: &v1.SELinuxOptions{
-					Type: "spc_t",
-				},
-			},
-			Containers: []v1.Container{
-				{
-					Name:            common.ClonerTargetPodName,
-					Image:           "test/mycloneimage",
-					ImagePullPolicy: v1.PullPolicy("Always"),
-					Ports: []v1.ContainerPort{
-						{
-							Name:          "metrics",
-							ContainerPort: 8443,
-							Protocol:      v1.ProtocolTCP,
-						},
-					},
-					Env: []v1.EnvVar{
-						{
-							Name:  common.OwnerUID,
-							Value: string(ownerUID),
-						},
-					},
-				},
-			},
-			RestartPolicy: v1.RestartPolicyNever,
-			Volumes: []v1.Volume{
-				{
-					Name: DataVolName,
-					VolumeSource: v1.VolumeSource{
-						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
-							ClaimName: pvc.Name,
-							ReadOnly:  false,
-						},
-					},
-				},
-				{
-					Name: socketPathName,
-					VolumeSource: v1.VolumeSource{
-						HostPath: &v1.HostPathVolumeSource{
-							Path: ClonerSocketPath + "/" + pvcUID,
-						},
-					},
-				},
-			},
-		},
-	}
-	var volumeMode v1.PersistentVolumeMode
-	if pvc.Spec.VolumeMode != nil {
-		volumeMode = *pvc.Spec.VolumeMode
-	} else {
-		volumeMode = v1.PersistentVolumeFilesystem
+		}
 	}
 
-	if volumeMode == v1.PersistentVolumeBlock {
-		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
-		pod.Spec.Containers[0].VolumeMounts = addCloneVolumeMounts("Block", pvcUID)
-		pod.Spec.Containers[0].Args = addArgs("target", pvcUID, "block")
-	} else {
-		pod.Spec.Containers[0].VolumeMounts = addCloneVolumeMounts("FS", pvcUID)
-		pod.Spec.Containers[0].Args = addArgs("target", pvcUID, "FS")
-	}
+	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, addVars...)
+
 	return pod
 }
 
@@ -1936,6 +1712,24 @@ func getPvcKey(pvc *corev1.PersistentVolumeClaim, t *testing.T) string {
 }
 
 func createUploadPod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
+	pod := createUploadClonePod(pvc)
+	pod.Spec.Volumes = append(pod.Spec.Volumes, v1.Volume{
+		Name: ScratchVolName,
+		VolumeSource: v1.VolumeSource{
+			PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+				ClaimName: pvc.Name + "-scratch",
+				ReadOnly:  false,
+			},
+		},
+	})
+	pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, v1.VolumeMount{
+		Name:      ScratchVolName,
+		MountPath: "/scratch",
+	})
+	return pod
+}
+
+func createUploadClonePod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	name := "cdi-upload-" + pvc.Name
 	secretName := name + "-server-tls"
 	requestImageSize, _ := getRequestedImageSize(pvc)
@@ -1962,8 +1756,7 @@ func createUploadPod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
 		},
 		Spec: v1.PodSpec{
 			SecurityContext: &v1.PodSecurityContext{
-				RunAsNonRoot: &[]bool{true}[0],
-				RunAsUser:    &[]int64{1001}[0],
+				RunAsUser: &[]int64{0}[0],
 			},
 			Containers: []v1.Container{
 				{
@@ -1974,10 +1767,6 @@ func createUploadPod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
 						{
 							Name:      DataVolName,
 							MountPath: "/data",
-						},
-						{
-							Name:      ScratchVolName,
-							MountPath: "/scratch",
 						},
 					},
 					Env: []v1.EnvVar{
@@ -2042,15 +1831,6 @@ func createUploadPod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
 					VolumeSource: v1.VolumeSource{
 						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
 							ClaimName: pvc.Name,
-							ReadOnly:  false,
-						},
-					},
-				},
-				{
-					Name: ScratchVolName,
-					VolumeSource: v1.VolumeSource{
-						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
-							ClaimName: pvc.Name + "-scratch",
 							ReadOnly:  false,
 						},
 					},

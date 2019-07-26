@@ -32,7 +32,7 @@ var _ = Describe("Operator tests", func() {
 		Expect(r.Spec.TLS.Termination).To(Equal(routev1.TLSTerminationReencrypt))
 	})
 
-	It("add cdi-sa to privileged scc", func() {
+	It("add cdi-sa to anyuid scc", func() {
 		if !controller.IsOpenshift(f.K8sClient) {
 			Skip("This test is OpenShift specific")
 		}
@@ -40,7 +40,7 @@ var _ = Describe("Operator tests", func() {
 		secClient, err := secclient.NewForConfig(f.RestConfig)
 		Expect(err).ToNot(HaveOccurred())
 
-		scc, err := secClient.SecurityV1().SecurityContextConstraints().Get("privileged", metav1.GetOptions{})
+		scc, err := secClient.SecurityV1().SecurityContextConstraints().Get("anyuid", metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		cdiSA := fmt.Sprintf("system:serviceaccount:%s:cdi-sa", f.CdiInstallNs)
