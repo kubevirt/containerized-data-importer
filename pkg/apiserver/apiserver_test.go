@@ -29,7 +29,10 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/appscode/jsonpatch"
 	restful "github.com/emicklei/go-restful"
+
+	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -41,6 +44,7 @@ import (
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	aggregatorapifake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
+	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
@@ -178,6 +182,146 @@ func apiServiceUpdateAction(certBytes []byte) core.Action {
 		apiService)
 }
 
+func cdiConfigGetAction() core.Action {
+	return core.NewGetAction(
+		schema.GroupVersionResource{
+			Resource: "configmaps",
+			Version:  "v1",
+		},
+		"cdi",
+		"cdi-config")
+}
+
+func validatingWebhookGetAction() core.Action {
+	return core.NewRootGetAction(
+		schema.GroupVersionResource{
+			Group:    "admissionregistration.k8s.io",
+			Version:  "v1beta1",
+			Resource: "validatingwebhookconfigurations",
+		},
+		"cdi-api-datavolume-validate")
+}
+
+func getExpectedValidatingWebhook() *admissionregistrationv1beta1.ValidatingWebhookConfiguration {
+	path := "/datavolume-validate"
+	failurePolicy := admissionregistrationv1beta1.Fail
+	return &admissionregistrationv1beta1.ValidatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cdi-api-datavolume-validate",
+		},
+		Webhooks: []admissionregistrationv1beta1.Webhook{
+			{
+				Name: "datavolume-validate.cdi.kubevirt.io",
+				Rules: []admissionregistrationv1beta1.RuleWithOperations{{
+					Operations: []admissionregistrationv1beta1.OperationType{
+						admissionregistrationv1beta1.Create,
+						admissionregistrationv1beta1.Update,
+					},
+					Rule: admissionregistrationv1beta1.Rule{
+						APIGroups:   []string{cdicorev1alpha1.SchemeGroupVersion.Group},
+						APIVersions: []string{cdicorev1alpha1.SchemeGroupVersion.Version},
+						Resources:   []string{"datavolumes"},
+					},
+				}},
+				ClientConfig: admissionregistrationv1beta1.WebhookClientConfig{
+					Service: &admissionregistrationv1beta1.ServiceReference{
+						Namespace: "cdi",
+						Name:      "cdi-api",
+						Path:      &path,
+					},
+					CABundle: []byte("bytes"),
+				},
+				FailurePolicy: &failurePolicy,
+			},
+		},
+	}
+}
+
+func validatingWebhookCreateAction() core.Action {
+	return core.NewRootCreateAction(
+		schema.GroupVersionResource{
+			Group:    "admissionregistration.k8s.io",
+			Version:  "v1beta1",
+			Resource: "validatingwebhookconfigurations",
+		},
+		getExpectedValidatingWebhook())
+}
+
+func validatingWebhookUpdateAction() core.Action {
+	return core.NewRootUpdateAction(
+		schema.GroupVersionResource{
+			Group:    "admissionregistration.k8s.io",
+			Version:  "v1beta1",
+			Resource: "validatingwebhookconfigurations",
+		},
+		getExpectedValidatingWebhook())
+}
+
+func mutatingWebhookGetAction() core.Action {
+	return core.NewRootGetAction(
+		schema.GroupVersionResource{
+			Group:    "admissionregistration.k8s.io",
+			Version:  "v1beta1",
+			Resource: "mutatingwebhookconfigurations",
+		},
+		"cdi-api-datavolume-mutate")
+}
+
+func getExpectedMutatingWebhook() *admissionregistrationv1beta1.MutatingWebhookConfiguration {
+	path := "/datavolume-mutate"
+	failurePolicy := admissionregistrationv1beta1.Fail
+	return &admissionregistrationv1beta1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cdi-api-datavolume-mutate",
+		},
+		Webhooks: []admissionregistrationv1beta1.Webhook{
+			{
+				Name: "datavolume-mutate.cdi.kubevirt.io",
+				Rules: []admissionregistrationv1beta1.RuleWithOperations{{
+					Operations: []admissionregistrationv1beta1.OperationType{
+						admissionregistrationv1beta1.Create,
+						admissionregistrationv1beta1.Update,
+					},
+					Rule: admissionregistrationv1beta1.Rule{
+						APIGroups:   []string{cdicorev1alpha1.SchemeGroupVersion.Group},
+						APIVersions: []string{cdicorev1alpha1.SchemeGroupVersion.Version},
+						Resources:   []string{"datavolumes"},
+					},
+				}},
+				ClientConfig: admissionregistrationv1beta1.WebhookClientConfig{
+					Service: &admissionregistrationv1beta1.ServiceReference{
+						Namespace: "cdi",
+						Name:      "cdi-api",
+						Path:      &path,
+					},
+					CABundle: []byte("bytes"),
+				},
+				FailurePolicy: &failurePolicy,
+			},
+		},
+	}
+}
+
+func mutatingWebhookCreateAction() core.Action {
+	return core.NewRootCreateAction(
+		schema.GroupVersionResource{
+			Group:    "admissionregistration.k8s.io",
+			Version:  "v1beta1",
+			Resource: "mutatingwebhookconfigurations",
+		},
+		getExpectedMutatingWebhook())
+}
+
+func mutatingWebhookUpdateAction() core.Action {
+	return core.NewRootUpdateAction(
+		schema.GroupVersionResource{
+			Group:    "admissionregistration.k8s.io",
+			Version:  "v1beta1",
+			Resource: "mutatingwebhookconfigurations",
+		},
+		getExpectedMutatingWebhook())
+}
+
 func checkActions(expected []core.Action, actual []core.Action, t *testing.T) {
 	for i, action := range actual {
 		if len(expected) < i+1 {
@@ -192,6 +336,14 @@ func checkActions(expected []core.Action, actual []core.Action, t *testing.T) {
 	if len(expected) != len(actual) {
 		t.Errorf("Expected %d actions, got %d", len(expected), len(actual))
 	}
+}
+
+func printJSONDiff(objA, objB interface{}) string {
+	aBytes, _ := json.Marshal(objA)
+	bBytes, _ := json.Marshal(objB)
+	patches, _ := jsonpatch.CreatePatch(aBytes, bBytes)
+	pBytes, _ := json.Marshal(patches)
+	return string(pBytes)
 }
 
 func checkAction(expected, actual core.Action, t *testing.T) {
@@ -213,7 +365,7 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 
 		if !reflect.DeepEqual(expObject, object) {
 			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expObject, object))
+				a.GetVerb(), a.GetResource().Resource, printJSONDiff(expObject, object))
 		}
 	case core.UpdateAction:
 		e, _ := expected.(core.UpdateAction)
@@ -222,7 +374,7 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 
 		if !reflect.DeepEqual(expObject, object) {
 			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expObject, object))
+				a.GetVerb(), a.GetResource().Resource, printJSONDiff(expObject, object))
 		}
 	case core.PatchAction:
 		e, _ := expected.(core.PatchAction)
@@ -231,7 +383,7 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 
 		if !reflect.DeepEqual(expPatch, expPatch) {
 			t.Errorf("Action %s %s has wrong patch\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expPatch, patch))
+				a.GetVerb(), a.GetResource().Resource, printJSONDiff(expPatch, patch))
 		}
 	}
 }
@@ -363,6 +515,92 @@ func TestUpdateAPIService(t *testing.T) {
 	actions = append(actions, apiServiceUpdateAction(app.serverCACertBytes))
 
 	checkActions(actions, aggregatorClient.Actions(), t)
+}
+
+func TestCreateValidatingWebhook(t *testing.T) {
+	client := k8sfake.NewSimpleClientset()
+
+	app := &cdiAPIApp{
+		client:            client,
+		container:         restful.NewContainer(),
+		serverCACertBytes: []byte("bytes"),
+	}
+
+	err := app.createValidatingWebhook()
+	if err != nil {
+		t.Errorf("error creating upload api app: %v", err)
+	}
+
+	actions := []core.Action{}
+	actions = append(actions, validatingWebhookGetAction())
+	actions = append(actions, cdiConfigGetAction())
+	actions = append(actions, validatingWebhookCreateAction())
+
+	checkActions(actions, client.Actions(), t)
+}
+
+func TestUpdateValidatingWebhook(t *testing.T) {
+	client := k8sfake.NewSimpleClientset(getExpectedValidatingWebhook())
+
+	app := &cdiAPIApp{
+		client:            client,
+		container:         restful.NewContainer(),
+		serverCACertBytes: []byte("bytes"),
+	}
+
+	err := app.createValidatingWebhook()
+	if err != nil {
+		t.Errorf("error creating upload api app: %v", err)
+	}
+
+	actions := []core.Action{}
+	actions = append(actions, validatingWebhookGetAction())
+	actions = append(actions, validatingWebhookUpdateAction())
+
+	checkActions(actions, client.Actions(), t)
+}
+
+func TestCreateMutatingWebhook(t *testing.T) {
+	client := k8sfake.NewSimpleClientset()
+
+	app := &cdiAPIApp{
+		client:            client,
+		container:         restful.NewContainer(),
+		serverCACertBytes: []byte("bytes"),
+	}
+
+	err := app.createMutatingWebhook()
+	if err != nil {
+		t.Errorf("error creating upload api app: %v", err)
+	}
+
+	actions := []core.Action{}
+	actions = append(actions, mutatingWebhookGetAction())
+	actions = append(actions, cdiConfigGetAction())
+	actions = append(actions, mutatingWebhookCreateAction())
+
+	checkActions(actions, client.Actions(), t)
+}
+
+func TestUpdateMutatingWebhook(t *testing.T) {
+	client := k8sfake.NewSimpleClientset(getExpectedMutatingWebhook())
+
+	app := &cdiAPIApp{
+		client:            client,
+		container:         restful.NewContainer(),
+		serverCACertBytes: []byte("bytes"),
+	}
+
+	err := app.createMutatingWebhook()
+	if err != nil {
+		t.Errorf("error creating upload api app: %v", err)
+	}
+
+	actions := []core.Action{}
+	actions = append(actions, mutatingWebhookGetAction())
+	actions = append(actions, mutatingWebhookUpdateAction())
+
+	checkActions(actions, client.Actions(), t)
 }
 
 func TestGetAPIResouceList(t *testing.T) {
