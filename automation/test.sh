@@ -38,7 +38,7 @@ if [[ $TARGET =~ openshift-.* ]]; then
 elif [[ $TARGET =~ okd-.* ]]; then
   export KUBEVIRT_PROVIDER="okd-4.1.2"
 elif [[ $TARGET =~ k8s-.* ]]; then
-  export KUBEVIRT_PROVIDER="k8s-1.13.3"
+  export KUBEVIRT_PROVIDER="k8s-1.15.1"
   export KUBEVIRT_PROVIDER_EXTRA_ARGS="--enable-ceph"
 fi
 

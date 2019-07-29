@@ -7,5 +7,5 @@ spec:
     - storageClassName: local-sc
       volumeMode: Filesystem
       fsType: ext4
-      deviceNames:
-        - disk
+      devicePaths:
+        - /mnt/local-storage/local-sc

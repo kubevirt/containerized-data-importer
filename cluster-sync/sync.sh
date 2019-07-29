@@ -11,6 +11,10 @@ source ./cluster-up/hack/common.sh
 source ./cluster-up/cluster/${KUBEVIRT_PROVIDER}/provider.sh
 source ./cluster-sync/${KUBEVIRT_PROVIDER}/provider.sh
 
+CDI_INSTALL_OPERATOR="install-operator"
+CDI_INSTALL_OLM="install-olm"
+CDI_INSTALL=${CDI_INSTALL:-${CDI_INSTALL_OPERATOR}}
+CDI_INSTALL_TIMEOUT=${CDI_INSTALL_TIMEOUT:-120}
 CDI_NAMESPACE=${CDI_NAMESPACE:-cdi}
 
 # Set controller verbosity to 3 for functional tests.
