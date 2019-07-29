@@ -12,11 +12,11 @@ function configure_local_storage() {
   
   if [ "$NS" == "" ]; then
   	# local storage namespace doesn't exist, assume that we need to install local storage.
-    for node in {"master-0", "worker-0"}
+  	nodes=("master-0" "worker-0")
+    for n in "${nodes[@]}"
     do
-  	  ./cluster-up/ssh.sh $node < cluster-sync/$KUBEVIRT_PROVIDER/create-local-storage-volumes.sh
+  	  ./cluster-up/ssh.sh $n < cluster-sync/$KUBEVIRT_PROVIDER/create-local-storage-volumes.sh
     done
-
     #Create the local-storage namespace
     _kubectl new-project local-storage
 

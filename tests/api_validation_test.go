@@ -165,14 +165,20 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 	})
 
 	Context("when creating data volumes from manual manifests", func() {
-		table.DescribeTable("with manifests Datavolume should", func(destinationFile string, expectError bool, errorContains string) {
+		table.DescribeTable("with manifests Datavolume should", func(destinationFile string, expectError bool, errorContains ...string) {
 			By("Verifying kubectl apply")
 			out, err := RunKubectlCommand(f, "create", "-f", destinationFile, "-n", f.Namespace.Name)
 			fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
 			if expectError {
 				Expect(err).To(HaveOccurred())
-				By("Verifying stderr contains: " + errorContains)
-				Expect(strings.Contains(out, errorContains)).To(BeTrue())
+				By("Verifying stderr contains one of the errorContains string(s)")
+				containsFound := false
+				for _, v := range errorContains {
+					if strings.Contains(out, v) {
+						containsFound = true
+					}
+				}
+				Expect(containsFound).To(BeTrue())
 			} else {
 				Expect(err).ToNot(HaveOccurred())
 			}
@@ -198,7 +204,8 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			table.Entry("[test_id:1861]fail with missing source (but source key)", "manifests/dvMissingSource2.yaml", true, "Missing Data volume source"),
 			table.Entry("[test_id:1860]fail with missing http url key", "manifests/dvMissingSourceHttp.yaml", true, "Missing Data volume source"),
 			table.Entry("[test_id:1858]fail with missing datavolume spec", "manifests/dvMissingCompleteSpec.yaml", true, "Missing Data volume source"),
-			table.Entry("[test_id:1857]fail without datavolume name", "manifests/dvNoName.yaml", true, "Required value: name or generateName is required"),
+			// k8s < 1.15 return Required value: name or generateName is required, >= 1.15 return error validating data: unknown object type "nil" in DataVolume.metadata
+			table.Entry("[test_id:1857]fail without datavolume name", "manifests/dvNoName.yaml", true, "Required value: name or generateName is required", "error validating data: unknown object type \"nil\" in DataVolume.metadata"),
 			table.Entry("[test_id:1856]fail without meta data", "manifests/dvNoMetaData.yaml", true, "Required value: name or generateName is required"),
 		)
 
