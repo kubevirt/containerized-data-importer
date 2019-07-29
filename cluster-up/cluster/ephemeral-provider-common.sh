@@ -2,7 +2,8 @@
 
 set -e
 
-_cli_container="kubevirtci/gocli@sha256:caf1c3f63dc5f3137795084e492a48c802a7ef2e7f7fbe1d67e5cff684d376a3"
+#This will get overwritten when run make generate, this will not be needed once https://github.com/kubevirt/kubevirtci/pull/126 is merged.
+_cli_container="kubevirtci/gocli@sha256:a7880757e2d2755c6a784c1b64c64b096769ed3ccfac9d8e535df481731c2144"
 _cli_with_tty="docker run --privileged --net=host --rm -t -v /var/run/docker.sock:/var/run/docker.sock ${_cli_container}"
 _cli="docker run --privileged --net=host --rm ${USE_TTY} -v /var/run/docker.sock:/var/run/docker.sock ${_cli_container}"
 
@@ -21,8 +22,8 @@ master_ip=$(_main_ip)
 kubeconfig=${BASE_PATH}/$KUBEVIRT_PROVIDER/.kubeconfig
 kubectl=${BASE_PATH}/$KUBEVIRT_PROVIDER/.kubectl
 gocli=${BASE_PATH}/../cluster-up/cli.sh
-docker_prefix=localhost:$(_port registry)/kubevirt
-manifest_docker_prefix=registry:5000/kubevirt
+docker_prefix=\${DOCKER_PREFIX:-localhost:$(_port registry)/kubevirt}
+manifest_docker_prefix=\${DOCKER_PREFIX:-registry:5000/kubevirt}
 EOF
 }
 

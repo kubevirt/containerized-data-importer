@@ -2,7 +2,8 @@
 
 set -e
 
-image="okd-4.1.2@sha256:7cdb7357a7d9e8055ae2b26a9d8c926fb81440c3c5cf917407ec51297c31479f"
+#This will get overwritten when run make generate, this will not be needed once https://github.com/kubevirt/kubevirtci/pull/126 is merged.
+image="okd-4.1@sha256:d452e8f910bd08b4aabe2a9b8fd82dc5984a3e95f7096b3ebd6c8ba836a5361d"
 
 source ${KUBEVIRTCI_PATH}/cluster/ephemeral-provider-common.sh
 
@@ -11,7 +12,7 @@ function _port() {
 }
 
 function up() {
-    params="--random-ports --background --prefix $provider_prefix --master-cpu 5 --workers-cpu 5 --registry-volume $(_registry_volume) kubevirtci/${image}"
+    params="--random-ports --background --prefix $provider_prefix --master-cpu 6 --workers-cpu 6 --registry-volume $(_registry_volume) kubevirtci/${image}"
     if [[ ! -z "${RHEL_NFS_DIR}" ]]; then
         params=" --nfs-data $RHEL_NFS_DIR ${params}"
     fi
