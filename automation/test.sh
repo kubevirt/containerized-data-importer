@@ -29,10 +29,9 @@ export CDI_NAMESPACE=$NAMESPACE
 
 echo "namespace: ${NAMESPACE}, cdi-namespace: ${CDI_NAMESPACE}"
 
-export WORKSPACE="${WORKSPACE:-$PWD}"
 readonly ARTIFACTS_PATH="exported-artifacts"
 
-mkdir -p "${WORKSPACE}/${ARTIFACTS_PATH}"
+mkdir -p "${PWD}/${ARTIFACTS_PATH}"
 
 if [[ $TARGET =~ openshift-.* ]]; then
   export KUBEVIRT_PROVIDER="os-3.11.0-crio"
@@ -77,7 +76,7 @@ make cluster-sync
 
 kubectl version
 
-ginko_params="--test-args=--ginkgo.noColor --junit-output=${WORKSPACE}/exported-artifacts/tests.junit.xml"
+ginko_params="--test-args=--ginkgo.noColor --junit-output=${PWD}/exported-artifacts/tests.junit.xml"
 
 # Run functional tests
 TEST_ARGS=$ginko_params make test-functional-ci
