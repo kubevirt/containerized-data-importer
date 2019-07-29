@@ -702,9 +702,14 @@ func CreateCloneSourcePod(client kubernetes.Interface, image string, pullPolicy 
 func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerRefAnno string,
 	keyCertBytes *keys.KeyPairAndCertBytes, pvc *v1.PersistentVolumeClaim) *v1.Pod {
 
+	var ownerID string
 	podName := fmt.Sprintf("%s-%s-", common.ClonerSourcePodName, sourcePvcName)
 	id := string(pvc.GetUID())
 	url := GetUploadServerURL(pvc.Namespace, pvc.Name)
+	pvcOwner := metav1.GetControllerOf(pvc)
+	if pvcOwner != nil && pvcOwner.Kind == "DataVolume" {
+		ownerID = string(pvcOwner.UID)
+	}
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -717,7 +722,8 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerRefAnno strin
 				common.CDILabelKey:       common.CDILabelValue, //filtered by the podInformer
 				common.CDIComponentLabel: common.ClonerSourcePodName,
 				// this label is used when searching for a pvc's cloner source pod.
-				CloneUniqueID: id + "-source-pod",
+				CloneUniqueID:          id + "-source-pod",
+				common.PrometheusLabel: "",
 			},
 		},
 		Spec: v1.PodSpec{
@@ -748,7 +754,14 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerRefAnno strin
 						},
 						{
 							Name:  common.OwnerUID,
-							Value: string(pvc.UID),
+							Value: ownerID,
+						},
+					},
+					Ports: []v1.ContainerPort{
+						{
+							Name:          "metrics",
+							ContainerPort: 8443,
+							Protocol:      v1.ProtocolTCP,
 						},
 					},
 				},

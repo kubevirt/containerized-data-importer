@@ -1603,7 +1603,8 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, pvcUID string) *v1.Pod {
 				CDILabelKey:       CDILabelValue, //filtered by the podInformer
 				CDIComponentLabel: ClonerSourcePodName,
 				// this label is used when searching for a pvc's cloner source pod.
-				CloneUniqueID: pvcUID + "-source-pod",
+				CloneUniqueID:          pvcUID + "-source-pod",
+				common.PrometheusLabel: "",
 			},
 		},
 		Spec: v1.PodSpec{
@@ -1634,7 +1635,14 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, pvcUID string) *v1.Pod {
 						},
 						{
 							Name:  common.OwnerUID,
-							Value: pvcUID,
+							Value: "",
+						},
+					},
+					Ports: []v1.ContainerPort{
+						{
+							Name:          "metrics",
+							ContainerPort: 8443,
+							Protocol:      v1.ProtocolTCP,
 						},
 					},
 				},

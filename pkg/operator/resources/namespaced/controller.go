@@ -39,7 +39,7 @@ const (
 func getControllerPrivilegedAccounts(args *FactoryArgs) map[string][]string {
 	csa := fmt.Sprintf("%s:%s:%s", privilegedAccountPrefix, args.Namespace, controllerServiceAccount)
 	return map[string][]string{
-		"anyuid": []string{csa},
+		"anyuid": {csa},
 	}
 }
 

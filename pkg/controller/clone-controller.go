@@ -290,6 +290,11 @@ func (cc *CloneController) cleanup(key string, pvc *v1.PersistentVolumeClaim) er
 	}
 
 	if pod != nil && pod.DeletionTimestamp == nil {
+		if podSucceededFromPVC(pvc) && pod.Status.Phase == v1.PodRunning {
+			klog.V(3).Infof("Clone succeeded, waiting for source pod %s/%s to stop running", pod.Namespace, pod.Name)
+			return nil
+		}
+
 		if err = cc.clientset.CoreV1().Pods(pod.Namespace).Delete(pod.Name, &metav1.DeleteOptions{}); err != nil {
 			if !k8serrors.IsNotFound(err) {
 				return errors.Wrap(err, "error deleting clone source pod")
