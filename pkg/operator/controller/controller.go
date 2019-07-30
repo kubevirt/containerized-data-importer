@@ -20,14 +20,19 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
+	"github.com/blang/semver"
 	"github.com/go-logr/logr"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -120,6 +125,19 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling CDI")
 
+	//TODO:
+	/*
+		Here for upgrade purpose:
+		* if cr vresion observed and target are not the same upgrade is taking place:
+		* -  Prevenet from apiServer to server new CRDs until upgrade is done
+		* -  Iterate over resources and update them
+		* -    no special handling - same as update in reconcile loop
+		* -  Verify APIServer and cdi deployment rolledOver successfully
+		* -  Delete resources that are not in use in target version
+		* -  Remove blocking webhook
+		* -  set Observed and Target versions to Target on CDI CR
+		* - TODO - support Conditions required by HCO
+	*/
 	// Fetch the CDI instance
 	// check at cluster level
 	cr := &cdiv1alpha1.CDI{}
@@ -132,6 +150,24 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 			return reconcile.Result{}, nil
 		}
 		return reconcile.Result{}, err
+	}
+
+	//compare target and observed
+	//Retriveed CR will contain previous version ImageTag and ImageRegistry
+	//while namespaced arguments will contain new version
+	//if versions are not the same: update TargetVersion in CDI cr and move to implementation
+	isUpgrade, err := shouldTakeUpdatePath(r.namespacedArgs.DockerTag, cr.Status.ObservedVersion)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if isUpgrade && !r.isUpgrading(cr) {
+		reqLogger.Info("Observed version %v is not target version %v. Begin upgrade", cr.Status.ObservedVersion, r.namespacedArgs.DockerTag)
+		cr.Status.TargetVersion = r.namespacedArgs.DockerTag
+		//Here phase has to be upgrading - this is to be handled in dedicated pr
+		if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeploying, cr); err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
 	// mid delete
@@ -169,6 +205,35 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 
 	// should be the usual case
 	return r.reconcileUpdate(reqLogger, cr)
+}
+
+func shouldTakeUpdatePath(targetVersion, currentVersion string) (bool, error) {
+
+	// if no current version, then this can't be an update
+	if currentVersion == "" {
+		return false, nil
+	}
+
+	// semver doesn't like the 'v' prefix
+	targetVersion = strings.TrimPrefix(targetVersion, "v")
+	currentVersion = strings.TrimPrefix(currentVersion, "v")
+
+	// our default position is that this is an update.
+	// So if the target and current version do not
+	// adhere to the semver spec, we assume by default the
+	// update path is the correct path.
+	shouldTakeUpdatePath := true
+	target, err := semver.Make(targetVersion)
+	if err == nil {
+		current, err := semver.Make(currentVersion)
+		if err == nil {
+			if target.Compare(current) <= 0 {
+				shouldTakeUpdatePath = false
+			}
+		}
+	}
+
+	return shouldTakeUpdatePath, nil
 }
 
 func (r *ReconcileCDI) reconcileCreate(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
@@ -286,7 +351,8 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		}
 	}
 
-	if cr.Status.Phase != cdiv1alpha1.CDIPhaseDeployed {
+	if cr.Status.Phase != cdiv1alpha1.CDIPhaseDeployed && !r.isUpgrading(cr) {
+		//We are not moving to Deployed phase untill new operator deployment is ready in case of Upgrade
 		cr.Status.ObservedVersion = r.namespacedArgs.DockerTag
 		if err = r.crUpdate(cdiv1alpha1.CDIPhaseDeployed, cr); err != nil {
 			return reconcile.Result{}, err
@@ -302,9 +368,257 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 
 	if ready {
 		logger.Info("Operator is ready!!")
+		if r.isUpgrading(cr) {
+			if err = r.cleanupUnusedResources(logger, cr); err != nil {
+				return reconcile.Result{}, err
+			}
+			previousVersion := cr.Status.ObservedVersion
+			cr.Status.ObservedVersion = r.namespacedArgs.DockerTag
+			cr.Status.OperatorVersion = r.namespacedArgs.DockerTag
+			if err = r.crUpdate(cdiv1alpha1.CDIPhaseDeployed, cr); err != nil {
+				return reconcile.Result{}, err
+			}
+
+			logger.Info("Successfully finished upgrade from %v to %v and entered Deployed state", previousVersion, cr.Status.ObservedVersion)
+		}
 	}
 
 	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1alpha1.CDI) error {
+	//Iterate over installed resources of
+	//Deployment/CRDs/Services etc and delete all resources that
+	//do not exist in current version
+
+	targetStrategy, err := r.getAllResources(cr)
+	if err != nil {
+		return err
+	}
+
+	lo := &client.ListOptions{}
+	// maybe use different selectors?
+	lo.SetLabelSelector("cdi.kubevirt.io")
+
+	// remove unused CRDs
+	{
+		objs := &extv1beta1.CustomResourceDefinitionList{}
+		if err = r.client.List(context.TODO(), lo, objs); err != nil {
+			return err
+		}
+
+		for _, cur := range objs.Items {
+			if cur.DeletionTimestamp == nil {
+				found := false
+				for _, obj := range targetStrategy {
+					if target, ok := obj.(*extv1beta1.CustomResourceDefinition); ok {
+						if target.Name == cur.Name {
+							found = true
+							break
+						}
+					}
+				}
+				if !found {
+					logger.Info("Deleting CRD ", "Name", cur.Name, "Namespace", cur.Namespace)
+					if err = r.client.Delete(context.TODO(), &cur); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	// remove unused Deployments
+	{
+		objs := &appsv1.DeploymentList{}
+		if err = r.client.List(context.TODO(), lo, objs); err != nil {
+			return err
+		}
+
+		for _, cur := range objs.Items {
+			if cur.DeletionTimestamp == nil {
+				found := false
+				for _, obj := range targetStrategy {
+					if target, ok := obj.(*appsv1.Deployment); ok {
+						if target.Name == cur.Name && target.Namespace == cur.Namespace {
+							found = true
+							break
+						}
+					}
+				}
+				if !found {
+					logger.Info("Deleting deployment ", "Name", cur.Name, "Namespace", cur.Namespace)
+					if err = r.client.Delete(context.TODO(), &cur); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	// remove unused Services
+	{
+		objs := &corev1.ServiceList{}
+		if err = r.client.List(context.TODO(), lo, objs); err != nil {
+			return err
+		}
+
+		for _, cur := range objs.Items {
+			if cur.DeletionTimestamp == nil {
+				found := false
+				for _, obj := range targetStrategy {
+					if target, ok := obj.(*corev1.Service); ok {
+						if target.Name == cur.Name && target.Namespace == cur.Namespace {
+							found = true
+							break
+						}
+					}
+				}
+				if !found {
+					logger.Info("Deleting ", "Name", cur.Name, "Namespace", cur.Namespace)
+					if err = r.client.Delete(context.TODO(), &cur); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	// remove unused ClusterRoleBindings
+	{
+		objs := &rbacv1.ClusterRoleBindingList{}
+		if err = r.client.List(context.TODO(), lo, objs); err != nil {
+			return err
+		}
+
+		for _, cur := range objs.Items {
+			if cur.DeletionTimestamp == nil {
+				found := false
+				for _, obj := range targetStrategy {
+					if target, ok := obj.(*rbacv1.ClusterRoleBinding); ok {
+						if target.Name == cur.Name && target.Namespace == cur.Namespace {
+							found = true
+							break
+						}
+					}
+				}
+				if !found {
+					logger.Info("Deleting ", "Name", cur.Name, "Namespace", cur.Namespace)
+					if err = r.client.Delete(context.TODO(), &cur); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	// remove unused ClusterRoles
+	{
+		objs := &rbacv1.ClusterRoleList{}
+		if err = r.client.List(context.TODO(), lo, objs); err != nil {
+			return err
+		}
+
+		for _, cur := range objs.Items {
+			if cur.DeletionTimestamp == nil {
+				found := false
+				for _, obj := range targetStrategy {
+					if target, ok := obj.(*rbacv1.ClusterRole); ok {
+						if target.Name == cur.Name && target.Namespace == cur.Namespace {
+							found = true
+							break
+						}
+					}
+				}
+				if !found {
+					logger.Info("Deleting ", "Name", cur.Name, "Namespace", cur.Namespace)
+					if err = r.client.Delete(context.TODO(), &cur); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	// remove unused RoleBindings
+	{
+		objs := &rbacv1.RoleBindingList{}
+		if err = r.client.List(context.TODO(), lo, objs); err != nil {
+			return err
+		}
+
+		for _, cur := range objs.Items {
+			if cur.DeletionTimestamp == nil {
+				found := false
+				for _, obj := range targetStrategy {
+					if target, ok := obj.(*rbacv1.RoleBinding); ok {
+						if target.Name == cur.Name && target.Namespace == cur.Namespace {
+							found = true
+							break
+						}
+					}
+				}
+				if !found {
+					logger.Info("Deleting ", "Name", cur.Name, "Namespace", cur.Namespace)
+					if err = r.client.Delete(context.TODO(), &cur); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	// remove unused Roles
+	{
+		objs := &rbacv1.RoleList{}
+		if err = r.client.List(context.TODO(), lo, objs); err != nil {
+			return err
+		}
+
+		for _, cur := range objs.Items {
+			if cur.DeletionTimestamp == nil {
+				found := false
+				for _, obj := range targetStrategy {
+					if target, ok := obj.(*rbacv1.Role); ok {
+						if target.Name == cur.Name && target.Namespace == cur.Namespace {
+							found = true
+							break
+						}
+					}
+				}
+				if !found {
+					logger.Info("Deleting ", "Name", cur.Name, "Namespace", cur.Namespace)
+					if err = r.client.Delete(context.TODO(), &cur); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	//remove unused ServiceAccounts
+	{
+		objs := &corev1.ServiceAccountList{}
+		if err = r.client.List(context.TODO(), lo, objs); err != nil {
+			return err
+		}
+
+		for _, cur := range objs.Items {
+			if cur.DeletionTimestamp == nil {
+				found := false
+				for _, obj := range targetStrategy {
+					if target, ok := obj.(*corev1.ServiceAccount); ok {
+						if target.Name == cur.Name && target.Namespace == cur.Namespace {
+							found = true
+							break
+						}
+					}
+				}
+				if !found {
+					logger.Info("Deleting ", "Name", cur.Name, "Namespace", cur.Namespace)
+					if err = r.client.Delete(context.TODO(), &cur); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (r *ReconcileCDI) isMutable(obj runtime.Object) bool {

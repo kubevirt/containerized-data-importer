@@ -42,6 +42,18 @@ var (
 	}
 )
 
+func (r *ReconcileCDI) isUpgrading(cr *cdiv1alpha1.CDI) bool {
+	if cr.Status.ObservedVersion == "" {
+		return false
+	}
+
+	if cr.Status.ObservedVersion != cr.Status.TargetVersion {
+		return true
+	}
+
+	return false
+}
+
 func (r *ReconcileCDI) crInit(cr *cdiv1alpha1.CDI) error {
 	cr.Finalizers = append(cr.Finalizers, finalizerName)
 	cr.Status.OperatorVersion = r.namespacedArgs.DockerTag
