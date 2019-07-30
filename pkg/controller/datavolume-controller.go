@@ -757,6 +757,10 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 
 	annotations := make(map[string]string)
 
+	for k, v := range dataVolume.ObjectMeta.Annotations {
+		annotations[k] = v
+	}
+
 	if dataVolume.Spec.Source.HTTP != nil {
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.HTTP.URL
 		annotations[AnnSource] = SourceHTTP
