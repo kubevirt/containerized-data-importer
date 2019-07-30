@@ -780,3 +780,17 @@ func TestBlankImageClaimLost(t *testing.T) {
 	f.expectUpdateDataVolumeStatusAction(result)
 	f.run(getKey(dataVolume, t))
 }
+
+func TestAnnotationPassThrough(t *testing.T) {
+	dataVolume := newBlankImageDataVolume("blank-image-datavolume")
+	dataVolume.ObjectMeta.Annotations = make(map[string]string)
+	dataVolume.ObjectMeta.Annotations["testannotation"] = "testvalue"
+	pvc, _ := newPersistentVolumeClaim(dataVolume)
+	if val, ok := pvc.ObjectMeta.Annotations["testannotation"]; ok {
+		if val != "testvalue" {
+			t.Errorf("Annotation value %s doesn't match [testvalue]", val)
+		}
+	} else {
+		t.Errorf("Test annotation not found in PVC spec")
+	}
+}
