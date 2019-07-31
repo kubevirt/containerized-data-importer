@@ -141,6 +141,30 @@ var _ = Describe("Validating Webhook", func() {
 			resp := validateDVs(ar)
 			Expect(resp.Allowed).To(Equal(false))
 		})
+
+		It("should reject DataVolume with name length greater than 55 characters", func() {
+			dataVolume := newHTTPDataVolume(
+				"the-name-length-of-this-datavolume-is-greater-then-55cha",
+				"http://www.example.com")
+			dvBytes, _ := json.Marshal(&dataVolume)
+
+			ar := &v1beta1.AdmissionReview{
+				Request: &v1beta1.AdmissionRequest{
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
+						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: dvBytes,
+					},
+				},
+			}
+
+			resp := validateDVs(ar)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
 		It("should reject DataVolume source with invalid URL on create", func() {
 			dataVolume := newHTTPDataVolume("testDV", "invalidurl")
 			dvBytes, _ := json.Marshal(&dataVolume)
