@@ -19,6 +19,7 @@ package system
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"math/rand"
 	"os"
@@ -39,8 +40,8 @@ var _ = Describe("Process Limits", func() {
 	limits := &ProcessLimitValues{1, 1}
 	nullLimiter := newTestProcessLimiter(nil, nil)
 
-	table.DescribeTable("exec", func(commandOverride func(string, ...string) *exec.Cmd, limiter ProcessLimiter, limits *ProcessLimitValues, command, output, errString string, args ...string) {
-		replaceExecCommand(commandOverride, func() {
+	table.DescribeTable("exec", func(commandOverride func(context.Context, string, ...string) *exec.Cmd, limiter ProcessLimiter, limits *ProcessLimitValues, command, output, errString string, args ...string) {
+		replaceExecCommandContext(commandOverride, func() {
 			replaceLimiter(limiter, func() {
 				result, err := ExecWithLimits(limits, testProgress, command, args...)
 				strOutput := string(result)
@@ -59,11 +60,10 @@ var _ = Describe("Process Limits", func() {
 			})
 		})
 	},
-		table.Entry("command success with real limits", fakeCommand, nil, &ProcessLimitValues{1 << 30, 10}, "faker", "", "", "0", "", ""),
+		table.Entry("command success with real limits", fakeCommandContext, nil, &ProcessLimitValues{1 << 30, 10}, "faker", "", "", "0", "", ""),
 		table.Entry("command start fails", badCommand, nullLimiter, limits, "faker", "", "fork/exec /usr/bin/doesnotexist: no such file or directory", "", "", ""),
-		table.Entry("address space limit fails", fakeCommand, newTestProcessLimiter(errors.New("Set address limit fails"), nil), limits, "faker", "", "Set address limit fails", "", "", ""),
-		table.Entry("address space limit fails", fakeCommand, newTestProcessLimiter(nil, errors.New("Set CPU limit fails")), limits, "faker", "", "Set CPU limit fails", "", "", ""),
-		table.Entry("command exit bad", fakeCommand, nullLimiter, limits, "faker", "", "exit status 1", "1", "", ""),
+		table.Entry("address space limit fails", fakeCommandContext, newTestProcessLimiter(errors.New("Set address limit fails"), nil), limits, "faker", "", "Set address limit fails", "", "", ""),
+		table.Entry("command exit bad", fakeCommandContext, nullLimiter, limits, "faker", "", "exit status 1", "1", "", ""),
 	)
 
 	table.DescribeTable("limits actually work", func(timeout time.Duration, f limitFunction, command, errString string, args ...string) {
@@ -122,8 +122,17 @@ func fakeCommand(command string, args ...string) *exec.Cmd {
 	return cmd
 }
 
-func badCommand(string, ...string) *exec.Cmd {
-	return exec.Command("/usr/bin/doesnotexist")
+func fakeCommandContext(ctx context.Context, command string, args ...string) *exec.Cmd {
+	cs := []string{"-test.run=TestHelperProcess", "--", command}
+	cs = append(cs, args...)
+
+	cmd := exec.CommandContext(ctx, os.Args[0], cs...)
+	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
+	return cmd
+}
+
+func badCommand(ctx context.Context, command string, args ...string) *exec.Cmd {
+	return exec.CommandContext(ctx, "/usr/bin/doesnotexist")
 }
 
 type limitFunction func(int) error
@@ -215,11 +224,11 @@ func doHog(args []string) {
 	}
 }
 
-func replaceExecCommand(replacement func(string, ...string) *exec.Cmd, f func()) {
-	orig := execCommand
+func replaceExecCommandContext(replacement func(context.Context, string, ...string) *exec.Cmd, f func()) {
+	orig := execCommandContext
 	if replacement != nil {
-		execCommand = replacement
-		defer func() { execCommand = orig }()
+		execCommandContext = replacement
+		defer func() { execCommandContext = orig }()
 	}
 	f()
 }
