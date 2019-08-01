@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"k8s.io/client-go/util/cert"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
@@ -91,18 +92,18 @@ func newHTTPClient(t *testing.T, clientKeyPair *triple.KeyPair, serverCACert *x5
 }
 
 func newRequest(t *testing.T) *http.Request {
-	req, err := http.NewRequest("POST", uploadPath, strings.NewReader("data"))
+	req, err := http.NewRequest("POST", common.UploadPath, strings.NewReader("data"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	return req
 }
 
-func saveProcessorSuccess(stream io.ReadCloser, dest, imageSize string) error {
+func saveProcessorSuccess(stream io.ReadCloser, dest, imageSize, contentType string) error {
 	return nil
 }
 
-func saveProcessorFailure(stream io.ReadCloser, dest, imageSize string) error {
+func saveProcessorFailure(stream io.ReadCloser, dest, imageSize, contentType string) error {
 	return fmt.Errorf("Error using datastream")
 }
 
@@ -114,7 +115,7 @@ func withProcessorFailure(f func()) {
 	replaceProcessorFunc(saveProcessorFailure, f)
 }
 
-func replaceProcessorFunc(replacement func(io.ReadCloser, string, string) error, f func()) {
+func replaceProcessorFunc(replacement func(io.ReadCloser, string, string, string) error, f func()) {
 	origProcessorFunc := uploadProcessorFunc
 	uploadProcessorFunc = replacement
 	defer func() {
@@ -125,7 +126,7 @@ func replaceProcessorFunc(replacement func(io.ReadCloser, string, string) error,
 
 func TestGetFails(t *testing.T) {
 	withProcessorSuccess(func() {
-		req, err := http.NewRequest("GET", uploadPath, nil)
+		req, err := http.NewRequest("GET", common.UploadPath, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -250,7 +251,7 @@ func TestRealSuccess(t *testing.T) {
 			t.Error("Couldn't start http server")
 		}
 
-		url := fmt.Sprintf("https://localhost:%d%s", server.bindPort, uploadPath)
+		url := fmt.Sprintf("https://localhost:%d%s", server.bindPort, common.UploadPath)
 		stringReader := strings.NewReader("nothing")
 
 		resp, err := client.Post(url, "application/x-www-form-urlencoded", stringReader)

@@ -39,6 +39,8 @@ import (
 const (
 	uploadRequestAnnotation = "cdi.kubevirt.io/storage.upload.target"
 	podPhaseAnnotation      = "cdi.kubevirt.io/storage.pod.phase"
+	podReadyAnnotation      = "cdi.kubevirt.io/storage.pod.ready"
+	cloneRequestAnnotation  = "k8s.io/CloneRequest"
 )
 
 type uploadFixture struct {
@@ -320,20 +322,92 @@ func TestCreatesUploadPodAndService(t *testing.T) {
 
 	f.podLister = append(f.podLister, pod)
 	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-	f.kubeobjects = append(f.kubeobjects, pod)
+	f.kubeobjects = append(f.kubeobjects, pod, pvc)
 	cdiConfig := createCDIConfig(common.ConfigName)
 	f.cdiobjects = append(f.cdiobjects, cdiConfig)
 
 	f.expectCreatePvcAction(scratchPvc)
 	f.expectSecretActions("default", 1, 1)
 
+	pvcUpdate := pvc.DeepCopy()
+	pvcUpdate.Annotations[podPhaseAnnotation] = string(pod.Status.Phase)
+	pvcUpdate.Annotations[podReadyAnnotation] = "false"
+	f.expectUpdatePvcAction(pvcUpdate)
+
 	service := createUploadService(pvc)
 	service.Namespace = ""
 	f.expectCreateServiceAction(service)
 
 	f.run(getPvcKey(pvc, t))
+}
 
+func TestCreatesCloneTargetPodAndService(t *testing.T) {
+	f := newUploadFixture(t)
+	storageClassName := "test"
+	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{cloneRequestAnnotation: "default/sourcePvc"}, nil)
+	source := createPvcInStorageClass("sourcePvc", "default", &storageClassName, nil, nil)
+	pod := createUploadClonePod(pvc)
+	pod.Namespace = ""
+	f.expectCreatePodAction(pod)
+
+	f.podLister = append(f.podLister, pod)
+	f.pvcLister = append(f.pvcLister, pvc, source)
+	f.kubeobjects = append(f.kubeobjects, pod, pvc, source)
+	cdiConfig := createCDIConfig(common.ConfigName)
+	f.cdiobjects = append(f.cdiobjects, cdiConfig)
+
+	f.expectSecretActions("default", 1, 1)
+
+	pvcUpdate := pvc.DeepCopy()
+	pvcUpdate.Annotations[podPhaseAnnotation] = string(pod.Status.Phase)
+	pvcUpdate.Annotations[podReadyAnnotation] = "false"
+	f.expectUpdatePvcAction(pvcUpdate)
+
+	service := createUploadService(pvc)
+	service.Namespace = ""
+	f.expectCreateServiceAction(service)
+
+	f.run(getPvcKey(pvc, t))
+}
+
+func TestCloneFailNoSource(t *testing.T) {
+	f := newUploadFixture(t)
+	storageClassName := "test"
+	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{cloneRequestAnnotation: "default/sourcePvc"}, nil)
+
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	f.runExpectError(getPvcKey(pvc, t))
+}
+
+func TestCloneAndUploadAnnotation(t *testing.T) {
+	f := newUploadFixture(t)
+	storageClassName := "test"
+	annotations := map[string]string{
+		uploadRequestAnnotation: "",
+		cloneRequestAnnotation:  "default/sourcePvc",
+	}
+	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, annotations, nil)
+
+	f.pvcLister = append(f.pvcLister, pvc)
+	f.kubeobjects = append(f.kubeobjects, pvc)
+
+	f.run(getPvcKey(pvc, t))
+}
+
+func TestCloneValidationFails(t *testing.T) {
+	f := newUploadFixture(t)
+	storageClassName := "test"
+	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{cloneRequestAnnotation: "default/sourcePvc"}, nil)
+	source := createPvcInStorageClass("sourcePvc", "default", &storageClassName, nil, nil)
+	vm := corev1.PersistentVolumeBlock
+	source.Spec.VolumeMode = &vm
+
+	f.pvcLister = append(f.pvcLister, pvc, source)
+	f.kubeobjects = append(f.kubeobjects, pvc, source)
+
+	f.run(getPvcKey(pvc, t))
 }
 
 func TestUpdatePodPhase(t *testing.T) {
@@ -345,6 +419,11 @@ func TestUpdatePodPhase(t *testing.T) {
 	scratchPvc := createScratchPvc(pvc, pod, storageClassName)
 
 	pod.Status.Phase = corev1.PodRunning
+	pod.Status.ContainerStatuses = []corev1.ContainerStatus{
+		{
+			Ready: true,
+		},
+	}
 
 	f.pvcLister = append(f.pvcLister, pvc)
 	f.kubeobjects = append(f.kubeobjects, pvc)
@@ -359,6 +438,7 @@ func TestUpdatePodPhase(t *testing.T) {
 
 	updatedPVC := pvc.DeepCopy()
 	updatedPVC.Annotations[podPhaseAnnotation] = string(corev1.PodRunning)
+	updatedPVC.Annotations[podReadyAnnotation] = "true"
 
 	f.expectCreatePvcAction(scratchPvc)
 	f.expectUpdatePvcAction(updatedPVC)
@@ -375,6 +455,11 @@ func TestUploadComplete(t *testing.T) {
 	service := createUploadService(pvc)
 
 	pod.Status.Phase = corev1.PodSucceeded
+	pod.Status.ContainerStatuses = []corev1.ContainerStatus{
+		{
+			Ready: false,
+		},
+	}
 
 	f.pvcLister = append(f.pvcLister, pvc)
 	f.pvcLister = append(f.pvcLister, scratchPvc)
@@ -389,6 +474,7 @@ func TestUploadComplete(t *testing.T) {
 
 	updatedPVC := pvc.DeepCopy()
 	updatedPVC.Annotations[podPhaseAnnotation] = string(corev1.PodSucceeded)
+	updatedPVC.Annotations[podReadyAnnotation] = "false"
 
 	f.expectUpdatePvcAction(updatedPVC)
 	f.expectDeleteServiceAction(service)
