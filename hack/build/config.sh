@@ -25,8 +25,9 @@ FUNC_TEST_HTTP="cdi-func-test-file-host-http"
 FUNC_TEST_REGISTRY="cdi-func-test-registry"
 FUNC_TEST_REGISTRY_POPULATE="cdi-func-test-registry-populate"
 FUNC_TEST_REGISTRY_INIT="cdi-func-test-registry-init"
+CSV_GENERATOR="csv-generator"
 
-BINARIES="cmd/${OPERATOR} cmd/${CONTROLLER} cmd/${IMPORTER} cmd/${CLONER} cmd/${APISERVER} cmd/${UPLOADPROXY} cmd/${UPLOADSERVER} cmd/${OPERATOR} tools/${FUNC_TEST_INIT} tools/${FUNC_TEST_REGISTRY_INIT}" 
+BINARIES="cmd/${OPERATOR} cmd/${CONTROLLER} cmd/${IMPORTER} cmd/${CLONER} cmd/${APISERVER} cmd/${UPLOADPROXY} cmd/${UPLOADSERVER} cmd/${OPERATOR} tools/${FUNC_TEST_INIT} tools/${FUNC_TEST_REGISTRY_INIT} tools/${CSV_GENERATOR}"
 CDI_PKGS="cmd/ pkg/ test/"
 
 OPERATOR_MAIN="cmd/${OPERATOR}"
