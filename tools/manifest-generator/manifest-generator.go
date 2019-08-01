@@ -30,6 +30,7 @@ import (
 	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	cdioperator "kubevirt.io/containerized-data-importer/pkg/operator/resources/operator"
 	"kubevirt.io/containerized-data-importer/tools/marketplace/helper"
+	"kubevirt.io/containerized-data-importer/tools/util"
 )
 
 type templateData struct {
@@ -106,7 +107,7 @@ func getOperatorRules() string {
 
 	writer := strings.Builder{}
 	for _, rule := range rules {
-		err := MarshallObject(rule, &writer)
+		err := util.MarshallObject(rule, &writer)
 		if err != nil {
 			panic(err)
 		}
@@ -135,7 +136,7 @@ func getOperatorDeploymentSpec() string {
 
 	writer := strings.Builder{}
 
-	err := MarshallObject(spec, &writer)
+	err := util.MarshallObject(spec, &writer)
 	if err != nil {
 		panic(err)
 	}
@@ -308,7 +309,7 @@ func generateFromCode(codeGroup string) {
 	} //iterate through all resources
 
 	for _, resource := range resources {
-		err := MarshallObject(resource, os.Stdout)
+		err := util.MarshallObject(resource, os.Stdout)
 		if err != nil {
 			klog.Fatalf("Error marshalling resource: %v\n", err)
 		}
