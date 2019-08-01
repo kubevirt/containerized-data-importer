@@ -48,6 +48,18 @@ func MarshallObject(obj interface{}, writer io.Writer) error {
 	unstructured.RemoveNestedField(r.Object, "spec", "template", "metadata", "creationTimestamp")
 	unstructured.RemoveNestedField(r.Object, "status")
 
+	// remove timestamp and status from deployments in CSV objects
+	deployments, exists, err := unstructured.NestedSlice(r.Object, "spec", "install", "spec", "deployments")
+	if exists {
+		for _, obj := range deployments {
+			deployment := obj.(map[string]interface{})
+			unstructured.RemoveNestedField(deployment, "metadata", "creationTimestamp")
+			unstructured.RemoveNestedField(deployment, "spec", "template", "metadata", "creationTimestamp")
+			unstructured.RemoveNestedField(deployment, "status")
+		}
+		unstructured.SetNestedSlice(r.Object, deployments, "spec", "install", "spec", "deployments")
+	}
+
 	jsonBytes, err = json.Marshal(r.Object)
 	if err != nil {
 		return err
