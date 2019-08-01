@@ -1,8 +1,8 @@
-hash: 3b7f147f88ea81ed85e278d641744b9540e6a601f9872e5151f488299bbaa167
-updated: 2019-06-27T09:01:47.768925038Z
+hash: 6d9aa23aeb785737d22d17f3836b7e46f6d3cd439d2b873712a606f79bfb2643
+updated: 2019-08-27T17:27:30.454287513Z
 imports:
 - name: github.com/appscode/jsonpatch
-  version: e8422f09d27ee2c8cfb2c7f8089eb9eeb0764849
+  version: 7c0e3b262f30165a8ec3d0b4c6059fd92703bfb2
 - name: github.com/asaskevich/govalidator
   version: f9ffefc3facfbe0caee3fea233cbb6e8208f4541
 - name: github.com/beorn7/perks
@@ -35,11 +35,11 @@ imports:
   - bson
   - internal/json
 - name: github.com/go-ini/ini
-  version: 3be5ad479f69d4e08d7fe25edf79bf3346bd658e
+  version: 8fe474341f7eedd6804eda75896c8f3e4b5dc36a
 - name: github.com/go-logr/logr
-  version: 9fb12b3b21c5415d16ac18dc5cd42c1cfdd40c4e
+  version: d63354a31b29a1af26833a7648428060001b5049
 - name: github.com/go-logr/zapr
-  version: 03f06a783fbb7dfaf3f629c7825480e43a7105e6
+  version: 2e515ec1daf7eefda8c24da3185e3967b306f957
 - name: github.com/go-openapi/analysis
   version: c701774f4e604d952e4e8c56dee260be696e33c3
   subpackages:
@@ -80,7 +80,7 @@ imports:
   subpackages:
   - lru
 - name: github.com/golang/mock
-  version: 140ae90f29eaaadc229f8d4b78f074b7f0611c1e
+  version: dd8d2a22370e4c8a334e80ca8477f71356c8e4bb
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
@@ -102,7 +102,7 @@ imports:
   - compiler
   - extensions
 - name: github.com/gorilla/mux
-  version: ed099d42384823742bba0bf9a72b53b55c9e2e38
+  version: 00bdffe0f3c77e27d2cf6f5c70232a2d3e4d9c15
 - name: github.com/gregjones/httpcache
   version: 787624de3eb7bd915c329cba748687a3b22666a6
   subpackages:
@@ -178,7 +178,7 @@ imports:
   - reporters/stenographer/support/go-isatty
   - types
 - name: github.com/onsi/gomega
-  version: efe19c39ca106ee4ed42a1b25e1a80a53be4831a
+  version: beea7276191eede26d9cd14df7ab50f0a5c9f25f
   subpackages:
   - format
   - gbytes
@@ -214,6 +214,10 @@ imports:
   - security/clientset/versioned
   - security/clientset/versioned/scheme
   - security/clientset/versioned/typed/security/v1
+- name: github.com/openshift/custom-resource-status
+  version: e62f2f3b79f33792b153e767811f420c1d457b31
+  subpackages:
+  - conditions/v1
 - name: github.com/operator-framework/go-appr
   version: f2aef88446f2a736fcb18db8ae57d708c52fdad0
   subpackages:
@@ -350,7 +354,7 @@ imports:
   subpackages:
   - rate
 - name: google.golang.org/appengine
-  version: b2f4a3cf3c67576a2ee09e1fe62656a5086ce880
+  version: fb139bde60fa77cede04f226b4d5a3cf68dcce27
   subpackages:
   - internal
   - internal/base
@@ -368,6 +372,7 @@ imports:
   subpackages:
   - cipher
   - json
+  - jwt
 - name: gopkg.in/tomb.v1
   version: c131134a1947e9afd9cecfe11f4c6dff0732ae58
 - name: gopkg.in/yaml.v2
@@ -457,6 +462,7 @@ imports:
   - pkg/util/httpstream/spdy
   - pkg/util/intstr
   - pkg/util/json
+  - pkg/util/jsonmergepatch
   - pkg/util/mergepatch
   - pkg/util/naming
   - pkg/util/net
@@ -662,7 +668,7 @@ imports:
 - name: k8s.io/code-generator
   version: c2090bec4d9b1fb25de3812f868accc2bc9ecbae
 - name: k8s.io/gengo
-  version: e17681d19d3ac4837a019ece36c2a0ec31ffe985
+  version: a874a240740c2ae854082ec73d46c5efcedd2149
 - name: k8s.io/klog
   version: 8139d8cb77af419532b33dfa7dd09fbc5f1d344f
 - name: k8s.io/kube-aggregator
@@ -725,7 +731,7 @@ imports:
   - pkg/webhook/internal/metrics
   - pkg/webhook/types
 - name: sigs.k8s.io/testing_frameworks
-  version: 57f07443c2d47d9c7f932a9a4fc87fbf3408215d
+  version: b6c33f574b5885e28314cb115cec0d3888e78ef1
   subpackages:
   - integration
   - integration/addr

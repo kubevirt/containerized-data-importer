@@ -25,11 +25,3 @@ func Test_Version(t *testing.T) {
 		So(Version(), ShouldEqual, version)
 	})
 }
-
-func Test_isSlice(t *testing.T) {
-	Convey("Check if a string is in the slice", t, func() {
-		ss := []string{"a", "b", "c"}
-		So(inSlice("a", ss), ShouldBeTrue)
-		So(inSlice("d", ss), ShouldBeFalse)
-	})
-}

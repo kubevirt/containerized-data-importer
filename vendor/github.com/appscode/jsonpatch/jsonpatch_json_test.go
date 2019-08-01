@@ -3,8 +3,8 @@ package jsonpatch_test
 import (
 	"testing"
 
+	"github.com/appscode/jsonpatch"
 	"github.com/stretchr/testify/assert"
-	"gomodules.xyz/jsonpatch/v2"
 )
 
 func TestMarshalNullableValue(t *testing.T) {
