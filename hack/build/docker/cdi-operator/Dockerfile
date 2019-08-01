@@ -17,5 +17,6 @@ WORKDIR /home/cdi-operator
 USER 1001
 
 COPY ./cdi-operator /usr/bin/cdi-operator
+COPY ./csv-generator /usr/bin/csv-generator
 
 ENTRYPOINT [ "/usr/bin/cdi-operator"]
