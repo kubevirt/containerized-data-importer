@@ -20,7 +20,7 @@
 // this file directly copy/pasted from KubeVirt project here:
 // https://github.com/kubevirt/kubevirt/blob/master/tools/util/marshaller.go
 
-package main
+package util
 
 import (
 	"encoding/json"
