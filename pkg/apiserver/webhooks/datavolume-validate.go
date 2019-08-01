@@ -54,6 +54,19 @@ func validateSourceURL(sourceURL string) string {
 	return ""
 }
 
+func validateDataVolumeName(name string) []metav1.StatusCause {
+	var causes []metav1.StatusCause
+	// name of data volume cannot be more than 55 characters (not including '-scratch')
+	if len(name) > 55 {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Name of data volume cannot be more than 55 characters"),
+			Field:   "",
+		})
+	}
+	return causes
+}
+
 func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.AdmissionRequest, field *k8sfield.Path, spec *cdicorev1alpha1.DataVolumeSpec) []metav1.StatusCause {
 	var causes []metav1.StatusCause
 	var url string
@@ -227,6 +240,12 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta
 		return toAdmissionResponseError(err)
 	}
 
+	causes := validateDataVolumeName(dv.Name)
+	if len(causes) > 0 {
+		klog.Infof("rejected DataVolume admission")
+		return toRejectedAdmissionResponse(causes)
+	}
+
 	if wh.client != nil && ar.Request.Operation == v1beta1.Create {
 		pvc, err := wh.client.CoreV1().PersistentVolumeClaims(dv.GetNamespace()).Get(dv.GetName(), metav1.GetOptions{})
 		if err != nil && !k8serrors.IsNotFound(err) {
@@ -244,7 +263,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta
 		}
 	}
 
-	causes := wh.validateDataVolumeSpec(ar.Request, k8sfield.NewPath("spec"), &dv.Spec)
+	causes = wh.validateDataVolumeSpec(ar.Request, k8sfield.NewPath("spec"), &dv.Spec)
 	if len(causes) > 0 {
 		klog.Infof("rejected DataVolume admission")
 		return toRejectedAdmissionResponse(causes)
