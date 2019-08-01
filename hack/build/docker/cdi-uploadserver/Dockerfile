@@ -8,16 +8,11 @@ RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
 	mv /etc/yum.repos.d/*.repo /etc/yum.repos.d/old  && \
 	mv /tmp/fedora_ci.dnf.repo /etc/yum.repos.d/fedora.repo && \
 	microdnf update -y && \
-	microdnf install -y qemu-img && microdnf clean all && \
+	microdnf install -y tar qemu-img && microdnf clean all && \
 	mv /etc/yum.repos.d/old/* /etc/yum.repos.d/ && \
 	rmdir /etc/yum.repos.d/old
 
 RUN mkdir /data
-
-# Create non-root user
-RUN useradd -u 1001 --create-home -s /bin/bash cdi-uploadserver
-WORKDIR /home/cdi-uploadserver
-USER 1001
 
 COPY ./cdi-uploadserver /usr/bin/cdi-uploadserver
 
