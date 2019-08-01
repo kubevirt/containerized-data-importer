@@ -637,6 +637,39 @@ func createPrometheusPorts() *[]corev1.ContainerPort {
 	}
 }
 
+func createOperatorClusterServiceVersion(args *FactoryArgs) []runtime.Object {
+
+	cdiImageNames := CdiImages{
+		ControllerImage:   args.ControllerImage,
+		ImporterImage:     args.ImporterImage,
+		ClonerImage:       args.ClonerImage,
+		APIServerImage:    args.APIServerImage,
+		UplodaProxyImage:  args.UploadProxyImage,
+		UplodaServerImage: args.UploadServerImage,
+		OperatorImage:     args.OperatorImage,
+	}
+
+	data := NewClusterServiceVersionData{
+		CsvVersion:         args.CsvVersion,
+		ReplacesCsvVersion: args.ReplacesCsvVersion,
+		Namespace:          args.Namespace,
+		ImagePullPolicy:    args.PullPolicy,
+		IconBase64:         args.CDILogo,
+		Verbosity:          args.Verbosity,
+
+		DockerPrefix:  args.DockerRepo,
+		DockerTag:     args.DockerTag,
+		CdiImageNames: cdiImageNames.FillDefaults(),
+	}
+
+	csv, err := createClusterServiceVersion(&data)
+	if err != nil {
+		panic(err)
+	}
+	return []runtime.Object{csv}
+
+}
+
 type csvClusterPermissions struct {
 	ServiceAccountName string              `json:"serviceAccountName"`
 	Rules              []rbacv1.PolicyRule `json:"rules"`

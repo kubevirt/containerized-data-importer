@@ -16,7 +16,6 @@ import (
 	"bufio"
 	"encoding/base64"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -61,6 +60,7 @@ var (
 	dockerRepo             = flag.String("docker-repo", "", "")
 	dockertag              = flag.String("docker-tag", "", "")
 	csvVersion             = flag.String("csv-version", "", "")
+	replacesCsvVersion     = flag.String("replaces-csv-version", "", "")
 	cdiLogoPath            = flag.String("cdi-logo-path", "", "")
 	genManifestsPath       = flag.String("generated-manifests-path", "", "")
 	bundleOut              = flag.String("olm-bundle-dir", "", "")
@@ -95,6 +95,13 @@ func main() {
 	})
 
 	if *templFile != "" {
+		if *replacesCsvVersion == "" {
+			var err error
+			*replacesCsvVersion, err = evalOlmCsvUpdateVersion(*templFile, *csvVersion, *bundleOut, *quayNamespace, *quayRepository)
+			if err != nil {
+				klog.Fatalf("Failed to evaluate CSV Replaces Version! %s, %v", *csvVersion, err)
+			}
+		}
 		generateFromFile(*templFile)
 		return
 	}
@@ -130,6 +137,10 @@ func getOperatorDeploymentSpec() string {
 		UploadServerImage:      *uploadServerImage,
 		PullPolicy:             *pullPolicy,
 		Namespace:              *namespace,
+
+		CsvVersion:         *csvVersion,
+		ReplacesCsvVersion: *replacesCsvVersion,
+		CDILogo:            getCdiLogo(*cdiLogoPath),
 	}
 
 	spec := cdioperator.GetOperatorDeploymentSpec(args)
@@ -183,7 +194,7 @@ func evalOlmCsvUpdateVersion(inFile, csvVersion, bundleOutDir, quayNamespace, qu
 			if strings.HasSuffix(latestVersion, csvVersion) {
 				klog.Fatalf("CSV version %s is already published!", csvVersion)
 			}
-			replacesCsvVersion = fmt.Sprintf("  replaces: %v", latestVersion)
+			replacesCsvVersion = latestVersion
 			// also copy old manifests to out dir
 			if *bundleOut != "" {
 				bundleHelper.AddOldManifests(bundleOutDir, csvVersion)
@@ -217,11 +228,7 @@ func generateFromFile(templFile string) {
 	}
 	defer file.Close()
 
-	data.ReplacesCsvVersion, err = evalOlmCsvUpdateVersion(templFile, *csvVersion, *bundleOut, *quayNamespace, *quayRepository)
-	if err != nil {
-		klog.Fatalf("Failed to evaluate CSV Replaces Version! %s, %v", *csvVersion, err)
-	}
-
+	data.ReplacesCsvVersion = *replacesCsvVersion
 	data.QuayRepository = *quayRepository
 	data.QuayNamespace = *quayNamespace
 	data.OperatorRules = getOperatorRules()
@@ -340,6 +347,10 @@ func getOperatorClusterResources(codeGroup string) ([]runtime.Object, error) {
 		UploadServerImage:      *uploadServerImage,
 		PullPolicy:             *pullPolicy,
 		Namespace:              *namespace,
+
+		CsvVersion:         *csvVersion,
+		ReplacesCsvVersion: *replacesCsvVersion,
+		CDILogo:            getCdiLogo(*cdiLogoPath),
 	}
 
 	if codeGroup == ClusterResourcesCodeOperatorGroupEverything {
