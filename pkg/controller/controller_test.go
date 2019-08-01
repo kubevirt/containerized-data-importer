@@ -1,13 +1,15 @@
 package controller
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/appscode/jsonpatch"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/diff"
 	kubeinformers "k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
@@ -28,6 +30,14 @@ type ControllerFixture struct {
 
 	// Objects from here preloaded into NewSimpleFake.
 	kubeobjects []runtime.Object
+}
+
+func printJSONDiff(objA, objB interface{}) string {
+	aBytes, _ := json.Marshal(objA)
+	bBytes, _ := json.Marshal(objB)
+	patches, _ := jsonpatch.CreatePatch(aBytes, bBytes)
+	pBytes, _ := json.Marshal(patches)
+	return string(pBytes)
 }
 
 func newControllerFixture(t *testing.T) *ControllerFixture {
@@ -86,7 +96,7 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 
 		if !reflect.DeepEqual(expObject, object) {
 			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expObject, object))
+				a.GetVerb(), a.GetResource().Resource, printJSONDiff(expObject, object))
 		}
 	case core.UpdateAction:
 		e, _ := expected.(core.UpdateAction)
@@ -95,7 +105,7 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 
 		if !reflect.DeepEqual(expObject, object) {
 			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expObject, object))
+				a.GetVerb(), a.GetResource().Resource, printJSONDiff(expObject, object))
 		}
 	case core.PatchAction:
 		e, _ := expected.(core.PatchAction)
@@ -104,7 +114,7 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 
 		if !reflect.DeepEqual(expPatch, expPatch) {
 			t.Errorf("Action %s %s has wrong patch\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expPatch, patch))
+				a.GetVerb(), a.GetResource().Resource, printJSONDiff(expPatch, patch))
 		}
 	}
 }
@@ -144,4 +154,8 @@ func (f *ControllerFixture) expectDeletePvcAction(pvc *corev1.PersistentVolumeCl
 func (f *ControllerFixture) expectDeletePodAction(p *corev1.Pod) {
 	f.kubeactions = append(f.kubeactions,
 		core.NewDeleteAction(schema.GroupVersionResource{Resource: "pods", Version: "v1"}, p.Namespace, p.Name))
+}
+
+func (f *ControllerFixture) expectSecretGetAction(s *corev1.Secret) {
+	f.kubeactions = append(f.kubeactions, core.NewGetAction(schema.GroupVersionResource{Resource: "secrets", Version: "v1"}, s.Namespace, s.Name))
 }
