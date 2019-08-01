@@ -23,11 +23,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func mergeLabelsAndAnnotations(src, dest metav1.Object) {
+func mergeLabelsAndAnnotations(src, dest metav1.Object) bool {
+	modified := false
+
 	// allow users to add labels but not change ours
 	for k, v := range src.GetLabels() {
 		if dest.GetLabels() == nil {
 			dest.SetLabels(map[string]string{})
+		}
+
+		_, exists := dest.GetLabels()[k]
+		if !exists {
+			modified = true
 		}
 
 		dest.GetLabels()[k] = v
@@ -39,8 +46,15 @@ func mergeLabelsAndAnnotations(src, dest metav1.Object) {
 			dest.SetAnnotations(map[string]string{})
 		}
 
+		_, exists := dest.GetAnnotations()[k]
+		if !exists {
+			modified = true
+		}
+
 		dest.GetAnnotations()[k] = v
 	}
+
+	return modified
 }
 
 func deployClusterResources() bool {

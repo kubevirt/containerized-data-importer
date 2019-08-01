@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -84,7 +85,11 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 		namespace:      namespace,
 		clusterArgs:    clusterArgs,
 		namespacedArgs: &namespacedArgs,
+		callbacks:      make(map[reflect.Type][]ReconcileCallback),
 	}
+
+	addReconcileCallbacks(r)
+
 	return r, nil
 }
 
@@ -100,6 +105,8 @@ type ReconcileCDI struct {
 	namespace      string
 	clusterArgs    *cdicluster.FactoryArgs
 	namespacedArgs *cdinamespaced.FactoryArgs
+
+	callbacks map[reflect.Type][]ReconcileCallback
 }
 
 // Reconcile reads that state of the cluster for a CDI object and makes changes based on the state read
@@ -211,8 +218,19 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 				return reconcile.Result{}, err
 			}
 
-			if err = r.client.Create(context.TODO(), desiredRuntimeObj); err != nil {
+			// PRE_CREATE callback
+			if err = r.invokeCallbacks(logger, ReconcileStatePreCreate, desiredRuntimeObj, nil); err != nil {
+				return reconcile.Result{}, err
+			}
+
+			currentRuntimeObj = desiredRuntimeObj.DeepCopyObject()
+			if err = r.client.Create(context.TODO(), currentRuntimeObj); err != nil {
 				logger.Error(err, "")
+				return reconcile.Result{}, err
+			}
+
+			// POST_CREATE callback
+			if err = r.invokeCallbacks(logger, ReconcileStatePostCreate, desiredRuntimeObj, currentRuntimeObj); err != nil {
 				return reconcile.Result{}, err
 			}
 
@@ -224,7 +242,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 			currentMetaObj := currentRuntimeObj.(metav1.Object)
 
 			// allow users to add new annotations (but not change ours)
-			mergeLabelsAndAnnotations(currentMetaObj, desiredMetaObj)
+			doUpdate := mergeLabelsAndAnnotations(currentMetaObj, desiredMetaObj)
 
 			if !r.isMutable(currentRuntimeObj) {
 				desiredBytes, err := json.Marshal(desiredRuntimeObj)
@@ -236,7 +254,21 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 					return reconcile.Result{}, err
 				}
 
+				doUpdate = true
+			}
+
+			if doUpdate {
+				// PRE_UPDATE callback
+				if err = r.invokeCallbacks(logger, ReconcileStatePreUpdate, desiredRuntimeObj, currentRuntimeObj); err != nil {
+					return reconcile.Result{}, err
+				}
+
 				if err = r.client.Update(context.TODO(), currentRuntimeObj); err != nil {
+					return reconcile.Result{}, err
+				}
+
+				// POST_UPDATE callback
+				if err = r.invokeCallbacks(logger, ReconcileStatePostUpdate, desiredRuntimeObj, currentRuntimeObj); err != nil {
 					return reconcile.Result{}, err
 				}
 			}
@@ -281,16 +313,16 @@ func (r *ReconcileCDI) isMutable(obj runtime.Object) bool {
 
 // I hate that this function exists, but major refactoring required to make CDI CR the owner of all the things
 func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
-	i := -1
-	for j, f := range cr.Finalizers {
-		if f == finalizerName {
-			i = j
-			break
+	if len(cr.Finalizers) == 0 {
+		if err := r.invokeDeleteCDICallbacks(logger, cr, ReconcileStatePostCDIDelete); err != nil {
+			return reconcile.Result{}, err
 		}
+
+		return reconcile.Result{}, nil
 	}
 
-	// already done whatever we wanted to do
-	if i == -1 {
+	if cr.Finalizers[len(cr.Finalizers)-1] != finalizerName {
+		// wait until we are up
 		return reconcile.Result{}, nil
 	}
 
@@ -300,12 +332,17 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		}
 	}
 
+	if err := r.invokeDeleteCDICallbacks(logger, cr, ReconcileStatePreCDIDelete); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	// delete all deployments
 	deployments, err := r.getAllDeployments(cr)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
+	// I forget why we are doing this
 	for _, deployment := range deployments {
 		err = r.client.Delete(context.TODO(), deployment, func(opts *client.DeleteOptions) {
 			p := metav1.DeletePropagationForeground
@@ -325,6 +362,7 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	lo.SetLabelSelector("cdi.kubevirt.io")
 
 	// delete pods
+	// this is getting more than we'd like (deleting deployment pods)
 	podList := &corev1.PodList{}
 	if err = r.client.List(context.TODO(), lo, podList); err != nil {
 		return reconcile.Result{}, err
@@ -354,7 +392,7 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		return reconcile.Result{}, err
 	}
 
-	cr.Finalizers = append(cr.Finalizers[:i], cr.Finalizers[i+1:]...)
+	cr.Finalizers = cr.Finalizers[0 : len(cr.Finalizers)-1]
 
 	if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeleted, cr); err != nil {
 		return reconcile.Result{}, err
@@ -363,6 +401,21 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	logger.Info("Finalizer complete")
 
 	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileCDI) invokeDeleteCDICallbacks(logger logr.Logger, cr *cdiv1alpha1.CDI, s ReconcileState) error {
+	resources, err := r.getAllResources(cr)
+	if err != nil {
+		return err
+	}
+
+	for _, resource := range resources {
+		if err = r.invokeCallbacks(logger, s, resource, nil); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (r *ReconcileCDI) reconcileError(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
@@ -557,6 +610,35 @@ func (r *ReconcileCDI) watchResourceTypes(c controller.Controller, resources []r
 		log.Info("Watching", "type", t)
 
 		types[t] = true
+	}
+
+	return nil
+}
+
+func (r *ReconcileCDI) addCallback(obj runtime.Object, cb ReconcileCallback) {
+	t := reflect.TypeOf(obj)
+	cbs := r.callbacks[t]
+	r.callbacks[t] = append(cbs, cb)
+}
+
+func (r *ReconcileCDI) invokeCallbacks(l logr.Logger, s ReconcileState, desiredObj, currentObj runtime.Object) error {
+	var t reflect.Type
+
+	if desiredObj != nil {
+		t = reflect.TypeOf(desiredObj)
+	} else if currentObj != nil {
+		t = reflect.TypeOf(currentObj)
+	}
+
+	// callbacks with nil key always get invoked
+	cbs := append(r.callbacks[t], r.callbacks[nil]...)
+
+	for _, cb := range cbs {
+		log.V(3).Info("Invoking callbacks for", "type", t)
+		if err := cb(l, r.client, s, desiredObj, currentObj); err != nil {
+			log.Error(err, "error invoking callback for", "type", t)
+			return err
+		}
 	}
 
 	return nil
