@@ -724,7 +724,7 @@ _The CDI Operator does not support updates yet._
 		},
 	}
 
-	strategySpecJsonBytes, err := json.Marshal(strategySpec)
+	strategySpecJSONBytes, err := json.Marshal(strategySpec)
 	if err != nil {
 		return nil, err
 	}
@@ -822,7 +822,7 @@ _The CDI Operator does not support updates yet._
 			},
 			InstallStrategy: csvv1.NamedInstallStrategy{
 				StrategyName:    "deployment",
-				StrategySpecRaw: json.RawMessage(strategySpecJsonBytes),
+				StrategySpecRaw: json.RawMessage(strategySpecJSONBytes),
 			},
 			CustomResourceDefinitions: csvv1.CustomResourceDefinitions{
 
@@ -831,7 +831,7 @@ _The CDI Operator does not support updates yet._
 						Name:        "cdis.cdi.kubevirt.io",
 						Version:     "v1alpha1",
 						Kind:        "CDI",
-						DisplayName: "CDU deployment",
+						DisplayName: "CDI deployment",
 						Description: "Represents a CDI deployment",
 						Resources: []csvv1.APIResourceReference{
 							{
@@ -886,13 +886,6 @@ _The CDI Operator does not support updates yet._
 								Path:         "targetVersion",
 								XDescriptors: []string{"urn:alm:descriptor:text"},
 							},
-							{
-								Description:  "The observed registry of the KubeVirt deployment.",
-								DisplayName:  "Observed KubeVirt registry",
-								Path:         "ObservedKubeVirtRegistry",
-								XDescriptors: []string{"urn:alm:descriptor:text"},
-							},
-
 							{
 								Description:  "The version of the CDI Operator",
 								DisplayName:  "CDI Operator Version",
