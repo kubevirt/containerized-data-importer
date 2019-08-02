@@ -31,7 +31,12 @@ import (
 )
 
 // CanUserClonePVC checks if a user has "appropriate" permission to clone from the given PVC
-func CanUserClonePVC(client kubernetes.Interface, namespace, name string, userInfo authentication.UserInfo) (bool, string, error) {
+func CanUserClonePVC(client kubernetes.Interface, sourceNamespace, pvcName, targetNamespace string,
+	userInfo authentication.UserInfo) (bool, string, error) {
+	if sourceNamespace == targetNamespace {
+		return true, "", nil
+	}
+
 	var newExtra map[string]authorization.ExtraValue
 	if len(userInfo.Extra) > 0 {
 		newExtra = make(map[string]authorization.ExtraValue)
@@ -46,11 +51,15 @@ func CanUserClonePVC(client kubernetes.Interface, namespace, name string, userIn
 		Extra:  newExtra,
 	}
 
-	return sendSubjectAccessReviews(client, namespace, name, sarSpec)
+	return sendSubjectAccessReviews(client, sourceNamespace, pvcName, sarSpec)
 }
 
 // CanServiceAccountClonePVC checks if a ServiceAccount has "appropriate" permission to clone from the given PVC
 func CanServiceAccountClonePVC(client kubernetes.Interface, pvcNamespace, pvcName, saNamespace, saName string) (bool, string, error) {
+	if pvcNamespace == saNamespace {
+		return true, "", nil
+	}
+
 	user := fmt.Sprintf("system:serviceaccount:%s:%s", saNamespace, saName)
 
 	sarSpec := authorization.SubjectAccessReviewSpec{

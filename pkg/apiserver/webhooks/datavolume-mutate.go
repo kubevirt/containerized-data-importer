@@ -91,7 +91,7 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) 
 		}
 	}
 
-	ok, reason, err := clone.CanUserClonePVC(wh.client, sourceNamespace, sourceName, ar.Request.UserInfo)
+	ok, reason, err := clone.CanUserClonePVC(wh.client, sourceNamespace, sourceName, targetNamespace, ar.Request.UserInfo)
 	if err != nil {
 		return toAdmissionResponseError(err)
 	}
