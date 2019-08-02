@@ -39,6 +39,7 @@ var (
 	apiServerImage    = flag.String("apiserver-image-name", cdioperator.APIServerImageDefault, "optional")
 	uploadProxyImage  = flag.String("uploadproxy-image-name", cdioperator.UploadProxyImageDefault, "optional")
 	uploadServerImage = flag.String("uploadserver-image-name", cdioperator.UploadServerImageDefault, "optional")
+	dumpCRDs          = flag.Bool("dump-crds", false, "optional - dumps cdi-operator related crd manifests to stdout")
 )
 
 func main() {
@@ -72,4 +73,9 @@ func main() {
 		panic(err)
 	}
 	util.MarshallObject(csv, os.Stdout)
+
+	if *dumpCRDs {
+		cidCrd := cdioperator.NewCdiCrd()
+		util.MarshallObject(cidCrd, os.Stdout)
+	}
 }
