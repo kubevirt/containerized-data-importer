@@ -62,11 +62,6 @@ elif [ "${go_opt}" == "build" ]; then
             ln -sf ${outFile} ${outLink}
         )
     done
-
-    # This container also needs the csv-generator file, so it needs to be
-    # copied into the operator's directory for docker build to source
-    # csv-generator correctly
-    cp ${OUT_DIR}/tools/${CSV_GENERATOR}/${CSV_GENERATOR} ${OUT_DIR}/cmd/${OPERATOR}/${CSV_GENERATOR}
 else # Pass go commands directly on to packages except vendor
     if [ -z ${targets} ]; then
         targets=$(allPkgs) # pkg/client is generated code, ignore it

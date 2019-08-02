@@ -40,7 +40,7 @@ const (
 	OperatorImageDefault = "cdi-operator"
 )
 
-// Data arguments used to create CDI's CSV manifest
+//NewClusterServiceVersionData - Data arguments used to create CDI's CSV manifest
 type NewClusterServiceVersionData struct {
 	CsvVersion         string
 	ReplacesCsvVersion string
