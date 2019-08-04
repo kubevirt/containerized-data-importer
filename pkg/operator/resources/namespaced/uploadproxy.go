@@ -56,7 +56,7 @@ func createUploadProxyServiceAccount() *corev1.ServiceAccount {
 }
 
 func createUploadProxyDeployment(repo, image, tag, verbosity, pullPolicy string) *appsv1.Deployment {
-	deployment := utils.CreateDeployment(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, uploadProxyResourceName, int32(1))
+	deployment := utils.CreateDeployment(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, uploadProxyResourceName, int32(2))
 	container := utils.CreateContainer(uploadProxyResourceName, repo, image, tag, verbosity, corev1.PullPolicy(pullPolicy))
 	container.Env = []corev1.EnvVar{
 		{

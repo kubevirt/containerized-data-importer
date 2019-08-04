@@ -45,10 +45,10 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			Expect(err).To(BeNil())
 			Expect(result).To(ContainSubstring("cdi-deployment"))
 		})
-		It("[test_id:1352]There should be 1 replica", func() {
+		It("[test_id:1352]There should be 2 replica", func() {
 			result, err := tests.RunKubectlCommand(f, "get", "deployment", "cdi-deployment", "-o", "jsonpath={.spec.replicas}", "-n", f.CdiInstallNs)
 			Expect(err).To(BeNil())
-			Expect(result).To(ContainSubstring("1"))
+			Expect(result).To(ContainSubstring("2"))
 		})
 	})
 

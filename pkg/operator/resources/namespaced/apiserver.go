@@ -127,7 +127,7 @@ func createAPIServerService() *corev1.Service {
 }
 
 func createAPIServerDeployment(repo, image, tag, verbosity, pullPolicy string) *appsv1.Deployment {
-	deployment := utils.CreateDeployment(apiServerRessouceName, cdiLabel, apiServerRessouceName, apiServerRessouceName, 1)
+	deployment := utils.CreateDeployment(apiServerRessouceName, cdiLabel, apiServerRessouceName, apiServerRessouceName, int32(2))
 	container := utils.CreateContainer(apiServerRessouceName, repo, image, tag, verbosity, corev1.PullPolicy(pullPolicy))
 	container.ReadinessProbe = &corev1.Probe{
 		Handler: corev1.Handler{
