@@ -12,6 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -201,6 +202,57 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			table.Entry("[test_id:1856]fail without meta data", "manifests/dvNoMetaData.yaml", true, "Required value: name or generateName is required"),
 		)
 
+	})
+
+	Context("Cannot update datavolume spec", func() {
+		var dataVolume *cdiv1.DataVolume
+
+		BeforeEach(func() {
+			dataVolume = utils.NewDataVolumeWithHTTPImport(dataVolumeName, "500Mi", validURL)
+
+			_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolumeName)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should fail when updating DataVolume spec", func() {
+			updatedDataVolume := dataVolume.DeepCopy()
+			updatedDataVolume.Spec.Source.HTTP.URL = "http://foo.bar"
+
+			_, err := f.CdiClient.Cdi().DataVolumes(updatedDataVolume.Namespace).Update(updatedDataVolume)
+			Expect(err).To(HaveOccurred())
+		})
+	})
+
+	Context("Can update datavolume meta", func() {
+		var dataVolume *cdiv1.DataVolume
+
+		BeforeEach(func() {
+			dataVolume = utils.NewDataVolumeWithHTTPImport(dataVolumeName, "500Mi", validURL)
+
+			_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolumeName)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should fail when updating DataVolume spec", func() {
+			updatedDataVolume := dataVolume.DeepCopy()
+			if updatedDataVolume.Annotations == nil {
+				updatedDataVolume.Annotations = make(map[string]string)
+			}
+			updatedDataVolume.Annotations["foo"] = "bar"
+
+			_, err := f.CdiClient.Cdi().DataVolumes(updatedDataVolume.Namespace).Update(updatedDataVolume)
+			Expect(err).To(HaveOccurred())
+		})
 	})
 })
 

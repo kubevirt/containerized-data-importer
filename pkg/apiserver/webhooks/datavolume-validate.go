@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"reflect"
 
 	"k8s.io/api/admission/v1beta1"
 	v1 "k8s.io/api/core/v1"
@@ -235,9 +236,27 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta
 	dv := cdicorev1alpha1.DataVolume{}
 
 	err := json.Unmarshal(raw, &dv)
-
 	if err != nil {
 		return toAdmissionResponseError(err)
+	}
+
+	if ar.Request.Operation == v1beta1.Update {
+		oldDV := cdicorev1alpha1.DataVolume{}
+		err = json.Unmarshal(ar.Request.OldObject.Raw, &oldDV)
+		if err != nil {
+			return toAdmissionResponseError(err)
+		}
+
+		if !reflect.DeepEqual(dv.Spec, oldDV.Spec) {
+			klog.Errorf("Cannot update spec for DataVolume %s/%s", dv.GetNamespace(), dv.GetName())
+			var causes []metav1.StatusCause
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueDuplicate,
+				Message: fmt.Sprintf("Cannot update DataVolume Spec"),
+				Field:   k8sfield.NewPath("DataVolume").Child("Spec").String(),
+			})
+			return toRejectedAdmissionResponse(causes)
+		}
 	}
 
 	causes := validateDataVolumeName(dv.Name)
