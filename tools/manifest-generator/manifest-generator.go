@@ -60,7 +60,6 @@ var (
 	dockerRepo             = flag.String("docker-repo", "", "")
 	dockertag              = flag.String("docker-tag", "", "")
 	csvVersion             = flag.String("csv-version", "", "")
-	replacesCsvVersion     = flag.String("replaces-csv-version", "", "")
 	cdiLogoPath            = flag.String("cdi-logo-path", "", "")
 	genManifestsPath       = flag.String("generated-manifests-path", "", "")
 	bundleOut              = flag.String("olm-bundle-dir", "", "")
@@ -95,13 +94,6 @@ func main() {
 	})
 
 	if *templFile != "" {
-		if *replacesCsvVersion == "" {
-			var err error
-			*replacesCsvVersion, err = evalOlmCsvUpdateVersion(*templFile, *csvVersion, *bundleOut, *quayNamespace, *quayRepository)
-			if err != nil {
-				klog.Fatalf("Failed to evaluate CSV Replaces Version! %s, %v", *csvVersion, err)
-			}
-		}
 		generateFromFile(*templFile)
 		return
 	}
@@ -138,9 +130,8 @@ func getOperatorDeploymentSpec() string {
 		PullPolicy:             *pullPolicy,
 		Namespace:              *namespace,
 
-		CsvVersion:         *csvVersion,
-		ReplacesCsvVersion: *replacesCsvVersion,
-		CDILogo:            getCdiLogo(*cdiLogoPath),
+		CsvVersion: *csvVersion,
+		CDILogo:    getCdiLogo(*cdiLogoPath),
 	}
 
 	spec := cdioperator.GetOperatorDeploymentSpec(args)
@@ -177,11 +168,21 @@ func fixResourceString(in string, indention int) string {
 	return out.String()
 }
 
-func evalOlmCsvUpdateVersion(inFile, csvVersion, bundleOutDir, quayNamespace, quayRepository string) (string, error) {
-	replacesCsvVersion := ""
+func getReplacesVersion(csvVersion, quayNamespace, quayRepository string) string {
+	bundleHelper, err := helper.NewBundleHelper(quayRepository, quayNamespace)
+	if err != nil {
+		klog.Fatalf("Failed to access quay namespace %s, repo %s, %v\n", quayNamespace, quayRepository, err)
+	}
+	if !bundleHelper.VerifyNotPublishedCSVVersion(csvVersion) {
+		klog.Fatalf("CSV version %s is already published!", csvVersion)
+	}
+	return bundleHelper.GetLatestPublishedCSVVersion()
+}
+
+func evalOlmCsvUpdateVersion(inFile, csvVersion, bundleOutDir, quayNamespace, quayRepository string) string {
+	latestVersion := ""
 	if strings.Contains(inFile, ".csv.yaml") && bundleOutDir != "" {
 		bundleHelper, err := helper.NewBundleHelper(quayRepository, quayNamespace)
-
 		if err != nil {
 			klog.Fatalf("Failed to access quay namespace %s, repo %s, %v\n", quayNamespace, quayRepository, err)
 		}
@@ -194,14 +195,13 @@ func evalOlmCsvUpdateVersion(inFile, csvVersion, bundleOutDir, quayNamespace, qu
 			if strings.HasSuffix(latestVersion, csvVersion) {
 				klog.Fatalf("CSV version %s is already published!", csvVersion)
 			}
-			replacesCsvVersion = latestVersion
 			// also copy old manifests to out dir
 			if *bundleOut != "" {
 				bundleHelper.AddOldManifests(bundleOutDir, csvVersion)
 			}
 		}
 	}
-	return replacesCsvVersion, nil
+	return latestVersion
 }
 
 func generateFromFile(templFile string) {
@@ -228,7 +228,7 @@ func generateFromFile(templFile string) {
 	}
 	defer file.Close()
 
-	data.ReplacesCsvVersion = *replacesCsvVersion
+	data.ReplacesCsvVersion = evalOlmCsvUpdateVersion(templFile, *csvVersion, *bundleOut, *quayNamespace, *quayRepository)
 	data.QuayRepository = *quayRepository
 	data.QuayNamespace = *quayNamespace
 	data.OperatorRules = getOperatorRules()
@@ -333,6 +333,11 @@ const (
 )
 
 func getOperatorClusterResources(codeGroup string) ([]runtime.Object, error) {
+	replacesCsvVersion := ""
+	if codeGroup == cdioperator.OperatorCSV || codeGroup == ClusterResourcesCodeOperatorGroupEverything {
+		replacesCsvVersion = getReplacesVersion(*csvVersion, *quayNamespace, *quayRepository)
+	}
+
 	args := &cdioperator.FactoryArgs{
 		Verbosity:              *verbosity,
 		DockerRepo:             *dockerRepo,
@@ -349,7 +354,7 @@ func getOperatorClusterResources(codeGroup string) ([]runtime.Object, error) {
 		Namespace:              *namespace,
 
 		CsvVersion:         *csvVersion,
-		ReplacesCsvVersion: *replacesCsvVersion,
+		ReplacesCsvVersion: replacesCsvVersion,
 		CDILogo:            getCdiLogo(*cdiLogoPath),
 	}
 
