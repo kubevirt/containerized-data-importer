@@ -79,7 +79,7 @@ roleRef:
 
 ## PVC Cloning
 
-Extra RBAC permission is required for Datavolumes with `PVC` source.  A user must be given permission to "source" clones from a given namespace.  For Joe to create clones from PVCs in the `golden-images` namespace, execute thefollowing manifest.
+Extra RBAC permission may be required for Datavolumes with `PVC` source.  If a user does not have `create pod` permission in the source PVC namespace, a user may be given permission to "source" clones from the namespace.  For Joe to create clones from PVCs in the `golden-images` namespace, execute thefollowing manifest.
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
