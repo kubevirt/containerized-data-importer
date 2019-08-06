@@ -329,6 +329,62 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(true))
 
 		})
+		It("should reject invalid DataVolume spec update", func() {
+			newDataVolume := newPVCDataVolume("testDV", "newNamespace", "testName")
+			newBytes, _ := json.Marshal(&newDataVolume)
+
+			oldDataVolume := newDataVolume.DeepCopy()
+			oldDataVolume.Spec.Source.PVC.Namespace = "oldNamespace"
+			oldBytes, _ := json.Marshal(oldDataVolume)
+
+			ar := &v1beta1.AdmissionReview{
+				Request: &v1beta1.AdmissionRequest{
+					Operation: v1beta1.Update,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
+						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: newBytes,
+					},
+					OldObject: runtime.RawExtension{
+						Raw: oldBytes,
+					},
+				},
+			}
+
+			resp := validateDVs(ar)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+		It("should accept object meta update", func() {
+			newDataVolume := newPVCDataVolume("testDV", "newNamespace", "testName")
+			newBytes, _ := json.Marshal(&newDataVolume)
+
+			oldDataVolume := newDataVolume.DeepCopy()
+			oldDataVolume.Annotations = map[string]string{"foo": "bar"}
+			oldBytes, _ := json.Marshal(oldDataVolume)
+
+			ar := &v1beta1.AdmissionReview{
+				Request: &v1beta1.AdmissionRequest{
+					Operation: v1beta1.Update,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
+						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: newBytes,
+					},
+					OldObject: runtime.RawExtension{
+						Raw: oldBytes,
+					},
+				},
+			}
+
+			resp := validateDVs(ar)
+			Expect(resp.Allowed).To(Equal(true))
+		})
 	})
 })
 

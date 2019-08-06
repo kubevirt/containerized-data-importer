@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
@@ -11,9 +12,49 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	"kubevirt.io/containerized-data-importer/pkg/clone"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
+
+var cdiRole = &rbacv1.Role{
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "explicit-role",
+	},
+	Rules: []rbacv1.PolicyRule{
+		{
+			APIGroups: []string{
+				"cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"datavolumes",
+			},
+			Verbs: []string{
+				"*",
+			},
+		},
+	},
+}
+
+var explicitRole = &rbacv1.Role{
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "explicit-role",
+	},
+	Rules: []rbacv1.PolicyRule{
+		{
+			APIGroups: []string{
+				"cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"datavolumes",
+				"datavolumes/source",
+			},
+			Verbs: []string{
+				"*",
+			},
+		},
+	},
+}
 
 var _ = Describe("Clone Auth Webhook tests", func() {
 	const serviceAccountName = "cdi-auth-webhook-test"
@@ -31,7 +72,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 
 				createServiceAccount(f.K8sClient, targetNamespace.Name, serviceAccountName)
 
-				addPermissionToNamespace(f.K8sClient, serviceAccountName, targetNamespace.Name, targetNamespace.Name)
+				addPermissionToNamespace(f.K8sClient, cdiRole, targetNamespace.Name, serviceAccountName, targetNamespace.Name)
 			})
 
 			AfterEach(func() {
@@ -41,7 +82,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				}
 			})
 
-			It("should deny/allow user when creating datavolume", func() {
+			DescribeTable("should deny/allow user when creating datavolume", func(role *rbacv1.Role) {
 				srcPVCDef := utils.NewPVCDefinition("source-pvc", "1G", nil, nil)
 				srcPVCDef.Namespace = f.Namespace.Name
 				f.CreateAndPopulateSourcePVC(srcPVCDef, "fill-source", fmt.Sprintf("echo \"hello world\" > %s/data.txt", utils.DefaultPvcMountPath))
@@ -63,7 +104,18 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				_, err = client.CdiV1alpha1().DataVolumes(targetNamespace.Name).Create(targetDV)
 				Expect(err).To(HaveOccurred())
 
-				addPermissionToNamespace(f.K8sClient, serviceAccountName, targetNamespace.Name, f.Namespace.Name)
+				// let's do manual check as well
+				allowed, reason, err := clone.CanServiceAccountClonePVC(f.K8sClient,
+					srcPVCDef.Namespace,
+					srcPVCDef.Name,
+					targetNamespace.Name,
+					serviceAccountName,
+				)
+				Expect(allowed).To(BeFalse())
+				Expect(reason).ToNot(BeEmpty())
+				Expect(err).ToNot(HaveOccurred())
+
+				addPermissionToNamespace(f.K8sClient, role, targetNamespace.Name, serviceAccountName, f.Namespace.Name)
 
 				// now can list dvs in source
 				_, err = client.CdiV1alpha1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
@@ -72,7 +124,20 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				// now can create clone of dv in source
 				_, err = client.CdiV1alpha1().DataVolumes(targetNamespace.Name).Create(targetDV)
 				Expect(err).ToNot(HaveOccurred())
-			})
+
+				// let's do another manual check as well
+				allowed, reason, err = clone.CanServiceAccountClonePVC(f.K8sClient,
+					srcPVCDef.Namespace,
+					srcPVCDef.Name,
+					targetNamespace.Name,
+					serviceAccountName,
+				)
+				Expect(allowed).To(BeTrue())
+				Expect(reason).To(BeEmpty())
+				Expect(err).ToNot(HaveOccurred())
+			},
+				Entry("when using explicit CDI permissions", explicitRole),
+			)
 		})
 	})
 })
@@ -88,27 +153,7 @@ func createServiceAccount(client kubernetes.Interface, namespace, name string) {
 	Expect(err).ToNot(HaveOccurred())
 }
 
-func addPermissionToNamespace(client kubernetes.Interface, sa, saNamespace, targetNamesace string) {
-	role := &rbacv1.Role{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: sa,
-		},
-		Rules: []rbacv1.PolicyRule{
-			{
-				APIGroups: []string{
-					"cdi.kubevirt.io",
-				},
-				Resources: []string{
-					"datavolumes",
-					"datavolumes/source",
-				},
-				Verbs: []string{
-					"*",
-				},
-			},
-		},
-	}
-
+func addPermissionToNamespace(client kubernetes.Interface, role *rbacv1.Role, saNamespace, sa, targetNamesace string) {
 	_, err := client.RbacV1().Roles(targetNamesace).Create(role)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -118,7 +163,7 @@ func addPermissionToNamespace(client kubernetes.Interface, sa, saNamespace, targ
 		},
 		RoleRef: rbacv1.RoleRef{
 			Kind:     "Role",
-			Name:     sa,
+			Name:     role.Name,
 			APIGroup: "rbac.authorization.k8s.io",
 		},
 		Subjects: []rbacv1.Subject{
