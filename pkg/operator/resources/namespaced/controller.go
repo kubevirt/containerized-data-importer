@@ -33,15 +33,7 @@ import (
 const (
 	controllerServiceAccount = "cdi-sa"
 	prometheusLabel          = common.PrometheusLabel
-	privilegedAccountPrefix  = "system:serviceaccount"
 )
-
-func getControllerPrivilegedAccounts(args *FactoryArgs) map[string][]string {
-	csa := fmt.Sprintf("%s:%s:%s", privilegedAccountPrefix, args.Namespace, controllerServiceAccount)
-	return map[string][]string{
-		"anyuid": {csa},
-	}
-}
 
 func createControllerResources(args *FactoryArgs) []runtime.Object {
 	return []runtime.Object{
@@ -59,7 +51,12 @@ func createControllerResources(args *FactoryArgs) []runtime.Object {
 }
 
 func createControllerServiceAccount() *corev1.ServiceAccount {
-	return utils.CreateServiceAccount(controllerServiceAccount)
+	sa := utils.CreateServiceAccount(controllerServiceAccount)
+	if sa.Annotations == nil {
+		sa.Annotations = make(map[string]string)
+	}
+	sa.Annotations[utils.SCCAnnotation] = "[\"anyuid\"]"
+	return sa
 }
 
 func createControllerDeployment(repo, controllerImage, importerImage, clonerImage, uploadServerImage, tag, verbosity, pullPolicy string) *appsv1.Deployment {

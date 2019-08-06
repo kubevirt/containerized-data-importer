@@ -89,20 +89,6 @@ func getOperatorClusterRules() *[]rbacv1.PolicyRule {
 				"get",
 				"list",
 				"watch",
-			},
-		},
-		{
-			APIGroups: []string{
-				"security.openshift.io",
-			},
-			Resources: []string{
-				"securitycontextconstraints",
-			},
-			ResourceNames: []string{
-				"anyuid",
-			},
-			Verbs: []string{
-				"get",
 				"patch",
 				"update",
 			},

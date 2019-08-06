@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 
@@ -187,10 +186,6 @@ func (r *ReconcileCDI) reconcileCreate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 }
 
 func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
-	if err := r.syncPrivilegedAccounts(logger, cr, true); err != nil {
-		return reconcile.Result{}, err
-	}
-
 	resources, err := r.getAllResources(cr)
 	if err != nil {
 		return reconcile.Result{}, err
@@ -239,25 +234,28 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 				"name", desiredMetaObj.GetName(),
 				"type", fmt.Sprintf("%T", desiredMetaObj))
 		} else {
+			// POST_READ callback
+			if err = r.invokeCallbacks(logger, ReconcileStatePostRead, desiredRuntimeObj, currentRuntimeObj); err != nil {
+				return reconcile.Result{}, err
+			}
+
+			currentRuntimeObjCopy := currentRuntimeObj.DeepCopyObject()
 			currentMetaObj := currentRuntimeObj.(metav1.Object)
 
 			// allow users to add new annotations (but not change ours)
-			doUpdate := mergeLabelsAndAnnotations(currentMetaObj, desiredMetaObj)
+			mergeLabelsAndAnnotations(desiredMetaObj, currentMetaObj)
 
 			if !r.isMutable(currentRuntimeObj) {
-				desiredBytes, err := json.Marshal(desiredRuntimeObj)
+				// overwrite currentRuntimeObj
+				currentRuntimeObj, err = mergeObject(desiredRuntimeObj, currentRuntimeObj)
 				if err != nil {
 					return reconcile.Result{}, err
 				}
-
-				if err = json.Unmarshal(desiredBytes, currentRuntimeObj); err != nil {
-					return reconcile.Result{}, err
-				}
-
-				doUpdate = true
 			}
 
-			if doUpdate {
+			if !reflect.DeepEqual(currentRuntimeObjCopy, currentRuntimeObj) {
+				logJSONDiff(logger, currentRuntimeObjCopy, currentRuntimeObj)
+
 				// PRE_UPDATE callback
 				if err = r.invokeCallbacks(logger, ReconcileStatePreUpdate, desiredRuntimeObj, currentRuntimeObj); err != nil {
 					return reconcile.Result{}, err
@@ -271,12 +269,17 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 				if err = r.invokeCallbacks(logger, ReconcileStatePostUpdate, desiredRuntimeObj, currentRuntimeObj); err != nil {
 					return reconcile.Result{}, err
 				}
-			}
 
-			logger.Info("Resource updated",
-				"namespace", desiredMetaObj.GetNamespace(),
-				"name", desiredMetaObj.GetName(),
-				"type", fmt.Sprintf("%T", desiredMetaObj))
+				logger.Info("Resource updated",
+					"namespace", desiredMetaObj.GetNamespace(),
+					"name", desiredMetaObj.GetName(),
+					"type", fmt.Sprintf("%T", desiredMetaObj))
+			} else {
+				logger.Info("Resource unchanged",
+					"namespace", desiredMetaObj.GetNamespace(),
+					"name", desiredMetaObj.GetName(),
+					"type", fmt.Sprintf("%T", desiredMetaObj))
+			}
 		}
 	}
 
@@ -313,16 +316,15 @@ func (r *ReconcileCDI) isMutable(obj runtime.Object) bool {
 
 // I hate that this function exists, but major refactoring required to make CDI CR the owner of all the things
 func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
-	if len(cr.Finalizers) == 0 {
-		if err := r.invokeDeleteCDICallbacks(logger, cr, ReconcileStatePostCDIDelete); err != nil {
-			return reconcile.Result{}, err
+	i := -1
+	for j, f := range cr.Finalizers {
+		if f == finalizerName {
+			i = j
+			break
 		}
-
-		return reconcile.Result{}, nil
 	}
 
-	if cr.Finalizers[len(cr.Finalizers)-1] != finalizerName {
-		// wait until we are up
+	if i < 0 {
 		return reconcile.Result{}, nil
 	}
 
@@ -332,67 +334,11 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		}
 	}
 
-	if err := r.invokeDeleteCDICallbacks(logger, cr, ReconcileStatePreCDIDelete); err != nil {
+	if err := r.invokeDeleteCDICallbacks(logger, cr, ReconcileStateCDIDelete); err != nil {
 		return reconcile.Result{}, err
 	}
 
-	// delete all deployments
-	deployments, err := r.getAllDeployments(cr)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	// I forget why we are doing this
-	for _, deployment := range deployments {
-		err = r.client.Delete(context.TODO(), deployment, func(opts *client.DeleteOptions) {
-			p := metav1.DeletePropagationForeground
-			opts.PropagationPolicy = &p
-		})
-		if err != nil {
-			if errors.IsNotFound(err) {
-				continue
-			}
-
-			return reconcile.Result{}, err
-		}
-	}
-
-	lo := &client.ListOptions{}
-	// maybe use different selectors?
-	lo.SetLabelSelector("cdi.kubevirt.io")
-
-	// delete pods
-	// this is getting more than we'd like (deleting deployment pods)
-	podList := &corev1.PodList{}
-	if err = r.client.List(context.TODO(), lo, podList); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	for _, pod := range podList.Items {
-		logger.Info("Deleting pod", "Name", pod.Name, "Namespace", pod.Namespace)
-		if err = r.client.Delete(context.TODO(), &pod); err != nil {
-			return reconcile.Result{}, err
-		}
-	}
-
-	// delete services (from upload)
-	serviceList := &corev1.ServiceList{}
-	if err = r.client.List(context.TODO(), lo, serviceList); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	for _, service := range serviceList.Items {
-		logger.Info("Deleting service", "Name", service.Name, "Namespace", service.Namespace)
-		if err = r.client.Delete(context.TODO(), &service); err != nil {
-			return reconcile.Result{}, err
-		}
-	}
-
-	if err = r.syncPrivilegedAccounts(logger, cr, false); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	cr.Finalizers = cr.Finalizers[0 : len(cr.Finalizers)-1]
+	cr.Finalizers = append(cr.Finalizers[0:i], cr.Finalizers[i+1:]...)
 
 	if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeleted, cr); err != nil {
 		return reconcile.Result{}, err

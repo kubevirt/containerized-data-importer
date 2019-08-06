@@ -17,24 +17,21 @@ limitations under the License.
 package controller
 
 import (
+	"encoding/json"
 	"os"
 	"strings"
 
+	"github.com/appscode/jsonpatch"
+	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func mergeLabelsAndAnnotations(src, dest metav1.Object) bool {
-	modified := false
-
+func mergeLabelsAndAnnotations(src, dest metav1.Object) {
 	// allow users to add labels but not change ours
 	for k, v := range src.GetLabels() {
 		if dest.GetLabels() == nil {
 			dest.SetLabels(map[string]string{})
-		}
-
-		_, exists := dest.GetLabels()[k]
-		if !exists {
-			modified = true
 		}
 
 		dest.GetLabels()[k] = v
@@ -46,17 +43,44 @@ func mergeLabelsAndAnnotations(src, dest metav1.Object) bool {
 			dest.SetAnnotations(map[string]string{})
 		}
 
-		_, exists := dest.GetAnnotations()[k]
-		if !exists {
-			modified = true
-		}
-
 		dest.GetAnnotations()[k] = v
 	}
+}
 
-	return modified
+func mergeObject(desiredObj, currentObj runtime.Object) (runtime.Object, error) {
+	// copy labels/annotations that may have been merged above
+	desiredRuntimeObjCopy := desiredObj.DeepCopyObject()
+	currentRuntimeObjCopy := currentObj.DeepCopyObject()
+
+	desiredMetaObjCopy := desiredRuntimeObjCopy.(metav1.Object)
+	currentMetaObjCopy := currentRuntimeObjCopy.(metav1.Object)
+
+	desiredMetaObjCopy.SetLabels(currentMetaObjCopy.GetLabels())
+	desiredMetaObjCopy.SetAnnotations(currentMetaObjCopy.GetAnnotations())
+
+	// for some reason, null creationTimestamp gets encoded
+	desiredMetaObjCopy.SetCreationTimestamp(currentMetaObjCopy.GetCreationTimestamp())
+
+	desiredBytes, err := json.Marshal(desiredRuntimeObjCopy)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = json.Unmarshal(desiredBytes, currentRuntimeObjCopy); err != nil {
+		return nil, err
+	}
+
+	return currentRuntimeObjCopy, nil
 }
 
 func deployClusterResources() bool {
 	return strings.ToLower(os.Getenv("DEPLOY_CLUSTER_RESOURCES")) != "false"
+}
+
+func logJSONDiff(logger logr.Logger, objA, objB interface{}) {
+	aBytes, _ := json.Marshal(objA)
+	bBytes, _ := json.Marshal(objB)
+	patches, _ := jsonpatch.CreatePatch(aBytes, bBytes)
+	pBytes, _ := json.Marshal(patches)
+	logger.Info("DIFF", "obj", objA, "patch", string(pBytes))
 }
