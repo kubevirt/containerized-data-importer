@@ -23,6 +23,7 @@ import (
 
 	"github.com/appscode/jsonpatch"
 	"github.com/go-logr/logr"
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -83,4 +84,18 @@ func logJSONDiff(logger logr.Logger, objA, objB interface{}) {
 	patches, _ := jsonpatch.CreatePatch(aBytes, bBytes)
 	pBytes, _ := json.Marshal(patches)
 	logger.Info("DIFF", "obj", objA, "patch", string(pBytes))
+}
+
+func checkDeploymentReady(deployment *appsv1.Deployment) bool {
+	desiredReplicas := deployment.Spec.Replicas
+	if desiredReplicas == nil {
+		desiredReplicas = &[]int32{1}[0]
+	}
+
+	if *desiredReplicas != deployment.Status.Replicas ||
+		deployment.Status.Replicas != deployment.Status.ReadyReplicas {
+		return false
+	}
+
+	return true
 }

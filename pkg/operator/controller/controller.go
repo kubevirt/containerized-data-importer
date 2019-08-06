@@ -26,6 +26,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -79,12 +80,13 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 	log.Info("", "VARS", fmt.Sprintf("%+v", namespacedArgs))
 
 	r := &ReconcileCDI{
-		client:         mgr.GetClient(),
-		scheme:         mgr.GetScheme(),
-		namespace:      namespace,
-		clusterArgs:    clusterArgs,
-		namespacedArgs: &namespacedArgs,
-		callbacks:      make(map[reflect.Type][]ReconcileCallback),
+		client:             mgr.GetClient(),
+		scheme:             mgr.GetScheme(),
+		namespace:          namespace,
+		clusterArgs:        clusterArgs,
+		namespacedArgs:     &namespacedArgs,
+		explicitWatchTypes: getExplicitWatchTypes(),
+		callbacks:          make(map[reflect.Type][]ReconcileCallback),
 	}
 
 	addReconcileCallbacks(r)
@@ -105,7 +107,8 @@ type ReconcileCDI struct {
 	clusterArgs    *cdicluster.FactoryArgs
 	namespacedArgs *cdinamespaced.FactoryArgs
 
-	callbacks map[reflect.Type][]ReconcileCallback
+	explicitWatchTypes []runtime.Object
+	callbacks          map[reflect.Type][]ReconcileCallback
 }
 
 // Reconcile reads that state of the cluster for a CDI object and makes changes based on the state read
@@ -298,9 +301,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	}
 
 	if ready {
-		if err = r.ensureUploadProxyRouteExists(logger, cr); err != nil {
-			return reconcile.Result{}, err
-		}
+		logger.Info("Operator is ready!!")
 	}
 
 	return reconcile.Result{}, nil
@@ -387,17 +388,10 @@ func (r *ReconcileCDI) checkReady(logger logr.Logger, cr *cdiv1alpha1.CDI) (bool
 			return false, err
 		}
 
-		desiredReplicas := deployment.Spec.Replicas
-		if desiredReplicas == nil {
-			one := int32(1)
-			desiredReplicas = &one
-		}
-
-		if *desiredReplicas != deployment.Status.Replicas ||
-			deployment.Status.Replicas != deployment.Status.ReadyReplicas {
+		if !checkDeploymentReady(deployment) {
 			readyCond = conditionNotReady
+			break
 		}
-
 	}
 
 	logger.Info("CDI Ready check", "Status", readyCond.Status)
@@ -416,7 +410,11 @@ func (r *ReconcileCDI) add(mgr manager.Manager) error {
 		return err
 	}
 
-	return r.watch(c)
+	if err = r.watch(c); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *ReconcileCDI) watch(c controller.Controller) error {
@@ -430,15 +428,18 @@ func (r *ReconcileCDI) watch(c controller.Controller) error {
 		return err
 	}
 
+	resources = append(resources, r.explicitWatchTypes...)
+
 	if err = r.watchResourceTypes(c, resources); err != nil {
 		return err
 	}
 
+	// would like to get rid of this
 	if err = r.watchSecurityContextConstraints(c); err != nil {
 		return err
 	}
 
-	return r.watchRoutes(c)
+	return nil
 }
 
 func (r *ReconcileCDI) getConfigMap() (*corev1.ConfigMap, error) {
@@ -531,10 +532,10 @@ func (r *ReconcileCDI) getAllResources(cr *cdiv1alpha1.CDI) ([]runtime.Object, e
 }
 
 func (r *ReconcileCDI) watchResourceTypes(c controller.Controller, resources []runtime.Object) error {
-	types := map[string]bool{}
+	types := map[reflect.Type]bool{}
 
 	for _, resource := range resources {
-		t := fmt.Sprintf("%T", resource)
+		t := reflect.TypeOf(resource)
 		if types[t] {
 			continue
 		}
@@ -550,6 +551,10 @@ func (r *ReconcileCDI) watchResourceTypes(c controller.Controller, resources []r
 		}
 
 		if err := c.Watch(&source.Kind{Type: resource}, eventHandler); err != nil {
+			if meta.IsNoMatchError(err) {
+				log.Info("No match for type, NOT WATCHING", "type", t)
+				continue
+			}
 			return err
 		}
 
@@ -580,8 +585,16 @@ func (r *ReconcileCDI) invokeCallbacks(l logr.Logger, s ReconcileState, desiredO
 	cbs := append(r.callbacks[t], r.callbacks[nil]...)
 
 	for _, cb := range cbs {
+		args := &ReconcileCallbackArgs{
+			Logger:        l,
+			Client:        r.client,
+			Scheme:        r.scheme,
+			State:         s,
+			DesiredObject: desiredObj,
+			CurrentObject: currentObj,
+		}
 		log.V(3).Info("Invoking callbacks for", "type", t)
-		if err := cb(l, r.client, s, desiredObj, currentObj); err != nil {
+		if err := cb(args); err != nil {
 			log.Error(err, "error invoking callback for", "type", t)
 			return err
 		}

@@ -200,6 +200,7 @@ func getOperatorClusterRules() *[]rbacv1.PolicyRule {
 			},
 			Resources: []string{
 				"deployments",
+				"deployments/finalizers",
 				"daemonstes",
 			},
 			Verbs: []string{

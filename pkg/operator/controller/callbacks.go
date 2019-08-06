@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-logr/logr"
 
+	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -70,53 +71,94 @@ const (
 // ReconcileState is the current state of the reconcile for a particuar resource
 type ReconcileState string
 
+// ReconcileCallbackArgs contains the data of a ReconcileCallback
+type ReconcileCallbackArgs struct {
+	Logger logr.Logger
+	Client client.Client
+	Scheme *runtime.Scheme
+
+	State ReconcileState
+
+	DesiredObject runtime.Object
+	CurrentObject runtime.Object
+}
+
 // ReconcileCallback is the callback function
-type ReconcileCallback func(l logr.Logger, c client.Client, s ReconcileState, desiredObj, currentObj runtime.Object) error
+type ReconcileCallback func(args *ReconcileCallbackArgs) error
+
+func getExplicitWatchTypes() []runtime.Object {
+	return []runtime.Object{&routev1.Route{}}
+}
 
 func addReconcileCallbacks(r *ReconcileCDI) {
 	r.addCallback(&appsv1.Deployment{}, reconcileDeleteControllerDeployment)
 	r.addCallback(&corev1.ServiceAccount{}, reconcileServiceAccountRead)
 	r.addCallback(&corev1.ServiceAccount{}, reconcileServiceAccounts)
+	r.addCallback(&appsv1.Deployment{}, reconcileCreateRoute)
 }
 
-func reconcileDeleteControllerDeployment(l logr.Logger, c client.Client, s ReconcileState, desiredObj, currentObj runtime.Object) error {
-	switch s {
+func isControllerDeployment(d *appsv1.Deployment) bool {
+	if d.Name == "cdi-deployment" {
+		return true
+	}
+	return false
+}
+
+func reconcileDeleteControllerDeployment(args *ReconcileCallbackArgs) error {
+	switch args.State {
 	case ReconcileStatePostDelete, ReconcileStateCDIDelete:
 	default:
 		return nil
 	}
 
-	deployment := desiredObj.(*appsv1.Deployment)
-	if deployment.Name != "cdi-deployment" {
+	deployment := args.DesiredObject.(*appsv1.Deployment)
+	if !isControllerDeployment(deployment) {
 		return nil
 	}
 
-	l.Info("Deleting CDI deployment and all import/upload/clone pods/services")
+	args.Logger.Info("Deleting CDI deployment and all import/upload/clone pods/services")
 
-	err := c.Delete(context.TODO(), deployment, func(opts *client.DeleteOptions) {
+	err := args.Client.Delete(context.TODO(), deployment, func(opts *client.DeleteOptions) {
 		p := metav1.DeletePropagationForeground
 		opts.PropagationPolicy = &p
 	})
 	if err != nil && !errors.IsNotFound(err) {
-		l.Error(err, "Error deleting cdi controller deployment")
+		args.Logger.Error(err, "Error deleting cdi controller deployment")
 		return err
 	}
 
-	if err = deleteWorkerResources(l, c); err != nil {
-		l.Error(err, "Error deleting worker resources")
+	if err = deleteWorkerResources(args.Logger, args.Client); err != nil {
+		args.Logger.Error(err, "Error deleting worker resources")
 		return err
 	}
 
 	return nil
 }
 
-func reconcileServiceAccountRead(l logr.Logger, c client.Client, s ReconcileState, desiredObj, currentObj runtime.Object) error {
-	if s != ReconcileStatePostRead {
+func reconcileCreateRoute(args *ReconcileCallbackArgs) error {
+	if args.State != ReconcileStatePostRead {
 		return nil
 	}
 
-	do := desiredObj.(*corev1.ServiceAccount)
-	co := currentObj.(*corev1.ServiceAccount)
+	deployment := args.CurrentObject.(*appsv1.Deployment)
+	if !isControllerDeployment(deployment) || !checkDeploymentReady(deployment) {
+		return nil
+	}
+
+	if err := ensureUploadProxyRouteExists(args.Logger, args.Client, args.Scheme, deployment); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func reconcileServiceAccountRead(args *ReconcileCallbackArgs) error {
+	if args.State != ReconcileStatePostRead {
+		return nil
+	}
+
+	do := args.DesiredObject.(*corev1.ServiceAccount)
+	co := args.CurrentObject.(*corev1.ServiceAccount)
 
 	val, exists := do.Annotations[utils.SCCAnnotation]
 	if exists {
@@ -129,24 +171,24 @@ func reconcileServiceAccountRead(l logr.Logger, c client.Client, s ReconcileStat
 	return nil
 }
 
-func reconcileServiceAccounts(l logr.Logger, c client.Client, s ReconcileState, desiredObj, currentObj runtime.Object) error {
-	switch s {
+func reconcileServiceAccounts(args *ReconcileCallbackArgs) error {
+	switch args.State {
 	case ReconcileStatePreCreate, ReconcileStatePreUpdate, ReconcileStatePostDelete, ReconcileStateCDIDelete:
 	default:
 		return nil
 	}
 
-	do := desiredObj.(*corev1.ServiceAccount)
+	desiredSA := args.DesiredObject.(*corev1.ServiceAccount)
 
 	desiredSCCs := []string{}
-	saName := fmt.Sprintf("system:serviceaccount:%s:%s", do.Namespace, do.Name)
+	saName := fmt.Sprintf("system:serviceaccount:%s:%s", desiredSA.Namespace, desiredSA.Name)
 
-	switch s {
+	switch args.State {
 	case ReconcileStatePreCreate, ReconcileStatePreUpdate:
-		val, exists := do.Annotations[utils.SCCAnnotation]
+		val, exists := desiredSA.Annotations[utils.SCCAnnotation]
 		if exists {
 			if err := json.Unmarshal([]byte(val), &desiredSCCs); err != nil {
-				l.Error(err, "Error unmarshalling data")
+				args.Logger.Error(err, "Error unmarshalling data")
 				return err
 			}
 		}
@@ -155,12 +197,12 @@ func reconcileServiceAccounts(l logr.Logger, c client.Client, s ReconcileState, 
 	}
 
 	listObj := &secv1.SecurityContextConstraintsList{}
-	if err := c.List(context.TODO(), &client.ListOptions{}, listObj); err != nil {
+	if err := args.Client.List(context.TODO(), &client.ListOptions{}, listObj); err != nil {
 		if meta.IsNoMatchError(err) {
 			// not openshift
 			return nil
 		}
-		l.Error(err, "Error listing SCCs")
+		args.Logger.Error(err, "Error listing SCCs")
 		return err
 	}
 
@@ -184,10 +226,10 @@ func reconcileServiceAccounts(l logr.Logger, c client.Client, s ReconcileState, 
 		}
 
 		if !reflect.DeepEqual(desiredUsers, scc.Users) {
-			l.Info("Doing SCC update", "name", scc.Name, "desired", desiredUsers, "current", scc.Users)
+			args.Logger.Info("Doing SCC update", "name", scc.Name, "desired", desiredUsers, "current", scc.Users)
 			scc.Users = desiredUsers
-			if err := c.Update(context.TODO(), &scc); err != nil {
-				l.Error(err, "Error updating SCC")
+			if err := args.Client.Update(context.TODO(), &scc); err != nil {
+				args.Logger.Error(err, "Error updating SCC")
 				return err
 			}
 		}
