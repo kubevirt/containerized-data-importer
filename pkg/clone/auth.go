@@ -110,11 +110,5 @@ func getResourceAttributes(namespace, name string) []authorization.ResourceAttri
 			Subresource: cdiv1alpha1.DataVolumeCloneSourceSubresource,
 			Name:        name,
 		},
-		{
-			Namespace: namespace,
-			Verb:      "create",
-			Resource:  "pods",
-			Name:      name,
-		},
 	}
 }

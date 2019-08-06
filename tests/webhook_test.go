@@ -56,36 +56,6 @@ var explicitRole = &rbacv1.Role{
 	},
 }
 
-var implicitRole = &rbacv1.Role{
-	ObjectMeta: metav1.ObjectMeta{
-		Name: "implicit-role",
-	},
-	Rules: []rbacv1.PolicyRule{
-		{
-			APIGroups: []string{
-				"cdi.kubevirt.io",
-			},
-			Resources: []string{
-				"datavolumes",
-			},
-			Verbs: []string{
-				"*",
-			},
-		},
-		{
-			APIGroups: []string{
-				"",
-			},
-			Resources: []string{
-				"pods",
-			},
-			Verbs: []string{
-				"create",
-			},
-		},
-	},
-}
-
 var _ = Describe("Clone Auth Webhook tests", func() {
 	const serviceAccountName = "cdi-auth-webhook-test"
 
@@ -167,7 +137,6 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 			},
 				Entry("when using explicit CDI permissions", explicitRole),
-				Entry("when using implicit CDI permissions", implicitRole),
 			)
 		})
 	})
