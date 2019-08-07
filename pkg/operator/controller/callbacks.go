@@ -178,14 +178,19 @@ func reconcileServiceAccounts(args *ReconcileCallbackArgs) error {
 		return nil
 	}
 
-	desiredSA := args.DesiredObject.(*corev1.ServiceAccount)
+	var sa *corev1.ServiceAccount
+	if args.State == ReconcileStatePostDelete {
+		sa = args.CurrentObject.(*corev1.ServiceAccount)
+	} else {
+		sa = args.DesiredObject.(*corev1.ServiceAccount)
+	}
 
 	desiredSCCs := []string{}
-	saName := fmt.Sprintf("system:serviceaccount:%s:%s", desiredSA.Namespace, desiredSA.Name)
+	saName := fmt.Sprintf("system:serviceaccount:%s:%s", sa.Namespace, sa.Name)
 
 	switch args.State {
 	case ReconcileStatePreCreate, ReconcileStatePreUpdate:
-		val, exists := desiredSA.Annotations[utils.SCCAnnotation]
+		val, exists := sa.Annotations[utils.SCCAnnotation]
 		if exists {
 			if err := json.Unmarshal([]byte(val), &desiredSCCs); err != nil {
 				args.Logger.Error(err, "Error unmarshalling data")
