@@ -49,6 +49,7 @@ generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator-rbac" "rba
 generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator-deployment" "cdi-operator-deployment.yaml" 
 generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator-cdi-crd" "cdi-crd.yaml" 
 generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator-configmap-cr" "cdi-configmap-cr.yaml" 
+generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator-csv" "cdi-operator-csv.yaml" 
 
 #process templated manifests and populate them with generated manifests
 tempDir=${MANIFEST_TEMPLATE_DIR}
