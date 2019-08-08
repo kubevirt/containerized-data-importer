@@ -28,6 +28,9 @@ import (
 )
 
 const (
+	// SCCAnnotation is the annotation listing SCCs for a SA
+	SCCAnnotation = "cdi-scc"
+
 	cdiLabel = common.CDIComponentLabel
 )
 

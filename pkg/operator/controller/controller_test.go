@@ -169,14 +169,10 @@ var _ = Describe("Controller", func() {
 				args := createArgs()
 				doReconcile(args)
 
-				expectedUsers := namespaceResources.GetPrivilegedAccounts(args.reconciler.namespacedArgs)
-				Expect(expectedUsers).To(HaveLen(1))
-				Expect(expectedUsers).To(HaveKey("anyuid"))
-
 				args.scc, err = getSCC(args.client, args.scc)
 				Expect(err).ToNot(HaveOccurred())
 
-				for _, eu := range expectedUsers["anyuid"] {
+				for _, eu := range []string{"system:serviceaccount:cdi:cdi-sa"} {
 					found := false
 					for _, au := range args.scc.Users {
 						if eu == au {
@@ -589,7 +585,12 @@ func createCDI(name, uid string) *cdiviaplha1.CDI {
 }
 
 func createSCC() *secv1.SecurityContextConstraints {
-	return &secv1.SecurityContextConstraints{ObjectMeta: metav1.ObjectMeta{Name: "anyuid"}}
+	return &secv1.SecurityContextConstraints{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "anyuid",
+		},
+		Users: []string{},
+	}
 }
 
 func createReconciler(client realClient.Client) *ReconcileCDI {
@@ -610,13 +611,18 @@ func createReconciler(client realClient.Client) *ReconcileCDI {
 		Namespace:              namespace,
 	}
 
-	return &ReconcileCDI{
+	r := &ReconcileCDI{
 		client:         client,
 		scheme:         scheme.Scheme,
 		namespace:      namespace,
 		clusterArgs:    clusterArgs,
 		namespacedArgs: namespacedArgs,
+		callbacks:      make(map[reflect.Type][]ReconcileCallback),
 	}
+
+	addReconcileCallbacks(r)
+
+	return r
 }
 
 func createUploadProxyCACertSecret(client realClient.Client) {

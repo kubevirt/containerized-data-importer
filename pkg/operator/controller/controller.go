@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 
@@ -27,8 +26,10 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -79,12 +80,17 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 	log.Info("", "VARS", fmt.Sprintf("%+v", namespacedArgs))
 
 	r := &ReconcileCDI{
-		client:         mgr.GetClient(),
-		scheme:         mgr.GetScheme(),
-		namespace:      namespace,
-		clusterArgs:    clusterArgs,
-		namespacedArgs: &namespacedArgs,
+		client:             mgr.GetClient(),
+		scheme:             mgr.GetScheme(),
+		namespace:          namespace,
+		clusterArgs:        clusterArgs,
+		namespacedArgs:     &namespacedArgs,
+		explicitWatchTypes: getExplicitWatchTypes(),
+		callbacks:          make(map[reflect.Type][]ReconcileCallback),
 	}
+
+	addReconcileCallbacks(r)
+
 	return r, nil
 }
 
@@ -100,6 +106,9 @@ type ReconcileCDI struct {
 	namespace      string
 	clusterArgs    *cdicluster.FactoryArgs
 	namespacedArgs *cdinamespaced.FactoryArgs
+
+	explicitWatchTypes []runtime.Object
+	callbacks          map[reflect.Type][]ReconcileCallback
 }
 
 // Reconcile reads that state of the cluster for a CDI object and makes changes based on the state read
@@ -180,10 +189,6 @@ func (r *ReconcileCDI) reconcileCreate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 }
 
 func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
-	if err := r.syncPrivilegedAccounts(logger, cr, true); err != nil {
-		return reconcile.Result{}, err
-	}
-
 	resources, err := r.getAllResources(cr)
 	if err != nil {
 		return reconcile.Result{}, err
@@ -211,8 +216,19 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 				return reconcile.Result{}, err
 			}
 
-			if err = r.client.Create(context.TODO(), desiredRuntimeObj); err != nil {
+			// PRE_CREATE callback
+			if err = r.invokeCallbacks(logger, ReconcileStatePreCreate, desiredRuntimeObj, nil); err != nil {
+				return reconcile.Result{}, err
+			}
+
+			currentRuntimeObj = desiredRuntimeObj.DeepCopyObject()
+			if err = r.client.Create(context.TODO(), currentRuntimeObj); err != nil {
 				logger.Error(err, "")
+				return reconcile.Result{}, err
+			}
+
+			// POST_CREATE callback
+			if err = r.invokeCallbacks(logger, ReconcileStatePostCreate, desiredRuntimeObj, currentRuntimeObj); err != nil {
 				return reconcile.Result{}, err
 			}
 
@@ -221,30 +237,52 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 				"name", desiredMetaObj.GetName(),
 				"type", fmt.Sprintf("%T", desiredMetaObj))
 		} else {
+			// POST_READ callback
+			if err = r.invokeCallbacks(logger, ReconcileStatePostRead, desiredRuntimeObj, currentRuntimeObj); err != nil {
+				return reconcile.Result{}, err
+			}
+
+			currentRuntimeObjCopy := currentRuntimeObj.DeepCopyObject()
 			currentMetaObj := currentRuntimeObj.(metav1.Object)
 
 			// allow users to add new annotations (but not change ours)
-			mergeLabelsAndAnnotations(currentMetaObj, desiredMetaObj)
+			mergeLabelsAndAnnotations(desiredMetaObj, currentMetaObj)
 
 			if !r.isMutable(currentRuntimeObj) {
-				desiredBytes, err := json.Marshal(desiredRuntimeObj)
+				// overwrite currentRuntimeObj
+				currentRuntimeObj, err = mergeObject(desiredRuntimeObj, currentRuntimeObj)
 				if err != nil {
 					return reconcile.Result{}, err
 				}
+			}
 
-				if err = json.Unmarshal(desiredBytes, currentRuntimeObj); err != nil {
+			if !reflect.DeepEqual(currentRuntimeObjCopy, currentRuntimeObj) {
+				logJSONDiff(logger, currentRuntimeObjCopy, currentRuntimeObj)
+
+				// PRE_UPDATE callback
+				if err = r.invokeCallbacks(logger, ReconcileStatePreUpdate, desiredRuntimeObj, currentRuntimeObj); err != nil {
 					return reconcile.Result{}, err
 				}
 
 				if err = r.client.Update(context.TODO(), currentRuntimeObj); err != nil {
 					return reconcile.Result{}, err
 				}
-			}
 
-			logger.Info("Resource updated",
-				"namespace", desiredMetaObj.GetNamespace(),
-				"name", desiredMetaObj.GetName(),
-				"type", fmt.Sprintf("%T", desiredMetaObj))
+				// POST_UPDATE callback
+				if err = r.invokeCallbacks(logger, ReconcileStatePostUpdate, desiredRuntimeObj, currentRuntimeObj); err != nil {
+					return reconcile.Result{}, err
+				}
+
+				logger.Info("Resource updated",
+					"namespace", desiredMetaObj.GetNamespace(),
+					"name", desiredMetaObj.GetName(),
+					"type", fmt.Sprintf("%T", desiredMetaObj))
+			} else {
+				logger.Info("Resource unchanged",
+					"namespace", desiredMetaObj.GetNamespace(),
+					"name", desiredMetaObj.GetName(),
+					"type", fmt.Sprintf("%T", desiredMetaObj))
+			}
 		}
 	}
 
@@ -263,9 +301,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	}
 
 	if ready {
-		if err = r.ensureUploadProxyRouteExists(logger, cr); err != nil {
-			return reconcile.Result{}, err
-		}
+		logger.Info("Operator is ready!!")
 	}
 
 	return reconcile.Result{}, nil
@@ -289,8 +325,7 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		}
 	}
 
-	// already done whatever we wanted to do
-	if i == -1 {
+	if i < 0 {
 		return reconcile.Result{}, nil
 	}
 
@@ -300,61 +335,11 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		}
 	}
 
-	// delete all deployments
-	deployments, err := r.getAllDeployments(cr)
-	if err != nil {
+	if err := r.invokeDeleteCDICallbacks(logger, cr, ReconcileStateCDIDelete); err != nil {
 		return reconcile.Result{}, err
 	}
 
-	for _, deployment := range deployments {
-		err = r.client.Delete(context.TODO(), deployment, func(opts *client.DeleteOptions) {
-			p := metav1.DeletePropagationForeground
-			opts.PropagationPolicy = &p
-		})
-		if err != nil {
-			if errors.IsNotFound(err) {
-				continue
-			}
-
-			return reconcile.Result{}, err
-		}
-	}
-
-	lo := &client.ListOptions{}
-	// maybe use different selectors?
-	lo.SetLabelSelector("cdi.kubevirt.io")
-
-	// delete pods
-	podList := &corev1.PodList{}
-	if err = r.client.List(context.TODO(), lo, podList); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	for _, pod := range podList.Items {
-		logger.Info("Deleting pod", "Name", pod.Name, "Namespace", pod.Namespace)
-		if err = r.client.Delete(context.TODO(), &pod); err != nil {
-			return reconcile.Result{}, err
-		}
-	}
-
-	// delete services (from upload)
-	serviceList := &corev1.ServiceList{}
-	if err = r.client.List(context.TODO(), lo, serviceList); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	for _, service := range serviceList.Items {
-		logger.Info("Deleting service", "Name", service.Name, "Namespace", service.Namespace)
-		if err = r.client.Delete(context.TODO(), &service); err != nil {
-			return reconcile.Result{}, err
-		}
-	}
-
-	if err = r.syncPrivilegedAccounts(logger, cr, false); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	cr.Finalizers = append(cr.Finalizers[:i], cr.Finalizers[i+1:]...)
+	cr.Finalizers = append(cr.Finalizers[0:i], cr.Finalizers[i+1:]...)
 
 	if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeleted, cr); err != nil {
 		return reconcile.Result{}, err
@@ -363,6 +348,21 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	logger.Info("Finalizer complete")
 
 	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileCDI) invokeDeleteCDICallbacks(logger logr.Logger, cr *cdiv1alpha1.CDI, s ReconcileState) error {
+	resources, err := r.getAllResources(cr)
+	if err != nil {
+		return err
+	}
+
+	for _, resource := range resources {
+		if err = r.invokeCallbacks(logger, s, resource, nil); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (r *ReconcileCDI) reconcileError(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
@@ -388,17 +388,10 @@ func (r *ReconcileCDI) checkReady(logger logr.Logger, cr *cdiv1alpha1.CDI) (bool
 			return false, err
 		}
 
-		desiredReplicas := deployment.Spec.Replicas
-		if desiredReplicas == nil {
-			one := int32(1)
-			desiredReplicas = &one
-		}
-
-		if *desiredReplicas != deployment.Status.Replicas ||
-			deployment.Status.Replicas != deployment.Status.ReadyReplicas {
+		if !checkDeploymentReady(deployment) {
 			readyCond = conditionNotReady
+			break
 		}
-
 	}
 
 	logger.Info("CDI Ready check", "Status", readyCond.Status)
@@ -417,7 +410,11 @@ func (r *ReconcileCDI) add(mgr manager.Manager) error {
 		return err
 	}
 
-	return r.watch(c)
+	if err = r.watch(c); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *ReconcileCDI) watch(c controller.Controller) error {
@@ -431,15 +428,18 @@ func (r *ReconcileCDI) watch(c controller.Controller) error {
 		return err
 	}
 
+	resources = append(resources, r.explicitWatchTypes...)
+
 	if err = r.watchResourceTypes(c, resources); err != nil {
 		return err
 	}
 
+	// would like to get rid of this
 	if err = r.watchSecurityContextConstraints(c); err != nil {
 		return err
 	}
 
-	return r.watchRoutes(c)
+	return nil
 }
 
 func (r *ReconcileCDI) getConfigMap() (*corev1.ConfigMap, error) {
@@ -532,10 +532,10 @@ func (r *ReconcileCDI) getAllResources(cr *cdiv1alpha1.CDI) ([]runtime.Object, e
 }
 
 func (r *ReconcileCDI) watchResourceTypes(c controller.Controller, resources []runtime.Object) error {
-	types := map[string]bool{}
+	types := map[reflect.Type]bool{}
 
 	for _, resource := range resources {
-		t := fmt.Sprintf("%T", resource)
+		t := reflect.TypeOf(resource)
 		if types[t] {
 			continue
 		}
@@ -551,12 +551,53 @@ func (r *ReconcileCDI) watchResourceTypes(c controller.Controller, resources []r
 		}
 
 		if err := c.Watch(&source.Kind{Type: resource}, eventHandler); err != nil {
+			if meta.IsNoMatchError(err) {
+				log.Info("No match for type, NOT WATCHING", "type", t)
+				continue
+			}
 			return err
 		}
 
 		log.Info("Watching", "type", t)
 
 		types[t] = true
+	}
+
+	return nil
+}
+
+func (r *ReconcileCDI) addCallback(obj runtime.Object, cb ReconcileCallback) {
+	t := reflect.TypeOf(obj)
+	cbs := r.callbacks[t]
+	r.callbacks[t] = append(cbs, cb)
+}
+
+func (r *ReconcileCDI) invokeCallbacks(l logr.Logger, s ReconcileState, desiredObj, currentObj runtime.Object) error {
+	var t reflect.Type
+
+	if desiredObj != nil {
+		t = reflect.TypeOf(desiredObj)
+	} else if currentObj != nil {
+		t = reflect.TypeOf(currentObj)
+	}
+
+	// callbacks with nil key always get invoked
+	cbs := append(r.callbacks[t], r.callbacks[nil]...)
+
+	for _, cb := range cbs {
+		args := &ReconcileCallbackArgs{
+			Logger:        l,
+			Client:        r.client,
+			Scheme:        r.scheme,
+			State:         s,
+			DesiredObject: desiredObj,
+			CurrentObject: currentObj,
+		}
+		log.V(3).Info("Invoking callbacks for", "type", t)
+		if err := cb(args); err != nil {
+			log.Error(err, "error invoking callback for", "type", t)
+			return err
+		}
 	}
 
 	return nil
