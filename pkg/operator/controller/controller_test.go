@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	generrors "errors"
 	"fmt"
 
@@ -559,6 +558,12 @@ var _ = Describe("Controller", func() {
 			err = args.client.Update(context.TODO(), oModified)
 			Expect(err).ToNot(HaveOccurred())
 
+			//verify object is modified
+			storedObj, err := getObject(args.client, oModified)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(reflect.DeepEqual(storedObj, oModified)).Should(Equal(true))
+
 			doReconcile(args)
 
 			//verify upgraded has started
@@ -572,7 +577,7 @@ var _ = Describe("Controller", func() {
 			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
 
 			//verify that stored object equals to object in getResources
-			storedObj, err := getObject(args.client, oModified)
+			storedObj, err = getObject(args.client, oModified)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(upgraded(storedObj, oOriginal)).Should(Equal(true))
@@ -1218,34 +1223,6 @@ func getDeployment(client realClient.Client, deployment *appsv1.Deployment) (*ap
 	return result.(*appsv1.Deployment), nil
 }
 
-func equalObjects(a, b runtime.Object) (bool, error) {
-
-	res := true
-
-	ajsonBytes, err := json.Marshal(a)
-	if err != nil {
-		return false, err
-	}
-
-	bjsonBytes, err := json.Marshal(b)
-	if err != nil {
-		return false, err
-	}
-
-	if len(ajsonBytes) != len(bjsonBytes) {
-		return false, nil
-	}
-
-	for i := range ajsonBytes {
-		if ajsonBytes[i] != bjsonBytes[i] {
-			res = false
-			break
-		}
-	}
-
-	return res, nil
-}
-
 func getObject(client realClient.Client, obj runtime.Object) (runtime.Object, error) {
 	metaObj := obj.(metav1.Object)
 	key := realClient.ObjectKey{Namespace: metaObj.GetNamespace(), Name: metaObj.GetName()}
@@ -1258,46 +1235,6 @@ func getObject(client realClient.Client, obj runtime.Object) (runtime.Object, er
 	}
 
 	return result, nil
-}
-
-func updateObject(client realClient.Client, obj runtime.Object) error {
-	if err := client.Update(context.TODO(), obj); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func getObjectFromResources(reconciler *ReconcileCDI, obj runtime.Object) (runtime.Object, error) {
-	var resultObj runtime.Object
-	var result []runtime.Object
-
-	metaObj := obj.(metav1.Object)
-
-	crs, err := clusterResources.CreateAllResources(reconciler.clusterArgs)
-	if err != nil {
-		return nil, err
-	}
-
-	result = append(result, crs...)
-
-	nrs, err := namespaceResources.CreateAllResources(reconciler.namespacedArgs)
-	if err != nil {
-		return nil, err
-	}
-
-	result = append(result, nrs...)
-
-	for cur := range result {
-		curMetaObj := result[cur].(metav1.Object)
-		if curMetaObj.GetName() == metaObj.GetName() &&
-			curMetaObj.GetNamespace() == metaObj.GetNamespace() {
-			resultObj = result[cur]
-			break
-		}
-	}
-
-	return resultObj, nil
 }
 
 func getAllResources(reconciler *ReconcileCDI) ([]runtime.Object, error) {

@@ -154,6 +154,12 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 		return reconcile.Result{}, err
 	}
 
+	// mid delete
+	if cr.DeletionTimestamp != nil {
+		reqLogger.Info("Doing reconcile delete")
+		return r.reconcileDelete(reqLogger, cr)
+	}
+
 	//compare target and observed
 	//Retriveed CR will contain previous version ImageTag and ImageRegistry
 	//while namespaced arguments will contain new version
@@ -170,12 +176,6 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 		if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeploying, cr); err != nil {
 			return reconcile.Result{}, err
 		}
-	}
-
-	// mid delete
-	if cr.DeletionTimestamp != nil {
-		reqLogger.Info("Doing reconcile delete")
-		return r.reconcileDelete(reqLogger, cr)
 	}
 
 	configMap, err := r.getConfigMap()
