@@ -1,4 +1,4 @@
-FROM registry.fedoraproject.org/fedora-minimal:30
+FROM registry.fedoraproject.org/fedora-minimal:29
 MAINTAINER "The KubeVirt Project" <kubevirt-dev@googlegroups.com>
 
 RUN mkdir -p /tmp/shared /tmp/source
@@ -20,5 +20,6 @@ RUN chmod u+x /usr/bin/cdi-func-test-file-host-init
 COPY tinyCore.iso /tmp/source/tinyCore.iso
 COPY archive.tar /tmp/source/archive.tar
 COPY invalid_qcow_images /tmp/source/invalid_qcow_images
+COPY cirros-qcow2.img /tmp/source/cirros-qcow2.img
 
 ENTRYPOINT ["cdi-func-test-file-host-init", "-alsologtostderr"]

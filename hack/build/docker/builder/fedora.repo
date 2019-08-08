@@ -1,4 +1,4 @@
-[fedora-base-fc30]
+[fedora-base-fc29]
 clean_requirements_on_remove=True
 tsflags=nodocs
 name=Fedora $releasever - $basearch
@@ -13,7 +13,7 @@ gpgcheck=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-$releasever-$basearch
 skip_if_unavailable=False
 
-[fedora-updates-fc30]
+[fedora-updates-fc29]
 clean_requirements_on_remove=True
 tsflags=nodocs
 name=Fedora $releasever - $basearch - Updates
