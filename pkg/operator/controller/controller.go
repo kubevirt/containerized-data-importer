@@ -156,6 +156,10 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 
 	// mid delete
 	if cr.DeletionTimestamp != nil {
+		if r.isUpgrading(cr) {
+			//CDI is marked to be deleteted while upgrade flow is in process
+			reqLogger.Info("Deleting  CDI during upgrade")
+		}
 		reqLogger.Info("Doing reconcile delete")
 		return r.reconcileDelete(reqLogger, cr)
 	}
@@ -377,6 +381,9 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 			previousVersion := cr.Status.ObservedVersion
 			cr.Status.ObservedVersion = r.namespacedArgs.DockerTag
 			cr.Status.OperatorVersion = r.namespacedArgs.DockerTag
+
+			//Is there a possible race if cr is marked as deleted during upgrade?
+			//we want to set cr in DeployedPhase, but may be it is being marked as Deleted already
 			if err = r.crUpdate(cdiv1alpha1.CDIPhaseDeployed, cr); err != nil {
 				return reconcile.Result{}, err
 			}
@@ -454,6 +461,7 @@ func (r *ReconcileCDI) isMutable(obj runtime.Object) bool {
 
 // I hate that this function exists, but major refactoring required to make CDI CR the owner of all the things
 func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
+
 	i := -1
 	for j, f := range cr.Finalizers {
 		if f == finalizerName {

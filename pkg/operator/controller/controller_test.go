@@ -529,6 +529,78 @@ var _ = Describe("Controller", func() {
 			Entry("no current no prefix", "", "invalid", false),
 		)
 
+		Describe("CDI CR deletion during upgrade", func() {
+			Context("cr deletion during upgrade", func() {
+				It("should delete CR if it is marked for deletion and not begin upgrade flow", func() {
+					var args *args
+					registry := "kubevirt"
+					newVersion := "1.10.0"
+					prevVersion := "1.9.5"
+
+					args = createFromArgs("cdi", newVersion, registry)
+					doReconcile(args)
+
+					//set deployment to ready
+					isReady := setDeploymentsReady(args)
+					Expect(isReady).Should(Equal(true))
+
+					//verify on int version is set
+					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+
+					//Modify CRD to be of previousVersion
+					args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
+					//marc CDI CR for deltetion
+					args.cdi.SetDeletionTimestamp(&metav1.Time{time.Now()})
+					err := args.client.Update(context.TODO(), args.cdi)
+					Expect(err).ToNot(HaveOccurred())
+
+					doReconcile(args)
+
+					//verify the version cr is deleted and upgrade hasn't started
+					Expect(args.cdi.Status.OperatorVersion).Should(Equal(prevVersion))
+					Expect(args.cdi.Status.ObservedVersion).Should(Equal(prevVersion))
+					Expect(args.cdi.Status.TargetVersion).Should(Equal(prevVersion))
+					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeleted))
+				})
+
+				It("should delete CR if it is marked for deletion during upgrade flow", func() {
+					var args *args
+					registry := "kubevirt"
+					newVersion := "1.10.0"
+					prevVersion := "1.9.5"
+
+					args = createFromArgs("cdi", newVersion, registry)
+					doReconcile(args)
+
+					//verify on int version is set
+					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+
+					//Modify CRD to be of previousVersion
+					args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
+					err := args.client.Update(context.TODO(), args.cdi)
+					Expect(err).ToNot(HaveOccurred())
+
+					//begin upgrade
+					doReconcile(args)
+
+					//mark CDI CR for deltetion
+					args.cdi.SetDeletionTimestamp(&metav1.Time{time.Now()})
+					err = args.client.Update(context.TODO(), args.cdi)
+					Expect(err).ToNot(HaveOccurred())
+
+					doReconcile(args)
+
+					//set deployment to ready
+					isReady := setDeploymentsReady(args)
+					Expect(isReady).Should(Equal(false))
+
+					doReconcile(args)
+					//verify the version cr is marked as deleted
+					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeleted))
+				})
+			})
+		})
+
 		DescribeTable("Updates objects on upgrade", func(
 			modify modifyResource,
 			tomodify isModifySubject,
@@ -963,6 +1035,7 @@ var _ = Describe("Controller", func() {
 
 			//ServiceAccount upgrade
 			// - update ServiceAccount SCC
+			// - update ServiceAccount Labels/Annotations
 
 		) //updates objects on upgrade
 
