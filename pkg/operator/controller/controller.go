@@ -381,7 +381,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 				return reconcile.Result{}, err
 			}
 
-			logger.Info("Successfully finished upgrade from %v to %v and entered Deployed state", previousVersion, cr.Status.ObservedVersion)
+			logger.Info("Successfully finished Upgrade from %s to %s and entered Deployed state", previousVersion, cr.Status.ObservedVersion)
 		}
 	}
 
@@ -398,223 +398,44 @@ func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1alpha
 		return err
 	}
 
-	lo := &client.ListOptions{}
-	// maybe use different selectors?
-	lo.SetLabelSelector("cdi.kubevirt.io")
+	listTypes := []runtime.Object{
+		&extv1beta1.CustomResourceDefinitionList{},
+		&appsv1.DeploymentList{},
+		&corev1.ServiceList{},
+		&rbacv1.ClusterRoleBindingList{},
+		&rbacv1.ClusterRoleList{},
+		&rbacv1.RoleBindingList{},
+		&rbacv1.RoleList{},
+		&corev1.ServiceAccountList{},
+	}
 
-	// remove unused CRDs
-	{
-		objs := &extv1beta1.CustomResourceDefinitionList{}
-		if err = r.client.List(context.TODO(), lo, objs); err != nil {
+	for _, lt := range listTypes {
+		lo := &client.ListOptions{}
+		lo.SetLabelSelector("cdi.kubevirt.io")
+
+		if err := r.client.List(context.TODO(), lo, lt); err != nil {
+			logger.Error(err, "Error listing resources")
 			return err
 		}
 
-		for _, cur := range objs.Items {
-			if cur.DeletionTimestamp == nil {
-				found := false
-				for _, obj := range targetStrategy {
-					if target, ok := obj.(*extv1beta1.CustomResourceDefinition); ok {
-						if target.Name == cur.Name {
-							found = true
-							break
-						}
-					}
-				}
-				if !found {
-					logger.Info("Deleting CRD ", "Name", cur.Name, "Namespace", cur.Namespace)
-					if err = r.client.Delete(context.TODO(), &cur); err != nil {
-						return err
+		sv := reflect.ValueOf(lt).Elem()
+		iv := sv.FieldByName("Items")
+
+		for i := 0; i < iv.Len(); i++ {
+			obj := iv.Index(i).Addr().Interface().(runtime.Object)
+			found := false
+			for _, target := range targetStrategy {
+				if reflect.TypeOf(obj) == reflect.TypeOf(target) {
+					if obj.(metav1.Object).GetName() == target.(metav1.Object).GetName() {
+						found = true
+						break
 					}
 				}
 			}
-		}
-	}
-
-	// remove unused Deployments
-	{
-		objs := &appsv1.DeploymentList{}
-		if err = r.client.List(context.TODO(), lo, objs); err != nil {
-			return err
-		}
-
-		for _, cur := range objs.Items {
-			if cur.DeletionTimestamp == nil {
-				found := false
-				for _, obj := range targetStrategy {
-					if target, ok := obj.(*appsv1.Deployment); ok {
-						if target.Name == cur.Name && target.Namespace == cur.Namespace {
-							found = true
-							break
-						}
-					}
-				}
-				if !found {
-					logger.Info("Deleting deployment ", "Name", cur.Name, "Namespace", cur.Namespace)
-					if err = r.client.Delete(context.TODO(), &cur); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	// remove unused Services
-	{
-		objs := &corev1.ServiceList{}
-		if err = r.client.List(context.TODO(), lo, objs); err != nil {
-			return err
-		}
-
-		for _, cur := range objs.Items {
-			if cur.DeletionTimestamp == nil {
-				found := false
-				for _, obj := range targetStrategy {
-					if target, ok := obj.(*corev1.Service); ok {
-						if target.Name == cur.Name && target.Namespace == cur.Namespace {
-							found = true
-							break
-						}
-					}
-				}
-				if !found {
-					logger.Info("Deleting ", "Name", cur.Name, "Namespace", cur.Namespace)
-					if err = r.client.Delete(context.TODO(), &cur); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	// remove unused ClusterRoleBindings
-	{
-		objs := &rbacv1.ClusterRoleBindingList{}
-		if err = r.client.List(context.TODO(), lo, objs); err != nil {
-			return err
-		}
-
-		for _, cur := range objs.Items {
-			if cur.DeletionTimestamp == nil {
-				found := false
-				for _, obj := range targetStrategy {
-					if target, ok := obj.(*rbacv1.ClusterRoleBinding); ok {
-						if target.Name == cur.Name && target.Namespace == cur.Namespace {
-							found = true
-							break
-						}
-					}
-				}
-				if !found {
-					logger.Info("Deleting ", "Name", cur.Name, "Namespace", cur.Namespace)
-					if err = r.client.Delete(context.TODO(), &cur); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	// remove unused ClusterRoles
-	{
-		objs := &rbacv1.ClusterRoleList{}
-		if err = r.client.List(context.TODO(), lo, objs); err != nil {
-			return err
-		}
-
-		for _, cur := range objs.Items {
-			if cur.DeletionTimestamp == nil {
-				found := false
-				for _, obj := range targetStrategy {
-					if target, ok := obj.(*rbacv1.ClusterRole); ok {
-						if target.Name == cur.Name && target.Namespace == cur.Namespace {
-							found = true
-							break
-						}
-					}
-				}
-				if !found {
-					logger.Info("Deleting ", "Name", cur.Name, "Namespace", cur.Namespace)
-					if err = r.client.Delete(context.TODO(), &cur); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	// remove unused RoleBindings
-	{
-		objs := &rbacv1.RoleBindingList{}
-		if err = r.client.List(context.TODO(), lo, objs); err != nil {
-			return err
-		}
-
-		for _, cur := range objs.Items {
-			if cur.DeletionTimestamp == nil {
-				found := false
-				for _, obj := range targetStrategy {
-					if target, ok := obj.(*rbacv1.RoleBinding); ok {
-						if target.Name == cur.Name && target.Namespace == cur.Namespace {
-							found = true
-							break
-						}
-					}
-				}
-				if !found {
-					logger.Info("Deleting ", "Name", cur.Name, "Namespace", cur.Namespace)
-					if err = r.client.Delete(context.TODO(), &cur); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	// remove unused Roles
-	{
-		objs := &rbacv1.RoleList{}
-		if err = r.client.List(context.TODO(), lo, objs); err != nil {
-			return err
-		}
-
-		for _, cur := range objs.Items {
-			if cur.DeletionTimestamp == nil {
-				found := false
-				for _, obj := range targetStrategy {
-					if target, ok := obj.(*rbacv1.Role); ok {
-						if target.Name == cur.Name && target.Namespace == cur.Namespace {
-							found = true
-							break
-						}
-					}
-				}
-				if !found {
-					logger.Info("Deleting ", "Name", cur.Name, "Namespace", cur.Namespace)
-					if err = r.client.Delete(context.TODO(), &cur); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	//remove unused ServiceAccounts
-	{
-		objs := &corev1.ServiceAccountList{}
-		if err = r.client.List(context.TODO(), lo, objs); err != nil {
-			return err
-		}
-
-		for _, cur := range objs.Items {
-			if cur.DeletionTimestamp == nil {
-				found := false
-				for _, obj := range targetStrategy {
-					if target, ok := obj.(*corev1.ServiceAccount); ok {
-						if target.Name == cur.Name && target.Namespace == cur.Namespace {
-							found = true
-							break
-						}
-					}
-				}
-				if !found {
-					logger.Info("Deleting ", "Name", cur.Name, "Namespace", cur.Namespace)
-					if err = r.client.Delete(context.TODO(), &cur); err != nil {
-						return err
-					}
+			if !found {
+				logger.Info("Deleting  ", "type", reflect.TypeOf(obj), "Name", obj.(metav1.Object).GetName())
+				if err = r.client.Delete(context.TODO(), obj); err != nil {
+					return err
 				}
 			}
 		}
