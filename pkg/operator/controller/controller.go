@@ -55,6 +55,8 @@ import (
 
 const (
 	finalizerName = "operator.cdi.kubevirt.io"
+
+	maxTypeCallBacks = 5
 )
 
 var log = logf.Log.WithName("cdi-operator")

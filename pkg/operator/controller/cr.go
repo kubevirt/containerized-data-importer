@@ -54,6 +54,15 @@ func (r *ReconcileCDI) isUpgrading(cr *cdiv1alpha1.CDI) bool {
 	return false
 }
 
+func (r *ReconcileCDI) crSetVersion(cr *cdiv1alpha1.CDI, version, repo string) error {
+	cr.Spec.ImageTag = version
+	cr.Spec.ImageRegistry = repo
+	cr.Status.ObservedVersion = version
+	cr.Status.OperatorVersion = version
+	cr.Status.TargetVersion = version
+	return r.crUpdate(cdiv1alpha1.CDIPhaseDeploying, cr)
+}
+
 func (r *ReconcileCDI) crInit(cr *cdiv1alpha1.CDI) error {
 	cr.Finalizers = append(cr.Finalizers, finalizerName)
 	cr.Status.OperatorVersion = r.namespacedArgs.DockerTag
