@@ -159,6 +159,12 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 		if r.isUpgrading(cr) {
 			//CDI is marked to be deleteted while upgrade flow is in process
 			reqLogger.Info("Deleting  CDI during upgrade")
+			//clenaup all resources of previous installation first
+			err := r.cleanupUnusedResources(reqLogger, cr)
+			if err != nil {
+				reqLogger.Info("Failed to cleanupUnused resource prior to CDI cr deletion during upgrade")
+				return reconcile.Result{}, nil
+			}
 		}
 		reqLogger.Info("Doing reconcile delete")
 		return r.reconcileDelete(reqLogger, cr)
@@ -174,7 +180,7 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 	}
 
 	if isUpgrade && !r.isUpgrading(cr) {
-		reqLogger.Info("Observed version %v is not target version %v. Begin upgrade", cr.Status.ObservedVersion, r.namespacedArgs.DockerTag)
+		reqLogger.Info("Observed version is not target version. Begin upgrade", "Observed version ", cr.Status.ObservedVersion, "TargetVersion", r.namespacedArgs.DockerTag)
 		cr.Status.TargetVersion = r.namespacedArgs.DockerTag
 		//Here phase has to be upgrading - this is to be handled in dedicated pr
 		if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeploying, cr); err != nil {
@@ -388,7 +394,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 				return reconcile.Result{}, err
 			}
 
-			logger.Info("Successfully finished Upgrade from %s to %s and entered Deployed state", previousVersion, cr.Status.ObservedVersion)
+			logger.Info("Successfully finished Upgrade from and entered Deployed state", "from version", previousVersion, "to version", cr.Status.ObservedVersion)
 		}
 	}
 
