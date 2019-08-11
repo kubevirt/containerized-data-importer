@@ -433,15 +433,24 @@ func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1alpha
 			found := false
 			for _, target := range targetStrategy {
 				if reflect.TypeOf(obj) == reflect.TypeOf(target) {
-					if obj.(metav1.Object).GetName() == target.(metav1.Object).GetName() {
+					if obj.(metav1.Object).GetName() == target.(metav1.Object).GetName() &&
+						obj.(metav1.Object).GetNamespace() == target.(metav1.Object).GetNamespace() {
 						found = true
 						break
 					}
 				}
 			}
 			if !found {
+				//Invoke pre delete callback
+				if err = r.invokeCallbacks(logger, ReconcileStatePreDelete, nil, obj); err != nil {
+					return err
+				}
 				logger.Info("Deleting  ", "type", reflect.TypeOf(obj), "Name", obj.(metav1.Object).GetName())
 				if err = r.client.Delete(context.TODO(), obj); err != nil {
+					return err
+				}
+				//invoke post delete callback
+				if err = r.invokeCallbacks(logger, ReconcileStatePostDelete, nil, obj); err != nil {
 					return err
 				}
 			}
