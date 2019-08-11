@@ -598,6 +598,56 @@ var _ = Describe("Controller", func() {
 					//verify the version cr is marked as deleted
 					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeleted))
 				})
+				It("should cleanup unused resources from previos version if CDI cr if it is marked for deletion during upgrade flow", func() {
+					var args *args
+					registry := "kubevirt"
+					newVersion := "1.10.0"
+					prevVersion := "1.9.5"
+
+					args = createFromArgs("cdi", newVersion, registry)
+					doReconcile(args)
+
+					//verify on int version is set
+					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+
+					//Modify CRD to be of previousVersion
+					args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
+					err := args.client.Update(context.TODO(), args.cdi)
+					Expect(err).ToNot(HaveOccurred())
+
+					//begin upgrade
+					doReconcile(args)
+
+					//mark CDI CR for deletetion
+					args.cdi.SetDeletionTimestamp(&metav1.Time{time.Now()})
+					err = args.client.Update(context.TODO(), args.cdi)
+					Expect(err).ToNot(HaveOccurred())
+
+					//add object unused by new version
+					unusedObj := utils.CreateDeployment("fake-cdi-deployment", "app", "containerized-data-importer", "fake-sa", int32(1))
+					err = args.client.Create(context.TODO(), unusedObj)
+					Expect(err).ToNot(HaveOccurred())
+
+					doReconcile(args)
+
+					//set deployment to ready
+					isReady := setDeploymentsReady(args)
+					Expect(isReady).Should(Equal(false))
+
+					doReconcile(args)
+
+					key := client.ObjectKey{
+						Namespace: unusedObj.GetNamespace(),
+						Name:      unusedObj.GetName(),
+					}
+					err = args.client.Get(context.TODO(), key, unusedObj)
+					Expect(err).To(HaveOccurred())
+					Expect(errors.IsNotFound(err)).Should(Equal(true))
+
+					//verify the version cr is marked as deleted
+					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeleted))
+				})
+
 			})
 		})
 
