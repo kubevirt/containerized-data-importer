@@ -1,0 +1,21 @@
+  on: ["push","pull_request"]
+
+  name: Test Coveralls
+
+  jobs:
+
+    build:
+      name: Build
+      runs-on: ubuntu-latest
+      steps:
+
+      - uses: actions/checkout@master
+
+      - name: make test-coverage
+        run: |
+          make goveralls
+
+      - name: Coveralls
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.github_token }}
