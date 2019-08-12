@@ -143,17 +143,14 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	})
 
 	It("Import pod should have prometheus stats available while importing", func() {
+		var endpoint *v1.Endpoints
 		c := f.K8sClient
 		ns := f.Namespace.Name
-		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPRateLimitPort)
+		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPRateLimitPort)
 		pvcAnn := map[string]string{
 			controller.AnnEndpoint: httpEp + "/tinyCore.qcow2",
 			controller.AnnSecret:   "",
 		}
-
-		By("Verifying no end points exist before pvc is created")
-		endpoint, err := c.CoreV1().Endpoints(ns).Get("kubevirt-prometheus-metrics", metav1.GetOptions{})
-		Expect(err).To(HaveOccurred())
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.qcow2"))
 		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-e2e", "20M", pvcAnn, nil))
@@ -234,8 +231,8 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		err = f.ClearBlockPV()
 		Expect(err).NotTo(HaveOccurred())
 
-		pod, err = utils.FindPodByPrefix(f.K8sClient, "cdi", "cdi-block-device", "kubevirt.io=cdi-block-device")
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", "cdi"+"/"+"cdi-block-device"))
+		pod, err = utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "cdi-block-device", "kubevirt.io=cdi-block-device")
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", f.CdiInstallNs+"/"+"cdi-block-device"))
 
 		nodeName := pod.Spec.NodeName
 
@@ -261,7 +258,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 	})
 
 	It("Should create import pod for block pv", func() {
-		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+utils.FileHostNs, utils.HTTPNoAuthPort)
+		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
 		pvcAnn := map[string]string{
 			controller.AnnEndpoint: httpEp + "/tinyCore.iso",
 		}

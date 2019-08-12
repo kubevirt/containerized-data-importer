@@ -38,8 +38,8 @@ var _ = Describe("Transport Tests", func() {
 
 	BeforeEach(func() {
 		ns = f.Namespace.Name
-		By(fmt.Sprintf("Waiting for all \"%s/%s\" deployment replicas to be Ready", utils.FileHostNs, utils.FileHostName))
-		utils.WaitForDeploymentReplicasReadyOrDie(c, utils.FileHostNs, utils.FileHostName)
+		By(fmt.Sprintf("Waiting for all \"%s/%s\" deployment replicas to be Ready", f.CdiInstallNs, utils.FileHostName))
+		utils.WaitForDeploymentReplicasReadyOrDie(c, f.CdiInstallNs, utils.FileHostName)
 	})
 
 	// it() is the body of the test and is executed once per Entry() by DescribeTable()
@@ -82,7 +82,7 @@ var _ = Describe("Transport Tests", func() {
 		if insecureRegistry {
 			err = utils.SetInsecureRegistry(c, f.CdiInstallNs, ep)
 			Expect(err).To(BeNil())
-			defer utils.ClearInsecureRegistry(c)
+			defer utils.ClearInsecureRegistry(c, f.CdiInstallNs)
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", pvcAnn[controller.AnnEndpoint]))

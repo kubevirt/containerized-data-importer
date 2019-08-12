@@ -71,7 +71,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	DescribeTable("should", func(validToken bool, expectedStatus int) {
 
 		By("Verify that upload server POD running")
-		err := f.WaitTimeoutForPodReady(utils.UploadPodName(pvc), time.Second*20)
+		err := f.WaitTimeoutForPodReady(utils.UploadPodName(pvc), time.Second*90)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify PVC status annotation says running")
@@ -214,8 +214,8 @@ var _ = Describe("Block PV upload Test", func() {
 		err := f.ClearBlockPV()
 		Expect(err).NotTo(HaveOccurred())
 
-		pod, err := utils.FindPodByPrefix(f.K8sClient, "cdi", "cdi-block-device", "kubevirt.io=cdi-block-device")
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", "cdi"+"/"+"cdi-block-device"))
+		pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "cdi-block-device", "kubevirt.io=cdi-block-device")
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get pod %q", f.CdiInstallNs+"/"+"cdi-block-device"))
 
 		nodeName := pod.Spec.NodeName
 
@@ -280,7 +280,7 @@ var _ = Describe("Block PV upload Test", func() {
 
 	DescribeTable("should", func(validToken bool, expectedStatus int) {
 		By("Verify that upload server POD running")
-		err := f.WaitTimeoutForPodReady(utils.UploadPodName(pvc), time.Second*20)
+		err := f.WaitTimeoutForPodReady(utils.UploadPodName(pvc), time.Second*90)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify PVC status annotation says running")

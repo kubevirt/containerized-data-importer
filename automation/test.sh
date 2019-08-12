@@ -24,6 +24,11 @@
 
 set -ex
 
+export NAMESPACE="cdi-$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 5 | head -n 1)"
+export CDI_NAMESPACE=$NAMESPACE
+
+echo "namespace: ${NAMESPACE}, cdi-namespace: ${CDI_NAMESPACE}"
+
 export WORKSPACE="${WORKSPACE:-$PWD}"
 readonly ARTIFACTS_PATH="exported-artifacts"
 
