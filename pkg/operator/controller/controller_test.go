@@ -468,19 +468,14 @@ var _ = Describe("Controller", func() {
 			//verify on int version is set
 			args := createFromArgs("cdi", newVersion, registry)
 			doReconcile(args)
+
 			Expect(args.cdi.Status.ObservedVersion).Should(Equal(newVersion))
 			Expect(args.cdi.Status.OperatorVersion).Should(Equal(newVersion))
 			Expect(args.cdi.Status.TargetVersion).Should(Equal(newVersion))
 			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
 
 			//Modify CRD to be of previousVersion
-			args.cdi.Spec.ImageRegistry = registry
-			args.cdi.Spec.ImageTag = prevVersion
-			args.cdi.Status.ObservedVersion = prevVersion
-			args.cdi.Status.TargetVersion = prevVersion
-			args.cdi.Status.OperatorVersion = prevVersion
-
-			err := args.client.Update(context.TODO(), args.cdi)
+			err := args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
 			Expect(err).ToNot(HaveOccurred())
 
 			doReconcile(args)
@@ -525,6 +520,7 @@ var _ = Describe("Controller", func() {
 			Entry("increasing  semver no prefix", "1.9.5", "1.10.0", true),
 			Entry("decreasing  semver no prefix", "1.10.0", "1.9.5", false),
 			Entry("identical  semver no prefix", "1.10.0", "1.10.0", false),
+			Entry("invalid  semver with prefix", "devel1.9.5", "devel1.9.5", false),
 			Entry("invalid  semver no prefix", "devel", "1.9.5", true),
 			Entry("no current no prefix", "", "invalid", false),
 		)

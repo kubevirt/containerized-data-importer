@@ -60,7 +60,7 @@ func (r *ReconcileCDI) crSetVersion(cr *cdiv1alpha1.CDI, version, repo string) e
 	cr.Status.ObservedVersion = version
 	cr.Status.OperatorVersion = version
 	cr.Status.TargetVersion = version
-	return r.crUpdate(cdiv1alpha1.CDIPhaseDeploying, cr)
+	return r.crUpdate(cdiv1alpha1.CDIPhaseDeployed, cr)
 }
 
 func (r *ReconcileCDI) crInit(cr *cdiv1alpha1.CDI) error {
