@@ -65,8 +65,8 @@ build-cloner: WHAT = cmd/cdi-cloner
 build-cloner: build
 build-operator: WHAT = cmd/cdi-operator
 build-operator: build
-#build-cdi-olm-catalog: WHAT = tools/cdi-olm-catalog
-#build-cdi-olm-catalog:  
+build-cdi-olm-catalog: WHAT = tools/cdi-olm-catalog
+build-cdi-olm-catalog: build 
 build-functest-file-image-init: WHAT = tools/cdi-func-test-file-host-init
 build-functest-file-image-init:
 build-functest-registry-image-init: WHAT= tools/cdi-func-test-registry-init
@@ -109,8 +109,7 @@ docker-uploadserver: docker
 docker-operator: WHAT = cmd/cdi-operator
 docker-operator: docker
 docker-olm-catalog: WHAT = tools/cdi-olm-catalog
-docker-olm-catalog:
-	${DO} "./hack/build/build-cdi-olm-catalog.sh && ./hack/build/build-docker.sh build ${WHAT}" 
+docker-olm-catalog: docker
 docker-functest-images: docker-functest-image-http docker-functest-image-init docker-functest-registry-init docker-functest-registry-populate docker-functest-registry docker-functest-block-device docker-olm-catalog
 docker-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
 docker-functest-image-init: docker
@@ -148,6 +147,8 @@ push-uploadserver: WHAT = cmd/cdi-uploadserver
 push-uploadserver: push
 push-operator: WHAT = cmd/cdi-operator
 push-operator: push
+push-olm-catalog: WHAT = tools/cdi-olm-catalog
+push-olm-catalog: push
 
 publish: manifests docker
 	./hack/build/build-docker.sh publish ${WHAT}
