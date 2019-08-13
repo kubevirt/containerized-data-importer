@@ -1,14 +1,26 @@
 #!/usr/bin/env bash
 
 set -e
+source ./cluster-sync/install-config.sh
 source ./cluster-sync/${KUBEVIRT_PROVIDER}/install.sh
 
 function install_cdi_olm {
   #Install CDI via OLM
   _kubectl create ns $NAMESPACE
   _kubectl apply -f _out/manifests/release/olm/operatorgroup.yaml
-  _kubectl apply -f _out/manifests/release/olm/k8s/cdi-catalogsource-registry.yaml
-  _kubectl apply -f _out/manifests/release/olm/k8s/cdi-subscription.yaml
+
+  if [ -z "$CDI_OLM_MANIFESTS_CATALOG_SRC" ]; then 
+      echo "ERROR - OLM installation requires CDI_OLM_MANIFESTS_CATALOG_SRC to be set"
+      exit -1
+  fi
+
+  if [ -z "$CDI_OLM_MANIFESTS_SUBSCRIPTION" ]; then 
+      echo "ERROR - OLM installation requires CDI_OLM_MANIFESTS_SUBSCRIPTION to be set"
+      exit -1
+  fi
+
+  _kubectl apply -f $CDI_OLM_MANIFESTS_CATALOG_SRC
+  _kubectl apply -f $CDI_OLM_MANIFESTS_SUBSCRIPTION
 }
 
 function install_cdi_operator {
