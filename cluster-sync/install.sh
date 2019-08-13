@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -e
+source ./cluster-sync/install-config.sh
 source ./cluster-sync/${KUBEVIRT_PROVIDER}/install.sh
 
 function install_cdi_olm {
