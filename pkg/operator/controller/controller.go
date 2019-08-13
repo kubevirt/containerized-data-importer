@@ -226,6 +226,10 @@ func shouldTakeUpdatePath(targetVersion, currentVersion string) (bool, error) {
 		return false, nil
 	}
 
+	if targetVersion == currentVersion {
+		return false, nil
+	}
+
 	// semver doesn't like the 'v' prefix
 	targetVersion = strings.TrimPrefix(targetVersion, "v")
 	currentVersion = strings.TrimPrefix(currentVersion, "v")
