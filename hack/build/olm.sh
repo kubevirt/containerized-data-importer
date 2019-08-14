@@ -50,6 +50,11 @@ verify)
 
 push)
 
+    if  [[ $CSV_VERSION == "0.0.0" ]]; then
+        echo "ERROR: must not push to quay CSV_VERSION="$CSV_VERSION
+        exit 1
+    fi
+
     if [[ -z "$QUAY_USERNAME" ]] || [[ -z "$QUAY_USERNAME" ]]; then
         echo "please set QUAY_USERNAME, QUAY_PASSWORD"
         exit 1
