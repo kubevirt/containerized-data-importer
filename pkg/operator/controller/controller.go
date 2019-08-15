@@ -55,8 +55,6 @@ import (
 
 const (
 	finalizerName = "operator.cdi.kubevirt.io"
-
-	maxTypeCallBacks = 5
 )
 
 var log = logf.Log.WithName("cdi-operator")
@@ -163,7 +161,7 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 			err := r.cleanupUnusedResources(reqLogger, cr)
 			if err != nil {
 				reqLogger.Info("Failed to cleanupUnused resource prior to CDI cr deletion during upgrade")
-				return reconcile.Result{}, nil
+				return reconcile.Result{}, err
 			}
 		}
 		reqLogger.Info("Doing reconcile delete")
