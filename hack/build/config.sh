@@ -56,8 +56,6 @@ QUAY_REPOSITORY=${QUAY_REPOSITORY:-cdi-operatorhub}
 QUAY_NAMESPACE=${QUAY_NAMESPACE:-kubevirt}
 CDI_LOGO_PATH=${CDI_LOGO_PATH:-"assets/cdi_logo.png"}
 
-KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER:-k8s-1.13.3}
-
 function allPkgs() {
     ret=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./... | grep -v "pkg/client" | sort -u))
     echo "$ret"

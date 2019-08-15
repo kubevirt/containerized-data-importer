@@ -20,9 +20,10 @@ import (
 )
 
 const (
-	cdiDeploymentName = "cdi-deployment"
-	cdiOperatorName   = "cdi-operator"
-	newDeploymentName = "cdi-new-deployment"
+	cdiDeploymentName    = "cdi-deployment"
+	cdiOperatorName      = "cdi-operator"
+	cdiOperatorPodPrefix = "cdi-operator-"
+	newDeploymentName    = "cdi-new-deployment"
 
 	pollingInterval = 2 * time.Second
 	timeout         = 90 * time.Second
@@ -252,7 +253,7 @@ func getLog(f *framework.Framework, name string) string {
 
 func stopCDIOperator(f *framework.Framework) {
 	// Find the existing operator pod.
-	operatorPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiOperatorName, "")
+	operatorPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiOperatorPodPrefix, "")
 	Expect(err).ToNot(HaveOccurred())
 	operatorPodName := operatorPod.Name
 
