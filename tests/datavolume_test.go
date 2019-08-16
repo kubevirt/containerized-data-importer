@@ -41,6 +41,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	tinyCoreIsoRegistryURL := fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs)
 	tarArchiveURL := fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs)
 	InvalidQcowImagesURL := fmt.Sprintf(utils.InvalidQcowImagesURL, f.CdiInstallNs)
+	cirrosURL := fmt.Sprintf(utils.CirrosURL, f.CdiInstallNs)
 
 	// Invalid (malicious) QCOW images:
 	// An image that causes qemu-img to allocate 152T (original image is 516 bytes)
@@ -136,11 +137,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[rfe_id:1115][crit:high][test_id:1478]succeed creating import dv with given valid registry url", "import-registry", "", tinyCoreIsoRegistryURL, "dv-phase-test-4", "", controller.ImportSucceeded, cdiv1.Succeeded),
 			table.Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid url (https)", "import-https", "", httpsTinyCoreIsoURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
 			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2555]fail creating import dv: invalid qcow large size", "import-http", "", invalidQcowLargeSizeURL, "dv-invalid-qcow-large-size", "Unable to process data: Invalid format qcow for image", controller.ImportFailed, cdiv1.Failed),
-			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2554]fail creating import dv: invalid qcow large json", "import-http", "", invalidQcowLargeJSONURL, "dv-invalid-qcow-large-json", "Unable to process data: signal: killed", controller.ImportFailed, cdiv1.ImportInProgress),
+			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2554]fail creating import dv: invalid qcow large json", "import-http", "", invalidQcowLargeJSONURL, "dv-invalid-qcow-large-json", "Unable to process data: exit status 1", controller.ImportFailed, cdiv1.Failed),
 			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2253]fail creating import dv: invalid qcow large memory", "import-http", "", invalidQcowLargeMemoryURL, "dv-invalid-qcow-large-memory", "Unable to process data: exit status 1", controller.ImportFailed, cdiv1.Failed),
 			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2139]fail creating import dv: invalid qcow backing file", "import-http", "", invalidQcowBackingFileURL, "dv-invalid-qcow-backing-file", "Unable to process data: exit status 1", controller.ImportFailed, cdiv1.Failed),
 			table.Entry("[rfe_id:1947][crit:high][test_id:2145]succeed creating import dv with given tar archive url", "import-archive", "", tarArchiveURL, "tar-archive-dv", "", controller.ImportSucceeded, cdiv1.Succeeded),
 			table.Entry("[rfe_id:1947][crit:high][test_id:2220]fail creating import dv with non tar archive url", "import-archive", "", tinyCoreIsoURL, "non-tar-archive-dv", "Unable to process data: exit status 2", controller.ImportFailed, cdiv1.Failed),
+			table.Entry("succeed creating import dv with streaming image conversion", "import-http", "", cirrosURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
 

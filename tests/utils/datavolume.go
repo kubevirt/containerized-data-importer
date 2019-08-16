@@ -36,6 +36,8 @@ const (
 	InvalidQcowImagesURL = "http://cdi-file-host.%s/invalid_qcow_images/"
 	// TarArchiveURL provides a test url for a tar achive file
 	TarArchiveURL = "http://cdi-file-host.%s/archive.tar"
+	// CirrosURL provides the standard cirros image qcow image
+	CirrosURL = "http://cdi-file-host.%s/cirros-qcow2.img"
 )
 
 // CreateDataVolumeFromDefinition is used by tests to create a testable Data Volume

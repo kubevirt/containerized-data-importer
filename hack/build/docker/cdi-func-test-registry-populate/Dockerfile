@@ -1,4 +1,4 @@
-FROM registry.fedoraproject.org/fedora-minimal:30
+FROM registry.fedoraproject.org/fedora-minimal:29
 MAINTAINER "The KubeVirt Project" <kubevirt-dev@googlegroups.com>
 
 RUN mkdir -p /tmp/shared /tmp/source
