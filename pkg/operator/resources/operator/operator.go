@@ -492,6 +492,48 @@ func createCDIListCRD() *extv1beta1.CustomResourceDefinition {
 				ShortNames: []string{"cdi", "cdis"},
 			},
 
+			Validation: &extv1beta1.CustomResourceValidation{
+				OpenAPIV3Schema: &extv1beta1.JSONSchemaProps{
+					Properties: map[string]extv1beta1.JSONSchemaProps{
+						"apiVersion": {
+							Type: "string",
+						},
+						"kind": {
+							Type: "string",
+						},
+						"metadata": {
+							Type: "object",
+						},
+
+						"spec": {
+							Properties: map[string]extv1beta1.JSONSchemaProps{
+								"imageRegistry": {
+									Type: "string",
+								},
+								"imageTag": {
+									Type: "string",
+								},
+								"imagePullPolicy": {
+									Type: "string",
+									Enum: []extv1beta1.JSON{
+										{
+											Raw: []byte(`"Always"`),
+										},
+										{
+											Raw: []byte(`"IfNotPresent"`),
+										},
+										{
+											Raw: []byte(`"Never"`),
+										},
+									},
+								},
+							},
+							Type: "object",
+						},
+					},
+				},
+			},
+
 			AdditionalPrinterColumns: []extv1beta1.CustomResourceColumnDefinition{
 				{Name: "Age", Type: "date", JSONPath: ".metadata.creationTimestamp"},
 				{Name: "Phase", Type: "string", JSONPath: ".status.phase"},

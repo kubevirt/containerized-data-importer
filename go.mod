@@ -1,6 +1,7 @@
 module kubevirt.io/containerized-data-importer
 
 require (
+	github.com/RHsyseng/operator-utils v0.0.0-20190906175225-942a3f9c85a9
 	github.com/appscode/jsonpatch v0.0.0-20190108182946-7c0e3b262f30
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/docker/spdystream v0.0.0-20181023171402-6480d4af844c // indirect
@@ -34,7 +35,7 @@ require (
 	github.com/prometheus/procfs v0.0.0-20190104112138-b1a0a9a36d74 // indirect
 	github.com/smartystreets/assertions v1.0.1 // indirect
 	github.com/smartystreets/goconvey v0.0.0-20190731233626-505e41936337 // indirect
-	github.com/stretchr/testify v1.4.0 // indirect
+	github.com/stretchr/testify v1.4.0
 	github.com/ulikunitz/xz v0.5.6
 	go.uber.org/multierr v1.1.0 // indirect
 	golang.org/x/crypto v0.0.0-20191002192127-34f69633bfdc // indirect
