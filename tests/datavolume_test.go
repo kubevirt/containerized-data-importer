@@ -41,6 +41,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	tinyCoreIsoRegistryURL := fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs)
 	tarArchiveURL := fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs)
 	InvalidQcowImagesURL := fmt.Sprintf(utils.InvalidQcowImagesURL, f.CdiInstallNs)
+	cirrosURL := fmt.Sprintf(utils.CirrosURL, f.CdiInstallNs)
 
 	// Invalid (malicious) QCOW images:
 	// An image that causes qemu-img to allocate 152T (original image is 516 bytes)
@@ -141,6 +142,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2139]fail creating import dv: invalid qcow backing file", "import-http", "", invalidQcowBackingFileURL, "dv-invalid-qcow-backing-file", "Unable to process data: exit status 1", controller.ImportFailed, cdiv1.Failed),
 			table.Entry("[rfe_id:1947][crit:high][test_id:2145]succeed creating import dv with given tar archive url", "import-archive", "", tarArchiveURL, "tar-archive-dv", "", controller.ImportSucceeded, cdiv1.Succeeded),
 			table.Entry("[rfe_id:1947][crit:high][test_id:2220]fail creating import dv with non tar archive url", "import-archive", "", tinyCoreIsoURL, "non-tar-archive-dv", "Unable to process data: exit status 2", controller.ImportFailed, cdiv1.Failed),
+			table.Entry("succeed creating import dv with streaming image conversion", "import-http", "", cirrosURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
 
