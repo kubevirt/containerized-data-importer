@@ -106,11 +106,11 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 		fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
 		By("Cloning from the source DataVolume to target1")
-		targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "500Mi", f.Namespace.Name, sourceDv.Name)
+		targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "500Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		By("Cloning from the source DataVolume to target2")
-		targetDv2 = utils.NewDataVolumeForImageCloning("target-dv2", "500Mi", f.Namespace.Name, sourceDv.Name)
+		targetDv2 = utils.NewDataVolumeForImageCloning("target-dv2", "500Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		By("Cloning from the target1 DataVolume to target3")
-		targetDv3 = utils.NewDataVolumeForImageCloning("target-dv3", "500Mi", f.Namespace.Name, targetDv1.Name)
+		targetDv3 = utils.NewDataVolumeForImageCloning("target-dv3", "500Mi", f.Namespace.Name, targetDv1.Name, targetDv1.Spec.PVC.StorageClassName, targetDv1.Spec.PVC.VolumeMode)
 		dvs := []*cdiv1.DataVolume{targetDv1, targetDv2, targetDv3}
 
 		for _, dv := range dvs {
@@ -121,6 +121,42 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 			Expect(err).ToNot(HaveOccurred())
 			matchFile := filepath.Join(testBaseDir, "disk.img")
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), matchFile, md5sum[:32])).To(BeTrue())
+			_, err = utils.WaitPodDeleted(f.K8sClient, "verify-pvc-md5", f.Namespace.Name, verifyPodDeletedTimeout)
+			Expect(err).ToNot(HaveOccurred())
+		}
+	})
+
+	It("[rfe_id:CNV-1277][case_id:CNV-1891][crit:High][vendor:cnv-qe@redhat.com][level:component]Should allow multiple clones from a single source datavolume in block volume mode", func() {
+		if !f.IsBlockVolumeStorageClassAvailable() {
+			Skip("Storage Class for block volume is not available")
+		}
+		By("Creating a source from a real image")
+		sourceDv = utils.NewDataVolumeWithHTTPImportToBlockPV("source-dv", "500Mi", tinyCoreIsoURL, f.BlockSCName)
+		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
+		Expect(err).ToNot(HaveOccurred())
+		By("Waiting for import to be completed")
+		utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name)
+
+		By("Calculating the md5sum of the source data volume")
+		md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir)
+		Expect(err).ToNot(HaveOccurred())
+		fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
+
+		By("Cloning from the source DataVolume to target1")
+		targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "500Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+		By("Cloning from the source DataVolume to target2")
+		targetDv2 = utils.NewDataVolumeForImageCloning("target-dv2", "500Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+		By("Cloning from the target1 DataVolume to target3")
+		targetDv3 = utils.NewDataVolumeForImageCloning("target-dv3", "500Mi", f.Namespace.Name, targetDv1.Name, targetDv1.Spec.PVC.StorageClassName, targetDv1.Spec.PVC.VolumeMode)
+		dvs := []*cdiv1.DataVolume{targetDv1, targetDv2, targetDv3}
+
+		for _, dv := range dvs {
+			_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+			Expect(err).ToNot(HaveOccurred())
+			By("Waiting for clone to be completed")
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), testBaseDir, md5sum[:32])).To(BeTrue())
 			_, err = utils.WaitPodDeleted(f.K8sClient, "verify-pvc-md5", f.Namespace.Name, verifyPodDeletedTimeout)
 			Expect(err).ToNot(HaveOccurred())
 		}
@@ -163,13 +199,13 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 		fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
 		By("Cloning from the source DataVolume to under sized target")
-		targetDv = utils.NewDataVolumeForImageCloning("target-dv", "50Mi", f.Namespace.Name, sourceDv.Name)
+		targetDv = utils.NewDataVolumeForImageCloning("target-dv", "50Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
 		Expect(err).To(HaveOccurred())
 		Expect(strings.Contains(err.Error(), "Target resources requests storage size is smaller than the source")).To(BeTrue())
 
 		By("Cloning from the source DataVolume to properly sized target")
-		targetDv = utils.NewDataVolumeForImageCloning("target-dv", "500Mi", f.Namespace.Name, sourceDv.Name)
+		targetDv = utils.NewDataVolumeForImageCloning("target-dv", "500Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
 		Expect(err).ToNot(HaveOccurred())
 		By("Waiting for clone to be completed")
@@ -178,6 +214,39 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 		matchFile := filepath.Join(testBaseDir, "disk.img")
 		Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv), matchFile, md5sum[:32])).To(BeTrue())
 	})
+
+	It("[rfe_id:CNV-1126][case_id:CNV-1896][crit:High][vendor:cnv-qe@redhat.com][level:component] Should not allow cloning into a smaller sized data volume in block volume mode", func() {
+		if !f.IsBlockVolumeStorageClassAvailable() {
+			Skip("Storage Class for block volume is not available")
+		}
+		By("Creating a source from a real image")
+		sourceDv = utils.NewDataVolumeWithHTTPImportToBlockPV("source-dv", "500Mi", tinyCoreIsoURL, f.BlockSCName)
+		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
+		Expect(err).ToNot(HaveOccurred())
+		By("Waiting for import to be completed")
+		utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name)
+
+		By("Calculating the md5sum of the source data volume")
+		md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir)
+		Expect(err).ToNot(HaveOccurred())
+		fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
+
+		By("Cloning from the source DataVolume to under sized target")
+		targetDv = utils.NewDataVolumeForImageCloning("target-dv", "50Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
+		Expect(err).To(HaveOccurred())
+		Expect(strings.Contains(err.Error(), "Target resources requests storage size is smaller than the source")).To(BeTrue())
+
+		By("Cloning from the source DataVolume to properly sized target")
+		targetDv = utils.NewDataVolumeForImageCloning("target-dv", "500Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
+		Expect(err).ToNot(HaveOccurred())
+		By("Waiting for clone to be completed")
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, targetDv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv), testBaseDir, md5sum[:32])).To(BeTrue())
+	})
+
 })
 
 var _ = Describe("Validate Data Volume should clone multiple clones in parallel", func() {
@@ -211,15 +280,15 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 
 		// By not waiting for completion, we will start 3 transfers in parallell
 		By("Cloning from the source DataVolume to target1")
-		targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "500Mi", f.Namespace.Name, sourceDv.Name)
+		targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "500Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv1)
 		Expect(err).ToNot(HaveOccurred())
 		By("Cloning from the source DataVolume to target2 in parallel")
-		targetDv2 = utils.NewDataVolumeForImageCloning("target-dv2", "500Mi", f.Namespace.Name, sourceDv.Name)
+		targetDv2 = utils.NewDataVolumeForImageCloning("target-dv2", "500Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv2)
 		Expect(err).ToNot(HaveOccurred())
 		By("Cloning from the source DataVolume to target3 in parallel")
-		targetDv3 = utils.NewDataVolumeForImageCloning("target-dv3", "500Mi", f.Namespace.Name, sourceDv.Name)
+		targetDv3 = utils.NewDataVolumeForImageCloning("target-dv3", "500Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv3)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -230,6 +299,47 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 			Expect(err).ToNot(HaveOccurred())
 			matchFile := filepath.Join(testBaseDir, "disk.img")
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), matchFile, md5sum[:32])).To(BeTrue())
+			_, err = utils.WaitPodDeleted(f.K8sClient, "verify-pvc-md5", f.Namespace.Name, verifyPodDeletedTimeout)
+			Expect(err).ToNot(HaveOccurred())
+		}
+	})
+
+	It("[rfe_id:CNV-1277][case_id:CNV-1899][crit:High][vendor:cnv-qe@redhat.com][level:component] Should allow multiple cloning operations in parallel for block devices", func() {
+		if !f.IsBlockVolumeStorageClassAvailable() {
+			Skip("Storage Class for block volume is not available")
+		}
+		By("Creating a source from a real image")
+		sourceDv = utils.NewDataVolumeWithHTTPImportToBlockPV("source-dv", "500Mi", tinyCoreIsoURL, f.BlockSCName)
+		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
+		Expect(err).ToNot(HaveOccurred())
+		By("Waiting for import to be completed")
+		utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name)
+
+		By("Calculating the md5sum of the source data volume")
+		md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir)
+		Expect(err).ToNot(HaveOccurred())
+		fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
+
+		// By not waiting for completion, we will start 3 transfers in parallell
+		By("Cloning from the source DataVolume to target1")
+		targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "500Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv1)
+		Expect(err).ToNot(HaveOccurred())
+		By("Cloning from the source DataVolume to target2 in parallel")
+		targetDv2 = utils.NewDataVolumeForImageCloning("target-dv2", "500Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv2)
+		Expect(err).ToNot(HaveOccurred())
+		By("Cloning from the source DataVolume to target3 in parallel")
+		targetDv3 = utils.NewDataVolumeForImageCloning("target-dv3", "500Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv3)
+		Expect(err).ToNot(HaveOccurred())
+
+		dvs := []*cdiv1.DataVolume{targetDv1, targetDv2, targetDv3}
+		for _, dv := range dvs {
+			By("Waiting for clone to be completed")
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), testBaseDir, md5sum[:32])).To(BeTrue())
 			_, err = utils.WaitPodDeleted(f.K8sClient, "verify-pvc-md5", f.Namespace.Name, verifyPodDeletedTimeout)
 			Expect(err).ToNot(HaveOccurred())
 		}
