@@ -154,16 +154,6 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 
 	// mid delete
 	if cr.DeletionTimestamp != nil {
-		if r.isUpgrading(cr) {
-			//CDI is marked to be deleteted while upgrade flow is in process
-			reqLogger.Info("Deleting  CDI during upgrade")
-			//clenaup all resources of previous installation first
-			err := r.cleanupUnusedResources(reqLogger, cr)
-			if err != nil {
-				reqLogger.Info("Failed to cleanupUnused resource prior to CDI cr deletion during upgrade")
-				return reconcile.Result{}, err
-			}
-		}
 		reqLogger.Info("Doing reconcile delete")
 		return r.reconcileDelete(reqLogger, cr)
 	}
