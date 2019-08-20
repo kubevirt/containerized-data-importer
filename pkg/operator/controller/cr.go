@@ -54,13 +54,18 @@ func (r *ReconcileCDI) isUpgrading(cr *cdiv1alpha1.CDI) bool {
 	return false
 }
 
+// this is used for testing.  wish this a helper function in test file instead of member
 func (r *ReconcileCDI) crSetVersion(cr *cdiv1alpha1.CDI, version, repo string) error {
+	phase := cdiv1alpha1.CDIPhaseDeployed
+	if version == "" {
+		phase = cdiv1alpha1.CDIPhase("")
+	}
 	cr.Spec.ImageTag = version
 	cr.Spec.ImageRegistry = repo
 	cr.Status.ObservedVersion = version
 	cr.Status.OperatorVersion = version
 	cr.Status.TargetVersion = version
-	return r.crUpdate(cdiv1alpha1.CDIPhaseDeployed, cr)
+	return r.crUpdate(phase, cr)
 }
 
 func (r *ReconcileCDI) crInit(cr *cdiv1alpha1.CDI) error {

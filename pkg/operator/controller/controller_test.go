@@ -462,7 +462,7 @@ var _ = Describe("Controller", func() {
 
 	Describe("Upgrading CDI", func() {
 
-		DescribeTable("check detects upgrade correctly", func(prevVersion, newVersion string, shouldUpgrade bool) {
+		DescribeTable("check detects upgrade correctly", func(prevVersion, newVersion string, shouldUpgrade, shouldError bool) {
 			registry := "kubevirt"
 
 			//verify on int version is set
@@ -478,11 +478,16 @@ var _ = Describe("Controller", func() {
 			err := args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
 			Expect(err).ToNot(HaveOccurred())
 
+			if shouldError {
+				doReconcileError(args)
+				return
+			}
+
 			doReconcile(args)
 
 			if shouldUpgrade {
 				//verify upgraded has started
-				Expect(args.cdi.Status.OperatorVersion).Should(Equal(prevVersion))
+				Expect(args.cdi.Status.OperatorVersion).Should(Equal(newVersion))
 				Expect(args.cdi.Status.ObservedVersion).Should(Equal(prevVersion))
 				Expect(args.cdi.Status.TargetVersion).Should(Equal(newVersion))
 				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeploying))
@@ -513,16 +518,18 @@ var _ = Describe("Controller", func() {
 				Expect(args.cdi.Status.ObservedVersion).Should(Equal(prevVersion))
 			}
 		},
-			Entry("increasing semver ", "v1.9.5", "v1.10.0", true),
-			Entry("decreasing semver", "v1.10.0", "v1.9.5", false),
-			Entry("identical semver", "v1.10.0", "v1.10.0", false),
-			Entry("invalid semver", "devel", "v1.9.5", true),
-			Entry("increasing  semver no prefix", "1.9.5", "1.10.0", true),
-			Entry("decreasing  semver no prefix", "1.10.0", "1.9.5", false),
-			Entry("identical  semver no prefix", "1.10.0", "1.10.0", false),
-			Entry("invalid  semver with prefix", "devel1.9.5", "devel1.9.5", false),
-			Entry("invalid  semver no prefix", "devel", "1.9.5", true),
-			Entry("no current no prefix", "", "invalid", false),
+			Entry("increasing semver ", "v1.9.5", "v1.10.0", true, false),
+			Entry("decreasing semver", "v1.10.0", "v1.9.5", false, true),
+			Entry("identical semver", "v1.10.0", "v1.10.0", false, false),
+			Entry("invalid semver", "devel", "v1.9.5", true, false),
+			Entry("increasing  semver no prefix", "1.9.5", "1.10.0", true, false),
+			Entry("decreasing  semver no prefix", "1.10.0", "1.9.5", false, true),
+			Entry("identical  semver no prefix", "1.10.0", "1.10.0", false, false),
+			Entry("invalid  semver with prefix", "devel1.9.5", "devel1.9.5", false, false),
+			Entry("invalid  semver no prefix", "devel", "1.9.5", true, false),
+			/* having trouble making sense of this test "" should not be valid previous version
+			Entry("no current no prefix", "", "invalid", false, false),
+			*/
 		)
 
 		Describe("CDI CR deletion during upgrade", func() {
@@ -1360,6 +1367,15 @@ func createArgs() *args {
 func doReconcile(args *args) {
 	result, err := args.reconciler.Reconcile(reconcileRequest(args.cdi.Name))
 	Expect(err).ToNot(HaveOccurred())
+	Expect(result.Requeue).To(BeFalse())
+
+	args.cdi, err = getCDI(args.client, args.cdi)
+	Expect(err).ToNot(HaveOccurred())
+}
+
+func doReconcileError(args *args) {
+	result, err := args.reconciler.Reconcile(reconcileRequest(args.cdi.Name))
+	Expect(err).To(HaveOccurred())
 	Expect(result.Requeue).To(BeFalse())
 
 	args.cdi, err = getCDI(args.client, args.cdi)

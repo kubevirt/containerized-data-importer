@@ -116,7 +116,7 @@ func CreateAllOperatorResources(args *FactoryArgs) ([]runtime.Object, error) {
 func CreateOperatorResourceGroup(group string, args *FactoryArgs) ([]runtime.Object, error) {
 	f, ok := operatorFactoryFunctions[group]
 	if !ok {
-		return nil, fmt.Errorf("Group %s does not exist", group)
+		return nil, fmt.Errorf("group %s does not exist", group)
 	}
 	return f(args), nil
 }

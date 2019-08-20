@@ -78,7 +78,7 @@ func CreateAllResources(args *FactoryArgs) ([]runtime.Object, error) {
 func CreateResourceGroup(group string, args *FactoryArgs) ([]runtime.Object, error) {
 	f, ok := factoryFunctions[group]
 	if !ok {
-		return nil, fmt.Errorf("Group %s does not exist", group)
+		return nil, fmt.Errorf("group %s does not exist", group)
 	}
 	resources := f(args)
 	for _, resource := range resources {

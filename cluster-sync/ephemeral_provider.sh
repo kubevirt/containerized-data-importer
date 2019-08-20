@@ -9,7 +9,7 @@ function seed_images(){
   images="${@:-${DOCKER_IMAGES}}"
   for arg in $images; do
       name=$(basename $arg)
-      container="${container} registry:5000/${name}:latest"
+      container="${container} registry:5000/${name}:${DOCKER_TAG}"
   done
 
   # We don't need to seed the nodes, but in the case of the default dev setup we'll just leave this here

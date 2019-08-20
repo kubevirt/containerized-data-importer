@@ -23,15 +23,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 const (
 	// SCCAnnotation is the annotation listing SCCs for a SA
 	SCCAnnotation = "cdi-scc"
-
-	cdiLabel = common.CDIComponentLabel
 )
 
 var commonLabels = map[string]string{

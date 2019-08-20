@@ -125,19 +125,6 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling CDI")
 
-	//TODO:
-	/*
-		Here for upgrade purpose:
-		* if cr vresion observed and target are not the same upgrade is taking place:
-		* -  Prevenet from apiServer to server new CRDs until upgrade is done
-		* -  Iterate over resources and update them
-		* -    no special handling - same as update in reconcile loop
-		* -  Verify APIServer and cdi deployment rolledOver successfully
-		* -  Delete resources that are not in use in target version
-		* -  Remove blocking webhook
-		* -  set Observed and Target versions to Target on CDI CR
-		* - TODO - support Conditions required by HCO
-	*/
 	// Fetch the CDI instance
 	// check at cluster level
 	cr := &cdiv1alpha1.CDI{}
@@ -156,24 +143,6 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 	if cr.DeletionTimestamp != nil {
 		reqLogger.Info("Doing reconcile delete")
 		return r.reconcileDelete(reqLogger, cr)
-	}
-
-	//compare target and observed
-	//Retriveed CR will contain previous version ImageTag and ImageRegistry
-	//while namespaced arguments will contain new version
-	//if versions are not the same: update TargetVersion in CDI cr and move to implementation
-	isUpgrade, err := shouldTakeUpdatePath(r.namespacedArgs.DockerTag, cr.Status.ObservedVersion)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	if isUpgrade && !r.isUpgrading(cr) {
-		reqLogger.Info("Observed version is not target version. Begin upgrade", "Observed version ", cr.Status.ObservedVersion, "TargetVersion", r.namespacedArgs.DockerTag)
-		cr.Status.TargetVersion = r.namespacedArgs.DockerTag
-		//Here phase has to be upgrading - this is to be handled in dedicated pr
-		if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeploying, cr); err != nil {
-			return reconcile.Result{}, err
-		}
 	}
 
 	configMap, err := r.getConfigMap()
@@ -207,7 +176,7 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 	return r.reconcileUpdate(reqLogger, cr)
 }
 
-func shouldTakeUpdatePath(targetVersion, currentVersion string) (bool, error) {
+func shouldTakeUpdatePath(logger logr.Logger, targetVersion, currentVersion string) (bool, error) {
 
 	// if no current version, then this can't be an update
 	if currentVersion == "" {
@@ -231,7 +200,11 @@ func shouldTakeUpdatePath(targetVersion, currentVersion string) (bool, error) {
 	if err == nil {
 		current, err := semver.Make(currentVersion)
 		if err == nil {
-			if target.Compare(current) <= 0 {
+			if target.Compare(current) < 0 {
+				err := fmt.Errorf("operator downgraded, will not reconcile")
+				logger.Error(err, "", "current", current, "target", target)
+				return false, err
+			} else if target.Compare(current) == 0 {
 				shouldTakeUpdatePath = false
 			}
 		}
@@ -257,7 +230,37 @@ func (r *ReconcileCDI) reconcileCreate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	return r.reconcileUpdate(logger, cr)
 }
 
+func (r *ReconcileCDI) checkUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) error {
+	// should maybe put this in separate function
+	if cr.Status.OperatorVersion != r.namespacedArgs.DockerTag {
+		cr.Status.OperatorVersion = r.namespacedArgs.DockerTag
+		if err := r.crUpdate(cr.Status.Phase, cr); err != nil {
+			return err
+		}
+	}
+
+	isUpgrade, err := shouldTakeUpdatePath(logger, r.namespacedArgs.DockerTag, cr.Status.ObservedVersion)
+	if err != nil {
+		return err
+	}
+
+	if isUpgrade && !r.isUpgrading(cr) {
+		logger.Info("Observed version is not target version. Begin upgrade", "Observed version ", cr.Status.ObservedVersion, "TargetVersion", r.namespacedArgs.DockerTag)
+		cr.Status.TargetVersion = r.namespacedArgs.DockerTag
+		//Here phase has to be upgrading - this is to be handled in dedicated pr
+		if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeploying, cr); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
+	if err := r.checkUpgrade(logger, cr); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	resources, err := r.getAllResources(cr)
 	if err != nil {
 		return reconcile.Result{}, err
@@ -372,25 +375,34 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 
 	if ready {
 		logger.Info("Operator is ready!!")
+
 		if r.isUpgrading(cr) {
-			if err = r.cleanupUnusedResources(logger, cr); err != nil {
+			logger.Info("Completing upgrade process...")
+
+			if err = r.completeUpgrade(logger, cr); err != nil {
 				return reconcile.Result{}, err
 			}
-			previousVersion := cr.Status.ObservedVersion
-			cr.Status.ObservedVersion = r.namespacedArgs.DockerTag
-			cr.Status.OperatorVersion = r.namespacedArgs.DockerTag
-
-			//Is there a possible race if cr is marked as deleted during upgrade?
-			//we want to set cr in DeployedPhase, but may be it is being marked as Deleted already
-			if err = r.crUpdate(cdiv1alpha1.CDIPhaseDeployed, cr); err != nil {
-				return reconcile.Result{}, err
-			}
-
-			logger.Info("Successfully finished Upgrade from and entered Deployed state", "from version", previousVersion, "to version", cr.Status.ObservedVersion)
 		}
 	}
 
 	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileCDI) completeUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) error {
+	if err := r.cleanupUnusedResources(logger, cr); err != nil {
+		return err
+	}
+
+	previousVersion := cr.Status.ObservedVersion
+	cr.Status.ObservedVersion = r.namespacedArgs.DockerTag
+
+	if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeployed, cr); err != nil {
+		return err
+	}
+
+	logger.Info("Successfully finished Upgrade from and entered Deployed state", "from version", previousVersion, "to version", cr.Status.ObservedVersion)
+
+	return nil
 }
 
 func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1alpha1.CDI) error {
@@ -468,7 +480,6 @@ func (r *ReconcileCDI) isMutable(obj runtime.Object) bool {
 
 // I hate that this function exists, but major refactoring required to make CDI CR the owner of all the things
 func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
-
 	i := -1
 	for j, f := range cr.Finalizers {
 		if f == finalizerName {
