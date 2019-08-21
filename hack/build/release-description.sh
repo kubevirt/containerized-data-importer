@@ -41,6 +41,7 @@ Pre-built CDI containers are published on Docker Hub and can be viewed at:
 <https://hub.docker.com/r/kubevirt/cdi-uploadproxy/>
 <https://hub.docker.com/r/kubevirt/cdi-apiserver/>
 <https://hub.docker.com/r/kubevirt/cdi-uploadserver/>
+<https://hub.docker.com/r/kubevirt/cdi-operator/>
 EOF
 }
 
