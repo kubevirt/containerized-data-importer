@@ -2,7 +2,6 @@
 
 set -e
 
-#This will get overwritten when run make generate, this will not be needed once https://github.com/kubevirt/kubevirtci/pull/126 is merged.
 _cli_container="kubevirtci/gocli@sha256:a7880757e2d2755c6a784c1b64c64b096769ed3ccfac9d8e535df481731c2144"
 _cli_with_tty="docker run --privileged --net=host --rm -t -v /var/run/docker.sock:/var/run/docker.sock ${_cli_container}"
 _cli="docker run --privileged --net=host --rm ${USE_TTY} -v /var/run/docker.sock:/var/run/docker.sock ${_cli_container}"

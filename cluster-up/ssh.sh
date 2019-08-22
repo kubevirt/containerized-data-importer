@@ -17,8 +17,9 @@ source ${KUBEVIRTCI_PATH}/hack/config.sh
 ssh_key=${KUBEVIRTCI_PATH}/hack/common.key
 chmod 600 $ssh_key
 
-n=$1
-if [ -z "$n" ]; then
+node=$1
+
+if [ -z "$node" ]; then
     echo "node name required as argument"
     echo "okd example: ./ssh master-0"
     echo "k8s example: ./ssh node01"
@@ -28,14 +29,14 @@ fi
 if [[ $KUBEVIRT_PROVIDER =~ okd.* ]]; then
     ports=$(${KUBEVIRTCI_PATH}cli.sh --prefix $provider_prefix ports --container-name cluster)
 
-    if [[ $n =~ worker-0.* ]]; then
+    if [[ $node =~ worker-0.* ]]; then
         port=$(echo "$ports" | grep 2202 | awk -F':' '{print $2}')
-    elif [[ $n =~ master-0.* ]]; then
+    elif [[ $node =~ master-0.* ]]; then
         port=$(echo "$ports" | grep 2201 | awk -F':' '{print $2}')
     fi
 
     if [ -z "$port" ]; then
-        echo "no ssh port found for $n"
+        echo "no ssh port found for $node"
         exit 1
     fi
     shift
