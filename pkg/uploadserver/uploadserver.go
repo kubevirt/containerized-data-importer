@@ -265,11 +265,7 @@ func (app *uploadServerApp) uploadHandler(w http.ResponseWriter, r *http.Request
 
 func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize, contentType string) error {
 	if contentType == FilesystemCloneContentType {
-		return filesystemCloneProcessor(stream, common.ImporterVolumePath)
-	}
-
-	if contentType == BlockdeviceCloneContentType {
-
+		return filesystemCloneProcessor(stream, common.ImporterVolumePath, imageSize)
 	}
 
 	uds := importer.NewUploadDataSource(stream)
@@ -277,32 +273,54 @@ func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize, contentType
 	return processor.ProcessData()
 }
 
-func filesystemCloneProcessor(stream io.ReadCloser, destDir string) error {
+func filesystemCloneProcessor(stream io.ReadCloser, destDir, imageSize string) error {
 	if err := importer.CleanDir(destDir); err != nil {
 		return errors.Wrapf(err, "error removing contents of %s", destDir)
 	}
 
 	gzr, err := gzip.NewReader(stream)
 	if err != nil {
-		return errors.Wrap(err, "error creting gzip reader")
+		return errors.Wrap(err, "error creating gzip reader")
 	}
+	availableSpace := util.GetAvailableSpace(destDir)
 
 	if err = util.UnArchiveTar(gzr, destDir); err != nil {
 		return errors.Wrapf(err, "error unarchiving to %s", destDir)
 	}
 
+	// Determine if we cloned a virtual disk image.
+	if containsDiskImg(destDir) {
+		klog.Info("Found virtual disk, resizing to PVC size if possible")
+		err = importer.ResizeImage(filepath.Join(destDir, common.DiskImageName), imageSize, availableSpace)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-func blockdeviceCloneProcessor(stream io.ReadCloser, dest string) error {
-	gzr, err := gzip.NewReader(stream)
+// Returns true if we can find disk.img in the destDir, false otherwise. Returns false on all errors.
+func containsDiskImg(destDir string) bool {
+	files, err := ioutil.ReadDir(destDir)
 	if err != nil {
-		return errors.Wrap(err, "error creting gzip reader")
+		return false
+	}
+	var virtfileName string
+
+	for _, file := range files {
+		if !file.IsDir() {
+			if virtfileName == "" {
+				virtfileName = file.Name()
+			} else {
+				// Found more than one file in directory.
+				return false
+			}
+		}
+	}
+	if virtfileName != common.DiskImageName {
+		// Name didn't match
+		return false
 	}
 
-	if err = util.StreamDataToFile(gzr, dest); err != nil {
-		return errors.Wrapf(err, "error streamng to %s", dest)
-	}
-
-	return nil
+	return true
 }

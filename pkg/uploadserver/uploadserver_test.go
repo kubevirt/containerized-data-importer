@@ -24,8 +24,11 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -267,4 +270,36 @@ func TestRealSuccess(t *testing.T) {
 
 		<-ch
 	})
+}
+
+func TestContainsDiskImg(t *testing.T) {
+	destDir, err := ioutil.TempDir("", "destdir")
+	defer os.RemoveAll(destDir)
+	if err != nil {
+		t.Errorf("Unable to create tempdestdir %+v", err)
+	}
+	result := containsDiskImg(destDir)
+	if result {
+		t.Error("Empty directory return true")
+	}
+
+	diskImgFile, err := os.Create(filepath.Join(destDir, common.DiskImageName))
+	defer diskImgFile.Close()
+	if err != nil {
+		t.Errorf("Unable to create disk.img %+v", err)
+	}
+	result = containsDiskImg(destDir)
+	if !result {
+		t.Error("Directory with disk.img file returned false")
+	}
+	anotherFile, err := os.Create(filepath.Join(destDir, "anotherfile.txt"))
+	defer anotherFile.Close()
+	if err != nil {
+		t.Errorf("Unable to create another file %+v", err)
+	}
+	result = containsDiskImg(destDir)
+	if result {
+		t.Error("Directory with multiple files returned true")
+	}
+
 }
