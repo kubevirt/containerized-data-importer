@@ -1,6 +1,6 @@
-# OKD 4.1.2 in ephemeral containers
+# OKD 4.1 in ephemeral containers
 
-Provides a pre-deployed OKD with version 4.1.2 purely in docker
+Provides a pre-deployed OKD with version 4.1 purely in docker
 containers with libvirt. The provided VMs are completely ephemeral and are
 recreated on every cluster restart. The KubeVirt containers are built on the
 local machine and are the pushed to a registry which is exposed at
@@ -9,7 +9,7 @@ local machine and are the pushed to a registry which is exposed at
 ## Bringing the cluster up
 
 ```bash
-export KUBEVIRT_PROVIDER=okd-4.1.2
+export KUBEVIRT_PROVIDER=okd-4.1
 make cluster-up
 ```
 
@@ -17,15 +17,15 @@ The cluster can be accessed as usual:
 
 ```bash
 $ cluster/kubectl.sh get nodes
-NAME                          STATUS  ROLES    AGE   VERSION
-test-1-hw7kn-master-0         Ready   master   40m   v1.13.4+9252851b0
-test-1-hw7kn-worker-0-7w268   Ready   worker   35m   v1.13.4+9252851b0
+NAME                          STATUS   ROLES    AGE   VERSION
+test-1-82xp6-master-0         Ready    master   62m   v1.12.4+509916ce1
+test-1-82xp6-worker-0-wxf27   Ready    worker   57m   v1.12.4+509916ce1
 ```
 
 ## Bringing the cluster down
 
 ```bash
-export KUBEVIRT_PROVIDER=okd-4.1.2
+export KUBEVIRT_PROVIDER=okd-4.1
 make cluster-down
 ```
 
