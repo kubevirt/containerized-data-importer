@@ -152,10 +152,11 @@ func ExecWithLimits(limits *ProcessLimitValues, callback func(string), command s
 			return nil, errors.Wrap(err, "Couldn't set address space limit")
 		}
 	}
-
-	err = cmd.Wait()
 	<-stdoutDone
 	<-stderrDone
+	// The wait has to be after the reading channels are finished otherwise there is a race where the wait completes and closes stdout/err before anything
+	// is read from it.
+	err = cmd.Wait()
 
 	output := buf.Bytes()
 	if err != nil {
