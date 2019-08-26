@@ -98,6 +98,7 @@ func processScanner(scanner *bufio.Scanner, buf *bytes.Buffer, done chan bool, c
 	for scanner.Scan() {
 		line := scanner.Text()
 		buf.WriteString(line)
+		buf.WriteString("\n")
 		if callback != nil {
 			callback(line)
 		}
