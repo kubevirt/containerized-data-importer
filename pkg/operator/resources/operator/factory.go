@@ -22,6 +22,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
 //FactoryArgs contains the required parameters to generate all cluster-scoped resources
@@ -118,5 +119,7 @@ func CreateOperatorResourceGroup(group string, args *FactoryArgs) ([]runtime.Obj
 	if !ok {
 		return nil, fmt.Errorf("group %s does not exist", group)
 	}
-	return f(args), nil
+	resources := f(args)
+	utils.ValidateGVKs(resources)
+	return resources, nil
 }

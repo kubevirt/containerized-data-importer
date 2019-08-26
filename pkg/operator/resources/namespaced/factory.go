@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
 // FactoryArgs contains the required parameters to generate all namespaced resources
@@ -81,6 +82,7 @@ func CreateResourceGroup(group string, args *FactoryArgs) ([]runtime.Object, err
 		return nil, fmt.Errorf("group %s does not exist", group)
 	}
 	resources := f(args)
+	utils.ValidateGVKs(resources)
 	for _, resource := range resources {
 		assignNamspaceIfMissing(resource, args.Namespace)
 	}

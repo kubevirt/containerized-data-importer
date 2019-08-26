@@ -21,6 +21,7 @@ import (
 	generrors "errors"
 	"fmt"
 
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 
 	"os"
@@ -50,11 +51,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	realClient "sigs.k8s.io/controller-runtime/pkg/client"
 	fakeClient "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiviaplha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	cluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	clusterResources "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	namespaceResources "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 )
@@ -300,10 +301,13 @@ var _ = Describe("Controller", func() {
 						continue
 					}
 
-					d.Status.Replicas = *d.Spec.Replicas
-					d.Status.ReadyReplicas = d.Status.Replicas
+					dd, err := getDeployment(args.client, d)
+					Expect(err).ToNot(HaveOccurred())
 
-					err = args.client.Update(context.TODO(), d)
+					dd.Status.Replicas = *dd.Spec.Replicas
+					dd.Status.ReadyReplicas = dd.Status.Replicas
+
+					err = args.client.Update(context.TODO(), dd)
 					Expect(err).ToNot(HaveOccurred())
 				}
 
@@ -666,11 +670,9 @@ var _ = Describe("Controller", func() {
 						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
 					}
 					deployment := deploymentOrig.DeepCopy()
-					deployment.Annotations = map[string]string{
-						"fake.anno.1": "fakeannotation1",
-						"fake.anno.2": "fakeannotation2",
-						"fake.anno.3": "fakeannotation3",
-					}
+					deployment.Annotations["fake.anno.1"] = "fakeannotation1"
+					deployment.Annotations["fake.anno.2"] = "fakeannotation2"
+					deployment.Annotations["fake.anno.3"] = "fakeannotation3"
 					return toModify, deployment, nil
 				},
 				func(resource runtime.Object) bool { //find resource for test
@@ -689,6 +691,8 @@ var _ = Describe("Controller", func() {
 					if !ok {
 						return false
 					}
+
+					delete(desiredDep.Annotations, lastAppliedConfigAnnotation)
 
 					for key, ann := range desiredDep.Annotations {
 						if postDep.Annotations[key] != ann {
@@ -709,11 +713,9 @@ var _ = Describe("Controller", func() {
 						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
 					}
 					deployment := deploymentOrig.DeepCopy()
-					deployment.Labels = map[string]string{
-						"fake.label.1": "fakelabel1",
-						"fake.label.2": "fakelabel2",
-						"fake.label.3": "fakelabel3",
-					}
+					deployment.Labels["fake.label.1"] = "fakelabel1"
+					deployment.Labels["fake.label.2"] = "fakelabel2"
+					deployment.Labels["fake.label.3"] = "fakelabel3"
 					return toModify, deployment, nil
 				},
 				func(resource runtime.Object) bool { //find resource for test
@@ -898,11 +900,9 @@ var _ = Describe("Controller", func() {
 						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
 					}
 					service := serviceOrig.DeepCopy()
-					service.Annotations = map[string]string{
-						"fake.anno.1": "fakeannotation1",
-						"fake.anno.2": "fakeannotation2",
-						"fake.anno.3": "fakeannotation3",
-					}
+					service.Annotations["fake.anno.1"] = "fakeannotation1"
+					service.Annotations["fake.anno.2"] = "fakeannotation2"
+					service.Annotations["fake.anno.3"] = "fakeannotation3"
 					return toModify, service, nil
 				},
 				func(resource runtime.Object) bool { //find resource for test
@@ -941,11 +941,9 @@ var _ = Describe("Controller", func() {
 						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
 					}
 					service := serviceOrig.DeepCopy()
-					service.Labels = map[string]string{
-						"fake.label.1": "fakelabel1",
-						"fake.label.2": "fakelabel2",
-						"fake.label.3": "fakelabel3",
-					}
+					service.Labels["fake.label.1"] = "fakelabel1"
+					service.Labels["fake.label.2"] = "fakelabel2"
+					service.Labels["fake.label.3"] = "fakelabel3"
 					return toModify, service, nil
 				},
 				func(resource runtime.Object) bool { //find resource for test
@@ -954,7 +952,7 @@ var _ = Describe("Controller", func() {
 					return ok
 				},
 				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
-					//return true if postUpgrade has teh same fields as desired
+					//return true if postUpgrade has the same fields as desired
 					post, ok := postUpgradeObj.(*corev1.Service)
 					if !ok {
 						return false
@@ -1022,7 +1020,6 @@ var _ = Describe("Controller", func() {
 
 					return true
 				}),
-
 			//CRD update
 			// - update CRD label
 			// - update CRD annotation
@@ -1062,6 +1059,10 @@ var _ = Describe("Controller", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			unusedObj, err := createObj()
+			Expect(err).ToNot(HaveOccurred())
+			unusedMetaObj := unusedObj.(metav1.Object)
+			unusedMetaObj.GetLabels()["operator.cdi.kubevirt.io/createVersion"] = prevVersion
+			err = controllerutil.SetControllerReference(args.cdi, unusedMetaObj, scheme.Scheme)
 			Expect(err).ToNot(HaveOccurred())
 
 			//add unused object via client, with curObject
@@ -1186,8 +1187,10 @@ func getModifiedResource(reconciler *ReconcileCDI, modify modifyResource, tomodi
 	//find the resource to modify
 	var orig runtime.Object
 	for _, resource := range resources {
-		if tomodify(resource) {
-			orig = resource
+		r, err := getObject(reconciler.client, resource)
+		Expect(err).ToNot(HaveOccurred())
+		if tomodify(r) {
+			orig = r
 			break
 		}
 	}

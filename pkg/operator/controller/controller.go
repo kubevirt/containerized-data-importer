@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -55,6 +56,10 @@ import (
 
 const (
 	finalizerName = "operator.cdi.kubevirt.io"
+
+	createVersionLabel          = "operator.cdi.kubevirt.io/createVersion"
+	updateVersionLabel          = "operator.cdi.kubevirt.io/updateVersion"
+	lastAppliedConfigAnnotation = "operator.cdi.kubevirt.io/lastAppliedConfiguration"
 )
 
 var log = logf.Log.WithName("cdi-operator")
@@ -268,10 +273,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 
 	for _, desiredRuntimeObj := range resources {
 		desiredMetaObj := desiredRuntimeObj.(metav1.Object)
-
-		// use reflection to create default instance of desiredRuntimeObj type
-		typ := reflect.ValueOf(desiredRuntimeObj).Elem().Type()
-		currentRuntimeObj := reflect.New(typ).Interface().(runtime.Object)
+		currentRuntimeObj := newDefaultInstance(desiredRuntimeObj)
 
 		key := client.ObjectKey{
 			Namespace: desiredMetaObj.GetNamespace(),
@@ -283,6 +285,9 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 			if !errors.IsNotFound(err) {
 				return reconcile.Result{}, err
 			}
+
+			setLastAppliedConfiguration(desiredMetaObj)
+			setLabel(createVersionLabel, r.namespacedArgs.DockerTag, desiredMetaObj)
 
 			if err = controllerutil.SetControllerReference(cr, desiredMetaObj, r.scheme); err != nil {
 				return reconcile.Result{}, err
@@ -300,7 +305,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 			}
 
 			// POST_CREATE callback
-			if err = r.invokeCallbacks(logger, ReconcileStatePostCreate, desiredRuntimeObj, currentRuntimeObj); err != nil {
+			if err = r.invokeCallbacks(logger, ReconcileStatePostCreate, desiredRuntimeObj, nil); err != nil {
 				return reconcile.Result{}, err
 			}
 
@@ -321,15 +326,20 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 			mergeLabelsAndAnnotations(desiredMetaObj, currentMetaObj)
 
 			if !r.isMutable(currentRuntimeObj) {
+				setLastAppliedConfiguration(desiredMetaObj)
+
 				// overwrite currentRuntimeObj
 				currentRuntimeObj, err = mergeObject(desiredRuntimeObj, currentRuntimeObj)
 				if err != nil {
 					return reconcile.Result{}, err
 				}
+				currentMetaObj = currentRuntimeObj.(metav1.Object)
 			}
 
 			if !reflect.DeepEqual(currentRuntimeObjCopy, currentRuntimeObj) {
 				logJSONDiff(logger, currentRuntimeObjCopy, currentRuntimeObj)
+
+				setLabel(updateVersionLabel, r.namespacedArgs.DockerTag, currentMetaObj)
 
 				// PRE_UPDATE callback
 				if err = r.invokeCallbacks(logger, ReconcileStatePreUpdate, desiredRuntimeObj, currentRuntimeObj); err != nil {
@@ -341,7 +351,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 				}
 
 				// POST_UPDATE callback
-				if err = r.invokeCallbacks(logger, ReconcileStatePostUpdate, desiredRuntimeObj, currentRuntimeObj); err != nil {
+				if err = r.invokeCallbacks(logger, ReconcileStatePostUpdate, desiredRuntimeObj, nil); err != nil {
 					return reconcile.Result{}, err
 				}
 
@@ -359,7 +369,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	}
 
 	if cr.Status.Phase != cdiv1alpha1.CDIPhaseDeployed && !r.isUpgrading(cr) {
-		//We are not moving to Deployed phase untill new operator deployment is ready in case of Upgrade
+		//We are not moving to Deployed phase until new operator deployment is ready in case of Upgrade
 		cr.Status.ObservedVersion = r.namespacedArgs.DockerTag
 		if err = r.crUpdate(cdiv1alpha1.CDIPhaseDeployed, cr); err != nil {
 			return reconcile.Result{}, err
@@ -400,7 +410,7 @@ func (r *ReconcileCDI) completeUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		return err
 	}
 
-	logger.Info("Successfully finished Upgrade from and entered Deployed state", "from version", previousVersion, "to version", cr.Status.ObservedVersion)
+	logger.Info("Successfully finished Upgrade and entered Deployed state", "from version", previousVersion, "to version", cr.Status.ObservedVersion)
 
 	return nil
 }
@@ -410,17 +420,17 @@ func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1alpha
 	//Deployment/CRDs/Services etc and delete all resources that
 	//do not exist in current version
 
-	targetStrategy, err := r.getAllResources(cr)
+	desiredResources, err := r.getAllResources(cr)
 	if err != nil {
 		return err
 	}
 
 	listTypes := []runtime.Object{
 		&extv1beta1.CustomResourceDefinitionList{},
-		&appsv1.DeploymentList{},
-		&corev1.ServiceList{},
 		&rbacv1.ClusterRoleBindingList{},
 		&rbacv1.ClusterRoleList{},
+		&appsv1.DeploymentList{},
+		&corev1.ServiceList{},
 		&rbacv1.RoleBindingList{},
 		&rbacv1.RoleList{},
 		&corev1.ServiceAccountList{},
@@ -428,7 +438,7 @@ func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1alpha
 
 	for _, lt := range listTypes {
 		lo := &client.ListOptions{}
-		lo.SetLabelSelector("cdi.kubevirt.io")
+		lo.SetLabelSelector(createVersionLabel)
 
 		if err := r.client.List(context.TODO(), lo, lt); err != nil {
 			logger.Error(err, "Error listing resources")
@@ -439,28 +449,34 @@ func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1alpha
 		iv := sv.FieldByName("Items")
 
 		for i := 0; i < iv.Len(); i++ {
-			obj := iv.Index(i).Addr().Interface().(runtime.Object)
 			found := false
-			for _, target := range targetStrategy {
-				if reflect.TypeOf(obj) == reflect.TypeOf(target) {
-					if obj.(metav1.Object).GetName() == target.(metav1.Object).GetName() &&
-						obj.(metav1.Object).GetNamespace() == target.(metav1.Object).GetNamespace() {
-						found = true
-						break
-					}
+			observedObj := iv.Index(i).Addr().Interface().(runtime.Object)
+			observedMetaObj := observedObj.(metav1.Object)
+
+			for _, desiredObj := range desiredResources {
+				if sameResource(observedObj, desiredObj) {
+					found = true
+					break
 				}
 			}
-			if !found {
+
+			if !found && metav1.IsControlledBy(observedMetaObj, cr) {
 				//Invoke pre delete callback
-				if err = r.invokeCallbacks(logger, ReconcileStatePreDelete, nil, obj); err != nil {
+				if err = r.invokeCallbacks(logger, ReconcileStatePreDelete, nil, observedObj); err != nil {
 					return err
 				}
-				logger.Info("Deleting  ", "type", reflect.TypeOf(obj), "Name", obj.(metav1.Object).GetName())
-				if err = r.client.Delete(context.TODO(), obj); err != nil {
+
+				logger.Info("Deleting  ", "type", reflect.TypeOf(observedObj), "Name", observedMetaObj.GetName())
+				err = r.client.Delete(context.TODO(), observedObj, func(opts *client.DeleteOptions) {
+					p := metav1.DeletePropagationForeground
+					opts.PropagationPolicy = &p
+				})
+				if err != nil && !errors.IsNotFound(err) {
 					return err
 				}
+
 				//invoke post delete callback
-				if err = r.invokeCallbacks(logger, ReconcileStatePostDelete, nil, obj); err != nil {
+				if err = r.invokeCallbacks(logger, ReconcileStatePostDelete, nil, observedObj); err != nil {
 					return err
 				}
 			}
@@ -498,7 +514,7 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		}
 	}
 
-	if err := r.invokeDeleteCDICallbacks(logger, cr, ReconcileStateCDIDelete); err != nil {
+	if err := r.invokeDeleteCDICallbacks(logger, cr); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -511,21 +527,6 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	logger.Info("Finalizer complete")
 
 	return reconcile.Result{}, nil
-}
-
-func (r *ReconcileCDI) invokeDeleteCDICallbacks(logger logr.Logger, cr *cdiv1alpha1.CDI, s ReconcileState) error {
-	resources, err := r.getAllResources(cr)
-	if err != nil {
-		return err
-	}
-
-	for _, resource := range resources {
-		if err = r.invokeCallbacks(logger, s, resource, nil); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (r *ReconcileCDI) reconcileError(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
@@ -735,6 +736,21 @@ func (r *ReconcileCDI) addCallback(obj runtime.Object, cb ReconcileCallback) {
 	r.callbacks[t] = append(cbs, cb)
 }
 
+func (r *ReconcileCDI) invokeDeleteCDICallbacks(logger logr.Logger, cr *cdiv1alpha1.CDI) error {
+	desiredResources, err := r.getAllResources(cr)
+	if err != nil {
+		return err
+	}
+
+	for _, desiredObj := range desiredResources {
+		if err = r.invokeCallbacks(logger, ReconcileStateCDIDelete, desiredObj, nil); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (r *ReconcileCDI) invokeCallbacks(l logr.Logger, s ReconcileState, desiredObj, currentObj runtime.Object) error {
 	var t reflect.Type
 
@@ -748,6 +764,22 @@ func (r *ReconcileCDI) invokeCallbacks(l logr.Logger, s ReconcileState, desiredO
 	cbs := append(r.callbacks[t], r.callbacks[nil]...)
 
 	for _, cb := range cbs {
+		if s != ReconcileStatePreCreate && currentObj == nil {
+			metaObj := desiredObj.(metav1.Object)
+			key := client.ObjectKey{
+				Namespace: metaObj.GetNamespace(),
+				Name:      metaObj.GetName(),
+			}
+
+			currentObj = newDefaultInstance(desiredObj)
+			if err := r.client.Get(context.TODO(), key, currentObj); err != nil {
+				if !errors.IsNotFound(err) {
+					return err
+				}
+				currentObj = nil
+			}
+		}
+
 		args := &ReconcileCallbackArgs{
 			Logger:        l,
 			Client:        r.client,
@@ -756,6 +788,7 @@ func (r *ReconcileCDI) invokeCallbacks(l logr.Logger, s ReconcileState, desiredO
 			DesiredObject: desiredObj,
 			CurrentObject: currentObj,
 		}
+
 		log.V(3).Info("Invoking callbacks for", "type", t)
 		if err := cb(args); err != nil {
 			log.Error(err, "error invoking callback for", "type", t)
@@ -764,4 +797,39 @@ func (r *ReconcileCDI) invokeCallbacks(l logr.Logger, s ReconcileState, desiredO
 	}
 
 	return nil
+}
+
+func setLabel(key, value string, obj metav1.Object) {
+	if obj.GetLabels() == nil {
+		obj.SetLabels(make(map[string]string))
+	}
+	obj.GetLabels()[key] = value
+}
+
+func setLastAppliedConfiguration(obj metav1.Object) error {
+	bytes, err := json.Marshal(obj)
+	if err != nil {
+		return err
+	}
+
+	if obj.GetAnnotations() == nil {
+		obj.SetAnnotations(make(map[string]string))
+	}
+
+	obj.GetAnnotations()[lastAppliedConfigAnnotation] = string(bytes)
+
+	return nil
+}
+
+func sameResource(obj1, obj2 runtime.Object) bool {
+	metaObj1 := obj1.(metav1.Object)
+	metaObj2 := obj2.(metav1.Object)
+
+	if reflect.TypeOf(obj1) != reflect.TypeOf(obj2) ||
+		metaObj1.GetNamespace() != metaObj2.GetNamespace() ||
+		metaObj1.GetName() != metaObj2.GetName() {
+		return false
+	}
+
+	return true
 }

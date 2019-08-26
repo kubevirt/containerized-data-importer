@@ -23,6 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 const (
@@ -259,5 +260,15 @@ func CreateService(name, matchKey, matchValue string) *corev1.Service {
 		Spec: corev1.ServiceSpec{
 			Selector: matchMap,
 		},
+	}
+}
+
+// ValidateGVKs makes sure all resources have initialized GVKs
+func ValidateGVKs(objects []runtime.Object) {
+	for _, obj := range objects {
+		gvk := obj.GetObjectKind().GroupVersionKind()
+		if gvk.Version == "" || gvk.Kind == "" {
+			panic(fmt.Sprintf("Uninitialized GVK for %+v", obj))
+		}
 	}
 }
