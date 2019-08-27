@@ -58,7 +58,6 @@ const (
 	// don't count on this always being called for your resource
 	// ideally we just let garbage collection do it's thing
 	ReconcileStatePreDelete ReconcileState = "PRE_DELETE"
-
 	// ReconcileStatePostDelete is the state after a resource is explicitly deleted (probably during upgrade)
 	// don't count on this always being called for your resource
 	// ideally we just let garbage collection do it's thing
@@ -77,8 +76,7 @@ type ReconcileCallbackArgs struct {
 	Client client.Client
 	Scheme *runtime.Scheme
 
-	State ReconcileState
-
+	State         ReconcileState
 	DesiredObject runtime.Object
 	CurrentObject runtime.Object
 }
@@ -98,10 +96,7 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 }
 
 func isControllerDeployment(d *appsv1.Deployment) bool {
-	if d.Name == "cdi-deployment" {
-		return true
-	}
-	return false
+	return d.Name == "cdi-deployment"
 }
 
 func reconcileDeleteControllerDeployment(args *ReconcileCallbackArgs) error {
@@ -111,7 +106,16 @@ func reconcileDeleteControllerDeployment(args *ReconcileCallbackArgs) error {
 		return nil
 	}
 
-	deployment := args.DesiredObject.(*appsv1.Deployment)
+	var deployment *appsv1.Deployment
+	if args.DesiredObject != nil {
+		deployment = args.DesiredObject.(*appsv1.Deployment)
+	} else if args.CurrentObject != nil {
+		deployment = args.CurrentObject.(*appsv1.Deployment)
+	} else {
+		args.Logger.Info("Received callback with no desired/current object")
+		return nil
+	}
+
 	if !isControllerDeployment(deployment) {
 		return nil
 	}
@@ -160,6 +164,8 @@ func reconcileServiceAccountRead(args *ReconcileCallbackArgs) error {
 	do := args.DesiredObject.(*corev1.ServiceAccount)
 	co := args.CurrentObject.(*corev1.ServiceAccount)
 
+	delete(co.Annotations, utils.SCCAnnotation)
+
 	val, exists := do.Annotations[utils.SCCAnnotation]
 	if exists {
 		if co.Annotations == nil {
@@ -179,10 +185,13 @@ func reconcileServiceAccounts(args *ReconcileCallbackArgs) error {
 	}
 
 	var sa *corev1.ServiceAccount
-	if args.State == ReconcileStatePostDelete {
+	if args.CurrentObject != nil {
 		sa = args.CurrentObject.(*corev1.ServiceAccount)
-	} else {
+	} else if args.DesiredObject != nil {
 		sa = args.DesiredObject.(*corev1.ServiceAccount)
+	} else {
+		args.Logger.Info("Received callback with no desired/current object")
+		return nil
 	}
 
 	desiredSCCs := []string{}

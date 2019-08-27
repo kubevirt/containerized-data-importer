@@ -73,7 +73,7 @@ func ensureUploadProxyRouteExists(logger logr.Logger, c client.Client, scheme *r
 
 	cert, exists := secret.Data["tls.crt"]
 	if !exists {
-		return fmt.Errorf("Unexpected secret format, 'tls.crt' key missing")
+		return fmt.Errorf("unexpected secret format, 'tls.crt' key missing")
 	}
 
 	route := &routev1.Route{

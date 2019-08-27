@@ -18,14 +18,20 @@ package controller
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"reflect"
 	"strings"
 
-	"github.com/appscode/jsonpatch"
+	jsondiff "github.com/appscode/jsonpatch"
+	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/go-logr/logr"
+
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/jsonmergepatch"
+	"k8s.io/apimachinery/pkg/util/mergepatch"
 )
 
 func mergeLabelsAndAnnotations(src, dest metav1.Object) {
@@ -49,29 +55,52 @@ func mergeLabelsAndAnnotations(src, dest metav1.Object) {
 }
 
 func mergeObject(desiredObj, currentObj runtime.Object) (runtime.Object, error) {
-	// copy labels/annotations that may have been merged above
-	desiredRuntimeObjCopy := desiredObj.DeepCopyObject()
-	currentRuntimeObjCopy := currentObj.DeepCopyObject()
+	desiredObj = desiredObj.DeepCopyObject()
+	desiredMetaObj := desiredObj.(metav1.Object)
+	currentMetaObj := currentObj.(metav1.Object)
 
-	desiredMetaObjCopy := desiredRuntimeObjCopy.(metav1.Object)
-	currentMetaObjCopy := currentRuntimeObjCopy.(metav1.Object)
+	v, ok := currentMetaObj.GetAnnotations()[lastAppliedConfigAnnotation]
+	if !ok {
+		return nil, fmt.Errorf("%T %s/%s missing last applied config",
+			currentMetaObj, currentMetaObj.GetNamespace(), currentMetaObj.GetName())
+	}
 
-	desiredMetaObjCopy.SetLabels(currentMetaObjCopy.GetLabels())
-	desiredMetaObjCopy.SetAnnotations(currentMetaObjCopy.GetAnnotations())
+	original := []byte(v)
 
-	// for some reason, null creationTimestamp gets encoded
-	desiredMetaObjCopy.SetCreationTimestamp(currentMetaObjCopy.GetCreationTimestamp())
-
-	desiredBytes, err := json.Marshal(desiredRuntimeObjCopy)
+	// setting the timestamp saves unnecessary updates because creation timestamp is nulled
+	desiredMetaObj.SetCreationTimestamp(currentMetaObj.GetCreationTimestamp())
+	modified, err := json.Marshal(desiredObj)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = json.Unmarshal(desiredBytes, currentRuntimeObjCopy); err != nil {
+	current, err := json.Marshal(currentObj)
+	if err != nil {
 		return nil, err
 	}
 
-	return currentRuntimeObjCopy, nil
+	preconditions := []mergepatch.PreconditionFunc{
+		mergepatch.RequireKeyUnchanged("apiVersion"),
+		mergepatch.RequireKeyUnchanged("kind"),
+		mergepatch.RequireMetadataKeyUnchanged("name"),
+	}
+
+	patch, err := jsonmergepatch.CreateThreeWayJSONMergePatch(original, modified, current, preconditions...)
+	if err != nil {
+		return nil, err
+	}
+
+	newCurrent, err := jsonpatch.MergePatch(current, patch)
+	if err != nil {
+		return nil, err
+	}
+
+	result := newDefaultInstance(currentObj)
+	if err = json.Unmarshal(newCurrent, result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func deployClusterResources() bool {
@@ -81,7 +110,7 @@ func deployClusterResources() bool {
 func logJSONDiff(logger logr.Logger, objA, objB interface{}) {
 	aBytes, _ := json.Marshal(objA)
 	bBytes, _ := json.Marshal(objB)
-	patches, _ := jsonpatch.CreatePatch(aBytes, bBytes)
+	patches, _ := jsondiff.CreatePatch(aBytes, bBytes)
 	pBytes, _ := json.Marshal(patches)
 	logger.Info("DIFF", "obj", objA, "patch", string(pBytes))
 }
@@ -98,4 +127,9 @@ func checkDeploymentReady(deployment *appsv1.Deployment) bool {
 	}
 
 	return true
+}
+
+func newDefaultInstance(obj runtime.Object) runtime.Object {
+	typ := reflect.ValueOf(obj).Elem().Type()
+	return reflect.New(typ).Interface().(runtime.Object)
 }
