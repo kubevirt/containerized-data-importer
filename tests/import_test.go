@@ -99,7 +99,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	It("Should create import pod for blank raw image", func() {
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
 			"create-image",
-			"1G",
+			"1Gi",
 			map[string]string{controller.AnnSource: controller.SourceNone, controller.AnnContentType: string(cdiv1.DataVolumeKubeVirt)},
 			nil))
 		Expect(err).ToNot(HaveOccurred())
@@ -153,7 +153,7 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.qcow2"))
-		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-e2e", "20M", pvcAnn, nil))
+		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-e2e", "20Mi", pvcAnn, nil))
 		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
 
 		importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
@@ -244,7 +244,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 
 		pvc, err = f.CreatePVCFromDefinition(utils.NewBlockPVCDefinition(
 			"import-image-to-block-pvc",
-			"500M",
+			"500Mi",
 			pvcAnn,
 			nil,
 			f.BlockSCName))
@@ -279,7 +279,7 @@ var _ = Describe("[rfe_id:1947][crit:high][test_id:2145][vendor:cnv-qe@redhat.co
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/archive.tar"))
-		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-archive", "100M", pvcAnn, nil))
+		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-archive", "100Mi", pvcAnn, nil))
 		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
 
 		By("Verify the pod status is succeeded on the target PVC")
