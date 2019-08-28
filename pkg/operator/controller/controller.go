@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/kelseyhightower/envconfig"
+	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
@@ -159,11 +160,16 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 		// let's try to create stuff
 		if cr.Status.Phase == "" {
 			reqLogger.Info("Doing reconcile create")
-			return r.reconcileCreate(reqLogger, cr)
+			res, createErr := r.reconcileCreate(reqLogger, cr)
+			// Always update conditions after a create.
+			err = r.client.Update(context.TODO(), cr)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			return res, createErr
 		}
 
 		reqLogger.Info("Reconciling to error state, no configmap")
-
 		// we are in a weird state
 		return r.reconcileError(reqLogger, cr)
 	}
@@ -171,14 +177,27 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 	// do we even care about this CR?
 	if !metav1.IsControlledBy(configMap, cr) {
 		reqLogger.Info("Reconciling to error state, unwanted CDI object")
-
 		return r.reconcileError(reqLogger, cr)
 	}
 
+	currentConditionValues := GetConditionValues(cr.Status.Conditions)
 	reqLogger.Info("Doing reconcile update")
 
-	// should be the usual case
-	return r.reconcileUpdate(reqLogger, cr)
+	existingAvailableCondition := conditions.FindStatusCondition(cr.Status.Conditions, conditions.ConditionAvailable)
+	if existingAvailableCondition != nil {
+		// should be the usual case
+		MarkCrHealthyMessage(cr, existingAvailableCondition.Reason, existingAvailableCondition.Message)
+	} else {
+		MarkCrHealthyMessage(cr, "", "")
+	}
+
+	res, err := r.reconcileUpdate(reqLogger, cr)
+	if conditionsChanged(currentConditionValues, GetConditionValues(cr.Status.Conditions)) {
+		if err := r.crUpdate(cr.Status.Phase, cr); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+	return res, err
 }
 
 func shouldTakeUpdatePath(logger logr.Logger, targetVersion, currentVersion string) (bool, error) {
@@ -219,14 +238,17 @@ func shouldTakeUpdatePath(logger logr.Logger, targetVersion, currentVersion stri
 }
 
 func (r *ReconcileCDI) reconcileCreate(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
+	MarkCrDeploying(cr, "DeployStarted", "Started Deployment")
 	// claim the configmap
 	if err := r.createConfigMap(cr); err != nil {
+		MarkCrFailed(cr, "ConfigError", "Unable to claim ConfigMap")
 		return reconcile.Result{}, err
 	}
 
 	logger.Info("ConfigMap created successfully")
 
 	if err := r.crInit(cr); err != nil {
+		MarkCrFailed(cr, "CrInitError", "Unable to Initialize CR")
 		return reconcile.Result{}, err
 	}
 
@@ -251,9 +273,9 @@ func (r *ReconcileCDI) checkUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) err
 
 	if isUpgrade && !r.isUpgrading(cr) {
 		logger.Info("Observed version is not target version. Begin upgrade", "Observed version ", cr.Status.ObservedVersion, "TargetVersion", r.namespacedArgs.DockerTag)
+		MarkCrUpgradeHealingDegraded(cr, "UpgradeStarted", fmt.Sprintf("Started upgrade to version %s", r.namespacedArgs.DockerTag))
 		cr.Status.TargetVersion = r.namespacedArgs.DockerTag
-		//Here phase has to be upgrading - this is to be handled in dedicated pr
-		if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeploying, cr); err != nil {
+		if err := r.crUpdate(cdiv1alpha1.CDIPhaseUpgrading, cr); err != nil {
 			return err
 		}
 	}
@@ -371,6 +393,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	if cr.Status.Phase != cdiv1alpha1.CDIPhaseDeployed && !r.isUpgrading(cr) {
 		//We are not moving to Deployed phase until new operator deployment is ready in case of Upgrade
 		cr.Status.ObservedVersion = r.namespacedArgs.DockerTag
+		MarkCrHealthyMessage(cr, "DeployCompleted", "Deployment Completed")
 		if err = r.crUpdate(cdiv1alpha1.CDIPhaseDeployed, cr); err != nil {
 			return reconcile.Result{}, err
 		}
@@ -378,20 +401,16 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		logger.Info("Successfully entered Deployed state")
 	}
 
-	ready, err := r.checkReady(logger, cr)
+	degraded, err := r.checkDegraded(logger, cr)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	if ready {
-		logger.Info("Operator is ready!!")
+	if !degraded && r.isUpgrading(cr) {
+		logger.Info("Completing upgrade process...")
 
-		if r.isUpgrading(cr) {
-			logger.Info("Completing upgrade process...")
-
-			if err = r.completeUpgrade(logger, cr); err != nil {
-				return reconcile.Result{}, err
-			}
+		if err = r.completeUpgrade(logger, cr); err != nil {
+			return reconcile.Result{}, err
 		}
 	}
 
@@ -406,6 +425,7 @@ func (r *ReconcileCDI) completeUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	previousVersion := cr.Status.ObservedVersion
 	cr.Status.ObservedVersion = r.namespacedArgs.DockerTag
 
+	MarkCrHealthyMessage(cr, "DeployCompleted", "Deployment Completed")
 	if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeployed, cr); err != nil {
 		return err
 	}
@@ -530,6 +550,10 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 }
 
 func (r *ReconcileCDI) reconcileError(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
+	MarkCrFailed(cr, "ConfigError", "ConfigMap not owned by cr")
+	if err := r.crUpdate(cr.Status.Phase, cr); err != nil {
+		return reconcile.Result{}, err
+	}
 	if err := r.crError(cr); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -537,34 +561,43 @@ func (r *ReconcileCDI) reconcileError(logger logr.Logger, cr *cdiv1alpha1.CDI) (
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileCDI) checkReady(logger logr.Logger, cr *cdiv1alpha1.CDI) (bool, error) {
-	readyCond := conditionReady
+func (r *ReconcileCDI) checkDegraded(logger logr.Logger, cr *cdiv1alpha1.CDI) (bool, error) {
+	degraded := false
 
 	deployments, err := r.getAllDeployments(cr)
 	if err != nil {
-		return false, err
+		return true, err
 	}
 
 	for _, deployment := range deployments {
 		key := client.ObjectKey{Namespace: deployment.Namespace, Name: deployment.Name}
 
 		if err = r.client.Get(context.TODO(), key, deployment); err != nil {
-			return false, err
+			return true, err
 		}
 
 		if !checkDeploymentReady(deployment) {
-			readyCond = conditionNotReady
+			degraded = true
 			break
 		}
 	}
 
-	logger.Info("CDI Ready check", "Status", readyCond.Status)
+	logger.Info("CDI degraded check", "Degraded", degraded)
 
-	if err = r.conditionUpdate(readyCond, cr); err != nil {
-		return false, err
+	if degraded {
+		conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
+			Type:   conditions.ConditionDegraded,
+			Status: corev1.ConditionTrue,
+		})
+	} else {
+		conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
+			Type:   conditions.ConditionDegraded,
+			Status: corev1.ConditionFalse,
+		})
 	}
 
-	return readyCond == conditionReady, nil
+	logger.Info("Finished degraded check", "conditions", cr.Status.Conditions)
+	return degraded, nil
 }
 
 func (r *ReconcileCDI) add(mgr manager.Manager) error {
@@ -679,6 +712,7 @@ func (r *ReconcileCDI) getAllResources(cr *cdiv1alpha1.CDI) ([]runtime.Object, e
 	if deployClusterResources() {
 		crs, err := cdicluster.CreateAllResources(r.clusterArgs)
 		if err != nil {
+			MarkCrFailedHealing(cr, "CreateResources", "Unable to create all resources")
 			return nil, err
 		}
 
@@ -687,6 +721,7 @@ func (r *ReconcileCDI) getAllResources(cr *cdiv1alpha1.CDI) ([]runtime.Object, e
 
 	nsrs, err := cdinamespaced.CreateAllResources(r.getNamespacedArgs(cr))
 	if err != nil {
+		MarkCrFailedHealing(cr, "CreateNamespaceResources", "Unable to create all namespaced resources")
 		return nil, err
 	}
 

@@ -44,6 +44,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
+	conditions "github.com/openshift/custom-resource-status/conditions/v1"
+
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
 	"k8s.io/client-go/kubernetes/scheme"
@@ -159,8 +161,11 @@ var _ = Describe("Controller", func() {
 				Expect(args.cdi.Status.TargetVersion).Should(Equal(version))
 				Expect(args.cdi.Status.ObservedVersion).Should(Equal(version))
 
-				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
-				Expect(args.cdi.Status.Conditions).Should(BeEmpty())
+				Expect(args.cdi.Status.Conditions).Should(HaveLen(3))
+				Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
+				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
+				// We will expect degraded status, because in the test the deployment.status.replicas will not be 1, when the desired is 1.
+				Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
 
 				Expect(args.cdi.Finalizers).Should(HaveLen(1))
 			})
@@ -211,6 +216,7 @@ var _ = Describe("Controller", func() {
 			})
 
 			It("should become ready", func() {
+				one := int32(1)
 				args := createArgs()
 				doReconcile(args)
 
@@ -225,6 +231,7 @@ var _ = Describe("Controller", func() {
 
 					numReplicas := d.Spec.Replicas
 					Expect(numReplicas).ToNot(BeNil())
+					Expect(numReplicas).To(Equal(&one))
 
 					d, err := getDeployment(args.client, d)
 					Expect(err).ToNot(HaveOccurred())
@@ -234,7 +241,11 @@ var _ = Describe("Controller", func() {
 
 					doReconcile(args)
 
-					Expect(args.cdi.Status.Conditions).Should(BeEmpty())
+					Expect(args.cdi.Status.Conditions).Should(HaveLen(3))
+					Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
+					Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
+					// We will expect degraded status, because in the test the deployment.status.replicas will not be 1, when the desired is 1.
+					Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
 				}
 
 				resources, err = getAllResources(args.reconciler)
@@ -259,9 +270,10 @@ var _ = Describe("Controller", func() {
 
 					doReconcile(args)
 
-					if len(args.cdi.Status.Conditions) == 1 &&
-						args.cdi.Status.Conditions[0].Type == cdiviaplha1.CDIConditionRunning &&
-						args.cdi.Status.Conditions[0].Status == corev1.ConditionTrue {
+					if len(args.cdi.Status.Conditions) == 3 &&
+						conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable) &&
+						conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing) &&
+						conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionDegraded) {
 						running = true
 					}
 				}
@@ -313,9 +325,10 @@ var _ = Describe("Controller", func() {
 
 				doReconcile(args)
 
-				Expect(args.cdi.Status.Conditions).Should(HaveLen(1))
-				Expect(args.cdi.Status.Conditions[0].Type).Should(Equal(cdiviaplha1.CDIConditionRunning))
-				Expect(args.cdi.Status.Conditions[0].Status).Should(Equal(corev1.ConditionTrue))
+				Expect(args.cdi.Status.Conditions).Should(HaveLen(3))
+				Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
+				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
+				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
 
 				for _, r := range resources {
 					var ok bool
@@ -333,9 +346,11 @@ var _ = Describe("Controller", func() {
 
 				doReconcile(args)
 
-				Expect(args.cdi.Status.Conditions).Should(HaveLen(1))
-				Expect(args.cdi.Status.Conditions[0].Type).Should(Equal(cdiviaplha1.CDIConditionRunning))
-				Expect(args.cdi.Status.Conditions[0].Status).Should(Equal(corev1.ConditionFalse))
+				Expect(args.cdi.Status.Conditions).Should(HaveLen(3))
+				Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
+				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
+				// Application should be degraded due to missing deployment pods (set to 0)
+				Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
 
 				deployment, err = getDeployment(args.client, deployment)
 				Expect(err).ToNot(HaveOccurred())
@@ -345,9 +360,10 @@ var _ = Describe("Controller", func() {
 
 				doReconcile(args)
 
-				Expect(args.cdi.Status.Conditions).Should(HaveLen(1))
-				Expect(args.cdi.Status.Conditions[0].Type).Should(Equal(cdiviaplha1.CDIConditionRunning))
-				Expect(args.cdi.Status.Conditions[0].Status).Should(Equal(corev1.ConditionTrue))
+				Expect(args.cdi.Status.Conditions).Should(HaveLen(3))
+				Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
+				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
+				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
 			})
 
 			It("does not modify insecure registry configmap", func() {
@@ -399,7 +415,10 @@ var _ = Describe("Controller", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(newInstance.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseError))
-				Expect(newInstance.Status.Conditions).Should(BeEmpty())
+				Expect(newInstance.Status.Conditions).Should(HaveLen(3))
+				Expect(conditions.IsStatusConditionFalse(newInstance.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
+				Expect(conditions.IsStatusConditionFalse(newInstance.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
+				Expect(conditions.IsStatusConditionTrue(newInstance.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
 			})
 
 			It("should succeed when we delete CDI", func() {
@@ -494,7 +513,7 @@ var _ = Describe("Controller", func() {
 				Expect(args.cdi.Status.OperatorVersion).Should(Equal(newVersion))
 				Expect(args.cdi.Status.ObservedVersion).Should(Equal(prevVersion))
 				Expect(args.cdi.Status.TargetVersion).Should(Equal(newVersion))
-				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeploying))
+				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseUpgrading))
 			} else {
 				//verify upgraded hasn't started
 				Expect(args.cdi.Status.OperatorVersion).Should(Equal(prevVersion))
@@ -646,7 +665,7 @@ var _ = Describe("Controller", func() {
 			doReconcile(args)
 
 			//verify upgraded has started
-			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeploying))
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseUpgrading))
 
 			//change deployment to ready
 			isReady := setDeploymentsReady(args)
@@ -1072,7 +1091,7 @@ var _ = Describe("Controller", func() {
 			doReconcile(args)
 
 			//verify upgraded has started
-			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeploying))
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseUpgrading))
 
 			//verify unused exists before upgrade is done
 			_, err = getObject(args.client, unusedObj)
@@ -1284,9 +1303,10 @@ func setDeploymentsReady(args *args) bool {
 
 		doReconcile(args)
 
-		if len(args.cdi.Status.Conditions) == 1 &&
-			args.cdi.Status.Conditions[0].Type == cdiviaplha1.CDIConditionRunning &&
-			args.cdi.Status.Conditions[0].Status == corev1.ConditionTrue {
+		if len(args.cdi.Status.Conditions) == 3 &&
+			conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable) &&
+			conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing) &&
+			conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionDegraded) {
 			running = true
 		}
 	}

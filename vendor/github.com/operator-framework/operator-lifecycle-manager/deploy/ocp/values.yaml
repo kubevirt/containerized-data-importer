@@ -1,0 +1,77 @@
+installType: ocp
+rbacApiVersion: rbac.authorization.k8s.io
+namespace: openshift-operator-lifecycle-manager
+catalog_namespace: openshift-marketplace
+operator_namespace: openshift-operators
+imagestream: true
+writeStatusName: operator-lifecycle-manager
+writeStatusNameCatalog: operator-lifecycle-manager-catalog
+writePackageServerStatusName: operator-lifecycle-manager-packageserver
+olm:
+  replicaCount: 1
+  image:
+    ref: quay.io/operator-framework/olm@sha256:f965474776bada158e4bf7be5c84b54460843e7478f06060990d2fdeb31b0b90
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 8080
+  nodeSelector:
+    beta.kubernetes.io/os: linux
+    node-role.kubernetes.io/master: ""
+  tolerations:
+  - key: node-role.kubernetes.io/master
+    operator: Exists
+    effect: NoSchedule
+  - key: node.kubernetes.io/unreachable
+    operator: Exists
+    effect: NoExecute
+    tolerationSeconds: 120
+  - key: node.kubernetes.io/not-ready
+    operator: Exists
+    effect: NoExecute
+    tolerationSeconds: 120
+  tlsCertPath: /var/run/secrets/serving-cert/tls.crt
+  tlsKeyPath: /var/run/secrets/serving-cert/tls.key
+catalog:
+  replicaCount: 1
+  image:
+    ref: quay.io/operator-framework/olm@sha256:f965474776bada158e4bf7be5c84b54460843e7478f06060990d2fdeb31b0b90
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 8080
+  nodeSelector:
+    beta.kubernetes.io/os: linux
+    node-role.kubernetes.io/master: ""
+  tolerations:
+  - key: node-role.kubernetes.io/master
+    operator: Exists
+    effect: NoSchedule
+  - key: node.kubernetes.io/unreachable
+    operator: Exists
+    effect: NoExecute
+    tolerationSeconds: 120
+  - key: node.kubernetes.io/not-ready
+    operator: Exists
+    effect: NoExecute
+    tolerationSeconds: 120
+package:
+  replicaCount: 2
+  image:
+    ref: quay.io/operator-framework/olm@sha256:f965474776bada158e4bf7be5c84b54460843e7478f06060990d2fdeb31b0b90
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 5443
+  nodeSelector:
+    beta.kubernetes.io/os: linux
+    node-role.kubernetes.io/master: ""
+  tolerations:
+  - key: node-role.kubernetes.io/master
+    operator: Exists
+    effect: NoSchedule
+  - key: node.kubernetes.io/unreachable
+    operator: Exists
+    effect: NoExecute
+    tolerationSeconds: 120
+  - key: node.kubernetes.io/not-ready
+    operator: Exists
+    effect: NoExecute
+    tolerationSeconds: 120
