@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/appscode/jsonpatch"
 	jp "github.com/evanphx/json-patch"
 	"github.com/stretchr/testify/assert"
-	"gomodules.xyz/jsonpatch/v2"
 )
 
 var simpleA = `{"a":100, "b":200, "c":"hello"}`
@@ -737,70 +737,6 @@ var (
 }`
 )
 
-var (
-	oldArray = `{
-  "apiVersion": "kubedb.com/v1alpha1",
-  "kind": "Elasticsearch",
-  "metadata": {
-    "name": "quick-elasticsearch",
-    "namespace": "demo"
-  },
-  "spec": {
-    "tolerations": [
-      {
-          "key": "node.kubernetes.io/key1",
-          "operator": "Equal",
-          "value": "value1",
-          "effect": "NoSchedule"
-      },
-      {
-          "key": "node.kubernetes.io/key2",
-          "operator": "Equal",
-          "value": "value2",
-          "effect": "NoSchedule"
-      },
-      {
-          "key": "node.kubernetes.io/not-ready",
-          "operator": "Exists",
-          "effect": "NoExecute",
-          "tolerationSeconds": 300
-      },
-      {
-          "key": "node.kubernetes.io/unreachable",
-          "operator": "Exists",
-          "effect": "NoExecute",
-          "tolerationSeconds": 300
-      }
-    ]
-  }
-}`
-
-	newArray = `{
-  "apiVersion": "kubedb.com/v1alpha1",
-  "kind": "Elasticsearch",
-  "metadata": {
-    "name": "quick-elasticsearch",
-    "namespace": "demo"
-  },
-  "spec": {
-    "tolerations": [
-      {
-          "key": "node.kubernetes.io/key2",
-          "operator": "Equal",
-          "value": "value2",
-          "effect": "NoSchedule"
-      },
-      {
-          "key": "node.kubernetes.io/key1",
-          "operator": "Equal",
-          "value": "value1",
-          "effect": "NoSchedule"
-      }
-    ]
-  }
-}`
-)
-
 func TestCreatePatch(t *testing.T) {
 	cases := []struct {
 		name string
@@ -841,12 +777,7 @@ func TestCreatePatch(t *testing.T) {
 		{"Kubernetes:Annotations", oldDeployment, newDeployment},
 		// crd with nested object
 		{"Nested Member Object", oldNestedObj, newNestedObj},
-		// array with different order
-		{"Different Array", oldArray, newArray},
-		{"Array at root", `[{"asdf":"qwerty"}]`, `[{"asdf":"bla"},{"asdf":"zzz"}]`},
-		{"Empty array at root", `[]`, `[{"asdf":"bla"},{"asdf":"zzz"}]`},
 	}
-
 	for _, c := range cases {
 		t.Run(c.name+"[src->dst]", func(t *testing.T) {
 			check(t, c.src, c.dst)

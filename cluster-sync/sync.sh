@@ -16,6 +16,7 @@ CDI_INSTALL_OLM="install-olm"
 CDI_INSTALL=${CDI_INSTALL:-${CDI_INSTALL_OPERATOR}}
 CDI_INSTALL_TIMEOUT=${CDI_INSTALL_TIMEOUT:-120}
 CDI_NAMESPACE=${CDI_NAMESPACE:-cdi}
+CDI_INSTALL_TIMEOUT=${CDI_INSTALL_TIMEOUT:-120}
 
 # Set controller verbosity to 3 for functional tests.
 export VERBOSITY=3
@@ -50,7 +51,7 @@ install_cdi
 wait_cdi_crd_installed $CDI_INSTALL_TIMEOUT
 
 _kubectl apply -f "./_out/manifests/release/cdi-cr.yaml"
-_kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=running --timeout=120s
+_kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=120s
 
 
 # Start functional test HTTP server.

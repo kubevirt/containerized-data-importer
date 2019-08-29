@@ -45,10 +45,13 @@ type testStruct struct {
 	Name         string `ini:"NAME"`
 	Age          int
 	Male         bool
+	Optional     *bool
 	Money        float64
 	Born         time.Time
 	Time         time.Duration `ini:"Duration"`
 	Others       testNested
+	OthersPtr    *testNested
+	NilPtr       *testNested
 	*TestEmbeded `ini:"grade"`
 	Unused       int `ini:"-"`
 	Unsigned     uint
@@ -61,6 +64,7 @@ const _CONF_DATA_STRUCT = `
 NAME = Unknwon
 Age = 21
 Male = true
+Optional = true
 Money = 1.25
 Born = 1993-10-07T20:17:05Z
 Duration = 2h45m
@@ -70,6 +74,16 @@ Shadows = 1, 2
 Shadows = 3, 4
 
 [Others]
+Cities = HangZhou|Boston
+Visits = 1993-10-07T20:17:05Z, 1993-10-07T20:17:05Z
+Years = 1993,1994
+Numbers = 10010,10086
+Ages = 18,19
+Populations = 12345678,98765432
+Coordinates = 192.168,10.11
+Note = Hello world!
+
+[OthersPtr]
 Cities = HangZhou|Boston
 Visits = 1993-10-07T20:17:05Z, 1993-10-07T20:17:05Z
 Years = 1993,1994
@@ -106,12 +120,13 @@ type unsupport4 struct {
 }
 
 type defaultValue struct {
-	Name   string
-	Age    int
-	Male   bool
-	Money  float64
-	Born   time.Time
-	Cities []string
+	Name     string
+	Age      int
+	Male     bool
+	Optional *bool
+	Money    float64
+	Born     time.Time
+	Cities   []string
 }
 
 type fooBar struct {
@@ -136,6 +151,7 @@ func Test_MapToStruct(t *testing.T) {
 			So(ts.Name, ShouldEqual, "Unknwon")
 			So(ts.Age, ShouldEqual, 21)
 			So(ts.Male, ShouldBeTrue)
+			So(*ts.Optional, ShouldBeTrue)
 			So(ts.Money, ShouldEqual, 1.25)
 			So(ts.Unsigned, ShouldEqual, 3)
 
@@ -156,6 +172,17 @@ func Test_MapToStruct(t *testing.T) {
 			So(fmt.Sprint(ts.Others.Coordinates), ShouldEqual, "[192.168 10.11]")
 			So(ts.Others.Note, ShouldEqual, "Hello world!")
 			So(ts.TestEmbeded.GPA, ShouldEqual, 2.8)
+
+			So(strings.Join(ts.OthersPtr.Cities, ","), ShouldEqual, "HangZhou,Boston")
+			So(ts.OthersPtr.Visits[0].String(), ShouldEqual, t.String())
+			So(fmt.Sprint(ts.OthersPtr.Years), ShouldEqual, "[1993 1994]")
+			So(fmt.Sprint(ts.OthersPtr.Numbers), ShouldEqual, "[10010 10086]")
+			So(fmt.Sprint(ts.OthersPtr.Ages), ShouldEqual, "[18 19]")
+			So(fmt.Sprint(ts.OthersPtr.Populations), ShouldEqual, "[12345678 98765432]")
+			So(fmt.Sprint(ts.OthersPtr.Coordinates), ShouldEqual, "[192.168 10.11]")
+			So(ts.OthersPtr.Note, ShouldEqual, "Hello world!")
+
+			So(ts.NilPtr, ShouldBeNil)
 		})
 
 		Convey("Map section to struct", func() {
@@ -219,7 +246,7 @@ func Test_MapToStruct(t *testing.T) {
 
 			t, err := time.Parse(time.RFC3339, "1993-10-07T20:17:05Z")
 			So(err, ShouldBeNil)
-			dv := &defaultValue{"Joe", 10, true, 1.25, t, []string{"HangZhou", "Boston"}}
+			dv := &defaultValue{"Joe", 10, true, nil, 1.25, t, []string{"HangZhou", "Boston"}}
 			So(f.MapTo(dv), ShouldBeNil)
 			So(dv.Name, ShouldEqual, "Joe")
 			So(dv.Age, ShouldEqual, 10)
@@ -275,6 +302,7 @@ func Test_ReflectFromStruct(t *testing.T) {
 		type Author struct {
 			Name      string `ini:"NAME"`
 			Male      bool
+			Optional  *bool
 			Age       int `comment:"Author's age"`
 			Height    uint
 			GPA       float64
@@ -285,7 +313,7 @@ func Test_ReflectFromStruct(t *testing.T) {
 
 		t, err := time.Parse(time.RFC3339, "1993-10-07T20:17:05Z")
 		So(err, ShouldBeNil)
-		a := &Author{"Unknwon", true, 21, 100, 2.8, t, "",
+		a := &Author{"Unknwon", true, nil, 21, 100, 2.8, t, "",
 			&Embeded{
 				[]time.Time{t, t},
 				[]string{"HangZhou", "Boston"},
@@ -302,13 +330,14 @@ func Test_ReflectFromStruct(t *testing.T) {
 		var buf bytes.Buffer
 		_, err = cfg.WriteTo(&buf)
 		So(err, ShouldBeNil)
-		So(buf.String(), ShouldEqual, `NAME   = Unknwon
-Male   = true
+		So(buf.String(), ShouldEqual, `NAME     = Unknwon
+Male     = true
+Optional =
 ; Author's age
-Age    = 21
-Height = 100
-GPA    = 2.8
-Date   = 1993-10-07T20:17:05Z
+Age      = 21
+Height   = 100
+GPA      = 2.8
+Date     = 1993-10-07T20:17:05Z
 
 ; Embeded section
 [infos]
@@ -349,6 +378,40 @@ omitempty  = 9
 
 `)
 		})
+	})
+}
+
+// Inspired by https://github.com/go-ini/ini/issues/196
+func TestMapToAndReflectFromStructWithShadows(t *testing.T) {
+	Convey("Map to struct and then reflect with shadows should generate original config content", t, func() {
+		type include struct {
+			Paths []string `ini:"path,omitempty,allowshadow"`
+		}
+
+		cfg, err := ini.LoadSources(ini.LoadOptions{
+			AllowShadows: true,
+		}, []byte(`
+[include]
+path = /tmp/gpm-profiles/test5.profile
+path = /tmp/gpm-profiles/test1.profile`))
+		So(err, ShouldBeNil)
+
+		sec := cfg.Section("include")
+		inc := new(include)
+		err = sec.MapTo(inc)
+		So(err, ShouldBeNil)
+
+		err = sec.ReflectFrom(inc)
+		So(err, ShouldBeNil)
+
+		var buf bytes.Buffer
+		_, err = cfg.WriteTo(&buf)
+		So(err, ShouldBeNil)
+		So(buf.String(), ShouldEqual, `[include]
+path = /tmp/gpm-profiles/test5.profile
+path = /tmp/gpm-profiles/test1.profile
+
+`)
 	})
 }
 

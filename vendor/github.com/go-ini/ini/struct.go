@@ -29,8 +29,8 @@ type NameMapper func(string) string
 
 // Built-in name getters.
 var (
-	// AllCapsUnderscore converts to format ALL_CAPS_UNDERSCORE.
-	AllCapsUnderscore NameMapper = func(raw string) string {
+	// SnackCase converts to format SNACK_CASE.
+	SnackCase NameMapper = func(raw string) string {
 		newstr := make([]rune, 0, len(raw))
 		for i, chr := range raw {
 			if isUpper := 'A' <= chr && chr <= 'Z'; isUpper {
@@ -50,7 +50,7 @@ var (
 				if i > 0 {
 					newstr = append(newstr, '_')
 				}
-				chr -= ('A' - 'a')
+				chr -= 'A' - 'a'
 			}
 			newstr = append(newstr, chr)
 		}
@@ -149,7 +149,7 @@ func wrapStrictError(err error, isStrict bool) error {
 
 // setWithProperType sets proper value to field based on its type,
 // but it does not return error for failing parsing,
-// because we want to use default value that is already assigned to strcut.
+// because we want to use default value that is already assigned to struct.
 func setWithProperType(t reflect.Type, key *Key, field reflect.Value, delim string, allowShadow, isStrict bool) error {
 	switch t.Kind() {
 	case reflect.String:
@@ -205,6 +205,17 @@ func setWithProperType(t reflect.Type, key *Key, field reflect.Value, delim stri
 		field.Set(reflect.ValueOf(timeVal))
 	case reflect.Slice:
 		return setSliceWithProperType(key, field, delim, allowShadow, isStrict)
+	case reflect.Ptr:
+		switch t.Elem().Kind() {
+		case reflect.Bool:
+			boolVal, err := key.Bool()
+			if err != nil {
+				return wrapStrictError(err, isStrict)
+			}
+			field.Set(reflect.ValueOf(&boolVal))
+		default:
+			return fmt.Errorf("unsupported type '%s'", t)
+		}
 	default:
 		return fmt.Errorf("unsupported type '%s'", t)
 	}
@@ -244,14 +255,21 @@ func (s *Section) mapTo(val reflect.Value, isStrict bool) error {
 			continue
 		}
 
-		isAnonymous := tpField.Type.Kind() == reflect.Ptr && tpField.Anonymous
 		isStruct := tpField.Type.Kind() == reflect.Struct
+		isStructPtr := tpField.Type.Kind() == reflect.Ptr && tpField.Type.Elem().Kind() == reflect.Struct
+		isAnonymous := tpField.Type.Kind() == reflect.Ptr && tpField.Anonymous
 		if isAnonymous {
 			field.Set(reflect.New(tpField.Type.Elem()))
 		}
 
-		if isAnonymous || isStruct {
+		if isAnonymous || isStruct || isStructPtr {
 			if sec, err := s.f.GetSection(fieldName); err == nil {
+				// Only set the field to non-nil struct value if we have
+				// a section for it. Otherwise, we end up with a non-nil
+				// struct ptr even though there is no data.
+				if isStructPtr && field.IsNil() {
+					field.Set(reflect.New(tpField.Type.Elem()))
+				}
 				if err = sec.mapTo(field, isStrict); err != nil {
 					return fmt.Errorf("error mapping field(%s): %v", fieldName, err)
 				}
@@ -342,14 +360,43 @@ func StrictMapTo(v, source interface{}, others ...interface{}) error {
 }
 
 // reflectSliceWithProperType does the opposite thing as setSliceWithProperType.
-func reflectSliceWithProperType(key *Key, field reflect.Value, delim string) error {
+func reflectSliceWithProperType(key *Key, field reflect.Value, delim string, allowShadow bool) error {
 	slice := field.Slice(0, field.Len())
 	if field.Len() == 0 {
 		return nil
 	}
+	sliceOf := field.Type().Elem().Kind()
+
+	if allowShadow {
+		var keyWithShadows *Key
+		for i := 0; i < field.Len(); i++ {
+			var val string
+			switch sliceOf {
+			case reflect.String:
+				val = slice.Index(i).String()
+			case reflect.Int, reflect.Int64:
+				val = fmt.Sprint(slice.Index(i).Int())
+			case reflect.Uint, reflect.Uint64:
+				val = fmt.Sprint(slice.Index(i).Uint())
+			case reflect.Float64:
+				val = fmt.Sprint(slice.Index(i).Float())
+			case reflectTime:
+				val = slice.Index(i).Interface().(time.Time).Format(time.RFC3339)
+			default:
+				return fmt.Errorf("unsupported type '[]%s'", sliceOf)
+			}
+
+			if i == 0 {
+				keyWithShadows = newKey(key.s, key.name, val)
+			} else {
+				keyWithShadows.AddShadow(val)
+			}
+		}
+		key = keyWithShadows
+		return nil
+	}
 
 	var buf bytes.Buffer
-	sliceOf := field.Type().Elem().Kind()
 	for i := 0; i < field.Len(); i++ {
 		switch sliceOf {
 		case reflect.String:
@@ -367,12 +414,12 @@ func reflectSliceWithProperType(key *Key, field reflect.Value, delim string) err
 		}
 		buf.WriteString(delim)
 	}
-	key.SetValue(buf.String()[:buf.Len()-1])
+	key.SetValue(buf.String()[:buf.Len()-len(delim)])
 	return nil
 }
 
 // reflectWithProperType does the opposite thing as setWithProperType.
-func reflectWithProperType(t reflect.Type, key *Key, field reflect.Value, delim string) error {
+func reflectWithProperType(t reflect.Type, key *Key, field reflect.Value, delim string, allowShadow bool) error {
 	switch t.Kind() {
 	case reflect.String:
 		key.SetValue(field.String())
@@ -387,7 +434,11 @@ func reflectWithProperType(t reflect.Type, key *Key, field reflect.Value, delim 
 	case reflectTime:
 		key.SetValue(fmt.Sprint(field.Interface().(time.Time).Format(time.RFC3339)))
 	case reflect.Slice:
-		return reflectSliceWithProperType(key, field, delim)
+		return reflectSliceWithProperType(key, field, delim, allowShadow)
+	case reflect.Ptr:
+		if !field.IsNil() {
+			return reflectWithProperType(t.Elem(), key, field.Elem(), delim, allowShadow)
+		}
 	default:
 		return fmt.Errorf("unsupported type '%s'", t)
 	}
@@ -432,12 +483,12 @@ func (s *Section) reflectFrom(val reflect.Value) error {
 			continue
 		}
 
-		opts := strings.SplitN(tag, ",", 2)
-		if len(opts) == 2 && opts[1] == "omitempty" && isEmptyValue(field) {
+		rawName, omitEmpty, allowShadow := parseTagOptions(tag)
+		if omitEmpty && isEmptyValue(field) {
 			continue
 		}
 
-		fieldName := s.parseFieldName(tpField.Name, opts[0])
+		fieldName := s.parseFieldName(tpField.Name, rawName)
 		if len(fieldName) == 0 || !field.CanSet() {
 			continue
 		}
@@ -473,7 +524,7 @@ func (s *Section) reflectFrom(val reflect.Value) error {
 			key.Comment = tpField.Tag.Get("comment")
 		}
 
-		if err = reflectWithProperType(tpField.Type, key, field, parseDelim(tpField.Tag.Get("delim"))); err != nil {
+		if err = reflectWithProperType(tpField.Type, key, field, parseDelim(tpField.Tag.Get("delim")), allowShadow); err != nil {
 			return fmt.Errorf("error reflecting field (%s): %v", fieldName, err)
 		}
 
