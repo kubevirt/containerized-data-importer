@@ -64,3 +64,7 @@ import:
   version: rebase-1.13.4
 - package: github.com/kubernetes-csi/external-snapshotter/pkg/apis
   version: e49856eb417cbafa51e5a3fb3bd0ac9e31ab1873
+- package: github.com/openshift/custom-resource-status
+  version: e62f2f3b79f33792b153e767811f420c1d457b31
+- package: github.com/appscode/jsonpatch
+  version: release-1.0

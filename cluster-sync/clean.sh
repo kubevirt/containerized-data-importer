@@ -9,7 +9,7 @@ echo "Cleaning up ..."
 OPERATOR_CR_MANIFEST=./_out/manifests/release/cdi-cr.yaml
 OPERATOR_MANIFEST=./_out/manifests/release/cdi-operator.yaml
 LABELS=("operator.cdi.kubevirt.io" "cdi.kubevirt.io" "prometheus.cdi.kubevirt.io")
-NAMESPACES=(default cdi)
+NAMESPACES=(default kube-system cdi)
 
 set +e
 _kubectl patch cdi cdi --type=json -p '[{ "op": "remove", "path": "/metadata/finalizers" }]'
@@ -30,7 +30,7 @@ fi
 
 # Everything should be deleted by now, but just to be sure
 for n in ${NAMESPACES[@]}; do
-  for label in ${labels[@]}; do
+  for label in ${LABELS[@]}; do
     _kubectl -n ${n} delete deployment -l ${label}
     _kubectl -n ${n} delete services -l ${label}
     _kubectl -n ${n} delete secrets -l ${label}
@@ -38,12 +38,12 @@ for n in ${NAMESPACES[@]}; do
     _kubectl -n ${n} delete pvc -l ${label}
     _kubectl -n ${n} delete pods -l ${label}
     _kubectl -n ${n} delete rolebinding -l ${label}
-    _kubectl -n ${n} delete roles -l ${lbael}
+    _kubectl -n ${n} delete roles -l ${label}
     _kubectl -n ${n} delete serviceaccounts -l ${label}
   done
 done
 
-for label in ${labels[@]}; do
+for label in ${LABELS[@]}; do
     _kubectl delete pv -l ${label}
     _kubectl delete validatingwebhookconfiguration -l ${label}
     _kubectl delete clusterrolebinding -l ${label}

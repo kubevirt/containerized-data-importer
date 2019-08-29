@@ -274,9 +274,13 @@ var _ = Describe("Report Progress", func() {
 var _ = Describe("quantity to qemu", func() {
 	It("Should properly parse quantity to qemu", func() {
 		result := convertQuantityToQemuSize(resource.MustParse("1Gi"))
-		Expect(result).To(Equal("1G"))
+		Expect(result).To(Equal("1073741824"))
+		result = convertQuantityToQemuSize(resource.MustParse("1G"))
+		Expect(result).To(Equal("1000000000"))
 		result = convertQuantityToQemuSize(resource.MustParse("10Ki"))
-		Expect(result).To(Equal("10k"))
+		Expect(result).To(Equal("10240"))
+		result = convertQuantityToQemuSize(resource.MustParse("10k"))
+		Expect(result).To(Equal("10000"))
 	})
 })
 

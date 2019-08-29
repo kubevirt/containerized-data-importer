@@ -18,6 +18,12 @@ package controller
 
 import (
 	"context"
+	generrors "errors"
+	"fmt"
+
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
+	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
+
 	"os"
 	"reflect"
 	"strings"
@@ -34,8 +40,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+
+	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
@@ -44,6 +53,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	realClient "sigs.k8s.io/controller-runtime/pkg/client"
 	fakeClient "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -88,6 +98,12 @@ func init() {
 	secv1.Install(scheme.Scheme)
 	routev1.Install(scheme.Scheme)
 }
+
+type modifyResource func(toModify runtime.Object) (runtime.Object, runtime.Object, error)
+type isModifySubject func(resource runtime.Object) bool
+type isUpgraded func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool
+
+type createUnusedObject func() (runtime.Object, error)
 
 var _ = Describe("Controller", func() {
 	Describe("controller runtime bootstrap test", func() {
@@ -145,8 +161,11 @@ var _ = Describe("Controller", func() {
 				Expect(args.cdi.Status.TargetVersion).Should(Equal(version))
 				Expect(args.cdi.Status.ObservedVersion).Should(Equal(version))
 
-				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
-				Expect(args.cdi.Status.Conditions).Should(BeEmpty())
+				Expect(args.cdi.Status.Conditions).Should(HaveLen(3))
+				Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
+				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
+				// We will expect degraded status, because in the test the deployment.status.replicas will not be 1, when the desired is 1.
+				Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
 
 				Expect(args.cdi.Finalizers).Should(HaveLen(1))
 			})
@@ -169,14 +188,10 @@ var _ = Describe("Controller", func() {
 				args := createArgs()
 				doReconcile(args)
 
-				expectedUsers := namespaceResources.GetPrivilegedAccounts(args.reconciler.namespacedArgs)
-				Expect(expectedUsers).To(HaveLen(1))
-				Expect(expectedUsers).To(HaveKey("anyuid"))
-
 				args.scc, err = getSCC(args.client, args.scc)
 				Expect(err).ToNot(HaveOccurred())
 
-				for _, eu := range expectedUsers["anyuid"] {
+				for _, eu := range []string{"system:serviceaccount:cdi:cdi-sa"} {
 					found := false
 					for _, au := range args.scc.Users {
 						if eu == au {
@@ -201,6 +216,7 @@ var _ = Describe("Controller", func() {
 			})
 
 			It("should become ready", func() {
+				one := int32(1)
 				args := createArgs()
 				doReconcile(args)
 
@@ -215,6 +231,7 @@ var _ = Describe("Controller", func() {
 
 					numReplicas := d.Spec.Replicas
 					Expect(numReplicas).ToNot(BeNil())
+					Expect(numReplicas).To(Equal(&one))
 
 					d, err := getDeployment(args.client, d)
 					Expect(err).ToNot(HaveOccurred())
@@ -224,7 +241,11 @@ var _ = Describe("Controller", func() {
 
 					doReconcile(args)
 
-					Expect(args.cdi.Status.Conditions).Should(BeEmpty())
+					Expect(args.cdi.Status.Conditions).Should(HaveLen(3))
+					Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
+					Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
+					// We will expect degraded status, because in the test the deployment.status.replicas will not be 1, when the desired is 1.
+					Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
 				}
 
 				resources, err = getAllResources(args.reconciler)
@@ -249,9 +270,10 @@ var _ = Describe("Controller", func() {
 
 					doReconcile(args)
 
-					if len(args.cdi.Status.Conditions) == 1 &&
-						args.cdi.Status.Conditions[0].Type == cdiviaplha1.CDIConditionRunning &&
-						args.cdi.Status.Conditions[0].Status == corev1.ConditionTrue {
+					if len(args.cdi.Status.Conditions) == 3 &&
+						conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable) &&
+						conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing) &&
+						conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionDegraded) {
 						running = true
 					}
 				}
@@ -291,18 +313,22 @@ var _ = Describe("Controller", func() {
 						continue
 					}
 
-					d.Status.Replicas = *d.Spec.Replicas
-					d.Status.ReadyReplicas = d.Status.Replicas
+					dd, err := getDeployment(args.client, d)
+					Expect(err).ToNot(HaveOccurred())
 
-					err = args.client.Update(context.TODO(), d)
+					dd.Status.Replicas = *dd.Spec.Replicas
+					dd.Status.ReadyReplicas = dd.Status.Replicas
+
+					err = args.client.Update(context.TODO(), dd)
 					Expect(err).ToNot(HaveOccurred())
 				}
 
 				doReconcile(args)
 
-				Expect(args.cdi.Status.Conditions).Should(HaveLen(1))
-				Expect(args.cdi.Status.Conditions[0].Type).Should(Equal(cdiviaplha1.CDIConditionRunning))
-				Expect(args.cdi.Status.Conditions[0].Status).Should(Equal(corev1.ConditionTrue))
+				Expect(args.cdi.Status.Conditions).Should(HaveLen(3))
+				Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
+				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
+				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
 
 				for _, r := range resources {
 					var ok bool
@@ -320,9 +346,11 @@ var _ = Describe("Controller", func() {
 
 				doReconcile(args)
 
-				Expect(args.cdi.Status.Conditions).Should(HaveLen(1))
-				Expect(args.cdi.Status.Conditions[0].Type).Should(Equal(cdiviaplha1.CDIConditionRunning))
-				Expect(args.cdi.Status.Conditions[0].Status).Should(Equal(corev1.ConditionFalse))
+				Expect(args.cdi.Status.Conditions).Should(HaveLen(3))
+				Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
+				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
+				// Application should be degraded due to missing deployment pods (set to 0)
+				Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
 
 				deployment, err = getDeployment(args.client, deployment)
 				Expect(err).ToNot(HaveOccurred())
@@ -332,9 +360,10 @@ var _ = Describe("Controller", func() {
 
 				doReconcile(args)
 
-				Expect(args.cdi.Status.Conditions).Should(HaveLen(1))
-				Expect(args.cdi.Status.Conditions[0].Type).Should(Equal(cdiviaplha1.CDIConditionRunning))
-				Expect(args.cdi.Status.Conditions[0].Status).Should(Equal(corev1.ConditionTrue))
+				Expect(args.cdi.Status.Conditions).Should(HaveLen(3))
+				Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
+				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
+				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
 			})
 
 			It("does not modify insecure registry configmap", func() {
@@ -386,7 +415,10 @@ var _ = Describe("Controller", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(newInstance.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseError))
-				Expect(newInstance.Status.Conditions).Should(BeEmpty())
+				Expect(newInstance.Status.Conditions).Should(HaveLen(3))
+				Expect(conditions.IsStatusConditionFalse(newInstance.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
+				Expect(conditions.IsStatusConditionFalse(newInstance.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
+				Expect(conditions.IsStatusConditionTrue(newInstance.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
 			})
 
 			It("should succeed when we delete CDI", func() {
@@ -450,7 +482,740 @@ var _ = Describe("Controller", func() {
 		Entry("Tag override", &registryOverride{"v1.100.0"}),
 		Entry("Pull override", &pullOverride{corev1.PullNever}),
 	)
+
+	Describe("Upgrading CDI", func() {
+
+		DescribeTable("check detects upgrade correctly", func(prevVersion, newVersion string, shouldUpgrade, shouldError bool) {
+			registry := "kubevirt"
+
+			//verify on int version is set
+			args := createFromArgs("cdi", newVersion, registry)
+			doReconcile(args)
+
+			Expect(args.cdi.Status.ObservedVersion).Should(Equal(newVersion))
+			Expect(args.cdi.Status.OperatorVersion).Should(Equal(newVersion))
+			Expect(args.cdi.Status.TargetVersion).Should(Equal(newVersion))
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+
+			//Modify CRD to be of previousVersion
+			err := args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
+			Expect(err).ToNot(HaveOccurred())
+
+			if shouldError {
+				doReconcileError(args)
+				return
+			}
+
+			doReconcile(args)
+
+			if shouldUpgrade {
+				//verify upgraded has started
+				Expect(args.cdi.Status.OperatorVersion).Should(Equal(newVersion))
+				Expect(args.cdi.Status.ObservedVersion).Should(Equal(prevVersion))
+				Expect(args.cdi.Status.TargetVersion).Should(Equal(newVersion))
+				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseUpgrading))
+			} else {
+				//verify upgraded hasn't started
+				Expect(args.cdi.Status.OperatorVersion).Should(Equal(prevVersion))
+				Expect(args.cdi.Status.ObservedVersion).Should(Equal(prevVersion))
+				Expect(args.cdi.Status.TargetVersion).Should(Equal(prevVersion))
+				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+			}
+
+			//change deployment to ready
+			isReady := setDeploymentsReady(args)
+			Expect(isReady).Should(Equal(true))
+
+			//now should be upgraded
+			if shouldUpgrade {
+				//verify versions were updated
+				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+				Expect(args.cdi.Status.OperatorVersion).Should(Equal(newVersion))
+				Expect(args.cdi.Status.TargetVersion).Should(Equal(newVersion))
+				Expect(args.cdi.Status.ObservedVersion).Should(Equal(newVersion))
+			} else {
+				//verify versions remained unchaged
+				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+				Expect(args.cdi.Status.OperatorVersion).Should(Equal(prevVersion))
+				Expect(args.cdi.Status.TargetVersion).Should(Equal(prevVersion))
+				Expect(args.cdi.Status.ObservedVersion).Should(Equal(prevVersion))
+			}
+		},
+			Entry("increasing semver ", "v1.9.5", "v1.10.0", true, false),
+			Entry("decreasing semver", "v1.10.0", "v1.9.5", false, true),
+			Entry("identical semver", "v1.10.0", "v1.10.0", false, false),
+			Entry("invalid semver", "devel", "v1.9.5", true, false),
+			Entry("increasing  semver no prefix", "1.9.5", "1.10.0", true, false),
+			Entry("decreasing  semver no prefix", "1.10.0", "1.9.5", false, true),
+			Entry("identical  semver no prefix", "1.10.0", "1.10.0", false, false),
+			Entry("invalid  semver with prefix", "devel1.9.5", "devel1.9.5", false, false),
+			Entry("invalid  semver no prefix", "devel", "1.9.5", true, false),
+			/* having trouble making sense of this test "" should not be valid previous version
+			Entry("no current no prefix", "", "invalid", false, false),
+			*/
+		)
+
+		Describe("CDI CR deletion during upgrade", func() {
+			Context("cr deletion during upgrade", func() {
+				It("should delete CR if it is marked for deletion and not begin upgrade flow", func() {
+					var args *args
+					registry := "kubevirt"
+					newVersion := "1.10.0"
+					prevVersion := "1.9.5"
+
+					args = createFromArgs("cdi", newVersion, registry)
+					doReconcile(args)
+
+					//set deployment to ready
+					isReady := setDeploymentsReady(args)
+					Expect(isReady).Should(Equal(true))
+
+					//verify on int version is set
+					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+
+					//Modify CRD to be of previousVersion
+					args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
+					//marc CDI CR for deltetion
+					args.cdi.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
+					err := args.client.Update(context.TODO(), args.cdi)
+					Expect(err).ToNot(HaveOccurred())
+
+					doReconcile(args)
+
+					//verify the version cr is deleted and upgrade hasn't started
+					Expect(args.cdi.Status.OperatorVersion).Should(Equal(prevVersion))
+					Expect(args.cdi.Status.ObservedVersion).Should(Equal(prevVersion))
+					Expect(args.cdi.Status.TargetVersion).Should(Equal(prevVersion))
+					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeleted))
+				})
+
+				It("should delete CR if it is marked for deletion during upgrade flow", func() {
+					var args *args
+					registry := "kubevirt"
+					newVersion := "1.10.0"
+					prevVersion := "1.9.5"
+
+					args = createFromArgs("cdi", newVersion, registry)
+					doReconcile(args)
+
+					//verify on int version is set
+					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+
+					//Modify CRD to be of previousVersion
+					args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
+					err := args.client.Update(context.TODO(), args.cdi)
+					Expect(err).ToNot(HaveOccurred())
+
+					//begin upgrade
+					doReconcile(args)
+
+					//mark CDI CR for deltetion
+					args.cdi.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
+					err = args.client.Update(context.TODO(), args.cdi)
+					Expect(err).ToNot(HaveOccurred())
+
+					doReconcile(args)
+
+					//set deployment to ready
+					isReady := setDeploymentsReady(args)
+					Expect(isReady).Should(Equal(false))
+
+					doReconcile(args)
+					//verify the version cr is marked as deleted
+					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeleted))
+				})
+			})
+		})
+
+		DescribeTable("Updates objects on upgrade", func(
+			modify modifyResource,
+			tomodify isModifySubject,
+			upgraded isUpgraded) {
+
+			var args *args
+			registry := "kubevirt"
+			newVersion := "1.10.0"
+			prevVersion := "1.9.5"
+
+			args = createFromArgs("cdi", newVersion, registry)
+			doReconcile(args)
+
+			//verify on int version is set
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+
+			//Modify CRD to be of previousVersion
+			args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
+			err := args.client.Update(context.TODO(), args.cdi)
+			Expect(err).ToNot(HaveOccurred())
+
+			//find the resource to modify
+			oOriginal, oModified, err := getModifiedResource(args.reconciler, modify, tomodify)
+			Expect(err).ToNot(HaveOccurred())
+
+			//update object via client, with curObject
+			err = args.client.Update(context.TODO(), oModified)
+			Expect(err).ToNot(HaveOccurred())
+
+			//verify object is modified
+			storedObj, err := getObject(args.client, oModified)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(reflect.DeepEqual(storedObj, oModified)).Should(Equal(true))
+
+			doReconcile(args)
+
+			//verify upgraded has started
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseUpgrading))
+
+			//change deployment to ready
+			isReady := setDeploymentsReady(args)
+			Expect(isReady).Should(Equal(true))
+
+			doReconcile(args)
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+
+			//verify that stored object equals to object in getResources
+			storedObj, err = getObject(args.client, oModified)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(upgraded(storedObj, oOriginal)).Should(Equal(true))
+
+		},
+			//Deployment update
+			Entry("verify - deployment updated on upgrade - annotation changed",
+				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+					deploymentOrig, ok := toModify.(*appsv1.Deployment)
+					if !ok {
+						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+					}
+					deployment := deploymentOrig.DeepCopy()
+					deployment.Annotations["fake.anno.1"] = "fakeannotation1"
+					deployment.Annotations["fake.anno.2"] = "fakeannotation2"
+					deployment.Annotations["fake.anno.3"] = "fakeannotation3"
+					return toModify, deployment, nil
+				},
+				func(resource runtime.Object) bool { //find resource for test
+					//return true if object is the one we want to test
+					_, ok := resource.(*appsv1.Deployment)
+					return ok
+				},
+				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+					//return true if postUpgrade has teh same fields as desired
+					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
+					if !ok {
+						return false
+					}
+
+					desiredDep, ok := deisredObj.(*appsv1.Deployment)
+					if !ok {
+						return false
+					}
+
+					delete(desiredDep.Annotations, lastAppliedConfigAnnotation)
+
+					for key, ann := range desiredDep.Annotations {
+						if postDep.Annotations[key] != ann {
+							return false
+						}
+					}
+
+					if len(desiredDep.Annotations) > len(postDep.Annotations) {
+						return false
+					}
+
+					return true
+				}),
+			Entry("verify - deployment updated on upgrade - labels changed",
+				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+					deploymentOrig, ok := toModify.(*appsv1.Deployment)
+					if !ok {
+						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+					}
+					deployment := deploymentOrig.DeepCopy()
+					deployment.Labels["fake.label.1"] = "fakelabel1"
+					deployment.Labels["fake.label.2"] = "fakelabel2"
+					deployment.Labels["fake.label.3"] = "fakelabel3"
+					return toModify, deployment, nil
+				},
+				func(resource runtime.Object) bool { //find resource for test
+					//return true if object is the one we want to test
+					_, ok := resource.(*appsv1.Deployment)
+					return ok
+				},
+				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+					//return true if postUpgrade has teh same fields as desired
+					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
+					if !ok {
+						return false
+					}
+
+					desiredDep, ok := deisredObj.(*appsv1.Deployment)
+					if !ok {
+						return false
+					}
+
+					for key, label := range desiredDep.Labels {
+						if postDep.Labels[key] != label {
+							return false
+						}
+					}
+
+					if len(desiredDep.Labels) > len(postDep.Labels) {
+						return false
+					}
+
+					return true
+				}),
+			Entry("verify - deployment updated on upgrade - deployment spec changed - modify container",
+				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+					deploymentOrig, ok := toModify.(*appsv1.Deployment)
+					if !ok {
+						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+					}
+					deployment := deploymentOrig.DeepCopy()
+
+					containers := deployment.Spec.Template.Spec.Containers
+					containers[0].Env = []corev1.EnvVar{
+						{
+							Name:  "FAKE_ENVVAR",
+							Value: fmt.Sprintf("%s/%s:%s", "fake_repo", "importerImage", "tag"),
+						},
+					}
+
+					return toModify, deployment, nil
+				},
+				func(resource runtime.Object) bool { //find resource for test
+					//search for cdi-deployment - to test ENV virables change
+					deployment, ok := resource.(*appsv1.Deployment)
+					if !ok {
+						return false
+					}
+					if deployment.Name == "cdi-deployment" {
+						return true
+					}
+					return false
+				},
+				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+					//return true if postUpgrade has teh same fields as desired
+					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
+					if !ok {
+						return false
+					}
+
+					desiredDep, ok := deisredObj.(*appsv1.Deployment)
+					if !ok {
+						return false
+					}
+
+					for key, envVar := range desiredDep.Spec.Template.Spec.Containers[0].Env {
+						if postDep.Spec.Template.Spec.Containers[0].Env[key].Name != envVar.Name {
+							return false
+						}
+					}
+
+					if len(desiredDep.Spec.Template.Spec.Containers[0].Env) != len(postDep.Spec.Template.Spec.Containers[0].Env) {
+						return false
+					}
+
+					return true
+				}),
+			Entry("verify - deployment updated on upgrade - deployment spec changed - add new container",
+				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+					deploymentOrig, ok := toModify.(*appsv1.Deployment)
+					if !ok {
+						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+					}
+					deployment := deploymentOrig.DeepCopy()
+
+					containers := deployment.Spec.Template.Spec.Containers
+					container := corev1.Container{
+						Name:            "FAKE_CONTAINER",
+						Image:           fmt.Sprintf("%s/%s:%s", "fake-repo", "fake-image", "fake-tag"),
+						ImagePullPolicy: "FakePullPolicy",
+						Args:            []string{"-v=10"},
+					}
+					containers = append(containers, container)
+
+					return toModify, deployment, nil
+				},
+				func(resource runtime.Object) bool { //find resource for test
+					//search for cdi-deployment - to test container change
+					deployment, ok := resource.(*appsv1.Deployment)
+					if !ok {
+						return false
+					}
+					if deployment.Name == "cdi-deployment" {
+						return true
+					}
+					return false
+				},
+				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+					//return true if postUpgrade has teh same fields as desired
+					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
+					if !ok {
+						return false
+					}
+
+					desiredDep, ok := deisredObj.(*appsv1.Deployment)
+					if !ok {
+						return false
+					}
+
+					for key, container := range desiredDep.Spec.Template.Spec.Containers {
+						if postDep.Spec.Template.Spec.Containers[key].Name != container.Name {
+							return false
+						}
+					}
+
+					if len(desiredDep.Spec.Template.Spec.Containers) > len(postDep.Spec.Template.Spec.Containers) {
+						return false
+					}
+
+					return true
+				}),
+			Entry("verify - deployment updated on upgrade - deployment spec changed - remove existing container",
+				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+					deploymentOrig, ok := toModify.(*appsv1.Deployment)
+					if !ok {
+						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+					}
+					deployment := deploymentOrig.DeepCopy()
+
+					deployment.Spec.Template.Spec.Containers = nil
+
+					return toModify, deployment, nil
+				},
+				func(resource runtime.Object) bool { //find resource for test
+					//search for cdi-deployment - to test container change
+					deployment, ok := resource.(*appsv1.Deployment)
+					if !ok {
+						return false
+					}
+					if deployment.Name == "cdi-deployment" {
+						return true
+					}
+					return false
+				},
+				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+					//return true if postUpgrade has teh same fields as desired
+					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
+					if !ok {
+						return false
+					}
+
+					desiredDep, ok := deisredObj.(*appsv1.Deployment)
+					if !ok {
+						return false
+					}
+
+					return (len(postDep.Spec.Template.Spec.Containers) == len(desiredDep.Spec.Template.Spec.Containers))
+				}),
+
+			//Services update
+			Entry("verify - services updated on upgrade - annotation changed",
+				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+					serviceOrig, ok := toModify.(*corev1.Service)
+					if !ok {
+						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+					}
+					service := serviceOrig.DeepCopy()
+					service.Annotations["fake.anno.1"] = "fakeannotation1"
+					service.Annotations["fake.anno.2"] = "fakeannotation2"
+					service.Annotations["fake.anno.3"] = "fakeannotation3"
+					return toModify, service, nil
+				},
+				func(resource runtime.Object) bool { //find resource for test
+					//return true if object is the one we want to test
+					_, ok := resource.(*corev1.Service)
+					return ok
+				},
+				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+					//return true if postUpgrade has teh same fields as desired
+					post, ok := postUpgradeObj.(*corev1.Service)
+					if !ok {
+						return false
+					}
+
+					desired, ok := deisredObj.(*corev1.Service)
+					if !ok {
+						return false
+					}
+
+					for key, ann := range desired.Annotations {
+						if post.Annotations[key] != ann {
+							return false
+						}
+					}
+
+					if len(desired.Annotations) > len(post.Annotations) {
+						return false
+					}
+					return true
+				}),
+
+			Entry("verify - services updated on upgrade - label changed",
+				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+					serviceOrig, ok := toModify.(*corev1.Service)
+					if !ok {
+						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+					}
+					service := serviceOrig.DeepCopy()
+					service.Labels["fake.label.1"] = "fakelabel1"
+					service.Labels["fake.label.2"] = "fakelabel2"
+					service.Labels["fake.label.3"] = "fakelabel3"
+					return toModify, service, nil
+				},
+				func(resource runtime.Object) bool { //find resource for test
+					//return true if object is the one we want to test
+					_, ok := resource.(*corev1.Service)
+					return ok
+				},
+				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+					//return true if postUpgrade has the same fields as desired
+					post, ok := postUpgradeObj.(*corev1.Service)
+					if !ok {
+						return false
+					}
+
+					desired, ok := deisredObj.(*corev1.Service)
+					if !ok {
+						return false
+					}
+
+					for key, label := range desired.Labels {
+						if post.Labels[key] != label {
+							return false
+						}
+					}
+
+					if len(desired.Labels) > len(post.Labels) {
+						return false
+					}
+
+					return true
+				}),
+
+			Entry("verify - services updated on upgrade - service port changed",
+				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+					serviceOrig, ok := toModify.(*corev1.Service)
+					if !ok {
+						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+					}
+					service := serviceOrig.DeepCopy()
+					service.Spec.Ports = []corev1.ServicePort{
+						{
+							Port:     999999,
+							Protocol: corev1.ProtocolUDP,
+						},
+					}
+					return toModify, service, nil
+				},
+				func(resource runtime.Object) bool { //find resource for test
+					//return true if object is the one we want to test
+					_, ok := resource.(*corev1.Service)
+					return ok
+				},
+				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+					//return true if postUpgrade has teh same fields as desired
+					post, ok := postUpgradeObj.(*corev1.Service)
+					if !ok {
+						return false
+					}
+
+					desired, ok := deisredObj.(*corev1.Service)
+					if !ok {
+						return false
+					}
+
+					for key, port := range desired.Spec.Ports {
+						if post.Spec.Ports[key].Port != port.Port {
+							return false
+						}
+					}
+
+					if len(desired.Spec.Ports) != len(post.Spec.Ports) {
+						return false
+					}
+
+					return true
+				}),
+			//CRD update
+			// - update CRD label
+			// - update CRD annotation
+			// - update CRD version
+			// - update CRD spec
+			// - update CRD status
+			// - add new CRD
+			// -
+
+			//RBAC update
+			// - update RoleBinding/ClusterRoleBinding
+			// - Update Role/ClusterRole
+
+			//ServiceAccount upgrade
+			// - update ServiceAccount SCC
+			// - update ServiceAccount Labels/Annotations
+
+		) //updates objects on upgrade
+
+		DescribeTable("Removes unused objects on upgrade", func(
+			createObj createUnusedObject) {
+
+			var args *args
+			registry := "kubevirt"
+			newVersion := "1.10.0"
+			prevVersion := "1.9.5"
+
+			args = createFromArgs("cdi", newVersion, registry)
+			doReconcile(args)
+
+			//verify on int version is set
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+
+			//Modify CRD to be of previousVersion
+			args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
+			err := args.client.Update(context.TODO(), args.cdi)
+			Expect(err).ToNot(HaveOccurred())
+
+			unusedObj, err := createObj()
+			Expect(err).ToNot(HaveOccurred())
+			unusedMetaObj := unusedObj.(metav1.Object)
+			unusedMetaObj.GetLabels()["operator.cdi.kubevirt.io/createVersion"] = prevVersion
+			err = controllerutil.SetControllerReference(args.cdi, unusedMetaObj, scheme.Scheme)
+			Expect(err).ToNot(HaveOccurred())
+
+			//add unused object via client, with curObject
+			err = args.client.Create(context.TODO(), unusedObj)
+			Expect(err).ToNot(HaveOccurred())
+
+			doReconcile(args)
+
+			//verify upgraded has started
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseUpgrading))
+
+			//verify unused exists before upgrade is done
+			_, err = getObject(args.client, unusedObj)
+			Expect(err).ToNot(HaveOccurred())
+
+			//change deployment to ready
+			isReady := setDeploymentsReady(args)
+			Expect(isReady).Should(Equal(true))
+
+			doReconcile(args)
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+
+			//verify that object no longer exists after upgrade
+			_, err = getObject(args.client, unusedObj)
+			Expect(errors.IsNotFound(err)).Should(Equal(true))
+
+		},
+
+			Entry("verify - unused deployment deleted",
+				func() (runtime.Object, error) {
+					deployment := utils.CreateDeployment("fake-cdi-deployment", "app", "containerized-data-importer", "fake-sa", int32(1))
+					return deployment, nil
+				}),
+			Entry("verify - unused service deleted",
+				func() (runtime.Object, error) {
+					service := utils.CreateService("fake-cdi-service", "fake-service", "fake")
+					return service, nil
+				}),
+			Entry("verify - unused sa deleted",
+				func() (runtime.Object, error) {
+					sa := utils.CreateServiceAccount("fake-cdi-sa")
+					return sa, nil
+				}),
+
+			Entry("verify - unused crd deleted",
+				func() (runtime.Object, error) {
+					crd := &extv1beta1.CustomResourceDefinition{
+						TypeMeta: metav1.TypeMeta{
+							APIVersion: "apiextensions.k8s.io/v1beta1",
+							Kind:       "CustomResourceDefinition",
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "fake.cdis.cdi.kubevirt.io",
+							Labels: map[string]string{
+								"operator.cdi.kubevirt.io": "",
+							},
+						},
+						Spec: extv1beta1.CustomResourceDefinitionSpec{
+							Group:   "cdi.kubevirt.io",
+							Version: "v1alpha1",
+							Scope:   "Cluster",
+
+							Versions: []extv1beta1.CustomResourceDefinitionVersion{
+								{
+									Name:    "v1alpha1",
+									Served:  true,
+									Storage: true,
+								},
+							},
+							Names: extv1beta1.CustomResourceDefinitionNames{
+								Kind:     "FakeCDI",
+								ListKind: "FakeCDIList",
+								Plural:   "fakecdis",
+								Singular: "fakecdi",
+								Categories: []string{
+									"all",
+								},
+								ShortNames: []string{"fakecdi", "fakecdis"},
+							},
+
+							AdditionalPrinterColumns: []extv1beta1.CustomResourceColumnDefinition{
+								{Name: "Age", Type: "date", JSONPath: ".metadata.creationTimestamp"},
+								{Name: "Phase", Type: "string", JSONPath: ".status.phase"},
+							},
+						},
+					}
+					return crd, nil
+				}),
+
+			Entry("verify - unused role deleted",
+				func() (runtime.Object, error) {
+					role := utils.CreateRole("fake-role")
+					return role, nil
+				}),
+
+			Entry("verify - unused role binding deleted",
+				func() (runtime.Object, error) {
+					role := utils.CreateRoleBinding("fake-role", "fake-role", "fake-role", "fake-role")
+					return role, nil
+				}),
+			Entry("verify - unused cluster role deleted",
+				func() (runtime.Object, error) {
+					role := cluster.CreateClusterRole("fake-cluster-role")
+					return role, nil
+				}),
+			Entry("verify - unused cluster role binding deleted",
+				func() (runtime.Object, error) {
+					role := cluster.CreateClusterRoleBinding("fake-cluster-role", "fake-cluster-role", "fake-cluster-role", "fake-cluster-role")
+					return role, nil
+				}),
+		)
+
+	})
 })
+
+func getModifiedResource(reconciler *ReconcileCDI, modify modifyResource, tomodify isModifySubject) (runtime.Object, runtime.Object, error) {
+	resources, err := getAllResources(reconciler)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	//find the resource to modify
+	var orig runtime.Object
+	for _, resource := range resources {
+		r, err := getObject(reconciler.client, resource)
+		Expect(err).ToNot(HaveOccurred())
+		if tomodify(r) {
+			orig = r
+			break
+		}
+	}
+	//apply modify function on resource and return modified one
+	return modify(orig)
+}
 
 type cdiOverride interface {
 	Set(cr *cdiviaplha1.CDI)
@@ -512,6 +1277,43 @@ func getSCC(client realClient.Client, scc *secv1.SecurityContextConstraints) (*s
 	return result.(*secv1.SecurityContextConstraints), nil
 }
 
+func setDeploymentsReady(args *args) bool {
+	resources, err := getAllResources(args.reconciler)
+	Expect(err).ToNot(HaveOccurred())
+	running := false
+
+	createUploadProxyCACertSecret(args.client)
+
+	for _, r := range resources {
+		d, ok := r.(*appsv1.Deployment)
+		if !ok {
+			continue
+		}
+
+		Expect(running).To(BeFalse())
+
+		d, err := getDeployment(args.client, d)
+		Expect(err).ToNot(HaveOccurred())
+		if d.Spec.Replicas != nil {
+			d.Status.Replicas = *d.Spec.Replicas
+			d.Status.ReadyReplicas = d.Status.Replicas
+			err = args.client.Update(context.TODO(), d)
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		doReconcile(args)
+
+		if len(args.cdi.Status.Conditions) == 3 &&
+			conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable) &&
+			conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing) &&
+			conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionDegraded) {
+			running = true
+		}
+	}
+
+	return running
+}
+
 func getDeployment(client realClient.Client, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
 	result, err := getObject(client, deployment)
 	if err != nil {
@@ -557,6 +1359,20 @@ func reconcileRequest(name string) reconcile.Request {
 	return reconcile.Request{NamespacedName: types.NamespacedName{Name: name}}
 }
 
+func createFromArgs(namespace, version, repo string) *args {
+	cdi := createCDI("cdi", "good uid")
+	scc := createSCC()
+	client := createClient(cdi, scc)
+	reconciler := createReconcilerWithVersion(client, version, repo, namespace)
+
+	return &args{
+		cdi:        cdi,
+		scc:        scc,
+		client:     client,
+		reconciler: reconciler,
+	}
+}
+
 func createArgs() *args {
 	cdi := createCDI("cdi", "good uid")
 	scc := createSCC()
@@ -580,6 +1396,15 @@ func doReconcile(args *args) {
 	Expect(err).ToNot(HaveOccurred())
 }
 
+func doReconcileError(args *args) {
+	result, err := args.reconciler.Reconcile(reconcileRequest(args.cdi.Name))
+	Expect(err).To(HaveOccurred())
+	Expect(result.Requeue).To(BeFalse())
+
+	args.cdi, err = getCDI(args.client, args.cdi)
+	Expect(err).ToNot(HaveOccurred())
+}
+
 func createClient(objs ...runtime.Object) realClient.Client {
 	return fakeClient.NewFakeClientWithScheme(scheme.Scheme, objs...)
 }
@@ -589,11 +1414,15 @@ func createCDI(name, uid string) *cdiviaplha1.CDI {
 }
 
 func createSCC() *secv1.SecurityContextConstraints {
-	return &secv1.SecurityContextConstraints{ObjectMeta: metav1.ObjectMeta{Name: "anyuid"}}
+	return &secv1.SecurityContextConstraints{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "anyuid",
+		},
+		Users: []string{},
+	}
 }
 
-func createReconciler(client realClient.Client) *ReconcileCDI {
-	namespace := "cdi"
+func createReconcilerWithVersion(client realClient.Client, version, repo, namespace string) *ReconcileCDI {
 	clusterArgs := &clusterResources.FactoryArgs{Namespace: namespace}
 	namespacedArgs := &namespaceResources.FactoryArgs{
 		DockerRepo:             "kubevirt",
@@ -617,6 +1446,38 @@ func createReconciler(client realClient.Client) *ReconcileCDI {
 		clusterArgs:    clusterArgs,
 		namespacedArgs: namespacedArgs,
 	}
+}
+
+func createReconciler(client realClient.Client) *ReconcileCDI {
+	namespace := "cdi"
+	clusterArgs := &clusterResources.FactoryArgs{Namespace: namespace}
+	namespacedArgs := &namespaceResources.FactoryArgs{
+		DockerRepo:             "kubevirt",
+		DockerTag:              version,
+		DeployClusterResources: "true",
+		ControllerImage:        "cdi-controller",
+		ImporterImage:          "cdi-importer",
+		ClonerImage:            "cdi-cloner",
+		APIServerImage:         "cdi-apiserver",
+		UploadProxyImage:       "cdi-uploadproxy",
+		UploadServerImage:      "cdi-uploadserver",
+		Verbosity:              "1",
+		PullPolicy:             "Always",
+		Namespace:              namespace,
+	}
+
+	r := &ReconcileCDI{
+		client:         client,
+		scheme:         scheme.Scheme,
+		namespace:      namespace,
+		clusterArgs:    clusterArgs,
+		namespacedArgs: namespacedArgs,
+		callbacks:      make(map[reflect.Type][]ReconcileCallback),
+	}
+
+	addReconcileCallbacks(r)
+
+	return r
 }
 
 func createUploadProxyCACertSecret(client realClient.Client) {

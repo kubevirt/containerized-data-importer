@@ -1694,6 +1694,49 @@
      }
     }
    },
+   "v1.Condition": {
+    "required": [
+     "type",
+     "status",
+     "lastHeartbeatTime",
+     "lastTransitionTime"
+    ],
+    "properties": {
+     "lastHeartbeatTime": {
+      "description": "last time we got an update on a given condition",
+      "type": "string"
+     },
+     "lastProbeTime": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "lastTransitionTime": {
+      "description": "last time the condition transit from one status to another",
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "message": {
+      "description": "human-readable message indicating details about last transition",
+      "type": "string"
+     },
+     "reason": {
+      "description": "one-word CamelCase reason for the condition's last transition",
+      "type": "string"
+     },
+     "status": {
+      "description": "status of the condition, one of True, False, Unknown",
+      "type": "string"
+     },
+     "type": {
+      "description": "type of condition ie. Available|Progressing|Degraded.",
+      "type": "string"
+     }
+    }
+   },
    "v1.DeleteOptions": {
     "description": "DeleteOptions may be provided when deleting an API object.",
     "properties": {
@@ -2215,39 +2258,6 @@
      }
     }
    },
-   "v1alpha1.CDICondition": {
-    "description": "CDICondition represents a condition of a CDI deployment",
-    "required": [
-     "type",
-     "status"
-    ],
-    "properties": {
-     "lastProbeTime": {
-      "type": [
-       "string",
-       "null"
-      ]
-     },
-     "lastTransitionTime": {
-      "type": [
-       "string",
-       "null"
-      ]
-     },
-     "message": {
-      "type": "string"
-     },
-     "reason": {
-      "type": "string"
-     },
-     "status": {
-      "type": "string"
-     },
-     "type": {
-      "type": "string"
-     }
-    }
-   },
    "v1alpha1.CDIList": {
     "description": "CDIList provides the needed parameters to do request a list of CDIs from the system\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
     "required": [
@@ -2295,7 +2305,7 @@
      "conditions": {
       "type": "array",
       "items": {
-       "$ref": "#/definitions/v1alpha1.CDICondition"
+       "$ref": "#/definitions/v1.Condition"
       }
      },
      "observedVersion": {
