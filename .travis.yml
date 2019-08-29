@@ -54,6 +54,7 @@ deploy:
  # Release versioned images
 - provider: script
   script: env CSV_VERSION=${TRAVIS_TAG#v} make olm-push publish
+  skip_cleanup: true
   branches:
       only: /v[0-9]+\.[0-9]+\.[0-9]+(-alpha\.[0-9]+){0,1}/
   on:
