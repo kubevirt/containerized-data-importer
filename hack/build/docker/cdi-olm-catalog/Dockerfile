@@ -1,9 +1,10 @@
-FROM quay.io/openshift/origin-operator-registry:4.1.0
+FROM quay.io/openshift/origin-operator-registry:4.2.0
 
-COPY olm-catalog /registry
+RUN mkdir -p /tmp/olm-catalog
+COPY --chown=1001 olm-catalog /tmp/olm-catalog
 
 # Initialize the database
-RUN initializer --manifests /registry --output bundles.db
+RUN initializer --manifests /tmp/olm-catalog --output bundles.db
 
 # There are multiple binaries in the origin-operator-registry
 # We want the registry-server
