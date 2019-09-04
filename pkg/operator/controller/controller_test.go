@@ -156,6 +156,7 @@ var _ = Describe("Controller", func() {
 			It("should get deployed", func() {
 				args := createArgs()
 				doReconcile(args)
+				setDeploymentsReady(args)
 
 				Expect(args.cdi.Status.OperatorVersion).Should(Equal(version))
 				Expect(args.cdi.Status.TargetVersion).Should(Equal(version))
@@ -164,8 +165,7 @@ var _ = Describe("Controller", func() {
 				Expect(args.cdi.Status.Conditions).Should(HaveLen(3))
 				Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
 				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
-				// We will expect degraded status, because in the test the deployment.status.replicas will not be 1, when the desired is 1.
-				Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
+				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
 
 				Expect(args.cdi.Finalizers).Should(HaveLen(1))
 			})
@@ -216,69 +216,9 @@ var _ = Describe("Controller", func() {
 			})
 
 			It("should become ready", func() {
-				one := int32(1)
 				args := createArgs()
 				doReconcile(args)
-
-				resources, err := getAllResources(args.reconciler)
-				Expect(err).ToNot(HaveOccurred())
-
-				for _, r := range resources {
-					d, ok := r.(*appsv1.Deployment)
-					if !ok {
-						continue
-					}
-
-					numReplicas := d.Spec.Replicas
-					Expect(numReplicas).ToNot(BeNil())
-					Expect(numReplicas).To(Equal(&one))
-
-					d, err := getDeployment(args.client, d)
-					Expect(err).ToNot(HaveOccurred())
-					d.Status.Replicas = *numReplicas
-					err = args.client.Update(context.TODO(), d)
-					Expect(err).ToNot(HaveOccurred())
-
-					doReconcile(args)
-
-					Expect(args.cdi.Status.Conditions).Should(HaveLen(3))
-					Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
-					Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
-					// We will expect degraded status, because in the test the deployment.status.replicas will not be 1, when the desired is 1.
-					Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
-				}
-
-				resources, err = getAllResources(args.reconciler)
-				Expect(err).ToNot(HaveOccurred())
-				running := false
-
-				createUploadProxyCACertSecret(args.client)
-
-				for _, r := range resources {
-					d, ok := r.(*appsv1.Deployment)
-					if !ok {
-						continue
-					}
-
-					Expect(running).To(BeFalse())
-
-					d, err := getDeployment(args.client, d)
-					Expect(err).ToNot(HaveOccurred())
-					d.Status.ReadyReplicas = d.Status.Replicas
-					err = args.client.Update(context.TODO(), d)
-					Expect(err).ToNot(HaveOccurred())
-
-					doReconcile(args)
-
-					if len(args.cdi.Status.Conditions) == 3 &&
-						conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable) &&
-						conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing) &&
-						conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionDegraded) {
-						running = true
-					}
-				}
-
-				Expect(running).To(BeTrue())
+				Expect(setDeploymentsReady(args)).To(BeTrue())
 
 				route := &routev1.Route{
 					ObjectMeta: metav1.ObjectMeta{
@@ -491,6 +431,7 @@ var _ = Describe("Controller", func() {
 			//verify on int version is set
 			args := createFromArgs("cdi", newVersion, registry)
 			doReconcile(args)
+			setDeploymentsReady(args)
 
 			Expect(args.cdi.Status.ObservedVersion).Should(Equal(newVersion))
 			Expect(args.cdi.Status.OperatorVersion).Should(Equal(newVersion))
@@ -506,6 +447,7 @@ var _ = Describe("Controller", func() {
 				return
 			}
 
+			setDeploymentsDegraded(args)
 			doReconcile(args)
 
 			if shouldUpgrade {
@@ -597,6 +539,7 @@ var _ = Describe("Controller", func() {
 
 					args = createFromArgs("cdi", newVersion, registry)
 					doReconcile(args)
+					setDeploymentsReady(args)
 
 					//verify on int version is set
 					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
@@ -605,6 +548,7 @@ var _ = Describe("Controller", func() {
 					args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
 					err := args.client.Update(context.TODO(), args.cdi)
 					Expect(err).ToNot(HaveOccurred())
+					setDeploymentsDegraded(args)
 
 					//begin upgrade
 					doReconcile(args)
@@ -639,6 +583,7 @@ var _ = Describe("Controller", func() {
 
 			args = createFromArgs("cdi", newVersion, registry)
 			doReconcile(args)
+			setDeploymentsReady(args)
 
 			//verify on int version is set
 			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
@@ -647,6 +592,8 @@ var _ = Describe("Controller", func() {
 			args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
 			err := args.client.Update(context.TODO(), args.cdi)
 			Expect(err).ToNot(HaveOccurred())
+
+			setDeploymentsDegraded(args)
 
 			//find the resource to modify
 			oOriginal, oModified, err := getModifiedResource(args.reconciler, modify, tomodify)
@@ -1069,6 +1016,8 @@ var _ = Describe("Controller", func() {
 			args = createFromArgs("cdi", newVersion, registry)
 			doReconcile(args)
 
+			setDeploymentsReady(args)
+
 			//verify on int version is set
 			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
 
@@ -1077,6 +1026,7 @@ var _ = Describe("Controller", func() {
 			err := args.client.Update(context.TODO(), args.cdi)
 			Expect(err).ToNot(HaveOccurred())
 
+			setDeploymentsDegraded(args)
 			unusedObj, err := createObj()
 			Expect(err).ToNot(HaveOccurred())
 			unusedMetaObj := unusedObj.(metav1.Object)
@@ -1312,6 +1262,29 @@ func setDeploymentsReady(args *args) bool {
 	}
 
 	return running
+}
+
+func setDeploymentsDegraded(args *args) {
+	resources, err := getAllResources(args.reconciler)
+	Expect(err).ToNot(HaveOccurred())
+
+	for _, r := range resources {
+		d, ok := r.(*appsv1.Deployment)
+		if !ok {
+			continue
+		}
+
+		d, err := getDeployment(args.client, d)
+		Expect(err).ToNot(HaveOccurred())
+		if d.Spec.Replicas != nil {
+			d.Status.Replicas = int32(0)
+			d.Status.ReadyReplicas = d.Status.Replicas
+			err = args.client.Update(context.TODO(), d)
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+	}
+	doReconcile(args)
 }
 
 func getDeployment(client realClient.Client, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
