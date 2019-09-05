@@ -26,7 +26,7 @@ const (
 	newDeploymentName    = "cdi-new-deployment"
 
 	pollingInterval = 2 * time.Second
-	timeout         = 90 * time.Second
+	timeout         = 180 * time.Second
 )
 
 var (
@@ -48,62 +48,23 @@ func checkLogForRegEx(regEx *regexp.Regexp, log string) bool {
 
 var _ = Describe("[rfe_id:1250][crit:high][vendor:cnv-qe@redhat.com][level:component]Leader election tests", func() {
 	f := framework.NewFrameworkOrDie("leaderelection-test")
+	var (
+		leaderPodName string
+		newDeployment *appsv1.Deployment
+	)
+
+	BeforeEach(func() {
+		leaderPodName, newDeployment = getLeaderAndNewDeployment(f)
+	})
 
 	AfterEach(func() {
-		deployments := getDeployments(f)
-		if len(deployments.Items) > 1 {
-			d := &appsv1.Deployment{}
-			d.Name = newDeploymentName
-
-			err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Delete(newDeploymentName, &metav1.DeleteOptions{})
-			Expect(err).ToNot(HaveOccurred())
-
-			Eventually(func() []appsv1.Deployment {
-				return getDeployments(f).Items
-			}, timeout, pollingInterval).Should(HaveLen(1))
-		}
+		cleanupTest(f, newDeployment)
 	})
 
 	It("[test_id:1365]Should only ever be one controller as leader", func() {
-		By("Check only one CDI controller deployment/pod")
-		deployments := getDeployments(f)
-		Expect(deployments.Items).Should(HaveLen(1))
+		Expect(leaderPodName).ShouldNot(BeEmpty())
 
-		pods := getPods(f)
-		Expect(pods.Items).Should(HaveLen(1))
-
-		leaderPodName := pods.Items[0].Name
-
-		log := getLog(f, leaderPodName)
-		Expect(checkLogForRegEx(logIsLeaderRegex, log)).To(BeTrue())
-
-		newDeployment := deployments.Items[0].DeepCopy()
-		newDeployment.ObjectMeta = metav1.ObjectMeta{Name: newDeploymentName}
-		newDeployment.Status = appsv1.DeploymentStatus{}
-
-		By("Creating new controller deployment")
-		newDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Create(newDeployment)
-		Expect(err).ToNot(HaveOccurred())
-
-		var newPodName string
-
-		Eventually(func() bool {
-			pods := getPods(f)
-			if len(pods.Items) != 2 {
-				return false
-			}
-			for _, pod := range pods.Items {
-				if pod.Status.Phase != "Running" {
-					return false
-				}
-
-				if pod.Name != leaderPodName {
-					newPodName = pod.Name
-				}
-			}
-			return true
-
-		}, timeout, pollingInterval).Should(BeTrue())
+		newPodName := locateNewPod(f, leaderPodName)
 		Expect(newPodName).ShouldNot(BeEmpty())
 
 		By("Check that new pod is attempting to become leader")
@@ -116,74 +77,32 @@ var _ = Describe("[rfe_id:1250][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		time.Sleep(20 * time.Second)
 
 		By("Confirm pod did not become leader")
-		log = getLog(f, newPodName)
+		log := getLog(f, newPodName)
 		Expect(checkLogForRegEx(logIsLeaderRegex, log)).To(BeFalse())
-
-		By("Delete new deployment")
-		err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Delete(newDeploymentName, &metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Confirm deployment deleted")
-		Eventually(func() bool {
-			deployments := getDeployments(f)
-			return len(deployments.Items) == 1
-		}, timeout, pollingInterval).Should(BeTrue())
 	})
 })
 
 var _ = Describe("[rfe_id:1250][crit:high][test_id:1889][vendor:cnv-qe@redhat.com][level:component]Leader election tests during import", func() {
 	f := framework.NewFrameworkOrDie("leaderelection-test")
+	var (
+		leaderPodName string
+		newDeployment *appsv1.Deployment
+	)
 
 	BeforeEach(func() {
-		By("Unsubscribing from OLM, so we can stop the operator")
-		// TODO once we have olm integration completed.
-
-		By("Stopping operator we can increase the controller deployment to two to test leader election steps")
-		stopCDIOperator(f)
-
-		By("Increasing the scale of the CDI deployment to 2, we now have 2 controller pods")
-		scaleUp(f, scale2)
+		leaderPodName, newDeployment = getLeaderAndNewDeployment(f)
 	})
 
 	AfterEach(func() {
-		By("Restoring the operator back to 1 it will fix the things we broke during the test")
-		operatorDp := getOperatorDeployment(f)
-		if operatorDp.Spec.Replicas != &enableOperator {
-			// Set operator replica count to 0
-			operatorDp.Spec.Replicas = &enableOperator
-			updatedDp, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(operatorDp)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(updatedDp.Spec.Replicas).To(Equal(&enableOperator))
-		}
-		// Find the existing operator pod.
-		_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiOperatorName, "")
-		Expect(err).ToNot(HaveOccurred())
-
-		// Wait for single cdi controller pod to exist.
-		By("Waiting for single cdi controller pod to exists, we have restored normal operations")
-		Eventually(func() bool {
-			pods := getPods(f)
-			return len(pods.Items) == 1
-		}, timeout, pollingInterval).Should(BeTrue())
+		cleanupTest(f, newDeployment)
 	})
 
 	It("Should not not interrupt an import while switching leaders", func() {
+		Expect(leaderPodName).ShouldNot(BeEmpty())
 		var importer *v1.Pod
-		var leaderPodName, secondPodName string
 
-		By("Determining which pod is leader")
-		controllerPods := getPods(f)
-		Expect(controllerPods.Items).Should(HaveLen(2))
-		for _, controllerPod := range controllerPods.Items {
-			log := getLog(f, controllerPod.Name)
-			if checkLogForRegEx(logIsLeaderRegex, log) {
-				leaderPodName = controllerPod.Name
-			} else {
-				secondPodName = controllerPod.Name
-			}
-		}
-		Expect(leaderPodName).ToNot(Equal(""))
-		Expect(secondPodName).ToNot(Equal(""))
+		newPodName := locateNewPod(f, leaderPodName)
+		Expect(newPodName).ShouldNot(BeEmpty())
 
 		By("Starting slow import, we can monitor if it gets interrupted during leader changes")
 		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPRateLimitPort)
@@ -192,7 +111,7 @@ var _ = Describe("[rfe_id:1250][crit:high][test_id:1889][vendor:cnv-qe@redhat.co
 			controller.AnnSecret:   "",
 		}
 
-		_, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, utils.NewPVCDefinition("import-e2e", "20M", pvcAnn, nil))
+		_, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, utils.NewPVCDefinition("import-e2e", "40Mi", pvcAnn, nil))
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(func() bool {
@@ -213,7 +132,7 @@ var _ = Describe("[rfe_id:1250][crit:high][test_id:1889][vendor:cnv-qe@redhat.co
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(func() bool {
-			log := getLog(f, secondPodName)
+			log := getLog(f, newPodName)
 			return checkLogForRegEx(logIsLeaderRegex, log)
 		}, timeout, pollingInterval).Should(BeTrue())
 
@@ -226,6 +145,76 @@ var _ = Describe("[rfe_id:1250][crit:high][test_id:1889][vendor:cnv-qe@redhat.co
 
 	})
 })
+
+func getLeaderAndNewDeployment(f *framework.Framework) (string, *appsv1.Deployment) {
+	By("Check only one CDI controller deployment/pod")
+	deployments := getDeployments(f)
+	Expect(deployments.Items).Should(HaveLen(1))
+	var pods *v1.PodList
+	Eventually(func() bool {
+		pods = getPods(f)
+		return len(pods.Items) == 1
+	}, timeout, pollingInterval).Should(BeTrue())
+
+	leaderPodName := pods.Items[0].Name
+
+	log := getLog(f, leaderPodName)
+	Expect(checkLogForRegEx(logIsLeaderRegex, log)).To(BeTrue())
+
+	newDeployment := deployments.Items[0].DeepCopy()
+	newDeployment.ObjectMeta = metav1.ObjectMeta{Name: newDeploymentName}
+	newDeployment.Status = appsv1.DeploymentStatus{}
+
+	By("Creating new controller deployment")
+	newDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Create(newDeployment)
+	Expect(err).ToNot(HaveOccurred())
+	return leaderPodName, newDeployment
+}
+
+func locateNewPod(f *framework.Framework, leaderPodName string) string {
+	var newPodName string
+
+	Eventually(func() bool {
+		pods := getPods(f)
+		if len(pods.Items) != 2 {
+			return false
+		}
+		for _, pod := range pods.Items {
+			if pod.Status.Phase != "Running" {
+				return false
+			}
+
+			if pod.Name != leaderPodName {
+				newPodName = pod.Name
+			}
+		}
+		return true
+
+	}, timeout, pollingInterval).Should(BeTrue())
+	return newPodName
+}
+
+func cleanupTest(f *framework.Framework, newDeployment *appsv1.Deployment) {
+	if newDeployment != nil {
+		By("Cleaning up new deployments")
+		err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Delete(newDeployment.Name, &metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() []appsv1.Deployment {
+			return getDeployments(f).Items
+		}, timeout, pollingInterval).Should(HaveLen(1))
+	}
+	By("Making sure we have only 1 pod")
+	Eventually(func() bool {
+		return len(getPods(f).Items) == 1
+	}, timeout, pollingInterval).Should(BeTrue())
+
+	leaderPod := getPods(f).Items[0]
+
+	Eventually(func() bool {
+		return checkLogForRegEx(logIsLeaderRegex, getLog(f, leaderPod.Name))
+	}, timeout, pollingInterval).Should(BeTrue())
+}
 
 func getDeployments(f *framework.Framework) *appsv1.DeploymentList {
 	deployments, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).List(metav1.ListOptions{LabelSelector: "app=containerized-data-importer"})
@@ -249,45 +238,4 @@ func getLog(f *framework.Framework, name string) string {
 	log, err := tests.RunKubectlCommand(f, "logs", name, "-n", f.CdiInstallNs)
 	Expect(err).ToNot(HaveOccurred())
 	return log
-}
-
-func stopCDIOperator(f *framework.Framework) {
-	// Find the existing operator pod.
-	operatorPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiOperatorPodPrefix, "")
-	Expect(err).ToNot(HaveOccurred())
-	operatorPodName := operatorPod.Name
-
-	operatorDp := getOperatorDeployment(f)
-	Expect(operatorDp.Spec.Replicas).To(Equal(&enableOperator))
-	// Set operator replica count to 0
-	operatorDp.Spec.Replicas = &disableOperator
-	updatedDp, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(operatorDp)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(updatedDp.Spec.Replicas).To(Equal(&disableOperator))
-
-	operatorDp = getOperatorDeployment(f)
-	//Make sure the operator pod is gone.
-	Expect(operatorDp.Spec.Replicas).To(Equal(&disableOperator))
-	Eventually(func() bool {
-		pod, _ := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).Get(operatorPodName, metav1.GetOptions{})
-		return pod == nil || pod.Name == ""
-	}, timeout, pollingInterval).Should(BeTrue())
-}
-
-func scaleUp(f *framework.Framework, scale int32) {
-	deployments := getDeployments(f)
-	Expect(deployments.Items).Should(HaveLen(1))
-
-	pods := getPods(f)
-	Expect(pods.Items).Should(HaveLen(1))
-
-	deployments.Items[0].Spec.Replicas = &scale
-	updatedDp, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(&deployments.Items[0])
-	Expect(err).ToNot(HaveOccurred())
-	Expect(updatedDp.Spec.Replicas).To(Equal(&scale))
-	Eventually(func() bool {
-		deployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(updatedDp.Name, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		return deployment.Status.AvailableReplicas == scale
-	}, timeout, pollingInterval).Should(BeTrue())
 }
