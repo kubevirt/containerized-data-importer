@@ -183,14 +183,6 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 	currentConditionValues := GetConditionValues(cr.Status.Conditions)
 	reqLogger.Info("Doing reconcile update")
 
-	existingAvailableCondition := conditions.FindStatusCondition(cr.Status.Conditions, conditions.ConditionAvailable)
-	if existingAvailableCondition != nil {
-		// should be the usual case
-		MarkCrHealthyMessage(cr, existingAvailableCondition.Reason, existingAvailableCondition.Message)
-	} else {
-		MarkCrHealthyMessage(cr, "", "")
-	}
-
 	res, err := r.reconcileUpdate(reqLogger, cr)
 	if conditionsChanged(currentConditionValues, GetConditionValues(cr.Status.Conditions)) {
 		if err := r.crUpdate(cr.Status.Phase, cr); err != nil {
@@ -390,7 +382,12 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		}
 	}
 
-	if cr.Status.Phase != cdiv1alpha1.CDIPhaseDeployed && !r.isUpgrading(cr) {
+	degraded, err := r.checkDegraded(logger, cr)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if cr.Status.Phase != cdiv1alpha1.CDIPhaseDeployed && !r.isUpgrading(cr) && !degraded {
 		//We are not moving to Deployed phase until new operator deployment is ready in case of Upgrade
 		cr.Status.ObservedVersion = r.namespacedArgs.DockerTag
 		MarkCrHealthyMessage(cr, "DeployCompleted", "Deployment Completed")
@@ -399,11 +396,6 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		}
 
 		logger.Info("Successfully entered Deployed state")
-	}
-
-	degraded, err := r.checkDegraded(logger, cr)
-	if err != nil {
-		return reconcile.Result{}, err
 	}
 
 	if !degraded && r.isUpgrading(cr) {
@@ -584,7 +576,8 @@ func (r *ReconcileCDI) checkDegraded(logger logr.Logger, cr *cdiv1alpha1.CDI) (b
 
 	logger.Info("CDI degraded check", "Degraded", degraded)
 
-	if degraded {
+	// If deployed and degraded, mark degraded, otherwise we are still deploying or not degraded.
+	if degraded && cr.Status.Phase == cdiv1alpha1.CDIPhaseDeployed {
 		conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 			Type:   conditions.ConditionDegraded,
 			Status: corev1.ConditionTrue,
