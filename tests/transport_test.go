@@ -2,8 +2,6 @@ package tests
 
 import (
 	"fmt"
-	"strconv"
-	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -86,7 +84,7 @@ var _ = Describe("Transport Tests", func() {
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", pvcAnn[controller.AnnEndpoint]))
-		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("transport-e2e", "20Mi", pvcAnn, nil))
+		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("transport-e2e", "40Mi", pvcAnn, nil))
 		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
 
 		if shouldSucceed {
@@ -98,17 +96,14 @@ var _ = Describe("Transport Tests", func() {
 			By("Verifying PVC is not empty")
 			Expect(framework.VerifyPVCIsEmpty(f, pvc)).To(BeFalse(), fmt.Sprintf("Found 0 imported files on PVC %q", pvc.Namespace+"/"+pvc.Name))
 
-			pod, err := utils.CreateExecutorPodWithPVC(c, sizeCheckPod, ns, pvc)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(utils.WaitTimeoutForPodReady(c, sizeCheckPod, ns, 90*time.Second)).To(Succeed())
-
 			switch pvcAnn[controller.AnnSource] {
 			case controller.SourceHTTP, controller.SourceRegistry:
 				if file != targetFile {
-					command := `expSize=20971520; haveSize=$(wc -c < /pvc/disk.img); (( $expSize == $haveSize )); echo $?`
-					exitCode, _ := f.ExecShellInPod(pod.Name, ns, command)
-					// A 0 exitCode should indicate that $expSize == $haveSize
-					Expect(strconv.Atoi(exitCode)).To(BeZero())
+					By("Verify content")
+					// Size: 18874368 // md5sum after conversion: d41d8cd98f00b204e9800998ecf8427e
+					same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", "d41d8cd98f00b204e9800998ecf8427e", 18874368)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(same).To(BeTrue())
 				}
 			}
 		} else {

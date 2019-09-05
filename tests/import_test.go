@@ -153,7 +153,7 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.qcow2"))
-		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-e2e", "20Mi", pvcAnn, nil))
+		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-e2e", "40Mi", pvcAnn, nil))
 		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
 
 		importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)

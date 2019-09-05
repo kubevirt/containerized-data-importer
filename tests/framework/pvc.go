@@ -45,7 +45,16 @@ func VerifyPVCIsEmpty(f *Framework, pvc *k8sv1.PersistentVolumeClaim) (bool, err
 	if err != nil {
 		return false, err
 	}
-	return strings.Compare("0", output) == 0, nil
+	found := strings.Compare("0", output) == 0
+	if !found {
+		// Could be that a file system was created and it has 'lost+found' directory in it, check again.
+		output, err := f.ExecShellInPod(executorPod.Name, f.Namespace.Name, "ls -1 /pvc")
+		if err != nil {
+			return false, err
+		}
+		found = strings.Compare("lost+found", output) == 0
+	}
+	return found, nil
 }
 
 // CreateAndPopulateSourcePVC Creates and populates a PVC using the provided POD and command
