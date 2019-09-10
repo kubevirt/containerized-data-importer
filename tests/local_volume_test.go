@@ -36,7 +36,7 @@ var _ = Describe("[rfe_id:1125][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		node = nodes.Items[0].Name
 
 		By("Creating PV with NodeAffinity and Binding label")
-		pv, err = f.CreatePVFromDefinition(utils.NewPVDefinition("local-volume", "1G", "test-sc", node, map[string]string{"node": node}))
+		pv, err = f.CreatePVFromDefinition(utils.NewPVDefinition("local-volume", "1G", storageClassName, node, map[string]string{"node": node}))
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify that PV's phase is Available")
@@ -53,10 +53,10 @@ var _ = Describe("[rfe_id:1125][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 	It("[test_id:1367]Import to PVC should succeed with local PV allocated to specific node", func() {
 		By("Creating PVC with a selector field matches the PV's label")
-		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
+		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPRateLimitPort)
 		_, err = f.CreatePVCFromDefinition(utils.NewPVCDefinitionWithSelector("local-volume-pvc",
 			"1G",
-			"test-sc",
+			storageClassName,
 			map[string]string{"node": node},
 			map[string]string{controller.AnnSource: controller.SourceHTTP,
 				controller.AnnContentType: string(cdiv1.DataVolumeKubeVirt), controller.AnnEndpoint: httpEp + "/tinyCore.iso"},
