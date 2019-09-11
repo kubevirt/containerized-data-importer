@@ -171,13 +171,13 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 
 		reqLogger.Info("Reconciling to error state, no configmap")
 		// we are in a weird state
-		return r.reconcileError(reqLogger, cr)
+		return r.reconcileError(reqLogger, cr, "Reconciling to error state, no configmap")
 	}
 
 	// do we even care about this CR?
 	if !metav1.IsControlledBy(configMap, cr) {
 		reqLogger.Info("Reconciling to error state, unwanted CDI object")
-		return r.reconcileError(reqLogger, cr)
+		return r.reconcileError(reqLogger, cr, "Reconciling to error state, unwanted CDI object")
 	}
 
 	currentConditionValues := GetConditionValues(cr.Status.Conditions)
@@ -541,8 +541,8 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileCDI) reconcileError(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
-	MarkCrFailed(cr, "ConfigError", "ConfigMap not owned by cr")
+func (r *ReconcileCDI) reconcileError(logger logr.Logger, cr *cdiv1alpha1.CDI, message string) (reconcile.Result, error) {
+	MarkCrFailed(cr, "ConfigError", message)
 	if err := r.crUpdate(cr.Status.Phase, cr); err != nil {
 		return reconcile.Result{}, err
 	}
