@@ -51,8 +51,46 @@ install_cdi
 wait_cdi_crd_installed $CDI_INSTALL_TIMEOUT
 
 _kubectl apply -f "./_out/manifests/release/cdi-cr.yaml"
-_kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=120s
+_kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=240s
 
+# If we are upgrading, verify our current value.
+if [ ! -z $UPGRADE_FROM ]; then
+  retry_counter=0
+  while [[ $retry_counter -lt 10 ]] && [ -z $cdi_cr_phase ] && [ "$observed_version" != "$UPGRADE_FROM" ]; do
+    cdi_cr_phase=`_kubectl get CDI -o=jsonpath='{.items[*].status.phase}{"\n"}'`
+    observed_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.observedVersion}{"\n"}'`
+    target_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.targetVersion}{"\n"}'`
+    operator_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.operatorVersion}{"\n"}'`
+    echo "Phase: $cdi_cr_phase, observedVersion: $observed_version, operatorVersion: $operator_version, targetVersion: $target_version"
+    retry_counter=$((retry_counter + 1))
+  sleep 5
+  done
+  if [ $retry_counter -eq 10 ]; then
+	echo "Unable to deploy to version $UPGRADE_FROM"
+	cdi_obj=$(_kubectl get CDI -o yaml)
+	echo $cdi_obj
+	exit 1
+  fi
+  echo "Currently at version: $UPGRADE_FROM"
+  echo "Upgrading to latest"
+  retry_counter=0
+  _kubectl apply -f "./_out/manifests/release/cdi-operator.yaml"
+  while [[ $retry_counter -lt 60 ]] && [ "$observed_version" != "latest" ]; do
+    cdi_cr_phase=`_kubectl get CDI -o=jsonpath='{.items[*].status.phase}{"\n"}'`
+    observed_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.observedVersion}{"\n"}'`
+    target_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.targetVersion}{"\n"}'`
+    operator_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.operatorVersion}{"\n"}'`
+    echo "Phase: $cdi_cr_phase, observedVersion: $observed_version, operatorVersion: $operator_version, targetVersion: $target_version"
+    retry_counter=$((retry_counter + 1))
+  sleep 1
+  done
+  if [ $retry_counter -eq 60 ]; then
+	echo "Unable to deploy to latest version"
+	cdi_obj=$(_kubectl get CDI -o yaml)
+	echo $cdi_obj
+	exit 1
+  fi
+fi
 
 # Start functional test HTTP server.
 # We skip the functional test additions for external provider for now, as they're specific
