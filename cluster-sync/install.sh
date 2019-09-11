@@ -24,7 +24,15 @@ function install_cdi_olm {
 }
 
 function install_cdi_operator {
-  _kubectl apply -f "./_out/manifests/release/cdi-operator.yaml" 
+  if [ ! -z $UPGRADE_FROM ]; then
+    curl -L "https://github.com/kubevirt/containerized-data-importer/releases/download/$UPGRADE_FROM/cdi-operator.yaml" --output cdi-operator.yaml
+    sed -i "0,/name: cdi/{s/name: cdi/name: $CDI_NAMESPACE/}" cdi-operator.yaml
+    sed -i "s/namespace: cdi/namespace: $CDI_NAMESPACE/g" cdi-operator.yaml
+    echo $(cat cdi-operator.yaml)
+    _kubectl apply -f cdi-operator.yaml
+  else
+    _kubectl apply -f "./_out/manifests/release/cdi-operator.yaml"
+  fi
 }
 
 
@@ -54,6 +62,5 @@ function wait_cdi_crd_installed {
      echo "ERROR - CDI CRD is not defined after timeout"
      exit 1
   fi  
-
 }
 

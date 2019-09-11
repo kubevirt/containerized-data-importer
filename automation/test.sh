@@ -42,6 +42,8 @@ elif [[ $TARGET =~ k8s-.* ]]; then
   export KUBEVIRT_PROVIDER_EXTRA_ARGS="--enable-ceph"
 fi
 
+export UPGRADE_FROM=$(curl -s https://github.com/kubevirt/containerized-data-importer/releases/latest | grep -o "v[0-9]\.[0-9]*\.[0-9]*")
+echo "Upgrading from verions: $UPGRADE_FROM"
 export KUBEVIRT_NUM_NODES=2
 
 kubectl() { cluster-up/kubectl.sh "$@"; }
