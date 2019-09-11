@@ -146,6 +146,39 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		)
 	})
 
+	Describe("[rfe_id:1111][case_id:2001][crit:low][vendor:cnv-qe@redhat.com][level:component]Verify multiple blank disk creations in parallel", func() {
+		var (
+			dataVolume1, dataVolume2, dataVolume3, dataVolume4 *cdiv1.DataVolume
+		)
+
+		AfterEach(func() {
+			dvs := []*cdiv1.DataVolume{dataVolume1, dataVolume2, dataVolume3, dataVolume4}
+			for _, dv := range dvs {
+				cleanDv(f, dv)
+			}
+		})
+
+		It("Should create all of them successfully", func() {
+			dataVolume1 = utils.NewDataVolumeForBlankRawImage("dv-1", "100Mi")
+			dataVolume2 = utils.NewDataVolumeForBlankRawImage("dv-2", "100Mi")
+			dataVolume3 = utils.NewDataVolumeForBlankRawImage("dv-3", "100Mi")
+			dataVolume4 = utils.NewDataVolumeForBlankRawImage("dv-4", "100Mi")
+
+			dvs := []*cdiv1.DataVolume{dataVolume1, dataVolume2, dataVolume3, dataVolume4}
+			for _, dv := range dvs {
+				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+				Expect(err).ToNot(HaveOccurred())
+			}
+
+			By("Waiting for Datavolume to have succeeded")
+			for _, dv := range dvs {
+				err := utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(f.VerifyBlankDisk(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv))).To(BeTrue())
+			}
+		})
+	})
+
 	Describe("Verify DataVolume with block mode", func() {
 		var err error
 		var dataVolume *cdiv1.DataVolume

@@ -135,6 +135,27 @@ func (f *Framework) GetMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolu
 	return output[:32], nil
 }
 
+// VerifyBlankDisk checks a blank disk on a file mode PVC by validating that the disk.img file is sparse.
+func (f *Framework) VerifyBlankDisk(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
+	var executorPod *k8sv1.Pod
+	var err error
+
+	executorPod, err = utils.CreateExecutorPodWithPVC(f.K8sClient, "verify-blank-disk-"+pvc.Name, namespace.Name, pvc)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	defer f.DeletePod(executorPod)
+	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+	cmd := fmt.Sprintf("ls -lsh %s/disk.img | awk '{print $1}'", utils.DefaultPvcMountPath)
+
+	output, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
+
+	if err != nil {
+		return false, err
+	}
+	return strings.Compare("0", string(output)) == 0, nil
+}
+
 // VerifyTargetPVCArchiveContent provides a function to check if the number of files extracted from an archive matches the passed in value
 func (f *Framework) VerifyTargetPVCArchiveContent(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, count string) (bool, error) {
 	var executorPod *k8sv1.Pod
