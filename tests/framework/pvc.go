@@ -52,6 +52,7 @@ func VerifyPVCIsEmpty(f *Framework, pvc *k8sv1.PersistentVolumeClaim) (bool, err
 		if err != nil {
 			return false, err
 		}
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: files found: %s\n", string(output))
 		found = strings.Compare("lost+found", output) == 0
 	}
 	return found, nil
