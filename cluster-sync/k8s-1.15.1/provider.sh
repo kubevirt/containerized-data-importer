@@ -10,4 +10,10 @@ if ! [[ $num_nodes =~ $re ]] || [[ $num_nodes -lt 1 ]] ; then
     num_nodes=1
 fi
 
+if [[ $KUBEVIRT_PROVIDER_EXTRA_ARGS =~ "--enable-ceph" ]]; then
+  echo "Switching default storage class to ceph"
+  #Switch the default storage class to ceph
+  _kubectl patch storageclass local -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+  _kubectl patch storageclass csi-rbd -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+fi
 
