@@ -65,6 +65,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 			if !f.IsSnapshotStorageClassAvailable() {
 				Skip("Test not available in openshift")
 			}
+			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
+			if ok && strings.Compare(value, "true") == 0 {
+				Skip("Test cannot negative test smart clone if all clone is smart")
+			}
+
 			dataVolume := createDataVolume("dv-smart-clone-test-negative", sourcePvc, fillCommand, "", f)
 
 			// Wait for operation Succeeded
@@ -75,7 +83,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 			Expect(strings.Contains(events, controller.SnapshotForSmartCloneInProgress)).To(BeFalse())
 
 			// Cleanup
-			err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 		})
 	})

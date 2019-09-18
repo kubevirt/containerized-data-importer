@@ -146,14 +146,15 @@ func (f *Framework) VerifyBlankDisk(namespace *k8sv1.Namespace, pvc *k8sv1.Persi
 	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-	cmd := fmt.Sprintf("ls -lsh %s/disk.img | awk '{print $1}'", utils.DefaultPvcMountPath)
+	cmd := fmt.Sprintf("tr -d '\\000' <%s/disk.img | grep -q -m 1 ^ || echo \"All zeros\"", utils.DefaultPvcMountPath)
 
 	output, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
 
 	if err != nil {
 		return false, err
 	}
-	return strings.Compare("0", string(output)) == 0, nil
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: empty file check %s\n", string(output))
+	return strings.Compare("All zeros", string(output)) == 0, nil
 }
 
 // VerifyTargetPVCArchiveContent provides a function to check if the number of files extracted from an archive matches the passed in value
