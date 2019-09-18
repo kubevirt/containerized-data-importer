@@ -53,8 +53,10 @@ var _ = Describe("Operator tests", func() {
 
 	// Condition flags can be found here with their meaning https://github.com/kubevirt/hyperconverged-cluster-operator/blob/master/docs/conditions.md
 	It("Condition flags on CR should be healthy and operating", func() {
-		cdiObject, err := f.CdiClient.CdiV1alpha1().CDIs().Get("cdi", metav1.GetOptions{})
+		cdiObjects, err := f.CdiClient.CdiV1alpha1().CDIs().List(metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
+		Expect(len(cdiObjects.Items)).To(Equal(1))
+		cdiObject := cdiObjects.Items[0]
 		conditionMap := operatorcontroller.GetConditionValues(cdiObject.Status.Conditions)
 		// Application should be fully operational and healthy.
 		Expect(conditionMap[conditions.ConditionAvailable]).To(Equal(corev1.ConditionTrue))
