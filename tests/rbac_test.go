@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"fmt"
 	"reflect"
 	"time"
 
@@ -87,11 +88,16 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		Expect(dvl.Items).To(HaveLen(0))
 
 		cl, err := client.Cdi().CDIConfigs().List(metav1.ListOptions{})
+		fmt.Printf("XXX %+v\n", err)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cl.Items).To(HaveLen(1))
 
-		_, err = client.Cdi().CDIConfigs().Get(cl.Items[0].Name, metav1.GetOptions{})
+		cfg, err := client.Cdi().CDIConfigs().Get(cl.Items[0].Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
+
+		cfg.Spec.ScratchSpaceStorageClass = &[]string{"foobar"}[0]
+		cfg, err = client.Cdi().CDIConfigs().Update(cfg)
+		Expect(err).To(HaveOccurred())
 	},
 		Entry("can do everything with admin", "admin"),
 		Entry("can do everything with edit", "edit"),
@@ -126,8 +132,12 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cl.Items).To(HaveLen(1))
 
-		_, err = client.Cdi().CDIConfigs().Get(cl.Items[0].Name, metav1.GetOptions{})
+		cfg, err := client.Cdi().CDIConfigs().Get(cl.Items[0].Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
+
+		cfg.Spec.ScratchSpaceStorageClass = &[]string{"foobar"}[0]
+		cfg, err = client.Cdi().CDIConfigs().Update(cfg)
+		Expect(err).To(HaveOccurred())
 	})
 })
 
@@ -272,6 +282,9 @@ var _ = Describe("Aggregated role definition tests", func() {
 						found = true
 						break
 					}
+				}
+				if !found {
+					fmt.Printf("PolicyRule %+v not found\n", r)
 				}
 				Expect(found).To(BeTrue())
 			}
