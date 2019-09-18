@@ -204,6 +204,32 @@ func NewDataVolumeForBlankRawImage(dataVolumeName, size string) *cdiv1.DataVolum
 	}
 }
 
+// NewDataVolumeForBlankRawImageBlock initializes a DataVolume struct for creating blank raw image for a block device
+func NewDataVolumeForBlankRawImageBlock(dataVolumeName, size string, storageClassName string) *cdiv1.DataVolume {
+	volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock)
+	dataVolume := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dataVolumeName,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{
+				Blank: &cdiv1.DataVolumeBlankImage{},
+			},
+			PVC: &k8sv1.PersistentVolumeClaimSpec{
+				VolumeMode:       &volumeMode,
+				StorageClassName: &storageClassName,
+				AccessModes:      []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+	return dataVolume
+}
+
 // NewDataVolumeForImageCloning initializes a DataVolume struct for cloning disk image
 func NewDataVolumeForImageCloning(dataVolumeName, size, namespace, pvcName string, storageClassName *string, volumeMode *k8sv1.PersistentVolumeMode) *cdiv1.DataVolume {
 	dv := &cdiv1.DataVolume{
