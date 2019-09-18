@@ -367,18 +367,7 @@ func getOperatorClusterResources(codeGroup string) ([]runtime.Object, error) {
 
 func getClusterResources(codeGroup string) ([]runtime.Object, error) {
 	args := &cdicluster.FactoryArgs{
-		Verbosity:              *verbosity,
-		DockerRepo:             *dockerRepo,
-		DockerTag:              *dockertag,
-		DeployClusterResources: *deployClusterResources,
-		ControllerImage:        *controllerImage,
-		ImporterImage:          *importerImage,
-		ClonerImage:            *clonerImage,
-		APIServerImage:         *apiServerImage,
-		UploadProxyImage:       *uploadProxyImage,
-		UploadServerImage:      *uploadServerImage,
-		PullPolicy:             *pullPolicy,
-		Namespace:              *namespace,
+		Namespace: *namespace,
 	}
 
 	if codeGroup == ClusterResourcesCodeGroupEverything {
