@@ -19,8 +19,8 @@ const (
 	// UploadFileMD5 is the expected MD5 of the uploaded file
 	UploadFileMD5 = "2a7a52285c846314d1dbd79e9818270d"
 
-	// UploadFileMD5Extended is the size of the image after being extended
-	UploadFileMD5Extended = "bbd634a97ffa672834717993b40e0ab7"
+	// UploadFileMD5100kbytes is the size of the image after being extended
+	UploadFileMD5100kbytes = "3710416a680523c7d07538cb1026c60c"
 
 	uploadTargetAnnotation = "cdi.kubevirt.io/storage.upload.target"
 	uploadStatusAnnotation = "cdi.kubevirt.io/storage.pod.phase"

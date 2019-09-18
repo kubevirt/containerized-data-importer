@@ -99,12 +99,9 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(found).To(BeTrue())
 
 			By("Verify content")
-			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5Extended)
+			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5100kbytes, 100000)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
-			fileSize, err := f.RunCommandAndCaptureOutput(pvc, "stat -c \"%s\" /pvc/disk.img")
-			Expect(err).ToNot(HaveOccurred())
-			Expect(fileSize).To(Equal("1073741824")) // 1G
 		} else {
 			By("Verify PVC empty")
 			_, err = framework.VerifyPVCIsEmpty(f, pvc)
