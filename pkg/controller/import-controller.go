@@ -133,6 +133,24 @@ func (ic *ImportController) requiresScratchSpace(pvc *v1.PersistentVolumeClaim) 
 // the importer pod as env vars. The pvc is checked (again) to ensure that we are not already
 // processing this pvc, which would result in multiple importer pods for the same pvc.
 func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
+	var lab map[string]string
+	if !checkIfLabelExists(pvc, common.CDILabelKey, common.CDILabelValue) {
+		lab = map[string]string{common.CDILabelKey: common.CDILabelValue}
+	}
+	anno := map[string]string{}
+
+	// In case this is a request to create a blank disk on a block device, we do not create a pod.
+	// we just mark the DV as successful
+	volumeMode := getVolumeMode(pvc)
+	if volumeMode == v1.PersistentVolumeBlock && pvc.GetAnnotations()[AnnSource] == SourceNone {
+		klog.V(3).Infof("attempting to create blank disk for block mode, this is a no-op, marking pvc with pod-phase succeeded")
+		anno[AnnPodPhase] = string(v1.PodSucceeded)
+		_, err := updatePVC(ic.clientset, pvc, anno, lab)
+		if err != nil {
+			return errors.WithMessage(err, "could not update pvc %q annotation and/or label")
+		}
+		return nil
+	}
 	// find import Pod
 	pod, err := ic.findImportPodFromCache(pvc)
 	if err != nil {
@@ -164,7 +182,6 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 	}
 
 	// update pvc with importer pod name and optional cdi label
-	anno := map[string]string{}
 	if pod != nil {
 		scratchExitCode := false
 		if pod.Status.ContainerStatuses != nil && pod.Status.ContainerStatuses[0].LastTerminationState.Terminated != nil &&
@@ -207,7 +224,6 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 		}
 	}
 
-	var lab map[string]string
 	if !checkIfLabelExists(pvc, common.CDILabelKey, common.CDILabelValue) {
 		lab = map[string]string{common.CDILabelKey: common.CDILabelValue}
 	}

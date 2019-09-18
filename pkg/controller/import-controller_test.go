@@ -127,18 +127,19 @@ func TestCreatesImportPodForBlankImage(t *testing.T) {
 }
 
 // Verifies basic pod creation when new PVC (VolumeMode: Block) with 'blank' annotation is discovered
-func TestCreatesImportPodForBlankImageBlockPV(t *testing.T) {
+func TestUpdatePVCWithNoPodForBlankImageBlockPV(t *testing.T) {
 	f := newImportFixture(t)
 	pvc := createBlockPvc("testPvc1", "default", map[string]string{AnnSource: SourceNone}, nil)
 
 	f.pvcLister = append(f.pvcLister, pvc)
 	f.kubeobjects = append(f.kubeobjects, pvc)
 
-	expPod := createPod(pvc, DataVolName, nil)
+	expPvc := pvc.DeepCopy()
+	expPvc.ObjectMeta.Labels = map[string]string{CDILabelKey: CDILabelValue}
+	expPvc.Annotations[AnnPodPhase] = "Succeeded"
+	f.expectUpdatePvcAction(expPvc)
 
-	f.expectCreatePodAction(expPod)
-
-	f.run(getPvcKey(pvc, t))
+	f.runWithExpectation(getPvcKey(pvc, t))
 }
 
 // Verifies pod creation does not occur when waiting for expectation.

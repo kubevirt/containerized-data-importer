@@ -710,6 +710,14 @@ func (c *DataVolumeController) updateDataVolumeStatus(dataVolume *cdiv1.DataVolu
 		switch pvc.Status.Phase {
 		case corev1.ClaimPending:
 			dataVolumeCopy.Status.Phase = cdiv1.Pending
+			// the following check is for a case where the request is to create a blank disk for a block device.
+			// in that case, we do not create a pod as there is no need to create a blank image.
+			// instead, we just mark the DV phase as 'Succeeded' so any consumer will be able to use it.
+			phase, _ := pvc.Annotations[AnnPodPhase]
+			if phase == string(cdiv1.Succeeded) {
+				dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+				c.updateImportStatusPhase(pvc, dataVolumeCopy, &event)
+			}
 		case corev1.ClaimBound:
 			switch dataVolumeCopy.Status.Phase {
 			case cdiv1.Pending:
