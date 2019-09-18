@@ -290,9 +290,7 @@ var _ = Describe("Aggregated role definition tests", func() {
 			}
 		}
 	},
-		//causing an issue in CI so commenting out for now
-		//https://github.com/kubevirt/containerized-data-importer/pull/961#issuecomment-532757768
-		//Entry("for admin", "admin", append(adminRules, append(editRules, viewRules...)...)),
+		Entry("for admin", "admin", append(adminRules, append(editRules, viewRules...)...)),
 		Entry("for edit", "edit", append(editRules, viewRules...)),
 		Entry("for view", "view", viewRules),
 	)
