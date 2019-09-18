@@ -19,6 +19,7 @@ package cluster
 import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
@@ -77,6 +78,126 @@ func createClusterRole(name string, labels map[string]string) *rbacv1.ClusterRol
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
 			Labels: labels,
+		},
+	}
+}
+
+func createAggregateClusterRoles(args *FactoryArgs) []runtime.Object {
+	return []runtime.Object{
+		createAggregateClusterRole("cdi.kubevirt.io:admin", "admin", getAdminPolicyRules()),
+		createAggregateClusterRole("cdi.kubevirt.io:edit", "edit", getEditPolicyRules()),
+		createAggregateClusterRole("cdi.kubevirt.io:view", "view", getViewPolicyRules()),
+	}
+}
+
+func createAggregateClusterRole(name, aggregateTo string, policyRules []rbacv1.PolicyRule) *rbacv1.ClusterRole {
+	labels := map[string]string{
+		"rbac.authorization.k8s.io/aggregate-to-" + aggregateTo: "true",
+	}
+	role := createClusterRole(name, utils.WithCommonLabels(labels))
+	role.Rules = policyRules
+	return role
+}
+
+func getAdminPolicyRules() []rbacv1.PolicyRule {
+	return []rbacv1.PolicyRule{
+		{
+			APIGroups: []string{
+				"cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"datavolumes",
+			},
+			Verbs: []string{
+				"*",
+			},
+		},
+		{
+			APIGroups: []string{
+				"cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"datavolumes/source",
+			},
+			Verbs: []string{
+				"create",
+			},
+		},
+		{
+			APIGroups: []string{
+				"cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"cdiconfigs",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+				"patch",
+				"update",
+			},
+		},
+		{
+			APIGroups: []string{
+				"upload.cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"uploadtokenrequests",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"create",
+			},
+		},
+	}
+}
+
+func getEditPolicyRules() []rbacv1.PolicyRule {
+	// diff between admin and edit ClusterRoles is minimal and limited to RBAC
+	// both can CRUD pods/PVCs/etc
+	return getAdminPolicyRules()
+}
+
+func getViewPolicyRules() []rbacv1.PolicyRule {
+	return []rbacv1.PolicyRule{
+		{
+			APIGroups: []string{
+				"cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"datavolumes",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
+				"cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"datavolumes/source",
+			},
+			Verbs: []string{
+				"create",
+			},
+		},
+		{
+			APIGroups: []string{
+				"cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"cdiconfigs",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
 		},
 	}
 }
