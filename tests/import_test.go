@@ -264,6 +264,25 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		Expect(same).To(BeTrue())
 
 	})
+
+	It("Should create blank raw image for block PV", func() {
+		if !f.IsBlockVolumeStorageClassAvailable() {
+			Skip("Storage Class for block volume is not available")
+		}
+		dv := utils.NewDataVolumeForBlankRawImageBlock("create-blank-image-to-block-pvc", "500Mi", f.BlockSCName)
+		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+		By("Waiting for import to be completed")
+		utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
+
+		By("Verifying a message was printed to indicate a request for a blank disk on a block device")
+		Eventually(func() bool {
+			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			Expect(err).NotTo(HaveOccurred())
+			return strings.Contains(log, "attempting to create blank disk for block mode")
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
+		Expect(err).ToNot(HaveOccurred())
+	})
 })
 
 var _ = Describe("[rfe_id:1947][crit:high][test_id:2145][vendor:cnv-qe@redhat.com][level:component]Importer Archive ContentType", func() {
