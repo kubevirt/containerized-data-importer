@@ -87,6 +87,8 @@ func createAggregateClusterRoles(args *FactoryArgs) []runtime.Object {
 		createAggregateClusterRole("cdi.kubevirt.io:admin", "admin", getAdminPolicyRules()),
 		createAggregateClusterRole("cdi.kubevirt.io:edit", "edit", getEditPolicyRules()),
 		createAggregateClusterRole("cdi.kubevirt.io:view", "view", getViewPolicyRules()),
+		createConfigReaderClusterRole("cdi.kubevirt.io:config-reader"),
+		createConfigReaderClusterRoleBinding("cdi.kubevirt.io:config-reader"),
 	}
 }
 
@@ -197,6 +199,53 @@ func getViewPolicyRules() []rbacv1.PolicyRule {
 				"get",
 				"list",
 				"watch",
+			},
+		},
+	}
+}
+
+func createConfigReaderClusterRole(name string) *rbacv1.ClusterRole {
+	role := CreateClusterRole(name)
+
+	role.Rules = []rbacv1.PolicyRule{
+		{
+			APIGroups: []string{
+				"cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"cdiconfigs",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
+	}
+
+	return role
+}
+
+func createConfigReaderClusterRoleBinding(name string) *rbacv1.ClusterRoleBinding {
+	return &rbacv1.ClusterRoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "rbac.authorization.k8s.io/v1",
+			Kind:       "ClusterRoleBinding",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: utils.WithCommonLabels(nil),
+		},
+		RoleRef: rbacv1.RoleRef{
+			Kind:     "ClusterRole",
+			Name:     name,
+			APIGroup: "rbac.authorization.k8s.io",
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:     "Group",
+				Name:     "system:authenticated",
+				APIGroup: "rbac.authorization.k8s.io",
 			},
 		},
 	}
