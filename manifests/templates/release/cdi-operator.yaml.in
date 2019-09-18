@@ -6,26 +6,5 @@ metadata:
   name: {{.Namespace}}
 {{index .GeneratedManifests "cdi-crd.yaml"}}
 {{index .GeneratedManifests "cdi-configmap-cr.yaml"}}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: cdi.kubevirt.io:operator
-  labels:
-    operator.cdi.kubevirt.io: ""
-    rbac.authorization.k8s.io/aggregate-to-admin: "true"
-rules:
-- apiGroups:
-  - cdi.kubevirt.io
-  resources:
-  - cdis
-  verbs:
-  - create
-  - patch
-  - get
-  - list
-  - delete
-  - watch
-  - deletecollection
 {{index .GeneratedManifests "rbac-operator.authorization.k8s.yaml.in"}}
 {{index .GeneratedManifests "cdi-operator-deployment.yaml"}}

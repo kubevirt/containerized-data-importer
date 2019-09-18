@@ -18,77 +18,114 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-var cdiRole = &rbacv1.Role{
-	ObjectMeta: metav1.ObjectMeta{
-		Name: "explicit-role",
-	},
-	Rules: []rbacv1.PolicyRule{
-		{
-			APIGroups: []string{
-				"cdi.kubevirt.io",
-			},
-			Resources: []string{
-				"datavolumes",
-			},
-			Verbs: []string{
-				"*",
-			},
-		},
-	},
-}
-
-var explicitRole = &rbacv1.Role{
-	ObjectMeta: metav1.ObjectMeta{
-		Name: "explicit-role",
-	},
-	Rules: []rbacv1.PolicyRule{
-		{
-			APIGroups: []string{
-				"cdi.kubevirt.io",
-			},
-			Resources: []string{
-				"datavolumes",
-				"datavolumes/source",
-			},
-			Verbs: []string{
-				"*",
-			},
-		},
-	},
-}
-
-var implicitRole = &rbacv1.Role{
-	ObjectMeta: metav1.ObjectMeta{
-		Name: "implicit-role",
-	},
-	Rules: []rbacv1.PolicyRule{
-		{
-			APIGroups: []string{
-				"cdi.kubevirt.io",
-			},
-			Resources: []string{
-				"datavolumes",
-			},
-			Verbs: []string{
-				"*",
-			},
-		},
-		{
-			APIGroups: []string{
-				"",
-			},
-			Resources: []string{
-				"pods",
-			},
-			Verbs: []string{
-				"create",
-			},
-		},
-	},
-}
-
 var _ = Describe("Clone Auth Webhook tests", func() {
 	const serviceAccountName = "cdi-auth-webhook-test"
+
+	var cdiRole = &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "explicit-role",
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{
+					"cdi.kubevirt.io",
+				},
+				Resources: []string{
+					"datavolumes",
+				},
+				Verbs: []string{
+					"*",
+				},
+			},
+		},
+	}
+
+	var explicitRole = &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "explicit-role",
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{
+					"cdi.kubevirt.io",
+				},
+				Resources: []string{
+					"datavolumes",
+					"datavolumes/source",
+				},
+				Verbs: []string{
+					"*",
+				},
+			},
+		},
+	}
+
+	var implicitRole = &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "implicit-role",
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{
+					"cdi.kubevirt.io",
+				},
+				Resources: []string{
+					"datavolumes",
+				},
+				Verbs: []string{
+					"*",
+				},
+			},
+			{
+				APIGroups: []string{
+					"",
+				},
+				Resources: []string{
+					"pods",
+				},
+				Verbs: []string{
+					"create",
+				},
+			},
+		},
+	}
+
+	var createServiceAccount = func(client kubernetes.Interface, namespace, name string) {
+		sa := &corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+			},
+		}
+
+		_, err := client.CoreV1().ServiceAccounts(namespace).Create(sa)
+		Expect(err).ToNot(HaveOccurred())
+	}
+
+	var addPermissionToNamespace = func(client kubernetes.Interface, role *rbacv1.Role, saNamespace, sa, targetNamesace string) {
+		_, err := client.RbacV1().Roles(targetNamesace).Create(role)
+		Expect(err).ToNot(HaveOccurred())
+
+		rb := &rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: sa,
+			},
+			RoleRef: rbacv1.RoleRef{
+				Kind:     "Role",
+				Name:     role.Name,
+				APIGroup: "rbac.authorization.k8s.io",
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      sa,
+					Namespace: saNamespace,
+				},
+			},
+		}
+
+		_, err = client.RbacV1().RoleBindings(targetNamesace).Create(rb)
+		Expect(err).ToNot(HaveOccurred())
+	}
 
 	f := framework.NewFrameworkOrDie("clone-auth-webhook-test")
 
@@ -175,40 +212,3 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 		})
 	})
 })
-
-func createServiceAccount(client kubernetes.Interface, namespace, name string) {
-	sa := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}
-
-	_, err := client.CoreV1().ServiceAccounts(namespace).Create(sa)
-	Expect(err).ToNot(HaveOccurred())
-}
-
-func addPermissionToNamespace(client kubernetes.Interface, role *rbacv1.Role, saNamespace, sa, targetNamesace string) {
-	_, err := client.RbacV1().Roles(targetNamesace).Create(role)
-	Expect(err).ToNot(HaveOccurred())
-
-	rb := &rbacv1.RoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: sa,
-		},
-		RoleRef: rbacv1.RoleRef{
-			Kind:     "Role",
-			Name:     role.Name,
-			APIGroup: "rbac.authorization.k8s.io",
-		},
-		Subjects: []rbacv1.Subject{
-			{
-				Kind:      "ServiceAccount",
-				Name:      sa,
-				Namespace: saNamespace,
-			},
-		},
-	}
-
-	_, err = client.RbacV1().RoleBindings(targetNamesace).Create(rb)
-	Expect(err).ToNot(HaveOccurred())
-}

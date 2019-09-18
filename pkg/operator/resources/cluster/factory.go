@@ -26,33 +26,24 @@ import (
 
 // FactoryArgs contains the required parameters to generate all cluster-scoped resources
 type FactoryArgs struct {
-	DockerRepo             string `required:"true" split_words:"true"`
-	DockerTag              string `required:"true" split_words:"true"`
-	DeployClusterResources string `required:"true" split_words:"true"`
-	ControllerImage        string `required:"true" split_words:"true"`
-	ImporterImage          string `required:"true" split_words:"true"`
-	ClonerImage            string `required:"true" split_words:"true"`
-	APIServerImage         string `required:"true" envconfig:"apiserver_image"`
-	UploadProxyImage       string `required:"true" split_words:"true"`
-	UploadServerImage      string `required:"true" split_words:"true"`
-	Verbosity              string `required:"true"`
-	PullPolicy             string `required:"true" split_words:"true"`
-	Namespace              string
+	Namespace string
 }
 
 type factoryFunc func(*FactoryArgs) []runtime.Object
 
 const (
 	//CdiRBAC - groupCode to generate only operator rbac manifest
-	CdiRBAC string = "cdi-rbac"
+	CdiRBAC = "cdi-rbac"
 	//APIServerRBAC - groupCode to generate only apiserver rbac manifest
-	APIServerRBAC string = "apiserver-rbac"
+	APIServerRBAC = "apiserver-rbac"
 	//UploadProxyRBAC - groupCode to generate only apiserver rbac manifest
-	UploadProxyRBAC string = "uploadproxy-rbac"
+	UploadProxyRBAC = "uploadproxy-rbac"
 	//ControllerRBAC - groupCode to generate only controller rbac manifest
-	ControllerRBAC string = "controller-rbac"
+	ControllerRBAC = "controller-rbac"
 	//CRDResources - groupCode to generate only resources' manifest
-	CRDResources string = "crd-resources"
+	CRDResources = "crd-resources"
+	//AggregateRoles = groupCode to generate only aggregate roles
+	AggregateRoles = "aggregate-roles"
 )
 
 var factoryFunctions = map[string]factoryFunc{
@@ -61,6 +52,7 @@ var factoryFunctions = map[string]factoryFunc{
 	ControllerRBAC:  createControllerResources,
 	CRDResources:    createCRDResources,
 	UploadProxyRBAC: createUploadProxyResources,
+	AggregateRoles:  createAggregateClusterRoles,
 }
 
 //IsFactoryResource returns true id codeGroupo belolngs to factory functions
