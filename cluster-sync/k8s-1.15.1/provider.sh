@@ -12,8 +12,32 @@ fi
 
 if [[ $KUBEVIRT_PROVIDER_EXTRA_ARGS =~ "--enable-ceph" ]]; then
   echo "Switching default storage class to ceph"
-  #Switch the default storage class to ceph
+  # Switch the default storage class to ceph
   _kubectl patch storageclass local -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
-  _kubectl patch storageclass csi-rbd -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+  # Make sure the SC is configured to use xfs instead of ext4
+  _kubectl delete storageclass csi-rbd
+  cat <<EOF | _kubectl apply -f -
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+  name: csi-rbd
+parameters:
+  adminid: admin
+  csi.storage.k8s.io/node-publish-secret-name: csi-rbd-secret
+  csi.storage.k8s.io/node-publish-secret-namespace: default
+  csi.storage.k8s.io/provisioner-secret-name: csi-rbd-secret
+  csi.storage.k8s.io/provisioner-secret-namespace: default
+  imageFeatures: layering
+  imageFormat: "2"
+  monitors: 192.168.66.2
+  multiNodeWritable: enabled
+  pool: rbd
+  fsType: xfs
+provisioner: csi-rbdplugin
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+EOF
 fi
 
