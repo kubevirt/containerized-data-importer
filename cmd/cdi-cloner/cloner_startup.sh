@@ -39,7 +39,7 @@ else
     UPLOAD_BYTES=$(du -sb . | cut -f1)
     echo "UPLOAD_BYTES=$UPLOAD_BYTES"
 
-    tar cv . | /usr/bin/cdi-cloner -v=3 -alsologtostderr -content_type filesystem-clone -upload_bytes $UPLOAD_BYTES
+    tar Scv . | /usr/bin/cdi-cloner -v=3 -alsologtostderr -content_type filesystem-clone -upload_bytes $UPLOAD_BYTES
 
     popd
 fi
