@@ -347,6 +347,16 @@ var _ = Describe("Resize", func() {
 			Expect(ProcessingPhaseError).To(Equal(nextPhase))
 		})
 	})
+
+	It("Should return same value as replaced function", func() {
+		replaceAvailableSpaceBlockFunc(func(dataDir string) int64 {
+			return int64(100000)
+		}, func() {
+			mdp := &MockDataProvider{}
+			dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "")
+			Expect(int64(100000)).To(Equal(dp.calculateTargetSize()))
+		})
+	})
 })
 
 var _ = Describe("ResizeImage", func() {
@@ -415,6 +425,15 @@ func replaceAvailableSpaceBlockFunc(replacement func(string) int64, f func()) {
 	getAvailableSpaceBlockFunc = replacement
 	defer func() {
 		getAvailableSpaceBlockFunc = origFunc
+	}()
+	f()
+}
+
+func replaceAvailableSpaceFunc(replacement func(string) int64, f func()) {
+	origFunc := getAvailableSpaceFunc
+	getAvailableSpaceFunc = replacement
+	defer func() {
+		getAvailableSpaceFunc = origFunc
 	}()
 	f()
 }

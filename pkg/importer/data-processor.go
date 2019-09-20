@@ -63,6 +63,7 @@ var ErrInvalidPath = fmt.Errorf("invalid transfer path")
 
 // may be overridden in tests
 var getAvailableSpaceBlockFunc = util.GetAvailableSpaceBlock
+var getAvailableSpaceFunc = util.GetAvailableSpace
 
 // DataSourceInterface is the interface all data providers should implement.
 type DataSourceInterface interface {
@@ -258,7 +259,7 @@ func (dp *DataProcessor) calculateTargetSize() int64 {
 	} else {
 		// File system volume.
 		klog.V(1).Infof("Checking out file system volume size.\n")
-		targetQuantity = resource.NewScaledQuantity(util.GetAvailableSpace(dp.dataDir), 0)
+		targetQuantity = resource.NewScaledQuantity(getAvailableSpaceFunc(dp.dataDir), 0)
 	}
 	if dp.requestImageSize != "" {
 		klog.V(1).Infof("Request image size not empty.\n")
