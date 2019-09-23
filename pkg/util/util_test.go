@@ -4,11 +4,13 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
+	"syscall"
 
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
@@ -121,6 +123,64 @@ var _ = Describe("Copy files", func() {
 	It("Should not copy file from source to dest, with invalid target", func() {
 		err = CopyFile(filepath.Join(TestImagesDir, "content.tar"), filepath.Join("/invalidpath", "target.tar"))
 		Expect(err).To(HaveOccurred())
+	})
+})
+
+var _ = Describe("RetryBackoffSize", func() {
+	var blockSize int64
+
+	BeforeEach(func() {
+		var stat syscall.Statfs_t
+		err := syscall.Statfs(".", &stat)
+		Expect(err).ToNot(HaveOccurred())
+		blockSize = int64(stat.Bsize)
+	})
+
+	It("Should succeed", func() {
+		callCount := 0
+		startQuantity := resource.NewScaledQuantity(int64(250*blockSize), 0)
+		err := RetryBackoffSize("", *startQuantity, func(dest string, size resource.Quantity) error {
+			callCount++
+			return nil
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(callCount).To(Equal(1))
+	})
+
+	It("Should succeed after 2 tries", func() {
+		callCount := 0
+		startQuantity := resource.NewScaledQuantity(int64(250*blockSize), 0)
+		err := RetryBackoffSize("", *startQuantity, func(dest string, size resource.Quantity) error {
+			callCount++
+			if resource.NewScaledQuantity(int64(200*blockSize), 0).Cmp(size) == 0 {
+				return nil
+			}
+			return fmt.Errorf("I am failing two tries, help me, %+v", size)
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(callCount).To(Equal(3))
+	})
+
+	It("Should fail after 10 tries", func() {
+		callCount := 0
+		startQuantity := resource.NewScaledQuantity(int64(250*blockSize), 0)
+		err := RetryBackoffSize("", *startQuantity, func(dest string, size resource.Quantity) error {
+			callCount++
+			return fmt.Errorf("I am failing, help me")
+		})
+		Expect(err).To(HaveOccurred())
+		Expect(callCount).To(Equal(11))
+	})
+
+	It("Should fail with invalid dest", func() {
+		callCount := 0
+		startQuantity := resource.NewScaledQuantity(int64(250*blockSize), 0)
+		err := RetryBackoffSize("/invalid/invalid", *startQuantity, func(dest string, size resource.Quantity) error {
+			callCount++
+			return fmt.Errorf("I should never get called")
+		})
+		Expect(err).To(HaveOccurred())
+		Expect(callCount).To(Equal(0))
 	})
 })
 

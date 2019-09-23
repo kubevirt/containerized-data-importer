@@ -102,6 +102,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5100kbytes, 100000)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
+			By("Verifying the image is not sparse")
+			Expect(f.VerifyNotSparse(f.Namespace, pvc)).To(BeTrue())
 		} else {
 			By("Verify PVC empty")
 			_, err = framework.VerifyPVCIsEmpty(f, pvc)

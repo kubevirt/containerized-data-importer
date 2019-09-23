@@ -99,7 +99,7 @@ func NewQEMUOperations() QEMUOperations {
 }
 
 func convertToRaw(src, dest string) error {
-	_, err := qemuExecFunction(nil, nil, "qemu-img", "convert", "-p", "-O", "raw", src, dest)
+	_, err := qemuExecFunction(nil, nil, "qemu-img", "convert", "-p", "-O", "raw", "-o", "preallocation=falloc", src, dest)
 	if err != nil {
 		os.Remove(dest)
 		return errors.Wrap(err, "could not convert image to raw")
@@ -115,7 +115,7 @@ func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string) error {
 	}
 	jsonArg := fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", url.Scheme, url, networkTimeoutSecs)
 
-	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", "convert", "-p", "-O", "raw", jsonArg, dest)
+	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", "convert", "-p", "-O", "raw", "-o", "preallocation=falloc", jsonArg, dest)
 	if err != nil {
 		// TODO: Determine what to do here, the conversion failed, and we need to clean up the mess, but we could be writing to a block device
 		os.Remove(dest)
@@ -136,7 +136,7 @@ func convertQuantityToQemuSize(size resource.Quantity) string {
 }
 
 func (o *qemuOperations) Resize(image string, size resource.Quantity) error {
-	_, err := qemuExecFunction(nil, nil, "qemu-img", "resize", "-f", "raw", image, convertQuantityToQemuSize(size))
+	_, err := qemuExecFunction(nil, nil, "qemu-img", "resize", "-f", "raw", "--preallocation=falloc", image, convertQuantityToQemuSize(size))
 	if err != nil {
 		return errors.Wrapf(err, "Error resizing image %s", image)
 	}
@@ -223,13 +223,13 @@ func reportProgress(line string) {
 // CreateBlankImage creates empty raw image
 func CreateBlankImage(dest string, size resource.Quantity) error {
 	klog.V(1).Infof("creating raw image with size %s", size.String())
-	return qemuIterface.CreateBlankImage(dest, size)
+	return util.RetryBackoffSize(dest, size, qemuIterface.CreateBlankImage)
 }
 
 // CreateBlankImage creates a raw image with a given size
 func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity) error {
 	klog.V(3).Infof("image size is %s", size.String())
-	_, err := qemuExecFunction(nil, nil, "qemu-img", "create", "-f", "raw", dest, convertQuantityToQemuSize(size))
+	_, err := qemuExecFunction(nil, nil, "qemu-img", "create", "-f", "raw", "-o", "preallocation=falloc", dest, convertQuantityToQemuSize(size))
 	if err != nil {
 		os.Remove(dest)
 		return errors.Wrap(err, fmt.Sprintf("could not create raw image with size %s in %s", size.String(), dest))

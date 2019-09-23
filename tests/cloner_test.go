@@ -227,6 +227,9 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 		Expect(err).ToNot(HaveOccurred())
 		matchFile := filepath.Join(testBaseDir, "disk.img")
 		Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv), matchFile, md5sum[:32])).To(BeTrue())
+		By("Verifying the image is not sparse")
+		Expect(f.VerifyNotSparse(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv))).To(BeTrue())
+
 	})
 
 	It("[rfe_id:CNV-1126][case_id:CNV-1896][crit:High][vendor:cnv-qe@redhat.com][level:component] Should not allow cloning into a smaller sized data volume in block volume mode", func() {
