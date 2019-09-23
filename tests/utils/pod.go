@@ -56,7 +56,12 @@ func DeletePod(clientSet *kubernetes.Clientset, pod *k8sv1.Pod, namespace string
 // NewPodWithPVC creates a new pod that mounts the given PVC
 func NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1.Pod {
 	pod := &k8sv1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: podName},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: podName,
+			Labels: map[string]string{
+				"cdi.kubevirt.io/testing": podName,
+			},
+		},
 		Spec: k8sv1.PodSpec{
 			RestartPolicy: k8sv1.RestartPolicyNever,
 			Containers: []k8sv1.Container{
