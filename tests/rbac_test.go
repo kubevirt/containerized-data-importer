@@ -237,17 +237,6 @@ var _ = Describe("Aggregated role definition tests", func() {
 		},
 	}
 
-	var containsString = func(toCheck []string, values ...string) bool {
-		for _, value := range values {
-			for _, v := range toCheck {
-				if v == value {
-					return true
-				}
-			}
-		}
-		return false
-	}
-
 	f := framework.NewFrameworkOrDie("aggregated-role-definition-tests")
 
 	DescribeTable("check all expected rules exist", func(role string, rules []rbacv1.PolicyRule) {
@@ -267,31 +256,6 @@ var _ = Describe("Aggregated role definition tests", func() {
 	},
 		Entry("for admin", "admin", adminRules),
 		Entry("for edit", "edit", editRules),
-		Entry("for view", "view", viewRules),
-	)
-
-	DescribeTable("check no unexpected rules", func(role string, rules []rbacv1.PolicyRule) {
-		clusterRole, err := f.K8sClient.RbacV1().ClusterRoles().Get(role, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-
-		for _, r := range clusterRole.Rules {
-			if containsString(r.APIGroups, "cdi.kubevirt.io", "api.kubevirt.io") {
-				found := false
-				for _, expectedRule := range rules {
-					if reflect.DeepEqual(expectedRule, r) {
-						found = true
-						break
-					}
-				}
-				if !found {
-					fmt.Printf("PolicyRule %+v not found\n", r)
-				}
-				Expect(found).To(BeTrue())
-			}
-		}
-	},
-		Entry("for admin", "admin", append(adminRules, append(editRules, viewRules...)...)),
-		Entry("for edit", "edit", append(editRules, viewRules...)),
 		Entry("for view", "view", viewRules),
 	)
 })
