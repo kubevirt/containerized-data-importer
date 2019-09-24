@@ -148,6 +148,11 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 
 		By("Calculating the md5sum of the source data volume")
 		md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir)
+		retry := 0
+		for err != nil && retry < 10 {
+			retry++
+			md5sum, err = f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum "+testBaseDir)
+		}
 		Expect(err).ToNot(HaveOccurred())
 		fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
