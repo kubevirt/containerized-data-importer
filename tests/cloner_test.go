@@ -52,10 +52,11 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	})
 
 	It("[test_id:1354]Should clone data within same namespace", func() {
+		smartApplicable := f.IsSnapshotStorageClassAvailable()
 		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
 		if err == nil {
 			value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
-			if ok && strings.Compare(value, "true") == 0 {
+			if smartApplicable && ok && strings.Compare(value, "true") == 0 {
 				Skip("Cannot test host assisted cloning for within namespace when all pvcs are smart clone capable.")
 			}
 		}
