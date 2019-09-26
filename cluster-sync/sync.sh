@@ -51,7 +51,8 @@ install_cdi
 wait_cdi_crd_installed $CDI_INSTALL_TIMEOUT
 
 _kubectl apply -f "./_out/manifests/release/cdi-cr.yaml"
-_kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=240s
+echo "Waiting 480 seconds for CDI to become available"
+_kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=480s
 
 # If we are upgrading, verify our current value.
 if [ ! -z $UPGRADE_FROM ]; then
