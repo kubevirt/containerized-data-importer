@@ -230,3 +230,23 @@ func isExpectedNode(clientSet *kubernetes.Clientset, nodeName, podName, namespac
 		return false, nil
 	}
 }
+
+// GetSchedulableNode return a schedulable node from a nodes list
+func GetSchedulableNode(nodes *v1.NodeList) *string {
+	for _, node := range nodes.Items {
+		if node.Spec.Taints == nil {
+			return &node.Name
+		}
+		schedulableNode := true
+		for _, taint := range node.Spec.Taints {
+			if taint.Effect == "NoSchedule" {
+				schedulableNode = false
+				break
+			}
+		}
+		if schedulableNode {
+			return &node.Name
+		}
+	}
+	return nil
+}
