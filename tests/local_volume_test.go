@@ -33,7 +33,10 @@ var _ = Describe("[rfe_id:1125][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	BeforeEach(func() {
 		nodes, err := f.K8sClient.CoreV1().Nodes().List(metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		node = nodes.Items[0].Name
+
+		nodeRef := utils.GetSchedulableNode(nodes)
+		Expect(nodeRef).ToNot(BeNil())
+		node = *nodeRef
 
 		By("Creating PV with NodeAffinity and Binding label")
 		pv, err = f.CreatePVFromDefinition(utils.NewPVDefinition("local-volume", "1G", storageClassName, node, map[string]string{"node": node}))
