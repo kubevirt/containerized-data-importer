@@ -58,7 +58,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
 		Expect(err).ToNot(HaveOccurred())
 		// Wait a while to see if CDI puts anything in the PVC.
-		isEmpty, err := framework.VerifyPVCIsEmpty(f, pvc)
+		isEmpty, err := framework.VerifyPVCIsEmpty(f, pvc, "")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(isEmpty).To(BeTrue())
 		// Not deleting PVC as it will be removed with the NS removal.

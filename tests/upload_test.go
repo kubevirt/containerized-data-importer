@@ -14,6 +14,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -105,8 +106,12 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			By("Verifying the image is not sparse")
 			Expect(f.VerifyNotSparse(f.Namespace, pvc)).To(BeTrue())
 		} else {
+			uploader, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
+			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
+			By("Verifying PVC is empty")
+			By(fmt.Sprintf("uploader.Spec.NodeName %q", uploader.Spec.NodeName))
 			By("Verify PVC empty")
-			_, err = framework.VerifyPVCIsEmpty(f, pvc)
+			_, err = framework.VerifyPVCIsEmpty(f, pvc, uploader.Spec.NodeName)
 			Expect(err).ToNot(HaveOccurred())
 		}
 	},

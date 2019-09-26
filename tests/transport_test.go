@@ -94,7 +94,7 @@ var _ = Describe("Transport Tests", func() {
 			Expect(found).To(BeTrue())
 
 			By("Verifying PVC is not empty")
-			Expect(framework.VerifyPVCIsEmpty(f, pvc)).To(BeFalse(), fmt.Sprintf("Found 0 imported files on PVC %q", pvc.Namespace+"/"+pvc.Name))
+			Expect(framework.VerifyPVCIsEmpty(f, pvc, "")).To(BeFalse(), fmt.Sprintf("Found 0 imported files on PVC %q", pvc.Namespace+"/"+pvc.Name))
 
 			switch pvcAnn[controller.AnnSource] {
 			case controller.SourceHTTP, controller.SourceRegistry:
@@ -113,9 +113,11 @@ var _ = Describe("Transport Tests", func() {
 			found, err := utils.WaitPVCPodStatusFailed(f.K8sClient, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(found).To(BeTrue())
-
+			importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
+			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
 			By("Verifying PVC is empty")
-			Expect(framework.VerifyPVCIsEmpty(f, pvc)).To(BeTrue(), fmt.Sprintf("Found >0 imported files on PVC %q", pvc.Namespace+"/"+pvc.Name))
+			By(fmt.Sprintf("importer.Spec.NodeName %q", importer.Spec.NodeName))
+			Expect(framework.VerifyPVCIsEmpty(f, pvc, importer.Spec.NodeName)).To(BeTrue(), fmt.Sprintf("Found >0 imported files on PVC %q", pvc.Namespace+"/"+pvc.Name))
 		}
 	}
 

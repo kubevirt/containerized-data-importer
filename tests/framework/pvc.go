@@ -35,14 +35,25 @@ func (f *Framework) CreateExecutorPodWithPVC(podName string, pvc *k8sv1.Persiste
 	return utils.CreateExecutorPodWithPVC(f.K8sClient, podName, f.Namespace.Name, pvc)
 }
 
+// CreateExecutorPodWithPVCSpecificNode is a wrapper around utils.CreateExecutorPodWithPVCSpecificNode
+func (f *Framework) CreateExecutorPodWithPVCSpecificNode(podName string, pvc *k8sv1.PersistentVolumeClaim, node string) (*k8sv1.Pod, error) {
+	return utils.CreateExecutorPodWithPVCSpecificNode(f.K8sClient, podName, f.Namespace.Name, pvc, node)
+}
+
 // FindPVC is a wrapper around utils.FindPVC
 func (f *Framework) FindPVC(pvcName string) (*k8sv1.PersistentVolumeClaim, error) {
 	return utils.FindPVC(f.K8sClient, f.Namespace.Name, pvcName)
 }
 
-// VerifyPVCIsEmpty verifies a passed in PVC is empty, returns true if the PVC is empty, false if it is not.
-func VerifyPVCIsEmpty(f *Framework, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
-	executorPod, err := f.CreateExecutorPodWithPVC("verify-pvc-empty", pvc)
+// VerifyPVCIsEmpty verifies a passed in PVC is empty, returns true if the PVC is empty, false if it is not. Optionaly, specify node for the pod.
+func VerifyPVCIsEmpty(f *Framework, pvc *k8sv1.PersistentVolumeClaim, node string) (bool, error) {
+	var err error
+	var executorPod *k8sv1.Pod
+	if node != "" {
+		executorPod, err = f.CreateExecutorPodWithPVCSpecificNode("verify-pvc-empty", pvc, node)
+	} else {
+		executorPod, err = f.CreateExecutorPodWithPVC("verify-pvc-empty", pvc)
+	}
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = f.WaitTimeoutForPodReady(executorPod.Name, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
