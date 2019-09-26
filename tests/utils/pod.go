@@ -28,6 +28,16 @@ func CreateExecutorPodWithPVC(clientSet *kubernetes.Clientset, podName, namespac
 	return CreatePod(clientSet, namespace, newExecutorPodWithPVC(podName, pvc))
 }
 
+// CreateExecutorPodWithPVCSpecificNode creates a Pod on a specific node with the passed in PVC mounted under /pvc. You can then use the executor utilities to
+// run commands against the PVC through this Pod.
+func CreateExecutorPodWithPVCSpecificNode(clientSet *kubernetes.Clientset, podName, namespace string, pvc *k8sv1.PersistentVolumeClaim, node string) (*k8sv1.Pod, error) {
+	var pod = newExecutorPodWithPVC(podName, pvc)
+	pod.Spec.NodeSelector = map[string]string{
+		"kubernetes.io/hostname": node,
+	}
+	return CreatePod(clientSet, namespace, pod)
+}
+
 // CreatePod calls the Kubernetes API to create a Pod
 func CreatePod(clientSet *kubernetes.Clientset, namespace string, podDef *k8sv1.Pod) (*k8sv1.Pod, error) {
 	var pod *k8sv1.Pod
