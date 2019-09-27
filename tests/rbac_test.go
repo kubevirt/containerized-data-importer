@@ -188,9 +188,7 @@ var _ = Describe("Aggregated role definition tests", func() {
 				"uploadtokenrequests",
 			},
 			Verbs: []string{
-				"get",
-				"list",
-				"create",
+				"*",
 			},
 		},
 	}
