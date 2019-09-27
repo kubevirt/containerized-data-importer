@@ -1,0 +1,91 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@bazel_gazelle//:def.bzl", "gazelle")
+load("@bazel_tools//tools/python:toolchain.bzl", "py_runtime_pair")
+
+py_runtime(
+    name = "python2_runtime",
+    interpreter_path = "/usr/bin/python2",
+    python_version = "PY2",
+)
+
+py_runtime(
+    name = "python3_runtime",
+    interpreter_path = "/usr/bin/python3",
+    python_version = "PY3",
+)
+
+py_runtime_pair(
+    name = "python_runtimes",
+    py2_runtime = ":python2_runtime",
+    py3_runtime = ":python3_runtime",
+)
+
+toolchain(
+    name = "python_toolchain",
+    toolchain = ":python_runtimes",
+    toolchain_type = "@bazel_tools//tools/python:toolchain_type",
+)
+
+# gazelle:prefix kubevirt.io/containerized-data-importer
+gazelle(name = "gazelle")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["doc.go"],
+    importpath = "kubevirt.io/containerized-data-importer",
+    visibility = ["//visibility:public"],
+)
+
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_bundle",
+    "container_image",
+)
+
+container_bundle(
+    name = "build-images",
+    images = {
+        # cmd images
+        "$(container_prefix)/cdi-operator:$(container_tag)": "//cmd/cdi-operator:cdi-operator-image",
+        "$(container_prefix)/cdi-controller:$(container_tag)": "//cmd/cdi-controller:cdi-controller-image",
+        "$(container_prefix)/cdi-apiserver:$(container_tag)": "//cmd/cdi-apiserver:cdi-apiserver-image",
+        "$(container_prefix)/cdi-cloner:$(container_tag)": "//cmd/cdi-cloner:cdi-cloner-image",
+        "$(container_prefix)/cdi-importer:$(container_tag)": "//cmd/cdi-importer:cdi-importer-image",
+        "$(container_prefix)/cdi-uploadproxy:$(container_tag)": "//cmd/cdi-uploadproxy:cdi-uploadproxy-image",
+        "$(container_prefix)/cdi-uploadserver:$(container_tag)": "//cmd/cdi-uploadserver:cdi-uploadserver-image",
+        # test images
+        "$(container_prefix)/cdi-func-test-file-host-init:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-init-image",
+        "$(container_prefix)/cdi-func-test-file-host-http:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-http-image",
+        "$(container_prefix)/cdi-func-test-registry-init:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-init-image",
+        "$(container_prefix)/cdi-func-test-registry-populate:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-populate-image",
+        "$(container_prefix)/cdi-func-test-registry:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-image",
+    },
+)
+
+load("@io_bazel_rules_docker//contrib:push-all.bzl", "docker_push")
+
+docker_push(
+    name = "push-images",
+    bundle = ":build-images",
+)
+
+filegroup(
+    name = "test-images",
+    srcs = [
+        "//tests:images/tinyCore.iso",
+        "//tests:images/archive.tar",
+        "//tests:images/cirros-qcow2.img",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "test-invalid-images",
+    srcs = [
+        "//tests:images/invalid_qcow_images/invalid-qcow-backing-file.img",
+        "//tests:images/invalid_qcow_images/invalid-qcow-large-json.img",
+        "//tests:images/invalid_qcow_images/invalid-qcow-large-memory.img",
+        "//tests:images/invalid_qcow_images/invalid-qcow-large-size.img",
+    ],
+    visibility = ["//visibility:public"],
+)

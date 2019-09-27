@@ -1,6 +1,6 @@
 /*
- * MinIO Go Library for Amazon S3 Compatible Cloud Storage
- * Copyright 2015-2017 MinIO, Inc.
+ * Minio Go Library for Amazon S3 Compatible Cloud Storage
+ * Copyright 2015-2017 Minio, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package minio
 
 import (
 	"crypto/md5"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/xml"
@@ -31,9 +32,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/minio/sha256-simd"
-
-	"github.com/minio/minio-go/v6/pkg/s3utils"
+	"github.com/minio/minio-go/pkg/s3utils"
 )
 
 // xmlDecoder provide decoded value in xml.
@@ -230,7 +229,7 @@ var supportedHeaders = []string{
 
 // isStorageClassHeader returns true if the header is a supported storage class header
 func isStorageClassHeader(headerKey string) bool {
-	return strings.EqualFold(amzStorageClass, headerKey)
+	return strings.ToLower(amzStorageClass) == strings.ToLower(headerKey)
 }
 
 // isStandardHeader returns true if header is a supported header and not a custom header

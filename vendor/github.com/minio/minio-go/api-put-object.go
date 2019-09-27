@@ -1,6 +1,6 @@
 /*
- * MinIO Go Library for Amazon S3 Compatible Cloud Storage
- * Copyright 2015-2017 MinIO, Inc.
+ * Minio Go Library for Amazon S3 Compatible Cloud Storage
+ * Copyright 2015-2017 Minio, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@ import (
 	"runtime/debug"
 	"sort"
 
-	"github.com/minio/minio-go/v6/pkg/encrypt"
-	"github.com/minio/minio-go/v6/pkg/s3utils"
+	"github.com/minio/minio-go/pkg/encrypt"
+	"github.com/minio/minio-go/pkg/s3utils"
 	"golang.org/x/net/http/httpguts"
 )
 
@@ -44,7 +44,6 @@ type PutObjectOptions struct {
 	NumThreads              uint
 	StorageClass            string
 	WebsiteRedirectLocation string
-	PartSize                uint64
 }
 
 // getNumThreads - gets the number of threads to be used in the multipart
@@ -124,9 +123,9 @@ func (a completedParts) Less(i, j int) bool { return a[i].PartNumber < a[j].Part
 //
 // You must have WRITE permissions on a bucket to create an object.
 //
-//  - For size smaller than 128MiB PutObject automatically does a
+//  - For size smaller than 64MiB PutObject automatically does a
 //    single atomic Put operation.
-//  - For size larger than 128MiB PutObject automatically does a
+//  - For size larger than 64MiB PutObject automatically does a
 //    multipart Put operation.
 //  - For size input as -1 PutObject does a multipart Put operation
 //    until input stream reaches EOF. Maximum object size that can
@@ -148,13 +147,8 @@ func (c Client) putObjectCommon(ctx context.Context, bucketName, objectName stri
 		return c.putObjectNoChecksum(ctx, bucketName, objectName, reader, size, opts)
 	}
 
-	partSize := opts.PartSize
-	if opts.PartSize == 0 {
-		partSize = minPartSize
-	}
-
 	if c.overrideSignerType.IsV2() {
-		if size >= 0 && size < int64(partSize) {
+		if size >= 0 && size < minPartSize {
 			return c.putObjectNoChecksum(ctx, bucketName, objectName, reader, size, opts)
 		}
 		return c.putObjectMultipart(ctx, bucketName, objectName, reader, size, opts)
@@ -163,11 +157,10 @@ func (c Client) putObjectCommon(ctx context.Context, bucketName, objectName stri
 		return c.putObjectMultipartStreamNoLength(ctx, bucketName, objectName, reader, opts)
 	}
 
-	if size < int64(partSize) {
+	if size < minPartSize {
 		return c.putObjectNoChecksum(ctx, bucketName, objectName, reader, size, opts)
 	}
-
-	// For all sizes greater than 128MiB do multipart.
+	// For all sizes greater than 64MiB do multipart.
 	return c.putObjectMultipartStream(ctx, bucketName, objectName, reader, size, opts)
 }
 
@@ -188,7 +181,7 @@ func (c Client) putObjectMultipartStreamNoLength(ctx context.Context, bucketName
 	var complMultipartUpload completeMultipartUpload
 
 	// Calculate the optimal parts info for a given size.
-	totalPartsCount, partSize, _, err := optimalPartInfo(-1, opts.PartSize)
+	totalPartsCount, partSize, _, err := optimalPartInfo(-1)
 	if err != nil {
 		return 0, err
 	}

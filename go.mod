@@ -10,6 +10,7 @@ require (
 	github.com/emicklei/go-restful-openapi v1.2.0
 	github.com/evanphx/json-patch v4.2.0+incompatible
 	github.com/ghodss/yaml v1.0.0
+	github.com/go-ini/ini v1.48.0 // indirect
 	github.com/go-logr/logr v0.0.0-20190813230443-d63354a31b29
 	github.com/go-logr/zapr v0.0.0-20190813212058-2e515ec1daf7 // indirect
 	github.com/go-openapi/spec v0.19.2
@@ -19,7 +20,7 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kubernetes-csi/external-snapshotter v0.0.0-20190509204040-e49856eb417c
 	github.com/minio/minio-go v6.0.14+incompatible
-	github.com/minio/minio-go/v6 v6.0.39 // indirect
+	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/onsi/ginkgo v1.8.0
 	github.com/onsi/gomega v1.5.0
 	github.com/openshift/api v3.9.1-0.20190424152011-77b8897ec79a+incompatible
@@ -59,8 +60,6 @@ require (
 	sigs.k8s.io/controller-runtime v0.1.10
 	sigs.k8s.io/testing_frameworks v0.0.0-20190821092519-b6c33f574b58 // indirect
 )
-
-replace github.com/minio/minio-go => github.com/minio/minio-go/v6 v6.0.39 // indirect
 
 replace k8s.io/client-go => k8s.io/client-go v0.0.0-20190228174230-b40b2a5939e4
 

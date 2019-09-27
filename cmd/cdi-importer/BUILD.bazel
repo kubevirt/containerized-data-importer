@@ -1,0 +1,62 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
+
+rpm_image(
+    name = "cdi-importer-base-image",
+    base = "@fedora//image",
+    rpms = [
+        "@tar//file",
+        "@qemu-img//file",
+        "@qemu-block-curl//file",
+        "@xen-libs//file",
+        "@libaio//file",
+        "@capstone//file",
+        "@skopeo//file",
+        "@ostree-libs//file",
+        "@device-mapper-libs//file",
+        "@containers-common//file",
+    ],
+)
+
+go_library(
+    name = "go_default_library",
+    srcs = ["importer.go"],
+    importpath = "kubevirt.io/containerized-data-importer/cmd/cdi-importer",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/apis/core/v1alpha1:go_default_library",
+        "//pkg/common:go_default_library",
+        "//pkg/controller:go_default_library",
+        "//pkg/image:go_default_library",
+        "//pkg/importer:go_default_library",
+        "//pkg/util:go_default_library",
+        "//pkg/util/prometheus:go_default_library",
+        "//vendor/github.com/pkg/errors:go_default_library",
+        "//vendor/k8s.io/api/core/v1:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/api/resource:go_default_library",
+        "//vendor/k8s.io/klog:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "cdi-importer",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)
+
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_image",
+)
+
+container_image(
+    name = "cdi-importer-image",
+    base = ":cdi-importer-base-image",
+    directory = "/usr/bin",
+    entrypoint = [
+        "/usr/bin/cdi-importer",
+        "-alsologtostderr",
+    ],
+    files = [":cdi-importer"],
+    visibility = ["//visibility:public"],
+)

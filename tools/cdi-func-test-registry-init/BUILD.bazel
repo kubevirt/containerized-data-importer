@@ -1,0 +1,146 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
+load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
+load("@io_bazel_rules_docker//container:container.bzl", "container_image")
+
+rpm_image(
+    name = "cdi-func-test-registry-init-base-image",
+    base = "@fedora//image",
+    rpms = [
+        "@qemu-img//file",
+        "@qemu-block-curl//file",
+        "@xen-libs//file",
+        "@libaio//file",
+        "@capstone//file",
+    ],
+)
+
+# Init
+go_library(
+    name = "go_default_library",
+    srcs = ["main.go"],
+    importpath = "kubevirt.io/containerized-data-importer/tools/cdi-func-test-registry-init",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/util:go_default_library",
+        "//tests/utils:go_default_library",
+        "//vendor/github.com/pkg/errors:go_default_library",
+        "//vendor/k8s.io/klog:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "cdi-func-test-registry-init",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)
+
+container_image(
+    name = "cdi-func-test-registry-init-file-image",
+    base = ":cdi-func-test-registry-init-base-image",
+    directory = "/",
+    tars = [":test-img-tar"],
+)
+
+container_image(
+    name = "cdi-func-test-registry-exec-init-image",
+    base = ":cdi-func-test-registry-init-file-image",
+    directory = "/usr/bin",
+    files = [":cdi-func-test-registry-init"],
+    visibility = ["//visibility:public"],
+)
+
+container_image(
+    name = "cdi-func-test-registry-init-image",
+    base = ":cdi-func-test-registry-exec-init-image",
+    directory = "/usr/bin",
+    entrypoint = [
+        "cdi-func-test-registry-init",
+        "-alsologtostderr",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+pkg_tar(
+    name = "test-img-tar",
+    srcs = ["//:test-images"],
+    mode = "644",
+    package_dir = "/tmp/source",
+)
+
+#Populate
+rpm_image(
+    name = "cdi-func-test-registry-populate-base-image",
+    base = "@fedora//image",
+    rpms = [
+        "@buildah//file",
+        "@libseccomp//file",
+        "@device-mapper-libs//file",
+        "@containers-common//file",
+    ],
+)
+
+container_image(
+    name = "cdi-func-test-registry-populate-image",
+    base = ":cdi-func-test-registry-populate-base-image",
+    directory = "/",
+    entrypoint = ["./populate-registry.sh"],
+    tars = [":populate-script-tar"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "populate-script",
+    srcs = [
+        ":populate-registry.sh",
+    ],
+)
+
+pkg_tar(
+    name = "populate-script-tar",
+    srcs = [":populate-script"],
+    mode = "755",
+    package_dir = "/",
+)
+
+#Registry image
+container_image(
+    name = "cdi-func-test-registry-image",
+    base = "@registry//image",
+    directory = "/",
+    entrypoint = ["/start-registry.sh"],
+    tars = [
+        ":registry-script-tar",
+        "registry-config-tar",
+    ],
+    ports = ["443"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "registry-config",
+    srcs = [
+        ":registry-config.yml",
+    ],
+)
+
+pkg_tar(
+    name = "registry-config-tar",
+    srcs = [":registry-config"],
+    mode = "644",
+    package_dir = "/etc/docker/registry",
+)
+
+filegroup(
+    name = "registry-script",
+    srcs = [
+        ":start-registry.sh",
+    ],
+)
+
+pkg_tar(
+    name = "registry-script-tar",
+    srcs = [":registry-script"],
+    mode = "755",
+    package_dir = "/",
+)

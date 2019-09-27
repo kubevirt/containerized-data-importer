@@ -27,3 +27,14 @@ gpgcheck=1
 metadata_expire=6h
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-$releasever-$basearch
 skip_if_unavailable=False
+
+[copr:copr.fedorainfracloud.org:vbatts:bazel]
+name=Copr repo for bazel owned by vbatts
+baseurl=https://copr-be.cloud.fedoraproject.org/results/vbatts/bazel/fedora-$releasever-$basearch/
+type=rpm-md
+skip_if_unavailable=True
+gpgcheck=1
+gpgkey=https://copr-be.cloud.fedoraproject.org/results/vbatts/bazel/pubkey.gpg
+repo_gpgcheck=0
+enabled=1
+enabled_metadata=1

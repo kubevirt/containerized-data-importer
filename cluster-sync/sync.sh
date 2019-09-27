@@ -34,7 +34,7 @@ fi
 
 # Need to set the DOCKER_PREFIX appropriately in the call to `make docker push`, otherwise make will just pass in the default `kubevirt`
 DOCKER_PREFIX=$MANIFEST_REGISTRY PULL_POLICY=$(getTestPullPolicy) make manifests
-DOCKER_PREFIX=$DOCKER_PREFIX make docker push
+DOCKER_PREFIX=$DOCKER_PREFIX make push
 
 seed_images
 
@@ -79,6 +79,7 @@ if [ ! -z $UPGRADE_FROM ]; then
     operator_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.operatorVersion}{"\n"}'`
     echo "Phase: $cdi_cr_phase, observedVersion: $observed_version, operatorVersion: $operator_version, targetVersion: $target_version"
     retry_counter=$((retry_counter + 1))
+    _kubectl get pods -n $CDI_NAMESPACE
   sleep 1
   done
   if [ $retry_counter -eq 60 ]; then
@@ -87,11 +88,13 @@ if [ ! -z $UPGRADE_FROM ]; then
 	echo $cdi_obj
 	exit 1
   fi
+  echo "Waiting 480 seconds for CDI to become available"
+  _kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=480s
 fi
 
 # Start functional test HTTP server.
 # We skip the functional test additions for external provider for now, as they're specific
 if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
-_kubectl apply -f "./_out/manifests/file-host.yaml"
-_kubectl apply -f "./_out/manifests/registry-host.yaml"
+  _kubectl apply -f "./_out/manifests/file-host.yaml"
+  _kubectl apply -f "./_out/manifests/registry-host.yaml"
 fi

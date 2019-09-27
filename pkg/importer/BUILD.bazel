@@ -1,0 +1,60 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "data-processor.go",
+        "format-readers.go",
+        "http-datasource.go",
+        "registry-datasource.go",
+        "s3-datasource.go",
+        "upload-datasource.go",
+        "util.go",
+    ],
+    importpath = "kubevirt.io/containerized-data-importer/pkg/importer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/apis/core/v1alpha1:go_default_library",
+        "//pkg/common:go_default_library",
+        "//pkg/image:go_default_library",
+        "//pkg/util:go_default_library",
+        "//pkg/util/prometheus:go_default_library",
+        "//vendor/github.com/minio/minio-go:go_default_library",
+        "//vendor/github.com/pkg/errors:go_default_library",
+        "//vendor/github.com/prometheus/client_golang/prometheus:go_default_library",
+        "//vendor/github.com/ulikunitz/xz:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/api/resource:go_default_library",
+        "//vendor/k8s.io/klog:go_default_library",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = [
+        "data-processor_test.go",
+        "format-readers_test.go",
+        "http-datasource_test.go",
+        "importer_suite_test.go",
+        "registry-datasource_test.go",
+        "s3-datasource_test.go",
+        "upload-datasource_test.go",
+        "util_test.go",
+    ],
+    embed = [":go_default_library"],
+    deps = [
+        "//pkg/apis/core/v1alpha1:go_default_library",
+        "//pkg/common:go_default_library",
+        "//pkg/image:go_default_library",
+        "//pkg/util:go_default_library",
+        "//pkg/util/cert/triple:go_default_library",
+        "//tests/reporters:go_default_library",
+        "//tests/utils:go_default_library",
+        "//vendor/github.com/minio/minio-go:go_default_library",
+        "//vendor/github.com/onsi/ginkgo:go_default_library",
+        "//vendor/github.com/onsi/ginkgo/extensions/table:go_default_library",
+        "//vendor/github.com/onsi/gomega:go_default_library",
+        "//vendor/github.com/pkg/errors:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/api/resource:go_default_library",
+        "//vendor/k8s.io/client-go/util/cert:go_default_library",
+    ],
+)
