@@ -35,6 +35,7 @@ import (
 func fakeRequest() *restful.Request {
 	req := &restful.Request{}
 	req.Request = &http.Request{}
+	req.Request.Method = "POST"
 	req.Request.URL = &url.URL{}
 	req.Request.Header = make(map[string][]string)
 	req.Request.Header[userHeader] = []string{"user"}

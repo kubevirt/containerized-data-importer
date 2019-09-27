@@ -77,6 +77,11 @@ func (a *authorizor) getUserExtras(headers http.Header, toMatch []string) map[st
 	return extras
 }
 
+// only supporting create for now
+var verbMap = map[string]string{
+	"POST": "create",
+}
+
 func (a *authorizor) generateAccessReview(req *restful.Request) (*authorization.SubjectAccessReview, error) {
 
 	httpRequest := req.Request
@@ -127,7 +132,12 @@ func (a *authorizor) generateAccessReview(req *restful.Request) (*authorization.
 	if err != nil {
 		return nil, err
 	}
-	verb := strings.ToLower(httpRequest.Method)
+
+	method := strings.ToUpper(httpRequest.Method)
+	verb, exists := verbMap[method]
+	if !exists {
+		return nil, fmt.Errorf("unsupported HTTP method %s", method)
+	}
 
 	r := &authorization.SubjectAccessReview{}
 	r.Spec = authorization.SubjectAccessReviewSpec{
