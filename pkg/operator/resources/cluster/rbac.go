@@ -148,9 +148,7 @@ func getAdminPolicyRules() []rbacv1.PolicyRule {
 				"uploadtokenrequests",
 			},
 			Verbs: []string{
-				"get",
-				"list",
-				"create",
+				"*",
 			},
 		},
 	}
