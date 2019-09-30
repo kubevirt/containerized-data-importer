@@ -2,28 +2,8 @@
 
 set -e
 source ./cluster-sync/install-config.sh
-source ./cluster-sync/${KUBEVIRT_PROVIDER}/install.sh
 
-function install_cdi_olm {
-  #Install CDI via OLM
-  _kubectl create ns $NAMESPACE
-  _kubectl apply -f _out/manifests/release/olm/operatorgroup.yaml
-
-  if [ -z "$CDI_OLM_MANIFESTS_CATALOG_SRC" ]; then 
-      echo "ERROR - OLM installation requires CDI_OLM_MANIFESTS_CATALOG_SRC to be set"
-      exit -1
-  fi
-
-  if [ -z "$CDI_OLM_MANIFESTS_SUBSCRIPTION" ]; then 
-      echo "ERROR - OLM installation requires CDI_OLM_MANIFESTS_SUBSCRIPTION to be set"
-      exit -1
-  fi
-
-  _kubectl apply -f $CDI_OLM_MANIFESTS_CATALOG_SRC
-  _kubectl apply -f $CDI_OLM_MANIFESTS_SUBSCRIPTION
-}
-
-function install_cdi_operator {
+function install_cdi {
   if [ ! -z $UPGRADE_FROM ]; then
     curl -L "https://github.com/kubevirt/containerized-data-importer/releases/download/$UPGRADE_FROM/cdi-operator.yaml" --output cdi-operator.yaml
     sed -i "0,/name: cdi/{s/name: cdi/name: $CDI_NAMESPACE/}" cdi-operator.yaml
@@ -34,19 +14,6 @@ function install_cdi_operator {
     _kubectl apply -f "./_out/manifests/release/cdi-operator.yaml"
   fi
 }
-
-
-function install_cdi {
-    case "${CDI_INSTALL}" in
-    "${CDI_INSTALL_OPERATOR}")
-        install_cdi_operator
-        ;;
-    "${CDI_INSTALL_OLM}")
-        install_cdi_olm
-        ;;
-    esac
-}
-
 
 function wait_cdi_crd_installed {
   timeout=$1

@@ -1,1 +1,0 @@
-{{index .GeneratedManifests "cdi-operator-csv.yaml"}}
