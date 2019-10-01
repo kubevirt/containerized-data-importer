@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"fmt"
 	"reflect"
 	"time"
 
@@ -58,7 +57,7 @@ var _ = Describe("Aggregated role in-action tests", func() {
 	f := framework.NewFrameworkOrDie("aggregated-role-tests")
 
 	DescribeTable("admin/edit datavolume permission checks", func(user string) {
-		var client cdiClientset.Interface
+		var client *cdiClientset.Clientset
 		var err error
 
 		createServiceAccount(f.K8sClient, f.Namespace.Name, user)
@@ -87,8 +86,28 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dvl.Items).To(HaveLen(0))
 
+		dv = utils.NewDataVolumeForUpload("upload-test-"+user, "1Gi")
+		dv, err = client.Cdi().DataVolumes(f.Namespace.Name).Create(dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		var pvc *corev1.PersistentVolumeClaim
+		Eventually(func() error {
+			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(dv.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			return nil
+		}, 90*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
+
+		found, err := utils.WaitPVCPodStatusRunning(f.K8sClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).Should(BeTrue())
+
+		token, err := utils.RequestUploadToken(client, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
 		cl, err := client.Cdi().CDIConfigs().List(metav1.ListOptions{})
-		fmt.Printf("XXX %+v\n", err)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cl.Items).To(HaveLen(1))
 
