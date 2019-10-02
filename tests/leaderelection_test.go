@@ -129,10 +129,12 @@ var _ = Describe("[rfe_id:1250][crit:high][test_id:1889][vendor:cnv-qe@redhat.co
 		// The import is starting, and the transfer is about to happen. Now kill the leader
 		By("Killing leader, we should have a new leader elected")
 		err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).Delete(leaderPodName, &metav1.DeleteOptions{})
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to kill leader: %v", err))
 
 		Eventually(func() bool {
 			log := getLog(f, newPodName)
+			fmt.Fprintf(GinkgoWriter, "INFO: Lookin for: %s\n", logIsLeaderRegex)
+			fmt.Fprintf(GinkgoWriter, "INFO: In: %s\n", log)
 			return checkLogForRegEx(logIsLeaderRegex, log)
 		}, timeout, pollingInterval).Should(BeTrue())
 
