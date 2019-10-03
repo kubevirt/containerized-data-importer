@@ -289,7 +289,7 @@ var _ = Describe("Create blank image", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
 		size := convertQuantityToQemuSize(quantity)
-		replaceExecFunction(mockExecFunction("", "", nil, "create", "-f", "raw", "image", size), func() {
+		replaceExecFunction(mockExecFunction("", "", nil, "create", "-f", "raw", "-o", "preallocation=falloc", "image", size), func() {
 			err = CreateBlankImage("image", quantity)
 			Expect(err).NotTo(HaveOccurred())
 		})
@@ -299,13 +299,27 @@ var _ = Describe("Create blank image", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
 		size := convertQuantityToQemuSize(quantity)
-		replaceExecFunction(mockExecFunction("", "exit 1", nil, "create", "-f", "raw", "image", size), func() {
+		replaceExecFunction(mockExecFunctionIgnoreArgs("", "exit 1", nil, "create", "-f", "raw", "-o", "preallocation=falloc", "image", size), func() {
 			err = CreateBlankImage("image", quantity)
 			Expect(err).To(HaveOccurred())
 			Expect(strings.Contains(err.Error(), "could not create raw image with size ")).To(BeTrue())
 		})
 	})
 })
+
+func mockExecFunctionIgnoreArgs(output, errString string, expectedLimits *system.ProcessLimitValues, checkArgs ...string) execFunctionType {
+	return func(limits *system.ProcessLimitValues, f func(string), cmd string, args ...string) (bytes []byte, err error) {
+		Expect(reflect.DeepEqual(expectedLimits, limits)).To(BeTrue())
+		if output != "" {
+			bytes = []byte(output)
+		}
+		if errString != "" {
+			err = errors.New(errString)
+		}
+
+		return
+	}
+}
 
 func mockExecFunction(output, errString string, expectedLimits *system.ProcessLimitValues, checkArgs ...string) execFunctionType {
 	return func(limits *system.ProcessLimitValues, f func(string), cmd string, args ...string) (bytes []byte, err error) {
