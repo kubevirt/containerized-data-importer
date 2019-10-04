@@ -70,11 +70,18 @@ type podDeleteRequest struct {
 	k8sClient kubernetes.Interface
 }
 
-type pvcDeleteRequest struct {
-	namespace string
-	pvcName   string
-	pvcLister corelisters.PersistentVolumeClaimLister
-	k8sClient kubernetes.Interface
+var createClientKeyAndCertFunc = createClientKeyAndCert
+
+func createClientKeyAndCert(ca *triple.KeyPair, commonName string, organizations []string) ([]byte, []byte, error) {
+	clientKeyPair, err := triple.NewClientKeyPair(ca, commonName, organizations)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "error creating client key pair")
+	}
+
+	clientKeyBytes := cert.EncodePrivateKeyPEM(clientKeyPair.Key)
+	clientCertBytes := cert.EncodeCertPEM(clientKeyPair.Cert)
+
+	return clientKeyBytes, clientCertBytes, nil
 }
 
 func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string) bool {
@@ -261,7 +268,7 @@ func checkIfLabelExists(pvc *v1.PersistentVolumeClaim, lbl string, val string) b
 // newScratchPersistentVolumeClaimSpec creates a new PVC based on the size of the passed in PVC.
 // It also sets the appropriate OwnerReferences on the resource
 // which allows handleObject to discover the pod resource that 'owns' it, and clean up when needed.
-func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, storageClassName string) *v1.PersistentVolumeClaim {
+func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, name, storageClassName string) *v1.PersistentVolumeClaim {
 	labels := map[string]string{
 		"cdi-controller": pod.Name,
 		"app":            "containerized-data-importer",
@@ -270,16 +277,11 @@ func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.
 
 	pvcDef := &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      pvc.Name + "-scratch",
+			Name:      name,
 			Namespace: pvc.Namespace,
 			Labels:    labels,
 			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion: "v1",
-					Kind:       "Pod",
-					Name:       pod.Name,
-					UID:        pod.GetUID(),
-				},
+				MakePodOwnerReference(pod),
 			},
 		},
 		Spec: v1.PersistentVolumeClaimSpec{
@@ -294,9 +296,9 @@ func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.
 }
 
 // CreateScratchPersistentVolumeClaim creates and returns a pointer to a scratch PVC which is created based on the passed-in pvc and storage class name.
-func CreateScratchPersistentVolumeClaim(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, pod *v1.Pod, storageClassName string) (*v1.PersistentVolumeClaim, error) {
+func CreateScratchPersistentVolumeClaim(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, pod *v1.Pod, name, storageClassName string) (*v1.PersistentVolumeClaim, error) {
 	ns := pvc.Namespace
-	scratchPvcSpec := newScratchPersistentVolumeClaimSpec(pvc, pod, storageClassName)
+	scratchPvcSpec := newScratchPersistentVolumeClaimSpec(pvc, pod, name, storageClassName)
 	scratchPvc, err := client.CoreV1().PersistentVolumeClaims(ns).Create(scratchPvcSpec)
 	if err != nil {
 		return nil, errors.Wrap(err, "scratch PVC API create errored")
@@ -569,39 +571,35 @@ func addToMap(m1, m2 map[string]string) map[string]string {
 }
 
 // returns the CloneRequest string which contains the pvc name (and namespace) from which we want to clone the image.
-func getCloneRequestPVCAnnotation(pvc *v1.PersistentVolumeClaim) (string, error) {
-	cr, found := pvc.Annotations[AnnCloneRequest]
-	if !found || cr == "" {
-		verb := "empty"
-		if !found {
-			verb = "missing"
-		}
-		return cr, errors.Errorf("annotation %q in pvc \"%s/%s\" is %s\n", AnnCloneRequest, pvc.Namespace, pvc.Name, verb)
-	}
-	return cr, nil
-}
-
-// returns the CloneRequest string which contains the pvc name (and namespace) from which we want to clone the image.
 func getCloneRequestSourcePVC(pvc *v1.PersistentVolumeClaim, pvcLister corelisters.PersistentVolumeClaimLister) (*v1.PersistentVolumeClaim, error) {
-	ann, err := getCloneRequestPVCAnnotation(pvc)
+	exists, namespace, name := ParseCloneRequestAnnotation(pvc)
+	if !exists {
+		return nil, errors.New("error parsing clone request annotation")
+	}
+	pvc, err := pvcLister.PersistentVolumeClaims(namespace).Get(name)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "error getting clone source PVC")
 	}
-	namespace, name := ParseSourcePvcAnnotation(ann, "/")
-	if namespace == "" || name == "" {
-		return nil, errors.New("Unable to parse to source PVC annotation")
-	}
-	return pvcLister.PersistentVolumeClaims(namespace).Get(name)
+	return pvc, nil
 }
 
-// ParseSourcePvcAnnotation parses out the annotations for a CDI PVC, splitting the string based on the delimiter argument
-func ParseSourcePvcAnnotation(sourcePvcAnno, del string) (namespace, name string) {
-	strArr := strings.Split(sourcePvcAnno, del)
-	if strArr == nil || len(strArr) < 2 {
-		klog.V(3).Infof("Bad CloneRequest Annotation")
-		return "", ""
+// ParseCloneRequestAnnotation parses the clone request annotation
+func ParseCloneRequestAnnotation(pvc *v1.PersistentVolumeClaim) (exists bool, namespace, name string) {
+	var ann string
+	ann, exists = pvc.Annotations[AnnCloneRequest]
+	if !exists {
+		return
 	}
-	return strArr[0], strArr[1]
+
+	sp := strings.Split(ann, "/")
+	if len(sp) != 2 {
+		klog.V(1).Infof("Bad CloneRequest Annotation %s", ann)
+		exists = false
+		return
+	}
+
+	namespace, name = sp[0], sp[1]
+	return
 }
 
 // ValidateCanCloneSourceAndTargetSpec validates the specs passed in are compatible for cloning.
@@ -610,7 +608,7 @@ func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *v1.PersistentVo
 	targetRequest := targetSpec.Resources.Requests[v1.ResourceStorage]
 	// Verify that the target PVC size is equal or larger than the source.
 	if sourceRequest.Value() > targetRequest.Value() {
-		return errors.New("Target resources requests storage size is smaller than the source")
+		return errors.New("target resources requests storage size is smaller than the source")
 	}
 	// Verify that the source and target volume modes are the same.
 	sourceVolumeMode := v1.PersistentVolumeFilesystem
@@ -622,7 +620,7 @@ func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *v1.PersistentVo
 		targetVolumeMode = v1.PersistentVolumeBlock
 	}
 	if sourceVolumeMode != targetVolumeMode {
-		return errors.New("Source and target volume modes do not match")
+		return errors.New("source and target volume modes do not match")
 	}
 	// Can clone.
 	return nil
@@ -671,10 +669,10 @@ func DecodePublicKey(keyBytes []byte) (*rsa.PublicKey, error) {
 }
 
 // CreateCloneSourcePod creates our cloning src pod which will be used for out of band cloning to read the contents of the src PVC
-func CreateCloneSourcePod(client kubernetes.Interface, image string, pullPolicy string, cr string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
-	sourcePvcNamespace, sourcePvcName := ParseSourcePvcAnnotation(cr, "/")
-	if sourcePvcNamespace == "" || sourcePvcName == "" {
-		return nil, errors.Errorf("Bad CloneRequest Annotation")
+func CreateCloneSourcePod(client kubernetes.Interface, image, pullPolicy, clientName string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+	exists, sourcePvcNamespace, sourcePvcName := ParseCloneRequestAnnotation(pvc)
+	if !exists {
+		return nil, errors.Errorf("bad CloneRequest Annotation")
 	}
 
 	ownerKey, err := cache.MetaNamespaceKeyFunc(pvc)
@@ -682,12 +680,32 @@ func CreateCloneSourcePod(client kubernetes.Interface, image string, pullPolicy 
 		return nil, errors.Wrap(err, "error getting cache key")
 	}
 
-	keyCertBytes, err := keys.GetKeyPairAndCertBytes(client, util.GetNamespace(), uploadServerClientKeySecret)
+	serverCACertBytes, err := keys.GetKeyPairAndCertBytes(client, util.GetNamespace(), uploadServerCASecret)
 	if err != nil {
-		return nil, errors.Wrap(err, "error getting upload server client certs")
+		return nil, errors.Wrap(err, "error getting uploadserver server certs")
 	}
 
-	pod := MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerKey, keyCertBytes, pvc)
+	if serverCACertBytes == nil {
+		return nil, errors.Errorf("secret %s does not exist", uploadServerCASecret)
+	}
+
+	clientCAKeyPair, err := keys.GetKeyPairAndCert(client, util.GetNamespace(), uploadServerClientCASecret)
+	if err != nil {
+		return nil, errors.Wrap(err, "error getting uploadserver client CA certs")
+	}
+
+	if clientCAKeyPair == nil {
+		return nil, errors.Errorf("secret %s does not exist", uploadServerClientCASecret)
+	}
+
+	clientKeyBytes, clientCertBytes, err := createClientKeyAndCertFunc(&clientCAKeyPair.KeyPair, clientName, []string{})
+	if err != nil {
+		return nil, err
+	}
+
+	pod := MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerKey,
+		clientKeyBytes, clientCertBytes, serverCACertBytes.Cert, pvc)
+
 	pod, err = client.CoreV1().Pods(sourcePvcNamespace).Create(pod)
 	if err != nil {
 		return nil, errors.Wrap(err, "source pod API create errored")
@@ -700,7 +718,7 @@ func CreateCloneSourcePod(client kubernetes.Interface, image string, pullPolicy 
 
 // MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
 func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerRefAnno string,
-	keyCertBytes *keys.KeyPairAndCertBytes, pvc *v1.PersistentVolumeClaim) *v1.Pod {
+	clientKey, clientCert, serverCACert []byte, pvc *v1.PersistentVolumeClaim) *v1.Pod {
 
 	var ownerID string
 	podName := fmt.Sprintf("%s-%s-", common.ClonerSourcePodName, sourcePvcName)
@@ -736,17 +754,21 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerRefAnno strin
 					Image:           image,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
 					Env: []v1.EnvVar{
+						/*
+						 Easier to just stick key/certs in env vars directly no.
+						 Maybe revisit when we fix the "naming things" problem.
+						*/
 						{
 							Name:  "CLIENT_KEY",
-							Value: string(keyCertBytes.PrivateKey),
+							Value: string(clientKey),
 						},
 						{
 							Name:  "CLIENT_CERT",
-							Value: string(keyCertBytes.Cert),
+							Value: string(clientCert),
 						},
 						{
 							Name:  "SERVER_CA_CERT",
-							Value: string(keyCertBytes.CACert),
+							Value: string(serverCACert),
 						},
 						{
 							Name:  "UPLOAD_URL",
@@ -826,26 +848,33 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerRefAnno strin
 	return pod
 }
 
+// UploadPodArgs are the parameters required to create an upload pod
+type UploadPodArgs struct {
+	Client         kubernetes.Interface
+	CAKeyPair      *triple.KeyPair
+	ClientCACert   *x509.Certificate
+	Image          string
+	Verbose        string
+	PullPolicy     string
+	Name           string
+	PVC            *v1.PersistentVolumeClaim
+	ScratchPVCName string
+	ClientName     string
+}
+
 // CreateUploadPod creates upload service pod manifest and sends to server
-func CreateUploadPod(client kubernetes.Interface,
-	caKeyPair *triple.KeyPair,
-	clientCACert *x509.Certificate,
-	image string,
-	verbose string,
-	pullPolicy string,
-	name string,
-	pvc *v1.PersistentVolumeClaim,
-	scratchPvcName string) (*v1.Pod, error) {
-	ns := pvc.Namespace
-	commonName := name + "." + ns
-	secretName := name + "-server-tls"
+func CreateUploadPod(args UploadPodArgs) (*v1.Pod, error) {
+	ns := args.PVC.Namespace
+	commonName := args.Name + "." + ns
+	secretName := args.Name + "-server-tls"
 
-	pod := MakeUploadPodSpec(image, verbose, pullPolicy, name, pvc, scratchPvcName, secretName)
+	pod := makeUploadPodSpec(args.Image, args.Verbose, args.PullPolicy, args.Name,
+		args.PVC, args.ScratchPVCName, secretName, args.ClientName)
 
-	pod, err := client.CoreV1().Pods(ns).Create(pod)
+	pod, err := args.Client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {
-			pod, err = client.CoreV1().Pods(ns).Get(name, metav1.GetOptions{})
+			pod, err = args.Client.CoreV1().Pods(ns).Get(args.Name, metav1.GetOptions{})
 			if err != nil {
 				return nil, errors.Wrap(err, "upload pod should exist but couldn't retrieve it")
 			}
@@ -855,15 +884,16 @@ func CreateUploadPod(client kubernetes.Interface,
 	}
 
 	podOwner := MakePodOwnerReference(pod)
-	_, err = keys.GetOrCreateServerKeyPairAndCert(client, ns, secretName, caKeyPair, clientCACert, commonName, name, &podOwner)
+	_, err = keys.GetOrCreateServerKeyPairAndCert(args.Client, ns, secretName,
+		args.CAKeyPair, args.ClientCACert, commonName, args.Name, &podOwner)
 	if err != nil {
 		// try to clean up
-		client.CoreV1().Pods(ns).Delete(pod.Name, &metav1.DeleteOptions{})
+		args.Client.CoreV1().Pods(ns).Delete(pod.Name, &metav1.DeleteOptions{})
 
-		return nil, errors.Wrap(err, "Error creating server key pair")
+		return nil, errors.Wrap(err, "error creating server key pair")
 	}
 
-	klog.V(1).Infof("upload pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	klog.V(1).Infof("upload pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, args.Image)
 	return pod, nil
 }
 
@@ -895,8 +925,8 @@ func MakePodOwnerReference(pod *v1.Pod) metav1.OwnerReference {
 	}
 }
 
-// MakeUploadPodSpec creates upload service pod manifest
-func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.PersistentVolumeClaim, scratchName, secretName string) *v1.Pod {
+func makeUploadPodSpec(image, verbose, pullPolicy, name string,
+	pvc *v1.PersistentVolumeClaim, scratchName, secretName, clientName string) *v1.Pod {
 	requestImageSize, _ := getRequestedImageSize(pvc)
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -963,6 +993,10 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 						{
 							Name:  common.UploadImageSize,
 							Value: requestImageSize,
+						},
+						{
+							Name:  "CLIENT_NAME",
+							Value: clientName,
 						},
 					},
 					Args: []string{"-v=" + verbose},
@@ -1058,7 +1092,7 @@ func CreateUploadService(client kubernetes.Interface, name string, pvc *v1.Persi
 				return nil, errors.Wrap(err, "upload service should exist but couldn't retrieve it")
 			}
 		} else {
-			return nil, errors.Wrap(err, "upload pod API create errored")
+			return nil, errors.Wrap(err, "upload service API create errored")
 		}
 	}
 	klog.V(1).Infof("upload service \"%s/%s\" created\n", service.Namespace, service.Name)
@@ -1119,7 +1153,7 @@ func EnsureCDIConfigExists(client kubernetes.Interface, cdiClient clientset.Inte
 
 	err := operator.SetOwner(client, cfg)
 	if err != nil {
-		return errors.Wrap(err, "Error setting CDI config owner ref")
+		return errors.Wrap(err, "error setting CDI config owner ref")
 	}
 
 	config, err := cdiClient.CdiV1alpha1().CDIConfigs().Create(cfg)
@@ -1172,7 +1206,7 @@ func deletePod(req podDeleteRequest) error {
 	if err != nil {
 		klog.V(1).Infof("error encountered deleting pod (%s): %s", req.podName, err.Error())
 	}
-	return err
+	return errors.Wrapf(err, "error deleting pod %s/%s", req.namespace, req.podName)
 }
 
 func createImportEnvVar(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (*importPodEnvVar, error) {
@@ -1364,7 +1398,45 @@ func isPodReady(pod *v1.Pod) bool {
 			numReady++
 		}
 	}
+
 	return numReady == len(pod.Status.ContainerStatuses)
+}
+
+func addFinalizer(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, name string) (*v1.PersistentVolumeClaim, error) {
+	if hasFinalizer(pvc, name) {
+		return pvc, nil
+	}
+
+	cpy := pvc.DeepCopy()
+	cpy.Finalizers = append(cpy.Finalizers, name)
+	pvc, err := client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(cpy)
+	if err != nil {
+		return nil, errors.Wrap(err, "error updating PVC")
+	}
+
+	return pvc, nil
+}
+
+func removeFinalizer(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, name string) (*v1.PersistentVolumeClaim, error) {
+	if !hasFinalizer(pvc, name) {
+		return pvc, nil
+	}
+
+	var finalizers []string
+	for _, f := range pvc.Finalizers {
+		if f != name {
+			finalizers = append(finalizers, f)
+		}
+	}
+
+	cpy := pvc.DeepCopy()
+	cpy.Finalizers = finalizers
+	pvc, err := client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(cpy)
+	if err != nil {
+		return nil, errors.Wrap(err, "error updating PVC")
+	}
+
+	return pvc, nil
 }
 
 func hasFinalizer(object metav1.Object, value string) bool {
@@ -1374,4 +1446,13 @@ func hasFinalizer(object metav1.Object, value string) bool {
 		}
 	}
 	return false
+}
+
+func podPhaseFromPVC(pvc *v1.PersistentVolumeClaim) v1.PodPhase {
+	phase := pvc.ObjectMeta.Annotations[AnnPodPhase]
+	return v1.PodPhase(phase)
+}
+
+func podSucceededFromPVC(pvc *v1.PersistentVolumeClaim) bool {
+	return (podPhaseFromPVC(pvc) == v1.PodSucceeded)
 }

@@ -17,7 +17,7 @@ limitations under the License.
 package controller
 
 import (
-	"reflect"
+	"fmt"
 	"testing"
 	"time"
 
@@ -25,7 +25,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/diff"
 	kubeinformers "k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
@@ -184,11 +183,6 @@ func (f *uploadFixture) expectDeletePodAction(p *corev1.Pod) {
 		core.NewDeleteAction(schema.GroupVersionResource{Resource: "pods", Version: "v1"}, p.Namespace, p.Name))
 }
 
-func (f *uploadFixture) expectDeletePvcAction(pvc *corev1.PersistentVolumeClaim) {
-	f.kubeactions = append(f.kubeactions,
-		core.NewDeleteAction(schema.GroupVersionResource{Resource: "persistentvolumeclaims", Version: "v1"}, pvc.Namespace, pvc.Name))
-}
-
 func (f *uploadFixture) expectCreateServiceAction(s *corev1.Service) {
 	f.kubeactions = append(f.kubeactions,
 		core.NewCreateAction(schema.GroupVersionResource{Resource: "services", Version: "v1"}, s.Namespace, s))
@@ -209,58 +203,11 @@ func (f *uploadFixture) expectUpdatePvcAction(pvc *corev1.PersistentVolumeClaim)
 		core.NewUpdateAction(schema.GroupVersionResource{Resource: "persistentvolumeclaims", Version: "v1"}, pvc.Namespace, pvc))
 }
 
-func (f *uploadFixture) expectListStorageClass() {
-	f.kubeactions = append(f.kubeactions,
-		core.NewRootListAction(schema.GroupVersionResource{Resource: "storageclasses", Version: "v1"}, schema.GroupVersionKind{Group: "storage.k8s.io", Version: "v1", Kind: "StorageClass"}, metav1.ListOptions{}))
-}
-
 // really should be expect keystore actions but they are the only secrets created for now
 func (f *uploadFixture) expectSecretActions(namespace string, gets, creates int) {
 	f.expectedSecretNamespace = namespace
 	f.expectedSecretGets = gets
 	f.expectedSecretCreates = creates
-}
-
-func checkUploadAction(expected, actual core.Action, t *testing.T) {
-	if !(expected.Matches(actual.GetVerb(), actual.GetResource().Resource) && actual.GetSubresource() == expected.GetSubresource()) {
-		t.Errorf("Expected\n\t%#v\ngot\n\t%#v", expected, actual)
-		return
-	}
-
-	if reflect.TypeOf(actual) != reflect.TypeOf(expected) {
-		t.Errorf("Action has wrong type. Expected: %t. Got: %t", expected, actual)
-		return
-	}
-
-	switch a := actual.(type) {
-	case core.CreateAction:
-		e, _ := expected.(core.CreateAction)
-		expObject := e.GetObject()
-		object := a.GetObject()
-
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expObject, object))
-		}
-	case core.UpdateAction:
-		e, _ := expected.(core.UpdateAction)
-		expObject := e.GetObject()
-		object := a.GetObject()
-
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expObject, object))
-		}
-	case core.PatchAction:
-		e, _ := expected.(core.PatchAction)
-		expPatch := e.GetPatch()
-		patch := a.GetPatch()
-
-		if !reflect.DeepEqual(expPatch, expPatch) {
-			t.Errorf("Action %s %s has wrong patch\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expPatch, patch))
-		}
-	}
 }
 
 func filterUploadInformerActions(actions []core.Action) []core.Action {
@@ -329,14 +276,14 @@ func TestCreatesUploadPodAndService(t *testing.T) {
 	f.expectCreatePvcAction(scratchPvc)
 	f.expectSecretActions("default", 1, 1)
 
+	service := createUploadService(pvc)
+	service.Namespace = ""
+	f.expectCreateServiceAction(service)
+
 	pvcUpdate := pvc.DeepCopy()
 	pvcUpdate.Annotations[podPhaseAnnotation] = string(pod.Status.Phase)
 	pvcUpdate.Annotations[podReadyAnnotation] = "false"
 	f.expectUpdatePvcAction(pvcUpdate)
-
-	service := createUploadService(pvc)
-	service.Namespace = ""
-	f.expectCreateServiceAction(service)
 
 	f.run(getPvcKey(pvc, t))
 }
@@ -346,7 +293,8 @@ func TestCreatesCloneTargetPodAndService(t *testing.T) {
 	storageClassName := "test"
 	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{cloneRequestAnnotation: "default/sourcePvc"}, nil)
 	source := createPvcInStorageClass("sourcePvc", "default", &storageClassName, nil, nil)
-	pod := createUploadClonePod(pvc)
+	clientName := fmt.Sprintf("%s/%s-%s/%s", source.Namespace, source.Name, pvc.Namespace, pvc.Name)
+	pod := createUploadClonePod(pvc, clientName)
 	pod.Namespace = ""
 	f.expectCreatePodAction(pod)
 
@@ -358,14 +306,15 @@ func TestCreatesCloneTargetPodAndService(t *testing.T) {
 
 	f.expectSecretActions("default", 1, 1)
 
-	pvcUpdate := pvc.DeepCopy()
-	pvcUpdate.Annotations[podPhaseAnnotation] = string(pod.Status.Phase)
-	pvcUpdate.Annotations[podReadyAnnotation] = "false"
-	f.expectUpdatePvcAction(pvcUpdate)
-
 	service := createUploadService(pvc)
 	service.Namespace = ""
 	f.expectCreateServiceAction(service)
+
+	pvcUpdate := pvc.DeepCopy()
+	pvcUpdate.Annotations[AnnUploadClientName] = clientName
+	pvcUpdate.Annotations[podPhaseAnnotation] = string(pod.Status.Phase)
+	pvcUpdate.Annotations[podReadyAnnotation] = "false"
+	f.expectUpdatePvcAction(pvcUpdate)
 
 	f.run(getPvcKey(pvc, t))
 }
@@ -477,6 +426,13 @@ func TestUploadComplete(t *testing.T) {
 	updatedPVC.Annotations[podReadyAnnotation] = "false"
 
 	f.expectUpdatePvcAction(updatedPVC)
+	f.run(getPvcKey(pvc, t))
+
+	f.pvcLister = nil
+	f.kubeobjects = nil
+	f.kubeactions = nil
+	f.pvcLister = append(f.pvcLister, scratchPvc, updatedPVC)
+	f.kubeobjects = append(f.kubeobjects, scratchPvc, updatedPVC, pod, service)
 	f.expectDeleteServiceAction(service)
 	f.expectDeletePodAction(pod)
 	f.run(getPvcKey(pvc, t))
