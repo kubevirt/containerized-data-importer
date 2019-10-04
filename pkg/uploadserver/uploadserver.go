@@ -32,13 +32,12 @@ import (
 	"path/filepath"
 	"sync"
 
-	"kubevirt.io/containerized-data-importer/pkg/util"
-
 	"github.com/pkg/errors"
 	"k8s.io/klog"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -67,6 +66,7 @@ type uploadServerApp struct {
 	tlsKey      string
 	tlsCert     string
 	clientCert  string
+	clientName  string
 	keyFile     string
 	certFile    string
 	imageSize   string
@@ -81,7 +81,7 @@ type uploadServerApp struct {
 var uploadProcessorFunc = newUploadStreamProcessor
 
 // NewUploadServer returns a new instance of uploadServerApp
-func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsCert, clientCert, imageSize string) UploadServer {
+func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsCert, clientCert, clientName, imageSize string) UploadServer {
 	server := &uploadServerApp{
 		bindAddress: bindAddress,
 		bindPort:    bindPort,
@@ -89,6 +89,7 @@ func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsC
 		tlsKey:      tlsKey,
 		tlsCert:     tlsCert,
 		clientCert:  clientCert,
+		clientName:  clientName,
 		imageSize:   imageSize,
 		mux:         http.NewServeMux(),
 		uploading:   false,
@@ -216,6 +217,24 @@ func (app *uploadServerApp) uploadHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if r.TLS != nil {
+		found := false
+
+		for _, cert := range r.TLS.PeerCertificates {
+			if cert.Subject.CommonName == app.clientName {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+	} else {
+		klog.V(3).Infof("Handling HTTP connection")
+	}
+
 	exit := func() bool {
 		app.mutex.Lock()
 		defer app.mutex.Unlock()
@@ -268,10 +287,6 @@ func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize, contentType
 		return filesystemCloneProcessor(stream, common.ImporterVolumePath)
 	}
 
-	if contentType == BlockdeviceCloneContentType {
-
-	}
-
 	uds := importer.NewUploadDataSource(stream)
 	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize)
 	return processor.ProcessData()
@@ -289,19 +304,6 @@ func filesystemCloneProcessor(stream io.ReadCloser, destDir string) error {
 
 	if err = util.UnArchiveTar(gzr, destDir); err != nil {
 		return errors.Wrapf(err, "error unarchiving to %s", destDir)
-	}
-
-	return nil
-}
-
-func blockdeviceCloneProcessor(stream io.ReadCloser, dest string) error {
-	gzr, err := gzip.NewReader(stream)
-	if err != nil {
-		return errors.Wrap(err, "error creting gzip reader")
-	}
-
-	if err = util.StreamDataToFile(gzr, dest); err != nil {
-		return errors.Wrapf(err, "error streamng to %s", dest)
 	}
 
 	return nil
