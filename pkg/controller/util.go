@@ -2,7 +2,6 @@ package controller
 
 import (
 	"crypto/rsa"
-	"crypto/x509"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -682,7 +681,7 @@ func CreateCloneSourcePod(client kubernetes.Interface, image, pullPolicy, client
 
 	serverCACertBytes, err := keys.GetKeyPairAndCertBytes(client, util.GetNamespace(), uploadServerCASecret)
 	if err != nil {
-		return nil, errors.Wrap(err, "error getting uploadserver server certs")
+		return nil, errors.Wrap(err, "error getting uploadserver server CA cert")
 	}
 
 	if serverCACertBytes == nil {
@@ -691,7 +690,7 @@ func CreateCloneSourcePod(client kubernetes.Interface, image, pullPolicy, client
 
 	clientCAKeyPair, err := keys.GetKeyPairAndCert(client, util.GetNamespace(), uploadServerClientCASecret)
 	if err != nil {
-		return nil, errors.Wrap(err, "error getting uploadserver client CA certs")
+		return nil, errors.Wrap(err, "error getting uploadserver client CA cert")
 	}
 
 	if clientCAKeyPair == nil {
@@ -851,8 +850,6 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerRefAnno strin
 // UploadPodArgs are the parameters required to create an upload pod
 type UploadPodArgs struct {
 	Client         kubernetes.Interface
-	CAKeyPair      *triple.KeyPair
-	ClientCACert   *x509.Certificate
 	Image          string
 	Verbose        string
 	PullPolicy     string
@@ -883,9 +880,28 @@ func CreateUploadPod(args UploadPodArgs) (*v1.Pod, error) {
 		}
 	}
 
+	serverCAKeyPair, err := keys.GetKeyPairAndCert(args.Client, util.GetNamespace(), uploadServerCASecret)
+	if err != nil {
+		return nil, errors.Wrap(err, "error getting uploadserver server CA cert")
+	}
+
+	if serverCAKeyPair == nil {
+		return nil, errors.Errorf("secret %s does not exist", uploadServerCASecret)
+	}
+
+	clientCAKeyPair, err := keys.GetKeyPairAndCert(args.Client, util.GetNamespace(), uploadServerClientCASecret)
+	if err != nil {
+		return nil, errors.Wrap(err, "error getting uploadserver client CA cert")
+	}
+
+	if clientCAKeyPair == nil {
+		return nil, errors.Errorf("secret %s does not exist", uploadServerClientCASecret)
+	}
+
 	podOwner := MakePodOwnerReference(pod)
+
 	_, err = keys.GetOrCreateServerKeyPairAndCert(args.Client, ns, secretName,
-		args.CAKeyPair, args.ClientCACert, commonName, args.Name, &podOwner)
+		&serverCAKeyPair.KeyPair, clientCAKeyPair.KeyPair.Cert, commonName, args.Name, &podOwner)
 	if err != nil {
 		// try to clean up
 		args.Client.CoreV1().Pods(ns).Delete(pod.Name, &metav1.DeleteOptions{})

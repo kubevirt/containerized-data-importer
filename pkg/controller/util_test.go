@@ -1529,7 +1529,7 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, pvcUID string) *v1.Pod {
 						},
 						{
 							Name:  "SERVER_CA_CERT",
-							Value: string(testUploadServerCASecret.Data["tls.crt"]),
+							Value: string(getUploadServerCASecret().Data["tls.crt"]),
 						},
 						{
 							Name:  "UPLOAD_URL",
