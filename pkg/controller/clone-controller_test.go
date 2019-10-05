@@ -7,11 +7,9 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/cert"
 
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
@@ -23,20 +21,6 @@ type CloneFixture struct {
 var (
 	apiServerKey     *rsa.PrivateKey
 	apiServerKeyOnce sync.Once
-
-	testUploadServerCASecret = &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cdi-upload-server-ca-key",
-			Namespace: "cdi",
-		},
-		Data: map[string][]byte{
-			"tls.key": []byte("privatekey"),
-			"tls.crt": []byte("cert"),
-		},
-	}
-
-	testUploadServerClientCASecret     *corev1.Secret
-	testUploadServerClientCASecretOnce sync.Once
 )
 
 func testCreateClientKeyAndCert(ca *triple.KeyPair, commonName string, organizations []string) ([]byte, []byte, error) {
@@ -48,25 +32,6 @@ func getAPIServerKey() *rsa.PrivateKey {
 		apiServerKey, _ = rsa.GenerateKey(rand.Reader, 2048)
 	})
 	return apiServerKey
-}
-
-func getUploadServerClientCASecret() *corev1.Secret {
-	testUploadServerClientCASecretOnce.Do(func() {
-		keypair, _ := triple.NewCA("BAZ")
-		kb := cert.EncodePrivateKeyPEM(keypair.Key)
-		cb := cert.EncodeCertPEM(keypair.Cert)
-		testUploadServerClientCASecret = &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "cdi-upload-server-client-ca-key",
-				Namespace: "cdi",
-			},
-			Data: map[string][]byte{
-				"tls.key": kb,
-				"tls.crt": cb,
-			},
-		}
-	})
-	return testUploadServerClientCASecret
 }
 
 func newCloneFixture(t *testing.T) *CloneFixture {
@@ -167,14 +132,14 @@ func TestCreatesSourcePod(t *testing.T) {
 	pvc.Annotations[AnnPodReady] = "true"
 
 	f.pvcLister = append(f.pvcLister, sourcePvc, pvc)
-	f.kubeobjects = append(f.kubeobjects, testUploadServerCASecret, getUploadServerClientCASecret(), sourcePvc, pvc)
+	f.kubeobjects = append(f.kubeobjects, getUploadServerCASecret(), getUploadServerClientCASecret(), sourcePvc, pvc)
 
 	id := string(pvc.GetUID())
 	expSourcePod := createSourcePod(pvc, id)
 	pvcUpdate := pvc.DeepCopy()
 	pvcUpdate.Finalizers = []string{cloneSourcePodFinalizer}
 	f.expectUpdatePvcAction(pvcUpdate)
-	f.expectSecretGetAction(testUploadServerCASecret)
+	f.expectSecretGetAction(getUploadServerCASecret())
 	f.expectSecretGetAction(getUploadServerClientCASecret())
 	f.expectCreatePodAction(expSourcePod)
 

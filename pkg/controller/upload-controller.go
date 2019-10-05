@@ -39,7 +39,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
 	"kubevirt.io/containerized-data-importer/pkg/util"
-	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
 const (
@@ -82,8 +81,6 @@ type UploadController struct {
 	uploadServiceImage                        string
 	pullPolicy                                string // Options: IfNotPresent, Always, or Never
 	verbose                                   string // verbose levels: 1, 2, ...
-	serverCAKeyPair                           *triple.KeyPair
-	clientCAKeyPair                           *triple.KeyPair
 	uploadProxyServiceName                    string
 }
 
@@ -218,13 +215,13 @@ func (c *UploadController) initCerts() error {
 	namespace := util.GetNamespace()
 
 	// CA for Upload Servers
-	c.serverCAKeyPair, err = keys.GetOrCreateCA(c.client, namespace, uploadServerCASecret, uploadServerCAName)
+	serverCAKeyPair, err := keys.GetOrCreateCA(c.client, namespace, uploadServerCASecret, uploadServerCAName)
 	if err != nil {
 		return errors.Wrap(err, "couldn't get/create server CA")
 	}
 
 	// CA for Upload Client
-	c.clientCAKeyPair, err = keys.GetOrCreateCA(c.client, namespace, uploadServerClientCASecret, uploadServerClientCAName)
+	clientCAKeyPair, err := keys.GetOrCreateCA(c.client, namespace, uploadServerClientCASecret, uploadServerClientCAName)
 	if err != nil {
 		return errors.Wrap(err, "couldn't get/create client CA")
 	}
@@ -233,8 +230,8 @@ func (c *UploadController) initCerts() error {
 	_, err = keys.GetOrCreateClientKeyPairAndCert(c.client,
 		namespace,
 		uploadServerClientKeySecret,
-		c.clientCAKeyPair,
-		c.serverCAKeyPair.Cert,
+		clientCAKeyPair,
+		serverCAKeyPair.Cert,
 		uploadServerClientName,
 		[]string{},
 		nil,
@@ -468,8 +465,6 @@ func (c *UploadController) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, p
 
 		args := UploadPodArgs{
 			Client:         c.client,
-			CAKeyPair:      c.serverCAKeyPair,
-			ClientCACert:   c.clientCAKeyPair.Cert,
 			Image:          c.uploadServiceImage,
 			Verbose:        c.verbose,
 			PullPolicy:     c.pullPolicy,
