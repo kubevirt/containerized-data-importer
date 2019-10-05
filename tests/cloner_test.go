@@ -216,7 +216,7 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 		targetDv = utils.NewDataVolumeForImageCloning("target-dv", "50Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
 		Expect(err).To(HaveOccurred())
-		Expect(strings.Contains(err.Error(), "Target resources requests storage size is smaller than the source")).To(BeTrue())
+		Expect(strings.Contains(err.Error(), "target resources requests storage size is smaller than the source")).To(BeTrue())
 
 		By("Cloning from the source DataVolume to properly sized target")
 		targetDv = utils.NewDataVolumeForImageCloning("target-dv", "500Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
@@ -252,7 +252,7 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 		targetDv = utils.NewDataVolumeForImageCloning("target-dv", "50Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
 		Expect(err).To(HaveOccurred())
-		Expect(strings.Contains(err.Error(), "Target resources requests storage size is smaller than the source")).To(BeTrue())
+		Expect(strings.Contains(err.Error(), "target resources requests storage size is smaller than the source")).To(BeTrue())
 
 		By("Cloning from the source DataVolume to properly sized target")
 		targetDv = utils.NewDataVolumeForImageCloning("target-dv", "500Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
