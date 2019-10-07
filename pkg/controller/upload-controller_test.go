@@ -44,11 +44,11 @@ const (
 )
 
 var (
-	yyytestUploadServerCASecret     *corev1.Secret
-	yyytestUploadServerCASecretOnce sync.Once
+	testUploadServerCASecret     *corev1.Secret
+	testUploadServerCASecretOnce sync.Once
 
-	zzztestUploadServerClientCASecret     *corev1.Secret
-	zzztestUploadServerClientCASecretOnce sync.Once
+	testUploadServerClientCASecret     *corev1.Secret
+	testUploadServerClientCASecretOnce sync.Once
 )
 
 type uploadFixture struct {
@@ -73,21 +73,21 @@ type uploadFixture struct {
 }
 
 func getUploadServerClientCASecret() *corev1.Secret {
-	zzztestUploadServerClientCASecretOnce.Do(func() {
+	testUploadServerClientCASecretOnce.Do(func() {
 		keyPair, _ := triple.NewCA("client")
-		zzztestUploadServerClientCASecret = keystest.NewTLSSecret("cdi",
+		testUploadServerClientCASecret = keystest.NewTLSSecret("cdi",
 			"cdi-upload-server-client-ca-key", keyPair, nil, nil)
 	})
-	return zzztestUploadServerClientCASecret
+	return testUploadServerClientCASecret
 }
 
 func getUploadServerCASecret() *corev1.Secret {
-	yyytestUploadServerCASecretOnce.Do(func() {
+	testUploadServerCASecretOnce.Do(func() {
 		keyPair, _ := triple.NewCA("server")
-		yyytestUploadServerCASecret = keystest.NewTLSSecret("cdi",
+		testUploadServerCASecret = keystest.NewTLSSecret("cdi",
 			"cdi-upload-server-ca-key", keyPair, nil, nil)
 	})
-	return yyytestUploadServerCASecret
+	return testUploadServerCASecret
 }
 
 func newUploadFixture(t *testing.T) *uploadFixture {
