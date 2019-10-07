@@ -11,10 +11,7 @@ source ./cluster-up/hack/common.sh
 source ./cluster-up/cluster/${KUBEVIRT_PROVIDER}/provider.sh
 source ./cluster-sync/${KUBEVIRT_PROVIDER}/provider.sh
 
-CDI_INSTALL_OPERATOR="install-operator"
-CDI_INSTALL_OLM="install-olm"
-CDI_INSTALL=${CDI_INSTALL:-${CDI_INSTALL_OPERATOR}}
-CDI_INSTALL_TIMEOUT=${CDI_INSTALL_TIMEOUT:-120}
+CDI_INSTALL="install-operator"
 CDI_NAMESPACE=${CDI_NAMESPACE:-cdi}
 CDI_INSTALL_TIMEOUT=${CDI_INSTALL_TIMEOUT:-120}
 
@@ -33,11 +30,10 @@ if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
   registry=${IMAGE_REGISTRY:-localhost:$(_port registry)}
   DOCKER_PREFIX=${registry}
   MANIFEST_REGISTRY="registry:5000"
-  QUAY_NAMESPACE="none"
 fi
 
 # Need to set the DOCKER_PREFIX appropriately in the call to `make docker push`, otherwise make will just pass in the default `kubevirt`
-QUAY_NAMESPACE=$QUAY_NAMESPACE DOCKER_PREFIX=$MANIFEST_REGISTRY PULL_POLICY=$(getTestPullPolicy) make manifests
+DOCKER_PREFIX=$MANIFEST_REGISTRY PULL_POLICY=$(getTestPullPolicy) make manifests
 DOCKER_PREFIX=$DOCKER_PREFIX make docker push
 
 seed_images

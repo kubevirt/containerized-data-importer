@@ -31,12 +31,6 @@ for tgt in ${targets}; do
     if [[ "${bin_name}" == "${CLONER}" ]]; then
         mkdir -p "${CMD_OUT_DIR}/${bin_name}/"
         cp -f "${CDI_DIR}/cmd/${bin_name}/cloner_startup.sh" "${dest_dir}"
-    elif [[ "${bin_name}" == "${OPERATOR}" ]]; then
-        # This container also needs the csv-generator file, so it needs to be
-        # copied into the operator's directory for docker build to source
-        # csv-generator correctly
-        mkdir -p "${CMD_OUT_DIR}/${bin_name}/"
-        cp ${OUT_DIR}/tools/${CSV_GENERATOR}/${CSV_GENERATOR} ${OUT_DIR}/cmd/${OPERATOR}/${CSV_GENERATOR}
     fi
 
     # Copy respective docker files to the directory of the build artifact

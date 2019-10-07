@@ -34,7 +34,7 @@ CDI also includes a CRD, that provides an object of type DataVolume.  The DataVo
 
 ## Deploy it
 
-Deploying the CDI controller is straightforward. In this document the _default_ namespace is used, but in a production setup a [protected namespace](#protecting-the-golden-image-namespace) that is inaccessible to regular users should be used instead.
+Deploying the CDI controller is straightforward. In this document the _default_ namespace is used, but in a production setup a protected namespace that is inaccessible to regular users should be used instead.
 
   ```
   $ export VERSION=$(curl -s https://github.com/kubevirt/containerized-data-importer/releases/latest | grep -o "v[0-9]\.[0-9]*\.[0-9]*")

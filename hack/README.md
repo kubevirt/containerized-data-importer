@@ -71,7 +71,6 @@ The standard workflow is performed inside a helper container to normalize the bu
     - `docker-uploadproxy`: compile cdi-uploadproxy and build cdi-uploadproxy image
     - `docker-uploadserver`: compile cdi-uploadserver and build cdi-uploadserver image
     - `docker-operator`: compile cdi-operator and build cdi-operator image
-    - `docker-olm-catalog`: pack OLM bundles in dedicated directories under olm-catalog and build olm-catalog-registry container image. Accepts [make variables](#make-variables) QUAY_NAMESPACE, QUAY_REPOSITORY, CSV_VERSION.
     - `docker-registry-cleanup`: remove all images of specifed repo from local docker registry. if not specified removes from localhost repo of current cluster instance. Accepts [make variables](#make-variables) DOCKER_REPO.  
     - `docker-functest-images`: compile and build the file host and docker registry images for functional tests
         - `docker-functest-image-init`: compile and build the file host init image for functional tests
@@ -86,8 +85,6 @@ The standard workflow is performed inside a helper container to normalize the bu
 - `goveralls`: run code coverage tracking system.
 - `manifests`: generate a cdi-controller and operator manifests in `_out/manifests/`.  Accepts [make variables](#make-variables) DOCKER_TAG, DOCKER_PREFIX, VERBOSITY, PULL_POLICY, CSV_VERSION, QUAY_REPOSITORY, QUAY_NAMESPACE
 - `publish`: CI ONLY - this recipe is not intended for use by developers
-- `olm-verify`: verify generated olm manifests 
-- `olm-push`: push generated operator bundle to quay.io. Accepts [make_variables](#make-variables) CSV_VERSION, QUAY_USER, QUAY_PASSWORD, QUAY_REPOSITORY 
 - `push`: compiles, builds, and pushes to the repo passed in `DOCKER_PREFIX=<my repo>`
     - `push-controller`: compile, build, and push cdi-controller
     - `push-importer`: compile, build, and push cdi-importer
@@ -116,11 +113,6 @@ These may be passed to a target as `$ make VARIABLE=value target`
 - `DOCKER_TAG`: (default: latest) Set global version tags for image and manifest creation
 - `VERBOSITY`: (default: 1) Set global log level verbosity
 - `PULL_POLICY`: (default: IfNotPresent) Set global CDI pull policy
-- `CSV_VERSION`: (default: v0.0.0) Set CSV version of cdi-operator for OLM manifests
-- `QUAY_USERNAME`: (default: N/A) username to quay.io 
-- `QUAY_PASSWORD`: (default: N/A) password for quay.io
-- `QUAY_NAMESPACE`: (default: kubevirt) namespace where cdi application is located
-- `QUAY_REPOSITORY`: (default: cdi) application name 
 - `TEST_ARGS`: A variable containing a list of additional ginkgo flags to be passed to functional tests. The string "--test-args=" must prefix the variable value. For example:
 
              `make TEST_ARGS="--test-args=-ginkgo.noColor=true" test-functional >& foo`.
@@ -247,7 +239,7 @@ not supported, then you can use the following example to run Functional Tests.
    ```
    Generate manifests
    ```
-   # DOCKER_PREFIX=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY=<verbosity> CSV_VERSION=<CSV version> QUAY_NAMESPACE=<namespace> QUAY_REPOSITORY=<application name> make manifests 
+   # DOCKER_PREFIX=<repo> DOCKER_TAG=<docker tag> PULL_POLICY=<pull policy> VERBOSITY=<verbosity> make manifests 
    ```
    Run servers
    ```
