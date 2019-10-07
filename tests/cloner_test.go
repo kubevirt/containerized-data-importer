@@ -312,7 +312,7 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 		dvs := []*cdiv1.DataVolume{targetDv1, targetDv2, targetDv3}
 		for _, dv := range dvs {
 			By("Waiting for clone to be completed")
-			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
+			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
 			Expect(err).ToNot(HaveOccurred())
 			matchFile := filepath.Join(testBaseDir, "disk.img")
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), matchFile, md5sum[:32])).To(BeTrue())
@@ -354,7 +354,7 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 		dvs := []*cdiv1.DataVolume{targetDv1, targetDv2, targetDv3}
 		for _, dv := range dvs {
 			By("Waiting for clone to be completed")
-			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
+			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), testBaseDir, md5sum[:32])).To(BeTrue())
 			_, err = utils.WaitPodDeleted(f.K8sClient, "verify-pvc-md5", f.Namespace.Name, verifyPodDeletedTimeout)
