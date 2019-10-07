@@ -288,7 +288,12 @@ func NewDataVolumeWithRegistryImport(dataVolumeName string, size string, registr
 
 // WaitForDataVolumePhase waits for DV's phase to be in a particular phase (Pending, Bound, or Lost)
 func WaitForDataVolumePhase(clientSet *cdiclientset.Clientset, namespace string, phase cdiv1.DataVolumePhase, dataVolumeName string) error {
-	err := wait.PollImmediate(dataVolumePollInterval, dataVolumePhaseTime, func() (bool, error) {
+	return WaitForDataVolumePhaseWithTimeout(clientSet, namespace, phase, dataVolumeName, dataVolumePhaseTime)
+}
+
+// WaitForDataVolumePhaseWithTimeout waits for DV's phase to be in a particular phase (Pending, Bound, or Lost) with a specified timeout
+func WaitForDataVolumePhaseWithTimeout(clientSet *cdiclientset.Clientset, namespace string, phase cdiv1.DataVolumePhase, dataVolumeName string, timeout time.Duration) error {
+	err := wait.PollImmediate(dataVolumePollInterval, timeout, func() (bool, error) {
 		dataVolume, err := clientSet.CdiV1alpha1().DataVolumes(namespace).Get(dataVolumeName, metav1.GetOptions{})
 		if err != nil || dataVolume.Status.Phase != phase {
 			return false, err
@@ -296,7 +301,7 @@ func WaitForDataVolumePhase(clientSet *cdiclientset.Clientset, namespace string,
 		return true, nil
 	})
 	if err != nil {
-		return fmt.Errorf("DataVolume %s not in phase %s within %v", dataVolumeName, phase, dataVolumePhaseTime)
+		return fmt.Errorf("DataVolume %s not in phase %s within %v", dataVolumeName, phase, timeout)
 	}
 	return nil
 }
