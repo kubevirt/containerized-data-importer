@@ -1,6 +1,6 @@
 /*
- * Minio Go Library for Amazon S3 Compatible Cloud Storage
- * Copyright 2015-2017 Minio, Inc.
+ * MinIO Go Library for Amazon S3 Compatible Cloud Storage
+ * Copyright 2015-2017 MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ package minio
 
 import (
 	"crypto/md5"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/xml"
@@ -32,7 +31,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/minio/minio-go/pkg/s3utils"
+	"github.com/minio/sha256-simd"
+
+	"github.com/minio/minio-go/v6/pkg/s3utils"
 )
 
 // xmlDecoder provide decoded value in xml.
@@ -222,19 +223,14 @@ var supportedHeaders = []string{
 	"content-encoding",
 	"content-disposition",
 	"content-language",
+	"x-amz-website-redirect-location",
+	"expires",
 	// Add more supported headers here.
-}
-
-// cseHeaders is list of client side encryption headers
-var cseHeaders = []string{
-	"X-Amz-Iv",
-	"X-Amz-Key",
-	"X-Amz-Matdesc",
 }
 
 // isStorageClassHeader returns true if the header is a supported storage class header
 func isStorageClassHeader(headerKey string) bool {
-	return strings.ToLower(amzStorageClass) == strings.ToLower(headerKey)
+	return strings.EqualFold(amzStorageClass, headerKey)
 }
 
 // isStandardHeader returns true if header is a supported header and not a custom header
@@ -242,19 +238,6 @@ func isStandardHeader(headerKey string) bool {
 	key := strings.ToLower(headerKey)
 	for _, header := range supportedHeaders {
 		if strings.ToLower(header) == key {
-			return true
-		}
-	}
-	return false
-}
-
-// isCSEHeader returns true if header is a client side encryption header.
-func isCSEHeader(headerKey string) bool {
-	key := strings.ToLower(headerKey)
-	for _, h := range cseHeaders {
-		header := strings.ToLower(h)
-		if (header == key) ||
-			(("x-amz-meta-" + header) == key) {
 			return true
 		}
 	}
@@ -286,5 +269,5 @@ func isSSEHeader(headerKey string) bool {
 func isAmzHeader(headerKey string) bool {
 	key := strings.ToLower(headerKey)
 
-	return strings.HasPrefix(key, "x-amz-meta-") || key == "x-amz-acl"
+	return strings.HasPrefix(key, "x-amz-meta-") || strings.HasPrefix(key, "x-amz-grant-") || key == "x-amz-acl" || isSSEHeader(headerKey)
 }

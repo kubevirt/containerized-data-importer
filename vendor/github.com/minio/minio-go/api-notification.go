@@ -1,6 +1,6 @@
 /*
- * Minio Go Library for Amazon S3 Compatible Cloud Storage
- * Copyright 2017 Minio, Inc.
+ * MinIO Go Library for Amazon S3 Compatible Cloud Storage
+ * Copyright 2017 MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,12 +21,11 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/url"
 	"time"
 
-	"github.com/minio/minio-go/pkg/s3utils"
+	"github.com/minio/minio-go/v6/pkg/s3utils"
 )
 
 // GetBucketNotification - get bucket notification at a given path.
@@ -164,13 +163,14 @@ func (c Client) ListenBucketNotification(bucketName, prefix, suffix string, even
 		// Indicate to our routine to exit cleanly upon return.
 		defer close(retryDoneCh)
 
+		// Prepare urlValues to pass into the request on every loop
+		urlValues := make(url.Values)
+		urlValues.Set("prefix", prefix)
+		urlValues.Set("suffix", suffix)
+		urlValues["events"] = events
+
 		// Wait on the jitter retry loop.
 		for range c.newRetryTimerContinous(time.Second, time.Second*30, MaxJitter, retryDoneCh) {
-			urlValues := make(url.Values)
-			urlValues.Set("prefix", prefix)
-			urlValues.Set("suffix", suffix)
-			urlValues["events"] = events
-
 			// Execute GET on bucket to list objects.
 			resp, err := c.executeMethod(context.Background(), "GET", requestMetadata{
 				bucketName:       bucketName,
@@ -196,30 +196,24 @@ func (c Client) ListenBucketNotification(bucketName, prefix, suffix string, even
 			// Initialize a new bufio scanner, to read line by line.
 			bio := bufio.NewScanner(resp.Body)
 
-			// Close the response body.
-			defer resp.Body.Close()
-
 			// Unmarshal each line, returns marshalled values.
 			for bio.Scan() {
 				var notificationInfo NotificationInfo
 				if err = json.Unmarshal(bio.Bytes(), &notificationInfo); err != nil {
+					closeResponse(resp)
 					continue
 				}
 				// Send notificationInfo
 				select {
 				case notificationInfoCh <- notificationInfo:
 				case <-doneCh:
+					closeResponse(resp)
 					return
 				}
 			}
-			// Look for any underlying errors.
-			if err = bio.Err(); err != nil {
-				// For an unexpected connection drop from server, we close the body
-				// and re-connect.
-				if err == io.ErrUnexpectedEOF {
-					resp.Body.Close()
-				}
-			}
+
+			// Close current connection before looping further.
+			closeResponse(resp)
 		}
 	}(notificationInfoCh)
 

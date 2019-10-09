@@ -1,6 +1,6 @@
 /*
- * Minio Go Library for Amazon S3 Compatible Cloud Storage
- * Copyright 2015-2017 Minio, Inc.
+ * MinIO Go Library for Amazon S3 Compatible Cloud Storage
+ * Copyright 2015-2017 MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/minio/minio-go/pkg/s3utils"
+	"github.com/minio/minio-go/v6/pkg/s3utils"
 )
 
 // BucketExists verify if bucket exists and you have permission to access it.
@@ -47,6 +47,10 @@ func (c Client) BucketExists(bucketName string) (bool, error) {
 		return false, err
 	}
 	if resp != nil {
+		resperr := httpRespToErrorResponse(resp, bucketName, "")
+		if ToErrorResponse(resperr).Code == "NoSuchBucket" {
+			return false, nil
+		}
 		if resp.StatusCode != http.StatusOK {
 			return false, httpRespToErrorResponse(resp, bucketName, "")
 		}
@@ -66,6 +70,9 @@ var defaultFilterKeys = []string{
 	"x-amz-bucket-region",
 	"x-amz-request-id",
 	"x-amz-id-2",
+	"Content-Security-Policy",
+	"X-Xss-Protection",
+
 	// Add new headers to be ignored.
 }
 
@@ -77,6 +84,7 @@ func extractObjMetadata(header http.Header) http.Header {
 		"Content-Length",
 		"Last-Modified",
 		"Content-Type",
+		"Expires",
 	}, defaultFilterKeys...)
 	return filterHeader(header, filterKeys)
 }
@@ -163,6 +171,11 @@ func (c Client) statObject(ctx context.Context, bucketName, objectName string, o
 		contentType = "application/octet-stream"
 	}
 
+	expiryStr := resp.Header.Get("Expires")
+	var expTime time.Time
+	if t, err := time.Parse(http.TimeFormat, expiryStr); err == nil {
+		expTime = t.UTC()
+	}
 	// Save object metadata info.
 	return ObjectInfo{
 		ETag:         md5sum,
@@ -170,6 +183,7 @@ func (c Client) statObject(ctx context.Context, bucketName, objectName string, o
 		Size:         size,
 		LastModified: date,
 		ContentType:  contentType,
+		Expires:      expTime,
 		// Extract only the relevant header keys describing the object.
 		// following function filters out a list of standard set of keys
 		// which are not part of object metadata.

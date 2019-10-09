@@ -62,7 +62,7 @@ The standard workflow is performed inside a helper container to normalize the bu
     - `cluster-sync-uploadproxy`: builds the uploadproxy and pushes it into a running cluster.
     - `cluster-sync-uploadserver`: builds the uploadserver and pushes it into a running cluster.
     - `cluster-sync-operator`: builds the operator and pushes it into a running cluster.
-- `deps-update`: runs 'glide cc' and 'glide update'
+- `deps-update`: runs 'go mod tidy' and 'go mod vendor'
 - `docker`: compile all binaries and build all containerized
     - `docker-controller`: compile cdi-controller and build cdi-controller image
     - `docker-importer`: compile cdi-importer and build cdi-importer image
@@ -268,17 +268,9 @@ Release practices are described in the [release doc](/doc/releases.md).
 
 ### Vendoring Dependencies
 
-This project uses `glide` as it's dependency manager.  At present, all project dependencies are vendored; using `glide` is unnecessary in the normal work flow.
+This project uses `go modules` as it's dependency manager.  At present, all project dependencies are vendored; using `go mod` is unnecessary in the normal work flow.
 
-Install glide:
-
-`curl https://glide.sh/get | sh`
-
-Then run it from the repo root
-
-`glide install -v`
-
-`glide install` scans imports and resolves missing and unused dependencies. `-v` removes nested vendor and Godeps/_workspace directories.
+`go modules` automatically scans and vendors in dependencies during the build process, you can also manually trigger go modules by running 'make dep-update'.
 
 ### S3-compatible client setup:
 

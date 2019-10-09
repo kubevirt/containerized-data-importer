@@ -1,6 +1,6 @@
 /*
- * Minio Go Library for Amazon S3 Compatible Cloud Storage
- * Copyright 2017 Minio, Inc.
+ * MinIO Go Library for Amazon S3 Compatible Cloud Storage
+ * Copyright 2017 MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,12 +28,6 @@ func (c Client) PutObjectWithContext(ctx context.Context, bucketName, objectName
 	err = opts.validate()
 	if err != nil {
 		return 0, err
-	}
-	if opts.EncryptMaterials != nil {
-		if err = opts.EncryptMaterials.SetupEncryptMode(reader); err != nil {
-			return 0, err
-		}
-		return c.putObjectMultipartStreamNoLength(ctx, bucketName, objectName, opts.EncryptMaterials, opts)
 	}
 	return c.putObjectCommon(ctx, bucketName, objectName, reader, objectSize, opts)
 }

@@ -1,6 +1,6 @@
 /*
- * Minio Go Library for Amazon S3 Compatible Cloud Storage
- * Copyright 2015-2017 Minio, Inc.
+ * MinIO Go Library for Amazon S3 Compatible Cloud Storage
+ * Copyright 2015-2017 MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -85,33 +85,35 @@ func (c Client) newRetryTimer(maxRetry int, unit time.Duration, cap time.Duratio
 	return attemptCh
 }
 
-// isNetErrorRetryable - is network error retryable.
-func isNetErrorRetryable(err error) bool {
+// isHTTPReqErrorRetryable - is http requests error retryable, such
+// as i/o timeout, connection broken etc..
+func isHTTPReqErrorRetryable(err error) bool {
 	if err == nil {
 		return false
 	}
-	switch err.(type) {
-	case net.Error:
-		switch err.(type) {
+	switch e := err.(type) {
+	case *url.Error:
+		switch e.Err.(type) {
 		case *net.DNSError, *net.OpError, net.UnknownNetworkError:
 			return true
-		case *url.Error:
-			// For a URL error, where it replies back "connection closed"
-			// retry again.
-			if strings.Contains(err.Error(), "Connection closed by foreign host") {
-				return true
-			}
-		default:
-			if strings.Contains(err.Error(), "net/http: TLS handshake timeout") {
-				// If error is - tlsHandshakeTimeoutError, retry.
-				return true
-			} else if strings.Contains(err.Error(), "i/o timeout") {
-				// If error is - tcp timeoutError, retry.
-				return true
-			} else if strings.Contains(err.Error(), "connection timed out") {
-				// If err is a net.Dial timeout, retry.
-				return true
-			}
+		}
+		if strings.Contains(err.Error(), "Connection closed by foreign host") {
+			return true
+		} else if strings.Contains(err.Error(), "net/http: TLS handshake timeout") {
+			// If error is - tlsHandshakeTimeoutError, retry.
+			return true
+		} else if strings.Contains(err.Error(), "i/o timeout") {
+			// If error is - tcp timeoutError, retry.
+			return true
+		} else if strings.Contains(err.Error(), "connection timed out") {
+			// If err is a net.Dial timeout, retry.
+			return true
+		} else if strings.Contains(err.Error(), "net/http: HTTP/1.x transport connection broken") {
+			// If error is transport connection broken, retry.
+			return true
+		} else if strings.Contains(err.Error(), "net/http: timeout awaiting response headers") {
+			// Retry errors due to server not sending the response before timeout
+			return true
 		}
 	}
 	return false
@@ -128,6 +130,7 @@ var retryableS3Codes = map[string]struct{}{
 	"InternalError":         {},
 	"ExpiredToken":          {},
 	"ExpiredTokenException": {},
+	"SlowDown":              {},
 	// Add more AWS S3 codes here.
 }
 
@@ -143,6 +146,7 @@ var retryableHTTPStatusCodes = map[int]struct{}{
 	http.StatusInternalServerError: {},
 	http.StatusBadGateway:          {},
 	http.StatusServiceUnavailable:  {},
+	http.StatusGatewayTimeout:      {},
 	// Add more HTTP status codes here.
 }
 

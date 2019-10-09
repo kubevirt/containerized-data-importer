@@ -1,6 +1,6 @@
 /*
- * Minio Go Library for Amazon S3 Compatible Cloud Storage
- * Copyright 2015-2018 Minio, Inc.
+ * MinIO Go Library for Amazon S3 Compatible Cloud Storage
+ * Copyright 2015-2018 MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/md5"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"hash"
@@ -30,6 +29,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httputil"
 	"net/url"
 	"os"
@@ -38,9 +38,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/minio/minio-go/pkg/credentials"
-	"github.com/minio/minio-go/pkg/s3signer"
-	"github.com/minio/minio-go/pkg/s3utils"
+	"github.com/minio/sha256-simd"
+
+	"golang.org/x/net/publicsuffix"
+
+	"github.com/minio/minio-go/v6/pkg/credentials"
+	"github.com/minio/minio-go/v6/pkg/s3signer"
+	"github.com/minio/minio-go/v6/pkg/s3utils"
 )
 
 // Client implements Amazon S3 compatible methods.
@@ -70,8 +74,9 @@ type Client struct {
 	bucketLocCache *bucketLocationCache
 
 	// Advanced functionality.
-	isTraceEnabled bool
-	traceOutput    io.Writer
+	isTraceEnabled  bool
+	traceErrorsOnly bool
+	traceOutput     io.Writer
 
 	// S3 specific accelerated endpoint.
 	s3AccelerateEndpoint string
@@ -99,15 +104,15 @@ type Options struct {
 // Global constants.
 const (
 	libraryName    = "minio-go"
-	libraryVersion = "4.0.9"
+	libraryVersion = "v6.0.39"
 )
 
 // User Agent should always following the below style.
 // Please open an issue to discuss any new changes here.
 //
-//       Minio (OS; ARCH) LIB/VER APP/VER
+//       MinIO (OS; ARCH) LIB/VER APP/VER
 const (
-	libraryUserAgentPrefix = "Minio (" + runtime.GOOS + "; " + runtime.GOARCH + ") "
+	libraryUserAgentPrefix = "MinIO (" + runtime.GOOS + "; " + runtime.GOARCH + ") "
 	libraryUserAgent       = libraryUserAgentPrefix + libraryName + "/" + libraryVersion
 )
 
@@ -181,6 +186,12 @@ func NewWithRegion(endpoint, accessKeyID, secretAccessKey string, secure bool, r
 // NewWithOptions - instantiate minio client with options
 func NewWithOptions(endpoint string, opts *Options) (*Client, error) {
 	return privateNew(endpoint, opts.Creds, opts.Secure, opts.Region, opts.BucketLookup)
+}
+
+// EndpointURL returns the URL of the S3 endpoint.
+func (c *Client) EndpointURL() *url.URL {
+	endpoint := *c.endpointURL // copy to prevent callers from modifying internal state
+	return &endpoint
 }
 
 // lockedRandSource provides protected rand source, implements rand.Source interface.
@@ -260,7 +271,7 @@ func (c *Client) redirectHeaders(req *http.Request, via []*http.Request) error {
 		case signerType.IsV2():
 			return errors.New("signature V2 cannot support redirection")
 		case signerType.IsV4():
-			req = s3signer.SignV4(*req, accessKeyID, secretAccessKey, sessionToken, getDefaultLocation(*c.endpointURL, region))
+			s3signer.SignV4(*req, accessKeyID, secretAccessKey, sessionToken, getDefaultLocation(*c.endpointURL, region))
 		}
 	}
 	return nil
@@ -269,6 +280,13 @@ func (c *Client) redirectHeaders(req *http.Request, via []*http.Request) error {
 func privateNew(endpoint string, creds *credentials.Credentials, secure bool, region string, lookup BucketLookupType) (*Client, error) {
 	// construct endpoint.
 	endpointURL, err := getEndpointURL(endpoint, secure)
+	if err != nil {
+		return nil, err
+	}
+
+	// Initialize cookies to preserve server sent cookies if any and replay
+	// them upon each request.
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
 		return nil, err
 	}
@@ -285,9 +303,15 @@ func privateNew(endpoint string, creds *credentials.Credentials, secure bool, re
 	// Save endpoint URL, user agent for future uses.
 	clnt.endpointURL = endpointURL
 
+	transport, err := DefaultTransport(secure)
+	if err != nil {
+		return nil, err
+	}
+
 	// Instantiate http client and bucket location cache.
 	clnt.httpClient = &http.Client{
-		Transport:     DefaultTransport,
+		Jar:           jar,
+		Transport:     transport,
 		CheckRedirect: clnt.redirectHeaders,
 	}
 
@@ -314,10 +338,6 @@ func privateNew(endpoint string, creds *credentials.Credentials, secure bool, re
 func (c *Client) SetAppInfo(appName string, appVersion string) {
 	// if app name and version not set, we do not set a new user agent.
 	if appName != "" && appVersion != "" {
-		c.appInfo = struct {
-			appName    string
-			appVersion string
-		}{}
 		c.appInfo.appName = appName
 		c.appInfo.appVersion = appVersion
 	}
@@ -357,10 +377,23 @@ func (c *Client) TraceOn(outputStream io.Writer) {
 	c.isTraceEnabled = true
 }
 
+// TraceErrorsOnlyOn - same as TraceOn, but only errors will be traced.
+func (c *Client) TraceErrorsOnlyOn(outputStream io.Writer) {
+	c.TraceOn(outputStream)
+	c.traceErrorsOnly = true
+}
+
+// TraceErrorsOnlyOff - Turns off the errors only tracing and everything will be traced after this call.
+// If all tracing needs to be turned off, call TraceOff().
+func (c *Client) TraceErrorsOnlyOff() {
+	c.traceErrorsOnly = false
+}
+
 // TraceOff - disable HTTP tracing.
 func (c *Client) TraceOff() {
 	// Disable tracing.
 	c.isTraceEnabled = false
+	c.traceErrorsOnly = false
 }
 
 // SetS3TransferAccelerate - turns s3 accelerated endpoint on or off for all your
@@ -455,22 +488,9 @@ func (c Client) dumpHTTP(req *http.Request, resp *http.Response) error {
 			return err
 		}
 	} else {
-		// WORKAROUND for https://github.com/golang/go/issues/13942.
-		// httputil.DumpResponse does not print response headers for
-		// all successful calls which have response ContentLength set
-		// to zero. Keep this workaround until the above bug is fixed.
-		if resp.ContentLength == 0 {
-			var buffer bytes.Buffer
-			if err = resp.Header.Write(&buffer); err != nil {
-				return err
-			}
-			respTrace = buffer.Bytes()
-			respTrace = append(respTrace, []byte("\r\n")...)
-		} else {
-			respTrace, err = httputil.DumpResponse(resp, false)
-			if err != nil {
-				return err
-			}
+		respTrace, err = httputil.DumpResponse(resp, false)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -513,8 +533,9 @@ func (c Client) do(req *http.Request) (*http.Response, error) {
 		return nil, ErrInvalidArgument(msg)
 	}
 
-	// If trace is enabled, dump http request and response.
-	if c.isTraceEnabled {
+	// If trace is enabled, dump http request and response,
+	// except when the traceErrorsOnly enabled and the response's status code is ok
+	if c.isTraceEnabled && !(c.traceErrorsOnly && resp.StatusCode == http.StatusOK) {
 		err = c.dumpHTTP(req, resp)
 		if err != nil {
 			return nil, err
@@ -599,8 +620,8 @@ func (c Client) executeMethod(ctx context.Context, method string, metadata reque
 		// Initiate the request.
 		res, err = c.do(req)
 		if err != nil {
-			// For supported network errors verify.
-			if isNetErrorRetryable(err) {
+			// For supported http requests errors verify.
+			if isHTTPReqErrorRetryable(err) {
 				continue // Retry.
 			}
 			// For other errors, return here no need to retry.
@@ -639,13 +660,29 @@ func (c Client) executeMethod(ctx context.Context, method string, metadata reque
 		//
 		// Additionally we should only retry if bucketLocation and custom
 		// region is empty.
-		if metadata.bucketLocation == "" && c.region == "" {
-			if errResponse.Code == "AuthorizationHeaderMalformed" || errResponse.Code == "InvalidRegion" {
+		if c.region == "" {
+			switch errResponse.Code {
+			case "AuthorizationHeaderMalformed":
+				fallthrough
+			case "InvalidRegion":
+				fallthrough
+			case "AccessDenied":
 				if metadata.bucketName != "" && errResponse.Region != "" {
 					// Gather Cached location only if bucketName is present.
-					if _, cachedLocationError := c.bucketLocCache.Get(metadata.bucketName); cachedLocationError != false {
+					if _, cachedOk := c.bucketLocCache.Get(metadata.bucketName); cachedOk {
 						c.bucketLocCache.Set(metadata.bucketName, errResponse.Region)
 						continue // Retry.
+					}
+				} else {
+					// Most probably for ListBuckets()
+					if errResponse.Region != metadata.bucketLocation {
+						// Retry if the error
+						// response has a
+						// different region
+						// than the request we
+						// just made.
+						metadata.bucketLocation = errResponse.Region
+						continue // Retry
 					}
 				}
 			}
@@ -680,13 +717,8 @@ func (c Client) newRequest(method string, metadata requestMetadata) (req *http.R
 			// Gather location only if bucketName is present.
 			location, err = c.getBucketLocation(metadata.bucketName)
 			if err != nil {
-				if ToErrorResponse(err).Code != "AccessDenied" {
-					return nil, err
-				}
+				return nil, err
 			}
-			// Upon AccessDenied error on fetching bucket location, default
-			// to possible locations based on endpoint URL. This can usually
-			// happen when GetBucketLocation() is disabled using IAM policies.
 		}
 		if location == "" {
 			location = getDefaultLocation(*c.endpointURL, c.region)
@@ -694,10 +726,14 @@ func (c Client) newRequest(method string, metadata requestMetadata) (req *http.R
 	}
 
 	// Look if target url supports virtual host.
-	isVirtualHost := c.isVirtualHostStyleRequest(*c.endpointURL, metadata.bucketName)
+	// We explicitly disallow MakeBucket calls to not use virtual DNS style,
+	// since the resolution may fail.
+	isMakeBucket := (metadata.objectName == "" && method == "PUT" && len(metadata.queryValues) == 0)
+	isVirtualHost := c.isVirtualHostStyleRequest(*c.endpointURL, metadata.bucketName) && !isMakeBucket
 
 	// Construct a new target URL.
-	targetURL, err := c.makeTargetURL(metadata.bucketName, metadata.objectName, location, isVirtualHost, metadata.queryValues)
+	targetURL, err := c.makeTargetURL(metadata.bucketName, metadata.objectName, location,
+		isVirtualHost, metadata.queryValues)
 	if err != nil {
 		return nil, err
 	}
@@ -833,7 +869,7 @@ func (c Client) makeTargetURL(bucketName, objectName, bucketLocation string, isV
 			host = c.s3AccelerateEndpoint
 		} else {
 			// Do not change the host if the endpoint URL is a FIPS S3 endpoint.
-			if !s3utils.IsAmazonFIPSGovCloudEndpoint(*c.endpointURL) {
+			if !s3utils.IsAmazonFIPSEndpoint(*c.endpointURL) {
 				// Fetch new host based on the bucket location.
 				host = getS3Endpoint(bucketLocation)
 			}
