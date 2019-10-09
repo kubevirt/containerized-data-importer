@@ -42,7 +42,7 @@ generate-verify:
 	${DO} "./hack/verify-codegen.sh"
 
 deps-update:
-	${DO} "glide cc && glide update --strip-vendor"
+	${DO} "./hack/build/dep-update.sh"
 
 apidocs:
 	${DO} "./hack/update-codegen.sh && ./hack/gen-swagger-doc/gen-swagger-docs.sh v1alpha1 html"

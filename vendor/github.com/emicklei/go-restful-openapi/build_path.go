@@ -248,11 +248,11 @@ func jsonSchemaType(modelName string) string {
 		"int32": "integer",
 		"int64": "integer",
 
-		"byte":      "integer",
-		"float64":   "number",
-		"float32":   "number",
-		"bool":      "boolean",
-		"time.Time": "string",
+		"byte":          "integer",
+		"float64":       "number",
+		"float32":       "number",
+		"bool":          "boolean",
+		"time.Time":     "string",
 		"time.Duration": "integer",
 	}
 	mapped, ok := schemaMap[modelName]

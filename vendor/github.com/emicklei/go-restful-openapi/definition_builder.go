@@ -466,11 +466,11 @@ func (b definitionBuilder) jsonSchemaType(modelName string) string {
 		"int32": "integer",
 		"int64": "integer",
 
-		"byte":      "integer",
-		"float64":   "number",
-		"float32":   "number",
-		"bool":      "boolean",
-		"time.Time": "string",
+		"byte":          "integer",
+		"float64":       "number",
+		"float32":       "number",
+		"bool":          "boolean",
+		"time.Time":     "string",
 		"time.Duration": "integer",
 	}
 	mapped, ok := schemaMap[modelName]
@@ -487,17 +487,17 @@ func (b definitionBuilder) jsonSchemaFormat(modelName string) string {
 		}
 	}
 	schemaMap := map[string]string{
-		"int":        "int32",
-		"int32":      "int32",
-		"int64":      "int64",
-		"byte":       "byte",
-		"uint":       "integer",
-		"uint8":      "byte",
-		"float64":    "double",
-		"float32":    "float",
-		"time.Time":  "date-time",
-		"*time.Time": "date-time",
-		"time.Duration": "integer",
+		"int":            "int32",
+		"int32":          "int32",
+		"int64":          "int64",
+		"byte":           "byte",
+		"uint":           "integer",
+		"uint8":          "byte",
+		"float64":        "double",
+		"float32":        "float",
+		"time.Time":      "date-time",
+		"*time.Time":     "date-time",
+		"time.Duration":  "integer",
 		"*time.Duration": "integer",
 	}
 	mapped, ok := schemaMap[modelName]

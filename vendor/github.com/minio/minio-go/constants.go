@@ -1,6 +1,6 @@
 /*
- * Minio Go Library for Amazon S3 Compatible Cloud Storage
- * Copyright 2015-2017 Minio, Inc.
+ * MinIO Go Library for Amazon S3 Compatible Cloud Storage
+ * Copyright 2015-2017 MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,13 +23,9 @@ package minio
 // a part in a multipart upload may not be uploaded.
 const absMinPartSize = 1024 * 1024 * 5
 
-// minPartSize - minimum part size 64MiB per object after which
+// minPartSize - minimum part size 128MiB per object after which
 // putObject behaves internally as multipart.
-const minPartSize = 1024 * 1024 * 64
-
-// copyPartSize - default (and maximum) part size to copy in a
-// copy-object request (5GiB)
-const copyPartSize = 1024 * 1024 * 1024 * 5
+const minPartSize = 1024 * 1024 * 128
 
 // maxPartsCount - maximum number of parts for a single multipart session.
 const maxPartsCount = 10000
@@ -59,12 +55,8 @@ const (
 	iso8601DateFormat = "20060102T150405Z"
 )
 
-// Encryption headers stored along with the object.
-const (
-	amzHeaderIV      = "X-Amz-Meta-X-Amz-Iv"
-	amzHeaderKey     = "X-Amz-Meta-X-Amz-Key"
-	amzHeaderMatDesc = "X-Amz-Meta-X-Amz-Matdesc"
-)
-
 // Storage class header constant.
 const amzStorageClass = "X-Amz-Storage-Class"
+
+// Website redirect location header constant
+const amzWebsiteRedirectLocation = "X-Amz-Website-Redirect-Location"

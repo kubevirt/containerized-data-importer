@@ -8,7 +8,7 @@ RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
     mkdir /etc/yum.repos.d/old && \
 	mv /etc/yum.repos.d/*.repo /etc/yum.repos.d/old  && \
 	mv /tmp/fedora_ci.dnf.repo /etc/yum.repos.d/fedora.repo && \
-	microdnf update -y && microdnf install -y qemu xz gzip git python3-pip gradle gcc autoconf automake libtool python jq && microdnf clean all && \
+	microdnf update -y && microdnf install -y qemu xz gzip git python3-pip gradle gcc autoconf automake libtool python jq mercurial && microdnf clean all && \
 	mv /etc/yum.repos.d/old/* /etc/yum.repos.d/ && \
 	rmdir /etc/yum.repos.d/old
 
@@ -41,15 +41,11 @@ RUN \
     ( go get -u -d k8s.io/code-generator/cmd/deepcopy-gen && \
     go get -u -d k8s.io/kube-openapi/cmd/openapi-gen ) && \
     ( cd $GOPATH/src/k8s.io/code-generator/cmd/deepcopy-gen && \
-    git checkout kubernetes-1.12.4 && \
+    git checkout kubernetes-1.13.4 && \
     go install ./... ) && \
     ( cd $GOPATH/src/k8s.io/kube-openapi/cmd/openapi-gen && \
     git checkout a01b7d5d6c2258c80a4a10070f3dee9cd575d9c7 && \
     go install ./... ) && \
-    (go get -u -d github.com/Masterminds/glide && \
-     cd $GOPATH/src/github.com/Masterminds/glide && \
-     git checkout v0.13.2 -b build-v0.13.2 && \
-     go install ./...) && \
     (curl -L -O "https://github.com/kubernetes-sigs/kubebuilder/releases/download/v${KUBEBUILDER_VERSION}/kubebuilder_${KUBEBUILDER_VERSION}_linux_${ARCH}.tar.gz" && \
      tar -zxvf kubebuilder_${KUBEBUILDER_VERSION}_linux_${ARCH}.tar.gz && \
      mv kubebuilder_${KUBEBUILDER_VERSION}_linux_${ARCH} /usr/local/kubebuilder && \

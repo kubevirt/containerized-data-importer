@@ -84,7 +84,7 @@ type TestHelper interface {
 // defer.
 //
 //   func TestFoo(t *testing.T) {
-//     ctrl := gomock.NewController(t)
+//     ctrl := gomock.NewController(st)
 //     defer ctrl.Finish()
 //     // ..
 //   }

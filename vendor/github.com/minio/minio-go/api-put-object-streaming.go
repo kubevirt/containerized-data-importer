@@ -1,6 +1,6 @@
 /*
- * Minio Go Library for Amazon S3 Compatible Cloud Storage
- * Copyright 2017 Minio, Inc.
+ * MinIO Go Library for Amazon S3 Compatible Cloud Storage
+ * Copyright 2017 MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/minio/minio-go/pkg/s3utils"
+	"github.com/minio/minio-go/v6/pkg/s3utils"
 )
 
 // putObjectMultipartStream - upload a large object using
@@ -75,7 +75,7 @@ type uploadPartReq struct {
 	Part    *ObjectPart // Size of the part uploaded.
 }
 
-// putObjectMultipartFromReadAt - Uploads files bigger than 64MiB.
+// putObjectMultipartFromReadAt - Uploads files bigger than 128MiB.
 // Supports all readers which implements io.ReaderAt interface
 // (ReadAt method).
 //
@@ -97,7 +97,7 @@ func (c Client) putObjectMultipartStreamFromReadAt(ctx context.Context, bucketNa
 	}
 
 	// Calculate the optimal parts info for a given size.
-	totalPartsCount, partSize, lastPartSize, err := optimalPartInfo(size)
+	totalPartsCount, partSize, lastPartSize, err := optimalPartInfo(size, opts.PartSize)
 	if err != nil {
 		return 0, err
 	}
@@ -167,7 +167,7 @@ func (c Client) putObjectMultipartStreamFromReadAt(ctx context.Context, bucketNa
 				var objPart ObjectPart
 				objPart, err = c.uploadPart(ctx, bucketName, objectName, uploadID,
 					sectionReader, uploadReq.PartNum,
-					"", "", partSize, opts.UserMetadata)
+					"", "", partSize, opts.ServerSideEncryption)
 				if err != nil {
 					uploadedPartsCh <- uploadedPartRes{
 						Size:  0,
@@ -240,7 +240,7 @@ func (c Client) putObjectMultipartStreamNoChecksum(ctx context.Context, bucketNa
 	}
 
 	// Calculate the optimal parts info for a given size.
-	totalPartsCount, partSize, lastPartSize, err := optimalPartInfo(size)
+	totalPartsCount, partSize, lastPartSize, err := optimalPartInfo(size, opts.PartSize)
 	if err != nil {
 		return 0, err
 	}
@@ -280,7 +280,7 @@ func (c Client) putObjectMultipartStreamNoChecksum(ctx context.Context, bucketNa
 		var objPart ObjectPart
 		objPart, err = c.uploadPart(ctx, bucketName, objectName, uploadID,
 			io.LimitReader(hookReader, partSize),
-			partNumber, "", "", partSize, opts.UserMetadata)
+			partNumber, "", "", partSize, opts.ServerSideEncryption)
 		if err != nil {
 			return totalUploadedSize, err
 		}
