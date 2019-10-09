@@ -17,7 +17,8 @@ limitations under the License.
 package controller
 
 import (
-	"reflect"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,14 +26,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/diff"
 	kubeinformers "k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 
 	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
@@ -41,6 +41,14 @@ const (
 	podPhaseAnnotation      = "cdi.kubevirt.io/storage.pod.phase"
 	podReadyAnnotation      = "cdi.kubevirt.io/storage.pod.ready"
 	cloneRequestAnnotation  = "k8s.io/CloneRequest"
+)
+
+var (
+	testUploadServerCASecret     *corev1.Secret
+	testUploadServerCASecretOnce sync.Once
+
+	testUploadServerClientCASecret     *corev1.Secret
+	testUploadServerClientCASecretOnce sync.Once
 )
 
 type uploadFixture struct {
@@ -61,8 +69,25 @@ type uploadFixture struct {
 	kubeobjects []runtime.Object
 	cdiobjects  []runtime.Object
 
-	expectedSecretNamespace                   string
 	expectedSecretGets, expectedSecretCreates int
+}
+
+func getUploadServerClientCASecret() *corev1.Secret {
+	testUploadServerClientCASecretOnce.Do(func() {
+		keyPair, _ := triple.NewCA("client")
+		testUploadServerClientCASecret = keystest.NewTLSSecret("cdi",
+			"cdi-upload-server-client-ca-key", keyPair, nil, nil)
+	})
+	return testUploadServerClientCASecret
+}
+
+func getUploadServerCASecret() *corev1.Secret {
+	testUploadServerCASecretOnce.Do(func() {
+		keyPair, _ := triple.NewCA("server")
+		testUploadServerCASecret = keystest.NewTLSSecret("cdi",
+			"cdi-upload-server-ca-key", keyPair, nil, nil)
+	})
+	return testUploadServerCASecret
 }
 
 func newUploadFixture(t *testing.T) *uploadFixture {
@@ -74,16 +99,6 @@ func newUploadFixture(t *testing.T) *uploadFixture {
 }
 
 func (f *uploadFixture) newController() (*UploadController, kubeinformers.SharedInformerFactory) {
-	serverCAKeypair, err := triple.NewCA("serverca")
-	if err != nil {
-		f.t.Errorf("Error creating CA cert")
-	}
-
-	clientCAKeypair, err := triple.NewCA("clientca")
-	if err != nil {
-		f.t.Errorf("Error creating CA cert")
-	}
-
 	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.cdiclient = cdifake.NewSimpleClientset(f.cdiobjects...)
 	i := kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
@@ -101,9 +116,6 @@ func (f *uploadFixture) newController() (*UploadController, kubeinformers.Shared
 		"cdi-uploadproxy",
 		"Always",
 		"5")
-
-	c.serverCAKeyPair = serverCAKeypair
-	c.clientCAKeyPair = clientCAKeypair
 
 	c.pvcsSynced = alwaysReady
 	c.podsSynced = alwaysReady
@@ -147,18 +159,17 @@ func (f *uploadFixture) runController(pvcName string, startInformers bool, expec
 		f.t.Error("expected error syncing foo, got nil")
 	}
 
-	actualSecretGets := findSecretGetActions(f.expectedSecretNamespace, f.kubeclient.Actions())
+	actualSecretGets := findSecretGetActions(f.kubeclient.Actions())
 	if len(actualSecretGets) != f.expectedSecretGets {
 		f.t.Errorf("Unexpected secret get counts %d %d", f.expectedSecretGets, len(actualSecretGets))
 	}
 
-	actualSecretCreates := findSecretCreateActions(f.expectedSecretNamespace, f.kubeclient.Actions())
+	actualSecretCreates := findSecretCreateActions(f.kubeclient.Actions())
 	if len(actualSecretCreates) != f.expectedSecretCreates {
 		f.t.Errorf("Unexpected secret create counts %d %d", f.expectedSecretCreates, len(actualSecretCreates))
 	}
 
-	k8sActions := filterSecretGetAndCreateActions(f.expectedSecretNamespace,
-		filterUploadInformerActions(f.kubeclient.Actions()))
+	k8sActions := filterSecretGetAndCreateActions(filterUploadInformerActions(f.kubeclient.Actions()))
 	for i, action := range k8sActions {
 		if len(f.kubeactions) < i+1 {
 			f.t.Errorf("%d unexpected actions: %+v", len(k8sActions)-len(f.kubeactions), k8sActions[i:])
@@ -184,11 +195,6 @@ func (f *uploadFixture) expectDeletePodAction(p *corev1.Pod) {
 		core.NewDeleteAction(schema.GroupVersionResource{Resource: "pods", Version: "v1"}, p.Namespace, p.Name))
 }
 
-func (f *uploadFixture) expectDeletePvcAction(pvc *corev1.PersistentVolumeClaim) {
-	f.kubeactions = append(f.kubeactions,
-		core.NewDeleteAction(schema.GroupVersionResource{Resource: "persistentvolumeclaims", Version: "v1"}, pvc.Namespace, pvc.Name))
-}
-
 func (f *uploadFixture) expectCreateServiceAction(s *corev1.Service) {
 	f.kubeactions = append(f.kubeactions,
 		core.NewCreateAction(schema.GroupVersionResource{Resource: "services", Version: "v1"}, s.Namespace, s))
@@ -209,58 +215,10 @@ func (f *uploadFixture) expectUpdatePvcAction(pvc *corev1.PersistentVolumeClaim)
 		core.NewUpdateAction(schema.GroupVersionResource{Resource: "persistentvolumeclaims", Version: "v1"}, pvc.Namespace, pvc))
 }
 
-func (f *uploadFixture) expectListStorageClass() {
-	f.kubeactions = append(f.kubeactions,
-		core.NewRootListAction(schema.GroupVersionResource{Resource: "storageclasses", Version: "v1"}, schema.GroupVersionKind{Group: "storage.k8s.io", Version: "v1", Kind: "StorageClass"}, metav1.ListOptions{}))
-}
-
 // really should be expect keystore actions but they are the only secrets created for now
-func (f *uploadFixture) expectSecretActions(namespace string, gets, creates int) {
-	f.expectedSecretNamespace = namespace
+func (f *uploadFixture) expectSecretActions(gets, creates int) {
 	f.expectedSecretGets = gets
 	f.expectedSecretCreates = creates
-}
-
-func checkUploadAction(expected, actual core.Action, t *testing.T) {
-	if !(expected.Matches(actual.GetVerb(), actual.GetResource().Resource) && actual.GetSubresource() == expected.GetSubresource()) {
-		t.Errorf("Expected\n\t%#v\ngot\n\t%#v", expected, actual)
-		return
-	}
-
-	if reflect.TypeOf(actual) != reflect.TypeOf(expected) {
-		t.Errorf("Action has wrong type. Expected: %t. Got: %t", expected, actual)
-		return
-	}
-
-	switch a := actual.(type) {
-	case core.CreateAction:
-		e, _ := expected.(core.CreateAction)
-		expObject := e.GetObject()
-		object := a.GetObject()
-
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expObject, object))
-		}
-	case core.UpdateAction:
-		e, _ := expected.(core.UpdateAction)
-		expObject := e.GetObject()
-		object := a.GetObject()
-
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expObject, object))
-		}
-	case core.PatchAction:
-		e, _ := expected.(core.PatchAction)
-		expPatch := e.GetPatch()
-		patch := a.GetPatch()
-
-		if !reflect.DeepEqual(expPatch, expPatch) {
-			t.Errorf("Action %s %s has wrong patch\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expPatch, patch))
-		}
-	}
 }
 
 func filterUploadInformerActions(actions []core.Action) []core.Action {
@@ -280,30 +238,30 @@ func filterUploadInformerActions(actions []core.Action) []core.Action {
 	return ret
 }
 
-func findSecretCreateActions(filterNamespace string, actions []core.Action) []core.Action {
+func findSecretCreateActions(actions []core.Action) []core.Action {
 	ret := []core.Action{}
 	for _, action := range actions {
-		if action.GetNamespace() == filterNamespace && action.Matches("create", "secrets") {
+		if action.Matches("create", "secrets") {
 			ret = append(ret, action)
 		}
 	}
 	return ret
 }
 
-func findSecretGetActions(filterNamespace string, actions []core.Action) []core.Action {
+func findSecretGetActions(actions []core.Action) []core.Action {
 	ret := []core.Action{}
 	for _, action := range actions {
-		if action.GetNamespace() == filterNamespace && action.Matches("get", "secrets") {
+		if action.Matches("get", "secrets") {
 			ret = append(ret, action)
 		}
 	}
 	return ret
 }
 
-func filterSecretGetAndCreateActions(filterNamespace string, actions []core.Action) []core.Action {
+func filterSecretGetAndCreateActions(actions []core.Action) []core.Action {
 	ret := []core.Action{}
 	for _, action := range actions {
-		if action.GetNamespace() == filterNamespace && (action.Matches("get", "secrets") || action.Matches("create", "secrets")) {
+		if action.Matches("get", "secrets") || action.Matches("create", "secrets") {
 			continue
 		}
 		ret = append(ret, action)
@@ -322,21 +280,21 @@ func TestCreatesUploadPodAndService(t *testing.T) {
 
 	f.podLister = append(f.podLister, pod)
 	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pod, pvc)
+	f.kubeobjects = append(f.kubeobjects, pod, pvc, getUploadServerCASecret(), getUploadServerClientCASecret())
 	cdiConfig := createCDIConfig(common.ConfigName)
 	f.cdiobjects = append(f.cdiobjects, cdiConfig)
 
 	f.expectCreatePvcAction(scratchPvc)
-	f.expectSecretActions("default", 1, 1)
+	f.expectSecretActions(3, 1)
+
+	service := createUploadService(pvc)
+	service.Namespace = ""
+	f.expectCreateServiceAction(service)
 
 	pvcUpdate := pvc.DeepCopy()
 	pvcUpdate.Annotations[podPhaseAnnotation] = string(pod.Status.Phase)
 	pvcUpdate.Annotations[podReadyAnnotation] = "false"
 	f.expectUpdatePvcAction(pvcUpdate)
-
-	service := createUploadService(pvc)
-	service.Namespace = ""
-	f.expectCreateServiceAction(service)
 
 	f.run(getPvcKey(pvc, t))
 }
@@ -346,26 +304,28 @@ func TestCreatesCloneTargetPodAndService(t *testing.T) {
 	storageClassName := "test"
 	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{cloneRequestAnnotation: "default/sourcePvc"}, nil)
 	source := createPvcInStorageClass("sourcePvc", "default", &storageClassName, nil, nil)
-	pod := createUploadClonePod(pvc)
+	clientName := fmt.Sprintf("%s/%s-%s/%s", source.Namespace, source.Name, pvc.Namespace, pvc.Name)
+	pod := createUploadClonePod(pvc, clientName)
 	pod.Namespace = ""
 	f.expectCreatePodAction(pod)
 
 	f.podLister = append(f.podLister, pod)
 	f.pvcLister = append(f.pvcLister, pvc, source)
-	f.kubeobjects = append(f.kubeobjects, pod, pvc, source)
+	f.kubeobjects = append(f.kubeobjects, pod, pvc, source, getUploadServerCASecret(), getUploadServerClientCASecret())
 	cdiConfig := createCDIConfig(common.ConfigName)
 	f.cdiobjects = append(f.cdiobjects, cdiConfig)
 
-	f.expectSecretActions("default", 1, 1)
-
-	pvcUpdate := pvc.DeepCopy()
-	pvcUpdate.Annotations[podPhaseAnnotation] = string(pod.Status.Phase)
-	pvcUpdate.Annotations[podReadyAnnotation] = "false"
-	f.expectUpdatePvcAction(pvcUpdate)
+	f.expectSecretActions(3, 1)
 
 	service := createUploadService(pvc)
 	service.Namespace = ""
 	f.expectCreateServiceAction(service)
+
+	pvcUpdate := pvc.DeepCopy()
+	pvcUpdate.Annotations[AnnUploadClientName] = clientName
+	pvcUpdate.Annotations[podPhaseAnnotation] = string(pod.Status.Phase)
+	pvcUpdate.Annotations[podReadyAnnotation] = "false"
+	f.expectUpdatePvcAction(pvcUpdate)
 
 	f.run(getPvcKey(pvc, t))
 }
@@ -477,6 +437,13 @@ func TestUploadComplete(t *testing.T) {
 	updatedPVC.Annotations[podReadyAnnotation] = "false"
 
 	f.expectUpdatePvcAction(updatedPVC)
+	f.run(getPvcKey(pvc, t))
+
+	f.pvcLister = nil
+	f.kubeobjects = nil
+	f.kubeactions = nil
+	f.pvcLister = append(f.pvcLister, scratchPvc, updatedPVC)
+	f.kubeobjects = append(f.kubeobjects, scratchPvc, updatedPVC, pod, service)
 	f.expectDeleteServiceAction(service)
 	f.expectDeletePodAction(pod)
 	f.run(getPvcKey(pvc, t))
@@ -559,7 +526,7 @@ func TestShouldCreateCerts(t *testing.T) {
 		t.Errorf("init certs failed %+v", err)
 	}
 
-	filteredActions := findSecretCreateActions(util.GetNamespace(), client.Actions())
+	filteredActions := findSecretCreateActions(client.Actions())
 	if len(filteredActions) != 5 {
 		t.Errorf("Expected 5 certs, got %d", len(filteredActions))
 	}

@@ -151,13 +151,13 @@ func (c *Controller) handlePodObject(obj interface{}, verb string) {
 	}
 
 	if pvc == nil {
-		ownerRefAnno, exists := object.GetAnnotations()[AnnOwnerRef]
+		ownerRefAnno, ok := object.GetAnnotations()[AnnOwnerRef]
 		if ok {
-			pvc, exists, err = c.pvcFromKey(ownerRefAnno)
+			pvc, ok, err = c.pvcFromKey(ownerRefAnno)
 			if err != nil {
 				runtime.HandleError(errors.Wrapf(err, "error getting PVC %s", ownerRefAnno))
 				return
-			} else if !exists {
+			} else if !ok {
 				runtime.HandleError(errors.Errorf("error getting PVC %s from ownerref", ownerRefAnno))
 				return
 			}

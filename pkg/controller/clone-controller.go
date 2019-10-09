@@ -44,7 +44,7 @@ const (
 	// APIServerPublicKeyPath is the path to the apiserver public key
 	APIServerPublicKeyPath = APIServerPublicKeyDir + "/id_rsa.pub"
 
-	cloneFinalizerName = "cdi.kubevirt.io/cloneSource"
+	cloneSourcePodFinalizer = "cdi.kubevirt.io/cloneSource"
 
 	cloneTokenLeeway = 10 * time.Second
 )
@@ -86,34 +86,34 @@ func newCloneTokenValidator(key *rsa.PublicKey) token.Validator {
 }
 
 func (cc *CloneController) findCloneSourcePodFromCache(pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
-	var sourcePod *v1.Pod
-	annCloneRequest := pvc.GetAnnotations()[AnnCloneRequest]
-	if annCloneRequest != "" {
-		sourcePvcNamespace, _ := ParseSourcePvcAnnotation(annCloneRequest, "/")
-		if sourcePvcNamespace == "" {
-			return nil, errors.Errorf("Bad CloneRequest Annotation")
-		}
-		//find the source pod
-		selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
-			MatchLabels: map[string]string{
-				CloneUniqueID: string(pvc.GetUID()) + "-source-pod",
-			},
-		})
-		if err != nil {
-			return nil, err
-		}
-		podList, err := cc.podLister.Pods(sourcePvcNamespace).List(selector)
-		if err != nil {
-			return nil, err
-		}
-		if len(podList) == 0 {
-			return nil, nil
-		} else if len(podList) > 1 {
-			return nil, errors.Errorf("multiple source pods found for clone PVC %s/%s", pvc.Namespace, pvc.Name)
-		}
-		sourcePod = podList[0]
+	isCloneRequest, sourceNamespace, _ := ParseCloneRequestAnnotation(pvc)
+	if !isCloneRequest {
+		return nil, nil
 	}
-	return sourcePod, nil
+
+	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			CloneUniqueID: string(pvc.GetUID()) + "-source-pod",
+		},
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "error creating label selector")
+	}
+
+	podList, err := cc.podLister.Pods(sourceNamespace).List(selector)
+	if err != nil {
+		return nil, errors.Wrap(err, "error listing pods")
+	}
+
+	if len(podList) > 1 {
+		return nil, errors.Errorf("multiple source pods found for clone PVC %s/%s", pvc.Namespace, pvc.Name)
+	}
+
+	if len(podList) == 0 {
+		return nil, nil
+	}
+
+	return podList[0], nil
 }
 
 // Create the cloning source and target pods based the pvc. The pvc is checked (again) to ensure that we are not already
@@ -125,6 +125,7 @@ func (cc *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 	}
 
 	if !ready {
+		klog.V(3).Infof("Upload pod not ready yet for PVC %s/%s", pvc.Namespace, pvc.Name)
 		return nil
 	}
 
@@ -135,37 +136,38 @@ func (cc *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 
 	// source pod not seen yet
 	if !cc.podExpectations.SatisfiedExpectations(pvcKey) {
+		klog.V(3).Infof("Waiting on expectations for %s/%s", pvc.Namespace, pvc.Name)
 		return nil
 	}
 
 	sourcePod, err := cc.findCloneSourcePodFromCache(pvc)
 	if err != nil {
-		return errors.Wrap(err, "error getting clone source pod")
+		return err
 	}
 
 	if sourcePod == nil {
 		if err = cc.validateSourceAndTarget(pvc); err != nil {
-			return errors.Wrap(err, "error validating pvc before creating source")
+			return err
 		}
 
-		crann, err := getCloneRequestPVCAnnotation(pvc)
-		if err != nil {
-			return errors.Wrap(err, "error getting clone request annotation")
+		clientName, ok := pvc.Annotations[AnnUploadClientName]
+		if !ok {
+			return errors.Errorf("PVC %s/%s missing required %s annotation", pvc.Namespace, pvc.Name, AnnUploadClientName)
 		}
 
-		pvc, err = cc.addFinalizer(pvc)
+		pvc, err = addFinalizer(cc.clientset, pvc, cloneSourcePodFinalizer)
 		if err != nil {
-			return errors.Wrap(err, "error adding finalizer")
+			return err
 		}
 
 		cc.raisePodCreate(pvcKey)
-		pod, err := CreateCloneSourcePod(cc.clientset, cc.image, cc.pullPolicy, crann, pvc)
+		sourcePod, err = CreateCloneSourcePod(cc.clientset, cc.image, cc.pullPolicy, clientName, pvc)
 		if err != nil {
 			cc.observePodCreate(pvcKey)
-			return errors.Wrap(err, "error creating clone source pod")
+			return err
 		}
 
-		klog.V(3).Infof("Created pod %s/%s", pod.Namespace, pod.Name)
+		klog.V(3).Infof("Created pod %s/%s", sourcePod.Namespace, sourcePod.Name)
 	}
 
 	klog.V(3).Infof("Pod phase for PVC %s/%s is %s", pvc.Namespace, pvc.Name, pvc.Annotations[AnnPodPhase])
@@ -201,43 +203,6 @@ func (cc *CloneController) waitTargetPodRunningOrSucceeded(pvc *v1.PersistentVol
 	}
 
 	return true, nil
-}
-
-func (cc *CloneController) addFinalizer(pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, error) {
-	if hasFinalizer(pvc, cloneFinalizerName) {
-		return pvc, nil
-	}
-
-	cpy := pvc.DeepCopy()
-	cpy.Finalizers = append(cpy.Finalizers, cloneFinalizerName)
-	cpy, err := cc.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(cpy)
-	if err != nil {
-		return pvc, errors.Wrap(err, "error updating PVC")
-	}
-
-	return cpy, nil
-}
-
-func (cc *CloneController) removeFinalizer(pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, error) {
-	if !hasFinalizer(pvc, cloneFinalizerName) {
-		return pvc, nil
-	}
-
-	var finalizers []string
-	for _, f := range pvc.Finalizers {
-		if f != cloneFinalizerName {
-			finalizers = append(finalizers, f)
-		}
-	}
-
-	cpy := pvc.DeepCopy()
-	cpy.Finalizers = finalizers
-	cpy, err := cc.clientset.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(cpy)
-	if err != nil {
-		return pvc, errors.Wrap(err, "error updating PVC")
-	}
-
-	return cpy, nil
 }
 
 func (c *Controller) raisePodCreate(pvcKey string) {
@@ -286,7 +251,7 @@ func (cc *CloneController) cleanup(key string, pvc *v1.PersistentVolumeClaim) er
 
 	pod, err := cc.findCloneSourcePodFromCache(pvc)
 	if err != nil {
-		return errors.Wrap(err, "error getting clone source pod")
+		return err
 	}
 
 	if pod != nil && pod.DeletionTimestamp == nil {
@@ -302,9 +267,9 @@ func (cc *CloneController) cleanup(key string, pvc *v1.PersistentVolumeClaim) er
 		}
 	}
 
-	_, err = cc.removeFinalizer(pvc)
+	_, err = removeFinalizer(cc.clientset, pvc, cloneSourcePodFinalizer)
 	if err != nil {
-		return errors.Wrap(err, "error removing finalizer")
+		return err
 	}
 
 	cc.podExpectations.DeleteExpectations(key)

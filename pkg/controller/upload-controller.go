@@ -18,6 +18,7 @@ package controller
 
 import (
 	"fmt"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -38,12 +39,14 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
 	"kubevirt.io/containerized-data-importer/pkg/util"
-	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
 const (
 	// AnnUploadRequest marks that a PVC should be made available for upload
 	AnnUploadRequest = "cdi.kubevirt.io/storage.upload.target"
+
+	// AnnUploadClientName is the TLS name uploadserver will accept requests from
+	AnnUploadClientName = "cdi.kubevirt.io/uploadClientName"
 
 	annCreatedByUpload = "cdi.kubevirt.io/storage.createdByUploadController"
 
@@ -78,14 +81,13 @@ type UploadController struct {
 	uploadServiceImage                        string
 	pullPolicy                                string // Options: IfNotPresent, Always, or Never
 	verbose                                   string // verbose levels: 1, 2, ...
-	serverCAKeyPair                           *triple.KeyPair
-	clientCAKeyPair                           *triple.KeyPair
 	uploadProxyServiceName                    string
 }
 
-// GetUploadResourceName returns the name given to upload services/pods
-func GetUploadResourceName(pvcName string) string {
-	return "cdi-upload-" + pvcName
+// GetUploadResourceName returns the name given to upload resources
+func GetUploadResourceName(name string) string {
+	// TODO revisit naming, could overflow
+	return "cdi-upload-" + name
 }
 
 // UploadPossibleForPVC is called by the api server to see whether to return an upload token
@@ -130,7 +132,6 @@ func NewUploadController(client kubernetes.Interface,
 		verbose:                verbose,
 	}
 
-	// Bind the pvc SharedIndexInformer to the pvc queue
 	c.pvcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: c.enqueueObject,
 		UpdateFunc: func(old, new interface{}) {
@@ -138,15 +139,12 @@ func NewUploadController(client kubernetes.Interface,
 		},
 	})
 
-	// Bind the pod SharedIndexInformer to the pvc queue
 	c.podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: c.handleObject,
 		UpdateFunc: func(old, new interface{}) {
-			newDepl := new.(*v1.Pod)
-			oldDepl := old.(*v1.Pod)
-			if newDepl.ResourceVersion == oldDepl.ResourceVersion {
-				// Periodic resync will send update events for all known Pods.
-				// Two different versions of the same PVCs will always have different RVs.
+			newPod := new.(*v1.Pod)
+			oldPod := old.(*v1.Pod)
+			if newPod.ResourceVersion == oldPod.ResourceVersion {
 				return
 			}
 			c.handleObject(new)
@@ -154,15 +152,12 @@ func NewUploadController(client kubernetes.Interface,
 		DeleteFunc: c.handleObject,
 	})
 
-	// Bind the service SharedIndexInformer to the service queue
 	c.serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: c.handleObject,
 		UpdateFunc: func(old, new interface{}) {
-			newDepl := new.(*v1.Service)
-			oldDepl := old.(*v1.Service)
-			if newDepl.ResourceVersion == oldDepl.ResourceVersion {
-				// Periodic resync will send update events for all known Services.
-				// Two different versions of the same Servicess will always have different RVs.
+			newService := new.(*v1.Service)
+			oldService := old.(*v1.Service)
+			if newService.ResourceVersion == oldService.ResourceVersion {
 				return
 			}
 			c.handleObject(new)
@@ -179,7 +174,7 @@ func (c *UploadController) Init() error {
 
 	if err := c.initCerts(); err != nil {
 		runtime.HandleError(err)
-		return errors.Wrap(err, "error initializing certificates")
+		return err
 	}
 
 	return nil
@@ -220,13 +215,13 @@ func (c *UploadController) initCerts() error {
 	namespace := util.GetNamespace()
 
 	// CA for Upload Servers
-	c.serverCAKeyPair, err = keys.GetOrCreateCA(c.client, namespace, uploadServerCASecret, uploadServerCAName)
+	serverCAKeyPair, err := keys.GetOrCreateCA(c.client, namespace, uploadServerCASecret, uploadServerCAName)
 	if err != nil {
 		return errors.Wrap(err, "couldn't get/create server CA")
 	}
 
 	// CA for Upload Client
-	c.clientCAKeyPair, err = keys.GetOrCreateCA(c.client, namespace, uploadServerClientCASecret, uploadServerClientCAName)
+	clientCAKeyPair, err := keys.GetOrCreateCA(c.client, namespace, uploadServerClientCASecret, uploadServerClientCAName)
 	if err != nil {
 		return errors.Wrap(err, "couldn't get/create client CA")
 	}
@@ -235,8 +230,8 @@ func (c *UploadController) initCerts() error {
 	_, err = keys.GetOrCreateClientKeyPairAndCert(c.client,
 		namespace,
 		uploadServerClientKeySecret,
-		c.clientCAKeyPair,
-		c.serverCAKeyPair.Cert,
+		clientCAKeyPair,
+		serverCAKeyPair.Cert,
 		uploadServerClientName,
 		[]string{},
 		nil,
@@ -272,20 +267,23 @@ func (c *UploadController) handleObject(obj interface{}) {
 	if object, ok = obj.(metav1.Object); !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			runtime.HandleError(errors.Errorf("error decoding object, invalid type"))
+			runtime.HandleError(errors.New("error decoding object, invalid type"))
 			return
 		}
+
 		object, ok = tombstone.Obj.(metav1.Object)
 		if !ok {
-			runtime.HandleError(errors.Errorf("error decoding object tombstone, invalid type"))
+			runtime.HandleError(errors.New("error decoding object tombstone, invalid type"))
 			return
 		}
+
 		klog.V(3).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
 	}
+
 	klog.V(3).Infof("Processing object: %s", object.GetName())
+
 	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
 		_, createdByUs := object.GetAnnotations()[annCreatedByUpload]
-
 		if ownerRef.Kind != "PersistentVolumeClaim" || !createdByUs {
 			return
 		}
@@ -297,9 +295,7 @@ func (c *UploadController) handleObject(obj interface{}) {
 		}
 
 		klog.V(3).Infof("queueing pvc %+v!!", pvc)
-
 		c.enqueueObject(pvc)
-		return
 	}
 }
 
@@ -332,12 +328,11 @@ func (c *UploadController) processNextWorkItem() bool {
 
 		if key, ok = obj.(string); !ok {
 			c.queue.Forget(obj)
-			runtime.HandleError(errors.Errorf("expected string in workqueue but got %#v", obj))
-			return nil
+			return errors.Errorf("expected string in workqueue but got %#v", obj)
 		}
 
 		if err := c.syncHandler(key); err != nil {
-			return errors.Errorf("error syncing '%s': %s", key, err.Error())
+			return err
 		}
 
 		c.queue.Forget(obj)
@@ -352,15 +347,6 @@ func (c *UploadController) processNextWorkItem() bool {
 	}
 
 	return true
-}
-
-func podPhaseFromPVC(pvc *v1.PersistentVolumeClaim) v1.PodPhase {
-	phase, _ := pvc.ObjectMeta.Annotations[AnnPodPhase]
-	return v1.PodPhase(phase)
-}
-
-func podSucceededFromPVC(pvc *v1.PersistentVolumeClaim) bool {
-	return (podPhaseFromPVC(pvc) == v1.PodSucceeded)
 }
 
 func (c *UploadController) syncHandler(key string) error {
@@ -379,64 +365,66 @@ func (c *UploadController) syncHandler(key string) error {
 		return errors.Wrapf(err, "error getting PVC %s", key)
 	}
 
-	_, isUploadPod := pvc.Annotations[AnnUploadRequest]
-	_, isCloneTargetPod := pvc.Annotations[AnnCloneRequest]
+	_, isUpload := pvc.Annotations[AnnUploadRequest]
+	_, isCloneTarget := pvc.Annotations[AnnCloneRequest]
 
-	if isUploadPod && isCloneTargetPod {
+	if isUpload && isCloneTarget {
 		runtime.HandleError(errors.Errorf("PVC has both clone and upload annotations"))
 		return nil
 	}
 
 	// force cleanup if PVC pending delete and pod running or the upload/clone annotation was removed
-	if (!isUploadPod && !isCloneTargetPod) || podSucceededFromPVC(pvc) || pvc.DeletionTimestamp != nil {
+	if (!isUpload && !isCloneTarget) || podSucceededFromPVC(pvc) || pvc.DeletionTimestamp != nil {
 		klog.V(3).Infof("%s/%s not doing anything with: upload=%t, clone=%t, succeeded=%t, deleted=%t",
-			pvc.Namespace, pvc.Name, isUploadPod, isCloneTargetPod, podSucceededFromPVC(pvc), pvc.DeletionTimestamp == nil)
+			pvc.Namespace, pvc.Name, isUpload, isCloneTarget, podSucceededFromPVC(pvc), pvc.DeletionTimestamp == nil)
 		if err = c.cleanup(pvc); err != nil {
-			return errors.Wrap(err, "error cleaning up resources")
+			return err
 		}
 		return nil
 	}
 
-	if isCloneTargetPod {
+	var uploadClientName, scratchPVCName string
+	pvcCopy := pvc.DeepCopy()
+
+	if isCloneTarget {
 		source, err := getCloneRequestSourcePVC(pvc, c.pvcLister)
 		if err != nil {
-			return errors.Wrap(err, "error getting clone source PVC")
+			return err
 		}
 
 		if err = ValidateCanCloneSourceAndTargetSpec(&source.Spec, &pvc.Spec); err != nil {
 			klog.Errorf("Error %s validating clone spec, ignoring", err)
 			return nil
 		}
+
+		uploadClientName = fmt.Sprintf("%s/%s-%s/%s", source.Namespace, source.Name, pvc.Namespace, pvc.Name)
+		pvcCopy.Annotations[AnnUploadClientName] = uploadClientName
+	} else {
+		uploadClientName = uploadServerClientName
+
+		// TODO revisit naming, could overflow
+		scratchPVCName = pvc.Name + "-scratch"
 	}
 
 	resourceName := GetUploadResourceName(pvc.Name)
 
-	if !podSucceededFromPVC(pvc) {
-		pod, err := c.getOrCreateUploadPod(pvc, resourceName, isUploadPod)
-		if err != nil {
-			return errors.Wrapf(err, "error creating upload pod for pvc: %s", key)
-		}
-
-		podPhase := pod.Status.Phase
-		var labels map[string]string
-		annotations := map[string]string{
-			AnnPodPhase: string(podPhase),
-			AnnPodReady: strconv.FormatBool(isPodReady(pod)),
-		}
-		pvc, err = updatePVC(c.client, pvc, annotations, labels)
-		if err != nil {
-			return errors.Wrapf(err, "error updating pvc %s, pod phase %s", key, podPhase)
-		}
+	pod, err := c.getOrCreateUploadPod(pvc, resourceName, scratchPVCName, uploadClientName)
+	if err != nil {
+		return err
 	}
 
-	if podSucceededFromPVC(pvc) {
-		if err = c.cleanup(pvc); err != nil {
-			return errors.Wrap(err, "error cleaning up resources on succeeded")
-		}
-	} else {
-		// make sure the service exists
-		if _, err = c.getOrCreateUploadService(pvc, resourceName); err != nil {
-			return errors.Wrapf(err, "error getting/creating service resource for PVC %s", key)
+	if _, err = c.getOrCreateUploadService(pvc, resourceName); err != nil {
+		return err
+	}
+
+	podPhase := pod.Status.Phase
+	pvcCopy.Annotations[AnnPodPhase] = string(podPhase)
+	pvcCopy.Annotations[AnnPodReady] = strconv.FormatBool(isPodReady(pod))
+
+	if !reflect.DeepEqual(pvc, pvcCopy) {
+		pvc, err = c.client.CoreV1().PersistentVolumeClaims(pvcCopy.Namespace).Update(pvcCopy)
+		if err != nil {
+			return errors.Wrapf(err, "error updating pvc %s, pod phase %s", key, podPhase)
 		}
 	}
 
@@ -447,16 +435,13 @@ func (c *UploadController) cleanup(pvc *v1.PersistentVolumeClaim) error {
 	resourceName := GetUploadResourceName(pvc.Name)
 
 	// delete service
-	err := c.deleteService(pvc.Namespace, resourceName)
-	if err != nil {
-		return errors.Wrapf(err, "error deleting upload service for pvc: %s/%s", pvc.Namespace, pvc.Name)
+	if err := c.deleteService(pvc.Namespace, resourceName); err != nil {
+		return err
 	}
 
 	// delete pod
 	// we're using a req struct for now until we can normalize the controllers a bit more and share things like lister, client etc
 	// this way it's easy to stuff everything into an easy request struct, and can extend aditional behaviors if we want going forward
-	// NOTE this is a special case where the user updated annotations on the pvc to abort the upload requests, we'll add another call
-	// for this for the success case
 	dReq := podDeleteRequest{
 		namespace: pvc.Namespace,
 		podName:   resourceName,
@@ -464,86 +449,113 @@ func (c *UploadController) cleanup(pvc *v1.PersistentVolumeClaim) error {
 		k8sClient: c.client,
 	}
 
-	err = deletePod(dReq)
-	if err != nil {
-		return errors.Wrapf(err, "error deleting upload pod for pvc: %s/%s", pvc.Namespace, pvc.Name)
+	if err := deletePod(dReq); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func (c *UploadController) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, name string, isUploadPod bool) (*v1.Pod, error) {
-	pod, err := c.podLister.Pods(pvc.Namespace).Get(name)
-
-	if k8serrors.IsNotFound(err) {
-		scratchPvcName := ""
-		if isUploadPod {
-			scratchPvcName = pvc.Name + "-scratch"
+func (c *UploadController) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, podName, scratchPVCName, clientName string) (*v1.Pod, error) {
+	pod, err := c.podLister.Pods(pvc.Namespace).Get(podName)
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return nil, errors.Wrapf(err, "error getting upload pod %s/%s", pvc.Namespace, podName)
 		}
-		pod, err = CreateUploadPod(c.client, c.serverCAKeyPair, c.clientCAKeyPair.Cert, c.uploadServiceImage, c.verbose, c.pullPolicy, name, pvc, scratchPvcName)
+
+		args := UploadPodArgs{
+			Client:         c.client,
+			Image:          c.uploadServiceImage,
+			Verbose:        c.verbose,
+			PullPolicy:     c.pullPolicy,
+			Name:           podName,
+			PVC:            pvc,
+			ScratchPVCName: scratchPVCName,
+			ClientName:     clientName,
+		}
+
+		pod, err = CreateUploadPod(args)
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to create upload pod")
+			return nil, err
 		}
 	}
+
+	if !metav1.IsControlledBy(pod, pvc) {
+		return nil, errors.Errorf("%s pod not controlled by pvc %s", podName, pvc.Name)
+	}
+
 	// Always try to get or create the scratch PVC for a pod that is not successful yet, if it exists nothing happens otherwise attempt to create.
-	if isUploadPod {
-		_, err = c.getOrCreateScratchPvc(pvc, pod)
+	if scratchPVCName != "" {
+		_, err = c.getOrCreateScratchPvc(pvc, pod, scratchPVCName)
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to create scratch space for upload")
+			return nil, err
 		}
 	}
 
-	if pod != nil && !metav1.IsControlledBy(pod, pvc) {
-		return nil, errors.Errorf("%s pod not controlled by pvc %s", name, pvc.Name)
-	}
-	return pod, err
+	return pod, nil
 }
 
-func (c *UploadController) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, pod *v1.Pod) (*v1.PersistentVolumeClaim, error) {
-	scratchPvc, _ := c.pvcLister.PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name + "-scratch")
-	if scratchPvc != nil {
-		// Scratch PVC already exists, maybe the pod crashed and the pvc didn't get cleaned up, verify this pvc is owned by the pod.
-		for _, ownerRef := range scratchPvc.OwnerReferences {
-			if ownerRef.UID == pod.UID {
-				return scratchPvc, nil
-			}
-		}
-		return nil, errors.New("scratch PVC exists, but is not owned by the right pod")
-	}
-	storageClassName := GetScratchPvcStorageClass(c.client, c.cdiClient, pvc)
-
-	// Scratch PVC doesn't exist yet, create it. Determine which storage class to use.
-	scratchPvc, err := CreateScratchPersistentVolumeClaim(c.client, pvc, pod, storageClassName)
+func (c *UploadController) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, name string) (*v1.PersistentVolumeClaim, error) {
+	scratchPvc, err := c.pvcLister.PersistentVolumeClaims(pvc.Namespace).Get(name)
 	if err != nil {
-		return nil, err
+		if !k8serrors.IsNotFound(err) {
+			return nil, errors.Wrap(err, "error getting scratch PVC")
+		}
+
+		storageClassName := GetScratchPvcStorageClass(c.client, c.cdiClient, pvc)
+
+		// Scratch PVC doesn't exist yet, create it.
+		scratchPvc, err = CreateScratchPersistentVolumeClaim(c.client, pvc, pod, name, storageClassName)
+		if err != nil {
+			return nil, err
+		}
 	}
+
+	if !metav1.IsControlledBy(scratchPvc, pod) {
+		return nil, errors.Errorf("%s scratch PVC not controlled by pod %s", scratchPvc.Name, pod.Name)
+	}
+
 	return scratchPvc, nil
 }
 
 func (c *UploadController) getOrCreateUploadService(pvc *v1.PersistentVolumeClaim, name string) (*v1.Service, error) {
 	service, err := c.serviceLister.Services(pvc.Namespace).Get(name)
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return nil, errors.Wrap(err, "error getting upload service")
+		}
 
-	if k8serrors.IsNotFound(err) {
 		service, err = CreateUploadService(c.client, name, pvc)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	if service != nil && !metav1.IsControlledBy(service, pvc) {
+	if !metav1.IsControlledBy(service, pvc) {
 		return nil, errors.Errorf("%s service not controlled by pvc %s", name, pvc.Name)
 	}
 
-	return service, err
+	return service, nil
 }
 
 func (c *UploadController) deleteService(namespace, name string) error {
 	service, err := c.serviceLister.Services(namespace).Get(name)
-	if k8serrors.IsNotFound(err) {
-		return nil
-	}
-	if err == nil && service.DeletionTimestamp == nil {
-		err = c.client.CoreV1().Services(namespace).Delete(name, &metav1.DeleteOptions{})
+	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil
 		}
+		return errors.Wrap(err, "error getting upload service")
 	}
-	return err
+
+	if service.DeletionTimestamp == nil {
+		err = c.client.CoreV1().Services(namespace).Delete(name, &metav1.DeleteOptions{})
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return nil
+			}
+			return errors.Wrap(err, "error deleting upload service")
+		}
+	}
+
+	return nil
 }
