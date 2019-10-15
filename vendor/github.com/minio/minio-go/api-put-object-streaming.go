@@ -1,6 +1,6 @@
 /*
- * MinIO Go Library for Amazon S3 Compatible Cloud Storage
- * Copyright 2017 MinIO, Inc.
+ * Minio Go Library for Amazon S3 Compatible Cloud Storage
+ * Copyright 2017 Minio, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/minio/minio-go/v6/pkg/s3utils"
+	"github.com/minio/minio-go/pkg/s3utils"
 )
 
 // putObjectMultipartStream - upload a large object using
@@ -75,7 +75,7 @@ type uploadPartReq struct {
 	Part    *ObjectPart // Size of the part uploaded.
 }
 
-// putObjectMultipartFromReadAt - Uploads files bigger than 128MiB.
+// putObjectMultipartFromReadAt - Uploads files bigger than 64MiB.
 // Supports all readers which implements io.ReaderAt interface
 // (ReadAt method).
 //
@@ -97,7 +97,7 @@ func (c Client) putObjectMultipartStreamFromReadAt(ctx context.Context, bucketNa
 	}
 
 	// Calculate the optimal parts info for a given size.
-	totalPartsCount, partSize, lastPartSize, err := optimalPartInfo(size, opts.PartSize)
+	totalPartsCount, partSize, lastPartSize, err := optimalPartInfo(size)
 	if err != nil {
 		return 0, err
 	}
@@ -240,7 +240,7 @@ func (c Client) putObjectMultipartStreamNoChecksum(ctx context.Context, bucketNa
 	}
 
 	// Calculate the optimal parts info for a given size.
-	totalPartsCount, partSize, lastPartSize, err := optimalPartInfo(size, opts.PartSize)
+	totalPartsCount, partSize, lastPartSize, err := optimalPartInfo(size)
 	if err != nil {
 		return 0, err
 	}

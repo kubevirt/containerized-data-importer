@@ -1,0 +1,50 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
+
+rpm_image(
+    name = "cdi-uploadserver-base-image",
+    base = "@fedora//image",
+    rpms = [
+        "@tar//file",
+        "@qemu-img//file",
+        "@qemu-block-curl//file",
+        "@xen-libs//file",
+        "@libaio//file",
+        "@capstone//file",
+    ],
+)
+
+go_library(
+    name = "go_default_library",
+    srcs = ["uploadserver.go"],
+    importpath = "kubevirt.io/containerized-data-importer/cmd/cdi-uploadserver",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/common:go_default_library",
+        "//pkg/uploadserver:go_default_library",
+        "//vendor/k8s.io/klog:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "cdi-uploadserver",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)
+
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_image",
+)
+
+container_image(
+    name = "cdi-uploadserver-image",
+    base = ":cdi-uploadserver-base-image",
+    directory = "/usr/bin",
+    entrypoint = [
+        "/usr/bin/cdi-uploadserver",
+        "-alsologtostderr",
+    ],
+    files = [":cdi-uploadserver"],
+    visibility = ["//visibility:public"],
+)

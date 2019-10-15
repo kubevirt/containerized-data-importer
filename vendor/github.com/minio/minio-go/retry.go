@@ -1,6 +1,6 @@
 /*
- * MinIO Go Library for Amazon S3 Compatible Cloud Storage
- * Copyright 2015-2017 MinIO, Inc.
+ * Minio Go Library for Amazon S3 Compatible Cloud Storage
+ * Copyright 2015-2017 Minio, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -111,9 +111,6 @@ func isHTTPReqErrorRetryable(err error) bool {
 		} else if strings.Contains(err.Error(), "net/http: HTTP/1.x transport connection broken") {
 			// If error is transport connection broken, retry.
 			return true
-		} else if strings.Contains(err.Error(), "net/http: timeout awaiting response headers") {
-			// Retry errors due to server not sending the response before timeout
-			return true
 		}
 	}
 	return false
@@ -146,7 +143,6 @@ var retryableHTTPStatusCodes = map[int]struct{}{
 	http.StatusInternalServerError: {},
 	http.StatusBadGateway:          {},
 	http.StatusServiceUnavailable:  {},
-	http.StatusGatewayTimeout:      {},
 	// Add more HTTP status codes here.
 }
 

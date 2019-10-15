@@ -6,9 +6,10 @@ os:
 
 env:
 - ARCH=x86_64
+- ARCH=i686
 
 go:
-- 1.13.x
+- 1.11.x
 - tip
 
 matrix:
@@ -16,15 +17,12 @@ matrix:
   allow_failures:
   - go: tip
 
-before_install:
-  - sudo apt-get install devscripts
-  - mkdir /tmp/minio
-  - (cd /tmp/minio; GO111MODULE=on go get github.com/minio/minio)
-  - sudo cp testcerts/public.crt /usr/local/share/ca-certificates/
-  - sudo update-ca-certificates
-  - MINIO_ACCESS_KEY=minio MINIO_SECRET_KEY=minio123 ${GOPATH}/bin/minio server --compat --quiet --certs-dir testcerts data 2>&1 > minio.log &
+addons:
+  apt:
+    packages:
+      - devscripts
 
 script:
-  - diff -au <(gofmt -d .) <(printf "")
-  - diff -au <(licensecheck --check '.go$' --recursive --lines 0 * | grep -v -w 'Apache (v2.0)') <(printf "")
-  - make
+- diff -au <(gofmt -d .) <(printf "")
+- diff -au <(licensecheck --check '.go$' --recursive --lines 0 * | grep -v -w 'Apache (v2.0)') <(printf "")
+- make

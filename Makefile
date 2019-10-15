@@ -12,62 +12,44 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-.PHONY: build build-controller build-importer build-cloner build-apiserver build-uploadproxy build-uploadserver build-operator build-functest-file-image-init build-functest-registry-image-init build-functest \
-	    manifests \
-    	docker docker-controller docker-cloner docker-importer docker-apiserver docker-uploadproxy docker-uploadserver docker-operator docker-functest-image-init docker-functest-image-http docker-functest-registry-populate docker-functest-registry docker-functest-registry-init \
-		cluster-up cluster-down cluster-sync cluster-sync-controller cluster-sync-cloner cluster-sync-importer cluster-sync-apiserver cluster-sync-uploadproxy cluster-sync-uploadserver \
+.PHONY: manifests \
+		cluster-up cluster-down cluster-sync \
 		test test-functional test-unit test-lint \
 		publish \
 		vet \
 		format \
 		goveralls \
-		release-description
+		release-description \
+		bazel-generate bazel-build bazel-build-images bazel-push-images
 
 DOCKER=1
 ifeq (${DOCKER}, 1)
+# use entrypoint.sh (default) as your entrypoint into the container
 DO=./hack/build/in-docker.sh
+# use entrypoint-bazel.sh as your entrypoint into the container.
+DO_BAZ=./hack/build/bazel-docker.sh
 else
 DO=eval
+DO_BAZ=eval
 endif
 
-all: manifests docker
+all: manifests bazel-build-images
 
 clean:
 	${DO} "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile release-announcement"
 
 generate:
-	${DO} "./hack/update-codegen.sh"
+	${DO} "./hack/update-codegen.sh"; make bazel-generate
 
 generate-verify:
 	${DO} "./hack/verify-codegen.sh"
 
 deps-update:
-	${DO} "./hack/build/dep-update.sh"
+	${DO_BAZ} "./hack/build/dep-update.sh"; make bazel-generate
 
 apidocs:
 	${DO} "./hack/update-codegen.sh && ./hack/gen-swagger-doc/gen-swagger-docs.sh v1alpha1 html"
 
-build:
-	${DO} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} ./hack/build/build-go.sh clean && ./hack/build/build-go.sh build ${WHAT} && ./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-cdi-func-test-registry-host.sh && ./hack/build/build-copy-artifacts.sh ${WHAT}"
-
-build-controller: WHAT = cmd/cdi-controller
-build-controller: build
-build-importer: WHAT = cmd/cdi-importer
-build-importer: build
-build-apiserver: WHAT = cmd/cdi-apiserver
-build-apiserver: build
-build-uploadproxy: WHAT = cmd/cdi-uploadproxy
-build-uploadproxy: build
-build-uploadserver: WHAT = cmd/cdi-uploadserver
-build-uploadserver: build
-build-cloner: WHAT = cmd/cdi-cloner
-build-cloner: build
-build-operator: WHAT = cmd/cdi-operator
-build-operator: build
-build-functest-file-image-init: WHAT = tools/cdi-func-test-file-host-init
-build-functest-file-image-init:
-build-functest-registry-image-init: WHAT= tools/cdi-func-test-registry-init
-build-functest-registry-image-init:
 build-functest:
 	${DO} ./hack/build/build-functest.sh
 
@@ -88,62 +70,10 @@ test-functional-ci: build-functest test-functional
 test-lint:
 	${DO} "./hack/build/run-lint-checks.sh"
 
-docker: build
-	./hack/build/build-docker.sh build ${WHAT}
-
-docker-controller: WHAT = cmd/cdi-controller
-docker-controller: docker
-docker-importer: WHAT = cmd/cdi-importer
-docker-importer: docker
-docker-cloner: WHAT = cmd/cdi-cloner
-docker-cloner: docker
-docker-apiserver: WHAT = cmd/cdi-apiserver
-docker-apiserver: docker
-docker-uploadproxy: WHAT = cmd/cdi-uploadproxy
-docker-uploadproxy: docker
-docker-uploadserver: WHAT = cmd/cdi-uploadserver
-docker-uploadserver: docker
-docker-operator: WHAT = cmd/cdi-operator
-docker-operator: docker
-docker-functest-images: docker-functest-image-http docker-functest-image-init docker-functest-registry-init docker-functest-registry-populate docker-functest-registry docker-functest-block-device
-docker-functest-image-init: WHAT = tools/cdi-func-test-file-host-init
-docker-functest-image-init: docker
-docker-functest-image-http: WHAT = tools/cdi-func-test-file-host-http
-docker-functest-image-http: # no code to compile, just build image
-	./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-docker.sh build ${WHAT}
-docker-functest-registry-init: WHAT = tools/cdi-func-test-registry-init
-docker-functest-registry-init: docker 
-	./hack/build/build-cdi-func-test-file-host.sh && ./hack/build/build-docker.sh build ${WHAT}
-docker-functest-registry-populate: WHAT = tools/cdi-func-test-registry-populate
-docker-functest-registry-populate: # no code to compile, just build image
-	./hack/build/build-cdi-func-test-registry-host.sh && ./hack/build/build-docker.sh build ${WHAT}
-docker-functest-registry: WHAT = tools/cdi-func-test-registry
-docker-functest-registry: # no code to compile, just build image
-	./hack/build/build-cdi-func-test-registry-host.sh && ./hack/build/build-docker.sh build ${WHAT}
-
 docker-registry-cleanup: 
 	./hack/build/cleanup_docker.sh 
 
-
-push: docker
-	./hack/build/build-docker.sh push ${WHAT}
-
-push-controller: WHAT = cmd/cdi-controller
-push-controller: push
-push-importer: WHAT = cmd/cdi-importer
-push-importer: push
-push-cloner: WHAT = cmd/cdi-cloner
-push-cloner: push
-push-apiserver: WHAT = cmd/cdi-apiserver
-push-apiserver: push
-push-uploadproxy: WHAT = cmd/cdi-uploadproxy
-push-uploadproxy: push
-push-uploadserver: WHAT = cmd/cdi-uploadserver
-push-uploadserver: push
-push-operator: WHAT = cmd/cdi-operator
-push-operator: push
-
-publish: manifests docker
+publish: manifests push
 	./hack/build/build-docker.sh publish ${WHAT}
 
 vet:
@@ -175,16 +105,20 @@ cluster-clean:
 cluster-sync: cluster-clean
 	./cluster-sync/sync.sh DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG}
 
-cluster-sync-controller: WHAT = cmd/cdi-controller
-cluster-sync-controller: cluster-sync
-cluster-sync-importer: WHAT = cmd/cdi-importer
-cluster-sync-importer: cluster-sync
-cluster-sync-cloner: WHAT = cmd/cdi-cloner
-cluster-sync-cloner: cluster-sync
-cluster-sync-apiserver: WHAT = cmd/cdi-apiserver
-cluster-sync-apiserver: cluster-sync
-cluster-sync-uploadproxy: WHAT = cmd/cdi-uploadproxy
-cluster-sync-uploadproxy: cluster-sync
-cluster-sync-uploadserver: WHAT = cmd/cdi-uploadserver
-cluster-sync-uploadserver: cluster-sync
+bazel-generate:
+	SYNC_VENDOR=true ${DO_BAZ} "./hack/build/bazel-generate.sh"
+
+bazel-cdi-generate:
+	${DO_BAZ} "./hack/build/bazel-generate.sh -- pkg/ tools/ tests/ cmd/"
+
+bazel-build:
+	${DO_BAZ} "./hack/build/bazel-build.sh"
+
+bazel-build-images:	bazel-cdi-generate
+	${DO_BAZ} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} ./hack/build/bazel-build-images.sh"
+
+bazel-push-images: bazel-cdi-generate
+	${DO_BAZ} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} ./hack/build/bazel-push-images.sh"
+
+push: bazel-push-images
 

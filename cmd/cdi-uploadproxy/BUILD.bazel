@@ -1,0 +1,40 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["uploadproxy.go"],
+    importpath = "kubevirt.io/containerized-data-importer/cmd/cdi-uploadproxy",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/uploadproxy:go_default_library",
+        "//vendor/github.com/pkg/errors:go_default_library",
+        "//vendor/k8s.io/client-go/kubernetes:go_default_library",
+        "//vendor/k8s.io/client-go/tools/clientcmd:go_default_library",
+        "//vendor/k8s.io/klog:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "cdi-uploadproxy",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)
+
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_image",
+)
+
+container_image(
+    name = "cdi-uploadproxy-image",
+    base = "@fedora//image",
+    directory = "/usr/bin",
+    entrypoint = [
+        "/usr/bin/cdi-uploadproxy",
+        "-alsologtostderr",
+    ],
+    files = [":cdi-uploadproxy"],
+    visibility = ["//visibility:public"],
+    user = "1001",
+    workdir = "/home/cdi-uploadproxy",
+)

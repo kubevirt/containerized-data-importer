@@ -21,7 +21,7 @@ source "${script_dir}"/common.sh
 
 WORK_DIR="/go/src/kubevirt.io/containerized-data-importer"
 BUILDER_SPEC="${BUILD_DIR}/docker/builder"
-BUILDER_TAG='kubevirt-cdi-builder'
+BUILDER_TAG="kubevirt-cdi-bazel-builder"
 
 # Build the encapsulated compile and test container
 (cd ${BUILDER_SPEC} && docker build --tag ${BUILDER_TAG} .)
@@ -37,4 +37,3 @@ docker run ${USE_TTY} \
     -e GOCACHE=/gocache \
     -w ${WORK_DIR} \
     ${BUILDER_TAG} "$1"
-
