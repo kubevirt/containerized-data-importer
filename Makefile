@@ -74,7 +74,6 @@ docker-registry-cleanup:
 	./hack/build/cleanup_docker.sh 
 
 publish: manifests push
-	./hack/build/build-docker.sh publish ${WHAT}
 
 vet:
 	${DO} "./hack/build/build-go.sh vet ${WHAT}"
