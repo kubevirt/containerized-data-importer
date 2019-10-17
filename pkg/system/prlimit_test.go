@@ -70,8 +70,8 @@ var _ = Describe("Process Limits", func() {
 		_, err := runFakeCommandWithTimeout(timeout, f, command, args...)
 		Expect(err.Error()).To(Equal(errString))
 	},
-		table.Entry("killed by cpu time limit", 10*time.Second, func(p int) error { return SetCPUTimeLimit(p, 1) }, "spinner", "signal: killed", ""),
-		table.Entry("killed by memory limit", 10*time.Second, func(p int) error { return SetAddressSpaceLimit(p, (1<<21)*10) }, "hog", "exit status 2", ""),
+		table.Entry("killed by cpu time limit", 10*time.Second, func(p int) error { return SetCPUTimeLimit(p, 1) }, "spinner", "signal: killed"),
+		table.Entry("killed by memory limit", 10*time.Second, func(p int) error { return SetAddressSpaceLimit(p, (1<<21)*10) }, "hog", "exit status 2"),
 	)
 
 	It("Carriage return split should work", func() {
