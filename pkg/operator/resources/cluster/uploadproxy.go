@@ -40,7 +40,7 @@ func GetUploadProxyRolePermissions() []rbacv1.PolicyRule {
 				"",
 			},
 			Resources: []string{
-				"pods",
+				"persistentvolumeclaims",
 			},
 			Verbs: []string{
 				"get",
