@@ -29,17 +29,20 @@ export CDI_NAMESPACE=$NAMESPACE
 
 echo "namespace: ${NAMESPACE}, cdi-namespace: ${CDI_NAMESPACE}"
 
-readonly ARTIFACTS_PATH="exported-artifacts"
+readonly ARTIFACTS_PATH="${ARTIFACTS}"
+readonly BAZEL_CACHE="${BAZEL_CACHE:-http://bazel-cache.kubevirt-prow.svc.cluster.local:8080/kubevirt.io/containerized-data-importer}"
 
-mkdir -p "${PWD}/${ARTIFACTS_PATH}"
+export KUBEVIRT_PROVIDER=$TARGET
 
 if [[ $TARGET =~ openshift-.* ]]; then
   export KUBEVIRT_PROVIDER="os-3.11.0-crio"
-elif [[ $TARGET =~ okd-.* ]]; then
-  export KUBEVIRT_PROVIDER="okd-4.1"
 elif [[ $TARGET =~ k8s-.* ]]; then
-  export KUBEVIRT_PROVIDER="k8s-1.15.1"
   export KUBEVIRT_PROVIDER_EXTRA_ARGS="--enable-ceph"
+fi
+
+if [ ! -d "cluster-up/cluster/$KUBEVIRT_PROVIDER" ]; then
+  echo "The cluster provider $KUBEVIRT_PROVIDER does not exist"
+  exit 1
 fi
 
 export UPGRADE_FROM=$(curl -s https://github.com/kubevirt/containerized-data-importer/releases/latest | grep -o "v[0-9]\.[0-9]*\.[0-9]*")
@@ -51,6 +54,14 @@ kubectl() { cluster-up/kubectl.sh "$@"; }
 export CDI_NAMESPACE="${CDI_NAMESPACE:-cdi}"
 
 make cluster-down
+# Create .bazelrc to use remote cache
+cat >.bazelrc <<EOF
+startup --host_jvm_args=-Dbazel.DigestFunction=sha256
+build --remote_local_fallback
+build --remote_http_cache=${BAZEL_CACHE}
+build --jobs=4
+EOF
+
 make cluster-up
 
 # Wait for nodes to become ready
@@ -78,7 +89,7 @@ make cluster-sync
 
 kubectl version
 
-ginko_params="--test-args=--ginkgo.noColor --junit-output=${PWD}/exported-artifacts/tests.junit.xml"
+ginko_params="--test-args=--ginkgo.noColor --junit-output=${ARTIFACTS_PATH}/junit.functest.xml"
 
 # Run functional tests
 TEST_ARGS=$ginko_params make test-functional-ci
