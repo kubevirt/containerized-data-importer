@@ -18,13 +18,9 @@ set -e
 
 script_dir="$(readlink -f $(dirname $0))"
 source "${script_dir}"/common.sh
+source "${script_dir}"/config.sh
 
 WORK_DIR="/go/src/kubevirt.io/containerized-data-importer"
-BUILDER_SPEC="${BUILD_DIR}/docker/builder"
-BUILDER_TAG="kubevirt-cdi-bazel-builder"
-
-# Build the encapsulated compile and test container
-(cd ${BUILDER_SPEC} && docker build --tag ${BUILDER_TAG} .)
 
 # Execute the build
 [ -t 1 ] && USE_TTY="-it"
