@@ -65,12 +65,14 @@ func getDefaultStorageClass(client *kubernetes.Clientset) *storagev1.StorageClas
 	return nil
 }
 
-// IsHostpathProvisioner returns true if hostpath-provisioner is the default storage class
-func IsHostpathProvisioner() bool {
+// IsHostpathProvisionerBindingImmediateMode returns true if hostpath-provisioner is the default storage class and
+// the VolumeBindingMode is VolumeBindingImmediate
+func IsHostpathProvisionerBindingImmediateMode() bool {
 	if DefaultStorageClass == nil {
 		return false
 	}
-	return DefaultStorageClass.Provisioner == "kubevirt.io/hostpath-provisioner"
+	return DefaultStorageClass.Provisioner == "kubevirt.io/hostpath-provisioner" &&
+		*DefaultStorageClass.VolumeBindingMode == storagev1.VolumeBindingImmediate
 }
 
 // AddProvisionOnNodeToAnn adds 'kubevirt.io/provisionOnNode' annotaion
