@@ -146,7 +146,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		)
 	})
 
-	Describe("[rfe_id:1111][case_id:2001][crit:low][vendor:cnv-qe@redhat.com][level:component]Verify multiple blank disk creations in parallel", func() {
+	Describe("[rfe_id:1111][test_id:2001][crit:low][vendor:cnv-qe@redhat.com][level:component]Verify multiple blank disk creations in parallel", func() {
 		var (
 			dataVolume1, dataVolume2, dataVolume3, dataVolume4 *cdiv1.DataVolume
 		)

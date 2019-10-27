@@ -101,7 +101,7 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 		}
 	})
 
-	It("[rfe_id:CNV-1277][case_id:CNV-1891][crit:High][vendor:cnv-qe@redhat.com][level:component]Should allow multiple clones from a single source datavolume", func() {
+	It("[rfe_id:1277][test_id:1891][crit:High][vendor:cnv-qe@redhat.com][level:component]Should allow multiple clones from a single source datavolume", func() {
 		By("Creating a source from a real image")
 		sourceDv = utils.NewDataVolumeWithHTTPImport("source-dv", "500Mi", tinyCoreIsoURL)
 		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
@@ -135,7 +135,7 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 		}
 	})
 
-	It("[rfe_id:CNV-1277][case_id:CNV-1891][crit:High][vendor:cnv-qe@redhat.com][level:component]Should allow multiple clones from a single source datavolume in block volume mode", func() {
+	It("[rfe_id:1277][test_id:1891][crit:High][vendor:cnv-qe@redhat.com][level:component]Should allow multiple clones from a single source datavolume in block volume mode", func() {
 		if !f.IsBlockVolumeStorageClassAvailable() {
 			Skip("Storage Class for block volume is not available")
 		}
@@ -199,7 +199,7 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 		}
 	})
 
-	It("[rfe_id:CNV-1126][case_id:CNV-1896][crit:High][vendor:cnv-qe@redhat.com][level:component] Should not allow cloning into a smaller sized data volume", func() {
+	It("[rfe_id:1126][test_id:1896][crit:High][vendor:cnv-qe@redhat.com][level:component] Should not allow cloning into a smaller sized data volume", func() {
 		By("Creating a source from a real image")
 		sourceDv = utils.NewDataVolumeWithHTTPImport("source-dv", "500Mi", tinyCoreIsoURL)
 		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
@@ -232,7 +232,7 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 
 	})
 
-	It("[rfe_id:CNV-1126][case_id:CNV-1896][crit:High][vendor:cnv-qe@redhat.com][level:component] Should not allow cloning into a smaller sized data volume in block volume mode", func() {
+	It("[rfe_id:1126][test_id:1896][crit:High][vendor:cnv-qe@redhat.com][level:component] Should not allow cloning into a smaller sized data volume in block volume mode", func() {
 		if !f.IsBlockVolumeStorageClassAvailable() {
 			Skip("Storage Class for block volume is not available")
 		}
@@ -282,7 +282,7 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 		}
 	})
 
-	It("[rfe_id:CNV-1277][case_id:CNV-1899][crit:High][vendor:cnv-qe@redhat.com][level:component] Should allow multiple cloning operations in parallel", func() {
+	It("[rfe_id:1277][test_id:1899][crit:High][vendor:cnv-qe@redhat.com][level:component] Should allow multiple cloning operations in parallel", func() {
 		By("Creating a source from a real image")
 		sourceDv = utils.NewDataVolumeWithHTTPImport("source-dv", "500Mi", tinyCoreIsoURL)
 		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
@@ -321,7 +321,7 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 		}
 	})
 
-	It("[rfe_id:CNV-1277][case_id:CNV-1899][crit:High][vendor:cnv-qe@redhat.com][level:component] Should allow multiple cloning operations in parallel for block devices", func() {
+	It("[rfe_id:1277][test_id:1899][crit:High][vendor:cnv-qe@redhat.com][level:component] Should allow multiple cloning operations in parallel for block devices", func() {
 		if !f.IsBlockVolumeStorageClassAvailable() {
 			Skip("Storage Class for block volume is not available")
 		}
