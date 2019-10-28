@@ -10,13 +10,11 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/util/cert"
 
-	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
@@ -162,13 +160,19 @@ func setupProxyTests(handler http.HandlerFunc) *uploadProxyApp {
 		return server.URL
 	}
 
-	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
-		Name:      controller.GetUploadResourceName("testpvc"),
-		Namespace: "default",
-	}}
-	pod.Status.Phase = v1.PodPending
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testpvc",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"cdi.kubevirt.io/storage.pod.phase": "Running",
+				"cdi.kubevirt.io/storage.pod.ready": "true",
+			},
+		},
+	}
+
 	objects := []runtime.Object{}
-	objects = append(objects, pod)
+	objects = append(objects, pvc)
 	app := createApp()
 	app.client = k8sfake.NewSimpleClientset(objects...)
 	app.tokenValidator = &validateSuccess{}

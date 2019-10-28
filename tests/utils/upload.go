@@ -24,6 +24,7 @@ const (
 
 	uploadTargetAnnotation = "cdi.kubevirt.io/storage.upload.target"
 	uploadStatusAnnotation = "cdi.kubevirt.io/storage.pod.phase"
+	uploadReadyAnnotation  = "cdi.kubevirt.io/storage.pod.ready"
 )
 
 // UploadPodName returns the name of the upload server pod associated with a PVC
