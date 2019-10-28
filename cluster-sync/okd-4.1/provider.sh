@@ -7,6 +7,7 @@ function seed_images(){
 }
 
 function configure_local_storage() {
+  set +e
   retry_counter=0
   sc=`_kubectl get sc local -o=jsonpath="{.metadata.name}"`
   all_sc=`_kubectl get sc`
@@ -24,5 +25,6 @@ function configure_local_storage() {
 
   #Set the default storage class. If the above timed out, this will fail and abort the sync
   _kubectl patch storageclass local -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+  set -e
 }
 
