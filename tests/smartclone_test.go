@@ -39,7 +39,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 	Describe("Verify DataVolume Smart Cloning - Positive flow", func() {
 		It("succeed creating smart-clone dv", func() {
 			if !f.IsSnapshotStorageClassAvailable() {
-				Skip("Storage Class for clone via snapshot is not available")
+				Skip("Smart Clone is not applicable")
 			}
 			dataVolume := createDataVolume("dv-smart-clone-test-1", sourcePvc, fillCommand, f.SnapshotSCName, f)
 			// Wait for snapshot creation to start
@@ -60,17 +60,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		})
 	})
 
-	Describe("Verify DataVolume Smart Cloning - Negative flow", func() {
-		It("verify inapplicable smart-clone dv", func() {
-			if !f.IsSnapshotStorageClassAvailable() {
-				Skip("Test not available in openshift")
-			}
+	Describe("Verify DataVolume Smart Cloning - Check regular clone works", func() {
+		It("Verify inapplicable smart-clone dv", func() {
+			smartApplicable := f.IsSnapshotStorageClassAvailable()
 			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-
-			value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
-			if ok && strings.Compare(value, "true") == 0 {
-				Skip("Test cannot negative test smart clone if all clone is smart")
+			if err == nil {
+				value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
+				if smartApplicable && ok && strings.Compare(value, "true") == 0 {
+					Skip("Cannot test regular cloning if Smart Clone is applicable in default Storage Class")
+				}
 			}
 
 			dataVolume := createDataVolume("dv-smart-clone-test-negative", sourcePvc, fillCommand, "", f)

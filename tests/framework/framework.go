@@ -29,6 +29,7 @@ import (
 
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	csiClientset "kubevirt.io/containerized-data-importer/pkg/snapshot-client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 	ginkgo_reporters "kubevirt.io/qe-tools/pkg/ginkgo-reporters"
 )
@@ -73,6 +74,8 @@ type Framework struct {
 	K8sClient *kubernetes.Clientset
 	// CdiClient provides our CDI client pointer
 	CdiClient *cdiClientset.Clientset
+	// CsiClient provides our CSI client pointer
+	CsiClient *csiClientset.Clientset
 	// RestConfig provides a pointer to our REST client config.
 	RestConfig *rest.Config
 	// Namespace provides a namespace for each test generated/unique ns per test
@@ -193,6 +196,12 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 		return nil, errors.Wrap(err, "ERROR, unable to create CdiClient")
 	}
 	f.CdiClient = cs
+
+	csics, err := f.GetCsiClient()
+	if err != nil {
+		return nil, errors.Wrap(err, "ERROR, unable to create CsiClient")
+	}
+	f.CsiClient = csics
 
 	ginkgo.BeforeEach(f.BeforeEach)
 	ginkgo.AfterEach(f.AfterEach)
@@ -316,6 +325,19 @@ func (f *Framework) GetCdiClient() (*cdiClientset.Clientset, error) {
 	return cdiClient, nil
 }
 
+// GetCsiClient gets an instance of a kubernetes client that includes all the CSI extensions.
+func (f *Framework) GetCsiClient() (*csiClientset.Clientset, error) {
+	cfg, err := clientcmd.BuildConfigFromFlags(f.Master, f.KubeConfig)
+	if err != nil {
+		return nil, err
+	}
+	csiClient, err := csiClientset.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return csiClient, nil
+}
+
 // GetCdiClientForServiceAccount returns a cdi client for a service account
 func (f *Framework) GetCdiClientForServiceAccount(namespace, name string) (*cdiClientset.Clientset, error) {
 	var secretName string
@@ -417,11 +439,27 @@ func (f *Framework) CreatePrometheusServiceInNs(namespace string) (*v1.Service, 
 
 // IsSnapshotStorageClassAvailable checks if the snapshot storage class exists.
 func (f *Framework) IsSnapshotStorageClassAvailable() bool {
-	sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
+	// Fetch the storage class
+	storageclass, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
 	if err != nil {
 		return false
 	}
-	return sc.Name == f.SnapshotSCName
+
+	// List the snapshot classes
+	scs, err := f.CsiClient.SnapshotV1alpha1().VolumeSnapshotClasses().List(metav1.ListOptions{})
+	if err != nil {
+		klog.V(3).Infof("Cannot list snapshot classes")
+		return false
+	}
+
+	for _, snapshotClass := range scs.Items {
+		// Validate association between snapshot class and storage class
+		if snapshotClass.Snapshotter == storageclass.Provisioner {
+			return true
+		}
+	}
+
+	return false
 }
 
 // IsBlockVolumeStorageClassAvailable checks if the block volume storage class exists.
