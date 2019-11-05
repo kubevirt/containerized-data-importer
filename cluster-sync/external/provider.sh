@@ -19,7 +19,7 @@ function up() {
   echo "using external provider"
 }
 
-function configure_local_storage() {
+function configure_storage() {
   echo "Local storage not needed for external provider..."
 }
 

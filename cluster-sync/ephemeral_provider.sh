@@ -30,6 +30,6 @@ function verify() {
   echo "cluster node are ready!"
 }
 
-function configure_local_storage() {
-  echo "Local storage already configured ..."
+function configure_storage() {
+  echo "Storage already configured ..."
 }
