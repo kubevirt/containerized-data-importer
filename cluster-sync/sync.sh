@@ -38,7 +38,7 @@ DOCKER_PREFIX=$DOCKER_PREFIX make push
 
 seed_images
 
-configure_local_storage
+configure_storage
 
 # Install CDI
 install_cdi

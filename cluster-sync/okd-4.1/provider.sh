@@ -6,7 +6,7 @@ function seed_images(){
   echo "seed_images is a noop for okd4.1"
 }
 
-function configure_local_storage() {
+function configure_storage() {
   set +e
   retry_counter=0
   sc=`_kubectl get sc local -o=jsonpath="{.metadata.name}"`
