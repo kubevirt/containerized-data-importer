@@ -27,7 +27,7 @@ if [ -f "${TESTS_OUT_DIR}/tests.test" ]; then
 	echo "${test_command}"
 	(cd ${CDI_DIR}/tests; ${test_command})
 else
-	test_command="go test -v -coverprofile=.coverprofile -test.timeout 180m ${pkgs} ${test_args:+-args $test_args}"
-	echo "${test_command}"
+	test_command="go test -cover -v -coverprofile=.coverprofile -test.timeout 180m ${pkgs} ${test_args:+-args $test_args}"
 	${test_command}
+	go tool cover -html=.coverprofile -o coverage.html
 fi

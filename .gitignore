@@ -3,6 +3,7 @@ _out/*
 bin/*
 manifests/generated/*
 .coverprofile
+coverage.html
 release-announcement
 .project
 .vscode
