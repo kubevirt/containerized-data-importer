@@ -32,7 +32,7 @@ Request](https://github.com/kubevirt/containerized-data-importer/pulls).  For di
 
 If you spot a bug or want to change something pretty simple, just go
 ahead and open an Issue and/or a Pull Request, including your changes
-at [kubevirt/containerized-data-importer](https://github.com/kubevirt/containerized-data-importercontainerized-data-importer).
+at [kubevirt/containerized-data-importer](https://github.com/kubevirt/containerized-data-importer).
 
 For bigger changes, please create a tracker Issue, describing what you want to
 do. Then either as the first commit in a Pull Request, or as an independent
