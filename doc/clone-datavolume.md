@@ -8,7 +8,7 @@ The purpose of this document is to show how to clone an image from an existing D
 
 ## Clone an image with DataVolume manifest
 
-Create the following DataVolume manifest [clone-datavolume.yaml](../manifest/example/clone-datavolume.yam):
+Create the following DataVolume manifest [clone-datavolume.yaml](../manifests/example/clone-datavolume.yaml):
 
 ```yaml
 apiVersion: cdi.kubevirt.io/v1alpha1
