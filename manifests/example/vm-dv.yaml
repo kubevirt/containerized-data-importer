@@ -3,13 +3,13 @@ kind: VirtualMachine
 metadata:
   creationTimestamp: null
   labels:
-    kubevirt.io/vm: vm-fedora-datavolume
-  name: vm-fedora-datavolume
+    kubevirt.io/vm: vm-cirros-datavolume
+  name: vm-cirros-datavolume
 spec:
   dataVolumeTemplates:
   - metadata:
       creationTimestamp: null
-      name: fedora-dv
+      name: cirros-dv
     spec:
       pvc:
         accessModes:
@@ -41,6 +41,6 @@ spec:
       terminationGracePeriodSeconds: 0
       volumes:
       - dataVolume:
-          name: fedora-dv
+          name: cirros-dv
         name: datavolumevolume
 
