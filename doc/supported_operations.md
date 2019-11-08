@@ -3,7 +3,7 @@ The Containerized Data Importer (CDI) supports importing data/disk images from a
 
 ## Supported matrix
 
-The first column represents the available content-types, Kubevirt and Archive. Kubevirt is broken down into QCOW2 vs RAW. QCOW2 needs to be converted before being written to the DV (and in a lot of cases requires scratch space for this conversion), where RAW doesn't need conversion and can be written directly to the DV.
+The first column represents the available content-types, Kubevirt and Archive. Kubevirt is broken down into QCOW2 vs RAW.  CDI can detect QCOW2 files (even when compressed.  Any file that is not identified as a QCOW2 disk image is assumed to be a RAW disk image.  This means that you can not encapsulate a disk image inside of a tar archive.  QCOW2 needs to be converted before being written to the DV (and in a lot of cases requires scratch space for this conversion), where RAW doesn't need conversion and can be written directly to the DV.
 
 | | http | https | http basic auth | Registry | S3 Bucket | Upload |
 |--------------|---------|-|--|-------|--------|------------|
