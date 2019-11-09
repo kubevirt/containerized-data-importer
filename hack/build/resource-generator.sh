@@ -20,17 +20,19 @@ source "${script_dir}"/config.sh
 
 #all generated files are placed in manifests/generated
 function generateResourceManifest {
-    codeGroup=$3
-    filename=$4
     generator=$1
     targetDir=$2
+    resourceType=$3
+    resourceGroup=$4
+    filename=$5
 
     manifestName=$filename
     manifestNamej2=$filename".j2"
 
     rm -rf ${targetDir}/$manifestName
     rm -rf ${targetDir}/$manifestNamej2
-    (${generator} -code-group=${codeGroup} \
+    (${generator} -resource-type=${resourceType} \
+        -resource-group=${resourceGroup} \
         -docker-repo="${DOCKER_PREFIX}" \
         -docker-tag="${DOCKER_TAG}" \
         -deploy-cluster-resources="true" \
@@ -41,16 +43,13 @@ function generateResourceManifest {
         -apiserver-image=${APISERVER_IMAGE_NAME} \
         -uploadproxy-image=${UPLOADPROXY_IMAGE_NAME} \
         -uploadserver-image=${UPLOADSERVER_IMAGE_NAME} \
-        -csv-version=${CSV_VERSION} \
-        -cdi-logo-path=${CDI_LOGO_PATH} \
-        -quay-namespace="${QUAY_NAMESPACE}" \
-        -quay-repository="${QUAY_REPOSITORY}" \
         -verbosity="${VERBOSITY}" \
         -pull-policy="${PULL_POLICY}" \
         -namespace="${NAMESPACE}"
     ) 1>>"${targetDir}/"$manifestName
 
-    (${generator} -code-group=${codeGroup} \
+    (${generator} -resource-type=${resourceType} \
+        -resource-group=${resourceGroup} \
         -docker-repo="{{ docker_prefix }}" \
         -docker-tag="{{ docker_tag }}" \
         -deploy-cluster-resources="true" \
@@ -61,10 +60,6 @@ function generateResourceManifest {
         -apiserver-image="{{ apiserver_image }}" \
         -uploadproxy-image="{{ uploadproxy_image }}" \
         -uploadserver-image="{{ uploadserver_image }}" \
-        -csv-version=${CSV_VERSION} \
-        -cdi-logo-path=${CDI_LOGO_PATH} \
-        -quay-namespace="{{ quay_namespace }}}" \
-        -quay-repository="{{ quay_repository }}}" \
         -verbosity="${VERBOSITY}" \
         -pull-policy="{{ pull_policy }}" \
         -namespace="{{ cdi_namespace }}"
@@ -125,15 +120,10 @@ function populateResourceManifest {
         -apiserver-image="${APISERVER_IMAGE_NAME}" \
         -uploadproxy-image="${UPLOADPROXY_IMAGE_NAME}" \
         -uploadserver-image="${UPLOADSERVER_IMAGE_NAME}" \
-        -csv-version="${CSV_VERSION}" \
-        -cdi-logo-path="${CDI_LOGO_PATH}" \
-        -generated-manifests-path=${generatedManifests} \
-        -quay-namespace="${QUAY_NAMESPACE}" \
-        -quay-repository="${QUAY_REPOSITORY}" \
         -verbosity="${VERBOSITY}" \
         -pull-policy="${PULL_POLICY}" \
         -namespace="${NAMESPACE}" \
-        -olm-bundle-dir="${bundleOut}" \        
+        -generated-manifests-path=${generatedManifests} \
     ) 1>>"${targetDir}/"$outfile
 
     (${generator} -template="${tmpl}" \
@@ -147,15 +137,10 @@ function populateResourceManifest {
         -apiserver-image="{{ apiserver_image }}" \
         -uploadproxy-image="{{ uploadproxy_image }}" \
         -uploadserver-image="{{ uploadserver_image }}" \
-        -csv-version="${CSV_VERSION}" \
-        -cdi-logo-path="${CDI_LOGO_PATH}" \
-        -generated-manifests-path=${generatedManifests} \
-        -quay-namespace="{{ quay_namespace }}" \
-        -quay-namespace="{{ quay_repository }}" \
         -verbosity="${VERBOSITY}" \
         -pull-policy="{{ pull_policy }}" \
         -namespace="{{ cdi_namespace }}" \
-        -olm-bundle-dir="${tmplBundleOut}" \
+        -generated-manifests-path=${generatedManifests} \
     ) 1>>"${tmplTargetDir}/"$outfile".j2"
 
     # Remove empty lines at the end of files which are added by go templating

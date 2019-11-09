@@ -32,8 +32,7 @@ func createUploadProxyResources(args *FactoryArgs) []runtime.Object {
 	}
 }
 
-//GetUploadProxyRolePermissions generates permissions for operator
-func GetUploadProxyRolePermissions() []rbacv1.PolicyRule {
+func getUploadProxyClusterPolicyRules() []rbacv1.PolicyRule {
 	return []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
@@ -55,6 +54,6 @@ func createUploadProxyClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBi
 
 func createUploadProxyClusterRole() *rbacv1.ClusterRole {
 	clusterRole := CreateClusterRole(uploadProxyResourceName)
-	clusterRole.Rules = GetUploadProxyRolePermissions()
+	clusterRole.Rules = getUploadProxyClusterPolicyRules()
 	return clusterRole
 }

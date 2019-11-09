@@ -34,10 +34,7 @@ source "${script_dir}"/resource-generator.sh
 mkdir -p "${MANIFEST_GENERATED_DIR}/"
 
 #generate operator related manifests used to deploy cdi with operator-framework
-generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator-rbac" "rbac-operator.authorization.k8s.yaml.in" 
-generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator-deployment" "cdi-operator-deployment.yaml" 
-generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator-cdi-crd" "cdi-crd.yaml" 
-generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator-configmap-cr" "cdi-configmap-cr.yaml" 
+generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator" "everything" "operator-everything.yaml.in" 
 
 #process templated manifests and populate them with generated manifests
 tempDir=${MANIFEST_TEMPLATE_DIR}

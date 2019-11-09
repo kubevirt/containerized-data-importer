@@ -29,12 +29,10 @@ func createAPIServerResources(args *FactoryArgs) []runtime.Object {
 	return []runtime.Object{
 		createAPIServerClusterRole(),
 		createAPIServerClusterRoleBinding(args.Namespace),
-		createAPIServerAuthClusterRoleBinding(args.Namespace),
 	}
 }
 
-//GetAPIServerClusterRolePermissions generates permissions for operator
-func GetAPIServerClusterRolePermissions() []rbacv1.PolicyRule {
+func getAPIServerClusterPolicyRules() []rbacv1.PolicyRule {
 	return []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
@@ -65,15 +63,37 @@ func GetAPIServerClusterRolePermissions() []rbacv1.PolicyRule {
 		},
 		{
 			APIGroups: []string{
+				"authorization.k8s.io",
+			},
+			Resources: []string{
+				"subjectaccessreviews",
+			},
+			Verbs: []string{
+				"create",
+			},
+		},
+		{
+			APIGroups: []string{
 				"",
 			},
 			Resources: []string{
-				"pods",
-				"persistentvolumeclaims",
+				"configmaps",
 			},
 			Verbs: []string{
 				"get",
 				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
+				"",
+			},
+			Resources: []string{
+				"persistentvolumeclaims",
+			},
+			Verbs: []string{
+				"get",
 			},
 		},
 		{
@@ -96,10 +116,6 @@ func createAPIServerClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBind
 
 func createAPIServerClusterRole() *rbacv1.ClusterRole {
 	clusterRole := CreateClusterRole(apiServerResourceName)
-	clusterRole.Rules = GetAPIServerClusterRolePermissions()
+	clusterRole.Rules = getAPIServerClusterPolicyRules()
 	return clusterRole
-}
-
-func createAPIServerAuthClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
-	return CreateClusterRoleBinding("cdi-apiserver-auth-delegator", "system:auth-delegator", apiServerResourceName, namespace)
 }
