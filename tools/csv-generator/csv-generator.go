@@ -45,7 +45,7 @@ var (
 func main() {
 	flag.Parse()
 
-	cdiImageNames := cdioperator.CdiImages{
+	cdiImageNames := cdioperator.Images{
 		ControllerImage:   *controllerImage,
 		ImporterImage:     *importerImage,
 		ClonerImage:       *clonerImage,
@@ -55,7 +55,7 @@ func main() {
 		OperatorImage:     *operatorImage,
 	}
 
-	data := cdioperator.NewClusterServiceVersionData{
+	data := cdioperator.ClusterServiceVersionData{
 		CsvVersion:         *csvVersion,
 		ReplacesCsvVersion: *replacesCsvVersion,
 		Namespace:          *namespace,
@@ -63,9 +63,9 @@ func main() {
 		IconBase64:         *cdiLogoBase64,
 		Verbosity:          *verbosity,
 
-		DockerPrefix:  *dockerRepo,
-		DockerTag:     *dockerTag,
-		CdiImageNames: cdiImageNames.FillDefaults(),
+		DockerPrefix: *dockerRepo,
+		DockerTag:    *dockerTag,
+		ImageNames:   cdiImageNames.FillDefaults(),
 	}
 
 	csv, err := cdioperator.NewClusterServiceVersion(&data)

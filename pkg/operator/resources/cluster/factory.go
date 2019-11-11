@@ -19,6 +19,7 @@ package cluster
 import (
 	"fmt"
 
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
@@ -31,38 +32,12 @@ type FactoryArgs struct {
 
 type factoryFunc func(*FactoryArgs) []runtime.Object
 
-const (
-	//CdiRBAC - groupCode to generate only operator rbac manifest
-	CdiRBAC = "cdi-rbac"
-	//APIServerRBAC - groupCode to generate only apiserver rbac manifest
-	APIServerRBAC = "apiserver-rbac"
-	//UploadProxyRBAC - groupCode to generate only apiserver rbac manifest
-	UploadProxyRBAC = "uploadproxy-rbac"
-	//ControllerRBAC - groupCode to generate only controller rbac manifest
-	ControllerRBAC = "controller-rbac"
-	//CRDResources - groupCode to generate only resources' manifest
-	CRDResources = "crd-resources"
-	//AggregateRoles = groupCode to generate only aggregate roles
-	AggregateRoles = "aggregate-roles"
-)
-
 var factoryFunctions = map[string]factoryFunc{
-	CdiRBAC:         createCdiRBAC,
-	APIServerRBAC:   createAPIServerResources,
-	ControllerRBAC:  createControllerResources,
-	CRDResources:    createCRDResources,
-	UploadProxyRBAC: createUploadProxyResources,
-	AggregateRoles:  createAggregateClusterRoles,
-}
-
-//IsFactoryResource returns true id codeGroupo belolngs to factory functions
-func IsFactoryResource(codeGroup string) bool {
-	for k := range factoryFunctions {
-		if codeGroup == k {
-			return true
-		}
-	}
-	return false
+	"apiserver-rbac":   createAPIServerResources,
+	"controller-rbac":  createControllerResources,
+	"crd-resources":    createCRDResources,
+	"uploadproxy-rbac": createUploadProxyResources,
+	"aggregate-roles":  createAggregateClusterRoles,
 }
 
 func createCRDResources(args *FactoryArgs) []runtime.Object {
@@ -70,12 +45,6 @@ func createCRDResources(args *FactoryArgs) []runtime.Object {
 		createDataVolumeCRD(),
 		createCDIConfigCRD(),
 	}
-}
-
-func createCdiRBAC(args *FactoryArgs) []runtime.Object {
-	return append(
-		createAPIServerResources(args),
-		createControllerResources(args)...)
 }
 
 // CreateAllResources creates all cluster-wide resources
@@ -100,4 +69,12 @@ func CreateResourceGroup(group string, args *FactoryArgs) ([]runtime.Object, err
 	resources := f(args)
 	utils.ValidateGVKs(resources)
 	return resources, nil
+}
+
+// GetClusterRolePolicyRules returns all cluster PolicyRules
+func GetClusterRolePolicyRules() []rbacv1.PolicyRule {
+	result := getAPIServerClusterPolicyRules()
+	result = append(result, getControllerClusterPolicyRules()...)
+	result = append(result, getUploadProxyClusterPolicyRules()...)
+	return result
 }

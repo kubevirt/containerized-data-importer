@@ -2,10 +2,11 @@ package operator
 
 import (
 	"fmt"
+	"io/ioutil"
+
 	"github.com/RHsyseng/operator-utils/pkg/validation"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/assert"
-	"io/ioutil"
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 
 	"strings"
@@ -13,7 +14,7 @@ import (
 )
 
 var crdTypeMap = map[string]interface{}{
-	OperatorCdiCRD: &cdiv1alpha1.CDI{},
+	"operator-crd": &cdiv1alpha1.CDI{},
 }
 
 func TestCRDSchemas(t *testing.T) {

@@ -3,8 +3,8 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "go_default_library",
     srcs = [
-        "components.go",
         "factory.go",
+        "images.go",
         "operator.go",
     ],
     importpath = "kubevirt.io/containerized-data-importer/pkg/operator/resources/operator",
@@ -12,6 +12,7 @@ go_library(
     deps = [
         "//pkg/common:go_default_library",
         "//pkg/operator/resources/cluster:go_default_library",
+        "//pkg/operator/resources/namespaced:go_default_library",
         "//pkg/operator/resources/utils:go_default_library",
         "//vendor/github.com/blang/semver:go_default_library",
         "//vendor/github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1:go_default_library",

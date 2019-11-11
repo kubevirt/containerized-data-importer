@@ -39,7 +39,7 @@ var operatorLabels = map[string]string{
 	"operator.cdi.kubevirt.io": "",
 }
 
-//WithCommonLabels aggregates common lables
+// WithCommonLabels aggregates common lables
 func WithCommonLabels(labels map[string]string) map[string]string {
 	if labels == nil {
 		labels = make(map[string]string)
@@ -55,7 +55,7 @@ func WithCommonLabels(labels map[string]string) map[string]string {
 	return labels
 }
 
-//WithOperatorLabels aggregates common lables
+// WithOperatorLabels aggregates common lables
 func WithOperatorLabels(labels map[string]string) map[string]string {
 	if labels == nil {
 		labels = make(map[string]string)
@@ -71,7 +71,7 @@ func WithOperatorLabels(labels map[string]string) map[string]string {
 	return labels
 }
 
-//CreateServiceAccount creates service account
+// CreateServiceAccount creates service account
 func CreateServiceAccount(name string) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
@@ -85,8 +85,8 @@ func CreateServiceAccount(name string) *corev1.ServiceAccount {
 	}
 }
 
-//CreateServiceNamespaceAccount creates service account
-func CreateServiceNamespaceAccount(name, namespace string) *corev1.ServiceAccount {
+// CreateOperatorServiceAccount creates service account
+func CreateOperatorServiceAccount(name, namespace string) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -95,14 +95,12 @@ func CreateServiceNamespaceAccount(name, namespace string) *corev1.ServiceAccoun
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
-			Labels: map[string]string{
-				"operator.cdi.kubevirt.io": "",
-			},
+			Labels:    WithOperatorLabels(nil),
 		},
 	}
 }
 
-//CreateRoleBinding creates role binding
+// CreateRoleBinding creates role binding
 func CreateRoleBinding(name, roleRef, serviceAccount, serviceAccountNamespace string) *rbacv1.RoleBinding {
 	return &rbacv1.RoleBinding{
 		TypeMeta: metav1.TypeMeta{
@@ -128,7 +126,7 @@ func CreateRoleBinding(name, roleRef, serviceAccount, serviceAccountNamespace st
 	}
 }
 
-//CreateRole creates role
+// CreateRole creates role
 func CreateRole(name string) *rbacv1.Role {
 	return &rbacv1.Role{
 		TypeMeta: metav1.TypeMeta{
@@ -142,8 +140,8 @@ func CreateRole(name string) *rbacv1.Role {
 	}
 }
 
-//CreateOperatorDeploymentSpec creates deployment
-func CreateOperatorDeploymentSpec(name, namespace, matchKey, matchValue, serviceAccount string, numReplicas int32) *appsv1.DeploymentSpec {
+// CreateOperatorDeploymentSpec creates deployment
+func CreateOperatorDeploymentSpec(name, matchKey, matchValue, serviceAccount string, numReplicas int32) *appsv1.DeploymentSpec {
 	matchMap := map[string]string{matchKey: matchValue}
 	spec := &appsv1.DeploymentSpec{
 		Replicas: &numReplicas,
@@ -169,7 +167,7 @@ func CreateOperatorDeploymentSpec(name, namespace, matchKey, matchValue, service
 	return spec
 }
 
-//CreateOperatorDeployment creates deployment
+// CreateOperatorDeployment creates deployment
 func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAccount string, numReplicas int32) *appsv1.Deployment {
 	deployment := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -180,7 +178,7 @@ func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAcco
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: *CreateOperatorDeploymentSpec(name, namespace, matchKey, matchValue, serviceAccount, numReplicas),
+		Spec: *CreateOperatorDeploymentSpec(name, matchKey, matchValue, serviceAccount, numReplicas),
 	}
 	if serviceAccount != "" {
 		deployment.Spec.Template.Spec.ServiceAccountName = serviceAccount
@@ -188,7 +186,7 @@ func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAcco
 	return deployment
 }
 
-//CreateDeployment creates deployment
+// CreateDeployment creates deployment
 func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numReplicas int32) *appsv1.Deployment {
 	matchMap := map[string]string{matchKey: matchValue}
 	deployment := &appsv1.Deployment{
@@ -225,7 +223,7 @@ func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numRepl
 	return deployment
 }
 
-//CreatePortsContainer creates container
+// CreatePortsContainer creates container
 func CreatePortsContainer(name, repo, image, tag, verbosity string, pullPolicy corev1.PullPolicy, ports *[]corev1.ContainerPort) corev1.Container {
 	return corev1.Container{
 		Name:            name,
@@ -235,7 +233,7 @@ func CreatePortsContainer(name, repo, image, tag, verbosity string, pullPolicy c
 	}
 }
 
-//CreateContainer creates container
+// CreateContainer creates container
 func CreateContainer(name, repo, image, tag, verbosity string, pullPolicy corev1.PullPolicy) corev1.Container {
 	return corev1.Container{
 		Name:            name,
@@ -245,7 +243,7 @@ func CreateContainer(name, repo, image, tag, verbosity string, pullPolicy corev1
 	}
 }
 
-//CreateService creates service
+// CreateService creates service
 func CreateService(name, matchKey, matchValue string) *corev1.Service {
 	matchMap := map[string]string{matchKey: matchValue}
 	return &corev1.Service{

@@ -27,9 +27,7 @@ import (
 )
 
 const (
-	apiServerRessouceName     = "cdi-apiserver"
-	extensionAPIResourceName  = "cdi-extension-apiserver-authentication"
-	extensionAPIConfigMapName = "extension-apiserver-authentication"
+	apiServerRessouceName = "cdi-apiserver"
 )
 
 const (
@@ -39,10 +37,8 @@ const (
 func createAPIServerResources(args *FactoryArgs) []runtime.Object {
 	return []runtime.Object{
 		createAPIServerServiceAccount(),
-		createAPIServerRoleBinding(args.Namespace),
+		createAPIServerRoleBinding(),
 		createAPIServerRole(),
-		createExtensionAPIServerRoleBinding(args.Namespace),
-		createExtensionAPIServerRole(),
 		createAPIServerService(),
 		createAPIServerDeployment(args.DockerRepo, args.APIServerImage, args.DockerTag, args.Verbosity, args.PullPolicy),
 	}
@@ -52,8 +48,8 @@ func createAPIServerServiceAccount() *corev1.ServiceAccount {
 	return utils.CreateServiceAccount(apiServerRessouceName)
 }
 
-func createAPIServerRoleBinding(serviceAccountNamespace string) *rbacv1.RoleBinding {
-	return utils.CreateRoleBinding(apiServerRessouceName, apiServerRessouceName, apiServerRessouceName, serviceAccountNamespace)
+func createAPIServerRoleBinding() *rbacv1.RoleBinding {
+	return utils.CreateRoleBinding(apiServerRessouceName, apiServerRessouceName, apiServerRessouceName, "")
 }
 
 func createAPIServerRole() *rbacv1.Role {
@@ -68,46 +64,10 @@ func createAPIServerRole() *rbacv1.Role {
 				"configmaps",
 			},
 			Verbs: []string{
-				"get",
-				"create",
+				"*",
 			},
 		},
 	}
-	return role
-}
-
-func createExtensionAPIServerRoleBinding(serviceAccountNamespace string) *rbacv1.RoleBinding {
-	roleBinding := utils.CreateRoleBinding(
-		extensionAPIResourceName,
-		extensionAPIResourceName,
-		apiServerRessouceName,
-		serviceAccountNamespace,
-	)
-	roleBinding.Namespace = "kube-system"
-	return roleBinding
-}
-
-func createExtensionAPIServerRole() *rbacv1.Role {
-	role := utils.CreateRole(extensionAPIResourceName)
-	role.Rules = []rbacv1.PolicyRule{
-		{
-			APIGroups: []string{
-				"",
-			},
-			Resources: []string{
-				"configmaps",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-			},
-			ResourceNames: []string{
-				extensionAPIConfigMapName,
-			},
-		},
-	}
-	role.Namespace = "kube-system"
 	return role
 }
 

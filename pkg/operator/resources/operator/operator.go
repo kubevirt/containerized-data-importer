@@ -20,13 +20,12 @@ import (
 	"encoding/json"
 
 	"github.com/blang/semver"
-
+	csvv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-
-	csvv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,24 +35,23 @@ import (
 )
 
 const (
-	operatorServiceAccountName = "cdi-operator"
-	operatorClusterRoleName    = "cdi-operator-cluster"
-	operatorNamespacedRoleName = "cdi-operator"
-	privilegedAccountPrefix    = "system:serviceaccount"
-	prometheusLabel            = common.PrometheusLabel
+	serviceAccountName = "cdi-operator"
+	roleName           = "cdi-operator"
+	clusterRoleName    = roleName + "-cluster"
+	prometheusLabel    = common.PrometheusLabel
 )
 
-func getOperatorClusterRules() *[]rbacv1.PolicyRule {
+func getClusterPolicyRules() []rbacv1.PolicyRule {
 	rules := []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
 				"rbac.authorization.k8s.io",
 			},
 			Resources: []string{
-				"roles",
-				"rolebindings",
 				"clusterrolebindings",
 				"clusterroles",
+				"rolebindings",
+				"roles",
 			},
 			Verbs: []string{
 				"*",
@@ -70,7 +68,6 @@ func getOperatorClusterRules() *[]rbacv1.PolicyRule {
 				"get",
 				"list",
 				"watch",
-				"patch",
 				"update",
 			},
 		},
@@ -79,83 +76,14 @@ func getOperatorClusterRules() *[]rbacv1.PolicyRule {
 				"",
 			},
 			Resources: []string{
-				"serviceaccounts",
+				"pods",
 				"services",
 			},
 			Verbs: []string{
-				"*",
-			},
-		},
-		{
-			APIGroups: []string{
-				"",
-			},
-			Resources: []string{
-				"nodes",
-			},
-			Verbs: []string{
 				"get",
 				"list",
 				"watch",
-				"update",
-				"patch",
-			},
-		},
-		{
-			APIGroups: []string{
-				"extensions",
-			},
-			Resources: []string{
-				"deployments",
-			},
-			Verbs: []string{
-				"*",
-			},
-		},
-		{
-			APIGroups: []string{
-				"extensions",
-			},
-			Resources: []string{
-				"ingresses",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-			},
-		},
-		{
-			APIGroups: []string{
-				"",
-			},
-			Resources: []string{
-				"configmaps",
-			},
-			Verbs: []string{
-				"watch",
-				"create",
 				"delete",
-				"get",
-				"update",
-				"patch",
-				"list",
-			},
-		},
-		{
-			APIGroups: []string{
-				"batch",
-			},
-			Resources: []string{
-				"jobs",
-			},
-			Verbs: []string{
-				"create",
-				"delete",
-				"get",
-				"update",
-				"patch",
-				"list",
 			},
 		},
 		{
@@ -166,61 +94,11 @@ func getOperatorClusterRules() *[]rbacv1.PolicyRule {
 				"customresourcedefinitions",
 			},
 			Verbs: []string{
-				"create",
-				"delete",
-				"get",
-				"update",
-				"patch",
-				"list",
-				"watch",
-			},
-		},
-		{
-			APIGroups: []string{
-				"apps",
-			},
-			Resources: []string{
-				"deployments",
-				"deployments/finalizers",
-				"daemonstes",
-			},
-			Verbs: []string{
-				"create",
-				"get",
-				"list",
-				"delete",
-				"watch",
-				"update",
-			},
-		},
-		{
-			APIGroups: []string{
-				"admissionregistration.k8s.io",
-			},
-			Resources: []string{
-				"validatingwebhookconfigurations",
-				"mutatingwebhookconfigurations",
-			},
-			Verbs: []string{
-				"get",
-				"create",
-				"update",
-			},
-		},
-		{
-			APIGroups: []string{
-				"apiregistration.k8s.io",
-			},
-			Resources: []string{
-				"apiservices",
-			},
-			Verbs: []string{
 				"get",
 				"list",
 				"watch",
 				"create",
 				"update",
-				"patch",
 			},
 		},
 		{
@@ -237,14 +115,75 @@ func getOperatorClusterRules() *[]rbacv1.PolicyRule {
 		},
 		{
 			APIGroups: []string{
-				"storage.k8s.io",
+				"",
 			},
 			Resources: []string{
-				"storageclasses",
+				"serviceaccounts",
 			},
 			Verbs: []string{
 				"get",
 				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
+				"apps",
+			},
+			Resources: []string{
+				"deployments",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
+				"authorization.k8s.io",
+			},
+			Resources: []string{
+				"subjectaccessreviews",
+			},
+			Verbs: []string{
+				"create",
+			},
+		},
+	}
+	rules = append(rules, cluster.GetClusterRolePolicyRules()...)
+	return rules
+}
+
+func createClusterRole() *rbacv1.ClusterRole {
+	clusterRole := cluster.CreateOperatorClusterRole(clusterRoleName)
+	clusterRole.Rules = getClusterPolicyRules()
+	return clusterRole
+}
+
+func createClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
+	return cluster.CreateOperatorClusterRoleBinding(serviceAccountName, clusterRoleName, serviceAccountName, namespace)
+}
+
+func createClusterRBAC(args *FactoryArgs) []runtime.Object {
+	return []runtime.Object{
+		createClusterRole(),
+		createClusterRoleBinding(args.NamespacedArgs.Namespace),
+	}
+}
+
+func getNamespacedPolicyRules() []rbacv1.PolicyRule {
+	rules := []rbacv1.PolicyRule{
+		{
+			APIGroups: []string{
+				"rbac.authorization.k8s.io",
+			},
+			Resources: []string{
+				"rolebindings",
+				"roles",
+			},
+			Verbs: []string{
+				"*",
 			},
 		},
 		{
@@ -252,85 +191,25 @@ func getOperatorClusterRules() *[]rbacv1.PolicyRule {
 				"",
 			},
 			Resources: []string{
+				"serviceaccounts",
+				"configmaps",
 				"events",
-			},
-			Verbs: []string{
-				"create",
-				"update",
-				"patch",
-			},
-		},
-		{
-			APIGroups: []string{
-				"",
-			},
-			Resources: []string{
-				"pods",
-				"persistentvolumeclaims",
-				"volumesnapshots",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-				"create",
-				"update",
-				"patch",
-				"delete",
-			},
-		},
-		{
-			APIGroups: []string{
-				"",
-			},
-			Resources: []string{
-				"persistentvolumeclaims/finalizers",
-				"pods/finalizers",
-				"volumesnapshots/finalizers",
-			},
-			Verbs: []string{
-				"update",
-			},
-		},
-		{
-			APIGroups: []string{
-				"",
-			},
-			Resources: []string{
-				"services",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-				"create",
-				"delete",
-			},
-		},
-		{
-			APIGroups: []string{
-				"",
-			},
-			Resources: []string{
 				"secrets",
 			},
 			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-				"create",
+				"*",
 			},
 		},
 		{
 			APIGroups: []string{
-				"",
+				"apps",
 			},
 			Resources: []string{
-				"namespaces",
+				"deployments",
+				"deployments/finalizers",
 			},
 			Verbs: []string{
-				"get",
-				"list",
+				"*",
 			},
 		},
 		{
@@ -339,105 +218,58 @@ func getOperatorClusterRules() *[]rbacv1.PolicyRule {
 			},
 			Resources: []string{
 				"routes",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-				"create",
-				"update",
-				"patch",
-			},
-		},
-		{
-			APIGroups: []string{
-				"route.openshift.io",
-			},
-			Resources: []string{
 				"routes/custom-host",
 			},
 			Verbs: []string{
-				"create",
-				"update",
-			},
-		},
-		{
-			APIGroups: []string{
-				"snapshot.storage.k8s.io",
-			},
-			Resources: []string{
-				"*",
-			},
-			Verbs: []string{
-				"*",
-			},
-		},
-		{
-			APIGroups: []string{
-				"apiextensions.k8s.io",
-			},
-			Resources: []string{
-				"customresourcedefinitions",
-			},
-			Verbs: []string{
 				"*",
 			},
 		},
 	}
-
-	return &rules
+	return rules
 }
 
-func createOperatorClusterRole(roleName string) *rbacv1.ClusterRole {
-	clusterRole := cluster.CreateOperatorClusterRole(roleName)
-	clusterRole.Rules = *getOperatorClusterRules()
-
-	return clusterRole
+func createServiceAccount(namespace string) *corev1.ServiceAccount {
+	return utils.CreateOperatorServiceAccount(serviceAccountName, namespace)
 }
 
-func createOperatorClusterRBAC(args *FactoryArgs) []runtime.Object {
+func createNamespacedRole(namespace string) *rbacv1.Role {
+	role := utils.CreateRole(roleName)
+	role.Namespace = namespace
+	role.Rules = getNamespacedPolicyRules()
+	return role
+}
+
+func createNamespacedRoleBinding(namespace string) *rbacv1.RoleBinding {
+	roleBinding := utils.CreateRoleBinding(serviceAccountName, roleName, serviceAccountName, namespace)
+	roleBinding.Namespace = namespace
+	return roleBinding
+}
+
+func createNamespacedRBAC(args *FactoryArgs) []runtime.Object {
 	return []runtime.Object{
-		createOperatorServiceAccount(args.Namespace),
-		createOperatorClusterRole(operatorClusterRoleName),
-		createOperatorClusterRoleBinding(args.Namespace),
+		createServiceAccount(args.NamespacedArgs.Namespace),
+		createNamespacedRole(args.NamespacedArgs.Namespace),
+		createNamespacedRoleBinding(args.NamespacedArgs.Namespace),
 	}
 }
 
-func createOperatorClusterDeployment(args *FactoryArgs) []runtime.Object {
+func createDeployment(args *FactoryArgs) []runtime.Object {
 	return []runtime.Object{
-		createOperatorDeployment(args.DockerRepo,
-			args.Namespace,
-			args.DeployClusterResources,
-			args.OperatorImage,
-			args.ControllerImage,
-			args.ImporterImage,
-			args.ClonerImage,
-			args.APIServerImage,
-			args.UploadProxyImage,
-			args.UploadServerImage,
-			args.DockerTag,
-			args.Verbosity,
-			args.PullPolicy)}
-}
-
-func createOperatorCDIClusterResource(args *FactoryArgs) []runtime.Object {
-	return []runtime.Object{
-		createCDIListCRD(),
+		createOperatorDeployment(args.NamespacedArgs.DockerRepo,
+			args.NamespacedArgs.Namespace,
+			args.NamespacedArgs.DeployClusterResources,
+			args.Image,
+			args.NamespacedArgs.ControllerImage,
+			args.NamespacedArgs.ImporterImage,
+			args.NamespacedArgs.ClonerImage,
+			args.NamespacedArgs.APIServerImage,
+			args.NamespacedArgs.UploadProxyImage,
+			args.NamespacedArgs.UploadServerImage,
+			args.NamespacedArgs.DockerTag,
+			args.NamespacedArgs.Verbosity,
+			args.NamespacedArgs.PullPolicy),
+		createOperatorLeaderElectionConfigMap(args.NamespacedArgs.Namespace),
 	}
-}
-
-func createOperatorConfigMapClusterResource(args *FactoryArgs) []runtime.Object {
-	return []runtime.Object{
-		createOperatorLeaderElectionConfigMap(args.Namespace),
-	}
-}
-
-func createOperatorClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
-	return cluster.CreateOperatorClusterRoleBinding(operatorServiceAccountName, operatorClusterRoleName, operatorServiceAccountName, namespace)
-}
-
-func createOperatorServiceAccount(namespace string) *corev1.ServiceAccount {
-	return utils.CreateServiceNamespaceAccount(operatorServiceAccountName, namespace)
 }
 
 func createOperatorLeaderElectionConfigMap(namespace string) *corev1.ConfigMap {
@@ -455,6 +287,12 @@ func createOperatorLeaderElectionConfigMap(namespace string) *corev1.ConfigMap {
 		},
 	}
 
+}
+
+func createCRD(args *FactoryArgs) []runtime.Object {
+	return []runtime.Object{
+		createCDIListCRD(),
+	}
 }
 
 func createCDIListCRD() *extv1beta1.CustomResourceDefinition {
@@ -542,25 +380,8 @@ func createCDIListCRD() *extv1beta1.CustomResourceDefinition {
 	}
 }
 
-func createOperatorDeploymentSpec(repo, namespace, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, tag, verbosity, pullPolicy string) *appsv1.DeploymentSpec {
-	deployment := createOperatorDeployment(repo,
-		namespace,
-		deployClusterResources,
-		operatorImage,
-		controllerImage,
-		importerImage,
-		clonerImage,
-		apiServerImage,
-		uploadProxyImage,
-		uploadServerImage,
-		tag,
-		verbosity,
-		pullPolicy)
-	return &deployment.Spec
-}
-
-func createOperatorEnvVar(repo, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, tag, verbosity, pullPolicy string) *[]corev1.EnvVar {
-	return &[]corev1.EnvVar{
+func createOperatorEnvVar(repo, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, tag, verbosity, pullPolicy string) []corev1.EnvVar {
+	return []corev1.EnvVar{
 		{
 			Name:  "DEPLOY_CLUSTER_RESOURCES",
 			Value: deployClusterResources,
@@ -609,9 +430,9 @@ func createOperatorEnvVar(repo, deployClusterResources, operatorImage, controlle
 }
 
 func createOperatorDeployment(repo, namespace, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, tag, verbosity, pullPolicy string) *appsv1.Deployment {
-	deployment := utils.CreateOperatorDeployment("cdi-operator", namespace, "name", "cdi-operator", operatorServiceAccountName, int32(1))
+	deployment := utils.CreateOperatorDeployment("cdi-operator", namespace, "name", "cdi-operator", serviceAccountName, int32(1))
 	container := utils.CreatePortsContainer("cdi-operator", repo, operatorImage, tag, verbosity, corev1.PullPolicy(pullPolicy), createPrometheusPorts())
-	container.Env = *createOperatorEnvVar(repo, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, tag, verbosity, pullPolicy)
+	container.Env = createOperatorEnvVar(repo, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, tag, verbosity, pullPolicy)
 	deployment.Spec.Template.Spec.Containers = []corev1.Container{container}
 	return deployment
 }
@@ -626,40 +447,7 @@ func createPrometheusPorts() *[]corev1.ContainerPort {
 	}
 }
 
-func createOperatorClusterServiceVersion(args *FactoryArgs) []runtime.Object {
-
-	cdiImageNames := CdiImages{
-		ControllerImage:   args.ControllerImage,
-		ImporterImage:     args.ImporterImage,
-		ClonerImage:       args.ClonerImage,
-		APIServerImage:    args.APIServerImage,
-		UplodaProxyImage:  args.UploadProxyImage,
-		UplodaServerImage: args.UploadServerImage,
-		OperatorImage:     args.OperatorImage,
-	}
-
-	data := NewClusterServiceVersionData{
-		CsvVersion:         args.CsvVersion,
-		ReplacesCsvVersion: args.ReplacesCsvVersion,
-		Namespace:          args.Namespace,
-		ImagePullPolicy:    args.PullPolicy,
-		IconBase64:         args.CDILogo,
-		Verbosity:          args.Verbosity,
-
-		DockerPrefix:  args.DockerRepo,
-		DockerTag:     args.DockerTag,
-		CdiImageNames: cdiImageNames.FillDefaults(),
-	}
-
-	csv, err := createClusterServiceVersion(&data)
-	if err != nil {
-		panic(err)
-	}
-	return []runtime.Object{csv}
-
-}
-
-type csvClusterPermissions struct {
+type csvPermissions struct {
 	ServiceAccountName string              `json:"serviceAccountName"`
 	Rules              []rbacv1.PolicyRule `json:"rules"`
 }
@@ -669,11 +457,12 @@ type csvDeployments struct {
 }
 
 type csvStrategySpec struct {
-	ClusterPermissions []csvClusterPermissions `json:"clusterPermissions"`
-	Deployments        []csvDeployments        `json:"deployments"`
+	Permissions        []csvPermissions `json:"permissions"`
+	ClusterPermissions []csvPermissions `json:"clusterPermissions"`
+	Deployments        []csvDeployments `json:"deployments"`
 }
 
-func createClusterServiceVersion(data *NewClusterServiceVersionData) (*csvv1.ClusterServiceVersion, error) {
+func createClusterServiceVersion(data *ClusterServiceVersionData) (*csvv1.ClusterServiceVersion, error) {
 
 	description := `
 CDI is a kubernetes extension that provides the ability to populate PVCs with VM images upon creation. Multiple image formats and sources are supported
@@ -685,24 +474,28 @@ _The CDI Operator does not support updates yet._
 		data.DockerPrefix,
 		data.Namespace,
 		"true",
-		data.CdiImageNames.OperatorImage,
-		data.CdiImageNames.ControllerImage,
-		data.CdiImageNames.ImporterImage,
-		data.CdiImageNames.ClonerImage,
-		data.CdiImageNames.APIServerImage,
-		data.CdiImageNames.UplodaProxyImage,
-		data.CdiImageNames.UplodaServerImage,
+		data.ImageNames.OperatorImage,
+		data.ImageNames.ControllerImage,
+		data.ImageNames.ImporterImage,
+		data.ImageNames.ClonerImage,
+		data.ImageNames.APIServerImage,
+		data.ImageNames.UplodaProxyImage,
+		data.ImageNames.UplodaServerImage,
 		data.DockerTag,
 		data.Verbosity,
 		data.ImagePullPolicy)
 
-	rules := getOperatorClusterRules()
-
 	strategySpec := csvStrategySpec{
-		ClusterPermissions: []csvClusterPermissions{
+		Permissions: []csvPermissions{
 			{
-				ServiceAccountName: operatorServiceAccountName,
-				Rules:              *rules,
+				ServiceAccountName: serviceAccountName,
+				Rules:              getNamespacedPolicyRules(),
+			},
+		},
+		ClusterPermissions: []csvPermissions{
+			{
+				ServiceAccountName: serviceAccountName,
+				Rules:              getClusterPolicyRules(),
 			},
 		},
 		Deployments: []csvDeployments{

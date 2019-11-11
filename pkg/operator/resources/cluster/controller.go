@@ -37,8 +37,7 @@ func createControllerClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBin
 	return CreateClusterRoleBinding(controllerServiceAccountName, controlerClusterRoleName, controllerServiceAccountName, namespace)
 }
 
-//GetControllerPermissions geberates rules for cdi controller
-func GetControllerPermissions() []rbacv1.PolicyRule {
+func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 	return []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
@@ -49,8 +48,6 @@ func GetControllerPermissions() []rbacv1.PolicyRule {
 			},
 			Verbs: []string{
 				"create",
-				"update",
-				"patch",
 			},
 		},
 		{
@@ -67,7 +64,6 @@ func GetControllerPermissions() []rbacv1.PolicyRule {
 				"watch",
 				"create",
 				"update",
-				"patch",
 				"delete",
 			},
 		},
@@ -109,21 +105,7 @@ func GetControllerPermissions() []rbacv1.PolicyRule {
 			},
 			Verbs: []string{
 				"get",
-				"list",
-				"watch",
 				"create",
-			},
-		},
-		{
-			APIGroups: []string{
-				"",
-			},
-			Resources: []string{
-				"namespaces",
-			},
-			Verbs: []string{
-				"get",
-				"list",
 			},
 		},
 		{
@@ -148,10 +130,6 @@ func GetControllerPermissions() []rbacv1.PolicyRule {
 			},
 			Verbs: []string{
 				"get",
-				"list",
-				"watch",
-				"create",
-				"update",
 			},
 		},
 		{
@@ -209,7 +187,7 @@ func GetControllerPermissions() []rbacv1.PolicyRule {
 				"customresourcedefinitions",
 			},
 			Verbs: []string{
-				"*",
+				"get",
 			},
 		},
 	}
@@ -217,6 +195,6 @@ func GetControllerPermissions() []rbacv1.PolicyRule {
 
 func createControllerClusterRole() *rbacv1.ClusterRole {
 	clusterRole := CreateClusterRole(controlerClusterRoleName)
-	clusterRole.Rules = GetControllerPermissions()
+	clusterRole.Rules = getControllerClusterPolicyRules()
 	return clusterRole
 }

@@ -4,7 +4,4 @@ metadata:
   labels:
     cdi.kubevirt.io: ""
   name: {{.Namespace}}
-{{index .GeneratedManifests "cdi-crd.yaml"}}
-{{index .GeneratedManifests "cdi-configmap-cr.yaml"}}
-{{index .GeneratedManifests "rbac-operator.authorization.k8s.yaml.in"}}
-{{index .GeneratedManifests "cdi-operator-deployment.yaml"}}
+{{index .GeneratedManifests "operator-everything.yaml.in"}}

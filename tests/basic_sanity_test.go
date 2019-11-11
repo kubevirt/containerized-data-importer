@@ -62,8 +62,8 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			eventExpectedResult["watch"] = "no"
 			eventExpectedResult["delete"] = "no"
 			eventExpectedResult["create"] = "yes"
-			eventExpectedResult["update"] = "yes"
-			eventExpectedResult["patch"] = "yes"
+			eventExpectedResult["update"] = "no"
+			eventExpectedResult["patch"] = "no"
 			eventExpectedResult["deletecollection"] = "no"
 			ValidateRBACForResource(f, eventExpectedResult, "events", sa)
 
@@ -74,7 +74,7 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			pvcExpectedResult["delete"] = "yes"
 			pvcExpectedResult["create"] = "yes"
 			pvcExpectedResult["update"] = "yes"
-			pvcExpectedResult["patch"] = "yes"
+			pvcExpectedResult["patch"] = "no"
 			pvcExpectedResult["deletecollection"] = "no"
 			ValidateRBACForResource(f, pvcExpectedResult, "persistentvolumeclaims", sa)
 			ValidateRBACForResource(f, pvcExpectedResult, "persistentvolumeclaims/finalizers", sa)
@@ -93,8 +93,8 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 			secretsExpectedResult := make(map[string]string)
 			secretsExpectedResult["get"] = "yes"
-			secretsExpectedResult["list"] = "yes"
-			secretsExpectedResult["watch"] = "yes"
+			secretsExpectedResult["list"] = "no"
+			secretsExpectedResult["watch"] = "no"
 			secretsExpectedResult["delete"] = "no"
 			secretsExpectedResult["create"] = "yes"
 			secretsExpectedResult["update"] = "no"

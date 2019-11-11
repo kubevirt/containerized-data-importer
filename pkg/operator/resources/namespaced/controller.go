@@ -21,6 +21,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -30,6 +31,7 @@ import (
 )
 
 const (
+	controllerResourceName   = "cdi-deployment"
 	controllerServiceAccount = "cdi-sa"
 	prometheusLabel          = common.PrometheusLabel
 )
@@ -37,6 +39,8 @@ const (
 func createControllerResources(args *FactoryArgs) []runtime.Object {
 	return []runtime.Object{
 		createControllerServiceAccount(),
+		createControllerRoleBinding(),
+		createControllerRole(),
 		createControllerDeployment(args.DockerRepo,
 			args.ControllerImage,
 			args.ImporterImage,
@@ -49,6 +53,28 @@ func createControllerResources(args *FactoryArgs) []runtime.Object {
 	}
 }
 
+func createControllerRoleBinding() *rbacv1.RoleBinding {
+	return utils.CreateRoleBinding(controllerResourceName, controllerResourceName, controllerServiceAccount, "")
+}
+
+func createControllerRole() *rbacv1.Role {
+	role := utils.CreateRole(controllerResourceName)
+	role.Rules = []rbacv1.PolicyRule{
+		{
+			APIGroups: []string{
+				"",
+			},
+			Resources: []string{
+				"configmaps",
+			},
+			Verbs: []string{
+				"*",
+			},
+		},
+	}
+	return role
+}
+
 func createControllerServiceAccount() *corev1.ServiceAccount {
 	sa := utils.CreateServiceAccount(controllerServiceAccount)
 	if sa.Annotations == nil {
@@ -59,7 +85,7 @@ func createControllerServiceAccount() *corev1.ServiceAccount {
 }
 
 func createControllerDeployment(repo, controllerImage, importerImage, clonerImage, uploadServerImage, tag, verbosity, pullPolicy string) *appsv1.Deployment {
-	deployment := utils.CreateDeployment("cdi-deployment", "app", "containerized-data-importer", controllerServiceAccount, int32(1))
+	deployment := utils.CreateDeployment(controllerResourceName, "app", "containerized-data-importer", controllerServiceAccount, int32(1))
 	container := utils.CreateContainer("cdi-controller", repo, controllerImage, tag, verbosity, corev1.PullPolicy(pullPolicy))
 	container.Env = []corev1.EnvVar{
 		{

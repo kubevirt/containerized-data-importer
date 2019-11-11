@@ -52,16 +52,6 @@ var factoryFunctions = map[string]factoryFunc{
 	"uploadproxy": createUploadProxyResources,
 }
 
-//IsFactoryResource returns true id codeGroupo belolngs to factory functions
-func IsFactoryResource(codeGroup string) bool {
-	for k := range factoryFunctions {
-		if codeGroup == k {
-			return true
-		}
-	}
-	return false
-}
-
 // CreateAllResources creates all namespaced resources
 func CreateAllResources(args *FactoryArgs) ([]runtime.Object, error) {
 	var resources []runtime.Object

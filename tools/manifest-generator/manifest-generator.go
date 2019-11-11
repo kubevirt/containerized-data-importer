@@ -13,35 +13,23 @@
 package main
 
 import (
-	"bufio"
-	"encoding/base64"
 	"flag"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"text/template"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
-	"kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	cdioperator "kubevirt.io/containerized-data-importer/pkg/operator/resources/operator"
-	"kubevirt.io/containerized-data-importer/tools/marketplace/helper"
 	"kubevirt.io/containerized-data-importer/tools/util"
 )
 
 type templateData struct {
 	DockerRepo             string
 	DockerTag              string
-	CsvVersion             string
-	ReplacesCsvVersion     string
-	QuayNamespace          string
-	QuayRepository         string
-	OperatorRules          string
-	OperatorDeploymentSpec string
-	CDILogo                string
 	DeployClusterResources string
 	OperatorImage          string
 	ControllerImage        string
@@ -59,12 +47,7 @@ type templateData struct {
 var (
 	dockerRepo             = flag.String("docker-repo", "", "")
 	dockertag              = flag.String("docker-tag", "", "")
-	csvVersion             = flag.String("csv-version", "", "")
-	cdiLogoPath            = flag.String("cdi-logo-path", "", "")
 	genManifestsPath       = flag.String("generated-manifests-path", "", "")
-	bundleOut              = flag.String("olm-bundle-dir", "", "")
-	quayNamespace          = flag.String("quay-namespace", "", "")
-	quayRepository         = flag.String("quay-repository", "", "")
 	deployClusterResources = flag.String("deploy-cluster-resources", "", "")
 	operatorImage          = flag.String("operator-image", "", "")
 	controllerImage        = flag.String("controller-image", "", "")
@@ -80,7 +63,8 @@ var (
 
 func main() {
 	templFile := flag.String("template", "", "")
-	codeGroup := flag.String("code-group", "everything", "")
+	resourceType := flag.String("resource-type", "", "")
+	resourceGroup := flag.String("resource-group", "everything", "")
 	flag.Parse()
 
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
@@ -98,110 +82,7 @@ func main() {
 		return
 	}
 
-	generateFromCode(*codeGroup)
-}
-
-func getOperatorRules() string {
-	rules := *cdioperator.GetOperatorClusterRules()
-
-	writer := strings.Builder{}
-	for _, rule := range rules {
-		err := util.MarshallObject(rule, &writer)
-		if err != nil {
-			panic(err)
-		}
-	}
-	return fixResourceString(writer.String(), 14)
-}
-
-func getOperatorDeploymentSpec() string {
-	args := &cdioperator.FactoryArgs{
-		Verbosity:              *verbosity,
-		DockerRepo:             *dockerRepo,
-		DockerTag:              *dockertag,
-		DeployClusterResources: *deployClusterResources,
-		OperatorImage:          *operatorImage,
-		ControllerImage:        *controllerImage,
-		ImporterImage:          *importerImage,
-		ClonerImage:            *clonerImage,
-		APIServerImage:         *apiServerImage,
-		UploadProxyImage:       *uploadProxyImage,
-		UploadServerImage:      *uploadServerImage,
-		PullPolicy:             *pullPolicy,
-		Namespace:              *namespace,
-
-		CsvVersion: *csvVersion,
-		CDILogo:    getCdiLogo(*cdiLogoPath),
-	}
-
-	spec := cdioperator.GetOperatorDeploymentSpec(args)
-
-	writer := strings.Builder{}
-
-	err := util.MarshallObject(spec, &writer)
-	if err != nil {
-		panic(err)
-	}
-
-	return fixResourceString(writer.String(), 14)
-}
-
-func fixResourceString(in string, indention int) string {
-	out := strings.Builder{}
-	scanner := bufio.NewScanner(strings.NewReader(in))
-	for scanner.Scan() {
-		line := scanner.Text()
-		// remove separator lines
-		if !strings.HasPrefix(line, "---") {
-			// indent so that it fits into the manifest
-			// spaces is is indention - 2, because we want to have 2 spaces less for being able to start an array
-			spaces := strings.Repeat(" ", indention-2)
-			if strings.HasPrefix(line, "apiGroups") {
-				// spaces + array start
-				out.WriteString(spaces + "- " + line + "\n")
-			} else {
-				// 2 more spaces
-				out.WriteString(spaces + "  " + line + "\n")
-			}
-		}
-	}
-	return out.String()
-}
-
-func getReplacesVersion(csvVersion, quayNamespace, quayRepository string) string {
-	bundleHelper, err := helper.NewBundleHelper(quayRepository, quayNamespace)
-	if err != nil {
-		klog.Fatalf("Failed to access quay namespace %s, repo %s, %v\n", quayNamespace, quayRepository, err)
-	}
-	if !bundleHelper.VerifyNotPublishedCSVVersion(csvVersion) {
-		klog.Fatalf("CSV version %s is already published!", csvVersion)
-	}
-	return bundleHelper.GetLatestPublishedCSVVersion()
-}
-
-func evalOlmCsvUpdateVersion(inFile, csvVersion, bundleOutDir, quayNamespace, quayRepository string) string {
-	latestVersion := ""
-	if strings.Contains(inFile, ".csv.yaml") && bundleOutDir != "" {
-		bundleHelper, err := helper.NewBundleHelper(quayRepository, quayNamespace)
-		if err != nil {
-			klog.Fatalf("Failed to access quay namespace %s, repo %s, %v\n", quayNamespace, quayRepository, err)
-		}
-		if !bundleHelper.VerifyNotPublishedCSVVersion(csvVersion) {
-			klog.Fatalf("CSV version %s is already published!", csvVersion)
-		}
-		latestVersion := bundleHelper.GetLatestPublishedCSVVersion()
-		if latestVersion != "" {
-			// prevent generating the same version again
-			if strings.HasSuffix(latestVersion, csvVersion) {
-				klog.Fatalf("CSV version %s is already published!", csvVersion)
-			}
-			// also copy old manifests to out dir
-			if *bundleOut != "" {
-				bundleHelper.AddOldManifests(bundleOutDir, csvVersion)
-			}
-		}
-	}
-	return latestVersion
+	generateFromCode(*resourceType, *resourceGroup)
 }
 
 func generateFromFile(templFile string) {
@@ -209,7 +90,6 @@ func generateFromFile(templFile string) {
 		Verbosity:              *verbosity,
 		DockerRepo:             *dockerRepo,
 		DockerTag:              *dockertag,
-		CsvVersion:             *csvVersion,
 		DeployClusterResources: *deployClusterResources,
 		OperatorImage:          *operatorImage,
 		ControllerImage:        *controllerImage,
@@ -222,25 +102,18 @@ func generateFromFile(templFile string) {
 		Namespace:              *namespace,
 	}
 
-	file, err := os.OpenFile(templFile, os.O_RDONLY, 0)
+	file, err := os.Open(templFile)
 	if err != nil {
-		klog.Fatalf("Failed to open file %s: %v\n", templFile, err)
+		klog.Fatalf("Failed to open file %s: %v", templFile, err)
 	}
 	defer file.Close()
-
-	data.ReplacesCsvVersion = evalOlmCsvUpdateVersion(templFile, *csvVersion, *bundleOut, *quayNamespace, *quayRepository)
-	data.QuayRepository = *quayRepository
-	data.QuayNamespace = *quayNamespace
-	data.OperatorRules = getOperatorRules()
-	data.OperatorDeploymentSpec = getOperatorDeploymentSpec()
-	data.CDILogo = getCdiLogo(*cdiLogoPath)
 
 	// Read generated manifests and populate templated manifest
 	genDir := *genManifestsPath
 	data.GeneratedManifests = make(map[string]string)
 	manifests, err := ioutil.ReadDir(genDir)
 	if err != nil {
-		klog.Fatalf("Failed to read directory %s: %v\n", genDir, err)
+		klog.Fatalf("Failed to read directory %s: %v", genDir, err)
 	}
 
 	for _, manifest := range manifests {
@@ -249,7 +122,7 @@ func generateFromFile(templFile string) {
 		}
 		b, err := ioutil.ReadFile(filepath.Join(genDir, manifest.Name()))
 		if err != nil {
-			klog.Fatalf("Failed to read file %s: %v\n", templFile, err)
+			klog.Fatalf("Failed to read file %s: %v", templFile, err)
 		}
 
 		data.GeneratedManifests[manifest.Name()] = string(b)
@@ -258,120 +131,62 @@ func generateFromFile(templFile string) {
 	tmpl := template.Must(template.ParseFiles(templFile))
 	err = tmpl.Execute(os.Stdout, data)
 	if err != nil {
-		klog.Fatalf("Error executing template: %v\n", err)
+		klog.Fatalf("Error executing template: %v", err)
 	}
 }
 
-func getCdiLogo(path string) string {
-	file, err := os.Open(path)
+type resourceGetter func(string) ([]runtime.Object, error)
+
+var resourceGetterMap = map[string]resourceGetter{
+	"cluster":    getClusterResources,
+	"namespaced": getNamespacedResources,
+	"operator":   getOperatorResources,
+}
+
+func generateFromCode(resourceType, resourceGroup string) {
+	f, ok := resourceGetterMap[resourceType]
+	if !ok {
+		klog.Fatalf("Unknown resource type %s", resourceType)
+	}
+
+	resources, err := f(resourceGroup)
 	if err != nil {
-		klog.Fatalf("Error retrieving cdi logo file: %s, %v\n", path, err)
+		klog.Fatalf("Error getting resources: %v", err)
 	}
-
-	// Read entire file into byte slice.
-	reader := bufio.NewReader(file)
-	content, err := ioutil.ReadAll(reader)
-	if err != nil {
-		klog.Fatalf("Error reading cdi logo file: %v\n", err)
-	}
-
-	// Encode as base64.
-	encoded := base64.StdEncoding.EncodeToString(content)
-	return encoded
-}
-
-const (
-	//ClusterResource - cluster resources
-	ClusterResource string = "cluster"
-	//OperatorResource - operator resources
-	OperatorResource string = "operator"
-	//NamespaceResource - namespace resources
-	NamespaceResource string = "namespaces"
-)
-
-type resourceGet func(string) ([]runtime.Object, error)
-type resourcetype func(string) bool
-type resourceTuple struct {
-	resourcetype resourcetype
-	resourceGet  resourceGet
-}
-
-var resourcesTable = map[string]resourceTuple{
-	ClusterResource:   {cdicluster.IsFactoryResource, getClusterResources},
-	NamespaceResource: {namespaced.IsFactoryResource, getNamespacedResources},
-	OperatorResource:  {cdioperator.IsFactoryResource, getOperatorClusterResources},
-}
-
-func generateFromCode(codeGroup string) {
-	var resources []runtime.Object
-
-	for r, dispatch := range resourcesTable {
-		if dispatch.resourcetype(codeGroup) {
-			crs, err := dispatch.resourceGet(codeGroup)
-			if err != nil {
-				klog.Fatalf("Error getting %s resources: %v\n", r, err)
-			}
-			resources = append(resources, crs...)
-		} //of codeGroup matches resource then get it
-	} //iterate through all resources
 
 	for _, resource := range resources {
 		err := util.MarshallObject(resource, os.Stdout)
 		if err != nil {
-			klog.Fatalf("Error marshalling resource: %v\n", err)
+			klog.Fatalf("Error marshalling resource: %v", err)
 		}
 	}
 }
 
-const (
-	//ClusterResourcesCodeGroupEverything - generate all cluster resources
-	ClusterResourcesCodeGroupEverything string = "cluster-everything"
-	//NamespaceResourcesCodeGroupEverything - generate all namespace resources
-	NamespaceResourcesCodeGroupEverything string = "namespace-everything"
-	//ClusterResourcesCodeOperatorGroupEverything - generate all operator resources
-	ClusterResourcesCodeOperatorGroupEverything string = "operator-everything"
-)
-
-func getOperatorClusterResources(codeGroup string) ([]runtime.Object, error) {
-	replacesCsvVersion := ""
-	if codeGroup == cdioperator.OperatorCSV || codeGroup == ClusterResourcesCodeOperatorGroupEverything {
-		replacesCsvVersion = getReplacesVersion(*csvVersion, *quayNamespace, *quayRepository)
-	}
-
+func getOperatorResources(resourceGroup string) ([]runtime.Object, error) {
 	args := &cdioperator.FactoryArgs{
-		Verbosity:              *verbosity,
-		DockerRepo:             *dockerRepo,
-		DockerTag:              *dockertag,
-		DeployClusterResources: *deployClusterResources,
-		OperatorImage:          *operatorImage,
-		ControllerImage:        *controllerImage,
-		ImporterImage:          *importerImage,
-		ClonerImage:            *clonerImage,
-		APIServerImage:         *apiServerImage,
-		UploadProxyImage:       *uploadProxyImage,
-		UploadServerImage:      *uploadServerImage,
-		PullPolicy:             *pullPolicy,
-		Namespace:              *namespace,
-
-		CsvVersion:         *csvVersion,
-		ReplacesCsvVersion: replacesCsvVersion,
-		CDILogo:            getCdiLogo(*cdiLogoPath),
+		NamespacedArgs: cdinamespaced.FactoryArgs{
+			Verbosity:              *verbosity,
+			DockerRepo:             *dockerRepo,
+			DockerTag:              *dockertag,
+			DeployClusterResources: *deployClusterResources,
+			ControllerImage:        *controllerImage,
+			ImporterImage:          *importerImage,
+			ClonerImage:            *clonerImage,
+			APIServerImage:         *apiServerImage,
+			UploadProxyImage:       *uploadProxyImage,
+			UploadServerImage:      *uploadServerImage,
+			PullPolicy:             *pullPolicy,
+			Namespace:              *namespace,
+		},
+		Image: *operatorImage,
 	}
 
-	if codeGroup == ClusterResourcesCodeOperatorGroupEverything {
-		return cdioperator.CreateAllOperatorResources(args)
-	}
-
-	return cdioperator.CreateOperatorResourceGroup(codeGroup, args)
+	return cdioperator.CreateOperatorResourceGroup(resourceGroup, args)
 }
 
 func getClusterResources(codeGroup string) ([]runtime.Object, error) {
 	args := &cdicluster.FactoryArgs{
 		Namespace: *namespace,
-	}
-
-	if codeGroup == ClusterResourcesCodeGroupEverything {
-		return cdicluster.CreateAllResources(args)
 	}
 
 	return cdicluster.CreateResourceGroup(codeGroup, args)
@@ -390,10 +205,6 @@ func getNamespacedResources(codeGroup string) ([]runtime.Object, error) {
 		UploadServerImage: *uploadServerImage,
 		PullPolicy:        *pullPolicy,
 		Namespace:         *namespace,
-	}
-
-	if codeGroup == NamespaceResourcesCodeGroupEverything {
-		return cdinamespaced.CreateAllResources(args)
 	}
 
 	return cdinamespaced.CreateResourceGroup(codeGroup, args)
