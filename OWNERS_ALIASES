@@ -1,0 +1,17 @@
+# See the OWNERS docs at https://go.k8s.io/owners
+
+aliases:
+  approvers:
+      - aglitke
+      - awels
+      - mhenriks
+      - 
+  code-reviewers:
+      - aglitke
+      - awels
+      - mhenriks
+      - rollandf
+      - danielerez
+      - zvikorn
+      - annastopel
+
