@@ -200,6 +200,8 @@ func (c *ConfigController) processNextWorkItem() bool {
 		}
 
 		if err := c.syncHandler(key); err != nil {
+			// Put the item back on the workqueue to handle any transient errors.
+			c.queue.AddRateLimited(key)
 			return errors.Errorf("error syncing '%s': %s", key, err.Error())
 		}
 
