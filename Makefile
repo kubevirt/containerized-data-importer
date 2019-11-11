@@ -113,10 +113,10 @@ bazel-cdi-generate:
 bazel-build:
 	${DO_BAZ} "./hack/build/bazel-build.sh"
 
-bazel-build-images:	bazel-cdi-generate
+bazel-build-images:	bazel-cdi-generate bazel-build
 	${DO_BAZ} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} ./hack/build/bazel-build-images.sh"
 
-bazel-push-images: bazel-cdi-generate
+bazel-push-images: bazel-cdi-generate bazel-build
 	${DO_BAZ} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} ./hack/build/bazel-push-images.sh"
 
 push: bazel-push-images
