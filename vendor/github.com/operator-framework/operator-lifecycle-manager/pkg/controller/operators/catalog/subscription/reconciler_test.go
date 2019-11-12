@@ -49,7 +49,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 			description: "ExistsToUnhealthy/NoCatalogs",
 			fields: fields{
 				config: &fakeReconcilerConfig{
-					now: nowFunc,
+					now:                    nowFunc,
 					globalCatalogNamespace: "global",
 					existingObjs: existingObjs{
 						clientObjs: []runtime.Object{
@@ -104,7 +104,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 			description: "ExistsToUnhealthy/Catalogs/NoChanges",
 			fields: fields{
 				config: &fakeReconcilerConfig{
-					now: nowFunc,
+					now:                       nowFunc,
 					registryReconcilerFactory: fakeRegistryReconcilerFactory(false, nil),
 					globalCatalogNamespace:    "global",
 					existingObjs: existingObjs{
@@ -184,7 +184,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 			description: "ExistsToHealthy/Catalogs/NoChanges",
 			fields: fields{
 				config: &fakeReconcilerConfig{
-					now: nowFunc,
+					now:                       nowFunc,
 					registryReconcilerFactory: fakeRegistryReconcilerFactory(true, nil),
 					globalCatalogNamespace:    "ns",
 					existingObjs: existingObjs{
@@ -264,7 +264,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 			description: "ExistsToHealthy/Catalogs/Changes/GlobalAdded",
 			fields: fields{
 				config: &fakeReconcilerConfig{
-					now: nowFunc,
+					now:                       nowFunc,
 					registryReconcilerFactory: fakeRegistryReconcilerFactory(true, nil),
 					globalCatalogNamespace:    "global",
 					existingObjs: existingObjs{

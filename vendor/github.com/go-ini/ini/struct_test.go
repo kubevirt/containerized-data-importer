@@ -33,6 +33,7 @@ type testNested struct {
 	Ages        []uint
 	Populations []uint64
 	Coordinates []float64
+	Flags       []bool
 	Note        string
 	Unused      int `ini:"-"`
 }
@@ -42,29 +43,41 @@ type TestEmbeded struct {
 }
 
 type testStruct struct {
-	Name         string `ini:"NAME"`
-	Age          int
-	Male         bool
-	Optional     *bool
-	Money        float64
-	Born         time.Time
-	Time         time.Duration `ini:"Duration"`
-	Others       testNested
-	OthersPtr    *testNested
-	NilPtr       *testNested
-	*TestEmbeded `ini:"grade"`
-	Unused       int `ini:"-"`
-	Unsigned     uint
-	Omitted      bool     `ini:"omitthis,omitempty"`
-	Shadows      []string `ini:",,allowshadow"`
-	ShadowInts   []int    `ini:"Shadows,,allowshadow"`
+	Name           string `ini:"NAME"`
+	Age            int
+	Male           bool
+	Money          float64
+	Born           time.Time
+	Time           time.Duration `ini:"Duration"`
+	Others         testNested
+	OthersPtr      *testNested
+	NilPtr         *testNested
+	*TestEmbeded   `ini:"grade"`
+	Unused         int `ini:"-"`
+	Unsigned       uint
+	Omitted        bool     `ini:"omitthis,omitempty"`
+	Shadows        []string `ini:",,allowshadow"`
+	ShadowInts     []int    `ini:"Shadows,,allowshadow"`
+	BoolPtr        *bool
+	BoolPtrNil     *bool
+	FloatPtr       *float64
+	FloatPtrNil    *float64
+	IntPtr         *int
+	IntPtrNil      *int
+	UintPtr        *uint
+	UintPtrNil     *uint
+	StringPtr      *string
+	StringPtrNil   *string
+	TimePtr        *time.Time
+	TimePtrNil     *time.Time
+	DurationPtr    *time.Duration
+	DurationPtrNil *time.Duration
 }
 
 const _CONF_DATA_STRUCT = `
 NAME = Unknwon
 Age = 21
 Male = true
-Optional = true
 Money = 1.25
 Born = 1993-10-07T20:17:05Z
 Duration = 2h45m
@@ -72,6 +85,13 @@ Unsigned = 3
 omitthis = true
 Shadows = 1, 2
 Shadows = 3, 4
+BoolPtr = false
+FloatPtr = 0
+IntPtr = 0
+UintPtr = 0
+StringPtr = ""
+TimePtr = 0001-01-01T00:00:00Z
+DurationPtr = 0s
 
 [Others]
 Cities = HangZhou|Boston
@@ -81,6 +101,7 @@ Numbers = 10010,10086
 Ages = 18,19
 Populations = 12345678,98765432
 Coordinates = 192.168,10.11
+Flags       = true,false
 Note = Hello world!
 
 [OthersPtr]
@@ -91,6 +112,7 @@ Numbers = 10010,10086
 Ages = 18,19
 Populations = 12345678,98765432
 Coordinates = 192.168,10.11
+Flags       = true,false
 Note = Hello world!
 
 [grade]
@@ -151,7 +173,6 @@ func Test_MapToStruct(t *testing.T) {
 			So(ts.Name, ShouldEqual, "Unknwon")
 			So(ts.Age, ShouldEqual, 21)
 			So(ts.Male, ShouldBeTrue)
-			So(*ts.Optional, ShouldBeTrue)
 			So(ts.Money, ShouldEqual, 1.25)
 			So(ts.Unsigned, ShouldEqual, 3)
 
@@ -170,6 +191,7 @@ func Test_MapToStruct(t *testing.T) {
 			So(fmt.Sprint(ts.Others.Ages), ShouldEqual, "[18 19]")
 			So(fmt.Sprint(ts.Others.Populations), ShouldEqual, "[12345678 98765432]")
 			So(fmt.Sprint(ts.Others.Coordinates), ShouldEqual, "[192.168 10.11]")
+			So(fmt.Sprint(ts.Others.Flags), ShouldEqual, "[true false]")
 			So(ts.Others.Note, ShouldEqual, "Hello world!")
 			So(ts.TestEmbeded.GPA, ShouldEqual, 2.8)
 
@@ -180,9 +202,26 @@ func Test_MapToStruct(t *testing.T) {
 			So(fmt.Sprint(ts.OthersPtr.Ages), ShouldEqual, "[18 19]")
 			So(fmt.Sprint(ts.OthersPtr.Populations), ShouldEqual, "[12345678 98765432]")
 			So(fmt.Sprint(ts.OthersPtr.Coordinates), ShouldEqual, "[192.168 10.11]")
+			So(fmt.Sprint(ts.OthersPtr.Flags), ShouldEqual, "[true false]")
 			So(ts.OthersPtr.Note, ShouldEqual, "Hello world!")
 
 			So(ts.NilPtr, ShouldBeNil)
+
+			So(*ts.BoolPtr, ShouldEqual, false)
+			So(ts.BoolPtrNil, ShouldEqual, nil)
+			So(*ts.FloatPtr, ShouldEqual, 0)
+			So(ts.FloatPtrNil, ShouldEqual, nil)
+			So(*ts.IntPtr, ShouldEqual, 0)
+			So(ts.IntPtrNil, ShouldEqual, nil)
+			So(*ts.UintPtr, ShouldEqual, 0)
+			So(ts.UintPtrNil, ShouldEqual, nil)
+			So(*ts.StringPtr, ShouldEqual, "")
+			So(ts.StringPtrNil, ShouldEqual, nil)
+			So(*ts.TimePtr, ShouldNotEqual, nil)
+			So(ts.TimePtrNil, ShouldEqual, nil)
+			So(*ts.DurationPtr, ShouldEqual, 0)
+			So(ts.DurationPtrNil, ShouldEqual, nil)
+
 		})
 
 		Convey("Map section to struct", func() {
@@ -297,6 +336,7 @@ func Test_ReflectFromStruct(t *testing.T) {
 			Ages        []uint
 			Populations []uint64
 			Coordinates []float64
+			Flags       []bool
 			None        []int
 		}
 		type Author struct {
@@ -322,6 +362,7 @@ func Test_ReflectFromStruct(t *testing.T) {
 				[]uint{18, 19},
 				[]uint64{12345678, 98765432},
 				[]float64{192.168, 10.11},
+				[]bool{true, false},
 				[]int{},
 			}}
 		cfg := ini.Empty()
@@ -349,6 +390,7 @@ Numbers     = 10010,10086
 Ages        = 18,19
 Populations = 12345678,98765432
 Coordinates = 192.168,10.11
+Flags       = true,false
 None        = 
 
 `)

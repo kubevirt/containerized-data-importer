@@ -1,3 +1,16 @@
+## 1.7.1
+
+### Fixes
+- Bump go-yaml version to cover fixed ddos heuristic (#362) [95e431e]
+
+## 1.7.0
+
+### Features
+- export format property variables (#347) [642e5ba]
+
+### Fixes
+- minor fix in the documentation of ExpectWithOffset (#358) [beea727]
+
 ## 1.6.0
 
 ### Features

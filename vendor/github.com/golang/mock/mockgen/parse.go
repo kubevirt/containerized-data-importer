@@ -47,7 +47,7 @@ func parseFile(source string) (*model.Package, error) {
 		return nil, fmt.Errorf("failed getting source directory: %v", err)
 	}
 
-	cfg := &packages.Config{Mode: packages.LoadSyntax, Tests: true}
+	cfg := &packages.Config{Mode: packages.LoadFiles, Tests: true, Dir: srcDir}
 	pkgs, err := packages.Load(cfg, "file="+source)
 	if err != nil {
 		return nil, err
@@ -250,9 +250,7 @@ func (p *fileParser) parseInterface(name, pkg string, it *ast.InterfaceType) (*m
 			}
 			// Copy the methods.
 			// TODO: apply shadowing rules.
-			for _, m := range eintf.Methods {
-				intf.Methods = append(intf.Methods, m)
-			}
+			intf.Methods = append(intf.Methods, eintf.Methods...)
 		case *ast.SelectorExpr:
 			// Embedded interface in another package.
 			fpkg, sel := v.X.(*ast.Ident).String(), v.Sel.String()
@@ -278,9 +276,7 @@ func (p *fileParser) parseInterface(name, pkg string, it *ast.InterfaceType) (*m
 			}
 			// Copy the methods.
 			// TODO: apply shadowing rules.
-			for _, m := range eintf.Methods {
-				intf.Methods = append(intf.Methods, m)
-			}
+			intf.Methods = append(intf.Methods, eintf.Methods...)
 		default:
 			return nil, fmt.Errorf("don't know how to mock method of type %T", field.Type)
 		}

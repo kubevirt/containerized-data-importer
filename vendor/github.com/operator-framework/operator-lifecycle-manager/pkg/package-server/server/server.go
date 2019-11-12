@@ -91,7 +91,7 @@ func NewPackageServerOptions(out, errOut io.Writer) *PackageServerOptions {
 		WakeupInterval:    5 * time.Minute,
 
 		DisableAuthForTesting: false,
-		Debug: false,
+		Debug:                 false,
 
 		StdOut: out,
 		StdErr: errOut,

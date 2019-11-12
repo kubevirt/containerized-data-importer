@@ -38,7 +38,7 @@ func NewCSVRuleChecker(roleLister crbacv1.RoleLister, roleBindingLister crbacv1.
 		roleBindingLister:        roleBindingLister,
 		clusterRoleLister:        clusterRoleLister,
 		clusterRoleBindingLister: clusterRoleBindingLister,
-		csv: csv.DeepCopy(),
+		csv:                      csv.DeepCopy(),
 	}
 }
 
