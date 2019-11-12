@@ -17,7 +17,7 @@ CDI works with standard core Kubernetes resources and is storage device agnostic
 CDI provides the ability to populate PVCs with VM images or other data upon creation.  The data can come from different sources: a URL, a container registry, another PVC (clone), or an upload from a client.
 
 ## DataVolumes
-CDI includes a CRD that provides an object of type DataVolume.  The DataVolume is an abstraction on top of the standard Kubernetes PVC and can be used to automate creation and population of a PVC with data.  Although you can use PVCs directly with CDI, DataVolumes are the preferred method since they offer full functionality, a stable API, and better integration with kubevirt.
+CDI includes a CustomResourceDefinition (CRD) that provides an object of type DataVolume.  The DataVolume is an abstraction on top of the standard Kubernetes PVC and can be used to automate creation and population of a PVC with data.  Although you can use PVCs directly with CDI, DataVolumes are the preferred method since they offer full functionality, a stable API, and better integration with kubevirt.
 
 ### Import from URL
 
