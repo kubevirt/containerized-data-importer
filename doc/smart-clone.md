@@ -1,19 +1,19 @@
 # Data Volume cloning with Smart-Cloning
 
 ## Introduction
-Data Volumes (DV) can be created also by specifying a PVC as an input source. It will trigger a clone of the original PVC. See more details [here](datavolumes.md#pvc-source).
+Data Volumes (DV) can also be created by specifying a PVC as an input source. It will trigger a clone of the original PVC. See more details [here](datavolumes.md#pvc-source).
 
-CDI implementation of cloning a PVC is done with host assisted cloning by streaming the data from the source PVC and write to the new PVC.
+The CDI implementation of cloning a PVC is done with host assisted cloning by streaming the data from the source PVC and write to the new PVC.
 
-In order to improve the performance of the cloning process, a Smart-Cloning flow using snapshots is introduced.
+In order to improve the performance of the cloning process, we introduced Smart-Cloning where snapshots are used.
 
 ## Smart-Cloning
-CDI use the feature of creating a PVC from snapshot in order to clone PVCs more efficiently when a CSI plugin with snapshot capabilities is available.
+CDI uses the feature of creating a PVC from snapshot in order to clone PVCs more efficiently when a CSI plugin with snapshot capabilities is available.
 
 The yaml structure and annotations of the DV are not changed.
 
 ### Create PVC from snapshot
-Since Kubernetes v1.12, a feature enabling to create a PVC from a volume snapshot has been introduced. See more details [here](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#volume-snapshot-and-restore-volume-from-snapshot-support)
+Kubernetes v1.12 introduced a feature enabling the creation of a PVC from a volume snapshot. See more details [here](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#volume-snapshot-and-restore-volume-from-snapshot-support)
 
 Note: To enable support for restoring a volume from a volume snapshot data source, enable the `VolumeSnapshotDataSource` feature gate on the apiserver and controller-manager.
 
@@ -31,5 +31,5 @@ Here is a description of the flow of the Smart-Cloning:
   * Create a PVC from the created snapshot
   * Delete the snapshot
 - If Smart-Cloning is not possible:
-  * Trigger a host-assisted clone
+  * Trigger a (slower) host-assisted clone
 
