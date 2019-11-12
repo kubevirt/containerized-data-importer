@@ -293,7 +293,10 @@ func (ic *ImportController) ProcessNextPvcItem() bool {
 	defer ic.queue.Done(key)
 
 	err := ic.syncPvc(key.(string))
-	if err != nil { // processPvcItem errors may not have been logged so log here
+	if err != nil {
+		// Put the item back on the workqueue to handle any transient errors.
+		ic.queue.AddRateLimited(key.(string))
+		// processPvcItem errors may not have been logged so log here
 		klog.Errorf("error processing pvc %q: %v", key, err)
 		return true
 	}

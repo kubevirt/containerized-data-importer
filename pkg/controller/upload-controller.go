@@ -332,6 +332,8 @@ func (c *UploadController) processNextWorkItem() bool {
 		}
 
 		if err := c.syncHandler(key); err != nil {
+			// Put the item back on the workqueue to handle any transient errors.
+			c.queue.AddRateLimited(key)
 			return err
 		}
 

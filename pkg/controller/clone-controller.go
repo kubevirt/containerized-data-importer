@@ -222,7 +222,10 @@ func (cc *CloneController) ProcessNextPvcItem() bool {
 	defer cc.queue.Done(key)
 
 	err := cc.syncPvc(key.(string))
-	if err != nil { // processPvcItem errors may not have been logged so log here
+	if err != nil {
+		// Put the item back on the workqueue to handle any transient errors.
+		cc.queue.AddRateLimited(key.(string))
+		// processPvcItem errors may not have been logged so log here
 		klog.Errorf("error processing pvc %q: %v", key, err)
 		return true
 	}
