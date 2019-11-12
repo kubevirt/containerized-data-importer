@@ -251,7 +251,7 @@ func (f *Framework) AfterEach() {
 
 	if ginkgo.CurrentGinkgoTestDescription().Failed {
 		f.reporter.FailureCount++
-		f.reporter.Dump(f.K8sClient, ginkgo.CurrentGinkgoTestDescription().Duration)
+		f.reporter.Dump(f.K8sClient, f.CdiClient, ginkgo.CurrentGinkgoTestDescription().Duration)
 	}
 
 	return
@@ -504,7 +504,7 @@ func NewKubernetesReporter() *KubernetesReporter {
 
 // Dump dumps the current state of the cluster. The relevant logs are collected starting
 // from the since parameter.
-func (r *KubernetesReporter) Dump(kubeCli *kubernetes.Clientset, since time.Duration) {
+func (r *KubernetesReporter) Dump(kubeCli *kubernetes.Clientset, cdiClient *cdiClientset.Clientset, since time.Duration) {
 	// If we got not directory, print to stderr
 	if r.artifactsDir == "" {
 		return
@@ -519,7 +519,7 @@ func (r *KubernetesReporter) Dump(kubeCli *kubernetes.Clientset, since time.Dura
 		return
 	}
 
-	// TODO log data volumes.
+	r.logDVs(cdiClient)
 	r.logEvents(kubeCli, since)
 	r.logNodes(kubeCli)
 	r.logPVCs(kubeCli)
@@ -622,6 +622,28 @@ func (r *KubernetesReporter) logPVCs(kubeCli *kubernetes.Clientset) {
 	}
 
 	j, err := json.MarshalIndent(pvcs, "", "    ")
+	if err != nil {
+		return
+	}
+	fmt.Fprintln(f, string(j))
+}
+
+func (r *KubernetesReporter) logDVs(cdiClientset *cdiClientset.Clientset) {
+	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_dvs.log", r.FailureCount)),
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to open the file: %v\n", err)
+		return
+	}
+	defer f.Close()
+
+	dvs, err := cdiClientset.CdiV1alpha1().DataVolumes(v1.NamespaceAll).List(metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to fetch datavolumes: %v\n", err)
+		return
+	}
+
+	j, err := json.MarshalIndent(dvs, "", "    ")
 	if err != nil {
 		return
 	}

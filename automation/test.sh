@@ -37,7 +37,8 @@ export KUBEVIRT_PROVIDER=$TARGET
 if [[ $TARGET =~ openshift-.* ]]; then
   export KUBEVIRT_PROVIDER="os-3.11.0-crio"
 elif [[ $TARGET =~ k8s-.* ]]; then
-  export KUBEVIRT_PROVIDER_EXTRA_ARGS="--enable-ceph"
+  export KUBEVIRT_NUM_NODES=2
+  export KUBEVIRT_MEMORY_SIZE=8192
 fi
 
 if [ ! -d "cluster-up/cluster/$KUBEVIRT_PROVIDER" ]; then

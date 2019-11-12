@@ -10,34 +10,38 @@ if ! [[ $num_nodes =~ $re ]] || [[ $num_nodes -lt 1 ]] ; then
     num_nodes=1
 fi
 
-if [[ $KUBEVIRT_PROVIDER_EXTRA_ARGS =~ "--enable-ceph" ]]; then
-  echo "Switching default storage class to ceph"
-  # Switch the default storage class to ceph
-  _kubectl patch storageclass local -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
-  # Make sure the SC is configured to use xfs instead of ext4
-  _kubectl delete storageclass csi-rbd
-  cat <<EOF | _kubectl apply -f -
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  annotations:
-    storageclass.kubernetes.io/is-default-class: "true"
-  name: csi-rbd
-parameters:
-  adminid: admin
-  csi.storage.k8s.io/node-publish-secret-name: csi-rbd-secret
-  csi.storage.k8s.io/node-publish-secret-namespace: default
-  csi.storage.k8s.io/provisioner-secret-name: csi-rbd-secret
-  csi.storage.k8s.io/provisioner-secret-namespace: default
-  imageFeatures: layering
-  imageFormat: "2"
-  monitors: 192.168.66.2
-  multiNodeWritable: enabled
-  pool: rbd
-  fsType: xfs
-provisioner: csi-rbdplugin
-reclaimPolicy: Delete
-volumeBindingMode: Immediate
-EOF
-fi
+ROOK_CEPH_VERSION=${ROOK_CEPH_VERSION:-v1.1.4}
 
+function configure_storage() {
+  #Make sure local is not default
+  _kubectl patch storageclass local -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+  #Configure ceph storage.
+  set +e
+  _kubectl create -f https://raw.githubusercontent.com/rook/rook/$ROOK_CEPH_VERSION/cluster/examples/kubernetes/ceph/common.yaml
+  _kubectl create -f https://raw.githubusercontent.com/rook/rook/$ROOK_CEPH_VERSION/cluster/examples/kubernetes/ceph/operator.yaml
+  _kubectl create -f ./cluster-sync/${KUBEVIRT_PROVIDER}/rook_ceph.yaml
+  cat <<EOF | _kubectl apply -f -
+apiVersion: ceph.rook.io/v1
+kind: CephBlockPool
+metadata:
+  name: replicapool
+  namespace: rook-ceph
+spec:
+  failureDomain: host
+  replicated:
+    size: $KUBEVIRT_NUM_NODES
+EOF
+
+  _kubectl create -f ./cluster-sync/${KUBEVIRT_PROVIDER}/ceph_sc.yaml
+  set +e
+  retry_counter=0
+  _kubectl get VolumeSnapshotClass
+   while [[ $? -ne "0" ]] && [[ $retry_counter -lt 60 ]]; do
+    echo "Sleep 5s, waiting for VolumeSnapshotClass CRD"
+   sleep 5
+   _kubectl get VolumeSnapshotClass
+  done
+  echo "VolumeSnapshotClass CRD available, creating snapshot class"
+  _kubectl create -f https://raw.githubusercontent.com/rook/rook/$ROOK_CEPH_VERSION/cluster/examples/kubernetes/ceph/csi/rbd/snapshotclass.yaml
+  set -e
+}

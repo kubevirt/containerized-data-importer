@@ -116,12 +116,58 @@ func (c *SmartCloneController) ProcessNextItem() bool {
 	if shutdown {
 		return false
 	}
-	defer c.queue.Done(key)
 
-	ns, name, err := cache.SplitMetaNamespaceKey(key.(string))
+	// We wrap this block in a func so we can defer c.workqueue.Done.
+	err := func(obj interface{}) error {
+		// We call Done here so the workqueue knows we have finished
+		// processing this item. We also must remember to call Forget if we
+		// do not want this work item being re-queued. For example, we do
+		// not call Forget if a transient error occurs, instead the item is
+		// put back on the workqueue and attempted again after a back-off
+		// period.
+		defer c.queue.Done(obj)
+		var key string
+		var ok bool
+		// We expect strings to come off the workqueue. These are of the
+		// form namespace/name. We do this as the delayed nature of the
+		// workqueue means the items in the informer cache may actually be
+		// more up to date that when the item was initially put onto the
+		// workqueue.
+		if key, ok = obj.(string); !ok {
+			// As the item in the workqueue is actually invalid, we call
+			// Forget here else we'd go into a loop of attempting to
+			// process a work item that is invalid.
+			c.queue.Forget(obj)
+			runtime.HandleError(fmt.Errorf("expected string in workqueue but got %#v", obj))
+			return nil
+		}
+		// Run the syncHandler, passing it the namespace/name string of the data volume
+		// to be synced.
+		if err := c.syncHandler(key); err != nil {
+			// Put the item back on the workqueue to handle any transient errors.
+			c.queue.AddRateLimited(key)
+			return fmt.Errorf("error syncing '%s': %s, requeuing", key, err.Error())
+		}
+		// Finally, if no error occurs we Forget this item so it does not
+		// get queued again until another change happens.
+		c.queue.Forget(obj)
+		klog.Infof("Successfully synced '%s'", key)
+		return nil
+	}(key)
+
+	if err != nil {
+		runtime.HandleError(err)
+		return true
+	}
+
+	return true
+}
+
+func (c *SmartCloneController) syncHandler(key string) error {
+	ns, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		runtime.HandleError(errors.Errorf("invalid resource key: %s", key))
-		return false
+		return nil
 	}
 
 	pvc, err := c.pvcLister.PersistentVolumeClaims(ns).Get(name)
@@ -130,7 +176,7 @@ func (c *SmartCloneController) ProcessNextItem() bool {
 			pvc = nil
 		} else {
 			// Error getting PVC - return
-			return false
+			return err
 		}
 	}
 	snapshot, err := c.snapshotsLister.VolumeSnapshots(ns).Get(name)
@@ -139,57 +185,53 @@ func (c *SmartCloneController) ProcessNextItem() bool {
 			snapshot = nil
 		} else {
 			// Error getting Snapshot - return
-			return false
+			return err
 		}
 	}
 
 	if pvc != nil {
 		if pvc.Status.Phase != corev1.ClaimBound {
 			// PVC isn't bound yet - return
-			return false
+			return nil
 		}
 		if pvc.ObjectMeta.Annotations[AnnSmartCloneRequest] == "true" {
 			snapshotName := pvc.Spec.DataSource.Name
 			snapshotToDelete, err := c.snapshotsLister.VolumeSnapshots(ns).Get(snapshotName)
 			if err != nil {
 				// Error getting Snapshot - return
-				return true
+				return err
 			}
 			if snapshotToDelete != nil {
+				dataVolume, err := c.dataVolumeLister.DataVolumes(snapshot.Namespace).Get(snapshot.Name)
+				if err != nil {
+					return err
+				}
+
+				// Update DV phase and emit PVC in progress event
+				err = c.updateSmartCloneStatusPhase(cdiv1.Succeeded, dataVolume, pvc)
+				if err != nil {
+					// Have not properly updated the data volume status, don't delete the snapshot so we retry.
+					klog.Errorf("error updating datavolume with success, requeuing: %v", err)
+					return err
+				}
 				klog.V(3).Infof("ProcessNextItem snapshotName: %s", snapshotName)
 				err = c.csiClientSet.SnapshotV1alpha1().VolumeSnapshots(ns).Delete(snapshotName, &metav1.DeleteOptions{})
 				if err != nil {
 					klog.Errorf("error deleting snapshot for smart-clone %q: %v", key, err)
-					return true
+					return err
 				}
 				klog.V(3).Infof("Snapshot deleted: %s", snapshotName)
 
-				dataVolume, err := c.dataVolumeLister.DataVolumes(snapshot.Namespace).Get(snapshot.Name)
-				if err != nil {
-					return true
-				}
-
-				// Update DV phase and emit PVC in progress event
-				c.updateSmartCloneStatusPhase(cdiv1.Succeeded, dataVolume, pvc)
 			}
 		}
 	} else if snapshot != nil {
-		err := c.syncSnapshot(key.(string))
+		err := c.syncSnapshot(key)
 		if err != nil {
 			klog.Errorf("error processing snapshot %q: %v", key, err)
-			return true
+			return err
 		}
 	}
-	return c.forgetKey(key, fmt.Sprintf("ProcessNextItem: processing pvc/snapshot %q completed", key))
-}
-
-// forget the passed-in key for this event and optionally log a message.
-func (c *SmartCloneController) forgetKey(key interface{}, msg string) bool {
-	if len(msg) > 0 {
-		klog.V(3).Info(msg)
-	}
-	c.queue.Forget(key)
-	return true
+	return nil
 }
 
 func (c *SmartCloneController) syncSnapshot(key string) error {
@@ -223,7 +265,12 @@ func (c *SmartCloneController) processNextSnapshotItem(snapshot *csisnapshotv1.V
 	}
 
 	// Update DV phase and emit PVC in progress event
-	c.updateSmartCloneStatusPhase(SmartClonePVCInProgress, dataVolume, nil)
+	err = c.updateSmartCloneStatusPhase(SmartClonePVCInProgress, dataVolume, nil)
+	if err != nil {
+		// Have not properly updated the data volume status, don't delete the snapshot so we retry.
+		klog.Errorf("error updating datavolume with success, requeuing: %v", err)
+		return err
+	}
 
 	newPvc := newPvcFromSnapshot(snapshot, dataVolume)
 	if newPvc == nil {
@@ -231,8 +278,10 @@ func (c *SmartCloneController) processNextSnapshotItem(snapshot *csisnapshotv1.V
 		return nil
 	}
 
+	klog.V(3).Infof("Creating PVC \"%s/%s\" from snapshot", newPvc.Namespace, newPvc.Name)
 	_, err = c.clientset.CoreV1().PersistentVolumeClaims(snapshot.Namespace).Create(newPvc)
 	if err != nil {
+		klog.Errorf("error creating pvc from snapshot: %v", err)
 		return err
 	}
 
@@ -335,16 +384,18 @@ func (c *SmartCloneController) updateSmartCloneStatusPhase(phase cdiv1.DataVolum
 		event.message = fmt.Sprintf(MessageCloneSucceeded, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, newPVC.Namespace, newPVC.Name)
 	}
 
-	return c.emitEvent(dataVolume, dataVolumeCopy, &event)
+	return c.emitEvent(dataVolume, dataVolumeCopy, &event, newPVC)
 }
 
-func (c *SmartCloneController) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, event *DataVolumeEvent) error {
+func (c *SmartCloneController) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, event *DataVolumeEvent, newPVC *corev1.PersistentVolumeClaim) error {
 	// Only update the object if something actually changed in the status.
 	if !reflect.DeepEqual(dataVolume.Status, dataVolumeCopy.Status) {
 		_, err := c.cdiClientSet.CdiV1alpha1().DataVolumes(dataVolume.Namespace).Update(dataVolumeCopy)
-		// Emit the event only when the status change happens, not every time
-		if event.eventType != "" {
-			c.recorder.Event(dataVolume, event.eventType, event.reason, event.message)
+		if err == nil {
+			// Emit the event only when the status change happens, not every time
+			if event.eventType != "" {
+				c.recorder.Event(dataVolume, event.eventType, event.reason, event.message)
+			}
 		}
 		return err
 	}

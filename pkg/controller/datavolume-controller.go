@@ -460,7 +460,7 @@ func (c *DataVolumeController) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 
 	// Check if relevant CRDs are available
 	if !IsCsiCrdsDeployed(c.extClientSet) {
-		klog.V(3).Infof("Missing CSI snapshotter CRDs")
+		klog.V(3).Infof("Missing CSI snapshotter CRDs, falling back to host assisted clone")
 		return ""
 	}
 
@@ -486,6 +486,7 @@ func (c *DataVolumeController) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 		storageclasses, err := c.kubeclientset.StorageV1().StorageClasses().List(metav1.ListOptions{})
 		if err != nil {
 			runtime.HandleError(err)
+			klog.V(3).Infof("Unable to retrieve available storage classes, falling back to host assisted clone")
 			return ""
 		}
 		for _, storageClass := range storageclasses.Items {
@@ -521,13 +522,14 @@ func (c *DataVolumeController) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	storageclass, err := c.kubeclientset.StorageV1().StorageClasses().Get(*sourcePvcStorageClassName, metav1.GetOptions{})
 	if err != nil {
 		runtime.HandleError(err)
+		klog.V(3).Infof("Unable to retrieve storage classes %s, falling back to host assisted clone", *sourcePvcStorageClassName)
 		return ""
 	}
 
 	// List the snapshot classes
 	scs, err := c.csiClientSet.SnapshotV1alpha1().VolumeSnapshotClasses().List(metav1.ListOptions{})
 	if err != nil {
-		klog.V(3).Infof("Cannot list snapshot classes")
+		klog.V(3).Infof("Cannot list snapshot classes, falling back to host assisted clone")
 		return ""
 	}
 	for _, snapshotClass := range scs.Items {
@@ -539,6 +541,7 @@ func (c *DataVolumeController) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 		}
 	}
 
+	klog.V(3).Infof("Could not match snapshotter with storage class, falling back to host assisted clone")
 	return ""
 }
 
