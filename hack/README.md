@@ -133,7 +133,7 @@ Environment Variables and Supported Values
 | Env Variable       | Default       | Additional Values           |
 |--------------------|---------------|-----------------------------|
 |KUBEVIRT_PROVIDER   | k8s-1.15.1    | os-3.11.0-crio or okd-4.1   |
-|KUBEVIRT_PROVIDER_EXTRA_ARGS |      | --enable-ceph (for providers that support this argument like k8s-1.15.1 |
+|KUBEVIRT_PROVIDER_EXTRA_ARGS |      |                             |
 |NUM_NODES           | 1             | 2-5                         |
 
 To Run Standard *cluster-up/kubevirtci* Tests
