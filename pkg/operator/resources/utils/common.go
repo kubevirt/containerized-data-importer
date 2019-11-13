@@ -224,20 +224,20 @@ func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numRepl
 }
 
 // CreatePortsContainer creates container
-func CreatePortsContainer(name, repo, image, tag, verbosity string, pullPolicy corev1.PullPolicy, ports *[]corev1.ContainerPort) corev1.Container {
+func CreatePortsContainer(name, image, verbosity string, pullPolicy corev1.PullPolicy, ports *[]corev1.ContainerPort) corev1.Container {
 	return corev1.Container{
 		Name:            name,
-		Image:           fmt.Sprintf("%s/%s:%s", repo, image, tag),
+		Image:           image,
 		Ports:           *ports,
 		ImagePullPolicy: pullPolicy,
 	}
 }
 
 // CreateContainer creates container
-func CreateContainer(name, repo, image, tag, verbosity string, pullPolicy corev1.PullPolicy) corev1.Container {
+func CreateContainer(name, image, verbosity string, pullPolicy corev1.PullPolicy) corev1.Container {
 	return corev1.Container{
 		Name:            name,
-		Image:           fmt.Sprintf("%s/%s:%s", repo, image, tag),
+		Image:           image,
 		ImagePullPolicy: pullPolicy,
 		Args:            []string{"-v=" + verbosity},
 	}

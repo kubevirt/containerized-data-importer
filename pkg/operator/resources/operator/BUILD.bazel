@@ -4,7 +4,6 @@ go_library(
     name = "go_default_library",
     srcs = [
         "factory.go",
-        "images.go",
         "operator.go",
     ],
     importpath = "kubevirt.io/containerized-data-importer/pkg/operator/resources/operator",

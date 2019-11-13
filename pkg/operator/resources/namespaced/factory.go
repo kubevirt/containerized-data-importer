@@ -25,8 +25,7 @@ import (
 
 // FactoryArgs contains the required parameters to generate all namespaced resources
 type FactoryArgs struct {
-	DockerRepo             string `required:"true" split_words:"true"`
-	DockerTag              string `required:"true" split_words:"true"`
+	OperatorVersion        string `required:"true" split_words:"true"`
 	ControllerImage        string `required:"true" split_words:"true"`
 	DeployClusterResources string `required:"true" split_words:"true"`
 	ImporterImage          string `required:"true" split_words:"true"`
