@@ -344,12 +344,6 @@ func createCDIListCRD() *extv1beta1.CustomResourceDefinition {
 
 						"spec": {
 							Properties: map[string]extv1beta1.JSONSchemaProps{
-								"imageRegistry": {
-									Type: "string",
-								},
-								"imageTag": {
-									Type: "string",
-								},
 								"imagePullPolicy": {
 									Type: "string",
 									Enum: []extv1beta1.JSON{
