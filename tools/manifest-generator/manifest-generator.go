@@ -42,6 +42,7 @@ type templateData struct {
 	OperatorRules          string
 	OperatorDeploymentSpec string
 	CDILogo                string
+	OperatorVersion        string
 	DeployClusterResources string
 	OperatorImage          string
 	ControllerImage        string
@@ -61,6 +62,7 @@ var (
 	dockertag              = flag.String("docker-tag", "", "")
 	csvVersion             = flag.String("csv-version", "", "")
 	cdiLogoPath            = flag.String("cdi-logo-path", "", "")
+	operatorVersion        = flag.String("operator-version", "", "")
 	genManifestsPath       = flag.String("generated-manifests-path", "", "")
 	bundleOut              = flag.String("olm-bundle-dir", "", "")
 	quayNamespace          = flag.String("quay-namespace", "", "")
@@ -117,8 +119,7 @@ func getOperatorRules() string {
 func getOperatorDeploymentSpec() string {
 	args := &cdioperator.FactoryArgs{
 		Verbosity:              *verbosity,
-		DockerRepo:             *dockerRepo,
-		DockerTag:              *dockertag,
+		OperatorVersion:        *operatorVersion,
 		DeployClusterResources: *deployClusterResources,
 		OperatorImage:          *operatorImage,
 		ControllerImage:        *controllerImage,
@@ -340,8 +341,7 @@ func getOperatorClusterResources(codeGroup string) ([]runtime.Object, error) {
 
 	args := &cdioperator.FactoryArgs{
 		Verbosity:              *verbosity,
-		DockerRepo:             *dockerRepo,
-		DockerTag:              *dockertag,
+		OperatorVersion:        *operatorVersion,
 		DeployClusterResources: *deployClusterResources,
 		OperatorImage:          *operatorImage,
 		ControllerImage:        *controllerImage,
@@ -380,8 +380,7 @@ func getClusterResources(codeGroup string) ([]runtime.Object, error) {
 func getNamespacedResources(codeGroup string) ([]runtime.Object, error) {
 	args := &cdinamespaced.FactoryArgs{
 		Verbosity:         *verbosity,
-		DockerRepo:        *dockerRepo,
-		DockerTag:         *dockertag,
+		OperatorVersion:   *operatorVersion,
 		ControllerImage:   *controllerImage,
 		ImporterImage:     *importerImage,
 		ClonerImage:       *clonerImage,

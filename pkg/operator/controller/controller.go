@@ -251,22 +251,22 @@ func (r *ReconcileCDI) reconcileCreate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 
 func (r *ReconcileCDI) checkUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) error {
 	// should maybe put this in separate function
-	if cr.Status.OperatorVersion != r.namespacedArgs.DockerTag {
-		cr.Status.OperatorVersion = r.namespacedArgs.DockerTag
+	if cr.Status.OperatorVersion != r.namespacedArgs.OperatorVersion {
+		cr.Status.OperatorVersion = r.namespacedArgs.OperatorVersion
 		if err := r.crUpdate(cr.Status.Phase, cr); err != nil {
 			return err
 		}
 	}
 
-	isUpgrade, err := shouldTakeUpdatePath(logger, r.namespacedArgs.DockerTag, cr.Status.ObservedVersion)
+	isUpgrade, err := shouldTakeUpdatePath(logger, r.namespacedArgs.OperatorVersion, cr.Status.ObservedVersion)
 	if err != nil {
 		return err
 	}
 
 	if isUpgrade && !r.isUpgrading(cr) {
-		logger.Info("Observed version is not target version. Begin upgrade", "Observed version ", cr.Status.ObservedVersion, "TargetVersion", r.namespacedArgs.DockerTag)
-		MarkCrUpgradeHealingDegraded(cr, "UpgradeStarted", fmt.Sprintf("Started upgrade to version %s", r.namespacedArgs.DockerTag))
-		cr.Status.TargetVersion = r.namespacedArgs.DockerTag
+		logger.Info("Observed version is not target version. Begin upgrade", "Observed version ", cr.Status.ObservedVersion, "TargetVersion", r.namespacedArgs.OperatorVersion)
+		MarkCrUpgradeHealingDegraded(cr, "UpgradeStarted", fmt.Sprintf("Started upgrade to version %s", r.namespacedArgs.OperatorVersion))
+		cr.Status.TargetVersion = r.namespacedArgs.OperatorVersion
 		if err := r.crUpdate(cdiv1alpha1.CDIPhaseUpgrading, cr); err != nil {
 			return err
 		}
@@ -301,7 +301,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 			}
 
 			setLastAppliedConfiguration(desiredMetaObj)
-			setLabel(createVersionLabel, r.namespacedArgs.DockerTag, desiredMetaObj)
+			setLabel(createVersionLabel, r.namespacedArgs.OperatorVersion, desiredMetaObj)
 
 			if err = controllerutil.SetControllerReference(cr, desiredMetaObj, r.scheme); err != nil {
 				return reconcile.Result{}, err
@@ -353,7 +353,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 			if !reflect.DeepEqual(currentRuntimeObjCopy, currentRuntimeObj) {
 				logJSONDiff(logger, currentRuntimeObjCopy, currentRuntimeObj)
 
-				setLabel(updateVersionLabel, r.namespacedArgs.DockerTag, currentMetaObj)
+				setLabel(updateVersionLabel, r.namespacedArgs.OperatorVersion, currentMetaObj)
 
 				// PRE_UPDATE callback
 				if err = r.invokeCallbacks(logger, ReconcileStatePreUpdate, desiredRuntimeObj, currentRuntimeObj); err != nil {
@@ -389,7 +389,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 
 	if cr.Status.Phase != cdiv1alpha1.CDIPhaseDeployed && !r.isUpgrading(cr) && !degraded {
 		//We are not moving to Deployed phase until new operator deployment is ready in case of Upgrade
-		cr.Status.ObservedVersion = r.namespacedArgs.DockerTag
+		cr.Status.ObservedVersion = r.namespacedArgs.OperatorVersion
 		MarkCrHealthyMessage(cr, "DeployCompleted", "Deployment Completed")
 		if err = r.crUpdate(cdiv1alpha1.CDIPhaseDeployed, cr); err != nil {
 			return reconcile.Result{}, err
@@ -415,7 +415,7 @@ func (r *ReconcileCDI) completeUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	}
 
 	previousVersion := cr.Status.ObservedVersion
-	cr.Status.ObservedVersion = r.namespacedArgs.DockerTag
+	cr.Status.ObservedVersion = r.namespacedArgs.OperatorVersion
 
 	MarkCrHealthyMessage(cr, "DeployCompleted", "Deployment Completed")
 	if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeployed, cr); err != nil {
@@ -683,14 +683,6 @@ func (r *ReconcileCDI) getNamespacedArgs(cr *cdiv1alpha1.CDI) *cdinamespaced.Fac
 	result := *r.namespacedArgs
 
 	if cr != nil {
-		if cr.Spec.ImageRegistry != "" {
-			result.DockerRepo = cr.Spec.ImageRegistry
-		}
-
-		if cr.Spec.ImageTag != "" {
-			result.DockerTag = cr.Spec.ImageTag
-		}
-
 		if cr.Spec.ImagePullPolicy != "" {
 			result.PullPolicy = string(cr.Spec.ImagePullPolicy)
 		}
