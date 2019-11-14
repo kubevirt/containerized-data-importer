@@ -619,7 +619,8 @@ func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *v1.PersistentVo
 		targetVolumeMode = v1.PersistentVolumeBlock
 	}
 	if sourceVolumeMode != targetVolumeMode {
-		return errors.New("source and target volume modes do not match")
+		return fmt.Errorf("source volumeMode (%s) and target volumeMode (%s) do not match",
+			sourceVolumeMode, targetVolumeMode)
 	}
 	// Can clone.
 	return nil
