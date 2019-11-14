@@ -55,7 +55,6 @@ func main() {
 		os.Getenv("TLS_KEY"),
 		os.Getenv("TLS_CERT"),
 		os.Getenv("CLIENT_CERT"),
-		os.Getenv("CLIENT_NAME"),
 		os.Getenv(common.UploadImageSize),
 	)
 

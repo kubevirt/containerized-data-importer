@@ -7,11 +7,10 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-
-	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
 type CloneFixture struct {
@@ -21,11 +20,19 @@ type CloneFixture struct {
 var (
 	apiServerKey     *rsa.PrivateKey
 	apiServerKeyOnce sync.Once
-)
 
-func testCreateClientKeyAndCert(ca *triple.KeyPair, commonName string, organizations []string) ([]byte, []byte, error) {
-	return []byte("foo"), []byte("bar"), nil
-}
+	testUploadServerClientKeySecret = &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cdi-upload-server-client-key",
+			Namespace: "cdi",
+		},
+		Data: map[string][]byte{
+			"tls.key": []byte("privatekey"),
+			"tls.crt": []byte("cert"),
+			"ca.crt":  []byte("cacert"),
+		},
+	}
+)
 
 func getAPIServerKey() *rsa.PrivateKey {
 	apiServerKeyOnce.Do(func() {
@@ -122,25 +129,20 @@ func TestWaitsTargetRunningNoAnnotation(t *testing.T) {
 }
 
 func TestCreatesSourcePod(t *testing.T) {
-	createClientKeyAndCertFunc = testCreateClientKeyAndCert
-	defer func() {
-		createClientKeyAndCertFunc = createClientKeyAndCert
-	}()
 	f := newCloneFixture(t)
 	sourcePvc := createPvc("golden-pvc", "source-ns", nil, nil)
 	pvc := createClonePvc("source-ns", "golden-pvc", "target-ns", "target-pvc", nil, nil)
 	pvc.Annotations[AnnPodReady] = "true"
 
 	f.pvcLister = append(f.pvcLister, sourcePvc, pvc)
-	f.kubeobjects = append(f.kubeobjects, getUploadServerCASecret(), getUploadServerClientCASecret(), sourcePvc, pvc)
+	f.kubeobjects = append(f.kubeobjects, testUploadServerClientKeySecret, sourcePvc, pvc)
 
 	id := string(pvc.GetUID())
 	expSourcePod := createSourcePod(pvc, id)
 	pvcUpdate := pvc.DeepCopy()
-	pvcUpdate.Finalizers = []string{cloneSourcePodFinalizer}
+	pvcUpdate.Finalizers = []string{cloneFinalizerName}
 	f.expectUpdatePvcAction(pvcUpdate)
-	f.expectSecretGetAction(getUploadServerCASecret())
-	f.expectSecretGetAction(getUploadServerClientCASecret())
+	f.expectSecretGetAction(testUploadServerClientKeySecret)
 	f.expectCreatePodAction(expSourcePod)
 
 	f.run(getPvcKey(pvc, t))
@@ -169,7 +171,7 @@ func TestDeletesSourcePodAndFinalizer(t *testing.T) {
 	f := newCloneFixture(t)
 	pvc := createClonePvc("source-ns", "golden-pvc", "target-ns", "target-pvc", nil, nil)
 	pvc.Annotations[AnnCloneOf] = "true"
-	pvc.Finalizers = []string{cloneSourcePodFinalizer}
+	pvc.Finalizers = []string{cloneFinalizerName}
 	id := string(pvc.GetUID())
 	pod := createSourcePod(pvc, id)
 	pod.Name = pod.GenerateName + "random"
