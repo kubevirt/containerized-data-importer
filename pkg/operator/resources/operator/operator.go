@@ -255,7 +255,7 @@ func createNamespacedRBAC(args *FactoryArgs) []runtime.Object {
 
 func createDeployment(args *FactoryArgs) []runtime.Object {
 	return []runtime.Object{
-		createOperatorDeployment(args.NamespacedArgs.DockerRepo,
+		createOperatorDeployment(args.NamespacedArgs.OperatorVersion,
 			args.NamespacedArgs.Namespace,
 			args.NamespacedArgs.DeployClusterResources,
 			args.Image,
@@ -265,7 +265,6 @@ func createDeployment(args *FactoryArgs) []runtime.Object {
 			args.NamespacedArgs.APIServerImage,
 			args.NamespacedArgs.UploadProxyImage,
 			args.NamespacedArgs.UploadServerImage,
-			args.NamespacedArgs.DockerTag,
 			args.NamespacedArgs.Verbosity,
 			args.NamespacedArgs.PullPolicy),
 		createOperatorLeaderElectionConfigMap(args.NamespacedArgs.Namespace),
@@ -345,12 +344,6 @@ func createCDIListCRD() *extv1beta1.CustomResourceDefinition {
 
 						"spec": {
 							Properties: map[string]extv1beta1.JSONSchemaProps{
-								"imageRegistry": {
-									Type: "string",
-								},
-								"imageTag": {
-									Type: "string",
-								},
 								"imagePullPolicy": {
 									Type: "string",
 									Enum: []extv1beta1.JSON{
@@ -380,19 +373,15 @@ func createCDIListCRD() *extv1beta1.CustomResourceDefinition {
 	}
 }
 
-func createOperatorEnvVar(repo, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, tag, verbosity, pullPolicy string) []corev1.EnvVar {
+func createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy string) []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{
 			Name:  "DEPLOY_CLUSTER_RESOURCES",
 			Value: deployClusterResources,
 		},
 		{
-			Name:  "DOCKER_REPO",
-			Value: repo,
-		},
-		{
-			Name:  "DOCKER_TAG",
-			Value: tag,
+			Name:  "OPERATOR_VERSION",
+			Value: operatorVersion,
 		},
 		{
 			Name:  "CONTROLLER_IMAGE",
@@ -429,10 +418,10 @@ func createOperatorEnvVar(repo, deployClusterResources, operatorImage, controlle
 	}
 }
 
-func createOperatorDeployment(repo, namespace, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, tag, verbosity, pullPolicy string) *appsv1.Deployment {
+func createOperatorDeployment(operatorVersion, namespace, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy string) *appsv1.Deployment {
 	deployment := utils.CreateOperatorDeployment("cdi-operator", namespace, "name", "cdi-operator", serviceAccountName, int32(1))
-	container := utils.CreatePortsContainer("cdi-operator", repo, operatorImage, tag, verbosity, corev1.PullPolicy(pullPolicy), createPrometheusPorts())
-	container.Env = createOperatorEnvVar(repo, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, tag, verbosity, pullPolicy)
+	container := utils.CreatePortsContainer("cdi-operator", operatorImage, verbosity, corev1.PullPolicy(pullPolicy), createPrometheusPorts())
+	container.Env = createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy)
 	deployment.Spec.Template.Spec.Containers = []corev1.Container{container}
 	return deployment
 }
@@ -471,17 +460,16 @@ _The CDI Operator does not support updates yet._
 `
 
 	deployment := createOperatorDeployment(
-		data.DockerPrefix,
+		data.OperatorVersion,
 		data.Namespace,
 		"true",
-		data.ImageNames.OperatorImage,
-		data.ImageNames.ControllerImage,
-		data.ImageNames.ImporterImage,
-		data.ImageNames.ClonerImage,
-		data.ImageNames.APIServerImage,
-		data.ImageNames.UplodaProxyImage,
-		data.ImageNames.UplodaServerImage,
-		data.DockerTag,
+		data.OperatorImage,
+		data.ControllerImage,
+		data.ImporterImage,
+		data.ClonerImage,
+		data.APIServerImage,
+		data.UplodaProxyImage,
+		data.UplodaServerImage,
 		data.Verbosity,
 		data.ImagePullPolicy)
 

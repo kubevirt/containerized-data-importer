@@ -30,6 +30,7 @@ import (
 type templateData struct {
 	DockerRepo             string
 	DockerTag              string
+	OperatorVersion        string
 	DeployClusterResources string
 	OperatorImage          string
 	ControllerImage        string
@@ -47,6 +48,7 @@ type templateData struct {
 var (
 	dockerRepo             = flag.String("docker-repo", "", "")
 	dockertag              = flag.String("docker-tag", "", "")
+	operatorVersion        = flag.String("operator-version", "", "")
 	genManifestsPath       = flag.String("generated-manifests-path", "", "")
 	deployClusterResources = flag.String("deploy-cluster-resources", "", "")
 	operatorImage          = flag.String("operator-image", "", "")
@@ -166,8 +168,7 @@ func getOperatorResources(resourceGroup string) ([]runtime.Object, error) {
 	args := &cdioperator.FactoryArgs{
 		NamespacedArgs: cdinamespaced.FactoryArgs{
 			Verbosity:              *verbosity,
-			DockerRepo:             *dockerRepo,
-			DockerTag:              *dockertag,
+			OperatorVersion:        *operatorVersion,
 			DeployClusterResources: *deployClusterResources,
 			ControllerImage:        *controllerImage,
 			ImporterImage:          *importerImage,
@@ -195,8 +196,7 @@ func getClusterResources(codeGroup string) ([]runtime.Object, error) {
 func getNamespacedResources(codeGroup string) ([]runtime.Object, error) {
 	args := &cdinamespaced.FactoryArgs{
 		Verbosity:         *verbosity,
-		DockerRepo:        *dockerRepo,
-		DockerTag:         *dockertag,
+		OperatorVersion:   *operatorVersion,
 		ControllerImage:   *controllerImage,
 		ImporterImage:     *importerImage,
 		ClonerImage:       *clonerImage,

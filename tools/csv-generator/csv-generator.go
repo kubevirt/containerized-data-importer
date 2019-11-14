@@ -29,31 +29,20 @@ var (
 	cdiLogoBase64 = flag.String("cdi-logo-base64", "", "")
 	verbosity     = flag.String("verbosity", "1", "")
 
-	dockerRepo = flag.String("docker-repo", "", "")
-	dockerTag  = flag.String("docker-tag", "", "")
+	operatorVersion = flag.String("operator-version", "", "")
 
-	operatorImage     = flag.String("operator-image-name", cdioperator.OperatorImageDefault, "optional")
-	controllerImage   = flag.String("controller-image-name", cdioperator.ControllerImageDefault, "optional")
-	importerImage     = flag.String("importer-image-name", cdioperator.ImporterImageDefault, "optional")
-	clonerImage       = flag.String("cloner-image-name", cdioperator.ClonerImageDefault, "optional")
-	apiServerImage    = flag.String("apiserver-image-name", cdioperator.APIServerImageDefault, "optional")
-	uploadProxyImage  = flag.String("uploadproxy-image-name", cdioperator.UploadProxyImageDefault, "optional")
-	uploadServerImage = flag.String("uploadserver-image-name", cdioperator.UploadServerImageDefault, "optional")
+	operatorImage     = flag.String("operator-image", "", "")
+	controllerImage   = flag.String("controller-image", "", "")
+	importerImage     = flag.String("importer-image", "", "")
+	clonerImage       = flag.String("cloner-image", "", "")
+	apiServerImage    = flag.String("apiserver-image", "", "")
+	uploadProxyImage  = flag.String("uploadproxy-image", "", "")
+	uploadServerImage = flag.String("uploadserver-image", "", "")
 	dumpCRDs          = flag.Bool("dump-crds", false, "optional - dumps cdi-operator related crd manifests to stdout")
 )
 
 func main() {
 	flag.Parse()
-
-	cdiImageNames := cdioperator.Images{
-		ControllerImage:   *controllerImage,
-		ImporterImage:     *importerImage,
-		ClonerImage:       *clonerImage,
-		APIServerImage:    *apiServerImage,
-		UplodaProxyImage:  *uploadProxyImage,
-		UplodaServerImage: *uploadServerImage,
-		OperatorImage:     *operatorImage,
-	}
 
 	data := cdioperator.ClusterServiceVersionData{
 		CsvVersion:         *csvVersion,
@@ -63,9 +52,15 @@ func main() {
 		IconBase64:         *cdiLogoBase64,
 		Verbosity:          *verbosity,
 
-		DockerPrefix: *dockerRepo,
-		DockerTag:    *dockerTag,
-		ImageNames:   cdiImageNames.FillDefaults(),
+		OperatorVersion: *operatorVersion,
+
+		ControllerImage:   *controllerImage,
+		ImporterImage:     *importerImage,
+		ClonerImage:       *clonerImage,
+		APIServerImage:    *apiServerImage,
+		UplodaProxyImage:  *uploadProxyImage,
+		UplodaServerImage: *uploadServerImage,
+		OperatorImage:     *operatorImage,
 	}
 
 	csv, err := cdioperator.NewClusterServiceVersion(&data)

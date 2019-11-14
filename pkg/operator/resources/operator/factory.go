@@ -61,10 +61,15 @@ type ClusterServiceVersionData struct {
 	IconBase64         string
 	Verbosity          string
 
-	DockerPrefix string
-	DockerTag    string
+	OperatorVersion string
 
-	ImageNames *Images
+	ControllerImage   string
+	ImporterImage     string
+	ClonerImage       string
+	APIServerImage    string
+	UplodaProxyImage  string
+	UplodaServerImage string
+	OperatorImage     string
 }
 
 // CreateAllOperatorResources creates all cluster-wide resources
