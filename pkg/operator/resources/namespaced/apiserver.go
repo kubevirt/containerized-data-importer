@@ -44,7 +44,7 @@ func createAPIServerResources(args *FactoryArgs) []runtime.Object {
 		createExtensionAPIServerRoleBinding(args.Namespace),
 		createExtensionAPIServerRole(),
 		createAPIServerService(),
-		createAPIServerDeployment(args.DockerRepo, args.APIServerImage, args.DockerTag, args.Verbosity, args.PullPolicy),
+		createAPIServerDeployment(args.APIServerImage, args.Verbosity, args.PullPolicy),
 	}
 }
 
@@ -126,9 +126,9 @@ func createAPIServerService() *corev1.Service {
 	return service
 }
 
-func createAPIServerDeployment(repo, image, tag, verbosity, pullPolicy string) *appsv1.Deployment {
+func createAPIServerDeployment(image, verbosity, pullPolicy string) *appsv1.Deployment {
 	deployment := utils.CreateDeployment(apiServerRessouceName, cdiLabel, apiServerRessouceName, apiServerRessouceName, 1)
-	container := utils.CreateContainer(apiServerRessouceName, repo, image, tag, verbosity, corev1.PullPolicy(pullPolicy))
+	container := utils.CreateContainer(apiServerRessouceName, image, verbosity, corev1.PullPolicy(pullPolicy))
 	container.ReadinessProbe = &corev1.Probe{
 		Handler: corev1.Handler{
 			HTTPGet: &corev1.HTTPGetAction{

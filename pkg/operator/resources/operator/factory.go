@@ -28,8 +28,7 @@ import (
 //FactoryArgs contains the required parameters to generate all cluster-scoped resources
 type FactoryArgs struct {
 	OperatorImage          string `required:"true" split_words:"true"`
-	DockerRepo             string `required:"true" split_words:"true"`
-	DockerTag              string `required:"true" split_words:"true"`
+	OperatorVersion        string `required:"true" split_words:"true"`
 	DeployClusterResources string `required:"true" split_words:"true"`
 	ControllerImage        string `required:"true" split_words:"true"`
 	ImporterImage          string `required:"true" split_words:"true"`
@@ -85,7 +84,7 @@ func GetOperatorClusterRules() *[]rbacv1.PolicyRule {
 
 //GetOperatorDeploymentSpec returns operator deployment spce
 func GetOperatorDeploymentSpec(args *FactoryArgs) *appsv1.DeploymentSpec {
-	return createOperatorDeploymentSpec(args.DockerRepo,
+	return createOperatorDeploymentSpec(args.OperatorVersion,
 		args.Namespace,
 		args.DeployClusterResources,
 		args.OperatorImage,
@@ -95,7 +94,6 @@ func GetOperatorDeploymentSpec(args *FactoryArgs) *appsv1.DeploymentSpec {
 		args.APIServerImage,
 		args.UploadProxyImage,
 		args.UploadServerImage,
-		args.DockerTag,
 		args.Verbosity,
 		args.PullPolicy)
 }

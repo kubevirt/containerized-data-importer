@@ -23,23 +23,6 @@ import (
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 )
 
-const (
-	//ControllerImageDefault - default value
-	ControllerImageDefault = "cdi-controller"
-	//ImporterImageDefault - default value
-	ImporterImageDefault = "cdi-importer"
-	//ClonerImageDefault - default value
-	ClonerImageDefault = "cdi-cloner"
-	//APIServerImageDefault - default value
-	APIServerImageDefault = "cdi-apiserver"
-	//UploadProxyImageDefault - default value
-	UploadProxyImageDefault = "cdi-uploadproxy"
-	//UploadServerImageDefault - default value
-	UploadServerImageDefault = "cdi-uploadserver"
-	// OperatorImageDefault - default value
-	OperatorImageDefault = "cdi-operator"
-)
-
 //NewClusterServiceVersionData - Data arguments used to create CDI's CSV manifest
 type NewClusterServiceVersionData struct {
 	CsvVersion         string
@@ -49,8 +32,7 @@ type NewClusterServiceVersionData struct {
 	IconBase64         string
 	Verbosity          string
 
-	DockerPrefix string
-	DockerTag    string
+	OperatorVersion string
 
 	CdiImageNames *CdiImages
 }
@@ -66,37 +48,10 @@ type CdiImages struct {
 	OperatorImage     string
 }
 
-//FillDefaults - fill image names with defaults
-func (ci *CdiImages) FillDefaults() *CdiImages {
-	if ci.ControllerImage == "" {
-		ci.ControllerImage = ControllerImageDefault
-	}
-	if ci.ImporterImage == "" {
-		ci.ImporterImage = ImporterImageDefault
-	}
-	if ci.ClonerImage == "" {
-		ci.ClonerImage = ClonerImageDefault
-	}
-	if ci.APIServerImage == "" {
-		ci.APIServerImage = APIServerImageDefault
-	}
-	if ci.UplodaProxyImage == "" {
-		ci.UplodaProxyImage = UploadProxyImageDefault
-	}
-	if ci.UplodaServerImage == "" {
-		ci.UplodaServerImage = UploadServerImageDefault
-	}
-	if ci.OperatorImage == "" {
-		ci.OperatorImage = OperatorImageDefault
-	}
-
-	return ci
-}
-
 //NewCdiOperatorDeployment - provides operator deployment spec
-func NewCdiOperatorDeployment(namespace string, repository string, tag string, imagePullPolicy string, verbosity string, cdiImages *CdiImages) (*appsv1.Deployment, error) {
+func NewCdiOperatorDeployment(operatorVersion string, namespace string, imagePullPolicy string, verbosity string, cdiImages *CdiImages) (*appsv1.Deployment, error) {
 	deployment := createOperatorDeployment(
-		repository,
+		operatorVersion,
 		namespace,
 		"true",
 		cdiImages.OperatorImage,
@@ -106,7 +61,6 @@ func NewCdiOperatorDeployment(namespace string, repository string, tag string, i
 		cdiImages.APIServerImage,
 		cdiImages.UplodaProxyImage,
 		cdiImages.UplodaServerImage,
-		tag,
 		verbosity,
 		imagePullPolicy)
 

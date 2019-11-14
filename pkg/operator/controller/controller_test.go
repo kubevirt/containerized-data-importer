@@ -26,7 +26,6 @@ import (
 
 	"os"
 	"reflect"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -78,15 +77,14 @@ type args struct {
 
 var (
 	envVars = map[string]string{
-		"DOCKER_REPO":              "kubevirt",
-		"DOCKER_TAG":               version,
+		"OPERATOR_VERSION":         version,
 		"DEPLOY_CLUSTER_RESOURCES": "true",
-		"CONTROLLER_IMAGE":         "cdi-controller",
-		"IMPORTER_IMAGE":           "cdi-importer",
-		"CLONER_IMAGE":             "cdi-cloner",
-		"UPLOAD_PROXY_IMAGE":       "cdi-uploadproxy",
-		"UPLOAD_SERVER_IMAGE":      "cdi-uploadserver",
-		"APISERVER_IMAGE":          "cdi-apiserver",
+		"CONTROLLER_IMAGE":         "kubevirt/cdi-controller",
+		"IMPORTER_IMAGE":           "kubevirt/cdi-importer",
+		"CLONER_IMAGE":             "kubevirt/cdi-cloner",
+		"UPLOAD_PROXY_IMAGE":       "kubevirt/cdi-uploadproxy",
+		"UPLOAD_SERVER_IMAGE":      "kubevirt/cdi-uploadserver",
+		"APISERVER_IMAGE":          "kubevirt/cdi-apiserver",
 		"VERBOSITY":                "1",
 		"PULL_POLICY":              "Always",
 	}
@@ -394,7 +392,7 @@ var _ = Describe("Controller", func() {
 		})
 	})
 
-	DescribeTable("should allow registry override", func(o cdiOverride) {
+	DescribeTable("should allow override", func(o cdiOverride) {
 		args := createArgs()
 
 		o.Set(args.cdi)
@@ -418,18 +416,14 @@ var _ = Describe("Controller", func() {
 			o.Check(d)
 		}
 	},
-		Entry("Registry override", &registryOverride{"quay.io/kybevirt"}),
-		Entry("Tag override", &registryOverride{"v1.100.0"}),
 		Entry("Pull override", &pullOverride{corev1.PullNever}),
 	)
 
 	Describe("Upgrading CDI", func() {
 
 		DescribeTable("check detects upgrade correctly", func(prevVersion, newVersion string, shouldUpgrade, shouldError bool) {
-			registry := "kubevirt"
-
 			//verify on int version is set
-			args := createFromArgs("cdi", newVersion, registry)
+			args := createFromArgs("cdi", newVersion)
 			doReconcile(args)
 			setDeploymentsReady(args)
 
@@ -439,7 +433,7 @@ var _ = Describe("Controller", func() {
 			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
 
 			//Modify CRD to be of previousVersion
-			err := args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
+			err := args.reconciler.crSetVersion(args.cdi, prevVersion)
 			Expect(err).ToNot(HaveOccurred())
 
 			if shouldError {
@@ -501,11 +495,10 @@ var _ = Describe("Controller", func() {
 			Context("cr deletion during upgrade", func() {
 				It("should delete CR if it is marked for deletion and not begin upgrade flow", func() {
 					var args *args
-					registry := "kubevirt"
 					newVersion := "1.10.0"
 					prevVersion := "1.9.5"
 
-					args = createFromArgs("cdi", newVersion, registry)
+					args = createFromArgs("cdi", newVersion)
 					doReconcile(args)
 
 					//set deployment to ready
@@ -516,7 +509,7 @@ var _ = Describe("Controller", func() {
 					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
 
 					//Modify CRD to be of previousVersion
-					args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
+					args.reconciler.crSetVersion(args.cdi, prevVersion)
 					//marc CDI CR for deltetion
 					args.cdi.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
 					err := args.client.Update(context.TODO(), args.cdi)
@@ -533,11 +526,10 @@ var _ = Describe("Controller", func() {
 
 				It("should delete CR if it is marked for deletion during upgrade flow", func() {
 					var args *args
-					registry := "kubevirt"
 					newVersion := "1.10.0"
 					prevVersion := "1.9.5"
 
-					args = createFromArgs("cdi", newVersion, registry)
+					args = createFromArgs("cdi", newVersion)
 					doReconcile(args)
 					setDeploymentsReady(args)
 
@@ -545,7 +537,7 @@ var _ = Describe("Controller", func() {
 					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
 
 					//Modify CRD to be of previousVersion
-					args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
+					args.reconciler.crSetVersion(args.cdi, prevVersion)
 					err := args.client.Update(context.TODO(), args.cdi)
 					Expect(err).ToNot(HaveOccurred())
 					setDeploymentsDegraded(args)
@@ -577,11 +569,10 @@ var _ = Describe("Controller", func() {
 			upgraded isUpgraded) {
 
 			var args *args
-			registry := "kubevirt"
 			newVersion := "1.10.0"
 			prevVersion := "1.9.5"
 
-			args = createFromArgs("cdi", newVersion, registry)
+			args = createFromArgs("cdi", newVersion)
 			doReconcile(args)
 			setDeploymentsReady(args)
 
@@ -589,7 +580,7 @@ var _ = Describe("Controller", func() {
 			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
 
 			//Modify CRD to be of previousVersion
-			args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
+			args.reconciler.crSetVersion(args.cdi, prevVersion)
 			err := args.client.Update(context.TODO(), args.cdi)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -1009,11 +1000,10 @@ var _ = Describe("Controller", func() {
 			createObj createUnusedObject) {
 
 			var args *args
-			registry := "kubevirt"
 			newVersion := "1.10.0"
 			prevVersion := "1.9.5"
 
-			args = createFromArgs("cdi", newVersion, registry)
+			args = createFromArgs("cdi", newVersion)
 			doReconcile(args)
 
 			setDeploymentsReady(args)
@@ -1022,7 +1012,7 @@ var _ = Describe("Controller", func() {
 			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
 
 			//Modify CRD to be of previousVersion
-			args.reconciler.crSetVersion(args.cdi, prevVersion, registry)
+			args.reconciler.crSetVersion(args.cdi, prevVersion)
 			err := args.client.Update(context.TODO(), args.cdi)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -1172,32 +1162,6 @@ type cdiOverride interface {
 	Check(d *appsv1.Deployment)
 }
 
-type registryOverride struct {
-	value string
-}
-
-func (o *registryOverride) Set(cr *cdiviaplha1.CDI) {
-	cr.Spec.ImageRegistry = o.value
-}
-
-func (o *registryOverride) Check(d *appsv1.Deployment) {
-	image := d.Spec.Template.Spec.Containers[0].Image
-	Expect(strings.HasPrefix(image, o.value)).To(BeTrue())
-}
-
-type tagOverride struct {
-	value string
-}
-
-func (o *tagOverride) Set(cr *cdiviaplha1.CDI) {
-	cr.Spec.ImageTag = o.value
-}
-
-func (o *tagOverride) Check(d *appsv1.Deployment) {
-	image := d.Spec.Template.Spec.Containers[0].Image
-	Expect(strings.HasSuffix(image, ":"+o.value)).To(BeTrue())
-}
-
 type pullOverride struct {
 	value corev1.PullPolicy
 }
@@ -1332,11 +1296,11 @@ func reconcileRequest(name string) reconcile.Request {
 	return reconcile.Request{NamespacedName: types.NamespacedName{Name: name}}
 }
 
-func createFromArgs(namespace, version, repo string) *args {
+func createFromArgs(namespace, version string) *args {
 	cdi := createCDI("cdi", "good uid")
 	scc := createSCC()
 	client := createClient(cdi, scc)
-	reconciler := createReconcilerWithVersion(client, version, repo, namespace)
+	reconciler := createReconcilerWithVersion(client, version, namespace)
 
 	return &args{
 		cdi:        cdi,
@@ -1395,11 +1359,10 @@ func createSCC() *secv1.SecurityContextConstraints {
 	}
 }
 
-func createReconcilerWithVersion(client realClient.Client, version, repo, namespace string) *ReconcileCDI {
+func createReconcilerWithVersion(client realClient.Client, version, namespace string) *ReconcileCDI {
 	clusterArgs := &clusterResources.FactoryArgs{Namespace: namespace}
 	namespacedArgs := &namespaceResources.FactoryArgs{
-		DockerRepo:             "kubevirt",
-		DockerTag:              version,
+		OperatorVersion:        version,
 		DeployClusterResources: "true",
 		ControllerImage:        "cdi-controller",
 		ImporterImage:          "cdi-importer",
@@ -1425,8 +1388,7 @@ func createReconciler(client realClient.Client) *ReconcileCDI {
 	namespace := "cdi"
 	clusterArgs := &clusterResources.FactoryArgs{Namespace: namespace}
 	namespacedArgs := &namespaceResources.FactoryArgs{
-		DockerRepo:             "kubevirt",
-		DockerTag:              version,
+		OperatorVersion:        version,
 		DeployClusterResources: "true",
 		ControllerImage:        "cdi-controller",
 		ImporterImage:          "cdi-importer",

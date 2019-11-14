@@ -17,8 +17,6 @@ limitations under the License.
 package namespaced
 
 import (
-	"fmt"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,12 +35,10 @@ const (
 func createControllerResources(args *FactoryArgs) []runtime.Object {
 	return []runtime.Object{
 		createControllerServiceAccount(),
-		createControllerDeployment(args.DockerRepo,
-			args.ControllerImage,
+		createControllerDeployment(args.ControllerImage,
 			args.ImporterImage,
 			args.ClonerImage,
 			args.UploadServerImage,
-			args.DockerTag,
 			args.Verbosity,
 			args.PullPolicy),
 		createInsecureRegConfigMap(),
@@ -58,21 +54,21 @@ func createControllerServiceAccount() *corev1.ServiceAccount {
 	return sa
 }
 
-func createControllerDeployment(repo, controllerImage, importerImage, clonerImage, uploadServerImage, tag, verbosity, pullPolicy string) *appsv1.Deployment {
+func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string) *appsv1.Deployment {
 	deployment := utils.CreateDeployment("cdi-deployment", "app", "containerized-data-importer", controllerServiceAccount, int32(1))
-	container := utils.CreateContainer("cdi-controller", repo, controllerImage, tag, verbosity, corev1.PullPolicy(pullPolicy))
+	container := utils.CreateContainer("cdi-controller", controllerImage, verbosity, corev1.PullPolicy(pullPolicy))
 	container.Env = []corev1.EnvVar{
 		{
 			Name:  "IMPORTER_IMAGE",
-			Value: fmt.Sprintf("%s/%s:%s", repo, importerImage, tag),
+			Value: importerImage,
 		},
 		{
 			Name:  "CLONER_IMAGE",
-			Value: fmt.Sprintf("%s/%s:%s", repo, clonerImage, tag),
+			Value: clonerImage,
 		},
 		{
 			Name:  "UPLOADSERVER_IMAGE",
-			Value: fmt.Sprintf("%s/%s:%s", repo, uploadServerImage, tag),
+			Value: uploadServerImage,
 		},
 		{
 			Name:  "UPLOADPROXY_SERVICE",
