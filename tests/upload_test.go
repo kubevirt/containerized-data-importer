@@ -68,13 +68,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	})
 
 	DescribeTable("should", func(validToken bool, expectedStatus int) {
-
-		By("Verify that upload server POD running")
-		err := f.WaitTimeoutForPodReady(utils.UploadPodName(pvc), time.Second*90)
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Verify PVC status annotation says running")
-		found, err := utils.WaitPVCPodStatusRunning(f.K8sClient, pvc)
+		By("Verify PVC annotation says ready")
+		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(found).To(BeTrue())
 
@@ -114,12 +109,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Entry("[posneg:negative][test_id:1369]fail given an invalid token", false, http.StatusUnauthorized),
 	)
 	It("Verify upload to the same pvc fails", func() {
-		By("Verify that upload server POD running")
-		err := f.WaitTimeoutForPodReady(utils.UploadPodName(pvc), time.Second*90)
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Verify PVC status annotation says running")
-		found, err := utils.WaitPVCPodStatusRunning(f.K8sClient, pvc)
+		By("Verify PVC annotation says ready")
+		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(found).To(BeTrue())
 
@@ -245,12 +236,9 @@ var _ = Describe("Block PV upload Test", func() {
 		if !f.IsBlockVolumeStorageClassAvailable() {
 			Skip("Storage Class for block volume is not available")
 		}
-		By("Verify that upload server POD running")
-		err := f.WaitTimeoutForPodReady(utils.UploadPodName(pvc), time.Second*90)
-		Expect(err).ToNot(HaveOccurred())
 
-		By("Verify PVC status annotation says running")
-		found, err := utils.WaitPVCPodStatusRunning(f.K8sClient, pvc)
+		By("Verify PVC annotation says ready")
+		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(found).To(BeTrue())
 
