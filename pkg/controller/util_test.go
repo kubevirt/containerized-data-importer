@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -466,6 +467,61 @@ func Test_getSecretName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_getCloneRequestPVCAnnotation(t *testing.T) {
+	tests := []struct {
+		name       string
+		wantOk     bool
+		annKey     string
+		annValue   string
+		annErrType string
+	}{
+		{
+			name:       "pvc without annotation should return error",
+			wantOk:     false,
+			annKey:     "",
+			annValue:   "",
+			annErrType: "missing",
+		},
+		{
+			name:       "pvc with blank annotation should return error",
+			wantOk:     false,
+			annKey:     AnnCloneRequest,
+			annValue:   "",
+			annErrType: "empty",
+		},
+		{
+			name:       "pvc with valid clone annotation",
+			wantOk:     true,
+			annKey:     AnnCloneRequest,
+			annValue:   "default/pvc-name",
+			annErrType: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pvc := createPvc("test", "default", map[string]string{tt.annKey: tt.annValue}, nil)
+			ann, err := getCloneRequestPVCAnnotation(pvc)
+			if !tt.wantOk && err == nil {
+				t.Error("Got no error when expecting one")
+			} else if tt.wantOk && err != nil {
+				t.Errorf("Got error %+v when not expecting one", err)
+			}
+			if !tt.wantOk && err != nil {
+				// Verify that the error contains what we are expecting.
+				if !strings.Contains(err.Error(), tt.annErrType) {
+					t.Errorf("Expecting error message to contain %s, but not found", tt.annErrType)
+				}
+			} else if tt.wantOk && err == nil {
+				if ann != tt.annValue {
+					t.Error("expected annotation did not match found annotation")
+				}
+			}
+		})
+	}
+
 }
 
 func Test_updatePVC(t *testing.T) {
@@ -1278,7 +1334,6 @@ func createPvcInStorageClass(name, ns string, storageClassName *string, annotati
 }
 
 func createScratchPvc(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, storageClassName string) *v1.PersistentVolumeClaim {
-	t := true
 	labels := map[string]string{
 		"cdi-controller": pod.Name,
 		"app":            "containerized-data-importer",
@@ -1292,12 +1347,10 @@ func createScratchPvc(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, storageClassNa
 			Labels:    labels,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion:         "v1",
-					Kind:               "Pod",
-					Name:               pod.Name,
-					UID:                pod.GetUID(),
-					Controller:         &t,
-					BlockOwnerDeletion: &t,
+					APIVersion: "v1",
+					Kind:       "Pod",
+					Name:       pod.Name,
+					UID:        pod.GetUID(),
 				},
 			},
 		},
@@ -1353,7 +1406,6 @@ func createClonePvcWithSize(sourceNamespace, sourceName, targetNamespace, target
 
 	annotations[AnnCloneRequest] = fmt.Sprintf("%s/%s", sourceNamespace, sourceName)
 	annotations[AnnCloneToken] = tokenString
-	annotations[AnnUploadClientName] = "FOOBAR"
 
 	return &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1491,8 +1543,54 @@ func createImportController(pvcSpec *v1.PersistentVolumeClaim, podSpec *v1.Pod, 
 	return c, pvc, pod, nil
 }
 
+func createCloneController(pvcSpec *v1.PersistentVolumeClaim, sourcePodSpec *v1.Pod, targetPodSpec *v1.Pod, targetNs, sourceNs string) (*CloneController, *v1.PersistentVolumeClaim, *v1.Pod, *v1.Pod, error) {
+	//Set up environment
+	myclient := k8sfake.NewSimpleClientset()
+
+	//create staging pvc and pods
+	pvc, err := myclient.CoreV1().PersistentVolumeClaims(targetNs).Create(pvcSpec)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("createImportController: failed to initialize and create pvc error = %v", err)
+	}
+
+	sourcePod, err := myclient.CoreV1().Pods(sourceNs).Create(sourcePodSpec)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("createCloneController: failed to initialize and create source pod error = %v", err)
+	}
+	targetPod, err := myclient.CoreV1().Pods(targetNs).Create(targetPodSpec)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("createCloneController: failed to initialize and create target pod error = %v", err)
+	}
+
+	// create informers and queue
+	k8sI := kubeinformers.NewSharedInformerFactory(myclient, noResyncPeriodFunc())
+
+	pvcInformer := k8sI.Core().V1().PersistentVolumeClaims()
+	podInformer := k8sI.Core().V1().Pods()
+
+	pvcQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	pvcQueue.Add(pvc)
+
+	k8sI.Core().V1().PersistentVolumeClaims().Informer().GetIndexer().Add(pvc)
+	k8sI.Core().V1().Pods().Informer().GetIndexer().Add(sourcePod)
+	k8sI.Core().V1().Pods().Informer().GetIndexer().Add(targetPod)
+
+	//run the informers
+	stop := make(chan struct{})
+	go pvcInformer.Informer().Run(stop)
+	go podInformer.Informer().Run(stop)
+	cache.WaitForCacheSync(stop, podInformer.Informer().HasSynced)
+	cache.WaitForCacheSync(stop, pvcInformer.Informer().HasSynced)
+	defer close(stop)
+
+	key := &getAPIServerKey().PublicKey
+
+	c := NewCloneController(myclient, pvcInformer, podInformer, "test/mycloneimage", "Always", "-v=5", key)
+	return c, pvc, sourcePod, targetPod, nil
+}
+
 func createSourcePod(pvc *v1.PersistentVolumeClaim, pvcUID string) *v1.Pod {
-	_, _, sourcePvcName := ParseCloneRequestAnnotation(pvc)
+	_, sourcePvcName := ParseSourcePvcAnnotation(pvc.GetAnnotations()[AnnCloneRequest], "/")
 	podName := fmt.Sprintf("%s-%s-", common.ClonerSourcePodName, sourcePvcName)
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1521,15 +1619,15 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, pvcUID string) *v1.Pod {
 					Env: []v1.EnvVar{
 						{
 							Name:  "CLIENT_KEY",
-							Value: "foo",
+							Value: string(testUploadServerClientKeySecret.Data["tls.key"]),
 						},
 						{
 							Name:  "CLIENT_CERT",
-							Value: "bar",
+							Value: string(testUploadServerClientKeySecret.Data["tls.crt"]),
 						},
 						{
 							Name:  "SERVER_CA_CERT",
-							Value: string(getUploadServerCASecret().Data["tls.crt"]),
+							Value: string(testUploadServerClientKeySecret.Data["ca.crt"]),
 						},
 						{
 							Name:  "UPLOAD_URL",
@@ -1622,7 +1720,7 @@ func getPvcKey(pvc *corev1.PersistentVolumeClaim, t *testing.T) string {
 }
 
 func createUploadPod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
-	pod := createUploadClonePod(pvc, "client.upload-server.cdi.kubevirt.io")
+	pod := createUploadClonePod(pvc)
 	pod.Spec.Volumes = append(pod.Spec.Volumes, v1.Volume{
 		Name: ScratchVolName,
 		VolumeSource: v1.VolumeSource{
@@ -1639,7 +1737,7 @@ func createUploadPod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	return pod
 }
 
-func createUploadClonePod(pvc *v1.PersistentVolumeClaim, clientName string) *v1.Pod {
+func createUploadClonePod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
 	name := "cdi-upload-" + pvc.Name
 	secretName := name + "-server-tls"
 	requestImageSize, _ := getRequestedImageSize(pvc)
@@ -1716,10 +1814,6 @@ func createUploadClonePod(pvc *v1.PersistentVolumeClaim, clientName string) *v1.
 						{
 							Name:  common.UploadImageSize,
 							Value: requestImageSize,
-						},
-						{
-							Name:  "CLIENT_NAME",
-							Value: clientName,
 						},
 					},
 					Args: []string{"-v=" + "5"},

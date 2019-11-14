@@ -6,14 +6,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"time"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
@@ -28,11 +27,16 @@ import (
 )
 
 const (
+	// selfsigned cert secret name
+	apiCertSecretName = "cdi-api-certs"
+
+	apiServiceName = "cdi-api"
+
 	uploadPath  = "/v1alpha1/upload"
 	healthzPath = "/healthz"
 
-	waitReadyTime     = 10 * time.Second
-	waitReadyImterval = time.Second
+	connectTimeout = 2 * time.Second
+	connectTries   = 5
 
 	proxyRequestTimeout = time.Hour
 
@@ -174,7 +178,7 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 
 	klog.V(1).Infof("Received valid token: pvc: %s, namespace: %s", tokenData.Name, tokenData.Namespace)
 
-	err = app.uploadReady(tokenData.Name, tokenData.Namespace)
+	err = app.uploadPossible(tokenData.Name, tokenData.Namespace)
 	if err != nil {
 		klog.Error(err)
 		w.WriteHeader(http.StatusServiceUnavailable)
@@ -184,29 +188,30 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 	app.proxyUploadRequest(tokenData.Namespace, tokenData.Name, w, r)
 }
 
-func (app *uploadProxyApp) uploadReady(pvcName, pvcNamespace string) error {
-	return wait.PollImmediate(waitReadyImterval, waitReadyTime, func() (bool, error) {
-		pvc, err := app.client.CoreV1().PersistentVolumeClaims(pvcNamespace).Get(pvcName, metav1.GetOptions{})
-		if err != nil {
-			if k8serrors.IsNotFound(err) {
-				return false, fmt.Errorf("rejecting Upload Request for PVC %s that doesn't exist", pvcName)
-			}
-
-			return false, err
+func (app *uploadProxyApp) uploadPossible(pvcName, pvcNamespace string) error {
+	podName := controller.GetUploadResourceName(pvcName)
+	pod, err := app.client.CoreV1().Pods(pvcNamespace).Get(podName, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return fmt.Errorf("rejecting Upload Request for Pod %s that doesn't exist", podName)
 		}
-
-		phase := v1.PodPhase(pvc.Annotations[controller.AnnPodPhase])
-		if phase == v1.PodSucceeded {
-			return false, fmt.Errorf("rejecting Upload Request for PVC %s that already finished uploading", pvcName)
-		}
-
-		ready, _ := strconv.ParseBool(pvc.Annotations[controller.AnnPodReady])
-		return ready, nil
-	})
+		return err
+	}
+	phase := pod.Status.Phase
+	if phase == v1.PodSucceeded {
+		return fmt.Errorf("rejecting Upload Request for Pod %s that already finished uploading", podName)
+	}
+	return nil
 }
 
 func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.ResponseWriter, r *http.Request) {
 	url := app.urlResolver(namespace, pvc)
+
+	if err := app.testConnect(url); err != nil {
+		klog.Errorf("Error connecting to %s: %+v", url, err)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
 
 	req, _ := http.NewRequest("POST", url, r.Body)
 	req.ContentLength = r.ContentLength
@@ -227,6 +232,46 @@ func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.Resp
 	if err != nil {
 		klog.Warningf("Error proxying response from url %s", url)
 	}
+}
+
+func (app *uploadProxyApp) testConnect(urlString string) error {
+	u, err := url.Parse(urlString)
+	if err != nil {
+		return errors.Wrapf(err, "error parsing URL %s", urlString)
+	}
+
+	port := u.Port()
+	if port == "" {
+		p, err := net.LookupPort("tcp", u.Scheme)
+		if err != nil {
+			return errors.Wrapf(err, "error looking up scheme %s", u.Scheme)
+		}
+		port = fmt.Sprintf("%d", p)
+	}
+	hostPort := net.JoinHostPort(u.Hostname(), port)
+
+	for i := 1; i <= connectTries; i++ {
+		d := net.Dialer{Timeout: connectTimeout}
+		conn, err := d.Dial("tcp", hostPort)
+		if err == nil {
+			klog.V(3).Infof("Successfully connected to %s on attempt %d", urlString, i)
+			conn.Close()
+			return nil
+		}
+
+		switch ne := err.(type) {
+		case net.Error:
+			if ne.Timeout() {
+				klog.V(3).Infof("Timeout connecting to %s on iteration %d", hostPort, i)
+				continue
+			}
+			klog.V(3).Infof("Unexpected net error connecting to %s on iteration %d %+v", hostPort, i, err)
+		default:
+			klog.V(3).Infof("Unexpected error connecting to %s on iteration %d %+v", hostPort, i, err)
+		}
+	}
+
+	return errors.Errorf("timed out %d times connecting to %s", connectTries, urlString)
 }
 
 func (app *uploadProxyApp) getSigningKey(publicKeyPEM string) error {

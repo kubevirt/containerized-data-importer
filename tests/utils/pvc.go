@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"strconv"
 	"time"
 
 	"fmt"
@@ -123,11 +122,6 @@ func WaitPVCPodStatusSucceeded(clientSet *kubernetes.Clientset, pvc *k8sv1.Persi
 // WaitPVCPodStatusFailed waits for the pod status annotation to be Failed
 func WaitPVCPodStatusFailed(clientSet *kubernetes.Clientset, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
 	return WaitForPVCAnnotationWithValue(clientSet, pvc.Namespace, pvc, uploadStatusAnnotation, string(k8sv1.PodFailed))
-}
-
-// WaitPVCPodStatusReady waits for the pod ready annotation to be true
-func WaitPVCPodStatusReady(clientSet *kubernetes.Clientset, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
-	return WaitForPVCAnnotationWithValue(clientSet, pvc.Namespace, pvc, uploadReadyAnnotation, strconv.FormatBool(true))
 }
 
 type pollPVCAnnotationFunc = func(string) bool

@@ -35,8 +35,10 @@ mkdir -p "${PWD}/${ARTIFACTS_PATH}"
 
 export KUBEVIRT_PROVIDER=$TARGET
 
-if [[ $TARGET =~ os-.* ]]; then
+if [[ $TARGET =~ openshift-.* ]]; then
   export KUBEVIRT_PROVIDER="os-3.11.0-crio"
+elif [[ $TARGET =~ okd-.* ]]; then
+  export KUBEVIRT_PROVIDER="okd-4.1"
 elif [[ $TARGET =~ k8s-.* ]]; then
   export KUBEVIRT_PROVIDER="k8s-1.15.1"
   export KUBEVIRT_PROVIDER_EXTRA_ARGS="--enable-ceph"

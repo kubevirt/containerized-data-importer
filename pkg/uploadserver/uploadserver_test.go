@@ -36,11 +36,11 @@ import (
 )
 
 func newServer() *uploadServerApp {
-	server := NewUploadServer("127.0.0.1", 0, "disk.img", "", "", "", "", "")
+	server := NewUploadServer("127.0.0.1", 0, "disk.img", "", "", "", "")
 	return server.(*uploadServerApp)
 }
 
-func newTLSServer(t *testing.T, clientCertName, expectedName string) (*uploadServerApp, *triple.KeyPair, *x509.Certificate) {
+func newTLSServer(t *testing.T) (*uploadServerApp, *triple.KeyPair, *x509.Certificate) {
 	serverCA, err := triple.NewCA("server")
 	if err != nil {
 		t.Error("Error creating CA")
@@ -60,9 +60,9 @@ func newTLSServer(t *testing.T, clientCertName, expectedName string) (*uploadSer
 	tlsCert := string(cert.EncodeCertPEM(serverKeyPair.Cert))
 	clientCert := string(cert.EncodeCertPEM(clientCA.Cert))
 
-	server := NewUploadServer("127.0.0.1", 0, "disk.img", tlsKey, tlsCert, clientCert, expectedName, "").(*uploadServerApp)
+	server := NewUploadServer("127.0.0.1", 0, "disk.img", tlsKey, tlsCert, clientCert, "").(*uploadServerApp)
 
-	clientKeyPair, err := triple.NewClientKeyPair(clientCA, clientCertName, []string{})
+	clientKeyPair, err := triple.NewClientKeyPair(clientCA, "client", []string{})
 	if err != nil {
 		t.Error("Error creating client cert")
 	}
@@ -227,63 +227,44 @@ func TestStreamFail(t *testing.T) {
 	})
 }
 
-func TestRealUploadWithClient(t *testing.T) {
-	type testData struct {
-		certName, expectedName string
-		expectedResponse       int
-	}
-	for _, data := range []testData{
-		{
-			certName:         "client",
-			expectedName:     "client",
-			expectedResponse: 200,
-		},
-		{
-			certName:         "foo",
-			expectedName:     "bar",
-			expectedResponse: 401,
-		},
-	} {
-		withProcessorSuccess(func() {
-			server, clientKeyPair, serverCACert := newTLSServer(t, data.certName, data.expectedName)
+func TestRealSuccess(t *testing.T) {
+	withProcessorSuccess(func() {
+		server, clientKeyPair, serverCACert := newTLSServer(t)
 
-			client := newHTTPClient(t, clientKeyPair, serverCACert)
+		client := newHTTPClient(t, clientKeyPair, serverCACert)
 
-			ch := make(chan struct{})
+		ch := make(chan struct{})
 
-			go func() {
-				server.Run()
-				close(ch)
-			}()
+		go func() {
+			server.Run()
+			close(ch)
+		}()
 
-			for i := 0; i < 10; i++ {
-				if server.bindPort != 0 {
-					break
-				}
-				time.Sleep(500 * time.Millisecond)
+		for i := 0; i < 10; i++ {
+			if server.bindPort != 0 {
+				break
 			}
+			time.Sleep(500 * time.Millisecond)
+		}
 
-			if server.bindPort == 0 {
-				t.Error("Couldn't start http server")
-			}
+		if server.bindPort == 0 {
+			t.Error("Couldn't start http server")
+		}
 
-			url := fmt.Sprintf("https://localhost:%d%s", server.bindPort, common.UploadPath)
-			stringReader := strings.NewReader("nothing")
+		url := fmt.Sprintf("https://localhost:%d%s", server.bindPort, common.UploadPath)
+		stringReader := strings.NewReader("nothing")
 
-			resp, err := client.Post(url, "application/x-www-form-urlencoded", stringReader)
-			if err != nil {
-				t.Errorf("Request failed %+v", err)
-			}
+		resp, err := client.Post(url, "application/x-www-form-urlencoded", stringReader)
+		if err != nil {
+			close(server.doneChan)
+			t.Errorf("Request failed %+v", err)
+		}
 
-			if resp.StatusCode != data.expectedResponse {
-				t.Errorf("Unexpected status code %d wanted %d", resp.StatusCode, data.expectedResponse)
-			}
+		if resp.StatusCode != http.StatusOK {
+			close(server.doneChan)
+			t.Errorf("Unexpected status code %d", resp.StatusCode)
+		}
 
-			if !server.done {
-				close(server.doneChan)
-			}
-
-			<-ch
-		})
-	}
+		<-ch
+	})
 }
