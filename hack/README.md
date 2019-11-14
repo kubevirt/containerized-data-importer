@@ -1,18 +1,17 @@
 ## Getting Started For Developers
 
-- [Getting Started For Developers](#getting-started-for-developers)
-  - [Download CDI](#download-cdi)
-  - [Lint, Test, Build](#lint-test-build)
-    - [Make Targets](#make-targets)
-    - [Make Variables](#make-variables)
-    - [Execute Standard Environment Functional Tests](#execute-standard-environment-functional-tests)
-    - [Execute Alternative Environment Functional Tests](#execute-alternative-environment-functional-tests)
-  - [Submit PRs](#submit-prs)
-  - [Releases](#releases)
-  - [Vendoring Dependencies](#vendoring-dependencies)
-  - [S3-compatible client setup:](#s3-compatible-client-setup)
-    - [AWS S3 cli](#aws-s3-cli)
-    - [Minio cli](#minio-cli)
+- [Download CDI](#download-cdi)
+- [Lint, Test, Build](#lint-test-build)
+  - [Make Targets](#make-targets)
+  - [Make Variables](#make-variables)
+  - [Execute Standard Environment Functional Tests](#execute-standard-environment-functional-tests)
+  - [Execute Alternative Environment Functional Tests](#execute-alternative-environment-functional-tests)
+- [Submit PRs](#submit-prs)
+- [Releases](#releases)
+- [Vendoring Dependencies](#vendoring-dependencies)
+- [S3-compatible client setup:](#s3-compatible-client-setup)
+  - [AWS S3 cli](#aws-s3-cli)
+  - [Minio cli](#minio-cli)
 
 ### Download CDI
 
