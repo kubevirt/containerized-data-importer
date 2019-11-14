@@ -71,21 +71,7 @@ deploy:
   skip_cleanup: true
   file_glob: true
   file:
-  - _out/cmd/cdi-controller/*
-  - _out/cmd/cdi-importer/*
-  - _out/cmd/cdi-apiserver/*
-  - _out/cmd/cdi-cloner/*
-  - _out/cmd/cdi-operator/*
-  - _out/cmd/cdi-uploadproxy/*
-  - _out/cmd/cdi-uploadserver/*
-  - _out/manifests/*.yaml
   - _out/manifests/release/*.yaml
-  - _out/manifests/templates/release/*.yaml.j2
-  - _out/manifests/release/olm/*.yaml
-  - _out/manifests/templates/release/olm/*.yaml.j2
-  - _out/manifests/release/olm/bundle/*.yaml
-  - _out/manifests/templates/release/olm/bundle/*.yaml.j2
-  - manifests/example/*
 - provider: script
   skip_cleanup: true
   script: bash hack/gen-swagger-doc/deploy.sh
