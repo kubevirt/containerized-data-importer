@@ -172,6 +172,8 @@ const (
 	Failed DataVolumePhase = "Failed"
 	// Unknown represents a DataVolumePhase of Unknown
 	Unknown DataVolumePhase = "Unknown"
+	// Terminating represents that data volume's owned references are in the process of being deleted
+	Terminating DataVolumePhase = "Terminating"
 )
 
 // DataVolumeCloneSourceSubresource is the subresource checked for permission to clone

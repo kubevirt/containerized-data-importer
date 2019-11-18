@@ -135,6 +135,8 @@ const (
 	MessageUploadFailed = "Upload into %s failed"
 	// MessageUploadSucceeded provides a const to form upload has succeeded message
 	MessageUploadSucceeded = "Successfully uploaded into %s"
+	// Finalizer used to block deletion until our PVC is deleted
+	DataVolumeFinalizer = "cdi.kubevirt.io/datavolume"
 )
 
 var httpClient *http.Client
@@ -322,6 +324,16 @@ func (c *DataVolumeController) processNextWorkItem() bool {
 	return true
 }
 
+func removeString(origSlice []string, value string) []string {
+	var newSlice []string
+	for _, f := range origSlice {
+		if f != value {
+			newSlice = append(newSlice, f)
+		}
+	}
+	return newSlice
+}
+
 // syncHandler compares the actual state with the desired, and attempts to
 // converge the two. It then updates the Status block of the DataVolume resource
 // with the current status of the resource.
@@ -349,10 +361,6 @@ func (c *DataVolumeController) syncHandler(key string) error {
 		return err
 	}
 
-	if dataVolume.DeletionTimestamp != nil {
-		return nil
-	}
-
 	// Get the pvc with the name specified in DataVolume.spec
 	pvc, err := c.pvcLister.PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name)
 	// If the resource doesn't exist, we'll create it
@@ -360,6 +368,25 @@ func (c *DataVolumeController) syncHandler(key string) error {
 		pvcExists = false
 	} else if err != nil {
 		return err
+	}
+
+	if dataVolume.DeletionTimestamp != nil {
+		if pvcExists {
+			// We're asked to delete dataVolume, delete PVC first
+			c.updateDataVolumeStatus(dataVolume, nil)
+			c.pvcExpectations.DeleteExpectations(key)
+			err := c.kubeclientset.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Delete(pvc.Name, &metav1.DeleteOptions{})
+			if err != nil {
+				klog.Errorf("Unable to delete PVC attached to DV")
+			}
+		} else {
+			// The PVC we used is gone, nothing left to do.
+			klog.V(3).Infof("dataVolume.deletionTimestamp is non-nil, PVC is gone, deleting dataVolume '%s'", key)
+			dataVolume.Finalizers = removeString(dataVolume.Finalizers, DataVolumeFinalizer)
+			c.cdiClientSet.CdiV1alpha1().DataVolumes(dataVolume.Namespace).Update(dataVolume)
+
+		}
+		return nil
 	}
 
 	// If the PVC is not controlled by this DataVolume resource, we should log
@@ -392,6 +419,8 @@ func (c *DataVolumeController) syncHandler(key string) error {
 			if err != nil {
 				return err
 			}
+			dataVolume.Finalizers = append(dataVolume.Finalizers, DataVolumeFinalizer)
+
 			c.pvcExpectations.ExpectCreations(key, 1)
 			pvc, err = c.kubeclientset.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Create(newPvc)
 			if err != nil {
@@ -402,7 +431,6 @@ func (c *DataVolumeController) syncHandler(key string) error {
 			c.scheduleProgressUpdate(dataVolume, pvc.GetUID())
 		}
 	}
-
 	// Finally, we update the status block of the DataVolume resource to reflect the
 	// current state of the world
 	err = c.updateDataVolumeStatus(dataVolume, pvc)
@@ -698,7 +726,9 @@ func (c *DataVolumeController) updateDataVolumeStatus(dataVolume *cdiv1.DataVolu
 
 	curPhase := dataVolumeCopy.Status.Phase
 	if pvc == nil {
-		if curPhase != cdiv1.PhaseUnset && curPhase != cdiv1.Pending && curPhase != cdiv1.SnapshotForSmartCloneInProgress {
+		if dataVolume.DeletionTimestamp != nil {
+			dataVolumeCopy.Status.Phase = cdiv1.Terminating
+		} else if curPhase != cdiv1.PhaseUnset && curPhase != cdiv1.Pending && curPhase != cdiv1.SnapshotForSmartCloneInProgress {
 
 			// if pvc doesn't exist and we're not still initializing, then
 			// something has gone wrong. Perhaps the PVC was deleted out from
