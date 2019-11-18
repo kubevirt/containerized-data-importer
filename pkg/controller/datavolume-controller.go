@@ -326,7 +326,7 @@ func (c *DataVolumeController) processNextWorkItem() bool {
 // converge the two. It then updates the Status block of the DataVolume resource
 // with the current status of the resource.
 func (c *DataVolumeController) syncHandler(key string) error {
-	exists := true
+	pvcExists := true
 
 	// Convert the namespace/name string into a distinct namespace and name
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
@@ -357,7 +357,7 @@ func (c *DataVolumeController) syncHandler(key string) error {
 	pvc, err := c.pvcLister.PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name)
 	// If the resource doesn't exist, we'll create it
 	if k8serrors.IsNotFound(err) {
-		exists = false
+		pvcExists = false
 	} else if err != nil {
 		return err
 	}
@@ -374,7 +374,7 @@ func (c *DataVolumeController) syncHandler(key string) error {
 	// us to observe a pod's creation in the cache.
 	needsSync := c.pvcExpectations.SatisfiedExpectations(key)
 
-	if !exists && needsSync {
+	if !pvcExists && needsSync {
 		snapshotClassName := c.getSnapshotClassForSmartClone(dataVolume)
 		if snapshotClassName != "" {
 			klog.V(3).Infof("Smart-Clone via Snapshot is available with Volume Snapshot Class: %s", snapshotClassName)
