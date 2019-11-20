@@ -144,6 +144,7 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 			Verbs: []string{
 				"get",
 				"list",
+				"watch",
 			},
 		},
 		{

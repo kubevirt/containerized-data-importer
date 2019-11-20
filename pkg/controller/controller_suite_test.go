@@ -7,7 +7,12 @@ import (
 	. "github.com/onsi/gomega"
 
 	"kubevirt.io/containerized-data-importer/tests/reporters"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 )
+
+var _ = BeforeSuite(func() {
+	logf.SetLogger(logf.ZapLoggerTo(GinkgoWriter, true))
+})
 
 func TestController(t *testing.T) {
 	RegisterFailHandler(Fail)

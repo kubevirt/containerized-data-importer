@@ -20,10 +20,11 @@ import (
 )
 
 const (
-	cdiDeploymentName    = "cdi-deployment"
-	cdiOperatorName      = "cdi-operator"
-	cdiOperatorPodPrefix = "cdi-operator-"
-	newDeploymentName    = "cdi-new-deployment"
+	cdiDeploymentName      = "cdi-deployment"
+	cdiDeploymentPodPrefix = "cdi-deployment-"
+	cdiOperatorName        = "cdi-operator"
+	cdiOperatorPodPrefix   = "cdi-operator-"
+	newDeploymentName      = "cdi-new-deployment"
 
 	pollingInterval = 2 * time.Second
 	timeout         = 180 * time.Second

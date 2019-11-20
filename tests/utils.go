@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 
@@ -20,6 +21,12 @@ import (
 const (
 	defaultTimeout      = 90 * time.Second
 	testNamespacePrefix = "cdi-test-"
+)
+
+var (
+	versionRegex           = regexp.MustCompile(`ubernetes .*v(\d+\.\d+\.\d+)`)
+	versionRegexServer     = regexp.MustCompile(`Server Version: .*({.*})`)
+	versionRegexGitVersion = regexp.MustCompile(`GitVersion:"v(\d+\.\d+\.\d+)"`)
 )
 
 // CDIFailHandler call ginkgo.Fail with printing the additional information
@@ -101,4 +108,31 @@ func DestroyAllTestNamespaces(client *kubernetes.Clientset) {
 			framework.DeleteNS(client, namespace.Name)
 		}
 	}
+}
+
+// GetKubeVersion returns the version returned by the kubectl version command as a semver compatible string
+func GetKubeVersion(f *framework.Framework) string {
+	// Check non json version output.
+	out, err := RunKubectlCommand(f, "version")
+	if err != nil {
+		return ""
+	}
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
+	matches := versionRegex.FindStringSubmatch(out)
+	if len(matches) > 1 {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: kubectl version: %s\n", matches[1])
+		return matches[1]
+	}
+	// Didn't match, maybe its the newer version
+	matches = versionRegexServer.FindStringSubmatch(out)
+	if len(matches) > 1 {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: kubectl version output: %s\n", matches[1])
+		// Would love to use json.Unmarshal, but keys aren't quoted
+		gitVersion := versionRegexGitVersion.FindStringSubmatch(matches[1])
+		if len(gitVersion) > 1 {
+			return gitVersion[1]
+		}
+		return ""
+	}
+	return ""
 }

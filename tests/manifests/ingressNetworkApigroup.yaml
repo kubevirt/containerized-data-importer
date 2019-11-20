@@ -1,0 +1,10 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: test-ingress
+spec:
+  backend:
+    serviceName: cdi-uploadproxy
+    servicePort: 443
+  rules:
+  - host: test.manifest.example.com

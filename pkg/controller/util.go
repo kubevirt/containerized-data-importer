@@ -30,7 +30,6 @@ import (
 	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
-	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
@@ -1164,51 +1163,6 @@ func MakeUploadServiceSpec(name string, pvc *v1.PersistentVolumeClaim) *v1.Servi
 	return service
 }
 
-// EnsureCDIConfigExists creates an empty CDIConfig if necessary
-func EnsureCDIConfigExists(client kubernetes.Interface, cdiClient clientset.Interface, name string) error {
-	cfg := MakeEmptyCDIConfigSpec(name)
-
-	err := operator.SetOwner(client, cfg)
-	if err != nil {
-		return errors.Wrap(err, "error setting CDI config owner ref")
-	}
-
-	config, err := cdiClient.CdiV1alpha1().CDIConfigs().Create(cfg)
-	if err != nil {
-		if k8serrors.IsAlreadyExists(err) {
-			return nil
-		}
-
-		return errors.Wrap(err, "CDI config create errored")
-	}
-
-	klog.V(1).Infof("CDI config \"%s\" created\n", config.Name)
-	return nil
-}
-
-// MakeEmptyCDIConfigSpec creates cdi config manifest
-func MakeEmptyCDIConfigSpec(name string) *cdiv1.CDIConfig {
-	config := &cdiv1.CDIConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-			Labels: map[string]string{
-				common.CDILabelKey:       common.CDILabelValue,
-				common.CDIComponentLabel: "",
-			},
-		},
-	}
-	return config
-
-}
-
-func updateCDIConfig(cdiClient clientset.Interface, config *cdiv1.CDIConfig) error {
-	_, err := cdiClient.CdiV1alpha1().CDIConfigs().Update(config)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func deletePod(req podDeleteRequest) error {
 	pod, err := req.podLister.Pods(req.namespace).Get(req.podName)
 	if k8serrors.IsNotFound(err) {
@@ -1288,6 +1242,9 @@ func getURLFromIngress(ing *extensionsv1beta1.Ingress, uploadProxyServiceName st
 		return ing.Spec.Rules[0].Host
 	}
 	for _, rule := range ing.Spec.Rules {
+		if rule.HTTP == nil {
+			continue
+		}
 		for _, path := range rule.HTTP.Paths {
 			if path.Backend.ServiceName == uploadProxyServiceName {
 				if rule.Host != "" {
