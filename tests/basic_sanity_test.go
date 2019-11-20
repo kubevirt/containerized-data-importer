@@ -93,8 +93,8 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 			secretsExpectedResult := make(map[string]string)
 			secretsExpectedResult["get"] = "yes"
-			secretsExpectedResult["list"] = "no"
-			secretsExpectedResult["watch"] = "no"
+			secretsExpectedResult["list"] = "yes"
+			secretsExpectedResult["watch"] = "yes"
 			secretsExpectedResult["delete"] = "no"
 			secretsExpectedResult["create"] = "yes"
 			secretsExpectedResult["update"] = "no"
