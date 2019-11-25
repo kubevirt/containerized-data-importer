@@ -58,13 +58,11 @@ test: test-unit test-functional test-lint
 
 test-unit: WHAT = ./pkg/... ./cmd/...
 test-unit:
-	${DO} "./hack/build/run-tests.sh ${WHAT}"
+	${DO} "./hack/build/run-unit-tests.sh ${WHAT}"
 
 test-functional:  WHAT = ./tests/...
-test-functional:
+test-functional: build-functest
 	./hack/build/run-functional-tests.sh ${WHAT} "${TEST_ARGS}"
-
-test-functional-ci: build-functest test-functional
 
 # test-lint runs gofmt and golint tests against src files
 test-lint:
