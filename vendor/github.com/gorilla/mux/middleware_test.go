@@ -427,7 +427,7 @@ func TestCORSMethodMiddleware(t *testing.T) {
 			requestHeader: http.Header{
 				"Access-Control-Request-Method":  []string{"GET"},
 				"Access-Control-Request-Headers": []string{"Authorization"},
-				"Origin": []string{"http://example.com"},
+				"Origin":                         []string{"http://example.com"},
 			},
 			expectedAccessControlAllowMethodsHeader: "GET,PUT,PATCH,OPTIONS",
 			expectedResponse:                        "b",
@@ -444,7 +444,7 @@ func TestCORSMethodMiddleware(t *testing.T) {
 			requestHeader: http.Header{
 				"Access-Control-Request-Method":  []string{"GET"},
 				"Access-Control-Request-Headers": []string{"Authorization"},
-				"Origin": []string{"http://example.com"},
+				"Origin":                         []string{"http://example.com"},
 			},
 			expectedAccessControlAllowMethodsHeader: "GET,PUT,PATCH,OPTIONS",
 			expectedResponse:                        "b",

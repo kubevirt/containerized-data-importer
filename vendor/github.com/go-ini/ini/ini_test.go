@@ -837,7 +837,7 @@ GITHUB = U;n;k;n;w;o;n
 			Convey("Ignore nonexistent files", func() {
 				f, err := ini.LoadSources(ini.LoadOptions{
 					AllowPythonMultilineValues: false,
-					Loose: true,
+					Loose:                      true,
 				}, notFoundConf, minimalConf)
 				So(err, ShouldBeNil)
 				So(f, ShouldNotBeNil)

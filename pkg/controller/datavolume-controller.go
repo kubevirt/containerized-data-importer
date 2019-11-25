@@ -304,6 +304,7 @@ func (c *DataVolumeController) processNextWorkItem() bool {
 		// Run the syncHandler, passing it the namespace/name string of the
 		// DataVolume resource to be synced.
 		if err := c.syncHandler(key); err != nil {
+			c.workqueue.AddRateLimited(key)
 			return errors.Errorf("error syncing '%s': %s", key, err.Error())
 		}
 		// Finally, if no error occurs we Forget this item so it does not
