@@ -26,7 +26,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 
 	fillData := "123456789012345678901234567890123456789012345678901234567890"
 	testFile := utils.DefaultPvcMountPath + "/source.txt"
-	fillCommand := "echo \"" + fillData + "\" >> " + testFile
+	fillCommandFilesystem := "echo -n \"" + fillData + "\" >> " + testFile
 
 	f := framework.NewFrameworkOrDie("dv-func-test")
 
@@ -44,12 +44,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		}
 	})
 
-	Describe("Verify DataVolume Smart Cloning - Positive flow", func() {
+	Describe("Verify DataVolume Smart Cloning - volumeMode filesystem - Positive flow", func() {
 		It("succeed creating smart-clone dv", func() {
 			if !f.IsSnapshotStorageClassAvailable() {
 				Skip("Smart Clone is not applicable")
 			}
-			dataVolume = createDataVolume("dv-smart-clone-test-1", sourcePvc, fillCommand, f.SnapshotSCName, f)
+			dataVolume = createDataVolume("dv-smart-clone-test-1", sourcePvc, fillCommandFilesystem, f.SnapshotSCName, f)
 			// Wait for snapshot creation to start
 			waitForDvPhase(cdiv1.SnapshotForSmartCloneInProgress, dataVolume, f)
 			verifyEvent(controller.SnapshotForSmartCloneInProgress, dataVolume.Namespace, f)
@@ -75,7 +75,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 				}
 			}
 
-			dataVolume = createDataVolume("dv-smart-clone-test-negative", sourcePvc, fillCommand, "", f)
+			dataVolume = createDataVolume("dv-smart-clone-test-negative", sourcePvc, fillCommandFilesystem, "", f)
 
 			// Wait for operation Succeeded
 			waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
