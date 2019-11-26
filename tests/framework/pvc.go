@@ -86,32 +86,6 @@ func (f *Framework) CreateAndPopulateSourcePVC(pvcDef *k8sv1.PersistentVolumeCla
 	return sourcePvc
 }
 
-// VerifyTargetPVCContent is used to check the contents of a PVC and ensure it matches the provided expected data
-func (f *Framework) VerifyTargetPVCContent(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim,
-	expectedData, testBaseDir, testFile string) (bool, error) {
-
-	var dest string
-	var err error
-	var executorPod *k8sv1.Pod
-
-	executorPod, err = utils.CreateExecutorPodWithPVC(f.K8sClient, "verify-pvc-content", namespace.Name, pvc)
-	volumeMode := pvc.Spec.VolumeMode
-	if volumeMode != nil && *volumeMode == k8sv1.PersistentVolumeBlock {
-		dest = testBaseDir
-	} else {
-		dest = testBaseDir + testFile
-	}
-
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	output, err := f.ExecShellInPod(executorPod.Name, namespace.Name, "cat "+dest)
-	if err != nil {
-		return false, err
-	}
-	return strings.Compare(expectedData, output) == 0, nil
-}
-
 // VerifyTargetPVCContentMD5 provides a function to check the md5 of data on a PVC and ensure it matches that which is provided
 func (f *Framework) VerifyTargetPVCContentMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, fileName string, expectedHash string, numBytes ...int64) (bool, error) {
 	if len(numBytes) == 0 {

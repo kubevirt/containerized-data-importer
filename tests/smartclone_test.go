@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -55,7 +57,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 			waitForDvPhase(cdiv1.SmartClonePVCInProgress, dataVolume, f)
 			verifyEvent(controller.SmartClonePVCInProgress, dataVolume.Namespace, f)
 			// Verify PVC's content
-			verifyPVC(dataVolume, f)
+			verifyPVC(dataVolume, f, testFile, fillData)
 			// Wait for operation Succeeded
 			waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 			verifyEvent(controller.CloneSucceeded, dataVolume.Namespace, f)
@@ -85,13 +87,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 	})
 })
 
-func verifyPVC(dataVolume *cdiv1.DataVolume, f *framework.Framework) {
+func verifyPVC(dataVolume *cdiv1.DataVolume, f *framework.Framework, testPath string, expectedData string) {
+	hash := md5.Sum([]byte(expectedData))
+	md5sum := hex.EncodeToString(hash[:])
 	By("verifying pvc was created")
 	targetPvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
 	By(fmt.Sprint("Verifying target PVC content"))
-	Expect(f.VerifyTargetPVCContent(f.Namespace, targetPvc, fillData, testBaseDir, testFile)).To(BeTrue())
+	Expect(f.VerifyTargetPVCContentMD5(f.Namespace, targetPvc, testPath, md5sum, int64(len(expectedData)))).To(BeTrue())
 }
 
 func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f *framework.Framework) {
