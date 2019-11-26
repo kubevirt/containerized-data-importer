@@ -49,7 +49,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 			if !f.IsSnapshotStorageClassAvailable() {
 				Skip("Smart Clone is not applicable")
 			}
-			dataVolume = createDataVolume("dv-smart-clone-test-1", sourcePvc, fillCommandFilesystem, f.SnapshotSCName, f)
+			dataVolume = createDataVolume("dv-smart-clone-test-1", sourcePvc, fillCommandFilesystem, v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)
 			// Wait for snapshot creation to start
 			waitForDvPhase(cdiv1.SnapshotForSmartCloneInProgress, dataVolume, f)
 			verifyEvent(controller.SnapshotForSmartCloneInProgress, dataVolume.Namespace, f)
@@ -75,7 +75,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 				}
 			}
 
-			dataVolume = createDataVolume("dv-smart-clone-test-negative", sourcePvc, fillCommandFilesystem, "", f)
+			dataVolume = createDataVolume("dv-smart-clone-test-negative", sourcePvc, fillCommandFilesystem, v1.PersistentVolumeFilesystem, "", f)
 
 			// Wait for operation Succeeded
 			waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
@@ -110,11 +110,12 @@ func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f
 	}
 }
 
-func createDataVolume(dataVolumeName string, sourcePvc *v1.PersistentVolumeClaim, command string, scName string, f *framework.Framework) *cdiv1.DataVolume {
+func createDataVolume(dataVolumeName string, sourcePvc *v1.PersistentVolumeClaim, command string, volumeMode v1.PersistentVolumeMode, scName string, f *framework.Framework) *cdiv1.DataVolume {
 	By(fmt.Sprintf("Storage Class name: %s", scName))
 	sourcePVCName := fmt.Sprintf("%s-src-pvc", dataVolumeName)
 	sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
 	pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+	pvcDef.Spec.VolumeMode = &volumeMode
 	if scName != "" {
 		pvcDef.Spec.StorageClassName = &scName
 	}
