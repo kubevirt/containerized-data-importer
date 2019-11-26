@@ -72,4 +72,6 @@ if [ $retry_counter -eq $MAX_CDI_WAIT_RETRY ]; then
     exit 1
 fi
 
-${script_dir}/run-tests.sh ${pkgs} --test-args="${test_args}"
+test_command="${TESTS_OUT_DIR}/tests.test -test.timeout 180m ${test_args}"
+echo "${test_command}"
+(cd ${CDI_DIR}/tests; ${test_command})

@@ -93,4 +93,4 @@ kubectl version
 ginko_params="--test-args=--ginkgo.noColor --junit-output=${ARTIFACTS_PATH}/junit.functest.xml"
 
 # Run functional tests
-TEST_ARGS=$ginko_params make test-functional-ci
+TEST_ARGS=$ginko_params make test-functional
