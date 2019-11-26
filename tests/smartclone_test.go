@@ -20,6 +20,7 @@ import (
 var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", func() {
 
 	var sourcePvc *v1.PersistentVolumeClaim
+	var dataVolume *cdiv1.DataVolume
 
 	fillData := "123456789012345678901234567890123456789012345678901234567890"
 	testFile := utils.DefaultPvcMountPath + "/source.txt"
@@ -34,6 +35,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 			Expect(err).ToNot(HaveOccurred())
 			sourcePvc = nil
 		}
+		if dataVolume != nil {
+			By("[AfterEach] Clean up target DV")
+			err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+		}
 	})
 
 	Describe("Verify DataVolume Smart Cloning - Positive flow", func() {
@@ -41,7 +47,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 			if !f.IsSnapshotStorageClassAvailable() {
 				Skip("Smart Clone is not applicable")
 			}
-			dataVolume := createDataVolume("dv-smart-clone-test-1", sourcePvc, fillCommand, f.SnapshotSCName, f)
+			dataVolume = createDataVolume("dv-smart-clone-test-1", sourcePvc, fillCommand, f.SnapshotSCName, f)
 			// Wait for snapshot creation to start
 			waitForDvPhase(cdiv1.SnapshotForSmartCloneInProgress, dataVolume, f)
 			verifyEvent(controller.SnapshotForSmartCloneInProgress, dataVolume.Namespace, f)
@@ -53,10 +59,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 			// Wait for operation Succeeded
 			waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 			verifyEvent(controller.CloneSucceeded, dataVolume.Namespace, f)
-
-			// Cleanup
-			err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
 		})
 	})
 
@@ -71,7 +73,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 				}
 			}
 
-			dataVolume := createDataVolume("dv-smart-clone-test-negative", sourcePvc, fillCommand, "", f)
+			dataVolume = createDataVolume("dv-smart-clone-test-negative", sourcePvc, fillCommand, "", f)
 
 			// Wait for operation Succeeded
 			waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
@@ -79,10 +81,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 
 			events, _ := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
 			Expect(strings.Contains(events, controller.SnapshotForSmartCloneInProgress)).To(BeFalse())
-
-			// Cleanup
-			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
 		})
 	})
 })
