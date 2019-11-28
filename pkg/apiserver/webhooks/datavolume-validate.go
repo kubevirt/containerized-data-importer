@@ -96,14 +96,17 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 		})
 		return causes
 	}
-	// if source types are HTTP or S3, check if URL is valid
-	if spec.Source.HTTP != nil || spec.Source.S3 != nil {
+	// if source types are HTTP, Imageio or S3, check if URL is valid
+	if spec.Source.HTTP != nil || spec.Source.S3 != nil || spec.Source.Imageio != nil {
 		if spec.Source.HTTP != nil {
 			url = spec.Source.HTTP.URL
 			sourceType = field.Child("source", "HTTP", "url").String()
 		} else if spec.Source.S3 != nil {
 			url = spec.Source.S3.URL
 			sourceType = field.Child("source", "S3", "url").String()
+		} else if spec.Source.Imageio != nil {
+			url = spec.Source.Imageio.URL
+			sourceType = field.Child("source", "Imageio", "url").String()
 		}
 		err := validateSourceURL(url)
 		if err != "" {
@@ -145,6 +148,17 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 			Field:   sourceType,
 		})
 		return causes
+	}
+
+	if spec.Source.Imageio != nil {
+		if spec.Source.Imageio.SecretRef == "" || spec.Source.Imageio.CertConfigMap == "" || spec.Source.Imageio.DiskID == "" {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("%s source Imageio is not valid", field.Child("source", "Imageio").String()),
+				Field:   field.Child("source", "Imageio").String(),
+			})
+			return causes
+		}
 	}
 
 	if spec.Source.PVC != nil {

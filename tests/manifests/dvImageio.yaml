@@ -1,0 +1,17 @@
+apiVersion: cdi.kubevirt.io/v1alpha1
+kind: DataVolume
+metadata:
+  name: "test-dv"
+spec:
+  source:
+      imageio:
+         url: "http://f24:8080/ovirt-engine/api"
+         secretRef: "secret"
+         certConfigMap: "tls-certs"
+         diskId: "1"
+  pvc:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: "500Mi"

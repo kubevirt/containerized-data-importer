@@ -43,6 +43,8 @@ const (
 	AnnImportPod = AnnAPIGroup + "/storage.import.importPodName"
 	// AnnRequiresScratch provides a const for our PVC requires scratch annotation
 	AnnRequiresScratch = AnnAPIGroup + "/storage.import.requiresScratch"
+	// AnnDiskID provides a const for our PVC diskId annotation
+	AnnDiskID = AnnAPIGroup + "/storage.import.diskId"
 
 	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
 	LabelImportPvc = AnnAPIGroup + "/storage.import.importPvcName"
@@ -69,8 +71,8 @@ type ImportReconciler struct {
 }
 
 type importPodEnvVar struct {
-	ep, secretName, source, contentType, imageSize, certConfigMap string
-	insecureTLS                                                   bool
+	ep, secretName, source, contentType, imageSize, certConfigMap, diskID string
+	insecureTLS                                                           bool
 }
 
 // NewImportController creates a new instance of the import controller.
@@ -539,6 +541,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []v1.EnvVar {
 		{
 			Name:  common.InsecureTLSVar,
 			Value: strconv.FormatBool(podEnvVar.insecureTLS),
+		},
+		{
+			Name:  common.ImporterDiskID,
+			Value: podEnvVar.diskID,
 		},
 	}
 	if podEnvVar.secretName != "" {

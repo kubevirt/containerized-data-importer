@@ -3111,13 +3111,16 @@
     }
    },
    "v1alpha1.DataVolumeSource": {
-    "description": "DataVolumeSource represents the source for our Data Volume, this can be HTTP, S3, Registry or an existing PVC",
+    "description": "DataVolumeSource represents the source for our Data Volume, this can be HTTP, Imageio, S3, Registry or an existing PVC",
     "properties": {
      "blank": {
       "$ref": "#/definitions/v1alpha1.DataVolumeBlankImage"
      },
      "http": {
       "$ref": "#/definitions/v1alpha1.DataVolumeSourceHTTP"
+     },
+     "imageio": {
+      "$ref": "#/definitions/v1alpha1.DataVolumeSourceImageIO"
      },
      "pvc": {
       "$ref": "#/definitions/v1alpha1.DataVolumeSourcePVC"
@@ -3146,6 +3149,27 @@
      },
      "url": {
       "description": "URL is the URL of the http source",
+      "type": "string"
+     }
+    }
+   },
+   "v1alpha1.DataVolumeSourceImageIO": {
+    "description": "DataVolumeSourceImageIO provides the parameters to create a Data Volume from an imageio source",
+    "properties": {
+     "certConfigMap": {
+      "description": "CertConfigMap provides a reference to the CA cert",
+      "type": "string"
+     },
+     "diskId": {
+      "description": "DiskID provides id of a disk to be imported",
+      "type": "string"
+     },
+     "secretRef": {
+      "description": "SecretRef provides the secret reference needed to access the ovirt-engine",
+      "type": "string"
+     },
+     "url": {
+      "description": "URL is the URL of the ovirt-engine",
       "type": "string"
      }
     }

@@ -57,6 +57,7 @@ func main() {
 	imageSize, _ := util.ParseEnvVar(common.ImporterImageSize, false)
 	certDir, _ := util.ParseEnvVar(common.ImporterCertDirVar, false)
 	insecureTLS, _ := strconv.ParseBool(os.Getenv(common.InsecureTLSVar))
+	diskID, _ := util.ParseEnvVar(common.ImporterDiskID, false)
 
 	//Registry import currently support kubevirt content type only
 	if contentType != string(cdiv1.DataVolumeKubeVirt) && source == controller.SourceRegistry {
@@ -112,6 +113,16 @@ func main() {
 			if err != nil {
 				klog.Errorf("%+v", err)
 				err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to http data source: %+v", err))
+				if err != nil {
+					klog.Errorf("%+v", err)
+				}
+				os.Exit(1)
+			}
+		case controller.SourceImageio:
+			dp, err = importer.NewImageioDataSource(ep, acc, sec, certDir, diskID)
+			if err != nil {
+				klog.Errorf("%+v", err)
+				err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to imageio data source: %+v", err))
 				if err != nil {
 					klog.Errorf("%+v", err)
 				}

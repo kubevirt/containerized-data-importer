@@ -1004,6 +1004,12 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 	} else if dataVolume.Spec.Source.Blank != nil {
 		annotations[AnnSource] = SourceNone
 		annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
+	} else if dataVolume.Spec.Source.Imageio != nil {
+		annotations[AnnEndpoint] = dataVolume.Spec.Source.Imageio.URL
+		annotations[AnnSource] = SourceImageio
+		annotations[AnnSecret] = dataVolume.Spec.Source.Imageio.SecretRef
+		annotations[AnnCertConfigMap] = dataVolume.Spec.Source.Imageio.CertConfigMap
+		annotations[AnnDiskID] = dataVolume.Spec.Source.Imageio.DiskID
 	} else {
 		return nil, errors.Errorf("no source set for datavolume")
 	}
