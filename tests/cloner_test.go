@@ -84,6 +84,92 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
 		cloneOfAnnoExistenceTest(f, f.Namespace.Name)
 	})
+
+	It("Should clone across nodes when multiple local volumes exist,", func() {
+		// Get nodes, need at least 2
+		nodeList, err := f.K8sClient.CoreV1().Nodes().List(metav1.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		if len(nodeList.Items) < 2 {
+			Skip("Need at least 2 nodes to copy accross nodes")
+		}
+		nodeMap := make(map[string]bool)
+		for _, node := range nodeList.Items {
+			if ok, _ := nodeMap[node.Name]; !ok {
+				nodeMap[node.Name] = true
+			}
+		}
+		// Find PVs and identify local storage, the PVs should already exist.
+		pvList, err := f.K8sClient.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		var sourcePV, targetPV *v1.PersistentVolume
+		var storageClassName string
+		// Find the source and target PVs so we can label them.
+		for _, pv := range pvList.Items {
+			if pv.Spec.NodeAffinity == nil || pv.Spec.NodeAffinity.Required == nil || len(pv.Spec.NodeAffinity.Required.NodeSelectorTerms) == 0 {
+				// Not a local volume PV
+				continue
+			}
+			if sourcePV == nil {
+				if pv.Spec.StorageClassName != "" {
+					storageClassName = pv.Spec.StorageClassName
+				}
+				pvNode := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Values[0]
+				if ok, val := nodeMap[pvNode]; ok && val {
+					nodeMap[pvNode] = false
+					By("Labeling PV " + pv.Name + " as source")
+					sourcePV = &pv
+					if sourcePV.GetLabels() == nil {
+						sourcePV.SetLabels(make(map[string]string))
+					}
+					sourcePV.GetLabels()["source-pv"] = "yes"
+					sourcePV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(sourcePV)
+					Expect(err).ToNot(HaveOccurred())
+				}
+			} else if targetPV == nil {
+				pvNode := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Values[0]
+				if ok, val := nodeMap[pvNode]; ok && val {
+					nodeMap[pvNode] = false
+					By("Labeling PV " + pv.Name + " as target")
+					targetPV = &pv
+					if targetPV.GetLabels() == nil {
+						targetPV.SetLabels(make(map[string]string))
+					}
+					targetPV.GetLabels()["target-pv"] = "yes"
+					targetPV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(targetPV)
+					Expect(err).ToNot(HaveOccurred())
+					break
+				}
+			}
+		}
+		// Source and target PVs have been annotated, now create PVCs with label selectors.
+		sourceSelector := make(map[string]string)
+		sourceSelector["source-pv"] = "yes"
+		sourcePVCDef := utils.NewPVCDefinitionWithSelector(sourcePVCName, "1G", storageClassName, sourceSelector, nil, nil)
+		sourcePVCDef.Namespace = f.Namespace.Name
+		sourcePVC := f.CreateAndPopulateSourcePVC(sourcePVCDef, sourcePodFillerName, fillCommand+testFile)
+		sourcePVC, err = f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(sourcePVC.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sourcePVC.Spec.VolumeName).To(Equal(sourcePV.Name))
+
+		targetDV := utils.NewCloningDataVolume("target-dv", "1G", sourcePVCDef)
+		targetDV.Spec.PVC.StorageClassName = &storageClassName
+		targetLabelSelector := metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"target-pv": "yes",
+			},
+		}
+		targetDV.Spec.PVC.Selector = &targetLabelSelector
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
+		Expect(err).ToNot(HaveOccurred())
+
+		targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(targetPvc.Spec.VolumeName).To(Equal(targetPV.Name))
+
+		fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
+		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
+		completeClone(f, f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum)
+	})
 })
 
 var _ = Describe("Validate creating multiple clones of same source Data Volume", func() {
