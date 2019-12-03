@@ -119,3 +119,6 @@ bazel-push-images: bazel-cdi-generate bazel-build
 
 push: bazel-push-images
 
+builder-push:
+	./hack/build/bazel-build-builder.sh
+
