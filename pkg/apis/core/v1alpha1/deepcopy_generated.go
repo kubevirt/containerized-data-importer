@@ -22,7 +22,6 @@ package v1alpha1
 
 import (
 	v1 "github.com/openshift/custom-resource-status/conditions/v1"
-	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -441,11 +440,7 @@ func (in *DataVolumeSourceUpload) DeepCopy() *DataVolumeSourceUpload {
 func (in *DataVolumeSpec) DeepCopyInto(out *DataVolumeSpec) {
 	*out = *in
 	in.Source.DeepCopyInto(&out.Source)
-	if in.PVC != nil {
-		in, out := &in.PVC, &out.PVC
-		*out = new(corev1.PersistentVolumeClaimSpec)
-		(*in).DeepCopyInto(*out)
-	}
+	in.PVC.DeepCopyInto(&out.PVC)
 	return
 }
 

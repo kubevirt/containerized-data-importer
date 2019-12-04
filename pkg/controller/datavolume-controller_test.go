@@ -96,7 +96,7 @@ func newImportDataVolume(name string) *cdiv1.DataVolume {
 					URL: "http://example.com/data",
 				},
 			},
-			PVC: &corev1.PersistentVolumeClaimSpec{},
+			PVC: corev1.PersistentVolumeClaimSpec{},
 		},
 	}
 }
@@ -122,7 +122,7 @@ func newCloneDataVolumeWithPVCNS(name string, pvcNamespace string) *cdiv1.DataVo
 					Namespace: pvcNamespace,
 				},
 			},
-			PVC: &corev1.PersistentVolumeClaimSpec{},
+			PVC: corev1.PersistentVolumeClaimSpec{},
 		},
 	}
 }
@@ -138,7 +138,7 @@ func newUploadDataVolume(name string) *cdiv1.DataVolume {
 			Source: cdiv1.DataVolumeSource{
 				Upload: &cdiv1.DataVolumeSourceUpload{},
 			},
-			PVC: &corev1.PersistentVolumeClaimSpec{},
+			PVC: corev1.PersistentVolumeClaimSpec{},
 		},
 	}
 }
@@ -154,7 +154,7 @@ func newBlankImageDataVolume(name string) *cdiv1.DataVolume {
 			Source: cdiv1.DataVolumeSource{
 				Blank: &cdiv1.DataVolumeBlankImage{},
 			},
-			PVC: &corev1.PersistentVolumeClaimSpec{},
+			PVC: corev1.PersistentVolumeClaimSpec{},
 		},
 	}
 }

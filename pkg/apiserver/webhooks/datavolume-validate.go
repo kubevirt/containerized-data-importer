@@ -168,7 +168,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 					return causes
 				}
 			}
-			err = controller.ValidateCanCloneSourceAndTargetSpec(&sourcePVC.Spec, spec.PVC)
+			err = controller.ValidateCanCloneSourceAndTargetSpec(&sourcePVC.Spec, &spec.PVC)
 			if err != nil {
 				causes = append(causes, metav1.StatusCause{
 					Type:    metav1.CauseTypeFieldValueInvalid,
@@ -180,14 +180,6 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 		}
 	}
 
-	if spec.PVC == nil {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Missing Data volume PVC"),
-			Field:   field.Child("PVC").String(),
-		})
-		return causes
-	}
 	if pvcSize, ok := spec.PVC.Resources.Requests["storage"]; ok {
 		if pvcSize.IsZero() || pvcSize.Value() < 0 {
 			causes = append(causes, metav1.StatusCause{

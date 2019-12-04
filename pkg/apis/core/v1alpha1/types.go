@@ -42,8 +42,8 @@ type DataVolume struct {
 type DataVolumeSpec struct {
 	//Source is the src of the data for the requested DataVolume
 	Source DataVolumeSource `json:"source"`
-	//PVC is a pointer to the PVC Spec we want to use
-	PVC *corev1.PersistentVolumeClaimSpec `json:"pvc"`
+	//PVC is the PVC Spec we want to use
+	PVC corev1.PersistentVolumeClaimSpec `json:"pvc"`
 	//DataVolumeContentType options: "kubevirt", "archive"
 	ContentType DataVolumeContentType `json:"contentType,omitempty"`
 }

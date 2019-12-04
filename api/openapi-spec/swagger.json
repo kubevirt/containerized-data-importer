@@ -2467,7 +2467,7 @@
       "type": "string"
      },
      "pvc": {
-      "description": "PVC is a pointer to the PVC Spec we want to use",
+      "description": "PVC is the PVC Spec we want to use",
       "$ref": "#/definitions/v1.PersistentVolumeClaimSpec"
      },
      "source": {

@@ -453,7 +453,7 @@ func newDataVolumeWithEmptyPVCSpec(name, url string) *cdicorev1alpha1.DataVolume
 		HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{URL: url},
 	}
 
-	return newDataVolume(name, httpSource, nil)
+	return newDataVolume(name, httpSource, corev1.PersistentVolumeClaimSpec{})
 }
 
 func newDataVolumeWithMultipleSources(name string) *cdicorev1alpha1.DataVolume {
@@ -476,7 +476,7 @@ func newDataVolumeWithPVCSizeZero(name, url string) *cdicorev1alpha1.DataVolume 
 	return newDataVolume(name, httpSource, pvc)
 }
 
-func newDataVolume(name string, source cdicorev1alpha1.DataVolumeSource, pvc *corev1.PersistentVolumeClaimSpec) *cdicorev1alpha1.DataVolume {
+func newDataVolume(name string, source cdicorev1alpha1.DataVolumeSource, pvc corev1.PersistentVolumeClaimSpec) *cdicorev1alpha1.DataVolume {
 	namespace := k8sv1.NamespaceDefault
 	dv := &cdicorev1alpha1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
@@ -499,11 +499,11 @@ func newDataVolume(name string, source cdicorev1alpha1.DataVolumeSource, pvc *co
 
 }
 
-func newPVCSpec(sizeValue int64, sizeFormat resource.Format) *corev1.PersistentVolumeClaimSpec {
+func newPVCSpec(sizeValue int64, sizeFormat resource.Format) corev1.PersistentVolumeClaimSpec {
 	requests := make(map[corev1.ResourceName]resource.Quantity)
 	requests["storage"] = *resource.NewQuantity(sizeValue, sizeFormat)
 
-	pvc := &corev1.PersistentVolumeClaimSpec{
+	pvc := corev1.PersistentVolumeClaimSpec{
 		AccessModes: []corev1.PersistentVolumeAccessMode{
 			corev1.ReadWriteOnce,
 		},

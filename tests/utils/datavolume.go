@@ -91,7 +91,7 @@ func NewDataVolumeWithHTTPImport(dataVolumeName string, size string, httpURL str
 					URL: httpURL,
 				},
 			},
-			PVC: &k8sv1.PersistentVolumeClaimSpec{
+			PVC: k8sv1.PersistentVolumeClaimSpec{
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
@@ -116,7 +116,7 @@ func NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName string, size string, ht
 					URL: httpURL,
 				},
 			},
-			PVC: &k8sv1.PersistentVolumeClaimSpec{
+			PVC: k8sv1.PersistentVolumeClaimSpec{
 				VolumeMode:       &volumeMode,
 				StorageClassName: &storageClassName,
 				AccessModes:      []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
@@ -145,7 +145,7 @@ func NewDataVolumeCloneToBlockPV(dataVolumeName string, size string, srcNamespac
 					Namespace: srcNamespace,
 				},
 			},
-			PVC: &k8sv1.PersistentVolumeClaimSpec{
+			PVC: k8sv1.PersistentVolumeClaimSpec{
 				VolumeMode:       &volumeMode,
 				StorageClassName: &storageClassName,
 				AccessModes:      []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
@@ -170,7 +170,7 @@ func NewDataVolumeForUpload(dataVolumeName string, size string) *cdiv1.DataVolum
 			Source: cdiv1.DataVolumeSource{
 				Upload: &cdiv1.DataVolumeSourceUpload{},
 			},
-			PVC: &k8sv1.PersistentVolumeClaimSpec{
+			PVC: k8sv1.PersistentVolumeClaimSpec{
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
@@ -192,7 +192,7 @@ func NewDataVolumeForBlankRawImage(dataVolumeName, size string) *cdiv1.DataVolum
 			Source: cdiv1.DataVolumeSource{
 				Blank: &cdiv1.DataVolumeBlankImage{},
 			},
-			PVC: &k8sv1.PersistentVolumeClaimSpec{
+			PVC: k8sv1.PersistentVolumeClaimSpec{
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
@@ -215,7 +215,7 @@ func NewDataVolumeForBlankRawImageBlock(dataVolumeName, size string, storageClas
 			Source: cdiv1.DataVolumeSource{
 				Blank: &cdiv1.DataVolumeBlankImage{},
 			},
-			PVC: &k8sv1.PersistentVolumeClaimSpec{
+			PVC: k8sv1.PersistentVolumeClaimSpec{
 				VolumeMode:       &volumeMode,
 				StorageClassName: &storageClassName,
 				AccessModes:      []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
@@ -243,7 +243,7 @@ func NewDataVolumeForImageCloning(dataVolumeName, size, namespace, pvcName strin
 					Name:      pvcName,
 				},
 			},
-			PVC: &k8sv1.PersistentVolumeClaimSpec{
+			PVC: k8sv1.PersistentVolumeClaimSpec{
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
@@ -274,7 +274,7 @@ func NewDataVolumeWithRegistryImport(dataVolumeName string, size string, registr
 					URL: registryURL,
 				},
 			},
-			PVC: &k8sv1.PersistentVolumeClaimSpec{
+			PVC: k8sv1.PersistentVolumeClaimSpec{
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
@@ -319,7 +319,7 @@ func NewDataVolumeWithArchiveContent(dataVolumeName string, size string, httpURL
 				},
 			},
 			ContentType: "archive",
-			PVC: &k8sv1.PersistentVolumeClaimSpec{
+			PVC: k8sv1.PersistentVolumeClaimSpec{
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.ResourceRequirements{
 					Requests: k8sv1.ResourceList{
@@ -345,6 +345,6 @@ func PersistentVolumeClaimFromDataVolume(datavolume *cdiv1.DataVolume) *corev1.P
 				}),
 			},
 		},
-		Spec: *datavolume.Spec.PVC,
+		Spec: datavolume.Spec.PVC,
 	}
 }

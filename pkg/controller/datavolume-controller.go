@@ -947,12 +947,6 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 		"app":            "containerized-data-importer",
 	}
 
-	if dataVolume.Spec.PVC == nil {
-		// TODO remove this requirement and dynamically generate
-		// PVC spec if not present on DataVolume
-		return nil, errors.Errorf("datavolume.pvc field is required")
-	}
-
 	annotations := make(map[string]string)
 
 	for k, v := range dataVolume.ObjectMeta.Annotations {
@@ -1022,6 +1016,6 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 				}),
 			},
 		},
-		Spec: *dataVolume.Spec.PVC,
+		Spec: dataVolume.Spec.PVC,
 	}, nil
 }

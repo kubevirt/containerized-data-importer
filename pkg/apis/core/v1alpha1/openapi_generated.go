@@ -652,7 +652,7 @@ func schema_pkg_apis_core_v1alpha1_DataVolumeSpec(ref common.ReferenceCallback) 
 					},
 					"pvc": {
 						SchemaProps: spec.SchemaProps{
-							Description: "PVC is a pointer to the PVC Spec we want to use",
+							Description: "PVC is the PVC Spec we want to use",
 							Ref:         ref("k8s.io/api/core/v1.PersistentVolumeClaimSpec"),
 						},
 					},
