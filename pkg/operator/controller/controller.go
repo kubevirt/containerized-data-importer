@@ -157,21 +157,14 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 	}
 
 	if configMap == nil {
-		// let's try to create stuff
-		if cr.Status.Phase == "" {
-			reqLogger.Info("Doing reconcile create")
-			res, createErr := r.reconcileCreate(reqLogger, cr)
-			// Always update conditions after a create.
-			err = r.client.Update(context.TODO(), cr)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-			return res, createErr
+		if cr.Status.Phase != "" {
+			reqLogger.Info("Reconciling to error state, no configmap")
+			// we are in a weird state
+			return r.reconcileError(reqLogger, cr, "Reconciling to error state, no configmap")
 		}
 
-		reqLogger.Info("Reconciling to error state, no configmap")
-		// we are in a weird state
-		return r.reconcileError(reqLogger, cr, "Reconciling to error state, no configmap")
+		reqLogger.Info("Doing reconcile create")
+		return r.reconcileCreate(reqLogger, cr)
 	}
 
 	// do we even care about this CR?
@@ -230,17 +223,16 @@ func shouldTakeUpdatePath(logger logr.Logger, targetVersion, currentVersion stri
 }
 
 func (r *ReconcileCDI) reconcileCreate(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
-	MarkCrDeploying(cr, "DeployStarted", "Started Deployment")
 	// claim the configmap
 	if err := r.createConfigMap(cr); err != nil {
-		MarkCrFailed(cr, "ConfigError", "Unable to claim ConfigMap")
 		return reconcile.Result{}, err
 	}
 
 	logger.Info("ConfigMap created successfully")
 
+	MarkCrDeploying(cr, "DeployStarted", "Started Deployment")
+
 	if err := r.crInit(cr); err != nil {
-		MarkCrFailed(cr, "CrInitError", "Unable to Initialize CR")
 		return reconcile.Result{}, err
 	}
 
