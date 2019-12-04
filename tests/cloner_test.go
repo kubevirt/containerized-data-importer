@@ -103,6 +103,27 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(err).ToNot(HaveOccurred())
 		var sourcePV, targetPV *v1.PersistentVolume
 		var storageClassName string
+		// Verify we have PVs to at least 2 nodes.
+		pvNodeNames := make(map[string]int)
+		for _, pv := range pvList.Items {
+			if pv.Spec.NodeAffinity == nil || pv.Spec.NodeAffinity.Required == nil || len(pv.Spec.NodeAffinity.Required.NodeSelectorTerms) == 0 {
+				// Not a local volume PV
+				continue
+			}
+			pvNode := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Values[0]
+			if pv.Spec.ClaimRef == nil {
+				// PV is available and not claimed.
+				if val, ok := pvNodeNames[pvNode]; !ok {
+					pvNodeNames[pvNode] = 1
+				} else {
+					pvNodeNames[pvNode] = val + 1
+				}
+			}
+		}
+		if len(pvNodeNames) < 2 {
+			Skip("Need PVs on at least 2 nodes to test")
+		}
+
 		// Find the source and target PVs so we can label them.
 		for _, pv := range pvList.Items {
 			if pv.Spec.NodeAffinity == nil || pv.Spec.NodeAffinity.Required == nil || len(pv.Spec.NodeAffinity.Required.NodeSelectorTerms) == 0 {
@@ -141,6 +162,8 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 				}
 			}
 		}
+		Expect(sourcePV).ToNot(BeNil())
+		Expect(targetPV).ToNot(BeNil())
 		// Source and target PVs have been annotated, now create PVCs with label selectors.
 		sourceSelector := make(map[string]string)
 		sourceSelector["source-pv"] = "yes"
