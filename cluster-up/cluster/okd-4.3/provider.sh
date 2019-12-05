@@ -41,7 +41,7 @@ function up() {
     # Copy k8s config and kubectl
     cluster_container_id=$(docker ps -f "name=$provider_prefix-cluster" --format "{{.ID}}")
 
-    _install_from_cluster $cluster_container_id /usr/local/bin/oc 0755 .kubectl
+    _install_from_cluster $cluster_container_id /usr/bin/oc 0755 .kubectl
     _install_from_cluster $cluster_container_id /root/install/auth/kubeconfig 0644 .kubeconfig
 
     # Set server and disable tls check
