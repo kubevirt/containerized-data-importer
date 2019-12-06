@@ -151,6 +151,10 @@ func (c *ConfigController) handleObject(obj interface{}) {
 
 	if ing, ok := obj.(*extensionsv1beta1.Ingress); ok {
 		for _, rule := range ing.Spec.Rules {
+			if rule.HTTP == nil {
+				continue
+			}
+
 			for _, path := range rule.HTTP.Paths {
 				if path.Backend.ServiceName == c.uploadProxyServiceName {
 					c.enqueueCDIConfig(config)
