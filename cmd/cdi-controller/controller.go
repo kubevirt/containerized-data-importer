@@ -7,11 +7,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/signal"
 
 	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
-	route1client "github.com/openshift/client-go/route/clientset/versioned"
-	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 	"github.com/pkg/errors"
 	v1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -23,6 +20,12 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
+
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
+	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
+
 	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -36,7 +39,7 @@ const (
 )
 
 var (
-	configPath             string
+	kubeconfig             string
 	masterURL              string
 	importerImage          string
 	clonerImage            string
@@ -45,6 +48,7 @@ var (
 	configName             string
 	pullPolicy             string
 	verbose                string
+	log                    = logf.Log.WithName("config-controller")
 )
 
 // The importer and cloner images are obtained here along with the supported flags. IMPORTER_IMAGE, CLONER_IMAGE, and UPLOADSERVICE_IMAGE
@@ -53,11 +57,13 @@ var (
 //   specified we do an in-cluster config. For testing it's easiest to export KUBECONFIG.
 func init() {
 	// flags
-	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG")
 	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
 	klog.InitFlags(nil)
 	flag.Parse()
 
+	if flag.Lookup("kubeconfig") != nil {
+		kubeconfig = flag.Lookup("kubeconfig").Value.String()
+	}
 	importerImage = getRequiredEnvVar("IMPORTER_IMAGE")
 	clonerImage = getRequiredEnvVar("CLONER_IMAGE")
 	uploadServerImage = getRequiredEnvVar("UPLOADSERVER_IMAGE")
@@ -102,13 +108,6 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		klog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
 	}
 
-	// Create an OpenShift route/v1 client.
-
-	openshiftClient, err := route1client.NewForConfig(cfg)
-	if err != nil {
-		klog.Fatalf("Unable to get openshift client: %v\n", errors.WithStack(err))
-	}
-
 	cdiClient, err := clientset.NewForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("Error building example clientset: %s", err.Error())
@@ -124,6 +123,12 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		klog.Fatalf("Error building extClient: %s", err.Error())
 	}
 
+	mgr, err := manager.New(config.GetConfigOrDie(), manager.Options{})
+	if err != nil {
+		klog.Errorf("Unable to setup controller manager: %v", err)
+		os.Exit(1)
+	}
+
 	cdiInformerFactory := informers.NewSharedInformerFactory(cdiClient, common.DefaultResyncPeriod)
 	csiInformerFactory := csiinformers.NewFilteredSharedInformerFactory(csiClient, common.DefaultResyncPeriod, "", func(options *v1.ListOptions) {
 		options.LabelSelector = common.CDILabelSelector
@@ -135,17 +140,12 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	serviceInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(client, common.DefaultResyncPeriod, "", func(options *v1.ListOptions) {
 		options.LabelSelector = common.CDILabelSelector
 	})
-	ingressInformerFactory := k8sinformers.NewSharedInformerFactory(client, common.DefaultResyncPeriod)
-	routeInformerFactory := routeinformers.NewSharedInformerFactory(openshiftClient, common.DefaultResyncPeriod)
 	crdInformerFactory := crdinformers.NewSharedInformerFactory(extClient, common.DefaultResyncPeriod)
 
 	pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims()
 	podInformer := podInformerFactory.Core().V1().Pods()
 	serviceInformer := serviceInformerFactory.Core().V1().Services()
-	ingressInformer := ingressInformerFactory.Extensions().V1beta1().Ingresses()
-	routeInformer := routeInformerFactory.Route().V1().Routes()
 	dataVolumeInformer := cdiInformerFactory.Cdi().V1alpha1().DataVolumes()
-	configInformer := cdiInformerFactory.Cdi().V1alpha1().CDIConfigs()
 	snapshotInformer := csiInformerFactory.Snapshot().V1alpha1().VolumeSnapshots()
 	crdInformer := crdInformerFactory.Apiextensions().V1beta1().CustomResourceDefinitions().Informer()
 
@@ -192,15 +192,10 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		pullPolicy,
 		verbose)
 
-	configController := controller.NewConfigController(client,
-		cdiClient,
-		ingressInformer,
-		routeInformer,
-		configInformer,
-		uploadProxyServiceName,
-		configName,
-		pullPolicy,
-		verbose)
+	if _, err := controller.NewConfigController(mgr, cdiClient, client, log, uploadProxyServiceName, configName); err != nil {
+		klog.Errorf("Unable to setup config controller: %v", err)
+		os.Exit(1)
+	}
 
 	klog.V(1).Infoln("created cdi controllers")
 
@@ -209,20 +204,11 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		klog.Fatalf("Error initializing upload controller: %+v", err)
 	}
 
-	err = configController.Init()
-	if err != nil {
-		klog.Fatalf("Error initializing config controller: %+v", err)
-	}
-
 	go cdiInformerFactory.Start(stopCh)
 	go pvcInformerFactory.Start(stopCh)
 	go podInformerFactory.Start(stopCh)
 	go serviceInformerFactory.Start(stopCh)
-	go ingressInformerFactory.Start(stopCh)
 	go crdInformerFactory.Start(stopCh)
-	if isOpenshift := controller.IsOpenshift(client); isOpenshift {
-		go routeInformerFactory.Start(stopCh)
-	}
 
 	addCrdInformerEventHandlers(crdInformer, extClient, csiInformerFactory, smartCloneController, stopCh)
 
@@ -256,25 +242,24 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		}
 	}()
 
-	go func() {
-		err = configController.Run(1, stopCh)
-		if err != nil {
-			klog.Fatalf("Error running config controller: %+v", err)
-		}
-	}()
-
 	startSmartController(extClient, csiInformerFactory, smartCloneController, stopCh)
+
+	if err := mgr.Start(stopCh); err != nil {
+		klog.Errorf("Error running manager: %v", err)
+		os.Exit(1)
+	}
 }
 
 func main() {
 	defer klog.Flush()
+	logf.SetLogger(logf.ZapLogger(false))
 
-	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, configPath)
+	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
 	if err != nil {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
 	}
 
-	stopCh := handleSignals()
+	stopCh := signals.SetupSignalHandler()
 
 	err = startLeaderElection(context.TODO(), cfg, func() {
 		start(cfg, stopCh)
@@ -306,19 +291,6 @@ func createReadyFile() error {
 
 func deleteReadyFile() {
 	os.Remove(readyFile)
-}
-
-// Shutdown gracefully on system signals
-func handleSignals() <-chan struct{} {
-	sigCh := make(chan os.Signal)
-	stopCh := make(chan struct{})
-	go func() {
-		signal.Notify(sigCh)
-		<-sigCh
-		close(stopCh)
-		os.Exit(1)
-	}()
-	return stopCh
 }
 
 func addCrdInformerEventHandlers(crdInformer cache.SharedIndexInformer, extClient extclientset.Interface,

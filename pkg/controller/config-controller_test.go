@@ -1,65 +1,295 @@
 package controller
 
 import (
-	"reflect"
-	"testing"
+	"context"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	routev1 "github.com/openshift/api/route/v1"
-	routefake "github.com/openshift/client-go/route/clientset/versioned/fake"
-	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
+	storagev1 "k8s.io/api/storage/v1"
 
+	corev1 "k8s.io/api/core/v1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/diff"
-	kubeinformers "k8s.io/client-go/informers"
+	"k8s.io/apimachinery/pkg/types"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	core "k8s.io/client-go/testing"
-	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/kubernetes/scheme"
+
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
+
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
-	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions"
+	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
+	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
 )
 
-type configFixture struct {
-	t *testing.T
+const (
+	testURL         = "www.this.is.a.test.org"
+	testRouteURL    = "cdi-uploadproxy.example.com"
+	testServiceName = "cdi-proxyurl"
+	testNamespace   = "cdi-test"
+)
 
-	client      *fake.Clientset
-	kubeclient  *k8sfake.Clientset
-	routeClient *routefake.Clientset
+var (
+	log = logf.Log.WithName("config-controller-test")
+)
 
-	// Objects to put in the store.
-	configLister  []*cdiv1.CDIConfig
-	ingressLister []*extensionsv1beta1.Ingress
-	routeLister   []*routev1.Route
+var _ = Describe("CDIConfig Controller reconcile loop", func() {
+	It("Should not update if no changes happened", func() {
+		reconciler, cdiConfig := createConfigReconciler(createConfigMap(operator.ConfigMapName, testNamespace))
+		err := reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: reconciler.ConfigName}, cdiConfig)
+		_, err = reconciler.Reconcile(reconcile.Request{})
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: reconciler.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		// CDIConfig generated, now reconcile again without changes.
+		_, err = reconciler.Reconcile(reconcile.Request{})
+		Expect(err).ToNot(HaveOccurred())
+	})
 
-	// Actions expected to happen on the client.
-	kubeactions  []core.Action
-	actions      []core.Action
-	routeactions []core.Action
+	It("Should set proxyURL to override if no ingress or route exists", func() {
+		reconciler, cdiConfig := createConfigReconciler(createConfigMap(operator.ConfigMapName, testNamespace))
+		_, err := reconciler.Reconcile(reconcile.Request{})
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: reconciler.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		override := "www.override-something.org.tt.test"
+		cdiConfig.Spec.UploadProxyURLOverride = &override
+		// Update the config object in the fake client go, would normally use an informer, but too much work
+		reconciler.CdiClient = cdifake.NewSimpleClientset(cdiConfig)
+		err = reconciler.Client.Update(context.TODO(), cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = reconciler.Reconcile(reconcile.Request{})
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: reconciler.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(override).To(Equal(*cdiConfig.Status.UploadProxyURL))
+	})
 
-	// Objects from here preloaded into NewSimpleFake.
-	kubeobjects  []runtime.Object
-	objects      []runtime.Object
-	routeobjects []runtime.Object
-}
+	It("Should set proxyURL to override if ingress or route exists", func() {
+		reconciler, cdiConfig := createConfigReconciler(createConfigMap(operator.ConfigMapName, testNamespace),
+			createIngressList(
+				*createIngress("test-ingress", "test-ns", testServiceName, testURL),
+			),
+		)
+		_, err := reconciler.Reconcile(reconcile.Request{})
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: reconciler.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		override := "www.override-something.org.tt.test"
+		cdiConfig.Spec.UploadProxyURLOverride = &override
+		// Update the config object in the fake client go, would normally use an informer, but too much work
+		reconciler.CdiClient = cdifake.NewSimpleClientset(cdiConfig)
+		err = reconciler.Client.Update(context.TODO(), cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = reconciler.Reconcile(reconcile.Request{})
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: reconciler.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(override).To(Equal(*cdiConfig.Status.UploadProxyURL))
+	})
+})
 
-func newConfigFixture(t *testing.T) *configFixture {
-	f := &configFixture{}
-	f.t = t
-	f.objects = []runtime.Object{}
-	f.kubeobjects = []runtime.Object{}
-	return f
-}
+var _ = Describe("Controller ingress reconcile loop", func() {
+	It("Should set uploadProxyUrl to nil if no Ingress exists", func() {
+		reconciler, cdiConfig := createConfigReconciler()
+		err := reconciler.reconcileIngress(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.UploadProxyURL).To(BeNil())
+	})
 
-func getConfigKey(config *cdiv1.CDIConfig, t *testing.T) string {
-	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(config)
-	if err != nil {
-		t.Errorf("Unexpected error getting key for config %v: %v", config.Name, err)
-		return ""
+	It("Should set uploadProxyUrl correctly if ingress with correct serviceName exists", func() {
+		reconciler, cdiConfig := createConfigReconciler(createIngressList(
+			*createIngress("test-ingress", "test-ns", testServiceName, testURL),
+		))
+		reconciler.UploadProxyServiceName = testServiceName
+		err := reconciler.reconcileIngress(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(*cdiConfig.Status.UploadProxyURL).To(Equal(testURL))
+	})
+
+	It("Should not set uploadProxyUrl if ingress with incorrect serviceName exists", func() {
+		reconciler, cdiConfig := createConfigReconciler(createIngressList(
+			*createIngress("test-ingress", "test-ns", "incorrect", testURL),
+		))
+		reconciler.UploadProxyServiceName = testServiceName
+		err := reconciler.reconcileIngress(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.UploadProxyURL).To(BeNil())
+	})
+
+	It("Should set uploadProxyUrl correctly if multiple ingresses exist with one correct serviceName exists", func() {
+		reconciler, cdiConfig := createConfigReconciler(createIngressList(
+			*createIngress("test-ingress1", "test-ns", "service1", "invalidurl"),
+			*createIngress("test-ingress2", "test-ns", "service2", "invalidurl2"),
+			*createIngress("test-ingress3", "test-ns", testServiceName, testURL),
+			*createIngress("test-ingress4", "test-ns", "service3", "invalidurl3"),
+		))
+		reconciler.UploadProxyServiceName = testServiceName
+		err := reconciler.reconcileIngress(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(*cdiConfig.Status.UploadProxyURL).To(Equal(testURL))
+	})
+})
+
+var _ = Describe("Controller route reconcile loop", func() {
+	It("Should set uploadProxyUrl to nil if no Route exists", func() {
+		reconciler, cdiConfig := createConfigReconciler()
+		err := reconciler.reconcileRoute(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.UploadProxyURL).To(BeNil())
+	})
+
+	It("Should set uploadProxyUrl correctly if route with correct serviceName exists", func() {
+		reconciler, cdiConfig := createConfigReconciler(createRouteList(
+			*createRoute("test-ingress", "test-ns", testServiceName),
+		))
+		reconciler.UploadProxyServiceName = testServiceName
+		err := reconciler.reconcileRoute(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(*cdiConfig.Status.UploadProxyURL).To(Equal(testRouteURL))
+	})
+
+	It("Should not set uploadProxyUrl if ingress with incorrect serviceName exists", func() {
+		reconciler, cdiConfig := createConfigReconciler(createRouteList(
+			*createRoute("test-ingress", "test-ns", "incorrect"),
+		))
+		reconciler.UploadProxyServiceName = testServiceName
+		err := reconciler.reconcileRoute(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.UploadProxyURL).To(BeNil())
+	})
+
+	It("Should set uploadProxyUrl correctly if multiple ingresses exist with one correct serviceName exists", func() {
+		reconciler, cdiConfig := createConfigReconciler(createRouteList(
+			*createRoute("test-ingress1", "test-ns", "service1"),
+			*createRoute("test-ingress2", "test-ns", "service2"),
+			*createRoute("test-ingress3", "test-ns", testServiceName),
+			*createRoute("test-ingress4", "test-ns", "service3"),
+		))
+		reconciler.UploadProxyServiceName = testServiceName
+		err := reconciler.reconcileRoute(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(*cdiConfig.Status.UploadProxyURL).To(Equal(testRouteURL))
+	})
+})
+
+var _ = Describe("Controller storage class reconcile loop", func() {
+	It("Should set the scratchspaceStorageClass to blank if there is no default sc", func() {
+		reconciler, cdiConfig := createConfigReconciler(createStorageClassList(
+			*createStorageClass("test-default-sc", nil),
+		))
+		err := reconciler.reconcileStorageClass(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal(""))
+	})
+
+	It("Should set the scratchspaceStorageClass to the default without override", func() {
+		reconciler, cdiConfig := createConfigReconciler(createStorageClassList(
+			*createStorageClass("test-default-sc", map[string]string{
+				AnnDefaultStorageClass: "true",
+			},
+			)))
+		err := reconciler.reconcileStorageClass(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal("test-default-sc"))
+	})
+
+	It("Should set the scratchspaceStorageClass to the default without override and multiple sc", func() {
+		reconciler, cdiConfig := createConfigReconciler(createStorageClassList(
+			*createStorageClass("test-sc3", nil),
+			*createStorageClass("test-default-sc", map[string]string{
+				AnnDefaultStorageClass: "true",
+			}),
+			*createStorageClass("test-sc", nil),
+			*createStorageClass("test-sc2", nil),
+		))
+		err := reconciler.reconcileStorageClass(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal("test-default-sc"))
+	})
+
+	It("Should set the scratchspaceStorageClass to the override even with default", func() {
+		reconciler, cdiConfig := createConfigReconciler(createStorageClassList(
+			*createStorageClass("test-sc3", nil),
+			*createStorageClass("test-default-sc", map[string]string{
+				AnnDefaultStorageClass: "true",
+			}),
+			*createStorageClass("test-sc", nil),
+			*createStorageClass("test-sc2", nil),
+		))
+		override := "test-sc"
+		cdiConfig.Spec.ScratchSpaceStorageClass = &override
+		err := reconciler.reconcileStorageClass(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal(override))
+	})
+
+	It("Should set the scratchspaceStorageClass to the default with invalid override", func() {
+		reconciler, cdiConfig := createConfigReconciler(createStorageClassList(
+			*createStorageClass("test-sc3", nil),
+			*createStorageClass("test-default-sc", map[string]string{
+				AnnDefaultStorageClass: "true",
+			}),
+			*createStorageClass("test-sc", nil),
+			*createStorageClass("test-sc2", nil),
+		))
+		override := "invalid"
+		cdiConfig.Spec.ScratchSpaceStorageClass = &override
+		err := reconciler.reconcileStorageClass(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal("test-default-sc"))
+	})
+})
+
+func createConfigReconciler(objects ...runtime.Object) (*CDIConfigReconciler, *cdiv1.CDIConfig) {
+	objs := []runtime.Object{}
+	objs = append(objs, objects...)
+	// Append empty CDIConfig object that normally is created by the reconcile loop
+	cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
+	objs = append(objs, cdiConfig)
+	cdifakeclientset := cdifake.NewSimpleClientset(cdiConfig)
+	k8sfakeclientset := k8sfake.NewSimpleClientset()
+	// Register operator types with the runtime scheme.
+	s := scheme.Scheme
+	cdiv1.AddToScheme(s)
+	extensionsv1beta1.AddToScheme(s)
+	routev1.AddToScheme(s)
+	storagev1.AddToScheme(s)
+
+	// Create a fake client to mock API calls.
+	cl := fake.NewFakeClientWithScheme(s, objs...)
+
+	// Create a ReconcileMemcached object with the scheme and fake client.
+	r := &CDIConfigReconciler{
+		Client:       cl,
+		Scheme:       s,
+		Log:          log,
+		ConfigName:   "cdiconfig",
+		CDINamespace: testNamespace,
+		CdiClient:    cdifakeclientset,
+		K8sClient:    k8sfakeclientset,
 	}
-	return key
+	return r, cdiConfig
+}
+
+func createStorageClassList(storageClasses ...storagev1.StorageClass) *storagev1.StorageClassList {
+	list := &storagev1.StorageClassList{
+		Items: []storagev1.StorageClass{},
+	}
+	list.Items = append(list.Items, storageClasses...)
+	return list
+}
+
+func createRouteList(routes ...routev1.Route) *routev1.RouteList {
+	list := &routev1.RouteList{
+		Items: []routev1.Route{},
+	}
+	list.Items = append(list.Items, routes...)
+	return list
 }
 
 func createRoute(name, ns, service string) *routev1.Route {
@@ -79,11 +309,19 @@ func createRoute(name, ns, service string) *routev1.Route {
 		},
 		Status: routev1.RouteStatus{
 			Ingress: []routev1.RouteIngress{
-				{Host: "cdi-uploadproxy.example.com"},
+				{Host: testRouteURL},
 			},
 		},
 	}
 	return route
+}
+
+func createIngressList(ingresses ...extensionsv1beta1.Ingress) *extensionsv1beta1.IngressList {
+	list := &extensionsv1beta1.IngressList{
+		Items: []extensionsv1beta1.Ingress{},
+	}
+	list.Items = append(list.Items, ingresses...)
+	return list
 }
 
 func createIngress(name, ns, service, url string) *extensionsv1beta1.Ingress {
@@ -106,381 +344,22 @@ func createIngress(name, ns, service, url string) *extensionsv1beta1.Ingress {
 	}
 }
 
-func (f *configFixture) newController() (*ConfigController, informers.SharedInformerFactory, routeinformers.SharedInformerFactory, kubeinformers.SharedInformerFactory) {
-	f.client = fake.NewSimpleClientset(f.objects...)
-	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
-	f.routeClient = routefake.NewSimpleClientset(f.routeobjects...)
-
-	i := informers.NewSharedInformerFactory(f.client, noResyncPeriodFunc())
-	k8sI := kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
-	r := routeinformers.NewSharedInformerFactory(f.routeClient, noResyncPeriodFunc())
-
-	for _, conf := range f.configLister {
-		i.Cdi().V1alpha1().CDIConfigs().Informer().GetIndexer().Add(conf)
+func createConfigMap(name, namespace string) *corev1.ConfigMap {
+	isController := true
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels: map[string]string{
+				common.CDIComponentLabel: "cdi.kubevirt.io",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					Name:       "some owner",
+					Controller: &isController,
+				},
+			},
+		},
 	}
-
-	for _, ing := range f.ingressLister {
-		k8sI.Extensions().V1beta1().Ingresses().Informer().GetIndexer().Add(ing)
-	}
-
-	for _, route := range f.routeLister {
-		r.Route().V1().Routes().Informer().GetIndexer().Add(route)
-	}
-
-	c := NewConfigController(f.kubeclient,
-		f.client,
-		k8sI.Extensions().V1beta1().Ingresses(),
-		r.Route().V1().Routes(),
-		i.Cdi().V1alpha1().CDIConfigs(),
-		"cdi-uploadproxy",
-		"testConfig",
-		"Always",
-		"5")
-
-	c.ingressesSynced = alwaysReady
-	c.routesSynced = alwaysReady
-	c.configsSynced = alwaysReady
-
-	return c, i, r, k8sI
+	return cm
 }
-
-func (f *configFixture) run(configName string) {
-	f.runController(configName, true, false)
-}
-
-func (f *configFixture) runController(configName string, startInformers bool, expectError bool) {
-	c, i, r, k8sI := f.newController()
-	if startInformers {
-		stopCh := make(chan struct{})
-		defer close(stopCh)
-		i.Start(stopCh)
-		r.Start(stopCh)
-		k8sI.Start(stopCh)
-	}
-
-	err := c.syncHandler(configName)
-	if !expectError && err != nil {
-		f.t.Errorf("error syncing foo: %v", err)
-	} else if expectError && err == nil {
-		f.t.Error("expected error syncing foo, got nil")
-	}
-
-	actions := filterInformerActions(f.client.Actions())
-	for i, action := range actions {
-		if len(f.actions) < i+1 {
-			f.t.Errorf("%d unexpected actions: %+v", len(actions)-len(f.actions), actions[i:])
-			break
-		}
-
-		expectedAction := f.actions[i]
-		checkConfigAction(expectedAction, action, f.t)
-	}
-
-	if len(f.actions) > len(actions) {
-		f.t.Errorf("%d additional expected actions:%+v", len(f.actions)-len(actions), f.actions[len(actions):])
-	}
-
-	routeactions := filterInformerActions(f.routeClient.Actions())
-	for i, action := range routeactions {
-		if len(f.routeactions) < i+1 {
-			f.t.Errorf("%d unexpected actions: %+v", len(routeactions)-len(f.routeactions), routeactions[i:])
-			break
-		}
-
-		expectedAction := f.routeactions[i]
-		checkConfigAction(expectedAction, action, f.t)
-	}
-
-	if len(f.routeactions) > len(routeactions) {
-		f.t.Errorf("%d additional expected actions:%+v", len(f.routeactions)-len(routeactions), f.routeactions[len(routeactions):])
-	}
-
-	k8sActions := filterInformerActions(f.kubeclient.Actions())
-	for i, action := range k8sActions {
-		if len(f.kubeactions) < i+1 {
-			f.t.Errorf("%d unexpected actions: %+v", len(k8sActions)-len(f.kubeactions), k8sActions[i:])
-			break
-		}
-
-		expectedAction := f.kubeactions[i]
-		checkConfigAction(expectedAction, action, f.t)
-	}
-
-	if len(f.kubeactions) > len(k8sActions) {
-		f.t.Errorf("%d additional expected actions:%+v", len(f.kubeactions)-len(k8sActions), f.kubeactions[len(k8sActions):])
-	}
-
-}
-
-func filterConfigInformerActions(actions []core.Action) []core.Action {
-	ret := []core.Action{}
-	for _, action := range actions {
-		if len(action.GetNamespace()) == 0 &&
-			(action.Matches("list", "ingresses") ||
-				action.Matches("watch", "ingresses") ||
-				action.Matches("list", "routes") ||
-				action.Matches("watch", "routes") ||
-				action.Matches("list", "cdiconfigs") ||
-				action.Matches("watch", "cdiconfigs")) {
-			continue
-		}
-		ret = append(ret, action)
-	}
-	return ret
-}
-
-func checkConfigAction(expected, actual core.Action, t *testing.T) {
-	if !(expected.Matches(actual.GetVerb(), actual.GetResource().Resource) && actual.GetSubresource() == expected.GetSubresource()) {
-		t.Errorf("Expected\n\t%#v\ngot\n\t%#v", expected, actual)
-		return
-	}
-
-	if reflect.TypeOf(actual) != reflect.TypeOf(expected) {
-		t.Errorf("Action has wrong type. Expected: %t. Got: %t", expected, actual)
-		return
-	}
-
-	switch a := actual.(type) {
-	case core.CreateAction:
-		e, _ := expected.(core.CreateAction)
-		expObject := e.GetObject()
-		object := a.GetObject()
-
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expObject, object))
-		}
-	case core.UpdateAction:
-		e, _ := expected.(core.UpdateAction)
-		expObject := e.GetObject()
-		object := a.GetObject()
-
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expObject, object))
-		}
-	case core.PatchAction:
-		e, _ := expected.(core.PatchAction)
-		expPatch := e.GetPatch()
-		patch := a.GetPatch()
-
-		if !reflect.DeepEqual(expPatch, expPatch) {
-			t.Errorf("Action %s %s has wrong patch\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expPatch, patch))
-		}
-	}
-}
-
-func (f *configFixture) expectUpdateConfigAction(config *cdiv1.CDIConfig) {
-	action := core.NewUpdateAction(schema.GroupVersionResource{Group: "cdi.kubevirt.io", Resource: "cdiconfigs", Version: "v1alpha1"}, config.Namespace, config)
-	f.actions = append(f.actions, action)
-}
-
-func (f *configFixture) expectListStorageClass() {
-	f.kubeactions = append(f.kubeactions,
-		core.NewRootListAction(schema.GroupVersionResource{Resource: "storageclasses", Version: "v1"}, schema.GroupVersionKind{Group: "storage.k8s.io", Version: "v1", Kind: "StorageClass"}, metav1.ListOptions{}))
-}
-
-// very flaky
-/*
-func TestCreatesCDIConfig(t *testing.T) {
-	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig")
-
-	f.configLister = append(f.configLister, config)
-	f.objects = append(f.objects, config)
-
-	f.expectListStorageClass()
-	f.run(getConfigKey(config, t))
-}
-*/
-
-// another flaky test
-/*
-func TestCDIConfigStatusChanged(t *testing.T) {
-	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig")
-	url := "www.example.com"
-	config.Spec.UploadProxyURLOverride = &url
-
-	f.configLister = append(f.configLister, config)
-	f.objects = append(f.objects, config)
-
-	result := config.DeepCopy()
-	result.Status.UploadProxyURL = &url
-
-	f.expectListStorageClass()
-	f.expectUpdateConfigAction(result)
-
-	f.run(getConfigKey(config, t))
-}
-*/
-
-func TestCreatesRoute(t *testing.T) {
-	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig")
-
-	f.configLister = append(f.configLister, config)
-	f.objects = append(f.objects, config)
-
-	route := createRoute("testRoute", "default", "cdi-uploadproxy")
-
-	f.routeLister = append(f.routeLister, route)
-
-	url := route.Status.Ingress[0].Host
-
-	result := config.DeepCopy()
-	result.Status.UploadProxyURL = &url
-
-	f.expectListStorageClass()
-	f.expectUpdateConfigAction(result)
-
-	f.run(getConfigKey(config, t))
-}
-
-// another flaky one
-/*
-func TestCreatesRouteOverrideExists(t *testing.T) {
-	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig")
-	newURL := "www.override.com"
-	config.Spec.UploadProxyURLOverride = &newURL
-
-	f.configLister = append(f.configLister, config)
-	f.objects = append(f.objects, config)
-
-	route := createRoute("testRoute", "default", "cdi-uploadproxy")
-
-	f.routeLister = append(f.routeLister, route)
-
-	result := config.DeepCopy()
-	result.Status.UploadProxyURL = &newURL
-
-	f.expectListStorageClass()
-	f.expectUpdateConfigAction(result)
-
-	f.run(getConfigKey(config, t))
-}
-*/
-
-func TestCreatesRouteDifferentService(t *testing.T) {
-	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig")
-
-	f.configLister = append(f.configLister, config)
-	f.objects = append(f.objects, config)
-
-	route := createRoute("testRoute", "default", "other-service")
-
-	f.routeLister = append(f.routeLister, route)
-
-	f.expectListStorageClass()
-	f.run(getConfigKey(config, t))
-}
-func TestCreatesIngress(t *testing.T) {
-	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig")
-
-	f.configLister = append(f.configLister, config)
-	f.objects = append(f.objects, config)
-
-	url := "www.example.com"
-	ing := createIngress("ing", "default", "cdi-uploadproxy", url)
-
-	f.ingressLister = append(f.ingressLister, ing)
-	f.kubeobjects = append(f.kubeobjects, ing)
-
-	result := config.DeepCopy()
-	result.Status.UploadProxyURL = &url
-	f.expectListStorageClass()
-	f.expectUpdateConfigAction(result)
-
-	f.run(getConfigKey(config, t))
-}
-
-func TestCreatesIngressOverrideExists(t *testing.T) {
-	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig")
-	newURL := "www.override.com"
-	config.Spec.UploadProxyURLOverride = &newURL
-
-	f.configLister = append(f.configLister, config)
-	f.objects = append(f.objects, config)
-
-	url := "www.example.com"
-	ing := createIngress("ing", "default", "cdi-uploadproxy", url)
-
-	f.ingressLister = append(f.ingressLister, ing)
-	f.kubeobjects = append(f.kubeobjects, ing)
-
-	result := config.DeepCopy()
-	result.Status.UploadProxyURL = &newURL
-	f.expectListStorageClass()
-	f.expectUpdateConfigAction(result)
-
-	f.run(getConfigKey(config, t))
-}
-
-func TestCreatesIngressDifferentService(t *testing.T) {
-	f := newConfigFixture(t)
-	config := createCDIConfig("testConfig")
-
-	f.configLister = append(f.configLister, config)
-	f.objects = append(f.objects, config)
-
-	url := "www.example.com"
-	ing := createIngress("ing", "default", "other-service", url)
-
-	f.ingressLister = append(f.ingressLister, ing)
-	f.kubeobjects = append(f.kubeobjects, ing)
-	f.expectListStorageClass()
-	f.run(getConfigKey(config, t))
-}
-
-func TestCreatesScratchStorageClassOverrideExists(t *testing.T) {
-	f := newConfigFixture(t)
-
-	f.kubeobjects = append(f.kubeobjects, createStorageClass("test1", nil))
-	f.kubeobjects = append(f.kubeobjects, createStorageClass("test2", nil))
-	f.kubeobjects = append(f.kubeobjects, createStorageClass("test3", map[string]string{
-		AnnDefaultStorageClass: "true",
-	}))
-
-	config := createCDIConfig("testConfig")
-	scratchStorageClass := "test2"
-	config.Spec.ScratchSpaceStorageClass = &scratchStorageClass
-
-	f.configLister = append(f.configLister, config)
-	f.objects = append(f.objects, config)
-
-	result := config.DeepCopy()
-	result.Status.ScratchSpaceStorageClass = scratchStorageClass
-	f.expectListStorageClass()
-	f.expectUpdateConfigAction(result)
-
-	f.run(getConfigKey(config, t))
-}
-
-// TODO Enable me when we refactor the controller.
-//func TestCreatesScratchStorageClassOverrideMissing(t *testing.T) {
-//	f := newConfigFixture(t)
-//
-//	f.kubeobjects = append(f.kubeobjects, createStorageClass("test1", nil))
-//	f.kubeobjects = append(f.kubeobjects, createStorageClass("test2", nil))
-//	f.kubeobjects = append(f.kubeobjects, createStorageClass("test3", map[string]string{
-//		AnnDefaultStorageClass: "true",
-//	}))
-//
-//	config := createCDIConfig("testConfig")
-//	scratchStorageClass := "test3"
-//
-//	f.configLister = append(f.configLister, config)
-//	f.objects = append(f.objects, config)
-//
-//	result := config.DeepCopy()
-//	result.Status.ScratchSpaceStorageClass = scratchStorageClass
-//	f.expectListStorageClass()
-//	f.expectUpdateConfigAction(result)
-//
-//	f.run(getConfigKey(config, t))
-//}

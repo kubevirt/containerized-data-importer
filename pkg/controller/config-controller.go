@@ -1,318 +1,142 @@
 package controller
 
 import (
-	"fmt"
-	"time"
+	"context"
+	"reflect"
 
 	routev1 "github.com/openshift/api/route/v1"
-	routeinformers "github.com/openshift/client-go/route/informers/externalversions/route/v1"
-	routelisters "github.com/openshift/client-go/route/listers/route/v1"
-	"github.com/pkg/errors"
-	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
-	extensioninformers "k8s.io/client-go/informers/extensions/v1beta1"
-	"k8s.io/client-go/kubernetes"
-	extensionlisters "k8s.io/client-go/listers/extensions/v1beta1"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
-	"k8s.io/klog"
+
+	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/go-logr/logr"
+	kubernetes "k8s.io/client-go/kubernetes"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
-	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/core/v1alpha1"
-	listers "kubevirt.io/containerized-data-importer/pkg/client/listers/core/v1alpha1"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
+	"kubevirt.io/containerized-data-importer/pkg/util"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-// ConfigController members
-type ConfigController struct {
-	client                                         kubernetes.Interface
-	cdiClientSet                                   cdiclientset.Interface
-	queue                                          workqueue.RateLimitingInterface
-	ingressInformer, routeInformer, configInformer cache.SharedIndexInformer
-	ingressLister                                  extensionlisters.IngressLister
-	routeLister                                    routelisters.RouteLister
-	configLister                                   listers.CDIConfigLister
-	ingressesSynced                                cache.InformerSynced
-	routesSynced                                   cache.InformerSynced
-	configsSynced                                  cache.InformerSynced
-	pullPolicy                                     string // Options: IfNotPresent, Always, or Never
-	verbose                                        string // verbose levels: 1, 2, ...
-	uploadProxyServiceName                         string
-	configName                                     string
+// CDIConfigReconciler members
+type CDIConfigReconciler struct {
+	Client                 client.Client
+	CdiClient              cdiclientset.Interface
+	K8sClient              kubernetes.Interface
+	Scheme                 *runtime.Scheme
+	Log                    logr.Logger
+	UploadProxyServiceName string
+	ConfigName             string
+	CDINamespace           string
 }
 
-//NewConfigController creates a new ConfigController
-func NewConfigController(client kubernetes.Interface,
-	cdiClientSet cdiclientset.Interface,
-	ingressInformer extensioninformers.IngressInformer,
-	routeInformer routeinformers.RouteInformer,
-	configInformer informers.CDIConfigInformer,
-	uploadProxyServiceName string,
-	configName string,
-	pullPolicy string,
-	verbose string) *ConfigController {
-	c := &ConfigController{
-		client:                 client,
-		cdiClientSet:           cdiClientSet,
-		queue:                  workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
-		ingressInformer:        ingressInformer.Informer(),
-		routeInformer:          routeInformer.Informer(),
-		configInformer:         configInformer.Informer(),
-		ingressLister:          ingressInformer.Lister(),
-		routeLister:            routeInformer.Lister(),
-		configLister:           configInformer.Lister(),
-		ingressesSynced:        ingressInformer.Informer().HasSynced,
-		routesSynced:           routeInformer.Informer().HasSynced,
-		configsSynced:          configInformer.Informer().HasSynced,
-		uploadProxyServiceName: uploadProxyServiceName,
-		configName:             configName,
-		pullPolicy:             pullPolicy,
-		verbose:                verbose,
-	}
+// Reconcile the reconcile loop for the CDIConfig object.
+func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
+	log := r.Log.WithValues("CDIConfig", req.NamespacedName)
+	log.Info("reconciling CDIConfig")
 
-	// Bind the ingress SharedIndexInformer to the ingress queue
-	c.ingressInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: c.handleObject,
-		UpdateFunc: func(old, new interface{}) {
-			newDepl := new.(*extensionsv1beta1.Ingress)
-			oldDepl := old.(*extensionsv1beta1.Ingress)
-			if newDepl.ResourceVersion == oldDepl.ResourceVersion {
-				// Periodic resync will send update events for all known ingresses.
-				return
-			}
-			c.handleObject(new)
-		},
-
-		DeleteFunc: c.handleObject,
-	})
-
-	// Bind the route SharedIndexInformer to the route queue
-	c.routeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: c.handleObject,
-		UpdateFunc: func(old, new interface{}) {
-			newDepl := new.(*routev1.Route)
-			oldDepl := old.(*routev1.Route)
-			if newDepl.ResourceVersion == oldDepl.ResourceVersion {
-				// Periodic resync will send update events for all known routes.
-				return
-			}
-			c.handleObject(new)
-		},
-
-		DeleteFunc: c.handleObject,
-	})
-
-	// Bind the CDIconfig SharedIndexInformer to the CDIconfig queue
-	c.configInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: c.handleObject,
-		UpdateFunc: func(old, new interface{}) {
-			newDepl := new.(*cdiv1.CDIConfig)
-			oldDepl := old.(*cdiv1.CDIConfig)
-			if newDepl.ResourceVersion == oldDepl.ResourceVersion {
-				// Periodic resync will send update events for all known CDIconfigs.
-				return
-			}
-			c.handleObject(new)
-		},
-
-		DeleteFunc: c.handleObject,
-	})
-
-	return c
-}
-
-func (c *ConfigController) handleObject(obj interface{}) {
-
-	var object metav1.Object
-	var ok bool
-	if object, ok = obj.(metav1.Object); !ok {
-		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			runtime.HandleError(errors.Errorf("error decoding object, invalid type"))
-			return
-		}
-		object, ok = tombstone.Obj.(metav1.Object)
-		if !ok {
-			runtime.HandleError(errors.Errorf("error decoding object tombstone, invalid type"))
-			return
-		}
-		klog.V(3).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
-	}
-	klog.V(3).Infof("Processing object: %s", object.GetName())
-
-	var config *cdiv1.CDIConfig
-	config, err := c.configLister.Get(c.configName)
+	config, err := r.createCDIConfig()
 	if err != nil {
-		runtime.HandleError(errors.Errorf("error getting CDI config: %s", err))
-		return
+		log.Error(err, "Unable to create CDIConfig")
+		return reconcile.Result{}, err
 	}
+	// Keep a copy of the original for comparison later.
+	currentConfigCopy := config.DeepCopyObject()
 
-	if ing, ok := obj.(*extensionsv1beta1.Ingress); ok {
-		for _, rule := range ing.Spec.Rules {
-			if rule.HTTP == nil {
-				continue
-			}
-
-			for _, path := range rule.HTTP.Paths {
-				if path.Backend.ServiceName == c.uploadProxyServiceName {
-					c.enqueueCDIConfig(config)
-					return
-				}
-			}
+	config.Status.UploadProxyURL = config.Spec.UploadProxyURLOverride
+	// No override, try Ingress
+	if config.Status.UploadProxyURL == nil {
+		if err := r.reconcileIngress(config); err != nil {
+			log.Error(err, "Unable to reconcile Ingress")
+			return reconcile.Result{}, err
 		}
 	}
-	if route, ok := obj.(*routev1.Route); ok {
-		if route.Spec.To.Name == c.uploadProxyServiceName {
-			c.enqueueCDIConfig(config)
-			return
-		}
-	}
-	if conf, ok := obj.(*cdiv1.CDIConfig); ok {
-		if conf.Name == config.Name {
-			c.enqueueCDIConfig(conf)
-			return
+	// No override or Ingress, try Route
+	if config.Status.UploadProxyURL == nil {
+		if err := r.reconcileRoute(config); err != nil {
+			log.Error(err, "Unable to reconcile Routes")
+			return reconcile.Result{}, err
 		}
 	}
 
-	return
+	if err := r.reconcileStorageClass(config); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if !reflect.DeepEqual(currentConfigCopy, config) {
+		// Updates have happened, update CDIConfig.
+		log.Info("Updating CDIConfig", "CDIConfig.Name", config.Name, "config", config)
+		if err := r.Client.Update(context.TODO(), config); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+	return reconcile.Result{}, nil
 }
 
-func (c *ConfigController) runWorker() {
-	for c.processNextWorkItem() {
+func (r *CDIConfigReconciler) reconcileIngress(config *cdiv1.CDIConfig) error {
+	log := r.Log.WithName("CDIconfig").WithName("IngressReconcile")
+	ingressList := &extensionsv1beta1.IngressList{}
+	if err := r.Client.List(context.TODO(), &client.ListOptions{}, ingressList); IgnoreIsNoMatchError(err) != nil {
+		return err
 	}
-}
-
-func (c *ConfigController) processNextWorkItem() bool {
-	obj, shutdown := c.queue.Get()
-
-	if shutdown {
-		return false
-	}
-
-	err := func(obj interface{}) error {
-		defer c.queue.Done(obj)
-
-		var key string
-		var ok bool
-
-		if key, ok = obj.(string); !ok {
-			c.queue.Forget(obj)
-			runtime.HandleError(errors.Errorf("expected string in workqueue but got %#v", obj))
+	for _, ingress := range ingressList.Items {
+		ingressURL := getURLFromIngress(&ingress, r.UploadProxyServiceName)
+		if ingressURL != "" {
+			log.Info("Setting upload proxy url", "IngressURL", ingressURL)
+			config.Status.UploadProxyURL = &ingressURL
 			return nil
 		}
-
-		if err := c.syncHandler(key); err != nil {
-			// Put the item back on the workqueue to handle any transient errors.
-			c.queue.AddRateLimited(key)
-			return errors.Errorf("error syncing '%s': %s", key, err.Error())
-		}
-
-		c.queue.Forget(obj)
-		klog.Infof("Successfully synced '%s'", key)
-		return nil
-
-	}(obj)
-
-	if err != nil {
-		runtime.HandleError(err)
-		return true
 	}
-
-	return true
-}
-
-func (c *ConfigController) syncHandler(key string) error {
-	var updateConfig bool
-	_, name, err := cache.SplitMetaNamespaceKey(key)
-	if err != nil {
-		runtime.HandleError(errors.Errorf("invalid resource key: %s", key))
-		return nil
-	}
-
-	config, err := c.configLister.Get(name)
-	if err != nil {
-		runtime.HandleError(errors.Errorf("CDIConfig '%s' in work queue no longer exists", key))
-		return nil
-	}
-
-	var url string
-	if config.Spec.UploadProxyURLOverride != nil {
-		url = *config.Spec.UploadProxyURLOverride
-	} else {
-
-		routes, err := c.routeLister.List(labels.NewSelector())
-		if err != nil {
-			return err
-		}
-		for _, route := range routes {
-			url = getURLFromRoute(route, c.uploadProxyServiceName)
-			if url != "" {
-				break
-			}
-		}
-		if url == "" {
-			ingresses, err := c.ingressLister.List(labels.NewSelector())
-			if err != nil {
-				return err
-			}
-			for _, ing := range ingresses {
-				url = getURLFromIngress(ing, c.uploadProxyServiceName)
-				if url != "" {
-					break
-				}
-			}
-		}
-	}
-
-	if (config.Status.UploadProxyURL != nil && url == *config.Status.UploadProxyURL) || (config.Status.UploadProxyURL == nil && url == "") {
-		updateConfig = false
-	} else {
-		updateConfig = true
-	}
-	newConfig := config.DeepCopy()
-	if updateConfig {
-		// mutate newConfig
-		if url == "" {
-			newConfig.Status.UploadProxyURL = nil
-		} else {
-			newConfig.Status.UploadProxyURL = &url
-		}
-	}
-
-	storageClass, err := c.scratchSpaceStorageClassStatus(config)
-	if err != nil {
-		return fmt.Errorf("Error updating CDI Config: %v", err)
-	}
-
-	if storageClass == config.Status.ScratchSpaceStorageClass {
-		updateConfig = updateConfig || false
-	} else {
-		newConfig.Status.ScratchSpaceStorageClass = storageClass
-		updateConfig = true
-	}
-
-	if updateConfig {
-		err = updateCDIConfig(c.cdiClientSet, newConfig)
-		if err != nil {
-			return fmt.Errorf("Error updating CDI Config %s: %s", key, err)
-		}
-	}
-
+	log.Info("No ingress found, setting to blank", "IngressURL", "")
+	config.Status.UploadProxyURL = nil
 	return nil
 }
 
-func (c *ConfigController) scratchSpaceStorageClassStatus(config *cdiv1.CDIConfig) (string, error) {
-	storageClassList, err := c.client.StorageV1().StorageClasses().List(metav1.ListOptions{})
-	if err != nil {
-		klog.Warningf("Unable to find storage classes, %v\n", err)
+func (r *CDIConfigReconciler) reconcileRoute(config *cdiv1.CDIConfig) error {
+	log := r.Log.WithName("CDIconfig").WithName("RouteReconcile")
+	routeList := &routev1.RouteList{}
+	if err := r.Client.List(context.TODO(), &client.ListOptions{}, routeList); IgnoreIsNoMatchError(err) != nil {
+		return err
 	}
+	for _, route := range routeList.Items {
+		routeURL := getURLFromRoute(&route, r.UploadProxyServiceName)
+		if routeURL != "" {
+			log.Info("Setting upload proxy url", "RouteURL", routeURL)
+			config.Status.UploadProxyURL = &routeURL
+			return nil
+		}
+	}
+	log.Info("No route found, setting to blank", "RouteURL", "")
+	config.Status.UploadProxyURL = nil
+	return nil
+}
+
+func (r *CDIConfigReconciler) reconcileStorageClass(config *cdiv1.CDIConfig) error {
+	log := r.Log.WithName("CDIconfig").WithName("StorageClassReconcile")
+	storageClassList := &storagev1.StorageClassList{}
+	if err := r.Client.List(context.TODO(), &client.ListOptions{}, storageClassList); err != nil {
+		return err
+	}
+
 	// Check config for scratch space class
 	if config.Spec.ScratchSpaceStorageClass != nil {
 		for _, storageClass := range storageClassList.Items {
 			if storageClass.Name == *config.Spec.ScratchSpaceStorageClass {
-				return storageClass.Name, nil
+				log.Info("Setting scratch space to override", "storageClass.Name", storageClass.Name)
+				config.Status.ScratchSpaceStorageClass = storageClass.Name
+				return nil
 			}
 		}
 	}
@@ -320,62 +144,157 @@ func (c *ConfigController) scratchSpaceStorageClassStatus(config *cdiv1.CDIConfi
 	for _, storageClass := range storageClassList.Items {
 		if defaultClassValue, ok := storageClass.Annotations[AnnDefaultStorageClass]; ok {
 			if defaultClassValue == "true" {
-				return storageClass.Name, nil
+				log.Info("Setting scratch space to default", "storageClass.Name", storageClass.Name)
+				config.Status.ScratchSpaceStorageClass = storageClass.Name
+				return nil
 			}
 		}
 	}
-	return "", nil
-}
-
-// Init is meant to be called synchroniously when the the controller is starting
-func (c *ConfigController) Init() error {
-	klog.V(3).Infoln("Creating CDI config if necessary")
-
-	if err := EnsureCDIConfigExists(c.client, c.cdiClientSet, c.configName); err != nil {
-		runtime.HandleError(err)
-		return errors.Wrap(err, "Error creating CDI config")
-	}
-
+	log.Info("No default storage class found, setting scratch space to blank")
+	// No storage class found, blank it out.
+	config.Status.ScratchSpaceStorageClass = ""
 	return nil
 }
 
-// Run sets up ConfigController state and executes main event loop
-func (c *ConfigController) Run(threadiness int, stopCh <-chan struct{}) error {
-	defer func() {
-		c.queue.ShutDown()
-	}()
-
-	klog.V(3).Infoln("Starting config controller Run loop")
-	if threadiness < 1 {
-		return errors.Errorf("expected >0 threads, got %d", threadiness)
+// createCDIConfig creates a new instance of the CDIConfig object if it doesn't exist already, and returns the existing one if found.
+// It also sets the operator to be the owner of the CDIConfig object.
+func (r *CDIConfigReconciler) createCDIConfig() (*cdiv1.CDIConfig, error) {
+	config, err := r.CdiClient.Cdi().CDIConfigs().Get(r.ConfigName, metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			config = MakeEmptyCDIConfigSpec(r.ConfigName)
+			if err := operator.SetOwner(r.K8sClient, config); err != nil {
+				return nil, err
+			}
+			config, err = r.CdiClient.Cdi().CDIConfigs().Create(config)
+			if err != nil {
+				if errors.IsAlreadyExists(err) {
+					config, err := r.CdiClient.Cdi().CDIConfigs().Get(r.ConfigName, metav1.GetOptions{})
+					if err == nil {
+						return config, nil
+					}
+					return nil, err
+				}
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
-
-	informersNeedingSync := []cache.InformerSynced{c.ingressesSynced}
-	if isOpenshift := IsOpenshift(c.client); isOpenshift {
-		informersNeedingSync = append(informersNeedingSync, c.routesSynced)
-	}
-	if ok := cache.WaitForCacheSync(stopCh, informersNeedingSync...); !ok {
-		return errors.New("failed to wait for caches to sync")
-	}
-
-	klog.V(3).Infoln("ConfigController cache has synced")
-
-	for i := 0; i < threadiness; i++ {
-		go wait.Until(c.runWorker, time.Second, stopCh)
-	}
-
-	klog.Info("Started workers")
-	<-stopCh
-	klog.Info("Shutting down workers")
-	return nil
+	return config, nil
 }
 
-func (c *ConfigController) enqueueCDIConfig(obj interface{}) {
-	var key string
-	var err error
-	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
-		runtime.HandleError(err)
-		return
+// Init initializes a CDIConfig object.
+func (r *CDIConfigReconciler) Init() error {
+	_, err := r.createCDIConfig()
+	return err
+}
+
+// NewConfigController creates a new instance of the config controller.
+func NewConfigController(mgr manager.Manager, cdiClient *cdiclientset.Clientset, k8sClient kubernetes.Interface, log logr.Logger, uploadProxyServiceName, configName string) (controller.Controller, error) {
+	reconciler := &CDIConfigReconciler{
+		Client:                 mgr.GetClient(),
+		Scheme:                 mgr.GetScheme(),
+		CdiClient:              cdiClient,
+		K8sClient:              k8sClient,
+		Log:                    log,
+		UploadProxyServiceName: uploadProxyServiceName,
+		ConfigName:             configName,
+		CDINamespace:           util.GetNamespace(),
 	}
-	c.queue.AddRateLimited(key)
+	configController, err := controller.New("config-controller", mgr, controller.Options{
+		Reconciler: reconciler,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := addConfigControllerWatches(mgr, configController, reconciler.CDINamespace, configName, uploadProxyServiceName); err != nil {
+		return nil, err
+	}
+	if err := reconciler.Init(); err != nil {
+		log.Error(err, "Unable to initalize CDIConfig")
+		return nil, err
+	}
+	return configController, nil
+}
+
+// addConfigControllerWatches sets up the watches used by the config controller.
+func addConfigControllerWatches(mgr manager.Manager, configController controller.Controller, cdiNamespace, configName, uploadProxyServiceName string) error {
+	// Add schemes.
+	if err := cdiv1.AddToScheme(mgr.GetScheme()); err != nil {
+		return err
+	}
+	if err := storagev1.AddToScheme(mgr.GetScheme()); err != nil {
+		return err
+	}
+	if err := extensionsv1beta1.AddToScheme(mgr.GetScheme()); err != nil {
+		return err
+	}
+	if err := routev1.AddToScheme(mgr.GetScheme()); err != nil {
+		return err
+	}
+
+	// Setup watches
+	if err := configController.Watch(&source.Kind{Type: &cdiv1.CDIConfig{}}, &handler.EnqueueRequestForObject{}); err != nil {
+		return err
+	}
+	err := configController.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, &handler.EnqueueRequestsFromMapFunc{
+		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{Name: configName},
+			}}
+		}),
+	})
+	if err != nil {
+		return err
+	}
+	err = configController.Watch(&source.Kind{Type: &extensionsv1beta1.Ingress{}}, &handler.EnqueueRequestsFromMapFunc{
+		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{Name: configName},
+			}}
+		}),
+	}, predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return "" != getURLFromIngress(e.Object.(*extensionsv1beta1.Ingress), uploadProxyServiceName) &&
+				e.Object.(*extensionsv1beta1.Ingress).GetNamespace() == cdiNamespace
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return "" != getURLFromIngress(e.ObjectNew.(*extensionsv1beta1.Ingress), uploadProxyServiceName) &&
+				e.ObjectNew.(*extensionsv1beta1.Ingress).GetNamespace() == cdiNamespace
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return "" != getURLFromIngress(e.Object.(*extensionsv1beta1.Ingress), uploadProxyServiceName) &&
+				e.Object.(*extensionsv1beta1.Ingress).GetNamespace() == cdiNamespace
+		},
+	})
+
+	if IgnoreIsNoMatchError(err) != nil {
+		return err
+	}
+
+	err = configController.Watch(&source.Kind{Type: &routev1.Route{}}, &handler.EnqueueRequestsFromMapFunc{
+		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{Name: configName},
+			}}
+		}),
+	}, predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
+				e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return "" != getURLFromRoute(e.ObjectNew.(*routev1.Route), uploadProxyServiceName) &&
+				e.ObjectNew.(*routev1.Route).GetNamespace() == cdiNamespace
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
+				e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
+		},
+	})
+	if IgnoreIsNoMatchError(err) != nil {
+		return err
+	}
+	return nil
 }
