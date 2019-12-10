@@ -28,7 +28,7 @@ BUILD_TAG=$(expr match $BUILDER_TAG '\(.*\)@sha256')
 # Build the encapsulated compile and test container
 (cd ${BUILDER_SPEC} && docker build --tag ${BUILD_TAG}:latest .)
 
-DIGEST=$(docker images --digests | grep $BUILD_TAG | grep latest | awk '{ print $3 }'
+DIGEST=$(docker images --digests | grep $BUILD_TAG | grep latest | awk '{ print $3 }')
 echo "Image: ${BUILD_TAG}:latest"
 echo "Digest: ${DIGEST}"
 
