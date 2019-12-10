@@ -17,10 +17,10 @@
 set -e
 script_dir="$(readlink -f $(dirname $0))"
 source "${script_dir}"/common.sh
+source "${script_dir}"/config.sh
 
 WORK_DIR="/go/src/kubevirt.io/containerized-data-importer"
 BUILDER_SPEC="${BUILD_DIR}/docker/builder"
-BUILDER_TAG="kubevirt-cdi-bazel-builder"
 BUILDER_VOLUME="kubevirt-cdi-volume"
 BAZEL_BUILDER_SERVER="${BUILDER_VOLUME}-bazel-server"
 
@@ -30,9 +30,6 @@ if [ -n "${TRAVIS_JOB_ID}" ]; then
 common --noshow_progress --noshow_loading_progress
 EOF
 fi
-
-# Build the encapsulated compile and test container
-(cd ${BUILDER_SPEC} && docker build --tag ${BUILDER_TAG} .)
 
 # Create the persistent docker volume
 if [ -z "$(docker volume list | grep ${BUILDER_VOLUME})" ]; then

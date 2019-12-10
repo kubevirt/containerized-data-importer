@@ -21,9 +21,6 @@ source "${script_dir}"/config.sh
 
 BUILDER_SPEC="${BUILD_DIR}/docker/builder"
 
-#TODO remove me and use the one from config.sh
-BUILDER_TAG="kubevirt/kubevirt-cdi-bazel-builder"
-
 # Build the encapsulated compile and test container
 (cd ${BUILDER_SPEC} && docker build --tag ${BUILDER_TAG} .)
 echo "Image: ${BUILDER_TAG}"
