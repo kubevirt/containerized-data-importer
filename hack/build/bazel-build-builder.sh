@@ -21,8 +21,15 @@ source "${script_dir}"/config.sh
 
 BUILDER_SPEC="${BUILD_DIR}/docker/builder"
 
-# Build the encapsulated compile and test container
-(cd ${BUILDER_SPEC} && docker build --tag ${BUILDER_TAG} .)
-echo "Image: ${BUILDER_TAG}"
+# When building and pushing a new image we do not provide the sha hash
+# because docker assigns that for us.
+BUILD_TAG=$(expr match $BUILDER_TAG '\(.*\)@sha256')
 
-docker push ${BUILDER_TAG}
+# Build the encapsulated compile and test container
+(cd ${BUILDER_SPEC} && docker build --tag ${BUILD_TAG}:latest .)
+
+DIGEST=$(docker images --digests | grep $BUILD_TAG | grep latest | awk '{ print $3 }'
+echo "Image: ${BUILD_TAG}:latest"
+echo "Digest: ${DIGEST}"
+
+docker push ${BUILD_TAG}:latest
