@@ -63,7 +63,7 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			eventExpectedResult["delete"] = "no"
 			eventExpectedResult["create"] = "yes"
 			eventExpectedResult["update"] = "no"
-			eventExpectedResult["patch"] = "no"
+			eventExpectedResult["patch"] = "yes"
 			eventExpectedResult["deletecollection"] = "no"
 			ValidateRBACForResource(f, eventExpectedResult, "events", sa)
 

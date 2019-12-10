@@ -16,6 +16,7 @@ require (
 	github.com/go-openapi/spec v0.19.2
 	github.com/gogo/protobuf v1.2.1 // indirect
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
+	github.com/google/martian v2.1.0+incompatible
 	github.com/gopherjs/gopherjs v0.0.0-20190915194858-d3ddacdb130f // indirect
 	github.com/hashicorp/golang-lru v0.5.1 // indirect
 	github.com/kelseyhightower/envconfig v1.4.0
@@ -42,7 +43,6 @@ require (
 	golang.org/x/net v0.0.0-20191007182048-72f939374954 // indirect
 	golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a // indirect
 	golang.org/x/sys v0.0.0-20191008105621-543471e840be
-	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/ini.v1 v1.48.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.2.4
@@ -56,6 +56,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20190709113604-33be087ad058
 	kubevirt.io/qe-tools v0.1.3
 	sigs.k8s.io/controller-runtime v0.1.10
+	sigs.k8s.io/testing_frameworks v0.1.2 // indirect
 )
 
 replace k8s.io/client-go => k8s.io/client-go v0.0.0-20190228174230-b40b2a5939e4

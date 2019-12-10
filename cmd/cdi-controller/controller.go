@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strconv"
 
 	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	"github.com/pkg/errors"
@@ -48,7 +49,7 @@ var (
 	configName             string
 	pullPolicy             string
 	verbose                string
-	log                    = logf.Log.WithName("config-controller")
+	log                    = logf.Log.WithName("controller")
 )
 
 // The importer and cloner images are obtained here along with the supported flags. IMPORTER_IMAGE, CLONER_IMAGE, and UPLOADSERVICE_IMAGE
@@ -157,14 +158,10 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		pvcInformer,
 		dataVolumeInformer)
 
-	importController := controller.NewImportController(
-		client,
-		cdiClient,
-		pvcInformer,
-		podInformer,
-		importerImage,
-		pullPolicy,
-		verbose)
+	if _, err := controller.NewImportController(mgr, cdiClient, client, log, importerImage, pullPolicy, verbose); err != nil {
+		klog.Errorf("Unable to setup import controller: %v", err)
+		os.Exit(1)
+	}
 
 	cloneController := controller.NewCloneController(client,
 		pvcInformer,
@@ -222,13 +219,6 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	}()
 
 	go func() {
-		err = importController.Run(1, stopCh)
-		if err != nil {
-			klog.Fatalf("Error running import controller: %+v", err)
-		}
-	}()
-
-	go func() {
 		err = cloneController.Run(1, stopCh)
 		if err != nil {
 			klog.Fatalf("Error running clone controller: %+v", err)
@@ -252,7 +242,12 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 
 func main() {
 	defer klog.Flush()
-	logf.SetLogger(logf.ZapLogger(false))
+	debug := false
+	if i, err := strconv.Atoi(verbose); err == nil && i > 1 {
+		debug = true
+	}
+	logf.SetLogger(logf.ZapLogger(debug))
+	logf.Log.WithName("main").Info("Verbosity level", "verbose", verbose)
 
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
 	if err != nil {
