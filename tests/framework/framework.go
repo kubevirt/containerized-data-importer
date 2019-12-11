@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/onsi/ginkgo"
@@ -105,6 +106,8 @@ type Framework struct {
 	BlockSCName string
 
 	reporter *KubernetesReporter
+
+	mux sync.Mutex
 }
 
 // TODO: look into k8s' SynchronizedBeforeSuite() and SynchronizedAfterSuite() code and their general
@@ -207,6 +210,10 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 	ginkgo.AfterEach(f.AfterEach)
 	f.reporter = NewKubernetesReporter()
 
+	f.mux.Lock()
+	utils.CacheTestsData(f.K8sClient)
+	f.mux.Unlock()
+
 	return f, err
 }
 
@@ -297,7 +304,6 @@ func DeleteNS(c *kubernetes.Clientset, ns string) error {
 	return wait.PollImmediate(2*time.Second, nsDeleteTime, func() (bool, error) {
 		err := c.CoreV1().Namespaces().Delete(ns, nil)
 		if err != nil && !apierrs.IsNotFound(err) {
-			klog.Warningf("namespace %q Delete api err: %v", ns, err)
 			return false, nil // keep trying
 		}
 		// see if ns is really deleted
