@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"reflect"
 
 	routev1 "github.com/openshift/api/route/v1"
@@ -72,6 +74,10 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 	}
 
 	if err := r.reconcileStorageClass(config); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if err := r.reconcileDefaultPodResourceRequirements(config); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -153,6 +159,41 @@ func (r *CDIConfigReconciler) reconcileStorageClass(config *cdiv1.CDIConfig) err
 	log.Info("No default storage class found, setting scratch space to blank")
 	// No storage class found, blank it out.
 	config.Status.ScratchSpaceStorageClass = ""
+	return nil
+}
+
+func (r *CDIConfigReconciler) reconcileDefaultPodResourceRequirements(config *cdiv1.CDIConfig) error {
+	config.Status.DefaultPodResourceRequirements = &v1.ResourceRequirements{
+		Limits: map[v1.ResourceName]resource.Quantity{
+			v1.ResourceCPU:    *resource.NewQuantity(0, resource.DecimalSI),
+			v1.ResourceMemory: *resource.NewQuantity(0, resource.DecimalSI)},
+		Requests: map[v1.ResourceName]resource.Quantity{
+			v1.ResourceCPU:    *resource.NewQuantity(0, resource.DecimalSI),
+			v1.ResourceMemory: *resource.NewQuantity(0, resource.DecimalSI)},
+	}
+
+	if config.Spec.PodResourceRequirements != nil {
+		if config.Spec.PodResourceRequirements.Limits != nil {
+			if cpu, exist := config.Spec.PodResourceRequirements.Limits[v1.ResourceCPU]; exist {
+				config.Status.DefaultPodResourceRequirements.Limits[v1.ResourceCPU] = cpu
+			}
+
+			if memory, exist := config.Spec.PodResourceRequirements.Limits[v1.ResourceMemory]; exist {
+				config.Status.DefaultPodResourceRequirements.Limits[v1.ResourceMemory] = memory
+			}
+		}
+
+		if config.Spec.PodResourceRequirements.Requests != nil {
+			if cpu, exist := config.Spec.PodResourceRequirements.Requests[v1.ResourceCPU]; exist {
+				config.Status.DefaultPodResourceRequirements.Requests[v1.ResourceCPU] = cpu
+			}
+
+			if memory, exist := config.Spec.PodResourceRequirements.Requests[v1.ResourceMemory]; exist {
+				config.Status.DefaultPodResourceRequirements.Requests[v1.ResourceMemory] = memory
+			}
+		}
+	}
+
 	return nil
 }
 

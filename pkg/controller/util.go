@@ -324,6 +324,17 @@ func GetScratchPvcStorageClass(client kubernetes.Interface, cdiclient clientset.
 	return ""
 }
 
+// GetDefaultPodResourceRequirements gets default pod resource requirements from cdi config status
+func GetDefaultPodResourceRequirements(cdiclient clientset.Interface) (*v1.ResourceRequirements, error) {
+	config, err := cdiclient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+	if err != nil {
+		klog.Errorf("Unable to find CDI configuration, %v\n", err)
+		return nil, err
+	}
+
+	return config.Status.DefaultPodResourceRequirements, nil
+}
+
 // this is being called for pods using PV with block volume mode
 func addVolumeDevices() []v1.VolumeDevice {
 	volumeDevices := []v1.VolumeDevice{
@@ -447,7 +458,7 @@ func DecodePublicKey(keyBytes []byte) (*rsa.PublicKey, error) {
 }
 
 // CreateCloneSourcePod creates our cloning src pod which will be used for out of band cloning to read the contents of the src PVC
-func CreateCloneSourcePod(client kubernetes.Interface, image, pullPolicy, clientName string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
+func CreateCloneSourcePod(client kubernetes.Interface, cdiClient clientset.Interface, image, pullPolicy, clientName string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
 	exists, sourcePvcNamespace, sourcePvcName := ParseCloneRequestAnnotation(pvc)
 	if !exists {
 		return nil, errors.Errorf("bad CloneRequest Annotation")
@@ -481,8 +492,13 @@ func CreateCloneSourcePod(client kubernetes.Interface, image, pullPolicy, client
 		return nil, err
 	}
 
+	podResourceRequirements, err := GetDefaultPodResourceRequirements(cdiClient)
+	if err != nil {
+		return nil, err
+	}
+
 	pod := MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerKey,
-		clientKeyBytes, clientCertBytes, serverCACertBytes.Cert, pvc)
+		clientKeyBytes, clientCertBytes, serverCACertBytes.Cert, pvc, podResourceRequirements)
 
 	pod, err = client.CoreV1().Pods(sourcePvcNamespace).Create(pod)
 	if err != nil {
@@ -496,7 +512,7 @@ func CreateCloneSourcePod(client kubernetes.Interface, image, pullPolicy, client
 
 // MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
 func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerRefAnno string,
-	clientKey, clientCert, serverCACert []byte, pvc *v1.PersistentVolumeClaim) *v1.Pod {
+	clientKey, clientCert, serverCACert []byte, pvc *v1.PersistentVolumeClaim, resourceRequirements *v1.ResourceRequirements) *v1.Pod {
 
 	var ownerID string
 	podName := fmt.Sprintf("%s-%s-", common.ClonerSourcePodName, sourcePvcName)
@@ -581,6 +597,10 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerRefAnno strin
 		},
 	}
 
+	if resourceRequirements != nil {
+		pod.Spec.Containers[0].Resources = *resourceRequirements
+	}
+
 	var volumeMode v1.PersistentVolumeMode
 	var addVars []v1.EnvVar
 
@@ -629,6 +649,7 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerRefAnno strin
 // UploadPodArgs are the parameters required to create an upload pod
 type UploadPodArgs struct {
 	Client         kubernetes.Interface
+	CdiClient      clientset.Interface
 	Image          string
 	Verbose        string
 	PullPolicy     string
@@ -644,10 +665,15 @@ func CreateUploadPod(args UploadPodArgs) (*v1.Pod, error) {
 	commonName := args.Name + "." + ns
 	secretName := args.Name + "-server-tls"
 
-	pod := makeUploadPodSpec(args.Image, args.Verbose, args.PullPolicy, args.Name,
-		args.PVC, args.ScratchPVCName, secretName, args.ClientName)
+	podResourceRequirements, err := GetDefaultPodResourceRequirements(args.CdiClient)
+	if err != nil {
+		return nil, err
+	}
 
-	pod, err := args.Client.CoreV1().Pods(ns).Create(pod)
+	pod := makeUploadPodSpec(args.Image, args.Verbose, args.PullPolicy, args.Name,
+		args.PVC, args.ScratchPVCName, secretName, args.ClientName, podResourceRequirements)
+
+	pod, err = args.Client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {
 			pod, err = args.Client.CoreV1().Pods(ns).Get(args.Name, metav1.GetOptions{})
@@ -721,7 +747,7 @@ func MakePodOwnerReference(pod *v1.Pod) metav1.OwnerReference {
 }
 
 func makeUploadPodSpec(image, verbose, pullPolicy, name string,
-	pvc *v1.PersistentVolumeClaim, scratchName, secretName, clientName string) *v1.Pod {
+	pvc *v1.PersistentVolumeClaim, scratchName, secretName, clientName string, resourceRequirements *v1.ResourceRequirements) *v1.Pod {
 	requestImageSize, _ := getRequestedImageSize(pvc)
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -824,6 +850,11 @@ func makeUploadPodSpec(image, verbose, pullPolicy, name string,
 			},
 		},
 	}
+
+	if resourceRequirements != nil {
+		pod.Spec.Containers[0].Resources = *resourceRequirements
+	}
+
 	if getVolumeMode(pvc) == v1.PersistentVolumeBlock {
 		pod.Spec.Containers[0].VolumeDevices = addVolumeDevicesForUpload()
 		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, v1.EnvVar{

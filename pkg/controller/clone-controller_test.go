@@ -3,6 +3,9 @@ package controller
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"k8s.io/apimachinery/pkg/runtime"
+	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"sync"
 	"testing"
 
@@ -43,10 +46,16 @@ func newCloneFixture(t *testing.T) *CloneFixture {
 
 func (f *CloneFixture) newCloneController() *CloneController {
 	v := newCloneTokenValidator(&getAPIServerKey().PublicKey)
+
+	storageClassName := "test"
+	var cdiObjs []runtime.Object
+	cdiObjs = append(cdiObjs, createCDIConfigWithStorageClass(common.ConfigName, storageClassName))
+
 	return &CloneController{
 		Controller:     *f.newController("test/mycloneimage", "Always", "5"),
 		recorder:       &record.FakeRecorder{},
 		tokenValidator: v,
+		cdiClient:      cdifake.NewSimpleClientset(cdiObjs...),
 	}
 }
 
@@ -67,6 +76,7 @@ func (f *CloneFixture) runController(pvcName string,
 	expectError bool,
 	withCreateExpectation bool) {
 	c := f.newCloneController()
+
 	if startInformers {
 		stopCh := make(chan struct{})
 		defer close(stopCh)

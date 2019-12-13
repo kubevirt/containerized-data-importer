@@ -303,7 +303,8 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 	}
 
 	// all checks passed, let's create the importer pod!
-	pod, err := createImporterPod(r.Log, r.Client, r.Image, r.Verbose, r.PullPolicy, podEnvVar, pvc, scratchPvcName)
+	pod, err := createImporterPod(r.Log, r.Client, r.CdiClient, r.Image, r.Verbose, r.PullPolicy, podEnvVar, pvc, scratchPvcName)
+
 	if err != nil {
 		return err
 	}
@@ -366,8 +367,13 @@ func scratchNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 // createImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret
 // name, and pvc. A nil secret means the endpoint credentials are not passed to the
 // importer pod.
-func createImporterPod(log logr.Logger, client client.Client, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string) (*v1.Pod, error) {
-	pod := makeImporterPodSpec(pvc.Namespace, image, verbose, pullPolicy, podEnvVar, pvc, scratchPvcName)
+func createImporterPod(log logr.Logger, client client.Client, cdiClient cdiclientset.Interface, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string) (*v1.Pod, error) {
+	podResourceRequirements, err := GetDefaultPodResourceRequirements(cdiClient)
+	if err != nil {
+		return nil, err
+	}
+
+	pod := makeImporterPodSpec(pvc.Namespace, image, verbose, pullPolicy, podEnvVar, pvc, scratchPvcName, podResourceRequirements)
 
 	if err := client.Create(context.TODO(), pod); err != nil {
 		return nil, err
@@ -377,7 +383,7 @@ func createImporterPod(log logr.Logger, client client.Client, image, verbose, pu
 }
 
 // makeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
-func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string) *corev1.Pod {
+func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, podResourceRequirements *v1.ResourceRequirements) *corev1.Pod {
 	// importer pod name contains the pvc name
 	podName := importPodNameFromPvc(pvc)
 
@@ -456,6 +462,10 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 			RestartPolicy: corev1.RestartPolicyOnFailure,
 			Volumes:       volumes,
 		},
+	}
+
+	if podResourceRequirements != nil {
+		pod.Spec.Containers[0].Resources = *podResourceRequirements
 	}
 
 	ownerUID := pvc.UID

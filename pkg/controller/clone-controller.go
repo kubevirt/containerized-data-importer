@@ -3,6 +3,7 @@ package controller
 import (
 	"crypto/rsa"
 	"fmt"
+	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"strconv"
 	"time"
 
@@ -54,11 +55,13 @@ type CloneController struct {
 	Controller
 	recorder       record.EventRecorder
 	tokenValidator token.Validator
+	cdiClient      clientset.Interface
 }
 
 // NewCloneController sets up a Clone Controller, and returns a pointer to
 // to the newly created Controller
 func NewCloneController(client kubernetes.Interface,
+	cdiClientSet clientset.Interface,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	podInformer coreinformers.PodInformer,
 	image string,
@@ -77,6 +80,7 @@ func NewCloneController(client kubernetes.Interface,
 		Controller:     *NewController(client, pvcInformer, podInformer, image, pullPolicy, verbose),
 		recorder:       recorder,
 		tokenValidator: newCloneTokenValidator(apiServerKey),
+		cdiClient:      cdiClientSet,
 	}
 	return c
 }
@@ -161,7 +165,8 @@ func (cc *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 		}
 
 		cc.raisePodCreate(pvcKey)
-		sourcePod, err = CreateCloneSourcePod(cc.clientset, cc.image, cc.pullPolicy, clientName, pvc)
+
+		sourcePod, err = CreateCloneSourcePod(cc.clientset, cc.cdiClient, cc.image, cc.pullPolicy, clientName, pvc)
 		if err != nil {
 			cc.observePodCreate(pvcKey)
 			return err

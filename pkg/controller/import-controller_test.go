@@ -3,6 +3,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/runtime"
+	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"reflect"
 	"strconv"
 
@@ -10,7 +12,6 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -18,7 +19,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -317,7 +317,7 @@ var _ = Describe("Create Importer Pod", func() {
 			certConfigMap: "",
 			insecureTLS:   false,
 		}
-		pod, err := createImporterPod(reconciler.Log, reconciler.Client, testImage, "5", testPullPolicy, podEnvVar, pvc, scratchPvcName)
+		pod, err := createImporterPod(reconciler.Log, reconciler.Client, reconciler.CdiClient, testImage, "5", testPullPolicy, podEnvVar, pvc, scratchPvcName)
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying PVC owns pod")
 		Expect(len(pod.GetOwnerReferences())).To(Equal(1))

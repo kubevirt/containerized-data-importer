@@ -21,8 +21,8 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1 "github.com/openshift/custom-resource-status/conditions/v1"
-	corev1 "k8s.io/api/core/v1"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
+	v1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -128,6 +128,11 @@ func (in *CDIConfigSpec) DeepCopyInto(out *CDIConfigSpec) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.PodResourceRequirements != nil {
+		in, out := &in.PodResourceRequirements, &out.PodResourceRequirements
+		*out = new(v1.ResourceRequirements)
+		(*in).DeepCopyInto(*out)
+	}
 	return
 }
 
@@ -148,6 +153,11 @@ func (in *CDIConfigStatus) DeepCopyInto(out *CDIConfigStatus) {
 		in, out := &in.UploadProxyURL, &out.UploadProxyURL
 		*out = new(string)
 		**out = **in
+	}
+	if in.DefaultPodResourceRequirements != nil {
+		in, out := &in.DefaultPodResourceRequirements, &out.DefaultPodResourceRequirements
+		*out = new(v1.ResourceRequirements)
+		(*in).DeepCopyInto(*out)
 	}
 	return
 }
@@ -216,7 +226,7 @@ func (in *CDIStatus) DeepCopyInto(out *CDIStatus) {
 	*out = *in
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
-		*out = make([]v1.Condition, len(*in))
+		*out = make([]conditionsv1.Condition, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
@@ -443,7 +453,7 @@ func (in *DataVolumeSpec) DeepCopyInto(out *DataVolumeSpec) {
 	in.Source.DeepCopyInto(&out.Source)
 	if in.PVC != nil {
 		in, out := &in.PVC, &out.PVC
-		*out = new(corev1.PersistentVolumeClaimSpec)
+		*out = new(v1.PersistentVolumeClaimSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	return

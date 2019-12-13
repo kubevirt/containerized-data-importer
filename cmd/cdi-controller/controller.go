@@ -164,6 +164,7 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	}
 
 	cloneController := controller.NewCloneController(client,
+		cdiClient,
 		pvcInformer,
 		podInformer,
 		clonerImage,

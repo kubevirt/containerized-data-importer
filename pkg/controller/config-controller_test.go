@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -498,6 +500,103 @@ var _ = Describe("getUrlFromRoute", func() {
 		}
 		resURL := getURLFromRoute(route, testServiceName)
 		Expect(resURL).To(Equal(""))
+	})
+})
+
+var _ = Describe("Controller default pod resource requirements reconcile loop", func() {
+	var testValue int64 = 1
+
+	It("Should set the defaultPodResourceRequirements to the override value", func() {
+		defaultResourceRequirements := createDefaultPodResourceRequirements(1, 2, 3, 4)
+
+		reconciler, cdiConfig := createConfigReconciler()
+		cdiConfig.Spec.PodResourceRequirements = defaultResourceRequirements
+
+		err := reconciler.reconcileDefaultPodResourceRequirements(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.DefaultPodResourceRequirements).To(Equal(defaultResourceRequirements))
+	})
+
+	It("Should set the defaultPodResourceRequirements to the default if ResourceRequirements.Limits and ResourceRequirements.Requests are nil", func() {
+		defaultResourceRequirements := &corev1.ResourceRequirements{
+			Limits:   nil,
+			Requests: nil,
+		}
+
+		reconciler, cdiConfig := createConfigReconciler()
+		cdiConfig.Spec.PodResourceRequirements = defaultResourceRequirements
+
+		err := reconciler.reconcileDefaultPodResourceRequirements(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.DefaultPodResourceRequirements).To(Equal(createDefaultPodResourceRequirements(0, 0, 0, 0)))
+	})
+
+	It("Should set the defaultPodResourceRequirements to the default if all fields are null except ResourceRequirements.Limits.cpu", func() {
+		defaultResourceRequirements := &corev1.ResourceRequirements{
+			Limits:   corev1.ResourceList{},
+			Requests: nil,
+		}
+
+		defaultResourceRequirements.Limits[corev1.ResourceCPU] = *resource.NewQuantity(testValue, resource.DecimalSI)
+		fmt.Println(defaultResourceRequirements)
+
+		reconciler, cdiConfig := createConfigReconciler()
+		cdiConfig.Spec.PodResourceRequirements = defaultResourceRequirements
+
+		err := reconciler.reconcileDefaultPodResourceRequirements(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.DefaultPodResourceRequirements).To(Equal(createDefaultPodResourceRequirements(testValue, 0, 0, 0)))
+	})
+
+	It("Should set the defaultPodResourceRequirements to the default if all fields are null except ResourceRequirements.Limits.memory", func() {
+		defaultResourceRequirements := &corev1.ResourceRequirements{
+			Limits:   corev1.ResourceList{},
+			Requests: nil,
+		}
+
+		defaultResourceRequirements.Limits[corev1.ResourceMemory] = *resource.NewQuantity(testValue, resource.DecimalSI)
+		fmt.Println(defaultResourceRequirements)
+
+		reconciler, cdiConfig := createConfigReconciler()
+		cdiConfig.Spec.PodResourceRequirements = defaultResourceRequirements
+
+		err := reconciler.reconcileDefaultPodResourceRequirements(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.DefaultPodResourceRequirements).To(Equal(createDefaultPodResourceRequirements(0, testValue, 0, 0)))
+	})
+
+	It("Should set the defaultPodResourceRequirements to the default if all fields are null except ResourceRequirements.Requests.cpu", func() {
+		defaultResourceRequirements := &corev1.ResourceRequirements{
+			Limits:   nil,
+			Requests: corev1.ResourceList{},
+		}
+
+		defaultResourceRequirements.Requests[corev1.ResourceCPU] = *resource.NewQuantity(testValue, resource.DecimalSI)
+		fmt.Println(defaultResourceRequirements)
+
+		reconciler, cdiConfig := createConfigReconciler()
+		cdiConfig.Spec.PodResourceRequirements = defaultResourceRequirements
+
+		err := reconciler.reconcileDefaultPodResourceRequirements(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.DefaultPodResourceRequirements).To(Equal(createDefaultPodResourceRequirements(0, 0, testValue, 0)))
+	})
+
+	It("Should set the defaultPodResourceRequirements to the default if all fields are null except ResourceRequirements.Requests.memory", func() {
+		defaultResourceRequirements := &corev1.ResourceRequirements{
+			Limits:   nil,
+			Requests: corev1.ResourceList{},
+		}
+
+		defaultResourceRequirements.Requests[corev1.ResourceMemory] = *resource.NewQuantity(testValue, resource.DecimalSI)
+		fmt.Println(defaultResourceRequirements)
+
+		reconciler, cdiConfig := createConfigReconciler()
+		cdiConfig.Spec.PodResourceRequirements = defaultResourceRequirements
+
+		err := reconciler.reconcileDefaultPodResourceRequirements(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.DefaultPodResourceRequirements).To(Equal(createDefaultPodResourceRequirements(0, 0, 0, testValue)))
 	})
 })
 
