@@ -245,6 +245,262 @@ var _ = Describe("Controller storage class reconcile loop", func() {
 	})
 })
 
+var _ = Describe("Controller create CDI config", func() {
+	It("Should return existing cdi config", func() {
+		reconciler, cdiConfig := createConfigReconciler()
+		resConfig, err := reconciler.createCDIConfig()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resConfig).To(Equal(cdiConfig))
+	})
+
+	It("Should create a new CDIConfig if not found and configmap exists", func() {
+		reconciler, cdiConfig := createConfigReconciler()
+		Expect(cdiConfig.Name).To(Equal("cdiconfig"))
+
+		// Make sure no cdi config object exists
+		reconciler.CdiClient = cdifake.NewSimpleClientset()
+		owner := true
+		configMap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cdi-config",
+				Namespace: "cdi",
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						Controller: &owner,
+						Name:       "testowner",
+					},
+				},
+			},
+		}
+		reconciler.K8sClient = k8sfake.NewSimpleClientset(configMap)
+		reconciler.ConfigName = "testconfig"
+		resConfig, err := reconciler.createCDIConfig()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resConfig.Name).To(Equal("testconfig"))
+		Expect(resConfig.ObjectMeta.OwnerReferences[0].Name).To(Equal("testowner"))
+	})
+})
+
+var _ = Describe("getUrlFromIngress", func() {
+	//TODO: Once we get newer version of client-go, we need to switch to networking ingress.
+	It("Should return the url if backend service matches", func() {
+		ingress := &extensionsv1beta1.Ingress{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "extensions/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+			},
+			Spec: extensionsv1beta1.IngressSpec{
+				Backend: &extensionsv1beta1.IngressBackend{
+					ServiceName: testServiceName,
+				},
+				Rules: []extensionsv1beta1.IngressRule{
+					{Host: testURL},
+				},
+			},
+		}
+		resURL := getURLFromIngress(ingress, testServiceName)
+		Expect(resURL).To(Equal(testURL))
+	})
+
+	It("Should return blank if backend service does not match", func() {
+		ingress := &extensionsv1beta1.Ingress{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "extensions/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+			},
+			Spec: extensionsv1beta1.IngressSpec{
+				Backend: &extensionsv1beta1.IngressBackend{
+					ServiceName: testServiceName,
+				},
+				Rules: []extensionsv1beta1.IngressRule{
+					{Host: testURL},
+				},
+			},
+		}
+		resURL := getURLFromIngress(ingress, "somethingelse")
+		Expect(resURL).To(Equal(""))
+	})
+
+	It("Should return the url if first rule backend service matches", func() {
+		ingress := &extensionsv1beta1.Ingress{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "extensions/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+			},
+			Spec: extensionsv1beta1.IngressSpec{
+				Rules: []extensionsv1beta1.IngressRule{
+					{
+						IngressRuleValue: extensionsv1beta1.IngressRuleValue{
+							HTTP: &extensionsv1beta1.HTTPIngressRuleValue{
+								Paths: []extensionsv1beta1.HTTPIngressPath{
+									{
+										Backend: extensionsv1beta1.IngressBackend{
+											ServiceName: testServiceName,
+										},
+									},
+								},
+							},
+						},
+						Host: testURL,
+					},
+				},
+			},
+		}
+		resURL := getURLFromIngress(ingress, testServiceName)
+		Expect(resURL).To(Equal(testURL))
+	})
+
+	It("Should return the url if any rule backend servicename matches", func() {
+		ingress := &extensionsv1beta1.Ingress{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "extensions/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+			},
+			Spec: extensionsv1beta1.IngressSpec{
+				Rules: []extensionsv1beta1.IngressRule{
+					{
+						IngressRuleValue: extensionsv1beta1.IngressRuleValue{
+							HTTP: &extensionsv1beta1.HTTPIngressRuleValue{
+								Paths: []extensionsv1beta1.HTTPIngressPath{
+									{
+										Backend: extensionsv1beta1.IngressBackend{
+											ServiceName: "service1",
+										},
+									},
+									{
+										Backend: extensionsv1beta1.IngressBackend{
+											ServiceName: "service2",
+										},
+									},
+									{
+										Backend: extensionsv1beta1.IngressBackend{
+											ServiceName: testServiceName,
+										},
+									},
+									{
+										Backend: extensionsv1beta1.IngressBackend{
+											ServiceName: "service4",
+										},
+									},
+								},
+							},
+						},
+						Host: testURL,
+					},
+				},
+			},
+		}
+		resURL := getURLFromIngress(ingress, testServiceName)
+		Expect(resURL).To(Equal(testURL))
+	})
+
+	It("Should return blank if no http rule exists", func() {
+		ingress := &extensionsv1beta1.Ingress{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "extensions/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+			},
+			Spec: extensionsv1beta1.IngressSpec{
+				Rules: []extensionsv1beta1.IngressRule{
+					{
+						IngressRuleValue: extensionsv1beta1.IngressRuleValue{},
+					},
+				},
+			},
+		}
+		resURL := getURLFromIngress(ingress, testServiceName)
+		Expect(resURL).To(Equal(""))
+	})
+})
+
+var _ = Describe("getUrlFromRoute", func() {
+	It("Should return the URL if the route spec to name matches and status ingress is correct", func() {
+		route := &routev1.Route{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+			},
+			Spec: routev1.RouteSpec{
+				To: routev1.RouteTargetReference{
+					Kind: "Service",
+					Name: testServiceName,
+				},
+			},
+			Status: routev1.RouteStatus{
+				Ingress: []routev1.RouteIngress{
+					{Host: testRouteURL},
+				},
+			},
+		}
+		resURL := getURLFromRoute(route, testServiceName)
+		Expect(resURL).To(Equal(testRouteURL))
+	})
+
+	It("Should return blank if the route spec to name does not match", func() {
+		route := &routev1.Route{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+			},
+			Spec: routev1.RouteSpec{
+				To: routev1.RouteTargetReference{
+					Kind: "Service",
+					Name: "doesntmatch",
+				},
+			},
+			Status: routev1.RouteStatus{
+				Ingress: []routev1.RouteIngress{
+					{Host: testRouteURL},
+				},
+			},
+		}
+		resURL := getURLFromRoute(route, testServiceName)
+		Expect(resURL).To(Equal(""))
+	})
+
+	It("Should return blank if the route spec to name matches and status ingress not there", func() {
+		route := &routev1.Route{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+			},
+			Spec: routev1.RouteSpec{
+				To: routev1.RouteTargetReference{
+					Kind: "Service",
+					Name: testServiceName,
+				},
+			},
+			Status: routev1.RouteStatus{},
+		}
+		resURL := getURLFromRoute(route, testServiceName)
+		Expect(resURL).To(Equal(""))
+	})
+})
+
 func createConfigReconciler(objects ...runtime.Object) (*CDIConfigReconciler, *cdiv1.CDIConfig) {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)
@@ -293,7 +549,7 @@ func createRouteList(routes ...routev1.Route) *routev1.RouteList {
 }
 
 func createRoute(name, ns, service string) *routev1.Route {
-	route := &routev1.Route{
+	return &routev1.Route{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 		},
@@ -313,7 +569,6 @@ func createRoute(name, ns, service string) *routev1.Route {
 			},
 		},
 	}
-	return route
 }
 
 func createIngressList(ingresses ...extensionsv1beta1.Ingress) *extensionsv1beta1.IngressList {
