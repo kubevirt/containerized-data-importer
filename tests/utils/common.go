@@ -104,6 +104,10 @@ func AddProvisionOnNodeToAnn(pvcAnn map[string]string) {
 
 // CacheTestsData fetch and cache data required for tests
 func CacheTestsData(client *kubernetes.Clientset) {
-	DefaultNodeName = getDefaultNodeName(client)
-	DefaultStorageClass = getDefaultStorageClass(client)
+	if DefaultNodeName == "" {
+		DefaultNodeName = getDefaultNodeName(client)
+	}
+	if DefaultStorageClass == nil {
+		DefaultStorageClass = getDefaultStorageClass(client)
+	}
 }
