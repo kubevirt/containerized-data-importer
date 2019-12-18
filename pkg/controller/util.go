@@ -10,10 +10,8 @@ import (
 	"time"
 
 	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
-	routev1 "github.com/openshift/api/route/v1"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
-	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1232,39 +1230,6 @@ func getCertConfigMap(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim
 	}
 
 	return value, nil
-}
-
-func getURLFromIngress(ing *extensionsv1beta1.Ingress, uploadProxyServiceName string) string {
-	if ing.Spec.Backend != nil {
-		if ing.Spec.Backend.ServiceName != uploadProxyServiceName {
-			return ""
-		}
-		return ing.Spec.Rules[0].Host
-	}
-	for _, rule := range ing.Spec.Rules {
-		if rule.HTTP == nil {
-			continue
-		}
-		for _, path := range rule.HTTP.Paths {
-			if path.Backend.ServiceName == uploadProxyServiceName {
-				if rule.Host != "" {
-					return rule.Host
-				}
-			}
-		}
-	}
-	return ""
-
-}
-
-func getURLFromRoute(route *routev1.Route, uploadProxyServiceName string) string {
-	if route.Spec.To.Name == uploadProxyServiceName {
-		if len(route.Status.Ingress) > 0 {
-			return route.Status.Ingress[0].Host
-		}
-	}
-	return ""
-
 }
 
 //IsOpenshift checks if we are on OpenShift platform

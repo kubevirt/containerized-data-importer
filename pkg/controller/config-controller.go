@@ -298,3 +298,36 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 	}
 	return nil
 }
+
+func getURLFromIngress(ing *extensionsv1beta1.Ingress, uploadProxyServiceName string) string {
+	if ing.Spec.Backend != nil {
+		if ing.Spec.Backend.ServiceName != uploadProxyServiceName {
+			return ""
+		}
+		return ing.Spec.Rules[0].Host
+	}
+	for _, rule := range ing.Spec.Rules {
+		if rule.HTTP == nil {
+			continue
+		}
+		for _, path := range rule.HTTP.Paths {
+			if path.Backend.ServiceName == uploadProxyServiceName {
+				if rule.Host != "" {
+					return rule.Host
+				}
+			}
+		}
+	}
+	return ""
+
+}
+
+func getURLFromRoute(route *routev1.Route, uploadProxyServiceName string) string {
+	if route.Spec.To.Name == uploadProxyServiceName {
+		if len(route.Status.Ingress) > 0 {
+			return route.Status.Ingress[0].Host
+		}
+	}
+	return ""
+
+}
