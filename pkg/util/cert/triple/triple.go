@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"net"
 
-	certutil "k8s.io/client-go/util/cert"
+	certutil "kubevirt.io/containerized-data-importer/pkg/util/cert"
 )
 
 // KeyPair contains a private key and certificate

@@ -366,7 +366,7 @@ var _ = Describe("Controller", func() {
 						Name:      "foo",
 						Namespace: "default",
 						Labels: map[string]string{
-							"cdi.kubevirt.io": "",
+							"cdi.kubevirt.io": "cdi-upload-server",
 						},
 					},
 				}
@@ -1381,6 +1381,7 @@ func createReconcilerWithVersion(client realClient.Client, version, namespace st
 		namespace:      namespace,
 		clusterArgs:    clusterArgs,
 		namespacedArgs: namespacedArgs,
+		watching:       true,
 	}
 }
 
@@ -1408,6 +1409,7 @@ func createReconciler(client realClient.Client) *ReconcileCDI {
 		clusterArgs:    clusterArgs,
 		namespacedArgs: namespacedArgs,
 		callbacks:      make(map[reflect.Type][]ReconcileCallback),
+		watching:       true,
 	}
 
 	addReconcileCallbacks(r)

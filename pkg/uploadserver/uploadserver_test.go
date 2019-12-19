@@ -30,8 +30,8 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/client-go/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 

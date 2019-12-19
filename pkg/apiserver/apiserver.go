@@ -41,7 +41,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/util/cert"
 	"k8s.io/klog"
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
@@ -55,6 +54,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
@@ -585,7 +585,7 @@ func (app *cdiAPIApp) createValidatingWebhook() error {
 		}
 	}
 
-	webHooks := []admissionregistrationv1beta1.Webhook{
+	webHooks := []admissionregistrationv1beta1.ValidatingWebhook{
 		{
 			Name: "datavolume-validate.cdi.kubevirt.io",
 			Rules: []admissionregistrationv1beta1.RuleWithOperations{{
@@ -661,7 +661,7 @@ func (app *cdiAPIApp) createMutatingWebhook() error {
 		}
 	}
 
-	webHooks := []admissionregistrationv1beta1.Webhook{
+	webHooks := []admissionregistrationv1beta1.MutatingWebhook{
 		{
 			Name: "datavolume-mutate.cdi.kubevirt.io",
 			Rules: []admissionregistrationv1beta1.RuleWithOperations{{

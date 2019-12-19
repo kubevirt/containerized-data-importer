@@ -230,7 +230,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			updatedDataVolume := dataVolume.DeepCopy()
 			updatedDataVolume.Spec.Source.HTTP.URL = "http://foo.bar"
 
-			_, err := f.CdiClient.Cdi().DataVolumes(updatedDataVolume.Namespace).Update(updatedDataVolume)
+			_, err := f.CdiClient.CdiV1alpha1().DataVolumes(updatedDataVolume.Namespace).Update(updatedDataVolume)
 			Expect(err).To(HaveOccurred())
 		})
 	})
@@ -257,7 +257,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			}
 			updatedDataVolume.Annotations["foo"] = "bar"
 
-			_, err := f.CdiClient.Cdi().DataVolumes(updatedDataVolume.Namespace).Update(updatedDataVolume)
+			_, err := f.CdiClient.CdiV1alpha1().DataVolumes(updatedDataVolume.Namespace).Update(updatedDataVolume)
 			Expect(err).To(HaveOccurred())
 		})
 	})

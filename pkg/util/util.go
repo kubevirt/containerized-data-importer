@@ -132,7 +132,7 @@ func RetryBackoffSize(dest string, size resource.Quantity, sizeFunc func(string,
 
 	err = sizeFunc(dest, size)
 	retryCount := 0
-	reduceSize := *size.Copy()
+	reduceSize := size
 	for err != nil && retryCount < 10 {
 		retryCount++
 		// Reduce by 25 blocks, and try again. How did we end up with 25 blocks? Well we need to leave some blocks for the fs on the pvc.

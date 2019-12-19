@@ -12,6 +12,7 @@ import (
 
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -94,7 +95,7 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 func (r *CDIConfigReconciler) reconcileIngress(config *cdiv1.CDIConfig) error {
 	log := r.Log.WithName("CDIconfig").WithName("IngressReconcile")
 	ingressList := &extensionsv1beta1.IngressList{}
-	if err := r.Client.List(context.TODO(), &client.ListOptions{}, ingressList); IgnoreIsNoMatchError(err) != nil {
+	if err := r.Client.List(context.TODO(), ingressList, &client.ListOptions{}); IgnoreIsNoMatchError(err) != nil {
 		return err
 	}
 	for _, ingress := range ingressList.Items {
@@ -113,7 +114,7 @@ func (r *CDIConfigReconciler) reconcileIngress(config *cdiv1.CDIConfig) error {
 func (r *CDIConfigReconciler) reconcileRoute(config *cdiv1.CDIConfig) error {
 	log := r.Log.WithName("CDIconfig").WithName("RouteReconcile")
 	routeList := &routev1.RouteList{}
-	if err := r.Client.List(context.TODO(), &client.ListOptions{}, routeList); IgnoreIsNoMatchError(err) != nil {
+	if err := r.Client.List(context.TODO(), routeList, &client.ListOptions{}); IgnoreIsNoMatchError(err) != nil {
 		return err
 	}
 	for _, route := range routeList.Items {
@@ -132,7 +133,7 @@ func (r *CDIConfigReconciler) reconcileRoute(config *cdiv1.CDIConfig) error {
 func (r *CDIConfigReconciler) reconcileStorageClass(config *cdiv1.CDIConfig) error {
 	log := r.Log.WithName("CDIconfig").WithName("StorageClassReconcile")
 	storageClassList := &storagev1.StorageClassList{}
-	if err := r.Client.List(context.TODO(), &client.ListOptions{}, storageClassList); err != nil {
+	if err := r.Client.List(context.TODO(), storageClassList, &client.ListOptions{}); err != nil {
 		return err
 	}
 
@@ -200,17 +201,17 @@ func (r *CDIConfigReconciler) reconcileDefaultPodResourceRequirements(config *cd
 // createCDIConfig creates a new instance of the CDIConfig object if it doesn't exist already, and returns the existing one if found.
 // It also sets the operator to be the owner of the CDIConfig object.
 func (r *CDIConfigReconciler) createCDIConfig() (*cdiv1.CDIConfig, error) {
-	config, err := r.CdiClient.Cdi().CDIConfigs().Get(r.ConfigName, metav1.GetOptions{})
+	config, err := r.CdiClient.CdiV1alpha1().CDIConfigs().Get(r.ConfigName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			config = MakeEmptyCDIConfigSpec(r.ConfigName)
 			if err := operator.SetOwner(r.K8sClient, config); err != nil {
 				return nil, err
 			}
-			config, err = r.CdiClient.Cdi().CDIConfigs().Create(config)
+			config, err = r.CdiClient.CdiV1alpha1().CDIConfigs().Create(config)
 			if err != nil {
 				if errors.IsAlreadyExists(err) {
-					config, err := r.CdiClient.Cdi().CDIConfigs().Get(r.ConfigName, metav1.GetOptions{})
+					config, err := r.CdiClient.CdiV1alpha1().CDIConfigs().Get(r.ConfigName, metav1.GetOptions{})
 					if err == nil {
 						return config, nil
 					}
@@ -310,7 +311,13 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 		},
 	})
 
-	if IgnoreIsNoMatchError(err) != nil {
+	// check if routes exist
+	err = mgr.GetClient().List(context.TODO(), &routev1.RouteList{})
+	if meta.IsNoMatchError(err) {
+		return nil
+	}
+
+	if err != nil {
 		return err
 	}
 
@@ -334,9 +341,7 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 				e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
 		},
 	})
-	if IgnoreIsNoMatchError(err) != nil {
-		return err
-	}
+
 	return nil
 }
 

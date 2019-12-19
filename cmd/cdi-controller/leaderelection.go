@@ -86,6 +86,7 @@ func createResourceLock(client kubernetes.Interface, namespace, name string) (re
 		namespace,
 		name,
 		client.CoreV1(),
+		client.CoordinationV1(),
 		resourcelock.ResourceLockConfig{
 			Identity:      id,
 			EventRecorder: createEventRecorder(client, namespace, componentName),
