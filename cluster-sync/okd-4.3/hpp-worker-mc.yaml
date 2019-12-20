@@ -1,0 +1,27 @@
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  name: 50-set-selinux-for-hostpath-provisioner-worker
+  labels:
+    machineconfiguration.openshift.io/role: worker
+spec:
+  config:
+    ignition:
+      version: 2.2.0
+    systemd:
+      units:
+        - contents: |
+            [Unit]
+            Description=Set SELinux chcon for hostpath provisioner
+            Before=kubelet.service
+
+            [Service]
+            Type=oneshot
+            RemainAfterExit=yes
+            ExecStartPre=-mkdir -p /var/hpvolumes
+            ExecStart=/usr/bin/chcon -Rt container_file_t /var/hpvolumes
+
+            [Install]
+            WantedBy=multi-user.target
+          enabled: true
+          name: hostpath-provisioner.service

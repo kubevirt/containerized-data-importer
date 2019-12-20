@@ -132,8 +132,11 @@ Environment Variables and Supported Values
 | Env Variable       | Default       | Additional Values           |
 |--------------------|---------------|-----------------------------|
 |KUBEVIRT_PROVIDER   | k8s-1.16.2    | os-3.11.0-crio or okd-4.1   |
+|KUBEVIRT_STORAGE*   | none          | ceph, hpp                   |
 |KUBEVIRT_PROVIDER_EXTRA_ARGS |      |                             |
 |NUM_NODES           | 1             | 2-5                         |
+
+KUBEVIRT_STORAGE is only supported for k8s-1.16.2 and OKD 4.3 providers
 
 To Run Standard *cluster-up/kubevirtci* Tests
 ```

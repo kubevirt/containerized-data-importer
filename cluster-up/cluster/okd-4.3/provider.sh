@@ -2,7 +2,7 @@
 
 set -e
 
-image="okd-4.3@sha256:63abc3884002a615712dfac5f42785be864ea62006892bf8a086ccdbca8b3d38"
+image="okd-4.3@sha256:dc31782e16020b9a10728d408b38cd78f56b3ee7261f99f0dc7a43e1365a537c"
 
 source ${KUBEVIRTCI_PATH}/cluster/ephemeral-provider-common.sh
 
@@ -41,7 +41,7 @@ function up() {
     # Copy k8s config and kubectl
     cluster_container_id=$(docker ps -f "name=$provider_prefix-cluster" --format "{{.ID}}")
 
-    _install_from_cluster $cluster_container_id /usr/bin/oc 0755 .kubectl
+    _install_from_cluster $cluster_container_id /usr/local/bin/oc 0755 .kubectl
     _install_from_cluster $cluster_container_id /root/install/auth/kubeconfig 0644 .kubeconfig
 
     # Set server and disable tls check
