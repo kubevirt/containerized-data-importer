@@ -185,6 +185,14 @@ func getSecretName(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (
 	return name, nil
 }
 
+func getHeaderName(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) string {
+	headerName, found := pvc.Annotations[AnnHeaderName]
+	if !found {
+		headerName = ""
+	}
+	return headerName
+}
+
 // Update and return a copy of the passed-in pvc. Only one of the annotation or label maps is required though
 // both can be passed.
 // Note: the only pvc changes supported are annotations and labels.
@@ -985,6 +993,7 @@ func createImportEnvVar(client kubernetes.Interface, pvc *v1.PersistentVolumeCla
 		if err != nil {
 			return nil, err
 		}
+		podEnvVar.headerName = getHeaderName(client, pvc)
 	}
 	//get the requested image size.
 	podEnvVar.imageSize, err = getRequestedImageSize(pvc)

@@ -57,6 +57,7 @@ func main() {
 	imageSize, _ := util.ParseEnvVar(common.ImporterImageSize, false)
 	certDir, _ := util.ParseEnvVar(common.ImporterCertDirVar, false)
 	insecureTLS, _ := strconv.ParseBool(os.Getenv(common.InsecureTLSVar))
+	header, _ := util.ParseEnvVar(common.ImporterHeaderName, false)
 
 	//Registry import currently support kubevirt content type only
 	if contentType != string(cdiv1.DataVolumeKubeVirt) && source == controller.SourceRegistry {
@@ -108,7 +109,8 @@ func main() {
 		var dp importer.DataSourceInterface
 		switch source {
 		case controller.SourceHTTP:
-			dp, err = importer.NewHTTPDataSource(ep, acc, sec, certDir, cdiv1.DataVolumeContentType(contentType))
+			size := resource.MustParse(imageSize)
+			dp, err = importer.NewHTTPDataSource(ep, acc, sec, certDir, header, size.Value(), cdiv1.DataVolumeContentType(contentType))
 			if err != nil {
 				klog.Errorf("%+v", err)
 				err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to http data source: %+v", err))

@@ -2401,6 +2401,10 @@
       "description": "CertConfigMap provides a reference to the Registry certs",
       "type": "string"
      },
+     "headerName": {
+      "description": "HeaderName provides custom header name",
+      "type": "string"
+     },
      "secretRef": {
       "description": "SecretRef provides the secret reference needed to access the HTTP source",
       "type": "string"

@@ -36,6 +36,15 @@ var (
 	diskimageArchiveData, _ = readFile(diskimageTarFileName)
 )
 
+// TestHTTPHandler holds test result
+type TestHTTPHandler struct {
+	res bool
+}
+
+func (h *TestHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.res = r.Header.Get("X-Auth-Token") != ""
+}
+
 var _ = Describe("Http data source", func() {
 	var (
 		ts        *httptest.Server
@@ -71,14 +80,14 @@ var _ = Describe("Http data source", func() {
 	})
 
 	It("NewHTTPDataSource should fail when called with an invalid endpoint", func() {
-		_, err = NewHTTPDataSource("httpd://!@#$%^&*()dgsdd&3r53/invalid", "", "", "", cdiv1.DataVolumeKubeVirt)
+		_, err = NewHTTPDataSource("httpd://!@#$%^&*()dgsdd&3r53/invalid", "", "", "", "", 1, cdiv1.DataVolumeKubeVirt)
 		Expect(err).To(HaveOccurred())
 		Expect(strings.Contains(err.Error(), "unable to parse endpoint")).To(BeTrue())
 	})
 
 	It("endpoint User object should be set when accessKey and secKey are not blank", func() {
 		image := ts.URL + "/" + cirrosFileName
-		dp, err = NewHTTPDataSource(image, "user", "password", "", cdiv1.DataVolumeKubeVirt)
+		dp, err = NewHTTPDataSource(image, "user", "password", "", "", 1, cdiv1.DataVolumeKubeVirt)
 		Expect(err).NotTo(HaveOccurred())
 		user := dp.endpoint.User
 		Expect("user").To(Equal(user.Username()))
@@ -89,7 +98,7 @@ var _ = Describe("Http data source", func() {
 
 	It("NewHTTPDataSource should fail when called with an invalid certdir", func() {
 		image := ts.URL + "/" + cirrosFileName
-		_, err = NewHTTPDataSource(image, "", "", "/invaliddir", cdiv1.DataVolumeKubeVirt)
+		_, err = NewHTTPDataSource(image, "", "", "/invaliddir", "", 1, cdiv1.DataVolumeKubeVirt)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -98,7 +107,7 @@ var _ = Describe("Http data source", func() {
 		if image != "" {
 			image = ts.URL + "/" + image
 		}
-		dp, err = NewHTTPDataSource(image, "", "", "", contentType)
+		dp, err = NewHTTPDataSource(image, "", "", "", "", 1, contentType)
 		Expect(err).NotTo(HaveOccurred())
 		newPhase, err := dp.Info()
 		if !wantErr {
@@ -119,7 +128,7 @@ var _ = Describe("Http data source", func() {
 	)
 
 	It("calling info with raw image should return TransferDataFile", func() {
-		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
+		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", "", 1, cdiv1.DataVolumeKubeVirt)
 		Expect(err).NotTo(HaveOccurred())
 		newPhase, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
@@ -134,7 +143,7 @@ var _ = Describe("Http data source", func() {
 		if image != "" {
 			image = ts.URL + "/" + image
 		}
-		dp, err = NewHTTPDataSource(image, "", "", "", contentType)
+		dp, err = NewHTTPDataSource(image, "", "", "", "", 1, contentType)
 		Expect(err).NotTo(HaveOccurred())
 		_, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
@@ -165,7 +174,7 @@ var _ = Describe("Http data source", func() {
 	)
 
 	It("TransferFile should succeed when writing to valid file, and reading raw gz", func() {
-		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
+		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", "", 1, cdiv1.DataVolumeKubeVirt)
 		Expect(err).NotTo(HaveOccurred())
 		result, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
@@ -176,7 +185,7 @@ var _ = Describe("Http data source", func() {
 	})
 
 	It("TransferFile should succeed when writing to valid file and reading raw xz", func() {
-		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreXz, "", "", "", cdiv1.DataVolumeKubeVirt)
+		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreXz, "", "", "", "", 1, cdiv1.DataVolumeKubeVirt)
 		Expect(err).NotTo(HaveOccurred())
 		result, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
@@ -187,7 +196,7 @@ var _ = Describe("Http data source", func() {
 	})
 
 	It("TransferFile should fail on streaming error", func() {
-		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
+		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", "", 1, cdiv1.DataVolumeKubeVirt)
 		Expect(err).NotTo(HaveOccurred())
 		result, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
@@ -199,13 +208,31 @@ var _ = Describe("Http data source", func() {
 
 	It("calling Process should return Convert", func() {
 		flushRead = cirrosData
-		dp, err = NewHTTPDataSource(ts.URL+"/"+cirrosFileName, "", "", "", cdiv1.DataVolumeKubeVirt)
+		dp, err = NewHTTPDataSource(ts.URL+"/"+cirrosFileName, "", "", "", "", 1, cdiv1.DataVolumeKubeVirt)
 		Expect(err).NotTo(HaveOccurred())
 		_, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
 		newPhase, err := dp.Process()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseConvert).To(Equal(newPhase))
+	})
+
+	It("check custom header", func() {
+		h := &TestHTTPHandler{}
+		server := httptest.NewServer(h)
+		defer server.Close()
+		dp, err = NewHTTPDataSource(server.URL, "", "123", "", "X-Auth-Token", 1, cdiv1.DataVolumeKubeVirt)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(h.res).To(BeTrue())
+	})
+
+	It("No custom header", func() {
+		h := &TestHTTPHandler{}
+		server := httptest.NewServer(h)
+		defer server.Close()
+		dp, err = NewHTTPDataSource(server.URL, "", "123", "", "", 1, cdiv1.DataVolumeKubeVirt)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(h.res).To(BeFalse())
 	})
 })
 
@@ -253,7 +280,7 @@ var _ = Describe("Http client", func() {
 
 var _ = Describe("Http reader", func() {
 	It("should fail when passed an invalid cert directory", func() {
-		_, total, err := createHTTPReader(context.Background(), nil, "", "", "/invalid")
+		_, total, err := createHTTPReader(context.Background(), nil, "", "", "/invalid", "", 1)
 		Expect(err).To(HaveOccurred())
 		Expect(uint64(0)).To(Equal(total))
 	})
@@ -270,7 +297,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, err := createHTTPReader(context.Background(), ep, "user", "password", "")
+		r, total, err := createHTTPReader(context.Background(), ep, "user", "password", "", "", 1)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
 		err = r.Close()
@@ -293,7 +320,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, err := createHTTPReader(context.Background(), ep, "user", "password", "")
+		r, total, err := createHTTPReader(context.Background(), ep, "user", "password", "", "", 1)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
 		err = r.Close()
@@ -314,7 +341,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, err := createHTTPReader(context.Background(), ep, "", "", "")
+		r, total, err := createHTTPReader(context.Background(), ep, "", "", "", "", 1)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
 		err = r.Close()
@@ -328,7 +355,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		_, total, err := createHTTPReader(context.Background(), ep, "", "", "")
+		_, total, err := createHTTPReader(context.Background(), ep, "", "", "", "", 1)
 		Expect(err).To(HaveOccurred())
 		Expect(uint64(0)).To(Equal(total))
 		Expect("expected status code 200, got 500. Status: 500 Internal Server Error").To(Equal(err.Error()))

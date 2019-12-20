@@ -18,7 +18,8 @@ The following statuses are possible.
 * Unknown: Unknown status.
 
 ## HTTP/S3/Registry source
-DataVolumes are an abstraction on top of the annotations one can put on PVCs to trigger CDI. As such DVs have the notion of a 'source' that allows one to specify the source of the data. To import data from an external source, the source has to be either 'http' ,'S3' or 'registry'. If your source requires authentication, you can also pass in a `secretRef` to a Kubernetes [Secret](../manifest/example/endpoint-secret.yaml) containing the authentication information.  TLS certificates for https/registry sources may be specified in a [ConfigMap](../manifests/example/cert-configmap.yaml) and referenced by `certConfigMap`.  `secretRef` and `certConfigMap` must be in the same namespace as the DataVolume.
+DataVolumes are an abstraction on top of the annotations one can put on PVCs to trigger CDI. As such DVs have the notion of a 'source' that allows one to specify the source of the data. To import data from an external source, the source has to be either 'http' ,'S3' or 'registry'. If your source requires authentication, you can also pass in a `secretRef` to a Kubernetes [Secret](../manifest/example/endpoint-secret.yaml) containing the authentication information.  It is possible to define custom authentication header as `headerName` which uses `secretRef` as a token. TLS certificates for https/registry sources may be specified in a [ConfigMap](../manifests/example/cert-configmap.yaml) and referenced by `certConfigMap`.  `secretRef` and `certConfigMap` must be in the same namespace as the DataVolume. You can provide `diskSize` so importer won't
+get it from the source
 
 ```yaml
 apiVersion: cdi.kubevirt.io/v1alpha1
@@ -31,6 +32,7 @@ spec:
          url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img" # Or S3
          secretRef: "" # Optional
          certConfigMap: "" # Optional
+         headerName: "" # Optional
   pvc:
     accessModes:
       - ReadWriteOnce

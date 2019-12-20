@@ -64,6 +64,7 @@ func (DataVolumeSourceHTTP) SwaggerDoc() map[string]string {
 		"url":           "URL is the URL of the http source",
 		"secretRef":     "SecretRef provides the secret reference needed to access the HTTP source",
 		"certConfigMap": "CertConfigMap provides a reference to the Registry certs",
+		"headerName":    "HeaderName provides custom header name",
 	}
 }
 

@@ -83,6 +83,9 @@ func createDataVolumeCRD() *extv1beta1.CustomResourceDefinition {
 												"secretRef": {
 													Type: "string",
 												},
+												"headerName": {
+													Type: "string",
+												},
 											},
 											Required: []string{
 												"url",

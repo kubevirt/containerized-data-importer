@@ -175,6 +175,7 @@ func NewPVCDefinitionWithSelector(pvcName, size, storageClassName string, select
 // You can use the following annotation keys to request an import or clone. The values are defined in the controller package
 // AnnEndpoint
 // AnnSecret
+// AnnHeaderName
 // AnnCloneRequest
 // You can also pass in any label you want.
 func NewPVCDefinition(pvcName string, size string, annotations, labels map[string]string) *k8sv1.PersistentVolumeClaim {

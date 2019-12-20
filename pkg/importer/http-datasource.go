@@ -68,16 +68,18 @@ type HTTPDataSource struct {
 	customCA bool
 	// the content length reported by the http server.
 	contentLength uint64
+	// custom authentication header
+	headerName string
 }
 
 // NewHTTPDataSource creates a new instance of the http data provider.
-func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType cdiv1.DataVolumeContentType) (*HTTPDataSource, error) {
+func NewHTTPDataSource(endpoint, accessKey, secKey, certDir, headerName string, size int64, contentType cdiv1.DataVolumeContentType) (*HTTPDataSource, error) {
 	ep, err := ParseEndpoint(endpoint)
 	if err != nil {
 		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpoint))
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	httpReader, contentLength, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir)
+	httpReader, contentLength, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir, headerName, size)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -94,6 +96,7 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		endpoint:      ep,
 		customCA:      certDir != "",
 		contentLength: contentLength,
+		headerName:    headerName,
 	}
 	// We know this is a counting reader, so no need to check.
 	countingReader := httpReader.(*util.CountingReader)
@@ -111,6 +114,10 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 	if err != nil {
 		klog.Errorf("Error creating readers: %v", err)
 		return ProcessingPhaseError, err
+	}
+	// special case to support glance
+	if hs.headerName != "" {
+		return ProcessingPhaseTransferScratch, nil
 	}
 	// The readers now contain all the information needed to determine if we can stream directly or if we need scratch space to download
 	// the file to, before converting.
@@ -233,20 +240,28 @@ func createHTTPClient(certDir string) (*http.Client, error) {
 	return client, nil
 }
 
-func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string) (io.ReadCloser, uint64, error) {
+func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir, headerName string, size int64) (io.ReadCloser, uint64, error) {
 	client, err := createHTTPClient(certDir)
 	if err != nil {
 		return nil, uint64(0), errors.Wrap(err, "Error creating http client")
 	}
 
 	client.CheckRedirect = func(r *http.Request, via []*http.Request) error {
-		if len(accessKey) > 0 && len(secKey) > 0 {
+		if len(headerName) > 0 && len(secKey) > 0 {
+			r.Header.Set(headerName, secKey)
+		} else if len(accessKey) > 0 && len(secKey) > 0 {
 			r.SetBasicAuth(accessKey, secKey) // Redirects will lose basic auth, so reset them manually
 		}
 		return nil
 	}
 
-	total, err := getContentLength(client, ep, accessKey, secKey)
+	var total uint64
+	if len(headerName) > 0 && len(secKey) > 0 {
+		total = uint64(size)
+		err = nil
+	} else {
+		total, err = getContentLength(client, ep, accessKey, secKey)
+	}
 	if err != nil {
 		return nil, total, err
 	}
@@ -254,7 +269,9 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 	req, _ := http.NewRequest("GET", ep.String(), nil)
 
 	req = req.WithContext(ctx)
-	if len(accessKey) > 0 && len(secKey) > 0 {
+	if len(headerName) > 0 && len(secKey) > 0 {
+		req.Header.Set(headerName, secKey)
+	} else if len(accessKey) > 0 && len(secKey) > 0 {
 		req.SetBasicAuth(accessKey, secKey)
 	}
 	klog.V(2).Infof("Attempting to get object %q via http client\n", ep.String())

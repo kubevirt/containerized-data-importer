@@ -534,6 +534,13 @@ func schema_pkg_apis_core_v1alpha1_DataVolumeSourceHTTP(ref common.ReferenceCall
 							Format:      "",
 						},
 					},
+					"headerName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "HeaderName provides custom header name",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},

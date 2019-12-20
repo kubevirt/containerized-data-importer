@@ -108,6 +108,8 @@ type DataVolumeSourceHTTP struct {
 	SecretRef string `json:"secretRef,omitempty"`
 	//CertConfigMap provides a reference to the Registry certs
 	CertConfigMap string `json:"certConfigMap,omitempty"`
+	//HeaderName provides custom header name
+	HeaderName string `json:"headerName,omitempty"`
 }
 
 // DataVolumeStatus provides the parameters to store the phase of the Data Volume
