@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -81,9 +79,6 @@ func createClientKeyAndCert(ca *triple.KeyPair, commonName string, organizations
 }
 
 func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string) bool {
-	if pvc.DeletionTimestamp != nil {
-		return false
-	}
 	// check if we have proper annotation
 	if !metav1.HasAnnotation(pvc.ObjectMeta, annotation) {
 		klog.V(2).Infof("pvc annotation %q not found, skipping pvc \"%s/%s\"\n", annotation, pvc.Namespace, pvc.Name)
@@ -329,229 +324,15 @@ func GetScratchPvcStorageClass(client kubernetes.Interface, cdiclient clientset.
 	return ""
 }
 
-// CreateImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret
-// name, and pvc. A nil secret means the endpoint credentials are not passed to the
-// importer pod.
-func CreateImporterPod(client kubernetes.Interface, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *v1.PersistentVolumeClaim, scratchPvcName *string) (*v1.Pod, error) {
-	ns := pvc.Namespace
-	pod := MakeImporterPodSpec(image, verbose, pullPolicy, podEnvVar, pvc, scratchPvcName)
-
-	pod, err := client.CoreV1().Pods(ns).Create(pod)
-	if err != nil {
-		return nil, errors.Wrap(err, "importer pod API create errored")
-	}
-	klog.V(3).Infof("importer pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
-	return pod, nil
-}
-
-// MakeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
-func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *v1.PersistentVolumeClaim, scratchPvcName *string) *v1.Pod {
-	// importer pod name contains the pvc name
-	podName := fmt.Sprintf("%s-%s-", common.ImporterPodName, pvc.Name)
-
-	blockOwnerDeletion := true
-	isController := true
-
-	volumes := []v1.Volume{
-		{
-			Name: DataVolName,
-			VolumeSource: v1.VolumeSource{
-				PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
-					ClaimName: pvc.Name,
-					ReadOnly:  false,
-				},
-			},
-		},
-	}
-
-	if scratchPvcName != nil {
-		volumes = append(volumes, v1.Volume{
-			Name: ScratchVolName,
-			VolumeSource: v1.VolumeSource{
-				PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
-					ClaimName: *scratchPvcName,
-					ReadOnly:  false,
-				},
-			},
-		})
-	}
-
-	pod := &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: podName,
-			Annotations: map[string]string{
-				AnnCreatedBy: "yes",
-			},
-			Labels: map[string]string{
-				common.CDILabelKey:       common.CDILabelValue,
-				common.CDIComponentLabel: common.ImporterPodName,
-				// this label is used when searching for a pvc's import pod.
-				LabelImportPvc:         pvc.Name,
-				common.PrometheusLabel: "",
-			},
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion:         "v1",
-					Kind:               "PersistentVolumeClaim",
-					Name:               pvc.Name,
-					UID:                pvc.GetUID(),
-					BlockOwnerDeletion: &blockOwnerDeletion,
-					Controller:         &isController,
-				},
-			},
-		},
-		Spec: v1.PodSpec{
-			Containers: []v1.Container{
-				{
-					Name:            common.ImporterPodName,
-					Image:           image,
-					ImagePullPolicy: v1.PullPolicy(pullPolicy),
-					Args:            []string{"-v=" + verbose},
-					Ports: []v1.ContainerPort{
-						{
-							Name:          "metrics",
-							ContainerPort: 8443,
-							Protocol:      v1.ProtocolTCP,
-						},
-					},
-				},
-			},
-			RestartPolicy: v1.RestartPolicyOnFailure,
-			Volumes:       volumes,
-		},
-	}
-
-	ownerUID := pvc.UID
-	if len(pvc.OwnerReferences) == 1 {
-		ownerUID = pvc.OwnerReferences[0].UID
-	}
-
-	if getVolumeMode(pvc) == v1.PersistentVolumeBlock {
-		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
-		pod.Spec.SecurityContext = &v1.PodSecurityContext{
-			RunAsUser: &[]int64{0}[0],
-		}
-	} else {
-		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts()
-	}
-
-	if scratchPvcName != nil {
-		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, v1.VolumeMount{
-			Name:      ScratchVolName,
-			MountPath: common.ScratchDataDir,
-		})
-	}
-
-	pod.Spec.Containers[0].Env = makeEnv(podEnvVar, ownerUID)
-
-	if podEnvVar.certConfigMap != "" {
-		vm := v1.VolumeMount{
-			Name:      CertVolName,
-			MountPath: common.ImporterCertDir,
-		}
-
-		vol := v1.Volume{
-			Name: CertVolName,
-			VolumeSource: v1.VolumeSource{
-				ConfigMap: &v1.ConfigMapVolumeSource{
-					LocalObjectReference: v1.LocalObjectReference{
-						Name: podEnvVar.certConfigMap,
-					},
-				},
-			},
-		}
-
-		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
-		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
-	}
-	return pod
-}
-
 // this is being called for pods using PV with block volume mode
 func addVolumeDevices() []v1.VolumeDevice {
 	volumeDevices := []v1.VolumeDevice{
 		{
 			Name:       DataVolName,
-			DevicePath: common.ImporterWriteBlockPath,
+			DevicePath: common.WriteBlockPath,
 		},
 	}
 	return volumeDevices
-}
-
-// this is being called for pods using PV with filesystem volume mode
-func addVolumeMounts() []v1.VolumeMount {
-	volumeMounts := []v1.VolumeMount{
-		{
-			Name:      DataVolName,
-			MountPath: common.ImporterDataDir,
-		},
-	}
-	return volumeMounts
-}
-
-// return the Env portion for the importer container.
-func makeEnv(podEnvVar *importPodEnvVar, uid types.UID) []v1.EnvVar {
-	env := []v1.EnvVar{
-		{
-			Name:  common.ImporterSource,
-			Value: podEnvVar.source,
-		},
-		{
-			Name:  common.ImporterEndpoint,
-			Value: podEnvVar.ep,
-		},
-		{
-			Name:  common.ImporterContentType,
-			Value: podEnvVar.contentType,
-		},
-		{
-			Name:  common.ImporterImageSize,
-			Value: podEnvVar.imageSize,
-		},
-		{
-			Name:  common.OwnerUID,
-			Value: string(uid),
-		},
-		{
-			Name:  common.InsecureTLSVar,
-			Value: strconv.FormatBool(podEnvVar.insecureTLS),
-		},
-	}
-	if podEnvVar.secretName != "" {
-		env = append(env, v1.EnvVar{
-			Name: common.ImporterAccessKeyID,
-			ValueFrom: &v1.EnvVarSource{
-				SecretKeyRef: &v1.SecretKeySelector{
-					LocalObjectReference: v1.LocalObjectReference{
-						Name: podEnvVar.secretName,
-					},
-					Key: common.KeyAccess,
-				},
-			},
-		}, v1.EnvVar{
-			Name: common.ImporterSecretKey,
-			ValueFrom: &v1.EnvVarSource{
-				SecretKeyRef: &v1.SecretKeySelector{
-					LocalObjectReference: v1.LocalObjectReference{
-						Name: podEnvVar.secretName,
-					},
-					Key: common.KeySecret,
-				},
-			},
-		})
-
-	}
-	if podEnvVar.certConfigMap != "" {
-		env = append(env, v1.EnvVar{
-			Name:  common.ImporterCertDirVar,
-			Value: common.ImporterCertDir,
-		})
-	}
-	return env
 }
 
 // Return a new map consisting of map1 with map2 added. In general, map2 is expected to have a single key. eg
@@ -818,7 +599,7 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerRefAnno strin
 			},
 			{
 				Name:  "MOUNT_POINT",
-				Value: common.ImporterWriteBlockPath,
+				Value: common.WriteBlockPath,
 			},
 		}
 	} else {
@@ -1047,7 +828,7 @@ func makeUploadPodSpec(image, verbose, pullPolicy, name string,
 		pod.Spec.Containers[0].VolumeDevices = addVolumeDevicesForUpload()
 		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, v1.EnvVar{
 			Name:  "DESTINATION",
-			Value: common.ImporterWriteBlockPath,
+			Value: common.WriteBlockPath,
 		})
 	} else {
 		pod.Spec.Containers[0].VolumeMounts = addVolumeMountsForUpload()
@@ -1077,7 +858,7 @@ func addVolumeDevicesForUpload() []v1.VolumeDevice {
 	volumeDevices := []v1.VolumeDevice{
 		{
 			Name:       DataVolName,
-			DevicePath: common.ImporterWriteBlockPath,
+			DevicePath: common.WriteBlockPath,
 		},
 	}
 	return volumeDevices

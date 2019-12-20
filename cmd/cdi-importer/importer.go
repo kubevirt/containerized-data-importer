@@ -65,7 +65,7 @@ func main() {
 	}
 
 	volumeMode := v1.PersistentVolumeBlock
-	if _, err := os.Stat(common.ImporterWriteBlockPath); os.IsNotExist(err) {
+	if _, err := os.Stat(common.WriteBlockPath); os.IsNotExist(err) {
 		volumeMode = v1.PersistentVolumeFilesystem
 	}
 
@@ -75,7 +75,7 @@ func main() {
 	}
 
 	if volumeMode == v1.PersistentVolumeBlock {
-		dest = common.ImporterWriteBlockPath
+		dest = common.WriteBlockPath
 	}
 
 	dataDir := common.ImporterDataDir

@@ -85,7 +85,7 @@ func (r *CountingReader) Close() error {
 // available space at the path specified.
 func GetAvailableSpaceByVolumeMode(volumeMode v1.PersistentVolumeMode) int64 {
 	if volumeMode == v1.PersistentVolumeBlock {
-		return GetAvailableSpaceBlock(common.ImporterWriteBlockPath)
+		return GetAvailableSpaceBlock(common.WriteBlockPath)
 	}
 	return GetAvailableSpace(common.ImporterVolumePath)
 }

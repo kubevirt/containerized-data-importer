@@ -240,7 +240,7 @@ func (cc *CloneController) syncPvc(key string) error {
 		return nil
 	}
 
-	if !checkPVC(pvc, AnnCloneRequest) || metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf) {
+	if !checkPVC(pvc, AnnCloneRequest) || pvc.DeletionTimestamp != nil || metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf) {
 		cc.cleanup(key, pvc)
 		return nil
 	}
