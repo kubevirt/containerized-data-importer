@@ -102,7 +102,7 @@ func GetAvailableSpace(path string) int64 {
 
 // GetAvailableSpaceBlock gets the amount of available space at the block device path specified.
 func GetAvailableSpaceBlock(deviceName string) int64 {
-	cmd := exec.Command("/usr/bin/lsblk", "-n", "-b", "-o", "SIZE", deviceName)
+	cmd := exec.Command("/usr/sbin/blockdev", "--getsize64", deviceName)
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
