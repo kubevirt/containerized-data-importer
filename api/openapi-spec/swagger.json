@@ -1487,13 +1487,9 @@
    "big.Word": {},
    "inf.Dec": {
     "required": [
-     "unscaled",
-     "scale"
+     "unscaled"
     ],
     "properties": {
-     "scale": {
-      "$ref": "#/definitions/inf.Scale"
-     },
      "unscaled": {
       "$ref": "#/definitions/big.Int"
      }
@@ -1533,13 +1529,9 @@
    },
    "resource.int64Amount": {
     "required": [
-     "value",
-     "scale"
+     "value"
     ],
     "properties": {
-     "scale": {
-      "$ref": "#/definitions/resource.Scale"
-     },
      "value": {
       "type": "integer",
       "format": "int64"
@@ -2007,7 +1999,6 @@
    "v1.Patch": {
     "description": "Patch is provided to give a concrete name and type to the Kubernetes PATCH request body."
    },
-   "v1.PersistentVolumeAccessMode": {},
    "v1.PersistentVolumeClaimSpec": {
     "description": "PersistentVolumeClaimSpec describes the common attributes of storage devices and allows a Source for provider-specific attributes",
     "required": [
@@ -2018,7 +2009,7 @@
       "description": "AccessModes contains the desired access modes the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1",
       "type": "array",
       "items": {
-       "$ref": "#/definitions/v1.PersistentVolumeAccessMode"
+       "type": "string"
       }
      },
      "dataSource": {
