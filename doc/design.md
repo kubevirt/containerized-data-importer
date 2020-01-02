@@ -61,6 +61,26 @@ The controller scans PVCs within its namespace by looking for specific annotatio
 
 ## Included Manifests
 
+- [blank-image-datavolume.yaml](../manifests/example/blank-image-datavolume.yaml)
+- [cert-configmap.yaml](../manifests/example/cert-configmap.yaml)
+- [clone-block-datavolume.yaml](../manifests/example/clone-block-datavolume.yaml)
+- [clone-datavolume.yaml](../manifests/example/clone-datavolume.yaml)
+- [endpoint-secret.yaml](../manifests/example/endpoint-secret.yaml)
+- [example-cdiconfig.yaml](../manifests/example/example-cdiconfig.yaml)
+- [import-archive-block-datavolume.yaml](../manifests/example/import-archive-block-datavolume.yaml)
+- [import-archive-datavolume.yaml](../manifests/example/import-archive-datavolume.yaml)
+- [import-block-pv.yaml](../manifests/example/import-block-pv.yaml)
+- [import-kubevirt-block-datavolume.yaml](../manifests/example/import-kubevirt-block-datavolume.yaml)
+- [import-kubevirt-datavolume-secret.yaml](../manifests/example/import-kubevirt-datavolume-secret.yaml)
+- [import-kubevirt-datavolume.yaml](../manifests/example/import-kubevirt-datavolume.yaml)
+- [registry-image-block-datavolume.yaml](../manifests/example/registry-image-block-datavolume.yaml)
+- [registry-image-datavolume.yaml](../manifests/example/registry-image-datavolume.yaml)
+- [upload-block-datavolume-token.yaml](../manifests/example/upload-block-datavolume-token.yaml)
+- [upload-block-datavolume.yaml](../manifests/example/upload-block-datavolume.yaml)
+- [upload-datavolume-token.yaml](../manifests/example/upload-datavolume-token.yaml)
+- [upload-datavolume.yaml](../manifests/example/upload-datavolume.yaml)
+- [vm-dv.yaml](../manifests/example/vm-dv.yaml)
+
 ###### endpoint-secret.yaml
 
 One or more endpoint secrets in the "golden" namespace are required for non-public endpoints. If the endpoint is public there is no need to an endpoint secret. No namespace is supplied since the secret is expected to be created from the "golden" namespace.
