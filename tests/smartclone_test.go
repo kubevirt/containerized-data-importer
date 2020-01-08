@@ -45,7 +45,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		}
 	})
 
-	Describe("Verify DataVolume Smart Cloning - volumeMode filesystem - Positive flow", func() {
+	Describe("[rfe_id:1106][test_id:3494][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - volumeMode filesystem - Positive flow", func() {
 		It("succeed creating smart-clone dv", func() {
 			if !f.IsSnapshotStorageClassAvailable() {
 				Skip("Smart Clone is not applicable")
@@ -65,7 +65,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		})
 	})
 
-	Describe("Verify DataVolume Smart Cloning - volumeMode block - Positive flow", func() {
+	Describe("[rfe_id:1106][test_id:3495][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - volumeMode block - Positive flow", func() {
 		It("succeed creating smart-clone dv", func() {
 			if !f.IsSnapshotStorageClassAvailable() {
 				Skip("Smart Clone is not applicable")
@@ -85,7 +85,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		})
 	})
 
-	Describe("Verify DataVolume Smart Cloning - Check regular clone works", func() {
+	Describe("[rfe_id:1106][test_id:3496][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - Check regular clone works", func() {
 		It("Verify inapplicable smart-clone dv", func() {
 			smartApplicable := f.IsSnapshotStorageClassAvailable()
 			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
