@@ -467,6 +467,7 @@ func (c *UploadController) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, p
 
 		args := UploadPodArgs{
 			Client:         c.client,
+			CdiClient:      c.cdiClient,
 			Image:          c.uploadServiceImage,
 			Verbose:        c.verbose,
 			PullPolicy:     c.pullPolicy,

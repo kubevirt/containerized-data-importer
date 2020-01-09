@@ -1471,3 +1471,14 @@ func createVolumeSnapshotCrd() *apiextensionsv1beta1.CustomResourceDefinition {
 		},
 	}
 }
+
+func createDefaultPodResourceRequirements(limitCPUValue int64, limitMemoryValue int64, requestCPUValue int64, requestMemoryValue int64) *corev1.ResourceRequirements {
+	return &corev1.ResourceRequirements{
+		Limits: map[corev1.ResourceName]resource.Quantity{
+			corev1.ResourceCPU:    *resource.NewQuantity(limitCPUValue, resource.DecimalSI),
+			corev1.ResourceMemory: *resource.NewQuantity(limitMemoryValue, resource.DecimalSI)},
+		Requests: map[corev1.ResourceName]resource.Quantity{
+			corev1.ResourceCPU:    *resource.NewQuantity(requestCPUValue, resource.DecimalSI),
+			corev1.ResourceMemory: *resource.NewQuantity(requestMemoryValue, resource.DecimalSI)},
+	}
+}
