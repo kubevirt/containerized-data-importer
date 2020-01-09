@@ -1,13 +1,16 @@
 package framework
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +20,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -448,6 +452,133 @@ func (f *Framework) CreatePrometheusServiceInNs(namespace string) (*v1.Service, 
 		},
 	}
 	return f.K8sClient.CoreV1().Services(namespace).Create(service)
+}
+
+// CreateQuotaInNs creates a quota and sets it on the current test namespace.
+func (f *Framework) CreateQuotaInNs(requestCPU, requestMemory, limitsCPU, limitsMemory int64) error {
+	resourceQuota := &v1.ResourceQuota{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-quota",
+			Namespace: f.Namespace.GetName(),
+		},
+		Spec: v1.ResourceQuotaSpec{
+			Hard: v1.ResourceList{
+				v1.ResourceRequestsCPU:    *resource.NewQuantity(requestCPU, resource.DecimalSI),
+				v1.ResourceRequestsMemory: *resource.NewQuantity(requestMemory, resource.DecimalSI),
+				v1.ResourceLimitsCPU:      *resource.NewQuantity(limitsCPU, resource.DecimalSI),
+				v1.ResourceLimitsMemory:   *resource.NewQuantity(limitsMemory, resource.DecimalSI),
+			},
+		},
+	}
+	_, err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Create(resourceQuota)
+	if err != nil {
+		ginkgo.Fail("Unable to set resource quota " + err.Error())
+	}
+	return wait.PollImmediate(2*time.Second, nsDeleteTime, func() (bool, error) {
+		quota, err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Get("test-quota", metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		return len(quota.Status.Hard) == 4, nil
+	})
+}
+
+// UpdateQuotaInNs updates an existing quota in the current test namespace.
+func (f *Framework) UpdateQuotaInNs(requestCPU, requestMemory, limitsCPU, limitsMemory int64) error {
+	resourceQuota := &v1.ResourceQuota{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-quota",
+			Namespace: f.Namespace.GetName(),
+		},
+		Spec: v1.ResourceQuotaSpec{
+			Hard: v1.ResourceList{
+				v1.ResourceRequestsCPU:    *resource.NewQuantity(requestCPU, resource.DecimalSI),
+				v1.ResourceRequestsMemory: *resource.NewQuantity(requestMemory, resource.DecimalSI),
+				v1.ResourceLimitsCPU:      *resource.NewQuantity(limitsCPU, resource.DecimalSI),
+				v1.ResourceLimitsMemory:   *resource.NewQuantity(limitsMemory, resource.DecimalSI),
+			},
+		},
+	}
+	_, err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Update(resourceQuota)
+	if err != nil {
+		ginkgo.Fail("Unable to set resource quota " + err.Error())
+	}
+	return err
+}
+
+// UpdateCdiConfigResourceLimits sets the limits in the CDIConfig object
+func (f *Framework) UpdateCdiConfigResourceLimits(resourceCPU, resourceMemory, limitsCPU, limitsMemory int64) error {
+	config, err := f.CdiClient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	config.Spec.PodResourceRequirements = &v1.ResourceRequirements{
+		Requests: map[v1.ResourceName]resource.Quantity{
+			v1.ResourceCPU:    *resource.NewQuantity(resourceCPU, resource.DecimalSI),
+			v1.ResourceMemory: *resource.NewQuantity(resourceMemory, resource.DecimalSI)},
+		Limits: map[v1.ResourceName]resource.Quantity{
+			v1.ResourceCPU:    *resource.NewQuantity(limitsCPU, resource.DecimalSI),
+			v1.ResourceMemory: *resource.NewQuantity(limitsMemory, resource.DecimalSI)},
+	}
+	_, err = f.CdiClient.CdiV1alpha1().CDIConfigs().Update(config)
+	if err != nil {
+		return err
+	}
+	// see if config got updated
+	return wait.PollImmediate(2*time.Second, nsDeleteTime, func() (bool, error) {
+		res, err := f.runKubectlCommand("get", "CDIConfig", "config", "-o=jsonpath={.status.defaultPodResourceRequirements..['cpu', 'memory']}")
+		if err != nil {
+			return false, err
+		}
+		values := strings.Fields(res)
+		if len(values) != 4 {
+			return false, errors.New("length is not 4: " + string(len(values)))
+		}
+		reqCPU, err := strconv.ParseInt(values[0], 10, 64)
+		if err != nil {
+			return false, err
+		}
+		reqMem, err := strconv.ParseInt(values[2], 10, 64)
+		if err != nil {
+			return false, err
+		}
+		limCPU, err := strconv.ParseInt(values[1], 10, 64)
+		if err != nil {
+			return false, err
+		}
+		limMem, err := strconv.ParseInt(values[3], 10, 64)
+		if err != nil {
+			return false, err
+		}
+		return resourceCPU == reqCPU && resourceMemory == reqMem && limitsCPU == limCPU && limitsMemory == limMem, nil
+	})
+}
+
+//runKubectlCommand ...
+func (f *Framework) runKubectlCommand(args ...string) (string, error) {
+	var errb bytes.Buffer
+	cmd := f.createKubectlCommand(args...)
+
+	cmd.Stderr = &errb
+	stdOutBytes, err := cmd.Output()
+	if err != nil {
+		if len(errb.String()) > 0 {
+			return errb.String(), err
+		}
+	}
+	return string(stdOutBytes), nil
+}
+
+// createKubectlCommand returns the Cmd to execute kubectl
+func (f *Framework) createKubectlCommand(args ...string) *exec.Cmd {
+	kubeconfig := f.KubeConfig
+	path := f.KubectlPath
+
+	cmd := exec.Command(path, args...)
+	kubeconfEnv := fmt.Sprintf("KUBECONFIG=%s", kubeconfig)
+	cmd.Env = append(os.Environ(), kubeconfEnv)
+
+	return cmd
 }
 
 // IsSnapshotStorageClassAvailable checks if the snapshot storage class exists.

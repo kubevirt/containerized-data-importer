@@ -30,7 +30,7 @@ const (
 	assertionPollInterval            = 2 * time.Second
 	controllerSkipPVCCompleteTimeout = 270 * time.Second
 	invalidEndpoint                  = "http://gopats.com/who-is-the-goat.iso"
-	CompletionTimeout                = 60 * time.Second
+	CompletionTimeout                = 270 * time.Second
 	BlankImageMD5                    = "cd573cfaace07e7949bc0c46028904ff"
 	BlockDeviceMD5                   = "7c55761d39e6428fa27c21d8710a3d19"
 )
@@ -342,5 +342,167 @@ var _ = Describe("PVC import phase matches pod phase", func() {
 			Expect(testPvc.GetAnnotations()[controller.AnnPodPhase]).To(BeEquivalentTo(v1.PodRunning))
 			time.Sleep(time.Millisecond * 50)
 		}
+	})
+})
+
+var _ = Describe("Namespace with quota", func() {
+	f := framework.NewFrameworkOrDie(namespacePrefix)
+	var (
+		orgConfig *v1.ResourceRequirements
+	)
+
+	BeforeEach(func() {
+		By("Capturing original CDIConfig state")
+		config, err := f.CdiClient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		orgConfig = config.Status.DefaultPodResourceRequirements
+	})
+
+	AfterEach(func() {
+		By("Restoring CDIConfig to original state")
+		reqCPU, _ := orgConfig.Requests.Cpu().AsInt64()
+		reqMem, _ := orgConfig.Requests.Memory().AsInt64()
+		limCPU, _ := orgConfig.Limits.Cpu().AsInt64()
+		limMem, _ := orgConfig.Limits.Memory().AsInt64()
+		err := f.UpdateCdiConfigResourceLimits(reqCPU, reqMem, limCPU, limMem)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("Should create import pod in namespace with quota", func() {
+		err := f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
+		pvcAnn := map[string]string{
+			controller.AnnEndpoint: httpEp + "/tinyCore.iso",
+		}
+
+		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.iso"))
+
+		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
+			"import-image-to-block-pvc",
+			"500Mi",
+			pvcAnn,
+			nil))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify the pod status is succeeded on the target PVC")
+		Eventually(func() string {
+			status, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodPhase)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(phaseAnnotation).To(BeTrue())
+			return status
+		}, CompletionTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
+
+		By("Verify content")
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", "d41d8cd98f00b204e9800998ecf8427e", utils.UploadFileSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(same).To(BeTrue())
+
+	})
+
+	It("Should fail to create import pod in namespace with quota, with resource limits higher in CDIConfig", func() {
+		err := f.UpdateCdiConfigResourceLimits(int64(2), int64(1024*1024*1024), int64(2), int64(1*1024*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(1), int64(2*1024*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
+		pvcAnn := map[string]string{
+			controller.AnnEndpoint: httpEp + "/tinyCore.iso",
+		}
+
+		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.iso"))
+
+		_, err = f.CreatePVCFromDefinition(utils.NewPVCDefinition(
+			"import-image-to-pvc",
+			"500Mi",
+			pvcAnn,
+			nil))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify Quota was exceeded in logs")
+		matchString := fmt.Sprintf("\"controller\": \"import-controller\", \"request\": \"%s/import-image-to-pvc\", \"error\": \"pods \\\"importer-import-image-to-pvc\\\" is forbidden: exceeded quota: test-quota, requested", f.Namespace.Name)
+		Eventually(func() string {
+			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			Expect(err).NotTo(HaveOccurred())
+			return log
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+	})
+
+	It("Should fail to create import pod in namespace with quota, then succeed once the quota is large enough", func() {
+		err := f.UpdateCdiConfigResourceLimits(int64(1), int64(1024*1024*1024), int64(1), int64(1024*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+		err = f.CreateQuotaInNs(int64(1), int64(512*1024*1024), int64(1), int64(512*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
+		pvcAnn := map[string]string{
+			controller.AnnEndpoint: httpEp + "/tinyCore.iso",
+		}
+
+		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.iso"))
+
+		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
+			"import-image-to-pvc",
+			"500Mi",
+			pvcAnn,
+			nil))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify Quota was exceeded in logs")
+		matchString := fmt.Sprintf("\"controller\": \"import-controller\", \"request\": \"%s/import-image-to-pvc\", \"error\": \"pods \\\"importer-import-image-to-pvc\\\" is forbidden: exceeded quota: test-quota, requested", f.Namespace.Name)
+		Eventually(func() string {
+			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			Expect(err).NotTo(HaveOccurred())
+			return log
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+
+		err = f.UpdateQuotaInNs(int64(2), int64(1024*1024*1024), int64(2), int64(1024*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify the pod status is succeeded on the target PVC")
+		Eventually(func() string {
+			status, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodPhase)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(phaseAnnotation).To(BeTrue())
+			return status
+		}, CompletionTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
+
+		By("Verify content")
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", "d41d8cd98f00b204e9800998ecf8427e", utils.UploadFileSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(same).To(BeTrue())
+	})
+
+	It("Should create import pod in namespace with quota with CDIConfig within limits", func() {
+		err := f.UpdateCdiConfigResourceLimits(int64(0), int64(0), int64(1), int64(512*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+		err = f.CreateQuotaInNs(int64(1), int64(512*1024*1024), int64(2), int64(1*1024*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
+		pvcAnn := map[string]string{
+			controller.AnnEndpoint: httpEp + "/tinyCore.iso",
+		}
+
+		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.iso"))
+
+		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
+			"import-image-to-block-pvc",
+			"500Mi",
+			pvcAnn,
+			nil))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify the pod status is succeeded on the target PVC")
+		Eventually(func() string {
+			status, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodPhase)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(phaseAnnotation).To(BeTrue())
+			return status
+		}, CompletionTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
+
+		By("Verify content")
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", "d41d8cd98f00b204e9800998ecf8427e", utils.UploadFileSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(same).To(BeTrue())
+
 	})
 })
