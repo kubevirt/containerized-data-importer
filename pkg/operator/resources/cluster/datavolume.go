@@ -152,6 +152,25 @@ func createDataVolumeCRD() *extv1beta1.CustomResourceDefinition {
 					},
 				},
 			},
+			AdditionalPrinterColumns: []extv1beta1.CustomResourceColumnDefinition{
+				{
+					Name:        "Phase",
+					Type:        "string",
+					Description: "The phase the data volume is in",
+					JSONPath:    ".status.phase",
+				},
+				{
+					Name:        "Progress",
+					Type:        "string",
+					Description: "Transfer progress in percentage if known, N/A otherwise",
+					JSONPath:    ".status.progress",
+				},
+				{
+					Name:     "Age",
+					Type:     "date",
+					JSONPath: ".metadata.creationTimestamp",
+				},
+			},
 		},
 	}
 }
