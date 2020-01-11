@@ -23,6 +23,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -43,6 +44,13 @@ type CDIConfigReconciler struct {
 	UploadProxyServiceName string
 	ConfigName             string
 	CDINamespace           string
+}
+
+func isErrCacheNotStarted(err error) bool {
+	if err == nil {
+		return false
+	}
+	return err.(*cache.ErrCacheNotStarted) != nil
 }
 
 // Reconcile the reconcile loop for the CDIConfig object.
@@ -317,7 +325,7 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 		return nil
 	}
 
-	if err != nil {
+	if err != nil && !isErrCacheNotStarted(err) {
 		return err
 	}
 
