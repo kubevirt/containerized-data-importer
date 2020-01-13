@@ -152,7 +152,7 @@ var _ = Describe("RetryBackoffSize", func() {
 		startQuantity := resource.NewScaledQuantity(int64(250*blockSize), 0)
 		err := RetryBackoffSize("", *startQuantity, func(dest string, size resource.Quantity) error {
 			callCount++
-			if resource.NewScaledQuantity(int64(200*blockSize), 0).Cmp(size) == 0 {
+			if resource.NewScaledQuantity(int64(125*blockSize), 0).Cmp(size) == 0 {
 				return nil
 			}
 			return fmt.Errorf("I am failing two tries, help me, %+v", size)

@@ -137,8 +137,8 @@ func RetryBackoffSize(dest string, size resource.Quantity, sizeFunc func(string,
 		retryCount++
 		// Reduce by 25 blocks, and try again. How did we end up with 25 blocks? Well we need to leave some blocks for the fs on the pvc.
 		// Then we need to leave some extra blocks so it can mount inside the container.
-		reduceSize.Sub(*resource.NewScaledQuantity(blockSize*int64(25), 0))
-		klog.V(3).Infof("Trying new size: %s\n", reduceSize.String())
+		reduceSize.Sub(*resource.NewScaledQuantity(blockSize*int64(25*retryCount*retryCount), 0))
+		klog.V(1).Infof("Trying reduced size: %s\n", reduceSize.String())
 		err = sizeFunc(dest, reduceSize)
 	}
 	return err
