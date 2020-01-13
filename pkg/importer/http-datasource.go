@@ -114,7 +114,7 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 	}
 	// The readers now contain all the information needed to determine if we can stream directly or if we need scratch space to download
 	// the file to, before converting.
-	if !hs.readers.Archived && !hs.customCA {
+	if !hs.readers.Archived && !hs.customCA && hs.readers.Convert {
 		// We can pass straight to conversion from the endpoint. No scratch required.
 		hs.url = hs.endpoint
 		return ProcessingPhaseConvert, nil
