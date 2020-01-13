@@ -32,4 +32,4 @@ docker run ${USE_TTY} \
     -e RUN_GID=$(id -g) \
     -e GOCACHE=/gocache \
     -w ${WORK_DIR} \
-    ${BUILDER_TAG} "$1"
+    ${BUILDER_IMAGE} "$1"
