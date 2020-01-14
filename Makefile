@@ -44,8 +44,10 @@ generate:
 generate-verify:
 	${DO} "./hack/verify-codegen.sh"
 
-deps-update:
-	${DO_BAZ} "./hack/build/dep-update.sh"; make bazel-generate
+gomod-update:
+	${DO_BAZ} "SYNC_VENDOR=true ./hack/build/dep-update.sh"
+
+deps-update: gomod-update bazel-generate
 
 apidocs:
 	${DO} "./hack/update-codegen.sh && ./hack/gen-swagger-doc/gen-swagger-docs.sh v1alpha1 html"

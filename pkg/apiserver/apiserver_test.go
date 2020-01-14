@@ -209,7 +209,7 @@ func getExpectedValidatingWebhook() *admissionregistrationv1beta1.ValidatingWebh
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cdi-api-datavolume-validate",
 		},
-		Webhooks: []admissionregistrationv1beta1.Webhook{
+		Webhooks: []admissionregistrationv1beta1.ValidatingWebhook{
 			{
 				Name: "datavolume-validate.cdi.kubevirt.io",
 				Rules: []admissionregistrationv1beta1.RuleWithOperations{{
@@ -274,7 +274,7 @@ func getExpectedMutatingWebhook() *admissionregistrationv1beta1.MutatingWebhookC
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cdi-api-datavolume-mutate",
 		},
-		Webhooks: []admissionregistrationv1beta1.Webhook{
+		Webhooks: []admissionregistrationv1beta1.MutatingWebhook{
 			{
 				Name: "datavolume-mutate.cdi.kubevirt.io",
 				Rules: []admissionregistrationv1beta1.RuleWithOperations{{

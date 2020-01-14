@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/blang/semver"
 	"github.com/go-logr/logr"
@@ -33,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -111,15 +113,19 @@ var _ reconcile.Reconciler = &ReconcileCDI{}
 type ReconcileCDI struct {
 	// This Client, initialized using mgr.client() above, is a split Client
 	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
+	client     client.Client
+	scheme     *runtime.Scheme
+	controller controller.Controller
 
 	namespace      string
 	clusterArgs    *cdicluster.FactoryArgs
 	namespacedArgs *cdinamespaced.FactoryArgs
 
+	watching           bool
 	explicitWatchTypes []runtime.Object
-	callbacks          map[reflect.Type][]ReconcileCallback
+	watchMutex         sync.Mutex
+
+	callbacks map[reflect.Type][]ReconcileCallback
 }
 
 // Reconcile reads that state of the cluster for a CDI object and makes changes based on the state read
@@ -131,11 +137,17 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling CDI")
 
+	// make sure we're watching eveything
+	err := r.watchDependantResources()
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
 	// Fetch the CDI instance
 	// check at cluster level
 	cr := &cdiv1alpha1.CDI{}
 	crKey := client.ObjectKey{Namespace: "", Name: request.NamespacedName.Name}
-	if err := r.client.Get(context.TODO(), crKey, cr); err != nil {
+	if err = r.client.Get(context.TODO(), crKey, cr); err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Return and don't requeue
@@ -440,11 +452,15 @@ func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1alpha
 		&corev1.ServiceAccountList{},
 	}
 
-	for _, lt := range listTypes {
-		lo := &client.ListOptions{}
-		lo.SetLabelSelector(createVersionLabel)
+	ls, err := labels.Parse(createVersionLabel)
+	if err != nil {
+		return err
+	}
 
-		if err := r.client.List(context.TODO(), lo, lt); err != nil {
+	for _, lt := range listTypes {
+		lo := &client.ListOptions{LabelSelector: ls}
+
+		if err := r.client.List(context.TODO(), lt, lo); err != nil {
 			logger.Error(err, "Error listing resources")
 			return err
 		}
@@ -471,9 +487,8 @@ func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1alpha
 				}
 
 				logger.Info("Deleting  ", "type", reflect.TypeOf(observedObj), "Name", observedMetaObj.GetName())
-				err = r.client.Delete(context.TODO(), observedObj, func(opts *client.DeleteOptions) {
-					p := metav1.DeletePropagationForeground
-					opts.PropagationPolicy = &p
+				err = r.client.Delete(context.TODO(), observedObj, &client.DeleteOptions{
+					PropagationPolicy: &[]metav1.DeletionPropagation{metav1.DeletePropagationForeground}[0],
 				})
 				if err != nil && !errors.IsNotFound(err) {
 					return err
@@ -592,17 +607,26 @@ func (r *ReconcileCDI) add(mgr manager.Manager) error {
 		return err
 	}
 
-	if err = r.watch(c); err != nil {
+	r.controller = c
+
+	if err = r.watchCDI(); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (r *ReconcileCDI) watch(c controller.Controller) error {
+func (r *ReconcileCDI) watchCDI() error {
 	// Watch for changes to CDI CR
-	if err := c.Watch(&source.Kind{Type: &cdiv1alpha1.CDI{}}, &handler.EnqueueRequestForObject{}); err != nil {
-		return err
+	return r.controller.Watch(&source.Kind{Type: &cdiv1alpha1.CDI{}}, &handler.EnqueueRequestForObject{})
+}
+
+func (r *ReconcileCDI) watchDependantResources() error {
+	r.watchMutex.Lock()
+	defer r.watchMutex.Unlock()
+
+	if r.watching {
+		return nil
 	}
 
 	resources, err := r.getAllResources(nil)
@@ -612,14 +636,16 @@ func (r *ReconcileCDI) watch(c controller.Controller) error {
 
 	resources = append(resources, r.explicitWatchTypes...)
 
-	if err = r.watchResourceTypes(c, resources); err != nil {
+	if err = r.watchResourceTypes(r.controller, resources); err != nil {
 		return err
 	}
 
 	// would like to get rid of this
-	if err = r.watchSecurityContextConstraints(c); err != nil {
+	if err = r.watchSecurityContextConstraints(r.controller); err != nil {
 		return err
 	}
+
+	r.watching = true
 
 	return nil
 }

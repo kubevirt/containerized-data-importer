@@ -69,25 +69,25 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		}, 60*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
 
 		dv := utils.NewDataVolumeWithHTTPImport("test-"+user, "1Gi", "http://nonexistant.url")
-		dv, err = client.Cdi().DataVolumes(f.Namespace.Name).Create(dv)
+		dv, err = client.CdiV1alpha1().DataVolumes(f.Namespace.Name).Create(dv)
 		Expect(err).ToNot(HaveOccurred())
 
-		dvl, err := client.Cdi().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
+		dvl, err := client.CdiV1alpha1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dvl.Items).To(HaveLen(1))
 
-		dv, err = client.Cdi().DataVolumes(f.Namespace.Name).Get(dv.Name, metav1.GetOptions{})
+		dv, err = client.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dv.Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		err = client.Cdi().DataVolumes(f.Namespace.Name).Delete(dv.Name, &metav1.DeleteOptions{})
+		err = client.CdiV1alpha1().DataVolumes(f.Namespace.Name).Delete(dv.Name, &metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		dvl, err = client.Cdi().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
+		dvl, err = client.CdiV1alpha1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dvl.Items).To(HaveLen(0))
 
 		dv = utils.NewDataVolumeForUpload("upload-test-"+user, "1Gi")
-		dv, err = client.Cdi().DataVolumes(f.Namespace.Name).Create(dv)
+		dv, err = client.CdiV1alpha1().DataVolumes(f.Namespace.Name).Create(dv)
 		Expect(err).ToNot(HaveOccurred())
 
 		var pvc *corev1.PersistentVolumeClaim
@@ -107,15 +107,15 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(token).ToNot(BeEmpty())
 
-		cl, err := client.Cdi().CDIConfigs().List(metav1.ListOptions{})
+		cl, err := client.CdiV1alpha1().CDIConfigs().List(metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cl.Items).To(HaveLen(1))
 
-		cfg, err := client.Cdi().CDIConfigs().Get(cl.Items[0].Name, metav1.GetOptions{})
+		cfg, err := client.CdiV1alpha1().CDIConfigs().Get(cl.Items[0].Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		cfg.Spec.ScratchSpaceStorageClass = &[]string{"foobar"}[0]
-		cfg, err = client.Cdi().CDIConfigs().Update(cfg)
+		cfg, err = client.CdiV1alpha1().CDIConfigs().Update(cfg)
 		Expect(err).To(HaveOccurred())
 	},
 		Entry("can do everything with admin", "admin"),
@@ -136,26 +136,26 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		}, 60*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
 
 		dv := utils.NewDataVolumeWithHTTPImport("test-"+user, "1Gi", "http://nonexistant.url")
-		dv, err = client.Cdi().DataVolumes(f.Namespace.Name).Create(dv)
+		dv, err = client.CdiV1alpha1().DataVolumes(f.Namespace.Name).Create(dv)
 		Expect(err).To(HaveOccurred())
 
-		dvl, err := client.Cdi().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
+		dvl, err := client.CdiV1alpha1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dvl.Items).To(HaveLen(0))
 
-		_, err = client.Cdi().DataVolumes(f.Namespace.Name).Get("test-"+user, metav1.GetOptions{})
+		_, err = client.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get("test-"+user, metav1.GetOptions{})
 		Expect(err).To(HaveOccurred())
 		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 
-		cl, err := client.Cdi().CDIConfigs().List(metav1.ListOptions{})
+		cl, err := client.CdiV1alpha1().CDIConfigs().List(metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cl.Items).To(HaveLen(1))
 
-		cfg, err := client.Cdi().CDIConfigs().Get(cl.Items[0].Name, metav1.GetOptions{})
+		cfg, err := client.CdiV1alpha1().CDIConfigs().Get(cl.Items[0].Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		cfg.Spec.ScratchSpaceStorageClass = &[]string{"foobar"}[0]
-		cfg, err = client.Cdi().CDIConfigs().Update(cfg)
+		cfg, err = client.CdiV1alpha1().CDIConfigs().Update(cfg)
 		Expect(err).To(HaveOccurred())
 	})
 })

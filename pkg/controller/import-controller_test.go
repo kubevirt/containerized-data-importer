@@ -113,6 +113,8 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 
 	It("should do nothing and not error, if a PVC that is completed is passed", func() {
 		orgPvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodSucceeded)}, nil)
+		orgPvc.TypeMeta.APIVersion = "v1"
+		orgPvc.TypeMeta.Kind = "PersistentVolumeClaim"
 		reconciler = createImportReconciler(orgPvc)
 		_, err := reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())

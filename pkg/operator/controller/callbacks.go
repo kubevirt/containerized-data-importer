@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -122,9 +123,8 @@ func reconcileDeleteControllerDeployment(args *ReconcileCallbackArgs) error {
 
 	args.Logger.Info("Deleting CDI deployment and all import/upload/clone pods/services")
 
-	err := args.Client.Delete(context.TODO(), deployment, func(opts *client.DeleteOptions) {
-		p := metav1.DeletePropagationForeground
-		opts.PropagationPolicy = &p
+	err := args.Client.Delete(context.TODO(), deployment, &client.DeleteOptions{
+		PropagationPolicy: &[]metav1.DeletionPropagation{metav1.DeletePropagationForeground}[0],
 	})
 	if err != nil && !errors.IsNotFound(err) {
 		args.Logger.Error(err, "Error deleting cdi controller deployment")
@@ -211,7 +211,7 @@ func reconcileServiceAccounts(args *ReconcileCallbackArgs) error {
 	}
 
 	listObj := &secv1.SecurityContextConstraintsList{}
-	if err := args.Client.List(context.TODO(), &client.ListOptions{}, listObj); err != nil {
+	if err := args.Client.List(context.TODO(), listObj, &client.ListOptions{}); err != nil {
 		if meta.IsNoMatchError(err) {
 			// not openshift
 			return nil
@@ -256,11 +256,17 @@ func deleteWorkerResources(l logr.Logger, c client.Client) error {
 	listTypes := []runtime.Object{&corev1.PodList{}, &corev1.ServiceList{}}
 
 	for _, lt := range listTypes {
-		lo := &client.ListOptions{}
-		lo.SetLabelSelector(fmt.Sprintf("cdi.kubevirt.io in (%s, %s, %s)",
+		ls, err := labels.Parse(fmt.Sprintf("cdi.kubevirt.io in (%s, %s, %s)",
 			common.ImporterPodName, common.UploadServerCDILabel, common.ClonerSourcePodName))
+		if err != nil {
+			return err
+		}
 
-		if err := c.List(context.TODO(), lo, lt); err != nil {
+		lo := &client.ListOptions{
+			LabelSelector: ls,
+		}
+
+		if err := c.List(context.TODO(), lt, lo); err != nil {
 			l.Error(err, "Error listing resources")
 			return err
 		}

@@ -86,7 +86,7 @@ func (in *CDIConfig) DeepCopyObject() runtime.Object {
 func (in *CDIConfigList) DeepCopyInto(out *CDIConfigList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]CDIConfig, len(*in))
@@ -176,7 +176,7 @@ func (in *CDIConfigStatus) DeepCopy() *CDIConfigStatus {
 func (in *CDIList) DeepCopyInto(out *CDIList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]CDI, len(*in))
@@ -292,7 +292,7 @@ func (in *DataVolumeBlankImage) DeepCopy() *DataVolumeBlankImage {
 func (in *DataVolumeList) DeepCopyInto(out *DataVolumeList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]DataVolume, len(*in))

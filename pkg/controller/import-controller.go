@@ -84,7 +84,7 @@ func NewImportController(mgr manager.Manager, cdiClient *cdiclientset.Clientset,
 		Image:      importerImage,
 		Verbose:    verbose,
 		PullPolicy: pullPolicy,
-		recorder:   mgr.GetRecorder("import-controller"),
+		recorder:   mgr.GetEventRecorderFor("import-controller"),
 	}
 	importController, err := controller.New("import-controller", mgr, controller.Options{
 		Reconciler: reconciler,

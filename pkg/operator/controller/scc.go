@@ -41,7 +41,7 @@ func (r *ReconcileCDI) watchSecurityContextConstraints(c controller.Controller) 
 				var rrs []reconcile.Request
 				cdiList := &cdiv1alpha1.CDIList{}
 
-				if err := r.client.List(context.TODO(), &client.ListOptions{}, cdiList); err != nil {
+				if err := r.client.List(context.TODO(), cdiList, &client.ListOptions{}); err != nil {
 					log.Error(err, "Error listing all CDI objects")
 					return nil
 				}

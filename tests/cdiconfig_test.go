@@ -320,7 +320,7 @@ var _ = Describe("CDI ingress config tests", func() {
 
 		if ingress != nil {
 			By("Cleaning up ingress")
-			err := f.K8sClient.Extensions().Ingresses(ingress.Namespace).Delete(ingress.Name, &metav1.DeleteOptions{})
+			err := f.K8sClient.ExtensionsV1beta1().Ingresses(ingress.Namespace).Delete(ingress.Name, &metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(func() string {
 				config, err := f.CdiClient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
@@ -336,7 +336,7 @@ var _ = Describe("CDI ingress config tests", func() {
 	It("Should set uploadProxyURL if override is not defined", func() {
 		// TODO, don't hard code "cdi-uploadproxy", read it from container env of cdi-deployment deployment.
 		ingress = createIngress("test-ingress", f.CdiInstallNs, "cdi-uploadproxy", ingressUrl)
-		_, err := f.K8sClient.Extensions().Ingresses(f.CdiInstallNs).Create(ingress)
+		_, err := f.K8sClient.ExtensionsV1beta1().Ingresses(f.CdiInstallNs).Create(ingress)
 		Expect(err).ToNot(HaveOccurred())
 		By("Expecting uploadproxy url to be " + ingressUrl)
 		Eventually(func() string {
@@ -359,7 +359,7 @@ var _ = Describe("CDI ingress config tests", func() {
 
 		// TODO, don't hard code "cdi-uploadproxy", read it from container env of cdi-deployment deployment.
 		ingress = createIngress("test-ingress", f.CdiInstallNs, "cdi-uploadproxy", ingressUrl)
-		_, err = f.K8sClient.Extensions().Ingresses(f.CdiInstallNs).Create(ingress)
+		_, err = f.K8sClient.ExtensionsV1beta1().Ingresses(f.CdiInstallNs).Create(ingress)
 		Expect(err).ToNot(HaveOccurred())
 		By("Expecting uploadproxy url to be " + override)
 		Eventually(func() string {

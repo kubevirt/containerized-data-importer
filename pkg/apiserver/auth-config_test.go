@@ -24,16 +24,17 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/cert"
 	aggregatorapifake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
@@ -138,6 +139,8 @@ func TestAuthConfigUpdate(t *testing.T) {
 		t.Errorf("Updating configmap failed: %+v", err)
 	}
 
+	// behavior of this changed in 16.4 used to wait then check so now explicitly waiting
+	time.Sleep(100 * time.Millisecond)
 	cache.WaitForCacheSync(ch, acw.informer.HasSynced)
 
 	verifyAuthConfig(t, cm, app.authConfigWatcher.GetAuthConfig())
