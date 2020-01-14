@@ -73,6 +73,8 @@ const (
 	ClonerSourcePodName = "cdi-clone-source"
 	// ClonerMountPath (controller pkg only)
 	ClonerMountPath = "/var/run/cdi/clone/source"
+	// ClonerSourcePodNameSuffix (controller pkg only)
+	ClonerSourcePodNameSuffix = "-source-pod"
 
 	// SmartClonerCDILabel is the label applied to resources created by the smart-clone controller
 	SmartClonerCDILabel = "cdi-smart-clone"

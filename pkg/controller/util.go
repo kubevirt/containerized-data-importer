@@ -1,11 +1,11 @@
 package controller
 
 import (
+	"context"
 	"crypto/rsa"
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
@@ -14,17 +14,17 @@ import (
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 )
@@ -53,6 +53,17 @@ const (
 	SourceNone = "none"
 	// SourceRegistry is the source type of Registry
 	SourceRegistry = "registry"
+
+	// AnnAPIGroup is the APIGroup for CDI
+	AnnAPIGroup = "cdi.kubevirt.io"
+	// AnnCreatedBy is a pod annotation indicating if the pod was created by the PVC
+	AnnCreatedBy = AnnAPIGroup + "/storage.createdByController"
+	// AnnPodPhase is a PVC annotation indicating the related pod progress (phase)
+	AnnPodPhase = AnnAPIGroup + "/storage.pod.phase"
+	// AnnPodReady tells whether the pod is ready
+	AnnPodReady = AnnAPIGroup + "/storage.pod.ready"
+	// AnnOwnerRef is used when owner is in a different namespace
+	AnnOwnerRef = AnnAPIGroup + "/storage.ownerRef"
 )
 
 type podDeleteRequest struct {
@@ -299,14 +310,14 @@ func GetScratchPvcStorageClass(client kubernetes.Interface, cdiclient clientset.
 }
 
 // GetDefaultPodResourceRequirements gets default pod resource requirements from cdi config status
-func GetDefaultPodResourceRequirements(cdiclient clientset.Interface) (*v1.ResourceRequirements, error) {
-	config, err := cdiclient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
-	if err != nil {
+func GetDefaultPodResourceRequirements(client client.Client) (*v1.ResourceRequirements, error) {
+	cdiconfig := &cdiv1.CDIConfig{}
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiconfig); err != nil {
 		klog.Errorf("Unable to find CDI configuration, %v\n", err)
 		return nil, err
 	}
 
-	return config.Status.DefaultPodResourceRequirements, nil
+	return cdiconfig.Status.DefaultPodResourceRequirements, nil
 }
 
 // this is being called for pods using PV with block volume mode
@@ -332,86 +343,6 @@ func addToMap(m1, m2 map[string]string) map[string]string {
 	return m1
 }
 
-// returns the CloneRequest string which contains the pvc name (and namespace) from which we want to clone the image.
-func getCloneRequestSourcePVC(pvc *v1.PersistentVolumeClaim, pvcLister corelisters.PersistentVolumeClaimLister) (*v1.PersistentVolumeClaim, error) {
-	exists, namespace, name := ParseCloneRequestAnnotation(pvc)
-	if !exists {
-		return nil, errors.New("error parsing clone request annotation")
-	}
-	pvc, err := pvcLister.PersistentVolumeClaims(namespace).Get(name)
-	if err != nil {
-		return nil, errors.Wrap(err, "error getting clone source PVC")
-	}
-	return pvc, nil
-}
-
-// ParseCloneRequestAnnotation parses the clone request annotation
-func ParseCloneRequestAnnotation(pvc *v1.PersistentVolumeClaim) (exists bool, namespace, name string) {
-	var ann string
-	ann, exists = pvc.Annotations[AnnCloneRequest]
-	if !exists {
-		return
-	}
-
-	sp := strings.Split(ann, "/")
-	if len(sp) != 2 {
-		klog.V(1).Infof("Bad CloneRequest Annotation %s", ann)
-		exists = false
-		return
-	}
-
-	namespace, name = sp[0], sp[1]
-	return
-}
-
-// ValidateCanCloneSourceAndTargetSpec validates the specs passed in are compatible for cloning.
-func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *v1.PersistentVolumeClaimSpec) error {
-	sourceRequest := sourceSpec.Resources.Requests[v1.ResourceStorage]
-	targetRequest := targetSpec.Resources.Requests[v1.ResourceStorage]
-	// Verify that the target PVC size is equal or larger than the source.
-	if sourceRequest.Value() > targetRequest.Value() {
-		return errors.New("target resources requests storage size is smaller than the source")
-	}
-	// Verify that the source and target volume modes are the same.
-	sourceVolumeMode := v1.PersistentVolumeFilesystem
-	if sourceSpec.VolumeMode != nil && *sourceSpec.VolumeMode == v1.PersistentVolumeBlock {
-		sourceVolumeMode = v1.PersistentVolumeBlock
-	}
-	targetVolumeMode := v1.PersistentVolumeFilesystem
-	if targetSpec.VolumeMode != nil && *targetSpec.VolumeMode == v1.PersistentVolumeBlock {
-		targetVolumeMode = v1.PersistentVolumeBlock
-	}
-	if sourceVolumeMode != targetVolumeMode {
-		return fmt.Errorf("source volumeMode (%s) and target volumeMode (%s) do not match",
-			sourceVolumeMode, targetVolumeMode)
-	}
-	// Can clone.
-	return nil
-}
-
-func validateCloneToken(validator token.Validator, source, target *v1.PersistentVolumeClaim) error {
-	tok, ok := target.Annotations[AnnCloneToken]
-	if !ok {
-		return errors.New("clone token missing")
-	}
-
-	tokenData, err := validator.Validate(tok)
-	if err != nil {
-		return errors.Wrap(err, "error verifying token")
-	}
-
-	if tokenData.Operation != token.OperationClone ||
-		tokenData.Name != source.Name ||
-		tokenData.Namespace != source.Namespace ||
-		tokenData.Resource.Resource != "persistentvolumeclaims" ||
-		tokenData.Params["targetNamespace"] != target.Namespace ||
-		tokenData.Params["targetName"] != target.Name {
-		return errors.New("invalid token")
-	}
-
-	return nil
-}
-
 // DecodePublicKey turns a bunch of bytes into a public key
 func DecodePublicKey(keyBytes []byte) (*rsa.PublicKey, error) {
 	keys, err := cert.ParsePublicKeysPEM(keyBytes)
@@ -429,181 +360,6 @@ func DecodePublicKey(keyBytes []byte) (*rsa.PublicKey, error) {
 	}
 
 	return key, nil
-}
-
-// CloneSourcePodArgs are the required args to create a clone source pod
-type CloneSourcePodArgs struct {
-	Client                              kubernetes.Interface
-	CDIClient                           clientset.Interface
-	Image, PullPolicy                   string
-	ServerCACert, ClientCert, ClientKey []byte
-	PVC                                 *v1.PersistentVolumeClaim
-}
-
-// CreateCloneSourcePod creates our cloning src pod which will be used for out of band cloning to read the contents of the src PVC
-func CreateCloneSourcePod(args CloneSourcePodArgs) (*v1.Pod, error) {
-	exists, sourcePvcNamespace, sourcePvcName := ParseCloneRequestAnnotation(args.PVC)
-	if !exists {
-		return nil, errors.Errorf("bad CloneRequest Annotation")
-	}
-
-	ownerKey, err := cache.MetaNamespaceKeyFunc(args.PVC)
-	if err != nil {
-		return nil, errors.Wrap(err, "error getting cache key")
-	}
-
-	podResourceRequirements, err := GetDefaultPodResourceRequirements(args.CDIClient)
-	if err != nil {
-		return nil, err
-	}
-
-	pod := MakeCloneSourcePodSpec(args.Image, args.PullPolicy, sourcePvcName, ownerKey,
-		args.ClientKey, args.ClientCert, args.ServerCACert, args.PVC, podResourceRequirements)
-
-	pod, err = args.Client.CoreV1().Pods(sourcePvcNamespace).Create(pod)
-	if err != nil {
-		return nil, errors.Wrap(err, "source pod API create errored")
-	}
-
-	klog.V(1).Infof("cloning source pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, args.Image)
-
-	return pod, nil
-}
-
-// MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
-func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerRefAnno string,
-	clientKey, clientCert, serverCACert []byte, pvc *v1.PersistentVolumeClaim, resourceRequirements *v1.ResourceRequirements) *v1.Pod {
-
-	var ownerID string
-	podName := fmt.Sprintf("%s-%s-", common.ClonerSourcePodName, sourcePvcName)
-	id := string(pvc.GetUID())
-	url := GetUploadServerURL(pvc.Namespace, pvc.Name, common.UploadPathSync)
-	pvcOwner := metav1.GetControllerOf(pvc)
-	if pvcOwner != nil && pvcOwner.Kind == "DataVolume" {
-		ownerID = string(pvcOwner.UID)
-	}
-
-	pod := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: podName,
-			Annotations: map[string]string{
-				AnnCreatedBy: "yes",
-				AnnOwnerRef:  ownerRefAnno,
-			},
-			Labels: map[string]string{
-				common.CDILabelKey:       common.CDILabelValue, //filtered by the podInformer
-				common.CDIComponentLabel: common.ClonerSourcePodName,
-				// this label is used when searching for a pvc's cloner source pod.
-				CloneUniqueID:          id + "-source-pod",
-				common.PrometheusLabel: "",
-			},
-		},
-		Spec: v1.PodSpec{
-			SecurityContext: &v1.PodSecurityContext{
-				RunAsUser: &[]int64{0}[0],
-			},
-			Containers: []v1.Container{
-				{
-					Name:            common.ClonerSourcePodName,
-					Image:           image,
-					ImagePullPolicy: v1.PullPolicy(pullPolicy),
-					Env: []v1.EnvVar{
-						/*
-						 Easier to just stick key/certs in env vars directly no.
-						 Maybe revisit when we fix the "naming things" problem.
-						*/
-						{
-							Name:  "CLIENT_KEY",
-							Value: string(clientKey),
-						},
-						{
-							Name:  "CLIENT_CERT",
-							Value: string(clientCert),
-						},
-						{
-							Name:  "SERVER_CA_CERT",
-							Value: string(serverCACert),
-						},
-						{
-							Name:  "UPLOAD_URL",
-							Value: url,
-						},
-						{
-							Name:  common.OwnerUID,
-							Value: ownerID,
-						},
-					},
-					Ports: []v1.ContainerPort{
-						{
-							Name:          "metrics",
-							ContainerPort: 8443,
-							Protocol:      v1.ProtocolTCP,
-						},
-					},
-				},
-			},
-			RestartPolicy: v1.RestartPolicyOnFailure,
-			Volumes: []v1.Volume{
-				{
-					Name: DataVolName,
-					VolumeSource: v1.VolumeSource{
-						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
-							ClaimName: sourcePvcName,
-							ReadOnly:  false,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	if resourceRequirements != nil {
-		pod.Spec.Containers[0].Resources = *resourceRequirements
-	}
-
-	var volumeMode v1.PersistentVolumeMode
-	var addVars []v1.EnvVar
-
-	if pvc.Spec.VolumeMode != nil {
-		volumeMode = *pvc.Spec.VolumeMode
-	} else {
-		volumeMode = v1.PersistentVolumeFilesystem
-	}
-
-	if volumeMode == v1.PersistentVolumeBlock {
-		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
-		addVars = []v1.EnvVar{
-			{
-				Name:  "VOLUME_MODE",
-				Value: "block",
-			},
-			{
-				Name:  "MOUNT_POINT",
-				Value: common.WriteBlockPath,
-			},
-		}
-	} else {
-		pod.Spec.Containers[0].VolumeMounts = []v1.VolumeMount{
-			{
-				Name:      DataVolName,
-				MountPath: common.ClonerMountPath,
-			},
-		}
-		addVars = []v1.EnvVar{
-			{
-				Name:  "VOLUME_MODE",
-				Value: "filesystem",
-			},
-			{
-				Name:  "MOUNT_POINT",
-				Value: common.ClonerMountPath,
-			},
-		}
-	}
-
-	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, addVars...)
-
-	return pod
 }
 
 // UploadPodArgs are the parameters required to create an upload pod
@@ -624,11 +380,14 @@ type UploadPodArgs struct {
 func CreateUploadPod(args UploadPodArgs) (*v1.Pod, error) {
 	ns := args.PVC.Namespace
 
-	podResourceRequirements, err := GetDefaultPodResourceRequirements(args.CdiClient)
+	// TODO, replace this will call to GetDefaultPodResourceRequirements when using runtime library
+	config, err := args.CdiClient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
 	if err != nil {
+		klog.Errorf("Unable to find CDI configuration, %v\n", err)
 		return nil, err
 	}
 
+	podResourceRequirements := config.Status.DefaultPodResourceRequirements
 	pod := makeUploadPodSpec(args.Image, args.Verbose, args.PullPolicy, args.Name,
 		args.PVC, args.ScratchPVCName, args.ClientName, args.ServerCert,
 		args.ServerKey, args.ClientCA, podResourceRequirements)
@@ -1062,52 +821,6 @@ func isPodReady(pod *v1.Pod) bool {
 	}
 
 	return numReady == len(pod.Status.ContainerStatuses)
-}
-
-func addFinalizer(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, name string) (*v1.PersistentVolumeClaim, error) {
-	if hasFinalizer(pvc, name) {
-		return pvc, nil
-	}
-
-	cpy := pvc.DeepCopy()
-	cpy.Finalizers = append(cpy.Finalizers, name)
-	pvc, err := client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(cpy)
-	if err != nil {
-		return nil, errors.Wrap(err, "error updating PVC")
-	}
-
-	return pvc, nil
-}
-
-func removeFinalizer(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim, name string) (*v1.PersistentVolumeClaim, error) {
-	if !hasFinalizer(pvc, name) {
-		return pvc, nil
-	}
-
-	var finalizers []string
-	for _, f := range pvc.Finalizers {
-		if f != name {
-			finalizers = append(finalizers, f)
-		}
-	}
-
-	cpy := pvc.DeepCopy()
-	cpy.Finalizers = finalizers
-	pvc, err := client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(cpy)
-	if err != nil {
-		return nil, errors.Wrap(err, "error updating PVC")
-	}
-
-	return pvc, nil
-}
-
-func hasFinalizer(object metav1.Object, value string) bool {
-	for _, f := range object.GetFinalizers() {
-		if f == value {
-			return true
-		}
-	}
-	return false
 }
 
 func podPhaseFromPVC(pvc *v1.PersistentVolumeClaim) v1.PodPhase {

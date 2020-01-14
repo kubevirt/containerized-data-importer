@@ -33,3 +33,8 @@ func (f *Framework) WaitTimeoutForPodStatus(podName string, status k8sv1.PodPhas
 func (f *Framework) FindPodByPrefix(prefix string) (*k8sv1.Pod, error) {
 	return utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, prefix, common.CDILabelSelector)
 }
+
+// FindPodBySuffix is a wrapper around utils.FindPodByPostFix
+func (f *Framework) FindPodBySuffix(prefix string) (*k8sv1.Pod, error) {
+	return utils.FindPodBysuffix(f.K8sClient, f.Namespace.Name, prefix, common.CDILabelSelector)
+}

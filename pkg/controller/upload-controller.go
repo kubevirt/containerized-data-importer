@@ -325,7 +325,7 @@ func (c *UploadController) syncHandler(key string) error {
 	pvcCopy := pvc.DeepCopy()
 
 	if isCloneTarget {
-		source, err := getCloneRequestSourcePVC(pvc, c.pvcLister)
+		source, err := c.getCloneRequestSourcePVC(pvc)
 		if err != nil {
 			return err
 		}
@@ -510,4 +510,17 @@ func (c *UploadController) deleteService(namespace, name string) error {
 	}
 
 	return nil
+}
+
+// returns the CloneRequest string which contains the pvc name (and namespace) from which we want to clone the image.
+func (c *UploadController) getCloneRequestSourcePVC(pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, error) {
+	exists, namespace, name := ParseCloneRequestAnnotation(pvc)
+	if !exists {
+		return nil, errors.New("error parsing clone request annotation")
+	}
+	pvc, err := c.pvcLister.PersistentVolumeClaims(namespace).Get(name)
+	if err != nil {
+		return nil, errors.Wrap(err, "error getting clone source PVC")
+	}
+	return pvc, nil
 }

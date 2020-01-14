@@ -181,16 +181,10 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		os.Exit(1)
 	}
 
-	cloneController := controller.NewCloneController(client,
-		cdiClient,
-		pvcInformer,
-		podInformer,
-		clonerImage,
-		pullPolicy,
-		verbose,
-		uploadClientCertGenerator,
-		uploadServerBundleFetcher,
-		getAPIServerPublicKey())
+	if _, err := controller.NewCloneController(mgr, client, log, clonerImage, pullPolicy, verbose, uploadClientCertGenerator, uploadServerBundleFetcher, getAPIServerPublicKey()); err != nil {
+		klog.Errorf("Unable to setup clone controller: %v", err)
+		os.Exit(1)
+	}
 
 	smartCloneController := controller.NewSmartCloneController(client,
 		cdiClient,
@@ -238,13 +232,6 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		err = dataVolumeController.Run(3, stopCh)
 		if err != nil {
 			klog.Fatalf("Error running dataVolume controller: %+v", err)
-		}
-	}()
-
-	go func() {
-		err = cloneController.Run(1, stopCh)
-		if err != nil {
-			klog.Fatalf("Error running clone controller: %+v", err)
 		}
 	}()
 

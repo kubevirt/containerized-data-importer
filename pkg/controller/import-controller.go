@@ -137,7 +137,7 @@ func (r *ImportReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 	}
 
 	if !shouldReconcilePVC(pvc) {
-		r.Log.V(1).Info("Should not reconcile this PVC", "pvc.annotation.phase.complete", isPVCComplete(pvc),
+		log.V(1).Info("Should not reconcile this PVC", "pvc.annotation.phase.complete", isPVCComplete(pvc),
 			"pvc.annotations.endpoint", checkPVC(pvc, AnnEndpoint), "pvc.annotations.source", checkPVC(pvc, AnnSource))
 		return reconcile.Result{}, nil
 	}
@@ -151,15 +151,15 @@ func (r *ImportReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 			pvc.SetAnnotations(make(map[string]string, 0))
 		}
 		pvc.GetAnnotations()[AnnPodPhase] = string(corev1.PodSucceeded)
-		if err := r.updatePVC(pvc); err != nil {
+		if err := r.updatePVC(pvc, log); err != nil {
 			return reconcile.Result{}, errors.WithMessage(err, fmt.Sprintf("could not update pvc %q annotation and/or label", pvc.Name))
 		}
 		return reconcile.Result{}, nil
 	}
-	return r.reconcilePvc(pvc)
+	return r.reconcilePvc(pvc, log)
 }
 
-func (r *ImportReconciler) findImporterPod(pvc *corev1.PersistentVolumeClaim) (*corev1.Pod, error) {
+func (r *ImportReconciler) findImporterPod(pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*corev1.Pod, error) {
 	podName := importPodNameFromPvc(pvc)
 	pod := &corev1.Pod{}
 	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: pvc.GetNamespace()}, pod)
@@ -172,20 +172,20 @@ func (r *ImportReconciler) findImporterPod(pvc *corev1.PersistentVolumeClaim) (*
 		return nil, errors.Errorf("Pod is not owned by PVC")
 	}
 
-	r.Log.V(1).Info("Pod is owned by PVC", pod.Name, pvc.Name)
+	log.V(1).Info("Pod is owned by PVC", pod.Name, pvc.Name)
 	return pod, nil
 }
 
-func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
+func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log logr.Logger) (reconcile.Result, error) {
 	// See if we have a pod associated with the PVC, we know the PVC has the needed annotations.
-	pod, err := r.findImporterPod(pvc)
+	pod, err := r.findImporterPod(pvc, log)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 	if pod == nil {
 		if isPVCComplete(pvc) {
 			// Don't create the POD if the PVC is completed already
-			r.Log.V(1).Info("PVC is already complete")
+			log.V(1).Info("PVC is already complete")
 		} else if pvc.DeletionTimestamp == nil {
 			// Create importer pod, make sure the PVC owns it.
 			if err := r.createImporterPod(pvc); err != nil {
@@ -194,7 +194,7 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim) (reco
 		}
 	} else {
 		if pvc.DeletionTimestamp != nil {
-			r.Log.V(1).Info("PVC being terminated, delete pods", "pvc.Name", pvc.Name, "pod.Name", pod.Name)
+			log.V(1).Info("PVC being terminated, delete pods", "pod.Name", pod.Name)
 			if err := r.Client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
 				return reconcile.Result{}, err
 			}
@@ -202,25 +202,25 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim) (reco
 		}
 
 		// Pod exists, we need to update the PVC status.
-		if err := r.updatePvcFromPod(pvc, pod); err != nil {
+		if err := r.updatePvcFromPod(pvc, pod, log); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
 	return reconcile.Result{}, nil
 }
 
-func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod) error {
+func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, log logr.Logger) error {
 	// Keep a copy of the original for comparison later.
 	currentPvcCopy := pvc.DeepCopyObject()
 
-	r.Log.V(1).Info("Updating PVC from pod")
+	log.V(1).Info("Updating PVC from pod")
 	anno := pvc.GetAnnotations()
 	scratchExitCode := false
 	if pod.Status.ContainerStatuses != nil && pod.Status.ContainerStatuses[0].LastTerminationState.Terminated != nil &&
 		pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode > 0 {
-		r.Log.Info("Pod termination code", "pod.Name", pod.Name, "ExitCode", pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode)
+		log.Info("Pod termination code", "pod.Name", pod.Name, "ExitCode", pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode)
 		if pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode == common.ScratchSpaceNeededExitCode {
-			r.Log.V(1).Info("Pod requires scratch space, terminating pod, and restarting with scratch space", "pod.Name", pod.Name)
+			log.V(1).Info("Pod requires scratch space, terminating pod, and restarting with scratch space", "pod.Name", pod.Name)
 			scratchExitCode = true
 			anno[AnnRequiresScratch] = "true"
 		} else {
@@ -246,16 +246,16 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	}
 
 	if !reflect.DeepEqual(currentPvcCopy, pvc) {
-		if err := r.updatePVC(pvc); err != nil {
+		if err := r.updatePVC(pvc, log); err != nil {
 			return err
 		}
-		r.Log.V(1).Info("Updated PVC", "pvc.anno.Phase", anno[AnnPodPhase])
+		log.V(1).Info("Updated PVC", "pvc.anno.Phase", anno[AnnPodPhase])
 	}
 
 	if isPVCComplete(pvc) || scratchExitCode {
 		if !scratchExitCode {
 			r.recorder.Event(pvc, corev1.EventTypeNormal, ImportSucceededPVC, "Import Successful")
-			r.Log.V(1).Info("Completed successfully, deleting POD", "pod.Name", pod.Name)
+			log.V(1).Info("Completed successfully, deleting POD", "pod.Name", pod.Name)
 		}
 		if err := r.Client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
 			return err
@@ -264,8 +264,8 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	return nil
 }
 
-func (r *ImportReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim) error {
-	r.Log.V(1).Info("Phase is now", "pvc.anno.Phase", pvc.GetAnnotations()[AnnPodPhase])
+func (r *ImportReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
+	log.V(1).Info("Phase is now", "pvc.anno.Phase", pvc.GetAnnotations()[AnnPodPhase])
 	if err := r.Client.Update(context.TODO(), pvc); err != nil {
 		return err
 	}
@@ -354,7 +354,7 @@ func scratchNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 // name, and pvc. A nil secret means the endpoint credentials are not passed to the
 // importer pod.
 func createImporterPod(log logr.Logger, client client.Client, cdiClient cdiclientset.Interface, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string) (*v1.Pod, error) {
-	podResourceRequirements, err := GetDefaultPodResourceRequirements(cdiClient)
+	podResourceRequirements, err := GetDefaultPodResourceRequirements(client)
 	if err != nil {
 		return nil, err
 	}
