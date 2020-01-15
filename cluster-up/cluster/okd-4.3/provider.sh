@@ -2,8 +2,6 @@
 
 set -e
 
-image="okd-4.3@sha256:dc31782e16020b9a10728d408b38cd78f56b3ee7261f99f0dc7a43e1365a537c"
-
 source ${KUBEVIRTCI_PATH}/cluster/ephemeral-provider-common.sh
 
 function _port() {
@@ -34,6 +32,10 @@ function up() {
 
     if [[ ! -z "${OKD_CONSOLE_PORT}" ]]; then
         params=" --ocp-console-port $OKD_CONSOLE_PORT ${params}"
+    fi
+
+    if [[ ! -z "${INSTALLER_PULL_SECRET}" ]]; then
+        params=" --installer-pull-secret-file ${INSTALLER_PULL_SECRET} ${params}"
     fi
 
     ${_cli} run okd ${params}
