@@ -148,8 +148,6 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	crdInformerFactory := crdinformers.NewSharedInformerFactory(extClient, common.DefaultResyncPeriod)
 
 	pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims()
-	podInformer := podInformerFactory.Core().V1().Pods()
-	serviceInformer := serviceInformerFactory.Core().V1().Services()
 	dataVolumeInformer := cdiInformerFactory.Cdi().V1alpha1().DataVolumes()
 	snapshotInformer := csiInformerFactory.Snapshot().V1alpha1().VolumeSnapshots()
 	crdInformer := crdInformerFactory.Apiextensions().V1beta1().CustomResourceDefinitions().Informer()
@@ -193,30 +191,16 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		snapshotInformer,
 		dataVolumeInformer)
 
-	uploadController := controller.NewUploadController(
-		client,
-		cdiClient,
-		pvcInformer,
-		podInformer,
-		serviceInformer,
-		uploadServerImage,
-		uploadProxyServiceName,
-		pullPolicy,
-		verbose,
-		uploadServerCertGenerator,
-		uploadClientBundleFetcher)
-
+	if _, err := controller.NewUploadController(mgr, cdiClient, client, log, uploadServerImage, pullPolicy, verbose, uploadServerCertGenerator, uploadClientBundleFetcher); err != nil {
+		klog.Errorf("Unable to setup upload controller: %v", err)
+		os.Exit(1)
+	}
 	if _, err := controller.NewConfigController(mgr, cdiClient, client, log, uploadProxyServiceName, configName); err != nil {
 		klog.Errorf("Unable to setup config controller: %v", err)
 		os.Exit(1)
 	}
 
 	klog.V(1).Infoln("created cdi controllers")
-
-	err = uploadController.Init()
-	if err != nil {
-		klog.Fatalf("Error initializing upload controller: %+v", err)
-	}
 
 	go cdiInformerFactory.Start(stopCh)
 	go pvcInformerFactory.Start(stopCh)
@@ -232,13 +216,6 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		err = dataVolumeController.Run(3, stopCh)
 		if err != nil {
 			klog.Fatalf("Error running dataVolume controller: %+v", err)
-		}
-	}()
-
-	go func() {
-		err = uploadController.Run(1, stopCh)
-		if err != nil {
-			klog.Fatalf("Error running upload controller: %+v", err)
 		}
 	}()
 
