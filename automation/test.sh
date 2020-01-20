@@ -46,8 +46,14 @@ if [ ! -d "cluster-up/cluster/$KUBEVIRT_PROVIDER" ]; then
   exit 1
 fi
 
-export UPGRADE_FROM=$(curl -s https://github.com/kubevirt/containerized-data-importer/releases/latest | grep -o "v[0-9]\.[0-9]*\.[0-9]*")
-echo "Upgrading from verions: $UPGRADE_FROM"
+if [[ -z "$MULTI_UPGRADE" ]]; then
+  export UPGRADE_FROM="v1.10.7 v1.10.9 v1.11.0"
+fi
+
+if [[ -z "$UPGRADE_FROM" ]]; then
+  export UPGRADE_FROM=$(curl -s https://github.com/kubevirt/containerized-data-importer/releases/latest | grep -o "v[0-9]\.[0-9]*\.[0-9]*")
+  echo "Upgrading from verions: $UPGRADE_FROM"
+fi
 export KUBEVIRT_NUM_NODES=2
 
 kubectl() { cluster-up/kubectl.sh "$@"; }
