@@ -658,6 +658,7 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 	var importRegExp = regexp.MustCompile("progress\\{ownerUID\\=\"" + string(dataVolumeCopy.UID) + "\"\\} (\\d{1,3}\\.?\\d*)")
 
 	port, err := getPodMetricsPort(pod)
+<<<<<<< HEAD
 	if err == nil && pod.Status.PodIP != "" {
 		url := fmt.Sprintf("https://%s:%d/metrics", pod.Status.PodIP, port)
 		resp, err := httpClient.Get(url)
@@ -665,6 +666,12 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 			if errConnectionRefused(err) {
 				return nil
 			}
+=======
+	if err == nil {
+		url := fmt.Sprintf("https://%s:%d/metrics", pod.Status.PodIP, port)
+		resp, err := httpClient.Get(url)
+		if err != nil {
+>>>>>>> Update datavolume controller to use runtime controller library
 			return err
 		}
 		defer resp.Body.Close()
