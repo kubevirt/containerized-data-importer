@@ -36,6 +36,18 @@ fi
 DOCKER_PREFIX=$MANIFEST_REGISTRY PULL_POLICY=$(getTestPullPolicy) make manifests
 DOCKER_PREFIX=$DOCKER_PREFIX make push
 
+function kill_running_operator {
+  out=$(_kubectl get pods -n $CDI_NAMESPACE)
+  out=($out)
+  length=${#out[@]}
+  for ((idx=0; idx<${#out[@]}; idx=idx+5)); do
+    if [[ ${out[idx]} == cdi-operator-* ]] && [[ ${out[idx+2]} == "Running" ]]; then
+      _kubectl delete pod ${out[idx]} -n $CDI_NAMESPACE --grace-period=0 --force
+      return
+    fi
+  done
+}
+
 seed_images
 
 configure_storage
@@ -51,24 +63,41 @@ echo "Waiting 480 seconds for CDI to become available"
 _kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=480s
 
 # If we are upgrading, verify our current value.
-if [ ! -z $UPGRADE_FROM ]; then
-  retry_counter=0
-  while [[ $retry_counter -lt 10 ]] && [ -z $cdi_cr_phase ] && [ "$observed_version" != "$UPGRADE_FROM" ]; do
-    cdi_cr_phase=`_kubectl get CDI -o=jsonpath='{.items[*].status.phase}{"\n"}'`
-    observed_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.observedVersion}{"\n"}'`
-    target_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.targetVersion}{"\n"}'`
-    operator_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.operatorVersion}{"\n"}'`
-    echo "Phase: $cdi_cr_phase, observedVersion: $observed_version, operatorVersion: $operator_version, targetVersion: $target_version"
-    retry_counter=$((retry_counter + 1))
-  sleep 5
+if [[ ! -z "$UPGRADE_FROM" ]]; then
+  UPGRADE_FROM_LIST=( $UPGRADE_FROM )
+  for VERSION in ${UPGRADE_FROM_LIST[@]}; do
+    echo $VERSION
+    if [ "$VERSION" != "${UPGRADE_FROM_LIST[0]}" ]; then
+      curl -L "https://github.com/kubevirt/containerized-data-importer/releases/download/${VERSION}/cdi-operator.yaml" --output cdi-operator.yaml
+      sed -i "0,/name: cdi/{s/name: cdi/name: $CDI_NAMESPACE/}" cdi-operator.yaml
+      sed -i "s/namespace: cdi/namespace: $CDI_NAMESPACE/g" cdi-operator.yaml
+      echo $(cat cdi-operator.yaml)
+      _kubectl apply -f cdi-operator.yaml
+    fi
+    retry_counter=0
+    kill_count=0
+    while [[ $retry_counter -lt 10 ]] && [ "$operator_version" != "$VERSION" ]; do
+      cdi_cr_phase=`_kubectl get CDI -o=jsonpath='{.items[*].status.phase}{"\n"}'`
+      observed_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.observedVersion}{"\n"}'`
+      target_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.targetVersion}{"\n"}'`
+      operator_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.operatorVersion}{"\n"}'`
+      echo "Phase: $cdi_cr_phase, observedVersion: $observed_version, operatorVersion: $operator_version, targetVersion: $target_version"
+      retry_counter=$((retry_counter + 1))
+      if [[ $kill_count -lt 1 ]]; then
+        kill_running_operator
+        kill_count=$((kill_count + 1))
+      fi
+      _kubectl get pods -n $CDI_NAMESPACE
+      sleep 5
+    done
+    if [ $retry_counter -eq 10 ]; then
+    echo "Unable to deploy to version $VERSION"
+    cdi_obj=$(_kubectl get CDI -o yaml)
+    echo $cdi_obj
+    exit 1
+    fi
+    echo "Currently at version: $VERSION"
   done
-  if [ $retry_counter -eq 10 ]; then
-	echo "Unable to deploy to version $UPGRADE_FROM"
-	cdi_obj=$(_kubectl get CDI -o yaml)
-	echo $cdi_obj
-	exit 1
-  fi
-  echo "Currently at version: $UPGRADE_FROM"
   echo "Upgrading to latest"
   retry_counter=0
   _kubectl apply -f "./_out/manifests/release/cdi-operator.yaml"

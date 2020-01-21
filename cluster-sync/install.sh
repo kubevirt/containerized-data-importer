@@ -4,8 +4,9 @@ set -e
 source ./cluster-sync/install-config.sh
 
 function install_cdi {
-  if [ ! -z $UPGRADE_FROM ]; then
-    curl -L "https://github.com/kubevirt/containerized-data-importer/releases/download/$UPGRADE_FROM/cdi-operator.yaml" --output cdi-operator.yaml
+  if [[ ! -z "$UPGRADE_FROM" ]]; then
+    UPGRADE_FROM_LIST=( $UPGRADE_FROM )
+    curl -L "https://github.com/kubevirt/containerized-data-importer/releases/download/${UPGRADE_FROM_LIST[0]}/cdi-operator.yaml" --output cdi-operator.yaml
     sed -i "0,/name: cdi/{s/name: cdi/name: $CDI_NAMESPACE/}" cdi-operator.yaml
     sed -i "s/namespace: cdi/namespace: $CDI_NAMESPACE/g" cdi-operator.yaml
     echo $(cat cdi-operator.yaml)
