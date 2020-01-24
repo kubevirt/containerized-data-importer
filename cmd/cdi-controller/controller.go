@@ -9,9 +9,10 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/go-logr/logr"
 	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	"github.com/pkg/errors"
-	v1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	crdinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,8 +31,6 @@ import (
 	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
-	csiclientset "kubevirt.io/containerized-data-importer/pkg/snapshot-client/clientset/versioned"
-	csiinformers "kubevirt.io/containerized-data-importer/pkg/snapshot-client/informers/externalversions"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
@@ -118,11 +117,6 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		klog.Fatalf("Error building example clientset: %s", err.Error())
 	}
 
-	csiClient, err := csiclientset.NewForConfig(cfg)
-	if err != nil {
-		klog.Fatalf("Error building csi clientset: %s", err.Error())
-	}
-
 	extClient, err := extclientset.NewForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("Error building extClient: %s", err.Error())
@@ -135,9 +129,7 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	}
 
 	cdiInformerFactory := informers.NewSharedInformerFactory(cdiClient, common.DefaultResyncPeriod)
-	csiInformerFactory := csiinformers.NewFilteredSharedInformerFactory(csiClient, common.DefaultResyncPeriod, "", func(options *v1.ListOptions) {
-		options.LabelSelector = common.CDILabelSelector
-	})
+	crdInformerFactory := crdinformers.NewSharedInformerFactory(extClient, common.DefaultResyncPeriod)
 	pvcInformerFactory := k8sinformers.NewSharedInformerFactory(client, common.DefaultResyncPeriod)
 	podInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(client, common.DefaultResyncPeriod, "", func(options *v1.ListOptions) {
 		options.LabelSelector = common.CDILabelSelector
@@ -145,11 +137,6 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	serviceInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(client, common.DefaultResyncPeriod, "", func(options *v1.ListOptions) {
 		options.LabelSelector = common.CDILabelSelector
 	})
-	crdInformerFactory := crdinformers.NewSharedInformerFactory(extClient, common.DefaultResyncPeriod)
-
-	pvcInformer := pvcInformerFactory.Core().V1().PersistentVolumeClaims()
-	dataVolumeInformer := cdiInformerFactory.Cdi().V1alpha1().DataVolumes()
-	snapshotInformer := csiInformerFactory.Snapshot().V1alpha1().VolumeSnapshots()
 	crdInformer := crdInformerFactory.Apiextensions().V1beta1().CustomResourceDefinitions().Informer()
 
 	uploadClientCAFetcher := &fetcher.FileCertFetcher{Name: "cdi-uploadserver-client-signer"}
@@ -182,12 +169,7 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		os.Exit(1)
 	}
 
-	smartCloneController := controller.NewSmartCloneController(client,
-		cdiClient,
-		csiClient,
-		pvcInformer,
-		snapshotInformer,
-		dataVolumeInformer)
+	startSmartController(extClient, mgr, log)
 
 	if _, err := controller.NewUploadController(mgr, cdiClient, client, log, uploadServerImage, pullPolicy, verbose, uploadServerCertGenerator, uploadClientBundleFetcher); err != nil {
 		klog.Errorf("Unable to setup upload controller: %v", err)
@@ -206,11 +188,8 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	go serviceInformerFactory.Start(stopCh)
 	go crdInformerFactory.Start(stopCh)
 
-	addCrdInformerEventHandlers(crdInformer, extClient, csiInformerFactory, smartCloneController, stopCh)
-
-	klog.V(1).Infoln("started informers")
-
-	startSmartController(extClient, csiInformerFactory, smartCloneController, stopCh)
+	// Add Crd informer, so we can start the smart clone controller if we detect the CSI CRDs being installed.
+	addCrdInformerEventHandlers(crdInformer, extClient, mgr, log)
 
 	if err := mgr.Start(stopCh); err != nil {
 		klog.Errorf("Error running manager: %v", err)
@@ -266,40 +245,28 @@ func deleteReadyFile() {
 	os.Remove(readyFile)
 }
 
-func addCrdInformerEventHandlers(crdInformer cache.SharedIndexInformer, extClient extclientset.Interface,
-	csiInformerFactory csiinformers.SharedInformerFactory, smartCloneController *controller.SmartCloneController,
-	stopCh <-chan struct{}) {
+func addCrdInformerEventHandlers(crdInformer cache.SharedIndexInformer, extclient extclientset.Interface, mgr manager.Manager, log logr.Logger) {
 	crdInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			crd := obj.(*v1beta1.CustomResourceDefinition)
 			crdName := crd.Name
 
-			vsClass := crdv1alpha1.VolumeSnapshotClassResourcePlural + "." + crdv1alpha1.GroupName
-			vsContent := crdv1alpha1.VolumeSnapshotContentResourcePlural + "." + crdv1alpha1.GroupName
 			vs := crdv1alpha1.VolumeSnapshotResourcePlural + "." + crdv1alpha1.GroupName
 
 			switch crdName {
-			case vsClass:
-				fallthrough
-			case vsContent:
-				fallthrough
 			case vs:
-				startSmartController(extClient, csiInformerFactory, smartCloneController, stopCh)
+				startSmartController(extclient, mgr, log)
 			}
 		},
 	})
 }
 
-func startSmartController(extclient extclientset.Interface, csiInformerFactory csiinformers.SharedInformerFactory,
-	smartCloneController *controller.SmartCloneController, stopCh <-chan struct{}) {
+func startSmartController(extclient extclientset.Interface, mgr manager.Manager, log logr.Logger) {
 	if controller.IsCsiCrdsDeployed(extclient) {
-		go csiInformerFactory.Start(stopCh)
-		go func() {
-			err := smartCloneController.Run(1, stopCh)
-			if err != nil {
-				klog.Fatalf("Error running smart clone controller: %+v", err)
-			}
-		}()
+		log.Info("CSI CRDs detected, starting smart clone controller")
+		if _, err := controller.NewSmartCloneController(mgr, log); err != nil {
+			log.Error(err, "Unable to setup smart clone controller: %v")
+		}
 	}
 }
 

@@ -249,6 +249,9 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 			r.Log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class", "snapshotClassName", snapshotClassName)
 			newSnapshot := newSnapshot(datavolume, snapshotClassName)
 			if err := r.Client.Create(context.TODO(), newSnapshot); err != nil {
+				if k8serrors.IsAlreadyExists(err) {
+					return reconcile.Result{}, nil
+				}
 				return reconcile.Result{}, err
 			}
 			return reconcile.Result{}, r.updateSmartCloneStatusPhase(cdiv1.SnapshotForSmartCloneInProgress, datavolume)
@@ -658,7 +661,6 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 	var importRegExp = regexp.MustCompile("progress\\{ownerUID\\=\"" + string(dataVolumeCopy.UID) + "\"\\} (\\d{1,3}\\.?\\d*)")
 
 	port, err := getPodMetricsPort(pod)
-<<<<<<< HEAD
 	if err == nil && pod.Status.PodIP != "" {
 		url := fmt.Sprintf("https://%s:%d/metrics", pod.Status.PodIP, port)
 		resp, err := httpClient.Get(url)
@@ -666,12 +668,6 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 			if errConnectionRefused(err) {
 				return nil
 			}
-=======
-	if err == nil {
-		url := fmt.Sprintf("https://%s:%d/metrics", pod.Status.PodIP, port)
-		resp, err := httpClient.Get(url)
-		if err != nil {
->>>>>>> Update datavolume controller to use runtime controller library
 			return err
 		}
 		defer resp.Body.Close()

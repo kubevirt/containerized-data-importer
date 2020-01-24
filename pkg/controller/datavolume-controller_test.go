@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2020 The CDI Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -557,7 +557,6 @@ func createDatavolumeReconciler(objects ...runtime.Object) *DatavolumeReconciler
 
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
-	corev1.AddToScheme(s)
 	cdiv1.AddToScheme(s)
 	csiv1.AddToScheme(s)
 

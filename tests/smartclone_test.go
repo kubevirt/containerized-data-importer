@@ -45,66 +45,52 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		}
 	})
 
-	Describe("[rfe_id:1106][test_id:3494][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - volumeMode filesystem - Positive flow", func() {
-		It("succeed creating smart-clone dv", func() {
-			if !f.IsSnapshotStorageClassAvailable() {
-				Skip("Smart Clone is not applicable")
-			}
-			dataVolume = createDataVolume("dv-smart-clone-test-1", sourcePvc, fillCommandFilesystem, v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)
-			// Wait for snapshot creation to start
-			waitForDvPhase(cdiv1.SnapshotForSmartCloneInProgress, dataVolume, f)
-			verifyEvent(controller.SnapshotForSmartCloneInProgress, dataVolume.Namespace, f)
-			// Wait for PVC creation to start
-			waitForDvPhase(cdiv1.SmartClonePVCInProgress, dataVolume, f)
-			verifyEvent(controller.SmartClonePVCInProgress, dataVolume.Namespace, f)
-			// Verify PVC's content
-			verifyPVC(dataVolume, f, testFile, fillData)
-			// Wait for operation Succeeded
-			waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
-			verifyEvent(controller.CloneSucceeded, dataVolume.Namespace, f)
-		})
+	It("[rfe_id:1106][test_id:3494][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - volumeMode filesystem - Positive flow", func() {
+		if !f.IsSnapshotStorageClassAvailable() {
+			Skip("Smart Clone is not applicable")
+		}
+		dataVolume = createDataVolume("dv-smart-clone-test-1", sourcePvc, fillCommandFilesystem, v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)
+		verifyEvent(controller.SnapshotForSmartCloneInProgress, dataVolume.Namespace, f)
+		verifyEvent(controller.SmartClonePVCInProgress, dataVolume.Namespace, f)
+		// Verify PVC's content
+		verifyPVC(dataVolume, f, testFile, fillData)
+		// Wait for operation Succeeded
+		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
+		verifyEvent(controller.CloneSucceeded, dataVolume.Namespace, f)
 	})
 
-	Describe("[rfe_id:1106][test_id:3495][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - volumeMode block - Positive flow", func() {
-		It("succeed creating smart-clone dv", func() {
-			if !f.IsSnapshotStorageClassAvailable() {
-				Skip("Smart Clone is not applicable")
-			}
-			dataVolume = createDataVolume("dv-smart-clone-test-1", sourcePvc, fillCommandBlock, v1.PersistentVolumeBlock, f.SnapshotSCName, f)
-			// Wait for snapshot creation to start
-			waitForDvPhase(cdiv1.SnapshotForSmartCloneInProgress, dataVolume, f)
-			verifyEvent(controller.SnapshotForSmartCloneInProgress, dataVolume.Namespace, f)
-			// Wait for PVC creation to start
-			waitForDvPhase(cdiv1.SmartClonePVCInProgress, dataVolume, f)
-			verifyEvent(controller.SmartClonePVCInProgress, dataVolume.Namespace, f)
-			// Verify PVC's content
-			verifyPVC(dataVolume, f, utils.DefaultPvcMountPath, fillData)
-			// Wait for operation Succeeded
-			waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
-			verifyEvent(controller.CloneSucceeded, dataVolume.Namespace, f)
-		})
+	It("[rfe_id:1106][test_id:3495][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - volumeMode block - Positive flow", func() {
+		if !f.IsSnapshotStorageClassAvailable() {
+			Skip("Smart Clone is not applicable")
+		}
+		dataVolume = createDataVolume("dv-smart-clone-test-1", sourcePvc, fillCommandBlock, v1.PersistentVolumeBlock, f.SnapshotSCName, f)
+		verifyEvent(controller.SnapshotForSmartCloneInProgress, dataVolume.Namespace, f)
+		verifyEvent(controller.SmartClonePVCInProgress, dataVolume.Namespace, f)
+		// Verify PVC's content
+		verifyPVC(dataVolume, f, utils.DefaultPvcMountPath, fillData)
+		// Wait for operation Succeeded
+		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
+		verifyEvent(controller.CloneSucceeded, dataVolume.Namespace, f)
 	})
 
-	Describe("[rfe_id:1106][test_id:3496][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - Check regular clone works", func() {
-		It("Verify inapplicable smart-clone dv", func() {
-			smartApplicable := f.IsSnapshotStorageClassAvailable()
-			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
-			if err == nil {
-				value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
-				if smartApplicable && ok && strings.Compare(value, "true") == 0 {
-					Skip("Cannot test regular cloning if Smart Clone is applicable in default Storage Class")
-				}
+	It("[rfe_id:1106][test_id:3496][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - Check regular clone works", func() {
+		smartApplicable := f.IsSnapshotStorageClassAvailable()
+		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
+		if err == nil {
+			value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
+			if smartApplicable && ok && strings.Compare(value, "true") == 0 {
+				Skip("Cannot test regular cloning if Smart Clone is applicable in default Storage Class")
 			}
+		}
 
-			dataVolume = createDataVolume("dv-smart-clone-test-negative", sourcePvc, fillCommandFilesystem, v1.PersistentVolumeFilesystem, "", f)
+		dataVolume = createDataVolume("dv-smart-clone-test-negative", sourcePvc, fillCommandFilesystem, v1.PersistentVolumeFilesystem, "", f)
 
-			// Wait for operation Succeeded
-			waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
-			verifyEvent(controller.CloneSucceeded, dataVolume.Namespace, f)
+		// Wait for operation Succeeded
+		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
+		verifyEvent(controller.CloneSucceeded, dataVolume.Namespace, f)
 
-			events, _ := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
-			Expect(strings.Contains(events, controller.SnapshotForSmartCloneInProgress)).To(BeFalse())
-		})
+		events, _ := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
+		Expect(strings.Contains(events, controller.SnapshotForSmartCloneInProgress)).To(BeFalse())
 	})
 })
 
