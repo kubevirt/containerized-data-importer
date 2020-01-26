@@ -50,7 +50,7 @@ EOF
 Using router wildcard certificate and generated hostname with reencrypt route:
 
 ```bash
-oc get secret -n cdi cdi-upload-proxy-ca-key -o=jsonpath="{.data['tls\.crt']}" | base64 -d > tls.crt && \
+oc get cm -n cdi cdi-uploadproxy-signer-bundle -o=jsonpath="{.data['ca-bundle\.crt']}" > tls.crt && \
 oc create route reencrypt -n cdi --service=cdi-uploadproxy --dest-ca-cert=tls.crt && \
 rm tls.crt
 ```
@@ -58,8 +58,8 @@ rm tls.crt
 Using your own key/cert with passthrough route
 
 ```bash
-oc delete secret -n cdi cdi-upload-proxy-server-key && \
-oc create secret tls -n cdi cdi-upload-proxy-server-key --key tls.key --cert tls.crt && \
+oc delete secret -n cdi cdi-uploadproxy-server-cert && \
+oc create secret tls -n cdi cdi-uploadproxy-server-cert --key tls.key --cert tls.crt && \
 oc create route passthrough -n cdi --service=cdi-uploadproxy && \
 oc delete pod -n cdi -l cdi.kubevirt.io=cdi-uploadproxy
 ```

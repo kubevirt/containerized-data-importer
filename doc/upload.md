@@ -53,7 +53,7 @@ EOF
 ### Minishift
 
 ```bash
-oc get secret -n cdi cdi-upload-proxy-ca-key -o=jsonpath="{.data['tls\.crt']}" | base64 -d > tls.crt && \
+oc get cm -n cdi cdi-uploadproxy-signer-bundle -o=jsonpath="{.data['ca-bundle\.crt']}" > tls.crt && \
 oc create route reencrypt -n cdi --service=cdi-uploadproxy --dest-ca-cert=tls.crt && \
 rm tls.crt
 ```

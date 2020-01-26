@@ -17,45 +17,16 @@ limitations under the License.
 package controller
 
 import (
-	"context"
-
 	secv1 "github.com/openshift/api/security/v1"
-
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/types"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-
-	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
-func (r *ReconcileCDI) watchSecurityContextConstraints(c controller.Controller) error {
-	err := c.Watch(
+func (r *ReconcileCDI) watchSecurityContextConstraints() error {
+	err := r.controller.Watch(
 		&source.Kind{Type: &secv1.SecurityContextConstraints{}},
-		&handler.EnqueueRequestsFromMapFunc{
-			ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
-				var rrs []reconcile.Request
-				cdiList := &cdiv1alpha1.CDIList{}
-
-				if err := r.client.List(context.TODO(), cdiList, &client.ListOptions{}); err != nil {
-					log.Error(err, "Error listing all CDI objects")
-					return nil
-				}
-
-				for _, cdi := range cdiList.Items {
-					rr := reconcile.Request{
-						NamespacedName: types.NamespacedName{Namespace: cdi.Namespace, Name: cdi.Name},
-					}
-					rrs = append(rrs, rr)
-				}
-
-				return rrs
-			}),
-		})
+		enqueueCDI(r.client),
+	)
 	if err != nil {
 		if meta.IsNoMatchError(err) {
 			log.Info("Not watching SecurityContextConstraints")

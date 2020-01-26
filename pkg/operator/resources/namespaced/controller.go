@@ -119,7 +119,24 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 			Name:      "cdi-api-signing-key",
 			MountPath: controller.APIServerPublicKeyDir,
 		},
+		{
+			Name:      "uploadserver-ca-cert",
+			MountPath: "/var/run/certs/cdi-uploadserver-signer",
+		},
+		{
+			Name:      "uploadserver-client-ca-cert",
+			MountPath: "/var/run/certs/cdi-uploadserver-client-signer",
+		},
+		{
+			Name:      "uploadserver-ca-bundle",
+			MountPath: "/var/run/ca-bundle/cdi-uploadserver-signer-bundle",
+		},
+		{
+			Name:      "uploadserver-client-ca-bundle",
+			MountPath: "/var/run/ca-bundle/cdi-uploadserver-client-signer-bundle",
+		},
 	}
+	deployment.Spec.Template.Spec.Containers = []corev1.Container{container}
 	deployment.Spec.Template.Spec.Volumes = []corev1.Volume{
 		{
 			Name: "cdi-api-signing-key",
@@ -135,8 +152,75 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 				},
 			},
 		},
+		{
+			Name: "uploadserver-ca-cert",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: "cdi-uploadserver-signer",
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "tls.crt",
+							Path: "tls.crt",
+						},
+						{
+							Key:  "tls.key",
+							Path: "tls.key",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "uploadserver-client-ca-cert",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: "cdi-uploadserver-client-signer",
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "tls.crt",
+							Path: "tls.crt",
+						},
+						{
+							Key:  "tls.key",
+							Path: "tls.key",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "uploadserver-ca-bundle",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: "cdi-uploadserver-signer-bundle",
+					},
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "ca-bundle.crt",
+							Path: "ca-bundle.crt",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "uploadserver-client-ca-bundle",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: "cdi-uploadserver-client-signer-bundle",
+					},
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "ca-bundle.crt",
+							Path: "ca-bundle.crt",
+						},
+					},
+				},
+			},
+		},
 	}
-	deployment.Spec.Template.Spec.Containers = []corev1.Container{container}
 	return deployment
 }
 

@@ -35,7 +35,6 @@ import (
 
 	restful "github.com/emicklei/go-restful"
 	"github.com/pkg/errors"
-
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -44,9 +43,6 @@ import (
 	"k8s.io/klog"
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
-
-	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/apiserver/webhooks"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -54,13 +50,13 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
-	"kubevirt.io/containerized-data-importer/pkg/util/cert"
-	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
+
+	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 )
 
 const (
 	// selfsigned cert secret name
-	apiCertSecretName       = "cdi-api-server-cert"
 	apiSigningKeySecretName = "cdi-api-signing-key"
 
 	uploadTokenGroup   = "upload.cdi.kubevirt.io"
@@ -84,6 +80,11 @@ type CdiAPIServer interface {
 	Start(<-chan struct{}) error
 }
 
+// CertWatcher is the interface for resources that watch certs
+type CertWatcher interface {
+	GetCertificate(_ *tls.ClientHelloInfo) (*tls.Certificate, error)
+}
+
 type uploadPossibleFunc func(*v1.PersistentVolumeClaim) error
 
 type cdiAPIApp struct {
@@ -93,18 +94,15 @@ type cdiAPIApp struct {
 	client           kubernetes.Interface
 	aggregatorClient aggregatorclient.Interface
 
-	serverCACertBytes []byte
-	serverCertBytes   []byte
-	serverKeyBytes    []byte
-
-	serverCert *tls.Certificate
-
 	privateSigningKey *rsa.PrivateKey
 
 	container *restful.Container
 
 	authorizer        CdiAPIAuthorizer
 	authConfigWatcher AuthConfigWatcher
+
+	caBundle    []byte
+	certWarcher CertWatcher
 
 	tokenGenerator token.Generator
 
@@ -125,7 +123,9 @@ func NewCdiAPIServer(bindAddress string,
 	client kubernetes.Interface,
 	aggregatorClient aggregatorclient.Interface,
 	authorizor CdiAPIAuthorizer,
-	authConfigWatcher AuthConfigWatcher) (CdiAPIServer, error) {
+	authConfigWatcher AuthConfigWatcher,
+	caBundle []byte,
+	certWatcher CertWatcher) (CdiAPIServer, error) {
 	var err error
 	app := &cdiAPIApp{
 		bindAddress:       bindAddress,
@@ -135,6 +135,8 @@ func NewCdiAPIServer(bindAddress string,
 		authorizer:        authorizor,
 		uploadPossible:    controller.UploadPossibleForPVC,
 		authConfigWatcher: authConfigWatcher,
+		caBundle:          caBundle,
+		certWarcher:       certWatcher,
 	}
 
 	err = app.getKeysAndCerts()
@@ -193,42 +195,11 @@ func (app *cdiAPIApp) Start(ch <-chan struct{}) error {
 
 func (app *cdiAPIApp) getKeysAndCerts() error {
 	namespace := util.GetNamespace()
-	caKeyPair, err := triple.NewCA("api.cdi.kubevirt.io")
-	if err != nil {
-		return errors.Wrap(err, "Error creating CA")
-	}
-
-	keyPairAndCert, err := keys.GetOrCreateServerKeyPairAndCert(app.client,
-		namespace,
-		apiCertSecretName,
-		caKeyPair,
-		caKeyPair.Cert,
-		apiServiceName+"."+namespace,
-		apiServiceName,
-		nil,
-	)
-	if err != nil {
-		return errors.Wrapf(err, "Error getting/creating secret %s", apiCertSecretName)
-	}
-
-	serverKeyBytes := cert.EncodePrivateKeyPEM(keyPairAndCert.KeyPair.Key)
-	serverCertBytes := cert.EncodeCertPEM(keyPairAndCert.KeyPair.Cert)
-
-	serverCert, err := tls.X509KeyPair(serverCertBytes, serverKeyBytes)
-	if err != nil {
-		return err
-	}
 
 	privateKey, err := keys.GetOrCreatePrivateKey(app.client, namespace, apiSigningKeySecretName)
 	if err != nil {
 		return errors.Wrap(err, "Error getting/creating signing key")
 	}
-
-	app.serverKeyBytes = serverKeyBytes
-	app.serverCertBytes = serverCertBytes
-	app.serverCACertBytes = cert.EncodeCertPEM(keyPairAndCert.CACert)
-
-	app.serverCert = &serverCert
 
 	app.privateSigningKey = privateKey
 
@@ -249,8 +220,13 @@ func (app *cdiAPIApp) getTLSConfig() (*tls.Config, error) {
 		return false
 	}
 
+	cert, err := app.certWarcher.GetCertificate(nil)
+	if err != nil {
+		return nil, err
+	}
+
 	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{*app.serverCert},
+		Certificates: []tls.Certificate{*cert},
 		ClientCAs:    authConfig.CertPool,
 		ClientAuth:   tls.VerifyClientCertIfGiven,
 		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
@@ -262,7 +238,7 @@ func (app *cdiAPIApp) getTLSConfig() (*tls.Config, error) {
 					return nil
 				}
 			}
-			return fmt.Errorf("No valid subject specified")
+			return fmt.Errorf("no valid subject specified")
 		},
 	}
 	tlsConfig.BuildNameToCertificate()
@@ -541,7 +517,7 @@ func (app *cdiAPIApp) createAPIService() error {
 			},
 			Group:                uploadTokenGroup,
 			Version:              uploadTokenVersion,
-			CABundle:             app.serverCACertBytes,
+			CABundle:             app.caBundle,
 			GroupPriorityMinimum: 1000,
 			VersionPriority:      15,
 		},
@@ -605,7 +581,7 @@ func (app *cdiAPIApp) createValidatingWebhook() error {
 					Name:      apiServiceName,
 					Path:      &path,
 				},
-				CABundle: app.serverCACertBytes,
+				CABundle: app.caBundle,
 			},
 			FailurePolicy: &failurePolicy,
 		},
@@ -681,7 +657,7 @@ func (app *cdiAPIApp) createMutatingWebhook() error {
 					Name:      apiServiceName,
 					Path:      &path,
 				},
-				CABundle: app.serverCACertBytes,
+				CABundle: app.caBundle,
 			},
 			FailurePolicy: &failurePolicy,
 		},

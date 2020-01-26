@@ -149,7 +149,3 @@ func (f *ControllerFixture) expectDeletePodAction(p *corev1.Pod) {
 	f.kubeactions = append(f.kubeactions,
 		core.NewDeleteAction(schema.GroupVersionResource{Resource: "pods", Version: "v1"}, p.Namespace, p.Name))
 }
-
-func (f *ControllerFixture) expectSecretGetAction(s *corev1.Secret) {
-	f.kubeactions = append(f.kubeactions, core.NewGetAction(schema.GroupVersionResource{Resource: "secrets", Version: "v1"}, s.Namespace, s.Name))
-}

@@ -26,6 +26,7 @@ require (
 	github.com/openshift/api v0.0.0
 	github.com/openshift/client-go v0.0.0
 	github.com/openshift/custom-resource-status v0.0.0-20190822192428-e62f2f3b79f3
+	github.com/openshift/library-go v0.0.0-20200114162033-e8b3a065ded2
 	github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190725173916-b56e63a643cc
 	github.com/operator-framework/operator-marketplace v0.0.0-20190617165322-1cbd32624349
 	github.com/pkg/errors v0.8.1
@@ -40,12 +41,14 @@ require (
 	golang.org/x/crypto v0.0.0-20191002192127-34f69633bfdc // indirect
 	golang.org/x/net v0.0.0-20191007182048-72f939374954 // indirect
 	golang.org/x/sys v0.0.0-20191008105621-543471e840be
+	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/ini.v1 v1.48.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.2.4
 	k8s.io/api v0.16.4
 	k8s.io/apiextensions-apiserver v0.0.0
 	k8s.io/apimachinery v0.16.4
+	k8s.io/apiserver v0.16.4
 	k8s.io/client-go v8.0.0+incompatible
 	k8s.io/cluster-bootstrap v0.0.0
 	k8s.io/klog v0.4.0
@@ -58,6 +61,7 @@ require (
 replace (
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20191125132246-f6563a70e19a
+	github.com/openshift/library-go => github.com/mhenriks/library-go v0.0.0-20200116194830-9fcc1a687a9d
 
 	k8s.io/api => k8s.io/api v0.16.4
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.16.4

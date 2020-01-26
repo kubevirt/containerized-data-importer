@@ -18,7 +18,6 @@ package controller
 
 import (
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -32,8 +31,7 @@ import (
 
 	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
-	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 )
 
 const (
@@ -41,14 +39,6 @@ const (
 	podPhaseAnnotation      = "cdi.kubevirt.io/storage.pod.phase"
 	podReadyAnnotation      = "cdi.kubevirt.io/storage.pod.ready"
 	cloneRequestAnnotation  = "k8s.io/CloneRequest"
-)
-
-var (
-	testUploadServerCASecret     *corev1.Secret
-	testUploadServerCASecretOnce sync.Once
-
-	testUploadServerClientCASecret     *corev1.Secret
-	testUploadServerClientCASecretOnce sync.Once
 )
 
 type uploadFixture struct {
@@ -68,26 +58,6 @@ type uploadFixture struct {
 	// Objects from here preloaded into NewSimpleFake.
 	kubeobjects []runtime.Object
 	cdiobjects  []runtime.Object
-
-	expectedSecretGets, expectedSecretCreates int
-}
-
-func getUploadServerClientCASecret() *corev1.Secret {
-	testUploadServerClientCASecretOnce.Do(func() {
-		keyPair, _ := triple.NewCA("client")
-		testUploadServerClientCASecret = keystest.NewTLSSecret("cdi",
-			"cdi-upload-server-client-ca-key", keyPair, nil, nil)
-	})
-	return testUploadServerClientCASecret
-}
-
-func getUploadServerCASecret() *corev1.Secret {
-	testUploadServerCASecretOnce.Do(func() {
-		keyPair, _ := triple.NewCA("server")
-		testUploadServerCASecret = keystest.NewTLSSecret("cdi",
-			"cdi-upload-server-ca-key", keyPair, nil, nil)
-	})
-	return testUploadServerCASecret
 }
 
 func newUploadFixture(t *testing.T) *uploadFixture {
@@ -115,7 +85,9 @@ func (f *uploadFixture) newController() (*UploadController, kubeinformers.Shared
 		"test/myimage",
 		"cdi-uploadproxy",
 		"Always",
-		"5")
+		"5",
+		&fakeCertGenerator{},
+		&fetcher.MemCertBundleFetcher{Bundle: []byte("baz")})
 
 	c.pvcsSynced = alwaysReady
 	c.podsSynced = alwaysReady
@@ -157,16 +129,6 @@ func (f *uploadFixture) runController(pvcName string, startInformers bool, expec
 		f.t.Errorf("error syncing foo: %v", err)
 	} else if expectError && err == nil {
 		f.t.Error("expected error syncing foo, got nil")
-	}
-
-	actualSecretGets := findSecretGetActions(f.kubeclient.Actions())
-	if len(actualSecretGets) != f.expectedSecretGets {
-		f.t.Errorf("Unexpected secret get counts %d %d", f.expectedSecretGets, len(actualSecretGets))
-	}
-
-	actualSecretCreates := findSecretCreateActions(f.kubeclient.Actions())
-	if len(actualSecretCreates) != f.expectedSecretCreates {
-		f.t.Errorf("Unexpected secret create counts %d %d", f.expectedSecretCreates, len(actualSecretCreates))
 	}
 
 	k8sActions := filterSecretGetAndCreateActions(filterUploadInformerActions(f.kubeclient.Actions()))
@@ -215,12 +177,6 @@ func (f *uploadFixture) expectUpdatePvcAction(pvc *corev1.PersistentVolumeClaim)
 		core.NewUpdateAction(schema.GroupVersionResource{Resource: "persistentvolumeclaims", Version: "v1"}, pvc.Namespace, pvc))
 }
 
-// really should be expect keystore actions but they are the only secrets created for now
-func (f *uploadFixture) expectSecretActions(gets, creates int) {
-	f.expectedSecretGets = gets
-	f.expectedSecretCreates = creates
-}
-
 func filterUploadInformerActions(actions []core.Action) []core.Action {
 	ret := []core.Action{}
 	for _, action := range actions {
@@ -234,26 +190,6 @@ func filterUploadInformerActions(actions []core.Action) []core.Action {
 			continue
 		}
 		ret = append(ret, action)
-	}
-	return ret
-}
-
-func findSecretCreateActions(actions []core.Action) []core.Action {
-	ret := []core.Action{}
-	for _, action := range actions {
-		if action.Matches("create", "secrets") {
-			ret = append(ret, action)
-		}
-	}
-	return ret
-}
-
-func findSecretGetActions(actions []core.Action) []core.Action {
-	ret := []core.Action{}
-	for _, action := range actions {
-		if action.Matches("get", "secrets") {
-			ret = append(ret, action)
-		}
 	}
 	return ret
 }
@@ -280,12 +216,11 @@ func TestCreatesUploadPodAndService(t *testing.T) {
 
 	f.podLister = append(f.podLister, pod)
 	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pod, pvc, getUploadServerCASecret(), getUploadServerClientCASecret())
+	f.kubeobjects = append(f.kubeobjects, pod, pvc)
 	cdiConfig := createCDIConfig(common.ConfigName)
 	f.cdiobjects = append(f.cdiobjects, cdiConfig)
 
 	f.expectCreatePvcAction(scratchPvc)
-	f.expectSecretActions(3, 1)
 
 	service := createUploadService(pvc)
 	service.Namespace = ""
@@ -311,11 +246,9 @@ func TestCreatesCloneTargetPodAndService(t *testing.T) {
 
 	f.podLister = append(f.podLister, pod)
 	f.pvcLister = append(f.pvcLister, pvc, source)
-	f.kubeobjects = append(f.kubeobjects, pod, pvc, source, getUploadServerCASecret(), getUploadServerClientCASecret())
+	f.kubeobjects = append(f.kubeobjects, pod, pvc, source)
 	cdiConfig := createCDIConfig(common.ConfigName)
 	f.cdiobjects = append(f.cdiobjects, cdiConfig)
-
-	f.expectSecretActions(3, 1)
 
 	service := createUploadService(pvc)
 	service.Namespace = ""
@@ -512,24 +445,6 @@ func TestDeletesUploadPodAndServiceWhenPVCDeleted(t *testing.T) {
 	f.expectDeletePodAction(pod)
 
 	f.run(getPvcKey(pvc, t))
-}
-
-func TestShouldCreateCerts(t *testing.T) {
-	kubeobjects := []runtime.Object{}
-
-	client := k8sfake.NewSimpleClientset(kubeobjects...)
-
-	controller := &UploadController{client: client, uploadProxyServiceName: "cdi-uploadproxy"}
-
-	err := controller.initCerts()
-	if err != nil {
-		t.Errorf("init certs failed %+v", err)
-	}
-
-	filteredActions := findSecretCreateActions(client.Actions())
-	if len(filteredActions) != 5 {
-		t.Errorf("Expected 5 certs, got %d", len(filteredActions))
-	}
 }
 
 func TestUploadPossible(t *testing.T) {

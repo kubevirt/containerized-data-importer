@@ -9,6 +9,7 @@ go_library(
         "//pkg/common:go_default_library",
         "//pkg/controller:go_default_library",
         "//pkg/token:go_default_library",
+        "//pkg/util/cert/fetcher:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/api/errors:go_default_library",
@@ -26,6 +27,7 @@ go_test(
     deps = [
         "//pkg/token:go_default_library",
         "//pkg/util/cert:go_default_library",
+        "//pkg/util/cert/fetcher:go_default_library",
         "//pkg/util/cert/triple:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",

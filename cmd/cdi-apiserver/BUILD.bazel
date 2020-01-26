@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/apiserver:go_default_library",
+        "//pkg/util/cert/watcher:go_default_library",
         "//pkg/version/verflag:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes:go_default_library",

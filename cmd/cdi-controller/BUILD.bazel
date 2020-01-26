@@ -17,6 +17,8 @@ go_library(
         "//pkg/snapshot-client/clientset/versioned:go_default_library",
         "//pkg/snapshot-client/informers/externalversions:go_default_library",
         "//pkg/util:go_default_library",
+        "//pkg/util/cert/fetcher:go_default_library",
+        "//pkg/util/cert/generator:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",

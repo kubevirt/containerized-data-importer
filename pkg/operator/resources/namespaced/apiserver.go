@@ -103,6 +103,54 @@ func createAPIServerDeployment(image, verbosity, pullPolicy string) *appsv1.Depl
 		InitialDelaySeconds: 2,
 		PeriodSeconds:       5,
 	}
+	container.VolumeMounts = []corev1.VolumeMount{
+		{
+			Name:      "ca-bundle",
+			MountPath: "/var/run/certs/cdi-apiserver-signer-bundle",
+			ReadOnly:  true,
+		},
+		{
+			Name:      "server-cert",
+			MountPath: "/var/run/certs/cdi-apiserver-server-cert",
+			ReadOnly:  true,
+		},
+	}
 	deployment.Spec.Template.Spec.Containers = []corev1.Container{container}
+	deployment.Spec.Template.Spec.Volumes = []corev1.Volume{
+		{
+			Name: "ca-bundle",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: "cdi-apiserver-signer-bundle",
+					},
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "ca-bundle.crt",
+							Path: "ca-bundle.crt",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "server-cert",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: "cdi-apiserver-server-cert",
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "tls.crt",
+							Path: "tls.crt",
+						},
+						{
+							Key:  "tls.key",
+							Path: "tls.key",
+						},
+					},
+				},
+			},
+		},
+	}
 	return deployment
 }

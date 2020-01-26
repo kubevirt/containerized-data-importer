@@ -65,6 +65,7 @@ func main() {
 	}
 
 	managerOpts := manager.Options{
+		Namespace:               namespace,
 		LeaderElection:          true,
 		LeaderElectionNamespace: namespace,
 		LeaderElectionID:        "cdi-operator-leader-election-helper",

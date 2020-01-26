@@ -17,6 +17,7 @@ go_test(
         "api_validation_test.go",
         "basic_sanity_test.go",
         "cdiconfig_test.go",
+        "certrotation_test.go",
         "cloner_test.go",
         "datavolume_test.go",
         "import_test.go",

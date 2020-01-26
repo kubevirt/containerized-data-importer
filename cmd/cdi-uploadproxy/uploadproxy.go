@@ -9,7 +9,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
+	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
+
 	"kubevirt.io/containerized-data-importer/pkg/uploadproxy"
+	"kubevirt.io/containerized-data-importer/pkg/util"
+	certfetcher "kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
+	certwatcher "kubevirt.io/containerized-data-importer/pkg/util/cert/watcher"
 )
 
 const (
@@ -18,6 +23,10 @@ const (
 
 	// Default address api listens on.
 	defaultHost = "0.0.0.0"
+
+	serverCertDir  = "/var/run/certs/cdi-uploadproxy-server-cert/"
+	serverCertFile = serverCertDir + "tls.crt"
+	serverKeyFile  = serverCertDir + "tls.key"
 )
 
 var (
@@ -50,6 +59,8 @@ func init() {
 func main() {
 	defer klog.Flush()
 
+	namespace := util.GetNamespace()
+
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, configPath)
 	if err != nil {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
@@ -62,19 +73,29 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Unable to get apiserver public key %v\n", errors.WithStack(err))
 	}
+	certWatcher, err := certwatcher.New(serverCertFile, serverKeyFile)
+	if err != nil {
+		klog.Fatalf("Unable to create certwatcher: %v\n", errors.WithStack(err))
+	}
+
+	clientCertFetcher := &certfetcher.FileCertFetcher{Name: "cdi-uploadserver-client-cert"}
+	serverCAFetcher := &certfetcher.ConfigMapCertBundleFetcher{
+		Name:   "cdi-uploadserver-signer-bundle",
+		Client: client.CoreV1().ConfigMaps(namespace),
+	}
 
 	uploadProxy, err := uploadproxy.NewUploadProxy(defaultHost,
 		defaultPort,
 		apiServerPublicKey,
-		os.Getenv("UPLOAD_SERVER_CLIENT_KEY"),
-		os.Getenv("UPLOAD_SERVER_CLIENT_CERT"),
-		os.Getenv("UPLOAD_SERVER_CA_CERT"),
-		os.Getenv("SERVICE_TLS_KEY"),
-		os.Getenv("SERVICE_TLS_CERT"),
+		certWatcher,
+		clientCertFetcher,
+		serverCAFetcher,
 		client)
 	if err != nil {
 		klog.Fatalf("UploadProxy failed to initialize: %v\n", errors.WithStack(err))
 	}
+
+	go certWatcher.Start(signals.SetupSignalHandler())
 
 	err = uploadProxy.Start()
 	if err != nil {

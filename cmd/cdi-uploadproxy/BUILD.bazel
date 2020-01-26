@@ -7,10 +7,14 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/uploadproxy:go_default_library",
+        "//pkg/util:go_default_library",
+        "//pkg/util/cert/fetcher:go_default_library",
+        "//pkg/util/cert/watcher:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes:go_default_library",
         "//vendor/k8s.io/client-go/tools/clientcmd:go_default_library",
         "//vendor/k8s.io/klog:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/runtime/signals:go_default_library",
     ],
 )
 

@@ -16,13 +16,14 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
 type httpClientConfig struct {
-	key    string
-	cert   string
-	caCert string
+	key    []byte
+	cert   []byte
+	caCert []byte
 }
 
 type validateSuccess struct{}
@@ -70,9 +71,9 @@ func getHTTPClientConfig(t *testing.T) *httpClientConfig {
 		panic("Error creating client cert")
 	}
 	return &httpClientConfig{
-		key:    string(cert.EncodePrivateKeyPEM(clientKeyPair.Key)),
-		cert:   string(cert.EncodeCertPEM(clientKeyPair.Cert)),
-		caCert: string(cert.EncodeCertPEM(caKeyPair.Cert)),
+		key:    cert.EncodePrivateKeyPEM(clientKeyPair.Key),
+		cert:   cert.EncodeCertPEM(clientKeyPair.Cert),
+		caCert: cert.EncodeCertPEM(caKeyPair.Cert),
 	}
 }
 
@@ -123,14 +124,12 @@ func TestGetSigningKey(t *testing.T) {
 
 func TestGetUploadServerClient(t *testing.T) {
 	certs := getHTTPClientConfig(t)
-	app := createApp()
+	certFetcher := &fetcher.MemCertFetcher{Cert: certs.cert, Key: certs.key}
+	bundleFetcher := &fetcher.MemCertBundleFetcher{Bundle: certs.caCert}
 
-	err := app.getUploadServerClient(certs.key, certs.cert, certs.caCert)
+	cc := &clientCreator{certFetcher: certFetcher, bundleFetcher: bundleFetcher}
+	_, err := cc.CreateClient()
 	if err != nil {
-		t.Errorf("create http client")
-	}
-
-	if app.uploadServerClient == nil {
 		t.Errorf("Failed to create http client")
 	}
 }
@@ -151,6 +150,14 @@ func TestMalformedAuthHeader(t *testing.T) {
 			submitRequestAndCheckStatus(t, req, http.StatusBadRequest, nil)
 		})
 	}
+}
+
+type fakeClientCreator struct {
+	client *http.Client
+}
+
+func (fcc *fakeClientCreator) CreateClient() (*http.Client, error) {
+	return fcc.client, nil
 }
 
 func setupProxyTests(handler http.HandlerFunc) *uploadProxyApp {
@@ -177,7 +184,7 @@ func setupProxyTests(handler http.HandlerFunc) *uploadProxyApp {
 	app.client = k8sfake.NewSimpleClientset(objects...)
 	app.tokenValidator = &validateSuccess{}
 	app.urlResolver = urlResolver
-	app.uploadServerClient = server.Client()
+	app.clientCreator = &fakeClientCreator{client: server.Client()}
 
 	return app
 }

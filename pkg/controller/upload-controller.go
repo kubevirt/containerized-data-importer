@@ -37,8 +37,8 @@ import (
 
 	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/keys"
-	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 )
 
 const (
@@ -50,20 +50,9 @@ const (
 
 	annCreatedByUpload = "cdi.kubevirt.io/storage.createdByUploadController"
 
-	// cert/key annotations
+	uploadServerClientName = "client.upload-server.cdi.kubevirt.io"
 
-	uploadServerCASecret = "cdi-upload-server-ca-key"
-	uploadServerCAName   = "server.upload.cdi.kubevirt.io"
-
-	uploadServerClientCASecret = "cdi-upload-server-client-ca-key"
-	uploadServerClientCAName   = "client.upload-server.cdi.kubevirt.io"
-
-	uploadServerClientKeySecret = "cdi-upload-server-client-key"
-	uploadServerClientName      = "client.upload-server.cdi.kubevirt.io"
-
-	uploadProxyCASecret     = "cdi-upload-proxy-ca-key"
-	uploadProxyServerSecret = "cdi-upload-proxy-server-key"
-	uploadProxyCAName       = "proxy.upload.cdi.kubevirt.io"
+	uploadServerCertDuration = 365 * 24 * time.Hour
 )
 
 // UploadController members
@@ -82,6 +71,8 @@ type UploadController struct {
 	pullPolicy                                string // Options: IfNotPresent, Always, or Never
 	verbose                                   string // verbose levels: 1, 2, ...
 	uploadProxyServiceName                    string
+	serverCertGenerator                       generator.CertGenerator
+	clientCAFetcher                           fetcher.CertBundleFetcher
 }
 
 // GetUploadResourceName returns the name given to upload resources
@@ -112,7 +103,9 @@ func NewUploadController(client kubernetes.Interface,
 	uploadServiceImage string,
 	uploadProxyServiceName string,
 	pullPolicy string,
-	verbose string) *UploadController {
+	verbose string,
+	serverCertGenerator generator.CertGenerator,
+	clientCAFetcher fetcher.CertBundleFetcher) *UploadController {
 	c := &UploadController{
 		client:                 client,
 		cdiClient:              cdiClientSet,
@@ -130,6 +123,8 @@ func NewUploadController(client kubernetes.Interface,
 		uploadProxyServiceName: uploadProxyServiceName,
 		pullPolicy:             pullPolicy,
 		verbose:                verbose,
+		serverCertGenerator:    serverCertGenerator,
+		clientCAFetcher:        clientCAFetcher,
 	}
 
 	c.pvcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -170,13 +165,6 @@ func NewUploadController(client kubernetes.Interface,
 
 // Init does synchronous initialization before being considered "ready"
 func (c *UploadController) Init() error {
-	klog.V(2).Infoln("Getting/creating certs")
-
-	if err := c.initCerts(); err != nil {
-		runtime.HandleError(err)
-		return err
-	}
-
 	return nil
 }
 
@@ -206,57 +194,6 @@ func (c *UploadController) Run(threadiness int, stopCh <-chan struct{}) error {
 	klog.Info("Started workers")
 	<-stopCh
 	klog.Info("Shutting down workers")
-
-	return nil
-}
-
-func (c *UploadController) initCerts() error {
-	var err error
-	namespace := util.GetNamespace()
-
-	// CA for Upload Servers
-	serverCAKeyPair, err := keys.GetOrCreateCA(c.client, namespace, uploadServerCASecret, uploadServerCAName)
-	if err != nil {
-		return errors.Wrap(err, "couldn't get/create server CA")
-	}
-
-	// CA for Upload Client
-	clientCAKeyPair, err := keys.GetOrCreateCA(c.client, namespace, uploadServerClientCASecret, uploadServerClientCAName)
-	if err != nil {
-		return errors.Wrap(err, "couldn't get/create client CA")
-	}
-
-	// Upload Server Client Cert
-	_, err = keys.GetOrCreateClientKeyPairAndCert(c.client,
-		namespace,
-		uploadServerClientKeySecret,
-		clientCAKeyPair,
-		serverCAKeyPair.Cert,
-		uploadServerClientName,
-		[]string{},
-		nil,
-	)
-	if err != nil {
-		return errors.Wrap(err, "couldn't get/create client cert")
-	}
-
-	uploadProxyCAKeyPair, err := keys.GetOrCreateCA(c.client, namespace, uploadProxyCASecret, uploadProxyCAName)
-	if err != nil {
-		return errors.Wrap(err, "couldn't create upload proxy server cert")
-	}
-
-	_, err = keys.GetOrCreateServerKeyPairAndCert(c.client,
-		namespace,
-		uploadProxyServerSecret,
-		uploadProxyCAKeyPair,
-		nil,
-		c.uploadProxyServiceName+"."+namespace,
-		c.uploadProxyServiceName,
-		nil,
-	)
-	if err != nil {
-		return errors.Wrap(err, "error creating upload proxy server key pair")
-	}
 
 	return nil
 }
@@ -465,6 +402,16 @@ func (c *UploadController) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, p
 			return nil, errors.Wrapf(err, "error getting upload pod %s/%s", pvc.Namespace, podName)
 		}
 
+		serverCert, serverKey, err := c.serverCertGenerator.MakeServerCert(pvc.Namespace, podName, uploadServerCertDuration)
+		if err != nil {
+			return nil, err
+		}
+
+		clientCA, err := c.clientCAFetcher.BundleBytes()
+		if err != nil {
+			return nil, err
+		}
+
 		args := UploadPodArgs{
 			Client:         c.client,
 			CdiClient:      c.cdiClient,
@@ -475,6 +422,9 @@ func (c *UploadController) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, p
 			PVC:            pvc,
 			ScratchPVCName: scratchPVCName,
 			ClientName:     clientName,
+			ServerCert:     serverCert,
+			ServerKey:      serverKey,
+			ClientCA:       clientCA,
 		}
 
 		pod, err = CreateUploadPod(args)

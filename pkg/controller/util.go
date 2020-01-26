@@ -24,11 +24,9 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/keys"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
-	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
 const (
@@ -62,20 +60,6 @@ type podDeleteRequest struct {
 	podName   string
 	podLister corelisters.PodLister
 	k8sClient kubernetes.Interface
-}
-
-var createClientKeyAndCertFunc = createClientKeyAndCert
-
-func createClientKeyAndCert(ca *triple.KeyPair, commonName string, organizations []string) ([]byte, []byte, error) {
-	clientKeyPair, err := triple.NewClientKeyPair(ca, commonName, organizations)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "error creating client key pair")
-	}
-
-	clientKeyBytes := cert.EncodePrivateKeyPEM(clientKeyPair.Key)
-	clientCertBytes := cert.EncodeCertPEM(clientKeyPair.Cert)
-
-	return clientKeyBytes, clientCertBytes, nil
 }
 
 func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string) bool {
@@ -457,55 +441,41 @@ func DecodePublicKey(keyBytes []byte) (*rsa.PublicKey, error) {
 	return key, nil
 }
 
+// CloneSourcePodArgs are the required args to create a clone source pod
+type CloneSourcePodArgs struct {
+	Client                              kubernetes.Interface
+	CDIClient                           clientset.Interface
+	Image, PullPolicy                   string
+	ServerCACert, ClientCert, ClientKey []byte
+	PVC                                 *v1.PersistentVolumeClaim
+}
+
 // CreateCloneSourcePod creates our cloning src pod which will be used for out of band cloning to read the contents of the src PVC
-func CreateCloneSourcePod(client kubernetes.Interface, cdiClient clientset.Interface, image, pullPolicy, clientName string, pvc *v1.PersistentVolumeClaim) (*v1.Pod, error) {
-	exists, sourcePvcNamespace, sourcePvcName := ParseCloneRequestAnnotation(pvc)
+func CreateCloneSourcePod(args CloneSourcePodArgs) (*v1.Pod, error) {
+	exists, sourcePvcNamespace, sourcePvcName := ParseCloneRequestAnnotation(args.PVC)
 	if !exists {
 		return nil, errors.Errorf("bad CloneRequest Annotation")
 	}
 
-	ownerKey, err := cache.MetaNamespaceKeyFunc(pvc)
+	ownerKey, err := cache.MetaNamespaceKeyFunc(args.PVC)
 	if err != nil {
 		return nil, errors.Wrap(err, "error getting cache key")
 	}
 
-	serverCACertBytes, err := keys.GetKeyPairAndCertBytes(client, util.GetNamespace(), uploadServerCASecret)
-	if err != nil {
-		return nil, errors.Wrap(err, "error getting uploadserver server CA cert")
-	}
-
-	if serverCACertBytes == nil {
-		return nil, errors.Errorf("secret %s does not exist", uploadServerCASecret)
-	}
-
-	clientCAKeyPair, err := keys.GetKeyPairAndCert(client, util.GetNamespace(), uploadServerClientCASecret)
-	if err != nil {
-		return nil, errors.Wrap(err, "error getting uploadserver client CA cert")
-	}
-
-	if clientCAKeyPair == nil {
-		return nil, errors.Errorf("secret %s does not exist", uploadServerClientCASecret)
-	}
-
-	clientKeyBytes, clientCertBytes, err := createClientKeyAndCertFunc(&clientCAKeyPair.KeyPair, clientName, []string{})
+	podResourceRequirements, err := GetDefaultPodResourceRequirements(args.CDIClient)
 	if err != nil {
 		return nil, err
 	}
 
-	podResourceRequirements, err := GetDefaultPodResourceRequirements(cdiClient)
-	if err != nil {
-		return nil, err
-	}
+	pod := MakeCloneSourcePodSpec(args.Image, args.PullPolicy, sourcePvcName, ownerKey,
+		args.ClientKey, args.ClientCert, args.ServerCACert, args.PVC, podResourceRequirements)
 
-	pod := MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerKey,
-		clientKeyBytes, clientCertBytes, serverCACertBytes.Cert, pvc, podResourceRequirements)
-
-	pod, err = client.CoreV1().Pods(sourcePvcNamespace).Create(pod)
+	pod, err = args.Client.CoreV1().Pods(sourcePvcNamespace).Create(pod)
 	if err != nil {
 		return nil, errors.Wrap(err, "source pod API create errored")
 	}
 
-	klog.V(1).Infof("cloning source pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+	klog.V(1).Infof("cloning source pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, args.Image)
 
 	return pod, nil
 }
@@ -648,22 +618,21 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerRefAnno strin
 
 // UploadPodArgs are the parameters required to create an upload pod
 type UploadPodArgs struct {
-	Client         kubernetes.Interface
-	CdiClient      clientset.Interface
-	Image          string
-	Verbose        string
-	PullPolicy     string
-	Name           string
-	PVC            *v1.PersistentVolumeClaim
-	ScratchPVCName string
-	ClientName     string
+	Client                          kubernetes.Interface
+	CdiClient                       clientset.Interface
+	Image                           string
+	Verbose                         string
+	PullPolicy                      string
+	Name                            string
+	PVC                             *v1.PersistentVolumeClaim
+	ScratchPVCName                  string
+	ClientName                      string
+	ServerCert, ServerKey, ClientCA []byte
 }
 
 // CreateUploadPod creates upload service pod manifest and sends to server
 func CreateUploadPod(args UploadPodArgs) (*v1.Pod, error) {
 	ns := args.PVC.Namespace
-	commonName := args.Name + "." + ns
-	secretName := args.Name + "-server-tls"
 
 	podResourceRequirements, err := GetDefaultPodResourceRequirements(args.CdiClient)
 	if err != nil {
@@ -671,7 +640,8 @@ func CreateUploadPod(args UploadPodArgs) (*v1.Pod, error) {
 	}
 
 	pod := makeUploadPodSpec(args.Image, args.Verbose, args.PullPolicy, args.Name,
-		args.PVC, args.ScratchPVCName, secretName, args.ClientName, podResourceRequirements)
+		args.PVC, args.ScratchPVCName, args.ClientName, args.ServerCert,
+		args.ServerKey, args.ClientCA, podResourceRequirements)
 
 	pod, err = args.Client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
@@ -683,35 +653,6 @@ func CreateUploadPod(args UploadPodArgs) (*v1.Pod, error) {
 		} else {
 			return nil, errors.Wrap(err, "upload pod API create errored")
 		}
-	}
-
-	serverCAKeyPair, err := keys.GetKeyPairAndCert(args.Client, util.GetNamespace(), uploadServerCASecret)
-	if err != nil {
-		return nil, errors.Wrap(err, "error getting uploadserver server CA cert")
-	}
-
-	if serverCAKeyPair == nil {
-		return nil, errors.Errorf("secret %s does not exist", uploadServerCASecret)
-	}
-
-	clientCAKeyPair, err := keys.GetKeyPairAndCert(args.Client, util.GetNamespace(), uploadServerClientCASecret)
-	if err != nil {
-		return nil, errors.Wrap(err, "error getting uploadserver client CA cert")
-	}
-
-	if clientCAKeyPair == nil {
-		return nil, errors.Errorf("secret %s does not exist", uploadServerClientCASecret)
-	}
-
-	podOwner := MakePodOwnerReference(pod)
-
-	_, err = keys.GetOrCreateServerKeyPairAndCert(args.Client, ns, secretName,
-		&serverCAKeyPair.KeyPair, clientCAKeyPair.KeyPair.Cert, commonName, args.Name, &podOwner)
-	if err != nil {
-		// try to clean up
-		args.Client.CoreV1().Pods(ns).Delete(pod.Name, &metav1.DeleteOptions{})
-
-		return nil, errors.Wrap(err, "error creating server key pair")
 	}
 
 	klog.V(1).Infof("upload pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, args.Image)
@@ -747,7 +688,8 @@ func MakePodOwnerReference(pod *v1.Pod) metav1.OwnerReference {
 }
 
 func makeUploadPodSpec(image, verbose, pullPolicy, name string,
-	pvc *v1.PersistentVolumeClaim, scratchName, secretName, clientName string, resourceRequirements *v1.ResourceRequirements) *v1.Pod {
+	pvc *v1.PersistentVolumeClaim, scratchName, clientName string,
+	serverCert, serverKey, clientCA []byte, resourceRequirements *v1.ResourceRequirements) *v1.Pod {
 	requestImageSize, _ := getRequestedImageSize(pvc)
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -779,37 +721,16 @@ func makeUploadPodSpec(image, verbose, pullPolicy, name string,
 					ImagePullPolicy: v1.PullPolicy(pullPolicy),
 					Env: []v1.EnvVar{
 						{
-							Name: "TLS_KEY",
-							ValueFrom: &v1.EnvVarSource{
-								SecretKeyRef: &v1.SecretKeySelector{
-									LocalObjectReference: v1.LocalObjectReference{
-										Name: secretName,
-									},
-									Key: keys.KeyStoreTLSKeyFile,
-								},
-							},
+							Name:  "TLS_KEY",
+							Value: string(serverKey),
 						},
 						{
-							Name: "TLS_CERT",
-							ValueFrom: &v1.EnvVarSource{
-								SecretKeyRef: &v1.SecretKeySelector{
-									LocalObjectReference: v1.LocalObjectReference{
-										Name: secretName,
-									},
-									Key: keys.KeyStoreTLSCertFile,
-								},
-							},
+							Name:  "TLS_CERT",
+							Value: string(serverCert),
 						},
 						{
-							Name: "CLIENT_CERT",
-							ValueFrom: &v1.EnvVarSource{
-								SecretKeyRef: &v1.SecretKeySelector{
-									LocalObjectReference: v1.LocalObjectReference{
-										Name: secretName,
-									},
-									Key: keys.KeyStoreTLSCAFile,
-								},
-							},
+							Name:  "CLIENT_CERT",
+							Value: string(clientCA),
 						},
 						{
 							Name:  common.UploadImageSize,
