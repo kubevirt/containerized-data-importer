@@ -42,6 +42,9 @@ var (
 	DefaultNodeName string
 	// DefaultStorageClass the defauld storage class used in tests
 	DefaultStorageClass *storagev1.StorageClass
+	// NfsService is the service in the cdi namespace that will be created if KUBEVIRT_STORAGE=nfs
+	NfsService *corev1.Service
+	nfsChecked bool
 )
 
 func getDefaultNodeName(client *kubernetes.Clientset) string {
@@ -103,11 +106,31 @@ func AddProvisionOnNodeToAnn(pvcAnn map[string]string) {
 }
 
 // CacheTestsData fetch and cache data required for tests
-func CacheTestsData(client *kubernetes.Clientset) {
+func CacheTestsData(client *kubernetes.Clientset, cdiNs string) {
 	if DefaultNodeName == "" {
 		DefaultNodeName = getDefaultNodeName(client)
 	}
 	if DefaultStorageClass == nil {
 		DefaultStorageClass = getDefaultStorageClass(client)
 	}
+	if !nfsChecked {
+		NfsService = getNfsService(client, cdiNs)
+		nfsChecked = true
+	}
+}
+
+func getNfsService(client *kubernetes.Clientset, cdiNs string) *corev1.Service {
+	service, err := client.CoreV1().Services(cdiNs).Get("nfs-service", metav1.GetOptions{})
+	if err != nil {
+		return nil
+	}
+	return service
+}
+
+// IsNfs returns true if the default storage class is the static nfs storage class with no provisioner
+func IsNfs() bool {
+	if NfsService == nil {
+		return false
+	}
+	return true
 }

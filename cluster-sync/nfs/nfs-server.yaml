@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nfs-data
+spec:
+  storageClassName: local
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 30Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nfs-server
+  labels:
+    app: "nfs-server"
+spec:
+  containers:
+  - image: itsthenetwork/nfs-server-alpine:12
+    imagePullPolicy: IfNotPresent
+    name: nfs-server
+    env:
+    - name: SHARED_DIRECTORY
+      value: /data/nfs
+    securityContext:
+      privileged: true
+    volumeMounts:
+    - mountPath: "/data/nfs"
+      name: nfsdata
+    command: ["/bin/bash", "-c"]
+    args:
+      - |
+        chmod 777 /data/nfs;
+        mkdir /data/nfs/disk1;
+        chmod 777 /data/nfs/disk1;
+        mkdir /data/nfs/disk2;
+        chmod 777 /data/nfs/disk2;
+        mkdir /data/nfs/disk3;
+        chmod 777 /data/nfs/disk3;
+        mkdir /data/nfs/disk4;
+        chmod 777 /data/nfs/disk4;
+        mkdir /data/nfs/disk5;
+        chmod 777 /data/nfs/disk5;
+        /usr/bin/nfsd.sh
+  volumes:
+  - name: nfsdata
+    persistentVolumeClaim:
+      claimName: nfs-data
+

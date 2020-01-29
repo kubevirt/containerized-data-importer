@@ -1,0 +1,18 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: nfs-service
+spec:
+  selector:
+    app: nfs-server
+  ports:
+    # Open the ports required by the NFS server
+    # Port 2049 for TCP
+    - name: tcp-2049
+      port: 2049
+      protocol: TCP
+
+    # Port 111 for UDP
+    - name: udp-111
+      port: 111
+      protocol: UDP

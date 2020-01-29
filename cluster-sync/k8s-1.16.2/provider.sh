@@ -19,6 +19,9 @@ function configure_storage() {
   elif [[ $KUBEVIRT_STORAGE == "hpp" ]] ; then
     echo "Installing hostpath provisioner storage"
     configure_hpp
+  elif [[ $KUBEVIRT_STORAGE == "nfs" ]] ; then
+    echo "Installing NFS static storage"
+    configure_nfs
   else
     echo "Using local volume storage"
     #Make sure local is not default

@@ -209,7 +209,7 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 	f.reporter = NewKubernetesReporter()
 
 	f.mux.Lock()
-	utils.CacheTestsData(f.K8sClient)
+	utils.CacheTestsData(f.K8sClient, f.CdiInstallNs)
 	f.mux.Unlock()
 
 	return f, err
@@ -236,6 +236,11 @@ func (f *Framework) BeforeEach() {
 		f.Namespace = ns
 		f.AddNamespaceToDelete(ns)
 	}
+
+	if utils.IsNfs() {
+		ginkgo.By("Creating NFS PVs before the test")
+		createNFSPVs(f.K8sClient, f.CdiInstallNs)
+	}
 }
 
 // AfterEach provides a set of operations to run after each test
@@ -251,6 +256,11 @@ func (f *Framework) AfterEach() {
 			ginkgo.By(fmt.Sprintf("Destroying namespace %q for this suite.", ns.Name))
 			err := DeleteNS(f.K8sClient, ns.Name)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		}
+
+		if utils.IsNfs() {
+			ginkgo.By("Deleting NFS PVs after the test")
+			deleteNFSPVs(f.K8sClient, f.CdiInstallNs)
 		}
 	}()
 
