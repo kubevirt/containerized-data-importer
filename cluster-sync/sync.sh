@@ -50,8 +50,6 @@ function kill_running_operator {
 
 seed_images
 
-configure_storage
-
 # Install CDI
 install_cdi
 
@@ -120,6 +118,8 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
   echo "Waiting 480 seconds for CDI to become available"
   _kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=480s
 fi
+
+configure_storage
 
 # Start functional test HTTP server.
 # We skip the functional test additions for external provider for now, as they're specific

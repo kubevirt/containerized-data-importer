@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "exec_util.go",
         "framework.go",
+        "nfs-utils.go",
         "pod.go",
         "pv.go",
         "pvc.go",
@@ -22,6 +23,7 @@ go_library(
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/api/errors:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/api/resource:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/util/intstr:go_default_library",

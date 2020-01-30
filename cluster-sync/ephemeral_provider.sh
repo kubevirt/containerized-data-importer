@@ -76,3 +76,11 @@ EOF
   _kubectl apply -f https://raw.githubusercontent.com/rook/rook/$ROOK_CEPH_VERSION/cluster/examples/kubernetes/ceph/csi/rbd/snapshotclass.yaml
   set -e
 }
+
+function configure_nfs() {
+  #Configure static nfs service and storage class, so we can create NFS PVs during test run.
+  _kubectl apply -f ./cluster-sync/nfs/nfs-sc.yaml
+  _kubectl apply -f ./cluster-sync/nfs/nfs-service.yaml -n $CDI_NAMESPACE
+  _kubectl apply -f ./cluster-sync/nfs/nfs-server.yaml -n $CDI_NAMESPACE
+  _kubectl patch storageclass nfs -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+}
