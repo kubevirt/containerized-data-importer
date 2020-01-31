@@ -22,12 +22,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
-// LeaderAlectionAnnotation is the annotatation used on resources for leader election
-const LeaderAlectionAnnotation = "control-plane.alpha.kubernetes.io/leader"
+// LeaderElectionAnnotation is the annotatation used on resources for leader election
+const LeaderElectionAnnotation = "control-plane.alpha.kubernetes.io/leader"
 
 // NewIgnoreLeaderElectionPredicate returns a predicate used for ignoring leader election resources
 func NewIgnoreLeaderElectionPredicate() predicate.Predicate {
-	return &IgnoreWithMeta{AnnotationKeys: []string{LeaderAlectionAnnotation}}
+	return &IgnoreWithMeta{AnnotationKeys: []string{LeaderElectionAnnotation}}
 }
 
 // IgnoreWithMeta ignores resources with specified labels/annotations
