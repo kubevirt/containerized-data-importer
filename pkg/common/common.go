@@ -113,6 +113,9 @@ const (
 	// CloneTokenIssuer is the JWT issuer for clone tokens
 	CloneTokenIssuer = "cdi-apiserver"
 
-	// UploadPath is the path to POST CDI uploads
-	UploadPath = "/v1alpha1/upload"
+	// UploadPathSync is the path to POST CDI uploads
+	UploadPathSync = "/v1alpha1/upload"
+
+	// UploadPathAsync is the path to POST CDI uploads in async mode
+	UploadPathAsync = "/v1alpha1/upload-async"
 )

@@ -36,7 +36,6 @@ import (
 	"k8s.io/klog"
 
 	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
-	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 )
@@ -90,8 +89,8 @@ func UploadPossibleForPVC(pvc *v1.PersistentVolumeClaim) error {
 }
 
 // GetUploadServerURL returns the url the proxy should post to for a particular pvc
-func GetUploadServerURL(namespace, pvc string) string {
-	return fmt.Sprintf("https://%s.%s.svc%s", GetUploadResourceName(pvc), namespace, common.UploadPath)
+func GetUploadServerURL(namespace, pvc, path string) string {
+	return fmt.Sprintf("https://%s.%s.svc%s", GetUploadResourceName(pvc), namespace, path)
 }
 
 // NewUploadController returns a new UploadController

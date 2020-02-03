@@ -477,7 +477,7 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, ownerRefAnno strin
 	var ownerID string
 	podName := fmt.Sprintf("%s-%s-", common.ClonerSourcePodName, sourcePvcName)
 	id := string(pvc.GetUID())
-	url := GetUploadServerURL(pvc.Namespace, pvc.Name)
+	url := GetUploadServerURL(pvc.Namespace, pvc.Name, common.UploadPathSync)
 	pvcOwner := metav1.GetControllerOf(pvc)
 	if pvcOwner != nil && pvcOwner.Kind == "DataVolume" {
 		ownerID = string(pvcOwner.UID)
