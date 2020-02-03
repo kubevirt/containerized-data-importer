@@ -19,10 +19,7 @@ package keys
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/x509"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"reflect"
 
 	. "github.com/onsi/ginkgo"
@@ -35,18 +32,7 @@ import (
 	core "k8s.io/client-go/testing"
 
 	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
-	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
-
-func tlsSecretCreateAction(namespace, secretName string, keyPair *triple.KeyPair, caCert *x509.Certificate) core.Action {
-	return core.NewCreateAction(
-		schema.GroupVersionResource{
-			Resource: "secrets",
-			Version:  "v1",
-		},
-		namespace,
-		keystest.NewTLSSecret(namespace, secretName, keyPair, caCert, nil))
-}
 
 func privateKeySecretCreateAction(namespace, secretName string, privateKey *rsa.PrivateKey) core.Action {
 	secret, _ := keystest.NewPrivateKeySecret(namespace, secretName, privateKey)
@@ -137,202 +123,6 @@ func checkAction(expected, actual core.Action) {
 	}
 }
 
-var _ = Describe("Create CA", func() {
-	namespace := "default"
-	secret := "mysecret"
-
-	It("Should create a CA", func() {
-		kubeobjects := []runtime.Object{}
-
-		client := k8sfake.NewSimpleClientset(kubeobjects...)
-
-		By("Creating or getting a new CA")
-		keyPair, err := GetOrCreateCA(client, namespace, secret, "myca")
-		Expect(err).NotTo(HaveOccurred())
-
-		actions := []core.Action{}
-		actions = append(actions, secretGetAction(namespace, secret))
-		actions = append(actions, cdiConfigGetAction(namespace))
-		actions = append(actions, tlsSecretCreateAction(namespace, secret, keyPair, nil))
-
-		checkActions(actions, client.Actions())
-	})
-
-	It("Should get an existing CA", func() {
-		kubeobjects := []runtime.Object{}
-
-		caKeyPair, err := triple.NewCA("myca")
-		Expect(err).NotTo(HaveOccurred())
-
-		tlsSecret := keystest.NewTLSSecret(namespace, secret, caKeyPair, nil, nil)
-		kubeobjects = append(kubeobjects, tlsSecret)
-
-		client := k8sfake.NewSimpleClientset(kubeobjects...)
-
-		keyPair, err := GetOrCreateCA(client, namespace, secret, "myca")
-		Expect(err).NotTo(HaveOccurred())
-
-		actions := []core.Action{}
-		actions = append(actions, secretGetAction(namespace, secret))
-
-		checkActions(actions, client.Actions())
-
-		if !reflect.DeepEqual(caKeyPair, keyPair) {
-			Fail("Keys do not match")
-		}
-	})
-})
-
-var _ = Describe("Create Server Cert", func() {
-	namespace := "default"
-	secret := "mysecret"
-
-	It("Should create a Server Cert", func() {
-		kubeobjects := []runtime.Object{}
-
-		client := k8sfake.NewSimpleClientset(kubeobjects...)
-
-		caKeyPair, err := triple.NewCA("myca")
-		Expect(err).NotTo(HaveOccurred())
-
-		caKeyPair2, err := triple.NewCA("myca2")
-		Expect(err).NotTo(HaveOccurred())
-
-		serverKeyPair, err := GetOrCreateServerKeyPairAndCert(client,
-			namespace,
-			secret,
-			caKeyPair,
-			caKeyPair2.Cert,
-			"commonname",
-			"service",
-			nil,
-		)
-		Expect(err).NotTo(HaveOccurred())
-
-		actions := []core.Action{}
-		actions = append(actions, secretGetAction(namespace, secret))
-		actions = append(actions, cdiConfigGetAction(namespace))
-		actions = append(actions, tlsSecretCreateAction(namespace, secret, &serverKeyPair.KeyPair, caKeyPair2.Cert))
-
-		checkActions(actions, client.Actions())
-	})
-
-	It("Should get an existing Server Cert", func() {
-		kubeobjects := []runtime.Object{}
-
-		caKeyPair, err := triple.NewCA("myca")
-		Expect(err).NotTo(HaveOccurred())
-
-		caKeyPair2, err := triple.NewCA("myca2")
-		Expect(err).NotTo(HaveOccurred())
-
-		keyPair, err := triple.NewServerKeyPair(caKeyPair, "commonname", "service", namespace, "cluster.local", []string{}, []string{})
-		Expect(err).NotTo(HaveOccurred())
-
-		tlsSecret := keystest.NewTLSSecret(namespace, secret, keyPair, caKeyPair2.Cert, nil)
-
-		kubeobjects = append(kubeobjects, tlsSecret)
-
-		client := k8sfake.NewSimpleClientset(kubeobjects...)
-
-		serverKeyPairAndCert, err := GetOrCreateServerKeyPairAndCert(client,
-			namespace,
-			secret,
-			caKeyPair,
-			caKeyPair2.Cert,
-			"commonname",
-			"service",
-			nil,
-		)
-		Expect(err).NotTo(HaveOccurred())
-
-		actions := []core.Action{}
-		actions = append(actions, secretGetAction(namespace, secret))
-
-		checkActions(actions, client.Actions())
-
-		keyPairAndCert := &KeyPairAndCert{KeyPair: *keyPair, CACert: caKeyPair2.Cert}
-		if !reflect.DeepEqual(keyPairAndCert, serverKeyPairAndCert) {
-			Fail("Keys do not match")
-		}
-	})
-})
-
-var _ = Describe("Create Client Cert", func() {
-	namespace := "default"
-	secret := "mysecret"
-
-	It("Should create a Client Cert", func() {
-		kubeobjects := []runtime.Object{}
-
-		client := k8sfake.NewSimpleClientset(kubeobjects...)
-
-		caKeyPair, err := triple.NewCA("myca")
-		Expect(err).NotTo(HaveOccurred())
-
-		caKeyPair2, err := triple.NewCA("myca2")
-		Expect(err).NotTo(HaveOccurred())
-
-		clientKeyPair, err := GetOrCreateClientKeyPairAndCert(client,
-			namespace,
-			secret,
-			caKeyPair,
-			caKeyPair2.Cert,
-			"commonname",
-			[]string{"myorg"},
-			nil,
-		)
-		Expect(err).NotTo(HaveOccurred())
-
-		actions := []core.Action{}
-		actions = append(actions, secretGetAction(namespace, secret))
-		actions = append(actions, cdiConfigGetAction(namespace))
-		actions = append(actions, tlsSecretCreateAction(namespace, secret, &clientKeyPair.KeyPair, caKeyPair2.Cert))
-
-		checkActions(actions, client.Actions())
-	})
-
-	It("Should get an existing Client Cert", func() {
-		kubeobjects := []runtime.Object{}
-
-		caKeyPair, err := triple.NewCA("myca")
-		Expect(err).NotTo(HaveOccurred())
-
-		caKeyPair2, err := triple.NewCA("myca2")
-		Expect(err).NotTo(HaveOccurred())
-
-		keyPair, err := triple.NewClientKeyPair(caKeyPair, "commonname", []string{"myorg"})
-		Expect(err).NotTo(HaveOccurred())
-
-		tlsSecret := keystest.NewTLSSecret(namespace, secret, keyPair, caKeyPair2.Cert, nil)
-
-		kubeobjects = append(kubeobjects, tlsSecret)
-
-		client := k8sfake.NewSimpleClientset(kubeobjects...)
-
-		serverKeyPairAndCert, err := GetOrCreateClientKeyPairAndCert(client,
-			namespace,
-			secret,
-			caKeyPair,
-			caKeyPair2.Cert,
-			"commonname",
-			[]string{"myorg"},
-			nil,
-		)
-		Expect(err).NotTo(HaveOccurred())
-
-		actions := []core.Action{}
-		actions = append(actions, secretGetAction(namespace, secret))
-
-		checkActions(actions, client.Actions())
-
-		keyPairAndCert := &KeyPairAndCert{KeyPair: *keyPair, CACert: caKeyPair2.Cert}
-		if !reflect.DeepEqual(keyPairAndCert, serverKeyPairAndCert) {
-			Fail("Keys do not match")
-		}
-	})
-})
-
 var _ = Describe("Create Private Key", func() {
 	namespace := "default"
 	secret := "mysecret"
@@ -377,25 +167,5 @@ var _ = Describe("Create Private Key", func() {
 		if !reflect.DeepEqual(privateKey, returnedPrivateKey) {
 			Fail("Keys do not match")
 		}
-	})
-})
-
-var _ = Describe("Self Signed Cert", func() {
-	It("Should create a self signed cert, with a proper target directort", func() {
-		tempDir, err := ioutil.TempDir("", "certs_test")
-		defer os.RemoveAll(tempDir)
-		Expect(err).NotTo(HaveOccurred())
-
-		keyFile, certFile, err := GenerateSelfSignedCert(tempDir, "name", "namespace")
-		Expect(err).NotTo(HaveOccurred())
-		_, err = ioutil.ReadFile(keyFile)
-		Expect(err).NotTo(HaveOccurred())
-		_, err = ioutil.ReadFile(certFile)
-		Expect(err).NotTo(HaveOccurred())
-	})
-
-	It("Should NOT create a self signed cert, with an invalid directort", func() {
-		_, _, err := GenerateSelfSignedCert("/idontexistinthepath", "name", "namespace")
-		Expect(err).To(HaveOccurred())
 	})
 })

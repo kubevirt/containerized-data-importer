@@ -22,18 +22,18 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"github.com/pkg/errors"
-
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
-
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
 
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
+	certwatcher "kubevirt.io/containerized-data-importer/pkg/util/cert/watcher"
 	"kubevirt.io/containerized-data-importer/pkg/version/verflag"
 )
 
@@ -43,6 +43,12 @@ const (
 
 	// Default address api listens on.
 	defaultHost = "0.0.0.0"
+
+	caBundleFile = "/var/run/certs/cdi-apiserver-signer-bundle/ca-bundle.crt"
+
+	certDir  = "/var/run/certs/cdi-apiserver-server-cert/"
+	certFile = certDir + "tls.crt"
+	keyFile  = certDir + "tls.key"
 )
 
 var (
@@ -97,15 +103,29 @@ func main() {
 		klog.Fatalf("Unable to create authorizor: %v\n", errors.WithStack(err))
 	}
 
+	caBundle, err := ioutil.ReadFile(caBundleFile)
+	if err != nil {
+		klog.Fatalf("Unable to read ca bundle: %v\n", errors.WithStack(err))
+	}
+
+	certWatcher, err := certwatcher.New(certFile, keyFile)
+	if err != nil {
+		klog.Fatalf("Unable to create certwatcher: %v\n", errors.WithStack(err))
+	}
+
 	uploadApp, err := apiserver.NewCdiAPIServer(defaultHost,
 		defaultPort,
 		client,
 		aggregatorClient,
 		authorizor,
-		authConfigWatcher)
+		authConfigWatcher,
+		caBundle,
+		certWatcher)
 	if err != nil {
 		klog.Fatalf("Upload api failed to initialize: %v\n", errors.WithStack(err))
 	}
+
+	go certWatcher.Start(ch)
 
 	err = uploadApp.Start(ch)
 	if err != nil {

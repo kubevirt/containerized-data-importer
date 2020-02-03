@@ -18,7 +18,6 @@ package keystest
 
 import (
 	"crypto/rsa"
-	"crypto/x509"
 
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
@@ -26,35 +25,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
-	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
-
-// NewTLSSecret returns a new TLS secret from objects
-func NewTLSSecret(namespace, secretName string, keyPair *triple.KeyPair, caCert *x509.Certificate, owner *metav1.OwnerReference) *v1.Secret {
-	var privateKeyBytes, certBytes, caCertBytes []byte
-	privateKeyBytes = cert.EncodePrivateKeyPEM(keyPair.Key)
-	certBytes = cert.EncodeCertPEM(keyPair.Cert)
-
-	if caCert != nil {
-		caCertBytes = cert.EncodeCertPEM(caCert)
-	}
-
-	return NewTLSSecretFromBytes(namespace, secretName, privateKeyBytes, certBytes, caCertBytes, owner)
-}
-
-// NewTLSSecretFromBytes returns a new TLS secret from bytes
-func NewTLSSecretFromBytes(namespace, secretName string, privateKeyBytes, certBytes, caCertBytes []byte, owner *metav1.OwnerReference) *v1.Secret {
-	data := map[string][]byte{
-		"tls.key": privateKeyBytes,
-		"tls.crt": certBytes,
-	}
-
-	if caCertBytes != nil {
-		data["ca.crt"] = caCertBytes
-	}
-
-	return newSecret(namespace, secretName, data, owner)
-}
 
 // NewPrivateKeySecret returns a new private key secret
 func NewPrivateKeySecret(namespace, secretName string, privateKey *rsa.PrivateKey) (*v1.Secret, error) {

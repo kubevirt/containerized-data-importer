@@ -26,7 +26,6 @@ import (
 	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	. "kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/keys"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 )
@@ -1074,15 +1073,15 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, pvcUID string) *v1.Pod {
 					Env: []v1.EnvVar{
 						{
 							Name:  "CLIENT_KEY",
-							Value: "foo",
-						},
-						{
-							Name:  "CLIENT_CERT",
 							Value: "bar",
 						},
 						{
+							Name:  "CLIENT_CERT",
+							Value: "foo",
+						},
+						{
 							Name:  "SERVER_CA_CERT",
-							Value: string(getUploadServerCASecret().Data["tls.crt"]),
+							Value: string("baz"),
 						},
 						{
 							Name:  "UPLOAD_URL",
@@ -1194,7 +1193,6 @@ func createUploadPod(pvc *v1.PersistentVolumeClaim) *v1.Pod {
 
 func createUploadClonePod(pvc *v1.PersistentVolumeClaim, clientName string) *v1.Pod {
 	name := "cdi-upload-" + pvc.Name
-	secretName := name + "-server-tls"
 	requestImageSize, _ := getRequestedImageSize(pvc)
 
 	pod := &v1.Pod{
@@ -1234,37 +1232,16 @@ func createUploadClonePod(pvc *v1.PersistentVolumeClaim, clientName string) *v1.
 					},
 					Env: []v1.EnvVar{
 						{
-							Name: "TLS_KEY",
-							ValueFrom: &v1.EnvVarSource{
-								SecretKeyRef: &v1.SecretKeySelector{
-									LocalObjectReference: v1.LocalObjectReference{
-										Name: secretName,
-									},
-									Key: keys.KeyStoreTLSKeyFile,
-								},
-							},
+							Name:  "TLS_KEY",
+							Value: "bar",
 						},
 						{
-							Name: "TLS_CERT",
-							ValueFrom: &v1.EnvVarSource{
-								SecretKeyRef: &v1.SecretKeySelector{
-									LocalObjectReference: v1.LocalObjectReference{
-										Name: secretName,
-									},
-									Key: keys.KeyStoreTLSCertFile,
-								},
-							},
+							Name:  "TLS_CERT",
+							Value: "foo",
 						},
 						{
-							Name: "CLIENT_CERT",
-							ValueFrom: &v1.EnvVarSource{
-								SecretKeyRef: &v1.SecretKeySelector{
-									LocalObjectReference: v1.LocalObjectReference{
-										Name: secretName,
-									},
-									Key: keys.KeyStoreTLSCAFile,
-								},
-							},
+							Name:  "CLIENT_CERT",
+							Value: "baz",
 						},
 						{
 							Name:  common.UploadImageSize,

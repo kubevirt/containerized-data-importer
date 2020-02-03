@@ -20,10 +20,6 @@ import (
 	"context"
 	generrors "errors"
 	"fmt"
-
-	"kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
-	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
-
 	"os"
 	"reflect"
 	"time"
@@ -34,21 +30,15 @@ import (
 
 	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
-
+	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-
-	conditions "github.com/openshift/custom-resource-status/conditions/v1"
-
-	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-
 	"k8s.io/client-go/kubernetes/scheme"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	realClient "sigs.k8s.io/controller-runtime/pkg/client"
 	fakeClient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -57,8 +47,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiviaplha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	clusterResources "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	namespaceResources "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
+	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
 const (
@@ -231,7 +223,7 @@ var _ = Describe("Controller", func() {
 
 				Expect(route.Spec.To.Kind).Should(Equal("Service"))
 				Expect(route.Spec.To.Name).Should(Equal(uploadProxyServiceName))
-				Expect(route.Spec.TLS.DestinationCACertificate).Should(Equal("hello world"))
+				Expect(route.Spec.TLS.DestinationCACertificate).Should(Equal(testCertData))
 			})
 
 			It("can become become ready, un-ready, and ready again", func() {
@@ -242,8 +234,6 @@ var _ = Describe("Controller", func() {
 
 				resources, err := getAllResources(args.reconciler)
 				Expect(err).ToNot(HaveOccurred())
-
-				createUploadProxyCACertSecret(args.client)
 
 				for _, r := range resources {
 					d, ok := r.(*appsv1.Deployment)
@@ -423,7 +413,7 @@ var _ = Describe("Controller", func() {
 
 		DescribeTable("check detects upgrade correctly", func(prevVersion, newVersion string, shouldUpgrade, shouldError bool) {
 			//verify on int version is set
-			args := createFromArgs("cdi", newVersion)
+			args := createFromArgs(newVersion)
 			doReconcile(args)
 			setDeploymentsReady(args)
 
@@ -498,7 +488,7 @@ var _ = Describe("Controller", func() {
 					newVersion := "1.10.0"
 					prevVersion := "1.9.5"
 
-					args = createFromArgs("cdi", newVersion)
+					args = createFromArgs(newVersion)
 					doReconcile(args)
 
 					//set deployment to ready
@@ -529,7 +519,7 @@ var _ = Describe("Controller", func() {
 					newVersion := "1.10.0"
 					prevVersion := "1.9.5"
 
-					args = createFromArgs("cdi", newVersion)
+					args = createFromArgs(newVersion)
 					doReconcile(args)
 					setDeploymentsReady(args)
 
@@ -551,12 +541,6 @@ var _ = Describe("Controller", func() {
 					Expect(err).ToNot(HaveOccurred())
 
 					doReconcile(args)
-
-					//set deployment to ready
-					isReady := setDeploymentsReady(args)
-					Expect(isReady).Should(Equal(false))
-
-					doReconcile(args)
 					//verify the version cr is marked as deleted
 					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeleted))
 				})
@@ -572,7 +556,7 @@ var _ = Describe("Controller", func() {
 			newVersion := "1.10.0"
 			prevVersion := "1.9.5"
 
-			args = createFromArgs("cdi", newVersion)
+			args = createFromArgs(newVersion)
 			doReconcile(args)
 			setDeploymentsReady(args)
 
@@ -772,7 +756,7 @@ var _ = Describe("Controller", func() {
 						ImagePullPolicy: "FakePullPolicy",
 						Args:            []string{"-v=10"},
 					}
-					containers = append(containers, container)
+					deployment.Spec.Template.Spec.Containers = append(containers, container)
 
 					return toModify, deployment, nil
 				},
@@ -1003,7 +987,7 @@ var _ = Describe("Controller", func() {
 			newVersion := "1.10.0"
 			prevVersion := "1.9.5"
 
-			args = createFromArgs("cdi", newVersion)
+			args = createFromArgs(newVersion)
 			doReconcile(args)
 
 			setDeploymentsReady(args)
@@ -1196,8 +1180,6 @@ func setDeploymentsReady(args *args) bool {
 	Expect(err).ToNot(HaveOccurred())
 	running := false
 
-	createUploadProxyCACertSecret(args.client)
-
 	for _, r := range resources {
 		d, ok := r.(*appsv1.Deployment)
 		if !ok {
@@ -1296,11 +1278,11 @@ func reconcileRequest(name string) reconcile.Request {
 	return reconcile.Request{NamespacedName: types.NamespacedName{Name: name}}
 }
 
-func createFromArgs(namespace, version string) *args {
+func createFromArgs(version string) *args {
 	cdi := createCDI("cdi", "good uid")
 	scc := createSCC()
 	client := createClient(cdi, scc)
-	reconciler := createReconcilerWithVersion(client, version, namespace)
+	reconciler := createReconcilerWithVersion(client, version)
 
 	return &args{
 		cdi:        cdi,
@@ -1359,30 +1341,10 @@ func createSCC() *secv1.SecurityContextConstraints {
 	}
 }
 
-func createReconcilerWithVersion(client realClient.Client, version, namespace string) *ReconcileCDI {
-	clusterArgs := &clusterResources.FactoryArgs{Namespace: namespace}
-	namespacedArgs := &namespaceResources.FactoryArgs{
-		OperatorVersion:        version,
-		DeployClusterResources: "true",
-		ControllerImage:        "cdi-controller",
-		ImporterImage:          "cdi-importer",
-		ClonerImage:            "cdi-cloner",
-		APIServerImage:         "cdi-apiserver",
-		UploadProxyImage:       "cdi-uploadproxy",
-		UploadServerImage:      "cdi-uploadserver",
-		Verbosity:              "1",
-		PullPolicy:             "Always",
-		Namespace:              namespace,
-	}
-
-	return &ReconcileCDI{
-		client:         client,
-		scheme:         scheme.Scheme,
-		namespace:      namespace,
-		clusterArgs:    clusterArgs,
-		namespacedArgs: namespacedArgs,
-		watching:       true,
-	}
+func createReconcilerWithVersion(client realClient.Client, version string) *ReconcileCDI {
+	r := createReconciler(client)
+	r.namespacedArgs.OperatorVersion = version
+	return r
 }
 
 func createReconciler(client realClient.Client) *ReconcileCDI {
@@ -1410,27 +1372,10 @@ func createReconciler(client realClient.Client) *ReconcileCDI {
 		namespacedArgs: namespacedArgs,
 		callbacks:      make(map[reflect.Type][]ReconcileCallback),
 		watching:       true,
+		certManager:    newFakeCertManager(client, namespace),
 	}
 
 	addReconcileCallbacks(r)
 
 	return r
-}
-
-func createUploadProxyCACertSecret(client realClient.Client) {
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cdi-upload-proxy-ca-key",
-			Namespace: "cdi",
-		},
-		Data: map[string][]byte{
-			"tls.crt": []byte("hello world"),
-		},
-	}
-
-	err := client.Create(context.TODO(), secret)
-	if errors.IsAlreadyExists(err) {
-		return
-	}
-	Expect(err).ToNot(HaveOccurred())
 }

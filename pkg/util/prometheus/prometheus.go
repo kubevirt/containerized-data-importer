@@ -3,15 +3,17 @@ package prometheus
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
+	"path"
 	"time"
-
-	"k8s.io/klog"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
-	"kubevirt.io/containerized-data-importer/pkg/keys"
+	"k8s.io/client-go/util/cert"
+	"k8s.io/klog"
+
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -74,10 +76,24 @@ func (r *ProgressReader) updateProgress() bool {
 // in directory to store the self signed certificates that will be generated before starting the
 // http server.
 func StartPrometheusEndpoint(certsDirectory string) {
-	keyFile, certFile, err := keys.GenerateSelfSignedCert(certsDirectory, "cloner_target", "pod")
+	certBytes, keyBytes, err := cert.GenerateSelfSignedCertKey("cloner_target", nil, nil)
 	if err != nil {
+		klog.Error("Error generating cert for prometheus")
 		return
 	}
+
+	certFile := path.Join(certsDirectory, "tls.crt")
+	if err = ioutil.WriteFile(certFile, certBytes, 0600); err != nil {
+		klog.Error("Error writing cert file")
+		return
+	}
+
+	keyFile := path.Join(certsDirectory, "tls.key")
+	if err = ioutil.WriteFile(keyFile, keyBytes, 0600); err != nil {
+		klog.Error("Error writing key file")
+		return
+	}
+
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
 		if err := http.ListenAndServeTLS(":8443", certFile, keyFile, nil); err != nil {

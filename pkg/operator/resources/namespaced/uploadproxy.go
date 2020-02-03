@@ -19,8 +19,10 @@ package namespaced
 import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
@@ -32,6 +34,8 @@ func createUploadProxyResources(args *FactoryArgs) []runtime.Object {
 	return []runtime.Object{
 		createUploadProxyServiceAccount(),
 		createUploadProxyService(),
+		createUploadProxyRoleBinding(),
+		createUploadProxyRole(),
 		createUploadProxyDeployment(args.UploadProxyImage, args.Verbosity, args.PullPolicy),
 	}
 }
@@ -55,6 +59,28 @@ func createUploadProxyServiceAccount() *corev1.ServiceAccount {
 	return utils.CreateServiceAccount(uploadProxyResourceName)
 }
 
+func createUploadProxyRoleBinding() *rbacv1.RoleBinding {
+	return utils.CreateRoleBinding(uploadProxyResourceName, uploadProxyResourceName, uploadProxyResourceName, "")
+}
+
+func createUploadProxyRole() *rbacv1.Role {
+	role := utils.CreateRole(uploadProxyResourceName)
+	role.Rules = []rbacv1.PolicyRule{
+		{
+			APIGroups: []string{
+				"",
+			},
+			Resources: []string{
+				"configmaps",
+			},
+			Verbs: []string{
+				"get",
+			},
+		},
+	}
+	return role
+}
+
 func createUploadProxyDeployment(image, verbosity, pullPolicy string) *appsv1.Deployment {
 	deployment := utils.CreateDeployment(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, uploadProxyResourceName, int32(1))
 	container := utils.CreateContainer(uploadProxyResourceName, image, verbosity, corev1.PullPolicy(pullPolicy))
@@ -67,61 +93,6 @@ func createUploadProxyDeployment(image, verbosity, pullPolicy string) *appsv1.De
 						Name: "cdi-api-signing-key",
 					},
 					Key: "id_rsa.pub",
-				},
-			},
-		},
-		{
-			Name: "UPLOAD_SERVER_CLIENT_KEY",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "cdi-upload-server-client-key",
-					},
-					Key: "tls.key",
-				},
-			},
-		},
-		{
-			Name: "UPLOAD_SERVER_CLIENT_CERT",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "cdi-upload-server-client-key",
-					},
-					Key: "tls.crt",
-				},
-			},
-		},
-		{
-			Name: "UPLOAD_SERVER_CA_CERT",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "cdi-upload-server-client-key",
-					},
-					Key: "ca.crt",
-				},
-			},
-		},
-		{
-			Name: "SERVICE_TLS_KEY",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "cdi-upload-proxy-server-key",
-					},
-					Key: "tls.key",
-				},
-			},
-		},
-		{
-			Name: "SERVICE_TLS_CERT",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "cdi-upload-proxy-server-key",
-					},
-					Key: "tls.crt",
 				},
 			},
 		},
@@ -140,7 +111,56 @@ func createUploadProxyDeployment(image, verbosity, pullPolicy string) *appsv1.De
 		InitialDelaySeconds: 2,
 		PeriodSeconds:       5,
 	}
+	container.VolumeMounts = []corev1.VolumeMount{
+		{
+			Name:      "server-cert",
+			MountPath: "/var/run/certs/cdi-uploadproxy-server-cert",
+			ReadOnly:  true,
+		},
+		{
+			Name:      "client-cert",
+			MountPath: "/var/run/certs/cdi-uploadserver-client-cert",
+			ReadOnly:  true,
+		},
+	}
 	deployment.Spec.Template.Spec.Containers = []corev1.Container{container}
-
+	deployment.Spec.Template.Spec.Volumes = []corev1.Volume{
+		{
+			Name: "server-cert",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: "cdi-uploadproxy-server-cert",
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "tls.crt",
+							Path: "tls.crt",
+						},
+						{
+							Key:  "tls.key",
+							Path: "tls.key",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "client-cert",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: "cdi-uploadserver-client-cert",
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "tls.crt",
+							Path: "tls.crt",
+						},
+						{
+							Key:  "tls.key",
+							Path: "tls.key",
+						},
+					},
+				},
+			},
+		},
+	}
 	return deployment
 }

@@ -3,18 +3,18 @@ package controller
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"k8s.io/apimachinery/pkg/runtime"
-	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
-	"kubevirt.io/containerized-data-importer/pkg/common"
 	"sync"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
-
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 
-	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
+	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
+	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 )
 
 type CloneFixture struct {
@@ -26,7 +26,14 @@ var (
 	apiServerKeyOnce sync.Once
 )
 
-func testCreateClientKeyAndCert(ca *triple.KeyPair, commonName string, organizations []string) ([]byte, []byte, error) {
+type fakeCertGenerator struct {
+}
+
+func (cg *fakeCertGenerator) MakeClientCert(name string, groups []string, duration time.Duration) ([]byte, []byte, error) {
+	return []byte("foo"), []byte("bar"), nil
+}
+
+func (cg *fakeCertGenerator) MakeServerCert(namespace, service string, duration time.Duration) ([]byte, []byte, error) {
 	return []byte("foo"), []byte("bar"), nil
 }
 
@@ -52,10 +59,12 @@ func (f *CloneFixture) newCloneController() *CloneController {
 	cdiObjs = append(cdiObjs, createCDIConfigWithStorageClass(common.ConfigName, storageClassName))
 
 	return &CloneController{
-		Controller:     *f.newController("test/mycloneimage", "Always", "5"),
-		recorder:       &record.FakeRecorder{},
-		tokenValidator: v,
-		cdiClient:      cdifake.NewSimpleClientset(cdiObjs...),
+		Controller:          *f.newController("test/mycloneimage", "Always", "5"),
+		recorder:            &record.FakeRecorder{},
+		tokenValidator:      v,
+		cdiClient:           cdifake.NewSimpleClientset(cdiObjs...),
+		clientCertGenerator: &fakeCertGenerator{},
+		serverCAFetcher:     &fetcher.MemCertBundleFetcher{Bundle: []byte("baz")},
 	}
 }
 
@@ -132,25 +141,19 @@ func TestWaitsTargetRunningNoAnnotation(t *testing.T) {
 }
 
 func TestCreatesSourcePod(t *testing.T) {
-	createClientKeyAndCertFunc = testCreateClientKeyAndCert
-	defer func() {
-		createClientKeyAndCertFunc = createClientKeyAndCert
-	}()
 	f := newCloneFixture(t)
 	sourcePvc := createPvc("golden-pvc", "source-ns", nil, nil)
 	pvc := createClonePvc("source-ns", "golden-pvc", "target-ns", "target-pvc", nil, nil)
 	pvc.Annotations[AnnPodReady] = "true"
 
 	f.pvcLister = append(f.pvcLister, sourcePvc, pvc)
-	f.kubeobjects = append(f.kubeobjects, getUploadServerCASecret(), getUploadServerClientCASecret(), sourcePvc, pvc)
+	f.kubeobjects = append(f.kubeobjects, sourcePvc, pvc)
 
 	id := string(pvc.GetUID())
 	expSourcePod := createSourcePod(pvc, id)
 	pvcUpdate := pvc.DeepCopy()
 	pvcUpdate.Finalizers = []string{cloneSourcePodFinalizer}
 	f.expectUpdatePvcAction(pvcUpdate)
-	f.expectSecretGetAction(getUploadServerCASecret())
-	f.expectSecretGetAction(getUploadServerClientCASecret())
 	f.expectCreatePodAction(expSourcePod)
 
 	f.run(getPvcKey(pvc, t))

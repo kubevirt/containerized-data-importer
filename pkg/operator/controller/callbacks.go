@@ -23,10 +23,7 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
-
-	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -34,7 +31,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -73,9 +69,10 @@ type ReconcileState string
 
 // ReconcileCallbackArgs contains the data of a ReconcileCallback
 type ReconcileCallbackArgs struct {
-	Logger logr.Logger
-	Client client.Client
-	Scheme *runtime.Scheme
+	Logger    logr.Logger
+	Client    client.Client
+	Scheme    *runtime.Scheme
+	Namespace string
 
 	State         ReconcileState
 	DesiredObject runtime.Object
@@ -85,15 +82,12 @@ type ReconcileCallbackArgs struct {
 // ReconcileCallback is the callback function
 type ReconcileCallback func(args *ReconcileCallbackArgs) error
 
-func getExplicitWatchTypes() []runtime.Object {
-	return []runtime.Object{&routev1.Route{}}
-}
-
 func addReconcileCallbacks(r *ReconcileCDI) {
 	r.addCallback(&appsv1.Deployment{}, reconcileDeleteControllerDeployment)
 	r.addCallback(&corev1.ServiceAccount{}, reconcileServiceAccountRead)
 	r.addCallback(&corev1.ServiceAccount{}, reconcileServiceAccounts)
 	r.addCallback(&appsv1.Deployment{}, reconcileCreateRoute)
+	r.addCallback(&appsv1.Deployment{}, reconcileDeleteSecrets)
 }
 
 func isControllerDeployment(d *appsv1.Deployment) bool {
@@ -151,6 +145,43 @@ func reconcileCreateRoute(args *ReconcileCallbackArgs) error {
 
 	if err := ensureUploadProxyRouteExists(args.Logger, args.Client, args.Scheme, deployment); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// delete when we no longer support <= 1.12.0
+func reconcileDeleteSecrets(args *ReconcileCallbackArgs) error {
+	if args.State != ReconcileStatePostRead {
+		return nil
+	}
+
+	deployment := args.CurrentObject.(*appsv1.Deployment)
+	if !isControllerDeployment(deployment) || !checkDeploymentReady(deployment) {
+		return nil
+	}
+
+	for _, s := range []string{"cdi-api-server-cert",
+		"cdi-upload-proxy-ca-key",
+		"cdi-upload-proxy-server-key",
+		"cdi-upload-server-ca-key",
+		"cdi-upload-server-client-ca-key",
+		"cdi-upload-server-client-key"} {
+		secret := &corev1.Secret{}
+		key := client.ObjectKey{Namespace: args.Namespace, Name: s}
+		err := args.Client.Get(context.TODO(), key, secret)
+		if errors.IsNotFound(err) {
+			continue
+		}
+
+		if err != nil {
+			return err
+		}
+
+		err = args.Client.Delete(context.TODO(), secret)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -19,9 +19,9 @@ package controller
 import (
 	"context"
 
+	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 
-	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 

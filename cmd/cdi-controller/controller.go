@@ -21,7 +21,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
-
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
@@ -33,6 +32,9 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	csiclientset "kubevirt.io/containerized-data-importer/pkg/snapshot-client/clientset/versioned"
 	csiinformers "kubevirt.io/containerized-data-importer/pkg/snapshot-client/informers/externalversions"
+	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 )
 
 const (
@@ -104,6 +106,8 @@ func getRequiredEnvVar(name string) string {
 func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	klog.Info("Starting CDI controller components")
 
+	namespace := util.GetNamespace()
+
 	client, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
@@ -150,6 +154,20 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	snapshotInformer := csiInformerFactory.Snapshot().V1alpha1().VolumeSnapshots()
 	crdInformer := crdInformerFactory.Apiextensions().V1beta1().CustomResourceDefinitions().Informer()
 
+	uploadClientCAFetcher := &fetcher.FileCertFetcher{Name: "cdi-uploadserver-client-signer"}
+	uploadClientBundleFetcher := &fetcher.ConfigMapCertBundleFetcher{
+		Name:   "cdi-uploadserver-client-signer-bundle",
+		Client: client.CoreV1().ConfigMaps(namespace),
+	}
+	uploadClientCertGenerator := &generator.FetchCertGenerator{Fetcher: uploadClientCAFetcher}
+
+	uploadServerCAFetcher := &fetcher.FileCertFetcher{Name: "cdi-uploadserver-signer"}
+	uploadServerBundleFetcher := &fetcher.ConfigMapCertBundleFetcher{
+		Name:   "cdi-uploadserver-signer-bundle",
+		Client: client.CoreV1().ConfigMaps(namespace),
+	}
+	uploadServerCertGenerator := &generator.FetchCertGenerator{Fetcher: uploadServerCAFetcher}
+
 	dataVolumeController := controller.NewDataVolumeController(
 		client,
 		cdiClient,
@@ -170,6 +188,8 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		clonerImage,
 		pullPolicy,
 		verbose,
+		uploadClientCertGenerator,
+		uploadServerBundleFetcher,
 		getAPIServerPublicKey())
 
 	smartCloneController := controller.NewSmartCloneController(client,
@@ -188,7 +208,9 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		uploadServerImage,
 		uploadProxyServiceName,
 		pullPolicy,
-		verbose)
+		verbose,
+		uploadServerCertGenerator,
+		uploadClientBundleFetcher)
 
 	if _, err := controller.NewConfigController(mgr, cdiClient, client, log, uploadProxyServiceName, configName); err != nil {
 		klog.Errorf("Unable to setup config controller: %v", err)

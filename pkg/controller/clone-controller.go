@@ -21,6 +21,8 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 )
 
 const (
@@ -48,14 +50,18 @@ const (
 	cloneSourcePodFinalizer = "cdi.kubevirt.io/cloneSource"
 
 	cloneTokenLeeway = 10 * time.Second
+
+	uploadClientCertDuration = 365 * 24 * time.Hour
 )
 
 // CloneController represents the CDI Clone Controller
 type CloneController struct {
 	Controller
-	recorder       record.EventRecorder
-	tokenValidator token.Validator
-	cdiClient      clientset.Interface
+	recorder            record.EventRecorder
+	tokenValidator      token.Validator
+	cdiClient           clientset.Interface
+	clientCertGenerator generator.CertGenerator
+	serverCAFetcher     fetcher.CertBundleFetcher
 }
 
 // NewCloneController sets up a Clone Controller, and returns a pointer to
@@ -67,6 +73,8 @@ func NewCloneController(client kubernetes.Interface,
 	image string,
 	pullPolicy string,
 	verbose string,
+	clientCertGenerator generator.CertGenerator,
+	serverCAFetcher fetcher.CertBundleFetcher,
 	apiServerKey *rsa.PublicKey) *CloneController {
 
 	// Create event broadcaster
@@ -77,10 +85,12 @@ func NewCloneController(client kubernetes.Interface,
 	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: cloneControllerAgentName})
 
 	c := &CloneController{
-		Controller:     *NewController(client, pvcInformer, podInformer, image, pullPolicy, verbose),
-		recorder:       recorder,
-		tokenValidator: newCloneTokenValidator(apiServerKey),
-		cdiClient:      cdiClientSet,
+		Controller:          *NewController(client, pvcInformer, podInformer, image, pullPolicy, verbose),
+		recorder:            recorder,
+		tokenValidator:      newCloneTokenValidator(apiServerKey),
+		cdiClient:           cdiClientSet,
+		clientCertGenerator: clientCertGenerator,
+		serverCAFetcher:     serverCAFetcher,
 	}
 	return c
 }
@@ -164,9 +174,30 @@ func (cc *CloneController) processPvcItem(pvc *v1.PersistentVolumeClaim) error {
 			return err
 		}
 
+		clientCert, clientKey, err := cc.clientCertGenerator.MakeClientCert(clientName, nil, uploadClientCertDuration)
+		if err != nil {
+			return err
+		}
+
+		serverCABundle, err := cc.serverCAFetcher.BundleBytes()
+		if err != nil {
+			return err
+		}
+
 		cc.raisePodCreate(pvcKey)
 
-		sourcePod, err = CreateCloneSourcePod(cc.clientset, cc.cdiClient, cc.image, cc.pullPolicy, clientName, pvc)
+		args := CloneSourcePodArgs{
+			Client:       cc.clientset,
+			CDIClient:    cc.cdiClient,
+			Image:        cc.image,
+			PullPolicy:   cc.pullPolicy,
+			ServerCACert: serverCABundle,
+			ClientCert:   clientCert,
+			ClientKey:    clientKey,
+			PVC:          pvc,
+		}
+
+		sourcePod, err = CreateCloneSourcePod(args)
 		if err != nil {
 			cc.observePodCreate(pvcKey)
 			return err

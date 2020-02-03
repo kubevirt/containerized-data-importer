@@ -20,6 +20,7 @@
 package apiserver
 
 import (
+	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -31,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
+	k8scert "k8s.io/client-go/util/cert"
 	aggregatorapifake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -94,8 +96,9 @@ func TestNewCdiAPIServer(t *testing.T) {
 	aggregatorClient := aggregatorapifake.NewSimpleClientset()
 	authorizer := &testAuthorizer{}
 	authConfigWatcher := NewAuthConfigWatcher(client, ch)
+	caBundle := []byte("data")
 
-	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer, authConfigWatcher)
+	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer, authConfigWatcher, caBundle, nil)
 	if err != nil {
 		t.Errorf("Upload api server creation failed: %+v", err)
 	}
@@ -122,8 +125,9 @@ func TestAuthConfigUpdate(t *testing.T) {
 	aggregatorClient := aggregatorapifake.NewSimpleClientset()
 	authorizer := &testAuthorizer{}
 	acw := NewAuthConfigWatcher(client, ch).(*authConfigWatcher)
+	caBundle := []byte("data")
 
-	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer, acw)
+	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer, acw, caBundle, nil)
 	if err != nil {
 		t.Errorf("Upload api server creation failed: %+v", err)
 	}
@@ -146,6 +150,20 @@ func TestAuthConfigUpdate(t *testing.T) {
 	verifyAuthConfig(t, cm, app.authConfigWatcher.GetAuthConfig())
 }
 
+type fakeCertWatcher struct {
+	cert *tls.Certificate
+}
+
+func (fcw *fakeCertWatcher) GetCertificate(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	return fcw.cert, nil
+}
+
+func NewFakeCertWatcher() CertWatcher {
+	certBytes, keyBytes, _ := k8scert.GenerateSelfSignedCertKey("foobar", nil, nil)
+	c, _ := tls.X509KeyPair(certBytes, keyBytes)
+	return &fakeCertWatcher{cert: &c}
+}
+
 func TestGetTLSConfig(t *testing.T) {
 	ch := make(chan struct{})
 	cm := getAPIServerConfigMap(t)
@@ -156,8 +174,10 @@ func TestGetTLSConfig(t *testing.T) {
 	aggregatorClient := aggregatorapifake.NewSimpleClientset()
 	authorizer := &testAuthorizer{}
 	acw := NewAuthConfigWatcher(client, ch).(*authConfigWatcher)
+	caBundle := []byte("data")
+	certWatcher := NewFakeCertWatcher()
 
-	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer, acw)
+	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer, acw, caBundle, certWatcher)
 	if err != nil {
 		t.Errorf("Upload api server creation failed: %+v", err)
 	}

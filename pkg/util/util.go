@@ -20,6 +20,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
@@ -111,7 +112,7 @@ func GetAvailableSpaceBlock(deviceName string) int64 {
 	if err != nil {
 		return int64(-1)
 	}
-	i, err := strconv.ParseInt(strings.TrimSpace(string(out.Bytes())), 10, 64)
+	i, err := strconv.ParseInt(strings.TrimSpace(out.String()), 10, 64)
 	if err != nil {
 		return int64(-1)
 	}
@@ -198,7 +199,7 @@ func UnArchiveTar(reader io.Reader, destDir string, arg ...string) error {
 	}
 	err = untar.Wait()
 	if err != nil {
-		klog.V(3).Infof("%s\n", string(errBuf.Bytes()))
+		klog.V(3).Infof("%s\n", errBuf.String())
 		klog.Errorf("%s\n", err.Error())
 		return err
 	}

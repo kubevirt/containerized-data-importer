@@ -5,10 +5,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"time"
@@ -25,6 +22,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/token"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 )
 
 const (
@@ -44,6 +42,16 @@ type Server interface {
 	Start() error
 }
 
+// CertWatcher is the interface for resources that watch certs
+type CertWatcher interface {
+	GetCertificate(_ *tls.ClientHelloInfo) (*tls.Certificate, error)
+}
+
+// ClientCreator crates *http.Clients
+type ClientCreator interface {
+	CreateClient() (*http.Client, error)
+}
+
 type urlLookupFunc func(string, string) string
 
 type uploadProxyApp struct {
@@ -52,12 +60,11 @@ type uploadProxyApp struct {
 
 	client kubernetes.Interface
 
-	certBytes []byte
-	keyBytes  []byte
+	certWatcher CertWatcher
+
+	clientCreator ClientCreator
 
 	tokenValidator token.Validator
-
-	uploadServerClient *http.Client
 
 	mux *http.ServeMux
 
@@ -65,30 +72,29 @@ type uploadProxyApp struct {
 	urlResolver urlLookupFunc
 }
 
-var authHeaderMatcher *regexp.Regexp
-
-func init() {
-	authHeaderMatcher = regexp.MustCompile(`(?i)^Bearer\s+([A-Za-z0-9\-\._~\+\/]+)$`)
+type clientCreator struct {
+	certFetcher   fetcher.CertFetcher
+	bundleFetcher fetcher.CertBundleFetcher
 }
+
+var authHeaderMatcher = regexp.MustCompile(`(?i)^Bearer\s+([A-Za-z0-9\-\._~\+\/]+)$`)
 
 // NewUploadProxy returns an initialized uploadProxyApp
 func NewUploadProxy(bindAddress string,
 	bindPort uint,
 	apiServerPublicKey string,
-	uploadClientKey string,
-	uploadClientCert string,
-	uploadServerCert string,
-	serviceKey string,
-	serviceCert string,
+	certWatcher CertWatcher,
+	clientCertFetcher fetcher.CertFetcher,
+	serverCAFetcher fetcher.CertBundleFetcher,
 	client kubernetes.Interface) (Server, error) {
 	var err error
 	app := &uploadProxyApp{
-		bindAddress: bindAddress,
-		bindPort:    bindPort,
-		client:      client,
-		keyBytes:    []byte(serviceKey),
-		certBytes:   []byte(serviceCert),
-		urlResolver: controller.GetUploadServerURL,
+		bindAddress:   bindAddress,
+		bindPort:      bindPort,
+		certWatcher:   certWatcher,
+		clientCreator: &clientCreator{certFetcher: clientCertFetcher, bundleFetcher: serverCAFetcher},
+		client:        client,
+		urlResolver:   controller.GetUploadServerURL,
 	}
 	// retrieve RSA key used by apiserver to sign tokens
 	err = app.getSigningKey(apiServerPublicKey)
@@ -96,25 +102,36 @@ func NewUploadProxy(bindAddress string,
 		return nil, errors.Errorf("unable to retrieve apiserver signing key: %v", errors.WithStack(err))
 	}
 
-	// get upload server http client
-	err = app.getUploadServerClient(uploadClientKey, uploadClientCert, uploadServerCert)
-	if err != nil {
-		return nil, errors.Errorf("unable to create upload server client: %v\n", errors.WithStack(err))
-	}
-
 	app.initHandlers()
 
 	return app, nil
 }
 
-func (app *uploadProxyApp) getUploadServerClient(tlsClientKey, tlsClientCert, tlsServerCert string) error {
-	clientCert, err := tls.X509KeyPair([]byte(tlsClientCert), []byte(tlsClientKey))
+func (c *clientCreator) CreateClient() (*http.Client, error) {
+	clientCertBytes, err := c.certFetcher.CertBytes()
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	clientKeyBytes, err := c.certFetcher.KeyBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	serverBundleBytes, err := c.bundleFetcher.BundleBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	clientCert, err := tls.X509KeyPair(clientCertBytes, clientKeyBytes)
+	if err != nil {
+		return nil, err
 	}
 
 	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM([]byte(tlsServerCert))
+	if !caCertPool.AppendCertsFromPEM(serverBundleBytes) {
+		klog.Error("Error parsing uploadserver CA bundle")
+	}
 
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{clientCert},
@@ -123,11 +140,7 @@ func (app *uploadProxyApp) getUploadServerClient(tlsClientKey, tlsClientCert, tl
 	tlsConfig.BuildNameToCertificate()
 
 	transport := &http.Transport{TLSClientConfig: tlsConfig}
-	client := &http.Client{Transport: transport, Timeout: proxyRequestTimeout}
-
-	app.uploadServerClient = client
-
-	return nil
+	return &http.Client{Transport: transport, Timeout: proxyRequestTimeout}, nil
 }
 
 func (app *uploadProxyApp) initHandlers() {
@@ -213,7 +226,12 @@ func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.Resp
 
 	klog.V(3).Infof("Posting to: %s", url)
 
-	response, err := app.uploadServerClient.Do(req)
+	client, err := app.clientCreator.CreateClient()
+	if err != nil {
+		klog.Error("Error creating http client")
+	}
+
+	response, err := client.Do(req)
 	if err != nil {
 		klog.Errorf("Error proxying %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -252,27 +270,13 @@ func (app *uploadProxyApp) startTLS() error {
 		Handler: app,
 	}
 
-	if len(app.keyBytes) > 0 && len(app.certBytes) > 0 {
-		certsDirectory, err := ioutil.TempDir("", "certsdir")
-		if err != nil {
-			return errors.Errorf("unable to create certs temporary directory: %v\n", errors.WithStack(err))
-		}
-		defer os.RemoveAll(certsDirectory)
-
-		keyFile := filepath.Join(certsDirectory, "key.pem")
-		certFile := filepath.Join(certsDirectory, "cert.pem")
-
-		err = ioutil.WriteFile(keyFile, app.keyBytes, 0600)
-		if err != nil {
-			return err
-		}
-		err = ioutil.WriteFile(certFile, app.certBytes, 0600)
-		if err != nil {
-			return err
+	if app.certWatcher != nil {
+		server.TLSConfig = &tls.Config{
+			GetCertificate: app.certWatcher.GetCertificate,
 		}
 
 		serveFunc = func() error {
-			return server.ListenAndServeTLS(certFile, keyFile)
+			return server.ListenAndServeTLS("", "")
 		}
 	} else {
 		serveFunc = func() error {

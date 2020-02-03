@@ -168,6 +168,50 @@ github.com/onsi/gomega/gexec
 # github.com/openshift/api v0.0.0 => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
 github.com/openshift/api/route/v1
 github.com/openshift/api/security/v1
+github.com/openshift/api/operator/v1
+github.com/openshift/api/config/v1
+github.com/openshift/api
+github.com/openshift/api/apps
+github.com/openshift/api/authorization
+github.com/openshift/api/build
+github.com/openshift/api/config
+github.com/openshift/api/image
+github.com/openshift/api/imageregistry
+github.com/openshift/api/kubecontrolplane
+github.com/openshift/api/legacyconfig/v1
+github.com/openshift/api/network
+github.com/openshift/api/oauth
+github.com/openshift/api/openshiftcontrolplane
+github.com/openshift/api/operator
+github.com/openshift/api/osin
+github.com/openshift/api/project
+github.com/openshift/api/quota
+github.com/openshift/api/route
+github.com/openshift/api/samples
+github.com/openshift/api/security
+github.com/openshift/api/servicecertsigner
+github.com/openshift/api/template
+github.com/openshift/api/user
+github.com/openshift/api/apps/v1
+github.com/openshift/api/authorization/v1
+github.com/openshift/api/build/v1
+github.com/openshift/api/image/v1
+github.com/openshift/api/imageregistry/v1
+github.com/openshift/api/kubecontrolplane/v1
+github.com/openshift/api/network/v1
+github.com/openshift/api/oauth/v1
+github.com/openshift/api/openshiftcontrolplane/v1
+github.com/openshift/api/operator/v1alpha1
+github.com/openshift/api/osin/v1
+github.com/openshift/api/project/v1
+github.com/openshift/api/quota/v1
+github.com/openshift/api/samples/v1
+github.com/openshift/api/servicecertsigner/v1alpha1
+github.com/openshift/api/template/v1
+github.com/openshift/api/user/v1
+github.com/openshift/api/pkg/serialization
+github.com/openshift/api/image/docker10
+github.com/openshift/api/image/dockerpre012
 # github.com/openshift/client-go v0.0.0 => github.com/openshift/client-go v0.0.0-20191125132246-f6563a70e19a
 github.com/openshift/client-go/route/clientset/versioned
 github.com/openshift/client-go/security/clientset/versioned
@@ -177,6 +221,15 @@ github.com/openshift/client-go/route/clientset/versioned/scheme
 github.com/openshift/client-go/security/clientset/versioned/scheme
 # github.com/openshift/custom-resource-status v0.0.0-20190822192428-e62f2f3b79f3
 github.com/openshift/custom-resource-status/conditions/v1
+# github.com/openshift/library-go v0.0.0-20200114162033-e8b3a065ded2 => github.com/mhenriks/library-go v0.0.0-20200116194830-9fcc1a687a9d
+github.com/openshift/library-go/pkg/operator/certrotation
+github.com/openshift/library-go/pkg/certs
+github.com/openshift/library-go/pkg/crypto
+github.com/openshift/library-go/pkg/operator/condition
+github.com/openshift/library-go/pkg/operator/events
+github.com/openshift/library-go/pkg/operator/resource/resourceapply
+github.com/openshift/library-go/pkg/operator/v1helpers
+github.com/openshift/library-go/pkg/operator/resource/resourcemerge
 # github.com/operator-framework/go-appr v0.0.0-20180917210448-f2aef88446f2
 github.com/operator-framework/go-appr/appregistry
 github.com/operator-framework/go-appr/appregistry/blobs
@@ -395,6 +448,7 @@ k8s.io/api/scheduling/v1beta1
 k8s.io/api/settings/v1alpha1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/authentication/v1beta1
+k8s.io/api/imagepolicy/v1alpha1
 # k8s.io/apiextensions-apiserver v0.0.0 => k8s.io/apiextensions-apiserver v0.16.4
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset
@@ -452,10 +506,10 @@ k8s.io/apimachinery/pkg/runtime/serializer/protobuf
 k8s.io/apimachinery/pkg/runtime/serializer/recognizer
 k8s.io/apimachinery/pkg/runtime/serializer/versioning
 k8s.io/apimachinery/pkg/version
+k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/util/httpstream
 k8s.io/apimachinery/pkg/util/remotecommand
 k8s.io/apimachinery/third_party/forked/golang/reflect
-k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/apis/meta/internalversion
 k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/pkg/util/framer
@@ -463,6 +517,8 @@ k8s.io/apimachinery/pkg/util/yaml
 k8s.io/apimachinery/pkg/util/httpstream/spdy
 k8s.io/apimachinery/pkg/apis/meta/v1beta1
 k8s.io/apimachinery/third_party/forked/golang/netutil
+# k8s.io/apiserver v0.16.4 => k8s.io/apiserver v0.16.4
+k8s.io/apiserver/pkg/authentication/user
 # k8s.io/client-go v8.0.0+incompatible => k8s.io/client-go v0.16.4
 k8s.io/client-go/kubernetes
 k8s.io/client-go/tools/clientcmd
@@ -698,6 +754,7 @@ sigs.k8s.io/controller-runtime/pkg/runtime/signals
 sigs.k8s.io/controller-runtime/pkg/client/config
 sigs.k8s.io/controller-runtime/pkg/manager
 sigs.k8s.io/controller-runtime/pkg/runtime/log
+sigs.k8s.io/controller-runtime/pkg/cache
 sigs.k8s.io/controller-runtime/pkg/client
 sigs.k8s.io/controller-runtime/pkg/controller
 sigs.k8s.io/controller-runtime/pkg/event
@@ -708,7 +765,6 @@ sigs.k8s.io/controller-runtime/pkg/source
 sigs.k8s.io/controller-runtime/pkg/controller/controllerutil
 sigs.k8s.io/controller-runtime/pkg/manager/signals
 sigs.k8s.io/controller-runtime/pkg/internal/log
-sigs.k8s.io/controller-runtime/pkg/cache
 sigs.k8s.io/controller-runtime/pkg/client/apiutil
 sigs.k8s.io/controller-runtime/pkg/healthz
 sigs.k8s.io/controller-runtime/pkg/internal/recorder
@@ -719,11 +775,11 @@ sigs.k8s.io/controller-runtime/pkg/runtime/inject
 sigs.k8s.io/controller-runtime/pkg/webhook
 sigs.k8s.io/controller-runtime/pkg/log
 sigs.k8s.io/controller-runtime/pkg/log/zap
+sigs.k8s.io/controller-runtime/pkg/cache/internal
 sigs.k8s.io/controller-runtime/pkg/internal/controller
 sigs.k8s.io/controller-runtime/pkg/source/internal
 sigs.k8s.io/controller-runtime/pkg/client/fake
 sigs.k8s.io/controller-runtime/pkg/envtest
-sigs.k8s.io/controller-runtime/pkg/cache/internal
 sigs.k8s.io/controller-runtime/pkg/webhook/admission
 sigs.k8s.io/controller-runtime/pkg/webhook/internal/certwatcher
 sigs.k8s.io/controller-runtime/pkg/webhook/internal/metrics

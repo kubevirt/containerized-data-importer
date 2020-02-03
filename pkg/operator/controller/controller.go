@@ -23,10 +23,12 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/blang/semver"
 	"github.com/go-logr/logr"
-
+	"github.com/kelseyhightower/envconfig"
+	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -35,23 +37,20 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-
 	"k8s.io/apimachinery/pkg/runtime"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/kelseyhightower/envconfig"
-	conditions "github.com/openshift/custom-resource-status/conditions/v1"
-
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
+	cdicerts "kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -63,6 +62,8 @@ const (
 	createVersionLabel          = "operator.cdi.kubevirt.io/createVersion"
 	updateVersionLabel          = "operator.cdi.kubevirt.io/updateVersion"
 	lastAppliedConfigAnnotation = "operator.cdi.kubevirt.io/lastAppliedConfiguration"
+
+	certPollInterval = 1 * time.Minute
 )
 
 var log = logf.Log.WithName("cdi-operator")
@@ -93,13 +94,12 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 	log.Info("", "VARS", fmt.Sprintf("%+v", namespacedArgs))
 
 	r := &ReconcileCDI{
-		client:             mgr.GetClient(),
-		scheme:             mgr.GetScheme(),
-		namespace:          namespace,
-		clusterArgs:        clusterArgs,
-		namespacedArgs:     &namespacedArgs,
-		explicitWatchTypes: getExplicitWatchTypes(),
-		callbacks:          make(map[reflect.Type][]ReconcileCallback),
+		client:         mgr.GetClient(),
+		scheme:         mgr.GetScheme(),
+		namespace:      namespace,
+		clusterArgs:    clusterArgs,
+		namespacedArgs: &namespacedArgs,
+		callbacks:      make(map[reflect.Type][]ReconcileCallback),
 	}
 
 	addReconcileCallbacks(r)
@@ -121,11 +121,12 @@ type ReconcileCDI struct {
 	clusterArgs    *cdicluster.FactoryArgs
 	namespacedArgs *cdinamespaced.FactoryArgs
 
-	watching           bool
-	explicitWatchTypes []runtime.Object
-	watchMutex         sync.Mutex
+	watching   bool
+	watchMutex sync.Mutex
 
 	callbacks map[reflect.Type][]ReconcileCallback
+
+	certManager CertManager
 }
 
 // Reconcile reads that state of the cluster for a CDI object and makes changes based on the state read
@@ -194,6 +195,7 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 			return reconcile.Result{}, err
 		}
 	}
+
 	return res, err
 }
 
@@ -378,12 +380,16 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 					"name", desiredMetaObj.GetName(),
 					"type", fmt.Sprintf("%T", desiredMetaObj))
 			} else {
-				logger.Info("Resource unchanged",
+				logger.V(3).Info("Resource unchanged",
 					"namespace", desiredMetaObj.GetNamespace(),
 					"name", desiredMetaObj.GetName(),
 					"type", fmt.Sprintf("%T", desiredMetaObj))
 			}
 		}
+	}
+
+	if err = r.certManager.Sync(r.getCertificateDefinitions()); err != nil {
+		return reconcile.Result{}, err
 	}
 
 	degraded, err := r.checkDegraded(logger, cr)
@@ -410,7 +416,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		}
 	}
 
-	return reconcile.Result{}, nil
+	return reconcile.Result{RequeueAfter: certPollInterval}, nil
 }
 
 func (r *ReconcileCDI) completeUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) error {
@@ -507,7 +513,7 @@ func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1alpha
 
 func (r *ReconcileCDI) isMutable(obj runtime.Object) bool {
 	switch obj.(type) {
-	case *corev1.ConfigMap:
+	case *corev1.ConfigMap, *corev1.Secret:
 		return true
 	}
 	return false
@@ -613,6 +619,13 @@ func (r *ReconcileCDI) add(mgr manager.Manager) error {
 		return err
 	}
 
+	cm, err := NewCertManager(mgr, r.namespace)
+	if err != nil {
+		return err
+	}
+
+	r.certManager = cm
+
 	return nil
 }
 
@@ -634,14 +647,18 @@ func (r *ReconcileCDI) watchDependantResources() error {
 		return err
 	}
 
-	resources = append(resources, r.explicitWatchTypes...)
+	// append stuff for certs
+	resources = append(resources, &corev1.ConfigMap{}, &corev1.Secret{})
 
-	if err = r.watchResourceTypes(r.controller, resources); err != nil {
+	if err = r.watchResourceTypes(resources); err != nil {
 		return err
 	}
 
-	// would like to get rid of this
-	if err = r.watchSecurityContextConstraints(r.controller); err != nil {
+	if err = r.watchRoutes(); err != nil {
+		return err
+	}
+
+	if err = r.watchSecurityContextConstraints(); err != nil {
 		return err
 	}
 
@@ -709,6 +726,10 @@ func (r *ReconcileCDI) getNamespacedArgs(cr *cdiv1alpha1.CDI) *cdinamespaced.Fac
 	return &result
 }
 
+func (r *ReconcileCDI) getCertificateDefinitions() []cdicerts.CertificateDefinition {
+	return cdicerts.CreateCertificateDefinitions(&cdicerts.FactoryArgs{Namespace: r.namespace})
+}
+
 func (r *ReconcileCDI) getAllResources(cr *cdiv1alpha1.CDI) ([]runtime.Object, error) {
 	var resources []runtime.Object
 
@@ -730,10 +751,25 @@ func (r *ReconcileCDI) getAllResources(cr *cdiv1alpha1.CDI) ([]runtime.Object, e
 
 	resources = append(resources, nsrs...)
 
+	certs := r.getCertificateDefinitions()
+	for _, cert := range certs {
+		if cert.SignerSecret != nil {
+			resources = append(resources, cert.SignerSecret)
+		}
+
+		if cert.CertBundleConfigmap != nil {
+			resources = append(resources, cert.CertBundleConfigmap)
+		}
+
+		if cert.TargetSecret != nil {
+			resources = append(resources, cert.TargetSecret)
+		}
+	}
+
 	return resources, nil
 }
 
-func (r *ReconcileCDI) watchResourceTypes(c controller.Controller, resources []runtime.Object) error {
+func (r *ReconcileCDI) watchResourceTypes(resources []runtime.Object) error {
 	types := map[reflect.Type]bool{}
 
 	for _, resource := range resources {
@@ -742,17 +778,14 @@ func (r *ReconcileCDI) watchResourceTypes(c controller.Controller, resources []r
 			continue
 		}
 
-		if r.isMutable(resource) {
-			log.Info("NOT Watching", "type", t)
-			continue
-		}
-
 		eventHandler := &handler.EnqueueRequestForOwner{
 			IsController: true,
 			OwnerType:    &cdiv1alpha1.CDI{},
 		}
 
-		if err := c.Watch(&source.Kind{Type: resource}, eventHandler); err != nil {
+		predicates := []predicate.Predicate{NewIgnoreLeaderElectionPredicate()}
+
+		if err := r.controller.Watch(&source.Kind{Type: resource}, eventHandler, predicates...); err != nil {
 			if meta.IsNoMatchError(err) {
 				log.Info("No match for type, NOT WATCHING", "type", t)
 				continue
@@ -822,6 +855,7 @@ func (r *ReconcileCDI) invokeCallbacks(l logr.Logger, s ReconcileState, desiredO
 			Logger:        l,
 			Client:        r.client,
 			Scheme:        r.scheme,
+			Namespace:     r.namespace,
 			State:         s,
 			DesiredObject: desiredObj,
 			CurrentObject: currentObj,

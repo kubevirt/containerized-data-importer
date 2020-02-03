@@ -31,14 +31,12 @@ import (
 
 	"github.com/appscode/jsonpatch"
 	restful "github.com/emicklei/go-restful"
-
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
-
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
@@ -47,10 +45,7 @@ import (
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
-	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
-
-var foo aggregatorapifake.Clientset
 
 type testAuthorizer struct {
 	allowed bool
@@ -60,24 +55,6 @@ type testAuthorizer struct {
 
 func (a *testAuthorizer) Authorize(req *restful.Request) (bool, string, error) {
 	return a.allowed, a.reason, a.err
-}
-
-func newSuccessfulAuthorizer() CdiAPIAuthorizer {
-	return &testAuthorizer{true, "", nil}
-}
-
-func newFailureAuthorizer() CdiAPIAuthorizer {
-	return &testAuthorizer{false, "You are a bad person", fmt.Errorf("Not authorized")}
-}
-
-func apiServerConfigMapGetAction() core.Action {
-	return core.NewGetAction(
-		schema.GroupVersionResource{
-			Resource: "configmaps",
-			Version:  "v1",
-		},
-		"cdi",
-		"extension-apiserver-authentication")
 }
 
 func signingKeySecretGetAction() core.Action {
@@ -99,36 +76,6 @@ func signingKeySecretCreateAction(privateKey *rsa.PrivateKey) core.Action {
 		},
 		"cdi",
 		secret)
-}
-
-func tlsSecretGetAction() core.Action {
-	return core.NewGetAction(
-		schema.GroupVersionResource{
-			Resource: "secrets",
-			Version:  "v1",
-		},
-		"cdi",
-		apiCertSecretName)
-}
-
-func cdiConfigMapGetAction() core.Action {
-	return core.NewGetAction(
-		schema.GroupVersionResource{
-			Resource: "configmaps",
-			Version:  "v1",
-		},
-		"cdi",
-		apiCertSecretName)
-}
-
-func tlsSecretCreateAction(privateKeyBytes, certBytes, caCertBytes []byte) core.Action {
-	return core.NewCreateAction(
-		schema.GroupVersionResource{
-			Resource: "secrets",
-			Version:  "v1",
-		},
-		"cdi",
-		keystest.NewTLSSecretFromBytes("cdi", apiCertSecretName, privateKeyBytes, certBytes, caCertBytes, nil))
 }
 
 func apiServiceGetAction() core.Action {
@@ -403,29 +350,15 @@ func TestGetSelfSignedCert(t *testing.T) {
 		t.Errorf("error generating keys: %v", err)
 	}
 
-	caKeyPair, err := triple.NewCA("myca")
-	if err != nil {
-		t.Errorf("Error creating CA key pair")
-	}
-
-	serverKeyPair, err := triple.NewServerKeyPair(caKeyPair, "commonname", "service", "cdi", "cluster.local", []string{}, []string{})
-	if err != nil {
-		t.Errorf("Error creating server key pair")
-	}
-
 	signingKeySecret, err := keystest.NewPrivateKeySecret("cdi", apiSigningKeySecretName, signingKey)
 	if err != nil {
 		t.Errorf("error creating secret: %v", err)
 	}
 
-	tlsSecret := keystest.NewTLSSecret("cdi", apiCertSecretName, serverKeyPair, caKeyPair.Cert, nil)
-
 	kubeobjects := []runtime.Object{}
-	kubeobjects = append(kubeobjects, tlsSecret)
 	kubeobjects = append(kubeobjects, signingKeySecret)
 
 	actions := []core.Action{}
-	actions = append(actions, tlsSecretGetAction())
 	actions = append(actions, signingKeySecretGetAction())
 
 	client := k8sfake.NewSimpleClientset(kubeobjects...)
@@ -457,11 +390,8 @@ func TestShouldGenerateCertsAndKeyFirstRun(t *testing.T) {
 	}
 
 	actions := []core.Action{}
-	actions = append(actions, tlsSecretGetAction())
-	actions = append(actions, cdiConfigMapGetAction())
-	actions = append(actions, tlsSecretCreateAction(app.serverKeyBytes, app.serverCertBytes, app.serverCACertBytes))
 	actions = append(actions, signingKeySecretGetAction())
-	actions = append(actions, cdiConfigMapGetAction())
+	actions = append(actions, cdiConfigGetAction())
 	actions = append(actions, signingKeySecretCreateAction(app.privateSigningKey))
 
 	checkActions(actions, client.Actions(), t)
@@ -472,9 +402,9 @@ func TestCreateAPIService(t *testing.T) {
 	aggregatorClient := aggregatorapifake.NewSimpleClientset()
 
 	app := &cdiAPIApp{
-		client:            client,
-		aggregatorClient:  aggregatorClient,
-		serverCACertBytes: []byte("data"),
+		client:           client,
+		aggregatorClient: aggregatorClient,
+		caBundle:         []byte("data"),
 	}
 
 	err := app.createAPIService()
@@ -484,7 +414,7 @@ func TestCreateAPIService(t *testing.T) {
 
 	actions := []core.Action{}
 	actions = append(actions, apiServiceGetAction())
-	actions = append(actions, apiServiceCreateAction(app.serverCACertBytes))
+	actions = append(actions, apiServiceCreateAction(app.caBundle))
 
 	checkActions(actions, aggregatorClient.Actions(), t)
 }
@@ -500,9 +430,9 @@ func TestUpdateAPIService(t *testing.T) {
 	aggregatorClient := aggregatorapifake.NewSimpleClientset(kubeobjects...)
 
 	app := &cdiAPIApp{
-		client:            client,
-		aggregatorClient:  aggregatorClient,
-		serverCACertBytes: certBytes,
+		client:           client,
+		aggregatorClient: aggregatorClient,
+		caBundle:         certBytes,
 	}
 
 	err := app.createAPIService()
@@ -512,7 +442,7 @@ func TestUpdateAPIService(t *testing.T) {
 
 	actions := []core.Action{}
 	actions = append(actions, apiServiceGetAction())
-	actions = append(actions, apiServiceUpdateAction(app.serverCACertBytes))
+	actions = append(actions, apiServiceUpdateAction(app.caBundle))
 
 	checkActions(actions, aggregatorClient.Actions(), t)
 }
@@ -521,9 +451,9 @@ func TestCreateValidatingWebhook(t *testing.T) {
 	client := k8sfake.NewSimpleClientset()
 
 	app := &cdiAPIApp{
-		client:            client,
-		container:         restful.NewContainer(),
-		serverCACertBytes: []byte("bytes"),
+		client:    client,
+		container: restful.NewContainer(),
+		caBundle:  []byte("bytes"),
 	}
 
 	err := app.createValidatingWebhook()
@@ -543,9 +473,9 @@ func TestUpdateValidatingWebhook(t *testing.T) {
 	client := k8sfake.NewSimpleClientset(getExpectedValidatingWebhook())
 
 	app := &cdiAPIApp{
-		client:            client,
-		container:         restful.NewContainer(),
-		serverCACertBytes: []byte("bytes"),
+		client:    client,
+		container: restful.NewContainer(),
+		caBundle:  []byte("bytes"),
 	}
 
 	err := app.createValidatingWebhook()
@@ -564,9 +494,9 @@ func TestCreateMutatingWebhook(t *testing.T) {
 	client := k8sfake.NewSimpleClientset()
 
 	app := &cdiAPIApp{
-		client:            client,
-		container:         restful.NewContainer(),
-		serverCACertBytes: []byte("bytes"),
+		client:    client,
+		container: restful.NewContainer(),
+		caBundle:  []byte("bytes"),
 	}
 
 	err := app.createMutatingWebhook()
@@ -586,9 +516,9 @@ func TestUpdateMutatingWebhook(t *testing.T) {
 	client := k8sfake.NewSimpleClientset(getExpectedMutatingWebhook())
 
 	app := &cdiAPIApp{
-		client:            client,
-		container:         restful.NewContainer(),
-		serverCACertBytes: []byte("bytes"),
+		client:    client,
+		container: restful.NewContainer(),
+		caBundle:  []byte("bytes"),
 	}
 
 	err := app.createMutatingWebhook()
