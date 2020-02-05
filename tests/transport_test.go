@@ -110,14 +110,14 @@ var _ = Describe("Transport Tests", func() {
 			Expect(f.VerifyNotSparse(f.Namespace, pvc)).To(BeTrue())
 		} else {
 			By("Verify PVC status annotation says failed")
-			found, err := utils.WaitPVCPodStatusFailed(f.K8sClient, pvc)
+			found, err := utils.WaitPVCPodStatusRunning(f.K8sClient, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(found).To(BeTrue())
-			importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
-			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
-			By("Verifying PVC is empty")
-			By(fmt.Sprintf("importer.Spec.NodeName %q", importer.Spec.NodeName))
-			Expect(framework.VerifyPVCIsEmpty(f, pvc, importer.Spec.NodeName)).To(BeTrue(), fmt.Sprintf("Found >0 imported files on PVC %q", pvc.Namespace+"/"+pvc.Name))
+			Eventually(func() bool {
+				importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
+				Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
+				return importer.Status.ContainerStatuses[0].RestartCount > 0
+			}, timeout, pollingInterval).Should(BeTrue())
 		}
 	}
 

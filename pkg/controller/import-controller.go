@@ -229,9 +229,8 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	}
 
 	anno[AnnImportPod] = string(pod.Name)
-	if !scratchExitCode {
-		r.updatePvcPhaseFromPod(anno, pod)
-	}
+	// Even if scratch space is needed, the pod state will still remain running, until the new pod is started.
+	anno[AnnPodPhase] = string(pod.Status.Phase)
 
 	// Check if the POD is waiting for scratch space, if so create some.
 	if pod.Status.Phase == corev1.PodPending && r.requiresScratchSpace(pvc) {
@@ -271,19 +270,6 @@ func (r *ImportReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim) error {
 		return err
 	}
 	return nil
-}
-
-func (r *ImportReconciler) updatePvcPhaseFromPod(anno map[string]string, pod *corev1.Pod) {
-	// TODO: If we are in progress, and the pod phase is failed, we don't want the PVC to go into failed unless we have
-	// passed some threshold (number of retries, time passed, something). Otherwise the PVC can go from failed to in progress/success when
-	// a failed pod comes back to in progress/success.
-	anno[AnnPodPhase] = string(pod.Status.Phase)
-	//this is for a case where the import container is failing and the restartPolicy is OnFailure. In such case
-	//the pod phase is "Running" although the container state is Waiting. When the container recovers, its state
-	//changes back to "Running". If the pod failed because it didn't have scratch space, don't mark the import failed.
-	if pod.Status.Phase != corev1.PodPending && pod.Status.ContainerStatuses != nil && pod.Status.ContainerStatuses[0].State.Waiting != nil {
-		anno[AnnPodPhase] = string(corev1.PodFailed)
-	}
 }
 
 func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) error {

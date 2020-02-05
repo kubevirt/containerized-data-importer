@@ -3,10 +3,11 @@ package controller
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/runtime"
-	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"reflect"
 	"strconv"
+
+	"k8s.io/apimachinery/pkg/runtime"
+	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
@@ -279,7 +280,7 @@ var _ = Describe("Update PVC from POD", func() {
 		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodRunning)}, nil)
 		pod := createImporterTestPod(pvc, "testPvc1", nil)
 		pod.Status = corev1.PodStatus{
-			Phase: corev1.PodFailed,
+			Phase: corev1.PodRunning,
 			ContainerStatuses: []corev1.ContainerStatus{
 				{
 					LastTerminationState: corev1.ContainerState{
