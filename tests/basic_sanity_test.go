@@ -92,11 +92,11 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			ValidateRBACForResource(f, podExpectedResult, "pods/finalizers", sa)
 
 			secretsExpectedResult := make(map[string]string)
-			secretsExpectedResult["get"] = "yes"
-			secretsExpectedResult["list"] = "yes"
-			secretsExpectedResult["watch"] = "yes"
+			secretsExpectedResult["get"] = "no"
+			secretsExpectedResult["list"] = "no"
+			secretsExpectedResult["watch"] = "no"
 			secretsExpectedResult["delete"] = "no"
-			secretsExpectedResult["create"] = "yes"
+			secretsExpectedResult["create"] = "no"
 			secretsExpectedResult["update"] = "no"
 			secretsExpectedResult["patch"] = "no"
 			secretsExpectedResult["deletecollection"] = "no"
