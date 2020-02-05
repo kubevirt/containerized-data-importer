@@ -91,15 +91,15 @@ kubectl apply -f manifests/example/upload-datavolume.yaml
 ## Request an Upload Token
 Before sending data to the Upload Proxy, an Upload Token must be requested.
 
-Take a look at at `manifests/example/upload-token.yaml` for an example.
+Take a look at at `manifests/example/upload-datavolume-token.yaml` for an example.
 ```yaml
 apiVersion: upload.cdi.kubevirt.io/v1alpha1
 kind: UploadTokenRequest
 metadata:
-  name: upload-test
+  name: upload-datavolume
   namespace: default
 spec:
-  pvcName: upload-test
+  pvcName: upload-datavolume
 
 ```
 ```bash
