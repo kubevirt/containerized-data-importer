@@ -146,7 +146,7 @@ kind: ServiceAccount
 metadata:
   name: local-storage-admin
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: local-volume-provisioner
