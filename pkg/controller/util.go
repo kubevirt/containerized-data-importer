@@ -156,16 +156,6 @@ func getSecretName(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (
 		klog.V(2).Infof(msg+"\n", AnnSecret, ns, pvc.Name)
 		return "", nil // importer pod will not contain secret credentials
 	}
-	klog.V(3).Infof("getEndpointSecret: retrieving Secret \"%s/%s\"\n", ns, name)
-	_, err := client.CoreV1().Secrets(ns).Get(name, metav1.GetOptions{})
-	if k8serrors.IsNotFound(err) {
-		klog.V(1).Infof("secret %q defined in pvc \"%s/%s\" is missing. Importer pod will run once this secret is created\n", name, ns, pvc.Name)
-		return name, nil
-	}
-	if err != nil {
-		return "", errors.Wrapf(err, "error getting secret %q defined in pvc \"%s/%s\"", name, ns, pvc.Name)
-	}
-	klog.V(1).Infof("retrieved secret %q defined in pvc \"%s/%s\"\n", name, ns, pvc.Name)
 	return name, nil
 }
 

@@ -67,6 +67,19 @@ func createControllerRole() *rbacv1.Role {
 				"*",
 			},
 		},
+		{
+			APIGroups: []string{
+				"",
+			},
+			Resources: []string{
+				"secrets",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
 	}
 	return role
 }

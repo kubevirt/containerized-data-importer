@@ -99,20 +99,6 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 		},
 		{
 			APIGroups: []string{
-				"",
-			},
-			Resources: []string{
-				"secrets",
-			},
-			Verbs: []string{
-				"get",
-				"create",
-				"list",
-				"watch",
-			},
-		},
-		{
-			APIGroups: []string{
 				"extensions",
 			},
 			Resources: []string{
