@@ -99,7 +99,7 @@ func NewQEMUOperations() QEMUOperations {
 }
 
 func convertToRaw(src, dest string) error {
-	_, err := qemuExecFunction(nil, nil, "qemu-img", "convert", "-p", "-O", "raw", "-o", "preallocation=falloc", src, dest)
+	_, err := qemuExecFunction(nil, nil, "qemu-img", "convert", "-t", "none", "-p", "-O", "raw", "-o", "preallocation=falloc", src, dest)
 	if err != nil {
 		os.Remove(dest)
 		return errors.Wrap(err, "could not convert image to raw")
@@ -115,7 +115,7 @@ func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string) error {
 	}
 	jsonArg := fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", url.Scheme, url, networkTimeoutSecs)
 
-	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", "convert", "-p", "-O", "raw", "-o", "preallocation=falloc", jsonArg, dest)
+	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", "convert", "-t", "none", "-p", "-O", "raw", "-o", "preallocation=falloc", jsonArg, dest)
 	if err != nil {
 		// TODO: Determine what to do here, the conversion failed, and we need to clean up the mess, but we could be writing to a block device
 		os.Remove(dest)
