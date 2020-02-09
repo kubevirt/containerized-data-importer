@@ -19,8 +19,10 @@ package cluster
 import (
 	"fmt"
 
+	"github.com/go-logr/logr"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
@@ -28,16 +30,24 @@ import (
 // FactoryArgs contains the required parameters to generate all cluster-scoped resources
 type FactoryArgs struct {
 	Namespace string
+	Client    client.Client
+	Logger    logr.Logger
 }
 
 type factoryFunc func(*FactoryArgs) []runtime.Object
 
-var factoryFunctions = map[string]factoryFunc{
-	"apiserver-rbac":   createAPIServerResources,
+type factoryFuncMap map[string]factoryFunc
+
+var staticFactoryFunctions = factoryFuncMap{
+	"apiserver-rbac":   createStaticAPIServerResources,
 	"controller-rbac":  createControllerResources,
 	"crd-resources":    createCRDResources,
 	"uploadproxy-rbac": createUploadProxyResources,
 	"aggregate-roles":  createAggregateClusterRoles,
+}
+
+var dynamicFactoryFunctions = factoryFuncMap{
+	"apiserver-registrations": createDynamicAPIServerResources,
 }
 
 func createCRDResources(args *FactoryArgs) []runtime.Object {
@@ -47,11 +57,30 @@ func createCRDResources(args *FactoryArgs) []runtime.Object {
 	}
 }
 
-// CreateAllResources creates all cluster-wide resources
-func CreateAllResources(args *FactoryArgs) ([]runtime.Object, error) {
+// CreateAllStaticResources creates all static cluster-wide resources
+func CreateAllStaticResources(args *FactoryArgs) ([]runtime.Object, error) {
+	return createAllResources(staticFactoryFunctions, args)
+}
+
+// CreateStaticResourceGroup creates all static cluster resources for a specific group/component
+func CreateStaticResourceGroup(group string, args *FactoryArgs) ([]runtime.Object, error) {
+	return createResourceGroup(staticFactoryFunctions, group, args)
+}
+
+// CreateAllDynamicResources creates all dynamic cluster-wide resources
+func CreateAllDynamicResources(args *FactoryArgs) ([]runtime.Object, error) {
+	return createAllResources(dynamicFactoryFunctions, args)
+}
+
+// CreateDynamicResourceGroup creates all dynamic cluster resources for a specific group/component
+func CreateDynamicResourceGroup(group string, args *FactoryArgs) ([]runtime.Object, error) {
+	return createResourceGroup(dynamicFactoryFunctions, group, args)
+}
+
+func createAllResources(funcMap factoryFuncMap, args *FactoryArgs) ([]runtime.Object, error) {
 	var resources []runtime.Object
-	for group := range factoryFunctions {
-		rs, err := CreateResourceGroup(group, args)
+	for group := range funcMap {
+		rs, err := createResourceGroup(funcMap, group, args)
 		if err != nil {
 			return nil, err
 		}
@@ -60,9 +89,8 @@ func CreateAllResources(args *FactoryArgs) ([]runtime.Object, error) {
 	return resources, nil
 }
 
-// CreateResourceGroup creates all cluster resources fr a specific group/component
-func CreateResourceGroup(group string, args *FactoryArgs) ([]runtime.Object, error) {
-	f, ok := factoryFunctions[group]
+func createResourceGroup(funcMap factoryFuncMap, group string, args *FactoryArgs) ([]runtime.Object, error) {
+	f, ok := funcMap[group]
 	if !ok {
 		return nil, fmt.Errorf("group %s does not exist", group)
 	}

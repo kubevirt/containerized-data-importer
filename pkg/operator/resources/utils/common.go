@@ -29,10 +29,13 @@ import (
 const (
 	// SCCAnnotation is the annotation listing SCCs for a SA
 	SCCAnnotation = "cdi-scc"
+
+	// CDILabel is the labe applied to all non operator resources
+	CDILabel = "cdi.kubevirt.io"
 )
 
 var commonLabels = map[string]string{
-	"cdi.kubevirt.io": "",
+	CDILabel: "",
 }
 
 var operatorLabels = map[string]string{

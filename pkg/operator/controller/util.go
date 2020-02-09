@@ -18,7 +18,6 @@ package controller
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -60,8 +59,7 @@ func mergeObject(desiredObj, currentObj runtime.Object) (runtime.Object, error) 
 
 	v, ok := currentMetaObj.GetAnnotations()[lastAppliedConfigAnnotation]
 	if !ok {
-		return nil, fmt.Errorf("%T %s/%s missing last applied config",
-			currentMetaObj, currentMetaObj.GetNamespace(), currentMetaObj.GetName())
+		log.Info("Resource missing last applied config", "resource", currentMetaObj)
 	}
 
 	original := []byte(v)

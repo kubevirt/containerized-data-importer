@@ -222,13 +222,13 @@ github.com/openshift/client-go/security/clientset/versioned/scheme
 # github.com/openshift/custom-resource-status v0.0.0-20190822192428-e62f2f3b79f3
 github.com/openshift/custom-resource-status/conditions/v1
 # github.com/openshift/library-go v0.0.0-20200114162033-e8b3a065ded2 => github.com/mhenriks/library-go v0.0.0-20200116194830-9fcc1a687a9d
-github.com/openshift/library-go/pkg/operator/certrotation
-github.com/openshift/library-go/pkg/certs
 github.com/openshift/library-go/pkg/crypto
-github.com/openshift/library-go/pkg/operator/condition
+github.com/openshift/library-go/pkg/operator/certrotation
 github.com/openshift/library-go/pkg/operator/events
-github.com/openshift/library-go/pkg/operator/resource/resourceapply
 github.com/openshift/library-go/pkg/operator/v1helpers
+github.com/openshift/library-go/pkg/certs
+github.com/openshift/library-go/pkg/operator/condition
+github.com/openshift/library-go/pkg/operator/resource/resourceapply
 github.com/openshift/library-go/pkg/operator/resource/resourcemerge
 # github.com/operator-framework/go-appr v0.0.0-20180917210448-f2aef88446f2
 github.com/operator-framework/go-appr/appregistry
@@ -410,9 +410,9 @@ honnef.co/go/tools/go/types/typeutil
 honnef.co/go/tools/internal/renameio
 # k8s.io/api v0.16.4 => k8s.io/api v0.16.4
 k8s.io/api/core/v1
-k8s.io/api/admissionregistration/v1beta1
 k8s.io/api/authorization/v1beta1
 k8s.io/api/admission/v1beta1
+k8s.io/api/admissionregistration/v1beta1
 k8s.io/api/authentication/v1
 k8s.io/api/authorization/v1
 k8s.io/api/extensions/v1beta1
@@ -538,8 +538,8 @@ k8s.io/client-go/testing
 k8s.io/client-go/informers/core/v1
 k8s.io/client-go/listers/core/v1
 k8s.io/client-go/util/workqueue
-k8s.io/client-go/tools/remotecommand
 k8s.io/client-go/util/cert
+k8s.io/client-go/tools/remotecommand
 k8s.io/client-go/kubernetes/typed/admissionregistration/v1
 k8s.io/client-go/kubernetes/typed/admissionregistration/v1beta1
 k8s.io/client-go/kubernetes/typed/apps/v1
@@ -610,9 +610,9 @@ k8s.io/client-go/util/retry
 k8s.io/client-go/tools/record/util
 k8s.io/client-go/kubernetes/fake
 k8s.io/client-go/dynamic
+k8s.io/client-go/util/keyutil
 k8s.io/client-go/transport/spdy
 k8s.io/client-go/util/exec
-k8s.io/client-go/util/keyutil
 k8s.io/client-go/tools/clientcmd/api/v1
 k8s.io/client-go/informers/admissionregistration/v1
 k8s.io/client-go/informers/admissionregistration/v1beta1

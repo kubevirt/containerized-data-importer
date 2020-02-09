@@ -17,50 +17,45 @@ limitations under the License.
 package cluster
 
 import (
+	"context"
+	"fmt"
+
+	"github.com/go-logr/logr"
+	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
 const (
 	apiServerResourceName = "cdi-apiserver"
+	apiServerServiceName  = "cdi-api"
 )
 
-func createAPIServerResources(args *FactoryArgs) []runtime.Object {
+func createStaticAPIServerResources(args *FactoryArgs) []runtime.Object {
 	return []runtime.Object{
 		createAPIServerClusterRole(),
 		createAPIServerClusterRoleBinding(args.Namespace),
 	}
 }
 
+func createDynamicAPIServerResources(args *FactoryArgs) []runtime.Object {
+	return []runtime.Object{
+		createAPIService(args.Namespace, args.Client, args.Logger),
+		createAPIServerValidatingWebhook(args.Namespace, args.Client, args.Logger),
+		createAPIServerMutatingWebhook(args.Namespace, args.Client, args.Logger),
+	}
+}
+
 func getAPIServerClusterPolicyRules() []rbacv1.PolicyRule {
 	return []rbacv1.PolicyRule{
-		{
-			APIGroups: []string{
-				"admissionregistration.k8s.io",
-			},
-			Resources: []string{
-				"validatingwebhookconfigurations",
-				"mutatingwebhookconfigurations",
-			},
-			Verbs: []string{
-				"get",
-				"create",
-				"update",
-			},
-		},
-		{
-			APIGroups: []string{
-				"apiregistration.k8s.io",
-			},
-			Resources: []string{
-				"apiservices",
-			},
-			Verbs: []string{
-				"get",
-				"create",
-				"update",
-			},
-		},
 		{
 			APIGroups: []string{
 				"authorization.k8s.io",
@@ -108,6 +103,164 @@ func getAPIServerClusterPolicyRules() []rbacv1.PolicyRule {
 			},
 		},
 	}
+}
+
+func createAPIService(namespace string, c client.Client, l logr.Logger) *apiregistrationv1beta1.APIService {
+	apiService := &apiregistrationv1beta1.APIService{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apiregistration.k8s.io/v1beta1",
+			Kind:       "APIService",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("%s.%s", cdiuploadv1alpha1.SchemeGroupVersion.Version, cdiuploadv1alpha1.SchemeGroupVersion.Group),
+			Labels: map[string]string{
+				utils.CDILabel: apiServerServiceName,
+			},
+		},
+		Spec: apiregistrationv1beta1.APIServiceSpec{
+			Service: &apiregistrationv1beta1.ServiceReference{
+				Namespace: namespace,
+				Name:      apiServerServiceName,
+			},
+			Group:                cdiuploadv1alpha1.SchemeGroupVersion.Group,
+			Version:              cdiuploadv1alpha1.SchemeGroupVersion.Version,
+			GroupPriorityMinimum: 1000,
+			VersionPriority:      15,
+		},
+	}
+
+	if c == nil {
+		return apiService
+	}
+
+	bundle := getAPIServerCABundle(namespace, c, l)
+	if bundle != nil {
+		apiService.Spec.CABundle = bundle
+	}
+
+	return apiService
+}
+
+func createAPIServerValidatingWebhook(namespace string, c client.Client, l logr.Logger) *admissionregistrationv1beta1.ValidatingWebhookConfiguration {
+	path := "/datavolume-validate"
+	failurePolicy := admissionregistrationv1beta1.Fail
+	whc := &admissionregistrationv1beta1.ValidatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "admissionregistration.k8s.io/v1beta1",
+			Kind:       "ValidatingWebhookConfiguration",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cdi-api-datavolume-validate",
+			Labels: map[string]string{
+				utils.CDILabel: apiServerServiceName,
+			},
+		},
+		Webhooks: []admissionregistrationv1beta1.ValidatingWebhook{
+			{
+				Name: "datavolume-validate.cdi.kubevirt.io",
+				Rules: []admissionregistrationv1beta1.RuleWithOperations{{
+					Operations: []admissionregistrationv1beta1.OperationType{
+						admissionregistrationv1beta1.Create,
+						admissionregistrationv1beta1.Update,
+					},
+					Rule: admissionregistrationv1beta1.Rule{
+						APIGroups:   []string{cdicorev1alpha1.SchemeGroupVersion.Group},
+						APIVersions: []string{cdicorev1alpha1.SchemeGroupVersion.Version},
+						Resources:   []string{"datavolumes"},
+					},
+				}},
+				ClientConfig: admissionregistrationv1beta1.WebhookClientConfig{
+					Service: &admissionregistrationv1beta1.ServiceReference{
+						Namespace: namespace,
+						Name:      apiServerServiceName,
+						Path:      &path,
+					},
+				},
+				FailurePolicy: &failurePolicy,
+			},
+		},
+	}
+
+	if c == nil {
+		return whc
+	}
+
+	bundle := getAPIServerCABundle(namespace, c, l)
+	if bundle != nil {
+		whc.Webhooks[0].ClientConfig.CABundle = bundle
+	}
+
+	return whc
+}
+
+func createAPIServerMutatingWebhook(namespace string, c client.Client, l logr.Logger) *admissionregistrationv1beta1.MutatingWebhookConfiguration {
+	path := "/datavolume-mutate"
+	failurePolicy := admissionregistrationv1beta1.Fail
+	whc := &admissionregistrationv1beta1.MutatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "admissionregistration.k8s.io/v1beta1",
+			Kind:       "MutatingWebhookConfiguration",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cdi-api-datavolume-mutate",
+			Labels: map[string]string{
+				utils.CDILabel: apiServerServiceName,
+			},
+		},
+		Webhooks: []admissionregistrationv1beta1.MutatingWebhook{
+			{
+				Name: "datavolume-mutate.cdi.kubevirt.io",
+				Rules: []admissionregistrationv1beta1.RuleWithOperations{{
+					Operations: []admissionregistrationv1beta1.OperationType{
+						admissionregistrationv1beta1.Create,
+						admissionregistrationv1beta1.Update,
+					},
+					Rule: admissionregistrationv1beta1.Rule{
+						APIGroups:   []string{cdicorev1alpha1.SchemeGroupVersion.Group},
+						APIVersions: []string{cdicorev1alpha1.SchemeGroupVersion.Version},
+						Resources:   []string{"datavolumes"},
+					},
+				}},
+				ClientConfig: admissionregistrationv1beta1.WebhookClientConfig{
+					Service: &admissionregistrationv1beta1.ServiceReference{
+						Namespace: namespace,
+						Name:      apiServerServiceName,
+						Path:      &path,
+					},
+				},
+				FailurePolicy: &failurePolicy,
+			},
+		},
+	}
+
+	if c == nil {
+		return whc
+	}
+
+	bundle := getAPIServerCABundle(namespace, c, l)
+	if bundle != nil {
+		whc.Webhooks[0].ClientConfig.CABundle = bundle
+	}
+
+	return whc
+}
+
+func getAPIServerCABundle(namespace string, c client.Client, l logr.Logger) []byte {
+	cm := &corev1.ConfigMap{}
+	key := client.ObjectKey{Namespace: namespace, Name: "cdi-apiserver-signer-bundle"}
+	if err := c.Get(context.TODO(), key, cm); err != nil {
+		if l != nil {
+			l.Error(err, "error getting apiserver ca bundle")
+		}
+		return nil
+	}
+	if cert, ok := cm.Data["ca-bundle.crt"]; ok {
+		return []byte(cert)
+	}
+	if l != nil {
+		l.V(2).Info("apiserver ca bundle missing from configmap")
+	}
+	return nil
 }
 
 func createAPIServerClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {

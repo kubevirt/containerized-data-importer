@@ -96,9 +96,8 @@ func TestNewCdiAPIServer(t *testing.T) {
 	aggregatorClient := aggregatorapifake.NewSimpleClientset()
 	authorizer := &testAuthorizer{}
 	authConfigWatcher := NewAuthConfigWatcher(client, ch)
-	caBundle := []byte("data")
 
-	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer, authConfigWatcher, caBundle, nil)
+	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer, authConfigWatcher, nil)
 	if err != nil {
 		t.Errorf("Upload api server creation failed: %+v", err)
 	}
@@ -125,9 +124,8 @@ func TestAuthConfigUpdate(t *testing.T) {
 	aggregatorClient := aggregatorapifake.NewSimpleClientset()
 	authorizer := &testAuthorizer{}
 	acw := NewAuthConfigWatcher(client, ch).(*authConfigWatcher)
-	caBundle := []byte("data")
 
-	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer, acw, caBundle, nil)
+	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer, acw, nil)
 	if err != nil {
 		t.Errorf("Upload api server creation failed: %+v", err)
 	}
@@ -174,10 +172,9 @@ func TestGetTLSConfig(t *testing.T) {
 	aggregatorClient := aggregatorapifake.NewSimpleClientset()
 	authorizer := &testAuthorizer{}
 	acw := NewAuthConfigWatcher(client, ch).(*authConfigWatcher)
-	caBundle := []byte("data")
 	certWatcher := NewFakeCertWatcher()
 
-	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer, acw, caBundle, certWatcher)
+	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer, acw, certWatcher)
 	if err != nil {
 		t.Errorf("Upload api server creation failed: %+v", err)
 	}

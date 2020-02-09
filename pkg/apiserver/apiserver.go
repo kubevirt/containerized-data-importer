@@ -35,24 +35,20 @@ import (
 
 	restful "github.com/emicklei/go-restful"
 	"github.com/pkg/errors"
-	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
-	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
+
+	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/apiserver/webhooks"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
-	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
-
-	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 )
 
 const (
@@ -61,12 +57,6 @@ const (
 
 	uploadTokenGroup   = "upload.cdi.kubevirt.io"
 	uploadTokenVersion = "v1alpha1"
-
-	apiServiceName = "cdi-api"
-
-	apiWebhookValidator = "cdi-api-datavolume-validate"
-
-	apiWebhookMutator = "cdi-api-datavolume-mutate"
 
 	dvValidatePath = "/datavolume-validate"
 
@@ -101,7 +91,6 @@ type cdiAPIApp struct {
 	authorizer        CdiAPIAuthorizer
 	authConfigWatcher AuthConfigWatcher
 
-	caBundle    []byte
 	certWarcher CertWatcher
 
 	tokenGenerator token.Generator
@@ -124,7 +113,6 @@ func NewCdiAPIServer(bindAddress string,
 	aggregatorClient aggregatorclient.Interface,
 	authorizor CdiAPIAuthorizer,
 	authConfigWatcher AuthConfigWatcher,
-	caBundle []byte,
 	certWatcher CertWatcher) (CdiAPIServer, error) {
 	var err error
 	app := &cdiAPIApp{
@@ -135,18 +123,12 @@ func NewCdiAPIServer(bindAddress string,
 		authorizer:        authorizor,
 		uploadPossible:    controller.UploadPossibleForPVC,
 		authConfigWatcher: authConfigWatcher,
-		caBundle:          caBundle,
 		certWarcher:       certWatcher,
 	}
 
 	err = app.getKeysAndCerts()
 	if err != nil {
 		return nil, errors.Errorf("Unable to get self signed cert: %v\n", errors.WithStack(err))
-	}
-
-	err = app.createAPIService()
-	if err != nil {
-		return nil, errors.Errorf("Unable to register aggregated api service: %v\n", errors.WithStack(err))
 	}
 
 	app.composeUploadTokenAPI()
@@ -488,213 +470,12 @@ func (app *cdiAPIApp) healthzHandler(req *restful.Request, resp *restful.Respons
 	io.WriteString(resp, "OK")
 }
 
-func (app *cdiAPIApp) createAPIService() error {
-	namespace := util.GetNamespace()
-	apiName := uploadTokenVersion + "." + uploadTokenGroup
-
-	registerAPIService := false
-
-	apiService, err := app.aggregatorClient.ApiregistrationV1beta1().APIServices().Get(apiName, metav1.GetOptions{})
-	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			registerAPIService = true
-		} else {
-			return err
-		}
-	}
-
-	newAPIService := &apiregistrationv1beta1.APIService{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: apiName,
-			Labels: map[string]string{
-				common.CDIComponentLabel: apiServiceName,
-			},
-		},
-		Spec: apiregistrationv1beta1.APIServiceSpec{
-			Service: &apiregistrationv1beta1.ServiceReference{
-				Namespace: namespace,
-				Name:      apiServiceName,
-			},
-			Group:                uploadTokenGroup,
-			Version:              uploadTokenVersion,
-			CABundle:             app.caBundle,
-			GroupPriorityMinimum: 1000,
-			VersionPriority:      15,
-		},
-	}
-
-	if err = operator.SetOwner(app.client, newAPIService); err != nil {
-		return err
-	}
-
-	if registerAPIService {
-		_, err = app.aggregatorClient.ApiregistrationV1beta1().APIServices().Create(newAPIService)
-		if err != nil {
-			return err
-		}
-	} else {
-		if apiService.Spec.Service != nil && apiService.Spec.Service.Namespace != namespace {
-			return fmt.Errorf("apiservice [%s] is already registered in a different namespace. Existing apiservice registration must be deleted before virt-api can proceed", apiName)
-		}
-
-		// Always update spec to latest.
-		apiService.Spec = newAPIService.Spec
-		_, err := app.aggregatorClient.ApiregistrationV1beta1().APIServices().Update(apiService)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (app *cdiAPIApp) createValidatingWebhook() error {
-	path := dvValidatePath
-	failurePolicy := admissionregistrationv1beta1.Fail
-	namespace := util.GetNamespace()
-	registerWebhook := false
-	webhookRegistration, err := app.client.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Get(apiWebhookValidator, metav1.GetOptions{})
-	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			registerWebhook = true
-		} else {
-			return err
-		}
-	}
-
-	webHooks := []admissionregistrationv1beta1.ValidatingWebhook{
-		{
-			Name: "datavolume-validate.cdi.kubevirt.io",
-			Rules: []admissionregistrationv1beta1.RuleWithOperations{{
-				Operations: []admissionregistrationv1beta1.OperationType{
-					admissionregistrationv1beta1.Create,
-					admissionregistrationv1beta1.Update,
-				},
-				Rule: admissionregistrationv1beta1.Rule{
-					APIGroups:   []string{cdicorev1alpha1.SchemeGroupVersion.Group},
-					APIVersions: []string{cdicorev1alpha1.SchemeGroupVersion.Version},
-					Resources:   []string{"datavolumes"},
-				},
-			}},
-			ClientConfig: admissionregistrationv1beta1.WebhookClientConfig{
-				Service: &admissionregistrationv1beta1.ServiceReference{
-					Namespace: namespace,
-					Name:      apiServiceName,
-					Path:      &path,
-				},
-				CABundle: app.caBundle,
-			},
-			FailurePolicy: &failurePolicy,
-		},
-	}
-
-	if registerWebhook {
-		config := &admissionregistrationv1beta1.ValidatingWebhookConfiguration{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: apiWebhookValidator,
-			},
-			Webhooks: webHooks,
-		}
-
-		if err = operator.SetOwner(app.client, config); err != nil {
-			return err
-		}
-
-		_, err := app.client.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Create(config)
-		if err != nil {
-			return err
-		}
-	} else {
-		for _, webhook := range webhookRegistration.Webhooks {
-			if webhook.ClientConfig.Service != nil && webhook.ClientConfig.Service.Namespace != namespace {
-				return fmt.Errorf("ValidatingAdmissionWebhook [%s] is already registered using services endpoints in a different namespace. Existing webhook registration must be deleted before cdi-api can proceed", apiWebhookValidator)
-			}
-		}
-
-		// update registered webhook with our data
-		webhookRegistration.Webhooks = webHooks
-
-		_, err := app.client.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Update(webhookRegistration)
-		if err != nil {
-			return err
-		}
-	}
-
-	app.container.ServeMux.Handle(path, webhooks.NewDataVolumeValidatingWebhook(app.client))
+	app.container.ServeMux.Handle(dvValidatePath, webhooks.NewDataVolumeValidatingWebhook(app.client))
 	return nil
 }
 
 func (app *cdiAPIApp) createMutatingWebhook() error {
-	path := dvMutatePath
-	failurePolicy := admissionregistrationv1beta1.Fail
-	namespace := util.GetNamespace()
-	registerWebhook := false
-	webhookRegistration, err := app.client.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Get(apiWebhookMutator, metav1.GetOptions{})
-	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			registerWebhook = true
-		} else {
-			return err
-		}
-	}
-
-	webHooks := []admissionregistrationv1beta1.MutatingWebhook{
-		{
-			Name: "datavolume-mutate.cdi.kubevirt.io",
-			Rules: []admissionregistrationv1beta1.RuleWithOperations{{
-				Operations: []admissionregistrationv1beta1.OperationType{
-					admissionregistrationv1beta1.Create,
-					admissionregistrationv1beta1.Update,
-				},
-				Rule: admissionregistrationv1beta1.Rule{
-					APIGroups:   []string{cdicorev1alpha1.SchemeGroupVersion.Group},
-					APIVersions: []string{cdicorev1alpha1.SchemeGroupVersion.Version},
-					Resources:   []string{"datavolumes"},
-				},
-			}},
-			ClientConfig: admissionregistrationv1beta1.WebhookClientConfig{
-				Service: &admissionregistrationv1beta1.ServiceReference{
-					Namespace: namespace,
-					Name:      apiServiceName,
-					Path:      &path,
-				},
-				CABundle: app.caBundle,
-			},
-			FailurePolicy: &failurePolicy,
-		},
-	}
-
-	if registerWebhook {
-		config := &admissionregistrationv1beta1.MutatingWebhookConfiguration{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: apiWebhookMutator,
-			},
-			Webhooks: webHooks,
-		}
-
-		if err = operator.SetOwner(app.client, config); err != nil {
-			return err
-		}
-
-		_, err := app.client.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Create(config)
-		if err != nil {
-			return err
-		}
-	} else {
-		for _, webhook := range webhookRegistration.Webhooks {
-			if webhook.ClientConfig.Service != nil && webhook.ClientConfig.Service.Namespace != namespace {
-				return fmt.Errorf("MutatingAdmissionWebhook [%s] is already registered using services endpoints in a different namespace. Existing webhook registration must be deleted before cdi-api can proceed", apiWebhookValidator)
-			}
-		}
-
-		// update registered webhook with our data
-		webhookRegistration.Webhooks = webHooks
-
-		_, err := app.client.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Update(webhookRegistration)
-		if err != nil {
-			return err
-		}
-	}
-
-	app.container.ServeMux.Handle(path, webhooks.NewDataVolumeMutatingWebhook(app.client, app.privateSigningKey))
+	app.container.ServeMux.Handle(dvMutatePath, webhooks.NewDataVolumeMutatingWebhook(app.client, app.privateSigningKey))
 	return nil
 }
