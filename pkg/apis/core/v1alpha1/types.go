@@ -195,7 +195,21 @@ type CDI struct {
 // CDISpec defines our specification for the CDI installation
 type CDISpec struct {
 	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty" valid:"required"`
+
+	// Specifies if CDI can be deleted if workloads are still present.
+	// This is mainly a precaution to avoid accidental data loss
+	UninstallStrategy *CDIUninstallStrategy `json:"uninstallStrategy,omitempty"`
 }
+
+// CDIUninstallStrategy defines whether to protect from deleting data in DataVolumes
+type CDIUninstallStrategy string
+
+const (
+	// CDIUninstallStrategyRemoveWorkloads means that DataVolumes may be deleted during CDI removal
+	CDIUninstallStrategyRemoveWorkloads CDIUninstallStrategy = "RemoveWorkloads"
+	// CDIUninstallStrategyBlockUninstallIfWorkloadsExist means that CDI deletion will block if DataVolumes exist
+	CDIUninstallStrategyBlockUninstallIfWorkloadsExist CDIUninstallStrategy = "BlockUninstallIfWorkloadsExist"
+)
 
 // CDIPhase is the current phase of the CDI deployment
 type CDIPhase string

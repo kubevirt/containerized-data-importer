@@ -381,6 +381,94 @@ var _ = Describe("Controller", func() {
 				_, err = getObject(args.client, pod)
 				Expect(errors.IsNotFound(err)).To(BeTrue())
 			})
+
+			It("waitfordv protection: deleting the finalizer allows deleting CDI", func() {
+				args := createArgs()
+				doReconcile(args)
+
+				dv := &cdiviaplha1.DataVolume{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "dv-to-block-deletion",
+						Namespace: corev1.NamespaceDefault,
+					},
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: cdiviaplha1.SchemeGroupVersion.String(),
+						Kind:       "DataVolume",
+					},
+				}
+
+				err := args.client.Create(context.TODO(), dv)
+				Expect(err).ToNot(HaveOccurred())
+
+				blockUninstallIfWorkloadsExist := cdiviaplha1.CDIUninstallStrategyBlockUninstallIfWorkloadsExist
+				args.cdi.Spec.UninstallStrategy = &blockUninstallIfWorkloadsExist
+				err = args.client.Update(context.TODO(), args.cdi)
+				Expect(err).ToNot(HaveOccurred())
+
+				args.cdi.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+				err = args.client.Update(context.TODO(), args.cdi)
+				Expect(err).ToNot(HaveOccurred())
+
+				doReconcile(args)
+
+				Expect(args.cdi.Finalizers).ShouldNot(BeEmpty())
+				Expect(args.cdi.Status.Phase).ShouldNot(Equal(cdiviaplha1.CDIPhaseDeleted))
+
+				removeWorkloads := cdiviaplha1.CDIUninstallStrategyRemoveWorkloads
+				args.cdi.Spec.UninstallStrategy = &removeWorkloads
+				err = args.client.Update(context.TODO(), args.cdi)
+				Expect(err).ToNot(HaveOccurred())
+
+				doReconcile(args)
+
+				Expect(args.cdi.Finalizers).Should(BeEmpty())
+				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeleted))
+			})
+
+			It("waitfordv protection: deleting the DV allows deleting CDI", func() {
+				args := createArgs()
+				doReconcile(args)
+
+				dv := &cdiviaplha1.DataVolume{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "dv-to-block-deletion",
+						Namespace: corev1.NamespaceDefault,
+					},
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: cdiviaplha1.SchemeGroupVersion.String(),
+						Kind:       "DataVolume",
+					},
+				}
+
+				err := args.client.Create(context.TODO(), dv)
+				Expect(err).ToNot(HaveOccurred())
+
+				blockUninstallIfWorkloadsExist := cdiviaplha1.CDIUninstallStrategyBlockUninstallIfWorkloadsExist
+				args.cdi.Spec.UninstallStrategy = &blockUninstallIfWorkloadsExist
+				err = args.client.Update(context.TODO(), args.cdi)
+				Expect(err).ToNot(HaveOccurred())
+
+				args.cdi.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+				err = args.client.Update(context.TODO(), args.cdi)
+				Expect(err).ToNot(HaveOccurred())
+
+				doReconcile(args)
+
+				Expect(args.cdi.Finalizers).ShouldNot(BeEmpty())
+				Expect(args.cdi.Status.Phase).ShouldNot(Equal(cdiviaplha1.CDIPhaseDeleted))
+
+				err = args.client.Delete(context.TODO(), dv)
+				Expect(err).ToNot(HaveOccurred())
+
+				doReconcile(args)
+
+				Expect(args.cdi.Finalizers).Should(BeEmpty())
+				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeleted))
+
+				resultDV := &cdiviaplha1.DataVolume{}
+				err = args.client.Get(context.TODO(), types.NamespacedName{Name: "dv-to-block-deletion"}, resultDV)
+				Expect(errors.IsNotFound(err)).To(BeTrue())
+			})
 		})
 	})
 
@@ -1316,9 +1404,8 @@ func createArgs() *args {
 }
 
 func doReconcile(args *args) {
-	result, err := args.reconciler.Reconcile(reconcileRequest(args.cdi.Name))
+	_, err := args.reconciler.Reconcile(reconcileRequest(args.cdi.Name))
 	Expect(err).ToNot(HaveOccurred())
-	Expect(result.Requeue).To(BeFalse())
 
 	args.cdi, err = getCDI(args.client, args.cdi)
 	Expect(err).ToNot(HaveOccurred())

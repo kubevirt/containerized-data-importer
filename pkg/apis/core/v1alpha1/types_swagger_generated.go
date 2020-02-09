@@ -89,7 +89,8 @@ func (CDI) SwaggerDoc() map[string]string {
 
 func (CDISpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "CDISpec defines our specification for the CDI installation",
+		"":                  "CDISpec defines our specification for the CDI installation",
+		"uninstallStrategy": "Specifies if CDI can be deleted if workloads are still present.\nThis is mainly a precaution to avoid accidental data loss",
 	}
 }
 

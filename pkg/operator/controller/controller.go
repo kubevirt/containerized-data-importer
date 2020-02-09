@@ -175,6 +175,16 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 
 	// mid delete
 	if cr.DeletionTimestamp != nil {
+		block, err := r.waitForDVs(reqLogger, cr)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
+		if block {
+			reqLogger.Info("Not deleting as long as DVs exist")
+			return reconcile.Result{Requeue: true, RequeueAfter: 5 * time.Second}, nil
+		}
+
 		reqLogger.Info("Doing reconcile delete")
 		return r.reconcileDelete(reqLogger, cr)
 	}
@@ -540,6 +550,24 @@ func (r *ReconcileCDI) isMutable(obj runtime.Object) bool {
 		return true
 	}
 	return false
+}
+
+func (r *ReconcileCDI) waitForDVs(logger logr.Logger, cr *cdiv1alpha1.CDI) (bool, error) {
+	if cr.Spec.UninstallStrategy == nil || *cr.Spec.UninstallStrategy == cdiv1alpha1.CDIUninstallStrategyRemoveWorkloads {
+		return false, nil
+	}
+
+	dvList := &cdiv1alpha1.DataVolumeList{}
+	if err := r.uncachedClient.List(context.TODO(), dvList, &client.ListOptions{Limit: 2}); err != nil {
+		logger.Error(err, "Error finding datavolumes")
+		return true, err
+	}
+
+	if len(dvList.Items) > 0 {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // I hate that this function exists, but major refactoring required to make CDI CR the owner of all the things

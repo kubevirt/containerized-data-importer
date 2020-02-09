@@ -314,6 +314,13 @@ func schema_pkg_apis_core_v1alpha1_CDISpec(ref common.ReferenceCallback) common.
 							Format: "",
 						},
 					},
+					"uninstallStrategy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Specifies if CDI can be deleted if workloads are still present. This is mainly a precaution to avoid accidental data loss",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},

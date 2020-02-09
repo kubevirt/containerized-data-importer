@@ -389,6 +389,17 @@ func createCDIListCRD() *extv1beta1.CustomResourceDefinition {
 										},
 									},
 								},
+								"uninstallStrategy": {
+									Type: "string",
+									Enum: []extv1beta1.JSON{
+										{
+											Raw: []byte(`"BlockUninstallIfWorkloadsExist"`),
+										},
+										{
+											Raw: []byte(`"RemoveWorkloads"`),
+										},
+									},
+								},
 							},
 							Type: "object",
 						},
@@ -558,6 +569,7 @@ _The CDI Operator does not support updates yet._
           },
           "spec": {
             "imagePullPolicy":"IfNotPresent"
+            "uninstallStrategy":"RemoveWorkloads"
           }
         }
       ]`,
