@@ -312,3 +312,35 @@ var _ = Describe("[rfe_id:1947][crit:high][test_id:2145][vendor:cnv-qe@redhat.co
 		Expect(same).To(BeTrue())
 	})
 })
+
+var _ = Describe("PVC import phase matches pod phase", func() {
+	f := framework.NewFrameworkOrDie(namespacePrefix)
+
+	It("Should never go to failed even if import fails", func() {
+		c := f.K8sClient
+		ns := f.Namespace.Name
+		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
+		pvcAnn := map[string]string{
+			controller.AnnEndpoint: httpEp + "/invaliddoesntexist",
+		}
+
+		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/invaliddoesntexist"))
+		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-archive", "100Mi", pvcAnn, nil))
+		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
+
+		By("Verify the pod status is succeeded on the target PVC")
+		found, err := utils.WaitPVCPodStatusRunning(c, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+
+		By("Verifying the phase annotation on the PVC never gets to failed")
+		// Try for 20 seconds.
+		stopTime := time.Now().Add(time.Second * 20)
+		for time.Now().Before(stopTime) {
+			testPvc, err := c.CoreV1().PersistentVolumeClaims(ns).Get(pvc.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(testPvc.GetAnnotations()[controller.AnnPodPhase]).To(BeEquivalentTo(v1.PodRunning))
+			time.Sleep(time.Millisecond * 50)
+		}
+	})
+})
