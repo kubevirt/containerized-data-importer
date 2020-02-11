@@ -105,7 +105,7 @@ cluster-sync: cluster-clean
 	./cluster-sync/sync.sh DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG}
 
 bazel-generate:
-	SYNC_VENDOR=true ${DO_BAZ} "./hack/build/bazel-generate.sh"
+	SYNC_VENDOR=true ${DO_BAZ} "./hack/build/bazel-generate.sh -- pkg/ tools/ tests/ cmd/ vendor/"
 
 bazel-cdi-generate:
 	${DO_BAZ} "./hack/build/bazel-generate.sh -- pkg/ tools/ tests/ cmd/"
@@ -113,7 +113,7 @@ bazel-cdi-generate:
 bazel-build:
 	${DO_BAZ} "./hack/build/bazel-build.sh"
 
-bazel-build-images:	bazel-cdi-generate bazel-build
+bazel-build-images:	gomod-update bazel-generate bazel-build
 	${DO_BAZ} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} ./hack/build/bazel-build-images.sh"
 
 bazel-push-images: bazel-cdi-generate bazel-build

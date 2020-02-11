@@ -102,7 +102,11 @@ volumes="$volumes -v ${HOME}/.docker:/root/.docker:ro,z"
 # Ensure that a bazel server is running
 
 if [ -z "$(docker ps --format '{{.Names}}' | grep ${BAZEL_BUILDER_SERVER})" ]; then
-    docker run --network host -d ${volumes} --security-opt label:disable --name ${BAZEL_BUILDER_SERVER} -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
+    docker run --network host -d ${volumes} --security-opt label:disable \
+        --name ${BAZEL_BUILDER_SERVER} \
+        -w "/root/go/src/kubevirt.io/containerized-data-importer" \
+        -e GOPATH=/root/go \
+        --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
 fi
 
 echo "Starting bazel server"
