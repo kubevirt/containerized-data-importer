@@ -1379,6 +1379,7 @@ func createReconciler(client realClient.Client) *ReconcileCDI {
 
 	r := &ReconcileCDI{
 		client:         client,
+		uncachedClient: client,
 		scheme:         scheme.Scheme,
 		namespace:      namespace,
 		clusterArgs:    clusterArgs,
