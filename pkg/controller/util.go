@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
@@ -251,11 +252,22 @@ func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.
 		LabelImportPvc:   pvc.Name,
 	}
 
+	annotations := make(map[string]string, 0)
+	// Copy kubevirt.io annotations, but NOT the CDI annotations as those will trigger another import/upload/clone on the scratchspace
+	// pvc.
+	if len(pvc.GetAnnotations()) > 0 {
+		for k, v := range pvc.GetAnnotations() {
+			if strings.Contains(k, common.KubeVirtAnnKey) && !strings.Contains(k, common.CDIAnnKey) {
+				annotations[k] = v
+			}
+		}
+	}
 	pvcDef := &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: pvc.Namespace,
-			Labels:    labels,
+			Name:        name,
+			Namespace:   pvc.Namespace,
+			Labels:      labels,
+			Annotations: annotations,
 			OwnerReferences: []metav1.OwnerReference{
 				MakePodOwnerReference(pod),
 			},

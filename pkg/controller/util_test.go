@@ -2,6 +2,7 @@ package controller
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -929,12 +930,21 @@ func createScratchPvc(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, storageClassNa
 		"app":            "containerized-data-importer",
 		LabelImportPvc:   pvc.Name,
 	}
+	annotations := make(map[string]string)
+	if len(pvc.GetAnnotations()) > 0 {
+		for k, v := range pvc.GetAnnotations() {
+			if strings.Contains(k, common.KubeVirtAnnKey) && !strings.Contains(k, common.CDIAnnKey) {
+				annotations[k] = v
+			}
+		}
+	}
 
 	return &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      pvc.Name + "-scratch",
-			Namespace: pvc.Namespace,
-			Labels:    labels,
+			Name:        pvc.Name + "-scratch",
+			Namespace:   pvc.Namespace,
+			Labels:      labels,
+			Annotations: annotations,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         "v1",

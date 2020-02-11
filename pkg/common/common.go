@@ -76,6 +76,11 @@ const (
 	// ClonerSourcePodNameSuffix (controller pkg only)
 	ClonerSourcePodNameSuffix = "-source-pod"
 
+	// KubeVirtAnnKey is part of a kubevirt.io key.
+	KubeVirtAnnKey = "kubevirt.io/"
+	// CDIAnnKey is part of a kubevirt.io key.
+	CDIAnnKey = "cdi.kubevirt.io/"
+
 	// SmartClonerCDILabel is the label applied to resources created by the smart-clone controller
 	SmartClonerCDILabel = "cdi-smart-clone"
 
