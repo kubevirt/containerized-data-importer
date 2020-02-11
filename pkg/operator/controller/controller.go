@@ -93,8 +93,17 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 
 	log.Info("", "VARS", fmt.Sprintf("%+v", namespacedArgs))
 
+	uncachedClient, err := client.New(mgr.GetConfig(), client.Options{
+		Scheme: mgr.GetScheme(),
+		Mapper: mgr.GetRESTMapper(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	r := &ReconcileCDI{
 		client:         mgr.GetClient(),
+		uncachedClient: uncachedClient,
 		scheme:         mgr.GetScheme(),
 		namespace:      namespace,
 		clusterArgs:    clusterArgs,
@@ -113,9 +122,12 @@ var _ reconcile.Reconciler = &ReconcileCDI{}
 type ReconcileCDI struct {
 	// This Client, initialized using mgr.client() above, is a split Client
 	// that reads objects from the cache and writes to the apiserver
-	client     client.Client
-	scheme     *runtime.Scheme
-	controller controller.Controller
+	client client.Client
+
+	// use this for getting any resources not in the install namespace or cluster scope
+	uncachedClient client.Client
+	scheme         *runtime.Scheme
+	controller     controller.Controller
 
 	namespace      string
 	clusterArgs    *cdicluster.FactoryArgs
@@ -314,7 +326,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 			}
 
 			// PRE_CREATE callback
-			if err = r.invokeCallbacks(logger, ReconcileStatePreCreate, desiredRuntimeObj, nil); err != nil {
+			if err = r.invokeCallbacks(logger, cr, ReconcileStatePreCreate, desiredRuntimeObj, nil); err != nil {
 				return reconcile.Result{}, err
 			}
 
@@ -325,7 +337,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 			}
 
 			// POST_CREATE callback
-			if err = r.invokeCallbacks(logger, ReconcileStatePostCreate, desiredRuntimeObj, nil); err != nil {
+			if err = r.invokeCallbacks(logger, cr, ReconcileStatePostCreate, desiredRuntimeObj, nil); err != nil {
 				return reconcile.Result{}, err
 			}
 
@@ -335,7 +347,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 				"type", fmt.Sprintf("%T", desiredMetaObj))
 		} else {
 			// POST_READ callback
-			if err = r.invokeCallbacks(logger, ReconcileStatePostRead, desiredRuntimeObj, currentRuntimeObj); err != nil {
+			if err = r.invokeCallbacks(logger, cr, ReconcileStatePostRead, desiredRuntimeObj, currentRuntimeObj); err != nil {
 				return reconcile.Result{}, err
 			}
 
@@ -362,7 +374,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 				setLabel(updateVersionLabel, r.namespacedArgs.OperatorVersion, currentMetaObj)
 
 				// PRE_UPDATE callback
-				if err = r.invokeCallbacks(logger, ReconcileStatePreUpdate, desiredRuntimeObj, currentRuntimeObj); err != nil {
+				if err = r.invokeCallbacks(logger, cr, ReconcileStatePreUpdate, desiredRuntimeObj, currentRuntimeObj); err != nil {
 					return reconcile.Result{}, err
 				}
 
@@ -371,7 +383,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 				}
 
 				// POST_UPDATE callback
-				if err = r.invokeCallbacks(logger, ReconcileStatePostUpdate, desiredRuntimeObj, nil); err != nil {
+				if err = r.invokeCallbacks(logger, cr, ReconcileStatePostUpdate, desiredRuntimeObj, nil); err != nil {
 					return reconcile.Result{}, err
 				}
 
@@ -488,7 +500,7 @@ func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1alpha
 
 			if !found && metav1.IsControlledBy(observedMetaObj, cr) {
 				//Invoke pre delete callback
-				if err = r.invokeCallbacks(logger, ReconcileStatePreDelete, nil, observedObj); err != nil {
+				if err = r.invokeCallbacks(logger, cr, ReconcileStatePreDelete, nil, observedObj); err != nil {
 					return err
 				}
 
@@ -501,7 +513,7 @@ func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1alpha
 				}
 
 				//invoke post delete callback
-				if err = r.invokeCallbacks(logger, ReconcileStatePostDelete, nil, observedObj); err != nil {
+				if err = r.invokeCallbacks(logger, cr, ReconcileStatePostDelete, nil, observedObj); err != nil {
 					return err
 				}
 			}
@@ -814,7 +826,7 @@ func (r *ReconcileCDI) invokeDeleteCDICallbacks(logger logr.Logger, cr *cdiv1alp
 	}
 
 	for _, desiredObj := range desiredResources {
-		if err = r.invokeCallbacks(logger, ReconcileStateCDIDelete, desiredObj, nil); err != nil {
+		if err = r.invokeCallbacks(logger, cr, ReconcileStateCDIDelete, desiredObj, nil); err != nil {
 			return err
 		}
 	}
@@ -822,7 +834,7 @@ func (r *ReconcileCDI) invokeDeleteCDICallbacks(logger logr.Logger, cr *cdiv1alp
 	return nil
 }
 
-func (r *ReconcileCDI) invokeCallbacks(l logr.Logger, s ReconcileState, desiredObj, currentObj runtime.Object) error {
+func (r *ReconcileCDI) invokeCallbacks(l logr.Logger, cr *cdiv1alpha1.CDI, s ReconcileState, desiredObj, currentObj runtime.Object) error {
 	var t reflect.Type
 
 	if desiredObj != nil {
@@ -853,12 +865,13 @@ func (r *ReconcileCDI) invokeCallbacks(l logr.Logger, s ReconcileState, desiredO
 
 		args := &ReconcileCallbackArgs{
 			Logger:        l,
-			Client:        r.client,
+			Client:        r.uncachedClient,
 			Scheme:        r.scheme,
 			Namespace:     r.namespace,
 			State:         s,
 			DesiredObject: desiredObj,
 			CurrentObject: currentObj,
+			Resource:      cr,
 		}
 
 		log.V(3).Info("Invoking callbacks for", "type", t)

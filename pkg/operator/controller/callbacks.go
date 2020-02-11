@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
@@ -73,6 +74,7 @@ type ReconcileCallbackArgs struct {
 	Client    client.Client
 	Scheme    *runtime.Scheme
 	Namespace string
+	Resource  *cdiv1alpha1.CDI
 
 	State         ReconcileState
 	DesiredObject runtime.Object

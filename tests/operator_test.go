@@ -2,6 +2,7 @@ package tests_test
 
 import (
 	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -9,14 +10,16 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
 	secclient "github.com/openshift/client-go/security/clientset/versioned"
+	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	operatorcontroller "kubevirt.io/containerized-data-importer/pkg/operator/controller"
 	"kubevirt.io/containerized-data-importer/tests/framework"
-
-	conditions "github.com/openshift/custom-resource-status/conditions/v1"
+	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
 var _ = Describe("Operator tests", func() {
@@ -62,5 +65,94 @@ var _ = Describe("Operator tests", func() {
 		Expect(conditionMap[conditions.ConditionAvailable]).To(Equal(corev1.ConditionTrue))
 		Expect(conditionMap[conditions.ConditionProgressing]).To(Equal(corev1.ConditionFalse))
 		Expect(conditionMap[conditions.ConditionDegraded]).To(Equal(corev1.ConditionFalse))
+	})
+})
+
+var _ = Describe("Operator delete CDI tests", func() {
+	var cr *cdiv1alpha1.CDI
+	f := framework.NewFrameworkOrDie("operator-delete-cdi-test")
+
+	BeforeEach(func() {
+		var err error
+		cr, err = f.CdiClient.CdiV1alpha1().CDIs().Get("cdi", metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		if cr == nil {
+			return
+		}
+
+		cdi, err := f.CdiClient.CdiV1alpha1().CDIs().Get(cr.Name, metav1.GetOptions{})
+		if err == nil {
+			if cdi.DeletionTimestamp == nil {
+				// nothing to do here
+				return
+			}
+
+			Eventually(func() bool {
+				_, err = f.CdiClient.CdiV1alpha1().CDIs().Get(cr.Name, metav1.GetOptions{})
+				if errors.IsNotFound(err) {
+					return true
+				}
+				Expect(err).ToNot(HaveOccurred())
+				return false
+			}, 5*time.Minute, 2*time.Second).Should(BeTrue())
+		} else {
+			Expect(errors.IsNotFound(err)).To(BeTrue())
+		}
+
+		cdi = &cdiv1alpha1.CDI{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cdi",
+			},
+			Spec: cr.Spec,
+		}
+
+		cdi, err = f.CdiClient.CdiV1alpha1().CDIs().Create(cdi)
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() bool {
+			cdi, err = f.CdiClient.CdiV1alpha1().CDIs().Get(cr.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			for _, c := range cdi.Status.Conditions {
+				if c.Type == conditions.ConditionAvailable && c.Status == corev1.ConditionTrue {
+					return true
+				}
+			}
+			return false
+		}, 5*time.Minute, 2*time.Second).Should(BeTrue())
+	})
+
+	It("should delete an upload pod", func() {
+		dv := utils.NewDataVolumeForUpload("delete-me", "1Gi")
+
+		By("Creating datavolume")
+		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Waiting for pod to be running")
+		Eventually(func() bool {
+			pod, err := f.K8sClient.CoreV1().Pods(dv.Namespace).Get("cdi-upload-"+dv.Name, metav1.GetOptions{})
+			if errors.IsNotFound(err) {
+				return false
+			}
+			Expect(err).ToNot(HaveOccurred())
+			return pod.Status.Phase == corev1.PodRunning
+		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+
+		By("Deleting CDI")
+		err = f.CdiClient.CdiV1alpha1().CDIs().Delete(cr.Name, &metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Waiting for pod to be deleted")
+		Eventually(func() bool {
+			_, err = f.K8sClient.CoreV1().Pods(dv.Namespace).Get("cdi-upload-"+dv.Name, metav1.GetOptions{})
+			if errors.IsNotFound(err) {
+				return true
+			}
+			Expect(err).ToNot(HaveOccurred())
+			return false
+		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 	})
 })
