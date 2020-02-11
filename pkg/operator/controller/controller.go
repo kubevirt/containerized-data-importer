@@ -82,7 +82,11 @@ func Add(mgr manager.Manager) error {
 func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 	var namespacedArgs cdinamespaced.FactoryArgs
 	namespace := util.GetNamespace()
-	clusterArgs := &cdicluster.FactoryArgs{Namespace: namespace}
+	clusterArgs := &cdicluster.FactoryArgs{
+		Namespace: namespace,
+		Client:    mgr.GetClient(),
+		Logger:    log,
+	}
 
 	err := envconfig.Process("", &namespacedArgs)
 	if err != nil {
@@ -138,23 +142,22 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling CDI")
 
-	// make sure we're watching eveything
-	err := r.watchDependantResources()
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
 	// Fetch the CDI instance
 	// check at cluster level
 	cr := &cdiv1alpha1.CDI{}
 	crKey := client.ObjectKey{Namespace: "", Name: request.NamespacedName.Name}
-	if err = r.client.Get(context.TODO(), crKey, cr); err != nil {
+	if err := r.client.Get(context.TODO(), crKey, cr); err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Return and don't requeue
 			reqLogger.Info("CDI CR no longer exists")
 			return reconcile.Result{}, nil
 		}
+		return reconcile.Result{}, err
+	}
+
+	// make sure we're watching eveything
+	if err := r.watchDependantResources(cr); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -291,6 +294,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		return reconcile.Result{}, err
 	}
 
+	var allErrors []error
 	for _, desiredRuntimeObj := range resources {
 		desiredMetaObj := desiredRuntimeObj.(metav1.Object)
 		currentRuntimeObj := newDefaultInstance(desiredRuntimeObj)
@@ -321,7 +325,8 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 			currentRuntimeObj = desiredRuntimeObj.DeepCopyObject()
 			if err = r.client.Create(context.TODO(), currentRuntimeObj); err != nil {
 				logger.Error(err, "")
-				return reconcile.Result{}, err
+				allErrors = append(allErrors, err)
+				continue
 			}
 
 			// POST_CREATE callback
@@ -367,7 +372,9 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 				}
 
 				if err = r.client.Update(context.TODO(), currentRuntimeObj); err != nil {
-					return reconcile.Result{}, err
+					logger.Error(err, "")
+					allErrors = append(allErrors, err)
+					continue
 				}
 
 				// POST_UPDATE callback
@@ -390,6 +397,10 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 
 	if err = r.certManager.Sync(r.getCertificateDefinitions()); err != nil {
 		return reconcile.Result{}, err
+	}
+
+	if len(allErrors) > 0 {
+		return reconcile.Result{}, fmt.Errorf("reconcile encountered %d errors", len(allErrors))
 	}
 
 	degraded, err := r.checkDegraded(logger, cr)
@@ -634,7 +645,7 @@ func (r *ReconcileCDI) watchCDI() error {
 	return r.controller.Watch(&source.Kind{Type: &cdiv1alpha1.CDI{}}, &handler.EnqueueRequestForObject{})
 }
 
-func (r *ReconcileCDI) watchDependantResources() error {
+func (r *ReconcileCDI) watchDependantResources(cr *cdiv1alpha1.CDI) error {
 	r.watchMutex.Lock()
 	defer r.watchMutex.Unlock()
 
@@ -642,7 +653,7 @@ func (r *ReconcileCDI) watchDependantResources() error {
 		return nil
 	}
 
-	resources, err := r.getAllResources(nil)
+	resources, err := r.getAllResources(cr)
 	if err != nil {
 		return err
 	}
@@ -734,7 +745,7 @@ func (r *ReconcileCDI) getAllResources(cr *cdiv1alpha1.CDI) ([]runtime.Object, e
 	var resources []runtime.Object
 
 	if deployClusterResources() {
-		crs, err := cdicluster.CreateAllResources(r.clusterArgs)
+		crs, err := cdicluster.CreateAllStaticResources(r.clusterArgs)
 		if err != nil {
 			MarkCrFailedHealing(cr, "CreateResources", "Unable to create all resources")
 			return nil, err
@@ -750,6 +761,14 @@ func (r *ReconcileCDI) getAllResources(cr *cdiv1alpha1.CDI) ([]runtime.Object, e
 	}
 
 	resources = append(resources, nsrs...)
+
+	drs, err := cdicluster.CreateAllDynamicResources(r.clusterArgs)
+	if err != nil {
+		MarkCrFailedHealing(cr, "CreateDynamicResources", "Unable to create all dynamic resources")
+		return nil, err
+	}
+
+	resources = append(resources, drs...)
 
 	certs := r.getCertificateDefinitions()
 	for _, cert := range certs {

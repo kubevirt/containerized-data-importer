@@ -31,7 +31,6 @@ import (
 
 	"github.com/appscode/jsonpatch"
 	restful "github.com/emicklei/go-restful"
-	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,10 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
-	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
-	aggregatorapifake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
-	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
 )
@@ -78,57 +74,6 @@ func signingKeySecretCreateAction(privateKey *rsa.PrivateKey) core.Action {
 		secret)
 }
 
-func apiServiceGetAction() core.Action {
-	return core.NewRootGetAction(
-		schema.GroupVersionResource{
-			Resource: "apiservices",
-			Version:  "v1",
-		},
-		"v1alpha1.upload.kubevirt.io")
-}
-
-func getExpectedAPIService(certBytes []byte) *apiregistrationv1beta1.APIService {
-	return &apiregistrationv1beta1.APIService{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "v1alpha1.upload.cdi.kubevirt.io",
-			Labels: map[string]string{
-				"cdi.kubevirt.io": "cdi-api",
-			},
-		},
-		Spec: apiregistrationv1beta1.APIServiceSpec{
-			Service: &apiregistrationv1beta1.ServiceReference{
-				Namespace: "cdi",
-				Name:      "cdi-api",
-			},
-			Group:                "upload.cdi.kubevirt.io",
-			Version:              "v1alpha1",
-			CABundle:             certBytes,
-			GroupPriorityMinimum: 1000,
-			VersionPriority:      15,
-		},
-	}
-}
-
-func apiServiceCreateAction(certBytes []byte) core.Action {
-	apiService := getExpectedAPIService(certBytes)
-	return core.NewRootCreateAction(
-		schema.GroupVersionResource{
-			Resource: "apiservices",
-			Version:  "v1",
-		},
-		apiService)
-}
-
-func apiServiceUpdateAction(certBytes []byte) core.Action {
-	apiService := getExpectedAPIService(certBytes)
-	return core.NewRootUpdateAction(
-		schema.GroupVersionResource{
-			Resource: "apiservices",
-			Version:  "v1",
-		},
-		apiService)
-}
-
 func cdiConfigGetAction() core.Action {
 	return core.NewGetAction(
 		schema.GroupVersionResource{
@@ -137,136 +82,6 @@ func cdiConfigGetAction() core.Action {
 		},
 		"cdi",
 		"cdi-config")
-}
-
-func validatingWebhookGetAction() core.Action {
-	return core.NewRootGetAction(
-		schema.GroupVersionResource{
-			Group:    "admissionregistration.k8s.io",
-			Version:  "v1beta1",
-			Resource: "validatingwebhookconfigurations",
-		},
-		"cdi-api-datavolume-validate")
-}
-
-func getExpectedValidatingWebhook() *admissionregistrationv1beta1.ValidatingWebhookConfiguration {
-	path := "/datavolume-validate"
-	failurePolicy := admissionregistrationv1beta1.Fail
-	return &admissionregistrationv1beta1.ValidatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "cdi-api-datavolume-validate",
-		},
-		Webhooks: []admissionregistrationv1beta1.ValidatingWebhook{
-			{
-				Name: "datavolume-validate.cdi.kubevirt.io",
-				Rules: []admissionregistrationv1beta1.RuleWithOperations{{
-					Operations: []admissionregistrationv1beta1.OperationType{
-						admissionregistrationv1beta1.Create,
-						admissionregistrationv1beta1.Update,
-					},
-					Rule: admissionregistrationv1beta1.Rule{
-						APIGroups:   []string{cdicorev1alpha1.SchemeGroupVersion.Group},
-						APIVersions: []string{cdicorev1alpha1.SchemeGroupVersion.Version},
-						Resources:   []string{"datavolumes"},
-					},
-				}},
-				ClientConfig: admissionregistrationv1beta1.WebhookClientConfig{
-					Service: &admissionregistrationv1beta1.ServiceReference{
-						Namespace: "cdi",
-						Name:      "cdi-api",
-						Path:      &path,
-					},
-					CABundle: []byte("bytes"),
-				},
-				FailurePolicy: &failurePolicy,
-			},
-		},
-	}
-}
-
-func validatingWebhookCreateAction() core.Action {
-	return core.NewRootCreateAction(
-		schema.GroupVersionResource{
-			Group:    "admissionregistration.k8s.io",
-			Version:  "v1beta1",
-			Resource: "validatingwebhookconfigurations",
-		},
-		getExpectedValidatingWebhook())
-}
-
-func validatingWebhookUpdateAction() core.Action {
-	return core.NewRootUpdateAction(
-		schema.GroupVersionResource{
-			Group:    "admissionregistration.k8s.io",
-			Version:  "v1beta1",
-			Resource: "validatingwebhookconfigurations",
-		},
-		getExpectedValidatingWebhook())
-}
-
-func mutatingWebhookGetAction() core.Action {
-	return core.NewRootGetAction(
-		schema.GroupVersionResource{
-			Group:    "admissionregistration.k8s.io",
-			Version:  "v1beta1",
-			Resource: "mutatingwebhookconfigurations",
-		},
-		"cdi-api-datavolume-mutate")
-}
-
-func getExpectedMutatingWebhook() *admissionregistrationv1beta1.MutatingWebhookConfiguration {
-	path := "/datavolume-mutate"
-	failurePolicy := admissionregistrationv1beta1.Fail
-	return &admissionregistrationv1beta1.MutatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "cdi-api-datavolume-mutate",
-		},
-		Webhooks: []admissionregistrationv1beta1.MutatingWebhook{
-			{
-				Name: "datavolume-mutate.cdi.kubevirt.io",
-				Rules: []admissionregistrationv1beta1.RuleWithOperations{{
-					Operations: []admissionregistrationv1beta1.OperationType{
-						admissionregistrationv1beta1.Create,
-						admissionregistrationv1beta1.Update,
-					},
-					Rule: admissionregistrationv1beta1.Rule{
-						APIGroups:   []string{cdicorev1alpha1.SchemeGroupVersion.Group},
-						APIVersions: []string{cdicorev1alpha1.SchemeGroupVersion.Version},
-						Resources:   []string{"datavolumes"},
-					},
-				}},
-				ClientConfig: admissionregistrationv1beta1.WebhookClientConfig{
-					Service: &admissionregistrationv1beta1.ServiceReference{
-						Namespace: "cdi",
-						Name:      "cdi-api",
-						Path:      &path,
-					},
-					CABundle: []byte("bytes"),
-				},
-				FailurePolicy: &failurePolicy,
-			},
-		},
-	}
-}
-
-func mutatingWebhookCreateAction() core.Action {
-	return core.NewRootCreateAction(
-		schema.GroupVersionResource{
-			Group:    "admissionregistration.k8s.io",
-			Version:  "v1beta1",
-			Resource: "mutatingwebhookconfigurations",
-		},
-		getExpectedMutatingWebhook())
-}
-
-func mutatingWebhookUpdateAction() core.Action {
-	return core.NewRootUpdateAction(
-		schema.GroupVersionResource{
-			Group:    "admissionregistration.k8s.io",
-			Version:  "v1beta1",
-			Resource: "mutatingwebhookconfigurations",
-		},
-		getExpectedMutatingWebhook())
 }
 
 func checkActions(expected []core.Action, actual []core.Action, t *testing.T) {
@@ -393,142 +208,6 @@ func TestShouldGenerateCertsAndKeyFirstRun(t *testing.T) {
 	actions = append(actions, signingKeySecretGetAction())
 	actions = append(actions, cdiConfigGetAction())
 	actions = append(actions, signingKeySecretCreateAction(app.privateSigningKey))
-
-	checkActions(actions, client.Actions(), t)
-}
-
-func TestCreateAPIService(t *testing.T) {
-	client := k8sfake.NewSimpleClientset()
-	aggregatorClient := aggregatorapifake.NewSimpleClientset()
-
-	app := &cdiAPIApp{
-		client:           client,
-		aggregatorClient: aggregatorClient,
-		caBundle:         []byte("data"),
-	}
-
-	err := app.createAPIService()
-	if err != nil {
-		t.Errorf("error creating upload api app: %v", err)
-	}
-
-	actions := []core.Action{}
-	actions = append(actions, apiServiceGetAction())
-	actions = append(actions, apiServiceCreateAction(app.caBundle))
-
-	checkActions(actions, aggregatorClient.Actions(), t)
-}
-
-func TestUpdateAPIService(t *testing.T) {
-	certBytes := []byte("data")
-	service := getExpectedAPIService(certBytes)
-
-	kubeobjects := []runtime.Object{}
-	kubeobjects = append(kubeobjects, service)
-
-	client := k8sfake.NewSimpleClientset()
-	aggregatorClient := aggregatorapifake.NewSimpleClientset(kubeobjects...)
-
-	app := &cdiAPIApp{
-		client:           client,
-		aggregatorClient: aggregatorClient,
-		caBundle:         certBytes,
-	}
-
-	err := app.createAPIService()
-	if err != nil {
-		t.Errorf("error creating upload api app: %v", err)
-	}
-
-	actions := []core.Action{}
-	actions = append(actions, apiServiceGetAction())
-	actions = append(actions, apiServiceUpdateAction(app.caBundle))
-
-	checkActions(actions, aggregatorClient.Actions(), t)
-}
-
-func TestCreateValidatingWebhook(t *testing.T) {
-	client := k8sfake.NewSimpleClientset()
-
-	app := &cdiAPIApp{
-		client:    client,
-		container: restful.NewContainer(),
-		caBundle:  []byte("bytes"),
-	}
-
-	err := app.createValidatingWebhook()
-	if err != nil {
-		t.Errorf("error creating upload api app: %v", err)
-	}
-
-	actions := []core.Action{}
-	actions = append(actions, validatingWebhookGetAction())
-	actions = append(actions, cdiConfigGetAction())
-	actions = append(actions, validatingWebhookCreateAction())
-
-	checkActions(actions, client.Actions(), t)
-}
-
-func TestUpdateValidatingWebhook(t *testing.T) {
-	client := k8sfake.NewSimpleClientset(getExpectedValidatingWebhook())
-
-	app := &cdiAPIApp{
-		client:    client,
-		container: restful.NewContainer(),
-		caBundle:  []byte("bytes"),
-	}
-
-	err := app.createValidatingWebhook()
-	if err != nil {
-		t.Errorf("error creating upload api app: %v", err)
-	}
-
-	actions := []core.Action{}
-	actions = append(actions, validatingWebhookGetAction())
-	actions = append(actions, validatingWebhookUpdateAction())
-
-	checkActions(actions, client.Actions(), t)
-}
-
-func TestCreateMutatingWebhook(t *testing.T) {
-	client := k8sfake.NewSimpleClientset()
-
-	app := &cdiAPIApp{
-		client:    client,
-		container: restful.NewContainer(),
-		caBundle:  []byte("bytes"),
-	}
-
-	err := app.createMutatingWebhook()
-	if err != nil {
-		t.Errorf("error creating upload api app: %v", err)
-	}
-
-	actions := []core.Action{}
-	actions = append(actions, mutatingWebhookGetAction())
-	actions = append(actions, cdiConfigGetAction())
-	actions = append(actions, mutatingWebhookCreateAction())
-
-	checkActions(actions, client.Actions(), t)
-}
-
-func TestUpdateMutatingWebhook(t *testing.T) {
-	client := k8sfake.NewSimpleClientset(getExpectedMutatingWebhook())
-
-	app := &cdiAPIApp{
-		client:    client,
-		container: restful.NewContainer(),
-		caBundle:  []byte("bytes"),
-	}
-
-	err := app.createMutatingWebhook()
-	if err != nil {
-		t.Errorf("error creating upload api app: %v", err)
-	}
-
-	actions := []core.Action{}
-	actions = append(actions, mutatingWebhookGetAction())
-	actions = append(actions, mutatingWebhookUpdateAction())
 
 	checkActions(actions, client.Actions(), t)
 }

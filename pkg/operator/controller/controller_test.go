@@ -39,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	realClient "sigs.k8s.io/controller-runtime/pkg/client"
 	fakeClient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -85,6 +86,7 @@ var (
 func init() {
 	cdiviaplha1.AddToScheme(scheme.Scheme)
 	extv1beta1.AddToScheme(scheme.Scheme)
+	apiregistrationv1beta1.AddToScheme(scheme.Scheme)
 	secv1.Install(scheme.Scheme)
 	routev1.Install(scheme.Scheme)
 }
@@ -1257,7 +1259,7 @@ func getObject(client realClient.Client, obj runtime.Object) (runtime.Object, er
 
 func getAllResources(reconciler *ReconcileCDI) ([]runtime.Object, error) {
 	var result []runtime.Object
-	crs, err := clusterResources.CreateAllResources(reconciler.clusterArgs)
+	crs, err := clusterResources.CreateAllStaticResources(reconciler.clusterArgs)
 	if err != nil {
 		return nil, err
 	}
@@ -1270,6 +1272,13 @@ func getAllResources(reconciler *ReconcileCDI) ([]runtime.Object, error) {
 	}
 
 	result = append(result, nrs...)
+
+	drs, err := clusterResources.CreateAllDynamicResources(reconciler.clusterArgs)
+	if err != nil {
+		return nil, err
+	}
+
+	result = append(result, drs...)
 
 	return result, nil
 }
@@ -1349,7 +1358,11 @@ func createReconcilerWithVersion(client realClient.Client, version string) *Reco
 
 func createReconciler(client realClient.Client) *ReconcileCDI {
 	namespace := "cdi"
-	clusterArgs := &clusterResources.FactoryArgs{Namespace: namespace}
+	clusterArgs := &clusterResources.FactoryArgs{
+		Namespace: namespace,
+		Client:    client,
+		Logger:    log,
+	}
 	namespacedArgs := &namespaceResources.FactoryArgs{
 		OperatorVersion:        version,
 		DeployClusterResources: "true",

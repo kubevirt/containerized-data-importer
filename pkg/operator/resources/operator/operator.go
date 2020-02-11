@@ -150,6 +150,37 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"create",
 			},
 		},
+		{
+			APIGroups: []string{
+				"admissionregistration.k8s.io",
+			},
+			Resources: []string{
+				"validatingwebhookconfigurations",
+				"mutatingwebhookconfigurations",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+			},
+		},
+		{
+			APIGroups: []string{
+				"apiregistration.k8s.io",
+			},
+			Resources: []string{
+				"apiservices",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+			},
+		},
 	}
 	rules = append(rules, cluster.GetClusterRolePolicyRules()...)
 	return rules

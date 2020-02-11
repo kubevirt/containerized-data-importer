@@ -190,7 +190,7 @@ func getClusterResources(codeGroup string) ([]runtime.Object, error) {
 		Namespace: *namespace,
 	}
 
-	return cdicluster.CreateResourceGroup(codeGroup, args)
+	return cdicluster.CreateStaticResourceGroup(codeGroup, args)
 }
 
 func getNamespacedResources(codeGroup string) ([]runtime.Object, error) {

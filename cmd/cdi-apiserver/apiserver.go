@@ -22,7 +22,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/pkg/errors"
@@ -43,8 +42,6 @@ const (
 
 	// Default address api listens on.
 	defaultHost = "0.0.0.0"
-
-	caBundleFile = "/var/run/certs/cdi-apiserver-signer-bundle/ca-bundle.crt"
 
 	certDir  = "/var/run/certs/cdi-apiserver-server-cert/"
 	certFile = certDir + "tls.crt"
@@ -103,11 +100,6 @@ func main() {
 		klog.Fatalf("Unable to create authorizor: %v\n", errors.WithStack(err))
 	}
 
-	caBundle, err := ioutil.ReadFile(caBundleFile)
-	if err != nil {
-		klog.Fatalf("Unable to read ca bundle: %v\n", errors.WithStack(err))
-	}
-
 	certWatcher, err := certwatcher.New(certFile, keyFile)
 	if err != nil {
 		klog.Fatalf("Unable to create certwatcher: %v\n", errors.WithStack(err))
@@ -119,7 +111,6 @@ func main() {
 		aggregatorClient,
 		authorizor,
 		authConfigWatcher,
-		caBundle,
 		certWatcher)
 	if err != nil {
 		klog.Fatalf("Upload api failed to initialize: %v\n", errors.WithStack(err))

@@ -125,7 +125,7 @@ func (a *authorizor) generateAccessReview(req *restful.Request) (*authorization.
 	}
 
 	if len(users) == 0 {
-		return nil, fmt.Errorf("No user header found")
+		return nil, fmt.Errorf("no user header found")
 	}
 
 	userGroups, err := a.matchHeaders(headers, authConfig.GroupHeaders)
