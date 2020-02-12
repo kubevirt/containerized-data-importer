@@ -72,13 +72,16 @@ type uploadServerApp struct {
 	imageSize   string
 	mux         *http.ServeMux
 	uploading   bool
+	processing  bool
 	done        bool
 	doneChan    chan struct{}
+	errChan     chan error
 	mutex       sync.Mutex
 }
 
 // may be overridden in tests
 var uploadProcessorFunc = newUploadStreamProcessor
+var uploadProcessorFuncAsync = newAsyncUploadStreamProcessor
 
 // NewUploadServer returns a new instance of uploadServerApp
 func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsCert, clientCert, clientName, imageSize string) UploadServer {
@@ -95,9 +98,11 @@ func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsC
 		uploading:   false,
 		done:        false,
 		doneChan:    make(chan struct{}),
+		errChan:     make(chan error),
 	}
 	server.mux.HandleFunc(healthzPath, server.healthzHandler)
-	server.mux.HandleFunc(common.UploadPath, server.uploadHandler)
+	server.mux.HandleFunc(common.UploadPathSync, server.uploadHandler)
+	server.mux.HandleFunc(common.UploadPathAsync, server.uploadHandlerAsync)
 	return server
 }
 
@@ -122,8 +127,6 @@ func (app *uploadServerApp) Run() error {
 		return errors.Wrap(err, "Error creating healthz listerner")
 	}
 
-	errChan := make(chan error)
-
 	go func() {
 		defer uploadListener.Close()
 
@@ -131,22 +134,22 @@ func (app *uploadServerApp) Run() error {
 		app.bindPort = uploadListener.Addr().(*net.TCPAddr).Port
 
 		if app.keyFile != "" && app.certFile != "" {
-			errChan <- uploadServer.ServeTLS(uploadListener, app.certFile, app.keyFile)
+			app.errChan <- uploadServer.ServeTLS(uploadListener, app.certFile, app.keyFile)
 			return
 		}
 
 		// not sure we want to support this code path
-		errChan <- uploadServer.Serve(uploadListener)
+		app.errChan <- uploadServer.Serve(uploadListener)
 	}()
 
 	go func() {
 		defer healthzServer.Close()
 
-		errChan <- healthzServer.Serve(healthzListener)
+		app.errChan <- healthzServer.Serve(healthzListener)
 	}()
 
 	select {
-	case err = <-errChan:
+	case err = <-app.errChan:
 		klog.Errorf("HTTP server returned error %s", err.Error())
 	case <-app.doneChan:
 		klog.Info("Shutting down http server after successful upload")
@@ -211,10 +214,10 @@ func (app *uploadServerApp) healthzHandler(w http.ResponseWriter, r *http.Reques
 	io.WriteString(w, "OK")
 }
 
-func (app *uploadServerApp) uploadHandler(w http.ResponseWriter, r *http.Request) {
+func (app *uploadServerApp) validateShouldHandleRequest(w http.ResponseWriter, r *http.Request) bool {
 	if r.Method != "POST" {
 		w.WriteHeader(http.StatusNotFound)
-		return
+		return false
 	}
 
 	if r.TLS != nil {
@@ -229,7 +232,7 @@ func (app *uploadServerApp) uploadHandler(w http.ResponseWriter, r *http.Request
 
 		if !found {
 			w.WriteHeader(http.StatusUnauthorized)
-			return
+			return false
 		}
 	} else {
 		klog.V(3).Infof("Handling HTTP connection")
@@ -239,7 +242,7 @@ func (app *uploadServerApp) uploadHandler(w http.ResponseWriter, r *http.Request
 		app.mutex.Lock()
 		defer app.mutex.Unlock()
 
-		if app.uploading {
+		if app.uploading || app.processing {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return true
 		}
@@ -255,6 +258,59 @@ func (app *uploadServerApp) uploadHandler(w http.ResponseWriter, r *http.Request
 
 	if exit {
 		klog.Warning("Got concurrent upload request")
+		return false
+	}
+	return true
+}
+
+func (app *uploadServerApp) uploadHandlerAsync(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "HEAD" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if !app.validateShouldHandleRequest(w, r) {
+		return
+	}
+
+	cdiContentType := r.Header.Get(UploadContentTypeHeader)
+
+	klog.Infof("Content type header is %q\n", cdiContentType)
+
+	processor, err := uploadProcessorFuncAsync(r.Body, app.destination, app.imageSize, cdiContentType)
+
+	app.mutex.Lock()
+
+	if err != nil {
+		klog.Errorf("Saving stream failed: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		app.uploading = false
+		app.mutex.Unlock()
+		return
+	}
+	defer app.mutex.Unlock()
+
+	app.uploading = false
+	app.processing = true
+
+	// Start processing.
+	go func() {
+		defer close(app.doneChan)
+		if err := processor.ProcessDataResume(); err != nil {
+			klog.Errorf("Error during resumed processing: %v", err)
+			app.errChan <- err
+		}
+		app.mutex.Lock()
+		defer app.mutex.Unlock()
+		app.processing = false
+		app.done = true
+		klog.Infof("Wrote data to %s", app.destination)
+	}()
+	klog.Info("Returning success to caller, continue processing in background")
+}
+
+func (app *uploadServerApp) uploadHandler(w http.ResponseWriter, r *http.Request) {
+	if !app.validateShouldHandleRequest(w, r) {
 		return
 	}
 
@@ -280,6 +336,12 @@ func (app *uploadServerApp) uploadHandler(w http.ResponseWriter, r *http.Request
 	close(app.doneChan)
 
 	klog.Infof("Wrote data to %s", app.destination)
+}
+
+func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize, contentType string) (*importer.DataProcessor, error) {
+	uds := importer.NewAsyncUploadDataSource(stream)
+	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize)
+	return processor, processor.ProcessDataWithPause()
 }
 
 func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize, contentType string) error {

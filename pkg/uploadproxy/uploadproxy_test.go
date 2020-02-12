@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
@@ -78,7 +79,18 @@ func getHTTPClientConfig(t *testing.T) *httpClientConfig {
 }
 
 func newProxyRequest(t *testing.T, authHeaderValue string) *http.Request {
-	req, err := http.NewRequest("POST", uploadPath, strings.NewReader("data"))
+	req, err := http.NewRequest("POST", common.UploadPathSync, strings.NewReader("data"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if authHeaderValue != "" {
+		req.Header.Set("Authorization", authHeaderValue)
+	}
+	return req
+}
+
+func newProxyHeadRequest(t *testing.T, authHeaderValue string) *http.Request {
+	req, err := http.NewRequest("HEAD", common.UploadPathSync, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +175,7 @@ func (fcc *fakeClientCreator) CreateClient() (*http.Client, error) {
 func setupProxyTests(handler http.HandlerFunc) *uploadProxyApp {
 	server := httptest.NewServer(handler)
 
-	urlResolver := func(string, string) string {
+	urlResolver := func(string, string, string) string {
 		return server.URL
 	}
 
@@ -215,6 +227,31 @@ func TestProxy(t *testing.T) {
 	}
 }
 
+func TestHeadProxy(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+	}{
+		{
+			"Test OK",
+			http.StatusOK,
+		},
+		{
+			"Test Error",
+			http.StatusInternalServerError,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(test.statusCode)
+			}))
+
+			req := newProxyHeadRequest(t, "Bearer valid")
+			submitRequestAndCheckStatus(t, req, test.statusCode, app)
+		})
+	}
+}
 func TestTokenInvalid(t *testing.T) {
 	app := createApp()
 	app.tokenValidator = &validateFailure{}

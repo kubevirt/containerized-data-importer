@@ -26,7 +26,6 @@ import (
 )
 
 const (
-	uploadPath  = "/v1alpha1/upload"
 	healthzPath = "/healthz"
 
 	waitReadyTime     = 10 * time.Second
@@ -52,7 +51,7 @@ type ClientCreator interface {
 	CreateClient() (*http.Client, error)
 }
 
-type urlLookupFunc func(string, string) string
+type urlLookupFunc func(string, string, string) string
 
 type uploadProxyApp struct {
 	bindAddress string
@@ -146,7 +145,8 @@ func (c *clientCreator) CreateClient() (*http.Client, error) {
 func (app *uploadProxyApp) initHandlers() {
 	app.mux = http.NewServeMux()
 	app.mux.HandleFunc(healthzPath, app.handleHealthzRequest)
-	app.mux.HandleFunc(uploadPath, app.handleUploadRequest)
+	app.mux.HandleFunc(common.UploadPathSync, app.handleUploadRequest)
+	app.mux.HandleFunc(common.UploadPathAsync, app.handleUploadRequest)
 }
 
 func (app *uploadProxyApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -219,12 +219,12 @@ func (app *uploadProxyApp) uploadReady(pvcName, pvcNamespace string) error {
 }
 
 func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.ResponseWriter, r *http.Request) {
-	url := app.urlResolver(namespace, pvc)
+	url := app.urlResolver(namespace, pvc, r.URL.Path)
 
-	req, _ := http.NewRequest("POST", url, r.Body)
+	req, _ := http.NewRequest(r.Method, url, r.Body)
 	req.ContentLength = r.ContentLength
 
-	klog.V(3).Infof("Posting to: %s", url)
+	klog.V(3).Infof("Method: %s to: %s", r.Method, url)
 
 	client, err := app.clientCreator.CreateClient()
 	if err != nil {

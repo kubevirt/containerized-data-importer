@@ -105,6 +105,46 @@ func (m *MockDataProvider) Close() error {
 	return nil
 }
 
+type MockAsyncDataProvider struct {
+	MockDataProvider
+	ResumePhase ProcessingPhase
+}
+
+// Info is called to get initial information about the data.
+func (madp *MockAsyncDataProvider) Info() (ProcessingPhase, error) {
+	return madp.MockDataProvider.Info()
+}
+
+// Transfer is called to transfer the data from the source to the passed in path.
+func (madp *MockAsyncDataProvider) Transfer(path string) (ProcessingPhase, error) {
+	return madp.MockDataProvider.Transfer(path)
+}
+
+// TransferFile is called to transfer the data from the source to the passed in file.
+func (madp *MockAsyncDataProvider) TransferFile(fileName string) (ProcessingPhase, error) {
+	return madp.MockDataProvider.TransferFile(fileName)
+}
+
+// Process is called to do any special processing before giving the url to the data back to the processor
+func (madp *MockAsyncDataProvider) Process() (ProcessingPhase, error) {
+	return madp.MockDataProvider.Process()
+}
+
+// Close closes any readers or other open resources.
+func (madp *MockAsyncDataProvider) Close() error {
+	return madp.MockDataProvider.Close()
+}
+
+// GetURL returns the url that the data processor can use when converting the data.
+func (madp *MockAsyncDataProvider) GetURL() *url.URL {
+	return madp.MockDataProvider.GetURL()
+}
+
+// GetResumePhase returns the next phase to process when resuming
+func (madp *MockAsyncDataProvider) GetResumePhase() ProcessingPhase {
+	return madp.ResumePhase
+}
+
 var _ = Describe("Data Processor", func() {
 	It("should call the right phases based on the responses from the provider, Transfer should pass the scratch data dir as a path", func() {
 		mdp := &MockDataProvider{
@@ -377,6 +417,24 @@ var _ = Describe("ResizeImage", func() {
 		table.Entry("fail to resize to with blank imageSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(2048), 0)), "", int64(2048), true),
 		table.Entry("fail to resize to with blank imageSize", NewQEMUAllErrors(), "", int64(2048), true),
 	)
+})
+
+var _ = Describe("DataProcessorResume", func() {
+	It("Should fail with an error if the data provider cannot resume", func() {
+		mdp := &MockDataProvider{}
+		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "")
+		err := dp.ProcessDataResume()
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("Should resume properly based on resume phase", func() {
+		amdp := &MockAsyncDataProvider{
+			ResumePhase: ProcessingPhaseComplete,
+		}
+		dp := NewDataProcessor(amdp, "dest", "dataDir", "scratchDataDir", "")
+		err := dp.ProcessDataResume()
+		Expect(err).ToNot(HaveOccurred())
+	})
 })
 
 func replaceQEMUOperations(replacement image.QEMUOperations, f func()) {

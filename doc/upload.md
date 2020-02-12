@@ -132,15 +132,30 @@ We will be using [curl](https://github.com/curl/curl) to upload `tests/images/ci
 Assuming that the environment variable `TOKEN` contains a valid UploadToken, execute the following to upload the image:
 
 ### Minikube
+#### Synchronous
 ```bash
 curl -v --insecure -H "Authorization: Bearer $TOKEN" --data-binary @tests/images/cirros-qcow2.img https://$(minikube ip):31001/v1alpha1/upload
 ```
+The connection will not be closed until the entire process is completed. If the conversion or resizing process takes a long time intermediate proxies might close the connection unexpectedly.
 
+#### Asynchronous
+```bash
+curl -v --insecure -H "Authorization: Bearer $TOKEN" --data-binary @tests/images/cirros-qcow2.img https://$(minikube ip):31001/v1alpha1/upload-async
+```
+As soon as the data has been transmitted, the connection will be closed. The caller should monitor the Datavolume status to see if the process is completed.
 ### Minishift
-
+#### Synchronous
 ```bash
 curl -v --insecure -H "Authorization: Bearer $TOKEN" --data-binary @tests/images/cirros-qcow2.img https://cdi-uploadproxy-cdi.$(minishift ip).nip.io/v1alpha1/upload
 ```
+The connection will not be closed until the entire process is completed. If the conversion or resizing process takes a long time intermediate proxies might close the connection unexpectedly.
+
+#### Asynchronous
+```bash
+curl -v --insecure -H "Authorization: Bearer $TOKEN" --data-binary @tests/images/cirros-qcow2.img https://cdi-uploadproxy-cdi.$(minishift ip).nip.io/v1alpha1/upload-async
+```
+As soon as the data has been transmitted, the connection will be closed. The caller should monitor the Datavolume status to see if the process is completed.
+
 
 Assuming you did not get an error, the Datavolume `upload-datavolume` should now contain a bootable VM image.
 

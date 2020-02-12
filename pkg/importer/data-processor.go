@@ -51,6 +51,8 @@ const (
 	ProcessingPhaseResize ProcessingPhase = "Resize"
 	// ProcessingPhaseComplete is the phase where the entire process completed successfully and we can exit gracefully.
 	ProcessingPhaseComplete ProcessingPhase = "Complete"
+	// ProcessingPhasePause is the phase where we pause processing and end the loop, and expect something to call the process loop again.
+	ProcessingPhasePause ProcessingPhase = "Pause"
 	// ProcessingPhaseError is the phase in which we encountered an error and need to exit ungracefully.
 	ProcessingPhaseError ProcessingPhase = "Error"
 )
@@ -65,7 +67,7 @@ var ErrInvalidPath = fmt.Errorf("invalid transfer path")
 var getAvailableSpaceBlockFunc = util.GetAvailableSpaceBlock
 var getAvailableSpaceFunc = util.GetAvailableSpace
 
-// DataSourceInterface is the interface all data providers should implement.
+// DataSourceInterface is the interface all data sources should implement.
 type DataSourceInterface interface {
 	// Info is called to get initial information about the data.
 	Info() (ProcessingPhase, error)
@@ -79,6 +81,12 @@ type DataSourceInterface interface {
 	GetURL() *url.URL
 	// Close closes any readers or other open resources.
 	Close() error
+}
+
+//ResumableDataSource is the interface all resumeable data sources should implement
+type ResumableDataSource interface {
+	DataSourceInterface
+	GetResumePhase() ProcessingPhase
 }
 
 // DataProcessor holds the fields needed to process data from a data provider.
@@ -114,13 +122,11 @@ func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratch
 	return dp
 }
 
-// ProcessData is the main processing loop.
+// ProcessData is the main synchronous processing loop
 func (dp *DataProcessor) ProcessData() error {
-	var err error
 	if util.GetAvailableSpace(dp.scratchDataDir) > int64(0) {
 		// Clean up before trying to write, in case a previous attempt left a mess. Note the deferred cleanup is intentional.
-		err = CleanDir(dp.scratchDataDir)
-		if err != nil {
+		if err := CleanDir(dp.scratchDataDir); err != nil {
 			return errors.Wrap(err, "Failure cleaning up temporary scratch space")
 		}
 		// Attempt to be a good citizen and clean up my mess at the end.
@@ -128,12 +134,28 @@ func (dp *DataProcessor) ProcessData() error {
 	}
 	if util.GetAvailableSpace(dp.dataDir) > int64(0) {
 		// Clean up data dir before trying to write in case a previous attempt failed and left some stuff behind.
-		err = CleanDir(dp.dataDir)
-		if err != nil {
+		if err := CleanDir(dp.dataDir); err != nil {
 			return errors.Wrap(err, "Failure cleaning up target space")
 		}
 	}
-	for dp.currentPhase != ProcessingPhaseComplete {
+	return dp.ProcessDataWithPause()
+}
+
+// ProcessDataResume Resume a paused processor, assumes the provided data source is ResumableDataSource
+func (dp *DataProcessor) ProcessDataResume() error {
+	rds, ok := dp.source.(ResumableDataSource)
+	if !ok {
+		return errors.New("Datasource not resumable")
+	}
+	klog.Infof("Resuming processing at phase %s", rds.GetResumePhase())
+	dp.currentPhase = rds.GetResumePhase()
+	return dp.ProcessDataWithPause()
+}
+
+// ProcessDataWithPause is the main processing loop.
+func (dp *DataProcessor) ProcessDataWithPause() error {
+	var err error
+	for dp.currentPhase != ProcessingPhaseComplete && dp.currentPhase != ProcessingPhasePause {
 		switch dp.currentPhase {
 		case ProcessingPhaseInfo:
 			dp.currentPhase, err = dp.source.Info()

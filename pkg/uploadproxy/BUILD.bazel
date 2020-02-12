@@ -25,6 +25,7 @@ go_test(
     srcs = ["uploadproxy_test.go"],
     embed = [":go_default_library"],
     deps = [
+        "//pkg/common:go_default_library",
         "//pkg/token:go_default_library",
         "//pkg/util/cert:go_default_library",
         "//pkg/util/cert/fetcher:go_default_library",

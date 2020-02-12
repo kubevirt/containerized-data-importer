@@ -1085,7 +1085,7 @@ func createSourcePod(pvc *v1.PersistentVolumeClaim, pvcUID string) *v1.Pod {
 						},
 						{
 							Name:  "UPLOAD_URL",
-							Value: GetUploadServerURL(pvc.Namespace, pvc.Name),
+							Value: GetUploadServerURL(pvc.Namespace, pvc.Name, common.UploadPathSync),
 						},
 						{
 							Name:  common.OwnerUID,

@@ -26,11 +26,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/importer"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
@@ -92,7 +94,23 @@ func newHTTPClient(t *testing.T, clientKeyPair *triple.KeyPair, serverCACert *x5
 }
 
 func newRequest(t *testing.T) *http.Request {
-	req, err := http.NewRequest("POST", common.UploadPath, strings.NewReader("data"))
+	req, err := http.NewRequest("POST", common.UploadPathSync, strings.NewReader("data"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return req
+}
+
+func newAsyncRequest(t *testing.T) *http.Request {
+	req, err := http.NewRequest("POST", common.UploadPathAsync, strings.NewReader("data"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return req
+}
+
+func newAsyncHeadRequest(t *testing.T) *http.Request {
+	req, err := http.NewRequest("HEAD", common.UploadPathAsync, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,9 +142,71 @@ func replaceProcessorFunc(replacement func(io.ReadCloser, string, string, string
 	f()
 }
 
+type AsyncMockDataSource struct {
+}
+
+// Info is called to get initial information about the data.
+func (amd *AsyncMockDataSource) Info() (importer.ProcessingPhase, error) {
+	return importer.ProcessingPhaseTransferDataFile, nil
+}
+
+// Transfer is called to transfer the data from the source to the passed in path.
+func (amd *AsyncMockDataSource) Transfer(path string) (importer.ProcessingPhase, error) {
+	return importer.ProcessingPhasePause, nil
+}
+
+// TransferFile is called to transfer the data from the source to the passed in file.
+func (amd *AsyncMockDataSource) TransferFile(fileName string) (importer.ProcessingPhase, error) {
+	return importer.ProcessingPhasePause, nil
+}
+
+// Process is called to do any special processing before giving the url to the data back to the processor
+func (amd *AsyncMockDataSource) Process() (importer.ProcessingPhase, error) {
+	return importer.ProcessingPhaseConvert, nil
+}
+
+// Close closes any readers or other open resources.
+func (amd *AsyncMockDataSource) Close() error {
+	return nil
+}
+
+// GetURL returns the url that the data processor can use when converting the data.
+func (amd *AsyncMockDataSource) GetURL() *url.URL {
+	return nil
+}
+
+// GetResumePhase returns the next phase to process when resuming
+func (amd *AsyncMockDataSource) GetResumePhase() importer.ProcessingPhase {
+	return importer.ProcessingPhaseComplete
+}
+
+func saveAsyncProcessorSuccess(stream io.ReadCloser, dest, imageSize, contentType string) (*importer.DataProcessor, error) {
+	return importer.NewDataProcessor(&AsyncMockDataSource{}, "", "", "", ""), nil
+}
+
+func saveAsyncProcessorFailure(stream io.ReadCloser, dest, imageSize, contentType string) (*importer.DataProcessor, error) {
+	return importer.NewDataProcessor(&AsyncMockDataSource{}, "", "", "", ""), fmt.Errorf("Error using datastream")
+}
+
+func withAsyncProcessorSuccess(f func()) {
+	replaceAsyncProcessorFunc(saveAsyncProcessorSuccess, f)
+}
+
+func withAsyncProcessorFailure(f func()) {
+	replaceAsyncProcessorFunc(saveAsyncProcessorFailure, f)
+}
+
+func replaceAsyncProcessorFunc(replacement func(io.ReadCloser, string, string, string) (*importer.DataProcessor, error), f func()) {
+	origProcessorFuncAsync := uploadProcessorFuncAsync
+	uploadProcessorFuncAsync = replacement
+	defer func() {
+		uploadProcessorFuncAsync = origProcessorFuncAsync
+	}()
+	f()
+}
 func TestGetFails(t *testing.T) {
 	withProcessorSuccess(func() {
-		req, err := http.NewRequest("GET", common.UploadPath, nil)
+		req, err := http.NewRequest("GET", common.UploadPathSync, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -178,6 +258,22 @@ func TestInProcessUnavailable(t *testing.T) {
 	})
 }
 
+func TestInProcessUnavailableAsync(t *testing.T) {
+	withProcessorSuccess(func() {
+		req := newAsyncRequest(t)
+
+		rr := httptest.NewRecorder()
+
+		server := newServer()
+		server.uploading = true
+		server.ServeHTTP(rr, req)
+
+		if status := rr.Code; status != http.StatusServiceUnavailable {
+			t.Errorf("handler returned wrong status code: got %v want %v",
+				status, http.StatusServiceUnavailable)
+		}
+	})
+}
 func TestCompletedConflict(t *testing.T) {
 	withProcessorSuccess(func() {
 		req := newRequest(t)
@@ -195,9 +291,57 @@ func TestCompletedConflict(t *testing.T) {
 	})
 }
 
+func TestCompletedConflictAsync(t *testing.T) {
+	withProcessorSuccess(func() {
+		req := newAsyncRequest(t)
+
+		rr := httptest.NewRecorder()
+
+		server := newServer()
+		server.done = true
+		server.ServeHTTP(rr, req)
+
+		if status := rr.Code; status != http.StatusConflict {
+			t.Errorf("handler returned wrong status code: got %v want %v",
+				status, http.StatusConflict)
+		}
+	})
+}
 func TestSuccess(t *testing.T) {
 	withProcessorSuccess(func() {
 		req := newRequest(t)
+
+		rr := httptest.NewRecorder()
+
+		server := newServer()
+		server.ServeHTTP(rr, req)
+
+		if status := rr.Code; status != http.StatusOK {
+			t.Errorf("handler returned wrong status code: got %v want %v",
+				status, http.StatusOK)
+		}
+	})
+}
+
+func TestSuccessAsync(t *testing.T) {
+	withAsyncProcessorSuccess(func() {
+		req := newAsyncRequest(t)
+
+		rr := httptest.NewRecorder()
+
+		server := newServer()
+		server.ServeHTTP(rr, req)
+
+		if status := rr.Code; status != http.StatusOK {
+			t.Errorf("handler returned wrong status code: got %v want %v",
+				status, http.StatusOK)
+		}
+	})
+}
+
+func TestSuccessHeadAsync(t *testing.T) {
+	withAsyncProcessorSuccess(func() {
+		req := newAsyncHeadRequest(t)
 
 		rr := httptest.NewRecorder()
 
@@ -227,6 +371,21 @@ func TestStreamFail(t *testing.T) {
 	})
 }
 
+func TestStreamFailAsync(t *testing.T) {
+	withAsyncProcessorFailure(func() {
+		req := newAsyncRequest(t)
+
+		rr := httptest.NewRecorder()
+
+		server := newServer()
+		server.ServeHTTP(rr, req)
+
+		if status := rr.Code; status != http.StatusInternalServerError {
+			t.Errorf("handler returned wrong status code: got %v want %v",
+				status, http.StatusInternalServerError)
+		}
+	})
+}
 func TestRealUploadWithClient(t *testing.T) {
 	type testData struct {
 		certName, expectedName string
@@ -267,7 +426,7 @@ func TestRealUploadWithClient(t *testing.T) {
 				t.Error("Couldn't start http server")
 			}
 
-			url := fmt.Sprintf("https://localhost:%d%s", server.bindPort, common.UploadPath)
+			url := fmt.Sprintf("https://localhost:%d%s", server.bindPort, common.UploadPathSync)
 			stringReader := strings.NewReader("nothing")
 
 			resp, err := client.Post(url, "application/x-www-form-urlencoded", stringReader)
