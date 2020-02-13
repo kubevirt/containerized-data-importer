@@ -36,7 +36,10 @@ container_image(
     base = "@fedora//image",
     directory = "/usr/bin",
     entrypoint = ["/usr/bin/cdi-operator"],
-    files = [":cdi-operator"],
+    files = [
+        ":cdi-operator",
+        "//tools/csv-generator",
+    ],
     visibility = ["//visibility:public"],
     user = "1001",
     workdir = "/home/cdi-operator",
