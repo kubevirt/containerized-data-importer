@@ -5,7 +5,6 @@ go_library(
     srcs = [
         "clone-controller.go",
         "config-controller.go",
-        "controller.go",
         "datavolume-controller.go",
         "import-controller.go",
         "runtime-util.go",
@@ -78,7 +77,6 @@ go_test(
         "clone-controller_test.go",
         "config-controller_test.go",
         "controller_suite_test.go",
-        "controller_test.go",
         "datavolume-controller_test.go",
         "import-controller_test.go",
         "upload-controller_test.go",
@@ -95,6 +93,7 @@ go_test(
         "//pkg/token:go_default_library",
         "//pkg/util/cert:go_default_library",
         "//pkg/util/cert/fetcher:go_default_library",
+        "//pkg/util/cert/triple:go_default_library",
         "//tests/reporters:go_default_library",
         "//vendor/github.com/appscode/jsonpatch:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1:go_default_library",

@@ -124,8 +124,17 @@ func addVolumeMounts(pvc *k8sv1.PersistentVolumeClaim) []v1.VolumeMount {
 	return volumeMounts
 }
 
+// FindPodBysuffix finds the first pod which has the passed in postfix. Returns error if multiple pods with the same prefix are found.
+func FindPodBysuffix(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string) (*k8sv1.Pod, error) {
+	return findPodByCompFunc(clientSet, namespace, prefix, labelSelector, strings.HasSuffix)
+}
+
 // FindPodByPrefix finds the first pod which has the passed in prefix. Returns error if multiple pods with the same prefix are found.
 func FindPodByPrefix(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string) (*k8sv1.Pod, error) {
+	return findPodByCompFunc(clientSet, namespace, prefix, labelSelector, strings.HasPrefix)
+}
+
+func findPodByCompFunc(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string, compFunc func(string, string) bool) (*k8sv1.Pod, error) {
 	var result k8sv1.Pod
 	var foundPod bool
 	err := wait.PollImmediate(2*time.Second, podCreateTime, func() (bool, error) {
@@ -134,7 +143,7 @@ func FindPodByPrefix(clientSet *kubernetes.Clientset, namespace, prefix, labelSe
 		})
 		if err == nil {
 			for _, pod := range podList.Items {
-				if strings.HasPrefix(pod.Name, prefix) {
+				if compFunc(pod.Name, prefix) {
 					if !foundPod {
 						foundPod = true
 						result = pod

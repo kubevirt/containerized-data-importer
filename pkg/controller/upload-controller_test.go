@@ -17,9 +17,13 @@ limitations under the License.
 package controller
 
 import (
+	"encoding/json"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
+
+	"github.com/appscode/jsonpatch"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -58,6 +62,58 @@ type uploadFixture struct {
 	// Objects from here preloaded into NewSimpleFake.
 	kubeobjects []runtime.Object
 	cdiobjects  []runtime.Object
+}
+
+func printJSONDiff(objA, objB interface{}) string {
+	aBytes, _ := json.Marshal(objA)
+	bBytes, _ := json.Marshal(objB)
+	patches, _ := jsonpatch.CreatePatch(aBytes, bBytes)
+	pBytes, _ := json.Marshal(patches)
+	return string(pBytes)
+}
+
+// checkAction verifies that expected and actual actions are equal and both have
+// same attached resources
+func checkAction(expected, actual core.Action, t *testing.T) {
+	if !(expected.Matches(actual.GetVerb(), actual.GetResource().Resource) && actual.GetSubresource() == expected.GetSubresource()) {
+		t.Errorf("Expected\n\t%#v\ngot\n\t%#v", expected, actual)
+		return
+	}
+
+	if reflect.TypeOf(actual) != reflect.TypeOf(expected) {
+		t.Errorf("Action has wrong type. Expected: %t. Got: %t", expected, actual)
+		return
+	}
+
+	switch a := actual.(type) {
+	case core.CreateAction:
+		e, _ := expected.(core.CreateAction)
+		expObject := e.GetObject()
+		object := a.GetObject()
+
+		if !reflect.DeepEqual(expObject, object) {
+			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
+				a.GetVerb(), a.GetResource().Resource, printJSONDiff(expObject, object))
+		}
+	case core.UpdateAction:
+		e, _ := expected.(core.UpdateAction)
+		expObject := e.GetObject()
+		object := a.GetObject()
+
+		if !reflect.DeepEqual(expObject, object) {
+			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
+				a.GetVerb(), a.GetResource().Resource, printJSONDiff(expObject, object))
+		}
+	case core.PatchAction:
+		e, _ := expected.(core.PatchAction)
+		expPatch := e.GetPatch()
+		patch := a.GetPatch()
+
+		if !reflect.DeepEqual(expPatch, expPatch) {
+			t.Errorf("Action %s %s has wrong patch\nDiff:\n %s",
+				a.GetVerb(), a.GetResource().Resource, printJSONDiff(expPatch, patch))
+		}
+	}
 }
 
 func newUploadFixture(t *testing.T) *uploadFixture {

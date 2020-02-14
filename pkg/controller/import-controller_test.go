@@ -181,7 +181,7 @@ var _ = Describe("Update PVC from POD", func() {
 		resPod := &corev1.Pod{}
 		err := reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, resPod)
 		Expect(err).ToNot(HaveOccurred())
-		err = reconciler.updatePvcFromPod(pvc, pod)
+		err = reconciler.updatePvcFromPod(pvc, pod, reconciler.Log)
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking import successful event recorded")
 		event := <-reconciler.recorder.(*record.FakeRecorder).Events
@@ -208,7 +208,7 @@ var _ = Describe("Update PVC from POD", func() {
 		resPod := &corev1.Pod{}
 		err := reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, resPod)
 		Expect(err).ToNot(HaveOccurred())
-		err = reconciler.updatePvcFromPod(pvc, pod)
+		err = reconciler.updatePvcFromPod(pvc, pod, reconciler.Log)
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking pvc phase has been updated")
 		resPvc := &corev1.PersistentVolumeClaim{}
@@ -231,7 +231,7 @@ var _ = Describe("Update PVC from POD", func() {
 			Phase: corev1.PodPending,
 		}
 		reconciler = createImportReconciler(pvc, pod)
-		err := reconciler.updatePvcFromPod(pvc, pod)
+		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.Log)
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking scratch PVC has been created")
 		// Once all controllers are converted, we will use the runtime lib client instead of client-go and retrieval needs to change here.
@@ -263,7 +263,7 @@ var _ = Describe("Update PVC from POD", func() {
 			},
 		}
 		reconciler = createImportReconciler(pvc, pod)
-		err := reconciler.updatePvcFromPod(pvc, pod)
+		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.Log)
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking pvc phase has been updated")
 		resPvc := &corev1.PersistentVolumeClaim{}
@@ -293,7 +293,7 @@ var _ = Describe("Update PVC from POD", func() {
 			},
 		}
 		reconciler = createImportReconciler(pvc, pod)
-		err := reconciler.updatePvcFromPod(pvc, pod)
+		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.Log)
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking pvc phase has been updated")
 		resPvc := &corev1.PersistentVolumeClaim{}
@@ -379,6 +379,7 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		ScratchSpaceStorageClass: testStorageClass,
 	}
+	objs = append(objs, cdiConfig)
 	cdifakeclientset := cdifake.NewSimpleClientset(cdiConfig)
 	k8sfakeclientset := k8sfake.NewSimpleClientset(createStorageClass(testStorageClass, nil))
 

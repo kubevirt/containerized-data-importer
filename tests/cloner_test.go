@@ -537,7 +537,7 @@ func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolume
 
 func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1.PersistentVolumeClaim, filePath, expectedMD5 string) {
 	By("Find cloner pods")
-	sourcePod, err := f.FindPodByPrefix(common.ClonerSourcePodName)
+	sourcePod, err := f.FindPodBySuffix(common.ClonerSourcePodNameSuffix)
 	if err != nil {
 		PrintControllerLog(f)
 	}
@@ -595,10 +595,11 @@ func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string
 	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
 	Expect(err).ToNot(HaveOccurred())
 
+	By("Checking logs explicitly skips PVC")
 	Eventually(func() bool {
 		log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 		Expect(err).NotTo(HaveOccurred())
-		return strings.Contains(log, fmt.Sprintf("Cleaning up for PVC %s/target-pvc", targetNamespaceName))
+		return strings.Contains(log, fmt.Sprintf("{\"PVC\": \"%s/%s\", \"checkPVC(AnnCloneRequest)\": true, \"NOT has annotation(AnnCloneOf)\": false, \"has finalizer?\": false}", targetNamespaceName, "target-pvc"))
 	}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
 	Expect(err).ToNot(HaveOccurred())
 }
