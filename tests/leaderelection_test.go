@@ -27,7 +27,7 @@ const (
 	newDeploymentName      = "cdi-new-deployment"
 
 	pollingInterval = 2 * time.Second
-	timeout         = 180 * time.Second
+	timeout         = 360 * time.Second
 )
 
 var (
