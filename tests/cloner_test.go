@@ -85,7 +85,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		cloneOfAnnoExistenceTest(f, f.Namespace.Name)
 	})
 
-	It("Should clone across nodes when multiple local volumes exist,", func() {
+	It("[posneg:negative][test_id:3617]Should clone across nodes when multiple local volumes exist,", func() {
 		// Get nodes, need at least 2
 		nodeList, err := f.K8sClient.CoreV1().Nodes().List(metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
