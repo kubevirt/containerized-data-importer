@@ -85,7 +85,7 @@ $ ./cluster-up/kubectl.sh .....
 
 We'd love to hear from you, reach out on Github via Issues or Pull Requests!
 
-Hit us up on Slack, under the Kubernetes Virtualization channel
+Hit us up on [Slack](https://kubernetes.slack.com/messages/virtualization)
 
 Shoot us an email at: kubevirt-dev@googlegroups.com
 
