@@ -49,7 +49,7 @@ ${CODEGEN_PKG}/generate-groups.sh "client,informer,lister" \
 ${SCRIPT_ROOT}/bin/openapi-spec-generator > ${SCRIPT_ROOT}/api/openapi-spec/swagger.json
 
 # the kubevirtci commit hash to vendor from
-kubevirtci_git_hash=78dcc4f8aaec467bba8ae325646056128268a169
+kubevirtci_git_hash=d244ff0a75e99803951bbf2d6a51b97b5859d116
 
 # remove previous cluster-up dir entirely before vendoring
 rm -rf cluster-up
