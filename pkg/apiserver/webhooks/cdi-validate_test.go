@@ -152,6 +152,36 @@ var _ = Describe("CDI Delete Webhook", func() {
 			Expect(resp.Result.Message).To(ContainSubstring("Rejecting the uninstall request, since there are still DataVolumes present."))
 		})
 
+		It("should reject with DataVolumes present and oldobject not populated", func() {
+			cdi := &cdiv1alpha1.CDI{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cdi",
+				},
+				Spec: cdiv1alpha1.CDISpec{
+					UninstallStrategy: &block,
+				},
+				Status: cdiv1alpha1.CDIStatus{
+					Phase: cdiv1alpha1.CDIPhaseDeployed,
+				},
+			}
+
+			ar := &admissionv1beta1.AdmissionReview{
+				Request: &admissionv1beta1.AdmissionRequest{
+					Operation: admissionv1beta1.Delete,
+					Name:      cdi.Name,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdiv1alpha1.SchemeGroupVersion.Group,
+						Version:  cdiv1alpha1.SchemeGroupVersion.Version,
+						Resource: "cdis",
+					},
+				},
+			}
+
+			resp := validateCDIs(ar, cdi, newDataVolumeWithName("foo"))
+			Expect(resp.Allowed).To(BeFalse())
+			Expect(resp.Result.Message).To(ContainSubstring("Rejecting the uninstall request, since there are still DataVolumes present."))
+		})
+
 		It("should allow error CDI to be deleted with DataVolumes present", func() {
 			cdi := &cdiv1alpha1.CDI{
 				ObjectMeta: metav1.ObjectMeta{
