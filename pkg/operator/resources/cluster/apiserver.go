@@ -108,6 +108,17 @@ func getAPIServerClusterPolicyRules() []rbacv1.PolicyRule {
 				"cdi.kubevirt.io",
 			},
 			Resources: []string{
+				"cdis",
+			},
+			Verbs: []string{
+				"get",
+			},
+		},
+		{
+			APIGroups: []string{
+				"cdi.kubevirt.io",
+			},
+			Resources: []string{
 				"cdis/finalizers",
 			},
 			Verbs: []string{

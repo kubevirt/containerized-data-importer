@@ -45,6 +45,7 @@ done
 
 for label in ${LABELS[@]}; do
     _kubectl delete pv -l ${label}
+    _kubectl delete mutatingwebhookconfiguration -l ${label}
     _kubectl delete validatingwebhookconfiguration -l ${label}
     _kubectl delete clusterrolebinding -l ${label}
     _kubectl delete clusterroles -l ${label}

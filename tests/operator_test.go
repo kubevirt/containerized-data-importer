@@ -123,7 +123,7 @@ var _ = Describe("Operator delete CDI tests", func() {
 				}
 			}
 			return false
-		}, 5*time.Minute, 2*time.Second).Should(BeTrue())
+		}, 10*time.Minute, 2*time.Second).Should(BeTrue())
 	})
 
 	It("should delete an upload pod", func() {
