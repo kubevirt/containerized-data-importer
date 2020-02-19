@@ -49,8 +49,9 @@ func createStaticAPIServerResources(args *FactoryArgs) []runtime.Object {
 func createDynamicAPIServerResources(args *FactoryArgs) []runtime.Object {
 	return []runtime.Object{
 		createAPIService(args.Namespace, args.Client, args.Logger),
-		createAPIServerValidatingWebhook(args.Namespace, args.Client, args.Logger),
-		createAPIServerMutatingWebhook(args.Namespace, args.Client, args.Logger),
+		createDataVolumeValidatingWebhook(args.Namespace, args.Client, args.Logger),
+		createDataVolumeMutatingWebhook(args.Namespace, args.Client, args.Logger),
+		createCDIValidatingWebhook(args.Namespace, args.Client, args.Logger),
 	}
 }
 
@@ -96,10 +97,10 @@ func getAPIServerClusterPolicyRules() []rbacv1.PolicyRule {
 				"cdi.kubevirt.io",
 			},
 			Resources: []string{
-				"*",
+				"datavolumes",
 			},
 			Verbs: []string{
-				"*",
+				"list",
 			},
 		},
 	}
@@ -141,9 +142,10 @@ func createAPIService(namespace string, c client.Client, l logr.Logger) *apiregi
 	return apiService
 }
 
-func createAPIServerValidatingWebhook(namespace string, c client.Client, l logr.Logger) *admissionregistrationv1beta1.ValidatingWebhookConfiguration {
+func createDataVolumeValidatingWebhook(namespace string, c client.Client, l logr.Logger) *admissionregistrationv1beta1.ValidatingWebhookConfiguration {
 	path := "/datavolume-validate"
 	failurePolicy := admissionregistrationv1beta1.Fail
+	sideEffect := admissionregistrationv1beta1.SideEffectClassNone
 	whc := &admissionregistrationv1beta1.ValidatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "admissionregistration.k8s.io/v1beta1",
@@ -177,6 +179,7 @@ func createAPIServerValidatingWebhook(namespace string, c client.Client, l logr.
 					},
 				},
 				FailurePolicy: &failurePolicy,
+				SideEffects:   &sideEffect,
 			},
 		},
 	}
@@ -193,9 +196,65 @@ func createAPIServerValidatingWebhook(namespace string, c client.Client, l logr.
 	return whc
 }
 
-func createAPIServerMutatingWebhook(namespace string, c client.Client, l logr.Logger) *admissionregistrationv1beta1.MutatingWebhookConfiguration {
+func createCDIValidatingWebhook(namespace string, c client.Client, l logr.Logger) *admissionregistrationv1beta1.ValidatingWebhookConfiguration {
+	path := "/cdi-validate"
+	failurePolicy := admissionregistrationv1beta1.Fail
+	sideEffect := admissionregistrationv1beta1.SideEffectClassNone
+	whc := &admissionregistrationv1beta1.ValidatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "admissionregistration.k8s.io/v1beta1",
+			Kind:       "ValidatingWebhookConfiguration",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cdi-api-validate",
+			Labels: map[string]string{
+				utils.CDILabel: apiServerServiceName,
+			},
+		},
+		Webhooks: []admissionregistrationv1beta1.ValidatingWebhook{
+			{
+				Name: "cdi-validate.cdi.kubevirt.io",
+				Rules: []admissionregistrationv1beta1.RuleWithOperations{{
+					Operations: []admissionregistrationv1beta1.OperationType{
+						admissionregistrationv1beta1.Delete,
+					},
+					Rule: admissionregistrationv1beta1.Rule{
+						APIGroups:   []string{cdicorev1alpha1.SchemeGroupVersion.Group},
+						APIVersions: []string{cdicorev1alpha1.SchemeGroupVersion.Version},
+						Resources:   []string{"cdis"},
+					},
+				}},
+				ClientConfig: admissionregistrationv1beta1.WebhookClientConfig{
+					Service: &admissionregistrationv1beta1.ServiceReference{
+						Namespace: namespace,
+						Name:      apiServerServiceName,
+						Path:      &path,
+					},
+				},
+				SideEffects: &sideEffect,
+			},
+		},
+	}
+
+	if c == nil {
+		return whc
+	}
+
+	bundle := getAPIServerCABundle(namespace, c, l)
+	if bundle != nil {
+		for i := range whc.Webhooks {
+			whc.Webhooks[i].ClientConfig.CABundle = bundle
+			whc.Webhooks[i].FailurePolicy = &failurePolicy
+		}
+	}
+
+	return whc
+}
+
+func createDataVolumeMutatingWebhook(namespace string, c client.Client, l logr.Logger) *admissionregistrationv1beta1.MutatingWebhookConfiguration {
 	path := "/datavolume-mutate"
 	failurePolicy := admissionregistrationv1beta1.Fail
+	sideEffect := admissionregistrationv1beta1.SideEffectClassNone
 	whc := &admissionregistrationv1beta1.MutatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "admissionregistration.k8s.io/v1beta1",
@@ -229,6 +288,7 @@ func createAPIServerMutatingWebhook(namespace string, c client.Client, l logr.Lo
 					},
 				},
 				FailurePolicy: &failurePolicy,
+				SideEffects:   &sideEffect,
 			},
 		},
 	}

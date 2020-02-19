@@ -7,6 +7,7 @@ go_library(
         "certrotation.go",
         "controller.go",
         "cr.go",
+        "cruft.go",
         "handler.go",
         "predicate.go",
         "route.go",

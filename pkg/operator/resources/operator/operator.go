@@ -389,6 +389,17 @@ func createCDIListCRD() *extv1beta1.CustomResourceDefinition {
 										},
 									},
 								},
+								"uninstallStrategy": {
+									Type: "string",
+									Enum: []extv1beta1.JSON{
+										{
+											Raw: []byte(`"RemoveWorkloads"`),
+										},
+										{
+											Raw: []byte(`"BlockUninstallIfWorkloadsExist"`),
+										},
+									},
+								},
 							},
 							Type: "object",
 						},

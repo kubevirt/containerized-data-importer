@@ -152,43 +152,6 @@ func reconcileCreateRoute(args *ReconcileCallbackArgs) error {
 	return nil
 }
 
-// delete when we no longer support <= 1.12.0
-func reconcileDeleteSecrets(args *ReconcileCallbackArgs) error {
-	if args.State != ReconcileStatePostRead {
-		return nil
-	}
-
-	deployment := args.CurrentObject.(*appsv1.Deployment)
-	if !isControllerDeployment(deployment) || !checkDeploymentReady(deployment) {
-		return nil
-	}
-
-	for _, s := range []string{"cdi-api-server-cert",
-		"cdi-upload-proxy-ca-key",
-		"cdi-upload-proxy-server-key",
-		"cdi-upload-server-ca-key",
-		"cdi-upload-server-client-ca-key",
-		"cdi-upload-server-client-key"} {
-		secret := &corev1.Secret{}
-		key := client.ObjectKey{Namespace: args.Namespace, Name: s}
-		err := args.Client.Get(context.TODO(), key, secret)
-		if errors.IsNotFound(err) {
-			continue
-		}
-
-		if err != nil {
-			return err
-		}
-
-		err = args.Client.Delete(context.TODO(), secret)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func reconcileServiceAccountRead(args *ReconcileCallbackArgs) error {
 	if args.State != ReconcileStatePostRead {
 		return nil
