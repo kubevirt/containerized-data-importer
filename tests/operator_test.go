@@ -169,6 +169,13 @@ var _ = Describe("Operator delete CDI tests", func() {
 		_, err = f.CdiClient.CdiV1alpha1().CDIs().Update(cdi)
 		Expect(err).ToNot(HaveOccurred())
 
+		By("Waiting for update")
+		Eventually(func() bool {
+			cdi, err = f.CdiClient.CdiV1alpha1().CDIs().Get(cr.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return cdi.Spec.UninstallStrategy != nil && *cdi.Spec.UninstallStrategy == uninstallStrategy
+		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+
 		By("Creating datavolume")
 		dv := utils.NewDataVolumeForUpload("delete-me", "1Gi")
 		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
