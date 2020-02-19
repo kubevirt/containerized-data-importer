@@ -241,7 +241,7 @@ const (
 	// CDIPhaseUpgrading signals that the CDI resources are being deployed
 	CDIPhaseUpgrading CDIPhase = "Upgrading"
 
-	// CDIPhaseEmpty is an unitinialized phase
+	// CDIPhaseEmpty is an uninitialized phase
 	CDIPhaseEmpty CDIPhase = ""
 )
 
