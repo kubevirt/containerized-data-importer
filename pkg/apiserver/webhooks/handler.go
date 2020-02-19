@@ -36,6 +36,7 @@ import (
 	"k8s.io/klog"
 
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 )
@@ -58,6 +59,11 @@ func NewDataVolumeValidatingWebhook(client kubernetes.Interface) http.Handler {
 func NewDataVolumeMutatingWebhook(client kubernetes.Interface, key *rsa.PrivateKey) http.Handler {
 	generator := newCloneTokenGenerator(key)
 	return newAdmissionHandler(&dataVolumeMutatingWebhook{client: client, tokenGenerator: generator})
+}
+
+// NewCDIValidatingWebhook creates a new CDI validating webhook
+func NewCDIValidatingWebhook(client cdiclient.Interface) http.Handler {
+	return newAdmissionHandler(&cdiValidatingWebhook{client: client})
 }
 
 func newCloneTokenGenerator(key *rsa.PrivateKey) token.Generator {

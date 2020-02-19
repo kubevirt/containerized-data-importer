@@ -44,6 +44,7 @@ import (
 
 	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/apiserver/webhooks"
+	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
@@ -61,6 +62,8 @@ const (
 	dvValidatePath = "/datavolume-validate"
 
 	dvMutatePath = "/datavolume-mutate"
+
+	cdiValidatePath = "/cdi-validate"
 
 	healthzPath = "/healthz"
 )
@@ -83,6 +86,7 @@ type cdiAPIApp struct {
 
 	client           kubernetes.Interface
 	aggregatorClient aggregatorclient.Interface
+	cdiClient        cdiclient.Interface
 
 	privateSigningKey *rsa.PrivateKey
 
@@ -111,6 +115,7 @@ func NewCdiAPIServer(bindAddress string,
 	bindPort uint,
 	client kubernetes.Interface,
 	aggregatorClient aggregatorclient.Interface,
+	cdiClient cdiclient.Interface,
 	authorizor CdiAPIAuthorizer,
 	authConfigWatcher AuthConfigWatcher,
 	certWatcher CertWatcher) (CdiAPIServer, error) {
@@ -120,6 +125,7 @@ func NewCdiAPIServer(bindAddress string,
 		bindPort:          bindPort,
 		client:            client,
 		aggregatorClient:  aggregatorClient,
+		cdiClient:         cdiClient,
 		authorizer:        authorizor,
 		uploadPossible:    controller.UploadPossibleForPVC,
 		authConfigWatcher: authConfigWatcher,
@@ -154,14 +160,19 @@ func NewCdiAPIServer(bindAddress string,
 
 	})
 
-	err = app.createValidatingWebhook()
+	err = app.createDataVolumeValidatingWebhook()
 	if err != nil {
-		return nil, errors.Errorf("failed to create validating webhook: %s", err)
+		return nil, errors.Errorf("failed to create DataVolume validating webhook: %s", err)
 	}
 
-	err = app.createMutatingWebhook()
+	err = app.createDataVolumeMutatingWebhook()
 	if err != nil {
-		return nil, errors.Errorf("failed to create mutating webhook: %s", err)
+		return nil, errors.Errorf("failed to create DataVolume mutating webhook: %s", err)
+	}
+
+	err = app.createCDIValidatingWebhook()
+	if err != nil {
+		return nil, errors.Errorf("failed to create CDI validating webhook: %s", err)
 	}
 
 	return app, nil
@@ -470,12 +481,17 @@ func (app *cdiAPIApp) healthzHandler(req *restful.Request, resp *restful.Respons
 	io.WriteString(resp, "OK")
 }
 
-func (app *cdiAPIApp) createValidatingWebhook() error {
+func (app *cdiAPIApp) createDataVolumeValidatingWebhook() error {
 	app.container.ServeMux.Handle(dvValidatePath, webhooks.NewDataVolumeValidatingWebhook(app.client))
 	return nil
 }
 
-func (app *cdiAPIApp) createMutatingWebhook() error {
+func (app *cdiAPIApp) createDataVolumeMutatingWebhook() error {
 	app.container.ServeMux.Handle(dvMutatePath, webhooks.NewDataVolumeMutatingWebhook(app.client, app.privateSigningKey))
+	return nil
+}
+
+func (app *cdiAPIApp) createCDIValidatingWebhook() error {
+	app.container.ServeMux.Handle(cdiValidatePath, webhooks.NewCDIValidatingWebhook(app.cdiClient))
 	return nil
 }

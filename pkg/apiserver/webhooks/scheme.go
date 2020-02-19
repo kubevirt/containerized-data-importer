@@ -20,6 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
+	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
 var scheme = runtime.NewScheme()
@@ -33,4 +35,5 @@ func addToScheme(scheme *runtime.Scheme) {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(admissionv1beta1.AddToScheme(scheme))
 	utilruntime.Must(admissionregistrationv1beta1.AddToScheme(scheme))
+	utilruntime.Must(cdiv1alpha1.AddToScheme(scheme))
 }

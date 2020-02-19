@@ -86,7 +86,9 @@ var _ = Describe("Operator delete CDI tests", func() {
 		cdi, err := f.CdiClient.CdiV1alpha1().CDIs().Get(cr.Name, metav1.GetOptions{})
 		if err == nil {
 			if cdi.DeletionTimestamp == nil {
-				// nothing to do here
+				cdi.Spec = cr.Spec
+				_, err = f.CdiClient.CdiV1alpha1().CDIs().Update(cdi)
+				Expect(err).ToNot(HaveOccurred())
 				return
 			}
 
@@ -154,5 +156,33 @@ var _ = Describe("Operator delete CDI tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			return false
 		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+	})
+
+	It("should block CDI delete", func() {
+		uninstallStrategy := cdiv1alpha1.CDIUninstallStrategyBlockUninstallIfWorkloadsExist
+
+		By("Getting CDI resource")
+		cdi, err := f.CdiClient.CdiV1alpha1().CDIs().Get(cr.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		cdi.Spec.UninstallStrategy = &uninstallStrategy
+		_, err = f.CdiClient.CdiV1alpha1().CDIs().Update(cdi)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Creating datavolume")
+		dv := utils.NewDataVolumeForUpload("delete-me", "1Gi")
+		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Cannot delete CDI")
+		err = f.CdiClient.CdiV1alpha1().CDIs().Delete(cr.Name, &metav1.DeleteOptions{})
+		Expect(err).To(HaveOccurred())
+
+		err = f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Delete(dv.Name, &metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Can delete CDI")
+		err = f.CdiClient.CdiV1alpha1().CDIs().Delete(cr.Name, &metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
 	})
 })
