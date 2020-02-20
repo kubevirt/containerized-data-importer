@@ -192,14 +192,15 @@ var _ = Describe("Operator delete CDI tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Cannot delete CDI")
-		err = f.CdiClient.CdiV1alpha1().CDIs().Delete(cr.Name, &metav1.DeleteOptions{})
+		err = f.CdiClient.CdiV1alpha1().CDIs().Delete(cr.Name, &metav1.DeleteOptions{DryRun: []string{"All"}})
 		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("there are still DataVolumes present"))
 
 		err = f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Delete(dv.Name, &metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Can delete CDI")
-		err = f.CdiClient.CdiV1alpha1().CDIs().Delete(cr.Name, &metav1.DeleteOptions{})
+		err = f.CdiClient.CdiV1alpha1().CDIs().Delete(cr.Name, &metav1.DeleteOptions{DryRun: []string{"All"}})
 		Expect(err).ToNot(HaveOccurred())
 	})
 })
