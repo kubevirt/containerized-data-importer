@@ -12,6 +12,7 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -64,6 +65,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	Describe("Verify DataVolume", func() {
 		table.DescribeTable("should", func(name, command, url, dataVolumeName, errorMessage, eventReason string, phase cdiv1.DataVolumePhase) {
+			repeat := 1
 			var dataVolume *cdiv1.DataVolume
 			switch name {
 			case "import-http":
@@ -85,6 +87,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
 				dataVolume = utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)
 			case "import-registry":
+				repeat = 10
 				dataVolume = utils.NewDataVolumeWithRegistryImport(dataVolumeName, "1Gi", url)
 				cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 				Expect(err).To(BeNil())
@@ -93,40 +96,48 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				dataVolume = utils.NewDataVolumeWithArchiveContent(dataVolumeName, "1Gi", url)
 			}
 
-			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
-			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
-			Expect(err).ToNot(HaveOccurred())
+			for i := 0; i < repeat; i++ {
+				By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+				Expect(err).ToNot(HaveOccurred())
 
-			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
-			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
-			if err != nil {
-				PrintControllerLog(f)
-				dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
-				if dverr != nil {
-					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+				By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
+				err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+				if err != nil {
+					PrintControllerLog(f)
+					dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+					if dverr != nil {
+						Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+					}
 				}
+				Expect(err).ToNot(HaveOccurred())
+
+				// verify PVC was created
+				By("verifying pvc was created")
+				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By(fmt.Sprint("Verifying event occurred"))
+				Eventually(func() bool {
+					events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
+					if err == nil {
+						fmt.Fprintf(GinkgoWriter, "%s", events)
+						return strings.Contains(events, eventReason) && strings.Contains(events, errorMessage)
+					}
+					fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+					return false
+				}, timeout, pollingInterval).Should(BeTrue())
+
+				err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+				Eventually(func() bool {
+					_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+					if k8serrors.IsNotFound(err) {
+						return true
+					}
+					return false
+				}, timeout, pollingInterval).Should(BeTrue())
 			}
-			Expect(err).ToNot(HaveOccurred())
-
-			// verify PVC was created
-			By("verifying pvc was created")
-			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-
-			By(fmt.Sprint("Verifying event occurred"))
-			Eventually(func() bool {
-				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
-				if err == nil {
-					fmt.Fprintf(GinkgoWriter, "%s", events)
-					return strings.Contains(events, eventReason) && strings.Contains(events, errorMessage)
-				}
-				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
-				return false
-			}, timeout, pollingInterval).Should(BeTrue())
-
-			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
-
 		},
 			table.Entry("[rfe_id:1115][crit:high][test_id:1357]succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
 			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1358]fail creating import dv due to invalid DNS entry", "import-http", "", "http://i-made-this-up.kube-system/tinyCore.iso", "dv-phase-test-2", "Unable to connect to http data source", controller.ImportFailed, cdiv1.ImportInProgress),

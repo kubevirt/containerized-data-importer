@@ -235,7 +235,9 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	// Check if the POD is waiting for scratch space, if so create some.
 	if pod.Status.Phase == corev1.PodPending && r.requiresScratchSpace(pvc) {
 		if err := r.createScratchPvcForPod(pvc, pod); err != nil {
-			return err
+			if !k8serrors.IsAlreadyExists(err) {
+				return err
+			}
 		}
 	}
 	if !checkIfLabelExists(pvc, common.CDILabelKey, common.CDILabelValue) {
