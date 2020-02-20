@@ -17,6 +17,7 @@ import (
 
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
 	operatorcontroller "kubevirt.io/containerized-data-importer/pkg/operator/controller"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -103,6 +104,15 @@ var _ = Describe("Operator delete CDI tests", func() {
 		} else {
 			Expect(errors.IsNotFound(err)).To(BeTrue())
 		}
+
+		Eventually(func() bool {
+			_, err = f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Get(operator.ConfigMapName, metav1.GetOptions{})
+			if errors.IsNotFound(err) {
+				return true
+			}
+			Expect(err).ToNot(HaveOccurred())
+			return false
+		}, 5*time.Minute, 2*time.Second).Should(BeTrue())
 
 		cdi = &cdiv1alpha1.CDI{
 			ObjectMeta: metav1.ObjectMeta{
