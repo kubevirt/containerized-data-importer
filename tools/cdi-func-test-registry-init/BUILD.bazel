@@ -74,8 +74,6 @@ rpm_image(
     base = "@fedora//image",
     rpms = [
         "@buildah//file",
-        "@libseccomp//file",
-        "@device-mapper-libs//file",
         "@containers-common//file",
     ],
 )

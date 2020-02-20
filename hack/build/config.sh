@@ -25,7 +25,7 @@ FUNC_TEST_REGISTRY="cdi-func-test-registry"
 FUNC_TEST_REGISTRY_POPULATE="cdi-func-test-registry-populate"
 FUNC_TEST_REGISTRY_INIT="cdi-func-test-registry-init"
 # update this whenever builder Dockerfile is updated
-BUILDER_TAG=${BUILDER_TAG:-0.0.1}
+BUILDER_TAG=${BUILDER_TAG:-0.0.2}
 BUILDER_IMAGE=${BUILDER_IMAGE:-kubevirt/kubevirt-cdi-bazel-builder@sha256:c0af85e45a74a04822119d58085b85f6635f92929e90b0751f30976c567f7ba8}
 
 BINARIES="cmd/${OPERATOR} cmd/${CONTROLLER} cmd/${IMPORTER} cmd/${CLONER} cmd/${APISERVER} cmd/${UPLOADPROXY} cmd/${UPLOADSERVER} cmd/${OPERATOR} tools/${FUNC_TEST_INIT} tools/${FUNC_TEST_REGISTRY_INIT}"
