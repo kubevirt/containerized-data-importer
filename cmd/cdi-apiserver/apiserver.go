@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
 
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
+	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	certwatcher "kubevirt.io/containerized-data-importer/pkg/util/cert/watcher"
 	"kubevirt.io/containerized-data-importer/pkg/version/verflag"
 )
@@ -84,12 +85,15 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
 	}
+
 	client, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
 	}
 
 	aggregatorClient := aggregatorclient.NewForConfigOrDie(cfg)
+
+	cdiClient := cdiclient.NewForConfigOrDie(cfg)
 
 	ch := signals.SetupSignalHandler()
 
@@ -109,6 +113,7 @@ func main() {
 		defaultPort,
 		client,
 		aggregatorClient,
+		cdiClient,
 		authorizor,
 		authConfigWatcher,
 		certWatcher)

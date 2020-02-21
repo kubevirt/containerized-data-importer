@@ -2301,6 +2301,9 @@
     "properties": {
      "imagePullPolicy": {
       "type": "string"
+     },
+     "uninstallStrategy": {
+      "$ref": "#/definitions/v1alpha1.CDIUninstallStrategy"
      }
     }
    },
@@ -2327,6 +2330,7 @@
      }
     }
    },
+   "v1alpha1.CDIUninstallStrategy": {},
    "v1alpha1.DataVolume": {
     "description": "DataVolume provides a representation of our data volume\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
     "required": [

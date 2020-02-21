@@ -35,6 +35,7 @@ import (
 	k8scert "k8s.io/client-go/util/cert"
 	aggregatorapifake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
+	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
@@ -94,10 +95,11 @@ func TestNewCdiAPIServer(t *testing.T) {
 
 	client := k8sfake.NewSimpleClientset(kubeobjects...)
 	aggregatorClient := aggregatorapifake.NewSimpleClientset()
+	cdiClient := cdiclientfake.NewSimpleClientset()
 	authorizer := &testAuthorizer{}
 	authConfigWatcher := NewAuthConfigWatcher(client, ch)
 
-	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer, authConfigWatcher, nil)
+	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, authConfigWatcher, nil)
 	if err != nil {
 		t.Errorf("Upload api server creation failed: %+v", err)
 	}
@@ -122,10 +124,11 @@ func TestAuthConfigUpdate(t *testing.T) {
 
 	client := k8sfake.NewSimpleClientset(kubeobjects...)
 	aggregatorClient := aggregatorapifake.NewSimpleClientset()
+	cdiClient := cdiclientfake.NewSimpleClientset()
 	authorizer := &testAuthorizer{}
 	acw := NewAuthConfigWatcher(client, ch).(*authConfigWatcher)
 
-	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer, acw, nil)
+	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, nil)
 	if err != nil {
 		t.Errorf("Upload api server creation failed: %+v", err)
 	}
@@ -170,11 +173,12 @@ func TestGetTLSConfig(t *testing.T) {
 
 	client := k8sfake.NewSimpleClientset(kubeobjects...)
 	aggregatorClient := aggregatorapifake.NewSimpleClientset()
+	cdiClient := cdiclientfake.NewSimpleClientset()
 	authorizer := &testAuthorizer{}
 	acw := NewAuthConfigWatcher(client, ch).(*authConfigWatcher)
 	certWatcher := NewFakeCertWatcher()
 
-	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, authorizer, acw, certWatcher)
+	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, certWatcher)
 	if err != nil {
 		t.Errorf("Upload api server creation failed: %+v", err)
 	}
