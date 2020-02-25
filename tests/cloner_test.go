@@ -28,9 +28,9 @@ const (
 	fillCommand                      = "echo \"" + fillData + "\" >> " + testBaseDir
 	blockFillCommand                 = "dd if=/dev/urandom bs=4096 of=" + testBaseDir + " || echo this is fine"
 	assertionPollInterval            = 2 * time.Second
-	cloneCompleteTimeout             = 90 * time.Second
-	verifyPodDeletedTimeout          = 90 * time.Second
-	controllerSkipPVCCompleteTimeout = 90 * time.Second
+	cloneCompleteTimeout             = 270 * time.Second
+	verifyPodDeletedTimeout          = 270 * time.Second
+	controllerSkipPVCCompleteTimeout = 270 * time.Second
 )
 
 var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:component]Cloner Test Suite", func() {

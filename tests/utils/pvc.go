@@ -19,7 +19,7 @@ import (
 
 const (
 	defaultPollInterval = 2 * time.Second
-	defaultPollPeriod   = 90 * time.Second
+	defaultPollPeriod   = 270 * time.Second
 
 	// DefaultPvcMountPath is the default mount path used
 	DefaultPvcMountPath = "/pvc"

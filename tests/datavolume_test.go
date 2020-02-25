@@ -24,7 +24,7 @@ import (
 
 const (
 	pollingInterval = 2 * time.Second
-	timeout         = 90 * time.Second
+	timeout         = 270 * time.Second
 )
 
 var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", func() {
