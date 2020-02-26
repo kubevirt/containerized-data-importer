@@ -38,6 +38,6 @@ func dumpOpenAPISpec(apiws []*restful.WebService) {
 
 func main() {
 	webservices := apiserver.UploadTokenRequestAPI()
-	webservices = append(webservices, DataVolumeAPI()...)
+	webservices = append(webservices, CoreAPI()...)
 	dumpOpenAPISpec(webservices)
 }
