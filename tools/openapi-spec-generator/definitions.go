@@ -44,8 +44,8 @@ const (
 	mimeINI        string = "text/plain"
 )
 
-// DataVolumeAPI returns the DataVolume API for DataVolumes
-func DataVolumeAPI() []*restful.WebService {
+// CoreAPI returns the DataVolume API for DataVolumes
+func CoreAPI() []*restful.WebService {
 
 	dvGVR := schema.GroupVersionResource{
 		Group:    cdiv1alpha1.SchemeGroupVersion.Group,
@@ -59,6 +59,12 @@ func DataVolumeAPI() []*restful.WebService {
 		Resource: "cdis",
 	}
 
+	cdiConfigGVR := schema.GroupVersionResource{
+		Group:    cdiv1alpha1.SchemeGroupVersion.Group,
+		Version:  cdiv1alpha1.SchemeGroupVersion.Version,
+		Resource: "cdiconfigs",
+	}
+
 	ws, err := groupVersionProxyBase(cdiv1alpha1.SchemeGroupVersion)
 	if err != nil {
 		panic(err)
@@ -70,6 +76,11 @@ func DataVolumeAPI() []*restful.WebService {
 	}
 
 	ws, err = genericResourceProxy(ws, cdiGVR, &cdiv1alpha1.CDI{}, "CDI", &cdiv1alpha1.CDIList{})
+	if err != nil {
+		panic(err)
+	}
+
+	ws, err = genericResourceProxy(ws, cdiConfigGVR, &cdiv1alpha1.CDIConfig{}, "CDIConfig", &cdiv1alpha1.CDIConfigList{})
 	if err != nil {
 		panic(err)
 	}
