@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	defaultTimeout      = 90 * time.Second
+	defaultTimeout      = 270 * time.Second
 	testNamespacePrefix = "cdi-test-"
 )
 

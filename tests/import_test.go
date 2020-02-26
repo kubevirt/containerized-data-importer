@@ -28,7 +28,7 @@ import (
 const (
 	namespacePrefix                  = "importer"
 	assertionPollInterval            = 2 * time.Second
-	controllerSkipPVCCompleteTimeout = 90 * time.Second
+	controllerSkipPVCCompleteTimeout = 270 * time.Second
 	invalidEndpoint                  = "http://gopats.com/who-is-the-goat.iso"
 	CompletionTimeout                = 60 * time.Second
 	BlankImageMD5                    = "cd573cfaace07e7949bc0c46028904ff"

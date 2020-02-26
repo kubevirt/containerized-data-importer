@@ -18,9 +18,9 @@ import (
 
 const (
 	dataVolumePollInterval = 3 * time.Second
-	dataVolumeCreateTime   = 90 * time.Second
-	dataVolumeDeleteTime   = 90 * time.Second
-	dataVolumePhaseTime    = 90 * time.Second
+	dataVolumeCreateTime   = 270 * time.Second
+	dataVolumeDeleteTime   = 270 * time.Second
+	dataVolumePhaseTime    = 270 * time.Second
 )
 
 const (
