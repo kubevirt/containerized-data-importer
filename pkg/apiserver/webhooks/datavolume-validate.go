@@ -72,9 +72,15 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 	var causes []metav1.StatusCause
 	var url string
 	var sourceType string
-	// spec source field should not be empty
-	if &spec.Source == nil || (spec.Source.HTTP == nil && spec.Source.S3 == nil && spec.Source.PVC == nil && spec.Source.Upload == nil &&
-		spec.Source.Blank == nil && spec.Source.Registry == nil) {
+
+	numberOfSources := 0
+	s := reflect.ValueOf(&spec.Source).Elem()
+	for i := 0; i < s.NumField(); i++ {
+		if !reflect.ValueOf(s.Field(i).Interface()).IsNil() {
+			numberOfSources++
+		}
+	}
+	if numberOfSources == 0 {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: fmt.Sprintf("Missing Data volume source"),
@@ -82,12 +88,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 		})
 		return causes
 	}
-
-	if (spec.Source.HTTP != nil && (spec.Source.S3 != nil || spec.Source.PVC != nil || spec.Source.Upload != nil || spec.Source.Blank != nil || spec.Source.Registry != nil)) ||
-		(spec.Source.S3 != nil && (spec.Source.PVC != nil || spec.Source.Upload != nil || spec.Source.Blank != nil || spec.Source.Registry != nil)) ||
-		(spec.Source.PVC != nil && (spec.Source.Upload != nil || spec.Source.Blank != nil || spec.Source.Registry != nil)) ||
-		(spec.Source.Upload != nil && (spec.Source.Blank != nil || spec.Source.Registry != nil)) ||
-		(spec.Source.Blank != nil && spec.Source.Registry != nil) {
+	if numberOfSources > 1 {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: fmt.Sprintf("Multiple Data volume sources"),
