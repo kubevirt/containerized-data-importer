@@ -17,22 +17,26 @@ limitations under the License.
 package controller
 
 import (
-	"encoding/json"
-	"fmt"
-	"reflect"
-	"testing"
+	"context"
+	"sync"
 	"time"
 
-	"github.com/appscode/jsonpatch"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	kubeinformers "k8s.io/client-go/informers"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	core "k8s.io/client-go/testing"
+	"k8s.io/client-go/kubernetes/scheme"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
@@ -45,504 +49,449 @@ const (
 	cloneRequestAnnotation  = "k8s.io/CloneRequest"
 )
 
-type uploadFixture struct {
-	t *testing.T
-
-	kubeclient *k8sfake.Clientset
-	cdiclient  *cdifake.Clientset
-
-	// Objects to put in the store.
-	pvcLister     []*corev1.PersistentVolumeClaim
-	podLister     []*corev1.Pod
-	serviceLister []*corev1.Service
-
-	// Actions expected to happen on the client.
-	kubeactions []core.Action
-
-	// Objects from here preloaded into NewSimpleFake.
-	kubeobjects []runtime.Object
-	cdiobjects  []runtime.Object
-}
-
-func printJSONDiff(objA, objB interface{}) string {
-	aBytes, _ := json.Marshal(objA)
-	bBytes, _ := json.Marshal(objB)
-	patches, _ := jsonpatch.CreatePatch(aBytes, bBytes)
-	pBytes, _ := json.Marshal(patches)
-	return string(pBytes)
-}
-
-// checkAction verifies that expected and actual actions are equal and both have
-// same attached resources
-func checkAction(expected, actual core.Action, t *testing.T) {
-	if !(expected.Matches(actual.GetVerb(), actual.GetResource().Resource) && actual.GetSubresource() == expected.GetSubresource()) {
-		t.Errorf("Expected\n\t%#v\ngot\n\t%#v", expected, actual)
-		return
-	}
-
-	if reflect.TypeOf(actual) != reflect.TypeOf(expected) {
-		t.Errorf("Action has wrong type. Expected: %t. Got: %t", expected, actual)
-		return
-	}
-
-	switch a := actual.(type) {
-	case core.CreateAction:
-		e, _ := expected.(core.CreateAction)
-		expObject := e.GetObject()
-		object := a.GetObject()
-
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, printJSONDiff(expObject, object))
-		}
-	case core.UpdateAction:
-		e, _ := expected.(core.UpdateAction)
-		expObject := e.GetObject()
-		object := a.GetObject()
-
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, printJSONDiff(expObject, object))
-		}
-	case core.PatchAction:
-		e, _ := expected.(core.PatchAction)
-		expPatch := e.GetPatch()
-		patch := a.GetPatch()
-
-		if !reflect.DeepEqual(expPatch, expPatch) {
-			t.Errorf("Action %s %s has wrong patch\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, printJSONDiff(expPatch, patch))
-		}
-	}
-}
-
-func newUploadFixture(t *testing.T) *uploadFixture {
-	f := &uploadFixture{}
-	f.t = t
-	f.kubeobjects = []runtime.Object{}
-	f.cdiobjects = []runtime.Object{}
-	return f
-}
-
-func (f *uploadFixture) newController() (*UploadController, kubeinformers.SharedInformerFactory) {
-	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
-	f.cdiclient = cdifake.NewSimpleClientset(f.cdiobjects...)
-	i := kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
-
-	pvcInformer := i.Core().V1().PersistentVolumeClaims()
-	podInformer := i.Core().V1().Pods()
-	serviceInformer := i.Core().V1().Services()
-
-	c := NewUploadController(f.kubeclient,
-		f.cdiclient,
-		pvcInformer,
-		podInformer,
-		serviceInformer,
-		"test/myimage",
-		"cdi-uploadproxy",
-		"Always",
-		"5",
-		&fakeCertGenerator{},
-		&fetcher.MemCertBundleFetcher{Bundle: []byte("baz")})
-
-	c.pvcsSynced = alwaysReady
-	c.podsSynced = alwaysReady
-	c.servicesSynced = alwaysReady
-
-	for _, pvc := range f.pvcLister {
-		c.pvcInformer.GetIndexer().Add(pvc)
-	}
-
-	for _, pod := range f.podLister {
-		c.podInformer.GetIndexer().Add(pod)
-	}
-
-	for _, service := range f.serviceLister {
-		c.serviceInformer.GetIndexer().Add(service)
-	}
-
-	return c, i
-}
-
-func (f *uploadFixture) run(pvcName string) {
-	f.runController(pvcName, true, false)
-}
-
-func (f *uploadFixture) runExpectError(pvcName string) {
-	f.runController(pvcName, true, true)
-}
-
-func (f *uploadFixture) runController(pvcName string, startInformers bool, expectError bool) {
-	c, i := f.newController()
-	if startInformers {
-		stopCh := make(chan struct{})
-		defer close(stopCh)
-		i.Start(stopCh)
-	}
-
-	err := c.syncHandler(pvcName)
-	if !expectError && err != nil {
-		f.t.Errorf("error syncing foo: %v", err)
-	} else if expectError && err == nil {
-		f.t.Error("expected error syncing foo, got nil")
-	}
-
-	k8sActions := filterSecretGetAndCreateActions(filterUploadInformerActions(f.kubeclient.Actions()))
-	for i, action := range k8sActions {
-		if len(f.kubeactions) < i+1 {
-			f.t.Errorf("%d unexpected actions: %+v", len(k8sActions)-len(f.kubeactions), k8sActions[i:])
-			break
-		}
-
-		expectedAction := f.kubeactions[i]
-		checkAction(expectedAction, action, f.t)
-	}
-
-	if len(f.kubeactions) > len(k8sActions) {
-		f.t.Errorf("%d additional expected actions:%+v", len(f.kubeactions)-len(k8sActions), f.kubeactions[len(k8sActions):])
-	}
-}
-
-func (f *uploadFixture) expectCreatePodAction(p *corev1.Pod) {
-	f.kubeactions = append(f.kubeactions,
-		core.NewCreateAction(schema.GroupVersionResource{Resource: "pods", Version: "v1"}, p.Namespace, p))
-}
-
-func (f *uploadFixture) expectDeletePodAction(p *corev1.Pod) {
-	f.kubeactions = append(f.kubeactions,
-		core.NewDeleteAction(schema.GroupVersionResource{Resource: "pods", Version: "v1"}, p.Namespace, p.Name))
-}
-
-func (f *uploadFixture) expectCreateServiceAction(s *corev1.Service) {
-	f.kubeactions = append(f.kubeactions,
-		core.NewCreateAction(schema.GroupVersionResource{Resource: "services", Version: "v1"}, s.Namespace, s))
-}
-
-func (f *uploadFixture) expectDeleteServiceAction(s *corev1.Service) {
-	f.kubeactions = append(f.kubeactions,
-		core.NewDeleteAction(schema.GroupVersionResource{Resource: "services", Version: "v1"}, s.Namespace, s.Name))
-}
-
-func (f *uploadFixture) expectCreatePvcAction(pvc *corev1.PersistentVolumeClaim) {
-	f.kubeactions = append(f.kubeactions,
-		core.NewCreateAction(schema.GroupVersionResource{Resource: "persistentvolumeclaims", Version: "v1"}, pvc.Namespace, pvc))
-}
-
-func (f *uploadFixture) expectUpdatePvcAction(pvc *corev1.PersistentVolumeClaim) {
-	f.kubeactions = append(f.kubeactions,
-		core.NewUpdateAction(schema.GroupVersionResource{Resource: "persistentvolumeclaims", Version: "v1"}, pvc.Namespace, pvc))
-}
-
-func filterUploadInformerActions(actions []core.Action) []core.Action {
-	ret := []core.Action{}
-	for _, action := range actions {
-		if len(action.GetNamespace()) == 0 &&
-			(action.Matches("list", "persistentvolumeclaims") ||
-				action.Matches("watch", "persistentvolumeclaims") ||
-				action.Matches("list", "pods") ||
-				action.Matches("watch", "pods") ||
-				action.Matches("list", "services") ||
-				action.Matches("watch", "services")) {
-			continue
-		}
-		ret = append(ret, action)
-	}
-	return ret
-}
-
-func filterSecretGetAndCreateActions(actions []core.Action) []core.Action {
-	ret := []core.Action{}
-	for _, action := range actions {
-		if action.Matches("get", "secrets") || action.Matches("create", "secrets") {
-			continue
-		}
-		ret = append(ret, action)
-	}
-	return ret
-}
-
-func TestCreatesUploadPodAndService(t *testing.T) {
-	f := newUploadFixture(t)
-	storageClassName := "test"
-	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{uploadRequestAnnotation: ""}, nil)
-	pod := createUploadPod(pvc)
-	pod.Namespace = ""
-	scratchPvc := createScratchPvc(pvc, pod, storageClassName)
-	f.expectCreatePodAction(pod)
-
-	f.podLister = append(f.podLister, pod)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pod, pvc)
-	cdiConfig := createCDIConfig(common.ConfigName)
-	f.cdiobjects = append(f.cdiobjects, cdiConfig)
-
-	f.expectCreatePvcAction(scratchPvc)
-
-	service := createUploadService(pvc)
-	service.Namespace = ""
-	f.expectCreateServiceAction(service)
-
-	pvcUpdate := pvc.DeepCopy()
-	pvcUpdate.Annotations[podPhaseAnnotation] = string(pod.Status.Phase)
-	pvcUpdate.Annotations[podReadyAnnotation] = "false"
-	f.expectUpdatePvcAction(pvcUpdate)
-
-	f.run(getPvcKey(pvc, t))
-}
-
-func TestCreatesCloneTargetPodAndService(t *testing.T) {
-	f := newUploadFixture(t)
-	storageClassName := "test"
-	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{cloneRequestAnnotation: "default/sourcePvc"}, nil)
-	source := createPvcInStorageClass("sourcePvc", "default", &storageClassName, nil, nil)
-	clientName := fmt.Sprintf("%s/%s-%s/%s", source.Namespace, source.Name, pvc.Namespace, pvc.Name)
-	pod := createUploadClonePod(pvc, clientName)
-	pod.Namespace = ""
-	f.expectCreatePodAction(pod)
-
-	f.podLister = append(f.podLister, pod)
-	f.pvcLister = append(f.pvcLister, pvc, source)
-	f.kubeobjects = append(f.kubeobjects, pod, pvc, source)
-	cdiConfig := createCDIConfig(common.ConfigName)
-	f.cdiobjects = append(f.cdiobjects, cdiConfig)
-
-	service := createUploadService(pvc)
-	service.Namespace = ""
-	f.expectCreateServiceAction(service)
-
-	pvcUpdate := pvc.DeepCopy()
-	pvcUpdate.Annotations[AnnUploadClientName] = clientName
-	pvcUpdate.Annotations[podPhaseAnnotation] = string(pod.Status.Phase)
-	pvcUpdate.Annotations[podReadyAnnotation] = "false"
-	f.expectUpdatePvcAction(pvcUpdate)
-
-	f.run(getPvcKey(pvc, t))
-}
-
-func TestCloneFailNoSource(t *testing.T) {
-	f := newUploadFixture(t)
-	storageClassName := "test"
-	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{cloneRequestAnnotation: "default/sourcePvc"}, nil)
-
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	f.runExpectError(getPvcKey(pvc, t))
-}
-
-func TestCloneAndUploadAnnotation(t *testing.T) {
-	f := newUploadFixture(t)
-	storageClassName := "test"
-	annotations := map[string]string{
-		uploadRequestAnnotation: "",
-		cloneRequestAnnotation:  "default/sourcePvc",
-	}
-	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, annotations, nil)
-
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	f.run(getPvcKey(pvc, t))
-}
-
-func TestCloneValidationFails(t *testing.T) {
-	f := newUploadFixture(t)
-	storageClassName := "test"
-	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{cloneRequestAnnotation: "default/sourcePvc"}, nil)
-	source := createPvcInStorageClass("sourcePvc", "default", &storageClassName, nil, nil)
-	vm := corev1.PersistentVolumeBlock
-	source.Spec.VolumeMode = &vm
-
-	f.pvcLister = append(f.pvcLister, pvc, source)
-	f.kubeobjects = append(f.kubeobjects, pvc, source)
-
-	f.run(getPvcKey(pvc, t))
-}
-
-func TestUpdatePodPhase(t *testing.T) {
-	f := newUploadFixture(t)
-	storageClassName := "test"
-	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{uploadRequestAnnotation: ""}, nil)
-	pod := createUploadPod(pvc)
-	service := createUploadService(pvc)
-	scratchPvc := createScratchPvc(pvc, pod, storageClassName)
-
-	pod.Status.Phase = corev1.PodRunning
-	pod.Status.ContainerStatuses = []corev1.ContainerStatus{
-		{
-			Ready: true,
-		},
-	}
-
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	f.podLister = append(f.podLister, pod)
-	f.kubeobjects = append(f.kubeobjects, pod)
-
-	f.serviceLister = append(f.serviceLister, service)
-	f.kubeobjects = append(f.kubeobjects, service)
-	cdiConfig := createCDIConfig(common.ConfigName)
-	f.cdiobjects = append(f.cdiobjects, cdiConfig)
-
-	updatedPVC := pvc.DeepCopy()
-	updatedPVC.Annotations[podPhaseAnnotation] = string(corev1.PodRunning)
-	updatedPVC.Annotations[podReadyAnnotation] = "true"
-
-	f.expectCreatePvcAction(scratchPvc)
-	f.expectUpdatePvcAction(updatedPVC)
-
-	f.run(getPvcKey(pvc, t))
-}
-
-func TestUploadComplete(t *testing.T) {
-	f := newUploadFixture(t)
-	storageClassName := "test"
-	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{uploadRequestAnnotation: "", podPhaseAnnotation: "Running"}, nil)
-	pod := createUploadPod(pvc)
-	scratchPvc := createScratchPvc(pvc, pod, storageClassName)
-	service := createUploadService(pvc)
-
-	pod.Status.Phase = corev1.PodSucceeded
-	pod.Status.ContainerStatuses = []corev1.ContainerStatus{
-		{
-			Ready: false,
-		},
-	}
-
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.pvcLister = append(f.pvcLister, scratchPvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-	f.kubeobjects = append(f.kubeobjects, scratchPvc)
-
-	f.podLister = append(f.podLister, pod)
-	f.kubeobjects = append(f.kubeobjects, pod)
-
-	f.serviceLister = append(f.serviceLister, service)
-	f.kubeobjects = append(f.kubeobjects, service)
-
-	updatedPVC := pvc.DeepCopy()
-	updatedPVC.Annotations[podPhaseAnnotation] = string(corev1.PodSucceeded)
-	updatedPVC.Annotations[podReadyAnnotation] = "false"
-
-	f.expectUpdatePvcAction(updatedPVC)
-	f.run(getPvcKey(pvc, t))
-
-	f.pvcLister = nil
-	f.kubeobjects = nil
-	f.kubeactions = nil
-	f.pvcLister = append(f.pvcLister, scratchPvc, updatedPVC)
-	f.kubeobjects = append(f.kubeobjects, scratchPvc, updatedPVC, pod, service)
-	f.expectDeleteServiceAction(service)
-	f.expectDeletePodAction(pod)
-	f.run(getPvcKey(pvc, t))
-}
-
-func TestSucceededDoNothing(t *testing.T) {
-	f := newUploadFixture(t)
-	storageClassName := "test"
-	pvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{uploadRequestAnnotation: "", podPhaseAnnotation: "Succeeded"}, nil)
-	pod := createUploadPod(pvc)
-	scratchPvc := createScratchPvc(pvc, pod, storageClassName)
-
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.pvcLister = append(f.pvcLister, scratchPvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-	f.kubeobjects = append(f.kubeobjects, scratchPvc)
-
-	f.run(getPvcKey(pvc, t))
-}
-
-func TestPVCNolongerExists(t *testing.T) {
-	f := newUploadFixture(t)
-	pvc := createPvc("testPvc1", "default", map[string]string{uploadRequestAnnotation: "", podPhaseAnnotation: "Succeeded"}, nil)
-
-	f.run(getPvcKey(pvc, t))
-}
-
-func TestDeletesUploadPodAndServiceWhenAnnotationRemoved(t *testing.T) {
-	f := newUploadFixture(t)
-	pvc := createPvc("testPvc1", "default", nil, nil)
-	pod := createUploadPod(pvc)
-	service := createUploadService(pvc)
-
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	f.podLister = append(f.podLister, pod)
-	f.kubeobjects = append(f.kubeobjects, pod)
-
-	f.serviceLister = append(f.serviceLister, service)
-	f.kubeobjects = append(f.kubeobjects, service)
-
-	f.expectDeleteServiceAction(service)
-	f.expectDeletePodAction(pod)
-
-	f.run(getPvcKey(pvc, t))
-}
-
-func TestDeletesUploadPodAndServiceWhenPVCDeleted(t *testing.T) {
-	f := newUploadFixture(t)
-	pvc := createPvc("testPvc1", "default", map[string]string{uploadRequestAnnotation: "", podPhaseAnnotation: "Running"}, nil)
-	pvc.SetDeletionTimestamp(&metav1.Time{Time: time.Now().UTC().Add(-5 * time.Second)})
-	pod := createUploadPod(pvc)
-	service := createUploadService(pvc)
-
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	f.podLister = append(f.podLister, pod)
-	f.kubeobjects = append(f.kubeobjects, pod)
-
-	f.serviceLister = append(f.serviceLister, service)
-	f.kubeobjects = append(f.kubeobjects, service)
-
-	f.expectDeleteServiceAction(service)
-	f.expectDeletePodAction(pod)
-
-	f.run(getPvcKey(pvc, t))
-}
-
-func TestUploadPossible(t *testing.T) {
-	type args struct {
-		annotations map[string]string
-		expectErr   bool
-	}
-	tests := []struct {
-		name string
-		args args
-	}{
-		{
-			"PVC is ready for upload",
-			args{
-				map[string]string{"cdi.kubevirt.io/storage.upload.target": "",
-					"cdi.kubevirt.io/storage.pod.phase": "Running",
-				},
-				false,
-			},
-		},
-		{
-			"PVC missing target annotation",
-			args{
-				map[string]string{},
-				true,
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pvc := createPvc("testPvc1", "default", tt.args.annotations, nil)
-			err := UploadPossibleForPVC(pvc)
-			if (err == nil && tt.args.expectErr) || (err != nil && !tt.args.expectErr) {
-				t.Errorf("Unexpected result expectErr=%t, err=%+v", tt.args.expectErr, err)
-			}
+var (
+	testUploadServerCASecret     *corev1.Secret
+	testUploadServerCASecretOnce sync.Once
+
+	testUploadServerClientCASecret     *corev1.Secret
+	testUploadServerClientCASecretOnce sync.Once
+
+	uploadLog = logf.Log.WithName("upload-controller-test")
+)
+
+var _ = Describe("Upload controller reconcile loop", func() {
+
+	It("Should return nil and not create a pod, if pvc can not be found", func() {
+		reconciler := createUploadReconciler()
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		podList := &corev1.PodList{}
+		err = reconciler.Client.List(context.TODO(), podList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(podList.Items)).To(Equal(0))
+	})
+
+	It("Should return nil and not create a pod, if neither upload nor clone annotations exist", func() {
+		reconciler := createUploadReconciler(createPvc("testPvc1", "default", map[string]string{}, nil))
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		podList := &corev1.PodList{}
+		err = reconciler.Client.List(context.TODO(), podList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(podList.Items)).To(Equal(0))
+	})
+
+	It("Should return error and not create a pod, if neither upload nor clone annotations exist", func() {
+		reconciler := createUploadReconciler(createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: "", AnnCloneRequest: ""}, nil))
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("PVC has both clone and upload annotations"))
+		podList := &corev1.PodList{}
+		err = reconciler.Client.List(context.TODO(), podList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(podList.Items)).To(Equal(0))
+	})
+
+	It("Should return nil and remove any service and pod, if neither upload nor clone annotations exist", func() {
+		testPvc := createPvc("testPvc1", "default", map[string]string{}, nil)
+		reconciler := createUploadReconciler(testPvc,
+			createUploadPod(testPvc),
+			createUploadService(testPvc),
+		)
+		By("Verifying the pod and service exists")
+		uploadPod := &corev1.Pod{}
+		err := reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(uploadPod.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+
+		uploadService := &corev1.Service{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(uploadService.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+
+		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		By("Verifying the pod and service no longer exist")
+		podList := &corev1.PodList{}
+		err = reconciler.Client.List(context.TODO(), podList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(podList.Items)).To(Equal(0))
+
+		serviceList := &corev1.ServiceList{}
+		err = reconciler.Client.List(context.TODO(), serviceList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(serviceList.Items)).To(Equal(0))
+
+	})
+
+	It("Should return nil and remove any service and pod if succeeded", func() {
+		testPvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: "", AnnPodPhase: string(corev1.PodSucceeded)}, nil)
+		reconciler := createUploadReconciler(testPvc,
+			createUploadPod(testPvc),
+			createUploadService(testPvc),
+		)
+		By("Verifying the pod and service exists")
+		uploadPod := &corev1.Pod{}
+		err := reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(uploadPod.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+
+		uploadService := &corev1.Service{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(uploadService.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+
+		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		By("Verifying the pod and service no longer exist")
+		podList := &corev1.PodList{}
+		err = reconciler.Client.List(context.TODO(), podList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(podList.Items)).To(Equal(0))
+
+		serviceList := &corev1.ServiceList{}
+		err = reconciler.Client.List(context.TODO(), serviceList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(serviceList.Items)).To(Equal(0))
+
+	})
+
+	It("Should return nil and remove any service and pod if pvc marked for deletion", func() {
+		testPvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: "", AnnPodPhase: string(corev1.PodPending)}, nil)
+		now := metav1.NewTime(time.Now())
+		testPvc.DeletionTimestamp = &now
+		reconciler := createUploadReconciler(testPvc,
+			createUploadPod(testPvc),
+			createUploadService(testPvc),
+		)
+		By("Verifying the pod and service exists")
+		uploadPod := &corev1.Pod{}
+		err := reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(uploadPod.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+
+		uploadService := &corev1.Service{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(uploadService.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+
+		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		By("Verifying the pod and service no longer exist")
+		podList := &corev1.PodList{}
+		err = reconciler.Client.List(context.TODO(), podList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(podList.Items)).To(Equal(0))
+
+		serviceList := &corev1.ServiceList{}
+		err = reconciler.Client.List(context.TODO(), serviceList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(serviceList.Items)).To(Equal(0))
+
+	})
+
+	It("Should return err and not clone if validation error occurs", func() {
+		storageClassName := "test"
+		testPvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{cloneRequestAnnotation: "default/sourcePvc"}, nil)
+		sourcePvc := createPvcInStorageClass("sourcePvc", "default", &storageClassName, nil, nil)
+		vm := corev1.PersistentVolumeBlock
+		sourcePvc.Spec.VolumeMode = &vm
+		reconciler := createUploadReconciler(testPvc, sourcePvc)
+
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("Source and target volume Modes do not match"))
+	})
+
+	It("Should return nil and create a pod and service when a clone pvc", func() {
+		testPvc := createPvc("testPvc1", "default", map[string]string{AnnCloneRequest: "default/testPvc2"}, nil)
+		testPvcSource := createPvc("testPvc2", "default", map[string]string{}, nil)
+		reconciler := createUploadReconciler(testPvc, testPvcSource)
+		By("Verifying the pod and service do not exist")
+		uploadPod := &corev1.Pod{}
+		err := reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+		Expect(err).To(HaveOccurred())
+
+		uploadService := &corev1.Service{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+		Expect(err).To(HaveOccurred())
+
+		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		By("Verifying the pod and service now exist")
+		uploadPod = &corev1.Pod{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(uploadPod.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+
+		uploadService = &corev1.Service{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(uploadService.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+	})
+})
+
+var _ = Describe("reconcilePVC loop", func() {
+	Context("Is clone", func() {
+		isClone := true
+
+		It("Should create the service and pod", func() {
+			testPvc := createPvc("testPvc1", "default", map[string]string{AnnCloneRequest: "default/testPvc2"}, nil)
+			testPvcSource := createPvc("testPvc2", "default", map[string]string{}, nil)
+			reconciler := createUploadReconciler(testPvc, testPvcSource)
+			By("Verifying the pod and service do not exist")
+			uploadPod := &corev1.Pod{}
+			err := reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+			Expect(err).To(HaveOccurred())
+
+			uploadService := &corev1.Service{}
+			err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+			Expect(err).To(HaveOccurred())
+
+			_, err = reconciler.reconcilePVC(reconciler.Log, testPvc, isClone)
+			Expect(err).ToNot(HaveOccurred())
+			By("Verifying the pod and service now exist")
+			uploadPod = &corev1.Pod{}
+			err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(uploadPod.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+
+			uploadService = &corev1.Service{}
+			err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(uploadService.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+
+			resultPvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resultPvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(resultPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(uploadPod.Status.Phase))
+			Expect(resultPvc.GetAnnotations()[AnnPodReady]).To(Equal("false"))
 		})
+	})
+
+	Context("Is upload", func() {
+		isClone := false
+
+		It("Should create the service and pod", func() {
+			testPvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: ""}, nil)
+			reconciler := createUploadReconciler(testPvc)
+			By("Verifying the pod and service do not exist")
+			uploadPod := &corev1.Pod{}
+			err := reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+			Expect(err).To(HaveOccurred())
+
+			uploadService := &corev1.Service{}
+			err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+			Expect(err).To(HaveOccurred())
+
+			_, err = reconciler.reconcilePVC(reconciler.Log, testPvc, isClone)
+			Expect(err).ToNot(HaveOccurred())
+			By("Verifying the pod and service now exist")
+			uploadPod = &corev1.Pod{}
+			err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(uploadPod.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+
+			uploadService = &corev1.Service{}
+			err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(uploadService.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+
+			// TODO, have scratch space creation use the runtime lib client, instead of client-go
+			_, err = reconciler.K8sClient.CoreV1().PersistentVolumeClaims("default").Get("testPvc1-scratch", metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+})
+
+func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
+	objs := []runtime.Object{}
+	objs = append(objs, objects...)
+	// Append empty CDIConfig object that normally is created by the reconcile loop
+	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
+	cdiConfig.Status = cdiv1.CDIConfigStatus{
+		DefaultPodResourceRequirements: createDefaultPodResourceRequirements(int64(0), int64(0), int64(0), int64(0)),
 	}
+	objs = append(objs, cdiConfig)
+	cdifakeclientset := cdifake.NewSimpleClientset(cdiConfig)
+	k8sfakeclientset := k8sfake.NewSimpleClientset()
+	// Register operator types with the runtime scheme.
+	s := scheme.Scheme
+	cdiv1.AddToScheme(s)
+
+	// Create a fake client to mock API calls.
+	cl := fake.NewFakeClientWithScheme(s, objs...)
+
+	// Create a ReconcileMemcached object with the scheme and fake client.
+	r := &UploadReconciler{
+		Client:              cl,
+		Scheme:              s,
+		Log:                 uploadLog,
+		CdiClient:           cdifakeclientset,
+		K8sClient:           k8sfakeclientset,
+		serverCertGenerator: &fakeCertGenerator{},
+		clientCAFetcher:     &fetcher.MemCertBundleFetcher{Bundle: []byte("baz")},
+	}
+	return r
 }
 
-func TestResourceName(t *testing.T) {
-	resourceName := GetUploadResourceName("testPvc1")
-	if resourceName != "cdi-upload-testPvc1" {
-		t.Errorf("Unexpected resource name %s", resourceName)
+func createUploadPod(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
+	pod := createUploadClonePod(pvc, "client.upload-server.cdi.kubevirt.io")
+	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+		Name: ScratchVolName,
+		VolumeSource: corev1.VolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: pvc.Name + "-scratch",
+				ReadOnly:  false,
+			},
+		},
+	})
+	pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+		Name:      ScratchVolName,
+		MountPath: "/scratch",
+	})
+	return pod
+}
+
+func createUploadClonePod(pvc *corev1.PersistentVolumeClaim, clientName string) *corev1.Pod {
+	name := "cdi-upload-" + pvc.Name
+	requestImageSize, _ := getRequestedImageSize(pvc)
+
+	pod := &corev1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: pvc.Namespace,
+			Annotations: map[string]string{
+				annCreatedByUpload: "yes",
+			},
+			Labels: map[string]string{
+				"app":             "containerized-data-importer",
+				"cdi.kubevirt.io": "cdi-upload-server",
+				"service":         name,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				MakePVCOwnerReference(pvc),
+			},
+		},
+		Spec: corev1.PodSpec{
+			SecurityContext: &corev1.PodSecurityContext{
+				RunAsUser: &[]int64{0}[0],
+			},
+			Containers: []corev1.Container{
+				{
+					Name:            "cdi-upload-server",
+					Image:           "test/myimage",
+					ImagePullPolicy: corev1.PullPolicy("Always"),
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      DataVolName,
+							MountPath: "/data",
+						},
+					},
+					Env: []corev1.EnvVar{
+						{
+							Name:  "TLS_KEY",
+							Value: "bar",
+						},
+						{
+							Name:  "TLS_CERT",
+							Value: "foo",
+						},
+						{
+							Name:  "CLIENT_CERT",
+							Value: "baz",
+						},
+						{
+							Name:  common.UploadImageSize,
+							Value: requestImageSize,
+						},
+						{
+							Name:  "CLIENT_NAME",
+							Value: clientName,
+						},
+					},
+					Args: []string{"-v=" + "5"},
+					ReadinessProbe: &corev1.Probe{
+						Handler: corev1.Handler{
+							HTTPGet: &corev1.HTTPGetAction{
+								Path: "/healthz",
+								Port: intstr.IntOrString{
+									Type:   intstr.Int,
+									IntVal: 8080,
+								},
+							},
+						},
+						InitialDelaySeconds: 2,
+						PeriodSeconds:       5,
+					},
+				},
+			},
+			RestartPolicy: corev1.RestartPolicyOnFailure,
+			Volumes: []corev1.Volume{
+				{
+					Name: DataVolName,
+					VolumeSource: corev1.VolumeSource{
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvc.Name,
+							ReadOnly:  false,
+						},
+					},
+				},
+			},
+		},
 	}
+	return pod
+}
+
+func createUploadService(pvc *corev1.PersistentVolumeClaim) *corev1.Service {
+	name := "cdi-upload-" + pvc.Name
+	blockOwnerDeletion := true
+	isController := true
+	service := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: pvc.Namespace,
+			Annotations: map[string]string{
+				annCreatedByUpload: "yes",
+			},
+			Labels: map[string]string{
+				"app":             "containerized-data-importer",
+				"cdi.kubevirt.io": "cdi-upload-server",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         "v1",
+					Kind:               "PersistentVolumeClaim",
+					Name:               pvc.Name,
+					UID:                pvc.GetUID(),
+					BlockOwnerDeletion: &blockOwnerDeletion,
+					Controller:         &isController,
+				},
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{
+					Protocol: "TCP",
+					Port:     443,
+					TargetPort: intstr.IntOrString{
+						Type:   intstr.Int,
+						IntVal: 8443,
+					},
+				},
+			},
+			Selector: map[string]string{
+				"service": name,
+			},
+		},
+	}
+	return service
 }

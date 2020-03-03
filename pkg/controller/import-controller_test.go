@@ -16,6 +16,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -34,6 +35,7 @@ const (
 
 var (
 	testStorageClass = "test-sc"
+	importLog        = logf.Log.WithName("upload-controller-test")
 )
 
 var _ = Describe("Test PVC annotations status", func() {
@@ -391,7 +393,7 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	r := &ImportReconciler{
 		Client:    cl,
 		Scheme:    s,
-		Log:       log,
+		Log:       importLog,
 		recorder:  rec,
 		CdiClient: cdifakeclientset,
 		K8sClient: k8sfakeclientset,
