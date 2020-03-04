@@ -506,12 +506,11 @@ var _ = Describe("Update Progress from pod", func() {
 		Expect(err.Error()).To(ContainSubstring("Metrics port not found in pod"))
 	})
 
-	It("Should return error, if no endpoint exists", func() {
+	It("Should not error, if no endpoint exists", func() {
 		pod.Spec.Containers[0].Ports[0].ContainerPort = 12345
 		pod.Status.PodIP = "127.0.0.1"
 		err := updateProgressUsingPod(dv, pod)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("Get https://127.0.0.1:12345/metrics: dial tcp 127.0.0.1:12345: connect: connection refused"))
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("Should properly update progress if http endpoint returns matching data", func() {
