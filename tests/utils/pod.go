@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo"
+	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -79,6 +81,14 @@ func NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1
 					Name:    "runner",
 					Image:   "kubevirt/cdi-importer:latest",
 					Command: []string{"/bin/sh", "-c", cmd},
+					Resources: k8sv1.ResourceRequirements{
+						Limits: map[k8sv1.ResourceName]resource.Quantity{
+							k8sv1.ResourceCPU:    *resource.NewQuantity(0, resource.DecimalSI),
+							k8sv1.ResourceMemory: *resource.NewQuantity(0, resource.DecimalSI)},
+						Requests: map[corev1.ResourceName]resource.Quantity{
+							k8sv1.ResourceCPU:    *resource.NewQuantity(0, resource.DecimalSI),
+							k8sv1.ResourceMemory: *resource.NewQuantity(0, resource.DecimalSI)},
+					},
 				},
 			},
 			Volumes: []k8sv1.Volume{
@@ -158,7 +168,7 @@ func findPodByCompFunc(clientSet *kubernetes.Clientset, namespace, prefix, label
 		return foundPod, nil
 	})
 	if !foundPod {
-		return nil, fmt.Errorf("Unable to find pod starting with prefix %s", prefix)
+		return nil, fmt.Errorf("Unable to find pod containing %s", prefix)
 	}
 	return &result, err
 }

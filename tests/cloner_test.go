@@ -185,9 +185,11 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 		Expect(err).ToNot(HaveOccurred())
 
-		targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(targetPvc.Spec.VolumeName).To(Equal(targetPV.Name))
+		Eventually(func() bool {
+			targetPvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			return targetPvc.Spec.VolumeName == targetPV.Name
+		}, 60, 1).Should(BeTrue())
 
 		fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
@@ -521,6 +523,188 @@ var _ = Describe("Block PV Cloner Test", func() {
 	})
 })
 
+var _ = Describe("Namespace with quota", func() {
+	f := framework.NewFrameworkOrDie(namespacePrefix)
+	var (
+		orgConfig *v1.ResourceRequirements
+		sourcePvc *v1.PersistentVolumeClaim
+		targetPvc *v1.PersistentVolumeClaim
+	)
+
+	BeforeEach(func() {
+		By("Capturing original CDIConfig state")
+		config, err := f.CdiClient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		orgConfig = config.Status.DefaultPodResourceRequirements
+	})
+
+	AfterEach(func() {
+		By("Restoring CDIConfig to original state")
+		reqCPU, _ := orgConfig.Requests.Cpu().AsInt64()
+		reqMem, _ := orgConfig.Requests.Memory().AsInt64()
+		limCPU, _ := orgConfig.Limits.Cpu().AsInt64()
+		limMem, _ := orgConfig.Limits.Memory().AsInt64()
+		err := f.UpdateCdiConfigResourceLimits(reqCPU, reqMem, limCPU, limMem)
+		Expect(err).ToNot(HaveOccurred())
+
+		if sourcePvc != nil {
+			By("[AfterEach] Clean up source PVC")
+			err := f.DeletePVC(sourcePvc)
+			Expect(err).ToNot(HaveOccurred())
+		}
+		if targetPvc != nil {
+			By("[AfterEach] Clean up target PVC")
+			err := f.DeletePVC(targetPvc)
+			Expect(err).ToNot(HaveOccurred())
+		}
+	})
+
+	It("Should create clone in namespace with quota", func() {
+		err := f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+		Expect(err).NotTo(HaveOccurred())
+		smartApplicable := f.IsSnapshotStorageClassAvailable()
+		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
+		if err == nil {
+			value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
+			if smartApplicable && ok && strings.Compare(value, "true") == 0 {
+				Skip("Cannot test host assisted cloning for within namespace when all pvcs are smart clone capable.")
+			}
+		}
+
+		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+		pvcDef.Namespace = f.Namespace.Name
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		doFileBasedCloneTest(f, pvcDef, f.Namespace)
+	})
+
+	It("Should fail to clone in namespace with quota when pods have higher requirements", func() {
+		err := f.UpdateCdiConfigResourceLimits(int64(2), int64(1024*1024*1024), int64(2), int64(1*1024*1024*1024))
+		Expect(err).NotTo(HaveOccurred())
+		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+		smartApplicable := f.IsSnapshotStorageClassAvailable()
+		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
+		if err == nil {
+			value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
+			if smartApplicable && ok && strings.Compare(value, "true") == 0 {
+				Skip("Cannot test host assisted cloning for within namespace when all pvcs are smart clone capable.")
+			}
+		}
+
+		By("Populating source PVC")
+		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+		pvcDef.Namespace = f.Namespace.Name
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		// Create targetPvc in new NS.
+		By("Creating new DV")
+		targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvcDef)
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		By("Verify Quota was exceeded in logs")
+		matchString := fmt.Sprintf("\\\"cdi-upload-target-dv\\\" is forbidden: exceeded quota: test-quota, requested")
+		Eventually(func() string {
+			log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			Expect(err).NotTo(HaveOccurred())
+			return log
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+	})
+
+	It("Should fail to clone in namespace with quota when pods have higher requirements, then succeed when quota increased", func() {
+		err := f.UpdateCdiConfigResourceLimits(int64(1), int64(1024*1024*1024), int64(1), int64(1024*1024*1024))
+		Expect(err).NotTo(HaveOccurred())
+		err = f.CreateQuotaInNs(int64(1), int64(512*1024*1024), int64(1), int64(512*1024*1024))
+		Expect(err).NotTo(HaveOccurred())
+		smartApplicable := f.IsSnapshotStorageClassAvailable()
+		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
+		if err == nil {
+			value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
+			if smartApplicable && ok && strings.Compare(value, "true") == 0 {
+				Skip("Cannot test host assisted cloning for within namespace when all pvcs are smart clone capable.")
+			}
+		}
+
+		By("Populating source PVC")
+		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+		pvcDef.Namespace = f.Namespace.Name
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		// Create targetPvc in new NS.
+		By("Creating new DV")
+		targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvcDef)
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		By("Verify Quota was exceeded in logs")
+		matchString := fmt.Sprintf("\\\"cdi-upload-target-dv\\\" is forbidden: exceeded quota: test-quota, requested")
+		Eventually(func() string {
+			log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			Expect(err).NotTo(HaveOccurred())
+			return log
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+		err = f.UpdateQuotaInNs(int64(2), int64(2*1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+		Expect(err).NotTo(HaveOccurred())
+		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetDV.Name)
+		targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		completeClone(f, f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum)
+	})
+
+	It("Should create clone in namespace with quota when pods requirements are low enough", func() {
+		err := f.UpdateCdiConfigResourceLimits(int64(0), int64(0), int64(1), int64(512*1024*1024))
+		Expect(err).NotTo(HaveOccurred())
+		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+		Expect(err).NotTo(HaveOccurred())
+		smartApplicable := f.IsSnapshotStorageClassAvailable()
+		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
+		if err == nil {
+			value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
+			if smartApplicable && ok && strings.Compare(value, "true") == 0 {
+				Skip("Cannot test host assisted cloning for within namespace when all pvcs are smart clone capable.")
+			}
+		}
+
+		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+		pvcDef.Namespace = f.Namespace.Name
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		doFileBasedCloneTest(f, pvcDef, f.Namespace)
+	})
+
+	It("Should fail clone data across namespaces, if a namespace doesn't have enough quota", func() {
+		err := f.UpdateCdiConfigResourceLimits(int64(2), int64(1024*1024*1024), int64(2), int64(1*1024*1024*1024))
+		Expect(err).NotTo(HaveOccurred())
+		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+		Expect(err).NotTo(HaveOccurred())
+		pvcDef := utils.NewPVCDefinition(sourcePVCName, "500M", nil, nil)
+		pvcDef.Namespace = f.Namespace.Name
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+			framework.NsPrefixLabel: f.NsPrefix,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		f.AddNamespaceToDelete(targetNs)
+
+		targetDV := utils.NewDataVolumeForImageCloning("target-dv", "500M", sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		By("Verify Quota was exceeded in logs")
+		targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		matchString := fmt.Sprintf("\\\"%s-source-pod\\\" is forbidden: exceeded quota: test-quota, requested: requests.cpu=2, used: requests.cpu=0, limited: requests.cpu=1", targetPvc.GetUID())
+		Eventually(func() string {
+			log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			Expect(err).NotTo(HaveOccurred())
+			return log
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+
+	})
+})
+
 func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClaim, targetNs *v1.Namespace) {
 	// Create targetPvc in new NS.
 	targetDV := utils.NewCloningDataVolume("target-dv", "1G", srcPVCDef)
@@ -536,18 +720,10 @@ func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolume
 }
 
 func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1.PersistentVolumeClaim, filePath, expectedMD5 string) {
-	By("Find cloner pods")
-	sourcePod, err := f.FindPodBySuffix(common.ClonerSourcePodNameSuffix)
-	if err != nil {
-		PrintControllerLog(f)
-	}
-	Expect(err).ToNot(HaveOccurred())
-
 	By("Verify the clone annotation is on the target PVC")
 	_, cloneAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnCloneOf)
 	if err != nil {
 		PrintControllerLog(f)
-		PrintPodLog(f, sourcePod.Name, sourcePod.Namespace)
 	}
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cloneAnnotationFound).To(BeTrue())
@@ -566,11 +742,6 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 		err = utils.DeletePVC(f.K8sClient, targetNs.Name, targetPvc)
 		Expect(err).ToNot(HaveOccurred())
 	}
-
-	By("Verify source pod deleted")
-	deleted, err := utils.WaitPodDeleted(f.K8sClient, sourcePod.Name, sourcePod.Namespace, defaultTimeout)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(deleted).To(BeTrue())
 }
 
 func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string) {

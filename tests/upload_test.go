@@ -13,6 +13,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/tests"
@@ -280,4 +281,141 @@ var _ = Describe("Block PV upload Test", func() {
 		Entry("[test_id:1368]succeed given a valid token (block)", true, http.StatusOK),
 		Entry("[posneg:negative][test_id:1369]fail given an invalid token (block)", false, http.StatusUnauthorized),
 	)
+})
+
+var _ = Describe("Namespace with quota", func() {
+	f := framework.NewFrameworkOrDie(namespacePrefix)
+	var (
+		orgConfig      *v1.ResourceRequirements
+		pvc            *v1.PersistentVolumeClaim
+		portForwardCmd *exec.Cmd
+	)
+
+	BeforeEach(func() {
+		By("Capturing original CDIConfig state")
+		config, err := f.CdiClient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		orgConfig = config.Status.DefaultPodResourceRequirements
+		if pvc != nil {
+			By("Making sure no pvc exists")
+			Eventually(func() bool {
+				// Make sure the pvc doesn't still exist. The after each should have called delete.
+				_, err := f.FindPVC(pvc.Name)
+				return err != nil
+			}, timeout, pollingInterval).Should(BeTrue())
+		}
+	})
+
+	AfterEach(func() {
+		By("Restoring CDIConfig to original state")
+		reqCpu, _ := orgConfig.Requests.Cpu().AsInt64()
+		reqMem, _ := orgConfig.Requests.Memory().AsInt64()
+		limCpu, _ := orgConfig.Limits.Cpu().AsInt64()
+		limMem, _ := orgConfig.Limits.Memory().AsInt64()
+		err := f.UpdateCdiConfigResourceLimits(reqCpu, reqMem, limCpu, limMem)
+		Expect(err).ToNot(HaveOccurred())
+		By("Stop port forwarding")
+		if portForwardCmd != nil {
+			err = portForwardCmd.Process.Kill()
+			Expect(err).ToNot(HaveOccurred())
+			portForwardCmd.Wait()
+			portForwardCmd = nil
+		}
+
+		By("Delete upload PVC")
+		err = f.DeletePVC(pvc)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Wait for upload pod to be deleted")
+		deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(deleted).To(BeTrue())
+	})
+
+	It("Should create upload pod in namespace with quota", func() {
+		err := f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+		By("Creating PVC with upload target annotation")
+		pvc, err = f.CreatePVCFromDefinition(utils.UploadPVCDefinition())
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC annotation says ready")
+		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+
+		By("Get an upload token")
+		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+	})
+
+	It("Should fail to create upload pod in namespace with quota, when pods have higher requirements", func() {
+		err := f.UpdateCdiConfigResourceLimits(int64(2), int64(1024*1024*1024), int64(2), int64(1*1024*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+		By("Creating PVC with upload target annotation")
+		pvc, err = f.CreatePVCFromDefinition(utils.UploadPVCDefinition())
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify Quota was exceeded in logs")
+		matchString := fmt.Sprintf("pods \\\"cdi-upload-upload-test\\\" is forbidden: exceeded quota: test-quota, requested")
+		Eventually(func() string {
+			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			Expect(err).NotTo(HaveOccurred())
+			return log
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+	})
+
+	It("Should fail to create upload pod in namespace with quota, and recover when quota fixed", func() {
+		err := f.UpdateCdiConfigResourceLimits(int64(2), int64(1024*1024*1024), int64(2), int64(1*1024*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+		By("Creating PVC with upload target annotation")
+		pvc, err = f.CreatePVCFromDefinition(utils.UploadPVCDefinition())
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify Quota was exceeded in logs")
+		matchString := fmt.Sprintf("pods \\\"cdi-upload-upload-test\\\" is forbidden: exceeded quota: test-quota, requested")
+		Eventually(func() string {
+			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			Expect(err).NotTo(HaveOccurred())
+			return log
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+		By("Updating the quota to be enough")
+		err = f.UpdateQuotaInNs(int64(2), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC annotation says ready")
+		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+
+		By("Get an upload token")
+		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+	})
+
+	It("Should create upload pod in namespace with quota and pods limits are low enough", func() {
+		err := f.UpdateCdiConfigResourceLimits(int64(0), int64(0), int64(1), int64(512*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+		Expect(err).ToNot(HaveOccurred())
+		By("Creating PVC with upload target annotation")
+		pvc, err = f.CreatePVCFromDefinition(utils.UploadPVCDefinition())
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC annotation says ready")
+		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+
+		By("Get an upload token")
+		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+	})
 })
