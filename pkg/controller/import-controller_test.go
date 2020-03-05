@@ -375,7 +375,7 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
-	corev1.AddToScheme(s)
+	cdiv1.AddToScheme(s)
 
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
