@@ -2,6 +2,5 @@ apiVersion: cdi.kubevirt.io/v1alpha1
 kind: CDI
 metadata:
   name: cdi
-  namespace: {{.Namespace}}
 spec:
   imagePullPolicy: {{.PullPolicy}}
