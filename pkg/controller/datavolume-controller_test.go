@@ -17,70 +17,573 @@ limitations under the License.
 package controller
 
 import (
-	"reflect"
-	"testing"
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"time"
 
+	csiv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/diff"
-	kubeinformers "k8s.io/client-go/informers"
+	"k8s.io/apimachinery/pkg/types"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	core "k8s.io/client-go/testing"
-	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
 	extfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
-	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions"
-	csifake "kubevirt.io/containerized-data-importer/pkg/snapshot-client/clientset/versioned/fake"
+	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 var (
 	alwaysReady        = func() bool { return true }
 	noResyncPeriodFunc = func() time.Duration { return 0 }
+	dvLog              = logf.Log.WithName("datavolume-controller-test")
 )
 
-type fixture struct {
-	t *testing.T
+var _ = Describe("Datavolume controller reconcile loop", func() {
+	var (
+		reconciler *DatavolumeReconciler
+	)
+	AfterEach(func() {
+		if reconciler != nil {
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			reconciler = nil
+		}
+	})
 
-	client     *fake.Clientset
-	csiclient  *csifake.Clientset
-	kubeclient *k8sfake.Clientset
-	extclient  *extfake.Clientset
+	It("Should do nothing and return nil when no DV exists", func() {
+		reconciler = createDatavolumeReconciler()
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).To(HaveOccurred())
+		if !k8serrors.IsNotFound(err) {
+			Fail("Error getting pvc")
+		}
+	})
 
-	// Objects to put in the store.
-	dataVolumeLister []*cdiv1.DataVolume
-	pvcLister        []*corev1.PersistentVolumeClaim
+	It("Should create a PVC on a valid import DV", func() {
+		reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
+	})
 
-	// Actions expected to happen on the client.
-	kubeactions []core.Action
-	actions     []core.Action
+	It("Should pass annotation from DV to created a PVC on a DV", func() {
+		dv := newImportDataVolume("test-dv")
+		dv.SetAnnotations(make(map[string]string))
+		dv.GetAnnotations()["test-ann-1"] = "test-value-1"
+		dv.GetAnnotations()["test-ann-2"] = "test-value-2"
+		dv.GetAnnotations()[AnnSource] = "invalid phase should not copy"
+		reconciler = createDatavolumeReconciler(dv)
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
+		Expect(pvc.GetAnnotations()).ToNot(BeNil())
+		Expect(pvc.GetAnnotations()["test-ann-1"]).To(Equal("test-value-1"))
+		Expect(pvc.GetAnnotations()["test-ann-2"]).To(Equal("test-value-2"))
+		Expect(pvc.GetAnnotations()[AnnSource]).To(Equal(SourceHTTP))
+	})
 
-	// Objects from here preloaded into NewSimpleFake.
-	kubeobjects []runtime.Object
-	objects     []runtime.Object
-	csiobjects  []runtime.Object
-	extobjects  []runtime.Object
-}
+	It("Should follow the phase of the created PVC", func() {
+		reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
 
-func newFixture(t *testing.T) *fixture {
-	f := &fixture{}
-	f.t = t
-	f.objects = []runtime.Object{}
-	f.kubeobjects = []runtime.Object{}
-	f.csiobjects = []runtime.Object{}
-	f.extobjects = []runtime.Object{}
-	return f
-}
+		dv := &cdiv1.DataVolume{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Status.Phase).To(BeEquivalentTo(""))
 
-func newFixtureCsiCrds(t *testing.T) *fixture {
-	f := newFixture(t)
-	f.extobjects = append(f.extobjects, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-	return f
+		pvc.Status.Phase = corev1.ClaimPending
+		err = reconciler.Client.Update(context.TODO(), pvc)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+
+		dv = &cdiv1.DataVolume{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Status.Phase).To(Equal(cdiv1.Pending))
+	})
+
+	It("Should error if a PVC with same name already exists that is not owned by us", func() {
+		reconciler = createDatavolumeReconciler(createPvc("test-dv", metav1.NamespaceDefault, map[string]string{}, nil), newImportDataVolume("test-dv"))
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).To(HaveOccurred())
+		By("Checking error event recorded")
+		event := <-reconciler.recorder.(*record.FakeRecorder).Events
+		Expect(event).To(ContainSubstring("Resource \"test-dv\" already exists and is not managed by DataVolume"))
+	})
+
+	It("Should create a snapshot if cloning and the PVC doesn't exist, and the snapshot class can be found", func() {
+		dv := newCloneDataVolume("test-dv")
+		scName := "testsc"
+		sc := createStorageClassWithProvisioner(scName, map[string]string{
+			AnnDefaultStorageClass: "true",
+		}, "csi-plugin")
+		dv.Spec.PVC.StorageClassName = &scName
+		pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil)
+		expectedSnapshotClass := "snap-class"
+		snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
+		reconciler := createDatavolumeReconciler(sc, dv, pvc, snapClass)
+		reconciler.ExtClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		By("Verifying that phase is now snapshot in progress")
+		dv = &cdiv1.DataVolume{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Status.Phase).To(Equal(cdiv1.SnapshotForSmartCloneInProgress))
+	})
+})
+
+var _ = Describe("Reconcile Datavolume status", func() {
+	var (
+		reconciler *DatavolumeReconciler
+	)
+
+	AfterEach(func() {
+		if reconciler != nil {
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			reconciler = nil
+		}
+	})
+
+	table.DescribeTable("if no pvc exists", func(current, expected cdiv1.DataVolumePhase) {
+		reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		dv := &cdiv1.DataVolume{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		dv.Status.Phase = current
+		err = reconciler.Client.Update(context.TODO(), dv)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = reconciler.reconcileDataVolumeStatus(dv, nil)
+		Expect(err).ToNot(HaveOccurred())
+
+		dv = &cdiv1.DataVolume{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Status.Phase).To(Equal(expected))
+	},
+		table.Entry("should remain unset", cdiv1.PhaseUnset, cdiv1.PhaseUnset),
+		table.Entry("should remain pending", cdiv1.Pending, cdiv1.Pending),
+		table.Entry("should remain snapshotforsmartcloninginprogress", cdiv1.SnapshotForSmartCloneInProgress, cdiv1.SnapshotForSmartCloneInProgress),
+		table.Entry("should switch to failed from inprogress", cdiv1.ImportInProgress, cdiv1.Failed),
+	)
+
+	It("Should switch to pending if PVC phase is pending", func() {
+		reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		dv := &cdiv1.DataVolume{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
+		pvc.Status.Phase = corev1.ClaimPending
+		err = reconciler.Client.Update(context.TODO(), pvc)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = reconciler.reconcileDataVolumeStatus(dv, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		dv = &cdiv1.DataVolume{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Status.Phase).To(Equal(cdiv1.Pending))
+	})
+
+	It("Should switch to succeeded if PVC phase is pending, but pod phase is succeeded", func() {
+		reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		dv := &cdiv1.DataVolume{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
+		pvc.Status.Phase = corev1.ClaimPending
+		pvc.SetAnnotations(make(map[string]string))
+		pvc.GetAnnotations()[AnnPodPhase] = string(corev1.PodSucceeded)
+		err = reconciler.Client.Update(context.TODO(), pvc)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = reconciler.reconcileDataVolumeStatus(dv, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		dv = &cdiv1.DataVolume{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
+		By("Checking error event recorded")
+		event := <-reconciler.recorder.(*record.FakeRecorder).Events
+		Expect(event).To(ContainSubstring("Successfully imported into PVC test-dv"))
+	})
+
+	table.DescribeTable("DV phase", func(testDv runtime.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann string) {
+		reconciler = createDatavolumeReconciler(testDv)
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		dv := &cdiv1.DataVolume{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		dv.Status.Phase = current
+		err = reconciler.Client.Update(context.TODO(), dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
+		pvc.Status.Phase = pvcPhase
+		pvc.SetAnnotations(make(map[string]string))
+		pvc.GetAnnotations()[ann] = "something"
+		pvc.GetAnnotations()[AnnPodPhase] = string(podPhase)
+
+		_, err = reconciler.reconcileDataVolumeStatus(dv, pvc)
+		Expect(err).ToNot(HaveOccurred())
+
+		dv = &cdiv1.DataVolume{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Status.Phase).To(Equal(expected))
+	},
+		table.Entry("should switch to bound for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.PVCBound, corev1.ClaimBound, corev1.PodPending, "invalid"),
+		table.Entry("should switch to bound for import", newImportDataVolume("test-dv"), cdiv1.Unknown, cdiv1.PVCBound, corev1.ClaimBound, corev1.PodPending, "invalid"),
+		table.Entry("should switch to scheduled for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportScheduled, corev1.ClaimBound, corev1.PodPending, AnnImportPod),
+		table.Entry("should switch to inprogress for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportInProgress, corev1.ClaimBound, corev1.PodRunning, AnnImportPod),
+		table.Entry("should switch to failed for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnImportPod),
+		table.Entry("should switch to failed on claim lost for impot", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnImportPod),
+		table.Entry("should switch to succeeded for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnImportPod),
+		table.Entry("should switch to scheduled for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.CloneScheduled, corev1.ClaimBound, corev1.PodPending, AnnCloneRequest),
+		table.Entry("should switch to clone in progress for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.CloneInProgress, corev1.ClaimBound, corev1.PodRunning, AnnCloneRequest),
+		table.Entry("should switch to failed for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnCloneRequest),
+		table.Entry("should switch to failed on claim lost for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnCloneRequest),
+		table.Entry("should switch to succeeded for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnCloneRequest),
+		table.Entry("should switch to scheduled for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.UploadScheduled, corev1.ClaimBound, corev1.PodPending, AnnUploadRequest),
+		table.Entry("should switch to uploadready for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.UploadReady, corev1.ClaimBound, corev1.PodRunning, AnnUploadRequest),
+		table.Entry("should switch to failed for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnUploadRequest),
+		table.Entry("should switch to failed on claim lost for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnUploadRequest),
+		table.Entry("should switch to succeeded for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnUploadRequest),
+		table.Entry("should switch to scheduled for blank", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportScheduled, corev1.ClaimBound, corev1.PodPending, AnnImportPod),
+		table.Entry("should switch to inprogress for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportInProgress, corev1.ClaimBound, corev1.PodRunning, AnnImportPod),
+		table.Entry("should switch to failed for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnImportPod),
+		table.Entry("should switch to failed on claim lost for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnImportPod),
+		table.Entry("should switch to succeeded for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnImportPod),
+	)
+})
+
+var _ = Describe("Smart clone", func() {
+	It("Should not return storage class, if no source pvc provided", func() {
+		dv := newImportDataVolume("test-dv")
+		reconciler := createDatavolumeReconciler(dv)
+		reconciler.ExtClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		snapclass, err := reconciler.getSnapshotClassForSmartClone(dv)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("no source PVC provided"))
+		Expect(snapclass).To(BeEmpty())
+	})
+
+	It("Should not return storage class, if no CSI CRDs exist", func() {
+		dv := newCloneDataVolume("test-dv")
+		scName := "test"
+		sc := createStorageClass(scName, map[string]string{
+			AnnDefaultStorageClass: "true",
+		})
+		reconciler := createDatavolumeReconciler(dv, sc)
+		snapclass, err := reconciler.getSnapshotClassForSmartClone(dv)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("CSI snapshot CRDs not found"))
+		Expect(snapclass).To(BeEmpty())
+	})
+
+	It("Should not return storage class, if source PVC doesn't exist", func() {
+		dv := newCloneDataVolumeWithPVCNS("test-dv", "ns2")
+		scName := "test"
+		sc := createStorageClass(scName, map[string]string{
+			AnnDefaultStorageClass: "true",
+		})
+		reconciler := createDatavolumeReconciler(dv, sc)
+		reconciler.ExtClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		snapclass, err := reconciler.getSnapshotClassForSmartClone(dv)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("source PVC not found"))
+		Expect(snapclass).To(BeEmpty())
+	})
+
+	It("Should not return storage class, if source PVC exist, but no storage class exists, and no storage class in PVC def", func() {
+		dv := newCloneDataVolume("test-dv")
+		pvc := createPvc("test", metav1.NamespaceDefault, nil, nil)
+		reconciler := createDatavolumeReconciler(dv, pvc)
+		reconciler.ExtClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		snapclass, err := reconciler.getSnapshotClassForSmartClone(dv)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("Target PVC storage class not found"))
+		Expect(snapclass).To(BeEmpty())
+	})
+
+	It("Should not return storage class, if source SC and target SC do not match", func() {
+		dv := newCloneDataVolume("test-dv")
+		targetSc := "testsc"
+		dv.Spec.PVC.StorageClassName = &targetSc
+		sourceSc := "testsc2"
+		pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &sourceSc, nil, nil)
+		reconciler := createDatavolumeReconciler(dv, pvc)
+		reconciler.ExtClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		snapclass, err := reconciler.getSnapshotClassForSmartClone(dv)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("source PVC and target PVC belong to different storage classes"))
+		Expect(snapclass).To(BeEmpty())
+	})
+
+	It("Should not return storage class, if source NS and target NS do not match", func() {
+		dv := newCloneDataVolume("test-dv")
+		scName := "testsc"
+		dv.Spec.PVC.StorageClassName = &scName
+		dv.Spec.Source.PVC.Namespace = "other-ns"
+		pvc := createPvcInStorageClass("test", "other-ns", &scName, nil, nil)
+		reconciler := createDatavolumeReconciler(dv, pvc)
+		reconciler.ExtClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		snapclass, err := reconciler.getSnapshotClassForSmartClone(dv)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("source PVC and target PVC belong to different namespaces"))
+		Expect(snapclass).To(BeEmpty())
+	})
+
+	It("Should not return storage class, if storage class does not exist", func() {
+		dv := newCloneDataVolume("test-dv")
+		scName := "testsc"
+		dv.Spec.PVC.StorageClassName = &scName
+		pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil)
+		reconciler := createDatavolumeReconciler(dv, pvc)
+		reconciler.ExtClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		snapclass, err := reconciler.getSnapshotClassForSmartClone(dv)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("unable to retrieve storage class, falling back to host assisted clone"))
+		Expect(snapclass).To(BeEmpty())
+	})
+
+	It("Should not return storage class, if storage class does not exist", func() {
+		dv := newCloneDataVolume("test-dv")
+		scName := "testsc"
+		sc := createStorageClass(scName, map[string]string{
+			AnnDefaultStorageClass: "true",
+		})
+		dv.Spec.PVC.StorageClassName = &scName
+		pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil)
+		reconciler := createDatavolumeReconciler(sc, dv, pvc)
+		reconciler.ExtClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		snapclass, err := reconciler.getSnapshotClassForSmartClone(dv)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("could not match snapshotter with storage class, falling back to host assisted clone"))
+		Expect(snapclass).To(BeEmpty())
+	})
+
+	It("Should return snapshot class, everything is available", func() {
+		dv := newCloneDataVolume("test-dv")
+		scName := "testsc"
+		sc := createStorageClassWithProvisioner(scName, map[string]string{
+			AnnDefaultStorageClass: "true",
+		}, "csi-plugin")
+		dv.Spec.PVC.StorageClassName = &scName
+		pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil)
+		expectedSnapshotClass := "snap-class"
+		snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
+		reconciler := createDatavolumeReconciler(sc, dv, pvc, snapClass)
+		reconciler.ExtClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		snapclass, err := reconciler.getSnapshotClassForSmartClone(dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(snapclass).To(Equal(expectedSnapshotClass))
+	})
+})
+
+var _ = Describe("Get Pod from PVC", func() {
+	var (
+		reconciler *DatavolumeReconciler
+		pvc        *corev1.PersistentVolumeClaim
+	)
+	BeforeEach(func() {
+		reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		pvc = &corev1.PersistentVolumeClaim{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("Should return error if no pods can be found", func() {
+		_, err := reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc.GetUID())
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Unable to find pod owned by UID: %s, in namespace: %s", string(pvc.GetUID()), metav1.NamespaceDefault)))
+	})
+
+	It("Should return pod if pods can be found based on owner ref", func() {
+		pod := createImporterTestPod(pvc, "test-dv", nil)
+		pod.SetLabels(make(map[string]string))
+		pod.GetLabels()[common.PrometheusLabel] = ""
+		err := reconciler.Client.Create(context.TODO(), pod)
+		Expect(err).ToNot(HaveOccurred())
+		foundPod, err := reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc.GetUID())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(foundPod.Name).To(Equal(pod.Name))
+	})
+
+	It("Should return pod if pods can be found based on cloneid", func() {
+		pod := createImporterTestPod(pvc, "test-dv", nil)
+		pod.SetLabels(make(map[string]string))
+		pod.GetLabels()[common.PrometheusLabel] = ""
+		pod.GetLabels()[CloneUniqueID] = string(pvc.GetUID()) + "-source-pod"
+		pod.OwnerReferences = nil
+		err := reconciler.Client.Create(context.TODO(), pod)
+		Expect(err).ToNot(HaveOccurred())
+		foundPod, err := reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc.GetUID())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(foundPod.Name).To(Equal(pod.Name))
+	})
+
+	It("Should return error if pods can be found but cloneid doesn't match", func() {
+		pod := createImporterTestPod(pvc, "test-dv", nil)
+		pod.SetLabels(make(map[string]string))
+		pod.GetLabels()[common.PrometheusLabel] = ""
+		pod.GetLabels()[CloneUniqueID] = string(pvc.GetUID()) + "-source-p"
+		pod.OwnerReferences = nil
+		err := reconciler.Client.Create(context.TODO(), pod)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = reconciler.getPodFromPvc(metav1.NamespaceDefault, pvc.GetUID())
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Unable to find pod owned by UID: %s, in namespace: %s", string(pvc.GetUID()), metav1.NamespaceDefault)))
+	})
+})
+
+var _ = Describe("Update Progress from pod", func() {
+	var (
+		pvc *corev1.PersistentVolumeClaim
+		pod *corev1.Pod
+		dv  *cdiv1.DataVolume
+	)
+
+	BeforeEach(func() {
+		pvc = createPvc("test", metav1.NamespaceDefault, nil, nil)
+		pod = createImporterTestPod(pvc, "test", nil)
+		dv = newImportDataVolume("test")
+	})
+
+	It("Should return error, if no metrics port in pod", func() {
+		pod.Spec.Containers[0].Ports = nil
+		err := updateProgressUsingPod(dv, pod)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("Metrics port not found in pod"))
+	})
+
+	It("Should not error, if no endpoint exists", func() {
+		pod.Spec.Containers[0].Ports[0].ContainerPort = 12345
+		pod.Status.PodIP = "127.0.0.1"
+		err := updateProgressUsingPod(dv, pod)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("Should properly update progress if http endpoint returns matching data", func() {
+		dv.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
+		ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(fmt.Sprintf("import_progress{ownerUID=\"%v\"} 13.45", dv.GetUID())))
+			w.WriteHeader(200)
+		}))
+		defer ts.Close()
+		ep, err := url.Parse(ts.URL)
+		Expect(err).ToNot(HaveOccurred())
+		port, err := strconv.Atoi(ep.Port())
+		Expect(err).ToNot(HaveOccurred())
+		pod.Spec.Containers[0].Ports[0].ContainerPort = int32(port)
+		pod.Status.PodIP = ep.Hostname()
+		err = updateProgressUsingPod(dv, pod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Status.Progress).To(BeEquivalentTo("13.45%"))
+	})
+
+	It("Should not change update progress if http endpoint returns no matching data", func() {
+		dv.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
+		dv.Status.Progress = cdiv1.DataVolumeProgress("2.3%")
+		ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(fmt.Sprintf("import_progress{ownerUID=\"%v\"} 13.45", "b856691e-1038-11e9-a5ab-55500d15501")))
+			w.WriteHeader(200)
+		}))
+		defer ts.Close()
+		ep, err := url.Parse(ts.URL)
+		Expect(err).ToNot(HaveOccurred())
+		port, err := strconv.Atoi(ep.Port())
+		Expect(err).ToNot(HaveOccurred())
+		pod.Spec.Containers[0].Ports[0].ContainerPort = int32(port)
+		pod.Status.PodIP = ep.Hostname()
+		err = updateProgressUsingPod(dv, pod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Status.Progress).To(BeEquivalentTo("2.3%"))
+	})
+})
+
+func createDatavolumeReconciler(objects ...runtime.Object) *DatavolumeReconciler {
+	objs := []runtime.Object{}
+	objs = append(objs, objects...)
+
+	// Register operator types with the runtime scheme.
+	s := scheme.Scheme
+	corev1.AddToScheme(s)
+	cdiv1.AddToScheme(s)
+	csiv1.AddToScheme(s)
+
+	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
+	cdiConfig.Status = cdiv1.CDIConfigStatus{
+		ScratchSpaceStorageClass: testStorageClass,
+	}
+	cdifakeclientset := cdifake.NewSimpleClientset(cdiConfig)
+	k8sfakeclientset := k8sfake.NewSimpleClientset(createStorageClass(testStorageClass, nil))
+	extfakeclientset := extfake.NewSimpleClientset()
+
+	// Create a fake client to mock API calls.
+	cl := fake.NewFakeClientWithScheme(s, objs...)
+
+	rec := record.NewFakeRecorder(1)
+	// Create a ReconcileMemcached object with the scheme and fake client.
+	r := &DatavolumeReconciler{
+		Client:       cl,
+		Scheme:       s,
+		Log:          dvLog,
+		recorder:     rec,
+		CdiClient:    cdifakeclientset,
+		K8sClient:    k8sfakeclientset,
+		ExtClientSet: extfakeclientset,
+	}
+	return r
 }
 
 func newImportDataVolume(name string) *cdiv1.DataVolume {
@@ -156,795 +659,5 @@ func newBlankImageDataVolume(name string) *cdiv1.DataVolume {
 			},
 			PVC: &corev1.PersistentVolumeClaimSpec{},
 		},
-	}
-}
-
-func (f *fixture) newController() (*DataVolumeController, informers.SharedInformerFactory, kubeinformers.SharedInformerFactory) {
-	f.client = fake.NewSimpleClientset(f.objects...)
-	f.csiclient = csifake.NewSimpleClientset(f.csiobjects...)
-	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
-	f.extclient = extfake.NewSimpleClientset(f.extobjects...)
-
-	i := informers.NewSharedInformerFactory(f.client, noResyncPeriodFunc())
-	k8sI := kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
-
-	for _, f := range f.dataVolumeLister {
-		i.Cdi().V1alpha1().DataVolumes().Informer().GetIndexer().Add(f)
-	}
-
-	for _, d := range f.pvcLister {
-		k8sI.Core().V1().PersistentVolumeClaims().Informer().GetIndexer().Add(d)
-	}
-
-	c := NewDataVolumeController(f.kubeclient,
-		f.client,
-		f.csiclient,
-		f.extclient,
-		k8sI.Core().V1().PersistentVolumeClaims(),
-		i.Cdi().V1alpha1().DataVolumes())
-
-	c.dataVolumesSynced = alwaysReady
-	c.pvcsSynced = alwaysReady
-	c.recorder = &record.FakeRecorder{}
-
-	return c, i, k8sI
-}
-
-func (f *fixture) run(dataVolumeName string) {
-	f.runController(dataVolumeName, true, false)
-}
-
-func (f *fixture) runExpectError(dataVolumeName string) {
-	f.runController(dataVolumeName, true, true)
-}
-
-func (f *fixture) runController(dataVolumeName string, startInformers bool, expectError bool) {
-	c, i, k8sI := f.newController()
-	if startInformers {
-		stopCh := make(chan struct{})
-		defer close(stopCh)
-		i.Start(stopCh)
-		k8sI.Start(stopCh)
-	}
-
-	err := c.syncHandler(dataVolumeName)
-	if !expectError && err != nil {
-		f.t.Errorf("error syncing dataVolume: %s: %v", dataVolumeName, err)
-	} else if expectError && err == nil {
-		f.t.Error("expected error syncing dataVolume, got nil")
-	}
-
-	actions := filterInformerActions(f.client.Actions())
-	for i, action := range actions {
-		if len(f.actions) < i+1 {
-			f.t.Errorf("%d unexpected actions: %+v", len(actions)-len(f.actions), actions[i:])
-			break
-		}
-
-		expectedAction := f.actions[i]
-		checkDVAction(expectedAction, action, f.t)
-	}
-
-	if len(f.actions) > len(actions) {
-		f.t.Errorf("%d additional expected actions:%+v", len(f.actions)-len(actions), f.actions[len(actions):])
-	}
-
-	k8sActions := filterInformerActions(f.kubeclient.Actions())
-	for i, action := range k8sActions {
-		if len(f.kubeactions) < i+1 {
-			f.t.Errorf("%d unexpected actions: %+v", len(k8sActions)-len(f.kubeactions), k8sActions[i:])
-			break
-		}
-
-		expectedAction := f.kubeactions[i]
-		checkDVAction(expectedAction, action, f.t)
-	}
-
-	if len(f.kubeactions) > len(k8sActions) {
-		f.t.Errorf("%d additional expected actions:%+v", len(f.kubeactions)-len(k8sActions), f.kubeactions[len(k8sActions):])
-	}
-}
-
-// checkDVAction verifies that expected and actual actions are equal and both have
-// same attached resources
-func checkDVAction(expected, actual core.Action, t *testing.T) {
-	if !(expected.Matches(actual.GetVerb(), actual.GetResource().Resource) && actual.GetSubresource() == expected.GetSubresource()) {
-		t.Errorf("Expected\n\t%#v\ngot\n\t%#v", expected, actual)
-		return
-	}
-
-	if reflect.TypeOf(actual) != reflect.TypeOf(expected) {
-		t.Errorf("Action has wrong type. Expected: %t. Got: %t", expected, actual)
-		return
-	}
-
-	switch a := actual.(type) {
-	case core.CreateAction:
-		e, _ := expected.(core.CreateAction)
-		expObject := e.GetObject()
-		object := a.GetObject()
-
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expObject, object))
-		}
-	case core.UpdateAction:
-		e, _ := expected.(core.UpdateAction)
-		expObject := e.GetObject()
-		object := a.GetObject()
-
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expObject, object))
-		}
-	case core.PatchAction:
-		e, _ := expected.(core.PatchAction)
-		expPatch := e.GetPatch()
-		patch := a.GetPatch()
-
-		if !reflect.DeepEqual(expPatch, expPatch) {
-			t.Errorf("Action %s %s has wrong patch\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintDiff(expPatch, patch))
-		}
-	}
-}
-
-// filterInformerActions filters list and watch actions for testing resources.
-// Since list and watch don't change resource state we can filter it to lower
-// nose level in our tests.
-func filterInformerActions(actions []core.Action) []core.Action {
-	ret := []core.Action{}
-	for _, action := range actions {
-		if len(action.GetNamespace()) == 0 &&
-			(action.Matches("list", "dataVolumes") ||
-				action.Matches("watch", "dataVolumes") ||
-				action.Matches("list", "persistentvolumeclaims") ||
-				action.Matches("watch", "persistentvolumeclaims")) {
-			continue
-		}
-		ret = append(ret, action)
-	}
-
-	return ret
-}
-
-func (f *fixture) expectCreatePersistentVolumeClaimAction(d *corev1.PersistentVolumeClaim) {
-	f.kubeactions = append(f.kubeactions, core.NewCreateAction(schema.GroupVersionResource{Resource: "persistentvolumeclaims", Version: "v1"}, d.Namespace, d))
-}
-
-func (f *fixture) expectUpdatePersistentVolumeClaimAction(d *corev1.PersistentVolumeClaim) {
-	f.kubeactions = append(f.kubeactions, core.NewUpdateAction(schema.GroupVersionResource{Resource: "persistentvolumeclaims", Version: "v1"}, d.Namespace, d))
-}
-
-func (f *fixture) expectUpdateDataVolumeStatusAction(dataVolume *cdiv1.DataVolume) {
-	action := core.NewUpdateAction(schema.GroupVersionResource{Group: "cdi.kubevirt.io", Resource: "dataVolumes", Version: "v1alpha1"}, dataVolume.Namespace, dataVolume)
-	// TODO: Until #38113 is merged, we can't use Subresource
-	//action.Subresource = "status"
-	f.actions = append(f.actions, action)
-}
-
-func getKey(dataVolume *cdiv1.DataVolume, t *testing.T) string {
-	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(dataVolume)
-	if err != nil {
-		t.Errorf("Unexpected error getting key for dataVolume %v: %v", dataVolume.Name, err)
-		return ""
-	}
-	return key
-}
-
-func TestCreatesPersistentVolumeClaim(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newImportDataVolume("test")
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-
-	expPersistentVolumeClaim, _ := newPersistentVolumeClaim(dataVolume)
-
-	f.expectCreatePersistentVolumeClaimAction(expPersistentVolumeClaim)
-
-	f.run(getKey(dataVolume, t))
-}
-
-func TestDoNothing(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newImportDataVolume("test")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.PVCBound
-	pvc.Status.Phase = corev1.ClaimBound
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	f.run(getKey(dataVolume, t))
-}
-
-func TestNotControlledByUs(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newImportDataVolume("test")
-	d, _ := newPersistentVolumeClaim(dataVolume)
-
-	d.ObjectMeta.OwnerReferences = []metav1.OwnerReference{}
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, d)
-	f.kubeobjects = append(f.kubeobjects, d)
-
-	f.runExpectError(getKey(dataVolume, t))
-}
-
-func TestDetectPVCBound(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newImportDataVolume("test")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.PVCBound
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestImportScheduled(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newImportDataVolume("test")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnImportPod] = "somepod"
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.ImportScheduled
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestImportInProgress(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newImportDataVolume("test")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnImportPod] = "somepod"
-	pvc.Annotations[AnnPodPhase] = "Running"
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.ImportInProgress
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestImportSucceeded(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newImportDataVolume("test")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnImportPod] = "somepod"
-	pvc.Annotations[AnnPodPhase] = "Succeeded"
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.Succeeded
-	result.Status.Progress = "100.0%"
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestImportPodFailed(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newImportDataVolume("test")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnImportPod] = "somepod"
-	pvc.Annotations[AnnPodPhase] = "Failed"
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.Failed
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestImportClaimLost(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newImportDataVolume("test")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimLost
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.Failed
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-// Cloning tests
-func TestCloneScheduled(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newCloneDataVolume("test")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnCloneRequest] = "default/test"
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.CloneScheduled
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestCloneInProgress(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newCloneDataVolume("test")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnCloneRequest] = "default/test"
-	pvc.Annotations[AnnPodPhase] = "Running"
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.CloneInProgress
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestCloneSucceeded(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newCloneDataVolume("test")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnCloneRequest] = "default/test"
-	pvc.Annotations[AnnPodPhase] = "Succeeded"
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.Succeeded
-	result.Status.Progress = "100.0%"
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestClonePodFailed(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newCloneDataVolume("test")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnCloneRequest] = "default/test"
-	pvc.Annotations[AnnPodPhase] = "Failed"
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.Failed
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestCloneClaimLost(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newCloneDataVolume("test")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimLost
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.Failed
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-// Upload tests
-func TestUploadScheduled(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newUploadDataVolume("upload-datavolume")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnUploadRequest] = ""
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.UploadScheduled
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestUploadReady(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newUploadDataVolume("upload-datavolume")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnUploadRequest] = ""
-	pvc.Annotations[AnnPodPhase] = "Running"
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.UploadReady
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestUploadSucceeded(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newUploadDataVolume("upload-datavolume")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnUploadRequest] = ""
-	pvc.Annotations[AnnPodPhase] = "Succeeded"
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.Succeeded
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestUploadPodFailed(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newUploadDataVolume("upload-datavolume")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnUploadRequest] = ""
-	pvc.Annotations[AnnPodPhase] = "Failed"
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.Failed
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestUploadClaimLost(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newUploadDataVolume("upload-datavolume")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimLost
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.Failed
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestBlankImageScheduled(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newBlankImageDataVolume("blank-image-datavolume")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnImportPod] = "somepod"
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.ImportScheduled
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestBlankImageInProgress(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newBlankImageDataVolume("blank-image-datavolume")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnImportPod] = "somepod"
-	pvc.Annotations[AnnPodPhase] = "Running"
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.ImportInProgress
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestBlankImageSucceeded(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newBlankImageDataVolume("blank-image-datavolume")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnImportPod] = "somepod"
-	pvc.Annotations[AnnPodPhase] = "Succeeded"
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.Succeeded
-	result.Status.Progress = "100.0%"
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestBlankImagePodFailed(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newBlankImageDataVolume("blank-image-datavolume")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimBound
-	pvc.Annotations[AnnImportPod] = "somepod"
-	pvc.Annotations[AnnPodPhase] = "Failed"
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.Failed
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-}
-
-func TestBlankImageClaimLost(t *testing.T) {
-	f := newFixture(t)
-	dataVolume := newBlankImageDataVolume("blank-image-datavolume")
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-
-	dataVolume.Status.Phase = cdiv1.Pending
-	pvc.Status.Phase = corev1.ClaimLost
-
-	f.dataVolumeLister = append(f.dataVolumeLister, dataVolume)
-	f.objects = append(f.objects, dataVolume)
-	f.pvcLister = append(f.pvcLister, pvc)
-	f.kubeobjects = append(f.kubeobjects, pvc)
-
-	result := dataVolume.DeepCopy()
-	result.Status.Phase = cdiv1.Failed
-	f.expectUpdateDataVolumeStatusAction(result)
-	f.run(getKey(dataVolume, t))
-
-}
-
-func TestAnnotationPassThrough(t *testing.T) {
-	dataVolume := newBlankImageDataVolume("blank-image-datavolume")
-	dataVolume.ObjectMeta.Annotations = make(map[string]string)
-	dataVolume.ObjectMeta.Annotations["testannotation"] = "testvalue"
-	pvc, _ := newPersistentVolumeClaim(dataVolume)
-	if val, ok := pvc.ObjectMeta.Annotations["testannotation"]; ok {
-		if val != "testvalue" {
-			t.Errorf("Annotation value %s doesn't match [testvalue]", val)
-		}
-	} else {
-		t.Errorf("Test annotation not found in PVC spec")
-	}
-}
-
-// Smart-clone test
-func TestSmartCloneNoPVCSource(t *testing.T) {
-	f := newFixtureCsiCrds(t)
-	dataVolume := newImportDataVolume("test")
-	c, _, _ := f.newController()
-	snapClass := c.getSnapshotClassForSmartClone(dataVolume)
-	if snapClass != "" {
-		t.Errorf("Should not be smart-clone applicable, no source PVC")
-	}
-}
-
-func TestSmartCloneNoCsiCrds(t *testing.T) {
-	f := newFixture(t)
-	scName := "test"
-	sc := createStorageClass(scName, map[string]string{
-		AnnDefaultStorageClass: "true",
-	})
-	f.kubeobjects = append(f.kubeobjects, sc)
-	dataVolume := newCloneDataVolume("test")
-	pvc := createPvcInStorageClass("test", "default", &scName, nil, nil)
-	f.pvcLister = append(f.pvcLister, pvc)
-	c, _, _ := f.newController()
-	snapClass := c.getSnapshotClassForSmartClone(dataVolume)
-	if snapClass != "" {
-		t.Errorf("Should not be smart-clone applicable, no CSI CRDs")
-	}
-}
-
-func TestSmartClonePVCSourceDifferentSC(t *testing.T) {
-	f := newFixtureCsiCrds(t)
-	sc := createStorageClass("test2", map[string]string{
-		AnnDefaultStorageClass: "true",
-	})
-	f.kubeobjects = append(f.kubeobjects, sc)
-	dataVolume := newCloneDataVolume("test")
-	sourceScName := "test"
-	pvc := createPvcInStorageClass("test", "default", &sourceScName, nil, nil)
-	f.pvcLister = append(f.pvcLister, pvc)
-	c, _, _ := f.newController()
-
-	snapClass := c.getSnapshotClassForSmartClone(dataVolume)
-	if snapClass != "" {
-		t.Errorf("Should not be smart-clone applicable, different Storage classes source/target PVC")
-	}
-}
-
-func TestNoSmartClonePVCSourceDifferentNS(t *testing.T) {
-	f := newFixtureCsiCrds(t)
-	sc := createStorageClass("test", map[string]string{
-		AnnDefaultStorageClass: "true",
-	})
-	f.kubeobjects = append(f.kubeobjects, sc)
-	dataVolume := newCloneDataVolumeWithPVCNS("test", "namespace2")
-	sourceScName := "test"
-	pvc := createPvcInStorageClass("test", "namespace2", &sourceScName, nil, nil)
-	f.pvcLister = append(f.pvcLister, pvc)
-	c, _, _ := f.newController()
-
-	snapClass := c.getSnapshotClassForSmartClone(dataVolume)
-	if snapClass != "" {
-		t.Errorf("Should not be smart-clone applicable, different NameSpaces source/target PVC")
-	}
-}
-
-func TestNoSmartCloneNoSnapshotClass(t *testing.T) {
-	f := newFixtureCsiCrds(t)
-	scName := "test"
-	sc := createStorageClass(scName, map[string]string{
-		AnnDefaultStorageClass: "true",
-	})
-	f.kubeobjects = append(f.kubeobjects, sc)
-	dataVolume := newCloneDataVolume("test")
-	pvc := createPvcInStorageClass("test", "default", &scName, nil, nil)
-	f.pvcLister = append(f.pvcLister, pvc)
-	c, _, _ := f.newController()
-
-	snapClass := c.getSnapshotClassForSmartClone(dataVolume)
-	if snapClass != "" {
-		t.Errorf("Should not be smart-clone applicable, different NameSpaces soure/target PVC")
-	}
-}
-
-func TestSmartCloneNotMatchingStorageClass(t *testing.T) {
-	f := newFixtureCsiCrds(t)
-	scName := "test"
-	sc := createStorageClass(scName, map[string]string{
-		AnnDefaultStorageClass: "true",
-	})
-	f.kubeobjects = append(f.kubeobjects, sc)
-	snapClass := createSnapshotClass("snap-class", nil, "csi-snap")
-	f.csiobjects = append(f.csiobjects, snapClass)
-	dataVolume := newCloneDataVolume("test")
-	pvc := createPvcInStorageClass("test", "default", &scName, nil, nil)
-	f.pvcLister = append(f.pvcLister, pvc)
-
-	c, _, _ := f.newController()
-
-	resultSnapClass := c.getSnapshotClassForSmartClone(dataVolume)
-	if resultSnapClass != "" {
-		t.Errorf("Should not be smart-clone applicable, No matching Snapshot Class")
-	}
-}
-func TestSmartCloneMatchingStorageClass(t *testing.T) {
-	f := newFixtureCsiCrds(t)
-	scName := "test"
-	sc := createStorageClassWithProvisioner(scName, map[string]string{
-		AnnDefaultStorageClass: "true",
-	}, "csi-plugin")
-	f.kubeobjects = append(f.kubeobjects, sc)
-	expectedSnapshotClass := "snap-class"
-	snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
-	f.csiobjects = append(f.csiobjects, snapClass)
-	dataVolume := newCloneDataVolume("test")
-	pvc := createPvcInStorageClass("test", "default", &scName, nil, nil)
-	f.pvcLister = append(f.pvcLister, pvc)
-
-	c, _, _ := f.newController()
-
-	snapClassName := c.getSnapshotClassForSmartClone(dataVolume)
-
-	if snapClassName != expectedSnapshotClass {
-		t.Errorf("Should be expected SnapshotClass")
 	}
 }

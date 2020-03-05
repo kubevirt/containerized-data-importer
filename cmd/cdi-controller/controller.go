@@ -166,13 +166,11 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	}
 	uploadServerCertGenerator := &generator.FetchCertGenerator{Fetcher: uploadServerCAFetcher}
 
-	dataVolumeController := controller.NewDataVolumeController(
-		client,
-		cdiClient,
-		csiClient,
-		extClient,
-		pvcInformer,
-		dataVolumeInformer)
+	// TODO: Current DV controller had threadiness 3, should we do the same here, defaults to one thread.
+	if _, err := controller.NewDatavolumeController(mgr, cdiClient, client, extClient, log); err != nil {
+		klog.Errorf("Unable to setup datavolume controller: %v", err)
+		os.Exit(1)
+	}
 
 	if _, err := controller.NewImportController(mgr, cdiClient, client, log, importerImage, pullPolicy, verbose); err != nil {
 		klog.Errorf("Unable to setup import controller: %v", err)
@@ -211,13 +209,6 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	addCrdInformerEventHandlers(crdInformer, extClient, csiInformerFactory, smartCloneController, stopCh)
 
 	klog.V(1).Infoln("started informers")
-
-	go func() {
-		err = dataVolumeController.Run(3, stopCh)
-		if err != nil {
-			klog.Fatalf("Error running dataVolume controller: %+v", err)
-		}
-	}()
 
 	startSmartController(extClient, csiInformerFactory, smartCloneController, stopCh)
 
