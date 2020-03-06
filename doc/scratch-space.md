@@ -3,9 +3,8 @@ Containerized Data Importer(CDI) requires scratch space for certain operations t
 
 CDI uses the following mechanism to determine which storage class to use:
 
-1. Read the CDI config field _scratchSpaceStorageClass_ if that field exists, and the value matches one of the storage classes in the cluster, it will be used to create scratch space.
-2. If 1 is empty or didn't match a storage class, look up the _default_ storage class in the cluster, if that exists use that storage class.
-3. If there is no default storage class in the cluster, then use the storage class of the PersistentVolumeClaim(PVC) that is backing the DV that started the CDI operation.
+1. Read the CDI config status field _scratchSpaceStorageClass_ if that field exists, and the value matches one of the storage classes in the cluster, it will be used to create scratch space. (This field could be set manually or by fetching _default_ storage class in the cluster)
+2. If the CDI config field _scratchSpaceStorageClass_ is blank, then use the storage class of the PersistentVolumeClaim(PVC) that is backing the DV that started the CDI operation.
 
 If none of those exist, then CDI will be unable to create scratch space. This means that none of the operations that require scratch space will work, however operations that do not require scratch space will continue to operate normally.
 
