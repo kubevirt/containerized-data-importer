@@ -51,11 +51,13 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		// deleting the PVC at the end of the test, so if another runs first we will fail.
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition("no-import-ann", "1G", nil, nil))
 		By("Verifying PVC with no annotation remains empty")
-		Eventually(func() bool {
+		matchString := "PVC annotation not found, skipping pvc\t{\"PVC\": \"" + ns + "/" + pvc.Name + "\", \"annotation\": \"" + controller.AnnEndpoint + "\"}"
+		fmt.Fprintf(GinkgoWriter, "INFO: matchString: [%s]\n", matchString)
+		Eventually(func() string {
 			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 			Expect(err).NotTo(HaveOccurred())
-			return strings.Contains(log, "pvc annotation \""+controller.AnnEndpoint+"\" not found, skipping pvc \""+ns+"/no-import-ann\"")
-		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
+			return log
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 		Expect(err).ToNot(HaveOccurred())
 		// Wait a while to see if CDI puts anything in the PVC.
 		isEmpty, err := framework.VerifyPVCIsEmpty(f, pvc, "")

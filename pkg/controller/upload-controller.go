@@ -32,7 +32,6 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -41,7 +40,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
@@ -67,8 +65,6 @@ const (
 // UploadReconciler members
 type UploadReconciler struct {
 	Client                 client.Client
-	CdiClient              cdiclientset.Interface
-	K8sClient              kubernetes.Interface
 	recorder               record.EventRecorder
 	Scheme                 *runtime.Scheme
 	Log                    logr.Logger
@@ -299,10 +295,10 @@ func (r *UploadReconciler) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, 
 			return nil, errors.Wrap(err, "error getting scratch PVC")
 		}
 
-		storageClassName := GetScratchPvcStorageClass(r.K8sClient, r.CdiClient, pvc)
+		storageClassName := GetScratchPvcStorageClass(r.Client, pvc)
 
 		// Scratch PVC doesn't exist yet, create it.
-		scratchPvc, err = CreateScratchPersistentVolumeClaim(r.K8sClient, pvc, pod, name, storageClassName)
+		scratchPvc, err = CreateScratchPersistentVolumeClaim(r.Client, pvc, pod, name, storageClassName)
 		if err != nil {
 			return nil, err
 		}
@@ -444,12 +440,10 @@ func (r *UploadReconciler) createUploadPod(args UploadPodArgs) (*v1.Pod, error) 
 }
 
 // NewUploadController creates a new instance of the upload controller.
-func NewUploadController(mgr manager.Manager, cdiClient *cdiclientset.Clientset, k8sClient kubernetes.Interface, log logr.Logger, uploadImage, pullPolicy, verbose string, serverCertGenerator generator.CertGenerator, clientCAFetcher fetcher.CertBundleFetcher) (controller.Controller, error) {
+func NewUploadController(mgr manager.Manager, log logr.Logger, uploadImage, pullPolicy, verbose string, serverCertGenerator generator.CertGenerator, clientCAFetcher fetcher.CertBundleFetcher) (controller.Controller, error) {
 	reconciler := &UploadReconciler{
 		Client:              mgr.GetClient(),
 		Scheme:              mgr.GetScheme(),
-		CdiClient:           cdiClient,
-		K8sClient:           k8sClient,
 		Log:                 log.WithName("upload-controller"),
 		Image:               uploadImage,
 		Verbose:             verbose,
@@ -596,7 +590,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 		},
 	}
 
-	if !checkPVC(args.PVC, AnnCloneRequest) {
+	if !checkPVC(args.PVC, AnnCloneRequest, r.Log.WithValues("Name", args.PVC.Name, "Namspace", args.PVC.Namespace)) {
 		pod.Spec.SecurityContext.FSGroup = &fsGroup
 	}
 

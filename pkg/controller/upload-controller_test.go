@@ -33,11 +33,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/kubernetes/scheme"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 )
@@ -297,8 +295,8 @@ var _ = Describe("reconcilePVC loop", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(uploadService.Name).To(Equal(getUploadResourceName(testPvc.Name)))
 
-			// TODO, have scratch space creation use the runtime lib client, instead of client-go
-			_, err = reconciler.K8sClient.CoreV1().PersistentVolumeClaims("default").Get("testPvc1-scratch", metav1.GetOptions{})
+			scratchPvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1-scratch", Namespace: "default"}, scratchPvc)
 			Expect(err).ToNot(HaveOccurred())
 		})
 	})
@@ -383,8 +381,6 @@ func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
 		DefaultPodResourceRequirements: createDefaultPodResourceRequirements(int64(0), int64(0), int64(0), int64(0)),
 	}
 	objs = append(objs, cdiConfig)
-	cdifakeclientset := cdifake.NewSimpleClientset(cdiConfig)
-	k8sfakeclientset := k8sfake.NewSimpleClientset()
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
 	cdiv1.AddToScheme(s)
@@ -397,8 +393,6 @@ func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
 		Client:              cl,
 		Scheme:              s,
 		Log:                 uploadLog,
-		CdiClient:           cdifakeclientset,
-		K8sClient:           k8sfakeclientset,
 		serverCertGenerator: &fakeCertGenerator{},
 		clientCAFetcher:     &fetcher.MemCertBundleFetcher{Bundle: []byte("baz")},
 	}

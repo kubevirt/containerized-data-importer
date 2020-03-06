@@ -16,7 +16,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	kubernetes "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -68,7 +67,6 @@ const (
 type CloneReconciler struct {
 	Client              client.Client
 	Scheme              *runtime.Scheme
-	K8sClient           kubernetes.Interface
 	recorder            record.EventRecorder
 	clientCertGenerator generator.CertGenerator
 	serverCAFetcher     fetcher.CertBundleFetcher
@@ -81,7 +79,6 @@ type CloneReconciler struct {
 
 // NewCloneController creates a new instance of the config controller.
 func NewCloneController(mgr manager.Manager,
-	k8sClient kubernetes.Interface,
 	log logr.Logger,
 	image, pullPolicy,
 	verbose string,
@@ -97,7 +94,6 @@ func NewCloneController(mgr manager.Manager,
 		Verbose:             verbose,
 		PullPolicy:          pullPolicy,
 		recorder:            mgr.GetEventRecorderFor("clone-controller"),
-		K8sClient:           k8sClient,
 		clientCertGenerator: clientCertGenerator,
 		serverCAFetcher:     serverCAFetcher,
 	}
@@ -132,8 +128,8 @@ func newCloneTokenValidator(key *rsa.PublicKey) token.Validator {
 	return token.NewValidator(common.CloneTokenIssuer, key, cloneTokenLeeway)
 }
 
-func (r *CloneReconciler) shouldReconcile(pvc *corev1.PersistentVolumeClaim) bool {
-	return checkPVC(pvc, AnnCloneRequest) && !metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf)
+func (r *CloneReconciler) shouldReconcile(pvc *corev1.PersistentVolumeClaim, log logr.Logger) bool {
+	return checkPVC(pvc, AnnCloneRequest, log) && !metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf)
 }
 
 // Reconcile the reconcile loop for host assisted clone pvc.
@@ -148,8 +144,8 @@ func (r *CloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, er
 	}
 	log := r.Log.WithValues("PVC", req.NamespacedName)
 	log.V(1).Info("reconciling Clone PVCs")
-	if !r.shouldReconcile(pvc) {
-		log.V(1).Info("Should not reconcile this PVC", "checkPVC(AnnCloneRequest)", checkPVC(pvc, AnnCloneRequest), "NOT has annotation(AnnCloneOf)", !metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf), "has finalizer?", r.hasFinalizer(pvc, cloneSourcePodFinalizer))
+	if !r.shouldReconcile(pvc, log) {
+		log.V(1).Info("Should not reconcile this PVC", "checkPVC(AnnCloneRequest)", checkPVC(pvc, AnnCloneRequest, log), "NOT has annotation(AnnCloneOf)", !metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf), "has finalizer?", r.hasFinalizer(pvc, cloneSourcePodFinalizer))
 		if r.hasFinalizer(pvc, cloneSourcePodFinalizer) {
 			// Clone completed, remove source pod and finalizer.
 			if err := r.cleanup(pvc, log); err != nil {

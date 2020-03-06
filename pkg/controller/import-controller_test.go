@@ -22,7 +22,6 @@ import (
 	"strconv"
 
 	"k8s.io/apimachinery/pkg/runtime"
-	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
@@ -34,10 +33,10 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 )
@@ -50,7 +49,7 @@ const (
 
 var (
 	testStorageClass = "test-sc"
-	importLog        = logf.Log.WithName("upload-controller-test")
+	importLog        = logf.Log.WithName("import-controller-test")
 )
 
 var _ = Describe("Test PVC annotations status", func() {
@@ -71,22 +70,22 @@ var _ = Describe("Test PVC annotations status", func() {
 
 	It("Should be interesting if NOT complete, and endpoint and source is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc)).To(BeTrue())
+		Expect(shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})
 
 	It("Should NOT be interesting if complete, and endpoint and source is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodSucceeded), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc)).To(BeFalse())
+		Expect(shouldReconcilePVC(testPvc, importLog)).To(BeFalse())
 	})
 
 	It("Should be interesting if NOT complete, and endpoint missing and source is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodRunning), AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc)).To(BeTrue())
+		Expect(shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})
 
 	It("Should be interesting if NOT complete, and endpoint set and source is missing", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint}, nil)
-		Expect(shouldReconcilePVC(testPvc)).To(BeTrue())
+		Expect(shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})
 })
 
@@ -273,7 +272,8 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking scratch PVC has been created")
 		// Once all controllers are converted, we will use the runtime lib client instead of client-go and retrieval needs to change here.
-		scratchPvc, err := reconciler.K8sClient.CoreV1().PersistentVolumeClaims("default").Get("testPvc1-scratch", metav1.GetOptions{})
+		scratchPvc := &v1.PersistentVolumeClaim{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1-scratch", Namespace: "default"}, scratchPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(scratchPvc.Spec.Resources).To(Equal(pvc.Spec.Resources))
 
@@ -362,7 +362,7 @@ var _ = Describe("Create Importer Pod", func() {
 			diskID:        "",
 			insecureTLS:   false,
 		}
-		pod, err := createImporterPod(reconciler.Log, reconciler.Client, reconciler.CdiClient, testImage, "5", testPullPolicy, podEnvVar, pvc, scratchPvcName)
+		pod, err := createImporterPod(reconciler.Log, reconciler.Client, testImage, "5", testPullPolicy, podEnvVar, pvc, scratchPvcName)
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying PVC owns pod")
 		Expect(len(pod.GetOwnerReferences())).To(Equal(1))
@@ -409,11 +409,160 @@ var _ = Describe("Import test env", func() {
 	})
 })
 
+var _ = Describe("getSecretName", func() {
+	It("should find a secret", func() {
+		pvcWithAnno := createPvc("testPVCWithAnno", "default", map[string]string{AnnSecret: "mysecret"}, nil)
+		testSecret := createSecret("mysecret", "default", "mysecretkey", "mysecretstring", map[string]string{AnnSecret: "mysecret"})
+		reconciler := createImportReconciler(pvcWithAnno, testSecret)
+		result := reconciler.getSecretName(pvcWithAnno)
+		Expect(result).To(Equal("mysecret"))
+	})
+
+	It("should not find a secret", func() {
+		pvcNoAnno := createPvc("testPVCNoAnno", "default", nil, nil)
+		testSecret := createSecret("mysecret2", "default", "mysecretkey2", "mysecretstring2", map[string]string{AnnSecret: "mysecret2"})
+		reconciler := createImportReconciler(pvcNoAnno, testSecret)
+		result := reconciler.getSecretName(pvcNoAnno)
+		Expect(result).To(Equal(""))
+	})
+})
+
+var _ = Describe("getCertConfigMap", func() {
+	testConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "configMapName",
+			Namespace: "default",
+		},
+	}
+
+	It("should find the configmap if PVC has one defined, and it exists", func() {
+		pvcWithAnno := createPvc("testPVCWithAnno", "default", map[string]string{AnnCertConfigMap: "configMapName"}, nil)
+		reconciler := createImportReconciler(pvcWithAnno, testConfigMap)
+		cm, err := reconciler.getCertConfigMap(pvcWithAnno)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cm).To(Equal(testConfigMap.Name))
+	})
+
+	It("should return the configmap name if PVC has one defined, but doesn't exist", func() {
+		pvcWithAnno := createPvc("testPVCWithAnno", "default", map[string]string{AnnCertConfigMap: "doesnotexist"}, nil)
+		reconciler := createImportReconciler(pvcWithAnno)
+		cm, err := reconciler.getCertConfigMap(pvcWithAnno)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cm).To(Equal("doesnotexist"))
+	})
+
+	It("should return blank if the pvc has no annotation", func() {
+		pvcNoAnno := createPvc("testPVC", "default", nil, nil)
+		reconciler := createImportReconciler(pvcNoAnno)
+		cm, err := reconciler.getCertConfigMap(pvcNoAnno)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cm).To(Equal(""))
+	})
+})
+
+var _ = Describe("getInsecureTLS", func() {
+	configMapName := "cdi-insecure-registries"
+	host := "myregistry"
+	endpointNoPort := "docker://" + host
+	hostWithPort := host + ":5000"
+	endpointWithPort := "docker://" + hostWithPort
+
+	table.DescribeTable("should", func(endpoint string, configMapExists bool, insecureHost string, isInsecure bool) {
+		var reconciler *ImportReconciler
+		pvc := createPvc("testPVC", "default", map[string]string{AnnEndpoint: endpoint}, nil)
+		if configMapExists {
+			cm := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapName,
+					Namespace: "cdi",
+				},
+			}
+
+			if insecureHost != "" {
+				cm.Data = map[string]string{
+					"test-registry": insecureHost,
+				}
+			}
+			reconciler = createImportReconciler(pvc, cm)
+		} else {
+			reconciler = createImportReconciler(pvc)
+		}
+		result, err := reconciler.isInsecureTLS(pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).To(Equal(isInsecure))
+	},
+		table.Entry("return true on endpoint with no port, and cdi configmap exists, and host defined", endpointNoPort, true, host, true),
+		table.Entry("return true on endpoint with port, and cdi configmap exists, and host with port", endpointWithPort, true, hostWithPort, true),
+		table.Entry("return false on endpoint with no port, and cdi configmap exists, and host with port", endpointNoPort, true, hostWithPort, false),
+		table.Entry("return false on endpoint with port, and cdi configmap exists, and host defined", endpointWithPort, true, host, false),
+		table.Entry("return false on endpoint with no port, and no cdi configmap exists, and blank host", endpointNoPort, false, "", false),
+		table.Entry("return false on blank endpoint, and cdi configmap exists, and host defined", "", true, host, false),
+	)
+})
+
+var _ = Describe("getContentType", func() {
+	pvcNoAnno := createPvc("testPVCNoAnno", "default", nil, nil)
+	pvcArchiveAnno := createPvc("testPVCArchiveAnno", "default", map[string]string{AnnContentType: string(cdiv1.DataVolumeArchive)}, nil)
+	pvcKubevirtAnno := createPvc("testPVCKubevirtAnno", "default", map[string]string{AnnContentType: string(cdiv1.DataVolumeKubeVirt)}, nil)
+	pvcInvalidValue := createPvc("testPVCInvalidValue", "default", map[string]string{AnnContentType: "iaminvalid"}, nil)
+
+	table.DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult cdiv1.DataVolumeContentType) {
+		result := getContentType(pvc)
+		Expect(result).To(BeEquivalentTo(expectedResult))
+	},
+		table.Entry("return kubevirt contenttype if no annotation provided", pvcNoAnno, cdiv1.DataVolumeKubeVirt),
+		table.Entry("return archive contenttype if archive annotation present", pvcArchiveAnno, cdiv1.DataVolumeArchive),
+		table.Entry("return kubevirt contenttype if kubevirt annotation present", pvcKubevirtAnno, cdiv1.DataVolumeKubeVirt),
+		table.Entry("return kubevirt contenttype if invalid annotation provided", pvcInvalidValue, cdiv1.DataVolumeKubeVirt),
+	)
+})
+
+var _ = Describe("getSource", func() {
+	pvcNoAnno := createPvc("testPVCNoAnno", "default", nil, nil)
+	pvcNoneAnno := createPvc("testPVCNoneAnno", "default", map[string]string{AnnSource: SourceNone}, nil)
+	pvcGlanceAnno := createPvc("testPVCNoneAnno", "default", map[string]string{AnnSource: SourceGlance}, nil)
+	pvcInvalidValue := createPvc("testPVCInvalidValue", "default", map[string]string{AnnSource: "iaminvalid"}, nil)
+	pvcRegistryAnno := createPvc("testPVCRegistryAnno", "default", map[string]string{AnnSource: SourceRegistry}, nil)
+	pvcImageIOAnno := createPvc("testPVCImageIOAnno", "default", map[string]string{AnnSource: SourceImageio}, nil)
+
+	table.DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult string) {
+		result := getSource(pvc)
+		Expect(result).To(BeEquivalentTo(expectedResult))
+	},
+		table.Entry("return none if none annotation provided", pvcNoneAnno, SourceNone),
+		table.Entry("return http if no annotation provided", pvcNoAnno, SourceHTTP),
+		table.Entry("return glance if glance annotation provided", pvcGlanceAnno, SourceGlance),
+		table.Entry("return http if invalid annotation provided", pvcInvalidValue, SourceHTTP),
+		table.Entry("return registry if registry annotation provided", pvcRegistryAnno, SourceRegistry),
+		table.Entry("return imageio if imageio annotation provided", pvcImageIOAnno, SourceImageio),
+	)
+})
+
+var _ = Describe("getEndpoint", func() {
+	pvcNoAnno := createPvc("testPVCNoAnno", "default", nil, nil)
+	pvcWithAnno := createPvc("testPVCWithAnno", "default", map[string]string{AnnEndpoint: "http://test"}, nil)
+	pvcNoValue := createPvc("testPVCNoValue", "default", map[string]string{AnnEndpoint: ""}, nil)
+
+	table.DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult string, expectErr bool) {
+		result, err := getEndpoint(pvc)
+		Expect(result).To(BeEquivalentTo(expectedResult))
+		if expectErr {
+			Expect(err).To(HaveOccurred())
+		} else {
+			Expect(err).ToNot(HaveOccurred())
+		}
+	},
+		table.Entry("return blank and error if no annotation provided", pvcNoAnno, "", true),
+		table.Entry("return value and no error if valid annotation provided", pvcWithAnno, "http://test", false),
+		table.Entry("return blank and error if blank annotation provided", pvcNoValue, "", true),
+	)
+})
+
 func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)
 
-	// Register operator types with the runtime scheme.
+	// Register cdi types with the runtime scheme.
 	s := scheme.Scheme
 	cdiv1.AddToScheme(s)
 
@@ -422,8 +571,6 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 		ScratchSpaceStorageClass: testStorageClass,
 	}
 	objs = append(objs, cdiConfig)
-	cdifakeclientset := cdifake.NewSimpleClientset(cdiConfig)
-	k8sfakeclientset := k8sfake.NewSimpleClientset(createStorageClass(testStorageClass, nil))
 
 	// Create a fake client to mock API calls.
 	cl := fake.NewFakeClientWithScheme(s, objs...)
@@ -431,12 +578,11 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	rec := record.NewFakeRecorder(1)
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	r := &ImportReconciler{
-		Client:    cl,
-		Scheme:    s,
-		Log:       importLog,
-		recorder:  rec,
-		CdiClient: cdifakeclientset,
-		K8sClient: k8sfakeclientset,
+		Client:         cl,
+		uncachedClient: cl,
+		Scheme:         s,
+		Log:            importLog,
+		recorder:       rec,
 	}
 	return r
 }

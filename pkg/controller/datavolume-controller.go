@@ -41,10 +41,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -147,8 +145,6 @@ type DataVolumeEvent struct {
 // DatavolumeReconciler members
 type DatavolumeReconciler struct {
 	Client       client.Client
-	CdiClient    cdiclientset.Interface
-	K8sClient    kubernetes.Interface
 	ExtClientSet extclientset.Interface
 	recorder     record.EventRecorder
 	Scheme       *runtime.Scheme
@@ -156,12 +152,10 @@ type DatavolumeReconciler struct {
 }
 
 // NewDatavolumeController creates a new instance of the datavolume controller.
-func NewDatavolumeController(mgr manager.Manager, cdiClient *cdiclientset.Clientset, k8sClient kubernetes.Interface, extClientSet extclientset.Interface, log logr.Logger) (controller.Controller, error) {
+func NewDatavolumeController(mgr manager.Manager, extClientSet extclientset.Interface, log logr.Logger) (controller.Controller, error) {
 	reconciler := &DatavolumeReconciler{
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),
-		CdiClient:    cdiClient,
-		K8sClient:    k8sClient,
 		ExtClientSet: extClientSet,
 		Log:          log.WithName("datavolume-controller"),
 		recorder:     mgr.GetEventRecorderFor("datavolume-controller"),

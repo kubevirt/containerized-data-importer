@@ -2,13 +2,13 @@ package controller
 
 import (
 	"context"
+	"reflect"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"reflect"
 
 	routev1 "github.com/openshift/api/route/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -17,9 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/go-logr/logr"
-	kubernetes "k8s.io/client-go/kubernetes"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 
@@ -36,9 +34,9 @@ import (
 
 // CDIConfigReconciler members
 type CDIConfigReconciler struct {
-	Client                 client.Client
-	CdiClient              cdiclientset.Interface
-	K8sClient              kubernetes.Interface
+	Client client.Client
+	// use this for getting any resources not in the install namespace or cluster scope
+	uncachedClient         client.Client
 	Scheme                 *runtime.Scheme
 	Log                    logr.Logger
 	UploadProxyServiceName string
@@ -209,18 +207,17 @@ func (r *CDIConfigReconciler) reconcileDefaultPodResourceRequirements(config *cd
 // createCDIConfig creates a new instance of the CDIConfig object if it doesn't exist already, and returns the existing one if found.
 // It also sets the operator to be the owner of the CDIConfig object.
 func (r *CDIConfigReconciler) createCDIConfig() (*cdiv1.CDIConfig, error) {
-	config, err := r.CdiClient.CdiV1alpha1().CDIConfigs().Get(r.ConfigName, metav1.GetOptions{})
-	if err != nil {
+	config := &cdiv1.CDIConfig{}
+	if err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: r.ConfigName}, config); err != nil {
 		if errors.IsNotFound(err) {
 			config = MakeEmptyCDIConfigSpec(r.ConfigName)
-			if err := operator.SetOwner(r.K8sClient, config); err != nil {
+			if err := operator.SetOwnerRuntime(r.uncachedClient, config); err != nil {
 				return nil, err
 			}
-			config, err = r.CdiClient.CdiV1alpha1().CDIConfigs().Create(config)
-			if err != nil {
+			if err := r.Client.Create(context.TODO(), config); err != nil {
 				if errors.IsAlreadyExists(err) {
-					config, err := r.CdiClient.CdiV1alpha1().CDIConfigs().Get(r.ConfigName, metav1.GetOptions{})
-					if err == nil {
+					config := &cdiv1.CDIConfig{}
+					if err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: r.ConfigName}, config); err == nil {
 						return config, nil
 					}
 					return nil, err
@@ -241,17 +238,24 @@ func (r *CDIConfigReconciler) Init() error {
 }
 
 // NewConfigController creates a new instance of the config controller.
-func NewConfigController(mgr manager.Manager, cdiClient *cdiclientset.Clientset, k8sClient kubernetes.Interface, log logr.Logger, uploadProxyServiceName, configName string) (controller.Controller, error) {
+func NewConfigController(mgr manager.Manager, log logr.Logger, uploadProxyServiceName, configName string) (controller.Controller, error) {
+	uncachedClient, err := client.New(mgr.GetConfig(), client.Options{
+		Scheme: mgr.GetScheme(),
+		Mapper: mgr.GetRESTMapper(),
+	})
+	if err != nil {
+		return nil, err
+	}
 	reconciler := &CDIConfigReconciler{
 		Client:                 mgr.GetClient(),
+		uncachedClient:         uncachedClient,
 		Scheme:                 mgr.GetScheme(),
-		CdiClient:              cdiClient,
-		K8sClient:              k8sClient,
 		Log:                    log.WithName("config-controller"),
 		UploadProxyServiceName: uploadProxyServiceName,
 		ConfigName:             configName,
 		CDINamespace:           util.GetNamespace(),
 	}
+
 	configController, err := controller.New("config-controller", mgr, controller.Options{
 		Reconciler: reconciler,
 	})
@@ -263,8 +267,8 @@ func NewConfigController(mgr manager.Manager, cdiClient *cdiclientset.Clientset,
 	}
 	if err := reconciler.Init(); err != nil {
 		log.Error(err, "Unable to initalize CDIConfig")
-		return nil, err
 	}
+	log.Info("Initialized CDI Config object")
 	return configController, nil
 }
 

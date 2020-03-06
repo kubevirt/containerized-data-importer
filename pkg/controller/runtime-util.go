@@ -13,6 +13,10 @@ import (
 // MakeEmptyCDIConfigSpec creates cdi config manifest
 func MakeEmptyCDIConfigSpec(name string) *cdiv1.CDIConfig {
 	return &cdiv1.CDIConfig{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CDIConfig",
+			APIVersion: "cdi.kubevirt.io/v1alpha1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{

@@ -36,7 +36,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -44,7 +43,6 @@ import (
 
 	extfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	cdifake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
@@ -591,8 +589,6 @@ func createDatavolumeReconciler(objects ...runtime.Object) *DatavolumeReconciler
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		ScratchSpaceStorageClass: testStorageClass,
 	}
-	cdifakeclientset := cdifake.NewSimpleClientset(cdiConfig)
-	k8sfakeclientset := k8sfake.NewSimpleClientset(createStorageClass(testStorageClass, nil))
 	extfakeclientset := extfake.NewSimpleClientset()
 
 	// Create a fake client to mock API calls.
@@ -605,8 +601,6 @@ func createDatavolumeReconciler(objects ...runtime.Object) *DatavolumeReconciler
 		Scheme:       s,
 		Log:          dvLog,
 		recorder:     rec,
-		CdiClient:    cdifakeclientset,
-		K8sClient:    k8sfakeclientset,
 		ExtClientSet: extfakeclientset,
 	}
 	return r
