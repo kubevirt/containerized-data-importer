@@ -76,6 +76,9 @@ var _ = Describe("Operator delete CDI tests", func() {
 	BeforeEach(func() {
 		var err error
 		cr, err = f.CdiClient.CdiV1alpha1().CDIs().Get("cdi", metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
+		}
 		Expect(err).ToNot(HaveOccurred())
 	})
 
