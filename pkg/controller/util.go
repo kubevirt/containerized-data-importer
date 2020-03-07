@@ -296,10 +296,9 @@ func CreateScratchPersistentVolumeClaim(client kubernetes.Interface, pvc *v1.Per
 
 // GetScratchPvcStorageClass tries to determine which storage class to use for use with a scratch persistent
 // volume claim. The order of preference is the following:
-// 1. Defined value in CDI config map.
-// 2. If 1 is not available use the 'default' storage class.
-// 3. If 2 is not available use the storage class name of the original pvc that will own the scratch pvc.
-// 4. If none of those are available, return blank.
+// 1. Defined value in CDI Config field scratchSpaceStorageClass.
+// 2. If 1 is not available, use the storage class name of the original pvc that will own the scratch pvc.
+// 3. If none of those are available, return blank.
 func GetScratchPvcStorageClass(client kubernetes.Interface, cdiclient clientset.Interface, pvc *v1.PersistentVolumeClaim) string {
 	config, err := cdiclient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
 	if err != nil {
@@ -307,7 +306,7 @@ func GetScratchPvcStorageClass(client kubernetes.Interface, cdiclient clientset.
 	}
 	storageClassName := config.Status.ScratchSpaceStorageClass
 	if storageClassName == "" {
-		// Unable to determine default storage class, attempt to read the storage class from the pvc.
+		// Unable to determine scratch storage class, attempt to read the storage class from the pvc.
 		if pvc.Spec.StorageClassName != nil {
 			storageClassName = *pvc.Spec.StorageClassName
 			if storageClassName != "" {
