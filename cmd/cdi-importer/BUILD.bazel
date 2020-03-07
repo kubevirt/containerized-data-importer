@@ -13,7 +13,6 @@ rpm_image(
         "@capstone//file",
         "@skopeo//file",
         "@ostree-libs//file",
-        "@device-mapper-libs//file",
         "@containers-common//file",
     ],
 )

@@ -1,4 +1,4 @@
-FROM registry.fedoraproject.org/fedora-minimal:29
+FROM registry.fedoraproject.org/fedora-minimal:31
 MAINTAINER "The KubeVirt Project" <kubevirt-dev@googlegroups.com>
 
 COPY fedora.repo /tmp/fedora_ci.dnf.repo
