@@ -15,7 +15,6 @@ RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
 	python3-pip \
 	python3-devel \
 	mercurial \
-	gradle \
 	gcc \
     gcc-c++ \
     glibc-devel \
@@ -27,11 +26,18 @@ RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
 	rsync-daemon \
 	rsync \
 	patch \
+    unzip \
+    java-1.8.0-openjdk \
 	&& microdnf clean all && \
 	mv /etc/yum.repos.d/old/* /etc/yum.repos.d/ && \
 	rmdir /etc/yum.repos.d/old
 
-RUN pip3 install j2cli && pip3 install operator-courier
+RUN pip3 install j2cli && pip3 install operator-courier && \
+    curl -sL https://services.gradle.org/distributions/gradle-4.3.1-bin.zip -o gradle-4.3.1-bin.zip && \
+    mkdir /opt/gradle && \
+    unzip -d /opt/gradle gradle-4.3.1-bin.zip && \
+    ln -s /opt/gradle/gradle-4.3.1/bin/gradle /usr/local/bin/gradle && \
+    rm gradle-4.3.1-bin.zip
 
 ENV GIMME_GO_VERSION=1.12.14 GOPATH="/go" KUBEBUILDER_VERSION="2.2.0" ARCH="amd64"
 ENV BAZEL_PYTHON=/usr/bin/python3

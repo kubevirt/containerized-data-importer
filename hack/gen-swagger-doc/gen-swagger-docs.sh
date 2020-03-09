@@ -38,7 +38,7 @@ WORKDIR="hack/gen-swagger-doc"
 GRADLE_BUILD_FILE="$WORKDIR/build.gradle"
 
 # Generate *.adoc files from swagger.json
-gradle -b $GRADLE_BUILD_FILE $GRADLE_EXTRA_PARAMS convertSwagger2markup --info
+gradle -b $GRADLE_BUILD_FILE $GRADLE_EXTRA_PARAMS convertSwagger2markup --info --stacktrace
 
 #insert a TOC for top level API objects
 buf="${HEADER}${HEADER} Top Level API Objects\n\n"
