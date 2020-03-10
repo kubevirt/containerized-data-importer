@@ -485,6 +485,9 @@ func setStorageClassDefault(f *framework.Framework, scName string, isDefault boo
 		return err
 	}
 	ann := sc.GetAnnotations()
+	if ann == nil {
+		ann = make(map[string]string)
+	}
 	ann[controller.AnnDefaultStorageClass] = strconv.FormatBool(isDefault)
 	sc.SetAnnotations(ann)
 	_, err = f.K8sClient.StorageV1().StorageClasses().Update(sc)
