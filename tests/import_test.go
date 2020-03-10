@@ -290,7 +290,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 	})
 })
 
-var _ = Describe("[rfe_id:1947][crit:high][test_id:2145][vendor:cnv-qe@redhat.com][level:component]Importer Archive ContentType", func() {
+var _ = FDescribe("[rfe_id:1947][crit:high][test_id:2145][vendor:cnv-qe@redhat.com][level:component]Importer Archive ContentType", func() {
 	f := framework.NewFrameworkOrDie(namespacePrefix)
 
 	It("Should import archive content type tar file", func() {

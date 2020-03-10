@@ -1,0 +1,42 @@
+load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
+load("@io_bazel_rules_docker//container:container.bzl", "container_image")
+load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
+
+rpm_image(
+    name = "loop-back-lvm-base-image",
+    base = "@fedora//image",
+    rpms = [
+        "@lvm2//file",
+        "@lvm2-libs//file",
+        "@device-mapper-event//file",
+        "@device-mapper-persistent-data//file",
+        #"@compat-readline5//file",
+        "@libaio//file",
+        "@kmod//file",
+        "@device-mapper-event-libs//file",
+    ],
+)
+
+container_image(
+    name = "loop-back-lvm-image",
+    base = "@fedora-full//image",
+    directory = "/",
+    entrypoint = ["/entrypoint.sh"],
+    tars = [":entrypoint-script-tar"],
+    visibility = ["//visibility:public"],
+    port,
+)
+
+filegroup(
+    name = "entrypoint-script",
+    srcs = [
+        ":entrypoint.sh",
+    ],
+)
+
+pkg_tar(
+    name = "entrypoint-script-tar",
+    srcs = [":entrypoint-script"],
+    mode = "755",
+    package_dir = "/",
+)

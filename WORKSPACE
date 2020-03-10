@@ -95,6 +95,14 @@ container_pull(
     tag = "31",
 )
 
+container_pull(
+    name = "fedora-full",
+    digest = "sha256:d3d106e8f3affb1011b97c2b6ef388430dc1474bf7c7ad05963cff49961edb89",
+    registry = "index.docker.io",
+    repository = "library/fedora",
+    tag = "31",
+)
+
 # Pull base image container registry
 container_pull(
     name = "registry",
@@ -237,5 +245,69 @@ http_file(
     urls = [
         "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/o/ostree-libs-2019.4-3.fc31.x86_64.rpm",
         "https://storage.googleapis.com/builddeps/4011ad8b367db9d528d47202d07c287a958d4bd11a56b11618818dcb3be55bc6",
+    ],
+)
+
+http_file(
+    name = "lvm2",
+    sha256 = "790256fe3d3b39700a4345649fcaab1da8dc1d13104577480d1807a108c0273f",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/l/lvm2-2.03.05-2.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "lvm2-libs",
+    sha256 = "c8125a5f282f6022a2ca0c287c6804301262432646aba5a5b8ec06eeacb83102",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/l/lvm2-libs-2.03.05-2.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "device-mapper",
+    sha256 = "d8fa0b0947084bce50438b7eaf5a5085abd35e36c69cfb13d5f58e98a258e36f",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/d/device-mapper-1.02.163-2.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "device-mapper-event",
+    sha256 = "9dfb6c534d23d3058d83dfaf669544b58318c34351ae46e7341cdeee51be2ab8",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/d/device-mapper-event-1.02.163-2.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "device-mapper-event-libs",
+    sha256 = "3d9ed59c05d68649e255ab6961ce7b8b758ab82cbe74d6912d0f4395c7ebd4f3",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/d/device-mapper-event-libs-1.02.163-2.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "device-mapper-persistent-data",
+    sha256 = "4a3eef2bea1e3a1fe305b9c2acbf46d6bc6063d415fe0c33c25416ed42791cee",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/d/device-mapper-persistent-data-0.8.5-2.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "compat-readline5",
+    sha256 = "03179d5423784f6a61d18dcbb35fe986fb318ebac65330c0228bbef4e835c992",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/c/compat-readline5-5.2-34.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "kmod",
+    sha256 = "ec22cf64138373b6f28dab0b824fbf9cdec8060bf7b8ce8216a361ab70f0849b",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/k/kmod-26-4.fc31.x86_64.rpm",
     ],
 )

@@ -22,6 +22,9 @@ function configure_storage() {
   elif [[ $KUBEVIRT_STORAGE == "nfs" ]] ; then
     echo "Installing NFS static storage"
     configure_nfs
+  elif [[ $KUBEVIRT_STORAGE == "ember_lvm" ]] ; then
+    echo "Installing ember csi lvm storage"
+    configure_ember_lvm
   else
     echo "Using local volume storage"
     #Make sure local is not default
