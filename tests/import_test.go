@@ -111,8 +111,8 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		By("Verify the image contents")
 		Expect(f.VerifyBlankDisk(f.Namespace, pvc)).To(BeTrue())
-		By("Verifying the image is not sparse")
-		Expect(f.VerifyNotSparse(f.Namespace, pvc)).To(BeTrue())
+		By("Verifying the image is sparse")
+		Expect(f.VerifySparse(f.Namespace, pvc)).To(BeTrue())
 	})
 })
 

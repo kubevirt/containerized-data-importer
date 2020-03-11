@@ -147,8 +147,8 @@ func (f *Framework) VerifyBlankDisk(namespace *k8sv1.Namespace, pvc *k8sv1.Persi
 	return strings.Compare("All zeros", string(output)) == 0, nil
 }
 
-// VerifyNotSparse checks a disk image not being sparse after creation/resize.
-func (f *Framework) VerifyNotSparse(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
+// VerifySparse checks a disk image being sparse after creation/resize.
+func (f *Framework) VerifySparse(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
 	var executorPod *k8sv1.Pod
 	var err error
 
@@ -165,13 +165,13 @@ func (f *Framework) VerifyNotSparse(namespace *k8sv1.Namespace, pvc *k8sv1.Persi
 	if err != nil {
 		return false, err
 	}
-	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: not sparse output %s\n", string(output))
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: qemu-img info output %s\n", string(output))
 	var info image.ImgInfo
 	err = json.Unmarshal([]byte(output), &info)
 	if err != nil {
 		klog.Errorf("Invalid JSON:\n%s\n", string(output))
 	}
-	return info.ActualSize >= info.VirtualSize, nil
+	return info.VirtualSize >= info.ActualSize, nil
 }
 
 // VerifyTargetPVCArchiveContent provides a function to check if the number of files extracted from an archive matches the passed in value
