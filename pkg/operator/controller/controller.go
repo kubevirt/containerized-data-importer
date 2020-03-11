@@ -198,7 +198,7 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 	}
 
 	// do we even care about this CR?
-	if !metav1.IsControlledBy(configMap, cr) {
+	if configMap.DeletionTimestamp == nil && !metav1.IsControlledBy(configMap, cr) {
 		reqLogger.Info("Reconciling to error state, unwanted CDI object")
 		return r.reconcileError(reqLogger, cr, "Reconciling to error state, unwanted CDI object")
 	}
