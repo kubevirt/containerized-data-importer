@@ -19,6 +19,7 @@ set -eo pipefail
 
 source /etc/profile.d/gimme.sh
 
-export PATH=${GOPATH}/bin:$PATH
+export JAVA_HOME=/usr/lib/jvm/jre-1.8.0-openjdk
+export PATH=${GOPATH}/bin:/opt/gradle/gradle-4.3.1/bin:$PATH
 
 eval "$@"
