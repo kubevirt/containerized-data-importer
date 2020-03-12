@@ -50,8 +50,6 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 			Resources: []string{
 				"clusterrolebindings",
 				"clusterroles",
-				"rolebindings",
-				"roles",
 			},
 			Verbs: []string{
 				"*",
@@ -94,60 +92,18 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"customresourcedefinitions",
 			},
 			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-				"create",
-				"update",
+				"*",
 			},
 		},
 		{
 			APIGroups: []string{
 				"cdi.kubevirt.io",
-				"upload.cdi.kubevirt.io",
 			},
 			Resources: []string{
 				"*",
 			},
 			Verbs: []string{
 				"*",
-			},
-		},
-		{
-			APIGroups: []string{
-				"",
-			},
-			Resources: []string{
-				"serviceaccounts",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-			},
-		},
-		{
-			APIGroups: []string{
-				"apps",
-			},
-			Resources: []string{
-				"deployments",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-			},
-		},
-		{
-			APIGroups: []string{
-				"authorization.k8s.io",
-			},
-			Resources: []string{
-				"subjectaccessreviews",
-			},
-			Verbs: []string{
-				"create",
 			},
 		},
 		{
@@ -159,11 +115,7 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"mutatingwebhookconfigurations",
 			},
 			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-				"create",
-				"update",
+				"*",
 			},
 		},
 		{
@@ -174,11 +126,7 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"apiservices",
 			},
 			Verbs: []string{
-				"get",
-				"list",
-				"watch",
-				"create",
-				"update",
+				"*",
 			},
 		},
 	}
