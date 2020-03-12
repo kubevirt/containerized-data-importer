@@ -119,32 +119,6 @@ func GetAvailableSpaceBlock(deviceName string) int64 {
 	return i
 }
 
-// RetryBackoffSize Calls the passed in function to size/resize and if it fails lowers the size and tries again up to 10 times.
-func RetryBackoffSize(dest string, size resource.Quantity, sizeFunc func(string, resource.Quantity) error) error {
-	var stat syscall.Statfs_t
-	klog.V(3).Infof("Checking block size on path: %s\n", filepath.Dir(dest))
-	err := syscall.Statfs(filepath.Dir(dest), &stat)
-	if err != nil {
-		// Unable to stat, won't be able to size.
-		return err
-	}
-	blockSize := int64(stat.Bsize)
-	klog.V(3).Infof("Block size: %d\n", blockSize)
-
-	err = sizeFunc(dest, size)
-	retryCount := 0
-	reduceSize := size
-	for err != nil && retryCount < 10 {
-		retryCount++
-		// Reduce by 25 blocks, and try again. How did we end up with 25 blocks? Well we need to leave some blocks for the fs on the pvc.
-		// Then we need to leave some extra blocks so it can mount inside the container.
-		reduceSize.Sub(*resource.NewScaledQuantity(blockSize*int64(25), 0))
-		klog.V(3).Infof("Trying new size: %s\n", reduceSize.String())
-		err = sizeFunc(dest, reduceSize)
-	}
-	return err
-}
-
 // MinQuantity calculates the minimum of two quantities.
 func MinQuantity(availableSpace, imageSize *resource.Quantity) resource.Quantity {
 	if imageSize.Cmp(*availableSpace) == 1 {

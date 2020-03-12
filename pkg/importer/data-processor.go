@@ -266,7 +266,7 @@ func ResizeImage(dataFile, imageSize string, totalTargetSpace int64) error {
 			return nil
 		}
 		klog.V(1).Infof("Expanding image size to: %s\n", minSizeQuantity.String())
-		return util.RetryBackoffSize(dataFile, minSizeQuantity, qemuOperations.Resize)
+		return qemuOperations.Resize(dataFile, minSizeQuantity)
 	}
 	return errors.New("Image resize called with blank resize")
 }

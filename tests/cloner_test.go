@@ -339,8 +339,8 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 		Expect(err).ToNot(HaveOccurred())
 		matchFile := filepath.Join(testBaseDir, "disk.img")
 		Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv), matchFile, md5sum[:32])).To(BeTrue())
-		By("Verifying the image is not sparse")
-		Expect(f.VerifyNotSparse(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv))).To(BeTrue())
+		By("Verifying the image is sparse")
+		Expect(f.VerifySparse(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv))).To(BeTrue())
 
 	})
 
