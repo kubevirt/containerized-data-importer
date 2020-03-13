@@ -31,7 +31,7 @@ const (
 	waitReadyTime     = 10 * time.Second
 	waitReadyImterval = time.Second
 
-	proxyRequestTimeout = time.Hour
+	proxyRequestTimeout = 24 * time.Hour
 
 	uploadTokenLeeway = 10 * time.Second
 )
