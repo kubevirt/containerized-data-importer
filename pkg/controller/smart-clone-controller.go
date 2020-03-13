@@ -271,6 +271,7 @@ func newPvcFromSnapshot(snapshot *csisnapshotv1.VolumeSnapshot, dataVolume *cdiv
 	}
 	annotations := make(map[string]string)
 	annotations[AnnSmartCloneRequest] = "true"
+	annotations[AnnCloneOf] = "true"
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            snapshot.Name,
