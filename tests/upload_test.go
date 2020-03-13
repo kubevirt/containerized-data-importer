@@ -101,6 +101,11 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(same).To(BeTrue())
 			By("Verifying the image is sparse")
 			Expect(f.VerifySparse(f.Namespace, pvc)).To(BeTrue())
+			if utils.DefaultStorageCSI {
+				// CSI storage class, it should respect fsGroup
+				By("Checking that disk image group is qemu")
+				Expect(f.GetDiskGroup(f.Namespace, pvc)).To(Equal("107"))
+			}
 		} else {
 			uploader, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
 			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))

@@ -503,6 +503,7 @@ func GetUploadServerURL(namespace, pvc, uploadPath string) string {
 
 func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequirements *v1.ResourceRequirements) *v1.Pod {
 	requestImageSize, _ := getRequestedImageSize(args.PVC)
+	fsGroup := common.QemuSubGid
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -583,6 +584,10 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 				},
 			},
 		},
+	}
+
+	if !checkPVC(args.PVC, AnnCloneRequest) {
+		pod.Spec.SecurityContext.FSGroup = &fsGroup
 	}
 
 	if resourceRequirements != nil {

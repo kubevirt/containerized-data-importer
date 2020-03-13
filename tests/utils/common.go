@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+
 	"github.com/onsi/ginkgo"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -45,6 +46,8 @@ var (
 	// NfsService is the service in the cdi namespace that will be created if KUBEVIRT_STORAGE=nfs
 	NfsService *corev1.Service
 	nfsChecked bool
+	// DefaultStorageCSI is true if the default storage class is CSI, false other wise.
+	DefaultStorageCSI bool
 )
 
 func getDefaultNodeName(client *kubernetes.Clientset) string {
@@ -89,6 +92,17 @@ func getDefaultStorageClass(client *kubernetes.Clientset) *storagev1.StorageClas
 	return nil
 }
 
+func isDefaultStorageClassCSI(client *kubernetes.Clientset) bool {
+	if DefaultStorageClass != nil {
+		_, err := client.StorageV1beta1().CSIDrivers().Get(DefaultStorageClass.Provisioner, metav1.GetOptions{})
+		if err != nil {
+			return false
+		}
+		return true
+	}
+	return false
+}
+
 // IsHostpathProvisioner returns true if hostpath-provisioner is the default storage class
 func IsHostpathProvisioner() bool {
 	if DefaultStorageClass == nil {
@@ -113,6 +127,7 @@ func CacheTestsData(client *kubernetes.Clientset, cdiNs string) {
 	if DefaultStorageClass == nil {
 		DefaultStorageClass = getDefaultStorageClass(client)
 	}
+	DefaultStorageCSI = isDefaultStorageClassCSI(client)
 	if !nfsChecked {
 		NfsService = getNfsService(client, cdiNs)
 		nfsChecked = true

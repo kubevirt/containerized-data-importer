@@ -24,7 +24,7 @@ const (
 	fillData                         = "123456789012345678901234567890123456789012345678901234567890"
 	fillDataFSMD5sum                 = "fabc176de7eb1b6ca90b3aa4c7e035f3"
 	testBaseDir                      = utils.DefaultPvcMountPath
-	testFile                         = "/source.txt"
+	testFile                         = "/disk.img"
 	fillCommand                      = "echo \"" + fillData + "\" >> " + testBaseDir
 	blockFillCommand                 = "dd if=/dev/urandom bs=4096 of=" + testBaseDir + " || echo this is fine"
 	assertionPollInterval            = 2 * time.Second
@@ -193,7 +193,9 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
-		completeClone(f, f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum)
+		sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, sourcePVC)
+		Expect(err).ToNot(HaveOccurred())
+		completeClone(f, f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum, sourcePvcDiskGroup)
 	})
 })
 
@@ -519,7 +521,9 @@ var _ = Describe("Block PV Cloner Test", func() {
 
 		fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
-		completeClone(f, targetNs, targetPvc, testBaseDir, sourceMD5)
+		sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, sourcePvc)
+		Expect(err).ToNot(HaveOccurred())
+		completeClone(f, targetNs, targetPvc, testBaseDir, sourceMD5, sourcePvcDiskGroup)
 	})
 })
 
@@ -649,8 +653,9 @@ var _ = Describe("Namespace with quota", func() {
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetDV.Name)
 		targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
-
-		completeClone(f, f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum)
+		sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, sourcePvc)
+		Expect(err).ToNot(HaveOccurred())
+		completeClone(f, f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum, sourcePvcDiskGroup)
 	})
 
 	It("Should create clone in namespace with quota when pods requirements are low enough", func() {
@@ -716,10 +721,14 @@ func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolume
 
 	fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 	utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)
-	completeClone(f, targetNs, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum)
+	sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, srcPVCDef)
+	fmt.Fprintf(GinkgoWriter, "INFO: %s\n", sourcePvcDiskGroup)
+	Expect(err).ToNot(HaveOccurred())
+
+	completeClone(f, targetNs, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum, sourcePvcDiskGroup)
 }
 
-func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1.PersistentVolumeClaim, filePath, expectedMD5 string) {
+func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1.PersistentVolumeClaim, filePath, expectedMD5, sourcePvcDiskGroup string) {
 	By("Verify the clone annotation is on the target PVC")
 	_, cloneAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnCloneOf)
 	if err != nil {
@@ -741,6 +750,11 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 	if targetPvc != nil {
 		err = utils.DeletePVC(f.K8sClient, targetNs.Name, targetPvc)
 		Expect(err).ToNot(HaveOccurred())
+	}
+	if utils.DefaultStorageCSI {
+		// CSI storage class, it should respect fsGroup
+		By("Checking that disk image group is qemu")
+		Expect(f.GetDiskGroup(f.Namespace, targetPvc)).To(Equal(sourcePvcDiskGroup))
 	}
 }
 

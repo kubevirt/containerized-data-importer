@@ -223,6 +223,8 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uploadPod.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+		By("Verifying the fsGroup of the pod is the qemu user")
+		Expect(*uploadPod.Spec.SecurityContext.FSGroup).To(Equal(int64(107)))
 
 		uploadService = &corev1.Service{}
 		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
@@ -255,6 +257,8 @@ var _ = Describe("reconcilePVC loop", func() {
 			err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(uploadPod.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+			By("Verifying the fsGroup of the pod is the qemu user")
+			Expect(*uploadPod.Spec.SecurityContext.FSGroup).To(Equal(int64(107)))
 
 			uploadService = &corev1.Service{}
 			err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
@@ -291,6 +295,8 @@ var _ = Describe("reconcilePVC loop", func() {
 			err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(uploadPod.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+			By("Verifying the fsGroup of the pod is the qemu user")
+			Expect(*uploadPod.Spec.SecurityContext.FSGroup).To(Equal(int64(107)))
 
 			uploadService = &corev1.Service{}
 			err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
