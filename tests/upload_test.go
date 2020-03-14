@@ -98,8 +98,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5100kbytes, 100000)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
-			By("Verifying the image is not sparse")
-			Expect(f.VerifyNotSparse(f.Namespace, pvc)).To(BeTrue())
+			By("Verifying the image is sparse")
+			Expect(f.VerifySparse(f.Namespace, pvc)).To(BeTrue())
 		} else {
 			uploader, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
 			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))

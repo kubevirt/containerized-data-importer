@@ -106,8 +106,8 @@ var _ = Describe("Transport Tests", func() {
 					Expect(same).To(BeTrue())
 				}
 			}
-			By("Verifying the image is not sparse")
-			Expect(f.VerifyNotSparse(f.Namespace, pvc)).To(BeTrue())
+			By("Verifying the image is sparse")
+			Expect(f.VerifySparse(f.Namespace, pvc)).To(BeTrue())
 		} else {
 			By("Verify PVC status annotation says failed")
 			found, err := utils.WaitPVCPodStatusRunning(f.K8sClient, pvc)
