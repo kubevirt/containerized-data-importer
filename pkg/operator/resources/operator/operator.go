@@ -175,6 +175,7 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 				"configmaps",
 				"events",
 				"secrets",
+				"services",
 			},
 			Verbs: []string{
 				"*",
