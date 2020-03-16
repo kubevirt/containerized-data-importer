@@ -15,8 +15,6 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	crdinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -28,7 +26,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
 
 	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
-	informers "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -128,15 +125,7 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		os.Exit(1)
 	}
 
-	cdiInformerFactory := informers.NewSharedInformerFactory(cdiClient, common.DefaultResyncPeriod)
 	crdInformerFactory := crdinformers.NewSharedInformerFactory(extClient, common.DefaultResyncPeriod)
-	pvcInformerFactory := k8sinformers.NewSharedInformerFactory(client, common.DefaultResyncPeriod)
-	podInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(client, common.DefaultResyncPeriod, "", func(options *v1.ListOptions) {
-		options.LabelSelector = common.CDILabelSelector
-	})
-	serviceInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(client, common.DefaultResyncPeriod, "", func(options *v1.ListOptions) {
-		options.LabelSelector = common.CDILabelSelector
-	})
 	crdInformer := crdInformerFactory.Apiextensions().V1beta1().CustomResourceDefinitions().Informer()
 
 	uploadClientCAFetcher := &fetcher.FileCertFetcher{Name: "cdi-uploadserver-client-signer"}
@@ -182,10 +171,6 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 
 	klog.V(1).Infoln("created cdi controllers")
 
-	go cdiInformerFactory.Start(stopCh)
-	go pvcInformerFactory.Start(stopCh)
-	go podInformerFactory.Start(stopCh)
-	go serviceInformerFactory.Start(stopCh)
 	go crdInformerFactory.Start(stopCh)
 
 	// Add Crd informer, so we can start the smart clone controller if we detect the CSI CRDs being installed.

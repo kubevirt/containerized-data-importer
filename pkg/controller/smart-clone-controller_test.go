@@ -82,7 +82,7 @@ var _ = Describe("Smart-clone reconcile functions", func() {
 		table.Entry("should reconcile if annotation exists, and is true, and phase is bound", AnnSmartCloneRequest, "true", corev1.ClaimBound, true),
 		table.Entry("should not reconcile if annotation exists, and is false, and phase is bound", AnnSmartCloneRequest, "false", corev1.ClaimBound, false),
 		table.Entry("should not reconcile if annotation doesn't exist, and phase is bound", "", "true", corev1.ClaimBound, false),
-		table.Entry("should not reconcile if annotation exists, and is true, and phase is not bound", AnnSmartCloneRequest, "true", corev1.ClaimPending, false),
+		table.Entry("should not reconcile if annotation exists, and is true, and phase is lost", AnnSmartCloneRequest, "true", corev1.ClaimLost, false),
 	)
 })
 

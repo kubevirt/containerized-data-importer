@@ -41,7 +41,7 @@ type SmartCloneReconciler struct {
 	Log      logr.Logger
 }
 
-// NewSmartCloneController creates a new instance of the import controller.
+// NewSmartCloneController creates a new instance of the Smart clone controller.
 func NewSmartCloneController(mgr manager.Manager, log logr.Logger) (controller.Controller, error) {
 	reconciler := &SmartCloneReconciler{
 		Client:   mgr.GetClient(),
@@ -61,7 +61,7 @@ func NewSmartCloneController(mgr manager.Manager, log logr.Logger) (controller.C
 	return smartCloneController, nil
 }
 
-func addSmartCloneControllerWatches(mgr manager.Manager, importController controller.Controller) error {
+func addSmartCloneControllerWatches(mgr manager.Manager, smartCloneController controller.Controller) error {
 	// Add schemes.
 	if err := cdiv1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
@@ -70,7 +70,7 @@ func addSmartCloneControllerWatches(mgr manager.Manager, importController contro
 		return err
 	}
 	// Setup watches
-	if err := importController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}}, &handler.EnqueueRequestForOwner{
+	if err := smartCloneController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}}, &handler.EnqueueRequestForOwner{
 		OwnerType:    &cdiv1.DataVolume{},
 		IsController: true,
 	}, predicate.Funcs{
@@ -100,7 +100,7 @@ func addSmartCloneControllerWatches(mgr manager.Manager, importController contro
 		return err
 	}
 
-	if err := importController.Watch(&source.Kind{Type: &csiv1.VolumeSnapshot{}}, &handler.EnqueueRequestForOwner{
+	if err := smartCloneController.Watch(&source.Kind{Type: &csiv1.VolumeSnapshot{}}, &handler.EnqueueRequestForOwner{
 		OwnerType:    &cdiv1.DataVolume{},
 		IsController: true,
 	}, predicate.Funcs{
@@ -132,7 +132,7 @@ func shouldReconcileSnapshot(snapshot *csiv1.VolumeSnapshot) bool {
 }
 
 func shouldReconcilePvc(pvc *corev1.PersistentVolumeClaim) bool {
-	if pvc.Status.Phase != corev1.ClaimBound {
+	if pvc.Status.Phase == corev1.ClaimLost {
 		return false
 	}
 
@@ -188,8 +188,10 @@ func (r *SmartCloneReconciler) reconcilePvc(log logr.Logger, pvc *corev1.Persist
 	}
 
 	if err := r.Client.Delete(context.TODO(), snapshotToDelete); err != nil {
-		log.Error(err, "error deleting snapshot for smart-clone")
-		return reconcile.Result{}, err
+		if !k8serrors.IsNotFound(err) {
+			log.Error(err, "error deleting snapshot for smart-clone")
+			return reconcile.Result{}, err
+		}
 	}
 	log.V(3).Info("Snapshot deleted")
 
