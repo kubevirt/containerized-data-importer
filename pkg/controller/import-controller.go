@@ -185,6 +185,7 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 	if err != nil {
 		return reconcile.Result{}, err
 	}
+
 	if pod == nil {
 		if isPVCComplete(pvc) {
 			// Don't create the POD if the PVC is completed already
@@ -219,7 +220,8 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	log.V(1).Info("Updating PVC from pod")
 	anno := pvc.GetAnnotations()
 	scratchExitCode := false
-	if pod.Status.ContainerStatuses != nil && pod.Status.ContainerStatuses[0].LastTerminationState.Terminated != nil &&
+	if pod.Status.ContainerStatuses != nil &&
+		pod.Status.ContainerStatuses[0].LastTerminationState.Terminated != nil &&
 		pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode > 0 {
 		log.Info("Pod termination code", "pod.Name", pod.Name, "ExitCode", pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode)
 		if pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.ExitCode == common.ScratchSpaceNeededExitCode {
@@ -231,10 +233,13 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		}
 	}
 
+	if pod.Status.ContainerStatuses != nil {
+		log.V(1).Info(" ==**== PVC", "pod.Restarts", pod.Status.ContainerStatuses[0].RestartCount)
+		anno[AnnPodRestarts] = strconv.Itoa(int(pod.Status.ContainerStatuses[0].RestartCount))
+	}
 	anno[AnnImportPod] = string(pod.Name)
 	// Even if scratch space is needed, the pod state will still remain running, until the new pod is started.
 	anno[AnnPodPhase] = string(pod.Status.Phase)
-
 	// Check if the POD is waiting for scratch space, if so create some.
 	if pod.Status.Phase == corev1.PodPending && r.requiresScratchSpace(pvc) {
 		if err := r.createScratchPvcForPod(pvc, pod); err != nil {
@@ -254,7 +259,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		if err := r.updatePVC(pvc, log); err != nil {
 			return err
 		}
-		log.V(1).Info("Updated PVC", "pvc.anno.Phase", anno[AnnPodPhase])
+		log.V(1).Info("Updated PVC", "pvc.anno.Phase", anno[AnnPodPhase], "pvc.anno.Restarts", anno[AnnPodRestarts])
 	}
 
 	if isPVCComplete(pvc) || scratchExitCode {
@@ -271,6 +276,8 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 
 func (r *ImportReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
 	log.V(1).Info("Phase is now", "pvc.anno.Phase", pvc.GetAnnotations()[AnnPodPhase])
+	log.V(1).Info("Restarts is now", "pvc.anno.Restarts", pvc.GetAnnotations()[AnnPodRestarts])
+
 	if err := r.Client.Update(context.TODO(), pvc); err != nil {
 		return err
 	}

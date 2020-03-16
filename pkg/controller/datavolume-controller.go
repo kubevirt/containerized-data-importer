@@ -603,6 +603,11 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		}
 	}
 
+	if pvc != nil {
+		if i, err := strconv.Atoi(pvc.Annotations[AnnPodRestarts]); err == nil && i > 1 {
+			dataVolumeCopy.Status.RestartCount = int32(i)
+		}
+	}
 	result := reconcile.Result{}
 	var err error
 	if pvc != nil {

@@ -63,6 +63,8 @@ const (
 	AnnPodReady = AnnAPIGroup + "/storage.pod.ready"
 	// AnnOwnerRef is used when owner is in a different namespace
 	AnnOwnerRef = AnnAPIGroup + "/storage.ownerRef"
+	// AnnPodRestarts is a PVC annotation that tells how many times a related pod was restarted
+	AnnPodRestarts = AnnAPIGroup + "/storage.pod.restarts"
 	// SourceImageio is the source type ovirt-imageio
 	SourceImageio = "imageio"
 )

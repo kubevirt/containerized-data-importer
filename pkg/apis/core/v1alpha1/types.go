@@ -126,8 +126,9 @@ type DataVolumeSourceImageIO struct {
 // DataVolumeStatus provides the parameters to store the phase of the Data Volume
 type DataVolumeStatus struct {
 	//Phase is the current phase of the data volume
-	Phase    DataVolumePhase    `json:"phase,omitempty"`
-	Progress DataVolumeProgress `json:"progress,omitempty"`
+	Phase        DataVolumePhase    `json:"phase,omitempty"`
+	Progress     DataVolumeProgress `json:"progress,omitempty"`
+	RestartCount int32              `json:"restartCount,omitempty"`
 }
 
 //DataVolumeList provides the needed parameters to do request a list of Data Volumes from the system

@@ -3248,6 +3248,10 @@
      },
      "progress": {
       "type": "string"
+     },
+     "restartCount": {
+      "type": "integer",
+      "format": "int32"
      }
     }
    },
