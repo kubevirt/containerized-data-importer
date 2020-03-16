@@ -98,6 +98,7 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 		{
 			APIGroups: []string{
 				"cdi.kubevirt.io",
+				"upload.cdi.kubevirt.io",
 			},
 			Resources: []string{
 				"*",
