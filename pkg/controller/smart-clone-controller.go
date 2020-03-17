@@ -178,22 +178,25 @@ func (r *SmartCloneReconciler) reconcilePvc(log logr.Logger, pvc *corev1.Persist
 		return reconcile.Result{}, err
 	}
 
-	snapshotToDelete := &csiv1.VolumeSnapshot{}
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: snapshotName, Namespace: pvc.Namespace}, snapshotToDelete); err != nil {
-		if k8serrors.IsNotFound(err) {
-			// Already gone, so no need to try a delete.
-			return reconcile.Result{}, nil
-		}
-		return reconcile.Result{}, err
-	}
-
-	if err := r.Client.Delete(context.TODO(), snapshotToDelete); err != nil {
-		if !k8serrors.IsNotFound(err) {
-			log.Error(err, "error deleting snapshot for smart-clone")
+	// Don't delete snapshot unless the PVC is bound.
+	if pvc.Status.Phase == corev1.ClaimBound {
+		snapshotToDelete := &csiv1.VolumeSnapshot{}
+		if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: snapshotName, Namespace: pvc.Namespace}, snapshotToDelete); err != nil {
+			if k8serrors.IsNotFound(err) {
+				// Already gone, so no need to try a delete.
+				return reconcile.Result{}, nil
+			}
 			return reconcile.Result{}, err
 		}
+
+		if err := r.Client.Delete(context.TODO(), snapshotToDelete); err != nil {
+			if !k8serrors.IsNotFound(err) {
+				log.Error(err, "error deleting snapshot for smart-clone")
+				return reconcile.Result{}, err
+			}
+		}
+		log.V(3).Info("Snapshot deleted")
 	}
-	log.V(3).Info("Snapshot deleted")
 
 	return reconcile.Result{}, nil
 }

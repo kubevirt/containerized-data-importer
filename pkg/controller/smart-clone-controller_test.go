@@ -251,6 +251,7 @@ func createPVCWithSnapshotSource(name, snapshotName string) *corev1.PersistentVo
 		Kind:     "VolumeSnapshot",
 		APIGroup: &csiv1.SchemeGroupVersion.Group,
 	}
+	pvc.Status.Phase = corev1.ClaimBound
 	return pvc
 }
 
