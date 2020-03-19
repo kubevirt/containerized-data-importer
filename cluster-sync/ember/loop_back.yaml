@@ -35,19 +35,28 @@ spec:
       labels:
         app: loop-back-lvm
     spec:
+      # iSCSI only the very latest Open-iSCSI supports namespaces
+      hostNetwork: true
+      # Required by multipath detach (some drivers clone volumes dd-ing)
+      hostIPC: true
       containers:
       - name: loop-back-lvm
         image: registry:5000/loop-back-lvm:latest
+        # Priviledged needed for access to lvm backend
+        securityContext:
+          privileged: true
+          allowPrivilegeEscalation: true
         env:
         - name: DEVICE_SIZE
           value: 25G
         - name: DATA_DIR
           value: /data
         volumeMounts:
-        - name: local-storage
-          mountPath: /data
-        securityContext:
-          privileged: true
+          - name: local-storage
+            mountPath: /host/data
+          - name: host-dir
+            mountPath: /host
+            mountPropagation: Bidirectional
         readinessProbe:
           exec:
             command:
@@ -59,4 +68,6 @@ spec:
         - name: local-storage
           persistentVolumeClaim:
             claimName: loop-back-pvc
-        
+        - name: host-dir
+          hostPath:
+            path: /

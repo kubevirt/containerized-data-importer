@@ -67,8 +67,6 @@ metadata:
 spec:
   attachRequired: true
   podInfoOnMount: false
-  # volumeLifecycleModes: # added in Kubernetes 1.16, we use default
-  # - Persistent
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
@@ -162,8 +160,7 @@ spec:
               mountPath: /registration
         - name: csi-driver
           image: "embercsi/ember-csi:master"
-          #command: ["tail"]
-          #args: ["-f", "/dev/null"]
+          # Priviledged needed for access to lvm backend
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true

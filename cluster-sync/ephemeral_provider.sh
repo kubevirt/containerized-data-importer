@@ -100,13 +100,19 @@ function configure_ember_lvm() {
     sleep 1
   done
   echo "Loop back device pod is running on node $loopdeviceNode"
+  podIp=$(_kubectl get pods -n ember-csi-lvm -l app=loop-back-lvm -o=jsonpath={.items[0].status.podIP})
+  echo "loopback podIP: $podIp"
+  retry_counter=0
+  while [[ $podIp == "" ]] && [[ $retry_counter -lt 60 ]]; do
+    sleep 1
+    podIp=$(_kubectl get pods -n ember-csi-lvm -l app=loop-back-lvm -o=jsonpath={.items[0].status.podIP})
+    echo "loopback podIP: $podIp"
+  done
+
   _kubectl wait --for=condition=ready pod -n ember-csi-lvm -l app=loop-back-lvm --timeout=600s
-#  echo "Loop back device available, creating PVs and VGs"
-#  ./cluster-up/ssh.sh $loopdeviceNode "sudo pvcreate /dev/loop0; sudo vgcreate ember-volumes /dev/loop0; sudo vgscan"
+  echo "Loop back device available, starting ember csi controller"
   _kubectl apply -f ./cluster-sync/ember/ember-csi-lvm.yaml -n ember-csi-lvm
 
-  podIp=$(_kubectl get pods -n ember-csi-lvm -l app=loop-back-lvm -o=jsonpath={.items[0].status.podIP})
-  echo "LVM loopback device podIP: $podIp"
   cat <<EOF | _kubectl apply -n ember-csi-lvm -f -
 kind: StatefulSet
 apiVersion: apps/v1
@@ -176,9 +182,8 @@ spec:
           name: socket-dir
       - name: csi-driver
         image: "embercsi/ember-csi:master"
-        # command: ["tail"]
-        # args: ["-f", "/dev/null"]
         imagePullPolicy: Always
+        # Priviledged needed for access to lvm backend
         securityContext:
           privileged: true
           allowPrivilegeEscalation: true
