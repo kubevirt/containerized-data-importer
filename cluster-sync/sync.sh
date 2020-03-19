@@ -126,4 +126,6 @@ configure_storage
 if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
   _kubectl apply -f "./_out/manifests/file-host.yaml"
   _kubectl apply -f "./_out/manifests/registry-host.yaml"
+  # Imageio test service:
+  _kubectl apply -f "./_out/manifests/imageio.yaml"
 fi

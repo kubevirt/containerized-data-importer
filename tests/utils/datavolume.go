@@ -38,6 +38,8 @@ const (
 	TarArchiveURL = "http://cdi-file-host.%s/archive.tar"
 	// CirrosURL provides the standard cirros image qcow image
 	CirrosURL = "http://cdi-file-host.%s/cirros-qcow2.img"
+	// ImageioURL provides URL of oVirt engine hosting imageio
+	ImageioURL = "https://imageio.%s:12346/ovirt-engine/api"
 )
 
 // CreateDataVolumeFromDefinition is used by tests to create a testable Data Volume
@@ -89,6 +91,33 @@ func NewDataVolumeWithHTTPImport(dataVolumeName string, size string, httpURL str
 			Source: cdiv1.DataVolumeSource{
 				HTTP: &cdiv1.DataVolumeSourceHTTP{
 					URL: httpURL,
+				},
+			},
+			PVC: &k8sv1.PersistentVolumeClaimSpec{
+				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+}
+
+// NewDataVolumeWithImageioImport initializes a DataVolume struct with Imageio annotations
+func NewDataVolumeWithImageioImport(dataVolumeName string, size string, httpURL string, secret string, configMap string, diskID string) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dataVolumeName,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{
+				Imageio: &cdiv1.DataVolumeSourceImageIO{
+					URL:           httpURL,
+					SecretRef:     secret,
+					CertConfigMap: configMap,
+					DiskID:        diskID,
 				},
 			},
 			PVC: &k8sv1.PersistentVolumeClaimSpec{

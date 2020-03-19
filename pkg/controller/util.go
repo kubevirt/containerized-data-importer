@@ -53,7 +53,6 @@ const (
 	SourceNone = "none"
 	// SourceRegistry is the source type of Registry
 	SourceRegistry = "registry"
-
 	// AnnAPIGroup is the APIGroup for CDI
 	AnnAPIGroup = "cdi.kubevirt.io"
 	// AnnCreatedBy is a pod annotation indicating if the pod was created by the PVC
@@ -64,6 +63,8 @@ const (
 	AnnPodReady = AnnAPIGroup + "/storage.pod.ready"
 	// AnnOwnerRef is used when owner is in a different namespace
 	AnnOwnerRef = AnnAPIGroup + "/storage.ownerRef"
+	// SourceImageio is the source type ovirt-imageio
+	SourceImageio = "imageio"
 )
 
 type podDeleteRequest struct {
@@ -96,6 +97,11 @@ func getEndpoint(pvc *v1.PersistentVolumeClaim) (string, error) {
 	return ep, nil
 }
 
+func getDiskID(pvc *v1.PersistentVolumeClaim) string {
+	diskID, _ := pvc.Annotations[AnnDiskID]
+	return diskID
+}
+
 func getRequestedImageSize(pvc *v1.PersistentVolumeClaim) (string, error) {
 	pvcSize, found := pvc.Spec.Resources.Requests[v1.ResourceStorage]
 	if !found {
@@ -116,7 +122,8 @@ func getSource(pvc *v1.PersistentVolumeClaim) string {
 		SourceS3,
 		SourceGlance,
 		SourceNone,
-		SourceRegistry:
+		SourceRegistry,
+		SourceImageio:
 		klog.V(2).Infof("pvc source annotation found for pvc \"%s/%s\", value %s\n", pvc.Namespace, pvc.Name, source)
 	default:
 		klog.V(2).Infof("No valid source annotation found for pvc \"%s/%s\", default to http\n", pvc.Namespace, pvc.Name)
@@ -443,6 +450,7 @@ func createImportEnvVar(client kubernetes.Interface, pvc *v1.PersistentVolumeCla
 		if err != nil {
 			return nil, err
 		}
+		podEnvVar.diskID = getDiskID(pvc)
 	}
 	//get the requested image size.
 	podEnvVar.imageSize, err = getRequestedImageSize(pvc)

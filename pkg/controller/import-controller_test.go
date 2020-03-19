@@ -320,6 +320,7 @@ var _ = Describe("Create Importer Pod", func() {
 			contentType:   "",
 			imageSize:     "1G",
 			certConfigMap: "",
+			diskID:        "",
 			insecureTLS:   false,
 		}
 		pod, err := createImporterPod(reconciler.Log, reconciler.Client, reconciler.CdiClient, testImage, "5", testPullPolicy, podEnvVar, pvc, scratchPvcName)
@@ -364,7 +365,7 @@ var _ = Describe("Import test env", func() {
 	const mockUID = "1111-1111-1111-1111"
 
 	It("Should create import env", func() {
-		testEnvVar := &importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, string(cdiv1.DataVolumeKubeVirt), "1G", "", false}
+		testEnvVar := &importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, string(cdiv1.DataVolumeKubeVirt), "1G", "", "", false}
 		Expect(reflect.DeepEqual(makeImportEnv(testEnvVar, mockUID), createImportTestEnv(testEnvVar, mockUID))).To(BeTrue())
 	})
 })
@@ -426,6 +427,10 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 		{
 			Name:  common.InsecureTLSVar,
 			Value: strconv.FormatBool(podEnvVar.insecureTLS),
+		},
+		{
+			Name:  common.ImporterDiskID,
+			Value: podEnvVar.diskID,
 		},
 	}
 

@@ -1,0 +1,53 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: imageio-deployment
+  namespace: {{ .Namespace }}
+  labels:
+    cdi.kubevirt.io/testing: ""
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: imageio
+  template:
+    metadata:
+      labels:
+        app: imageio
+        cdi.kubevirt.io/testing: ""
+    spec:
+      serviceAccountName: cdi-sa
+      containers:
+      - name: imageiotest
+        image: machacekondra/imageiotest
+        imagePullPolicy: {{ .PullPolicy }}
+        ports:
+        - containerPort: 12345
+      - name: fakeovirt
+        image: machacekondra/fakeovirt:v3
+        imagePullPolicy: {{ .PullPolicy }}
+        ports:
+        - containerPort: 12346
+        env:
+          - name: NAMESPACE
+            value: {{ .Namespace }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: imageio
+  namespace: {{ .Namespace }}
+  labels:
+    cdi.kubevirt.io/testing: ""
+spec:
+  selector:
+    app: imageio
+  type: NodePort
+  ports:
+  - name: imageio
+    port: 12345
+    targetPort: 12345
+  - name: fakeovirt
+    port: 12346
+    targetPort: 12346

@@ -29,6 +29,7 @@ require (
 	github.com/openshift/library-go v0.0.0-20200114162033-e8b3a065ded2
 	github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190725173916-b56e63a643cc
 	github.com/operator-framework/operator-marketplace v0.0.0-20190617165322-1cbd32624349
+	github.com/ovirt/go-ovirt v4.3.4+incompatible
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/client_golang v0.9.3-0.20190127221311-3c4408c8b829
 	github.com/prometheus/client_model v0.0.0-20190115171406-56726106282f

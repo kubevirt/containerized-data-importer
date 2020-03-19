@@ -66,6 +66,7 @@ github.com/go-openapi/swag
 # github.com/go-openapi/validate v0.19.2
 github.com/go-openapi/validate
 # github.com/gogo/protobuf v1.2.2-0.20190723190241-65acae22fc9d
+# github.com/gogo/protobuf v1.2.1
 github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/sortkeys
 # github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef
@@ -92,6 +93,9 @@ github.com/google/uuid
 github.com/googleapis/gnostic/OpenAPIv2
 github.com/googleapis/gnostic/compiler
 github.com/googleapis/gnostic/extensions
+# github.com/gregjones/httpcache v0.0.0-20190203031600-7a902570cb17
+github.com/gregjones/httpcache
+github.com/gregjones/httpcache/diskcache
 # github.com/hashicorp/golang-lru v0.5.1
 github.com/hashicorp/golang-lru
 github.com/hashicorp/golang-lru/simplelru
@@ -247,6 +251,12 @@ github.com/operator-framework/operator-marketplace/pkg/appregistry
 github.com/operator-framework/operator-marketplace/pkg/datastore
 github.com/operator-framework/operator-marketplace/pkg/apis/operators/v1
 github.com/operator-framework/operator-marketplace/pkg/apis/operators/shared
+# github.com/ovirt/go-ovirt v4.3.4+incompatible
+github.com/ovirt/go-ovirt
+# github.com/pborman/uuid v1.2.0
+github.com/pborman/uuid
+# github.com/peterbourgon/diskv v2.0.1+incompatible
+github.com/peterbourgon/diskv
 # github.com/pkg/errors v0.8.1
 github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0

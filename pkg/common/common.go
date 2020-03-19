@@ -64,6 +64,8 @@ const (
 	ImporterCertDirVar = "IMPORTER_CERT_DIR"
 	// InsecureTLSVar provides a constant to capture our env variable "INSECURE_TLS"
 	InsecureTLSVar = "INSECURE_TLS"
+	// ImporterDiskID provides a constant to capture our env variable "IMPORTER_DISK_ID"
+	ImporterDiskID = "IMPORTER_DISK_ID"
 
 	// CloningLabelValue provides a constant to use as a label value for pod affinity (controller pkg only)
 	CloningLabelValue = "host-assisted-cloning"

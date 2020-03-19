@@ -59,6 +59,17 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 						"pvc": map[string]interface{}{
 							"namespace": namespace,
 							"name":      name}}
+				case "imageio":
+					url := args[0]
+					secretName := args[1]
+					configMap := args[2]
+					diskID := args[3]
+					dv["spec"].(map[string]interface{})["source"] = map[string]interface{}{
+						"imageio": map[string]interface{}{
+							"url":           url,
+							"secretRef":     secretName,
+							"certConfigMap": configMap,
+							"diskId":        diskID}}
 				}
 
 				err = structToYamlFile(destinationFile, dv)
@@ -81,6 +92,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				table.Entry("[test_id:1325]fail with empty PVC source namespace", "pvc", "", "test-pvc"),
 				table.Entry("[test_id:1326]fail with empty PVC source name", "pvc", "test", ""),
 				table.Entry("fail with source PVC doesn't exist", "pvc", "test", "test-pvc"),
+				table.Entry("fail with empty Imageio source diskId", "imageio", validURL, "secret", "tls-cert", ""),
 			)
 
 			table.DescribeTable("with Datavolume PVC size should", func(size string) {
@@ -155,6 +167,32 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			Eventually(func() bool {
 
 				_, err := RunKubectlCommand(f, "create", "-f", datavolumeTestFile, "-n", f.Namespace.Name)
+				if err != nil {
+					return true
+				}
+				return false
+			}, timeout, pollingInterval).Should(BeTrue())
+
+		})
+	})
+
+	Context("DataVolume destination imageio", func() {
+		BeforeEach(func() {
+			dataVolume := utils.NewDataVolumeWithImageioImport(dataVolumeName, "500Mi", validURL, "secret", "tls-cert", "1")
+
+			_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolumeName)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("should fail creating a DataVolume with already existing destination imageio", func() {
+			By("Verifying kubectl create")
+			Eventually(func() bool {
+
+				_, err := RunKubectlCommand(f, "create", "-f", "manifests/dvImageio.yaml", "-n", f.Namespace.Name)
 				if err != nil {
 					return true
 				}

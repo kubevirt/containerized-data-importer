@@ -58,7 +58,7 @@ const (
 	DataVolumeArchive DataVolumeContentType = "archive"
 )
 
-// DataVolumeSource represents the source for our Data Volume, this can be HTTP, S3, Registry or an existing PVC
+// DataVolumeSource represents the source for our Data Volume, this can be HTTP, Imageio, S3, Registry or an existing PVC
 type DataVolumeSource struct {
 	HTTP     *DataVolumeSourceHTTP     `json:"http,omitempty"`
 	S3       *DataVolumeSourceS3       `json:"s3,omitempty"`
@@ -66,6 +66,7 @@ type DataVolumeSource struct {
 	PVC      *DataVolumeSourcePVC      `json:"pvc,omitempty"`
 	Upload   *DataVolumeSourceUpload   `json:"upload,omitempty"`
 	Blank    *DataVolumeBlankImage     `json:"blank,omitempty"`
+	Imageio  *DataVolumeSourceImageIO  `json:"imageio,omitempty"`
 }
 
 // DataVolumeSourcePVC provides the parameters to create a Data Volume from an existing PVC
@@ -107,6 +108,18 @@ type DataVolumeSourceHTTP struct {
 	//SecretRef provides the secret reference needed to access the HTTP source
 	SecretRef string `json:"secretRef,omitempty"`
 	//CertConfigMap provides a reference to the Registry certs
+	CertConfigMap string `json:"certConfigMap,omitempty"`
+}
+
+// DataVolumeSourceImageIO provides the parameters to create a Data Volume from an imageio source
+type DataVolumeSourceImageIO struct {
+	//URL is the URL of the ovirt-engine
+	URL string `json:"url,omitempty"`
+	// DiskID provides id of a disk to be imported
+	DiskID string `json:"diskId,omitempty"`
+	//SecretRef provides the secret reference needed to access the ovirt-engine
+	SecretRef string `json:"secretRef,omitempty"`
+	//CertConfigMap provides a reference to the CA cert
 	CertConfigMap string `json:"certConfigMap,omitempty"`
 }
 

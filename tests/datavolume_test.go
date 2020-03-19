@@ -15,6 +15,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -43,6 +44,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	tarArchiveURL := fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs)
 	InvalidQcowImagesURL := fmt.Sprintf(utils.InvalidQcowImagesURL, f.CdiInstallNs)
 	cirrosURL := fmt.Sprintf(utils.CirrosURL, f.CdiInstallNs)
+	imageioURL := fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs)
 
 	// Invalid (malicious) QCOW images:
 	// An image that causes qemu-img to allocate 152T (original image is 516 bytes)
@@ -64,10 +66,26 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	})
 
 	Describe("Verify DataVolume", func() {
+
 		table.DescribeTable("should", func(name, command, url, dataVolumeName, errorMessage, eventReason string, phase cdiv1.DataVolumePhase) {
 			repeat := 1
 			var dataVolume *cdiv1.DataVolume
 			switch name {
+			case "imageio":
+				cmName := "imageiocm"
+				stringData := map[string]string{
+					common.KeyAccess: "YWRtaW5AaW50ZXJuYWw=",
+					common.KeySecret: "MTIzNDU2",
+				}
+				s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, "mysecret"))
+				cm := &v1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: cmName,
+					},
+					Data: map[string]string{},
+				}
+				f.K8sClient.CoreV1().ConfigMaps(f.Namespace.Name).Create(cm)
+				dataVolume = utils.NewDataVolumeWithImageioImport(dataVolumeName, "1Gi", imageioURL, s.Name, cmName, "123")
 			case "import-http":
 				dataVolume = utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
 			case "import-https":
@@ -154,6 +172,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[rfe_id:1947][crit:high][test_id:2145]succeed creating import dv with given tar archive url", "import-archive", "", tarArchiveURL, "tar-archive-dv", "", controller.ImportSucceeded, cdiv1.Succeeded),
 			table.Entry("[rfe_id:1947][crit:high][test_id:2220]fail creating import dv with non tar archive url", "import-archive", "", tinyCoreIsoURL, "non-tar-archive-dv", "Unable to process data: exit status 2", controller.ImportFailed, cdiv1.ImportInProgress),
 			table.Entry("succeed creating import dv with streaming image conversion", "import-http", "", cirrosURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("succeed creating dv from imageio source", "imageio", "", imageioURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
 
