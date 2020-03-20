@@ -249,6 +249,9 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 			r.Log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class", "snapshotClassName", snapshotClassName)
 			newSnapshot := newSnapshot(datavolume, snapshotClassName)
 			if err := r.Client.Create(context.TODO(), newSnapshot); err != nil {
+				if k8serrors.IsAlreadyExists(err) {
+					return reconcile.Result{}, nil
+				}
 				return reconcile.Result{}, err
 			}
 			return reconcile.Result{}, r.updateSmartCloneStatusPhase(cdiv1.SnapshotForSmartCloneInProgress, datavolume)

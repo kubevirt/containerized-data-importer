@@ -63,7 +63,7 @@ spec:
     size: $KUBEVIRT_NUM_NODES
 EOF
 
-  _kubectl create -f ./cluster-sync/${KUBEVIRT_PROVIDER}/ceph_sc.yaml
+  _kubectl apply -f ./cluster-sync/${KUBEVIRT_PROVIDER}/ceph_sc.yaml
   set +e
   retry_counter=0
   _kubectl get VolumeSnapshotClass
