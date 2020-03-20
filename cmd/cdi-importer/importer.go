@@ -60,8 +60,8 @@ func main() {
 	diskID, _ := util.ParseEnvVar(common.ImporterDiskID, false)
 
 	//Registry import currently support kubevirt content type only
-	if contentType != string(cdiv1.DataVolumeKubeVirt) && source == controller.SourceRegistry {
-		klog.Errorf("Unsupported content type %s when importing from registry", contentType)
+	if contentType != string(cdiv1.DataVolumeKubeVirt) && (source == controller.SourceRegistry || source == controller.SourceImageio) {
+		klog.Errorf("Unsupported content type %s when importing from %s", contentType, source)
 		os.Exit(1)
 	}
 

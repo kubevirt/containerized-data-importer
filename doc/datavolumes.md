@@ -132,6 +132,30 @@ spec:
         storage: 1Gi
 ```
 
+## Image IO Data Volume
+Image IO sources are sources from oVirt imageio endpoints. In order to use these endpoints you will need an oVirt installation with imageIO enabled. You will then be able to import disk images from oVirt into KubeVirt. The diskId can be obtained from the oVirt webadmin UI or REST api.
+```yaml
+apiVersion: cdi.kubevirt.io/v1alpha1
+kind: DataVolume
+metadata:
+  name: "test-dv"
+spec:
+  source:
+      imageio:
+         url: "http://<ovirt engine url>/ovirt-engine/api"
+         secretRef: "endpoint-secret"
+         certConfigMap: "tls-certs"
+         diskId: "1"
+  pvc:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: "500Mi"
+```
+[Get secret example](../manifests/example/endpoint-secret.yaml)
+[Get certificate example](../manifests/example/cert-configmap.yaml)
+
 ## Block Volume Mode
 You can import, clone and upload a disk image to a raw block persistent volume.
 This is done by assigning the value 'Block' to the PVC volumeMode field in the DataVolume yaml.
