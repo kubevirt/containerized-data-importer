@@ -156,6 +156,12 @@ func CreateOperatorDeploymentSpec(name, matchKey, matchValue, serviceAccount str
 				Labels: WithOperatorLabels(matchMap),
 			},
 			Spec: corev1.PodSpec{
+				Tolerations: []corev1.Toleration{
+					{
+						Key:      "CriticalAddonsOnly",
+						Operator: corev1.TolerationOpExists,
+					},
+				},
 				SecurityContext: &corev1.PodSecurityContext{
 					RunAsNonRoot: &[]bool{true}[0],
 				},
@@ -213,6 +219,12 @@ func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numRepl
 					Labels: WithCommonLabels(matchMap),
 				},
 				Spec: corev1.PodSpec{
+					Tolerations: []corev1.Toleration{
+						{
+							Key:      "CriticalAddonsOnly",
+							Operator: corev1.TolerationOpExists,
+						},
+					},
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: &[]bool{true}[0],
 					},
