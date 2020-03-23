@@ -20,11 +20,13 @@ spec:
       serviceAccountName: cdi-sa
       containers:
       - name: imageiotest
+        # Docker file: https://github.com/machacekondra/imageiotest
         image: machacekondra/imageiotest
         imagePullPolicy: {{ .PullPolicy }}
         ports:
         - containerPort: 12345
       - name: fakeovirt
+        # Docker file: https://github.com/machacekondra/fakeovirt
         image: machacekondra/fakeovirt:v3
         imagePullPolicy: {{ .PullPolicy }}
         ports:
