@@ -38,7 +38,6 @@ go_test(
         "//pkg/clone:go_default_library",
         "//pkg/common:go_default_library",
         "//pkg/controller:go_default_library",
-        "//pkg/operator:go_default_library",
         "//pkg/operator/controller:go_default_library",
         "//tests/framework:go_default_library",
         "//tests/reporters:go_default_library",

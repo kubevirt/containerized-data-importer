@@ -39,7 +39,8 @@ func init() {
 	flag.StringVar(&Polarion.ProjectId, "polarion-project-id", "", "Set Polarion project ID")
 	flag.StringVar(&Polarion.Filename, "polarion-report-file", "polarion_results.xml", "Set Polarion report file path")
 	flag.StringVar(&Polarion.PlannedIn, "polarion-custom-plannedin", "", "Set Polarion planned-in ID")
-	flag.StringVar(&Polarion.Tier, "test-tier", "", "Set test tier number")
+	flag.StringVar(&Polarion.LookupMethod, "polarion-lookup-method", "id", "Set Polarion lookup method - id or name")
+	flag.StringVar(&Polarion.TestSuiteParams, "test-suite-params", "", "Set test suite params in space seperated name=value structure. Note that the values will be appended to the test run ID")
 }
 
 type PolarionTestSuite struct {
@@ -78,13 +79,14 @@ type PolarionProperty struct {
 }
 
 type PolarionReporter struct {
-	Suite         PolarionTestSuite
-	Run           bool
-	Filename      string
-	TestSuiteName string
-	ProjectId     string
-	PlannedIn     string
-	Tier          string
+	Suite           PolarionTestSuite
+	Run             bool
+	Filename        string
+	TestSuiteName   string
+	ProjectId       string
+	PlannedIn       string
+	LookupMethod  string
+	TestSuiteParams string
 }
 
 func (reporter *PolarionReporter) SpecSuiteWillBegin(config config.GinkgoConfigType, summary *types.SuiteSummary) {
@@ -94,36 +96,30 @@ func (reporter *PolarionReporter) SpecSuiteWillBegin(config config.GinkgoConfigT
 		TestCases:  []PolarionTestCase{},
 	}
 
-	properties := PolarionProperties{
-		Property: []PolarionProperty{
-			{
-				Name:  "polarion-project-id",
-				Value: reporter.ProjectId,
-			},
-			{
-				Name:  "polarion-lookup-method",
-				Value: "id",
-			},
-			{
-				Name:  "polarion-custom-plannedin",
-				Value: reporter.PlannedIn,
-			},
-			{
-				Name:  "polarion-testrun-id",
-				Value: reporter.PlannedIn + "_" + reporter.Tier,
-			},
-			{
-				Name:  "polarion-custom-isautomated",
-				Value: "True",
-			},
-			{
-				Name:  "polarion-testrun-status-id",
-				Value: "inprogress",
-			},
-		},
+	valuesString := ""
+	suiteParams := strings.Split(reporter.TestSuiteParams, " ")
+	for _, s := range suiteParams {
+		keyValue := strings.Split(s, "=")
+		if len(keyValue) > 1 {
+			valuesString = valuesString + "_" + keyValue[1]
+			reporter.Suite.Properties.Property = addProperty(
+				reporter.Suite.Properties.Property, "polarion-custom-"+keyValue[0], keyValue[1])
+		}
 	}
 
-	reporter.Suite.Properties = properties
+	reporter.Suite.Properties.Property = addProperty(
+		reporter.Suite.Properties.Property, "polarion-project-id", reporter.ProjectId)
+	reporter.Suite.Properties.Property = addProperty(
+		reporter.Suite.Properties.Property, "polarion-lookup-method", reporter.LookupMethod)
+	reporter.Suite.Properties.Property = addProperty(
+		reporter.Suite.Properties.Property, "polarion-custom-plannedin", reporter.PlannedIn)
+	reporter.Suite.Properties.Property = addProperty(
+		reporter.Suite.Properties.Property, "polarion-testrun-id", reporter.PlannedIn + valuesString)
+	reporter.Suite.Properties.Property = addProperty(
+		reporter.Suite.Properties.Property, "polarion-custom-isautomated", "True")
+	reporter.Suite.Properties.Property = addProperty(
+		reporter.Suite.Properties.Property, "polarion-testrun-status-id", "inprogress")
+		
 	reporter.TestSuiteName = summary.SuiteDescription
 }
 
@@ -192,10 +188,6 @@ func (reporter *PolarionReporter) SpecSuiteDidEnd(summary *types.SuiteSummary) {
 		fmt.Println("Can not create Polarion report without planned-in ID")
 		return
 	}
-	if reporter.Tier == "" {
-		fmt.Println("Can not create Polarion report without tier ID")
-		return
-	}
 
 	reporter.Suite.Tests = summary.NumberOfSpecsThatWillBeRun
 	reporter.Suite.Time = summary.RunTime.Seconds()
@@ -234,5 +226,14 @@ func extractTestID(testname string, ProjectID string) PolarionProperties {
 			},
 		}
 	}
+	return properties
+}
+
+func addProperty(properties []PolarionProperty, key string, value string) []PolarionProperty {
+	properties = append(
+		properties, PolarionProperty{
+			Name:  key,
+			Value: value,
+	})
 	return properties
 }
