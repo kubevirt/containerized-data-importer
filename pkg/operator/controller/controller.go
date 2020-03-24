@@ -193,12 +193,31 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 			return r.reconcileError(reqLogger, cr, "Reconciling to error state, no configmap")
 		}
 
+		haveOrphans, err := r.checkForOrphans(reqLogger, cr)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
+		if haveOrphans {
+			return reconcile.Result{RequeueAfter: time.Second}, nil
+		}
+
 		reqLogger.Info("Doing reconcile create")
 		return r.reconcileCreate(reqLogger, cr)
 	}
 
 	// do we even care about this CR?
-	if configMap.DeletionTimestamp == nil && !metav1.IsControlledBy(configMap, cr) {
+	if !metav1.IsControlledBy(configMap, cr) {
+		ownerDeleted, err := r.configMapOwnerDeleted(configMap)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
+		if ownerDeleted || configMap.DeletionTimestamp != nil {
+			reqLogger.Info("Waiting for cdi-config to be deleted before reconciling", "CDI", cr.Name)
+			return reconcile.Result{RequeueAfter: time.Second}, nil
+		}
+
 		reqLogger.Info("Reconciling to error state, unwanted CDI object")
 		return r.reconcileError(reqLogger, cr, "Reconciling to error state, unwanted CDI object")
 	}
@@ -251,6 +270,34 @@ func shouldTakeUpdatePath(logger logr.Logger, targetVersion, currentVersion stri
 	}
 
 	return shouldTakeUpdatePath, nil
+}
+
+func (r *ReconcileCDI) checkForOrphans(logger logr.Logger, cr *cdiv1alpha1.CDI) (bool, error) {
+	resources, err := r.getAllResources(cr)
+	if err != nil {
+		return false, err
+	}
+
+	for _, resource := range resources {
+		cpy := resource.DeepCopyObject()
+		key, err := client.ObjectKeyFromObject(cpy)
+		if err != nil {
+			return false, err
+		}
+
+		if err = r.client.Get(context.TODO(), key, cpy); err != nil {
+			if errors.IsNotFound(err) {
+				continue
+			}
+
+			return false, err
+		}
+
+		logger.Info("Orphan object exists", "obj", cpy)
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func (r *ReconcileCDI) reconcileCreate(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
@@ -723,6 +770,30 @@ func (r *ReconcileCDI) createConfigMap(cr *cdiv1alpha1.CDI) error {
 	}
 
 	return r.client.Create(context.TODO(), cm)
+}
+
+func (r *ReconcileCDI) configMapOwnerDeleted(cm *corev1.ConfigMap) (bool, error) {
+	ownerRef := metav1.GetControllerOf(cm)
+	if ownerRef != nil {
+		if ownerRef.Kind != "CDI" {
+			return false, fmt.Errorf("unexpected configmap owner kind %q", ownerRef.Kind)
+		}
+
+		owner := &cdiv1alpha1.CDI{}
+		if err := r.client.Get(context.TODO(), client.ObjectKey{Name: ownerRef.Name}, owner); err != nil {
+			if errors.IsNotFound(err) {
+				return true, nil
+			}
+
+			return false, err
+		}
+
+		if owner.DeletionTimestamp == nil && owner.UID == ownerRef.UID {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 func (r *ReconcileCDI) getAllDeployments(cr *cdiv1alpha1.CDI) ([]*appsv1.Deployment, error) {

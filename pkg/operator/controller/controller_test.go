@@ -174,6 +174,59 @@ var _ = Describe("Controller", func() {
 				Expect(cm.OwnerReferences[0].UID).Should(Equal(args.cdi.UID))
 			})
 
+			It("should create requeue when configmap exists with another owner", func() {
+				cm := &corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: cdiNamespace,
+						Name:      configMapName,
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								APIVersion: cdiviaplha1.SchemeGroupVersion.String(),
+								Kind:       "CDI",
+								Name:       "cdi",
+								UID:        "badUID",
+							},
+						},
+					},
+				}
+
+				args := createArgs()
+
+				err := args.client.Create(context.TODO(), cm)
+				Expect(err).ToNot(HaveOccurred())
+
+				doReconcileRequeue(args)
+			})
+
+			It("should create requeue when configmap has deletion timestamp", func() {
+				t := metav1.Now()
+				cm := &corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:         cdiNamespace,
+						Name:              configMapName,
+						DeletionTimestamp: &t,
+					},
+				}
+
+				args := createArgs()
+
+				err := args.client.Create(context.TODO(), cm)
+				Expect(err).ToNot(HaveOccurred())
+
+				doReconcileRequeue(args)
+			})
+
+			It("should create requeue when a resource exists", func() {
+				args := createArgs()
+				resources, err := getAllResources(args.reconciler)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = args.client.Create(context.TODO(), resources[0])
+				Expect(err).ToNot(HaveOccurred())
+
+				doReconcileRequeue(args)
+			})
+
 			It("should be anyuid", func() {
 				var err error
 
@@ -1328,6 +1381,15 @@ func doReconcileError(args *args) {
 	result, err := args.reconciler.Reconcile(reconcileRequest(args.cdi.Name))
 	Expect(err).To(HaveOccurred())
 	Expect(result.Requeue).To(BeFalse())
+
+	args.cdi, err = getCDI(args.client, args.cdi)
+	Expect(err).ToNot(HaveOccurred())
+}
+
+func doReconcileRequeue(args *args) {
+	result, err := args.reconciler.Reconcile(reconcileRequest(args.cdi.Name))
+	Expect(err).ToNot(HaveOccurred())
+	Expect(result.Requeue || result.RequeueAfter > 0).To(BeTrue())
 
 	args.cdi, err = getCDI(args.client, args.cdi)
 	Expect(err).ToNot(HaveOccurred())
