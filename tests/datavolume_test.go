@@ -105,7 +105,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
 				dataVolume = utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)
 			case "import-registry":
-				repeat = 10
+				if utils.IsHostpathProvisioner() {
+					// Repeat rapidly to make sure we don't get regular and scratch space on different nodes.
+					repeat = 10
+				}
 				dataVolume = utils.NewDataVolumeWithRegistryImport(dataVolumeName, "1Gi", url)
 				cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 				Expect(err).To(BeNil())
