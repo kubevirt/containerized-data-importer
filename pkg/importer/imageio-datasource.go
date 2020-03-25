@@ -18,7 +18,6 @@ package importer
 
 import (
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"io"
 	"io/ioutil"
@@ -176,23 +175,11 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 		return nil, uint64(0), err
 	}
 
-	ca, err := loadCA(certDir)
+	// Use the create client from http source.
+	client, err := createHTTPClient(certDir)
 	if err != nil {
 		return nil, uint64(0), err
 	}
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-	}
-	if len(ca.Subjects()) > 0 {
-		transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs: ca,
-			},
-		}
-	}
-	client := &http.Client{Transport: transport}
 	transferURL, available := it.TransferUrl()
 	if !available {
 		return nil, uint64(0), errors.New("Error transfer url not available")

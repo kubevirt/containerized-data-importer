@@ -34,6 +34,8 @@ const (
 	RegistryCertConfigMap = "cdi-docker-registry-host-certs"
 	// FileHostCertConfigMap is the ConfigMap where the cert fir the file host is stored
 	FileHostCertConfigMap = "cdi-file-host-certs"
+	// ImageIOCertConfigMap is the ConfigMap where the cert fir the file host is stored
+	ImageIOCertConfigMap = "imageio-certs"
 )
 
 var (

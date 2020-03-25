@@ -1,0 +1,35 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
+load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
+load("@io_bazel_rules_docker//container:container.bzl", "container_image")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["main.go"],
+    importpath = "kubevirt.io/containerized-data-importer/tools/imageio-init",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/util:go_default_library",
+        "//tests/utils:go_default_library",
+        "//vendor/github.com/pkg/errors:go_default_library",
+        "//vendor/k8s.io/klog:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "imageio-init",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)
+
+container_image(
+    name = "imageio-init-image",
+    base = "@fedora//image",
+    directory = "/usr/bin",
+    entrypoint = [
+        "imageio-init",
+        "-alsologtostderr",
+    ],
+    files = [":imageio-init"],
+    visibility = ["//visibility:public"],
+)

@@ -18,6 +18,14 @@ spec:
         cdi.kubevirt.io/testing: ""
     spec:
       serviceAccountName: cdi-sa
+      initContainers:
+      - name: init
+        image: {{ .DockerRepo }}/imageio-init:{{ .DockerTag }}
+        imagePullPolicy: {{ .PullPolicy }}
+        args: ["-certDir", "/tmp/certs"]
+        volumeMounts:
+        - name: "certs"
+          mountPath: "/tmp"
       containers:
       - name: imageiotest
         # Docker file: https://github.com/machacekondra/imageiotest
@@ -25,6 +33,11 @@ spec:
         imagePullPolicy: {{ .PullPolicy }}
         ports:
         - containerPort: 12345
+        volumeMounts:
+        - name: "certs"
+          mountPath: "/tmp"
+        command: ["/bin/bash"]
+        args: ["-c", "openssl ca x509 -in /tmp/certs/tls.crt -out /ovirt-imageio/daemon/test/pki/ca.pem; openssl x509 -in /tmp/certs/tls.crt -out /ovirt-imageio/daemon/test/pki/cert.pem; cp /tmp/certs/tls.key /ovirt-imageio/daemon/test/pki/key.pem; cd ovirt-imageio/daemon; ./ovirt-imageio -c test/conf& sleep 3; curl --unix-socket /ovirt-imageio/daemon/test/daemon.sock -X PUT -d '{\"uuid\": \"cirros\", \"size\": 46137344, \"url\": \"file:///images/cirros.img\", \"timeout\": 30000000000000, \"ops\": [\"read\"]}' http://localhost:12345/tickets/cirros; sleep infinity"]
       - name: fakeovirt
         # Docker file: https://github.com/machacekondra/fakeovirt
         image: machacekondra/fakeovirt:v3
@@ -34,6 +47,15 @@ spec:
         env:
           - name: NAMESPACE
             value: {{ .Namespace }}
+        volumeMounts:
+        - name: "certs"
+          mountPath: "/tmp"
+        command: ["/bin/bash"]
+        args: ["-c", "cp /tmp/certs/tls.crt /app/server.crt; cp /tmp/certs/tls.key /app/server.key;/app/main"]      
+      volumes:
+      - name: "certs"
+        emptyDir: {}
+
 ---
 apiVersion: v1
 kind: Service
