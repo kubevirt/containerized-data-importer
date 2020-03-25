@@ -67,6 +67,45 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		doFileBasedCloneTest(f, pvcDef, f.Namespace)
 	})
 
+	It("Should clone imported data within same namespace and preserve fsGroup", func() {
+		diskImagePath := filepath.Join(testBaseDir, testFile)
+		dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "500Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		By(fmt.Sprintf("waiting for source datavolume to match phase %s", string(cdiv1.Succeeded)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+		// verify PVC was created
+		By("verifying pvc was created")
+		pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		sourceMD5, err := f.GetMD5(f.Namespace, pvc, diskImagePath, 0)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Create targetPvc in new NS.
+		targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvc)
+		targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
+		Expect(err).ToNot(HaveOccurred())
+
+		targetPvc, err := utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
+		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
+		sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, pvc)
+		fmt.Fprintf(GinkgoWriter, "INFO: %s\n", sourcePvcDiskGroup)
+		Expect(err).ToNot(HaveOccurred())
+
+		completeClone(f, f.Namespace, targetPvc, diskImagePath, sourceMD5, sourcePvcDiskGroup)
+	})
+
 	It("[test_id:1355]Should clone data across different namespaces", func() {
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
@@ -737,13 +776,8 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cloneAnnotationFound).To(BeTrue())
 
-	By("Verify the clone status is success on the target PVC")
-	Eventually(func() string {
-		status, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodPhase)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(phaseAnnotation).To(BeTrue())
-		return status
-	}, cloneCompleteTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
+	By("Verify the clone status is success on the target datavolume")
+	err = utils.WaitForDataVolumePhase(f.CdiClient, targetNs.Name, cdiv1.Succeeded, targetPvc.Name)
 
 	Expect(f.VerifyTargetPVCContentMD5(targetNs, targetPvc, filePath, expectedMD5)).To(BeTrue())
 	// Clean up PVC, the AfterEach will also clean it up, through the Namespace delete.
