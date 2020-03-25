@@ -17,7 +17,7 @@ CDI works with standard core Kubernetes resources and is storage device agnostic
 CDI provides the ability to populate PVCs with VM images or other data upon creation.  The data can come from different sources: a URL, a container registry, another PVC (clone), or an upload from a client.
 
 ## DataVolumes
-CDI includes a CustomResourceDefinition (CRD) that provides an object of type DataVolume.  The DataVolume is an abstraction on top of the standard Kubernetes PVC and can be used to automate creation and population of a PVC with data.  Although you can use PVCs directly with CDI, DataVolumes are the preferred method since they offer full functionality, a stable API, and better integration with kubevirt.
+CDI includes a CustomResourceDefinition (CRD) that provides an object of type DataVolume.  The DataVolume is an abstraction on top of the standard Kubernetes PVC and can be used to automate creation and population of a PVC with data.  Although you can use PVCs directly with CDI, DataVolumes are the preferred method since they offer full functionality, a stable API, and better integration with kubevirt.  More details about DataVolumes can be found [here](doc/datavolumes.md).
 
 ### Import from URL
 
@@ -39,6 +39,10 @@ To upload data to a PVC from a client machine first create a DataVolume with an 
 
 The special source `none` can be used to populate a volume with an empty Kubevirt VM disk.  This source is valid only with the `kubevirt` contentType.  CDI will create a VM disk on the PVC which uses all of the available space.  See [here](doc/blank-raw-image.md) for an example.
 
+### Import from oVirt
+
+Virtual machine disks can be imported from a running oVirt installation using the `imageio` source.  CDI will use the provided credentials to securely transfer the indicated oVirt disk image so that it can be used with kubevirt.  See [here](doc/datavolumes.md#image-io-data-volume) for more information and examples.
+
 ### Content Types
 
 CDI features specialized handling for two types of content: Kubevirt VM disk images and tar archives.  The `kubevirt` content type indicates that the data being imported should be treated as a Kubevirt VM disk.  CDI will automatically decompress and convert the file from qcow2 to raw format if needed.  It will also resize the disk to use all available space.  The `archive` content type indicates that the data is a tar archive. Compression is not yet supported for archives.  CDI will extract the contents of the archive into the volume.  The content type can be selected by specifying the `contentType` field in the DataVolume.  `kubevirt` is the default content type.  CDI only supports certain combinations of `source` and `contentType` as indicated below:
@@ -47,6 +51,7 @@ CDI features specialized handling for two types of content: Kubevirt VM disk ima
 * `registry` &rarr; `kubevirt`
 * `pvc` &rarr; Not applicable - content is cloned
 * `upload` &rarr; `kubevirt`
+* `imageio` &rarr; `kubevirt`
 
 
 ## Deploy it
@@ -80,6 +85,13 @@ $ make cluster-up
 $ make cluster-sync
 $ ./cluster-up/kubectl.sh .....
 ```
+
+## Storage notes
+
+CDI is designed to be storage agnostic.  Since it works with the kubernetes storage APIs it should work well with any configuration that can produce a Bound PVC.  The following are storage-specific notes that may be relevant when using CDI.
+
+* **NFSv3 is not supported**: CDI uses `qemu-img` to manipulate disk images and this program uses locking which is not compatible with the obsolete NFSv3 protocol.  We recommend using NFSv4.
+
 
 ## Connect with us
 
