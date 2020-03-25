@@ -18,56 +18,46 @@ spec:
     requests:
       storage: 25Gi
 ---
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: v1
+kind: Pod
 metadata:
-  name: loopback-deployment
-  namespace: ember-csi-lvm
+  name: loop-back-lvm
   labels:
     app: loop-back-lvm
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: loop-back-lvm
-  template:
-    metadata:
-      labels:
-        app: loop-back-lvm
-    spec:
-      # iSCSI only the very latest Open-iSCSI supports namespaces
-      hostNetwork: true
-      # Required by multipath detach (some drivers clone volumes dd-ing)
-      hostIPC: true
-      containers:
-      - name: loop-back-lvm
-        image: registry:5000/loop-back-lvm:latest
-        # Priviledged needed for access to lvm backend
-        securityContext:
-          privileged: true
-          allowPrivilegeEscalation: true
-        env:
-        - name: DEVICE_SIZE
-          value: 25G
-        - name: DATA_DIR
-          value: /data
-        volumeMounts:
-          - name: local-storage
-            mountPath: /host/data
-          - name: host-dir
-            mountPath: /host
-            mountPropagation: Bidirectional
-        readinessProbe:
-          exec:
-            command:
-            - cat
-            - /ready
-          initialDelaySeconds: 10
-          periodSeconds: 5
-      volumes:
-        - name: local-storage
-          persistentVolumeClaim:
-            claimName: loop-back-pvc
-        - name: host-dir
-          hostPath:
-            path: /
+  # iSCSI only the very latest Open-iSCSI supports namespaces
+  hostNetwork: true
+  # Required by multipath detach (some drivers clone volumes dd-ing)
+  hostIPC: true
+  containers:
+  - name: loop-back-lvm
+    image: registry:5000/loop-back-lvm:latest
+    # Priviledged needed for access to lvm backend
+    securityContext:
+      privileged: true
+      allowPrivilegeEscalation: true
+    env:
+    - name: DEVICE_SIZE
+      value: 25G
+    - name: DATA_DIR
+      value: /data
+    volumeMounts:
+      - name: local-storage
+        mountPath: /host/data
+      - name: host-dir
+        mountPath: /host
+        mountPropagation: Bidirectional
+    readinessProbe:
+      exec:
+        command:
+        - cat
+        - /ready
+      initialDelaySeconds: 10
+      periodSeconds: 5
+  volumes:
+    - name: local-storage
+      persistentVolumeClaim:
+        claimName: loop-back-pvc
+    - name: host-dir
+      hostPath:
+        path: /

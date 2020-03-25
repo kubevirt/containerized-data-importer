@@ -159,7 +159,7 @@ spec:
             - name: registration-dir
               mountPath: /registration
         - name: csi-driver
-          image: "embercsi/ember-csi:master"
+          image: "quay.io/awels/embercsi:1"
           # Priviledged needed for access to lvm backend
           securityContext:
             privileged: true

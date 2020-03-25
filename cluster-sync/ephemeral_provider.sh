@@ -87,7 +87,7 @@ function configure_nfs() {
 }
 
 function configure_ember_lvm() {
-  _kubectl apply -f ./cluster-sync/ember/loop_back.yaml
+  _kubectl apply -f ./cluster-sync/ember/loop_back.yaml -n ember-csi-lvm
   set +e
 
   loopdeviceNode=$(_kubectl get pods -n ember-csi-lvm -l app=loop-back-lvm -o=jsonpath={.items[0].spec.nodeName})
@@ -181,7 +181,7 @@ spec:
         - mountPath: /csi-data
           name: socket-dir
       - name: csi-driver
-        image: "embercsi/ember-csi:master"
+        image: "quay.io/awels/embercsi:1"
         imagePullPolicy: Always
         # Priviledged needed for access to lvm backend
         securityContext:

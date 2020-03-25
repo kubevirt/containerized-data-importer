@@ -10,5 +10,5 @@ rm /host/create_lvm.sh
 echo "done" >/ready
 echo "ready"
 while true; do
-  sleep 60
+  sleep 1
 done
