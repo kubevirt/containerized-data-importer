@@ -38,41 +38,12 @@ const (
 )
 
 var (
-	// DefaultNodeName the default node to use in tests
-	DefaultNodeName string
 	// DefaultStorageClass the defauld storage class used in tests
 	DefaultStorageClass *storagev1.StorageClass
 	// NfsService is the service in the cdi namespace that will be created if KUBEVIRT_STORAGE=nfs
 	NfsService *corev1.Service
 	nfsChecked bool
 )
-
-func getDefaultNodeName(client *kubernetes.Clientset) string {
-	nodes, err := client.CoreV1().Nodes().List(metav1.ListOptions{})
-	if err != nil {
-		ginkgo.Fail("Unable to list nodes")
-	}
-	for _, node := range nodes.Items {
-		scheduleable := true
-		if node.Spec.Taints != nil {
-			for _, taint := range node.Spec.Taints {
-				if taint.Effect == corev1.TaintEffectNoSchedule {
-					scheduleable = false
-				}
-			}
-		}
-		if node.GetLabels() != nil {
-			if val, ok := node.GetLabels()["node-role.kubernetes.io/master"]; ok && val == "true" {
-				scheduleable = false
-			}
-		}
-		if scheduleable {
-			ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("Using node %s as target node for hostpath provisioner if set.\n", node.Name)))
-			return node.Name
-		}
-	}
-	return ""
-}
 
 func getDefaultStorageClass(client *kubernetes.Clientset) *storagev1.StorageClass {
 	storageclasses, err := client.StorageV1().StorageClasses().List(metav1.ListOptions{})
@@ -97,19 +68,8 @@ func IsHostpathProvisioner() bool {
 	return DefaultStorageClass.Provisioner == "kubevirt.io/hostpath-provisioner"
 }
 
-// AddProvisionOnNodeToAnn adds 'kubevirt.io/provisionOnNode' annotaion
-func AddProvisionOnNodeToAnn(pvcAnn map[string]string) {
-	if DefaultNodeName == "" {
-		ginkgo.Skip("No scheduleable nodes available")
-	}
-	pvcAnn["kubevirt.io/provisionOnNode"] = DefaultNodeName
-}
-
 // CacheTestsData fetch and cache data required for tests
 func CacheTestsData(client *kubernetes.Clientset, cdiNs string) {
-	if DefaultNodeName == "" {
-		DefaultNodeName = getDefaultNodeName(client)
-	}
 	if DefaultStorageClass == nil {
 		DefaultStorageClass = getDefaultStorageClass(client)
 	}
