@@ -358,4 +358,37 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, timeout, pollingInterval).Should(BeTrue())
 		})
 	})
+
+	Describe("Restarts reporting on import datavolume", func() {
+		It("Should report restarts on failed import", func() {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", utils.NoImage404URL)
+			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			//Due to the rate limit, this will take a while, so we can expect the phase to be in progress.
+			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
+			utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
+			if err != nil {
+				PrintControllerLog(f)
+				dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				if dverr != nil {
+					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+				}
+			}
+
+			By("Verify dv")
+			println("aaaaaaaaaaaa")
+
+			Eventually(func() int32 {
+				dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				restarts := dv.Status.RestartCount
+				println("restarts", restarts)
+				return restarts
+			}, timeout, pollingInterval).Should(BeNumerically(">=", 1.0))
+
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
 })

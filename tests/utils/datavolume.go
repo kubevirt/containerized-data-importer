@@ -40,6 +40,8 @@ const (
 	CirrosURL = "http://cdi-file-host.%s/cirros-qcow2.img"
 	// ImageioURL provides URL of oVirt engine hosting imageio
 	ImageioURL = "https://imageio.%s:12346/ovirt-engine/api"
+	// a 404
+	NoImage404URL = "http://cdi-file-host:82/nonexistent.qcow2"
 )
 
 // CreateDataVolumeFromDefinition is used by tests to create a testable Data Volume
