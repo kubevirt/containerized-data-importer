@@ -29,6 +29,7 @@ spec:
   hostNetwork: true
   # Required by multipath detach (some drivers clone volumes dd-ing)
   hostIPC: true
+  restartPolicy: Never
   containers:
   - name: loop-back-lvm
     image: registry:5000/loop-back-lvm:latest
@@ -47,13 +48,6 @@ spec:
       - name: host-dir
         mountPath: /host
         mountPropagation: Bidirectional
-    readinessProbe:
-      exec:
-        command:
-        - cat
-        - /ready
-      initialDelaySeconds: 10
-      periodSeconds: 5
   volumes:
     - name: local-storage
       persistentVolumeClaim:

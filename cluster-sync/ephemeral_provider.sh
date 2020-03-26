@@ -104,12 +104,19 @@ function configure_ember_lvm() {
   echo "loopback podIP: $podIp"
   retry_counter=0
   while [[ $podIp == "" ]] && [[ $retry_counter -lt 60 ]]; do
+    retry_counter=$((retry_counter + 1))
     sleep 1
     podIp=$(_kubectl get pods -n ember-csi-lvm -l app=loop-back-lvm -o=jsonpath={.items[0].status.podIP})
     echo "loopback podIP: $podIp"
   done
 
-  _kubectl wait --for=condition=ready pod -n ember-csi-lvm -l app=loop-back-lvm --timeout=600s
+  success=$(_kubectl get pod -n ember-csi-lvm -l app=loop-back-lvm -o=jsonpath={".items[0].status.phase"})
+  retry_counter=0
+  while [[ $success != "Succeeded" ]] && [[ $retry_counter -lt 60 ]]; do
+    retry_counter=$((retry_counter + 1))
+    sleep 1
+    success=$(_kubectl get pod -n ember-csi-lvm -l app=loop-back-lvm -o=jsonpath={".items[0].status.phase"})
+  done
   echo "Loop back device available, starting ember csi controller"
   _kubectl apply -f ./cluster-sync/ember/ember-csi-lvm.yaml -n ember-csi-lvm
 
@@ -129,16 +136,8 @@ spec:
       labels:
         app: csi-controller
     spec:
-      affinity:
-        podAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchExpressions:
-              - key: app
-                operator: In
-                values:
-                  - loop-back-lvm
-            topologyKey: kubernetes.io/hostname
+      nodeSelector:
+        kubernetes.io/hostname: $loopdeviceNode
       serviceAccount: csi-controller-sa
       # iSCSI only the very latest Open-iSCSI supports namespaces
       hostNetwork: true
