@@ -102,7 +102,7 @@ cluster-clean:
 	./cluster-sync/clean.sh
 
 cluster-sync: cluster-clean
-	./cluster-sync/sync.sh DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG}
+	./cluster-sync/sync.sh CDI_AVAILABLE_TIMEOUT=${CDI_AVAILABLE_TIMEOUT} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG}
 
 bazel-generate:
 	SYNC_VENDOR=true ${DO_BAZ} "./hack/build/bazel-generate.sh -- pkg/ tools/ tests/ cmd/ vendor/"
