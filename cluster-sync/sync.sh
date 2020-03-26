@@ -14,6 +14,7 @@ source ./cluster-sync/${KUBEVIRT_PROVIDER}/provider.sh
 CDI_INSTALL="install-operator"
 CDI_NAMESPACE=${CDI_NAMESPACE:-cdi}
 CDI_INSTALL_TIMEOUT=${CDI_INSTALL_TIMEOUT:-120}
+CDI_AVAILABLE_TIMEOUT=${CDI_AVAILABLE_TIMEOUT:-480}
 
 # Set controller verbosity to 3 for functional tests.
 export VERBOSITY=3
@@ -57,8 +58,8 @@ install_cdi
 wait_cdi_crd_installed $CDI_INSTALL_TIMEOUT
 
 _kubectl apply -f "./_out/manifests/release/cdi-cr.yaml"
-echo "Waiting 480 seconds for CDI to become available"
-_kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=480s
+echo "Waiting $CDI_AVAILABLE_TIMEOUT seconds for CDI to become available"
+_kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=${CDI_AVAILABLE_TIMEOUT}s
 
 # If we are upgrading, verify our current value.
 if [[ ! -z "$UPGRADE_FROM" ]]; then
@@ -115,8 +116,8 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
 	echo $cdi_obj
 	exit 1
   fi
-  echo "Waiting 480 seconds for CDI to become available"
-  _kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=480s
+  echo "Waiting $CDI_AVAILABLE_TIMEOUT seconds for CDI to become available"
+  _kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=${CDI_AVAILABLE_TIMEOUT}s
 fi
 
 configure_storage
