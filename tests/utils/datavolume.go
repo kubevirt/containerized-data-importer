@@ -44,12 +44,6 @@ const (
 
 // CreateDataVolumeFromDefinition is used by tests to create a testable Data Volume
 func CreateDataVolumeFromDefinition(clientSet *cdiclientset.Clientset, namespace string, def *cdiv1.DataVolume) (*cdiv1.DataVolume, error) {
-	if IsHostpathProvisioner() {
-		if def.ObjectMeta.Annotations == nil {
-			def.ObjectMeta.Annotations = map[string]string{}
-		}
-		AddProvisionOnNodeToAnn(def.ObjectMeta.Annotations)
-	}
 	var dataVolume *cdiv1.DataVolume
 	err := wait.PollImmediate(dataVolumePollInterval, dataVolumeCreateTime, func() (bool, error) {
 		var err error
