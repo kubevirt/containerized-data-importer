@@ -59,6 +59,7 @@ container_bundle(
         "$(container_prefix)/cdi-func-test-registry-init:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-init-image",
         "$(container_prefix)/cdi-func-test-registry-populate:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-populate-image",
         "$(container_prefix)/cdi-func-test-registry:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-image",
+        "$(container_prefix)/imageio-init:$(container_tag)": "//tools/imageio-init:imageio-init-image",
     },
 )
 

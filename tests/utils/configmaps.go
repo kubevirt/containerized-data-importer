@@ -31,6 +31,15 @@ func CopyFileHostCertConfigMap(client kubernetes.Interface, destNamespace, cdiNa
 	return n, nil
 }
 
+// CopyImageIOCertConfigMap copies the test imageio configmap, it assumes the imageio server is in the CDI namespace
+func CopyImageIOCertConfigMap(client kubernetes.Interface, destNamespace, cdiNamespace string) (string, error) {
+	n, err := CopyConfigMap(client, cdiNamespace, ImageIOCertConfigMap, destNamespace, "")
+	if err != nil {
+		return "", err
+	}
+	return n, nil
+}
+
 // CopyConfigMap copies a ConfigMap
 func CopyConfigMap(client kubernetes.Interface, srcNamespace, srcName, destNamespace, destName string) (string, error) {
 	src, err := client.CoreV1().ConfigMaps(srcNamespace).Get(srcName, metav1.GetOptions{})
