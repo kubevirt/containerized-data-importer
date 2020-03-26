@@ -157,6 +157,27 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 			}
 		}
 		Expect(foundEndPoint).To(BeTrue())
+		By("Verifying the fsGroup of the pod is the qemu user")
+		Expect(*pod.Spec.SecurityContext.FSGroup).To(Equal(int64(107)))
+	})
+
+	It("Should create a POD if a PVC with all needed annotations is passed, but not set fsgroup if not kubevirt contenttype", func() {
+		reconciler = createImportReconciler(createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnContentType: string(cdiv1.DataVolumeArchive)}, nil))
+		_, err := reconciler.Reconcile(reconcile.Request{})
+		Expect(err).ToNot(HaveOccurred())
+		pod := &corev1.Pod{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
+		Expect(err).ToNot(HaveOccurred())
+		foundEndPoint := false
+		for _, envVar := range pod.Spec.Containers[0].Env {
+			if envVar.Name == common.ImporterEndpoint {
+				foundEndPoint = true
+				Expect(envVar.Value).To(Equal(testEndPoint))
+			}
+		}
+		Expect(foundEndPoint).To(BeTrue())
+		By("Verifying the fsGroupis not set")
+		Expect(pod.Spec.SecurityContext).To(BeNil())
 	})
 
 	It("Should error if a POD with the same name exists, but is not owned by the PVC, if a PVC with all needed annotations is passed", func() {

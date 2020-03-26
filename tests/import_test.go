@@ -113,6 +113,11 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(f.VerifyBlankDisk(f.Namespace, pvc)).To(BeTrue())
 		By("Verifying the image is sparse")
 		Expect(f.VerifySparse(f.Namespace, pvc)).To(BeTrue())
+		if utils.DefaultStorageCSI {
+			// CSI storage class, it should respect fsGroup
+			By("Checking that disk image group is qemu")
+			Expect(f.GetDiskGroup(f.Namespace, pvc)).To(Equal("107"))
+		}
 	})
 })
 

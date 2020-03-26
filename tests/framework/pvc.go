@@ -174,6 +174,27 @@ func (f *Framework) VerifySparse(namespace *k8sv1.Namespace, pvc *k8sv1.Persiste
 	return info.VirtualSize >= info.ActualSize, nil
 }
 
+// GetDiskGroup returns the group of a disk image.
+func (f *Framework) GetDiskGroup(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (string, error) {
+	var executorPod *k8sv1.Pod
+	var err error
+
+	executorPod, err = utils.CreateExecutorPodWithPVC(f.K8sClient, "verify-group-"+pvc.Name, namespace.Name, pvc)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	defer f.DeletePod(executorPod)
+	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+	cmd := fmt.Sprintf("stat -c '%%g' %s/disk.img", utils.DefaultPvcMountPath)
+
+	output, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
+
+	if err != nil {
+		return "", err
+	}
+	return output, nil
+}
+
 // VerifyTargetPVCArchiveContent provides a function to check if the number of files extracted from an archive matches the passed in value
 func (f *Framework) VerifyTargetPVCArchiveContent(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, count string) (bool, error) {
 	var executorPod *k8sv1.Pod

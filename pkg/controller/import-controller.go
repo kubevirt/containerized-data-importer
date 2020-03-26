@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -500,6 +501,15 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 
 		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
 		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
+	}
+
+	if podEnvVar.contentType == string(cdiv1.DataVolumeKubeVirt) {
+		// Set the fsGroup on the security context to the QemuSubGid
+		if pod.Spec.SecurityContext == nil {
+			pod.Spec.SecurityContext = &corev1.PodSecurityContext{}
+		}
+		fsGroup := common.QemuSubGid
+		pod.Spec.SecurityContext.FSGroup = &fsGroup
 	}
 	return pod
 }
