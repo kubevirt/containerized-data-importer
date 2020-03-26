@@ -217,7 +217,7 @@ func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.Pe
 		pvc.Annotations[AnnCloneOf] = "true"
 		r.recorder.Event(pvc, corev1.EventTypeNormal, CloneSucceededPVC, "Clone Successful")
 	}
-	if sourcePod.Status.ContainerStatuses != nil {
+	if sourcePod != nil && sourcePod.Status.ContainerStatuses != nil {
 		// update pvc annotation tracking pod restarts only if the source pod restarts are greater or equal
 		// see the same in upload-controller
 		annPodRestarts, _ := strconv.Atoi(pvc.Annotations[AnnPodRestarts])

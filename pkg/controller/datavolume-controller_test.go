@@ -145,7 +145,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		dv := &cdiv1.DataVolume{}
 		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(dv.Status.RestartCount).To(Equal(0))
+		Expect(dv.Status.RestartCount).To(Equal(int32(0)))
 
 		pvc.Annotations[AnnPodRestarts] = "2"
 		err = reconciler.Client.Update(context.TODO(), pvc)
@@ -157,7 +157,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		dv = &cdiv1.DataVolume{}
 		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(dv.Status.RestartCount).To(Equal(2))
+		Expect(dv.Status.RestartCount).To(Equal(int32(2)))
 	})
 
 	It("Should error if a PVC with same name already exists that is not owned by us", func() {
