@@ -168,8 +168,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2139]fail creating import dv: invalid qcow backing file", "import-http", "", invalidQcowBackingFileURL, "dv-invalid-qcow-backing-file", "Unable to process data: exit status 1", controller.ImportFailed, cdiv1.ImportInProgress),
 			table.Entry("[rfe_id:1947][crit:high][test_id:2145]succeed creating import dv with given tar archive url", "import-archive", "", tarArchiveURL, "tar-archive-dv", "", controller.ImportSucceeded, cdiv1.Succeeded),
 			table.Entry("[rfe_id:1947][crit:high][test_id:2220]fail creating import dv with non tar archive url", "import-archive", "", tinyCoreIsoURL, "non-tar-archive-dv", "Unable to process data: exit status 2", controller.ImportFailed, cdiv1.ImportInProgress),
-			table.Entry("succeed creating import dv with streaming image conversion", "import-http", "", cirrosURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("succeed creating dv from imageio source", "imageio", "", imageioURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[test_id:3931]succeed creating import dv with streaming image conversion", "import-http", "", cirrosURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[test_id:3932]succeed creating dv from imageio source", "imageio", "", imageioURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
 
@@ -257,7 +257,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				return false
 			}, timeout, pollingInterval).Should(BeTrue())
 		},
-			table.Entry("succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[test_id:3933]succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", controller.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
 
@@ -332,7 +332,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	})
 
 	Describe("Progress reporting on import datavolume", func() {
-		It("Should report progress while importing", func() {
+		It("[test_id:3934]Should report progress while importing", func() {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs))
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)

@@ -67,8 +67,8 @@ var _ = Describe("Cert rotation tests", func() {
 
 			}, 2*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
-		}, Entry("apiserver", "cdi-api", "cdi-apiserver-server-cert"),
-			Entry("uploadproxy", "cdi-uploadproxy", "cdi-uploadproxy-server-cert"))
+		}, Entry("[test_id:3925]apiserver", "cdi-api", "cdi-apiserver-server-cert"),
+			Entry("[test_id:3926]uploadproxy", "cdi-uploadproxy", "cdi-uploadproxy-server-cert"))
 	})
 
 	DescribeTable("check secrets updated", func(secretName, configMapName string) {
@@ -107,12 +107,12 @@ var _ = Describe("Cert rotation tests", func() {
 		//Entry("apiserver ca", "cdi-apiserver-signer", "cdi-apiserver-signer-bundle"),
 		// done in test above
 		//Entry("apiserver cert", "cdi-apiserver-server-cert", ""),
-		Entry("uploadproxy ca", "cdi-uploadproxy-signer", "cdi-uploadproxy-signer-bundle"),
+		Entry("[test_id:3927]uploadproxy ca", "cdi-uploadproxy-signer", "cdi-uploadproxy-signer-bundle"),
 		//done in test above
 		//Entry("uploadproxy cert", "cdi-uploadproxy-server-cert", ""),
-		Entry("uploadserver ca", "cdi-uploadserver-signer", "cdi-uploadserver-signer-bundle"),
-		Entry("uploadserver client ca", "cdi-uploadserver-client-signer", "cdi-uploadserver-client-signer-bundle"),
-		Entry("uploadserver client cert", "cdi-uploadserver-client-cert", ""),
+		Entry("[test_id:3928]uploadserver ca", "cdi-uploadserver-signer", "cdi-uploadserver-signer-bundle"),
+		Entry("[test_id:3929]uploadserver client ca", "cdi-uploadserver-client-signer", "cdi-uploadserver-client-signer-bundle"),
+		Entry("[test_id:3930]uploadserver client cert", "cdi-uploadserver-client-cert", ""),
 	)
 })
 
