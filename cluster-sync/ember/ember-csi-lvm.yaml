@@ -1,0 +1,296 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: csi-controller-sa
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-controller-cr
+rules:
+  # Allow managing ember resources
+  - apiGroups: ['ember-csi.io']
+    resources: ['*']
+    verbs: ['*']
+  # Allow listing and creating CRDs
+  - apiGroups: ['apiextensions.k8s.io']
+    resources: ['customresourcedefinitions']
+    verbs: ['list', 'create']
+  - apiGroups: ['']
+    resources: ['persistentvolumes']
+    verbs: ['create', 'delete', 'get', 'list', 'watch', 'update', 'patch']
+  - apiGroups: ['']
+    resources: ['secrets']
+    verbs: ['get', 'list']
+  - apiGroups: ['']
+    resources: ['persistentvolumeclaims']
+    verbs: ['get', 'list', 'watch', 'update']
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims/status"]
+    verbs: ["update", "patch"]
+  - apiGroups: ['']
+    resources: ['nodes']
+    verbs: ['get', 'list', 'watch']
+  - apiGroups: ['storage.k8s.io']
+    resources: ['volumeattachments']
+    verbs: ['get', 'list', 'watch', 'update', 'patch']
+  - apiGroups: ['storage.k8s.io']
+    resources: ['storageclasses']
+    verbs: ['get', 'list', 'watch']
+  - apiGroups: ['csi.storage.k8s.io']
+    resources: ['csidrivers']
+    verbs: ['get', 'list', 'watch', 'update', 'create']
+  - apiGroups: ['']
+    resources: ['events']
+    verbs: ['list', 'watch', 'create', 'update', 'patch']
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotcontents"]
+    verbs: ["create", "get", "list", "watch", "update", "delete"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots/status"]
+    verbs: ["update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["csinodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: storage.k8s.io/v1beta1
+kind: CSIDriver
+metadata:
+  name: ember-csi.io
+spec:
+  attachRequired: true
+  podInfoOnMount: false
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-controller-rb
+roleRef:
+  kind: ClusterRole
+  apiGroup: rbac.authorization.k8s.io
+  name: csi-controller-cr
+subjects:
+- kind: ServiceAccount
+  name: csi-controller-sa
+  namespace: ember-csi-lvm
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: csi-node-sa
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-node-cr
+rules:
+  # Allow managing ember resources
+  - apiGroups: ['ember-csi.io']
+    resources: ['*']
+    verbs: ['*']
+  # Allow listing and creating CRDs
+  - apiGroups: ['apiextensions.k8s.io']
+    resources: ['customresourcedefinitions']
+    verbs: ['list', 'create']
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["volumeattachments"]
+    verbs: ['get', 'list', 'watch', 'update', 'patch']
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-node-rb
+roleRef:
+  kind: ClusterRole
+  apiGroup: rbac.authorization.k8s.io
+  name: csi-node-cr
+subjects:
+- kind: ServiceAccount
+  name: csi-node-sa
+  namespace: ember-csi-lvm
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: csi-node
+spec:
+  selector:
+    matchLabels:
+      app: csi-node
+  template:
+    metadata:
+      labels:
+        app: csi-node
+    spec:
+      serviceAccount: csi-node-sa
+      # Required by iSCSI
+      hostNetwork: true
+      # Required by multipath detach
+      hostIPC: true
+      containers:
+        - name: driver-registrar
+          image: quay.io/k8scsi/csi-node-driver-registrar:v1.2.0
+          args:
+          - --v=1
+          - --csi-address=/var/lib/ember-csi/csi.sock
+          - --kubelet-registration-path=/var/lib/ember-csi/ember-csi.io/csi.sock
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - mountPath: /var/lib/ember-csi
+              name: ember-csi-data
+            - name: registration-dir
+              mountPath: /registration
+        - name: csi-driver
+          image: "quay.io/awels/embercsi:1"
+          # Priviledged needed for access to lvm backend
+          securityContext:
+            privileged: true
+            allowPrivilegeEscalation: true
+          imagePullPolicy: Always
+          env:
+            - name: PYTHONUNBUFFERED
+              value: '0'
+            - name: X_CSI_SPEC_VERSION
+              value: v1.1
+            - name: CSI_ENDPOINT
+              value: unix:///var/lib/ember-csi/csi.sock
+            - name: CSI_MODE
+              value: node
+            - name: X_CSI_PERSISTENCE_CONFIG
+              value: '{"storage":"crd"}'
+            - name: X_CSI_NODE_TOPOLOGY
+              value: '{"iscsi":"true"}'
+            - name: X_CSI_EMBER_CONFIG
+              value: '{"debug":false,"enable_probe":true}'
+            - name: X_CSI_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          livenessProbe:
+            exec:
+              command:
+              - ember-liveness
+            initialDelaySeconds: 120
+            periodSeconds: 90
+            timeoutSeconds: 60
+          volumeMounts:
+            # So we don't lose our private bindmounts on container reboot and
+            # this is also where our socket lives
+            - name: ember-csi-data
+              mountPath: /var/lib/ember-csi
+              mountPropagation: Bidirectional
+            - name: mountpoint-dir
+              mountPath: /var/lib/kubelet
+              mountPropagation: Bidirectional
+            - name: iscsi-dir
+              mountPath: /etc/iscsi
+              mountPropagation: Bidirectional
+            - name: dev-dir
+              mountPath: /dev
+              mountPropagation: Bidirectional
+            - name: lvm-conf
+              mountPath: /etc/lvm/lvm.conf
+              mountPropagation: HostToContainer
+            - name: lvm-lock
+              mountPath: /var/lock/lvm
+              mountPropagation: Bidirectional
+            - name: multipath-dir
+              mountPath: /etc/multipath
+              mountPropagation: Bidirectional
+            - name: multipath-conf
+              mountPath: /etc/multipath.conf
+              mountPropagation: HostToContainer
+            - name: modules-dir
+              mountPath: /lib/modules
+              mountPropagation: HostToContainer
+            - name: localtime
+              mountPath: /etc/localtime
+              mountPropagation: HostToContainer
+            - name: udev-data
+              mountPath: /run/udev
+              mountPropagation: HostToContainer
+            # Required to preserve the node targets between restarts
+            - name: iscsi-info
+              mountPath: /var/lib/iscsi
+              mountPropagation: Bidirectional
+        - name: csc
+          image: embercsi/csc:v1.1.0
+          command: ["tail"]
+          args: ["-f", "/dev/null"]
+          env:
+            - name: CSI_ENDPOINT
+              value: unix:///var/lib/ember-csi/csi.sock
+          volumeMounts:
+            - name: ember-csi-data
+              mountPath: /var/lib/ember-csi
+      volumes:
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry
+            type: Directory
+        - name: mountpoint-dir
+          hostPath:
+            path: /var/lib/kubelet
+            type: Directory
+        - name: iscsi-dir
+          hostPath:
+            path: /etc/iscsi
+            type: Directory
+        - name: dev-dir
+          hostPath:
+            path: /dev
+        - name: lvm-conf
+          hostPath:
+            path: /etc/lvm/lvm.conf
+        - name: lvm-lock
+          hostPath:
+            path: /var/lock/lvm
+        - name: multipath-dir
+          hostPath:
+            path: /etc/multipath
+        - name: multipath-conf
+          hostPath:
+            path: /etc/multipath.conf
+        - name: modules-dir
+          hostPath:
+            path: /lib/modules
+        - name: localtime
+          hostPath:
+            path: /etc/localtime
+        - name: udev-data
+          hostPath:
+            path: /run/udev
+        - name: iscsi-info
+          hostPath:
+            path: /var/lib/iscsi
+        - name: ember-csi-data
+          hostPath:
+            path: /var/lib/ember-csi/ember-csi.io
+            type: DirectoryOrCreate
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ember-csi-lvm
+provisioner: ember-csi.io
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: true

@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ember-csi-lvm
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loop-back-pvc
+  namespace: ember-csi-lvm
+  labels:
+    app: loop-back-lvm
+spec:
+  storageClassName: local
+  accessModes:
+     - ReadWriteOnce
+  resources:
+    requests:
+      storage: 25Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: loop-back-lvm
+  labels:
+    app: loop-back-lvm
+spec:
+  # iSCSI only the very latest Open-iSCSI supports namespaces
+  hostNetwork: true
+  # Required by multipath detach (some drivers clone volumes dd-ing)
+  hostIPC: true
+  restartPolicy: Never
+  containers:
+  - name: loop-back-lvm
+    image: registry:5000/loop-back-lvm:latest
+    # Priviledged needed for access to lvm backend
+    securityContext:
+      privileged: true
+      allowPrivilegeEscalation: true
+    env:
+    - name: DEVICE_SIZE
+      value: 25G
+    - name: DATA_DIR
+      value: /data
+    volumeMounts:
+      - name: local-storage
+        mountPath: /host/data
+      - name: host-dir
+        mountPath: /host
+        mountPropagation: Bidirectional
+  volumes:
+    - name: local-storage
+      persistentVolumeClaim:
+        claimName: loop-back-pvc
+    - name: host-dir
+      hostPath:
+        path: /
