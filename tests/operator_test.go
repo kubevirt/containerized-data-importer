@@ -17,7 +17,6 @@ import (
 
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
-	"kubevirt.io/containerized-data-importer/pkg/operator"
 	operatorcontroller "kubevirt.io/containerized-data-importer/pkg/operator/controller"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -82,7 +81,7 @@ var _ = Describe("Operator delete CDI tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	AfterEach(func() {
+	ensureCDI := func() {
 		if cr == nil {
 			return
 		}
@@ -108,15 +107,6 @@ var _ = Describe("Operator delete CDI tests", func() {
 			Expect(errors.IsNotFound(err)).To(BeTrue())
 		}
 
-		Eventually(func() bool {
-			_, err = f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Get(operator.ConfigMapName, metav1.GetOptions{})
-			if errors.IsNotFound(err) {
-				return true
-			}
-			Expect(err).ToNot(HaveOccurred())
-			return false
-		}, 5*time.Minute, 2*time.Second).Should(BeTrue())
-
 		cdi = &cdiv1alpha1.CDI{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "cdi",
@@ -130,6 +120,7 @@ var _ = Describe("Operator delete CDI tests", func() {
 		Eventually(func() bool {
 			cdi, err = f.CdiClient.CdiV1alpha1().CDIs().Get(cr.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
+			Expect(cdi.Status.Phase).ShouldNot(Equal(cdiv1alpha1.CDIPhaseError))
 			for _, c := range cdi.Status.Conditions {
 				if c.Type == conditions.ConditionAvailable && c.Status == corev1.ConditionTrue {
 					return true
@@ -137,6 +128,18 @@ var _ = Describe("Operator delete CDI tests", func() {
 			}
 			return false
 		}, 10*time.Minute, 2*time.Second).Should(BeTrue())
+	}
+
+	AfterEach(func() {
+		ensureCDI()
+	})
+
+	It("should remove/install CDI a number of times successfully", func() {
+		for i := 0; i < 10; i++ {
+			err := f.CdiClient.CdiV1alpha1().CDIs().Delete(cr.Name, &metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			ensureCDI()
+		}
 	})
 
 	It("should delete an upload pod", func() {
