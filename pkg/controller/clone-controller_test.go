@@ -366,6 +366,78 @@ var _ = Describe("CloneSourcePodName", func() {
 	})
 })
 
+var _ = Describe("Update PVC", func() {
+	var (
+		reconciler *CloneReconciler
+	)
+	AfterEach(func() {
+		if reconciler != nil {
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			reconciler = nil
+		}
+	})
+	It("Should update AnnPodRestarts on pvc from source pod restarts", func() {
+		testPvc := createPvc("testPvc1", "default", map[string]string{AnnCloneRequest: "default/test"}, nil)
+		pod := createSourcePod(testPvc, string(testPvc.GetUID()))
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodFailed,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					RestartCount: 2,
+					LastTerminationState: corev1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{
+							ExitCode: 1,
+							Message:  "I went poof",
+						},
+					},
+				},
+			},
+		}
+		reconciler = createCloneReconciler(testPvc, createPvc("source", "default", map[string]string{}, nil))
+
+		err := reconciler.updatePvcFromPod(pod, testPvc, reconciler.Log)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verifying the pvc has original restart count")
+		actualPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, actualPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(actualPvc.Annotations[AnnPodRestarts]).To(Equal("2"))
+	})
+
+	It("Should not update AnnPodRestarts on pvc from source pod if pod has lower restart count value", func() {
+		testPvc := createPvc("testPvc1", "default", map[string]string{
+			AnnCloneRequest: "default/test",
+			AnnPodRestarts:  "3"},
+			nil)
+		pod := createSourcePod(testPvc, string(testPvc.GetUID()))
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodFailed,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					RestartCount: 2,
+					LastTerminationState: corev1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{
+							ExitCode: 1,
+							Message:  "I went poof",
+						},
+					},
+				},
+			},
+		}
+		reconciler = createCloneReconciler(testPvc, createPvc("source", "default", map[string]string{}, nil))
+
+		err := reconciler.updatePvcFromPod(pod, testPvc, reconciler.Log)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verifying the pvc has original restart count")
+		actualPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, actualPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(actualPvc.Annotations[AnnPodRestarts]).To(Equal("3"))
+	})
+})
+
 func createCloneReconciler(objects ...runtime.Object) *CloneReconciler {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)

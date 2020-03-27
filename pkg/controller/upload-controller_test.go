@@ -304,6 +304,76 @@ var _ = Describe("reconcilePVC loop", func() {
 	})
 })
 
+var _ = Describe("Update PVC", func() {
+
+	It("Should update AnnPodRestarts on pvc from upload pod restarts", func() {
+		testPvc := createPvc("testPvc1", "default",
+			map[string]string{
+				AnnUploadRequest: "",
+				AnnPodPhase:      string(corev1.PodPending),
+				AnnPodRestarts:   "1"}, nil)
+		pod := createUploadPod(testPvc)
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodFailed,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					RestartCount: 2,
+					LastTerminationState: corev1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{
+							ExitCode: 1,
+							Message:  "I went poof",
+						},
+					},
+				},
+			},
+		}
+		reconciler := createUploadReconciler(testPvc, pod, createUploadService(testPvc))
+
+		_, err := reconciler.reconcilePVC(reconciler.Log, testPvc, false)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verifying the pvc has restarts updated")
+		actualPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, actualPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(actualPvc.Annotations[AnnPodRestarts]).To(Equal("2"))
+	})
+
+	It("Should not update AnnPodRestarts on pvc from pod if pod has lower restart count value ", func() {
+		testPvc := createPvc("testPvc1", "default",
+			map[string]string{
+				AnnUploadRequest: "",
+				AnnPodPhase:      string(corev1.PodPending),
+				AnnPodRestarts:   "3"},
+			nil)
+		pod := createUploadPod(testPvc)
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodFailed,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					RestartCount: 2,
+					LastTerminationState: corev1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{
+							ExitCode: 1,
+							Message:  "I went poof",
+						},
+					},
+				},
+			},
+		}
+		reconciler := createUploadReconciler(testPvc, pod, createUploadService(testPvc))
+
+		_, err := reconciler.reconcilePVC(reconciler.Log, testPvc, false)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verifying the pvc has original restart count")
+		actualPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, actualPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(actualPvc.Annotations[AnnPodRestarts]).To(Equal("3"))
+	})
+})
+
 func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)
