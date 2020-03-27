@@ -168,7 +168,7 @@ func createDataVolumeCRD() *extv1beta1.CustomResourceDefinition {
 				{
 					Name:        "Restarts",
 					Type:        "integer",
-					Description: "The number of times the containers in this pod have been restarted.",
+					Description: "The number of times the transfer has been restarted.",
 					JSONPath:    ".status.restartCount",
 				},
 				{
