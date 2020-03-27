@@ -206,8 +206,8 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				Expect(reason).To(BeEmpty())
 				Expect(err).ToNot(HaveOccurred())
 			},
-				Entry("when using explicit CDI permissions", explicitRole),
-				Entry("when using implicit CDI permissions", implicitRole),
+				Entry("[test_id:3935]when using explicit CDI permissions", explicitRole),
+				Entry("[test_id:3936]when using implicit CDI permissions", implicitRole),
 			)
 		})
 	})
