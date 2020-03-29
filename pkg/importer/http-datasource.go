@@ -66,6 +66,8 @@ type HTTPDataSource struct {
 	url *url.URL
 	// true if we are using a custom CA (and thus have to use scratch storage)
 	customCA bool
+	// true if we know `qemu-img` will fail to download this
+	brokenForQemuImg bool
 	// the content length reported by the http server.
 	contentLength uint64
 }
@@ -77,7 +79,7 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpoint))
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	httpReader, contentLength, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir)
+	httpReader, contentLength, brokenForQemuImg, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -87,13 +89,14 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		ep.User = url.UserPassword(accessKey, secKey)
 	}
 	httpSource := &HTTPDataSource{
-		ctx:           ctx,
-		cancel:        cancel,
-		httpReader:    httpReader,
-		contentType:   contentType,
-		endpoint:      ep,
-		customCA:      certDir != "",
-		contentLength: contentLength,
+		ctx:              ctx,
+		cancel:           cancel,
+		httpReader:       httpReader,
+		contentType:      contentType,
+		endpoint:         ep,
+		customCA:         certDir != "",
+		brokenForQemuImg: brokenForQemuImg,
+		contentLength:    contentLength,
 	}
 	// We know this is a counting reader, so no need to check.
 	countingReader := httpReader.(*util.CountingReader)
@@ -114,7 +117,7 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 	}
 	// The readers now contain all the information needed to determine if we can stream directly or if we need scratch space to download
 	// the file to, before converting.
-	if !hs.readers.Archived && !hs.customCA && hs.readers.Convert {
+	if !hs.readers.Archived && !hs.customCA && !hs.brokenForQemuImg && hs.readers.Convert {
 		// We can pass straight to conversion from the endpoint. No scratch required.
 		hs.url = hs.endpoint
 		return ProcessingPhaseConvert, nil
@@ -233,10 +236,11 @@ func createHTTPClient(certDir string) (*http.Client, error) {
 	return client, nil
 }
 
-func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string) (io.ReadCloser, uint64, error) {
+func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string) (io.ReadCloser, uint64, bool, error) {
+	var brokenForQemuImg bool
 	client, err := createHTTPClient(certDir)
 	if err != nil {
-		return nil, uint64(0), errors.Wrap(err, "Error creating http client")
+		return nil, uint64(0), false, errors.Wrap(err, "Error creating http client")
 	}
 
 	client.CheckRedirect = func(r *http.Request, via []*http.Request) error {
@@ -248,7 +252,7 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 
 	total, err := getContentLength(client, ep, accessKey, secKey)
 	if err != nil {
-		return nil, total, err
+		brokenForQemuImg = true
 	}
 	// http.NewRequest can only return error on invalid METHOD, or invalid url. Here the METHOD is always GET, and the url is always valid, thus error cannot happen.
 	req, _ := http.NewRequest("GET", ep.String(), nil)
@@ -260,17 +264,22 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 	klog.V(2).Infof("Attempting to get object %q via http client\n", ep.String())
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, uint64(0), errors.Wrap(err, "HTTP request errored")
+		return nil, uint64(0), true, errors.Wrap(err, "HTTP request errored")
 	}
 	if resp.StatusCode != 200 {
 		klog.Errorf("http: expected status code 200, got %d", resp.StatusCode)
-		return nil, uint64(0), errors.Errorf("expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
+		return nil, uint64(0), true, errors.Errorf("expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
+	}
+
+	if (total == 0) {
+		// The total seems bogus. Let's try the GET Content-Length header
+		total = parseHTTPHeader(resp)
 	}
 	countingReader := &util.CountingReader{
 		Reader:  resp.Body,
 		Current: 0,
 	}
-	return countingReader, total, nil
+	return countingReader, total, brokenForQemuImg, nil
 }
 
 func (hs *HTTPDataSource) pollProgress(reader *util.CountingReader, idleTime, pollInterval time.Duration) {
@@ -324,18 +333,25 @@ func getContentLength(client *http.Client, ep *url.URL, accessKey, secKey string
 		klog.V(3).Infof("GO CLIENT: key: %s, value: %s\n", k, v)
 	}
 
-	total := uint64(0)
-	if val, ok := resp.Header["Content-Length"]; ok {
-		total, err = strconv.ParseUint(val[0], 10, 64)
-		if err != nil {
-			return uint64(0), errors.Wrap(err, "could not convert content length")
-		}
-		klog.V(3).Infof("Content length: %d\n", total)
-	}
+	total := parseHTTPHeader(resp)
 
 	err = resp.Body.Close()
 	if err != nil {
 		return uint64(0), errors.Wrap(err, "could not close head read")
 	}
 	return total, nil
+}
+
+func parseHTTPHeader(resp *http.Response) (uint64) {
+	var err error
+	total := uint64(0)
+	if val, ok := resp.Header["Content-Length"]; ok {
+		total, err = strconv.ParseUint(val[0], 10, 64)
+		if err != nil {
+			klog.Errorf("could not convert content length, got %d", err)
+		}
+		klog.V(3).Infof("Content length: %d\n", total)
+	}
+
+	return total
 }

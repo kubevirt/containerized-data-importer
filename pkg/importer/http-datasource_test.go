@@ -252,7 +252,7 @@ var _ = Describe("Http client", func() {
 
 var _ = Describe("Http reader", func() {
 	It("should fail when passed an invalid cert directory", func() {
-		_, total, err := createHTTPReader(context.Background(), nil, "", "", "/invalid")
+		_, total, _, err := createHTTPReader(context.Background(), nil, "", "", "/invalid")
 		Expect(err).To(HaveOccurred())
 		Expect(uint64(0)).To(Equal(total))
 	})
@@ -269,7 +269,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, err := createHTTPReader(context.Background(), ep, "user", "password", "")
+		r, total, _, err := createHTTPReader(context.Background(), ep, "user", "password", "")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
 		err = r.Close()
@@ -292,7 +292,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, err := createHTTPReader(context.Background(), ep, "user", "password", "")
+		r, total, _, err := createHTTPReader(context.Background(), ep, "user", "password", "")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
 		err = r.Close()
@@ -313,12 +313,34 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, err := createHTTPReader(context.Background(), ep, "", "", "")
+		r, total, _, err := createHTTPReader(context.Background(), ep, "", "", "")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
 		err = r.Close()
 		Expect(err).ToNot(HaveOccurred())
 	})
+
+	It("should continue even if Content-Length is bogus", func() {
+		redirTs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _, ok := r.BasicAuth()
+			defer w.WriteHeader(http.StatusOK)
+			w.Header().Add("Content-Length", "intentional gibberish")
+			Expect(ok).To(BeFalse())
+		}))
+		defer redirTs.Close()
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, redirTs.URL, http.StatusFound)
+		}))
+		defer ts.Close()
+		ep, err := url.Parse(ts.URL)
+		Expect(err).ToNot(HaveOccurred())
+		r, total, _, err := createHTTPReader(context.Background(), ep, "", "", "")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(uint64(0)).To(Equal(total))
+		err = r.Close()
+		Expect(err).ToNot(HaveOccurred())
+	})
+
 
 	It("should fail if server returns error code", func() {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -327,7 +349,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		_, total, err := createHTTPReader(context.Background(), ep, "", "", "")
+		_, total, _, err := createHTTPReader(context.Background(), ep, "", "", "")
 		Expect(err).To(HaveOccurred())
 		Expect(uint64(0)).To(Equal(total))
 		Expect("expected status code 200, got 500. Status: 500 Internal Server Error").To(Equal(err.Error()))
