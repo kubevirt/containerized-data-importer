@@ -291,6 +291,7 @@ var _ = Describe("Update PVC from POD", func() {
 			Phase: corev1.PodFailed,
 			ContainerStatuses: []corev1.ContainerStatus{
 				{
+					RestartCount: 2,
 					LastTerminationState: corev1.ContainerState{
 						Terminated: &corev1.ContainerStateTerminated{
 							ExitCode: 1,
@@ -309,6 +310,7 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(corev1.PodFailed))
 		Expect(resPvc.GetAnnotations()[AnnImportPod]).To(Equal(pod.Name))
+		Expect(resPvc.GetAnnotations()[AnnPodRestarts]).To(Equal("2"))
 		By("Checking error event recorded")
 		event := <-reconciler.recorder.(*record.FakeRecorder).Events
 		Expect(event).To(ContainSubstring("I went poof"))
@@ -340,6 +342,7 @@ var _ = Describe("Update PVC from POD", func() {
 		By("Verifying that the phase hasn't changed")
 		Expect(resPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(corev1.PodRunning))
 		Expect(resPvc.GetAnnotations()[AnnImportPod]).To(Equal(pod.Name))
+		Expect(resPvc.GetAnnotations()[AnnPodRestarts]).To(Equal("0"))
 		// No scratch space because the pod is not in pending.
 	})
 })

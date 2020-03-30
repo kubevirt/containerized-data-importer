@@ -277,6 +277,7 @@ func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVol
 	if datavolume.Status.Progress == "" {
 		datavolume.Status.Progress = "N/A"
 	}
+
 	if datavolume.Spec.Source.HTTP != nil {
 		podNamespace = datavolume.Namespace
 	} else if datavolume.Spec.Source.PVC != nil {
@@ -603,6 +604,11 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		}
 	}
 
+	if pvc != nil {
+		if i, err := strconv.Atoi(pvc.Annotations[AnnPodRestarts]); err == nil && i >= 0 {
+			dataVolumeCopy.Status.RestartCount = int32(i)
+		}
+	}
 	result := reconcile.Result{}
 	var err error
 	if pvc != nil {
@@ -749,6 +755,7 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 		annotations[k] = v
 	}
 
+	annotations[AnnPodRestarts] = "0"
 	if dataVolume.Spec.Source.HTTP != nil {
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.HTTP.URL
 		annotations[AnnSource] = SourceHTTP

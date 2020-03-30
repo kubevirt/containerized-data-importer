@@ -133,6 +133,33 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(dv.Status.Phase).To(Equal(cdiv1.Pending))
 	})
 
+	It("Should follow the restarts of the PVC", func() {
+		reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
+
+		dv := &cdiv1.DataVolume{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Status.RestartCount).To(Equal(int32(0)))
+
+		pvc.Annotations[AnnPodRestarts] = "2"
+		err = reconciler.Client.Update(context.TODO(), pvc)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+
+		dv = &cdiv1.DataVolume{}
+		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Status.RestartCount).To(Equal(int32(2)))
+	})
+
 	It("Should error if a PVC with same name already exists that is not owned by us", func() {
 		reconciler = createDatavolumeReconciler(createPvc("test-dv", metav1.NamespaceDefault, map[string]string{}, nil), newImportDataVolume("test-dv"))
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})

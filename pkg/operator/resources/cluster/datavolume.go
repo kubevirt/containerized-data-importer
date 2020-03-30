@@ -166,6 +166,12 @@ func createDataVolumeCRD() *extv1beta1.CustomResourceDefinition {
 					JSONPath:    ".status.progress",
 				},
 				{
+					Name:        "Restarts",
+					Type:        "integer",
+					Description: "The number of times the transfer has been restarted.",
+					JSONPath:    ".status.restartCount",
+				},
+				{
 					Name:     "Age",
 					Type:     "date",
 					JSONPath: ".metadata.creationTimestamp",

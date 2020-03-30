@@ -358,4 +358,23 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, timeout, pollingInterval).Should(BeTrue())
 		})
 	})
+
+	Describe("Restarts reporting on import datavolume", func() {
+		It("Should report restarts on failed import", func() {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", InvalidQcowImagesURL)
+			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Verify dv")
+			Eventually(func() int32 {
+				dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				restarts := dv.Status.RestartCount
+				return restarts
+			}, timeout, pollingInterval).Should(BeNumerically(">=", 1))
+
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
 })
