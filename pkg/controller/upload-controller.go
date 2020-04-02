@@ -64,14 +64,14 @@ const (
 
 // UploadReconciler members
 type UploadReconciler struct {
-	Client                 client.Client
+	client                 client.Client
 	recorder               record.EventRecorder
-	Scheme                 *runtime.Scheme
-	Log                    logr.Logger
-	Image                  string
-	Verbose                string
-	PullPolicy             string
-	UploadProxyServiceName string
+	scheme                 *runtime.Scheme
+	log                    logr.Logger
+	image                  string
+	verbose                string
+	pullPolicy             string
+	uploadProxyServiceName string
 	serverCertGenerator    generator.CertGenerator
 	clientCAFetcher        fetcher.CertBundleFetcher
 }
@@ -87,12 +87,12 @@ type UploadPodArgs struct {
 
 // Reconcile the reconcile loop for the CDIConfig object.
 func (r *UploadReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
-	log := r.Log.WithValues("PVC", req.NamespacedName)
+	log := r.log.WithValues("PVC", req.NamespacedName)
 	log.V(1).Info("reconciling Upload PVCs")
 
 	// Get the PVC.
 	pvc := &corev1.PersistentVolumeClaim{}
-	if err := r.Client.Get(context.TODO(), req.NamespacedName, pvc); err != nil {
+	if err := r.client.Get(context.TODO(), req.NamespacedName, pvc); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return reconcile.Result{}, nil
 		}
@@ -184,8 +184,8 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 }
 
 func (r *UploadReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim) error {
-	r.Log.V(1).Info("Phase is now", "pvc.anno.Phase", pvc.GetAnnotations()[AnnPodPhase])
-	if err := r.Client.Update(context.TODO(), pvc); err != nil {
+	r.log.V(1).Info("Phase is now", "pvc.anno.Phase", pvc.GetAnnotations()[AnnPodPhase])
+	if err := r.client.Update(context.TODO(), pvc); err != nil {
 		return err
 	}
 	return nil
@@ -200,7 +200,7 @@ func (r *UploadReconciler) getCloneRequestSourcePVC(targetPvc *corev1.Persistent
 		return nil, errors.New("error parsing clone request annotation")
 	}
 	sourcePvc := &corev1.PersistentVolumeClaim{}
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, sourcePvc); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, sourcePvc); err != nil {
 		return nil, errors.Wrap(err, "error getting clone source PVC")
 	}
 	if sourcePvc.Spec.VolumeMode != nil {
@@ -225,14 +225,14 @@ func (r *UploadReconciler) cleanup(pvc *v1.PersistentVolumeClaim) error {
 
 	// delete pod
 	pod := &corev1.Pod{}
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: resourceName, Namespace: pvc.Namespace}, pod); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: resourceName, Namespace: pvc.Namespace}, pod); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil
 		}
 		return err
 	}
 	if pod.DeletionTimestamp == nil {
-		if err := r.Client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
+		if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
 			return err
 		}
 	}
@@ -241,7 +241,7 @@ func (r *UploadReconciler) cleanup(pvc *v1.PersistentVolumeClaim) error {
 
 func (r *UploadReconciler) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, podName, scratchPVCName, clientName string) (*v1.Pod, error) {
 	pod := &corev1.Pod{}
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: pvc.Namespace}, pod); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: pvc.Namespace}, pod); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			return nil, errors.Wrapf(err, "error getting upload pod %s/%s", pvc.Namespace, podName)
 		}
@@ -266,7 +266,7 @@ func (r *UploadReconciler) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, p
 			ClientCA:       clientCA,
 		}
 
-		r.Log.V(3).Info("Creating upload pod")
+		r.log.V(3).Info("Creating upload pod")
 		pod, err = r.createUploadPod(args)
 		if err != nil {
 			return nil, err
@@ -290,15 +290,15 @@ func (r *UploadReconciler) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, p
 
 func (r *UploadReconciler) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, name string) (*v1.PersistentVolumeClaim, error) {
 	scratchPvc := &corev1.PersistentVolumeClaim{}
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: pvc.Namespace}, scratchPvc); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: pvc.Namespace}, scratchPvc); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			return nil, errors.Wrap(err, "error getting scratch PVC")
 		}
 
-		storageClassName := GetScratchPvcStorageClass(r.Client, pvc)
+		storageClassName := GetScratchPvcStorageClass(r.client, pvc)
 
 		// Scratch PVC doesn't exist yet, create it.
-		scratchPvc, err = CreateScratchPersistentVolumeClaim(r.Client, pvc, pod, name, storageClassName)
+		scratchPvc, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, name, storageClassName)
 		if err != nil {
 			return nil, err
 		}
@@ -313,7 +313,7 @@ func (r *UploadReconciler) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, 
 
 func (r *UploadReconciler) getOrCreateUploadService(pvc *v1.PersistentVolumeClaim, name string) (*v1.Service, error) {
 	service := &corev1.Service{}
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: pvc.Namespace}, service); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: pvc.Namespace}, service); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			return nil, errors.Wrap(err, "error getting upload service")
 		}
@@ -332,7 +332,7 @@ func (r *UploadReconciler) getOrCreateUploadService(pvc *v1.PersistentVolumeClai
 
 func (r *UploadReconciler) deleteService(namespace, serviceName string) error {
 	service := &corev1.Service{}
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: serviceName, Namespace: namespace}, service); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: serviceName, Namespace: namespace}, service); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil
 		}
@@ -340,7 +340,7 @@ func (r *UploadReconciler) deleteService(namespace, serviceName string) error {
 	}
 
 	if service.DeletionTimestamp == nil {
-		if err := r.Client.Delete(context.TODO(), service); IgnoreNotFound(err) != nil {
+		if err := r.client.Delete(context.TODO(), service); IgnoreNotFound(err) != nil {
 			return errors.Wrap(err, "error deleting upload service")
 		}
 	}
@@ -353,16 +353,16 @@ func (r *UploadReconciler) createUploadService(name string, pvc *v1.PersistentVo
 	ns := pvc.Namespace
 	service := r.makeUploadServiceSpec(name, pvc)
 
-	if err := r.Client.Create(context.TODO(), service); err != nil {
+	if err := r.client.Create(context.TODO(), service); err != nil {
 		if k8serrors.IsAlreadyExists(err) {
-			if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: ns}, service); err != nil {
+			if err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: ns}, service); err != nil {
 				return nil, errors.Wrap(err, "upload service should exist but couldn't retrieve it")
 			}
 		} else {
 			return nil, errors.Wrap(err, "upload service API create errored")
 		}
 	}
-	r.Log.V(1).Info("upload service created\n", "Namespace", service.Namespace, "Name", service.Name)
+	r.log.V(1).Info("upload service created\n", "Namespace", service.Namespace, "Name", service.Name)
 	return service, nil
 }
 
@@ -419,35 +419,35 @@ func (r *UploadReconciler) makeUploadServiceSpec(name string, pvc *v1.Persistent
 func (r *UploadReconciler) createUploadPod(args UploadPodArgs) (*v1.Pod, error) {
 	ns := args.PVC.Namespace
 
-	podResourceRequirements, err := GetDefaultPodResourceRequirements(r.Client)
+	podResourceRequirements, err := GetDefaultPodResourceRequirements(r.client)
 	if err != nil {
 		return nil, err
 	}
 
 	pod := r.makeUploadPodSpec(args, podResourceRequirements)
 
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: args.Name, Namespace: ns}, pod); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: args.Name, Namespace: ns}, pod); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			return nil, errors.Wrap(err, "upload pod should exist but couldn't retrieve it")
 		}
-		if err := r.Client.Create(context.TODO(), pod); err != nil {
+		if err := r.client.Create(context.TODO(), pod); err != nil {
 			return nil, err
 		}
 	}
 
-	r.Log.V(1).Info("upload pod created\n", "Namespace", pod.Namespace, "Name", pod.Name, "Image name", r.Image)
+	r.log.V(1).Info("upload pod created\n", "Namespace", pod.Namespace, "Name", pod.Name, "Image name", r.image)
 	return pod, nil
 }
 
 // NewUploadController creates a new instance of the upload controller.
 func NewUploadController(mgr manager.Manager, log logr.Logger, uploadImage, pullPolicy, verbose string, serverCertGenerator generator.CertGenerator, clientCAFetcher fetcher.CertBundleFetcher) (controller.Controller, error) {
 	reconciler := &UploadReconciler{
-		Client:              mgr.GetClient(),
-		Scheme:              mgr.GetScheme(),
-		Log:                 log.WithName("upload-controller"),
-		Image:               uploadImage,
-		Verbose:             verbose,
-		PullPolicy:          pullPolicy,
+		client:              mgr.GetClient(),
+		scheme:              mgr.GetScheme(),
+		log:                 log.WithName("upload-controller"),
+		image:               uploadImage,
+		verbose:             verbose,
+		pullPolicy:          pullPolicy,
 		recorder:            mgr.GetEventRecorderFor("upload-controller"),
 		serverCertGenerator: serverCertGenerator,
 		clientCAFetcher:     clientCAFetcher,
@@ -535,8 +535,8 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			Containers: []v1.Container{
 				{
 					Name:            common.UploadServerPodname,
-					Image:           r.Image,
-					ImagePullPolicy: v1.PullPolicy(r.PullPolicy),
+					Image:           r.image,
+					ImagePullPolicy: v1.PullPolicy(r.pullPolicy),
 					Env: []v1.EnvVar{
 						{
 							Name:  "TLS_KEY",
@@ -559,7 +559,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 							Value: args.ClientName,
 						},
 					},
-					Args: []string{"-v=" + r.Verbose},
+					Args: []string{"-v=" + r.verbose},
 					ReadinessProbe: &v1.Probe{
 						Handler: v1.Handler{
 							HTTPGet: &v1.HTTPGetAction{
@@ -590,7 +590,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 		},
 	}
 
-	if !checkPVC(args.PVC, AnnCloneRequest, r.Log.WithValues("Name", args.PVC.Name, "Namspace", args.PVC.Namespace)) {
+	if !checkPVC(args.PVC, AnnCloneRequest, r.log.WithValues("Name", args.PVC.Name, "Namspace", args.PVC.Namespace)) {
 		pod.Spec.SecurityContext.FSGroup = &fsGroup
 	}
 

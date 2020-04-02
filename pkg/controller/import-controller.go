@@ -72,14 +72,14 @@ const (
 
 // ImportReconciler members
 type ImportReconciler struct {
-	Client         client.Client
+	client         client.Client
 	uncachedClient client.Client
 	recorder       record.EventRecorder
-	Scheme         *runtime.Scheme
-	Log            logr.Logger
-	Image          string
-	Verbose        string
-	PullPolicy     string
+	scheme         *runtime.Scheme
+	log            logr.Logger
+	image          string
+	verbose        string
+	pullPolicy     string
 }
 
 type importPodEnvVar struct {
@@ -94,13 +94,13 @@ func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pu
 		Mapper: mgr.GetRESTMapper(),
 	})
 	reconciler := &ImportReconciler{
-		Client:         mgr.GetClient(),
+		client:         mgr.GetClient(),
 		uncachedClient: uncachedClient,
-		Scheme:         mgr.GetScheme(),
-		Log:            log.WithName("import-controller"),
-		Image:          importerImage,
-		Verbose:        verbose,
-		PullPolicy:     pullPolicy,
+		scheme:         mgr.GetScheme(),
+		log:            log.WithName("import-controller"),
+		image:          importerImage,
+		verbose:        verbose,
+		pullPolicy:     pullPolicy,
 		recorder:       mgr.GetEventRecorderFor("import-controller"),
 	}
 	importController, err := controller.New("import-controller", mgr, controller.Options{
@@ -141,12 +141,12 @@ func isPVCComplete(pvc *corev1.PersistentVolumeClaim) bool {
 
 // Reconcile the reconcile loop for the CDIConfig object.
 func (r *ImportReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
-	log := r.Log.WithValues("PVC", req.NamespacedName)
+	log := r.log.WithValues("PVC", req.NamespacedName)
 	log.V(1).Info("reconciling Import PVCs")
 
 	// Get the PVC.
 	pvc := &corev1.PersistentVolumeClaim{}
-	if err := r.Client.Get(context.TODO(), req.NamespacedName, pvc); err != nil {
+	if err := r.client.Get(context.TODO(), req.NamespacedName, pvc); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return reconcile.Result{}, nil
 		}
@@ -179,7 +179,7 @@ func (r *ImportReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 func (r *ImportReconciler) findImporterPod(pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*corev1.Pod, error) {
 	podName := importPodNameFromPvc(pvc)
 	pod := &corev1.Pod{}
-	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: pvc.GetNamespace()}, pod)
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: pvc.GetNamespace()}, pod)
 
 	if k8serrors.IsNotFound(err) {
 		return nil, nil
@@ -212,7 +212,7 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 	} else {
 		if pvc.DeletionTimestamp != nil {
 			log.V(1).Info("PVC being terminated, delete pods", "pod.Name", pod.Name)
-			if err := r.Client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
+			if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
 				return reconcile.Result{}, err
 			}
 			return reconcile.Result{}, nil
@@ -280,7 +280,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			r.recorder.Event(pvc, corev1.EventTypeNormal, ImportSucceededPVC, "Import Successful")
 			log.V(1).Info("Completed successfully, deleting POD", "pod.Name", pod.Name)
 		}
-		if err := r.Client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
+		if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
 			return err
 		}
 	}
@@ -290,14 +290,14 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 func (r *ImportReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
 	log.V(1).Info("Phase is now", "pvc.anno.Phase", pvc.GetAnnotations()[AnnPodPhase])
 	log.V(1).Info("Restarts is now", "pvc.anno.Restarts", pvc.GetAnnotations()[AnnPodRestarts])
-	if err := r.Client.Update(context.TODO(), pvc); err != nil {
+	if err := r.client.Update(context.TODO(), pvc); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) error {
-	r.Log.V(1).Info("Creating importer POD for PVC", "pvc.Name", pvc.Name)
+	r.log.V(1).Info("Creating importer POD for PVC", "pvc.Name", pvc.Name)
 	var scratchPvcName *string
 	var err error
 
@@ -313,14 +313,14 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 	}
 
 	// all checks passed, let's create the importer pod!
-	pod, err := createImporterPod(r.Log, r.Client, r.Image, r.Verbose, r.PullPolicy, podEnvVar, pvc, scratchPvcName)
+	pod, err := createImporterPod(r.log, r.client, r.image, r.verbose, r.pullPolicy, podEnvVar, pvc, scratchPvcName)
 
 	if err != nil {
 		return err
 	}
-	r.Log.V(1).Info("Created POD", "pod.Name", pod.Name)
+	r.log.V(1).Info("Created POD", "pod.Name", pod.Name)
 	if requiresScratch {
-		r.Log.V(1).Info("POD requires scratch space")
+		r.log.V(1).Info("POD requires scratch space")
 		return r.createScratchPvcForPod(pvc, pod)
 	}
 	return nil
@@ -339,7 +339,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		}
 		podEnvVar.secretName = r.getSecretName(pvc)
 		if podEnvVar.secretName == "" {
-			r.Log.V(2).Info("no secret will be supplied to endpoint", "endPoint", podEnvVar.ep)
+			r.log.V(2).Info("no secret will be supplied to endpoint", "endPoint", podEnvVar.ep)
 		}
 		podEnvVar.certConfigMap, err = r.getCertConfigMap(pvc)
 		if err != nil {
@@ -379,19 +379,19 @@ func (r *ImportReconciler) isInsecureTLS(pvc *corev1.PersistentVolumeClaim) (boo
 		return false, nil
 	}
 
-	r.Log.V(1).Info("Checking configmap for host", "configMapName", configMapName, "host URL", url.Host)
+	r.log.V(1).Info("Checking configmap for host", "configMapName", configMapName, "host URL", url.Host)
 
 	cm := &corev1.ConfigMap{}
 	if err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: configMapName, Namespace: util.GetNamespace()}, cm); err != nil {
 		if k8serrors.IsNotFound(err) {
-			r.Log.V(1).Info("Configmap does not exist", "configMapName", configMapName)
+			r.log.V(1).Info("Configmap does not exist", "configMapName", configMapName)
 			return false, nil
 		}
 		return false, err
 	}
 
 	for key, value := range cm.Data {
-		r.Log.V(1).Info("Checking host against key, value pair", "host", url.Host, "Key", key, "Value", value)
+		r.log.V(1).Info("Checking host against key, value pair", "host", url.Host, "Key", key, "Value", value)
 
 		if value == url.Host {
 			return true, nil
@@ -410,7 +410,7 @@ func (r *ImportReconciler) getCertConfigMap(pvc *corev1.PersistentVolumeClaim) (
 	configMap := &corev1.ConfigMap{}
 	if err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: value, Namespace: pvc.Namespace}, configMap); err != nil {
 		if k8serrors.IsNotFound(err) {
-			r.Log.V(1).Info("Configmap does not exist, pod will not start until it does", "configMapName", value)
+			r.log.V(1).Info("Configmap does not exist, pod will not start until it does", "configMapName", value)
 			return value, nil
 		}
 
@@ -433,7 +433,7 @@ func (r *ImportReconciler) getSecretName(pvc *corev1.PersistentVolumeClaim) stri
 		} else {
 			msg += fmt.Sprintf("secret name is missing from annotation %q in pvc \"%s/%s\"", AnnSecret, ns, pvc.Name)
 		}
-		r.Log.V(2).Info(msg)
+		r.log.V(2).Info(msg)
 		return "" // importer pod will not contain secret credentials
 	}
 	return name
@@ -463,15 +463,15 @@ func (r *ImportReconciler) requiresScratchSpace(pvc *corev1.PersistentVolumeClai
 
 func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod) error {
 	scratchPvc := &corev1.PersistentVolumeClaim{}
-	err := r.Client.Get(context.TODO(), types.NamespacedName{Namespace: pvc.GetNamespace(), Name: scratchNameFromPvc(pvc)}, scratchPvc)
+	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: pvc.GetNamespace(), Name: scratchNameFromPvc(pvc)}, scratchPvc)
 	if IgnoreNotFound(err) != nil {
 		return err
 	}
 	if k8serrors.IsNotFound(err) {
 		scratchPVCName := scratchNameFromPvc(pvc)
-		storageClassName := GetScratchPvcStorageClass(r.Client, pvc)
+		storageClassName := GetScratchPvcStorageClass(r.client, pvc)
 		// Scratch PVC doesn't exist yet, create it. Determine which storage class to use.
-		_, err = CreateScratchPersistentVolumeClaim(r.Client, pvc, pod, scratchPVCName, storageClassName)
+		_, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, scratchPVCName, storageClassName)
 		if err != nil {
 			return err
 		}

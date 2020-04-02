@@ -65,16 +65,16 @@ const (
 
 // CloneReconciler members
 type CloneReconciler struct {
-	Client              client.Client
-	Scheme              *runtime.Scheme
+	client              client.Client
+	scheme              *runtime.Scheme
 	recorder            record.EventRecorder
 	clientCertGenerator generator.CertGenerator
 	serverCAFetcher     fetcher.CertBundleFetcher
-	Log                 logr.Logger
+	log                 logr.Logger
 	tokenValidator      token.Validator
-	Image               string
-	Verbose             string
-	PullPolicy          string
+	image               string
+	verbose             string
+	pullPolicy          string
 }
 
 // NewCloneController creates a new instance of the config controller.
@@ -86,13 +86,13 @@ func NewCloneController(mgr manager.Manager,
 	serverCAFetcher fetcher.CertBundleFetcher,
 	apiServerKey *rsa.PublicKey) (controller.Controller, error) {
 	reconciler := &CloneReconciler{
-		Client:              mgr.GetClient(),
-		Scheme:              mgr.GetScheme(),
-		Log:                 log.WithName("clone-controller"),
+		client:              mgr.GetClient(),
+		scheme:              mgr.GetScheme(),
+		log:                 log.WithName("clone-controller"),
 		tokenValidator:      newCloneTokenValidator(apiServerKey),
-		Image:               image,
-		Verbose:             verbose,
-		PullPolicy:          pullPolicy,
+		image:               image,
+		verbose:             verbose,
+		pullPolicy:          pullPolicy,
 		recorder:            mgr.GetEventRecorderFor("clone-controller"),
 		clientCertGenerator: clientCertGenerator,
 		serverCAFetcher:     serverCAFetcher,
@@ -136,13 +136,13 @@ func (r *CloneReconciler) shouldReconcile(pvc *corev1.PersistentVolumeClaim, log
 func (r *CloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
 	// Get the PVC.
 	pvc := &corev1.PersistentVolumeClaim{}
-	if err := r.Client.Get(context.TODO(), req.NamespacedName, pvc); err != nil {
+	if err := r.client.Get(context.TODO(), req.NamespacedName, pvc); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return reconcile.Result{}, nil
 		}
 		return reconcile.Result{}, err
 	}
-	log := r.Log.WithValues("PVC", req.NamespacedName)
+	log := r.log.WithValues("PVC", req.NamespacedName)
 	log.V(1).Info("reconciling Clone PVCs")
 	if !r.shouldReconcile(pvc, log) {
 		log.V(1).Info("Should not reconcile this PVC", "checkPVC(AnnCloneRequest)", checkPVC(pvc, AnnCloneRequest, log), "NOT has annotation(AnnCloneOf)", !metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf), "has finalizer?", r.hasFinalizer(pvc, cloneSourcePodFinalizer))
@@ -191,7 +191,7 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, pvc *corev1.
 			return errors.Errorf("PVC %s/%s missing required %s annotation", pvc.Namespace, pvc.Name, AnnUploadClientName)
 		}
 
-		sourcePod, err := r.CreateCloneSourcePod(r.Image, r.PullPolicy, clientName, pvc, log)
+		sourcePod, err := r.CreateCloneSourcePod(r.image, r.pullPolicy, clientName, pvc, log)
 		if err != nil {
 			return err
 		}
@@ -230,7 +230,7 @@ func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.Pe
 }
 
 func (r *CloneReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim) error {
-	if err := r.Client.Update(context.TODO(), pvc); err != nil {
+	if err := r.client.Update(context.TODO(), pvc); err != nil {
 		return err
 	}
 	return nil
@@ -272,7 +272,7 @@ func (r *CloneReconciler) findCloneSourcePod(pvc *corev1.PersistentVolumeClaim) 
 	}
 
 	podList := &corev1.PodList{}
-	if err := r.Client.List(context.TODO(), podList, &client.ListOptions{Namespace: sourceNamespace, LabelSelector: selector}); err != nil {
+	if err := r.client.List(context.TODO(), podList, &client.ListOptions{Namespace: sourceNamespace, LabelSelector: selector}); err != nil {
 		return nil, errors.Wrap(err, "error listing pods")
 	}
 
@@ -341,7 +341,7 @@ func (r *CloneReconciler) getCloneRequestSourcePVC(pvc *corev1.PersistentVolumeC
 		return nil, errors.New("error parsing clone request annotation")
 	}
 	pvc = &corev1.PersistentVolumeClaim{}
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, pvc); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, pvc); err != nil {
 		return nil, errors.Wrap(err, "error getting clone source PVC")
 	}
 	return pvc, nil
@@ -361,7 +361,7 @@ func (r *CloneReconciler) cleanup(pvc *corev1.PersistentVolumeClaim, log logr.Lo
 			return nil
 		}
 
-		if err = r.Client.Delete(context.TODO(), pod); err != nil {
+		if err = r.client.Delete(context.TODO(), pod); err != nil {
 			if !k8serrors.IsNotFound(err) {
 				return errors.Wrap(err, "error deleting clone source pod")
 			}
@@ -393,14 +393,14 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy, clientName str
 		return nil, err
 	}
 
-	podResourceRequirements, err := GetDefaultPodResourceRequirements(r.Client)
+	podResourceRequirements, err := GetDefaultPodResourceRequirements(r.client)
 	if err != nil {
 		return nil, err
 	}
 
 	pod := MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerKey, clientKey, clientCert, serverCABundle, pvc, podResourceRequirements)
 
-	if err := r.Client.Create(context.TODO(), pod); err != nil {
+	if err := r.client.Create(context.TODO(), pod); err != nil {
 		return nil, errors.Wrap(err, "source pod API create errored")
 	}
 

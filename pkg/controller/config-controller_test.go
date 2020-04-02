@@ -58,10 +58,10 @@ var (
 var _ = Describe("CDIConfig Controller reconcile loop", func() {
 	It("Should not update if no changes happened", func() {
 		reconciler, cdiConfig := createConfigReconciler(createConfigMap(operator.ConfigMapName, testNamespace))
-		err := reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: reconciler.ConfigName}, cdiConfig)
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		_, err = reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: reconciler.ConfigName}, cdiConfig)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		// CDIConfig generated, now reconcile again without changes.
 		_, err = reconciler.Reconcile(reconcile.Request{})
@@ -71,15 +71,15 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 	It("Should set proxyURL to override if no ingress or route exists", func() {
 		reconciler, cdiConfig := createConfigReconciler(createConfigMap(operator.ConfigMapName, testNamespace))
 		_, err := reconciler.Reconcile(reconcile.Request{})
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: reconciler.ConfigName}, cdiConfig)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		override := "www.override-something.org.tt.test"
 		cdiConfig.Spec.UploadProxyURLOverride = &override
-		err = reconciler.Client.Update(context.TODO(), cdiConfig)
+		err = reconciler.client.Update(context.TODO(), cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		_, err = reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: reconciler.ConfigName}, cdiConfig)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(override).To(Equal(*cdiConfig.Status.UploadProxyURL))
 	})
@@ -91,15 +91,15 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 			),
 		)
 		_, err := reconciler.Reconcile(reconcile.Request{})
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: reconciler.ConfigName}, cdiConfig)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		override := "www.override-something.org.tt.test"
 		cdiConfig.Spec.UploadProxyURLOverride = &override
-		err = reconciler.Client.Update(context.TODO(), cdiConfig)
+		err = reconciler.client.Update(context.TODO(), cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		_, err = reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: reconciler.ConfigName}, cdiConfig)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(override).To(Equal(*cdiConfig.Status.UploadProxyURL))
 	})
@@ -117,7 +117,7 @@ var _ = Describe("Controller ingress reconcile loop", func() {
 		reconciler, cdiConfig := createConfigReconciler(createIngressList(
 			*createIngress("test-ingress", "test-ns", testServiceName, testURL),
 		))
-		reconciler.UploadProxyServiceName = testServiceName
+		reconciler.uploadProxyServiceName = testServiceName
 		err := reconciler.reconcileIngress(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(*cdiConfig.Status.UploadProxyURL).To(Equal(testURL))
@@ -127,7 +127,7 @@ var _ = Describe("Controller ingress reconcile loop", func() {
 		reconciler, cdiConfig := createConfigReconciler(createIngressList(
 			*createIngress("test-ingress", "test-ns", "incorrect", testURL),
 		))
-		reconciler.UploadProxyServiceName = testServiceName
+		reconciler.uploadProxyServiceName = testServiceName
 		err := reconciler.reconcileIngress(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cdiConfig.Status.UploadProxyURL).To(BeNil())
@@ -140,7 +140,7 @@ var _ = Describe("Controller ingress reconcile loop", func() {
 			*createIngress("test-ingress3", "test-ns", testServiceName, testURL),
 			*createIngress("test-ingress4", "test-ns", "service3", "invalidurl3"),
 		))
-		reconciler.UploadProxyServiceName = testServiceName
+		reconciler.uploadProxyServiceName = testServiceName
 		err := reconciler.reconcileIngress(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(*cdiConfig.Status.UploadProxyURL).To(Equal(testURL))
@@ -159,7 +159,7 @@ var _ = Describe("Controller route reconcile loop", func() {
 		reconciler, cdiConfig := createConfigReconciler(createRouteList(
 			*createRoute("test-ingress", "test-ns", testServiceName),
 		))
-		reconciler.UploadProxyServiceName = testServiceName
+		reconciler.uploadProxyServiceName = testServiceName
 		err := reconciler.reconcileRoute(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(*cdiConfig.Status.UploadProxyURL).To(Equal(testRouteURL))
@@ -169,7 +169,7 @@ var _ = Describe("Controller route reconcile loop", func() {
 		reconciler, cdiConfig := createConfigReconciler(createRouteList(
 			*createRoute("test-ingress", "test-ns", "incorrect"),
 		))
-		reconciler.UploadProxyServiceName = testServiceName
+		reconciler.uploadProxyServiceName = testServiceName
 		err := reconciler.reconcileRoute(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cdiConfig.Status.UploadProxyURL).To(BeNil())
@@ -182,7 +182,7 @@ var _ = Describe("Controller route reconcile loop", func() {
 			*createRoute("test-ingress3", "test-ns", testServiceName),
 			*createRoute("test-ingress4", "test-ns", "service3"),
 		))
-		reconciler.UploadProxyServiceName = testServiceName
+		reconciler.uploadProxyServiceName = testServiceName
 		err := reconciler.reconcileRoute(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(*cdiConfig.Status.UploadProxyURL).To(Equal(testRouteURL))
@@ -272,7 +272,7 @@ var _ = Describe("Controller create CDI config", func() {
 		Expect(cdiConfig.Name).To(Equal("cdiconfig"))
 
 		// Make sure no cdi config object exists
-		err := reconciler.Client.Delete(context.TODO(), cdiConfig)
+		err := reconciler.client.Delete(context.TODO(), cdiConfig)
 		Expect(err).To(Not(HaveOccurred()))
 
 		owner := true
@@ -288,10 +288,10 @@ var _ = Describe("Controller create CDI config", func() {
 				},
 			},
 		}
-		err = reconciler.Client.Create(context.TODO(), configMap)
+		err = reconciler.client.Create(context.TODO(), configMap)
 		Expect(err).To(Not(HaveOccurred()))
 
-		reconciler.ConfigName = "testconfig"
+		reconciler.configName = "testconfig"
 		resConfig, err := reconciler.createCDIConfig()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resConfig.Name).To(Equal("testconfig"))
@@ -634,12 +634,12 @@ func createConfigReconciler(objects ...runtime.Object) (*CDIConfigReconciler, *c
 
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	r := &CDIConfigReconciler{
-		Client:         cl,
+		client:         cl,
 		uncachedClient: cl,
-		Scheme:         s,
-		Log:            configLog,
-		ConfigName:     "cdiconfig",
-		CDINamespace:   testNamespace,
+		scheme:         s,
+		log:            configLog,
+		configName:     "cdiconfig",
+		cdiNamespace:   testNamespace,
 	}
 	return r, cdiConfig
 }

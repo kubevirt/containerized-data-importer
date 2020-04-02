@@ -34,14 +34,14 @@ import (
 
 // CDIConfigReconciler members
 type CDIConfigReconciler struct {
-	Client client.Client
+	client client.Client
 	// use this for getting any resources not in the install namespace or cluster scope
 	uncachedClient         client.Client
-	Scheme                 *runtime.Scheme
-	Log                    logr.Logger
-	UploadProxyServiceName string
-	ConfigName             string
-	CDINamespace           string
+	scheme                 *runtime.Scheme
+	log                    logr.Logger
+	uploadProxyServiceName string
+	configName             string
+	cdiNamespace           string
 }
 
 func isErrCacheNotStarted(err error) bool {
@@ -53,7 +53,7 @@ func isErrCacheNotStarted(err error) bool {
 
 // Reconcile the reconcile loop for the CDIConfig object.
 func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
-	log := r.Log.WithValues("CDIConfig", req.NamespacedName)
+	log := r.log.WithValues("CDIConfig", req.NamespacedName)
 	log.Info("reconciling CDIConfig")
 
 	config, err := r.createCDIConfig()
@@ -91,7 +91,7 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 	if !reflect.DeepEqual(currentConfigCopy, config) {
 		// Updates have happened, update CDIConfig.
 		log.Info("Updating CDIConfig", "CDIConfig.Name", config.Name, "config", config)
-		if err := r.Client.Update(context.TODO(), config); err != nil {
+		if err := r.client.Update(context.TODO(), config); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
@@ -99,13 +99,13 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 }
 
 func (r *CDIConfigReconciler) reconcileIngress(config *cdiv1.CDIConfig) error {
-	log := r.Log.WithName("CDIconfig").WithName("IngressReconcile")
+	log := r.log.WithName("CDIconfig").WithName("IngressReconcile")
 	ingressList := &extensionsv1beta1.IngressList{}
-	if err := r.Client.List(context.TODO(), ingressList, &client.ListOptions{}); IgnoreIsNoMatchError(err) != nil {
+	if err := r.client.List(context.TODO(), ingressList, &client.ListOptions{}); IgnoreIsNoMatchError(err) != nil {
 		return err
 	}
 	for _, ingress := range ingressList.Items {
-		ingressURL := getURLFromIngress(&ingress, r.UploadProxyServiceName)
+		ingressURL := getURLFromIngress(&ingress, r.uploadProxyServiceName)
 		if ingressURL != "" {
 			log.Info("Setting upload proxy url", "IngressURL", ingressURL)
 			config.Status.UploadProxyURL = &ingressURL
@@ -118,13 +118,13 @@ func (r *CDIConfigReconciler) reconcileIngress(config *cdiv1.CDIConfig) error {
 }
 
 func (r *CDIConfigReconciler) reconcileRoute(config *cdiv1.CDIConfig) error {
-	log := r.Log.WithName("CDIconfig").WithName("RouteReconcile")
+	log := r.log.WithName("CDIconfig").WithName("RouteReconcile")
 	routeList := &routev1.RouteList{}
-	if err := r.Client.List(context.TODO(), routeList, &client.ListOptions{}); IgnoreIsNoMatchError(err) != nil {
+	if err := r.client.List(context.TODO(), routeList, &client.ListOptions{}); IgnoreIsNoMatchError(err) != nil {
 		return err
 	}
 	for _, route := range routeList.Items {
-		routeURL := getURLFromRoute(&route, r.UploadProxyServiceName)
+		routeURL := getURLFromRoute(&route, r.uploadProxyServiceName)
 		if routeURL != "" {
 			log.Info("Setting upload proxy url", "RouteURL", routeURL)
 			config.Status.UploadProxyURL = &routeURL
@@ -137,9 +137,9 @@ func (r *CDIConfigReconciler) reconcileRoute(config *cdiv1.CDIConfig) error {
 }
 
 func (r *CDIConfigReconciler) reconcileStorageClass(config *cdiv1.CDIConfig) error {
-	log := r.Log.WithName("CDIconfig").WithName("StorageClassReconcile")
+	log := r.log.WithName("CDIconfig").WithName("StorageClassReconcile")
 	storageClassList := &storagev1.StorageClassList{}
-	if err := r.Client.List(context.TODO(), storageClassList, &client.ListOptions{}); err != nil {
+	if err := r.client.List(context.TODO(), storageClassList, &client.ListOptions{}); err != nil {
 		return err
 	}
 
@@ -208,16 +208,16 @@ func (r *CDIConfigReconciler) reconcileDefaultPodResourceRequirements(config *cd
 // It also sets the operator to be the owner of the CDIConfig object.
 func (r *CDIConfigReconciler) createCDIConfig() (*cdiv1.CDIConfig, error) {
 	config := &cdiv1.CDIConfig{}
-	if err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: r.ConfigName}, config); err != nil {
+	if err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: r.configName}, config); err != nil {
 		if errors.IsNotFound(err) {
-			config = MakeEmptyCDIConfigSpec(r.ConfigName)
+			config = MakeEmptyCDIConfigSpec(r.configName)
 			if err := operator.SetOwnerRuntime(r.uncachedClient, config); err != nil {
 				return nil, err
 			}
-			if err := r.Client.Create(context.TODO(), config); err != nil {
+			if err := r.client.Create(context.TODO(), config); err != nil {
 				if errors.IsAlreadyExists(err) {
 					config := &cdiv1.CDIConfig{}
-					if err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: r.ConfigName}, config); err == nil {
+					if err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: r.configName}, config); err == nil {
 						return config, nil
 					}
 					return nil, err
@@ -247,13 +247,13 @@ func NewConfigController(mgr manager.Manager, log logr.Logger, uploadProxyServic
 		return nil, err
 	}
 	reconciler := &CDIConfigReconciler{
-		Client:                 mgr.GetClient(),
+		client:                 mgr.GetClient(),
 		uncachedClient:         uncachedClient,
-		Scheme:                 mgr.GetScheme(),
-		Log:                    log.WithName("config-controller"),
-		UploadProxyServiceName: uploadProxyServiceName,
-		ConfigName:             configName,
-		CDINamespace:           util.GetNamespace(),
+		scheme:                 mgr.GetScheme(),
+		log:                    log.WithName("config-controller"),
+		uploadProxyServiceName: uploadProxyServiceName,
+		configName:             configName,
+		cdiNamespace:           util.GetNamespace(),
 	}
 
 	configController, err := controller.New("config-controller", mgr, controller.Options{
@@ -262,7 +262,7 @@ func NewConfigController(mgr manager.Manager, log logr.Logger, uploadProxyServic
 	if err != nil {
 		return nil, err
 	}
-	if err := addConfigControllerWatches(mgr, configController, reconciler.CDINamespace, configName, uploadProxyServiceName); err != nil {
+	if err := addConfigControllerWatches(mgr, configController, reconciler.cdiNamespace, configName, uploadProxyServiceName); err != nil {
 		return nil, err
 	}
 	if err := reconciler.Init(); err != nil {

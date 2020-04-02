@@ -123,7 +123,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "block"}})
 		Expect(err).ToNot(HaveOccurred())
 		resultPvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "block"}, resultPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "block"}, resultPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resultPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(corev1.PodSucceeded))
 	})
@@ -136,7 +136,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		_, err := reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		resPvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{}, resPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{}, resPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(reflect.DeepEqual(orgPvc, resPvc)).To(BeTrue())
 	})
@@ -146,7 +146,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		_, err := reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
 		Expect(err).ToNot(HaveOccurred())
 		foundEndPoint := false
 		for _, envVar := range pod.Spec.Containers[0].Env {
@@ -165,7 +165,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		_, err := reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
 		Expect(err).ToNot(HaveOccurred())
 		foundEndPoint := false
 		for _, envVar := range pod.Spec.Containers[0].Env {
@@ -216,21 +216,21 @@ var _ = Describe("Update PVC from POD", func() {
 		}
 		reconciler = createImportReconciler(pvc, pod)
 		resPod := &corev1.Pod{}
-		err := reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, resPod)
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, resPod)
 		Expect(err).ToNot(HaveOccurred())
-		err = reconciler.updatePvcFromPod(pvc, pod, reconciler.Log)
+		err = reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking import successful event recorded")
 		event := <-reconciler.recorder.(*record.FakeRecorder).Events
 		Expect(event).To(ContainSubstring("Import Successful"))
 		By("Checking pvc phase has been updated")
 		resPvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(corev1.PodSucceeded))
 		By("Checking pod has been deleted")
 		resPod = &corev1.Pod{}
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, resPod)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, resPod)
 		Expect(err).To(HaveOccurred())
 		Expect(errors.IsNotFound(err)).To(BeTrue())
 	})
@@ -243,19 +243,19 @@ var _ = Describe("Update PVC from POD", func() {
 		}
 		reconciler = createImportReconciler(pvc, pod)
 		resPod := &corev1.Pod{}
-		err := reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, resPod)
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, resPod)
 		Expect(err).ToNot(HaveOccurred())
-		err = reconciler.updatePvcFromPod(pvc, pod, reconciler.Log)
+		err = reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking pvc phase has been updated")
 		resPvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(corev1.PodRunning))
 		Expect(resPvc.GetAnnotations()[AnnImportPod]).To(Equal(pod.Name))
 		By("Checking pod has NOT been deleted")
 		resPod = &corev1.Pod{}
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, resPod)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, resPod)
 		Expect(err).ToNot(HaveOccurred())
 		By("Making sure the label has been added")
 		Expect(resPvc.GetLabels()[common.CDILabelKey]).To(Equal(common.CDILabelValue))
@@ -268,17 +268,17 @@ var _ = Describe("Update PVC from POD", func() {
 			Phase: corev1.PodPending,
 		}
 		reconciler = createImportReconciler(pvc, pod)
-		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.Log)
+		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking scratch PVC has been created")
 		// Once all controllers are converted, we will use the runtime lib client instead of client-go and retrieval needs to change here.
 		scratchPvc := &v1.PersistentVolumeClaim{}
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1-scratch", Namespace: "default"}, scratchPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1-scratch", Namespace: "default"}, scratchPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(scratchPvc.Spec.Resources).To(Equal(pvc.Spec.Resources))
 
 		resPvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resPvc.GetAnnotations()[AnnImportPod]).To(Equal(pod.Name))
 	})
@@ -302,11 +302,11 @@ var _ = Describe("Update PVC from POD", func() {
 			},
 		}
 		reconciler = createImportReconciler(pvc, pod)
-		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.Log)
+		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking pvc phase has been updated")
 		resPvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(corev1.PodFailed))
 		Expect(resPvc.GetAnnotations()[AnnImportPod]).To(Equal(pod.Name))
@@ -333,11 +333,11 @@ var _ = Describe("Update PVC from POD", func() {
 			},
 		}
 		reconciler = createImportReconciler(pvc, pod)
-		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.Log)
+		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking pvc phase has been updated")
 		resPvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying that the phase hasn't changed")
 		Expect(resPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(corev1.PodRunning))
@@ -362,7 +362,7 @@ var _ = Describe("Create Importer Pod", func() {
 			diskID:        "",
 			insecureTLS:   false,
 		}
-		pod, err := createImporterPod(reconciler.Log, reconciler.Client, testImage, "5", testPullPolicy, podEnvVar, pvc, scratchPvcName)
+		pod, err := createImporterPod(reconciler.log, reconciler.client, testImage, "5", testPullPolicy, podEnvVar, pvc, scratchPvcName)
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying PVC owns pod")
 		Expect(len(pod.GetOwnerReferences())).To(Equal(1))
@@ -578,10 +578,10 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	rec := record.NewFakeRecorder(1)
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	r := &ImportReconciler{
-		Client:         cl,
+		client:         cl,
 		uncachedClient: cl,
-		Scheme:         s,
-		Log:            importLog,
+		scheme:         s,
+		log:            importLog,
 		recorder:       rec,
 	}
 	return r

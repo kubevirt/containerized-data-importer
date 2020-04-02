@@ -35,18 +35,18 @@ const (
 
 // SmartCloneReconciler members
 type SmartCloneReconciler struct {
-	Client   client.Client
+	client   client.Client
 	recorder record.EventRecorder
-	Scheme   *runtime.Scheme
-	Log      logr.Logger
+	scheme   *runtime.Scheme
+	log      logr.Logger
 }
 
 // NewSmartCloneController creates a new instance of the Smart clone controller.
 func NewSmartCloneController(mgr manager.Manager, log logr.Logger) (controller.Controller, error) {
 	reconciler := &SmartCloneReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Log:      log.WithName("smartclone-controller"),
+		client:   mgr.GetClient(),
+		scheme:   mgr.GetScheme(),
+		log:      log.WithName("smartclone-controller"),
 		recorder: mgr.GetEventRecorderFor("smartclone-controller"),
 	}
 	smartCloneController, err := controller.New("smartclone-controller", mgr, controller.Options{
@@ -142,14 +142,14 @@ func shouldReconcilePvc(pvc *corev1.PersistentVolumeClaim) bool {
 
 // Reconcile the reconcile loop for smart cloning.
 func (r *SmartCloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
-	log := r.Log.WithValues("Datavolume", req.NamespacedName)
+	log := r.log.WithValues("Datavolume", req.NamespacedName)
 	log.Info("reconciling smart clone")
 	pvc := &corev1.PersistentVolumeClaim{}
-	if err := r.Client.Get(context.TODO(), req.NamespacedName, pvc); err != nil {
+	if err := r.client.Get(context.TODO(), req.NamespacedName, pvc); err != nil {
 		if k8serrors.IsNotFound(err) {
 			// PVC not found, look up smart clone.
 			snapshot := &csiv1.VolumeSnapshot{}
-			if err := r.Client.Get(context.TODO(), req.NamespacedName, snapshot); err != nil {
+			if err := r.client.Get(context.TODO(), req.NamespacedName, snapshot); err != nil {
 				if k8serrors.IsNotFound(err) {
 					return reconcile.Result{}, nil
 				}
@@ -167,7 +167,7 @@ func (r *SmartCloneReconciler) reconcilePvc(log logr.Logger, pvc *corev1.Persist
 	snapshotName := pvc.Spec.DataSource.Name
 
 	datavolume := &cdiv1.DataVolume{}
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: snapshotName, Namespace: pvc.Namespace}, datavolume); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: snapshotName, Namespace: pvc.Namespace}, datavolume); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -181,7 +181,7 @@ func (r *SmartCloneReconciler) reconcilePvc(log logr.Logger, pvc *corev1.Persist
 	// Don't delete snapshot unless the PVC is bound.
 	if pvc.Status.Phase == corev1.ClaimBound {
 		snapshotToDelete := &csiv1.VolumeSnapshot{}
-		if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: snapshotName, Namespace: pvc.Namespace}, snapshotToDelete); err != nil {
+		if err := r.client.Get(context.TODO(), types.NamespacedName{Name: snapshotName, Namespace: pvc.Namespace}, snapshotToDelete); err != nil {
 			if k8serrors.IsNotFound(err) {
 				// Already gone, so no need to try a delete.
 				return reconcile.Result{}, nil
@@ -189,7 +189,7 @@ func (r *SmartCloneReconciler) reconcilePvc(log logr.Logger, pvc *corev1.Persist
 			return reconcile.Result{}, err
 		}
 
-		if err := r.Client.Delete(context.TODO(), snapshotToDelete); err != nil {
+		if err := r.client.Delete(context.TODO(), snapshotToDelete); err != nil {
 			if !k8serrors.IsNotFound(err) {
 				log.Error(err, "error deleting snapshot for smart-clone")
 				return reconcile.Result{}, err
@@ -204,7 +204,7 @@ func (r *SmartCloneReconciler) reconcilePvc(log logr.Logger, pvc *corev1.Persist
 func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *csiv1.VolumeSnapshot) (reconcile.Result, error) {
 	log.WithValues("snapshot.Name", snapshot.Name).WithValues("snapshot.Namespace", snapshot.Namespace).Info("Updating datavolume status using snapshot")
 	datavolume := &cdiv1.DataVolume{}
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: snapshot.Name, Namespace: snapshot.Namespace}, datavolume); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: snapshot.Name, Namespace: snapshot.Namespace}, datavolume); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -221,7 +221,7 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *csiv
 	}
 
 	log.V(3).Info("Creating PVC from snapshot", "pvc.Namespace", newPvc.Namespace, "pvc.Name", newPvc.Name)
-	if err := r.Client.Create(context.TODO(), newPvc); err != nil {
+	if err := r.client.Create(context.TODO(), newPvc); err != nil {
 		log.Error(err, "error creating pvc from snapshot")
 		return reconcile.Result{}, err
 	}
@@ -252,7 +252,7 @@ func (r *SmartCloneReconciler) updateSmartCloneStatusPhase(phase cdiv1.DataVolum
 func (r *SmartCloneReconciler) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, event *DataVolumeEvent, newPVC *corev1.PersistentVolumeClaim) error {
 	// Only update the object if something actually changed in the status.
 	if !reflect.DeepEqual(dataVolume.Status, dataVolumeCopy.Status) {
-		if err := r.Client.Update(context.TODO(), dataVolumeCopy); err == nil {
+		if err := r.client.Update(context.TODO(), dataVolumeCopy); err == nil {
 			// Emit the event only when the status change happens, not every time
 			if event.eventType != "" {
 				r.recorder.Event(dataVolume, event.eventType, event.reason, event.message)
