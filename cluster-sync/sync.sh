@@ -59,7 +59,19 @@ wait_cdi_crd_installed $CDI_INSTALL_TIMEOUT
 
 _kubectl apply -f "./_out/manifests/release/cdi-cr.yaml"
 echo "Waiting $CDI_AVAILABLE_TIMEOUT seconds for CDI to become available"
+if [[ $KUBEVIRT_PROVIDER=="os-3.11.0-crio" ]]; then
+  echo "Openshift 3.11 provider"
+  available=$(_kubectl get cdi cdi -o jsonpath={.status.conditions[0].status})
+  wait_time=0
+  while [[ $available != "True" ]] && [[ $retry_counter -lt ${CDI_AVAILABLE_TIMEOUT} ]]; do
+    wait_time=$((wait_time + 5))
+    sleep 5
+    available=$(_kubectl get cdi cdi -o jsonpath={.status.conditions[0].status})
+  done
+
+else
 _kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=${CDI_AVAILABLE_TIMEOUT}s
+fi
 
 # If we are upgrading, verify our current value.
 if [[ ! -z "$UPGRADE_FROM" ]]; then
