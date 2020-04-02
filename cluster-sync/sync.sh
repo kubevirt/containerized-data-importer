@@ -15,6 +15,7 @@ CDI_INSTALL="install-operator"
 CDI_NAMESPACE=${CDI_NAMESPACE:-cdi}
 CDI_INSTALL_TIMEOUT=${CDI_INSTALL_TIMEOUT:-120}
 CDI_AVAILABLE_TIMEOUT=${CDI_AVAILABLE_TIMEOUT:-480}
+CDI_UPGRADE_RETRY_COUNT=${CDI_UPGRADE_RETRY_COUNT:-60}
 
 # Set controller verbosity to 3 for functional tests.
 export VERBOSITY=3
@@ -87,7 +88,7 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
     fi
     retry_counter=0
     kill_count=0
-    while [[ $retry_counter -lt 10 ]] && [ "$operator_version" != "$VERSION" ]; do
+    while [[ $retry_counter -lt $CDI_UPGRADE_RETRY_COUNT ]] && [ "$operator_version" != "$VERSION" ]; do
       cdi_cr_phase=`_kubectl get CDI -o=jsonpath='{.items[*].status.phase}{"\n"}'`
       observed_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.observedVersion}{"\n"}'`
       target_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.targetVersion}{"\n"}'`
@@ -101,7 +102,7 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
       _kubectl get pods -n $CDI_NAMESPACE
       sleep 5
     done
-    if [ $retry_counter -eq 10 ]; then
+    if [ $retry_counter -eq $CDI_UPGRADE_RETRY_COUNT ]; then
     echo "Unable to deploy to version $VERSION"
     cdi_obj=$(_kubectl get CDI -o yaml)
     echo $cdi_obj
@@ -112,7 +113,7 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
   echo "Upgrading to latest"
   retry_counter=0
   _kubectl apply -f "./_out/manifests/release/cdi-operator.yaml"
-  while [[ $retry_counter -lt 60 ]] && [ "$observed_version" != "latest" ]; do
+  while [[ $retry_counter -lt $CDI_UPGRADE_RETRY_COUNT ]] && [ "$observed_version" != "latest" ]; do
     cdi_cr_phase=`_kubectl get CDI -o=jsonpath='{.items[*].status.phase}{"\n"}'`
     observed_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.observedVersion}{"\n"}'`
     target_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.targetVersion}{"\n"}'`
@@ -120,9 +121,9 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
     echo "Phase: $cdi_cr_phase, observedVersion: $observed_version, operatorVersion: $operator_version, targetVersion: $target_version"
     retry_counter=$((retry_counter + 1))
     _kubectl get pods -n $CDI_NAMESPACE
-  sleep 1
+    sleep 5
   done
-  if [ $retry_counter -eq 60 ]; then
+  if [ $retry_counter -eq $CDI_UPGRADE_RETRY_COUNT ]; then
 	echo "Unable to deploy to latest version"
 	cdi_obj=$(_kubectl get CDI -o yaml)
 	echo $cdi_obj
