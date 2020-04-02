@@ -20,22 +20,25 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 
 	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 
@@ -48,6 +51,7 @@ import (
 var (
 	apiServerKey     *rsa.PrivateKey
 	apiServerKeyOnce sync.Once
+	cloneLog         = logf.Log.WithName("clone-controller-test")
 )
 
 type fakeCertGenerator struct {
@@ -138,7 +142,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod.GetLabels()[CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
 		By("Verifying the PVC now has a finalizer")
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 	})
@@ -181,7 +185,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod.GetLabels()[CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
 		By("Verifying the PVC now has a finalizer")
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 	})
@@ -206,16 +210,16 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod.GetLabels()[CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
 		By("Verifying the PVC now has a finalizer")
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 		By("Updating the PVC to completed")
 		testPvc = createPvc("testPvc1", "default", map[string]string{
 			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnPodPhase: string(corev1.PodSucceeded)}, nil)
-		reconciler.Client.Update(context.TODO(), testPvc)
+		reconciler.client.Update(context.TODO(), testPvc)
 		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(testPvc.GetAnnotations()[AnnCloneOf]).To(Equal("true"))
 		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
@@ -251,16 +255,16 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod.GetLabels()[CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
 		By("Verifying the PVC now has a finalizer")
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 		By("Updating the PVC to completed")
 		testPvc = createPvc("testPvc1", "default", map[string]string{
 			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnPodPhase: string(corev1.PodSucceeded)}, nil)
-		reconciler.Client.Update(context.TODO(), testPvc)
+		reconciler.client.Update(context.TODO(), testPvc)
 		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(testPvc.GetAnnotations()[AnnCloneOf]).To(Equal("true"))
 		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
@@ -395,12 +399,12 @@ var _ = Describe("Update PVC", func() {
 		}
 		reconciler = createCloneReconciler(testPvc, createPvc("source", "default", map[string]string{}, nil))
 
-		err := reconciler.updatePvcFromPod(pod, testPvc, reconciler.Log)
+		err := reconciler.updatePvcFromPod(pod, testPvc, reconciler.log)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verifying the pvc has original restart count")
 		actualPvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, actualPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, actualPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(actualPvc.Annotations[AnnPodRestarts]).To(Equal("2"))
 	})
@@ -427,15 +431,97 @@ var _ = Describe("Update PVC", func() {
 		}
 		reconciler = createCloneReconciler(testPvc, createPvc("source", "default", map[string]string{}, nil))
 
-		err := reconciler.updatePvcFromPod(pod, testPvc, reconciler.Log)
+		err := reconciler.updatePvcFromPod(pod, testPvc, reconciler.log)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verifying the pvc has original restart count")
 		actualPvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, actualPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, actualPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(actualPvc.Annotations[AnnPodRestarts]).To(Equal("3"))
 	})
+})
+
+var _ = Describe("TokenValidation", func() {
+	g := token.NewGenerator(common.CloneTokenIssuer, getAPIServerKey(), 5*time.Minute)
+	v := newCloneTokenValidator(&getAPIServerKey().PublicKey)
+
+	goodTokenData := func() *token.Payload {
+		return &token.Payload{
+			Operation: token.OperationClone,
+			Name:      "source",
+			Namespace: "sourcens",
+			Resource: metav1.GroupVersionResource{
+				Resource: "persistentvolumeclaims",
+			},
+			Params: map[string]string{
+				"targetName":      "target",
+				"targetNamespace": "targetns",
+			},
+		}
+	}
+
+	source := &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "source",
+			Namespace: "sourcens",
+		},
+	}
+
+	badOperation := goodTokenData()
+	badOperation.Operation = token.OperationUpload
+
+	badSourceName := goodTokenData()
+	badSourceName.Name = "foo"
+
+	badSourceNamespace := goodTokenData()
+	badSourceNamespace.Namespace = "foo"
+
+	badResource := goodTokenData()
+	badResource.Resource.Resource = "foo"
+
+	badTargetName := goodTokenData()
+	badTargetName.Params["targetName"] = "foo"
+
+	badTargetNamespace := goodTokenData()
+	badTargetNamespace.Params["targetNamespace"] = "foo"
+
+	missingParams := goodTokenData()
+	missingParams.Params = nil
+
+	table.DescribeTable("should", func(p *token.Payload, expectedSuccess bool) {
+		tokenString, err := g.Generate(p)
+		if err != nil {
+			panic("error generating token")
+		}
+
+		target := &v1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "target",
+				Namespace: "targetns",
+				Annotations: map[string]string{
+					AnnCloneToken: tokenString,
+				},
+			},
+		}
+		err = validateCloneToken(v, source, target)
+		if expectedSuccess {
+			Expect(err).ToNot(HaveOccurred())
+			Expect(reflect.DeepEqual(p, goodTokenData())).To(BeTrue())
+		} else {
+			Expect(err).To(HaveOccurred())
+			Expect(reflect.DeepEqual(p, goodTokenData())).To(BeFalse())
+		}
+	},
+		table.Entry("succeed", goodTokenData(), true),
+		table.Entry("fail on bad operation", badOperation, false),
+		table.Entry("fail on bad sourceName", badSourceName, false),
+		table.Entry("fail on bad sourceNamespace", badSourceNamespace, false),
+		table.Entry("fail on bad resource", badResource, false),
+		table.Entry("fail on bad targetName", badTargetName, false),
+		table.Entry("fail on bad targetNamespace", badTargetNamespace, false),
+		table.Entry("fail on bad missing parameters", missingParams, false),
+	)
 })
 
 func createCloneReconciler(objects ...runtime.Object) *CloneReconciler {
@@ -453,19 +539,17 @@ func createCloneReconciler(objects ...runtime.Object) *CloneReconciler {
 	rec := record.NewFakeRecorder(1)
 	// Create a fake client to mock API calls.
 	cl := fake.NewFakeClientWithScheme(s, objs...)
-	k8sfakeclientset := k8sfake.NewSimpleClientset(createStorageClass(testStorageClass, nil))
 
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	return &CloneReconciler{
-		Client:   cl,
-		Scheme:   s,
-		Log:      log,
+		client:   cl,
+		scheme:   s,
+		log:      cloneLog,
 		recorder: rec,
 		tokenValidator: &FakeValidator{
 			Params: make(map[string]string, 0),
 		},
-		K8sClient:           k8sfakeclientset,
-		Image:               testImage,
+		image:               testImage,
 		clientCertGenerator: &fakeCertGenerator{},
 		serverCAFetcher:     &fetcher.MemCertBundleFetcher{Bundle: []byte("baz")},
 	}

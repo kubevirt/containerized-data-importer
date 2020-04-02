@@ -41,10 +41,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -146,24 +144,20 @@ type DataVolumeEvent struct {
 
 // DatavolumeReconciler members
 type DatavolumeReconciler struct {
-	Client       client.Client
-	CdiClient    cdiclientset.Interface
-	K8sClient    kubernetes.Interface
-	ExtClientSet extclientset.Interface
+	client       client.Client
+	extClientSet extclientset.Interface
 	recorder     record.EventRecorder
-	Scheme       *runtime.Scheme
-	Log          logr.Logger
+	scheme       *runtime.Scheme
+	log          logr.Logger
 }
 
 // NewDatavolumeController creates a new instance of the datavolume controller.
-func NewDatavolumeController(mgr manager.Manager, cdiClient *cdiclientset.Clientset, k8sClient kubernetes.Interface, extClientSet extclientset.Interface, log logr.Logger) (controller.Controller, error) {
+func NewDatavolumeController(mgr manager.Manager, extClientSet extclientset.Interface, log logr.Logger) (controller.Controller, error) {
 	reconciler := &DatavolumeReconciler{
-		Client:       mgr.GetClient(),
-		Scheme:       mgr.GetScheme(),
-		CdiClient:    cdiClient,
-		K8sClient:    k8sClient,
-		ExtClientSet: extClientSet,
-		Log:          log.WithName("datavolume-controller"),
+		client:       mgr.GetClient(),
+		scheme:       mgr.GetScheme(),
+		extClientSet: extClientSet,
+		log:          log.WithName("datavolume-controller"),
 		recorder:     mgr.GetEventRecorderFor("datavolume-controller"),
 	}
 	datavolumeController, err := controller.New("datavolume-controller", mgr, controller.Options{
@@ -206,11 +200,11 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 
 // Reconcile the reconcile loop for the data volumes.
 func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
-	log := r.Log.WithValues("Datavolume", req.NamespacedName)
+	log := r.log.WithValues("Datavolume", req.NamespacedName)
 
 	// Get the Datavolume.
 	datavolume := &cdiv1.DataVolume{}
-	if err := r.Client.Get(context.TODO(), req.NamespacedName, datavolume); err != nil {
+	if err := r.client.Get(context.TODO(), req.NamespacedName, datavolume); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return reconcile.Result{}, nil
 		}
@@ -225,7 +219,7 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 	pvcExists := true
 	// Get the pvc with the name specified in DataVolume.spec
 	pvc := &corev1.PersistentVolumeClaim{}
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Namespace: datavolume.Namespace, Name: datavolume.Name}, pvc); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: datavolume.Namespace, Name: datavolume.Name}, pvc); err != nil {
 		// If the resource doesn't exist, we'll create it
 		if k8serrors.IsNotFound(err) {
 			pvcExists = false
@@ -246,9 +240,9 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 	if !pvcExists {
 		snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume)
 		if err == nil {
-			r.Log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class", "snapshotClassName", snapshotClassName)
+			r.log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class", "snapshotClassName", snapshotClassName)
 			newSnapshot := newSnapshot(datavolume, snapshotClassName)
-			if err := r.Client.Create(context.TODO(), newSnapshot); err != nil {
+			if err := r.client.Create(context.TODO(), newSnapshot); err != nil {
 				if k8serrors.IsAlreadyExists(err) {
 					return reconcile.Result{}, nil
 				}
@@ -261,7 +255,7 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-		if err := r.Client.Create(context.TODO(), newPvc); err != nil {
+		if err := r.client.Create(context.TODO(), newPvc); err != nil {
 			return reconcile.Result{}, err
 		}
 		pvc = newPvc
@@ -288,7 +282,7 @@ func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVol
 
 	if datavolume.Status.Phase == cdiv1.Succeeded || datavolume.Status.Phase == cdiv1.Failed {
 		// Data volume completed progress, or failed, either way stop queueing the data volume.
-		r.Log.Info("Datavolume finished, no longer updating progress", "Namespace", datavolume.Namespace, "Name", datavolume.Name, "Phase", datavolume.Status.Phase)
+		r.log.Info("Datavolume finished, no longer updating progress", "Namespace", datavolume.Namespace, "Name", datavolume.Name, "Phase", datavolume.Status.Phase)
 		return reconcile.Result{}, nil
 	}
 	pod, err := r.getPodFromPvc(podNamespace, pvcUID)
@@ -309,8 +303,8 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	}
 
 	// Check if relevant CRDs are available
-	if !IsCsiCrdsDeployed(r.ExtClientSet) {
-		r.Log.V(3).Info("Missing CSI snapshotter CRDs, falling back to host assisted clone")
+	if !IsCsiCrdsDeployed(r.extClientSet) {
+		r.log.V(3).Info("Missing CSI snapshotter CRDs, falling back to host assisted clone")
 		return "", errors.New("CSI snapshot CRDs not found")
 	}
 
@@ -321,9 +315,9 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	}
 
 	pvc := &corev1.PersistentVolumeClaim{}
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Namespace: sourcePvcNs, Name: dataVolume.Spec.Source.PVC.Name}, pvc); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: sourcePvcNs, Name: dataVolume.Spec.Source.PVC.Name}, pvc); err != nil {
 		if k8serrors.IsNotFound(err) {
-			r.Log.V(3).Info("Source PVC is missing", "source namespace", dataVolume.Spec.Source.PVC.Namespace, "source name", dataVolume.Spec.Source.PVC.Name)
+			r.log.V(3).Info("Source PVC is missing", "source namespace", dataVolume.Spec.Source.PVC.Namespace, "source name", dataVolume.Spec.Source.PVC.Name)
 		}
 		return "", errors.New("source PVC not found")
 	}
@@ -333,8 +327,8 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	// Handle unspecified storage class name, fallback to default storage class
 	if targetPvcStorageClassName == nil {
 		storageClasses := &storagev1.StorageClassList{}
-		if err := r.Client.List(context.TODO(), storageClasses); err != nil {
-			r.Log.V(3).Info("Unable to retrieve available storage classes, falling back to host assisted clone")
+		if err := r.client.List(context.TODO(), storageClasses); err != nil {
+			r.log.V(3).Info("Unable to retrieve available storage classes, falling back to host assisted clone")
 			return "", errors.New("unable to retrieve storage classes")
 		}
 		for _, storageClass := range storageClasses.Items {
@@ -346,7 +340,7 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	}
 
 	if targetPvcStorageClassName == nil {
-		r.Log.V(3).Info("Target PVC's Storage Class not found")
+		r.log.V(3).Info("Target PVC's Storage Class not found")
 		return "", errors.New("Target PVC storage class not found")
 	}
 
@@ -354,41 +348,41 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 
 	// Compare source and target storage classess
 	if *sourcePvcStorageClassName != *targetPvcStorageClassName {
-		r.Log.V(3).Info("Source PVC and target PVC belong to different storage classes", "source storage class",
+		r.log.V(3).Info("Source PVC and target PVC belong to different storage classes", "source storage class",
 			*sourcePvcStorageClassName, "target storage class", *targetPvcStorageClassName)
 		return "", errors.New("source PVC and target PVC belong to different storage classes")
 	}
 
 	// Compare source and target namespaces
 	if pvc.Namespace != dataVolume.Namespace {
-		r.Log.V(3).Info("Source PVC and target PVC belong to different namespaces", "source namespace",
+		r.log.V(3).Info("Source PVC and target PVC belong to different namespaces", "source namespace",
 			pvc.Namespace, "target namespace", dataVolume.Namespace)
 		return "", errors.New("source PVC and target PVC belong to different namespaces")
 	}
 
 	// Fetch the source storage class
 	storageClass := &storagev1.StorageClass{}
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: *sourcePvcStorageClassName}, storageClass); err != nil {
-		r.Log.V(3).Info("Unable to retrieve storage class, falling back to host assisted clone", "storage class", *sourcePvcStorageClassName)
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *sourcePvcStorageClassName}, storageClass); err != nil {
+		r.log.V(3).Info("Unable to retrieve storage class, falling back to host assisted clone", "storage class", *sourcePvcStorageClassName)
 		return "", errors.New("unable to retrieve storage class, falling back to host assisted clone")
 	}
 
 	// List the snapshot classes
 	scs := &csiv1.VolumeSnapshotClassList{}
-	if err := r.Client.List(context.TODO(), scs); err != nil {
-		r.Log.V(3).Info("Cannot list snapshot classes, falling back to host assisted clone")
+	if err := r.client.List(context.TODO(), scs); err != nil {
+		r.log.V(3).Info("Cannot list snapshot classes, falling back to host assisted clone")
 		return "", errors.New("cannot list snapshot classes, falling back to host assisted clone")
 	}
 	for _, snapshotClass := range scs.Items {
 		// Validate association between snapshot class and storage class
 		if snapshotClass.Snapshotter == storageClass.Provisioner {
-			r.Log.V(3).Info("smart-clone is applicable for datavolume", "datavolume",
+			r.log.V(3).Info("smart-clone is applicable for datavolume", "datavolume",
 				dataVolume.Name, "snapshot class", snapshotClass.Name)
 			return snapshotClass.Name, nil
 		}
 	}
 
-	r.Log.V(3).Info("Could not match snapshotter with storage class, falling back to host assisted clone")
+	r.log.V(3).Info("Could not match snapshotter with storage class, falling back to host assisted clone")
 	return "", errors.New("could not match snapshotter with storage class, falling back to host assisted clone")
 }
 
@@ -623,8 +617,8 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 func (r *DatavolumeReconciler) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, curPhase cdiv1.DataVolumePhase, event *DataVolumeEvent) error {
 	// Only update the object if something actually changed in the status.
 	if !reflect.DeepEqual(dataVolume.Status, dataVolumeCopy.Status) {
-		if err := r.Client.Update(context.TODO(), dataVolumeCopy); err != nil {
-			r.Log.Error(err, "Unable to update datavolume", "name", dataVolumeCopy.Name)
+		if err := r.client.Update(context.TODO(), dataVolumeCopy); err != nil {
+			r.log.Error(err, "Unable to update datavolume", "name", dataVolumeCopy.Name)
 			return err
 		}
 		// Emit the event only when the status change happens, not every time
@@ -642,7 +636,7 @@ func (r *DatavolumeReconciler) getPodFromPvc(namespace string, pvcUID types.UID)
 	listOptions := client.ListOptions{
 		LabelSelector: l,
 	}
-	if err := r.Client.List(context.TODO(), pods, &listOptions); err != nil {
+	if err := r.client.List(context.TODO(), pods, &listOptions); err != nil {
 		return nil, err
 	}
 

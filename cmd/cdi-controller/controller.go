@@ -21,11 +21,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
 
-	clientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -109,11 +109,6 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		klog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
 	}
 
-	cdiClient, err := clientset.NewForConfig(cfg)
-	if err != nil {
-		klog.Fatalf("Error building example clientset: %s", err.Error())
-	}
-
 	extClient, err := extclientset.NewForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("Error building extClient: %s", err.Error())
@@ -143,28 +138,28 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	uploadServerCertGenerator := &generator.FetchCertGenerator{Fetcher: uploadServerCAFetcher}
 
 	// TODO: Current DV controller had threadiness 3, should we do the same here, defaults to one thread.
-	if _, err := controller.NewDatavolumeController(mgr, cdiClient, client, extClient, log); err != nil {
+	if _, err := controller.NewDatavolumeController(mgr, extClient, log); err != nil {
 		klog.Errorf("Unable to setup datavolume controller: %v", err)
 		os.Exit(1)
 	}
 
-	if _, err := controller.NewImportController(mgr, cdiClient, client, log, importerImage, pullPolicy, verbose); err != nil {
+	if _, err := controller.NewImportController(mgr, log, importerImage, pullPolicy, verbose); err != nil {
 		klog.Errorf("Unable to setup import controller: %v", err)
 		os.Exit(1)
 	}
 
-	if _, err := controller.NewCloneController(mgr, client, log, clonerImage, pullPolicy, verbose, uploadClientCertGenerator, uploadServerBundleFetcher, getAPIServerPublicKey()); err != nil {
+	if _, err := controller.NewCloneController(mgr, log, clonerImage, pullPolicy, verbose, uploadClientCertGenerator, uploadServerBundleFetcher, getAPIServerPublicKey()); err != nil {
 		klog.Errorf("Unable to setup clone controller: %v", err)
 		os.Exit(1)
 	}
 
 	startSmartController(extClient, mgr, log)
 
-	if _, err := controller.NewUploadController(mgr, cdiClient, client, log, uploadServerImage, pullPolicy, verbose, uploadServerCertGenerator, uploadClientBundleFetcher); err != nil {
+	if _, err := controller.NewUploadController(mgr, log, uploadServerImage, pullPolicy, verbose, uploadServerCertGenerator, uploadClientBundleFetcher); err != nil {
 		klog.Errorf("Unable to setup upload controller: %v", err)
 		os.Exit(1)
 	}
-	if _, err := controller.NewConfigController(mgr, cdiClient, client, log, uploadProxyServiceName, configName); err != nil {
+	if _, err := controller.NewConfigController(mgr, log, uploadProxyServiceName, configName); err != nil {
 		klog.Errorf("Unable to setup config controller: %v", err)
 		os.Exit(1)
 	}
@@ -188,8 +183,8 @@ func main() {
 	if i, err := strconv.Atoi(verbose); err == nil && i > 1 {
 		debug = true
 	}
-	logf.SetLogger(logf.ZapLogger(debug))
-	logf.Log.WithName("main").Info("Verbosity level", "verbose", verbose)
+	logf.SetLogger(zap.New(zap.UseDevMode(debug)))
+	logf.Log.WithName("main").Info("Verbosity level", "verbose", verbose, "debug", debug)
 
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
 	if err != nil {

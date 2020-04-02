@@ -119,7 +119,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
 				err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
 				if err != nil {
-					PrintControllerLog(f)
 					dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
 					if dverr != nil {
 						Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
@@ -272,8 +271,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
 
-				By(fmt.Sprintf("waiting for datavolume to match phase %s", "Failed"))
-				utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, "Failed", dataVolume.Name)
+				By(fmt.Sprintf("waiting for datavolume to match phase %s", cdiv1.ImportInProgress))
+				utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
 
 				// verify PVC was created
 				By("verifying pvc and pod were created")

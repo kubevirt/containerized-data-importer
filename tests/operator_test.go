@@ -2,6 +2,7 @@ package tests_test
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -14,9 +15,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
 	operatorcontroller "kubevirt.io/containerized-data-importer/pkg/operator/controller"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -26,7 +27,7 @@ var _ = Describe("Operator tests", func() {
 	f := framework.NewFrameworkOrDie("operator-test")
 
 	It("should create a route in OpenShift", func() {
-		if !controller.IsOpenshift(f.K8sClient) {
+		if !isOpenshift(f.K8sClient) {
 			Skip("This test is OpenShift specific")
 		}
 
@@ -40,7 +41,7 @@ var _ = Describe("Operator tests", func() {
 	})
 
 	It("add cdi-sa to anyuid scc", func() {
-		if !controller.IsOpenshift(f.K8sClient) {
+		if !isOpenshift(f.K8sClient) {
 			Skip("This test is OpenShift specific")
 		}
 
@@ -210,3 +211,32 @@ var _ = Describe("Operator delete CDI tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 })
+
+//IsOpenshift checks if we are on OpenShift platform
+func isOpenshift(client kubernetes.Interface) bool {
+	//OpenShift 3.X check
+	result := client.Discovery().RESTClient().Get().AbsPath("/oapi/v1").Do()
+	var statusCode int
+	result.StatusCode(&statusCode)
+
+	if result.Error() == nil {
+		// It is OpenShift
+		if statusCode == http.StatusOK {
+			return true
+		}
+	} else {
+		// Got 404 so this is not Openshift 3.X, let's check OpenShift 4
+		result = client.Discovery().RESTClient().Get().AbsPath("/apis/route.openshift.io").Do()
+		var statusCode int
+		result.StatusCode(&statusCode)
+
+		if result.Error() == nil {
+			// It is OpenShift
+			if statusCode == http.StatusOK {
+				return true
+			}
+		}
+	}
+
+	return false
+}
