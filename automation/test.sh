@@ -47,7 +47,7 @@ if [ ! -d "cluster-up/cluster/$KUBEVIRT_PROVIDER" ]; then
 fi
 
 if [[ -n "$MULTI_UPGRADE" ]]; then
-  export UPGRADE_FROM="v1.10.7 v1.10.9 v1.11.0"
+  export UPGRADE_FROM="v1.10.7 v1.11.0 v1.12.0 v1.13.2 v1.14.0 v1.15.0"
 fi
 
 if [[ -z "$UPGRADE_FROM" ]]; then
