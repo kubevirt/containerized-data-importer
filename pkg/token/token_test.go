@@ -21,11 +21,14 @@ package token
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"reflect"
 	"testing"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 
 func generateTestKey() (*rsa.PrivateKey, error) {
@@ -38,156 +41,126 @@ func generateTestKey() (*rsa.PrivateKey, error) {
 }
 
 func TestToken(t *testing.T) {
-	issuer := "issuer"
-
-	key, err := generateTestKey()
-	if err != nil {
-		t.Errorf("error generating keys: %v", err)
-	}
-
-	tokenData := &Payload{
-		Operation: OperationUpload,
-		Name:      "fakepvc",
-		Namespace: "fakenamespace",
-		Resource: metav1.GroupVersionResource{
-			Group:    "",
-			Version:  "v1",
-			Resource: "persistentvolumeclaims",
-		},
-	}
-
-	g := NewGenerator(issuer, key, 5*time.Minute)
-
-	signedToken, err := g.Generate(tokenData)
-
-	if err != nil {
-		t.Errorf("unable to generate token: %v", err)
-	}
-
-	validator := NewValidator(issuer, &key.PublicKey, 0)
-
-	payload, err := validator.Validate(signedToken)
-
-	if err != nil {
-		t.Errorf("unable to verify token: %v", err)
-	}
-
-	if !reflect.DeepEqual(tokenData, payload) {
-		t.Errorf("invalid token payload")
-	}
+	RegisterFailHandler(Fail)
+	RunSpecsWithDefaultAndCustomReporters(t, "Token Suite", reporters.NewReporters())
 }
 
-func TestTokenTimeout(t *testing.T) {
-	issuer := "issuer"
+var _ = Describe("Token test", func() {
+	It("Token", func() {
+		issuer := "issuer"
 
-	key, err := generateTestKey()
-	if err != nil {
-		t.Errorf("error generating keys: %v", err)
-	}
+		key, err := generateTestKey()
+		Expect(err).ToNot(HaveOccurred())
 
-	tokenData := &Payload{
-		Operation: OperationUpload,
-		Name:      "fakepvc",
-		Namespace: "fakenamespace",
-		Resource: metav1.GroupVersionResource{
-			Group:    "",
-			Version:  "v1",
-			Resource: "persistentvolumeclaims",
-		},
-	}
+		tokenData := &Payload{
+			Operation: OperationUpload,
+			Name:      "fakepvc",
+			Namespace: "fakenamespace",
+			Resource: metav1.GroupVersionResource{
+				Group:    "",
+				Version:  "v1",
+				Resource: "persistentvolumeclaims",
+			},
+		}
 
-	g := NewGenerator(issuer, key, 200*time.Millisecond)
+		g := NewGenerator(issuer, key, 5*time.Minute)
 
-	signedToken, err := g.Generate(tokenData)
+		signedToken, err := g.Generate(tokenData)
+		Expect(err).ToNot(HaveOccurred())
 
-	if err != nil {
-		t.Errorf("unable to generate token: %v", err)
-	}
+		validator := NewValidator(issuer, &key.PublicKey, 0)
 
-	validator := NewValidator(issuer, &key.PublicKey, 0)
+		payload, err := validator.Validate(signedToken)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(reflect.DeepEqual(tokenData, payload)).To(BeTrue())
+	})
 
-	time.Sleep(time.Second)
+	It("Token timeout", func() {
+		issuer := "issuer"
 
-	_, err = validator.Validate(signedToken)
+		key, err := generateTestKey()
+		Expect(err).ToNot(HaveOccurred())
 
-	if err == nil {
-		t.Errorf("token did not time out: %v", err)
-	}
-}
+		tokenData := &Payload{
+			Operation: OperationUpload,
+			Name:      "fakepvc",
+			Namespace: "fakenamespace",
+			Resource: metav1.GroupVersionResource{
+				Group:    "",
+				Version:  "v1",
+				Resource: "persistentvolumeclaims",
+			},
+		}
 
-func TestWrongIssuer(t *testing.T) {
-	key, err := generateTestKey()
-	if err != nil {
-		t.Errorf("error generating keys: %v", err)
-	}
+		g := NewGenerator(issuer, key, 200*time.Millisecond)
 
-	tokenData := &Payload{
-		Operation: OperationUpload,
-		Name:      "fakepvc",
-		Namespace: "fakenamespace",
-		Resource: metav1.GroupVersionResource{
-			Group:    "",
-			Version:  "v1",
-			Resource: "persistentvolumeclaims",
-		},
-	}
+		signedToken, err := g.Generate(tokenData)
+		Expect(err).ToNot(HaveOccurred())
 
-	g := NewGenerator("foo", key, 5*time.Minute)
+		validator := NewValidator(issuer, &key.PublicKey, 0)
 
-	signedToken, err := g.Generate(tokenData)
+		time.Sleep(time.Second)
 
-	if err != nil {
-		t.Errorf("unable to generate token: %v", err)
-	}
+		_, err = validator.Validate(signedToken)
+		Expect(err).To(HaveOccurred())
+	})
 
-	validator := NewValidator("bar", &key.PublicKey, 0)
+	It("Wrong issuer", func() {
+		key, err := generateTestKey()
+		Expect(err).ToNot(HaveOccurred())
 
-	_, err = validator.Validate(signedToken)
+		tokenData := &Payload{
+			Operation: OperationUpload,
+			Name:      "fakepvc",
+			Namespace: "fakenamespace",
+			Resource: metav1.GroupVersionResource{
+				Group:    "",
+				Version:  "v1",
+				Resource: "persistentvolumeclaims",
+			},
+		}
 
-	if err == nil {
-		t.Errorf("bad issuer: %v", err)
-	}
-}
+		g := NewGenerator("foo", key, 5*time.Minute)
 
-func TestBadKey(t *testing.T) {
-	issuer := "issuer"
+		signedToken, err := g.Generate(tokenData)
+		Expect(err).ToNot(HaveOccurred())
 
-	key, err := generateTestKey()
-	if err != nil {
-		t.Errorf("error generating keys: %v", err)
-	}
+		validator := NewValidator("bar", &key.PublicKey, 0)
 
-	key2, err := generateTestKey()
-	if err != nil {
-		t.Errorf("error generating keys: %v", err)
-	}
+		_, err = validator.Validate(signedToken)
+		Expect(err).To(HaveOccurred())
+	})
 
-	tokenData := &Payload{
-		Operation: OperationUpload,
-		Name:      "fakepvc",
-		Namespace: "fakenamespace",
-		Resource: metav1.GroupVersionResource{
-			Group:    "",
-			Version:  "v1",
-			Resource: "persistentvolumeclaims",
-		},
-	}
+	It("Bad key", func() {
+		issuer := "issuer"
 
-	g := NewGenerator(issuer, key, 5*time.Minute)
+		key, err := generateTestKey()
+		Expect(err).ToNot(HaveOccurred())
 
-	signedToken, err := g.Generate(tokenData)
+		key2, err := generateTestKey()
+		Expect(err).ToNot(HaveOccurred())
 
-	if err != nil {
-		t.Errorf("unable to generate token: %v", err)
-	}
+		tokenData := &Payload{
+			Operation: OperationUpload,
+			Name:      "fakepvc",
+			Namespace: "fakenamespace",
+			Resource: metav1.GroupVersionResource{
+				Group:    "",
+				Version:  "v1",
+				Resource: "persistentvolumeclaims",
+			},
+		}
 
-	validator := NewValidator(issuer, &key2.PublicKey, 0)
+		g := NewGenerator(issuer, key, 5*time.Minute)
 
-	time.Sleep(time.Second)
+		signedToken, err := g.Generate(tokenData)
+		Expect(err).ToNot(HaveOccurred())
 
-	_, err = validator.Validate(signedToken)
+		validator := NewValidator(issuer, &key2.PublicKey, 0)
 
-	if err == nil {
-		t.Errorf("validated with bad key: %v", err)
-	}
-}
+		time.Sleep(time.Second)
+
+		_, err = validator.Validate(signedToken)
+		Expect(err).To(HaveOccurred())
+	})
+})
