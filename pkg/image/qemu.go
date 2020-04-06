@@ -190,7 +190,7 @@ func (o *qemuOperations) Validate(url *url.URL, availableSize int64) error {
 	}
 
 	if availableSize < info.VirtualSize {
-		return errors.Errorf("Virtual image size %d is larger than available size %d, shrink not yet supported.", info.VirtualSize, availableSize)
+		return errors.Errorf("Virtual image size %d is larger than available size %d. A larger PVC is required.", info.VirtualSize, availableSize)
 	}
 	return nil
 }
