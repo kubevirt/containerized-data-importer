@@ -108,6 +108,15 @@ func processScanner(scanner *bufio.Scanner, buf *bytes.Buffer, done chan bool, c
 
 // ExecWithLimits executes a command with process limits
 func ExecWithLimits(limits *ProcessLimitValues, callback func(string), command string, args ...string) ([]byte, error) {
+	return executeWithLimits(limits, callback, true, command, args...)
+}
+
+// ExecWithLimitsSilently executes a command with process limits and do not print output on error
+func ExecWithLimitsSilently(limits *ProcessLimitValues, callback func(string), command string, args ...string) ([]byte, error) {
+	return executeWithLimits(limits, callback, false, command, args...)
+}
+
+func executeWithLimits(limits *ProcessLimitValues, callback func(string), logErr bool, command string, args ...string) ([]byte, error) {
 	// Args can potentially contain sensitive information, make sure NOT to write args to the logs.
 	var buf bytes.Buffer
 	var cmd *exec.Cmd
@@ -161,8 +170,10 @@ func ExecWithLimits(limits *ProcessLimitValues, callback func(string), command s
 
 	output := buf.Bytes()
 	if err != nil {
-		klog.Errorf("%s failed output is:\n", command)
-		klog.Errorf("%s\n", string(output))
+		if logErr {
+			klog.Errorf("%s failed output is:\n", command)
+			klog.Errorf("%s\n", string(output))
+		}
 		return output, errors.Wrapf(err, "%s execution failed", command)
 	}
 	return output, nil
