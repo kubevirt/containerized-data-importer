@@ -165,8 +165,9 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		// Find the source and target PVs so we can label them.
 		for _, pv := range pvList.Items {
-			if pv.Spec.NodeAffinity == nil || pv.Spec.NodeAffinity.Required == nil || len(pv.Spec.NodeAffinity.Required.NodeSelectorTerms) == 0 {
-				// Not a local volume PV
+			if pv.Spec.NodeAffinity == nil || pv.Spec.NodeAffinity.Required == nil ||
+				len(pv.Spec.NodeAffinity.Required.NodeSelectorTerms) == 0 || pv.Status.Phase != v1.VolumeAvailable {
+				// Not an available local volume PV
 				continue
 			}
 			if sourcePV == nil {
