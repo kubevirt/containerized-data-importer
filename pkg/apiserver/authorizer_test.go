@@ -30,7 +30,6 @@ import (
 
 	"github.com/emicklei/go-restful"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
@@ -66,9 +65,7 @@ func newAuthorizor() *authorizor {
 
 var _ = Describe("Authorizer test", func() {
 	It("Reject unauthenticated user", func() {
-
-		kubeobjects := []runtime.Object{}
-		client := k8sfake.NewSimpleClientset(kubeobjects...)
+		client := k8sfake.NewSimpleClientset()
 		authClient := client.AuthorizationV1beta1()
 
 		app := newAuthorizor()
@@ -82,8 +79,7 @@ var _ = Describe("Authorizer test", func() {
 
 	It("Reject unauthorized user", func() {
 		fakecert, fakecert2 := &x509.Certificate{}, &x509.Certificate{}
-		kubeobjects := []runtime.Object{}
-		client := k8sfake.NewSimpleClientset(kubeobjects...)
+		client := k8sfake.NewSimpleClientset()
 		authClient := client.AuthorizationV1beta1()
 
 		app := newAuthorizor()

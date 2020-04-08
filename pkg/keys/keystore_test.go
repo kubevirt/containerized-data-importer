@@ -128,9 +128,7 @@ var _ = Describe("Create Private Key", func() {
 	secret := "mysecret"
 
 	It("Should create a Private Key", func() {
-		kubeobjects := []runtime.Object{}
-
-		client := k8sfake.NewSimpleClientset(kubeobjects...)
+		client := k8sfake.NewSimpleClientset()
 
 		privateKey, err := GetOrCreatePrivateKey(client, namespace, secret)
 		Expect(err).NotTo(HaveOccurred())

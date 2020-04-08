@@ -215,9 +215,7 @@ var _ = Describe("API server tests", func() {
 	})
 
 	It("Should generate certs and key on first run", func() {
-		kubeobjects := []runtime.Object{}
-
-		client := k8sfake.NewSimpleClientset(kubeobjects...)
+		client := k8sfake.NewSimpleClientset()
 
 		app := &cdiAPIApp{
 			client: client,
