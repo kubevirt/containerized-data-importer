@@ -19,6 +19,7 @@ import (
 	"github.com/pkg/errors"
 
 	v1 "k8s.io/api/core/v1"
+	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -79,6 +80,8 @@ type Framework struct {
 	CdiClient *cdiClientset.Clientset
 	// CsiClient provides our CSI client pointer
 	CsiClient *csiClientset.Clientset
+	// ExtClient provides our CSI client pointer
+	ExtClient *extclientset.Clientset
 	// RestConfig provides a pointer to our REST client config.
 	RestConfig *rest.Config
 	// Namespace provides a namespace for each test generated/unique ns per test
@@ -207,6 +210,12 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 		return nil, errors.Wrap(err, "ERROR, unable to create CsiClient")
 	}
 	f.CsiClient = csics
+
+	extcs, err := f.GetExtClient()
+	if err != nil {
+		return nil, errors.Wrap(err, "ERROR, unable to create CsiClient")
+	}
+	f.ExtClient = extcs
 
 	ginkgo.BeforeEach(f.BeforeEach)
 	ginkgo.AfterEach(f.AfterEach)
@@ -354,6 +363,19 @@ func (f *Framework) GetCsiClient() (*csiClientset.Clientset, error) {
 		return nil, err
 	}
 	return csiClient, nil
+}
+
+// GetExtClient gets an instance of a kubernetes client that includes all the api extensions.
+func (f *Framework) GetExtClient() (*extclientset.Clientset, error) {
+	cfg, err := clientcmd.BuildConfigFromFlags(f.Master, f.KubeConfig)
+	if err != nil {
+		return nil, err
+	}
+	extClient, err := extclientset.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return extClient, nil
 }
 
 // GetCdiClientForServiceAccount returns a cdi client for a service account

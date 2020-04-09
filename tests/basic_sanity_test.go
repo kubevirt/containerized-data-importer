@@ -4,7 +4,12 @@ import (
 	"fmt"
 
 	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -102,6 +107,28 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			secretsExpectedResult["deletecollection"] = "no"
 			ValidateRBACForResource(f, secretsExpectedResult, "secrets", sa)
 		})
+	})
+
+	Context("CRDs must be a structural schema", func() {
+		table.DescribeTable("crd name", func(crdName string) {
+			crd, err := f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
+			if k8serrors.IsNotFound(err) {
+				Skip("Doesn't work on openshift 3.11")
+			}
+			Expect(err).ToNot(HaveOccurred())
+			Expect(crd.ObjectMeta.Name).To(Equal(crdName))
+			for _, cond := range crd.Status.Conditions {
+				if cond.Type == extv1.CustomResourceDefinitionConditionType("NonStructuralSchema") {
+					if cond.Status == extv1.ConditionTrue {
+						Fail(fmt.Sprintf("CRD %s is not a structural schema", crdName))
+					}
+				}
+			}
+		},
+			table.Entry("CDIConfigs", "cdiconfigs.cdi.kubevirt.io"),
+			table.Entry("CDIs", "cdis.cdi.kubevirt.io"),
+			table.Entry("Datavolumes", "datavolumes.cdi.kubevirt.io"),
+		)
 	})
 })
 
