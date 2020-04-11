@@ -4,16 +4,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	"kubevirt.io/containerized-data-importer/tests/reporters"
 	"math/rand"
 	"reflect"
-	"testing"
 )
-
-func TestFileFmt(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "File format Suite", reporters.NewReporters())
-}
 
 var _ = Describe("File format tests", func() {
 	table.DescribeTable("Copy known headers", func(want Headers, wantErr bool) {
