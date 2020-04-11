@@ -28,11 +28,7 @@ var _ = Describe("File format tests", func() {
 	rand.Read(token)
 	tarbyte := append(token, tarheader...)
 
-	type args struct {
-		b []byte
-	}
-
-	table.DescribeTable("Header match", func(fields fields, args args, want bool) {
+	table.DescribeTable("Header match", func(fields fields, b []byte, want bool) {
 		h := Header{
 			Format:      fields.Format,
 			magicNumber: fields.magicNumber,
@@ -40,28 +36,28 @@ var _ = Describe("File format tests", func() {
 			SizeOff:     fields.SizeOff,
 			SizeLen:     fields.SizeLen,
 		}
-		got := h.Match(args.b)
+		got := h.Match(b)
 		Expect(got).To(Equal(want))
 	},
 		table.Entry("match gz",
 			fields{"gz", []byte{0x1F, 0x8B}, 0, 0, 0},
-			args{[]byte{0x1F, 0x8B}},
+			[]byte{0x1F, 0x8B},
 			true),
 		table.Entry("match qcow2",
 			fields{"qcow2", []byte{'Q', 'F', 'I', 0xfb}, 0, 24, 8},
-			args{[]byte{'Q', 'F', 'I', 0xfb}},
+			[]byte{'Q', 'F', 'I', 0xfb},
 			true),
 		table.Entry("match tar",
 			fields{"tar", []byte{0x75, 0x73, 0x74, 0x61, 0x72, 0x20}, 0x101, 124, 8},
-			args{tarbyte},
+			tarbyte,
 			true),
 		table.Entry("match xz",
 			fields{"xz", []byte{0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00}, 0, 0, 0},
-			args{[]byte{0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00}},
+			[]byte{0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00},
 			true),
 		table.Entry("failed match",
 			fields{"gz", []byte{0x1F, 0x8B}, 0, 0, 0},
-			args{[]byte{'Q', 'F', 'I', 0xfb}},
+			[]byte{'Q', 'F', 'I', 0xfb},
 			false),
 	)
 
@@ -72,7 +68,7 @@ var _ = Describe("File format tests", func() {
 	qcowbyte := append(qcowMagic, tokenQcow...)
 	qcowbyte = append(qcowbyte, qcowSize...)
 
-	table.DescribeTable("Header size", func(fields fields, args args, want int64, wantErr bool) {
+	table.DescribeTable("Header size", func(fields fields, b []byte, want int64, wantErr bool) {
 		h := Header{
 			Format:      fields.Format,
 			magicNumber: fields.magicNumber,
@@ -80,7 +76,7 @@ var _ = Describe("File format tests", func() {
 			SizeOff:     fields.SizeOff,
 			SizeLen:     fields.SizeLen,
 		}
-		got, err := h.Size(args.b)
+		got, err := h.Size(b)
 		if wantErr {
 			Expect(err).To(HaveOccurred())
 		} else {
@@ -90,12 +86,12 @@ var _ = Describe("File format tests", func() {
 	},
 		table.Entry("get size of qcow2",
 			fields{"qcow2", []byte{'Q', 'F', 'I', 0xfb}, 0, 24, 8},
-			args{qcowbyte},
+			qcowbyte,
 			int64(3544391413610329398),
 			false),
 		table.Entry("does not implement size",
 			fields{"gz", []byte{0x1F, 0x8B}, 0, 0, 0},
-			args{[]byte{0x1F, 0x8B}},
+			[]byte{0x1F, 0x8B},
 			int64(0),
 			false),
 	)
