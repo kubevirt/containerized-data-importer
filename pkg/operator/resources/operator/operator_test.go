@@ -68,10 +68,7 @@ var _ = Describe("Operator resource test", func() {
 		  }
 		}`)
 		crFileName, err := yaml.JSONToYAML(crFileName)
-		if err != nil {
-			fmt.Printf("err: %v\n", err)
-			return
-		}
+		Expect(err).ToNot(HaveOccurred())
 
 		schema := getSchema()
 
@@ -86,9 +83,7 @@ var _ = Describe("Operator resource test", func() {
 func getSchema() validation.Schema {
 
 	crdFiles, err := yaml.Marshal(createCDIListCRD())
-	if err != nil {
-		fmt.Printf("Error: %s", err)
-	}
+	Expect(err).ToNot(HaveOccurred())
 	yamlString := string(crdFiles)
 	Expect(err).ToNot(HaveOccurred())
 	schema, err := validation.New([]byte(yamlString))
