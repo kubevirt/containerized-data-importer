@@ -92,27 +92,6 @@ func newHTTPClient(clientKeyPair *triple.KeyPair, serverCACert *x509.Certificate
 	return client
 }
 
-func newRequest() *http.Request {
-	req, err := http.NewRequest("POST", common.UploadPathSync, strings.NewReader("data"))
-	Expect(err).ToNot(HaveOccurred())
-
-	return req
-}
-
-func newAsyncRequest() *http.Request {
-	req, err := http.NewRequest("POST", common.UploadPathAsync, strings.NewReader("data"))
-	Expect(err).ToNot(HaveOccurred())
-
-	return req
-}
-
-func newAsyncHeadRequest() *http.Request {
-	req, err := http.NewRequest("HEAD", common.UploadPathAsync, nil)
-	Expect(err).ToNot(HaveOccurred())
-
-	return req
-}
-
 func saveProcessorSuccess(stream io.ReadCloser, dest, imageSize, contentType string) error {
 	return nil
 }
@@ -232,9 +211,10 @@ var _ = Describe("Upload server tests", func() {
 
 	})
 
-	It("Process unavailable", func() {
+	table.DescribeTable("Process unavailable", func(uploadPath string) {
 		withProcessorSuccess(func() {
-			req := newRequest()
+			req, err := http.NewRequest("POST", common.UploadPathAsync, strings.NewReader("data"))
+			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
 
@@ -245,28 +225,15 @@ var _ = Describe("Upload server tests", func() {
 			status := rr.Code
 			Expect(status).To(Equal(http.StatusServiceUnavailable))
 		})
+	},
+		table.Entry("async", common.UploadPathAsync),
+		table.Entry("sync", common.UploadPathSync),
+	)
 
-	})
-
-	It("Process unavailable, async", func() {
-		withProcessorSuccess(func() {
-			req := newAsyncRequest()
-
-			rr := httptest.NewRecorder()
-
-			server := newServer()
-			server.uploading = true
-			server.ServeHTTP(rr, req)
-
-			status := rr.Code
-			Expect(status).To(Equal(http.StatusServiceUnavailable))
-		})
-
-	})
-
-	It("Completed conflict", func() {
-		withProcessorSuccess(func() {
-			req := newRequest()
+	table.DescribeTable("Completion conflict", func(uploadPath string) {
+		withAsyncProcessorSuccess(func() {
+			req, err := http.NewRequest("POST", uploadPath, strings.NewReader("data"))
+			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
 
@@ -277,26 +244,15 @@ var _ = Describe("Upload server tests", func() {
 			status := rr.Code
 			Expect(status).To(Equal(http.StatusConflict))
 		})
-	})
-
-	It("Completion conflict, async", func() {
-		withProcessorSuccess(func() {
-			req := newAsyncRequest()
-
-			rr := httptest.NewRecorder()
-
-			server := newServer()
-			server.done = true
-			server.ServeHTTP(rr, req)
-
-			status := rr.Code
-			Expect(status).To(Equal(http.StatusConflict))
-		})
-	})
+	},
+		table.Entry("async", common.UploadPathAsync),
+		table.Entry("sync", common.UploadPathSync),
+	)
 
 	It("Success", func() {
 		withProcessorSuccess(func() {
-			req := newRequest()
+			req, err := http.NewRequest("POST", common.UploadPathSync, strings.NewReader("data"))
+			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
 
@@ -308,9 +264,10 @@ var _ = Describe("Upload server tests", func() {
 		})
 	})
 
-	It("Success, async", func() {
+	table.DescribeTable("Success, async", func(method string) {
 		withAsyncProcessorSuccess(func() {
-			req := newAsyncRequest()
+			req, err := http.NewRequest(method, common.UploadPathAsync, strings.NewReader("data"))
+			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
 
@@ -320,39 +277,15 @@ var _ = Describe("Upload server tests", func() {
 			status := rr.Code
 			Expect(status).To(Equal(http.StatusOK))
 		})
-	})
+	},
+		table.Entry("POST", "POST"),
+		table.Entry("HEAD", "HEAD"),
+	)
 
-	It("Success HEAD, async", func() {
-		withAsyncProcessorSuccess(func() {
-			req := newAsyncHeadRequest()
-
-			rr := httptest.NewRecorder()
-
-			server := newServer()
-			server.ServeHTTP(rr, req)
-
-			status := rr.Code
-			Expect(status).To(Equal(http.StatusOK))
-		})
-	})
-
-	It("stream fail", func() {
-		withProcessorFailure(func() {
-			req := newRequest()
-
-			rr := httptest.NewRecorder()
-
-			server := newServer()
-			server.ServeHTTP(rr, req)
-
-			status := rr.Code
-			Expect(status).To(Equal(http.StatusInternalServerError))
-		})
-	})
-
-	It("stream fail, async", func() {
+	table.DescribeTable("Stream fail", func(uploadPath string) {
 		withAsyncProcessorFailure(func() {
-			req := newAsyncRequest()
+			req, err := http.NewRequest("POST", uploadPath, strings.NewReader("data"))
+			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
 
@@ -362,7 +295,10 @@ var _ = Describe("Upload server tests", func() {
 			status := rr.Code
 			Expect(status).To(Equal(http.StatusInternalServerError))
 		})
-	})
+	},
+		table.Entry("async", common.UploadPathAsync),
+		table.Entry("sync", common.UploadPathSync),
+	)
 
 	table.DescribeTable("Real upload with client", func(certName string, expectedName string, expectedResponse int) {
 		withProcessorSuccess(func() {
