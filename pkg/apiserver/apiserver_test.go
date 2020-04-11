@@ -151,7 +151,8 @@ func doGetRequest(url string) *httptest.ResponseRecorder {
 	app := &cdiAPIApp{}
 	app.composeUploadTokenAPI()
 
-	req, _ := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", url, nil)
+	Expect(err).ToNot(HaveOccurred())
 	rr := httptest.NewRecorder()
 
 	app.container.ServeHTTP(rr, req)
@@ -370,9 +371,10 @@ var _ = Describe("API server tests", func() {
 			tokenGenerator:    newUploadTokenGenerator(signingKey)}
 		app.composeUploadTokenAPI()
 
-		req, _ := http.NewRequest("POST",
+		req, err := http.NewRequest("POST",
 			"/apis/upload.cdi.kubevirt.io/v1alpha1/namespaces/default/uploadtokenrequests",
 			bytes.NewReader(serializedRequest))
+		Expect(err).ToNot(HaveOccurred())
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
 

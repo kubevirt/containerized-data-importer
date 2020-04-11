@@ -125,7 +125,8 @@ var _ = Describe("Auth config tests", func() {
 
 		app := server.(*cdiAPIApp)
 
-		req, _ := http.NewRequest("GET", "/apis", nil)
+		req, err := http.NewRequest("GET", "/apis", nil)
+		Expect(err).ToNot(HaveOccurred())
 		rr := httptest.NewRecorder()
 
 		app.container.ServeHTTP(rr, req)
