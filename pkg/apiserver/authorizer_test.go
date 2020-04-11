@@ -26,18 +26,11 @@ import (
 	. "github.com/onsi/gomega"
 	"net/http"
 	"net/url"
-	"testing"
 
 	"github.com/emicklei/go-restful"
 
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
-
-func TestAuthorizer(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Authorizer Suite", reporters.NewReporters())
-}
 
 func fakeRequest() *restful.Request {
 	req := &restful.Request{}

@@ -30,7 +30,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"testing"
 
 	"github.com/appscode/jsonpatch"
 	restful "github.com/emicklei/go-restful"
@@ -43,18 +42,12 @@ import (
 
 	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
-	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 
 type testAuthorizer struct {
 	allowed bool
 	reason  string
 	err     error
-}
-
-func TestApiServer(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "API Server Suite", reporters.NewReporters())
 }
 
 func (a *testAuthorizer) Authorize(req *restful.Request) (bool, string, error) {

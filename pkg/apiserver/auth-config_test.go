@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"testing"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -41,13 +40,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
-	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
-
-func TestAuthConfig(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Auth Config Suite", reporters.NewReporters())
-}
 
 func generateCACert() string {
 	keyPair, err := triple.NewCA(util.RandAlphaNum(10))

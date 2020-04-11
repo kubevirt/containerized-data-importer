@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"testing"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,7 +21,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
-	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 
 type httpClientConfig struct {
@@ -34,11 +32,6 @@ type httpClientConfig struct {
 type validateSuccess struct{}
 
 type validateFailure struct{}
-
-func TestUploadProxy(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Upload Proxy Suite", reporters.NewReporters())
-}
 
 func (*validateSuccess) Validate(string) (*token.Payload, error) {
 	return &token.Payload{

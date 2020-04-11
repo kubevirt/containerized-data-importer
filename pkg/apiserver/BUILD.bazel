@@ -37,6 +37,7 @@ go_library(
 go_test(
     name = "go_default_test",
     srcs = [
+        "apiserver_suite_test.go",
         "apiserver_test.go",
         "auth-config_test.go",
         "authorizer_test.go",

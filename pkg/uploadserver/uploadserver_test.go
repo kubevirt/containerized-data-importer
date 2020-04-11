@@ -31,20 +31,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"testing"
 	"time"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
-	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
-
-func TestUploadServer(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Upload Server Suite", reporters.NewReporters())
-}
 
 func newServer() *uploadServerApp {
 	server := NewUploadServer("127.0.0.1", 0, "disk.img", "", "", "", "", "")

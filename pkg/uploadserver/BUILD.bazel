@@ -16,7 +16,10 @@ go_library(
 
 go_test(
     name = "go_default_test",
-    srcs = ["uploadserver_test.go"],
+    srcs = [
+        "uploadserver_suite_test.go",
+        "uploadserver_test.go",
+    ],
     embed = [":go_default_library"],
     deps = [
         "//pkg/common:go_default_library",

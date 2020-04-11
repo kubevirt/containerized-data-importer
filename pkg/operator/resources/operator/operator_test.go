@@ -10,18 +10,11 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"kubevirt.io/containerized-data-importer/tests/reporters"
 	"strings"
-	"testing"
 )
 
 var crdTypeMap = map[string]interface{}{
 	"operator-crd": &cdiv1alpha1.CDI{},
-}
-
-func TestOperatorResource(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Operator Resource Suite", reporters.NewReporters())
 }
 
 var _ = Describe("Operator resource test", func() {
