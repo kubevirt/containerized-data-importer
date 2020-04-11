@@ -9,12 +9,10 @@ import (
 )
 
 var _ = Describe("File format tests", func() {
-	table.DescribeTable("Copy known headers", func(want Headers, wantErr bool) {
+	It("Copy known headers - map known headers", func() {
 		got := CopyKnownHdrs()
-		Expect(reflect.DeepEqual(got, want)).To(BeTrue())
-	},
-		table.Entry("Map known headers", knownHeaders, false),
-	)
+		Expect(reflect.DeepEqual(got, knownHeaders)).To(BeTrue())
+	})
 
 	type fields struct {
 		Format      string
