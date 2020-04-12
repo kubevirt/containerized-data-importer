@@ -348,7 +348,7 @@ func parseHTTPHeader(resp *http.Response) (uint64) {
 	if val, ok := resp.Header["Content-Length"]; ok {
 		total, err = strconv.ParseUint(val[0], 10, 64)
 		if err != nil {
-			klog.Errorf("could not convert content length, got %d", err)
+			klog.Errorf("could not convert content length, got %v", err)
 		}
 		klog.V(3).Infof("Content length: %d\n", total)
 	}
