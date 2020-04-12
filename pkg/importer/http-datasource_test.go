@@ -339,6 +339,29 @@ var _ = Describe("Http reader", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
+	It("should continue even if HEAD is rejected, but mark broken for qemu-img", func() {
+		redirTs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if (r.Method == "HEAD") {
+				w.WriteHeader(http.StatusForbidden)
+			} else {
+				defer w.WriteHeader(http.StatusOK)
+			}
+			w.Header().Add("Content-Length", "25")
+		}))
+		defer redirTs.Close()
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, redirTs.URL, http.StatusFound)
+		}))
+		defer ts.Close()
+		ep, err := url.Parse(ts.URL)
+		Expect(err).ToNot(HaveOccurred())
+		r, total, brokenForQemuImg, err := createHTTPReader(context.Background(), ep, "", "", "")
+		Expect(brokenForQemuImg).To(BeTrue())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(uint64(25)).To(Equal(total))
+		err = r.Close()
+		Expect(err).ToNot(HaveOccurred())
+	})
 
 	It("should fail if server returns error code", func() {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
