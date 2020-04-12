@@ -69,7 +69,7 @@ var _ = Describe("Operator resource test", func() {
 		err = yaml.Unmarshal([]byte(crFileName), &input)
 		Expect(err).ToNot(HaveOccurred())
 		err = schema.Validate(input)
-		By(fmt.Sprintf("err: %d, File %v does not validate against the CRD schema", err, crFileName))
+		Expect(err).To(HaveOccurred())
 	})
 })
 
