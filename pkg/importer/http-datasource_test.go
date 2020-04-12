@@ -322,10 +322,8 @@ var _ = Describe("Http reader", func() {
 
 	It("should continue even if Content-Length is bogus", func() {
 		redirTs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, _, ok := r.BasicAuth()
 			defer w.WriteHeader(http.StatusOK)
 			w.Header().Add("Content-Length", "intentional gibberish")
-			Expect(ok).To(BeFalse())
 		}))
 		defer redirTs.Close()
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
