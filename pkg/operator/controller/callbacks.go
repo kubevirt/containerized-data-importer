@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
@@ -70,6 +71,7 @@ type ReconcileCallbackArgs struct {
 	Logger    logr.Logger
 	Client    client.Client
 	Scheme    *runtime.Scheme
+	Recorder  record.EventRecorder
 	Namespace string
 	Resource  *cdiv1.CDI
 
@@ -117,19 +119,25 @@ func reconcileDeleteControllerDeployment(args *ReconcileCallbackArgs) error {
 	}
 
 	args.Logger.Info("Deleting CDI deployment and all import/upload/clone pods/services")
+	args.Recorder.Event(args.Resource, corev1.EventTypeNormal, deleteResourceStart, fmt.Sprintf("Started deleting deployment %s", deployment.Name))
 
 	err := args.Client.Delete(context.TODO(), deployment, &client.DeleteOptions{
 		PropagationPolicy: &[]metav1.DeletionPropagation{metav1.DeletePropagationForeground}[0],
 	})
 	if err != nil && !errors.IsNotFound(err) {
 		args.Logger.Error(err, "Error deleting cdi controller deployment")
+		args.Recorder.Event(args.Resource, corev1.EventTypeWarning, deleteResourceFailed, fmt.Sprintf("Failed to delete deployment %s, %v", deployment.Name, err))
 		return err
 	}
+	args.Recorder.Event(args.Resource, corev1.EventTypeNormal, deleteResourceSuccess, fmt.Sprintf("Deleted deployment %s successfully", deployment.Name))
 
+	args.Recorder.Event(args.Resource, corev1.EventTypeNormal, deleteResourceStart, "Started deleting worker resources")
 	if err = deleteWorkerResources(args.Logger, args.Client); err != nil {
 		args.Logger.Error(err, "Error deleting worker resources")
+		args.Recorder.Event(args.Resource, corev1.EventTypeWarning, deleteResourceFailed, fmt.Sprintf("Failed to deleted worker resources %v", err))
 		return err
 	}
+	args.Recorder.Event(args.Resource, corev1.EventTypeNormal, deleteResourceSuccess, "Deleted worker resources successfully")
 
 	return nil
 }
@@ -144,9 +152,12 @@ func reconcileCreateRoute(args *ReconcileCallbackArgs) error {
 		return nil
 	}
 
+	args.Recorder.Event(args.Resource, corev1.EventTypeNormal, createResourceStart, "Ensuring upload proxy route exists")
 	if err := ensureUploadProxyRouteExists(args.Logger, args.Client, args.Scheme, deployment); err != nil {
+		args.Recorder.Event(args.Resource, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure upload proxy route exists, %v", err))
 		return err
 	}
+	args.Recorder.Event(args.Resource, corev1.EventTypeNormal, createResourceSuccess, "Successfully ensured upload proxy route exists")
 
 	return nil
 }
@@ -163,9 +174,12 @@ func reconcileCreateSCC(args *ReconcileCallbackArgs) error {
 		return nil
 	}
 
+	args.Recorder.Event(args.Resource, corev1.EventTypeNormal, createResourceStart, "Ensuring SecurityContextConstraint exists")
 	if err := ensureSCCExists(args.Logger, args.Client, args.Namespace, common.ControllerServiceAccountName); err != nil {
+		args.Recorder.Event(args.Resource, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure SecurityContextConstraint exists, %v", err))
 		return err
 	}
+	args.Recorder.Event(args.Resource, corev1.EventTypeNormal, createResourceSuccess, "Successfully ensured SecurityContextConstraint exists")
 
 	return nil
 }

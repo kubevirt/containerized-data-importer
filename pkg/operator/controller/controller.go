@@ -39,6 +39,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -64,6 +65,18 @@ const (
 	createVersionLabel          = "operator.cdi.kubevirt.io/createVersion"
 	updateVersionLabel          = "operator.cdi.kubevirt.io/updateVersion"
 	lastAppliedConfigAnnotation = "operator.cdi.kubevirt.io/lastAppliedConfiguration"
+
+	createResourceStart   = "CreateResourceStart"
+	createResourceFailed  = "CreateResourceFailed"
+	createResourceSuccess = "CreateResourceSuccess"
+
+	deleteResourceStart   = "DeleteResourceStart"
+	deleteResourceFailed  = "DeleteResourceFailed"
+	deleteResourceSuccess = "DeleteResourceSuccess"
+
+	updateResourceStart   = "UpdateResourceStart"
+	updateResourceFailed  = "UpdateResourceFailed"
+	updateResourceSuccess = "UpdateResourceSuccess"
 
 	certPollInterval = 1 * time.Minute
 )
@@ -111,6 +124,7 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 		client:         mgr.GetClient(),
 		uncachedClient: uncachedClient,
 		scheme:         mgr.GetScheme(),
+		recorder:       mgr.GetEventRecorderFor("operator-controller"),
 		namespace:      namespace,
 		clusterArgs:    clusterArgs,
 		namespacedArgs: &namespacedArgs,
@@ -133,6 +147,7 @@ type ReconcileCDI struct {
 	// use this for getting any resources not in the install namespace or cluster scope
 	uncachedClient client.Client
 	scheme         *runtime.Scheme
+	recorder       record.EventRecorder
 	controller     controller.Controller
 
 	namespace      string
@@ -312,7 +327,7 @@ func (r *ReconcileCDI) reconcileCreate(logger logr.Logger, cr *cdiv1.CDI) (recon
 
 	logger.Info("ConfigMap created successfully")
 
-	MarkCrDeploying(cr, "DeployStarted", "Started Deployment")
+	MarkCrDeploying(cr, "DeployStarted", "Started Deployment", r.recorder)
 
 	if err := r.crInit(cr); err != nil {
 		return reconcile.Result{}, err
@@ -341,7 +356,8 @@ func (r *ReconcileCDI) checkUpgrade(logger logr.Logger, cr *cdiv1.CDI) error {
 
 	if isUpgrade && cr.Status.Phase != cdiv1.CDIPhaseUpgrading {
 		logger.Info("Observed version is not target version. Begin upgrade", "Observed version ", cr.Status.ObservedVersion, "TargetVersion", r.namespacedArgs.OperatorVersion)
-		MarkCrUpgradeHealingDegraded(cr, "UpgradeStarted", fmt.Sprintf("Started upgrade to version %s", r.namespacedArgs.OperatorVersion))
+		MarkCrUpgradeHealingDegraded(cr, "UpgradeStarted", fmt.Sprintf("Started upgrade to version %s", r.namespacedArgs.OperatorVersion), r.recorder)
+		cr.Status.TargetVersion = r.namespacedArgs.OperatorVersion
 		if err := r.crUpdate(cdiv1.CDIPhaseUpgrading, cr); err != nil {
 			return err
 		}
@@ -376,15 +392,18 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1.CDI) (recon
 				return reconcile.Result{}, err
 			}
 
+			r.recorder.Event(cr, corev1.EventTypeNormal, createResourceStart, fmt.Sprintf("Started creation of resource %T %s", desiredMetaObj, desiredMetaObj.GetName()))
 			setLastAppliedConfiguration(desiredMetaObj)
 			setLabel(createVersionLabel, r.namespacedArgs.OperatorVersion, desiredMetaObj)
 
 			if err = controllerutil.SetControllerReference(cr, desiredMetaObj, r.scheme); err != nil {
+				r.recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to create resource %s, %v", desiredMetaObj.GetName(), err))
 				return reconcile.Result{}, err
 			}
 
 			// PRE_CREATE callback
 			if err = r.invokeCallbacks(logger, cr, ReconcileStatePreCreate, desiredRuntimeObj, nil); err != nil {
+				r.recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to create resource %s, %v", desiredMetaObj.GetName(), err))
 				return reconcile.Result{}, err
 			}
 
@@ -392,11 +411,13 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1.CDI) (recon
 			if err = r.client.Create(context.TODO(), currentRuntimeObj); err != nil {
 				logger.Error(err, "")
 				allErrors = append(allErrors, err)
+				r.recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to create resource %s, %v", desiredMetaObj.GetName(), err))
 				continue
 			}
 
 			// POST_CREATE callback
 			if err = r.invokeCallbacks(logger, cr, ReconcileStatePostCreate, desiredRuntimeObj, nil); err != nil {
+				r.recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to create resource %s, %v", desiredMetaObj.GetName(), err))
 				return reconcile.Result{}, err
 			}
 
@@ -404,6 +425,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1.CDI) (recon
 				"namespace", desiredMetaObj.GetNamespace(),
 				"name", desiredMetaObj.GetName(),
 				"type", fmt.Sprintf("%T", desiredMetaObj))
+			r.recorder.Event(cr, corev1.EventTypeNormal, createResourceSuccess, fmt.Sprintf("Successfully created resource %T %s", desiredMetaObj, desiredMetaObj.GetName()))
 		} else {
 			// POST_READ callback
 			if err = r.invokeCallbacks(logger, cr, ReconcileStatePostRead, desiredRuntimeObj, currentRuntimeObj); err != nil {
@@ -432,22 +454,26 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1.CDI) (recon
 			}
 
 			if !reflect.DeepEqual(currentRuntimeObjCopy, currentRuntimeObj) {
+				r.recorder.Event(cr, corev1.EventTypeNormal, updateResourceStart, fmt.Sprintf("Started update of resource %T %s", desiredMetaObj, desiredMetaObj.GetName()))
 				logJSONDiff(logger, currentRuntimeObjCopy, currentRuntimeObj)
 				setLabel(updateVersionLabel, r.namespacedArgs.OperatorVersion, currentMetaObj)
 
 				// PRE_UPDATE callback
 				if err = r.invokeCallbacks(logger, cr, ReconcileStatePreUpdate, desiredRuntimeObj, currentRuntimeObj); err != nil {
+					r.recorder.Event(cr, corev1.EventTypeWarning, updateResourceFailed, fmt.Sprintf("Failed to update resource %s, %v", desiredMetaObj.GetName(), err))
 					return reconcile.Result{}, err
 				}
 
 				if err = r.client.Update(context.TODO(), currentRuntimeObj); err != nil {
 					logger.Error(err, "")
 					allErrors = append(allErrors, err)
+					r.recorder.Event(cr, corev1.EventTypeWarning, updateResourceFailed, fmt.Sprintf("Failed to update resource %s, %v", desiredMetaObj.GetName(), err))
 					continue
 				}
 
 				// POST_UPDATE callback
 				if err = r.invokeCallbacks(logger, cr, ReconcileStatePostUpdate, desiredRuntimeObj, nil); err != nil {
+					r.recorder.Event(cr, corev1.EventTypeWarning, updateResourceFailed, fmt.Sprintf("Failed to update resource %s, %v", desiredMetaObj.GetName(), err))
 					return reconcile.Result{}, err
 				}
 
@@ -455,6 +481,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1.CDI) (recon
 					"namespace", desiredMetaObj.GetNamespace(),
 					"name", desiredMetaObj.GetName(),
 					"type", fmt.Sprintf("%T", desiredMetaObj))
+				r.recorder.Event(cr, corev1.EventTypeNormal, updateResourceSuccess, fmt.Sprintf("Successfully updated resource %T %s", desiredMetaObj, desiredMetaObj.GetName()))
 			} else {
 				logger.V(3).Info("Resource unchanged",
 					"namespace", desiredMetaObj.GetNamespace(),
@@ -480,7 +507,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1.CDI) (recon
 	if cr.Status.Phase != cdiv1.CDIPhaseDeployed && !r.isUpgrading(cr) && !degraded {
 		//We are not moving to Deployed phase until new operator deployment is ready in case of Upgrade
 		cr.Status.ObservedVersion = r.namespacedArgs.OperatorVersion
-		MarkCrHealthyMessage(cr, "DeployCompleted", "Deployment Completed")
+		MarkCrHealthyMessage(cr, "DeployCompleted", "Deployment Completed", r.recorder)
 		if err = r.crUpdate(cdiv1.CDIPhaseDeployed, cr); err != nil {
 			return reconcile.Result{}, err
 		}
@@ -507,7 +534,7 @@ func (r *ReconcileCDI) completeUpgrade(logger logr.Logger, cr *cdiv1.CDI) error 
 	previousVersion := cr.Status.ObservedVersion
 	cr.Status.ObservedVersion = r.namespacedArgs.OperatorVersion
 
-	MarkCrHealthyMessage(cr, "DeployCompleted", "Deployment Completed")
+	MarkCrHealthyMessage(cr, "DeployCompleted", "Deployment Completed", r.recorder)
 	if err := r.crUpdate(cdiv1.CDIPhaseDeployed, cr); err != nil {
 		return err
 	}
@@ -570,8 +597,10 @@ func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1.CDI)
 			}
 
 			if !found && metav1.IsControlledBy(observedMetaObj, cr) {
+				r.recorder.Event(cr, corev1.EventTypeNormal, deleteResourceStart, fmt.Sprintf("Start to delete resource %T %s", observedMetaObj, observedMetaObj.GetName()))
 				//Invoke pre delete callback
 				if err = r.invokeCallbacks(logger, cr, ReconcileStatePreDelete, nil, observedObj); err != nil {
+					r.recorder.Event(cr, corev1.EventTypeWarning, deleteResourceFailed, fmt.Sprintf("Failed deleting resource %s, %v", observedMetaObj.GetName(), err))
 					return err
 				}
 
@@ -580,13 +609,16 @@ func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1.CDI)
 					PropagationPolicy: &[]metav1.DeletionPropagation{metav1.DeletePropagationForeground}[0],
 				})
 				if err != nil && !errors.IsNotFound(err) {
+					r.recorder.Event(cr, corev1.EventTypeWarning, deleteResourceFailed, fmt.Sprintf("Failed deleting resource %s, %v", observedMetaObj.GetName(), err))
 					return err
 				}
 
 				//invoke post delete callback
 				if err = r.invokeCallbacks(logger, cr, ReconcileStatePostDelete, nil, observedObj); err != nil {
+					r.recorder.Event(cr, corev1.EventTypeWarning, deleteResourceFailed, fmt.Sprintf("Failed deleting resource %s, %v", observedMetaObj.GetName(), err))
 					return err
 				}
+				r.recorder.Event(cr, corev1.EventTypeNormal, deleteResourceSuccess, fmt.Sprintf("Successfully deleted resource %T %s", observedMetaObj, observedMetaObj.GetName()))
 			}
 		}
 	}
@@ -638,7 +670,7 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1.CDI) (recon
 }
 
 func (r *ReconcileCDI) reconcileError(logger logr.Logger, cr *cdiv1.CDI, message string) (reconcile.Result, error) {
-	MarkCrFailed(cr, "ConfigError", message)
+	MarkCrFailed(cr, "ConfigError", message, r.recorder)
 	if err := r.crUpdate(cr.Status.Phase, cr); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -843,7 +875,7 @@ func (r *ReconcileCDI) getAllResources(cr *cdiv1.CDI) ([]runtime.Object, error) 
 	if deployClusterResources() {
 		crs, err := cdicluster.CreateAllStaticResources(r.clusterArgs)
 		if err != nil {
-			MarkCrFailedHealing(cr, "CreateResources", "Unable to create all resources")
+			MarkCrFailedHealing(cr, "CreateResources", "Unable to create all resources", r.recorder)
 			return nil, err
 		}
 
@@ -852,7 +884,7 @@ func (r *ReconcileCDI) getAllResources(cr *cdiv1.CDI) ([]runtime.Object, error) 
 
 	nsrs, err := cdinamespaced.CreateAllResources(r.getNamespacedArgs(cr))
 	if err != nil {
-		MarkCrFailedHealing(cr, "CreateNamespaceResources", "Unable to create all namespaced resources")
+		MarkCrFailedHealing(cr, "CreateNamespaceResources", "Unable to create all namespaced resources", r.recorder)
 		return nil, err
 	}
 
@@ -860,7 +892,7 @@ func (r *ReconcileCDI) getAllResources(cr *cdiv1.CDI) ([]runtime.Object, error) 
 
 	drs, err := cdicluster.CreateAllDynamicResources(r.clusterArgs)
 	if err != nil {
-		MarkCrFailedHealing(cr, "CreateDynamicResources", "Unable to create all dynamic resources")
+		MarkCrFailedHealing(cr, "CreateDynamicResources", "Unable to create all dynamic resources", r.recorder)
 		return nil, err
 	}
 
@@ -970,6 +1002,7 @@ func (r *ReconcileCDI) invokeCallbacks(l logr.Logger, cr *cdiv1.CDI, s Reconcile
 			Logger:        l,
 			Client:        r.uncachedClient,
 			Scheme:        r.scheme,
+			Recorder:      r.recorder,
 			Namespace:     r.namespace,
 			State:         s,
 			DesiredObject: desiredObj,

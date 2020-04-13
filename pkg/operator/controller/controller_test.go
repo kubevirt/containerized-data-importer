@@ -39,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	realClient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -160,6 +161,8 @@ var _ = Describe("Controller", func() {
 				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
 
 				Expect(args.cdi.Finalizers).Should(HaveLen(1))
+
+				validateEvents(args.reconciler.recorder.(*record.FakeRecorder).Events, createReadyEventValidationMap())
 			})
 
 			It("should create configmap", func() {
@@ -172,6 +175,7 @@ var _ = Describe("Controller", func() {
 
 				cm = obj.(*corev1.ConfigMap)
 				Expect(cm.OwnerReferences[0].UID).Should(Equal(args.cdi.UID))
+				validateEvents(args.reconciler.recorder.(*record.FakeRecorder).Events, createNotReadyEventValidationMap())
 			})
 
 			It("should create prometheus service", func() {
@@ -262,6 +266,7 @@ var _ = Describe("Controller", func() {
 					}
 					Expect(found).To(BeTrue())
 				}
+				validateEvents(args.reconciler.recorder.(*record.FakeRecorder).Events, createReadyEventValidationMap())
 			})
 
 			It("should create all resources", func() {
@@ -275,6 +280,7 @@ var _ = Describe("Controller", func() {
 					_, err := getObject(args.client, r)
 					Expect(err).ToNot(HaveOccurred())
 				}
+				validateEvents(args.reconciler.recorder.(*record.FakeRecorder).Events, createNotReadyEventValidationMap())
 			})
 
 			It("should become ready", func() {
@@ -296,6 +302,7 @@ var _ = Describe("Controller", func() {
 				Expect(route.Spec.To.Kind).Should(Equal("Service"))
 				Expect(route.Spec.To.Name).Should(Equal(uploadProxyServiceName))
 				Expect(route.Spec.TLS.DestinationCACertificate).Should(Equal(testCertData))
+				validateEvents(args.reconciler.recorder.(*record.FakeRecorder).Events, createReadyEventValidationMap())
 			})
 
 			It("can become become ready, un-ready, and ready again", func() {
@@ -364,6 +371,7 @@ var _ = Describe("Controller", func() {
 				Expect(conditions.IsStatusConditionTrue(args.cdi.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
 				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
 				Expect(conditions.IsStatusConditionFalse(args.cdi.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
+				validateEvents(args.reconciler.recorder.(*record.FakeRecorder).Events, createReadyEventValidationMap())
 			})
 
 			It("does not modify insecure registry configmap", func() {
@@ -397,6 +405,7 @@ var _ = Describe("Controller", func() {
 				cm = obj.(*corev1.ConfigMap)
 
 				Expect(cm.Data).Should(Equal(data))
+				validateEvents(args.reconciler.recorder.(*record.FakeRecorder).Events, createNotReadyEventValidationMap())
 			})
 
 			It("should be an error when creating another CDI instance", func() {
@@ -419,6 +428,7 @@ var _ = Describe("Controller", func() {
 				Expect(conditions.IsStatusConditionFalse(newInstance.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
 				Expect(conditions.IsStatusConditionFalse(newInstance.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
 				Expect(conditions.IsStatusConditionTrue(newInstance.Status.Conditions, conditions.ConditionDegraded)).To(BeTrue())
+				validateEvents(args.reconciler.recorder.(*record.FakeRecorder).Events, createErrorCdiEventValidationMap())
 			})
 
 			It("should succeed when we delete CDI", func() {
@@ -450,6 +460,7 @@ var _ = Describe("Controller", func() {
 
 				_, err = getObject(args.client, pod)
 				Expect(errors.IsNotFound(err)).To(BeTrue())
+				validateEvents(args.reconciler.recorder.(*record.FakeRecorder).Events, createDeleteCDIEventValidationMap())
 			})
 		})
 	})
@@ -477,6 +488,7 @@ var _ = Describe("Controller", func() {
 
 			o.Check(d)
 		}
+		validateEvents(args.reconciler.recorder.(*record.FakeRecorder).Events, createNotReadyEventValidationMap())
 	},
 		Entry("Pull override", &pullOverride{corev1.PullNever}),
 	)
@@ -586,11 +598,10 @@ var _ = Describe("Controller", func() {
 		Describe("CDI CR deletion during upgrade", func() {
 			Context("cr deletion during upgrade", func() {
 				It("should delete CR if it is marked for deletion and not begin upgrade flow", func() {
-					var args *args
 					newVersion := "1.10.0"
 					prevVersion := "1.9.5"
 
-					args = createFromArgs(newVersion)
+					args := createFromArgs(newVersion)
 					doReconcile(args)
 
 					//set deployment to ready
@@ -614,14 +625,14 @@ var _ = Describe("Controller", func() {
 					Expect(args.cdi.Status.ObservedVersion).Should(Equal(prevVersion))
 					Expect(args.cdi.Status.TargetVersion).Should(Equal(prevVersion))
 					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeleted))
+					validateEvents(args.reconciler.recorder.(*record.FakeRecorder).Events, createDeleteCDIAfterReadyEventValidationMap())
 				})
 
 				It("should delete CR if it is marked for deletion during upgrade flow", func() {
-					var args *args
 					newVersion := "1.10.0"
 					prevVersion := "1.9.5"
 
-					args = createFromArgs(newVersion)
+					args := createFromArgs(newVersion)
 					doReconcile(args)
 					setDeploymentsReady(args)
 
@@ -645,6 +656,11 @@ var _ = Describe("Controller", func() {
 					doReconcile(args)
 					//verify the version cr is marked as deleted
 					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeleted))
+
+					//verify events, this should include an upgrade event
+					match := createDeleteCDIAfterReadyEventValidationMap()
+					match["Normal UpgradeStarted Started upgrade to version 1.10.0"] = false
+					validateEvents(args.reconciler.recorder.(*record.FakeRecorder).Events, match)
 				})
 			})
 		})
@@ -654,11 +670,10 @@ var _ = Describe("Controller", func() {
 			tomodify isModifySubject,
 			upgraded isUpgraded) {
 
-			var args *args
 			newVersion := "1.10.0"
 			prevVersion := "1.9.5"
 
-			args = createFromArgs(newVersion)
+			args := createFromArgs(newVersion)
 			doReconcile(args)
 			setDeploymentsReady(args)
 
@@ -1085,11 +1100,10 @@ var _ = Describe("Controller", func() {
 		DescribeTable("Removes unused objects on upgrade", func(
 			createObj createUnusedObject) {
 
-			var args *args
 			newVersion := "1.10.0"
 			prevVersion := "1.9.5"
 
-			args = createFromArgs(newVersion)
+			args := createFromArgs(newVersion)
 			doReconcile(args)
 
 			setDeploymentsReady(args)
@@ -1484,6 +1498,7 @@ func createReconciler(client realClient.Client) *ReconcileCDI {
 		client:         client,
 		uncachedClient: client,
 		scheme:         scheme.Scheme,
+		recorder:       record.NewFakeRecorder(250),
 		namespace:      namespace,
 		clusterArgs:    clusterArgs,
 		namespacedArgs: namespacedArgs,
@@ -1495,4 +1510,149 @@ func createReconciler(client realClient.Client) *ReconcileCDI {
 	addReconcileCallbacks(r)
 
 	return r
+}
+
+func validateEvents(events chan string, match map[string]bool) {
+	// Closing the channel allows me to do non blocking reads of the channel, once the channel runs out of items the loop exits.
+	close(events)
+	for event := range events {
+		val, ok := match[event]
+		Expect(ok).To(BeTrue(), "Event [%s] was not expected", event)
+		if !val {
+			match[event] = true
+		}
+	}
+	for k, v := range match {
+		Expect(v).To(BeTrue(), "Event [%s] not observed", k)
+	}
+}
+
+func createDeleteCDIAfterReadyEventValidationMap() map[string]bool {
+	match := createReadyEventValidationMap()
+	match["Normal DeleteResourceStart Started deleting deployment cdi-deployment"] = false
+	match["Normal DeleteResourceSuccess Deleted deployment cdi-deployment successfully"] = false
+	match["Normal DeleteResourceStart Started deleting worker resources"] = false
+	match["Normal DeleteResourceSuccess Deleted worker resources successfully"] = false
+	return match
+}
+
+func createDeleteCDIEventValidationMap() map[string]bool {
+	match := createNotReadyEventValidationMap()
+	match["Normal DeleteResourceStart Started deleting deployment cdi-deployment"] = false
+	match["Normal DeleteResourceSuccess Deleted deployment cdi-deployment successfully"] = false
+	match["Normal DeleteResourceStart Started deleting worker resources"] = false
+	match["Normal DeleteResourceSuccess Deleted worker resources successfully"] = false
+	return match
+}
+
+func createErrorCdiEventValidationMap() map[string]bool {
+	match := createNotReadyEventValidationMap()
+	match["Warning ConfigError Reconciling to error state, unwanted CDI object"] = false
+	return match
+}
+
+func createReadyEventValidationMap() map[string]bool {
+	match := createNotReadyEventValidationMap()
+	match["Normal CreateResourceStart Ensuring upload proxy route exists"] = false
+	match["Normal CreateResourceSuccess Successfully ensured upload proxy route exists"] = false
+	match["Normal DeployCompleted Deployment Completed"] = false
+	return match
+}
+
+func createNotReadyEventValidationMap() map[string]bool {
+	// match is map of strings and if we observed the event.
+	// We are not interested in the order of the events, just that the events happen at least once.
+	match := make(map[string]bool)
+	match["Normal DeployStarted Started Deployment"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ClusterRole cdi-apiserver"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ClusterRole cdi-apiserver"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ClusterRoleBinding cdi-apiserver"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ClusterRoleBinding cdi-apiserver"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ClusterRole cdi"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ClusterRole cdi"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ClusterRoleBinding cdi-sa"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ClusterRoleBinding cdi-sa"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1beta1.CustomResourceDefinition datavolumes.cdi.kubevirt.io"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1beta1.CustomResourceDefinition datavolumes.cdi.kubevirt.io"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1beta1.CustomResourceDefinition cdiconfigs.cdi.kubevirt.io"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1beta1.CustomResourceDefinition cdiconfigs.cdi.kubevirt.io"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ClusterRole cdi-uploadproxy"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ClusterRole cdi-uploadproxy"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ClusterRoleBinding cdi-uploadproxy"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ClusterRoleBinding cdi-uploadproxy"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ClusterRole cdi.kubevirt.io:admin"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ClusterRole cdi.kubevirt.io:admin"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ClusterRole cdi.kubevirt.io:edit"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ClusterRole cdi.kubevirt.io:edit"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ClusterRole cdi.kubevirt.io:view"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ClusterRole cdi.kubevirt.io:view"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ClusterRole cdi.kubevirt.io:config-reader"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ClusterRole cdi.kubevirt.io:config-reader"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ClusterRoleBinding cdi.kubevirt.io:config-reader"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ClusterRoleBinding cdi.kubevirt.io:config-reader"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ServiceAccount cdi-apiserver"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ServiceAccount cdi-apiserver"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.RoleBinding cdi-apiserver"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.RoleBinding cdi-apiserver"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Role cdi-apiserver"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Role cdi-apiserver"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Service cdi-api"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Service cdi-api"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Deployment cdi-apiserver"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Deployment cdi-apiserver"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ServiceAccount cdi-sa"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ServiceAccount cdi-sa"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.RoleBinding cdi-deployment"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.RoleBinding cdi-deployment"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Role cdi-deployment"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Role cdi-deployment"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Deployment cdi-deployment"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Deployment cdi-deployment"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ConfigMap cdi-insecure-registries"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ConfigMap cdi-insecure-registries"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ServiceAccount cdi-uploadproxy"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ServiceAccount cdi-uploadproxy"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Service cdi-uploadproxy"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Service cdi-uploadproxy"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.RoleBinding cdi-uploadproxy"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.RoleBinding cdi-uploadproxy"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Role cdi-uploadproxy"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Role cdi-uploadproxy"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Deployment cdi-uploadproxy"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Deployment cdi-uploadproxy"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1beta1.APIService v1alpha1.upload.cdi.kubevirt.io"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1beta1.APIService v1alpha1.upload.cdi.kubevirt.io"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1beta1.ValidatingWebhookConfiguration cdi-api-datavolume-validate"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1beta1.ValidatingWebhookConfiguration cdi-api-datavolume-validate"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1beta1.MutatingWebhookConfiguration cdi-api-datavolume-mutate"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1beta1.MutatingWebhookConfiguration cdi-api-datavolume-mutate"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1beta1.ValidatingWebhookConfiguration cdi-api-validate"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1beta1.ValidatingWebhookConfiguration cdi-api-validate"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Secret cdi-apiserver-signer"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Secret cdi-apiserver-signer"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ConfigMap cdi-apiserver-signer-bundle"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ConfigMap cdi-apiserver-signer-bundle"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Secret cdi-apiserver-server-cert"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Secret cdi-apiserver-server-cert"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Secret cdi-uploadproxy-signer"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Secret cdi-uploadproxy-signer"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ConfigMap cdi-uploadproxy-signer-bundle"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ConfigMap cdi-uploadproxy-signer-bundle"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Secret cdi-uploadproxy-server-cert"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Secret cdi-uploadproxy-server-cert"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Secret cdi-uploadserver-signer"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Secret cdi-uploadserver-signer"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ConfigMap cdi-uploadserver-signer-bundle"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ConfigMap cdi-uploadserver-signer-bundle"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Secret cdi-uploadserver-client-signer"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Secret cdi-uploadserver-client-signer"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.ConfigMap cdi-uploadserver-client-signer-bundle"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.ConfigMap cdi-uploadserver-client-signer-bundle"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Secret cdi-uploadserver-client-cert"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Secret cdi-uploadserver-client-cert"] = false
+	match["Normal CreateResourceStart Started creation of resource *v1.Service cdi-prometheus-metrics"] = false
+	match["Normal CreateResourceSuccess Successfully created resource *v1.Service cdi-prometheus-metrics"] = false
+	match["Normal CreateResourceStart Ensuring SecurityContextConstraint exists"] = false
+	match["Normal CreateResourceSuccess Successfully ensured SecurityContextConstraint exists"] = false
+	return match
 }

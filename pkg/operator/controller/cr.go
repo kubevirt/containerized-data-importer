@@ -21,6 +21,7 @@ import (
 
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/record"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
@@ -89,7 +90,7 @@ func conditionsChanged(originalValues, newValues map[conditions.ConditionType]co
 // ApplicationAvailable: true
 // Progressing: false
 // Degraded: false
-func MarkCrHealthyMessage(cr *cdiv1.CDI, reason, message string) {
+func MarkCrHealthyMessage((cr *cdiv1.CDI, reason, message string, recorder record.EventRecorder) {
 	conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 		Type:    conditions.ConditionAvailable,
 		Status:  corev1.ConditionTrue,
@@ -104,6 +105,7 @@ func MarkCrHealthyMessage(cr *cdiv1.CDI, reason, message string) {
 		Type:   conditions.ConditionDegraded,
 		Status: corev1.ConditionFalse,
 	})
+	recorder.Event(cr, corev1.EventTypeNormal, reason, message)
 }
 
 // MarkCrUpgradeHealingDegraded marks the passed CR as upgrading and degraded. The CR object needs to be updated by the caller afterwards.
@@ -111,7 +113,7 @@ func MarkCrHealthyMessage(cr *cdiv1.CDI, reason, message string) {
 // ApplicationAvailable: true
 // Progressing: true
 // Degraded: true
-func MarkCrUpgradeHealingDegraded(cr *cdiv1.CDI, reason, message string) {
+func MarkCrUpgradeHealingDegraded((cr *cdiv1.CDI, reason, message string, recorder record.EventRecorder) {
 	conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 		Type:   conditions.ConditionAvailable,
 		Status: corev1.ConditionTrue,
@@ -126,6 +128,7 @@ func MarkCrUpgradeHealingDegraded(cr *cdiv1.CDI, reason, message string) {
 		Reason:  reason,
 		Message: message,
 	})
+	recorder.Event(cr, corev1.EventTypeNormal, reason, message)
 }
 
 // MarkCrFailed marks the passed CR as failed and requiring human intervention. The CR object needs to be updated by the caller afterwards.
@@ -133,7 +136,7 @@ func MarkCrUpgradeHealingDegraded(cr *cdiv1.CDI, reason, message string) {
 // ApplicationAvailable: false
 // Progressing: false
 // Degraded: true
-func MarkCrFailed(cr *cdiv1.CDI, reason, message string) {
+func MarkCrFailed((cr *cdiv1.CDI, reason, message string, recorder record.EventRecorder) {
 	conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 		Type:   conditions.ConditionAvailable,
 		Status: corev1.ConditionFalse,
@@ -148,6 +151,7 @@ func MarkCrFailed(cr *cdiv1.CDI, reason, message string) {
 		Reason:  reason,
 		Message: message,
 	})
+	recorder.Event(cr, corev1.EventTypeWarning, reason, message)
 }
 
 // MarkCrFailedHealing marks the passed CR as failed and healing. The CR object needs to be updated by the caller afterwards.
@@ -155,7 +159,7 @@ func MarkCrFailed(cr *cdiv1.CDI, reason, message string) {
 // ApplicationAvailable: false
 // Progressing: true
 // Degraded: true
-func MarkCrFailedHealing(cr *cdiv1.CDI, reason, message string) {
+func MarkCrFailedHealing((cr *cdiv1.CDI, reason, message string, recorder record.EventRecorder) {
 	conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 		Type:   conditions.ConditionAvailable,
 		Status: corev1.ConditionFalse,
@@ -170,6 +174,7 @@ func MarkCrFailedHealing(cr *cdiv1.CDI, reason, message string) {
 		Reason:  reason,
 		Message: message,
 	})
+	recorder.Event(cr, corev1.EventTypeWarning, reason, message)
 }
 
 // MarkCrDeploying marks the passed CR as currently deploying. The CR object needs to be updated by the caller afterwards.
@@ -177,7 +182,7 @@ func MarkCrFailedHealing(cr *cdiv1.CDI, reason, message string) {
 // ApplicationAvailable: false
 // Progressing: true
 // Degraded: false
-func MarkCrDeploying(cr *cdiv1.CDI, reason, message string) {
+func MarkCrDeploying((cr *cdiv1.CDI, reason, message string, recorder record.EventRecorder) {
 	conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 		Type:   conditions.ConditionAvailable,
 		Status: corev1.ConditionFalse,
@@ -192,4 +197,5 @@ func MarkCrDeploying(cr *cdiv1.CDI, reason, message string) {
 		Type:   conditions.ConditionDegraded,
 		Status: corev1.ConditionFalse,
 	})
+	recorder.Event(cr, corev1.EventTypeNormal, reason, message)
 }
