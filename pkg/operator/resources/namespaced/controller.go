@@ -53,7 +53,7 @@ func createControllerResources(args *FactoryArgs) []runtime.Object {
 }
 
 func createControllerRoleBinding() *rbacv1.RoleBinding {
-	return utils.CreateRoleBinding(controllerResourceName, controllerResourceName, controllerServiceAccount, "")
+	return utils.CreateRoleBinding(controllerResourceName, controllerResourceName, common.ControllerServiceAccountName, "")
 }
 
 func createControllerRole() *rbacv1.Role {
@@ -88,16 +88,11 @@ func createControllerRole() *rbacv1.Role {
 }
 
 func createControllerServiceAccount() *corev1.ServiceAccount {
-	sa := utils.CreateServiceAccount(controllerServiceAccount)
-	if sa.Annotations == nil {
-		sa.Annotations = make(map[string]string)
-	}
-	sa.Annotations[utils.SCCAnnotation] = "[\"anyuid\"]"
-	return sa
+	return utils.CreateServiceAccount(common.ControllerServiceAccountName)
 }
 
 func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string) *appsv1.Deployment {
-	deployment := utils.CreateDeployment(controllerResourceName, "app", "containerized-data-importer", controllerServiceAccount, int32(1))
+	deployment := utils.CreateDeployment(controllerResourceName, "app", "containerized-data-importer", common.ControllerServiceAccountName, int32(1))
 	container := utils.CreateContainer("cdi-controller", controllerImage, verbosity, corev1.PullPolicy(pullPolicy))
 	container.Env = []corev1.EnvVar{
 		{

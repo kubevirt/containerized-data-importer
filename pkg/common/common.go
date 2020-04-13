@@ -132,4 +132,7 @@ const (
 
 	// QemuSubGid is the gid used as the qemu group in fsGroup
 	QemuSubGid = int64(107)
+
+	// ControllerServiceAccountName is the name of the CDI controller service account
+	ControllerServiceAccountName = "cdi-sa"
 )

@@ -23,7 +23,6 @@ go_library(
         "//pkg/operator/resources/cert:go_default_library",
         "//pkg/operator/resources/cluster:go_default_library",
         "//pkg/operator/resources/namespaced:go_default_library",
-        "//pkg/operator/resources/utils:go_default_library",
         "//pkg/util:go_default_library",
         "//vendor/github.com/appscode/jsonpatch:go_default_library",
         "//vendor/github.com/blang/semver:go_default_library",
