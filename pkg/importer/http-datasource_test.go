@@ -341,7 +341,7 @@ var _ = Describe("Http reader", func() {
 
 	It("should continue even if HEAD is rejected, but mark broken for qemu-img", func() {
 		redirTs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if (r.Method == "HEAD") {
+			if r.Method == "HEAD" {
 				w.WriteHeader(http.StatusForbidden)
 			} else {
 				defer w.WriteHeader(http.StatusOK)

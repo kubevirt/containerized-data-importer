@@ -271,7 +271,7 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 		return nil, uint64(0), true, errors.Errorf("expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
 	}
 
-	if (total == 0) {
+	if total == 0 {
 		// The total seems bogus. Let's try the GET Content-Length header
 		total = parseHTTPHeader(resp)
 	}
@@ -342,7 +342,7 @@ func getContentLength(client *http.Client, ep *url.URL, accessKey, secKey string
 	return total, nil
 }
 
-func parseHTTPHeader(resp *http.Response) (uint64) {
+func parseHTTPHeader(resp *http.Response) uint64 {
 	var err error
 	total := uint64(0)
 	if val, ok := resp.Header["Content-Length"]; ok {
