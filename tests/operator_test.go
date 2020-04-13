@@ -39,15 +39,37 @@ var _ = Describe("Operator tests", func() {
 		Expect(r.Spec.TLS.Termination).To(Equal(routev1.TLSTerminationReencrypt))
 	})
 
-	It("add cdi-sa to anyuid scc", func() {
-		if !controller.IsOpenshift(f.K8sClient) {
+	It("should create a prometheus service in cdi namespace", func() {
+		promService, err := f.K8sClient.CoreV1().Services(f.CdiInstallNs).Get(common.PrometheusServiceName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(promService.Spec.Ports[0].Name).To(Equal("metrics"))
+		Expect(promService.Spec.Selector[common.PrometheusLabel]).To(Equal(""))
+		originalTimeStamp := promService.ObjectMeta.CreationTimestamp
+
+		By("Deleting the service")
+		err = f.K8sClient.CoreV1().Services(f.CdiInstallNs).Delete(common.PrometheusServiceName, &metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		By("Verifying the operator has re-created the service")
+		Eventually(func() bool {
+			promService, err = f.K8sClient.CoreV1().Services(f.CdiInstallNs).Get(common.PrometheusServiceName, metav1.GetOptions{})
+			if err == nil {
+				return originalTimeStamp.Before(&promService.ObjectMeta.CreationTimestamp)
+			}
+			return false
+		}, 1*time.Minute, 2*time.Second).Should(BeTrue())
+		Expect(promService.Spec.Ports[0].Name).To(Equal("metrics"))
+		Expect(promService.Spec.Selector[common.PrometheusLabel]).To(Equal(""))
+	})
+
+	It("add cdi-sa to containerized-data-importer scc", func() {
+		if !isOpenshift(f.K8sClient) {
 			Skip("This test is OpenShift specific")
 		}
 
 		secClient, err := secclient.NewForConfig(f.RestConfig)
 		Expect(err).ToNot(HaveOccurred())
 
-		scc, err := secClient.SecurityV1().SecurityContextConstraints().Get("anyuid", metav1.GetOptions{})
+		scc, err := secClient.SecurityV1().SecurityContextConstraints().Get("containerized-data-importer", metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		cdiSA := fmt.Sprintf("system:serviceaccount:%s:cdi-sa", f.CdiInstallNs)

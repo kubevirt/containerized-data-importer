@@ -118,4 +118,7 @@ const (
 
 	// UploadPathAsync is the path to POST CDI uploads in async mode
 	UploadPathAsync = "/v1alpha1/upload-async"
+
+	// ControllerServiceAccountName is the name of the CDI controller service account
+	ControllerServiceAccountName = "cdi-sa"
 )

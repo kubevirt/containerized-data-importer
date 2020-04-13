@@ -18,11 +18,21 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"reflect"
 
+	secv1 "github.com/openshift/api/security/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	// SCCAnnotation is the annotation listing SCCs for a SA
+	SCCAnnotation = "cdi-scc"
 )
 
 // delete when we no longer support <= 1.12.0
@@ -57,6 +67,104 @@ func reconcileDeleteSecrets(args *ReconcileCallbackArgs) error {
 		err = args.Client.Delete(context.TODO(), secret)
 		if err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+// delete when we no longer support <= 1.13.3
+func reconcileServiceAccountRead(args *ReconcileCallbackArgs) error {
+	if args.State != ReconcileStatePostRead {
+		return nil
+	}
+
+	do := args.DesiredObject.(*corev1.ServiceAccount)
+	co := args.CurrentObject.(*corev1.ServiceAccount)
+
+	delete(co.Annotations, SCCAnnotation)
+
+	val, exists := do.Annotations[SCCAnnotation]
+	if exists {
+		if co.Annotations == nil {
+			co.Annotations = make(map[string]string)
+		}
+		co.Annotations[SCCAnnotation] = val
+	}
+
+	return nil
+}
+
+// delete when we no longer support <= 1.13.3
+func reconcileServiceAccounts(args *ReconcileCallbackArgs) error {
+	switch args.State {
+	case ReconcileStatePreCreate, ReconcileStatePreUpdate, ReconcileStatePostDelete, ReconcileStateCDIDelete:
+	default:
+		return nil
+	}
+
+	var sa *corev1.ServiceAccount
+	if args.CurrentObject != nil {
+		sa = args.CurrentObject.(*corev1.ServiceAccount)
+	} else if args.DesiredObject != nil {
+		sa = args.DesiredObject.(*corev1.ServiceAccount)
+	} else {
+		args.Logger.Info("Received callback with no desired/current object")
+		return nil
+	}
+
+	desiredSCCs := []string{}
+	saName := fmt.Sprintf("system:serviceaccount:%s:%s", sa.Namespace, sa.Name)
+
+	switch args.State {
+	case ReconcileStatePreCreate, ReconcileStatePreUpdate:
+		val, exists := sa.Annotations[SCCAnnotation]
+		if exists {
+			if err := json.Unmarshal([]byte(val), &desiredSCCs); err != nil {
+				args.Logger.Error(err, "Error unmarshalling data")
+				return err
+			}
+		}
+	default:
+		// want desiredSCCs empty because deleting resource/CDI
+	}
+
+	listObj := &secv1.SecurityContextConstraintsList{}
+	if err := args.Client.List(context.TODO(), listObj, &client.ListOptions{}); err != nil {
+		if meta.IsNoMatchError(err) {
+			// not openshift
+			return nil
+		}
+		args.Logger.Error(err, "Error listing SCCs")
+		return err
+	}
+
+	for _, scc := range listObj.Items {
+		desiredUsers := []string{}
+		add := containsStringValue(desiredSCCs, scc.Name)
+		seenUser := false
+
+		for _, u := range scc.Users {
+			if u == saName {
+				seenUser = true
+				if !add {
+					continue
+				}
+			}
+			desiredUsers = append(desiredUsers, u)
+		}
+
+		if add && !seenUser {
+			desiredUsers = append(desiredUsers, saName)
+		}
+
+		if !reflect.DeepEqual(desiredUsers, scc.Users) {
+			args.Logger.Info("Doing SCC update", "name", scc.Name, "desired", desiredUsers, "current", scc.Users)
+			scc.Users = desiredUsers
+			if err := args.Client.Update(context.TODO(), &scc); err != nil {
+				args.Logger.Error(err, "Error updating SCC")
+				return err
+			}
 		}
 	}
 
