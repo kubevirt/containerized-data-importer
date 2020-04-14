@@ -68,6 +68,7 @@ if [ "$KUBEVIRT_PROVIDER" == "os-3.11.0-crio" ]; then
     wait_time=$((wait_time + 5))
     sleep 5
     available=$(_kubectl get cdi cdi -o jsonpath={.status.conditions[0].status})
+    fix_failed_sdn_pods
   done
 
 else
