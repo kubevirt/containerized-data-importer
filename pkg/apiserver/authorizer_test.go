@@ -22,13 +22,13 @@ package apiserver
 import (
 	"crypto/tls"
 	"crypto/x509"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"net/http"
 	"net/url"
-	"testing"
 
 	"github.com/emicklei/go-restful"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
@@ -56,133 +56,96 @@ func newAuthorizor() *authorizor {
 	return &app
 }
 
-func TestRejectUnauthenticatedUser(t *testing.T) {
+var _ = Describe("Authorizer test", func() {
+	It("Reject unauthenticated user", func() {
+		client := k8sfake.NewSimpleClientset()
+		authClient := client.AuthorizationV1beta1()
 
-	kubeobjects := []runtime.Object{}
-	client := k8sfake.NewSimpleClientset(kubeobjects...)
-	authClient := client.AuthorizationV1beta1()
+		app := newAuthorizor()
+		app.subjectAccessReview = authClient.SubjectAccessReviews()
 
-	app := newAuthorizor()
-	app.subjectAccessReview = authClient.SubjectAccessReviews()
+		allowed, reason, err := app.Authorize(fakeRequest())
+		Expect(allowed).To(BeFalse())
+		Expect(reason).To(Equal("request is not authenticated"))
+		Expect(err).ToNot(HaveOccurred())
+	})
 
-	allowed, reason, err := app.Authorize(fakeRequest())
+	It("Reject unauthorized user", func() {
+		fakecert, fakecert2 := &x509.Certificate{}, &x509.Certificate{}
+		client := k8sfake.NewSimpleClientset()
+		authClient := client.AuthorizationV1beta1()
 
-	if allowed != false {
-		t.Errorf("Should not have allowed request")
-	} else if reason != "request is not authenticated" {
-		t.Errorf("Unexpected reason")
-	} else if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-}
+		app := newAuthorizor()
+		app.subjectAccessReview = authClient.SubjectAccessReviews()
 
-func TestRejectUnauthorizedUser(t *testing.T) {
-	fakecert, fakecert2 := &x509.Certificate{}, &x509.Certificate{}
-	kubeobjects := []runtime.Object{}
-	client := k8sfake.NewSimpleClientset(kubeobjects...)
-	authClient := client.AuthorizationV1beta1()
+		// Add fake client cert info to prove authentication
+		req := fakeRequest()
+		req.Request.TLS = &tls.ConnectionState{}
+		req.Request.TLS.PeerCertificates = append(req.Request.TLS.PeerCertificates, fakecert)
+		req.Request.TLS.VerifiedChains = append(req.Request.TLS.VerifiedChains, []*x509.Certificate{fakecert, fakecert2})
 
-	app := newAuthorizor()
-	app.subjectAccessReview = authClient.SubjectAccessReviews()
+		allowed, reason, err := app.Authorize(req)
+		Expect(allowed).To(BeFalse())
 
-	// Add fake client cert info to prove authentication
-	req := fakeRequest()
-	req.Request.TLS = &tls.ConnectionState{}
-	req.Request.TLS.PeerCertificates = append(req.Request.TLS.PeerCertificates, fakecert)
-	req.Request.TLS.VerifiedChains = append(req.Request.TLS.VerifiedChains, []*x509.Certificate{fakecert, fakecert2})
-
-	allowed, reason, err := app.Authorize(req)
-
-	if allowed != false {
-		t.Errorf("Should not have allowed request")
-	} else if reason != "" {
 		// reason is empty because the fake client is going to return a status
 		// section without a reason set
-		t.Errorf("Unexpected reason %s", reason)
-	} else if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-}
+		Expect(reason).To(Equal(""))
 
-func TestGenerateAccessReview(t *testing.T) {
-	app := newAuthorizor()
-	req := fakeRequest()
-	authReview, err := app.generateAccessReview(req)
+		Expect(err).ToNot(HaveOccurred())
+	})
 
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	} else if authReview == nil {
-		t.Errorf("Authreview not generated: %v", err)
-	}
-}
+	It("Generate access review", func() {
+		app := newAuthorizor()
+		req := fakeRequest()
+		authReview, err := app.generateAccessReview(req)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(authReview).ToNot(BeNil())
+	})
 
-func TestGenerateAccessReviewPathErrGroup(t *testing.T) {
-	app := newAuthorizor()
-	req := fakeRequest()
-	req.Request.URL.Path = "/apis/NOTOURGROUP/v1alpha1/namespaces/default/uploadtokenrequests"
-	authReview, err := app.generateAccessReview(req)
+	It("Generate access review path err group", func() {
+		app := newAuthorizor()
+		req := fakeRequest()
+		req.Request.URL.Path = "/apis/NOTOURGROUP/v1alpha1/namespaces/default/uploadtokenrequests"
+		authReview, err := app.generateAccessReview(req)
+		Expect(err).To(HaveOccurred())
+		Expect(authReview).To(BeNil())
+	})
 
-	if err == nil {
-		t.Errorf("expected an error")
-	} else if authReview != nil {
-		t.Errorf("Authreview should not have been generated")
-	}
-}
+	It("Generate access review path err resource", func() {
+		app := newAuthorizor()
+		req := fakeRequest()
+		req.Request.URL.Path = "/apis/upload.cdi.kubevirt.io/v1alpha1/namespaces/default/NOTOURRESOURCE"
+		authReview, err := app.generateAccessReview(req)
+		Expect(err).To(HaveOccurred())
+		Expect(authReview).To(BeNil())
+	})
 
-func TestGenerateAccessReviewPathErrResource(t *testing.T) {
-	app := newAuthorizor()
-	req := fakeRequest()
-	req.Request.URL.Path = "/apis/upload.cdi.kubevirt.io/v1alpha1/namespaces/default/NOTOURRESOURCE"
-	authReview, err := app.generateAccessReview(req)
+	It("Access review success", func() {
+		app := newAuthorizor()
+		req := fakeRequest()
+		authReview, err := app.generateAccessReview(req)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(authReview).ToNot(BeNil())
 
-	if err == nil {
-		t.Errorf("expected an error")
-	} else if authReview != nil {
-		t.Errorf("Authreview should not have been generated")
-	}
-}
+		authReview.Status.Allowed = true
 
-func TestAccessReviewSuccess(t *testing.T) {
-	app := newAuthorizor()
-	req := fakeRequest()
-	authReview, err := app.generateAccessReview(req)
+		allowed, reason := isAllowed(authReview)
+		Expect(allowed).To(BeTrue())
+		Expect(reason).To(Equal(""))
+	})
 
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	} else if authReview == nil {
-		t.Errorf("Authreview not generated: %v", err)
-	}
+	It("Access review not allowed", func() {
+		app := newAuthorizor()
+		req := fakeRequest()
+		authReview, err := app.generateAccessReview(req)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(authReview).ToNot(BeNil())
 
-	authReview.Status.Allowed = true
+		authReview.Status.Allowed = false
+		authReview.Status.Reason = "because"
 
-	allowed, reason := isAllowed(authReview)
-
-	if allowed != true {
-		t.Errorf("Auth review should have been allowed")
-	} else if reason != "" {
-		t.Errorf("reason should have been empty, got %s", reason)
-	}
-}
-
-func TestAccessReviewNotAllowed(t *testing.T) {
-	app := newAuthorizor()
-	req := fakeRequest()
-	authReview, err := app.generateAccessReview(req)
-
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	} else if authReview == nil {
-		t.Errorf("Authreview not generated: %v", err)
-	}
-
-	authReview.Status.Allowed = false
-	authReview.Status.Reason = "because"
-
-	allowed, reason := isAllowed(authReview)
-
-	if allowed == true {
-		t.Errorf("Auth review should not have been allowed")
-	} else if reason != "because" {
-		t.Errorf("reason should not have been empty")
-	}
-}
+		allowed, reason := isAllowed(authReview)
+		Expect(allowed).To(BeFalse())
+		Expect(reason).To(Equal("because"))
+	})
+})

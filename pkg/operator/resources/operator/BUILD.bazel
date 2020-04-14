@@ -27,12 +27,17 @@ go_library(
 
 go_test(
     name = "go_default_test",
-    srcs = ["operator_test.go"],
+    srcs = [
+        "operator_suite_test.go",
+        "operator_test.go",
+    ],
     embed = [":go_default_library"],
     deps = [
         "//pkg/apis/core/v1alpha1:go_default_library",
+        "//tests/reporters:go_default_library",
         "//vendor/github.com/RHsyseng/operator-utils/pkg/validation:go_default_library",
         "//vendor/github.com/ghodss/yaml:go_default_library",
-        "//vendor/github.com/stretchr/testify/assert:go_default_library",
+        "//vendor/github.com/onsi/ginkgo:go_default_library",
+        "//vendor/github.com/onsi/gomega:go_default_library",
     ],
 )

@@ -6,86 +6,81 @@ import (
 
 	"github.com/RHsyseng/operator-utils/pkg/validation"
 	"github.com/ghodss/yaml"
-	"github.com/stretchr/testify/assert"
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"strings"
-	"testing"
 )
 
 var crdTypeMap = map[string]interface{}{
 	"operator-crd": &cdiv1alpha1.CDI{},
 }
 
-func TestCRDSchemas(t *testing.T) {
-	for crdFileName, cdiObjType := range crdTypeMap {
+var _ = Describe("Operator resource test", func() {
+	It("Test CRD schemas", func() {
+		for crdFileName, cdiObjType := range crdTypeMap {
 
-		schema := getSchema(t)
-		missingEntries := schema.GetMissingEntries(cdiObjType)
-		for _, missing := range missingEntries {
-			if strings.HasPrefix(missing.Path, "/status") {
-				//Not using subresources, so status is not expected to appear in CRD
-			} else {
-				assert.Fail(t, "Discrepancy between CRD and Struct",
-					"Missing or incorrect schema validation at %v, expected type %v  in CRD file %v", missing.Path, missing.Type, crdFileName)
+			schema := getSchema()
+			missingEntries := schema.GetMissingEntries(cdiObjType)
+			for _, missing := range missingEntries {
+				if strings.HasPrefix(missing.Path, "/status") {
+					//Not using subresources, so status is not expected to appear in CRD
+				} else {
+					Fail(fmt.Sprintf("Discrepancy between CRD and Struct"+
+						"Missing or incorrect schema validation at %v, expected type %v  in CRD file %v", missing.Path, missing.Type, crdFileName))
+				}
 			}
 		}
-	}
-}
+	})
 
-func TestSampleCustomResources(t *testing.T) {
+	It("Test sample custom resources", func() {
+		var crFileName = "cdi-cr.yaml"
+		root := "./../../../../_out/manifests/release/"
+		schema := getSchema()
+		yamlString, err := ioutil.ReadFile(root + crFileName)
+		Expect(err).ToNot(HaveOccurred())
+		var input map[string]interface{}
+		err = yaml.Unmarshal([]byte(yamlString), &input)
+		Expect(err).ToNot(HaveOccurred())
 
-	var crFileName = "cdi-cr.yaml"
-	root := "./../../../../_out/manifests/release/"
-	schema := getSchema(t)
-	yamlString, err := ioutil.ReadFile(root + crFileName)
-	assert.NoError(t, err, "Error reading %v CR yaml", crFileName)
-	var input map[string]interface{}
-	assert.NoError(t, yaml.Unmarshal([]byte(yamlString), &input))
-	assert.NoError(t, schema.Validate(input), "File %v does not validate against the CRD schema", crFileName)
-}
+		err = schema.Validate(input)
+		Expect(err).ToNot(HaveOccurred())
+	})
 
-func TestInvalidCustomResources(t *testing.T) {
+	It("Test invalid custom resources", func() {
+		crFileName := []byte(` {
+		  "apiVersion":"cdi.kubevirt.io/v1alpha1",
+		  "kind":"CDI",
+		  "metadata": {
+		    "name":"cdi",
+		    "namespace":"cdi"
+		  },
+		  "spec": {
+		    "imagePullPolicy":"noValue"
+		  }
+		}`)
+		crFileName, err := yaml.JSONToYAML(crFileName)
+		Expect(err).ToNot(HaveOccurred())
 
-	crFileName := []byte(` {
-          "apiVersion":"cdi.kubevirt.io/v1alpha1",
-          "kind":"CDI",
-          "metadata": {
-            "name":"cdi",
-            "namespace":"cdi"
-          },
-          "spec": {
-            "imagePullPolicy":"noValue"
-          }
-        }`)
-	crFileName, err := yaml.JSONToYAML(crFileName)
-	if err != nil {
-		fmt.Printf("err: %v\n", err)
-		return
-	}
+		schema := getSchema()
 
-	schema := getSchema(t)
+		var input map[string]interface{}
+		err = yaml.Unmarshal([]byte(crFileName), &input)
+		Expect(err).ToNot(HaveOccurred())
+		err = schema.Validate(input)
+		Expect(err).To(HaveOccurred())
+	})
+})
 
-	var input map[string]interface{}
-	assert.NoError(t, yaml.Unmarshal([]byte(crFileName), &input))
-	err = schema.Validate(input)
-	if err != nil {
-
-		t.Log(err)
-	}
-	assert.Errorf(t, err, "File %v does not validate against the CRD schema", crFileName)
-}
-
-func getSchema(t *testing.T) validation.Schema {
+func getSchema() validation.Schema {
 
 	crdFiles, err := yaml.Marshal(createCDIListCRD())
-	if err != nil {
-		fmt.Printf("Error: %s", err)
-	}
+	Expect(err).ToNot(HaveOccurred())
 	yamlString := string(crdFiles)
-	assert.NoError(t, err, "Error reading CRD yaml %v", yamlString)
+	Expect(err).ToNot(HaveOccurred())
 	schema, err := validation.New([]byte(yamlString))
-	assert.NoError(t, err)
+	Expect(err).ToNot(HaveOccurred())
 
 	return schema
 }

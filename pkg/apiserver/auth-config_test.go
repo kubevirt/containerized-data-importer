@@ -21,10 +21,11 @@ package apiserver
 
 import (
 	"crypto/tls"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"testing"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -41,24 +42,22 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
-func generateCACert(t *testing.T) string {
+func generateCACert() string {
 	keyPair, err := triple.NewCA(util.RandAlphaNum(10))
-	if err != nil {
-		t.Errorf("Error creating CA cert")
-	}
+	Expect(err).ToNot(HaveOccurred())
 	return string(cert.EncodeCertPEM(keyPair.Cert))
 }
 
-func getAPIServerConfigMap(t *testing.T) *corev1.ConfigMap {
+func getAPIServerConfigMap() *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "extension-apiserver-authentication",
 			Namespace: "kube-system",
 		},
 		Data: map[string]string{
-			"client-ca-file":                     generateCACert(t),
+			"client-ca-file":                     generateCACert(),
 			"requestheader-allowed-names":        "[\"front-proxy-client\"]",
-			"requestheader-client-ca-file":       generateCACert(t),
+			"requestheader-client-ca-file":       generateCACert(),
 			"requestheader-extra-headers-prefix": "[\"X-Remote-Extra-\"]",
 			"requestheader-group-headers":        "[\"X-Remote-Group\"]",
 			"requestheader-username-headers":     "[\"X-Remote-User\"]",
@@ -66,89 +65,26 @@ func getAPIServerConfigMap(t *testing.T) *corev1.ConfigMap {
 	}
 }
 
-func verifyAuthConfig(t *testing.T, cm *corev1.ConfigMap, authConfig *AuthConfig) {
+func verifyAuthConfig(cm *corev1.ConfigMap, authConfig *AuthConfig) {
 	if !reflect.DeepEqual([]byte(cm.Data["client-ca-file"]), authConfig.ClientCABytes) {
-		t.Errorf("client-ca-file not stored correctly")
+		Fail("client-ca-file not stored correctly")
 	}
 
 	if !reflect.DeepEqual([]byte(cm.Data["requestheader-client-ca-file"]), authConfig.RequestheaderClientCABytes) {
-		t.Errorf("client-ca-file not stored correctly")
+		Fail("client-ca-file not stored correctly")
 	}
 
 	if !reflect.DeepEqual(deserializeStringSlice(cm.Data["requestheader-username-headers"]), authConfig.UserHeaders) {
-		t.Errorf("requestheader-username-headers not stored correctly")
+		Fail("requestheader-username-headers not stored correctly")
 	}
 
 	if !reflect.DeepEqual(deserializeStringSlice(cm.Data["requestheader-group-headers"]), authConfig.GroupHeaders) {
-		t.Errorf("requestheader-group-headers not stored correctly")
+		Fail("requestheader-group-headers not stored correctly")
 	}
 
 	if !reflect.DeepEqual(deserializeStringSlice(cm.Data["requestheader-extra-headers-prefix"]), authConfig.ExtraPrefixHeaders) {
-		t.Errorf("requestheader-extra-headers-prefix not stored correctly")
+		Fail("requestheader-extra-headers-prefix not stored correctly")
 	}
-}
-
-func TestNewCdiAPIServer(t *testing.T) {
-	ch := make(chan struct{})
-	kubeobjects := []runtime.Object{}
-	kubeobjects = append(kubeobjects, getAPIServerConfigMap(t))
-
-	client := k8sfake.NewSimpleClientset(kubeobjects...)
-	aggregatorClient := aggregatorapifake.NewSimpleClientset()
-	cdiClient := cdiclientfake.NewSimpleClientset()
-	authorizer := &testAuthorizer{}
-	authConfigWatcher := NewAuthConfigWatcher(client, ch)
-
-	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, authConfigWatcher, nil)
-	if err != nil {
-		t.Errorf("Upload api server creation failed: %+v", err)
-	}
-
-	app := server.(*cdiAPIApp)
-
-	req, _ := http.NewRequest("GET", "/apis", nil)
-	rr := httptest.NewRecorder()
-
-	app.container.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("Unexpected status code %d", rr.Code)
-	}
-}
-
-func TestAuthConfigUpdate(t *testing.T) {
-	ch := make(chan struct{})
-	cm := getAPIServerConfigMap(t)
-	kubeobjects := []runtime.Object{}
-	kubeobjects = append(kubeobjects, cm)
-
-	client := k8sfake.NewSimpleClientset(kubeobjects...)
-	aggregatorClient := aggregatorapifake.NewSimpleClientset()
-	cdiClient := cdiclientfake.NewSimpleClientset()
-	authorizer := &testAuthorizer{}
-	acw := NewAuthConfigWatcher(client, ch).(*authConfigWatcher)
-
-	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, nil)
-	if err != nil {
-		t.Errorf("Upload api server creation failed: %+v", err)
-	}
-
-	app := server.(*cdiAPIApp)
-
-	verifyAuthConfig(t, cm, app.authConfigWatcher.GetAuthConfig())
-
-	cm.Data["requestheader-client-ca-file"] = generateCACert(t)
-
-	cm, err = client.CoreV1().ConfigMaps(metav1.NamespaceSystem).Update(cm)
-	if err != nil {
-		t.Errorf("Updating configmap failed: %+v", err)
-	}
-
-	// behavior of this changed in 16.4 used to wait then check so now explicitly waiting
-	time.Sleep(100 * time.Millisecond)
-	cache.WaitForCacheSync(ch, acw.informer.HasSynced)
-
-	verifyAuthConfig(t, cm, app.authConfigWatcher.GetAuthConfig())
 }
 
 type fakeCertWatcher struct {
@@ -165,32 +101,87 @@ func NewFakeCertWatcher() CertWatcher {
 	return &fakeCertWatcher{cert: &c}
 }
 
-func TestGetTLSConfig(t *testing.T) {
-	ch := make(chan struct{})
-	cm := getAPIServerConfigMap(t)
-	kubeobjects := []runtime.Object{}
-	kubeobjects = append(kubeobjects, cm)
+var _ = Describe("Auth config tests", func() {
+	It("New CDI API server", func() {
+		ch := make(chan struct{})
+		kubeobjects := []runtime.Object{}
+		kubeobjects = append(kubeobjects, getAPIServerConfigMap())
 
-	client := k8sfake.NewSimpleClientset(kubeobjects...)
-	aggregatorClient := aggregatorapifake.NewSimpleClientset()
-	cdiClient := cdiclientfake.NewSimpleClientset()
-	authorizer := &testAuthorizer{}
-	acw := NewAuthConfigWatcher(client, ch).(*authConfigWatcher)
-	certWatcher := NewFakeCertWatcher()
+		client := k8sfake.NewSimpleClientset(kubeobjects...)
+		aggregatorClient := aggregatorapifake.NewSimpleClientset()
+		cdiClient := cdiclientfake.NewSimpleClientset()
+		authorizer := &testAuthorizer{}
+		authConfigWatcher := NewAuthConfigWatcher(client, ch)
 
-	server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, certWatcher)
-	if err != nil {
-		t.Errorf("Upload api server creation failed: %+v", err)
-	}
+		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, authConfigWatcher, nil)
+		Expect(err).ToNot(HaveOccurred())
 
-	app := server.(*cdiAPIApp)
+		app := server.(*cdiAPIApp)
 
-	tlsConfig, err := app.getTLSConfig()
-	if err != nil {
-		t.Errorf("Error getting tls conig")
-	}
+		req, err := http.NewRequest("GET", "/apis", nil)
+		Expect(err).ToNot(HaveOccurred())
+		rr := httptest.NewRecorder()
 
-	if !reflect.DeepEqual(tlsConfig.ClientCAs, acw.GetAuthConfig().CertPool) {
-		t.Errorf("Client cert pools do not match")
-	}
-}
+		app.container.ServeHTTP(rr, req)
+
+		status := rr.Code
+		Expect(status).To(Equal(http.StatusOK))
+	})
+
+	It("Auth config update", func() {
+		ch := make(chan struct{})
+		cm := getAPIServerConfigMap()
+		kubeobjects := []runtime.Object{}
+		kubeobjects = append(kubeobjects, cm)
+
+		client := k8sfake.NewSimpleClientset(kubeobjects...)
+		aggregatorClient := aggregatorapifake.NewSimpleClientset()
+		cdiClient := cdiclientfake.NewSimpleClientset()
+		authorizer := &testAuthorizer{}
+		acw := NewAuthConfigWatcher(client, ch).(*authConfigWatcher)
+
+		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, nil)
+		Expect(err).ToNot(HaveOccurred())
+
+		app := server.(*cdiAPIApp)
+
+		verifyAuthConfig(cm, app.authConfigWatcher.GetAuthConfig())
+
+		cm.Data["requestheader-client-ca-file"] = generateCACert()
+
+		cm, err = client.CoreV1().ConfigMaps(metav1.NamespaceSystem).Update(cm)
+		Expect(err).ToNot(HaveOccurred())
+
+		// behavior of this changed in 16.4 used to wait then check so now explicitly waiting
+		time.Sleep(100 * time.Millisecond)
+		cache.WaitForCacheSync(ch, acw.informer.HasSynced)
+
+		verifyAuthConfig(cm, app.authConfigWatcher.GetAuthConfig())
+	})
+
+	It("Get TLS config", func() {
+		ch := make(chan struct{})
+		cm := getAPIServerConfigMap()
+		kubeobjects := []runtime.Object{}
+		kubeobjects = append(kubeobjects, cm)
+
+		client := k8sfake.NewSimpleClientset(kubeobjects...)
+		aggregatorClient := aggregatorapifake.NewSimpleClientset()
+		cdiClient := cdiclientfake.NewSimpleClientset()
+		authorizer := &testAuthorizer{}
+		acw := NewAuthConfigWatcher(client, ch).(*authConfigWatcher)
+		certWatcher := NewFakeCertWatcher()
+
+		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, certWatcher)
+		Expect(err).ToNot(HaveOccurred())
+
+		app := server.(*cdiAPIApp)
+
+		tlsConfig, err := app.getTLSConfig()
+		Expect(err).ToNot(HaveOccurred())
+
+		if !reflect.DeepEqual(tlsConfig.ClientCAs, acw.GetAuthConfig().CertPool) {
+			Fail("Client cert pools do not match")
+		}
+	})
+})
