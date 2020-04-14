@@ -249,6 +249,7 @@ func CreateContainer(name, image, verbosity string, pullPolicy corev1.PullPolicy
 // CreateService creates service
 func CreateService(name, matchKey, matchValue string) *corev1.Service {
 	matchMap := map[string]string{matchKey: matchValue}
+	labelMap := map[string]string{matchKey: matchValue}
 	return &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -256,7 +257,7 @@ func CreateService(name, matchKey, matchValue string) *corev1.Service {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
-			Labels: WithCommonLabels(matchMap),
+			Labels: WithCommonLabels(labelMap),
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: matchMap,

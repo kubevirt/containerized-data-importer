@@ -48,6 +48,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiviaplha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	clusterResources "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	namespaceResources "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
@@ -172,6 +173,18 @@ var _ = Describe("Controller", func() {
 
 				cm = obj.(*corev1.ConfigMap)
 				Expect(cm.OwnerReferences[0].UID).Should(Equal(args.cdi.UID))
+			})
+
+			It("should create prometheus service", func() {
+				args := createArgs()
+				doReconcile(args)
+
+				svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: common.PrometheusServiceName}}
+				obj, err := getObject(args.client, svc)
+				Expect(err).ToNot(HaveOccurred())
+
+				svc = obj.(*corev1.Service)
+				Expect(svc.OwnerReferences[0].UID).Should(Equal(args.cdi.UID))
 			})
 
 			It("should create requeue when configmap exists with another owner", func() {
