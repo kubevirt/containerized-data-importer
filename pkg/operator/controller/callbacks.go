@@ -150,11 +150,13 @@ func reconcileCreateRoute(args *ReconcileCallbackArgs) error {
 }
 
 func reconcileCreateSCC(args *ReconcileCallbackArgs) error {
-	if args.State != ReconcileStatePostRead {
+	switch args.State {
+	case ReconcileStatePreCreate, ReconcileStatePostRead:
+	default:
 		return nil
 	}
 
-	sa := args.CurrentObject.(*corev1.ServiceAccount)
+	sa := args.DesiredObject.(*corev1.ServiceAccount)
 	if sa.Name != common.ControllerServiceAccountName {
 		return nil
 	}
