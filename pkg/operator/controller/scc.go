@@ -51,6 +51,7 @@ func ensureSCCExists(logger logr.Logger, c client.Client, saNamespace, saName st
 					"cdi.kubevirt.io": "",
 				},
 			},
+			Priority: &[]int32{10}[0],
 			FSGroup: secv1.FSGroupStrategyOptions{
 				Type: secv1.FSGroupStrategyRunAsAny,
 			},
