@@ -314,16 +314,6 @@ func createCDIListCRD() *extv1beta1.CustomResourceDefinition {
 				OpenAPIV3Schema: &extv1beta1.JSONSchemaProps{
 					Type: "object",
 					Properties: map[string]extv1beta1.JSONSchemaProps{
-						"apiVersion": {
-							Type: "string",
-						},
-						"kind": {
-							Type: "string",
-						},
-						"metadata": {
-							Type: "object",
-						},
-
 						"spec": {
 							Properties: map[string]extv1beta1.JSONSchemaProps{
 								"imagePullPolicy": {
