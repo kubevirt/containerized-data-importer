@@ -313,17 +313,8 @@ func createCDIListCRD() *extv1beta1.CustomResourceDefinition {
 
 			Validation: &extv1beta1.CustomResourceValidation{
 				OpenAPIV3Schema: &extv1beta1.JSONSchemaProps{
+					Type: "object",
 					Properties: map[string]extv1beta1.JSONSchemaProps{
-						"apiVersion": {
-							Type: "string",
-						},
-						"kind": {
-							Type: "string",
-						},
-						"metadata": {
-							Type: "object",
-						},
-
 						"spec": {
 							Properties: map[string]extv1beta1.JSONSchemaProps{
 								"imagePullPolicy": {
@@ -353,6 +344,61 @@ func createCDIListCRD() *extv1beta1.CustomResourceDefinition {
 								},
 							},
 							Type: "object",
+						},
+						"status": {
+							Type:        "object",
+							Description: "The most recently observed status of the CDI resource",
+							Properties: map[string]extv1beta1.JSONSchemaProps{
+								"targetVersion": {
+									Description: "The desired version of the CDI resource",
+									Type:        "string",
+								},
+								"observedVersion": {
+									Description: "The observed version of the CDI resource",
+									Type:        "string",
+								},
+								"operatorVersion": {
+									Description: "The version of the CDI resource as defined by the operator",
+									Type:        "string",
+								},
+								"phase": {
+									Description: "The current phase of the CDI resource",
+									Type:        "string",
+								},
+								"conditions": {
+									Description: "A list of current conditions of the CDI resource",
+									Type:        "array",
+									Items: &extv1beta1.JSONSchemaPropsOrArray{
+										Schema: &extv1beta1.JSONSchemaProps{
+											Type: "object",
+											Properties: map[string]extv1beta1.JSONSchemaProps{
+												"lastHeartbeatTime": {
+													Description: "Last time the state of the condition was checked",
+													Type:        "string",
+													Format:      "date-time",
+												},
+												"lastTransitionTime": {
+													Description: "Last time the state of the condition changed",
+													Type:        "string",
+													Format:      "date-time",
+												},
+												"message": {
+													Description: "Message related to the last condition change",
+													Type:        "string",
+												},
+												"reason": {
+													Description: "Reason the last condition changed",
+													Type:        "string",
+												},
+												"status": {
+													Description: "Current status of the condition, True, False, Unknown",
+													Type:        "string",
+												},
+											},
+										},
+									},
+								},
+							},
 						},
 					},
 				},

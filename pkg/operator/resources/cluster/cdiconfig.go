@@ -28,6 +28,70 @@ func createCDIConfigCRD() *extv1beta1.CustomResourceDefinition {
 			},
 			Version: "v1alpha1",
 			Scope:   "Cluster",
+			Validation: &extv1beta1.CustomResourceValidation{
+				OpenAPIV3Schema: &extv1beta1.JSONSchemaProps{
+					Description: "CDIConfig is the configuration object for Containerized Data Importer",
+					Type:        "object",
+					Properties: map[string]extv1beta1.JSONSchemaProps{
+						"spec": {
+							Description: "Specification of CDIConfig",
+							Type:        "object",
+							Properties: map[string]extv1beta1.JSONSchemaProps{
+								"uploadProxyURLOverride": {
+									Description: "Override the URL used when uploading to a DataVolume",
+									Type:        "string",
+								},
+								"scratchSpaceStorageClass": {
+									Description: "Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space",
+									Type:        "string",
+								},
+								"podResourceRequirements": {
+									Description: "The default resource requirements put on all CDI pods",
+									Type:        "object",
+									Properties: map[string]extv1beta1.JSONSchemaProps{
+										"limits": {
+											Description: "Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
+											Type:        "object",
+										},
+										"requests": {
+											Description: "Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
+											Type:        "object",
+										},
+									},
+								},
+							},
+						},
+						"status": {
+							Type:        "object",
+							Description: "The most recently observed status of the CDI Config resource",
+							Properties: map[string]extv1beta1.JSONSchemaProps{
+								"uploadProxyURL": {
+									Description: "The calculated upload proxy URL",
+									Type:        "string",
+								},
+								"scratchSpaceStorageClass": {
+									Description: "The calculated storage class to be used for scratch space",
+									Type:        "string",
+								},
+								"defaultPodResourceRequirements": {
+									Description: "The default resource requirements put on all CDI pods",
+									Type:        "object",
+									Properties: map[string]extv1beta1.JSONSchemaProps{
+										"limits": {
+											Description: "Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
+											Type:        "object",
+										},
+										"requests": {
+											Description: "Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
+											Type:        "object",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 }

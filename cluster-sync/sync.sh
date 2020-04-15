@@ -50,6 +50,18 @@ function kill_running_operator {
   done
 }
 
+function check_structural_schema {
+  for crd in "$@"; do
+    status=$(_kubectl get crd $crd -o jsonpath={.status.conditions[?\(@.type==\"NonStructuralSchema\"\)].status})
+    if [ "$status" == "True" ]; then
+      echo "ERROR CRD $crd is not a structural schema!, please fix"
+      _kubectl get crd $crd -o yaml
+      exit 1
+    fi
+    echo "CRD $crd is a StructuralSchema"
+  done
+}
+
 seed_images
 
 # Install CDI
@@ -133,6 +145,13 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
   echo "Waiting $CDI_AVAILABLE_TIMEOUT seconds for CDI to become available"
   _kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=${CDI_AVAILABLE_TIMEOUT}s
 fi
+
+# Grab all the CDI crds so we can check if they are structural schemas
+cdi_crds=$(_kubectl get crd -l cdi.kubevirt.io -o jsonpath={.items[*].metadata.name})
+crds=($cdi_crds)
+operator_crds=$(_kubectl get crd -l operator.cdi.kubevirt.io -o jsonpath={.items[*].metadata.name})
+crds+=($operator_crds)
+check_structural_schema "${crds[@]}"
 
 configure_storage
 
