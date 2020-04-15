@@ -146,6 +146,18 @@ var _ = Describe("Registry data source", func() {
 		Expect(err).To(HaveOccurred())
 		Expect("image file does has no name").To(Equal(err.Error()))
 	})
+
+	It("getImageFileName should return an error with multiple files in the image directory", func() {
+		err := os.Mkdir(filepath.Join(tmpDir, containerDiskImageDir), os.ModeDir)
+		Expect(err).NotTo(HaveOccurred())
+		_, err = os.Create(filepath.Join(tmpDir, containerDiskImageDir, "extra-file"))
+		Expect(err).NotTo(HaveOccurred())
+		_, err = os.Create(filepath.Join(tmpDir, containerDiskImageDir, "disk.img"))
+		Expect(err).NotTo(HaveOccurred())
+		_, err = getImageFileName(filepath.Join(tmpDir, containerDiskImageDir))
+		Expect(err).To(HaveOccurred())
+		Expect("image directory contains more than one file").To(Equal(err.Error()))
+	})
 })
 
 type fakeSkopeoOperations struct {
