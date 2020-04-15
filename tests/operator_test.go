@@ -63,7 +63,7 @@ var _ = Describe("Operator tests", func() {
 		Expect(promService.Spec.Selector[common.PrometheusLabel]).To(Equal(""))
 	})
 
-	It("add cdi-sa to anyuid scc", func() {
+	It("add cdi-sa to containerized-data-importer scc", func() {
 		if !isOpenshift(f.K8sClient) {
 			Skip("This test is OpenShift specific")
 		}
@@ -71,7 +71,7 @@ var _ = Describe("Operator tests", func() {
 		secClient, err := secclient.NewForConfig(f.RestConfig)
 		Expect(err).ToNot(HaveOccurred())
 
-		scc, err := secClient.SecurityV1().SecurityContextConstraints().Get("anyuid", metav1.GetOptions{})
+		scc, err := secClient.SecurityV1().SecurityContextConstraints().Get("containerized-data-importer", metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		cdiSA := fmt.Sprintf("system:serviceaccount:%s:cdi-sa", f.CdiInstallNs)

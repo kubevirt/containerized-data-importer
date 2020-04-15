@@ -130,3 +130,12 @@ func newDefaultInstance(obj runtime.Object) runtime.Object {
 	typ := reflect.ValueOf(obj).Elem().Type()
 	return reflect.New(typ).Interface().(runtime.Object)
 }
+
+func containsStringValue(values []string, value string) bool {
+	for _, v := range values {
+		if v == value {
+			return true
+		}
+	}
+	return false
+}

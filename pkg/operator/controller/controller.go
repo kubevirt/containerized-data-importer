@@ -323,6 +323,7 @@ func (r *ReconcileCDI) checkUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) err
 	// should maybe put this in separate function
 	if cr.Status.OperatorVersion != r.namespacedArgs.OperatorVersion {
 		cr.Status.OperatorVersion = r.namespacedArgs.OperatorVersion
+		cr.Status.TargetVersion = r.namespacedArgs.OperatorVersion
 		if err := r.crUpdate(cr.Status.Phase, cr); err != nil {
 			return err
 		}
@@ -333,10 +334,9 @@ func (r *ReconcileCDI) checkUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) err
 		return err
 	}
 
-	if isUpgrade && !r.isUpgrading(cr) {
+	if isUpgrade && cr.Status.Phase != cdiv1alpha1.CDIPhaseUpgrading {
 		logger.Info("Observed version is not target version. Begin upgrade", "Observed version ", cr.Status.ObservedVersion, "TargetVersion", r.namespacedArgs.OperatorVersion)
 		MarkCrUpgradeHealingDegraded(cr, "UpgradeStarted", fmt.Sprintf("Started upgrade to version %s", r.namespacedArgs.OperatorVersion))
-		cr.Status.TargetVersion = r.namespacedArgs.OperatorVersion
 		if err := r.crUpdate(cdiv1alpha1.CDIPhaseUpgrading, cr); err != nil {
 			return err
 		}

@@ -64,7 +64,6 @@ const (
 
 type args struct {
 	cdi        *cdiviaplha1.CDI
-	scc        *secv1.SecurityContextConstraints
 	client     client.Client
 	reconciler *ReconcileCDI
 }
@@ -240,18 +239,23 @@ var _ = Describe("Controller", func() {
 				doReconcileRequeue(args)
 			})
 
-			It("should be anyuid", func() {
-				var err error
-
+			It("should be in securitycontextconstraint", func() {
 				args := createArgs()
 				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
 
-				args.scc, err = getSCC(args.client, args.scc)
+				scc := &secv1.SecurityContextConstraints{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "containerized-data-importer",
+					},
+				}
+
+				scc, err := getSCC(args.client, scc)
 				Expect(err).ToNot(HaveOccurred())
 
 				for _, eu := range []string{"system:serviceaccount:cdi:cdi-sa"} {
 					found := false
-					for _, au := range args.scc.Users {
+					for _, au := range scc.Users {
 						if eu == au {
 							found = true
 						}
@@ -1355,13 +1359,11 @@ func reconcileRequest(name string) reconcile.Request {
 
 func createFromArgs(version string) *args {
 	cdi := createCDI("cdi", "good uid")
-	scc := createSCC()
-	client := createClient(cdi, scc)
+	client := createClient(cdi)
 	reconciler := createReconcilerWithVersion(client, version)
 
 	return &args{
 		cdi:        cdi,
-		scc:        scc,
 		client:     client,
 		reconciler: reconciler,
 	}
@@ -1369,13 +1371,11 @@ func createFromArgs(version string) *args {
 
 func createArgs() *args {
 	cdi := createCDI("cdi", "good uid")
-	scc := createSCC()
-	client := createClient(cdi, scc)
+	client := createClient(cdi)
 	reconciler := createReconciler(client)
 
 	return &args{
 		cdi:        cdi,
-		scc:        scc,
 		client:     client,
 		reconciler: reconciler,
 	}
@@ -1414,15 +1414,6 @@ func createClient(objs ...runtime.Object) realClient.Client {
 
 func createCDI(name, uid string) *cdiviaplha1.CDI {
 	return &cdiviaplha1.CDI{ObjectMeta: metav1.ObjectMeta{Name: name, UID: types.UID(uid)}}
-}
-
-func createSCC() *secv1.SecurityContextConstraints {
-	return &secv1.SecurityContextConstraints{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "anyuid",
-		},
-		Users: []string{},
-	}
 }
 
 func createReconcilerWithVersion(client realClient.Client, version string) *ReconcileCDI {
