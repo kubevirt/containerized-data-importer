@@ -18,16 +18,13 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 
 	"github.com/go-logr/logr"
-	secv1 "github.com/openshift/api/security/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,7 +32,6 @@ import (
 
 	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
 const (
@@ -88,6 +84,7 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 	r.addCallback(&appsv1.Deployment{}, reconcileDeleteControllerDeployment)
 	r.addCallback(&corev1.ServiceAccount{}, reconcileServiceAccountRead)
 	r.addCallback(&corev1.ServiceAccount{}, reconcileServiceAccounts)
+	r.addCallback(&corev1.ServiceAccount{}, reconcileCreateSCC)
 	r.addCallback(&appsv1.Deployment{}, reconcileCreateRoute)
 	r.addCallback(&appsv1.Deployment{}, reconcileDeleteSecrets)
 }
@@ -152,97 +149,27 @@ func reconcileCreateRoute(args *ReconcileCallbackArgs) error {
 	return nil
 }
 
-func reconcileServiceAccountRead(args *ReconcileCallbackArgs) error {
-	if args.State != ReconcileStatePostRead {
-		return nil
-	}
-
-	do := args.DesiredObject.(*corev1.ServiceAccount)
-	co := args.CurrentObject.(*corev1.ServiceAccount)
-
-	delete(co.Annotations, utils.SCCAnnotation)
-
-	val, exists := do.Annotations[utils.SCCAnnotation]
-	if exists {
-		if co.Annotations == nil {
-			co.Annotations = make(map[string]string)
-		}
-		co.Annotations[utils.SCCAnnotation] = val
-	}
-
-	return nil
-}
-
-func reconcileServiceAccounts(args *ReconcileCallbackArgs) error {
+func reconcileCreateSCC(args *ReconcileCallbackArgs) error {
 	switch args.State {
-	case ReconcileStatePreCreate, ReconcileStatePreUpdate, ReconcileStatePostDelete, ReconcileStateCDIDelete:
+	case ReconcileStatePreCreate, ReconcileStatePostRead:
 	default:
 		return nil
 	}
 
-	var sa *corev1.ServiceAccount
-	if args.CurrentObject != nil {
-		sa = args.CurrentObject.(*corev1.ServiceAccount)
-	} else if args.DesiredObject != nil {
-		sa = args.DesiredObject.(*corev1.ServiceAccount)
-	} else {
-		args.Logger.Info("Received callback with no desired/current object")
+	sa := args.DesiredObject.(*corev1.ServiceAccount)
+	if sa.Name != common.ControllerServiceAccountName {
 		return nil
 	}
 
-	desiredSCCs := []string{}
-	saName := fmt.Sprintf("system:serviceaccount:%s:%s", sa.Namespace, sa.Name)
-
-	switch args.State {
-	case ReconcileStatePreCreate, ReconcileStatePreUpdate:
-		val, exists := sa.Annotations[utils.SCCAnnotation]
-		if exists {
-			if err := json.Unmarshal([]byte(val), &desiredSCCs); err != nil {
-				args.Logger.Error(err, "Error unmarshalling data")
-				return err
-			}
-		}
-	default:
-		// want desiredSCCs empty because deleting resource/CDI
-	}
-
-	listObj := &secv1.SecurityContextConstraintsList{}
-	if err := args.Client.List(context.TODO(), listObj, &client.ListOptions{}); err != nil {
-		if meta.IsNoMatchError(err) {
-			// not openshift
-			return nil
-		}
-		args.Logger.Error(err, "Error listing SCCs")
+	if err := ensureSCCExists(
+		args.Logger,
+		args.Client,
+		args.Scheme,
+		args.Resource,
+		args.Namespace,
+		common.ControllerServiceAccountName,
+	); err != nil {
 		return err
-	}
-
-	for _, scc := range listObj.Items {
-		desiredUsers := []string{}
-		add := containsValue(desiredSCCs, scc.Name)
-		seenUser := false
-
-		for _, u := range scc.Users {
-			if u == saName {
-				seenUser = true
-				if !add {
-					continue
-				}
-			}
-			desiredUsers = append(desiredUsers, u)
-		}
-
-		if add && !seenUser {
-			desiredUsers = append(desiredUsers, saName)
-		}
-
-		if !reflect.DeepEqual(desiredUsers, scc.Users) {
-			args.Logger.Info("Doing SCC update", "name", scc.Name, "desired", desiredUsers, "current", scc.Users)
-			scc.Users = desiredUsers
-			if err := args.Client.Update(context.TODO(), &scc); err != nil {
-				args.Logger.Error(err, "Error updating SCC")
-				return err
-			}
-		}
 	}
 
 	return nil
@@ -281,13 +208,4 @@ func deleteWorkerResources(l logr.Logger, c client.Client) error {
 	}
 
 	return nil
-}
-
-func containsValue(values []string, value string) bool {
-	for _, v := range values {
-		if v == value {
-			return true
-		}
-	}
-	return false
 }

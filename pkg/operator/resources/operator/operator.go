@@ -69,6 +69,7 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"list",
 				"watch",
 				"update",
+				"create",
 			},
 		},
 		{
