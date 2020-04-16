@@ -132,7 +132,12 @@ func getImageFileName(dir string) (string, error) {
 		return "", errors.New("image file does not exist in image directory - directory is empty")
 	}
 
-	fileinfo := entries[len(entries)-1]
+	if len(entries) > 1 {
+		klog.Errorf("image directory contains more than one file")
+		return "", errors.New("image directory contains more than one file")
+	}
+
+	fileinfo := entries[0]
 	if fileinfo.IsDir() {
 		klog.Errorf("image file does not exist in image directory contains another directory ")
 		return "", errors.New("image directory contains another directory")
