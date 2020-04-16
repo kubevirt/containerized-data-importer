@@ -47,6 +47,10 @@ const (
 	AnnOwnerRef = AnnAPIGroup + "/storage.ownerRef"
 	// AnnPodRestarts is a PVC annotation that tells how many times a related pod was restarted
 	AnnPodRestarts = AnnAPIGroup + "/storage.pod.restarts"
+	// AnnPopulatedFor is a PVC annotation telling the datavolume controller that the PVC is already populated
+	AnnPopulatedFor = AnnAPIGroup + "/storage.populatedFor"
+	// AnnPrePopulated is a PVC annotation telling the datavolume controller that the PVC is already populated
+	AnnPrePopulated = AnnAPIGroup + "/storage.prePopulated"
 )
 
 func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string, log logr.Logger) bool {

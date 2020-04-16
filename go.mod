@@ -37,7 +37,7 @@ require (
 	github.com/prometheus/common v0.4.0 // indirect
 	github.com/smartystreets/assertions v1.0.1 // indirect
 	github.com/smartystreets/goconvey v0.0.0-20190731233626-505e41936337 // indirect
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.4.0 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5 // indirect
 	github.com/ulikunitz/xz v0.5.6
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
