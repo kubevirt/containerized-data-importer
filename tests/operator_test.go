@@ -14,6 +14,7 @@ import (
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -152,6 +153,16 @@ var _ = Describe("Operator delete CDI tests", func() {
 			}
 			return false
 		}, 10*time.Minute, 2*time.Second).Should(BeTrue())
+
+		By("Verifying CDI config object exists, before continuing")
+		Eventually(func() bool {
+			_, err = f.CdiClient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+			if k8serrors.IsNotFound(err) {
+				return false
+			}
+			Expect(err).ToNot(HaveOccurred(), "Unable to read CDI Config, %v, expect more failures", err)
+			return true
+		}, CompletionTimeout, assertionPollInterval).Should(BeTrue(), "Timeout reading CDI Config, expect more failures")
 	}
 
 	AfterEach(func() {
