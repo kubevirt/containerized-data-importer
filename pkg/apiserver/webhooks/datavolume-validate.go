@@ -171,7 +171,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 			return causes
 		}
 
-		if wh.client != nil && request.Operation == v1beta1.Create {
+		if request.Operation == v1beta1.Create {
 			sourcePVC, err := wh.client.CoreV1().PersistentVolumeClaims(spec.Source.PVC.Namespace).Get(spec.Source.PVC.Name, metav1.GetOptions{})
 			if err != nil {
 				if k8serrors.IsNotFound(err) {
@@ -280,20 +280,26 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta
 		return toRejectedAdmissionResponse(causes)
 	}
 
-	if wh.client != nil && ar.Request.Operation == v1beta1.Create {
+	if ar.Request.Operation == v1beta1.Create {
 		pvc, err := wh.client.CoreV1().PersistentVolumeClaims(dv.GetNamespace()).Get(dv.GetName(), metav1.GetOptions{})
-		if err != nil && !k8serrors.IsNotFound(err) {
-			return toAdmissionResponseError(err)
-		}
-		if pvc != nil && pvc.Name != "" {
-			klog.Errorf("destination PVC %s/%s already exists", dv.GetNamespace(), dv.GetName())
-			var causes []metav1.StatusCause
-			causes = append(causes, metav1.StatusCause{
-				Type:    metav1.CauseTypeFieldValueDuplicate,
-				Message: fmt.Sprintf("Destination PVC already exists"),
-				Field:   k8sfield.NewPath("DataVolume").Child("Name").String(),
-			})
-			return toRejectedAdmissionResponse(causes)
+		if err != nil {
+			if !k8serrors.IsNotFound(err) {
+				return toAdmissionResponseError(err)
+			}
+		} else {
+			dvName, ok := pvc.Annotations[controller.AnnPopulatedFor]
+			if !ok || dvName != dv.GetName() {
+				klog.Errorf("destination PVC %s/%s already exists", dv.GetNamespace(), dv.GetName())
+				var causes []metav1.StatusCause
+				causes = append(causes, metav1.StatusCause{
+					Type:    metav1.CauseTypeFieldValueDuplicate,
+					Message: fmt.Sprintf("Destination PVC already exists"),
+					Field:   k8sfield.NewPath("DataVolume").Child("Name").String(),
+				})
+				return toRejectedAdmissionResponse(causes)
+			}
+
+			klog.Infof("Using initialized PVC %s for DataVolume %s", pvc.GetName(), dv.GetName())
 		}
 	}
 

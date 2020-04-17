@@ -35,6 +35,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	fakeclient "k8s.io/client-go/kubernetes/fake"
+
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
@@ -42,103 +44,73 @@ var _ = Describe("Validating Webhook", func() {
 	Context("with DataVolume admission review", func() {
 		It("should accept DataVolume with HTTP source on create", func() {
 			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
-			dvBytes, _ := json.Marshal(&dataVolume)
-
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
-					},
-				},
-			}
-
-			resp := validateDVs(ar)
+			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(true))
 		})
+
+		It("should reject DataVolume when target pvc exists", func() {
+			dataVolume := newPVCDataVolume("testDV", "testNamespace", "test")
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Name,
+					Namespace: dataVolume.Namespace,
+				},
+				Spec: *dataVolume.Spec.PVC,
+			}
+			resp := validateDataVolumeCreate(dataVolume, pvc)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
 		It("should accept DataVolume with Registry source on create", func() {
 			dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
-			dvBytes, _ := json.Marshal(&dataVolume)
-
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
-					},
-				},
-			}
-
-			resp := validateDVs(ar)
+			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(true))
 		})
+
 		It("should accept DataVolume with PVC source on create", func() {
 			dataVolume := newPVCDataVolume("testDV", "testNamespace", "test")
-			dvBytes, _ := json.Marshal(&dataVolume)
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Spec.Source.PVC.Name,
+					Namespace: dataVolume.Spec.Source.PVC.Namespace,
+				},
+				Spec: *dataVolume.Spec.PVC,
+			}
+			resp := validateDataVolumeCreate(dataVolume, pvc)
+			Expect(resp.Allowed).To(Equal(true))
+		})
 
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
+		It("should accept DataVolume with PVC initialized create", func() {
+			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Name,
+					Namespace: dataVolume.Namespace,
+					Annotations: map[string]string{
+						"cdi.kubevirt.io/storage.populatedFor": dataVolume.Name,
 					},
 				},
+				Spec: *dataVolume.Spec.PVC,
 			}
-
-			resp := validateDVs(ar)
+			resp := validateDataVolumeCreate(dataVolume, pvc)
 			Expect(resp.Allowed).To(Equal(true))
+		})
+
+		It("should reject DataVolume with PVC source on create if PVC does not exist", func() {
+			dataVolume := newPVCDataVolume("testDV", "testNamespace", "test")
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
 		})
 
 		It("should reject invalid DataVolume source PVC namespace on create", func() {
 			dataVolume := newPVCDataVolume("testDV", "", "test")
-			dvBytes, _ := json.Marshal(&dataVolume)
-
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
-					},
-				},
-			}
-
-			resp := validateDVs(ar)
+			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(false))
 		})
+
 		It("should reject invalid DataVolume source PVC name on create", func() {
 			dataVolume := newPVCDataVolume("testDV", "testNamespace", "")
-			dvBytes, _ := json.Marshal(&dataVolume)
-
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
-					},
-				},
-			}
-
-			resp := validateDVs(ar)
+			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(false))
 		})
 
@@ -146,213 +118,73 @@ var _ = Describe("Validating Webhook", func() {
 			dataVolume := newHTTPDataVolume(
 				"the-name-length-of-this-datavolume-is-greater-then-55cha",
 				"http://www.example.com")
-			dvBytes, _ := json.Marshal(&dataVolume)
-
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
-					},
-				},
-			}
-
-			resp := validateDVs(ar)
+			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(false))
 		})
 
 		It("should reject DataVolume source with invalid URL on create", func() {
 			dataVolume := newHTTPDataVolume("testDV", "invalidurl")
-			dvBytes, _ := json.Marshal(&dataVolume)
-
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
-					},
-				},
-			}
-
-			resp := validateDVs(ar)
+			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(false))
 		})
+
 		It("should reject DataVolume with multiple sources on create", func() {
 			dataVolume := newDataVolumeWithMultipleSources("testDV")
-			dvBytes, _ := json.Marshal(&dataVolume)
-
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
-					},
-				},
-			}
-
-			resp := validateDVs(ar)
+			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(false))
 		})
+
 		It("should reject DataVolume with empty PVC create", func() {
 			dataVolume := newDataVolumeWithEmptyPVCSpec("testDV", "http://www.example.com")
-			dvBytes, _ := json.Marshal(&dataVolume)
-
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
-					},
-				},
-			}
-
-			resp := validateDVs(ar)
+			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(false))
 		})
+
 		It("should reject DataVolume with PVC size 0", func() {
 			dataVolume := newDataVolumeWithPVCSizeZero("testDV", "http://www.example.com")
-			dvBytes, _ := json.Marshal(&dataVolume)
-
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
-					},
-				},
-			}
-
-			resp := validateDVs(ar)
+			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(false))
 		})
+
 		It("should accept DataVolume with Blank source and no content type", func() {
 			dataVolume := newBlankDataVolume("blank")
-			dvBytes, _ := json.Marshal(&dataVolume)
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
-					},
-				},
-			}
-
-			resp := validateDVs(ar)
+			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(true))
 
 		})
+
 		It("should accept DataVolume with Blank source and kubevirt contentType", func() {
 			dataVolume := newBlankDataVolume("blank")
 			dataVolume.Spec.ContentType = cdicorev1alpha1.DataVolumeKubeVirt
-
-			dvBytes, _ := json.Marshal(&dataVolume)
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
-					},
-				},
-			}
-
-			resp := validateDVs(ar)
+			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(true))
 
 		})
+
 		It("should reject DataVolume with Blank source and archive contentType", func() {
 			dataVolume := newBlankDataVolume("blank")
 			dataVolume.Spec.ContentType = cdicorev1alpha1.DataVolumeArchive
-
-			dvBytes, _ := json.Marshal(&dataVolume)
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
-					},
-				},
-			}
-
-			resp := validateDVs(ar)
+			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(false))
 
 		})
+
 		It("should reject DataVolume with invalid contentType", func() {
 			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
 			dataVolume.Spec.ContentType = "invalid"
-
-			dvBytes, _ := json.Marshal(&dataVolume)
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
-					},
-				},
-			}
-
-			resp := validateDVs(ar)
+			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(false))
 
 		})
+
 		It("should accept DataVolume with archive contentType", func() {
 			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
 			dataVolume.Spec.ContentType = cdicorev1alpha1.DataVolumeArchive
-
-			dvBytes, _ := json.Marshal(&dataVolume)
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: dvBytes,
-					},
-				},
-			}
-
-			resp := validateDVs(ar)
+			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(true))
 
 		})
+
 		It("should reject invalid DataVolume spec update", func() {
 			newDataVolume := newPVCDataVolume("testDV", "newNamespace", "testName")
 			newBytes, _ := json.Marshal(&newDataVolume)
@@ -378,9 +210,10 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := validateDVs(ar)
+			resp := validateAdmissionReview(ar)
 			Expect(resp.Allowed).To(Equal(false))
 		})
+
 		It("should accept object meta update", func() {
 			newDataVolume := newPVCDataVolume("testDV", "newNamespace", "testName")
 			newBytes, _ := json.Marshal(&newDataVolume)
@@ -406,7 +239,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 			}
 
-			resp := validateDVs(ar)
+			resp := validateAdmissionReview(ar)
 			Expect(resp.Allowed).To(Equal(true))
 		})
 	})
@@ -514,8 +347,31 @@ func newPVCSpec(sizeValue int64, sizeFormat resource.Format) *corev1.PersistentV
 	return pvc
 }
 
-func validateDVs(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	wh := NewDataVolumeValidatingWebhook(nil)
+func validateDataVolumeCreate(dv *cdicorev1alpha1.DataVolume, objects ...runtime.Object) *v1beta1.AdmissionResponse {
+	client := fakeclient.NewSimpleClientset(objects...)
+	wh := NewDataVolumeValidatingWebhook(client)
+
+	dvBytes, _ := json.Marshal(dv)
+	ar := &v1beta1.AdmissionReview{
+		Request: &v1beta1.AdmissionRequest{
+			Operation: v1beta1.Create,
+			Resource: metav1.GroupVersionResource{
+				Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
+				Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+				Resource: "datavolumes",
+			},
+			Object: runtime.RawExtension{
+				Raw: dvBytes,
+			},
+		},
+	}
+
+	return serve(ar, wh)
+}
+
+func validateAdmissionReview(ar *v1beta1.AdmissionReview, objects ...runtime.Object) *v1beta1.AdmissionResponse {
+	client := fakeclient.NewSimpleClientset(objects...)
+	wh := NewDataVolumeValidatingWebhook(client)
 	return serve(ar, wh)
 }
 

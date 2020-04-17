@@ -42,14 +42,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	"kubevirt.io/containerized-data-importer/pkg/common"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 const controllerAgentName = "datavolume-controller"
@@ -151,6 +153,11 @@ type DatavolumeReconciler struct {
 	log          logr.Logger
 }
 
+func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
+	dvName, ok := pvc.Annotations[AnnPopulatedFor]
+	return ok && dvName == dv.Name
+}
+
 // NewDatavolumeController creates a new instance of the datavolume controller.
 func NewDatavolumeController(mgr manager.Manager, extClientSet extclientset.Interface, log logr.Logger) (controller.Controller, error) {
 	reconciler := &DatavolumeReconciler{
@@ -231,9 +238,15 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 		// If the PVC is not controlled by this DataVolume resource, we should log
 		// a warning to the event recorder and return
 		if !metav1.IsControlledBy(pvc, datavolume) {
-			msg := fmt.Sprintf(MessageResourceExists, pvc.Name)
-			r.recorder.Event(datavolume, corev1.EventTypeWarning, ErrResourceExists, msg)
-			return reconcile.Result{}, errors.Errorf(msg)
+			if pvcIsPopulated(pvc, datavolume) {
+				if err := r.addOwnerRef(pvc, datavolume); err != nil {
+					return reconcile.Result{}, err
+				}
+			} else {
+				msg := fmt.Sprintf(MessageResourceExists, pvc.Name)
+				r.recorder.Event(datavolume, corev1.EventTypeWarning, ErrResourceExists, msg)
+				return reconcile.Result{}, errors.Errorf(msg)
+			}
 		}
 	}
 
@@ -570,20 +583,28 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 				dataVolumeCopy.Status.Phase = cdiv1.PVCBound
 			}
 
-			_, ok := pvc.Annotations[AnnImportPod]
-			if ok {
-				dataVolumeCopy.Status.Phase = cdiv1.ImportScheduled
-				r.updateImportStatusPhase(pvc, dataVolumeCopy, &event)
-			}
-			_, ok = pvc.Annotations[AnnCloneRequest]
-			if ok {
-				dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
-				r.updateCloneStatusPhase(pvc, dataVolumeCopy, &event)
-			}
-			_, ok = pvc.Annotations[AnnUploadRequest]
-			if ok {
-				dataVolumeCopy.Status.Phase = cdiv1.UploadScheduled
-				r.updateUploadStatusPhase(pvc, dataVolumeCopy, &event)
+			if pvcIsPopulated(pvc, dataVolumeCopy) {
+				if dataVolumeCopy.Annotations == nil {
+					dataVolumeCopy.Annotations = make(map[string]string)
+				}
+				dataVolumeCopy.Annotations[AnnPrePopulated] = pvc.Name
+				dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+			} else {
+				_, ok := pvc.Annotations[AnnImportPod]
+				if ok {
+					dataVolumeCopy.Status.Phase = cdiv1.ImportScheduled
+					r.updateImportStatusPhase(pvc, dataVolumeCopy, &event)
+				}
+				_, ok = pvc.Annotations[AnnCloneRequest]
+				if ok {
+					dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
+					r.updateCloneStatusPhase(pvc, dataVolumeCopy, &event)
+				}
+				_, ok = pvc.Annotations[AnnUploadRequest]
+				if ok {
+					dataVolumeCopy.Status.Phase = cdiv1.UploadScheduled
+					r.updateUploadStatusPhase(pvc, dataVolumeCopy, &event)
+				}
 			}
 
 		case corev1.ClaimLost:
@@ -616,7 +637,7 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 
 func (r *DatavolumeReconciler) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, curPhase cdiv1.DataVolumePhase, event *DataVolumeEvent) error {
 	// Only update the object if something actually changed in the status.
-	if !reflect.DeepEqual(dataVolume.Status, dataVolumeCopy.Status) {
+	if !reflect.DeepEqual(dataVolume, dataVolumeCopy) {
 		if err := r.client.Update(context.TODO(), dataVolumeCopy); err != nil {
 			r.log.Error(err, "Unable to update datavolume", "name", dataVolumeCopy.Name)
 			return err
@@ -653,6 +674,14 @@ func (r *DatavolumeReconciler) getPodFromPvc(namespace string, pvcUID types.UID)
 		}
 	}
 	return nil, errors.Errorf("Unable to find pod owned by UID: %s, in namespace: %s", string(pvcUID), namespace)
+}
+
+func (r *DatavolumeReconciler) addOwnerRef(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) error {
+	if err := controllerutil.SetControllerReference(dv, pvc, r.scheme); err != nil {
+		return err
+	}
+
+	return r.client.Update(context.TODO(), pvc)
 }
 
 func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) error {

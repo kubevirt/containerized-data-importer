@@ -167,6 +167,28 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(event).To(ContainSubstring("Resource \"test-dv\" already exists and is not managed by DataVolume"))
 	})
 
+	It("Should add owner to pre populated PVC", func() {
+		annotations := map[string]string{"cdi.kubevirt.io/storage.populatedFor": "test-dv"}
+		pvc := createPvc("test-dv", metav1.NamespaceDefault, annotations, nil)
+		pvc.Status.Phase = corev1.ClaimBound
+		dv := newImportDataVolume("test-dv")
+		reconciler = createDatavolumeReconciler(pvc, dv)
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.OwnerReferences).To(HaveLen(1))
+		or := pvc.OwnerReferences[0]
+		Expect(or.UID).To(Equal(dv.UID))
+
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Annotations["cdi.kubevirt.io/storage.prePopulated"]).To(Equal("test-dv"))
+		Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
+		Expect(string(dv.Status.Progress)).To(Equal("N/A"))
+	})
+
 	It("Should create a snapshot if cloning and the PVC doesn't exist, and the snapshot class can be found", func() {
 		dv := newCloneDataVolume("test-dv")
 		scName := "testsc"
@@ -612,6 +634,7 @@ func newImportDataVolume(name string) *cdiv1.DataVolume {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: metav1.NamespaceDefault,
+			UID:       types.UID(metav1.NamespaceDefault + "-" + name),
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: cdiv1.DataVolumeSource{

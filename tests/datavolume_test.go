@@ -170,6 +170,28 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[test_id:3931]succeed creating import dv with streaming image conversion", "import-http", "", cirrosURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
 			table.Entry("[test_id:3932]succeed creating dv from imageio source", "imageio", "", imageioURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
 		)
+
+		It("should handle a pre populated PVC", func() {
+			By(fmt.Sprintf("initializing source PVC %s", dataVolumeName))
+			sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
+			annotations := map[string]string{"cdi.kubevirt.io/storage.populatedFor": dataVolumeName}
+			pvcDef := utils.NewPVCDefinition(dataVolumeName, "1G", annotations, nil)
+			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand)
+
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", cirrosURL)
+			By(fmt.Sprintf("creating new populated datavolume %s", dataVolume.Name))
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				pvcName := dv.Annotations["cdi.kubevirt.io/storage.prePopulated"]
+				return pvcName == pvcDef.Name &&
+					dv.Status.Phase == cdiv1.Succeeded &&
+					string(dv.Status.Progress) == "N/A"
+			}, timeout, pollingInterval).Should(BeTrue())
+		})
 	})
 
 	Describe("[rfe_id:1111][test_id:2001][crit:low][vendor:cnv-qe@redhat.com][level:component]Verify multiple blank disk creations in parallel", func() {
