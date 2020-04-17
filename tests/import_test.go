@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
@@ -511,5 +513,104 @@ var _ = Describe("Namespace with quota", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
 
+	})
+})
+
+var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component] Add a field to DataVolume to track the number of retries", func() {
+	f := framework.NewFrameworkOrDie(namespacePrefix)
+
+	var (
+		pvc                  *v1.PersistentVolumeClaim
+		dataVolume           *cdiv1.DataVolume
+		err                  error
+		tinyCoreIsoURL       = fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
+		invalidQcowImagesURL = fmt.Sprintf(utils.InvalidQcowImagesURL, f.CdiInstallNs)
+	)
+
+	BeforeEach(func() {
+
+	})
+
+	AfterEach(func() {
+		By("Delete DV")
+		err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() bool {
+			_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			if k8serrors.IsNotFound(err) {
+				return true
+			}
+			return false
+		}, timeout, pollingInterval).Should(BeTrue())
+	})
+
+	It("[test_id:3994] Import datavolume with good url will leave dv retry count unchanged", func() {
+		dvName := "import-dv"
+		By(fmt.Sprintf("Creating new datavolume %s", dvName))
+		dv := utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", tinyCoreIsoURL)
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+
+		phase := cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify retry annotation on PVC")
+		restartsValue, status, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodRestarts)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(status).To(BeTrue())
+		Expect(restartsValue).To(Equal("0"))
+
+		By("Verify the number of retries on the datavolume")
+		dv, err = f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
+	})
+
+	It("[test_id:3996] Import datavolume with bad url will increase dv retry count", func() {
+		dvName := "import-dv-bad-url"
+		By(fmt.Sprintf("Creating new datavolume %s", dvName))
+		dv := utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", invalidQcowImagesURL)
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+
+		phase := cdiv1.ImportInProgress
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify retry annotation on PVC")
+		Eventually(func() int {
+			restarts, status, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodRestarts)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(status).To(BeTrue())
+			i, err := strconv.Atoi(restarts)
+			Expect(err).ToNot(HaveOccurred())
+			return i
+		}, timeout, pollingInterval).Should(BeNumerically(">=", 1))
+
+		By("Verify the number of retries on the datavolume")
+		Eventually(func() int32 {
+			dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			restarts := dv.Status.RestartCount
+			return restarts
+		}, timeout, pollingInterval).Should(BeNumerically(">=", 1))
 	})
 })

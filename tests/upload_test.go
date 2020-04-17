@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -15,7 +16,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -190,7 +193,7 @@ func uploadImage(portForwardURL, token string, expectedStatus int) error {
 	}
 
 	if resp.StatusCode != expectedStatus {
-		return fmt.Errorf("Unexpected return value %d expected %d", resp.StatusCode, expectedStatus)
+		return fmt.Errorf("Unexpected return value %d expected %d, Response: %s", resp.StatusCode, expectedStatus, resp.Body)
 	}
 
 	return nil
@@ -422,5 +425,146 @@ var _ = Describe("Namespace with quota", func() {
 		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(token).ToNot(BeEmpty())
+	})
+})
+
+var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component] Add a field to DataVolume to track the number of retries", func() {
+	f := framework.NewFrameworkOrDie("upload-func-test")
+
+	var (
+		pvc        *v1.PersistentVolumeClaim
+		dataVolume *cdiv1.DataVolume
+		err        error
+
+		uploadProxyURL string
+		portForwardCmd *exec.Cmd
+	)
+
+	BeforeEach(func() {
+		By("Set up port forwarding")
+		uploadProxyURL, portForwardCmd, err = startUploadProxyPortForward(f)
+		Expect(err).ToNot(HaveOccurred())
+
+	})
+
+	AfterEach(func() {
+		By("Stop port forwarding")
+		if portForwardCmd != nil {
+			err = portForwardCmd.Process.Kill()
+			Expect(err).ToNot(HaveOccurred())
+			portForwardCmd.Wait()
+			portForwardCmd = nil
+		}
+
+		By("Delete upload DV")
+		err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Wait for upload pod to be deleted")
+		deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(deleted).To(BeTrue())
+	})
+
+	It("[test_id:3993] Upload image to data volume and verify retry count", func() {
+		dvName := "upload-dv"
+		By(fmt.Sprintf("Creating new datavolume %s", dvName))
+		dv := utils.NewDataVolumeForUpload("uploady-dv", "100Mi")
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+
+		phase := cdiv1.UploadReady
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Get an upload token")
+		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
+		By("Do upload")
+		err = uploadImage(uploadProxyURL, token, http.StatusOK)
+		Expect(err).ToNot(HaveOccurred())
+
+		phase = cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify retry annotation on PVC")
+		Eventually(func() int {
+			restarts, status, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodRestarts)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(status).To(BeTrue())
+			i, err := strconv.Atoi(restarts)
+			Expect(err).ToNot(HaveOccurred())
+			return i
+		}, timeout, pollingInterval).Should(BeNumerically("==", 0))
+
+		By("Verify the number of retries on the datavolume")
+		Eventually(func() int32 {
+			dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			restarts := dv.Status.RestartCount
+			return restarts
+		}, timeout, pollingInterval).Should(BeNumerically("==", 0))
+
+	})
+
+	It("[test_id:3997] Upload image to data volume - kill container and verify retry count", func() {
+		dvName := "upload-dv"
+		By(fmt.Sprintf("Creating new datavolume %s", dvName))
+		dv := utils.NewDataVolumeForUpload("uploady-dv", "100Mi")
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+
+		phase := cdiv1.UploadReady
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Kill upload container to force restart")
+		utils.UploadPodName(pvc)
+		_, errLog, err := f.ExecShellInPodWithFullOutput(f.Namespace.Name, utils.UploadPodName(pvc), "kill 1")
+		Expect(err).To(BeNil())
+		Expect(errLog).To(BeEmpty())
+
+		By("Verify retry annotation on PVC")
+		Eventually(func() int {
+			restarts, status, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodRestarts)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(status).To(BeTrue())
+			i, err := strconv.Atoi(restarts)
+			Expect(err).ToNot(HaveOccurred())
+			return i
+		}, timeout, pollingInterval).Should(BeNumerically(">=", 1))
+
+		By("Verify the number of retries on the datavolume")
+		Eventually(func() int32 {
+			dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			restarts := dv.Status.RestartCount
+			return restarts
+		}, timeout, pollingInterval).Should(BeNumerically(">=", 1))
+
 	})
 })

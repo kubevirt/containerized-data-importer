@@ -3,6 +3,7 @@ package tests
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -748,6 +749,104 @@ var _ = Describe("Namespace with quota", func() {
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 
 	})
+})
+
+var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:component]Cloner Test Suite", func() {
+	f := framework.NewFrameworkOrDie(namespacePrefix)
+
+	var sourcePvc *v1.PersistentVolumeClaim
+	var targetPvc *v1.PersistentVolumeClaim
+
+	AfterEach(func() {
+		if sourcePvc != nil {
+			By("[AfterEach] Clean up source PVC")
+			err := f.DeletePVC(sourcePvc)
+			Expect(err).ToNot(HaveOccurred())
+		}
+		if targetPvc != nil {
+			By("[AfterEach] Clean up target PVC")
+			err := f.DeletePVC(targetPvc)
+			Expect(err).ToNot(HaveOccurred())
+		}
+	})
+
+	It("[test_id:3999] Create a data volume importing an image and then clone it and verify retry count", func() {
+		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+		pvcDef.Namespace = f.Namespace.Name
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+			framework.NsPrefixLabel: f.NsPrefix,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		f.AddNamespaceToDelete(targetNs)
+		doFileBasedCloneTest(f, pvcDef, targetNs)
+
+		By("Verify retry annotation on PVC")
+		targetDvName := "target-dv"
+		targetPvc, err := utils.WaitForPVC(f.K8sClient, targetNs.Name, targetDvName)
+		Expect(err).ToNot(HaveOccurred())
+		restartsValue, status, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodRestarts)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(status).To(BeTrue())
+		Expect(restartsValue).To(Equal("0"))
+
+		By("Verify the number of retries on the datavolume")
+		dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
+	})
+
+	It("[test_id:4000] Create a data volume importing an image and then clone it while killing the container and verify retry count", func() {
+		By("Prepare source PVC")
+		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+		pvcDef.Namespace = f.Namespace.Name
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+
+		By("Create clone DV")
+		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+			framework.NsPrefixLabel: f.NsPrefix,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		f.AddNamespaceToDelete(targetNs)
+		targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvcDef)
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
+		Expect(err).ToNot(HaveOccurred())
+
+		targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
+		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)
+
+		By("Wait for upload pod")
+		err = utils.WaitTimeoutForPodReady(f.K8sClient, "cdi-upload-target-dv", targetNs.Name, utils.PodWaitForTime)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Kill upload pod to force error")
+		utils.UploadPodName(targetPvc)
+		_, errLog, err := f.ExecShellInPodWithFullOutput(targetNs.Name, "cdi-upload-target-dv", "kill 1")
+		Expect(err).To(BeNil())
+		Expect(errLog).To(BeEmpty())
+
+		By("Verify retry annotation on PVC")
+		Eventually(func() int {
+			restarts, status, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodRestarts)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(status).To(BeTrue())
+			i, err := strconv.Atoi(restarts)
+			Expect(err).ToNot(HaveOccurred())
+			return i
+		}, timeout, pollingInterval).Should(BeNumerically(">=", 1))
+
+		By("Verify the number of retries on the datavolume")
+		Eventually(func() int32 {
+			dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			restarts := dv.Status.RestartCount
+			return restarts
+		}, timeout, pollingInterval).Should(BeNumerically(">=", 1))
+
+	})
+
 })
 
 func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClaim, targetNs *v1.Namespace) {

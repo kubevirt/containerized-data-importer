@@ -206,7 +206,7 @@ func podStatus(clientSet *kubernetes.Clientset, podName, namespace string, statu
 			}
 			return false, err
 		}
-		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Checking POD phase: %s\n", string(pod.Status.Phase))
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Checking POD %s phase: %s\n", podName, string(pod.Status.Phase))
 		switch pod.Status.Phase {
 		case status:
 			return true, nil
