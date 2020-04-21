@@ -3,6 +3,7 @@ package importer
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -89,4 +90,14 @@ var _ = Describe("Format Readers", func() {
 		table.Entry("should append io.reader", rdrGz, stringRdr, 3, false),
 		table.Entry("should append io.Multireader", rdrMulti, stringRdr, 3, false),
 	)
+
+	It("should not crash on no progress reader", func() {
+		stringReader := ioutil.NopCloser(strings.NewReader("This is a test string"))
+		testReader, err := NewFormatReaders(stringReader, uint64(0))
+		// Not passing a real string, so the header checking will fail.
+		Expect(err).To(HaveOccurred())
+		Expect(testReader.progressReader).To(BeNil())
+		// This should not crash
+		testReader.StartProgressUpdate()
+	})
 })

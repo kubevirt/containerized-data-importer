@@ -262,5 +262,7 @@ func (fr *FormatReaders) Close() (rtnerr error) {
 
 // StartProgressUpdate starts the go routine to automatically update the progress on a set interval.
 func (fr *FormatReaders) StartProgressUpdate() {
-	fr.progressReader.StartTimedUpdate()
+	if fr.progressReader != nil {
+		fr.progressReader.StartTimedUpdate()
+	}
 }
