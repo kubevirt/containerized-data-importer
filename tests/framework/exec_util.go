@@ -105,8 +105,8 @@ func (f *Framework) ExecCommandInContainer(namespace, podName, containerName str
 }
 
 // ExecShellInContainer provides a function to execute a shell cmd for the specified running container in a pod
-func (f *Framework) ExecShellInContainer(podName, containerName string, cmd string) (string, error) {
-	str, err := f.ExecCommandInContainer(podName, containerName, "/bin/sh", "-c", cmd)
+func (f *Framework) ExecShellInContainer(namespace, podName, containerName string, cmd string) (string, error) {
+	str, err := f.ExecCommandInContainer(namespace, podName, containerName, "/bin/sh", "-c", cmd)
 	if err != nil {
 		return "", err
 	}
@@ -127,7 +127,7 @@ func (f *Framework) ExecCommandInPod(podName, namespace string, cmd ...string) (
 
 // ExecCommandInPodWithFullOutput provides a function to execute a command in a running pod and to capture its output
 func (f *Framework) ExecCommandInPodWithFullOutput(namespace, podName string, cmd ...string) (string, string, error) {
-	pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.GetName()).Get(podName, metav1.GetOptions{})
+	pod, err := f.K8sClient.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to get pod")
 	gomega.Expect(pod.Spec.Containers).NotTo(gomega.BeEmpty())
 	return f.ExecCommandInContainerWithFullOutput(namespace, podName, pod.Spec.Containers[0].Name, cmd...)
@@ -143,8 +143,8 @@ func (f *Framework) ExecShellInPod(podName, namespace string, cmd string) (strin
 }
 
 // ExecShellInPodWithFullOutput provides a function to execute a shell cmd in a running pod and to capture its output
-func (f *Framework) ExecShellInPodWithFullOutput(podName string, cmd string) (string, string, error) {
-	return f.ExecCommandInPodWithFullOutput(podName, "/bin/sh", "-c", cmd)
+func (f *Framework) ExecShellInPodWithFullOutput(namespace, podName string, cmd string) (string, string, error) {
+	return f.ExecCommandInPodWithFullOutput(namespace, podName, "/bin/sh", "-c", cmd)
 }
 
 func execute(method string, url *url.URL, config *restclient.Config, stdin io.Reader, stdout, stderr io.Writer, tty bool) error {
