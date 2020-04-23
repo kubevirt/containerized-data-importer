@@ -527,10 +527,6 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		invalidQcowImagesURL = fmt.Sprintf(utils.InvalidQcowImagesURL, f.CdiInstallNs)
 	)
 
-	BeforeEach(func() {
-
-	})
-
 	AfterEach(func() {
 		By("Delete DV")
 		err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)

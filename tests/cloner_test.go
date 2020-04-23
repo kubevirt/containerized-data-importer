@@ -770,7 +770,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		}
 	})
 
-	It("[test_id:3999] Create a data volume importing an image and then clone it and verify retry count", func() {
+	It("[test_id:3999] Create a data volume and then clone it and verify retry count", func() {
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
 		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
@@ -796,7 +796,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
 	})
 
-	It("[test_id:4000] Create a data volume importing an image and then clone it while killing the container and verify retry count", func() {
+	It("[test_id:4000] Create a data volume and then clone it while killing the container and verify retry count", func() {
 		By("Prepare source PVC")
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
