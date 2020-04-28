@@ -1,0 +1,29 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["namer.go"],
+    importpath = "kubevirt.io/containerized-data-importer/pkg/util/naming",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/openshift/library-go/pkg/build/naming:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/util/validation:go_default_library",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = [
+        "namer_suite_test.go",
+        "namer_test.go",
+    ],
+    embed = [":go_default_library"],
+    deps = [
+        "//pkg/util:go_default_library",
+        "//tests/reporters:go_default_library",
+        "//vendor/github.com/onsi/ginkgo:go_default_library",
+        "//vendor/github.com/onsi/ginkgo/extensions/table:go_default_library",
+        "//vendor/github.com/onsi/gomega:go_default_library",
+        "//vendor/github.com/onsi/gomega/types:go_default_library",
+    ],
+)
