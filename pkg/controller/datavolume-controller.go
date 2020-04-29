@@ -564,57 +564,58 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		}
 	} else {
 
-		switch pvc.Status.Phase {
-		case corev1.ClaimPending:
-			dataVolumeCopy.Status.Phase = cdiv1.Pending
-			// the following check is for a case where the request is to create a blank disk for a block device.
-			// in that case, we do not create a pod as there is no need to create a blank image.
-			// instead, we just mark the DV phase as 'Succeeded' so any consumer will be able to use it.
-			phase, _ := pvc.Annotations[AnnPodPhase]
-			if phase == string(cdiv1.Succeeded) {
-				dataVolumeCopy.Status.Phase = cdiv1.Succeeded
-				r.updateImportStatusPhase(pvc, dataVolumeCopy, &event)
-			}
-		case corev1.ClaimBound:
-			switch dataVolumeCopy.Status.Phase {
-			case cdiv1.Pending:
-				dataVolumeCopy.Status.Phase = cdiv1.PVCBound
-			case cdiv1.Unknown:
-				dataVolumeCopy.Status.Phase = cdiv1.PVCBound
-			}
+		// the following check is for a case where the request is to create a blank disk for a block device.
+		// in that case, we do not create a pod as there is no need to create a blank image.
+		// instead, we just mark the DV phase as 'Succeeded' so any consumer will be able to use it.
+		phase, _ := pvc.Annotations[AnnPodPhase]
+		if phase == string(cdiv1.Succeeded) {
+			dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+			r.updateImportStatusPhase(pvc, dataVolumeCopy, &event)
+		} else {
+			switch pvc.Status.Phase {
+			case corev1.ClaimPending:
+				dataVolumeCopy.Status.Phase = cdiv1.Pending
+			case corev1.ClaimBound:
+				switch dataVolumeCopy.Status.Phase {
+				case cdiv1.Pending:
+					dataVolumeCopy.Status.Phase = cdiv1.PVCBound
+				case cdiv1.Unknown:
+					dataVolumeCopy.Status.Phase = cdiv1.PVCBound
+				}
 
-			if pvcIsPopulated(pvc, dataVolumeCopy) {
-				if dataVolumeCopy.Annotations == nil {
-					dataVolumeCopy.Annotations = make(map[string]string)
+				if pvcIsPopulated(pvc, dataVolumeCopy) {
+					if dataVolumeCopy.Annotations == nil {
+						dataVolumeCopy.Annotations = make(map[string]string)
+					}
+					dataVolumeCopy.Annotations[AnnPrePopulated] = pvc.Name
+					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+				} else {
+					_, ok := pvc.Annotations[AnnImportPod]
+					if ok {
+						dataVolumeCopy.Status.Phase = cdiv1.ImportScheduled
+						r.updateImportStatusPhase(pvc, dataVolumeCopy, &event)
+					}
+					_, ok = pvc.Annotations[AnnCloneRequest]
+					if ok {
+						dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
+						r.updateCloneStatusPhase(pvc, dataVolumeCopy, &event)
+					}
+					_, ok = pvc.Annotations[AnnUploadRequest]
+					if ok {
+						dataVolumeCopy.Status.Phase = cdiv1.UploadScheduled
+						r.updateUploadStatusPhase(pvc, dataVolumeCopy, &event)
+					}
 				}
-				dataVolumeCopy.Annotations[AnnPrePopulated] = pvc.Name
-				dataVolumeCopy.Status.Phase = cdiv1.Succeeded
-			} else {
-				_, ok := pvc.Annotations[AnnImportPod]
-				if ok {
-					dataVolumeCopy.Status.Phase = cdiv1.ImportScheduled
-					r.updateImportStatusPhase(pvc, dataVolumeCopy, &event)
-				}
-				_, ok = pvc.Annotations[AnnCloneRequest]
-				if ok {
-					dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
-					r.updateCloneStatusPhase(pvc, dataVolumeCopy, &event)
-				}
-				_, ok = pvc.Annotations[AnnUploadRequest]
-				if ok {
-					dataVolumeCopy.Status.Phase = cdiv1.UploadScheduled
-					r.updateUploadStatusPhase(pvc, dataVolumeCopy, &event)
-				}
-			}
 
-		case corev1.ClaimLost:
-			dataVolumeCopy.Status.Phase = cdiv1.Failed
-			event.eventType = corev1.EventTypeWarning
-			event.reason = ErrClaimLost
-			event.message = fmt.Sprintf(MessageErrClaimLost, pvc.Name)
-		default:
-			if pvc.Status.Phase != "" {
-				dataVolumeCopy.Status.Phase = cdiv1.Unknown
+			case corev1.ClaimLost:
+				dataVolumeCopy.Status.Phase = cdiv1.Failed
+				event.eventType = corev1.EventTypeWarning
+				event.reason = ErrClaimLost
+				event.message = fmt.Sprintf(MessageErrClaimLost, pvc.Name)
+			default:
+				if pvc.Status.Phase != "" {
+					dataVolumeCopy.Status.Phase = cdiv1.Unknown
+				}
 			}
 		}
 	}
