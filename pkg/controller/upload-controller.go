@@ -43,6 +43,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 )
 
 const (
@@ -141,8 +142,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 	} else {
 		uploadClientName = uploadServerClientName
 
-		// TODO revisit naming, could overflow
-		scratchPVCName = pvc.Name + "-scratch"
+		scratchPVCName = getScratchPvcName(pvc.Name)
 	}
 
 	resourceName := getUploadResourceName(pvc.Name)
@@ -486,10 +486,14 @@ func addUploadControllerWatches(mgr manager.Manager, importController controller
 	return nil
 }
 
+// getScratchPvcName returns the name given to scratch pvc
+func getScratchPvcName(name string) string {
+	return naming.GetResourceName(name, common.ScratchNameSuffix)
+}
+
 // getUploadResourceName returns the name given to upload resources
 func getUploadResourceName(name string) string {
-	// TODO revisit naming, could overflow
-	return "cdi-upload-" + name
+	return naming.GetResourceName("cdi-upload", name)
 }
 
 // UploadPossibleForPVC is called by the api server to see whether to return an upload token
