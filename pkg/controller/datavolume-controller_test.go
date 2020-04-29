@@ -240,6 +240,10 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dv.Status.Phase).To(Equal(expected))
+		Expect(len(dv.Status.Conditions)).To(Equal(3))
+		boundCondition := findConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
+		Expect(boundCondition.Status).To(Equal(corev1.ConditionUnknown))
+		Expect(boundCondition.Message).To(Equal("No PVC found"))
 	},
 		table.Entry("should remain unset", cdiv1.PhaseUnset, cdiv1.PhaseUnset),
 		table.Entry("should remain pending", cdiv1.Pending, cdiv1.Pending),
@@ -268,6 +272,10 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dv.Status.Phase).To(Equal(cdiv1.Pending))
+		Expect(len(dv.Status.Conditions)).To(Equal(3))
+		boundCondition := findConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
+		Expect(boundCondition.Status).To(Equal(corev1.ConditionFalse))
+		Expect(boundCondition.Message).To(Equal("PVC Pending"))
 	})
 
 	It("Should switch to succeeded if PVC phase is pending, but pod phase is succeeded", func() {
@@ -296,6 +304,13 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		By("Checking error event recorded")
 		event := <-reconciler.recorder.(*record.FakeRecorder).Events
 		Expect(event).To(ContainSubstring("Successfully imported into PVC test-dv"))
+		Expect(len(dv.Status.Conditions)).To(Equal(3))
+		boundCondition := findConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
+		Expect(boundCondition.Status).To(Equal(corev1.ConditionFalse))
+		Expect(boundCondition.Message).To(Equal("PVC Pending"))
+		readyCondition := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions)
+		Expect(readyCondition.Status).To(Equal(corev1.ConditionTrue))
+		Expect(readyCondition.Message).To(Equal(""))
 	})
 
 	table.DescribeTable("DV phase", func(testDv runtime.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann string) {
@@ -325,6 +340,13 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dv.Status.Phase).To(Equal(expected))
+		Expect(len(dv.Status.Conditions)).To(Equal(3))
+		boundCondition := findConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
+		Expect(boundCondition.Status).To(Equal(boundStatusByPVCPhase(pvcPhase)))
+		Expect(boundCondition.Message).To(Equal(boundMessageByPVCPhase(pvcPhase)))
+		readyCondition := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions)
+		Expect(readyCondition.Status).To(Equal(readyStatusByPhase(expected)))
+		Expect(readyCondition.Message).To(Equal(""))
 	},
 		table.Entry("should switch to bound for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.PVCBound, corev1.ClaimBound, corev1.PodPending, "invalid"),
 		table.Entry("should switch to bound for import", newImportDataVolume("test-dv"), cdiv1.Unknown, cdiv1.PVCBound, corev1.ClaimBound, corev1.PodPending, "invalid"),
@@ -350,6 +372,39 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		table.Entry("should switch to succeeded for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnImportPod),
 	)
 })
+
+func boundStatusByPVCPhase(pvcPhase corev1.PersistentVolumeClaimPhase) corev1.ConditionStatus {
+	if pvcPhase == corev1.ClaimBound {
+		return corev1.ConditionTrue
+	} else if pvcPhase == corev1.ClaimPending {
+		return corev1.ConditionFalse
+	} else if pvcPhase == corev1.ClaimLost {
+		return corev1.ConditionFalse
+	}
+	return corev1.ConditionUnknown
+}
+
+func boundMessageByPVCPhase(pvcPhase corev1.PersistentVolumeClaimPhase) string {
+	if pvcPhase == corev1.ClaimBound {
+		return "PVC Bound"
+	} else if pvcPhase == corev1.ClaimPending {
+		return "PVC Pending"
+	} else if pvcPhase == corev1.ClaimLost {
+		return "Claim Lost"
+	}
+	return "No PVC found"
+}
+
+func readyStatusByPhase(phase cdiv1.DataVolumePhase) corev1.ConditionStatus {
+	switch phase {
+	case cdiv1.Succeeded:
+		return corev1.ConditionTrue
+	case cdiv1.Unknown:
+		return corev1.ConditionUnknown
+	default:
+		return corev1.ConditionFalse
+	}
+}
 
 var _ = Describe("Smart clone", func() {
 	It("Should not return storage class, if no source pvc provided", func() {

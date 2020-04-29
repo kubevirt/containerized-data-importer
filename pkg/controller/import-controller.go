@@ -59,6 +59,10 @@ const (
 	AnnRequiresScratch = AnnAPIGroup + "/storage.import.requiresScratch"
 	// AnnDiskID provides a const for our PVC diskId annotation
 	AnnDiskID = AnnAPIGroup + "/storage.import.diskId"
+	// AnnRunningCondition provides a const for the running condition
+	AnnRunningCondition = AnnAPIGroup + "/storage.condition.running"
+	// AnnRunningConditionMessage provides a const for the running condition
+	AnnRunningConditionMessage = AnnAPIGroup + "/storage.condition.running.message"
 
 	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
 	LabelImportPvc = AnnAPIGroup + "/storage.import.importPvcName"
@@ -233,6 +237,8 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 
 	log.V(1).Info("Updating PVC from pod")
 	anno := pvc.GetAnnotations()
+	setConditionFromPod(anno, pod)
+
 	scratchExitCode := false
 	if pod.Status.ContainerStatuses != nil &&
 		pod.Status.ContainerStatuses[0].LastTerminationState.Terminated != nil &&
@@ -244,12 +250,11 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			anno[AnnRequiresScratch] = "true"
 		} else {
 			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message)
+			anno[AnnRunningCondition] = "false"
+			anno[AnnRunningConditionMessage] = pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message
 		}
 	}
 
-	if pod.Status.ContainerStatuses != nil {
-		anno[AnnPodRestarts] = strconv.Itoa(int(pod.Status.ContainerStatuses[0].RestartCount))
-	}
 	anno[AnnImportPod] = string(pod.Name)
 	// Even if scratch space is needed, the pod state will still remain running, until the new pod is started.
 	anno[AnnPodPhase] = string(pod.Status.Phase)
@@ -261,6 +266,8 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 				return err
 			}
 		}
+		anno[AnnRunningCondition] = "false"
+		anno[AnnRunningConditionMessage] = "Creating scratch space"
 	}
 	if !checkIfLabelExists(pvc, common.CDILabelKey, common.CDILabelValue) {
 		if pvc.GetLabels() == nil {

@@ -166,6 +166,63 @@ var _ = Describe("DecodePublicKey", func() {
 	})
 })
 
+var _ = Describe("setConditionFromPod", func() {
+	It("Should follow pod container status, running", func() {
+		result := make(map[string]string)
+		testPod := createImporterTestPod(createPvc("test", metav1.NamespaceDefault, nil, nil), "test", nil)
+		testPod.Status = v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Running: &v1.ContainerStateRunning{},
+					},
+				},
+			},
+		}
+		setConditionFromPod(result, testPod)
+		Expect(result[AnnRunningCondition]).To(Equal("true"))
+		Expect(result[AnnRunningConditionMessage]).To(Equal(""))
+	})
+
+	It("Should follow pod container status, completed", func() {
+		result := make(map[string]string)
+		testPod := createImporterTestPod(createPvc("test", metav1.NamespaceDefault, nil, nil), "test", nil)
+		testPod.Status = v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{
+							Message: "The container completed",
+						},
+					},
+				},
+			},
+		}
+		setConditionFromPod(result, testPod)
+		Expect(result[AnnRunningCondition]).To(Equal("false"))
+		Expect(result[AnnRunningConditionMessage]).To(Equal("The container completed"))
+	})
+
+	It("Should follow pod container status, pending", func() {
+		result := make(map[string]string)
+		testPod := createImporterTestPod(createPvc("test", metav1.NamespaceDefault, nil, nil), "test", nil)
+		testPod.Status = v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Waiting: &v1.ContainerStateWaiting{
+							Message: "container is waiting",
+						},
+					},
+				},
+			},
+		}
+		setConditionFromPod(result, testPod)
+		Expect(result[AnnRunningCondition]).To(Equal("false"))
+		Expect(result[AnnRunningConditionMessage]).To(Equal("container is waiting"))
+	})
+})
+
 func createBlockPvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
 	pvcDef := createPvcInStorageClass(name, ns, nil, annotations, labels)
 	volumeMode := v1.PersistentVolumeBlock

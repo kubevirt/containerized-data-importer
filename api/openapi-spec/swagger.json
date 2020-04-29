@@ -3083,6 +3083,31 @@
    "v1alpha1.DataVolumeBlankImage": {
     "description": "DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC"
    },
+   "v1alpha1.DataVolumeCondition": {
+    "description": "DataVolumeCondition represents the state of a data volume condition.",
+    "required": [
+     "type",
+     "status"
+    ],
+    "properties": {
+     "message": {
+      "description": "+optional",
+      "type": "string"
+     },
+     "reason": {
+      "description": "+optional",
+      "type": "string"
+     },
+     "status": {
+      "description": "status of the condition, one of True, False, Unknown",
+      "type": "string"
+     },
+     "type": {
+      "description": "type of condition ie. Ready|Bound|Running.",
+      "type": "string"
+     }
+    }
+   },
    "v1alpha1.DataVolumeList": {
     "description": "DataVolumeList provides the needed parameters to do request a list of Data Volumes from the system\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
     "required": [
@@ -3245,6 +3270,13 @@
      "restartCount"
     ],
     "properties": {
+     "conditions": {
+      "description": "+listType=set",
+      "type": "array",
+      "items": {
+       "$ref": "#/definitions/v1alpha1.DataVolumeCondition"
+      }
+     },
      "phase": {
       "description": "Phase is the current phase of the data volume",
       "type": "string"

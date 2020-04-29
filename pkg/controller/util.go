@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"crypto/rsa"
+	"strconv"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -295,4 +296,21 @@ func podPhaseFromPVC(pvc *v1.PersistentVolumeClaim) v1.PodPhase {
 
 func podSucceededFromPVC(pvc *v1.PersistentVolumeClaim) bool {
 	return (podPhaseFromPVC(pvc) == v1.PodSucceeded)
+}
+
+func setConditionFromPod(anno map[string]string, pod *v1.Pod) {
+	if pod.Status.ContainerStatuses != nil {
+		anno[AnnPodRestarts] = strconv.Itoa(int(pod.Status.ContainerStatuses[0].RestartCount))
+		if pod.Status.ContainerStatuses[0].State.Running != nil {
+			anno[AnnRunningCondition] = "true"
+			anno[AnnRunningConditionMessage] = ""
+		} else {
+			anno[AnnRunningCondition] = "false"
+			if pod.Status.ContainerStatuses[0].State.Waiting != nil {
+				anno[AnnRunningConditionMessage] = pod.Status.ContainerStatuses[0].State.Waiting.Message
+			} else if pod.Status.ContainerStatuses[0].State.Terminated != nil {
+				anno[AnnRunningConditionMessage] = pod.Status.ContainerStatuses[0].State.Terminated.Message
+			}
+		}
+	}
 }

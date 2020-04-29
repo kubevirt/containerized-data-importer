@@ -239,11 +239,17 @@ func (r *SmartCloneReconciler) updateSmartCloneStatusPhase(phase cdiv1.DataVolum
 		event.eventType = corev1.EventTypeNormal
 		event.reason = SmartClonePVCInProgress
 		event.message = fmt.Sprintf(MessageSmartClonePVCInProgress, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name)
+		dataVolume.Status.Conditions = updateBoundCondition(dataVolume.Status.Conditions, newPVC)
+		dataVolume.Status.Conditions = updateReadyCondition(dataVolume.Status.Conditions, corev1.ConditionFalse, MessageSmartClonePVCInProgress)
+		dataVolume.Status.Conditions = updateCondition(dataVolume.Status.Conditions, cdiv1.DataVolumeRunning, corev1.ConditionTrue, "")
 	case cdiv1.Succeeded:
 		dataVolumeCopy.Status.Phase = cdiv1.Succeeded
 		event.eventType = corev1.EventTypeNormal
 		event.reason = CloneSucceeded
 		event.message = fmt.Sprintf(MessageCloneSucceeded, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, newPVC.Namespace, newPVC.Name)
+		dataVolume.Status.Conditions = updateBoundCondition(dataVolume.Status.Conditions, newPVC)
+		dataVolume.Status.Conditions = updateReadyCondition(dataVolume.Status.Conditions, corev1.ConditionTrue, cloneComplete)
+		dataVolume.Status.Conditions = updateCondition(dataVolume.Status.Conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, cloneComplete)
 	}
 
 	return r.emitEvent(dataVolume, dataVolumeCopy, &event, newPVC)
@@ -277,6 +283,9 @@ func newPvcFromSnapshot(snapshot *csisnapshotv1.VolumeSnapshot, dataVolume *cdiv
 	annotations := make(map[string]string)
 	annotations[AnnSmartCloneRequest] = "true"
 	annotations[AnnCloneOf] = "true"
+	annotations[AnnRunningCondition] = string(corev1.ConditionFalse)
+	annotations[AnnRunningConditionMessage] = cloneComplete
+
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            snapshot.Name,

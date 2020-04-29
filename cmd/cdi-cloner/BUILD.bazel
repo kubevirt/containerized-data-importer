@@ -18,6 +18,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/common:go_default_library",
+        "//pkg/util:go_default_library",
         "//pkg/util/prometheus:go_default_library",
         "//vendor/github.com/prometheus/client_golang/prometheus:go_default_library",
         "//vendor/k8s.io/klog:go_default_library",

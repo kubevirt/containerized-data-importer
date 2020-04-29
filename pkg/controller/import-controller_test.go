@@ -213,6 +213,15 @@ var _ = Describe("Update PVC from POD", func() {
 		pod := createImporterTestPod(pvc, "testPvc1", nil)
 		pod.Status = corev1.PodStatus{
 			Phase: corev1.PodSucceeded,
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{
+							Message: "Import Completed",
+						},
+					},
+				},
+			},
 		}
 		reconciler = createImportReconciler(pvc, pod)
 		resPod := &corev1.Pod{}
@@ -233,6 +242,8 @@ var _ = Describe("Update PVC from POD", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, resPod)
 		Expect(err).To(HaveOccurred())
 		Expect(errors.IsNotFound(err)).To(BeTrue())
+		Expect(resPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
+		Expect(resPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal("Import Completed"))
 	})
 
 	It("Should update the PVC status to running, if pod is running", func() {
@@ -240,6 +251,13 @@ var _ = Describe("Update PVC from POD", func() {
 		pod := createImporterTestPod(pvc, "testPvc1", nil)
 		pod.Status = corev1.PodStatus{
 			Phase: corev1.PodRunning,
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Running: &v1.ContainerStateRunning{},
+					},
+				},
+			},
 		}
 		reconciler = createImportReconciler(pvc, pod)
 		resPod := &corev1.Pod{}
@@ -259,6 +277,8 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(err).ToNot(HaveOccurred())
 		By("Making sure the label has been added")
 		Expect(resPvc.GetLabels()[common.CDILabelKey]).To(Equal(common.CDILabelValue))
+		Expect(resPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("true"))
+		Expect(resPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal(""))
 	})
 
 	It("Should create scratch PVC, if pod is pending and PVC is marked with scratch", func() {
@@ -266,6 +286,15 @@ var _ = Describe("Update PVC from POD", func() {
 		pod := createImporterTestPod(pvc, "testPvc1", nil)
 		pod.Status = corev1.PodStatus{
 			Phase: corev1.PodPending,
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Waiting: &v1.ContainerStateWaiting{
+							Message: "Pending",
+						},
+					},
+				},
+			},
 		}
 		reconciler = createImportReconciler(pvc, pod)
 		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
@@ -281,6 +310,8 @@ var _ = Describe("Update PVC from POD", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resPvc.GetAnnotations()[AnnImportPod]).To(Equal(pod.Name))
+		Expect(resPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
+		Expect(resPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal("Creating scratch space"))
 	})
 
 	// TODO: Update me to stay in progress if we were in progress already, its a pod failure and it will get restarted.
@@ -314,13 +345,15 @@ var _ = Describe("Update PVC from POD", func() {
 		By("Checking error event recorded")
 		event := <-reconciler.recorder.(*record.FakeRecorder).Events
 		Expect(event).To(ContainSubstring("I went poof"))
+		Expect(resPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
+		Expect(resPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal("I went poof"))
 	})
 
 	It("Should update phase on PVC, if pod exited with error state that is scratchspace exit", func() {
 		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodRunning)}, nil)
 		pod := createImporterTestPod(pvc, "testPvc1", nil)
 		pod.Status = corev1.PodStatus{
-			Phase: corev1.PodRunning,
+			Phase: corev1.PodPending,
 			ContainerStatuses: []corev1.ContainerStatus{
 				{
 					LastTerminationState: corev1.ContainerState{
@@ -340,10 +373,12 @@ var _ = Describe("Update PVC from POD", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying that the phase hasn't changed")
-		Expect(resPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(corev1.PodRunning))
+		Expect(resPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(corev1.PodPending))
 		Expect(resPvc.GetAnnotations()[AnnImportPod]).To(Equal(pod.Name))
 		Expect(resPvc.GetAnnotations()[AnnPodRestarts]).To(Equal("0"))
 		// No scratch space because the pod is not in pending.
+		Expect(resPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
+		Expect(resPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal("Creating scratch space"))
 	})
 })
 
@@ -575,6 +610,7 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	// Create a fake client to mock API calls.
 	cl := fake.NewFakeClientWithScheme(s, objs...)
 
+	// Increase this if you have more than one event that fires.
 	rec := record.NewFakeRecorder(1)
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	r := &ImportReconciler{

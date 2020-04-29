@@ -125,6 +125,7 @@ func (r *UploadReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentVolumeClaim, isCloneTarget bool) (reconcile.Result, error) {
 	var uploadClientName, scratchPVCName string
 	pvcCopy := pvc.DeepCopy()
+	anno := pvcCopy.Annotations
 
 	if isCloneTarget {
 		source, err := r.getCloneRequestSourcePVC(pvc)
@@ -138,7 +139,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		}
 
 		uploadClientName = fmt.Sprintf("%s/%s-%s/%s", source.Namespace, source.Name, pvc.Namespace, pvc.Name)
-		pvcCopy.Annotations[AnnUploadClientName] = uploadClientName
+		anno[AnnUploadClientName] = uploadClientName
 	} else {
 		uploadClientName = uploadServerClientName
 
@@ -147,7 +148,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 
 	resourceName := getUploadResourceName(pvc.Name)
 
-	pod, err := r.getOrCreateUploadPod(pvc, resourceName, scratchPVCName, uploadClientName)
+	pod, err := r.getOrCreateUploadPod(pvcCopy, resourceName, scratchPVCName, uploadClientName)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -157,16 +158,27 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 	}
 
 	podPhase := pod.Status.Phase
-	pvcCopy.Annotations[AnnPodPhase] = string(podPhase)
-	pvcCopy.Annotations[AnnPodReady] = strconv.FormatBool(isPodReady(pod))
+	anno[AnnPodPhase] = string(podPhase)
+	anno[AnnPodReady] = strconv.FormatBool(isPodReady(pod))
 
 	if pod.Status.ContainerStatuses != nil {
 		// update pvc annotation tracking pod restarts only if the source pod restart count is greater
 		// see the same in clone-controller
-		pvcAnnPodRestarts, _ := strconv.Atoi(pvcCopy.Annotations[AnnPodRestarts])
+		pvcAnnPodRestarts, _ := strconv.Atoi(anno[AnnPodRestarts])
 		podRestarts := int(pod.Status.ContainerStatuses[0].RestartCount)
 		if podRestarts > pvcAnnPodRestarts {
-			pvcCopy.Annotations[AnnPodRestarts] = strconv.Itoa(podRestarts)
+			anno[AnnPodRestarts] = strconv.Itoa(podRestarts)
+		}
+		if pod.Status.ContainerStatuses[0].State.Running != nil {
+			anno[AnnRunningCondition] = "true"
+			anno[AnnRunningConditionMessage] = ""
+		} else {
+			anno[AnnRunningCondition] = "false"
+			if pod.Status.ContainerStatuses[0].State.Waiting != nil {
+				anno[AnnRunningConditionMessage] = pod.Status.ContainerStatuses[0].State.Waiting.Message
+			} else if pod.Status.ContainerStatuses[0].State.Terminated != nil {
+				anno[AnnRunningConditionMessage] = pod.Status.ContainerStatuses[0].State.Terminated.Message
+			}
 		}
 	}
 
@@ -289,11 +301,16 @@ func (r *UploadReconciler) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, p
 }
 
 func (r *UploadReconciler) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, name string) (*v1.PersistentVolumeClaim, error) {
+	// Set condition, then check if need to override with scratch pvc message
+	anno := pvc.Annotations
 	scratchPvc := &corev1.PersistentVolumeClaim{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: pvc.Namespace}, scratchPvc); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			return nil, errors.Wrap(err, "error getting scratch PVC")
 		}
+
+		anno[AnnRunningCondition] = "false"
+		anno[AnnRunningConditionMessage] = "Creating scratch space"
 
 		storageClassName := GetScratchPvcStorageClass(r.client, pvc)
 

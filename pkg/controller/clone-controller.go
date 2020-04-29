@@ -61,6 +61,8 @@ const (
 	cloneTokenLeeway = 10 * time.Second
 
 	uploadClientCertDuration = 365 * 24 * time.Hour
+
+	cloneComplete = "Clone Complete"
 )
 
 // CloneReconciler members
@@ -211,7 +213,7 @@ func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.Pe
 	if podSucceededFromPVC(pvc) && pvc.Annotations[AnnCloneOf] != "true" {
 		log.V(1).Info("Adding CloneOf annotation to PVC")
 		pvc.Annotations[AnnCloneOf] = "true"
-		r.recorder.Event(pvc, corev1.EventTypeNormal, CloneSucceededPVC, "Clone Successful")
+		r.recorder.Event(pvc, corev1.EventTypeNormal, CloneSucceededPVC, cloneComplete)
 	}
 	if sourcePod != nil && sourcePod.Status.ContainerStatuses != nil {
 		// update pvc annotation tracking pod restarts only if the source pod restart count is greater

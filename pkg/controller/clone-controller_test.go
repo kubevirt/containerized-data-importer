@@ -229,7 +229,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking error event recorded")
 		event := <-reconciler.recorder.(*record.FakeRecorder).Events
-		Expect(event).To(ContainSubstring("Clone Successful"))
+		Expect(event).To(ContainSubstring(cloneComplete))
 		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).To(BeNil())
@@ -274,7 +274,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		By("Checking error event recorded")
 		event := <-reconciler.recorder.(*record.FakeRecorder).Events
-		Expect(event).To(ContainSubstring("Clone Successful"))
+		Expect(event).To(ContainSubstring(cloneComplete))
 		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).To(BeNil())
