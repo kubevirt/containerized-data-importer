@@ -282,7 +282,8 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 		By("Waiting for import to be completed")
-		utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
+		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 
 		By("Verifying a message was printed to indicate a request for a blank disk on a block device")
 		Eventually(func() bool {
