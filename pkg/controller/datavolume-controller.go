@@ -285,12 +285,10 @@ func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVol
 		datavolume.Status.Progress = "N/A"
 	}
 
-	if datavolume.Spec.Source.HTTP != nil {
-		podNamespace = datavolume.Namespace
-	} else if datavolume.Spec.Source.PVC != nil {
+	if datavolume.Spec.Source.PVC != nil {
 		podNamespace = datavolume.Spec.Source.PVC.Namespace
 	} else {
-		return reconcile.Result{}, nil
+		podNamespace = datavolume.Namespace
 	}
 
 	if datavolume.Status.Phase == cdiv1.Succeeded || datavolume.Status.Phase == cdiv1.Failed {

@@ -195,39 +195,44 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 	if resp.StatusCode != http.StatusOK {
 		return nil, uint64(0), errors.Errorf("bad status: %s", resp.Status)
 	}
+
+	if total == 0 {
+		// The total seems bogus. Let's try the GET Content-Length header
+		total = parseHTTPHeader(resp)
+	}
 	countingReader := &util.CountingReader{
 		Reader:  resp.Body,
 		Current: 0,
 	}
-	return countingReader, uint64(total), nil
+	return countingReader, total, nil
 }
 
-func getTransfer(conn ConnectionInterface, diskID string) (*ovirtsdk4.ImageTransfer, int64, error) {
+func getTransfer(conn ConnectionInterface, diskID string) (*ovirtsdk4.ImageTransfer, uint64, error) {
 	disksService := conn.SystemService().DisksService()
 	diskService := disksService.DiskService(diskID)
 	diskRequest := diskService.Get()
 	diskResponse, err := diskRequest.Send()
 	if err != nil {
-		return nil, int64(0), errors.Wrap(err, "Error fetching disk")
+		return nil, uint64(0), errors.Wrap(err, "Error fetching disk")
 	}
 	disk, success := diskResponse.Disk()
 	if !success {
-		return nil, int64(0), errors.New("Error disk not found")
+		return nil, uint64(0), errors.New("Error disk not found")
 	}
 
 	totalSize, available := disk.TotalSize()
 	if !available {
-		return nil, int64(0), errors.New("Error total disk size not available")
+		return nil, uint64(0), errors.New("Error total disk size not available")
 	}
 
 	id, available := disk.Id()
 	if !available {
-		return nil, int64(0), errors.New("Error disk id not available")
+		return nil, uint64(0), errors.New("Error disk id not available")
 	}
 
 	image, err := ovirtsdk4.NewImageBuilder().Id(id).Build()
 	if err != nil {
-		return nil, int64(0), errors.Wrap(err, "Error building image object")
+		return nil, uint64(0), errors.Wrap(err, "Error building image object")
 	}
 
 	transfersService := conn.SystemService().ImageTransfersService()
@@ -240,7 +245,7 @@ func getTransfer(conn ConnectionInterface, diskID string) (*ovirtsdk4.ImageTrans
 		ovirtsdk4.DISKFORMAT_RAW,
 	).Build()
 	if err != nil {
-		return nil, int64(0), errors.Wrap(err, "Error preparing transfer object")
+		return nil, uint64(0), errors.Wrap(err, "Error preparing transfer object")
 	}
 
 	transfer.ImageTransfer(imageTransfer)
@@ -253,25 +258,25 @@ func getTransfer(conn ConnectionInterface, diskID string) (*ovirtsdk4.ImageTrans
 				time.Sleep(15 * time.Second)
 				continue
 			}
-			return nil, int64(0), errors.Wrap(err, "Error sending transfer image request")
+			return nil, uint64(0), errors.Wrap(err, "Error sending transfer image request")
 		}
 		it, available = response.ImageTransfer()
 		if !available {
-			return nil, int64(0), errors.New("Error image transfer not available")
+			return nil, uint64(0), errors.New("Error image transfer not available")
 		}
 		phase, available := it.Phase()
 		if !available {
-			return nil, int64(0), errors.New("Error phase not available")
+			return nil, uint64(0), errors.New("Error phase not available")
 		}
 		if phase == ovirtsdk4.IMAGETRANSFERPHASE_INITIALIZING {
 			time.Sleep(1 * time.Second)
 		} else if phase == ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING {
 			break
 		} else {
-			return nil, int64(0), errors.Errorf("Error transfer phase: %s", phase)
+			return nil, uint64(0), errors.Errorf("Error transfer phase: %s", phase)
 		}
 	}
-	return it, totalSize, nil
+	return it, uint64(totalSize), nil
 }
 
 func loadCA(certDir string) (*x509.CertPool, error) {
