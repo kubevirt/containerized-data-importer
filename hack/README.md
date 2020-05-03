@@ -248,6 +248,7 @@ not supported, then you can use the following example to run Functional Tests.
    # ./cluster-up/kubectl.sh apply -f ./_out/manifests/bad-webserver.yaml
    # ./cluster-up/kubectl.sh apply -f ./_out/manifests/file-host.yaml
    # ./cluster-up/kubectl.sh apply -f ./_out/manifests/registry-host.yaml
+   # ./cluster-up/kubectl.sh apply -f ./_out/manifests/imageio.yaml
    ```
 
 5. Run the tests
