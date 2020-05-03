@@ -158,6 +158,7 @@ configure_storage
 # Start functional test HTTP server.
 # We skip the functional test additions for external provider for now, as they're specific
 if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
+  _kubectl apply -f "./_out/manifests/bad-webserver.yaml"
   _kubectl apply -f "./_out/manifests/file-host.yaml"
   _kubectl apply -f "./_out/manifests/registry-host.yaml"
   # Imageio test service:

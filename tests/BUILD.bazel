@@ -15,6 +15,7 @@ go_test(
     name = "go_default_test",
     srcs = [
         "api_validation_test.go",
+        "badserver_test.go",
         "basic_sanity_test.go",
         "cdiconfig_test.go",
         "certrotation_test.go",
