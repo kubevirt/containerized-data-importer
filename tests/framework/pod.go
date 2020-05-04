@@ -16,7 +16,11 @@ func (f *Framework) CreatePod(podDef *k8sv1.Pod) (*k8sv1.Pod, error) {
 
 // DeletePod is a wrapper around utils.DeletePod
 func (f *Framework) DeletePod(pod *k8sv1.Pod) error {
-	return utils.DeletePod(f.K8sClient, pod, f.Namespace.Name)
+	ns := f.Namespace.Name
+	if pod.Namespace != "" {
+		ns = pod.Namespace
+	}
+	return utils.DeletePod(f.K8sClient, pod, ns)
 }
 
 // WaitTimeoutForPodReady is a wrapper around utils.WaitTimeouotForPodReady

@@ -519,31 +519,14 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 })
 
 var _ = Describe("Block PV Cloner Test", func() {
-	var (
-		sourcePvc, targetPvc *v1.PersistentVolumeClaim
-	)
-
 	f := framework.NewFrameworkOrDie(namespacePrefix)
-
-	AfterEach(func() {
-		if sourcePvc != nil {
-			By("[AfterEach] Clean up source Block PVC")
-			err := f.DeletePVC(sourcePvc)
-			Expect(err).ToNot(HaveOccurred())
-		}
-		if targetPvc != nil {
-			By("[AfterEach] Clean up target Block PVC")
-			err := f.DeletePVC(targetPvc)
-			Expect(err).ToNot(HaveOccurred())
-		}
-	})
 
 	It("Should clone data across namespaces", func() {
 		if !f.IsBlockVolumeStorageClassAvailable() {
 			Skip("Storage Class for block volume is not available")
 		}
 		pvcDef := utils.NewBlockPVCDefinition(sourcePVCName, "500M", nil, nil, f.BlockSCName)
-		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, "fill-source-block-pod", blockFillCommand)
+		sourcePvc := f.CreateAndPopulateSourcePVC(pvcDef, "fill-source-block-pod", blockFillCommand)
 		sourceMD5, err := f.GetMD5(f.Namespace, sourcePvc, testBaseDir, 0)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -562,9 +545,10 @@ var _ = Describe("Block PV Cloner Test", func() {
 
 		fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
-		sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, sourcePvc)
+
+		err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, targetNs.Name, cdiv1.Succeeded, "target-dv", 3*90*time.Second)
 		Expect(err).ToNot(HaveOccurred())
-		completeClone(f, targetNs, targetPvc, testBaseDir, sourceMD5, sourcePvcDiskGroup)
+		Expect(f.VerifyTargetPVCContentMD5(targetNs, targetPvc, testBaseDir, sourceMD5)).To(BeTrue())
 	})
 })
 
