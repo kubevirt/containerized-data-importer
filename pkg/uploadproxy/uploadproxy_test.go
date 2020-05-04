@@ -4,20 +4,21 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
-	. "github.com/onsi/gomega"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+
+	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 
-	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
+	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
@@ -75,7 +76,7 @@ func getHTTPClientConfig() *httpClientConfig {
 }
 
 func newProxyRequest(authHeaderValue string) *http.Request {
-	req, err := http.NewRequest("POST", common.UploadPathSync, strings.NewReader("data"))
+	req, err := http.NewRequest("POST", uploadserver.UploadPathSync, strings.NewReader("data"))
 	Expect(err).ToNot(HaveOccurred())
 
 	if authHeaderValue != "" {
@@ -85,7 +86,7 @@ func newProxyRequest(authHeaderValue string) *http.Request {
 }
 
 func newProxyHeadRequest(authHeaderValue string) *http.Request {
-	req, err := http.NewRequest("HEAD", common.UploadPathSync, nil)
+	req, err := http.NewRequest("HEAD", uploadserver.UploadPathSync, nil)
 	Expect(err).ToNot(HaveOccurred())
 
 	if authHeaderValue != "" {

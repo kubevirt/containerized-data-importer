@@ -24,6 +24,11 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
+const (
+	alphaSyncUploadPath = "/v1alpha1/upload"
+	betaSyncUploadPath  = "/v1beta1/upload"
+)
+
 var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component]Upload tests", func() {
 
 	var (
@@ -72,7 +77,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(deleted).To(BeTrue())
 	})
 
-	DescribeTable("should", func(validToken bool, expectedStatus int) {
+	DescribeTable("should", func(path string, validToken bool, expectedStatus int) {
 		By("Verify PVC annotation says ready")
 		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 		Expect(err).ToNot(HaveOccurred())
@@ -89,7 +94,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		}
 
 		By("Do upload")
-		err = uploadImage(uploadProxyURL, token, expectedStatus)
+		err = uploadImage(uploadProxyURL, path, token, expectedStatus)
 		Expect(err).ToNot(HaveOccurred())
 
 		if validToken {
@@ -119,8 +124,9 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(err).ToNot(HaveOccurred())
 		}
 	},
-		Entry("[test_id:1368]succeed given a valid token", true, http.StatusOK),
-		Entry("[posneg:negative][test_id:1369]fail given an invalid token", false, http.StatusUnauthorized),
+		Entry("[test_id:1368]succeed given a valid token (alpha)", alphaSyncUploadPath, true, http.StatusOK),
+		Entry("succeed given a valid token (beta)", betaSyncUploadPath, true, http.StatusOK),
+		Entry("[posneg:negative][test_id:1369]fail given an invalid token", betaSyncUploadPath, false, http.StatusUnauthorized),
 	)
 	It("Verify upload to the same pvc fails", func() {
 		By("Verify PVC annotation says ready")
@@ -135,7 +141,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(token).ToNot(BeEmpty())
 
 		By("Do upload")
-		err = uploadImage(uploadProxyURL, token, http.StatusOK)
+		err = uploadImage(uploadProxyURL, betaSyncUploadPath, token, http.StatusOK)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify PVC status annotation says succeeded")
@@ -144,7 +150,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(found).To(BeTrue())
 
 		By("Try upload again")
-		err = uploadImage(uploadProxyURL, token, http.StatusServiceUnavailable)
+		err = uploadImage(uploadProxyURL, betaSyncUploadPath, token, http.StatusServiceUnavailable)
 		Expect(err).ToNot(HaveOccurred())
 
 	})
@@ -164,8 +170,8 @@ func startUploadProxyPortForward(f *framework.Framework) (string, *exec.Cmd, err
 	return url, cmd, nil
 }
 
-func uploadImage(portForwardURL, token string, expectedStatus int) error {
-	url := portForwardURL + "/v1alpha1/upload"
+func uploadImage(portForwardURL, path, token string, expectedStatus int) error {
+	url := portForwardURL + path
 
 	f, err := os.Open(utils.UploadFile)
 	if err != nil {
@@ -267,7 +273,7 @@ var _ = Describe("Block PV upload Test", func() {
 		}
 
 		By("Do upload")
-		err = uploadImage(uploadProxyURL, token, expectedStatus)
+		err = uploadImage(uploadProxyURL, betaSyncUploadPath, token, expectedStatus)
 		Expect(err).ToNot(HaveOccurred())
 
 		if validToken {
@@ -490,7 +496,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(token).ToNot(BeEmpty())
 
 		By("Do upload")
-		err = uploadImage(uploadProxyURL, token, http.StatusOK)
+		err = uploadImage(uploadProxyURL, betaSyncUploadPath, token, http.StatusOK)
 		Expect(err).ToNot(HaveOccurred())
 
 		phase = cdiv1.Succeeded

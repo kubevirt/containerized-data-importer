@@ -2062,7 +2062,7 @@
        "in": "body",
        "required": true,
        "schema": {
-        "$ref": "#/definitions/v1alpha1.UploadTokenRequest"
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
        }
       },
       {
@@ -2078,19 +2078,92 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.UploadTokenRequest"
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
        }
       },
       "201": {
        "description": "Created",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.UploadTokenRequest"
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
        }
       },
       "202": {
        "description": "Accepted",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.UploadTokenRequest"
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
+       }
+      },
+      "401": {
+       "description": "Unauthorized"
+      }
+     }
+    }
+   },
+   "/apis/upload.cdi.kubevirt.io/v1beta1": {
+    "get": {
+     "produces": [
+      "application/json"
+     ],
+     "summary": "Get a CDI API resources",
+     "operationId": "getAPIResources",
+     "responses": {
+      "200": {
+       "description": "OK",
+       "schema": {
+        "$ref": "#/definitions/v1.APIResourceList"
+       }
+      },
+      "404": {
+       "description": "Not Found"
+      }
+     }
+    }
+   },
+   "/apis/upload.cdi.kubevirt.io/v1beta1/namespaces/{namespace}/uploadtokenrequests": {
+    "post": {
+     "consumes": [
+      "application/json"
+     ],
+     "produces": [
+      "application/json"
+     ],
+     "summary": "Create an UploadTokenRequest object.",
+     "operationId": "createNamespacedUploadTokenRequest",
+     "parameters": [
+      {
+       "name": "body",
+       "in": "body",
+       "required": true,
+       "schema": {
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
+       }
+      },
+      {
+       "pattern": "[a-z0-9][a-z0-9\\-]*",
+       "type": "string",
+       "description": "Object name and auth scope, such as for teams and projects",
+       "name": "namespace",
+       "in": "path",
+       "required": true
+      }
+     ],
+     "responses": {
+      "200": {
+       "description": "OK",
+       "schema": {
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
+       }
+      },
+      "201": {
+       "description": "Created",
+       "schema": {
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
+       }
+      },
+      "202": {
+       "description": "Accepted",
+       "schema": {
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
        }
       },
       "401": {
@@ -3258,7 +3331,7 @@
      }
     }
    },
-   "v1alpha1.UploadTokenRequest": {
+   "v1beta1.UploadTokenRequest": {
     "description": "UploadTokenRequest is the CR used to initiate a CDI upload\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
     "required": [
      "spec"
@@ -3277,15 +3350,15 @@
      },
      "spec": {
       "description": "Spec contains the parameters of the request",
-      "$ref": "#/definitions/v1alpha1.UploadTokenRequestSpec"
+      "$ref": "#/definitions/v1beta1.UploadTokenRequestSpec"
      },
      "status": {
       "description": "Status contains the status of the request",
-      "$ref": "#/definitions/v1alpha1.UploadTokenRequestStatus"
+      "$ref": "#/definitions/v1beta1.UploadTokenRequestStatus"
      }
     }
    },
-   "v1alpha1.UploadTokenRequestSpec": {
+   "v1beta1.UploadTokenRequestSpec": {
     "description": "UploadTokenRequestSpec defines the parameters of the token request",
     "required": [
      "pvcName"
@@ -3297,7 +3370,7 @@
      }
     }
    },
-   "v1alpha1.UploadTokenRequestStatus": {
+   "v1beta1.UploadTokenRequestStatus": {
     "description": "UploadTokenRequestStatus stores the status of a token request",
     "properties": {
      "token": {

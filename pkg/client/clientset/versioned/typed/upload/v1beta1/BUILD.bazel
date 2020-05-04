@@ -8,10 +8,10 @@ go_library(
         "upload_client.go",
         "uploadtokenrequest.go",
     ],
-    importpath = "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/upload/v1alpha1",
+    importpath = "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/typed/upload/v1beta1",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/apis/upload/v1alpha1:go_default_library",
+        "//pkg/apis/upload/v1beta1:go_default_library",
         "//pkg/client/clientset/versioned/scheme:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/types:go_default_library",

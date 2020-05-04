@@ -22,6 +22,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/token"
+	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 )
 
@@ -145,8 +146,9 @@ func (c *clientCreator) CreateClient() (*http.Client, error) {
 func (app *uploadProxyApp) initHandlers() {
 	app.mux = http.NewServeMux()
 	app.mux.HandleFunc(healthzPath, app.handleHealthzRequest)
-	app.mux.HandleFunc(common.UploadPathSync, app.handleUploadRequest)
-	app.mux.HandleFunc(common.UploadPathAsync, app.handleUploadRequest)
+	for _, path := range uploadserver.ProxyPaths {
+		app.mux.HandleFunc(path, app.handleUploadRequest)
+	}
 }
 
 func (app *uploadProxyApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {

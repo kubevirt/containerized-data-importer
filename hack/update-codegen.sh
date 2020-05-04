@@ -36,7 +36,7 @@ ${SCRIPT_ROOT}/hack/build/build-go.sh generate
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
 ${CODEGEN_PKG}/generate-groups.sh "client,informer,lister" \
   kubevirt.io/containerized-data-importer/pkg/client kubevirt.io/containerized-data-importer/pkg/apis \
-  "core:v1alpha1 upload:v1alpha1" \
+  "core:v1alpha1 upload:v1beta1" \
   --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
 ${CODEGEN_PKG}/generate-groups.sh "client,informer,lister" \

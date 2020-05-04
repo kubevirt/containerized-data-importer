@@ -22,10 +22,11 @@ package apiserver
 import (
 	"crypto/tls"
 	"crypto/x509"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"net/http"
 	"net/url"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	"github.com/emicklei/go-restful"
 
@@ -41,7 +42,7 @@ func fakeRequest() *restful.Request {
 	req.Request.Header[userHeader] = []string{"user"}
 	req.Request.Header[groupHeader] = []string{"userGroup"}
 	req.Request.Header[userExtraHeaderPrefix+"test"] = []string{"userExtraValue"}
-	req.Request.URL.Path = "/apis/upload.cdi.kubevirt.io/v1alpha1/namespaces/default/uploadtokenrequests"
+	req.Request.URL.Path = "/apis/upload.cdi.kubevirt.io/v1beta1/namespaces/default/uploadtokenrequests"
 	return req
 }
 
@@ -114,7 +115,7 @@ var _ = Describe("Authorizer test", func() {
 	It("Generate access review path err resource", func() {
 		app := newAuthorizor()
 		req := fakeRequest()
-		req.Request.URL.Path = "/apis/upload.cdi.kubevirt.io/v1alpha1/namespaces/default/NOTOURRESOURCE"
+		req.Request.URL.Path = "/apis/upload.cdi.kubevirt.io/v1beta1/namespaces/default/NOTOURRESOURCE"
 		authReview, err := app.generateAccessReview(req)
 		Expect(err).To(HaveOccurred())
 		Expect(authReview).To(BeNil())
