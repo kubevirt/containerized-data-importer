@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/apis/core/v1alpha1:go_default_library",
-        "//pkg/apis/upload/v1alpha1:go_default_library",
+        "//pkg/apis/upload/v1beta1:go_default_library",
         "//pkg/apiserver:go_default_library",
         "//vendor/github.com/emicklei/go-restful:go_default_library",
         "//vendor/github.com/emicklei/go-restful-openapi:go_default_library",

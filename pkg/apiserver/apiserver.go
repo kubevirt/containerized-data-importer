@@ -30,6 +30,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -40,7 +41,7 @@ import (
 	"k8s.io/klog"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 
-	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
+	cdiuploadv1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/apiserver/webhooks"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -53,8 +54,7 @@ const (
 	// selfsigned cert secret name
 	apiSigningKeySecretName = "cdi-api-signing-key"
 
-	uploadTokenGroup   = "upload.cdi.kubevirt.io"
-	uploadTokenVersion = "v1alpha1"
+	uploadTokenGroup = "upload.cdi.kubevirt.io"
 
 	dvValidatePath = "/datavolume-validate"
 
@@ -64,6 +64,8 @@ const (
 
 	healthzPath = "/healthz"
 )
+
+var uploadTokenVersions = []string{"v1beta1", "v1alpha1"}
 
 // CdiAPIServer is the public interface to the CDI API
 type CdiAPIServer interface {
@@ -287,7 +289,7 @@ func (app *cdiAPIApp) uploadHandler(request *restful.Request, response *restful.
 		return
 	}
 
-	uploadToken := &cdiuploadv1alpha1.UploadTokenRequest{}
+	uploadToken := &cdiuploadv1.UploadTokenRequest{}
 	err = json.Unmarshal(body, uploadToken)
 	if err != nil {
 		klog.Error(err)
@@ -322,14 +324,16 @@ func uploadTokenAPIGroup() metav1.APIGroup {
 	apiGroup := metav1.APIGroup{
 		Name: uploadTokenGroup,
 		PreferredVersion: metav1.GroupVersionForDiscovery{
-			GroupVersion: uploadTokenGroup + "/" + uploadTokenVersion,
-			Version:      uploadTokenVersion,
+			GroupVersion: uploadTokenGroup + "/" + uploadTokenVersions[0],
+			Version:      uploadTokenVersions[0],
 		},
 	}
-	apiGroup.Versions = append(apiGroup.Versions, metav1.GroupVersionForDiscovery{
-		GroupVersion: uploadTokenGroup + "/" + uploadTokenVersion,
-		Version:      uploadTokenVersion,
-	})
+	for _, v := range uploadTokenVersions {
+		apiGroup.Versions = append(apiGroup.Versions, metav1.GroupVersionForDiscovery{
+			GroupVersion: uploadTokenGroup + "/" + v,
+			Version:      v,
+		})
+	}
 	apiGroup.ServerAddressByClientCIDRs = append(apiGroup.ServerAddressByClientCIDRs, metav1.ServerAddressByClientCIDR{
 		ClientCIDR:    "0.0.0.0/0",
 		ServerAddress: "",
@@ -340,78 +344,75 @@ func uploadTokenAPIGroup() metav1.APIGroup {
 }
 
 func (app *cdiAPIApp) composeUploadTokenAPI() {
-	objPointer := &cdiuploadv1alpha1.UploadTokenRequest{}
+	objPointer := &cdiuploadv1.UploadTokenRequest{}
 	objExample := reflect.ValueOf(objPointer).Elem().Interface()
 	objKind := "UploadTokenRequest"
 	resource := "uploadtokenrequests"
 
 	groupPath := fmt.Sprintf("/apis/%s", uploadTokenGroup)
-	resourcePath := fmt.Sprintf("/apis/%s/%s", uploadTokenGroup, uploadTokenVersion)
 	createPath := fmt.Sprintf("/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/%s", resource)
 
 	app.container = restful.NewContainer()
 
-	uploadTokenWs := new(restful.WebService)
-	uploadTokenWs.Doc("The CDI Upload API.")
-	uploadTokenWs.Path(resourcePath)
+	var resourcePaths []string
+	for _, v := range uploadTokenVersions {
+		// copy v because of go loop variable/closure weirdness
+		uploadTokenVersion := v
+		resourcePath := fmt.Sprintf("/apis/%s/%s", uploadTokenGroup, uploadTokenVersion)
+		resourcePaths = append(resourcePaths, resourcePath)
+		uploadTokenWs := new(restful.WebService)
+		uploadTokenWs.Doc("The CDI Upload API.")
+		uploadTokenWs.Path(resourcePath)
 
-	uploadTokenWs.Route(uploadTokenWs.POST(createPath).
-		Produces("application/json").
-		Consumes("application/json").
-		Operation("createNamespaced"+objKind).
-		To(app.uploadHandler).Reads(objExample).Writes(objExample).
-		Doc("Create an UploadTokenRequest object.").
-		Returns(http.StatusOK, "OK", objExample).
-		Returns(http.StatusCreated, "Created", objExample).
-		Returns(http.StatusAccepted, "Accepted", objExample).
-		Returns(http.StatusUnauthorized, "Unauthorized", "").
-		Param(uploadTokenWs.PathParameter("namespace", "Object name and auth scope, such as for teams and projects").Required(true)))
+		uploadTokenWs.Route(uploadTokenWs.POST(createPath).
+			Produces("application/json").
+			Consumes("application/json").
+			Operation("createNamespaced"+objKind+"-"+v).
+			To(app.uploadHandler).Reads(objExample).Writes(objExample).
+			Doc("Create an UploadTokenRequest object.").
+			Returns(http.StatusOK, "OK", objExample).
+			Returns(http.StatusCreated, "Created", objExample).
+			Returns(http.StatusAccepted, "Accepted", objExample).
+			Returns(http.StatusUnauthorized, "Unauthorized", "").
+			Param(uploadTokenWs.PathParameter("namespace", "Object name and auth scope, such as for teams and projects").Required(true)))
 
-	// Return empty api resource list.
-	// K8s expects to be able to retrieve a resource list for each aggregated
-	// app in order to discover what resources it provides. Without returning
-	// an empty list here, there's a bug in the k8s resource discovery that
-	// breaks kubectl's ability to reference short names for resources.
-	uploadTokenWs.Route(uploadTokenWs.GET("/").
-		Produces("application/json").Writes(metav1.APIResourceList{}).
-		To(func(request *restful.Request, response *restful.Response) {
-			list := &metav1.APIResourceList{}
+		uploadTokenWs.Route(uploadTokenWs.GET("/").
+			Produces("application/json").Writes(metav1.APIResourceList{}).
+			To(func(request *restful.Request, response *restful.Response) {
+				list := &metav1.APIResourceList{}
+				list.Kind = "APIResourceList"
+				list.APIVersion = "v1" // this is the version of the resource list
+				list.GroupVersion = uploadTokenGroup + "/" + uploadTokenVersion
+				list.APIResources = append(list.APIResources, metav1.APIResource{
+					Name:         "uploadtokenrequests",
+					SingularName: "uploadtokenrequest",
+					Namespaced:   true,
+					Group:        uploadTokenGroup,
+					Version:      uploadTokenVersion,
+					Kind:         "UploadTokenRequest",
+					Verbs:        []string{"create"},
+					ShortNames:   []string{"utr", "utrs"},
+				})
+				response.WriteAsJson(list)
+			}).
+			Operation("getAPIResources-"+v).
+			Doc("Get a CDI API resources").
+			Returns(http.StatusOK, "OK", metav1.APIResourceList{}).
+			Returns(http.StatusNotFound, "Not Found", ""))
 
-			list.Kind = "APIResourceList"
-			list.APIVersion = "v1" // this is the version of the resource list
-			list.GroupVersion = uploadTokenGroup + "/" + uploadTokenVersion
-			list.APIResources = append(list.APIResources, metav1.APIResource{
-				Name:         "uploadtokenrequests",
-				SingularName: "uploadtokenrequest",
-				Namespaced:   true,
-				Group:        uploadTokenGroup,
-				Version:      uploadTokenVersion,
-				Kind:         "UploadTokenRequest",
-				Verbs:        []string{"create"},
-				ShortNames:   []string{"utr", "utrs"},
-			})
-			response.WriteAsJson(list)
-		}).
-		Operation("getUploadAPIResources").
-		Doc("Get a CDI API resources").
-		Returns(http.StatusOK, "OK", metav1.APIResourceList{}).
-		Returns(http.StatusNotFound, "Not Found", ""))
-
-	app.container.Add(uploadTokenWs)
+		app.container.Add(uploadTokenWs)
+	}
 
 	ws := new(restful.WebService)
+
+	paths := append([]string{"/apis", "/apis/", groupPath, healthzPath}, resourcePaths...)
+	sort.Strings(paths)
 
 	ws.Route(ws.GET("/").
 		Produces("application/json").Writes(metav1.RootPaths{}).
 		To(func(request *restful.Request, response *restful.Response) {
 			response.WriteAsJson(&metav1.RootPaths{
-				Paths: []string{
-					"/apis",
-					"/apis/",
-					groupPath,
-					resourcePath,
-					healthzPath,
-				},
+				Paths: paths,
 			})
 		}).
 		Operation("getUploadRootPaths").

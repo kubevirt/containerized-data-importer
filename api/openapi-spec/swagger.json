@@ -2169,7 +2169,7 @@
      "produces": [
       "application/json"
      ],
-     "operationId": "getUploadAPIResources",
+     "operationId": "getAPIResources-v1alpha1",
      "responses": {
       "200": {
        "description": "OK",
@@ -2198,14 +2198,14 @@
      "produces": [
       "application/json"
      ],
-     "operationId": "createNamespacedUploadTokenRequest",
+     "operationId": "createNamespacedUploadTokenRequest-v1alpha1",
      "parameters": [
       {
        "name": "body",
        "in": "body",
        "required": true,
        "schema": {
-        "$ref": "#/definitions/v1alpha1.UploadTokenRequest"
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
        }
       }
      ],
@@ -2213,19 +2213,103 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.UploadTokenRequest"
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
        }
       },
       "201": {
        "description": "Created",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.UploadTokenRequest"
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
        }
       },
       "202": {
        "description": "Accepted",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.UploadTokenRequest"
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
+       }
+      },
+      "401": {
+       "description": "Unauthorized",
+       "schema": {
+        "type": "string"
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "uniqueItems": true,
+      "type": "string",
+      "description": "Object name and auth scope, such as for teams and projects",
+      "name": "namespace",
+      "in": "path",
+      "required": true
+     }
+    ]
+   },
+   "/apis/upload.cdi.kubevirt.io/v1beta1/": {
+    "get": {
+     "description": "Get a CDI API resources",
+     "produces": [
+      "application/json"
+     ],
+     "operationId": "getAPIResources-v1beta1",
+     "responses": {
+      "200": {
+       "description": "OK",
+       "schema": {
+        "$ref": "#/definitions/v1.APIResourceList"
+       }
+      },
+      "401": {
+       "description": "Unauthorized"
+      },
+      "404": {
+       "description": "Not Found",
+       "schema": {
+        "type": "string"
+       }
+      }
+     }
+    }
+   },
+   "/apis/upload.cdi.kubevirt.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/uploadtokenrequests": {
+    "post": {
+     "description": "Create an UploadTokenRequest object.",
+     "consumes": [
+      "application/json"
+     ],
+     "produces": [
+      "application/json"
+     ],
+     "operationId": "createNamespacedUploadTokenRequest-v1beta1",
+     "parameters": [
+      {
+       "name": "body",
+       "in": "body",
+       "required": true,
+       "schema": {
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
+       }
+      }
+     ],
+     "responses": {
+      "200": {
+       "description": "OK",
+       "schema": {
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
+       }
+      },
+      "201": {
+       "description": "Created",
+       "schema": {
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
+       }
+      },
+      "202": {
+       "description": "Accepted",
+       "schema": {
+        "$ref": "#/definitions/v1beta1.UploadTokenRequest"
        }
       },
       "401": {
@@ -3426,7 +3510,7 @@
      }
     }
    },
-   "v1alpha1.UploadTokenRequest": {
+   "v1beta1.UploadTokenRequest": {
     "description": "UploadTokenRequest is the CR used to initiate a CDI upload",
     "type": "object",
     "required": [
@@ -3446,15 +3530,15 @@
      },
      "spec": {
       "description": "Spec contains the parameters of the request",
-      "$ref": "#/definitions/v1alpha1.UploadTokenRequestSpec"
+      "$ref": "#/definitions/v1beta1.UploadTokenRequestSpec"
      },
      "status": {
       "description": "Status contains the status of the request",
-      "$ref": "#/definitions/v1alpha1.UploadTokenRequestStatus"
+      "$ref": "#/definitions/v1beta1.UploadTokenRequestStatus"
      }
     }
    },
-   "v1alpha1.UploadTokenRequestSpec": {
+   "v1beta1.UploadTokenRequestSpec": {
     "description": "UploadTokenRequestSpec defines the parameters of the token request",
     "type": "object",
     "required": [
@@ -3467,7 +3551,7 @@
      }
     }
    },
-   "v1alpha1.UploadTokenRequestStatus": {
+   "v1beta1.UploadTokenRequestStatus": {
     "description": "UploadTokenRequestStatus stores the status of a token request",
     "type": "object",
     "nullable": true,

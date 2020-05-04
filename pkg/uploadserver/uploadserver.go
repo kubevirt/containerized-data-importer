@@ -48,12 +48,47 @@ const (
 	// FilesystemCloneContentType is the content type when cloning a filesystem
 	FilesystemCloneContentType = "filesystem-clone"
 
-	// BlockdeviceCloneContentType is the content type when cloning a block device
-	BlockdeviceCloneContentType = "blockdevice-clone"
+	// UploadPathSync is the path to POST CDI uploads
+	UploadPathSync = "/v1beta1/upload"
+
+	// UploadPathAsync is the path to POST CDI uploads in async mode
+	UploadPathAsync = "/v1beta1/upload-async"
+
+	// UploadFormSync is the path to POST CDI uploads as form data
+	UploadFormSync = "/v1beta1/upload-form"
+
+	// UploadFormAsync is the path to POST CDI uploads as form datain async mode
+	UploadFormAsync = "/v1beta1/upload-form-async"
 
 	healthzPort = 8080
 	healthzPath = "/healthz"
 )
+
+// ProxyPaths are all supported paths
+var ProxyPaths = append(
+	append(syncUploadPaths, asyncUploadPaths...),
+	append(syncUploadFormPaths, asyncUploadFormPaths...)...,
+)
+
+var syncUploadPaths = []string{
+	UploadPathSync,
+	"/v1alpha1/upload",
+}
+
+var asyncUploadPaths = []string{
+	UploadPathAsync,
+	"/v1alpha1/upload-async",
+}
+
+var syncUploadFormPaths = []string{
+	UploadFormSync,
+	"/v1alpha1/upload-form",
+}
+
+var asyncUploadFormPaths = []string{
+	UploadFormAsync,
+	"/v1alpha1/upload-form-async",
+}
 
 // UploadServer is the interface to uploadServerApp
 type UploadServer interface {
@@ -131,11 +166,20 @@ func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsC
 		doneChan:    make(chan struct{}),
 		errChan:     make(chan error),
 	}
-	server.mux.HandleFunc(healthzPath, server.healthzHandler)
-	server.mux.HandleFunc(common.UploadPathSync, server.uploadHandler(bodyReadCloser))
-	server.mux.HandleFunc(common.UploadPathAsync, server.uploadHandlerAsync(bodyReadCloser))
-	server.mux.HandleFunc(common.UploadFormSync, server.uploadHandler(formReadCloser))
-	server.mux.HandleFunc(common.UploadFormAsync, server.uploadHandlerAsync(formReadCloser))
+
+	for _, path := range syncUploadPaths {
+		server.mux.HandleFunc(path, server.uploadHandler(bodyReadCloser))
+	}
+	for _, path := range asyncUploadPaths {
+		server.mux.HandleFunc(path, server.uploadHandlerAsync(bodyReadCloser))
+	}
+	for _, path := range syncUploadFormPaths {
+		server.mux.HandleFunc(path, server.uploadHandler(formReadCloser))
+	}
+	for _, path := range asyncUploadFormPaths {
+		server.mux.HandleFunc(path, server.uploadHandlerAsync(formReadCloser))
+	}
+
 	return server
 }
 
@@ -271,28 +315,23 @@ func (app *uploadServerApp) validateShouldHandleRequest(w http.ResponseWriter, r
 		klog.V(3).Infof("Handling HTTP connection")
 	}
 
-	exit := func() bool {
-		app.mutex.Lock()
-		defer app.mutex.Unlock()
+	app.mutex.Lock()
+	defer app.mutex.Unlock()
 
-		if app.uploading || app.processing {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return true
-		}
-
-		if app.done {
-			w.WriteHeader(http.StatusConflict)
-			return true
-		}
-
-		app.uploading = true
-		return false
-	}()
-
-	if exit {
+	if app.uploading || app.processing {
 		klog.Warning("Got concurrent upload request")
+		w.WriteHeader(http.StatusServiceUnavailable)
 		return false
 	}
+
+	if app.done {
+		klog.Warning("Got upload request after already done")
+		w.WriteHeader(http.StatusConflict)
+		return false
+	}
+
+	app.uploading = true
+
 	return true
 }
 
@@ -387,6 +426,10 @@ func (app *uploadServerApp) uploadHandler(irc imageReadCloser) http.HandlerFunc 
 }
 
 func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize, contentType string) (*importer.DataProcessor, error) {
+	if contentType == FilesystemCloneContentType {
+		return nil, fmt.Errorf("async filesystem clone not supported")
+	}
+
 	uds := importer.NewAsyncUploadDataSource(stream)
 	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize)
 	return processor, processor.ProcessDataWithPause()

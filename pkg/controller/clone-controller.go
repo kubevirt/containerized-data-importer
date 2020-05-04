@@ -28,6 +28,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
+	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 )
@@ -465,7 +466,7 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace
 
 	var ownerID string
 	cloneSourcePodName, _ := targetPvc.Annotations[AnnCloneSourcePod]
-	url := GetUploadServerURL(targetPvc.Namespace, targetPvc.Name, common.UploadPathSync)
+	url := GetUploadServerURL(targetPvc.Namespace, targetPvc.Name, uploadserver.UploadPathSync)
 	pvcOwner := metav1.GetControllerOf(targetPvc)
 	if pvcOwner != nil && pvcOwner.Kind == "DataVolume" {
 		ownerID = string(pvcOwner.UID)

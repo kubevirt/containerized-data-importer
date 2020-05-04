@@ -9,6 +9,7 @@ go_library(
         "//pkg/common:go_default_library",
         "//pkg/controller:go_default_library",
         "//pkg/token:go_default_library",
+        "//pkg/uploadserver:go_default_library",
         "//pkg/util/cert/fetcher:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/github.com/rs/cors:go_default_library",
@@ -29,8 +30,8 @@ go_test(
     ],
     embed = [":go_default_library"],
     deps = [
-        "//pkg/common:go_default_library",
         "//pkg/token:go_default_library",
+        "//pkg/uploadserver:go_default_library",
         "//pkg/util/cert:go_default_library",
         "//pkg/util/cert/fetcher:go_default_library",
         "//pkg/util/cert/triple:go_default_library",

@@ -10,7 +10,7 @@ go_library(
         "types_swagger_generated.go",
         "zz_generated.deepcopy.go",
     ],
-    importpath = "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1",
+    importpath = "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/apis/upload:go_default_library",

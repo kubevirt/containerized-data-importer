@@ -20,6 +20,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
+	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
@@ -87,7 +88,7 @@ func newProxyRequest(path, authHeaderValue string) *http.Request {
 }
 
 func newProxyHeadRequest(authHeaderValue string) *http.Request {
-	req, err := http.NewRequest("HEAD", common.UploadPathSync, nil)
+	req, err := http.NewRequest("HEAD", uploadserver.UploadPathSync, nil)
 	Expect(err).ToNot(HaveOccurred())
 
 	if authHeaderValue != "" {

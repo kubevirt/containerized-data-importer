@@ -28,11 +28,11 @@ import (
 )
 
 const (
-	syncUploadPath  = "/v1alpha1/upload"
-	asyncUploadPath = "/v1alpha1/upload-async"
+	syncUploadPath  = "/v1beta1/upload"
+	asyncUploadPath = "/v1beta1/upload-async"
 
-	syncFormPath  = "/v1alpha1/upload-form"
-	asyncFormPath = "/v1alpha1/upload-form-async"
+	syncFormPath  = "/v1beta1/upload-form"
+	asyncFormPath = "/v1beta1/upload-form-async"
 )
 
 type uploadFunc func(string, string, int) error
