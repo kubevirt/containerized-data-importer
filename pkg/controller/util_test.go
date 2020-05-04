@@ -193,6 +193,7 @@ var _ = Describe("setConditionFromPod", func() {
 					State: v1.ContainerState{
 						Terminated: &v1.ContainerStateTerminated{
 							Message: "The container completed",
+							Reason:  "Completed",
 						},
 					},
 				},
@@ -201,6 +202,7 @@ var _ = Describe("setConditionFromPod", func() {
 		setConditionFromPod(result, testPod)
 		Expect(result[AnnRunningCondition]).To(Equal("false"))
 		Expect(result[AnnRunningConditionMessage]).To(Equal("The container completed"))
+		Expect(result[AnnRunningConditionReason]).To(Equal("Completed"))
 	})
 
 	It("Should follow pod container status, pending", func() {
@@ -212,6 +214,7 @@ var _ = Describe("setConditionFromPod", func() {
 					State: v1.ContainerState{
 						Waiting: &v1.ContainerStateWaiting{
 							Message: "container is waiting",
+							Reason:  "Pending",
 						},
 					},
 				},
@@ -220,6 +223,7 @@ var _ = Describe("setConditionFromPod", func() {
 		setConditionFromPod(result, testPod)
 		Expect(result[AnnRunningCondition]).To(Equal("false"))
 		Expect(result[AnnRunningConditionMessage]).To(Equal("container is waiting"))
+		Expect(result[AnnRunningConditionReason]).To(Equal("Pending"))
 	})
 })
 

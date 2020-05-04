@@ -320,6 +320,7 @@ var _ = Describe("Update PVC", func() {
 						Terminated: &corev1.ContainerStateTerminated{
 							ExitCode: 1,
 							Message:  "I went poof",
+							Reason:   "Explosion",
 						},
 					},
 				},
@@ -337,6 +338,7 @@ var _ = Describe("Update PVC", func() {
 		Expect(actualPvc.Annotations[AnnPodRestarts]).To(Equal("2"))
 		Expect(actualPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
 		Expect(actualPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal("Creating scratch space"))
+		Expect(actualPvc.GetAnnotations()[AnnRunningConditionReason]).To(Equal(creatingScratch))
 	})
 
 	It("Should not update AnnPodRestarts on pvc from pod if pod has lower restart count value ", func() {
@@ -356,6 +358,7 @@ var _ = Describe("Update PVC", func() {
 						Terminated: &corev1.ContainerStateTerminated{
 							ExitCode: 1,
 							Message:  "I went poof",
+							Reason:   "Explosion",
 						},
 					},
 				},
@@ -373,6 +376,7 @@ var _ = Describe("Update PVC", func() {
 		Expect(actualPvc.Annotations[AnnPodRestarts]).To(Equal("3"))
 		Expect(actualPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
 		Expect(actualPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal("Creating scratch space"))
+		Expect(actualPvc.GetAnnotations()[AnnRunningConditionReason]).To(Equal(creatingScratch))
 	})
 })
 

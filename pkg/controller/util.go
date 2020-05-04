@@ -52,6 +52,9 @@ const (
 	AnnPopulatedFor = AnnAPIGroup + "/storage.populatedFor"
 	// AnnPrePopulated is a PVC annotation telling the datavolume controller that the PVC is already populated
 	AnnPrePopulated = AnnAPIGroup + "/storage.prePopulated"
+
+	// PodStartedReason is const that defines the pod was started as a reason
+	podStartedReason = "PodStarted"
 )
 
 func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string, log logr.Logger) bool {
@@ -304,12 +307,15 @@ func setConditionFromPod(anno map[string]string, pod *v1.Pod) {
 		if pod.Status.ContainerStatuses[0].State.Running != nil {
 			anno[AnnRunningCondition] = "true"
 			anno[AnnRunningConditionMessage] = ""
+			anno[AnnRunningConditionReason] = podStartedReason
 		} else {
 			anno[AnnRunningCondition] = "false"
 			if pod.Status.ContainerStatuses[0].State.Waiting != nil {
 				anno[AnnRunningConditionMessage] = pod.Status.ContainerStatuses[0].State.Waiting.Message
+				anno[AnnRunningConditionReason] = pod.Status.ContainerStatuses[0].State.Waiting.Reason
 			} else if pod.Status.ContainerStatuses[0].State.Terminated != nil {
 				anno[AnnRunningConditionMessage] = pod.Status.ContainerStatuses[0].State.Terminated.Message
+				anno[AnnRunningConditionReason] = pod.Status.ContainerStatuses[0].State.Terminated.Reason
 			}
 		}
 	}

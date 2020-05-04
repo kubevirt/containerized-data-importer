@@ -54,24 +54,27 @@ var _ = Describe("updateRunningCondition", func() {
 		Expect(conditions[0].Type).To(Equal(cdiv1.DataVolumeRunning))
 		Expect(conditions[0].Message).To(BeEmpty())
 		Expect(conditions[0].Status).To(Equal(corev1.ConditionUnknown))
+		Expect(conditions[0].Reason).To(Equal(""))
 	})
 
 	It("should have empty message if annotation is empty", func() {
 		conditions := make([]*cdiv1.DataVolumeCondition, 0)
-		conditions = updateRunningCondition(conditions, map[string]string{AnnRunningConditionMessage: ""})
+		conditions = updateRunningCondition(conditions, map[string]string{AnnRunningConditionMessage: "", AnnRunningConditionReason: ""})
 		Expect(len(conditions)).To(Equal(1))
 		Expect(conditions[0].Type).To(Equal(cdiv1.DataVolumeRunning))
 		Expect(conditions[0].Message).To(BeEmpty())
 		Expect(conditions[0].Status).To(Equal(corev1.ConditionUnknown))
+		Expect(conditions[0].Reason).To(Equal(""))
 	})
 
 	It("should properly escape message from annotation", func() {
 		conditions := make([]*cdiv1.DataVolumeCondition, 0)
-		conditions = updateRunningCondition(conditions, map[string]string{AnnRunningConditionMessage: "this is a message with quotes \""})
+		conditions = updateRunningCondition(conditions, map[string]string{AnnRunningConditionMessage: "this is a message with quotes \"", AnnRunningConditionReason: "this is a \" reason with \" quotes"})
 		Expect(len(conditions)).To(Equal(1))
 		Expect(conditions[0].Type).To(Equal(cdiv1.DataVolumeRunning))
 		Expect(conditions[0].Message).To(Equal("this is a message with quotes \""))
 		Expect(conditions[0].Status).To(Equal(corev1.ConditionUnknown))
+		Expect(conditions[0].Reason).To(Equal("this is a \" reason with \" quotes"))
 	})
 
 	table.DescribeTable("runningCondition", func(conditionString string, status corev1.ConditionStatus, noAnnotation bool) {
@@ -96,10 +99,11 @@ var _ = Describe("updateRunningCondition", func() {
 var _ = Describe("updateReadyCondition", func() {
 	It("should create condition if it doesn't exist", func() {
 		conditions := make([]*cdiv1.DataVolumeCondition, 0)
-		conditions = updateReadyCondition(conditions, corev1.ConditionTrue, "message")
+		conditions = updateReadyCondition(conditions, corev1.ConditionTrue, "message", "reason")
 		Expect(len(conditions)).To(Equal(1))
 		Expect(conditions[0].Type).To(Equal(cdiv1.DataVolumeReady))
 		Expect(conditions[0].Message).To(Equal("message"))
+		Expect(conditions[0].Reason).To(Equal("reason"))
 		Expect(conditions[0].Status).To(Equal(corev1.ConditionTrue))
 	})
 })
@@ -112,6 +116,7 @@ var _ = Describe("updateBoundCondition", func() {
 		condition := findConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
 		Expect(condition.Message).To(Equal("No PVC found"))
+		Expect(condition.Reason).To(Equal(notFound))
 		Expect(condition.Status).To(Equal(corev1.ConditionUnknown))
 	})
 
@@ -124,6 +129,7 @@ var _ = Describe("updateBoundCondition", func() {
 		condition := findConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
 		Expect(condition.Message).To(Equal("PVC Bound"))
+		Expect(condition.Reason).To(Equal(pvcBound))
 		Expect(condition.Status).To(Equal(corev1.ConditionTrue))
 	})
 
@@ -136,6 +142,7 @@ var _ = Describe("updateBoundCondition", func() {
 		condition := findConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
 		Expect(condition.Message).To(Equal("PVC Pending"))
+		Expect(condition.Reason).To(Equal(pvcPending))
 		Expect(condition.Status).To(Equal(corev1.ConditionFalse))
 	})
 
@@ -148,6 +155,7 @@ var _ = Describe("updateBoundCondition", func() {
 		condition := findConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
 		Expect(condition.Message).To(Equal("Claim Lost"))
+		Expect(condition.Reason).To(Equal(claimLost))
 		Expect(condition.Status).To(Equal(corev1.ConditionFalse))
 	})
 })

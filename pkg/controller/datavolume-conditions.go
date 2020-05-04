@@ -23,6 +23,15 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
+const (
+	boundFalse  = "BoundChangeFalse"
+	runningTrue = "RunningTrue"
+	pvcBound    = "PVCBound"
+	pvcPending  = "PVCPending"
+	claimLost   = "ClaimLost"
+	notFound    = "NotFound"
+)
+
 func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions []*cdiv1.DataVolumeCondition) *cdiv1.DataVolumeCondition {
 	for _, condition := range conditions {
 		if condition.Type == conditionType {
@@ -32,7 +41,7 @@ func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions
 	return nil
 }
 
-func updateCondition(conditions []*cdiv1.DataVolumeCondition, conditionType cdiv1.DataVolumeConditionType, status corev1.ConditionStatus, message string) []*cdiv1.DataVolumeCondition {
+func updateCondition(conditions []*cdiv1.DataVolumeCondition, conditionType cdiv1.DataVolumeConditionType, status corev1.ConditionStatus, message, reason string) []*cdiv1.DataVolumeCondition {
 	condition := findConditionByType(conditionType, conditions)
 	if condition == nil {
 		condition = &cdiv1.DataVolumeCondition{
@@ -42,6 +51,7 @@ func updateCondition(conditions []*cdiv1.DataVolumeCondition, conditionType cdiv
 	}
 	condition.Status = status
 	condition.Message = message
+	condition.Reason = reason
 	return conditions
 }
 
@@ -61,7 +71,7 @@ func updateRunningCondition(conditions []*cdiv1.DataVolumeCondition, anno map[st
 	if val, ok := anno[AnnRunningCondition]; ok {
 		if strings.ToLower(val) == "true" {
 			condition.Status = corev1.ConditionTrue
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "")
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", runningTrue)
 		} else if strings.ToLower(val) == "false" {
 			condition.Status = corev1.ConditionFalse
 		} else {
@@ -70,11 +80,16 @@ func updateRunningCondition(conditions []*cdiv1.DataVolumeCondition, anno map[st
 	} else {
 		condition.Status = corev1.ConditionUnknown
 	}
+	if val, ok := anno[AnnRunningConditionReason]; ok {
+		condition.Reason = val
+	} else {
+		condition.Reason = ""
+	}
 	return conditions
 }
 
-func updateReadyCondition(conditions []*cdiv1.DataVolumeCondition, status corev1.ConditionStatus, message string) []*cdiv1.DataVolumeCondition {
-	return updateCondition(conditions, cdiv1.DataVolumeReady, status, message)
+func updateReadyCondition(conditions []*cdiv1.DataVolumeCondition, status corev1.ConditionStatus, message, reason string) []*cdiv1.DataVolumeCondition {
+	return updateCondition(conditions, cdiv1.DataVolumeReady, status, message, reason)
 }
 
 func updateBoundCondition(conditions []*cdiv1.DataVolumeCondition, pvc *corev1.PersistentVolumeClaim) []*cdiv1.DataVolumeCondition {
@@ -89,19 +104,23 @@ func updateBoundCondition(conditions []*cdiv1.DataVolumeCondition, pvc *corev1.P
 		if pvc.Status.Phase == corev1.ClaimBound {
 			condition.Status = corev1.ConditionTrue
 			condition.Message = "PVC Bound"
+			condition.Reason = pvcBound
 		} else if pvc.Status.Phase == corev1.ClaimPending {
 			condition.Status = corev1.ConditionFalse
 			condition.Message = "PVC Pending"
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "")
+			condition.Reason = pvcPending
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
 		} else if pvc.Status.Phase == corev1.ClaimLost {
 			condition.Status = corev1.ConditionFalse
 			condition.Message = "Claim Lost"
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "")
+			condition.Reason = claimLost
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
 		}
 	} else {
 		condition.Status = corev1.ConditionUnknown
 		condition.Message = "No PVC found"
-		conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "")
+		condition.Reason = notFound
+		conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
 	}
 	return conditions
 }

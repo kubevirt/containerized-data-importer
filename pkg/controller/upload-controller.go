@@ -172,12 +172,15 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		if pod.Status.ContainerStatuses[0].State.Running != nil {
 			anno[AnnRunningCondition] = "true"
 			anno[AnnRunningConditionMessage] = ""
+			anno[AnnRunningConditionReason] = podStartedReason
 		} else {
 			anno[AnnRunningCondition] = "false"
 			if pod.Status.ContainerStatuses[0].State.Waiting != nil {
 				anno[AnnRunningConditionMessage] = pod.Status.ContainerStatuses[0].State.Waiting.Message
+				anno[AnnRunningConditionReason] = pod.Status.ContainerStatuses[0].State.Waiting.Reason
 			} else if pod.Status.ContainerStatuses[0].State.Terminated != nil {
 				anno[AnnRunningConditionMessage] = pod.Status.ContainerStatuses[0].State.Terminated.Message
+				anno[AnnRunningConditionReason] = pod.Status.ContainerStatuses[0].State.Terminated.Reason
 			}
 		}
 	}
@@ -311,6 +314,7 @@ func (r *UploadReconciler) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, 
 
 		anno[AnnRunningCondition] = "false"
 		anno[AnnRunningConditionMessage] = "Creating scratch space"
+		anno[AnnRunningConditionReason] = creatingScratch
 
 		storageClassName := GetScratchPvcStorageClass(r.client, pvc)
 

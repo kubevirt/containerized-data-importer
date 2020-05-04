@@ -649,7 +649,6 @@ func (r *DatavolumeReconciler) updateConditions(dataVolume *cdiv1.DataVolume, pv
 	}
 
 	readyStatus := corev1.ConditionUnknown
-	readyMessage := ""
 	switch phase := dataVolume.Status.Phase; phase {
 	case cdiv1.Succeeded:
 		readyStatus = corev1.ConditionTrue
@@ -660,7 +659,7 @@ func (r *DatavolumeReconciler) updateConditions(dataVolume *cdiv1.DataVolume, pv
 	}
 
 	dataVolume.Status.Conditions = updateBoundCondition(dataVolume.Status.Conditions, pvc)
-	dataVolume.Status.Conditions = updateReadyCondition(dataVolume.Status.Conditions, readyStatus, readyMessage)
+	dataVolume.Status.Conditions = updateReadyCondition(dataVolume.Status.Conditions, readyStatus, "", "")
 	dataVolume.Status.Conditions = updateRunningCondition(dataVolume.Status.Conditions, anno)
 }
 

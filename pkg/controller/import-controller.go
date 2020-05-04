@@ -63,6 +63,8 @@ const (
 	AnnRunningCondition = AnnAPIGroup + "/storage.condition.running"
 	// AnnRunningConditionMessage provides a const for the running condition
 	AnnRunningConditionMessage = AnnAPIGroup + "/storage.condition.running.message"
+	// AnnRunningConditionReason provides a const for the running condition
+	AnnRunningConditionReason = AnnAPIGroup + "/storage.condition.running.reason"
 
 	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
 	LabelImportPvc = AnnAPIGroup + "/storage.import.importPvcName"
@@ -73,6 +75,9 @@ const (
 	ErrImportFailedPVC = "ErrImportFailed"
 	// ImportSucceededPVC provides a const to indicate an import to the PVC failed
 	ImportSucceededPVC = "ImportSucceeded"
+
+	// creatingScratch provides a const to indicate scratch is being created.
+	creatingScratch = "CreatingScratchSpace"
 )
 
 // ImportReconciler members
@@ -252,6 +257,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message)
 			anno[AnnRunningCondition] = "false"
 			anno[AnnRunningConditionMessage] = pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message
+			anno[AnnRunningConditionReason] = pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Reason
 		}
 	}
 
@@ -268,6 +274,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		}
 		anno[AnnRunningCondition] = "false"
 		anno[AnnRunningConditionMessage] = "Creating scratch space"
+		anno[AnnRunningConditionReason] = creatingScratch
 	}
 	if !checkIfLabelExists(pvc, common.CDILabelKey, common.CDILabelValue) {
 		if pvc.GetLabels() == nil {
