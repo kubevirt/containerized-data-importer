@@ -1,0 +1,43 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cdi-bad-webserver
+  namespace: {{ .Namespace }}
+  labels:
+    cdi.kubevirt.io/testing: ""
+spec:
+  selector:
+    matchLabels:
+      name: cdi-bad-webserver
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: cdi-bad-webserver
+        cdi.kubevirt.io/testing: ""
+    spec:
+      containers:
+      - name: http
+        image: {{ .DockerRepo }}/cdi-func-test-bad-webserver:{{ .DockerTag }}
+        imagePullPolicy: {{ .PullPolicy }}
+        command: ["/app/tools/cdi-func-test-bad-webserver/cdi-func-test-bad-webserver-image.binary"]
+        ports:
+        - name: http-no-auth
+          containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cdi-bad-webserver
+  namespace: {{ .Namespace }}
+  labels:
+    cdi.kubevirt.io/testing: ""
+spec:
+  selector:
+      name: cdi-bad-webserver
+  type: NodePort
+  ports:
+  - name: http-no-auth
+    port: 80
+    targetPort: 80
