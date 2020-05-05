@@ -50,6 +50,8 @@ function configure_ceph() {
   set +e
   _kubectl apply -f https://raw.githubusercontent.com/rook/rook/$ROOK_CEPH_VERSION/cluster/examples/kubernetes/ceph/common.yaml
   _kubectl apply -f https://raw.githubusercontent.com/rook/rook/$ROOK_CEPH_VERSION/cluster/examples/kubernetes/ceph/operator.yaml
+  # SELinux may be enabled so make storage pord privileged
+  _kubectl patch -n rook-ceph deployment rook-ceph-operator --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/env/7/value", "value": "true"}]'
   _kubectl apply -f ./cluster-sync/${KUBEVIRT_PROVIDER}/rook_ceph.yaml
   cat <<EOF | _kubectl apply -f -
 apiVersion: ceph.rook.io/v1
