@@ -20,16 +20,17 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
 const (
-	boundFalse  = "BoundChangeFalse"
-	runningTrue = "RunningTrue"
-	pvcBound    = "PVCBound"
-	pvcPending  = "PVCPending"
-	claimLost   = "ClaimLost"
-	notFound    = "NotFound"
+	boundFalse      = "BoundChangeFalse"
+	transferRunning = "TransferRunning"
+	pvcBound        = "PVCBound"
+	pvcPending      = "PVCPending"
+	claimLost       = "ClaimLost"
+	notFound        = "NotFound"
 )
 
 func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions []*cdiv1.DataVolumeCondition) *cdiv1.DataVolumeCondition {
@@ -48,6 +49,9 @@ func updateCondition(conditions []*cdiv1.DataVolumeCondition, conditionType cdiv
 			Type: cdiv1.DataVolumeReady,
 		}
 		conditions = append(conditions, condition)
+	}
+	if condition.Status != status {
+		condition.LastTransitionTime = metav1.Now()
 	}
 	condition.Status = status
 	condition.Message = message
@@ -70,14 +74,24 @@ func updateRunningCondition(conditions []*cdiv1.DataVolumeCondition, anno map[st
 	}
 	if val, ok := anno[AnnRunningCondition]; ok {
 		if strings.ToLower(val) == "true" {
+			if condition.Status != corev1.ConditionTrue {
+				condition.LastTransitionTime = metav1.Now()
+			}
 			condition.Status = corev1.ConditionTrue
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", runningTrue)
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", transferRunning)
 		} else if strings.ToLower(val) == "false" {
+			if condition.Status != corev1.ConditionFalse {
+				condition.LastTransitionTime = metav1.Now()
+			}
 			condition.Status = corev1.ConditionFalse
 		} else {
+			if condition.Status != corev1.ConditionUnknown {
+				condition.LastTransitionTime = metav1.Now()
+			}
 			condition.Status = corev1.ConditionUnknown
 		}
 	} else {
+		condition.LastTransitionTime = metav1.Now()
 		condition.Status = corev1.ConditionUnknown
 	}
 	if val, ok := anno[AnnRunningConditionReason]; ok {
@@ -102,21 +116,33 @@ func updateBoundCondition(conditions []*cdiv1.DataVolumeCondition, pvc *corev1.P
 	}
 	if pvc != nil {
 		if pvc.Status.Phase == corev1.ClaimBound {
+			if condition.Reason != pvcBound {
+				condition.LastTransitionTime = metav1.Now()
+			}
 			condition.Status = corev1.ConditionTrue
 			condition.Message = "PVC Bound"
 			condition.Reason = pvcBound
 		} else if pvc.Status.Phase == corev1.ClaimPending {
+			if condition.Reason != pvcPending {
+				condition.LastTransitionTime = metav1.Now()
+			}
 			condition.Status = corev1.ConditionFalse
 			condition.Message = "PVC Pending"
 			condition.Reason = pvcPending
 			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
 		} else if pvc.Status.Phase == corev1.ClaimLost {
+			if condition.Reason != claimLost {
+				condition.LastTransitionTime = metav1.Now()
+			}
 			condition.Status = corev1.ConditionFalse
 			condition.Message = "Claim Lost"
 			condition.Reason = claimLost
 			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
 		}
 	} else {
+		if condition.Reason != notFound {
+			condition.LastTransitionTime = metav1.Now()
+		}
 		condition.Status = corev1.ConditionUnknown
 		condition.Message = "No PVC found"
 		condition.Reason = notFound

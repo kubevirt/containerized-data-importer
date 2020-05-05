@@ -3090,12 +3090,24 @@
      "status"
     ],
     "properties": {
+     "lastProbeTime": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "lastTransitionTime": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
      "message": {
-      "description": "+optional",
+      "description": "human-readable message indicating details about last transition",
       "type": "string"
      },
      "reason": {
-      "description": "+optional",
+      "description": "reason for the condition's last transition",
       "type": "string"
      },
      "status": {

@@ -127,6 +127,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		table.DescribeTable("should", func(args dataVolumeTestArguments) {
 			// Have to call the function in here, to make sure the BeforeEach in the Framework has run.
 			dataVolume := args.dvFunc(args.name, args.size, args.url)
+			startTime := time.Now()
 			repeat := 1
 			if utils.IsHostpathProvisioner() && args.repeat > 0 {
 				// Repeat rapidly to make sure we don't get regular and scratch space on different nodes.
@@ -154,7 +155,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					// will not match if the pod hasn't failed and the backoff is not long enough yet
 					resultDv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
 					Expect(dverr).ToNot(HaveOccurred())
-					return verifyConditions(resultDv.Status.Conditions, args.readyCondition, args.runningCondition, args.boundCondition)
+					return verifyConditions(resultDv.Status.Conditions, startTime, args.readyCondition, args.runningCondition, args.boundCondition)
 				}, timeout, pollingInterval).Should(BeTrue())
 
 				// verify PVC was created
@@ -428,7 +429,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionFalse,
-					Reason: "RunningTrue",
+					Reason: "TransferRunning",
 				},
 				boundCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeBound,
@@ -771,21 +772,21 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 })
 
-func verifyConditions(actualConditions []*cdiv1.DataVolumeCondition, testConditions ...*cdiv1.DataVolumeCondition) bool {
+func verifyConditions(actualConditions []*cdiv1.DataVolumeCondition, startTime time.Time, testConditions ...*cdiv1.DataVolumeCondition) bool {
 	for _, condition := range testConditions {
 		if condition != nil {
 			actualCondition := findConditionByType(condition.Type, actualConditions)
 			if actualCondition != nil {
 				if actualCondition.Status != condition.Status {
-					fmt.Fprintf(GinkgoWriter, "FAIL: Condition.Status does not match for type: %s\n", condition.Type)
+					fmt.Fprintf(GinkgoWriter, "INFO: Condition.Status does not match for type: %s\n", condition.Type)
 					return false
 				}
 				if strings.Compare(actualCondition.Reason, condition.Reason) != 0 {
-					fmt.Fprintf(GinkgoWriter, "FAIL: Condition.Reason does not match for type: %s, reason expecited [%s], reason found: [%s]\n", condition.Type, condition.Reason, actualCondition.Reason)
+					fmt.Fprintf(GinkgoWriter, "INFO: Condition.Reason does not match for type: %s, reason expecited [%s], reason found: [%s]\n", condition.Type, condition.Reason, actualCondition.Reason)
 					return false
 				}
 				if !strings.Contains(actualCondition.Message, condition.Message) {
-					fmt.Fprintf(GinkgoWriter, "FAIL: Condition.Message does not match for type: %s, message expected: [%s],  message found: [%s]\n", condition.Type, condition.Message, actualCondition.Message)
+					fmt.Fprintf(GinkgoWriter, "INFO: Condition.Message does not match for type: %s, message expected: [%s],  message found: [%s]\n", condition.Type, condition.Message, actualCondition.Message)
 					return false
 				}
 			}

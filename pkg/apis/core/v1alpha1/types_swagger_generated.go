@@ -94,9 +94,7 @@ func (DataVolumeList) SwaggerDoc() map[string]string {
 
 func (DataVolumeCondition) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":        "DataVolumeCondition represents the state of a data volume condition.",
-		"reason":  "+optional",
-		"message": "+optional",
+		"": "DataVolumeCondition represents the state of a data volume condition.",
 	}
 }
 

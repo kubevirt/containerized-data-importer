@@ -454,6 +454,11 @@ func schema_pkg_apis_core_v1alpha1_DataVolumeCondition(ref common.ReferenceCallb
 							Format: "",
 						},
 					},
+					"lastTransitionTime": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
 					"reason": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
@@ -470,6 +475,8 @@ func schema_pkg_apis_core_v1alpha1_DataVolumeCondition(ref common.ReferenceCallb
 				Required: []string{"type", "status"},
 			},
 		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 	}
 }
 
