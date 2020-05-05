@@ -19,6 +19,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 )
 
 const (
@@ -117,9 +118,9 @@ func checkIfLabelExists(pvc *v1.PersistentVolumeClaim, lbl string, val string) b
 // which allows handleObject to discover the pod resource that 'owns' it, and clean up when needed.
 func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, name, storageClassName string) *v1.PersistentVolumeClaim {
 	labels := map[string]string{
-		"cdi-controller": pod.Name,
+		"cdi-controller": naming.GetLabelName(pod.Name),
 		"app":            "containerized-data-importer",
-		LabelImportPvc:   pvc.Name,
+		LabelImportPvc:   naming.GetLabelName(pvc.Name),
 	}
 
 	annotations := make(map[string]string, 0)

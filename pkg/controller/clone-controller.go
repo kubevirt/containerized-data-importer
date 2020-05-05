@@ -267,7 +267,7 @@ func (r *CloneReconciler) findCloneSourcePod(pvc *corev1.PersistentVolumeClaim) 
 
 	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
 		MatchLabels: map[string]string{
-			CloneUniqueID: string(pvc.GetUID()) + "-source-pod",
+			CloneUniqueID: getCloneSourcePodName(pvc),
 		},
 	})
 	if err != nil {

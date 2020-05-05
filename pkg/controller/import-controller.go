@@ -626,7 +626,7 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 				common.CDILabelKey:       common.CDILabelValue,
 				common.CDIComponentLabel: common.ImporterPodName,
 				// this label is used when searching for a pvc's import pod.
-				LabelImportPvc:         pvc.Name,
+				LabelImportPvc:         naming.GetLabelName(pvc.Name),
 				common.PrometheusLabel: "",
 			},
 			OwnerReferences: []metav1.OwnerReference{
