@@ -152,7 +152,8 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		return reconcile.Result{}, err
 	}
 
-	if _, err = r.getOrCreateUploadService(pvc, resourceName); err != nil {
+	svcName := naming.GetServiceName(resourceName)
+	if _, err = r.getOrCreateUploadService(pvc, svcName); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -217,9 +218,10 @@ func (r *UploadReconciler) getCloneRequestSourcePVC(targetPvc *corev1.Persistent
 
 func (r *UploadReconciler) cleanup(pvc *v1.PersistentVolumeClaim) error {
 	resourceName := getUploadResourceName(pvc.Name)
+	svcName := naming.GetServiceName(resourceName)
 
 	// delete service
-	if err := r.deleteService(pvc.Namespace, resourceName); err != nil {
+	if err := r.deleteService(pvc.Namespace, svcName); err != nil {
 		return err
 	}
 
@@ -246,7 +248,9 @@ func (r *UploadReconciler) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, p
 			return nil, errors.Wrapf(err, "error getting upload pod %s/%s", pvc.Namespace, podName)
 		}
 
-		serverCert, serverKey, err := r.serverCertGenerator.MakeServerCert(pvc.Namespace, podName, uploadServerCertDuration)
+		// TODO: discuss, certificate needs to apply for a service! now implicitly it works, because service name is the same as podname,
+		// if we limit the upload pod name to 63 chars, then we can still keep our 1 to 1 mapping of pod - service
+		serverCert, serverKey, err := r.serverCertGenerator.MakeServerCert(pvc.Namespace, naming.GetServiceName(podName), uploadServerCertDuration)
 		if err != nil {
 			return nil, err
 		}
@@ -506,11 +510,13 @@ func UploadPossibleForPVC(pvc *v1.PersistentVolumeClaim) error {
 
 // GetUploadServerURL returns the url the proxy should post to for a particular pvc
 func GetUploadServerURL(namespace, pvc, uploadPath string) string {
-	return fmt.Sprintf("https://%s.%s.svc%s", getUploadResourceName(pvc), namespace, uploadPath)
+	serviceName := naming.GetServiceName(getUploadResourceName(pvc))
+	return fmt.Sprintf("https://%s.%s.svc%s", serviceName, namespace, uploadPath)
 }
 
 func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequirements *v1.ResourceRequirements) *v1.Pod {
 	requestImageSize, _ := getRequestedImageSize(args.PVC)
+	serviceName := naming.GetServiceName(args.Name)
 	fsGroup := common.QemuSubGid
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -526,7 +532,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			Labels: map[string]string{
 				common.CDILabelKey:              common.CDILabelValue,
 				common.CDIComponentLabel:        common.UploadServerCDILabel,
-				common.UploadServerServiceLabel: args.Name,
+				common.UploadServerServiceLabel: serviceName,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				MakePVCOwnerReference(args.PVC),
