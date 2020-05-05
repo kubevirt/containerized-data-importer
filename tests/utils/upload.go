@@ -7,6 +7,7 @@ import (
 
 	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 )
 
 const (
@@ -29,7 +30,7 @@ const (
 
 // UploadPodName returns the name of the upload server pod associated with a PVC
 func UploadPodName(pvc *k8sv1.PersistentVolumeClaim) string {
-	return "cdi-upload-" + pvc.Name
+	return naming.GetResourceName("cdi-upload", pvc.Name)
 }
 
 // UploadPVCDefinition creates a PVC with the upload target annotation

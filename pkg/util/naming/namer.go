@@ -43,3 +43,9 @@ func GetLabelName(base string) string {
 	// - write our own GetName
 	return naming.GetName(base, "cdi", kvalidation.DNS1035LabelMaxLength)
 }
+
+// GetServiceName creates a name with the length restriction for service (label), and shortens if needed
+func GetServiceName(name string) string {
+	// The name of a Service object must be a valid DNS label name.
+	return GetLabelName(name)
+}
