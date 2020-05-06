@@ -1,10 +1,10 @@
 package main
 
 import (
-	"crypto/rand"
+	"encoding/binary"
 	"fmt"
+	"io/ioutil"
 	"log"
-	"math/big"
 	"net/http"
 	"regexp"
 )
@@ -18,12 +18,8 @@ func failHEAD(w http.ResponseWriter, r *http.Request) {
 }
 
 func flaky(w http.ResponseWriter, r *http.Request) {
-	random, err := rand.Int(rand.Reader, big.NewInt(20))
-	if err != nil {
-		panic(err)
-	}
-	if random.Cmp(big.NewInt(0)) == 0 {
-		// 1-in-20 odds of success
+	if getCounter()%10 == 9 {
+		// succeed after 10 attempts
 		redirect(w, r)
 		return
 	}
@@ -38,10 +34,36 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, redirectURL, 301)
 }
 
+func initCounter() {
+	newCounterBuf := make([]byte, binary.MaxVarintLen64)
+	_ = binary.PutUvarint(newCounterBuf, 0)
+
+	ioutil.WriteFile("state", newCounterBuf, 0644)
+}
+
+func getCounter() uint64 {
+	counterBuf, err := ioutil.ReadFile("state")
+	if err != nil {
+		panic(err)
+	}
+
+	counter, n := binary.Uvarint(counterBuf)
+	if n <= 0 {
+		counter = 0
+	}
+
+	newCounterBuf := make([]byte, binary.MaxVarintLen64)
+	_ = binary.PutUvarint(newCounterBuf, counter+1)
+	ioutil.WriteFile("state", newCounterBuf, 0644)
+
+	return counter
+}
+
 func main() {
+	initCounter()
 	http.HandleFunc("/forbidden-HEAD/", failHEAD)
 	http.HandleFunc("/flaky/", flaky)
-	err := http.ListenAndServe(":80", nil)
+	err := http.ListenAndServe(":9090", nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}

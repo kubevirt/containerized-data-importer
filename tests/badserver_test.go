@@ -16,7 +16,7 @@ var _ = Describe("Problematic server responses", func() {
 	f := framework.NewFrameworkOrDie("badserver-func-test")
 
 	It("should succeed even if HEAD forbidden", func() {
-		badServerTinyCoreIso := "http://cdi-bad-webserver.%s/forbidden-HEAD/tinyCore.iso"
+		badServerTinyCoreIso := "http://cdi-bad-webserver.%s:9090/forbidden-HEAD/tinyCore.iso"
 		tinyCoreIsoURL := fmt.Sprintf(badServerTinyCoreIso, f.CdiInstallNs)
 
 		dataVolume := utils.NewDataVolumeWithHTTPImport("badserver-dv", "1Gi", tinyCoreIsoURL)
@@ -30,7 +30,7 @@ var _ = Describe("Problematic server responses", func() {
 	})
 
 	It("Should succeed even on a flaky server", func() {
-		badServerTinyCoreIso := "http://cdi-bad-webserver.%s/flaky/tinyCore.iso"
+		badServerTinyCoreIso := "http://cdi-bad-webserver.%s:9090/flaky/tinyCore.iso"
 		tinyCoreIsoURL := fmt.Sprintf(badServerTinyCoreIso, f.CdiInstallNs)
 
 		dataVolume := utils.NewDataVolumeWithHTTPImport("badserver-dv", "1Gi", tinyCoreIsoURL)
