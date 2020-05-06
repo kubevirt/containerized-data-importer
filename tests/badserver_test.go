@@ -15,7 +15,7 @@ import (
 var _ = Describe("Problematic server responses", func() {
 	f := framework.NewFrameworkOrDie("badserver-func-test")
 
-	It("should succeed even if HEAD forbidden", func() {
+	It("[rfe_id:4109][test_id:4110][crit:low][vendor:cnv-qe@redhat.com][level:component] Should succeed even if HEAD forbidden", func() {
 		badServerTinyCoreIso := "http://cdi-bad-webserver.%s:9090/forbidden-HEAD/tinyCore.iso"
 		tinyCoreIsoURL := fmt.Sprintf(badServerTinyCoreIso, f.CdiInstallNs)
 
@@ -29,7 +29,7 @@ var _ = Describe("Problematic server responses", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("Should succeed even on a flaky server", func() {
+	It("[rfe_id:4191][test_id:4193][crit:low][vendor:cnv-qe@redhat.com][level:component] Should succeed even on a flaky server", func() {
 		badServerTinyCoreIso := "http://cdi-bad-webserver.%s:9090/flaky/tinyCore.iso"
 		tinyCoreIsoURL := fmt.Sprintf(badServerTinyCoreIso, f.CdiInstallNs)
 
