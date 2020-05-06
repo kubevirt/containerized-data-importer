@@ -492,7 +492,9 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 							ClaimName: sourcePvcName,
-							ReadOnly:  true,
+							// Seems to be problematic with k8s-1.17 provider
+							// with SELinux enabled.  Why?  I do not know right now.
+							//ReadOnly:  true,
 						},
 					},
 				},
