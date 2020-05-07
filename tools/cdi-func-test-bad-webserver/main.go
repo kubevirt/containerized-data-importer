@@ -18,7 +18,7 @@ func failHEAD(w http.ResponseWriter, r *http.Request) {
 }
 
 func flaky(w http.ResponseWriter, r *http.Request) {
-	if getCounter()%10 == 9 {
+	if getCounter()%4 == 3 {
 		// succeed after 10 attempts
 		redirect(w, r)
 		return
