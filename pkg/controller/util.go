@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rsa"
 	"strings"
-	"time"
 
 	"github.com/go-logr/logr"
 	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
@@ -307,17 +306,14 @@ func setConditionFromPod(anno map[string]string, pod *v1.Pod) {
 			anno[AnnRunningCondition] = "true"
 			anno[AnnLastTerminationMessage] = ""
 			anno[AnnRunningConditionReason] = podRunningdReason
-			anno[AnnRunningConditionHeartBeat] = time.Now().Format(time.RFC3339Nano)
 		} else {
 			anno[AnnRunningCondition] = "false"
 			if pod.Status.ContainerStatuses[0].State.Waiting != nil {
 				anno[AnnLastTerminationMessage] = pod.Status.ContainerStatuses[0].State.Waiting.Message
 				anno[AnnRunningConditionReason] = pod.Status.ContainerStatuses[0].State.Waiting.Reason
-				anno[AnnRunningConditionHeartBeat] = time.Now().Format(time.RFC3339Nano)
 			} else if pod.Status.ContainerStatuses[0].State.Terminated != nil {
 				anno[AnnLastTerminationMessage] = pod.Status.ContainerStatuses[0].State.Terminated.Message
 				anno[AnnRunningConditionReason] = pod.Status.ContainerStatuses[0].State.Terminated.Reason
-				anno[AnnRunningConditionHeartBeat] = time.Now().Format(time.RFC3339Nano)
 			}
 		}
 	}

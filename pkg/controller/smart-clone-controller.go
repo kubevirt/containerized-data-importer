@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"time"
 
 	"github.com/go-logr/logr"
 	csisnapshotv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
@@ -241,16 +240,16 @@ func (r *SmartCloneReconciler) updateSmartCloneStatusPhase(phase cdiv1.DataVolum
 		event.reason = SmartClonePVCInProgress
 		event.message = fmt.Sprintf(MessageSmartClonePVCInProgress, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name)
 		dataVolume.Status.Conditions = updateBoundCondition(dataVolume.Status.Conditions, newPVC)
-		dataVolume.Status.Conditions = updateReadyCondition(dataVolume.Status.Conditions, corev1.ConditionFalse, "", "", time.Now())
-		dataVolume.Status.Conditions = updateCondition(dataVolume.Status.Conditions, cdiv1.DataVolumeRunning, corev1.ConditionTrue, MessageSmartClonePVCInProgress, SmartClonePVCInProgress, time.Now())
+		dataVolume.Status.Conditions = updateReadyCondition(dataVolume.Status.Conditions, corev1.ConditionFalse, "", "")
+		dataVolume.Status.Conditions = updateCondition(dataVolume.Status.Conditions, cdiv1.DataVolumeRunning, corev1.ConditionTrue, MessageSmartClonePVCInProgress, SmartClonePVCInProgress)
 	case cdiv1.Succeeded:
 		dataVolumeCopy.Status.Phase = cdiv1.Succeeded
 		event.eventType = corev1.EventTypeNormal
 		event.reason = CloneSucceeded
 		event.message = fmt.Sprintf(MessageCloneSucceeded, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, newPVC.Namespace, newPVC.Name)
 		dataVolume.Status.Conditions = updateBoundCondition(dataVolume.Status.Conditions, newPVC)
-		dataVolume.Status.Conditions = updateReadyCondition(dataVolume.Status.Conditions, corev1.ConditionTrue, "", "", time.Now())
-		dataVolume.Status.Conditions = updateCondition(dataVolume.Status.Conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, cloneComplete, "Completed", time.Now())
+		dataVolume.Status.Conditions = updateReadyCondition(dataVolume.Status.Conditions, corev1.ConditionTrue, "", "")
+		dataVolume.Status.Conditions = updateCondition(dataVolume.Status.Conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, cloneComplete, "Completed")
 	}
 
 	return r.emitEvent(dataVolume, dataVolumeCopy, &event, newPVC)

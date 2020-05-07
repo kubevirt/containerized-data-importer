@@ -17,8 +17,6 @@ limitations under the License.
 package controller
 
 import (
-	"time"
-
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -101,7 +99,7 @@ var _ = Describe("updateRunningCondition", func() {
 var _ = Describe("updateReadyCondition", func() {
 	It("should create condition if it doesn't exist", func() {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
-		conditions = updateReadyCondition(conditions, corev1.ConditionTrue, "message", "reason", time.Now())
+		conditions = updateReadyCondition(conditions, corev1.ConditionTrue, "message", "reason")
 		Expect(len(conditions)).To(Equal(1))
 		Expect(conditions[0].Type).To(Equal(cdiv1.DataVolumeReady))
 		Expect(conditions[0].Message).To(Equal("message"))

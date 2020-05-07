@@ -18,7 +18,6 @@ package controller
 
 import (
 	"strings"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,7 +42,7 @@ func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions
 	return nil
 }
 
-func updateCondition(conditions []cdiv1.DataVolumeCondition, conditionType cdiv1.DataVolumeConditionType, status corev1.ConditionStatus, message, reason string, lastHeartBeat time.Time) []cdiv1.DataVolumeCondition {
+func updateCondition(conditions []cdiv1.DataVolumeCondition, conditionType cdiv1.DataVolumeConditionType, status corev1.ConditionStatus, message, reason string) []cdiv1.DataVolumeCondition {
 	condition := findConditionByType(conditionType, conditions)
 	if condition == nil {
 		conditions = append(conditions, cdiv1.DataVolumeCondition{
@@ -51,121 +50,58 @@ func updateCondition(conditions []cdiv1.DataVolumeCondition, conditionType cdiv1
 		})
 		condition = findConditionByType(conditionType, conditions)
 	}
-	if condition.Status != status || lastHeartBeat.After(condition.LastHeartBeatTime.Time) {
+	if condition.Status != status {
 		condition.LastTransitionTime = metav1.Now()
 		condition.Message = message
 		condition.Reason = reason
-		condition.LastHeartBeatTime = metav1.NewTime(lastHeartBeat)
+		condition.LastHeartbeatTime = condition.LastTransitionTime
+	} else if condition.Message != message || condition.Reason != reason {
+		condition.Message = message
+		condition.Reason = reason
+		condition.LastHeartbeatTime = metav1.Now()
 	}
 	condition.Status = status
 	return conditions
 }
 
 func updateRunningCondition(conditions []cdiv1.DataVolumeCondition, anno map[string]string) []cdiv1.DataVolumeCondition {
-	condition := findConditionByType(cdiv1.DataVolumeRunning, conditions)
-	if condition == nil {
-		conditions = append(conditions, cdiv1.DataVolumeCondition{
-			Type: cdiv1.DataVolumeRunning,
-		})
-		condition = findConditionByType(cdiv1.DataVolumeRunning, conditions)
-	}
-	heartBeat, err := time.Parse(time.RFC3339Nano, anno[AnnRunningConditionHeartBeat])
-	if err != nil {
-		heartBeat = time.Time{}
-	}
 	if val, ok := anno[AnnRunningCondition]; ok {
 		if strings.ToLower(val) == "true" {
-			if condition.Status != corev1.ConditionTrue || heartBeat.After(condition.LastHeartBeatTime.Time) {
-				condition.LastTransitionTime = metav1.Now()
-				condition.Message = anno[AnnLastTerminationMessage]
-				condition.Reason = anno[AnnRunningConditionReason]
-				condition.LastHeartBeatTime = metav1.NewTime(heartBeat)
-			}
-			condition.Status = corev1.ConditionTrue
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", transferRunning, heartBeat)
+			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionTrue, anno[AnnLastTerminationMessage], anno[AnnRunningConditionReason])
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", transferRunning)
 		} else if strings.ToLower(val) == "false" {
-			if condition.Status != corev1.ConditionFalse || heartBeat.After(condition.LastHeartBeatTime.Time) {
-				condition.LastTransitionTime = metav1.Now()
-				condition.Message = anno[AnnLastTerminationMessage]
-				condition.Reason = anno[AnnRunningConditionReason]
-				condition.LastHeartBeatTime = metav1.NewTime(heartBeat)
-			}
-			condition.Status = corev1.ConditionFalse
+			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, anno[AnnLastTerminationMessage], anno[AnnRunningConditionReason])
 		} else {
-			if condition.Status != corev1.ConditionUnknown || heartBeat.After(condition.LastHeartBeatTime.Time) {
-				condition.LastTransitionTime = metav1.Now()
-				condition.Message = anno[AnnLastTerminationMessage]
-				condition.Reason = anno[AnnRunningConditionReason]
-				condition.LastHeartBeatTime = metav1.NewTime(heartBeat)
-			}
-			condition.Status = corev1.ConditionUnknown
+			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, anno[AnnLastTerminationMessage], anno[AnnRunningConditionReason])
 		}
 	} else {
-		condition.Message = anno[AnnLastTerminationMessage]
-		condition.Reason = anno[AnnRunningConditionReason]
-		condition.LastTransitionTime = metav1.Now()
-		condition.LastHeartBeatTime = metav1.Now()
-		condition.Status = corev1.ConditionUnknown
+		conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, anno[AnnLastTerminationMessage], anno[AnnRunningConditionReason])
 	}
 	return conditions
 }
 
-func updateReadyCondition(conditions []cdiv1.DataVolumeCondition, status corev1.ConditionStatus, message, reason string, lastHeartBeat time.Time) []cdiv1.DataVolumeCondition {
-	return updateCondition(conditions, cdiv1.DataVolumeReady, status, message, reason, lastHeartBeat)
+func updateReadyCondition(conditions []cdiv1.DataVolumeCondition, status corev1.ConditionStatus, message, reason string) []cdiv1.DataVolumeCondition {
+	return updateCondition(conditions, cdiv1.DataVolumeReady, status, message, reason)
 }
 
 func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.PersistentVolumeClaim) []cdiv1.DataVolumeCondition {
-	condition := findConditionByType(cdiv1.DataVolumeBound, conditions)
-	if condition == nil {
-		conditions = append(conditions, cdiv1.DataVolumeCondition{
-			Type: cdiv1.DataVolumeBound,
-		})
-		condition = findConditionByType(cdiv1.DataVolumeBound, conditions)
-	}
 	if pvc != nil {
 		switch pvc.Status.Phase {
 		case corev1.ClaimBound:
-			if condition.Reason != pvcBound {
-				condition.LastTransitionTime = metav1.Now()
-			}
-			condition.Status = corev1.ConditionTrue
-			condition.Message = "PVC Bound"
-			condition.Reason = pvcBound
-			condition.LastHeartBeatTime = metav1.Now()
+			conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionTrue, "PVC Bound", pvcBound)
 		case corev1.ClaimPending:
-			if condition.Reason != pvcPending {
-				condition.LastTransitionTime = metav1.Now()
-			}
-			condition.Status = corev1.ConditionFalse
-			condition.Message = "PVC Pending"
-			condition.Reason = pvcPending
-			condition.LastHeartBeatTime = metav1.Now()
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", "", time.Now())
+			conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, "PVC Pending", pvcPending)
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 		case corev1.ClaimLost:
-			if condition.Reason != claimLost {
-				condition.LastTransitionTime = metav1.Now()
-			}
-			condition.Status = corev1.ConditionFalse
-			condition.Message = "Claim Lost"
-			condition.Reason = claimLost
-			condition.LastHeartBeatTime = metav1.Now()
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse, time.Now())
+			conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, "Claim Lost", claimLost)
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
 		default:
-			condition.Status = corev1.ConditionUnknown
-			condition.Message = "PVC phase unknown"
-			condition.Reason = string(corev1.ConditionUnknown)
-			condition.LastHeartBeatTime = metav1.Now()
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse, time.Now())
+			conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionUnknown, "PVC phase unknown", string(corev1.ConditionUnknown))
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
 		}
 	} else {
-		if condition.Reason != notFound {
-			condition.LastTransitionTime = metav1.Now()
-		}
-		condition.Status = corev1.ConditionUnknown
-		condition.Message = "No PVC found"
-		condition.Reason = notFound
-		condition.LastHeartBeatTime = metav1.Now()
-		conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse, time.Now())
+		conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionUnknown, "No PVC found", notFound)
+		conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
 	}
 	return conditions
 }

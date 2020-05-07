@@ -65,8 +65,6 @@ const (
 	AnnLastTerminationMessage = AnnAPIGroup + "/storage.condition.running.message"
 	// AnnRunningConditionReason provides a const for the running condition
 	AnnRunningConditionReason = AnnAPIGroup + "/storage.condition.termination.message"
-	// AnnRunningConditionHeartBeat provides a const for the running condition last heartbeat
-	AnnRunningConditionHeartBeat = AnnAPIGroup + "/storage.condition.running.heartbeat"
 
 	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
 	LabelImportPvc = AnnAPIGroup + "/storage.import.importPvcName"

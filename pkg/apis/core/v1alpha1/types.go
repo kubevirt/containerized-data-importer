@@ -148,7 +148,7 @@ type DataVolumeCondition struct {
 	Type               DataVolumeConditionType `json:"type" description:"type of condition ie. Ready|Bound|Running."`
 	Status             corev1.ConditionStatus  `json:"status" description:"status of the condition, one of True, False, Unknown"`
 	LastTransitionTime metav1.Time             `json:"lastTransitionTime,omitempty"`
-	LastHeartBeatTime  metav1.Time             `json:"lastHeartBeatTime,omitempty"`
+	LastHeartbeatTime  metav1.Time             `json:"lastHeartBeatTime,omitempty"`
 	Reason             string                  `json:"reason,omitempty" description:"reason for the condition's last transition"`
 	Message            string                  `json:"message,omitempty" description:"human-readable message indicating details about last transition"`
 }

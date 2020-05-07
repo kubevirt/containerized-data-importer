@@ -429,6 +429,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionFalse,
+					Reason: "Transfer is running",
 				},
 				boundCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeBound,
