@@ -23,6 +23,7 @@ go_library(
         "//pkg/util/cert:go_default_library",
         "//pkg/util/cert/fetcher:go_default_library",
         "//pkg/util/cert/generator:go_default_library",
+        "//pkg/util/naming:go_default_library",
         "//vendor/github.com/go-logr/logr:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1:go_default_library",
         "//vendor/github.com/openshift/api/route/v1:go_default_library",

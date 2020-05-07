@@ -18,6 +18,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -535,11 +536,11 @@ func getDiskID(pvc *corev1.PersistentVolumeClaim) string {
 }
 
 func importPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
-	return fmt.Sprintf("%s-%s", common.ImporterPodName, pvc.Name)
+	return naming.GetResourceName(common.ImporterPodName, pvc.Name)
 }
 
 func scratchNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
-	return fmt.Sprintf("%s-scratch", pvc.Name)
+	return naming.GetResourceName(pvc.Name, common.ScratchNameSuffix)
 }
 
 // createImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret

@@ -118,6 +118,9 @@ const (
 	// ScratchSpaceNeededExitCode is the exit code that indicates the importer pod requires scratch space to function properly.
 	ScratchSpaceNeededExitCode = 42
 
+	// ScratchNameSuffix (controller pkg only)
+	ScratchNameSuffix = "scratch"
+
 	// UploadTokenIssuer is the JWT issuer of upload tokens
 	UploadTokenIssuer = "cdi-apiserver"
 
