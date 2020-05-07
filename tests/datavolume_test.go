@@ -772,7 +772,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 })
 
-func verifyConditions(actualConditions []*cdiv1.DataVolumeCondition, startTime time.Time, testConditions ...*cdiv1.DataVolumeCondition) bool {
+func verifyConditions(actualConditions []cdiv1.DataVolumeCondition, startTime time.Time, testConditions ...*cdiv1.DataVolumeCondition) bool {
 	for _, condition := range testConditions {
 		if condition != nil {
 			actualCondition := findConditionByType(condition.Type, actualConditions)
@@ -795,10 +795,10 @@ func verifyConditions(actualConditions []*cdiv1.DataVolumeCondition, startTime t
 	return true
 }
 
-func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions []*cdiv1.DataVolumeCondition) *cdiv1.DataVolumeCondition {
-	for _, condition := range conditions {
+func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions []cdiv1.DataVolumeCondition) *cdiv1.DataVolumeCondition {
+	for i, condition := range conditions {
 		if condition.Type == conditionType {
-			return condition
+			return &conditions[i]
 		}
 	}
 	return nil

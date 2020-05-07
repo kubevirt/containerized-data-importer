@@ -33,22 +33,22 @@ const (
 	notFound        = "NotFound"
 )
 
-func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions []*cdiv1.DataVolumeCondition) *cdiv1.DataVolumeCondition {
-	for _, condition := range conditions {
+func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions []cdiv1.DataVolumeCondition) *cdiv1.DataVolumeCondition {
+	for i, condition := range conditions {
 		if condition.Type == conditionType {
-			return condition
+			return &conditions[i]
 		}
 	}
 	return nil
 }
 
-func updateCondition(conditions []*cdiv1.DataVolumeCondition, conditionType cdiv1.DataVolumeConditionType, status corev1.ConditionStatus, message, reason string) []*cdiv1.DataVolumeCondition {
+func updateCondition(conditions []cdiv1.DataVolumeCondition, conditionType cdiv1.DataVolumeConditionType, status corev1.ConditionStatus, message, reason string) []cdiv1.DataVolumeCondition {
 	condition := findConditionByType(conditionType, conditions)
 	if condition == nil {
-		condition = &cdiv1.DataVolumeCondition{
-			Type: cdiv1.DataVolumeReady,
-		}
-		conditions = append(conditions, condition)
+		conditions = append(conditions, cdiv1.DataVolumeCondition{
+			Type: conditionType,
+		})
+		condition = findConditionByType(conditionType, conditions)
 	}
 	if condition.Status != status {
 		condition.LastTransitionTime = metav1.Now()
@@ -59,13 +59,13 @@ func updateCondition(conditions []*cdiv1.DataVolumeCondition, conditionType cdiv
 	return conditions
 }
 
-func updateRunningCondition(conditions []*cdiv1.DataVolumeCondition, anno map[string]string) []*cdiv1.DataVolumeCondition {
+func updateRunningCondition(conditions []cdiv1.DataVolumeCondition, anno map[string]string) []cdiv1.DataVolumeCondition {
 	condition := findConditionByType(cdiv1.DataVolumeRunning, conditions)
 	if condition == nil {
-		condition = &cdiv1.DataVolumeCondition{
+		conditions = append(conditions, cdiv1.DataVolumeCondition{
 			Type: cdiv1.DataVolumeRunning,
-		}
-		conditions = append(conditions, condition)
+		})
+		condition = findConditionByType(cdiv1.DataVolumeRunning, conditions)
 	}
 	if val, ok := anno[AnnRunningConditionMessage]; ok {
 		condition.Message = val
@@ -102,27 +102,28 @@ func updateRunningCondition(conditions []*cdiv1.DataVolumeCondition, anno map[st
 	return conditions
 }
 
-func updateReadyCondition(conditions []*cdiv1.DataVolumeCondition, status corev1.ConditionStatus, message, reason string) []*cdiv1.DataVolumeCondition {
+func updateReadyCondition(conditions []cdiv1.DataVolumeCondition, status corev1.ConditionStatus, message, reason string) []cdiv1.DataVolumeCondition {
 	return updateCondition(conditions, cdiv1.DataVolumeReady, status, message, reason)
 }
 
-func updateBoundCondition(conditions []*cdiv1.DataVolumeCondition, pvc *corev1.PersistentVolumeClaim) []*cdiv1.DataVolumeCondition {
+func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.PersistentVolumeClaim) []cdiv1.DataVolumeCondition {
 	condition := findConditionByType(cdiv1.DataVolumeBound, conditions)
 	if condition == nil {
-		condition = &cdiv1.DataVolumeCondition{
+		conditions = append(conditions, cdiv1.DataVolumeCondition{
 			Type: cdiv1.DataVolumeBound,
-		}
-		conditions = append(conditions, condition)
+		})
+		condition = findConditionByType(cdiv1.DataVolumeBound, conditions)
 	}
 	if pvc != nil {
-		if pvc.Status.Phase == corev1.ClaimBound {
+		switch pvc.Status.Phase {
+		case corev1.ClaimBound:
 			if condition.Reason != pvcBound {
 				condition.LastTransitionTime = metav1.Now()
 			}
 			condition.Status = corev1.ConditionTrue
 			condition.Message = "PVC Bound"
 			condition.Reason = pvcBound
-		} else if pvc.Status.Phase == corev1.ClaimPending {
+		case corev1.ClaimPending:
 			if condition.Reason != pvcPending {
 				condition.LastTransitionTime = metav1.Now()
 			}
@@ -130,13 +131,18 @@ func updateBoundCondition(conditions []*cdiv1.DataVolumeCondition, pvc *corev1.P
 			condition.Message = "PVC Pending"
 			condition.Reason = pvcPending
 			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
-		} else if pvc.Status.Phase == corev1.ClaimLost {
+		case corev1.ClaimLost:
 			if condition.Reason != claimLost {
 				condition.LastTransitionTime = metav1.Now()
 			}
 			condition.Status = corev1.ConditionFalse
 			condition.Message = "Claim Lost"
 			condition.Reason = claimLost
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
+		default:
+			condition.Status = corev1.ConditionUnknown
+			condition.Message = "PVC phase unknown"
+			condition.Reason = string(corev1.ConditionUnknown)
 			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
 		}
 	} else {

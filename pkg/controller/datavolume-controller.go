@@ -639,7 +639,7 @@ func (r *DatavolumeReconciler) updateConditions(dataVolume *cdiv1.DataVolume, pv
 	var anno map[string]string
 
 	if dataVolume.Status.Conditions == nil {
-		dataVolume.Status.Conditions = make([]*cdiv1.DataVolumeCondition, 0)
+		dataVolume.Status.Conditions = make([]cdiv1.DataVolumeCondition, 0)
 	}
 
 	if pvc != nil {

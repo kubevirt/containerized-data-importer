@@ -130,7 +130,7 @@ type DataVolumeStatus struct {
 	Progress     DataVolumeProgress `json:"progress,omitempty"`
 	RestartCount int32              `json:"restartCount"`
 	// +listType=set
-	Conditions []*DataVolumeCondition `json:"conditions,omitempty" optional:"true"`
+	Conditions []DataVolumeCondition `json:"conditions,omitempty" optional:"true"`
 }
 
 //DataVolumeList provides the needed parameters to do request a list of Data Volumes from the system
