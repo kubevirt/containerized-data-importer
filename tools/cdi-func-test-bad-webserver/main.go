@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 )
 
@@ -30,7 +31,8 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 	re := regexp.MustCompile(`[^/]*$`)
 	requestedFile := re.Find([]byte(r.URL.String()))
 
-	redirectURL := fmt.Sprintf("http://cdi-file-host.cdi/%s", requestedFile)
+	cdiNamespace := os.Getenv("CDI_NAMESPACE")
+	redirectURL := fmt.Sprintf("http://cdi-file-host.%s/%s", cdiNamespace, requestedFile)
 	http.Redirect(w, r, redirectURL, 301)
 }
 
