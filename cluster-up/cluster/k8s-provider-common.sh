@@ -19,4 +19,28 @@ function up() {
 
     # Make sure that local config is correct
     prepare_config
+
+
+    kubectl="${_cli} --prefix $provider_prefix ssh node01 -- sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf"
+
+    # For multinode cluster Label all the non master nodes as workers,
+    # for one node cluster label master with 'master,worker' roles
+    if [ "$KUBEVIRT_NUM_NODES" -gt 1 ]; then
+        label="!node-role.kubernetes.io/master"
+    else
+        label="node-role.kubernetes.io/master"
+    fi
+    $kubectl label node -l $label node-role.kubernetes.io/worker=''
+
+    # Activate cluster-network-addons-operator if flag is passed
+    if [ "$KUBEVIRT_WITH_CNAO" == "true" ]; then
+
+        $kubectl create -f /opt/cnao/namespace.yaml
+        $kubectl create -f /opt/cnao/network-addons-config.crd.yaml
+        $kubectl create -f /opt/cnao/operator.yaml
+        $kubectl wait deployment -n cluster-network-addons cluster-network-addons-operator --for condition=Available --timeout=200s
+
+        $kubectl create -f /opt/cnao/network-addons-config-example.cr.yaml
+        $kubectl wait networkaddonsconfig cluster --for condition=Available --timeout=200s
+    fi
 }

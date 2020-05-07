@@ -4,15 +4,15 @@ set -e
 
 DOCKER="${CONTAINER_RUNTIME:-docker}"
 
-export IPV6_CNI="yes"
-export CLUSTER_NAME="kind-1.17.0"
-export KIND_NODE_IMAGE="kindest/node:v1.17.0"
+export CLUSTER_NAME="kind-1.17"
+export KIND_NODE_IMAGE="kindest/node:v1.17.2"
 
 source ${KUBEVIRTCI_PATH}/cluster/kind/common.sh
 
 function up() {
-    cp $KIND_MANIFESTS_DIR/kind-ipv6.yaml ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml
+    cp $KIND_MANIFESTS_DIR/kind.yaml ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml
     kind_up
+
     # remove the rancher.io kind default storageClass
     _kubectl delete sc standard
 
@@ -36,7 +36,7 @@ function up() {
     # Since Kind provider uses containers as nodes, the UUID on all of them will be the same,
     # and Migration by libvirt would be blocked, because migrate between the same UUID is forbidden.
     # Enable PodPreset so we can use it in order to mount a fake UUID for each launcher pod.
-    $DOCKER exec kind-1.17.0-control-plane bash -c 'sed -i \
+    $DOCKER exec kind-1.17-control-plane bash -c 'sed -i \
     -e "s/NodeRestriction/NodeRestriction,PodPreset/" \
     -e "/NodeRestriction,PodPreset/ a\    - --runtime-config=settings.k8s.io/v1alpha1=true" \
     /etc/kubernetes/manifests/kube-apiserver.yaml'

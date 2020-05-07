@@ -37,6 +37,10 @@ function configure_storage() {
 }
 
 function configure_hpp() {
+  for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
+      ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "sudo mkdir -p /var/hpvolumes"
+      ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "sudo chcon -t container_file_t -R /var/hpvolumes"
+  done
   HPP_RELEASE=$(curl -s https://github.com/kubevirt/hostpath-provisioner-operator/releases/latest | grep -o "v[0-9]\.[0-9]*\.[0-9]*")
   _kubectl apply -f https://github.com/kubevirt/hostpath-provisioner-operator/releases/download/$HPP_RELEASE/namespace.yaml
   _kubectl apply -f https://github.com/kubevirt/hostpath-provisioner-operator/releases/download/$HPP_RELEASE/operator.yaml -n hostpath-provisioner
@@ -50,6 +54,8 @@ function configure_ceph() {
   set +e
   _kubectl apply -f https://raw.githubusercontent.com/rook/rook/$ROOK_CEPH_VERSION/cluster/examples/kubernetes/ceph/common.yaml
   _kubectl apply -f https://raw.githubusercontent.com/rook/rook/$ROOK_CEPH_VERSION/cluster/examples/kubernetes/ceph/operator.yaml
+  # SELinux may be enabled so make storage pod privileged
+  _kubectl patch -n rook-ceph deployment rook-ceph-operator --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/env/7/value", "value": "true"}]'
   _kubectl apply -f ./cluster-sync/${KUBEVIRT_PROVIDER}/rook_ceph.yaml
   cat <<EOF | _kubectl apply -f -
 apiVersion: ceph.rook.io/v1
