@@ -337,7 +337,7 @@ var _ = Describe("Update PVC", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(actualPvc.Annotations[AnnPodRestarts]).To(Equal("2"))
 		Expect(actualPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
-		Expect(actualPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal("Creating scratch space"))
+		Expect(actualPvc.GetAnnotations()[AnnLastTerminationMessage]).To(Equal("Creating scratch space"))
 		Expect(actualPvc.GetAnnotations()[AnnRunningConditionReason]).To(Equal(creatingScratch))
 	})
 
@@ -375,7 +375,7 @@ var _ = Describe("Update PVC", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(actualPvc.Annotations[AnnPodRestarts]).To(Equal("3"))
 		Expect(actualPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
-		Expect(actualPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal("Creating scratch space"))
+		Expect(actualPvc.GetAnnotations()[AnnLastTerminationMessage]).To(Equal("Creating scratch space"))
 		Expect(actualPvc.GetAnnotations()[AnnRunningConditionReason]).To(Equal(creatingScratch))
 	})
 })

@@ -18,6 +18,7 @@ package controller
 
 import (
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,12 +26,12 @@ import (
 )
 
 const (
-	boundFalse      = "BoundChangeFalse"
-	transferRunning = "TransferRunning"
-	pvcBound        = "PVCBound"
-	pvcPending      = "PVCPending"
-	claimLost       = "ClaimLost"
-	notFound        = "NotFound"
+	boundFalse      = "Bound changed to false"
+	transferRunning = "Transfer is running"
+	pvcBound        = "PVC is bound"
+	pvcPending      = "PVC is pending"
+	claimLost       = "Claim lost"
+	notFound        = "Not found"
 )
 
 func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions []cdiv1.DataVolumeCondition) *cdiv1.DataVolumeCondition {
@@ -42,7 +43,7 @@ func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions
 	return nil
 }
 
-func updateCondition(conditions []cdiv1.DataVolumeCondition, conditionType cdiv1.DataVolumeConditionType, status corev1.ConditionStatus, message, reason string) []cdiv1.DataVolumeCondition {
+func updateCondition(conditions []cdiv1.DataVolumeCondition, conditionType cdiv1.DataVolumeConditionType, status corev1.ConditionStatus, message, reason string, lastHeartBeat time.Time) []cdiv1.DataVolumeCondition {
 	condition := findConditionByType(conditionType, conditions)
 	if condition == nil {
 		conditions = append(conditions, cdiv1.DataVolumeCondition{
@@ -50,12 +51,13 @@ func updateCondition(conditions []cdiv1.DataVolumeCondition, conditionType cdiv1
 		})
 		condition = findConditionByType(conditionType, conditions)
 	}
-	if condition.Status != status {
+	if condition.Status != status || lastHeartBeat.After(condition.LastHeartBeatTime.Time) {
 		condition.LastTransitionTime = metav1.Now()
+		condition.Message = message
+		condition.Reason = reason
+		condition.LastHeartBeatTime = metav1.NewTime(lastHeartBeat)
 	}
 	condition.Status = status
-	condition.Message = message
-	condition.Reason = reason
 	return conditions
 }
 
@@ -67,43 +69,49 @@ func updateRunningCondition(conditions []cdiv1.DataVolumeCondition, anno map[str
 		})
 		condition = findConditionByType(cdiv1.DataVolumeRunning, conditions)
 	}
-	if val, ok := anno[AnnRunningConditionMessage]; ok {
-		condition.Message = val
-	} else {
-		condition.Message = ""
+	heartBeat, err := time.Parse(time.RFC3339Nano, anno[AnnRunningConditionHeartBeat])
+	if err != nil {
+		heartBeat = time.Time{}
 	}
 	if val, ok := anno[AnnRunningCondition]; ok {
 		if strings.ToLower(val) == "true" {
-			if condition.Status != corev1.ConditionTrue {
+			if condition.Status != corev1.ConditionTrue || heartBeat.After(condition.LastHeartBeatTime.Time) {
 				condition.LastTransitionTime = metav1.Now()
+				condition.Message = anno[AnnLastTerminationMessage]
+				condition.Reason = anno[AnnRunningConditionReason]
+				condition.LastHeartBeatTime = metav1.NewTime(heartBeat)
 			}
 			condition.Status = corev1.ConditionTrue
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", transferRunning)
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", transferRunning, heartBeat)
 		} else if strings.ToLower(val) == "false" {
-			if condition.Status != corev1.ConditionFalse {
+			if condition.Status != corev1.ConditionFalse || heartBeat.After(condition.LastHeartBeatTime.Time) {
 				condition.LastTransitionTime = metav1.Now()
+				condition.Message = anno[AnnLastTerminationMessage]
+				condition.Reason = anno[AnnRunningConditionReason]
+				condition.LastHeartBeatTime = metav1.NewTime(heartBeat)
 			}
 			condition.Status = corev1.ConditionFalse
 		} else {
-			if condition.Status != corev1.ConditionUnknown {
+			if condition.Status != corev1.ConditionUnknown || heartBeat.After(condition.LastHeartBeatTime.Time) {
 				condition.LastTransitionTime = metav1.Now()
+				condition.Message = anno[AnnLastTerminationMessage]
+				condition.Reason = anno[AnnRunningConditionReason]
+				condition.LastHeartBeatTime = metav1.NewTime(heartBeat)
 			}
 			condition.Status = corev1.ConditionUnknown
 		}
 	} else {
+		condition.Message = anno[AnnLastTerminationMessage]
+		condition.Reason = anno[AnnRunningConditionReason]
 		condition.LastTransitionTime = metav1.Now()
+		condition.LastHeartBeatTime = metav1.Now()
 		condition.Status = corev1.ConditionUnknown
-	}
-	if val, ok := anno[AnnRunningConditionReason]; ok {
-		condition.Reason = val
-	} else {
-		condition.Reason = ""
 	}
 	return conditions
 }
 
-func updateReadyCondition(conditions []cdiv1.DataVolumeCondition, status corev1.ConditionStatus, message, reason string) []cdiv1.DataVolumeCondition {
-	return updateCondition(conditions, cdiv1.DataVolumeReady, status, message, reason)
+func updateReadyCondition(conditions []cdiv1.DataVolumeCondition, status corev1.ConditionStatus, message, reason string, lastHeartBeat time.Time) []cdiv1.DataVolumeCondition {
+	return updateCondition(conditions, cdiv1.DataVolumeReady, status, message, reason, lastHeartBeat)
 }
 
 func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.PersistentVolumeClaim) []cdiv1.DataVolumeCondition {
@@ -123,6 +131,7 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 			condition.Status = corev1.ConditionTrue
 			condition.Message = "PVC Bound"
 			condition.Reason = pvcBound
+			condition.LastHeartBeatTime = metav1.Now()
 		case corev1.ClaimPending:
 			if condition.Reason != pvcPending {
 				condition.LastTransitionTime = metav1.Now()
@@ -130,7 +139,8 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 			condition.Status = corev1.ConditionFalse
 			condition.Message = "PVC Pending"
 			condition.Reason = pvcPending
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
+			condition.LastHeartBeatTime = metav1.Now()
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", "", time.Now())
 		case corev1.ClaimLost:
 			if condition.Reason != claimLost {
 				condition.LastTransitionTime = metav1.Now()
@@ -138,12 +148,14 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 			condition.Status = corev1.ConditionFalse
 			condition.Message = "Claim Lost"
 			condition.Reason = claimLost
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
+			condition.LastHeartBeatTime = metav1.Now()
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse, time.Now())
 		default:
 			condition.Status = corev1.ConditionUnknown
 			condition.Message = "PVC phase unknown"
 			condition.Reason = string(corev1.ConditionUnknown)
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
+			condition.LastHeartBeatTime = metav1.Now()
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse, time.Now())
 		}
 	} else {
 		if condition.Reason != notFound {
@@ -152,7 +164,8 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 		condition.Status = corev1.ConditionUnknown
 		condition.Message = "No PVC found"
 		condition.Reason = notFound
-		conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
+		condition.LastHeartBeatTime = metav1.Now()
+		conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse, time.Now())
 	}
 	return conditions
 }

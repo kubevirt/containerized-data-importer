@@ -659,7 +659,7 @@ func (r *DatavolumeReconciler) updateConditions(dataVolume *cdiv1.DataVolume, pv
 	}
 
 	dataVolume.Status.Conditions = updateBoundCondition(dataVolume.Status.Conditions, pvc)
-	dataVolume.Status.Conditions = updateReadyCondition(dataVolume.Status.Conditions, readyStatus, "", "")
+	dataVolume.Status.Conditions = updateReadyCondition(dataVolume.Status.Conditions, readyStatus, "", "", time.Now())
 	dataVolume.Status.Conditions = updateRunningCondition(dataVolume.Status.Conditions, anno)
 }
 

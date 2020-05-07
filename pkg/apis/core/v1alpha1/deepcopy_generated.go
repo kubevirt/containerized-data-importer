@@ -297,6 +297,7 @@ func (in *DataVolumeBlankImage) DeepCopy() *DataVolumeBlankImage {
 func (in *DataVolumeCondition) DeepCopyInto(out *DataVolumeCondition) {
 	*out = *in
 	in.LastTransitionTime.DeepCopyInto(&out.LastTransitionTime)
+	in.LastHeartBeatTime.DeepCopyInto(&out.LastHeartBeatTime)
 	return
 }
 

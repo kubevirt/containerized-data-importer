@@ -17,6 +17,8 @@ limitations under the License.
 package controller
 
 import (
+	"time"
+
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -59,7 +61,7 @@ var _ = Describe("updateRunningCondition", func() {
 
 	It("should have empty message if annotation is empty", func() {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
-		conditions = updateRunningCondition(conditions, map[string]string{AnnRunningConditionMessage: "", AnnRunningConditionReason: ""})
+		conditions = updateRunningCondition(conditions, map[string]string{AnnLastTerminationMessage: "", AnnRunningConditionReason: ""})
 		Expect(len(conditions)).To(Equal(1))
 		Expect(conditions[0].Type).To(Equal(cdiv1.DataVolumeRunning))
 		Expect(conditions[0].Message).To(BeEmpty())
@@ -69,7 +71,7 @@ var _ = Describe("updateRunningCondition", func() {
 
 	It("should properly escape message from annotation", func() {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
-		conditions = updateRunningCondition(conditions, map[string]string{AnnRunningConditionMessage: "this is a message with quotes \"", AnnRunningConditionReason: "this is a \" reason with \" quotes"})
+		conditions = updateRunningCondition(conditions, map[string]string{AnnLastTerminationMessage: "this is a message with quotes \"", AnnRunningConditionReason: "this is a \" reason with \" quotes"})
 		Expect(len(conditions)).To(Equal(1))
 		Expect(conditions[0].Type).To(Equal(cdiv1.DataVolumeRunning))
 		Expect(conditions[0].Message).To(Equal("this is a message with quotes \""))
@@ -99,7 +101,7 @@ var _ = Describe("updateRunningCondition", func() {
 var _ = Describe("updateReadyCondition", func() {
 	It("should create condition if it doesn't exist", func() {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
-		conditions = updateReadyCondition(conditions, corev1.ConditionTrue, "message", "reason")
+		conditions = updateReadyCondition(conditions, corev1.ConditionTrue, "message", "reason", time.Now())
 		Expect(len(conditions)).To(Equal(1))
 		Expect(conditions[0].Type).To(Equal(cdiv1.DataVolumeReady))
 		Expect(conditions[0].Message).To(Equal("message"))

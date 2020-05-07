@@ -61,10 +61,12 @@ const (
 	AnnDiskID = AnnAPIGroup + "/storage.import.diskId"
 	// AnnRunningCondition provides a const for the running condition
 	AnnRunningCondition = AnnAPIGroup + "/storage.condition.running"
-	// AnnRunningConditionMessage provides a const for the running condition
-	AnnRunningConditionMessage = AnnAPIGroup + "/storage.condition.running.message"
+	// AnnLastTerminationMessage provides a const for the running condition
+	AnnLastTerminationMessage = AnnAPIGroup + "/storage.condition.running.message"
 	// AnnRunningConditionReason provides a const for the running condition
-	AnnRunningConditionReason = AnnAPIGroup + "/storage.condition.running.reason"
+	AnnRunningConditionReason = AnnAPIGroup + "/storage.condition.termination.message"
+	// AnnRunningConditionHeartBeat provides a const for the running condition last heartbeat
+	AnnRunningConditionHeartBeat = AnnAPIGroup + "/storage.condition.running.heartbeat"
 
 	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
 	LabelImportPvc = AnnAPIGroup + "/storage.import.importPvcName"
@@ -256,9 +258,13 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		} else {
 			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message)
 			anno[AnnRunningCondition] = "false"
-			anno[AnnRunningConditionMessage] = pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message
+			anno[AnnLastTerminationMessage] = pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message
 			anno[AnnRunningConditionReason] = pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Reason
 		}
+	}
+
+	if pod.Status.ContainerStatuses != nil {
+		anno[AnnPodRestarts] = strconv.Itoa(int(pod.Status.ContainerStatuses[0].RestartCount))
 	}
 
 	anno[AnnImportPod] = string(pod.Name)
@@ -273,7 +279,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			}
 		}
 		anno[AnnRunningCondition] = "false"
-		anno[AnnRunningConditionMessage] = "Creating scratch space"
+		anno[AnnLastTerminationMessage] = "Creating scratch space"
 		anno[AnnRunningConditionReason] = creatingScratch
 	}
 	if !checkIfLabelExists(pvc, common.CDILabelKey, common.CDILabelValue) {

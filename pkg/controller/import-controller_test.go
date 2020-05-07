@@ -244,7 +244,7 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(errors.IsNotFound(err)).To(BeTrue())
 		Expect(resPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
-		Expect(resPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal("Import Completed"))
+		Expect(resPvc.GetAnnotations()[AnnLastTerminationMessage]).To(Equal("Import Completed"))
 		Expect(resPvc.GetAnnotations()[AnnRunningConditionReason]).To(Equal("Reason"))
 	})
 
@@ -280,8 +280,8 @@ var _ = Describe("Update PVC from POD", func() {
 		By("Making sure the label has been added")
 		Expect(resPvc.GetLabels()[common.CDILabelKey]).To(Equal(common.CDILabelValue))
 		Expect(resPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("true"))
-		Expect(resPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal(""))
-		Expect(resPvc.GetAnnotations()[AnnRunningConditionReason]).To(Equal("PodStarted"))
+		Expect(resPvc.GetAnnotations()[AnnLastTerminationMessage]).To(Equal(""))
+		Expect(resPvc.GetAnnotations()[AnnRunningConditionReason]).To(Equal("Pod is running"))
 	})
 
 	It("Should create scratch PVC, if pod is pending and PVC is marked with scratch", func() {
@@ -314,7 +314,7 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resPvc.GetAnnotations()[AnnImportPod]).To(Equal(pod.Name))
 		Expect(resPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
-		Expect(resPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal("Creating scratch space"))
+		Expect(resPvc.GetAnnotations()[AnnLastTerminationMessage]).To(Equal("Creating scratch space"))
 		Expect(resPvc.GetAnnotations()[AnnRunningConditionReason]).To(Equal(creatingScratch))
 
 	})
@@ -352,7 +352,7 @@ var _ = Describe("Update PVC from POD", func() {
 		event := <-reconciler.recorder.(*record.FakeRecorder).Events
 		Expect(event).To(ContainSubstring("I went poof"))
 		Expect(resPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
-		Expect(resPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal("I went poof"))
+		Expect(resPvc.GetAnnotations()[AnnLastTerminationMessage]).To(Equal("I went poof"))
 		Expect(resPvc.GetAnnotations()[AnnRunningConditionReason]).To(Equal("Explosion"))
 	})
 
@@ -385,7 +385,7 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()[AnnPodRestarts]).To(Equal("0"))
 		// No scratch space because the pod is not in pending.
 		Expect(resPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
-		Expect(resPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal("Creating scratch space"))
+		Expect(resPvc.GetAnnotations()[AnnLastTerminationMessage]).To(Equal("Creating scratch space"))
 		Expect(resPvc.GetAnnotations()[AnnRunningConditionReason]).To(Equal(creatingScratch))
 	})
 })

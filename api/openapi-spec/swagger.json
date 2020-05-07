@@ -3090,6 +3090,9 @@
      "status"
     ],
     "properties": {
+     "lastHeartBeatTime": {
+      "type": "string"
+     },
      "lastProbeTime": {
       "type": [
        "string",
