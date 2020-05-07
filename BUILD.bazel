@@ -54,6 +54,7 @@ container_bundle(
         "$(container_prefix)/cdi-uploadproxy:$(container_tag)": "//cmd/cdi-uploadproxy:cdi-uploadproxy-image",
         "$(container_prefix)/cdi-uploadserver:$(container_tag)": "//cmd/cdi-uploadserver:cdi-uploadserver-image",
         # test images
+        "$(container_prefix)/cdi-func-test-bad-webserver:$(container_tag)": "//tools/cdi-func-test-bad-webserver:cdi-func-test-bad-webserver-image",
         "$(container_prefix)/cdi-func-test-file-host-init:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-init-image",
         "$(container_prefix)/cdi-func-test-file-host-http:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-http-image",
         "$(container_prefix)/cdi-func-test-registry-init:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-init-image",
