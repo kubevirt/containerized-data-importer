@@ -190,6 +190,7 @@ The running and ready conditions are mutually exclusive, if running is true, the
 * Type (Ready/Bound/Running)
 * Status (True/False)
 * LastTransitionTime The timestamp when the last transition happened.
+* LastHeartbeatTime the timestamp the last time anything on the condition was updated.
 * Reason The reason the status transitioned to a new value, this is a camel cased single word, similar to an EventReason in events.
 * Message A detailed messages expanding on the reason of the transition. For instance if Running went from True to False, the reason will be the container exit reason, and the message will be the container exit message, which explains why the container exitted.
 

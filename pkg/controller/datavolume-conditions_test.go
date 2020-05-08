@@ -59,7 +59,7 @@ var _ = Describe("updateRunningCondition", func() {
 
 	It("should have empty message if annotation is empty", func() {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
-		conditions = updateRunningCondition(conditions, map[string]string{AnnLastTerminationMessage: "", AnnRunningConditionReason: ""})
+		conditions = updateRunningCondition(conditions, map[string]string{AnnLastTerminationMessage: "", AnnLastTerminationReason: ""})
 		Expect(len(conditions)).To(Equal(1))
 		Expect(conditions[0].Type).To(Equal(cdiv1.DataVolumeRunning))
 		Expect(conditions[0].Message).To(BeEmpty())
@@ -69,7 +69,7 @@ var _ = Describe("updateRunningCondition", func() {
 
 	It("should properly escape message from annotation", func() {
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
-		conditions = updateRunningCondition(conditions, map[string]string{AnnLastTerminationMessage: "this is a message with quotes \"", AnnRunningConditionReason: "this is a \" reason with \" quotes"})
+		conditions = updateRunningCondition(conditions, map[string]string{AnnLastTerminationMessage: "this is a message with quotes \"", AnnLastTerminationReason: "this is a \" reason with \" quotes"})
 		Expect(len(conditions)).To(Equal(1))
 		Expect(conditions[0].Type).To(Equal(cdiv1.DataVolumeRunning))
 		Expect(conditions[0].Message).To(Equal("this is a message with quotes \""))

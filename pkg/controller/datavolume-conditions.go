@@ -67,15 +67,15 @@ func updateCondition(conditions []cdiv1.DataVolumeCondition, conditionType cdiv1
 func updateRunningCondition(conditions []cdiv1.DataVolumeCondition, anno map[string]string) []cdiv1.DataVolumeCondition {
 	if val, ok := anno[AnnRunningCondition]; ok {
 		if strings.ToLower(val) == "true" {
-			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionTrue, anno[AnnLastTerminationMessage], anno[AnnRunningConditionReason])
+			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionTrue, anno[AnnLastTerminationMessage], anno[AnnLastTerminationReason])
 			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", transferRunning)
 		} else if strings.ToLower(val) == "false" {
-			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, anno[AnnLastTerminationMessage], anno[AnnRunningConditionReason])
+			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, anno[AnnLastTerminationMessage], anno[AnnLastTerminationReason])
 		} else {
-			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, anno[AnnLastTerminationMessage], anno[AnnRunningConditionReason])
+			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, anno[AnnLastTerminationMessage], anno[AnnLastTerminationReason])
 		}
 	} else {
-		conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, anno[AnnLastTerminationMessage], anno[AnnRunningConditionReason])
+		conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, anno[AnnLastTerminationMessage], anno[AnnLastTerminationReason])
 	}
 	return conditions
 }

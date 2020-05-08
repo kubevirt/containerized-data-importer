@@ -305,15 +305,15 @@ func setConditionFromPod(anno map[string]string, pod *v1.Pod) {
 		if pod.Status.ContainerStatuses[0].State.Running != nil {
 			anno[AnnRunningCondition] = "true"
 			anno[AnnLastTerminationMessage] = ""
-			anno[AnnRunningConditionReason] = podRunningdReason
+			anno[AnnLastTerminationReason] = podRunningdReason
 		} else {
 			anno[AnnRunningCondition] = "false"
 			if pod.Status.ContainerStatuses[0].State.Waiting != nil {
 				anno[AnnLastTerminationMessage] = pod.Status.ContainerStatuses[0].State.Waiting.Message
-				anno[AnnRunningConditionReason] = pod.Status.ContainerStatuses[0].State.Waiting.Reason
+				anno[AnnLastTerminationReason] = pod.Status.ContainerStatuses[0].State.Waiting.Reason
 			} else if pod.Status.ContainerStatuses[0].State.Terminated != nil {
 				anno[AnnLastTerminationMessage] = pod.Status.ContainerStatuses[0].State.Terminated.Message
-				anno[AnnRunningConditionReason] = pod.Status.ContainerStatuses[0].State.Terminated.Reason
+				anno[AnnLastTerminationReason] = pod.Status.ContainerStatuses[0].State.Terminated.Reason
 			}
 		}
 	}

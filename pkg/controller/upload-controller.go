@@ -301,7 +301,7 @@ func (r *UploadReconciler) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, 
 
 		anno[AnnRunningCondition] = "false"
 		anno[AnnLastTerminationMessage] = "Creating scratch space"
-		anno[AnnRunningConditionReason] = creatingScratch
+		anno[AnnLastTerminationReason] = creatingScratch
 
 		storageClassName := GetScratchPvcStorageClass(r.client, pvc)
 
