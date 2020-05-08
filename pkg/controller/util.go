@@ -52,8 +52,22 @@ const (
 	// AnnPrePopulated is a PVC annotation telling the datavolume controller that the PVC is already populated
 	AnnPrePopulated = AnnAPIGroup + "/storage.prePopulated"
 
+	// AnnRunningCondition provides a const for the running condition
+	AnnRunningCondition = AnnAPIGroup + "/storage.condition.running"
+	// AnnRunningConditionMessage provides a const for the running condition
+	AnnRunningConditionMessage = AnnAPIGroup + "/storage.condition.running.message"
+	// AnnRunningConditionReason provides a const for the running condition
+	AnnRunningConditionReason = AnnAPIGroup + "/storage.condition.running.reason"
+
+	// AnnScratchBoundCondition provides a const for the running condition
+	AnnScratchBoundCondition = AnnAPIGroup + "/storage.condition.bound"
+	// AnnScratchBoundConditionMessage provides a const for the running condition
+	AnnScratchBoundConditionMessage = AnnAPIGroup + "/storage.condition.bound.message"
+	// AnnScratchBoundConditionReason provides a const for the running condition
+	AnnScratchBoundConditionReason = AnnAPIGroup + "/storage.condition.bound.reason"
+
 	// PodRunningReason is const that defines the pod was started as a reason
-	podRunningdReason = "Pod is running"
+	podRunningReason = "Pod is running"
 )
 
 func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string, log logr.Logger) bool {
@@ -304,16 +318,16 @@ func setConditionFromPod(anno map[string]string, pod *v1.Pod) {
 	if pod.Status.ContainerStatuses != nil {
 		if pod.Status.ContainerStatuses[0].State.Running != nil {
 			anno[AnnRunningCondition] = "true"
-			anno[AnnLastTerminationMessage] = ""
-			anno[AnnLastTerminationReason] = podRunningdReason
+			anno[AnnRunningConditionMessage] = ""
+			anno[AnnRunningConditionReason] = podRunningReason
 		} else {
 			anno[AnnRunningCondition] = "false"
 			if pod.Status.ContainerStatuses[0].State.Waiting != nil {
-				anno[AnnLastTerminationMessage] = pod.Status.ContainerStatuses[0].State.Waiting.Message
-				anno[AnnLastTerminationReason] = pod.Status.ContainerStatuses[0].State.Waiting.Reason
+				anno[AnnRunningConditionMessage] = pod.Status.ContainerStatuses[0].State.Waiting.Message
+				anno[AnnRunningConditionReason] = pod.Status.ContainerStatuses[0].State.Waiting.Reason
 			} else if pod.Status.ContainerStatuses[0].State.Terminated != nil {
-				anno[AnnLastTerminationMessage] = pod.Status.ContainerStatuses[0].State.Terminated.Message
-				anno[AnnLastTerminationReason] = pod.Status.ContainerStatuses[0].State.Terminated.Reason
+				anno[AnnRunningConditionMessage] = pod.Status.ContainerStatuses[0].State.Terminated.Message
+				anno[AnnRunningConditionReason] = pod.Status.ContainerStatuses[0].State.Terminated.Reason
 			}
 		}
 	}

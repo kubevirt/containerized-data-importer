@@ -59,12 +59,6 @@ const (
 	AnnRequiresScratch = AnnAPIGroup + "/storage.import.requiresScratch"
 	// AnnDiskID provides a const for our PVC diskId annotation
 	AnnDiskID = AnnAPIGroup + "/storage.import.diskId"
-	// AnnRunningCondition provides a const for the running condition
-	AnnRunningCondition = AnnAPIGroup + "/storage.condition.running"
-	// AnnLastTerminationMessage provides a const for the running condition
-	AnnLastTerminationMessage = AnnAPIGroup + "/storage.condition.running.message"
-	// AnnLastTerminationReason provides a const for the running condition
-	AnnLastTerminationReason = AnnAPIGroup + "/storage.condition.termination.message"
 
 	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
 	LabelImportPvc = AnnAPIGroup + "/storage.import.importPvcName"
@@ -255,9 +249,6 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			anno[AnnRequiresScratch] = "true"
 		} else {
 			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message)
-			anno[AnnRunningCondition] = "false"
-			anno[AnnLastTerminationMessage] = pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message
-			anno[AnnLastTerminationReason] = pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Reason
 		}
 	}
 
@@ -276,10 +267,15 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 				return err
 			}
 		}
-		anno[AnnRunningCondition] = "false"
-		anno[AnnLastTerminationMessage] = "Creating scratch space"
-		anno[AnnLastTerminationReason] = creatingScratch
+		anno[AnnScratchBoundCondition] = "false"
+		anno[AnnScratchBoundConditionMessage] = "Creating scratch space"
+		anno[AnnScratchBoundConditionReason] = creatingScratch
+	} else {
+		delete(anno, AnnScratchBoundCondition)
+		delete(anno, AnnScratchBoundConditionMessage)
+		delete(anno, AnnScratchBoundConditionReason)
 	}
+
 	if !checkIfLabelExists(pvc, common.CDILabelKey, common.CDILabelValue) {
 		if pvc.GetLabels() == nil {
 			pvc.SetLabels(make(map[string]string, 0))

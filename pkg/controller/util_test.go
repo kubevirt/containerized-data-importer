@@ -181,7 +181,7 @@ var _ = Describe("setConditionFromPod", func() {
 		}
 		setConditionFromPod(result, testPod)
 		Expect(result[AnnRunningCondition]).To(Equal("true"))
-		Expect(result[AnnLastTerminationMessage]).To(Equal(""))
+		Expect(result[AnnRunningConditionReason]).To(Equal("Pod is running"))
 	})
 
 	It("Should follow pod container status, completed", func() {
@@ -201,8 +201,8 @@ var _ = Describe("setConditionFromPod", func() {
 		}
 		setConditionFromPod(result, testPod)
 		Expect(result[AnnRunningCondition]).To(Equal("false"))
-		Expect(result[AnnLastTerminationMessage]).To(Equal("The container completed"))
-		Expect(result[AnnLastTerminationReason]).To(Equal("Completed"))
+		Expect(result[AnnRunningConditionMessage]).To(Equal("The container completed"))
+		Expect(result[AnnRunningConditionReason]).To(Equal("Completed"))
 	})
 
 	It("Should follow pod container status, pending", func() {
@@ -222,8 +222,8 @@ var _ = Describe("setConditionFromPod", func() {
 		}
 		setConditionFromPod(result, testPod)
 		Expect(result[AnnRunningCondition]).To(Equal("false"))
-		Expect(result[AnnLastTerminationMessage]).To(Equal("container is waiting"))
-		Expect(result[AnnLastTerminationReason]).To(Equal("Pending"))
+		Expect(result[AnnRunningConditionMessage]).To(Equal("container is waiting"))
+		Expect(result[AnnRunningConditionReason]).To(Equal("Pending"))
 	})
 })
 

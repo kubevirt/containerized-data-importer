@@ -284,8 +284,8 @@ func newPvcFromSnapshot(snapshot *csisnapshotv1.VolumeSnapshot, dataVolume *cdiv
 	annotations[AnnSmartCloneRequest] = "true"
 	annotations[AnnCloneOf] = "true"
 	annotations[AnnRunningCondition] = string(corev1.ConditionFalse)
-	annotations[AnnLastTerminationMessage] = cloneComplete
-	annotations[AnnLastTerminationReason] = "Completed"
+	annotations[AnnRunningConditionMessage] = cloneComplete
+	annotations[AnnRunningConditionReason] = "Completed"
 
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
