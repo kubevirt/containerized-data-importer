@@ -132,7 +132,7 @@ Environment Variables and Supported Values
 | Env Variable       | Default       | Additional Values           |
 |--------------------|---------------|-----------------------------|
 |KUBEVIRT_PROVIDER   | k8s-1.16      | k8s-1.17, os-3.11.0-crio,   |
-|KUBEVIRT_STORAGE*   | none          | ceph, hpp                   |
+|KUBEVIRT_STORAGE*   | none          | ceph, hpp, nfs, ember_lvm   |
 |KUBEVIRT_PROVIDER_EXTRA_ARGS |      |                             |
 |NUM_NODES           | 1             | 2-5                         |
 
