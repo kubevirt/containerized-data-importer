@@ -59,12 +59,19 @@ const (
 	// AnnRunningConditionReason provides a const for the running condition
 	AnnRunningConditionReason = AnnAPIGroup + "/storage.condition.running.reason"
 
-	// AnnScratchBoundCondition provides a const for the running condition
-	AnnScratchBoundCondition = AnnAPIGroup + "/storage.condition.bound"
-	// AnnScratchBoundConditionMessage provides a const for the running condition
-	AnnScratchBoundConditionMessage = AnnAPIGroup + "/storage.condition.bound.message"
-	// AnnScratchBoundConditionReason provides a const for the running condition
-	AnnScratchBoundConditionReason = AnnAPIGroup + "/storage.condition.bound.reason"
+	// AnnBoundCondition provides a const for the running condition
+	AnnBoundCondition = AnnAPIGroup + "/storage.condition.bound"
+	// AnnBoundConditionMessage provides a const for the running condition
+	AnnBoundConditionMessage = AnnAPIGroup + "/storage.condition.bound.message"
+	// AnnBoundConditionReason provides a const for the running condition
+	AnnBoundConditionReason = AnnAPIGroup + "/storage.condition.bound.reason"
+
+	// AnnSourceRunningCondition provides a const for the running condition
+	AnnSourceRunningCondition = AnnAPIGroup + "/storage.condition.source.running"
+	// AnnSourceRunningConditionMessage provides a const for the running condition
+	AnnSourceRunningConditionMessage = AnnAPIGroup + "/storage.condition.source.running.message"
+	// AnnSourceRunningConditionReason provides a const for the running condition
+	AnnSourceRunningConditionReason = AnnAPIGroup + "/storage.condition.source.running.reason"
 
 	// PodRunningReason is const that defines the pod was started as a reason
 	podRunningReason = "Pod is running"
@@ -314,21 +321,46 @@ func podSucceededFromPVC(pvc *v1.PersistentVolumeClaim) bool {
 	return (podPhaseFromPVC(pvc) == v1.PodSucceeded)
 }
 
-func setConditionFromPod(anno map[string]string, pod *v1.Pod) {
+func setConditionFromPodWithPrefix(anno map[string]string, prefix string, pod *v1.Pod) {
 	if pod.Status.ContainerStatuses != nil {
 		if pod.Status.ContainerStatuses[0].State.Running != nil {
-			anno[AnnRunningCondition] = "true"
-			anno[AnnRunningConditionMessage] = ""
-			anno[AnnRunningConditionReason] = podRunningReason
+			anno[prefix] = "true"
+			anno[prefix+".message"] = ""
+			anno[prefix+".reason"] = podRunningReason
 		} else {
 			anno[AnnRunningCondition] = "false"
 			if pod.Status.ContainerStatuses[0].State.Waiting != nil {
-				anno[AnnRunningConditionMessage] = pod.Status.ContainerStatuses[0].State.Waiting.Message
-				anno[AnnRunningConditionReason] = pod.Status.ContainerStatuses[0].State.Waiting.Reason
+				anno[prefix+".message"] = pod.Status.ContainerStatuses[0].State.Waiting.Message
+				anno[prefix+".reason"] = pod.Status.ContainerStatuses[0].State.Waiting.Reason
 			} else if pod.Status.ContainerStatuses[0].State.Terminated != nil {
-				anno[AnnRunningConditionMessage] = pod.Status.ContainerStatuses[0].State.Terminated.Message
-				anno[AnnRunningConditionReason] = pod.Status.ContainerStatuses[0].State.Terminated.Reason
+				anno[prefix+".message"] = pod.Status.ContainerStatuses[0].State.Terminated.Message
+				anno[prefix+".reason"] = pod.Status.ContainerStatuses[0].State.Terminated.Reason
 			}
 		}
+	}
+}
+
+func setConditionFromPod(anno map[string]string, pod *v1.Pod) {
+	setConditionFromPodWithPrefix(anno, AnnRunningCondition, pod)
+}
+
+func setBoundConditionFromPVC(anno map[string]string, prefix string, pvc *v1.PersistentVolumeClaim) {
+	switch pvc.Status.Phase {
+	case v1.ClaimBound:
+		anno[prefix] = "true"
+		anno[prefix+".message"] = ""
+		anno[prefix+".reason"] = ""
+	case v1.ClaimPending:
+		anno[prefix] = "false"
+		anno[prefix+".message"] = "Claim Pending"
+		anno[prefix+".reason"] = "Claim Pending"
+	case v1.ClaimLost:
+		anno[prefix] = "false"
+		anno[prefix+".message"] = claimLost
+		anno[prefix+".reason"] = claimLost
+	default:
+		anno[prefix] = "false"
+		anno[prefix+".message"] = "Unknown"
+		anno[prefix+".reason"] = "Unknown"
 	}
 }

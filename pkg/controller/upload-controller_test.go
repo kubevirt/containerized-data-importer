@@ -339,9 +339,9 @@ var _ = Describe("Update PVC", func() {
 		Expect(actualPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
 		Expect(actualPvc.GetAnnotations()[AnnRunningConditionMessage]).To(BeEmpty())
 		Expect(actualPvc.GetAnnotations()[AnnRunningConditionReason]).To(BeEmpty())
-		Expect(actualPvc.GetAnnotations()[AnnScratchBoundCondition]).To(Equal("false"))
-		Expect(actualPvc.GetAnnotations()[AnnScratchBoundConditionMessage]).To(Equal("Creating scratch space"))
-		Expect(actualPvc.GetAnnotations()[AnnScratchBoundConditionReason]).To(Equal(creatingScratch))
+		Expect(actualPvc.GetAnnotations()[AnnBoundCondition]).To(Equal("false"))
+		Expect(actualPvc.GetAnnotations()[AnnBoundConditionMessage]).To(Equal("Creating scratch space"))
+		Expect(actualPvc.GetAnnotations()[AnnBoundConditionReason]).To(Equal(creatingScratch))
 	})
 
 	It("Should not update AnnPodRestarts on pvc from pod if pod has lower restart count value ", func() {
@@ -380,9 +380,9 @@ var _ = Describe("Update PVC", func() {
 		Expect(actualPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
 		Expect(actualPvc.GetAnnotations()[AnnRunningConditionMessage]).To(BeEmpty())
 		Expect(actualPvc.GetAnnotations()[AnnRunningConditionReason]).To(BeEmpty())
-		Expect(actualPvc.GetAnnotations()[AnnScratchBoundCondition]).To(Equal("false"))
-		Expect(actualPvc.GetAnnotations()[AnnScratchBoundConditionMessage]).To(Equal("Creating scratch space"))
-		Expect(actualPvc.GetAnnotations()[AnnScratchBoundConditionReason]).To(Equal(creatingScratch))
+		Expect(actualPvc.GetAnnotations()[AnnBoundCondition]).To(Equal("false"))
+		Expect(actualPvc.GetAnnotations()[AnnBoundConditionMessage]).To(Equal("Creating scratch space"))
+		Expect(actualPvc.GetAnnotations()[AnnBoundConditionReason]).To(Equal(creatingScratch))
 	})
 })
 

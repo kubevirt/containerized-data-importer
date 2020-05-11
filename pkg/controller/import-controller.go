@@ -267,13 +267,14 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 				return err
 			}
 		}
-		anno[AnnScratchBoundCondition] = "false"
-		anno[AnnScratchBoundConditionMessage] = "Creating scratch space"
-		anno[AnnScratchBoundConditionReason] = creatingScratch
+		anno[AnnBoundCondition] = "false"
+		anno[AnnBoundConditionMessage] = "Creating scratch space"
+		anno[AnnBoundConditionReason] = creatingScratch
 	} else {
-		delete(anno, AnnScratchBoundCondition)
-		delete(anno, AnnScratchBoundConditionMessage)
-		delete(anno, AnnScratchBoundConditionReason)
+		// No scratch space, or scratch space is bound, remove annotation
+		delete(anno, AnnBoundCondition)
+		delete(anno, AnnBoundConditionMessage)
+		delete(anno, AnnBoundConditionReason)
 	}
 
 	if !checkIfLabelExists(pvc, common.CDILabelKey, common.CDILabelValue) {

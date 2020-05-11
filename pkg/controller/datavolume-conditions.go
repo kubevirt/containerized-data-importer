@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"fmt"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -67,10 +68,33 @@ func updateCondition(conditions []cdiv1.DataVolumeCondition, conditionType cdiv1
 func updateRunningCondition(conditions []cdiv1.DataVolumeCondition, anno map[string]string) []cdiv1.DataVolumeCondition {
 	if val, ok := anno[AnnRunningCondition]; ok {
 		if strings.ToLower(val) == "true" {
-			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionTrue, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", transferRunning)
+			if sourceRunningVal, ok := anno[AnnSourceRunningCondition]; ok {
+				if strings.ToLower(sourceRunningVal) == "true" {
+					conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionTrue, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
+					conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", transferRunning)
+				} else if strings.ToLower(sourceRunningVal) == "false" {
+					// target running, source not running, overall not running.
+					conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, anno[AnnSourceRunningConditionMessage], anno[AnnSourceRunningConditionReason])
+				} else {
+					conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, anno[AnnSourceRunningConditionMessage], anno[AnnSourceRunningConditionReason])
+				}
+			} else {
+				conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionTrue, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
+				conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", transferRunning)
+			}
 		} else if strings.ToLower(val) == "false" {
-			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
+			if sourceRunningVal, ok := anno[AnnSourceRunningCondition]; ok {
+				if strings.ToLower(sourceRunningVal) == "true" {
+					conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
+				} else if strings.ToLower(sourceRunningVal) == "false" {
+					// target not running and source not running, overall not running.
+					conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, fmt.Sprintf("%s and %s", anno[AnnRunningConditionMessage], anno[AnnSourceRunningConditionMessage]), fmt.Sprintf("%s and %s", anno[AnnRunningConditionReason], anno[AnnSourceRunningConditionReason]))
+				} else {
+					conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, fmt.Sprintf("%s and %s", anno[AnnRunningConditionMessage], anno[AnnSourceRunningConditionMessage]), fmt.Sprintf("%s and %s", anno[AnnRunningConditionReason], anno[AnnSourceRunningConditionReason]))
+				}
+			} else {
+				conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
+			}
 		} else {
 			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
 		}
@@ -86,12 +110,23 @@ func updateReadyCondition(conditions []cdiv1.DataVolumeCondition, status corev1.
 
 func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.PersistentVolumeClaim) []cdiv1.DataVolumeCondition {
 	if pvc != nil {
+		pvcCondition := getPVCCondition(pvc.GetAnnotations())
 		switch pvc.Status.Phase {
 		case corev1.ClaimBound:
-			conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionTrue, "PVC Bound", pvcBound)
+			if pvcCondition == nil || pvcCondition.Status == corev1.ConditionTrue {
+				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionTrue, "PVC Bound", pvcBound)
+			} else {
+				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, pvcCondition.Message, pvcCondition.Reason)
+				conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", "")
+			}
 		case corev1.ClaimPending:
-			conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, "PVC Pending", pvcPending)
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", "")
+			if pvcCondition == nil || pvcCondition.Status == corev1.ConditionTrue {
+				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, "PVC Pending", pvcPending)
+				conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", "")
+			} else {
+				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("target PVC Pending and %s", pvcCondition.Message), pvcPending)
+				conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", "")
+			}
 		case corev1.ClaimLost:
 			conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, "Claim Lost", claimLost)
 			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
@@ -104,4 +139,21 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 		conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
 	}
 	return conditions
+}
+
+func getPVCCondition(anno map[string]string) *cdiv1.DataVolumeCondition {
+	if val, ok := anno[AnnBoundCondition]; ok {
+		status := corev1.ConditionUnknown
+		if strings.ToLower(val) == "true" {
+			status = corev1.ConditionTrue
+		} else if strings.ToLower(val) == "false" {
+			status = corev1.ConditionFalse
+		}
+		return &cdiv1.DataVolumeCondition{
+			Message: anno[AnnBoundConditionMessage],
+			Reason:  anno[AnnBoundConditionReason],
+			Status:  status,
+		}
+	}
+	return nil
 }

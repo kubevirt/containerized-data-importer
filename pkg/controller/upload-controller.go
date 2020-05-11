@@ -301,18 +301,18 @@ func (r *UploadReconciler) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, 
 
 		storageClassName := GetScratchPvcStorageClass(r.client, pvc)
 
-		anno[AnnScratchBoundCondition] = "false"
-		anno[AnnScratchBoundConditionMessage] = "Creating scratch space"
-		anno[AnnScratchBoundConditionReason] = creatingScratch
+		anno[AnnBoundCondition] = "false"
+		anno[AnnBoundConditionMessage] = "Creating scratch space"
+		anno[AnnBoundConditionReason] = creatingScratch
 		// Scratch PVC doesn't exist yet, create it.
 		scratchPvc, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, name, storageClassName)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		delete(anno, AnnScratchBoundCondition)
-		delete(anno, AnnScratchBoundConditionMessage)
-		delete(anno, AnnScratchBoundConditionReason)
+		delete(anno, AnnBoundCondition)
+		delete(anno, AnnBoundConditionMessage)
+		delete(anno, AnnBoundConditionReason)
 	}
 
 	if !metav1.IsControlledBy(scratchPvc, pod) {

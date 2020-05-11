@@ -223,6 +223,7 @@ func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.Pe
 		if podRestarts > annPodRestarts {
 			pvc.Annotations[AnnPodRestarts] = strconv.Itoa(podRestarts)
 		}
+		setConditionFromPodWithPrefix(pvc.Annotations, AnnSourceRunningCondition, sourcePod)
 	}
 
 	if !reflect.DeepEqual(currentPvcCopy, pvc) {
@@ -299,7 +300,13 @@ func (r *CloneReconciler) validateSourceAndTarget(targetPvc *corev1.PersistentVo
 		return err
 	}
 
-	return ValidateCanCloneSourceAndTargetSpec(&sourcePvc.Spec, &targetPvc.Spec)
+	err = ValidateCanCloneSourceAndTargetSpec(&sourcePvc.Spec, &targetPvc.Spec)
+	if err == nil {
+		// Validation complete, put source PVC bound status in annotation
+		setBoundConditionFromPVC(targetPvc.GetAnnotations(), AnnSourceRunningCondition, sourcePvc)
+		return nil
+	}
+	return err
 }
 
 func (r *CloneReconciler) addFinalizer(pvc *corev1.PersistentVolumeClaim, name string) *corev1.PersistentVolumeClaim {
