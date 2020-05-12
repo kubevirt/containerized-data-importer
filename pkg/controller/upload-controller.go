@@ -53,6 +53,9 @@ const (
 	// AnnUploadClientName is the TLS name uploadserver will accept requests from
 	AnnUploadClientName = "cdi.kubevirt.io/uploadClientName"
 
+	// AnnUploadPod name of the upload pod
+	AnnUploadPod = "cdi.kubevirt.io/storage.uploadPodName"
+
 	annCreatedByUpload = "cdi.kubevirt.io/storage.createdByUploadController"
 
 	uploadServerClientName = "client.upload-server.cdi.kubevirt.io"
@@ -110,8 +113,11 @@ func (r *UploadReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 
 	// force cleanup if PVC pending delete and pod running or the upload/clone annotation was removed
 	if (!isUpload && !isCloneTarget) || podSucceededFromPVC(pvc) || pvc.DeletionTimestamp != nil {
-		log.V(1).Info("not doing anything with PVC", "isUpload", isUpload, "isCloneTarget", isCloneTarget, "podSucceededFromPVC",
-			podSucceededFromPVC(pvc), "deletionTimeStamp set?", pvc.DeletionTimestamp != nil)
+		log.V(1).Info("not doing anything with PVC",
+			"isUpload", isUpload,
+			"isCloneTarget", isCloneTarget,
+			"podSucceededFromPVC", podSucceededFromPVC(pvc),
+			"deletionTimeStamp set?", pvc.DeletionTimestamp != nil)
 		if err := r.cleanup(pvc); err != nil {
 			return reconcile.Result{}, err
 		}
@@ -142,18 +148,39 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		anno[AnnUploadClientName] = uploadClientName
 	} else {
 		uploadClientName = uploadServerClientName
-
 		scratchPVCName = getScratchPvcName(pvc.Name)
 	}
 
-	resourceName := getUploadResourceName(pvc.Name)
-
-	pod, err := r.getOrCreateUploadPod(pvcCopy, resourceName, scratchPVCName, uploadClientName)
+	pod, err := r.findUploadPodForPvc(pvc, log)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	svcName := naming.GetServiceNameFromResourceName(resourceName)
+	if pod == nil {
+		podName, ok := pvc.Annotations[AnnUploadPod]
+
+		if !ok {
+			podName = createUploadResourceName(pvc.Name)
+			if err := r.updatePvcPodName(pvc, podName, log); err != nil {
+				return reconcile.Result{}, err
+			}
+			return reconcile.Result{}, nil
+		}
+		pod, err = r.createUploadPodForPvc(pvc, podName, scratchPVCName, uploadClientName)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
+	// Always try to get or create the scratch PVC for a pod that is not successful yet, if it exists nothing happens otherwise attempt to create.
+	if scratchPVCName != "" {
+		_, err := r.getOrCreateScratchPvc(pvcCopy, pod, scratchPVCName)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
+	svcName := naming.GetServiceNameFromResourceName(pod.Name)
 	if _, err = r.getOrCreateUploadService(pvc, svcName); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -184,6 +211,22 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 	}
 
 	return reconcile.Result{}, nil
+}
+
+func (r *UploadReconciler) updatePvcPodName(pvc *corev1.PersistentVolumeClaim, podName string, log logr.Logger) error {
+	currentPvcCopy := pvc.DeepCopyObject()
+
+	log.V(1).Info("Updating PVC from pod")
+	anno := pvc.GetAnnotations()
+	anno[AnnUploadPod] = podName
+
+	if !reflect.DeepEqual(currentPvcCopy, pvc) {
+		if err := r.updatePVC(pvc); err != nil {
+			return err
+		}
+		log.V(1).Info("Updated PVC", "pvc.anno.AnnImportPod", anno[AnnUploadPod])
+	}
+	return nil
 }
 
 func (r *UploadReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim) error {
@@ -219,7 +262,7 @@ func (r *UploadReconciler) getCloneRequestSourcePVC(targetPvc *corev1.Persistent
 }
 
 func (r *UploadReconciler) cleanup(pvc *v1.PersistentVolumeClaim) error {
-	resourceName := getUploadResourceName(pvc.Name)
+	resourceName := getUploadResourceNameFromPvc(pvc)
 	svcName := naming.GetServiceNameFromResourceName(resourceName)
 
 	// delete service
@@ -242,51 +285,50 @@ func (r *UploadReconciler) cleanup(pvc *v1.PersistentVolumeClaim) error {
 	}
 	return nil
 }
-
-func (r *UploadReconciler) getOrCreateUploadPod(pvc *v1.PersistentVolumeClaim, podName, scratchPVCName, clientName string) (*v1.Pod, error) {
+func (r *UploadReconciler) findUploadPodForPvc(pvc *v1.PersistentVolumeClaim, log logr.Logger) (*v1.Pod, error) {
+	podName := getUploadResourceNameFromPvc(pvc)
 	pod := &corev1.Pod{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: pvc.Namespace}, pod); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			return nil, errors.Wrapf(err, "error getting upload pod %s/%s", pvc.Namespace, podName)
 		}
-
-		serverCert, serverKey, err := r.serverCertGenerator.MakeServerCert(pvc.Namespace, naming.GetServiceNameFromResourceName(podName), uploadServerCertDuration)
-		if err != nil {
-			return nil, err
-		}
-
-		clientCA, err := r.clientCAFetcher.BundleBytes()
-		if err != nil {
-			return nil, err
-		}
-
-		args := UploadPodArgs{
-			Name:           podName,
-			PVC:            pvc,
-			ScratchPVCName: scratchPVCName,
-			ClientName:     clientName,
-			ServerCert:     serverCert,
-			ServerKey:      serverKey,
-			ClientCA:       clientCA,
-		}
-
-		r.log.V(3).Info("Creating upload pod")
-		pod, err = r.createUploadPod(args)
-		if err != nil {
-			return nil, err
-		}
+		return nil, nil
 	}
 
 	if !metav1.IsControlledBy(pod, pvc) {
 		return nil, errors.Errorf("%s pod not controlled by pvc %s", podName, pvc.Name)
 	}
 
-	// Always try to get or create the scratch PVC for a pod that is not successful yet, if it exists nothing happens otherwise attempt to create.
-	if scratchPVCName != "" {
-		_, err := r.getOrCreateScratchPvc(pvc, pod, scratchPVCName)
-		if err != nil {
-			return nil, err
-		}
+	return pod, nil
+}
+
+func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, podName, scratchPVCName, clientName string) (*v1.Pod, error) {
+	pod := &corev1.Pod{}
+
+	serverCert, serverKey, err := r.serverCertGenerator.MakeServerCert(pvc.Namespace, naming.GetServiceNameFromResourceName(podName), uploadServerCertDuration)
+	if err != nil {
+		return nil, err
+	}
+
+	clientCA, err := r.clientCAFetcher.BundleBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	args := UploadPodArgs{
+		Name:           podName,
+		PVC:            pvc,
+		ScratchPVCName: scratchPVCName,
+		ClientName:     clientName,
+		ServerCert:     serverCert,
+		ServerKey:      serverKey,
+		ClientCA:       clientCA,
+	}
+
+	r.log.V(3).Info("Creating upload pod")
+	pod, err = r.createUploadPod(args)
+	if err != nil {
+		return nil, err
 	}
 
 	return pod, nil
@@ -502,7 +544,19 @@ func getScratchPvcName(name string) string {
 }
 
 // getUploadResourceName returns the name given to upload resources
-func getUploadResourceName(name string) string {
+func getUploadResourceNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
+	podName, ok := pvc.Annotations[AnnUploadPod]
+	if ok {
+		return podName
+	}
+
+	// fallback to legacy naming, in fact the following function is fully compatible with legacy
+	// name concatenation "cdi-upload-{pvc.Name}" if the name length is under the size limits,
+	return naming.GetResourceName("cdi-upload", pvc.Name)
+}
+
+// getUploadResourceName returns the name given to upload resources
+func createUploadResourceName(name string) string {
 	return naming.GetResourceName("cdi-upload", name)
 }
 
@@ -516,7 +570,7 @@ func UploadPossibleForPVC(pvc *v1.PersistentVolumeClaim) error {
 
 // GetUploadServerURL returns the url the proxy should post to for a particular pvc
 func GetUploadServerURL(namespace, pvc, uploadPath string) string {
-	serviceName := naming.GetServiceNameFromResourceName(getUploadResourceName(pvc))
+	serviceName := naming.GetServiceNameFromResourceName(createUploadResourceName(pvc))
 	return fmt.Sprintf("https://%s.%s.svc%s", serviceName, namespace, uploadPath)
 }
 
