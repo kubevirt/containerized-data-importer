@@ -310,13 +310,10 @@ func (r *UploadReconciler) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, 
 			return nil, err
 		}
 	} else {
-		delete(anno, AnnBoundCondition)
-		delete(anno, AnnBoundConditionMessage)
-		delete(anno, AnnBoundConditionReason)
-	}
-
-	if !metav1.IsControlledBy(scratchPvc, pod) {
-		return nil, errors.Errorf("%s scratch PVC not controlled by pod %s", scratchPvc.Name, pod.Name)
+		if !metav1.IsControlledBy(scratchPvc, pod) {
+			return nil, errors.Errorf("%s scratch PVC not controlled by pod %s", scratchPvc.Name, pod.Name)
+		}
+		setBoundConditionFromPVC(anno, AnnBoundCondition, scratchPvc)
 	}
 
 	return scratchPvc, nil

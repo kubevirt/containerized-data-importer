@@ -267,9 +267,6 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 				return err
 			}
 		}
-		anno[AnnBoundCondition] = "false"
-		anno[AnnBoundConditionMessage] = "Creating scratch space"
-		anno[AnnBoundConditionReason] = creatingScratch
 	} else {
 		// No scratch space, or scratch space is bound, remove annotation
 		delete(anno, AnnBoundCondition)
@@ -479,6 +476,7 @@ func (r *ImportReconciler) requiresScratchSpace(pvc *corev1.PersistentVolumeClai
 
 func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod) error {
 	scratchPvc := &corev1.PersistentVolumeClaim{}
+	anno := pvc.GetAnnotations()
 	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: pvc.GetNamespace(), Name: scratchNameFromPvc(pvc)}, scratchPvc)
 	if IgnoreNotFound(err) != nil {
 		return err
@@ -491,6 +489,11 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 		if err != nil {
 			return err
 		}
+		anno[AnnBoundCondition] = "false"
+		anno[AnnBoundConditionMessage] = "Creating scratch space"
+		anno[AnnBoundConditionReason] = creatingScratch
+	} else {
+		setBoundConditionFromPVC(anno, AnnBoundCondition, scratchPvc)
 	}
 	return nil
 }
