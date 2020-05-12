@@ -303,7 +303,7 @@ func (r *CloneReconciler) validateSourceAndTarget(targetPvc *corev1.PersistentVo
 	err = ValidateCanCloneSourceAndTargetSpec(&sourcePvc.Spec, &targetPvc.Spec)
 	if err == nil {
 		// Validation complete, put source PVC bound status in annotation
-		setBoundConditionFromPVC(targetPvc.GetAnnotations(), AnnSourceRunningCondition, sourcePvc)
+		setBoundConditionFromPVC(targetPvc.GetAnnotations(), AnnBoundCondition, sourcePvc)
 		return nil
 	}
 	return err

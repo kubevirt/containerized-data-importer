@@ -340,10 +340,6 @@ func setConditionFromPodWithPrefix(anno map[string]string, prefix string, pod *v
 	}
 }
 
-func setConditionFromPod(anno map[string]string, pod *v1.Pod) {
-	setConditionFromPodWithPrefix(anno, AnnRunningCondition, pod)
-}
-
 func setBoundConditionFromPVC(anno map[string]string, prefix string, pvc *v1.PersistentVolumeClaim) {
 	switch pvc.Status.Phase {
 	case v1.ClaimBound:

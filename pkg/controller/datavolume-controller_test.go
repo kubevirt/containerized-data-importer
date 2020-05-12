@@ -385,14 +385,16 @@ func boundStatusByPVCPhase(pvcPhase corev1.PersistentVolumeClaimPhase) corev1.Co
 }
 
 func boundMessageByPVCPhase(pvcPhase corev1.PersistentVolumeClaimPhase) string {
-	if pvcPhase == corev1.ClaimBound {
+	switch pvcPhase {
+	case corev1.ClaimBound:
 		return "PVC Bound"
-	} else if pvcPhase == corev1.ClaimPending {
+	case corev1.ClaimPending:
 		return "PVC Pending"
-	} else if pvcPhase == corev1.ClaimLost {
+	case corev1.ClaimLost:
 		return "Claim Lost"
+	default:
+		return "No PVC found"
 	}
-	return "No PVC found"
 }
 
 func readyStatusByPhase(phase cdiv1.DataVolumePhase) corev1.ConditionStatus {

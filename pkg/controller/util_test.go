@@ -179,7 +179,7 @@ var _ = Describe("setConditionFromPod", func() {
 				},
 			},
 		}
-		setConditionFromPod(result, testPod)
+		setConditionFromPodWithPrefix(result, AnnRunningCondition, testPod)
 		Expect(result[AnnRunningCondition]).To(Equal("true"))
 		Expect(result[AnnRunningConditionReason]).To(Equal("Pod is running"))
 	})
@@ -199,7 +199,7 @@ var _ = Describe("setConditionFromPod", func() {
 				},
 			},
 		}
-		setConditionFromPod(result, testPod)
+		setConditionFromPodWithPrefix(result, AnnRunningCondition, testPod)
 		Expect(result[AnnRunningCondition]).To(Equal("false"))
 		Expect(result[AnnRunningConditionMessage]).To(Equal("The container completed"))
 		Expect(result[AnnRunningConditionReason]).To(Equal("Completed"))
@@ -220,7 +220,7 @@ var _ = Describe("setConditionFromPod", func() {
 				},
 			},
 		}
-		setConditionFromPod(result, testPod)
+		setConditionFromPodWithPrefix(result, AnnRunningCondition, testPod)
 		Expect(result[AnnRunningCondition]).To(Equal("false"))
 		Expect(result[AnnRunningConditionMessage]).To(Equal("container is waiting"))
 		Expect(result[AnnRunningConditionReason]).To(Equal("Pending"))

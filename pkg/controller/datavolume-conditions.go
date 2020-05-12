@@ -67,39 +67,52 @@ func updateCondition(conditions []cdiv1.DataVolumeCondition, conditionType cdiv1
 
 func updateRunningCondition(conditions []cdiv1.DataVolumeCondition, anno map[string]string) []cdiv1.DataVolumeCondition {
 	if val, ok := anno[AnnRunningCondition]; ok {
-		if strings.ToLower(val) == "true" {
-			if sourceRunningVal, ok := anno[AnnSourceRunningCondition]; ok {
-				if strings.ToLower(sourceRunningVal) == "true" {
-					conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionTrue, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
-					conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", transferRunning)
-				} else if strings.ToLower(sourceRunningVal) == "false" {
-					// target running, source not running, overall not running.
-					conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, anno[AnnSourceRunningConditionMessage], anno[AnnSourceRunningConditionReason])
-				} else {
-					conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, anno[AnnSourceRunningConditionMessage], anno[AnnSourceRunningConditionReason])
-				}
-			} else {
-				conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionTrue, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
-				conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", transferRunning)
-			}
-		} else if strings.ToLower(val) == "false" {
-			if sourceRunningVal, ok := anno[AnnSourceRunningCondition]; ok {
-				if strings.ToLower(sourceRunningVal) == "true" {
-					conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
-				} else if strings.ToLower(sourceRunningVal) == "false" {
-					// target not running and source not running, overall not running.
-					conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, fmt.Sprintf("%s and %s", anno[AnnRunningConditionMessage], anno[AnnSourceRunningConditionMessage]), fmt.Sprintf("%s and %s", anno[AnnRunningConditionReason], anno[AnnSourceRunningConditionReason]))
-				} else {
-					conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, fmt.Sprintf("%s and %s", anno[AnnRunningConditionMessage], anno[AnnSourceRunningConditionMessage]), fmt.Sprintf("%s and %s", anno[AnnRunningConditionReason], anno[AnnSourceRunningConditionReason]))
-				}
-			} else {
-				conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
-			}
-		} else {
+		switch strings.ToLower(val) {
+		case "true":
+			conditions = updateWithTargetRunning(conditions, anno)
+		case "false":
+			conditions = updateWithTargetNotRunning(conditions, anno)
+		default:
 			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
 		}
 	} else {
 		conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
+	}
+	return conditions
+}
+
+func updateWithTargetRunning(conditions []cdiv1.DataVolumeCondition, anno map[string]string) []cdiv1.DataVolumeCondition {
+	if sourceRunningVal, ok := anno[AnnSourceRunningCondition]; ok {
+		switch strings.ToLower(sourceRunningVal) {
+		case "true":
+			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionTrue, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", transferRunning)
+		case "false":
+			// target running, source not running, overall not running.
+			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, anno[AnnSourceRunningConditionMessage], anno[AnnSourceRunningConditionReason])
+		default:
+			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, anno[AnnSourceRunningConditionMessage], anno[AnnSourceRunningConditionReason])
+		}
+	} else {
+		conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionTrue, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
+		conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", transferRunning)
+	}
+	return conditions
+}
+
+func updateWithTargetNotRunning(conditions []cdiv1.DataVolumeCondition, anno map[string]string) []cdiv1.DataVolumeCondition {
+	if sourceRunningVal, ok := anno[AnnSourceRunningCondition]; ok {
+		switch strings.ToLower(sourceRunningVal) {
+		case "true":
+			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
+		case "false":
+			// target not running and source not running, overall not running.
+			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, fmt.Sprintf("%s and %s", anno[AnnRunningConditionMessage], anno[AnnSourceRunningConditionMessage]), fmt.Sprintf("%s and %s", anno[AnnRunningConditionReason], anno[AnnSourceRunningConditionReason]))
+		default:
+			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, fmt.Sprintf("%s and %s", anno[AnnRunningConditionMessage], anno[AnnSourceRunningConditionMessage]), fmt.Sprintf("%s and %s", anno[AnnRunningConditionReason], anno[AnnSourceRunningConditionReason]))
+		}
+	} else {
+		conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
 	}
 	return conditions
 }
