@@ -144,7 +144,7 @@ func (r *CloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, er
 	}
 	log := r.log.WithValues("PVC", req.NamespacedName)
 	log.V(1).Info("reconciling Clone PVCs")
-	if !r.shouldReconcile(pvc, log) {
+	if pvc.DeletionTimestamp != nil || !r.shouldReconcile(pvc, log) {
 		log.V(1).Info("Should not reconcile this PVC", "checkPVC(AnnCloneRequest)", checkPVC(pvc, AnnCloneRequest, log), "NOT has annotation(AnnCloneOf)", !metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf), "has finalizer?", r.hasFinalizer(pvc, cloneSourcePodFinalizer))
 		if r.hasFinalizer(pvc, cloneSourcePodFinalizer) {
 			// Clone completed, remove source pod and finalizer.
