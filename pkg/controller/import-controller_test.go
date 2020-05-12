@@ -141,8 +141,18 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(reflect.DeepEqual(orgPvc, resPvc)).To(BeTrue())
 	})
 
-	It("Should create a POD if a PVC with all needed annotations is passed", func() {
+	It("Should init PVC with a POD name if a PVC with all needed annotations is passed", func() {
 		reconciler = createImportReconciler(createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint}, nil))
+		_, err := reconciler.Reconcile(reconcile.Request{})
+		Expect(err).ToNot(HaveOccurred())
+		resultPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resultPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resultPvc.GetAnnotations()[AnnImportPod]).ToNot(BeEmpty())
+	})
+
+	It("Should create a POD if a PVC with all needed annotations is passed", func() {
+		reconciler = createImportReconciler(createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1"}, nil))
 		_, err := reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
@@ -161,7 +171,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 	})
 
 	It("Should create a POD if a PVC with all needed annotations is passed, but not set fsgroup if not kubevirt contenttype", func() {
-		reconciler = createImportReconciler(createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnContentType: string(cdiv1.DataVolumeArchive)}, nil))
+		reconciler = createImportReconciler(createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1", AnnContentType: string(cdiv1.DataVolumeArchive)}, nil))
 		_, err := reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}

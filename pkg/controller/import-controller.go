@@ -181,7 +181,7 @@ func (r *ImportReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 }
 
 func (r *ImportReconciler) findImporterPod(pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*corev1.Pod, error) {
-	podName := importPodNameFromPvc(pvc)
+	podName := getImportPodNameFromPvc(pvc)
 	pod := &corev1.Pod{}
 	err := r.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: pvc.GetNamespace()}, pod)
 
@@ -208,9 +208,19 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 			// Don't create the POD if the PVC is completed already
 			log.V(1).Info("PVC is already complete")
 		} else if pvc.DeletionTimestamp == nil {
-			// Create importer pod, make sure the PVC owns it.
-			if err := r.createImporterPod(pvc); err != nil {
-				return reconcile.Result{}, err
+
+			_, ok := pvc.Annotations[AnnImportPod]
+			if ok {
+				// Create importer pod, make sure the PVC owns it.
+				if err := r.createImporterPod(pvc); err != nil {
+					return reconcile.Result{}, err
+				}
+			} else {
+				// Create importer pod Name and store in PVC
+				podName := createImportPodNameFromPvc(pvc)
+				if err := r.updatePvcPodName(pvc, podName, log); err != nil {
+					return reconcile.Result{}, err
+				}
 			}
 		}
 	} else {
@@ -228,6 +238,22 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 		}
 	}
 	return reconcile.Result{}, nil
+}
+
+func (r *ImportReconciler) updatePvcPodName(pvc *corev1.PersistentVolumeClaim, podName string, log logr.Logger) error {
+	currentPvcCopy := pvc.DeepCopyObject()
+
+	log.V(1).Info("Updating PVC from pod")
+	anno := pvc.GetAnnotations()
+	anno[AnnImportPod] = podName
+
+	if !reflect.DeepEqual(currentPvcCopy, pvc) {
+		if err := r.updatePVC(pvc, log); err != nil {
+			return err
+		}
+		log.V(1).Info("Updated PVC", "pvc.anno.AnnImportPod", anno[AnnImportPod])
+	}
+	return nil
 }
 
 func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, log logr.Logger) error {
@@ -553,7 +579,17 @@ func getDiskID(pvc *corev1.PersistentVolumeClaim) string {
 	return diskID
 }
 
-func importPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
+func getImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
+	podName, ok := pvc.Annotations[AnnImportPod]
+	if ok {
+		return podName
+	}
+	// fallback to legacy naming, in fact the following function is fully compatible with legacy
+	// name concatenation "importer-{pvc.Name}" if the name length is under the size limits,
+	return naming.GetResourceName(common.ImporterPodName, pvc.Name)
+}
+
+func createImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 	return naming.GetResourceName(common.ImporterPodName, pvc.Name)
 }
 
@@ -582,7 +618,7 @@ func createImporterPod(log logr.Logger, client client.Client, image, verbose, pu
 // makeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
 func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, podResourceRequirements *corev1.ResourceRequirements) *corev1.Pod {
 	// importer pod name contains the pvc name
-	podName := importPodNameFromPvc(pvc)
+	podName := getImportPodNameFromPvc(pvc)
 
 	blockOwnerDeletion := true
 	isController := true
