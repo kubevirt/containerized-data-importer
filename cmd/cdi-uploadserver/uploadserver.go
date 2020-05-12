@@ -27,6 +27,7 @@ import (
 	"k8s.io/klog"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -69,6 +70,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Check if cloning or uploading based on the existance of the scratch space. Clone won't have scratch space
+	clone := false
+	_, err = os.OpenFile(common.ScratchDataDir, os.O_RDONLY, 0600)
+	if err != nil {
+		// Cloning instead of uploading.
+		clone = true
+	}
+	if clone {
+		err = util.WriteTerminationMessage("Clone Complete")
+	} else {
+		err = util.WriteTerminationMessage("Upload Complete")
+	}
+	if err != nil {
+		klog.Errorf("%+v", err)
+		os.Exit(1)
+	}
 	klog.Info("UploadServer successfully exited")
 }
 

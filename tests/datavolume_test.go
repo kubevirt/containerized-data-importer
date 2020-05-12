@@ -66,49 +66,72 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	})
 
 	Describe("Verify DataVolume", func() {
+		type dataVolumeTestArguments struct {
+			name             string
+			size             string
+			url              string
+			dvFunc           func(string, string, string) *cdiv1.DataVolume
+			errorMessage     string
+			eventReason      string
+			phase            cdiv1.DataVolumePhase
+			repeat           int
+			readyCondition   *cdiv1.DataVolumeCondition
+			boundCondition   *cdiv1.DataVolumeCondition
+			runningCondition *cdiv1.DataVolumeCondition
+		}
 
-		table.DescribeTable("should", func(name, command, url, dataVolumeName, errorMessage, eventReason string, phase cdiv1.DataVolumePhase) {
+		createImageIoDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+			Expect(err).To(BeNil())
+			stringData := map[string]string{
+				common.KeyAccess: "YWRtaW5AaW50ZXJuYWw=",
+				common.KeySecret: "MTIzNDU2",
+			}
+			s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, "mysecret"))
+			return utils.NewDataVolumeWithImageioImport(dataVolumeName, size, url, s.Name, cm, "123")
+		}
+
+		createHTTPSDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, url)
+			cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+			Expect(err).To(BeNil())
+			dataVolume.Spec.Source.HTTP.CertConfigMap = cm
+			return dataVolume
+		}
+
+		createCloneDataVolume := func(dataVolumeName, size, command string) *cdiv1.DataVolume {
+			sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
+			pvcDef := utils.NewPVCDefinition(pvcName, size, nil, nil)
+			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
+
+			By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
+			return utils.NewCloningDataVolume(dataVolumeName, size, sourcePvc)
+		}
+
+		createRegistryImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			dataVolume := utils.NewDataVolumeWithRegistryImport(dataVolumeName, size, url)
+			cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+			Expect(err).To(BeNil())
+			dataVolume.Spec.Source.Registry.CertConfigMap = cm
+			return dataVolume
+		}
+
+		createBlankRawDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			return utils.NewDataVolumeForBlankRawImage(dataVolumeName, size)
+		}
+
+		createUploadDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			return utils.NewDataVolumeForUpload(dataVolumeName, size)
+		}
+
+		table.DescribeTable("should", func(args dataVolumeTestArguments) {
+			// Have to call the function in here, to make sure the BeforeEach in the Framework has run.
+			dataVolume := args.dvFunc(args.name, args.size, args.url)
+			startTime := time.Now()
 			repeat := 1
-			var dataVolume *cdiv1.DataVolume
-			switch name {
-			case "imageio":
-				cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-				Expect(err).To(BeNil())
-				stringData := map[string]string{
-					common.KeyAccess: "YWRtaW5AaW50ZXJuYWw=",
-					common.KeySecret: "MTIzNDU2",
-				}
-				s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, "mysecret"))
-				dataVolume = utils.NewDataVolumeWithImageioImport(dataVolumeName, "1Gi", imageioURL, s.Name, cm, "123")
-			case "import-http":
-				dataVolume = utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
-			case "import-https":
-				dataVolume = utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
-				cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-				Expect(err).To(BeNil())
-				dataVolume.Spec.Source.HTTP.CertConfigMap = cm
-			case "blank":
-				dataVolume = utils.NewDataVolumeForBlankRawImage(dataVolumeName, "1Gi")
-			case "upload":
-				dataVolume = utils.NewDataVolumeForUpload(dataVolumeName, "1Gi")
-			case "clone":
-				sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
-				pvcDef := utils.NewPVCDefinition(pvcName, "1G", nil, nil)
-				sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
-
-				By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
-				dataVolume = utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)
-			case "import-registry":
-				if utils.IsHostpathProvisioner() {
-					// Repeat rapidly to make sure we don't get regular and scratch space on different nodes.
-					repeat = 10
-				}
-				dataVolume = utils.NewDataVolumeWithRegistryImport(dataVolumeName, "1Gi", url)
-				cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-				Expect(err).To(BeNil())
-				dataVolume.Spec.Source.Registry.CertConfigMap = cm
-			case "import-archive":
-				dataVolume = utils.NewDataVolumeWithArchiveContent(dataVolumeName, "1Gi", url)
+			if utils.IsHostpathProvisioner() && args.repeat > 0 {
+				// Repeat rapidly to make sure we don't get regular and scratch space on different nodes.
+				repeat = args.repeat
 			}
 
 			for i := 0; i < repeat; i++ {
@@ -116,8 +139,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
 
-				By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
-				err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+				By(fmt.Sprintf("waiting for datavolume to match phase %s", string(args.phase)))
+				err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, args.phase, dataVolume.Name)
 				if err != nil {
 					dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
 					if dverr != nil {
@@ -125,6 +148,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					}
 				}
 				Expect(err).ToNot(HaveOccurred())
+
+				By("Verifying the DV has the correct conditions and messages for those conditions")
+				Eventually(func() bool {
+					// Doing this as eventually because in failure scenarios, we could still be in a retry and the running condition
+					// will not match if the pod hasn't failed and the backoff is not long enough yet
+					resultDv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+					Expect(dverr).ToNot(HaveOccurred())
+					return verifyConditions(resultDv.Status.Conditions, startTime, args.readyCondition, args.runningCondition, args.boundCondition)
+				}, timeout, pollingInterval).Should(BeTrue())
 
 				// verify PVC was created
 				By("verifying pvc was created")
@@ -136,7 +168,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
 					if err == nil {
 						fmt.Fprintf(GinkgoWriter, "%s", events)
-						return strings.Contains(events, eventReason) && strings.Contains(events, errorMessage)
+						return strings.Contains(events, args.eventReason) && strings.Contains(events, args.errorMessage)
 					}
 					fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
 					return false
@@ -153,22 +185,380 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				}, timeout, pollingInterval).Should(BeTrue())
 			}
 		},
-			table.Entry("[rfe_id:1115][crit:high][test_id:1357]succeed creating import dv with given valid url", "import-http", "", tinyCoreIsoURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1358]fail creating import dv due to invalid DNS entry", "import-http", "", "http://i-made-this-up.kube-system/tinyCore.iso", "dv-phase-test-2", "Unable to connect to http data source", controller.ImportFailed, cdiv1.ImportInProgress),
-			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1359]fail creating import dv due to file not found", "import-http", "", tinyCoreIsoURL+"not.real.file", "dv-phase-test-3", "Unable to connect to http data source", controller.ImportFailed, cdiv1.ImportInProgress),
-			table.Entry("[rfe_id:1277][crit:high][test_id:1360]succeed creating clone dv", "clone", fillCommand, "", "dv-clone-test-1", "", controller.CloneSucceeded, cdiv1.Succeeded),
-			table.Entry("[rfe_id:1111][crit:high][test_id:1361]succeed creating blank image dv", "blank", "", "", "blank-image-dv", "", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[rfe_id:138][crit:high][test_id:1362]succeed creating upload dv", "upload", "", "", "upload-dv", "", controller.UploadReady, cdiv1.UploadReady),
-			table.Entry("[rfe_id:1115][crit:high][test_id:1478]succeed creating import dv with given valid registry url", "import-registry", "", tinyCoreIsoRegistryURL, "dv-phase-test-4", "", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid url (https)", "import-https", "", httpsTinyCoreIsoURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2555]fail creating import dv: invalid qcow large size", "import-http", "", invalidQcowLargeSizeURL, "dv-invalid-qcow-large-size", "Unable to process data: Invalid format qcow for image", controller.ImportFailed, cdiv1.ImportInProgress),
-			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2554]fail creating import dv: invalid qcow large json", "import-http", "", invalidQcowLargeJSONURL, "dv-invalid-qcow-large-json", "Unable to process data: exit status 1", controller.ImportFailed, cdiv1.ImportInProgress),
-			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2253]fail creating import dv: invalid qcow large memory", "import-http", "", invalidQcowLargeMemoryURL, "dv-invalid-qcow-large-memory", "Unable to process data: exit status 1", controller.ImportFailed, cdiv1.ImportInProgress),
-			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2139]fail creating import dv: invalid qcow backing file", "import-http", "", invalidQcowBackingFileURL, "dv-invalid-qcow-backing-file", "Unable to process data: exit status 1", controller.ImportFailed, cdiv1.ImportInProgress),
-			table.Entry("[rfe_id:1947][crit:high][test_id:2145]succeed creating import dv with given tar archive url", "import-archive", "", tarArchiveURL, "tar-archive-dv", "", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[rfe_id:1947][crit:high][test_id:2220]fail creating import dv with non tar archive url", "import-archive", "", tinyCoreIsoURL, "non-tar-archive-dv", "Unable to process data: exit status 2", controller.ImportFailed, cdiv1.ImportInProgress),
-			table.Entry("[test_id:3931]succeed creating import dv with streaming image conversion", "import-http", "", cirrosURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
-			table.Entry("[test_id:3932]succeed creating dv from imageio source", "imageio", "", imageioURL, "dv-phase-test-1", "", controller.ImportSucceeded, cdiv1.Succeeded),
+			table.Entry("[rfe_id:1115][crit:high][test_id:1357]succeed creating import dv with given valid url", dataVolumeTestArguments{
+				name:        "dv-http-import",
+				size:        "1Gi",
+				url:         tinyCoreIsoURL,
+				dvFunc:      utils.NewDataVolumeWithHTTPImport,
+				eventReason: controller.ImportSucceeded,
+				phase:       cdiv1.Succeeded,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1358]fail creating import dv due to invalid DNS entry", dataVolumeTestArguments{
+				name:         "dv-http-import-invalid-url",
+				size:         "1Gi",
+				url:          "http://i-made-this-up.kube-system/tinyCore.iso",
+				dvFunc:       utils.NewDataVolumeWithHTTPImport,
+				errorMessage: "Unable to connect to http data source",
+				eventReason:  controller.ImportFailed,
+				phase:        cdiv1.ImportInProgress,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Unable to connect to http data source: Get http://i-made-this-up.kube-system/tinyCore.iso: dial tcp: lookup i-made-this-up.kube-system",
+					Reason:  "Error",
+				}}),
+			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1359]fail creating import dv due to file not found", dataVolumeTestArguments{
+				name:         "dv-http-import-404",
+				size:         "1Gi",
+				url:          tinyCoreIsoURL + "not.real.file",
+				dvFunc:       utils.NewDataVolumeWithHTTPImport,
+				errorMessage: "Unable to connect to http data source",
+				eventReason:  controller.ImportFailed,
+				phase:        cdiv1.ImportInProgress,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Unable to connect to http data source: expected status code 200, got 404. Status: 404 Not Found",
+					Reason:  "Error",
+				}}),
+			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2555]fail creating import dv: invalid qcow large size", dataVolumeTestArguments{
+				name:         "dv-invalid-qcow-large-size",
+				size:         "1Gi",
+				url:          invalidQcowLargeSizeURL,
+				dvFunc:       utils.NewDataVolumeWithHTTPImport,
+				errorMessage: "Unable to process data: Invalid format qcow for image",
+				eventReason:  controller.ImportFailed,
+				phase:        cdiv1.ImportInProgress,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Unable to process data: Invalid format qcow for image " + invalidQcowLargeSizeURL,
+					Reason:  "Error",
+				}}),
+			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2554]fail creating import dv: invalid qcow large json", dataVolumeTestArguments{
+				name:         "dv-invalid-qcow-large-json",
+				size:         "1Gi",
+				url:          invalidQcowLargeJSONURL,
+				dvFunc:       utils.NewDataVolumeWithHTTPImport,
+				errorMessage: "Unable to process data: exit status 1",
+				eventReason:  controller.ImportFailed,
+				phase:        cdiv1.ImportInProgress,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Unable to process data: exit status 1",
+					Reason:  "Error",
+				}}),
+			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2253]fail creating import dv: invalid qcow large memory", dataVolumeTestArguments{
+				name:         "dv-invalid-qcow-large-memory",
+				size:         "1Gi",
+				url:          invalidQcowLargeMemoryURL,
+				dvFunc:       utils.NewDataVolumeWithHTTPImport,
+				errorMessage: "Unable to process data: exit status 1",
+				eventReason:  controller.ImportFailed,
+				phase:        cdiv1.ImportInProgress,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Unable to process data: exit status 1",
+					Reason:  "Error",
+				}}),
+			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2139]fail creating import dv: invalid qcow backing file", dataVolumeTestArguments{
+				name:         "dv-invalid-qcow-backing-file",
+				size:         "1Gi",
+				url:          invalidQcowBackingFileURL,
+				dvFunc:       utils.NewDataVolumeWithHTTPImport,
+				errorMessage: "Unable to process data: exit status 1",
+				eventReason:  controller.ImportFailed,
+				phase:        cdiv1.ImportInProgress,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Unable to process data: exit status 1",
+					Reason:  "Error",
+				}}),
+			table.Entry("[test_id:3931]succeed creating import dv with streaming image conversion", dataVolumeTestArguments{
+				name:        "dv-http-stream-import",
+				size:        "1Gi",
+				url:         cirrosURL,
+				dvFunc:      utils.NewDataVolumeWithHTTPImport,
+				eventReason: controller.ImportSucceeded,
+				phase:       cdiv1.Succeeded,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid url (https)", dataVolumeTestArguments{
+				name:        "dv-https-import",
+				size:        "1Gi",
+				url:         httpsTinyCoreIsoURL,
+				dvFunc:      createHTTPSDataVolume,
+				eventReason: controller.ImportSucceeded,
+				phase:       cdiv1.Succeeded,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("[rfe_id:1111][crit:high][test_id:1361]succeed creating blank image dv", dataVolumeTestArguments{
+				name:        "blank-image-dv",
+				size:        "1Gi",
+				dvFunc:      createBlankRawDataVolume,
+				eventReason: controller.ImportSucceeded,
+				phase:       cdiv1.Succeeded,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("[rfe_id:138][crit:high][test_id:1362]succeed creating upload dv", dataVolumeTestArguments{
+				name:        "upload-dv",
+				size:        "1Gi",
+				dvFunc:      createUploadDataVolume,
+				eventReason: controller.UploadReady,
+				phase:       cdiv1.UploadReady,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+					Reason: "Transfer is running",
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeRunning,
+					Status: v1.ConditionTrue,
+					Reason: "Pod is running",
+				}}),
+			table.Entry("[rfe_id:1947][crit:high][test_id:2145]succeed creating import dv with given tar archive url", dataVolumeTestArguments{
+				name:        "dv-tar-archive",
+				size:        "1Gi",
+				url:         tarArchiveURL,
+				dvFunc:      utils.NewDataVolumeWithArchiveContent,
+				eventReason: controller.ImportSucceeded,
+				phase:       cdiv1.Succeeded,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("[rfe_id:1947][crit:high][test_id:2220]fail creating import dv with non tar archive url", dataVolumeTestArguments{
+				name:         "dv-non-tar-archive",
+				size:         "1Gi",
+				url:          tinyCoreIsoURL,
+				dvFunc:       utils.NewDataVolumeWithArchiveContent,
+				errorMessage: "Unable to process data: exit status 2",
+				eventReason:  controller.ImportFailed,
+				phase:        cdiv1.ImportInProgress,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Unable to process data: exit status 2",
+					Reason:  "Error",
+				}}),
+			table.Entry("[test_id:3932]succeed creating dv from imageio source", dataVolumeTestArguments{
+				name:        "dv-imageio-test",
+				size:        "1Gi",
+				url:         imageioURL,
+				dvFunc:      createImageIoDataVolume,
+				eventReason: controller.ImportSucceeded,
+				phase:       cdiv1.Succeeded,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("[rfe_id:1277][crit:high][test_id:1360]succeed creating clone dv", dataVolumeTestArguments{
+				name:        "dv-clone-test1",
+				size:        "1Gi",
+				url:         fillCommand, // its not URL, but command, but the parameter lines up.
+				dvFunc:      createCloneDataVolume,
+				eventReason: controller.CloneSucceeded,
+				phase:       cdiv1.Succeeded,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Clone Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("[rfe_id:1115][crit:high][test_id:1478]succeed creating import dv with given valid registry url", dataVolumeTestArguments{
+				name:        "dv-import-registry",
+				size:        "1Gi",
+				url:         tinyCoreIsoRegistryURL,
+				dvFunc:      createRegistryImportDataVolume,
+				eventReason: controller.ImportSucceeded,
+				phase:       cdiv1.Succeeded,
+				repeat:      10,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC Bound",
+					Reason:  "PVC is bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
 		)
 
 		It("should handle a pre populated PVC", func() {
@@ -381,3 +771,35 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	})
 
 })
+
+func verifyConditions(actualConditions []cdiv1.DataVolumeCondition, startTime time.Time, testConditions ...*cdiv1.DataVolumeCondition) bool {
+	for _, condition := range testConditions {
+		if condition != nil {
+			actualCondition := findConditionByType(condition.Type, actualConditions)
+			if actualCondition != nil {
+				if actualCondition.Status != condition.Status {
+					fmt.Fprintf(GinkgoWriter, "INFO: Condition.Status does not match for type: %s\n", condition.Type)
+					return false
+				}
+				if strings.Compare(actualCondition.Reason, condition.Reason) != 0 {
+					fmt.Fprintf(GinkgoWriter, "INFO: Condition.Reason does not match for type: %s, reason expected [%s], reason found: [%s]\n", condition.Type, condition.Reason, actualCondition.Reason)
+					return false
+				}
+				if !strings.Contains(actualCondition.Message, condition.Message) {
+					fmt.Fprintf(GinkgoWriter, "INFO: Condition.Message does not match for type: %s, message expected: [%s],  message found: [%s]\n", condition.Type, condition.Message, actualCondition.Message)
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions []cdiv1.DataVolumeCondition) *cdiv1.DataVolumeCondition {
+	for i, condition := range conditions {
+		if condition.Type == conditionType {
+			return &conditions[i]
+		}
+	}
+	return nil
+}

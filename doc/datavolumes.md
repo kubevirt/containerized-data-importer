@@ -180,6 +180,21 @@ spec:
         storage: "64Mi"
 ```
 
+## Conditions
+The DataVolume status object has conditions. There are 3 conditions available for DataVolumes
+* Ready
+* Bound
+* Running
+
+The running and ready conditions are mutually exclusive, if running is true, then ready cannot be true and vice versa. Each condition has the following fields:
+* Type (Ready/Bound/Running)
+* Status (True/False)
+* LastTransitionTime The timestamp when the last transition happened.
+* LastHeartbeatTime the timestamp the last time anything on the condition was updated.
+* Reason The reason the status transitioned to a new value, this is a camel cased single word, similar to an EventReason in events.
+* Message A detailed messages expanding on the reason of the transition. For instance if Running went from True to False, the reason will be the container exit reason, and the message will be the container exit message, which explains why the container exitted.
+
+
 ## Kubevirt integration
 [Kubevirt](https://github.com/kubevirt/kubevirt) is an extension to Kubernetes that allows one to run Virtual Machines(VM) on the same infra structure as the containers managed by Kubernetes. CDI provides a mechanism to get a disk image into a PVC in order for Kubevirt to consume it. The following steps have to be taken in order for Kubevirt to consume a CDI provided disk image.
 1. Create a PVC with an annotation to for instance import from an external URL.

@@ -312,7 +312,7 @@ var _ = Describe("Update PVC", func() {
 				AnnPodRestarts:   "1"}, nil)
 		pod := createUploadPod(testPvc)
 		pod.Status = corev1.PodStatus{
-			Phase: corev1.PodFailed,
+			Phase: corev1.PodRunning,
 			ContainerStatuses: []corev1.ContainerStatus{
 				{
 					RestartCount: 2,
@@ -320,6 +320,7 @@ var _ = Describe("Update PVC", func() {
 						Terminated: &corev1.ContainerStateTerminated{
 							ExitCode: 1,
 							Message:  "I went poof",
+							Reason:   "Explosion",
 						},
 					},
 				},
@@ -335,18 +336,24 @@ var _ = Describe("Update PVC", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, actualPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(actualPvc.Annotations[AnnPodRestarts]).To(Equal("2"))
+		Expect(actualPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
+		Expect(actualPvc.GetAnnotations()[AnnRunningConditionMessage]).To(BeEmpty())
+		Expect(actualPvc.GetAnnotations()[AnnRunningConditionReason]).To(BeEmpty())
+		Expect(actualPvc.GetAnnotations()[AnnBoundCondition]).To(Equal("false"))
+		Expect(actualPvc.GetAnnotations()[AnnBoundConditionMessage]).To(Equal("Creating scratch space"))
+		Expect(actualPvc.GetAnnotations()[AnnBoundConditionReason]).To(Equal(creatingScratch))
 	})
 
 	It("Should not update AnnPodRestarts on pvc from pod if pod has lower restart count value ", func() {
 		testPvc := createPvc("testPvc1", "default",
 			map[string]string{
 				AnnUploadRequest: "",
-				AnnPodPhase:      string(corev1.PodPending),
+				AnnPodPhase:      string(corev1.PodRunning),
 				AnnPodRestarts:   "3"},
 			nil)
 		pod := createUploadPod(testPvc)
 		pod.Status = corev1.PodStatus{
-			Phase: corev1.PodFailed,
+			Phase: corev1.PodRunning,
 			ContainerStatuses: []corev1.ContainerStatus{
 				{
 					RestartCount: 2,
@@ -354,6 +361,7 @@ var _ = Describe("Update PVC", func() {
 						Terminated: &corev1.ContainerStateTerminated{
 							ExitCode: 1,
 							Message:  "I went poof",
+							Reason:   "Explosion",
 						},
 					},
 				},
@@ -369,6 +377,12 @@ var _ = Describe("Update PVC", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, actualPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(actualPvc.Annotations[AnnPodRestarts]).To(Equal("3"))
+		Expect(actualPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
+		Expect(actualPvc.GetAnnotations()[AnnRunningConditionMessage]).To(BeEmpty())
+		Expect(actualPvc.GetAnnotations()[AnnRunningConditionReason]).To(BeEmpty())
+		Expect(actualPvc.GetAnnotations()[AnnBoundCondition]).To(Equal("false"))
+		Expect(actualPvc.GetAnnotations()[AnnBoundConditionMessage]).To(Equal("Creating scratch space"))
+		Expect(actualPvc.GetAnnotations()[AnnBoundConditionReason]).To(Equal(creatingScratch))
 	})
 })
 

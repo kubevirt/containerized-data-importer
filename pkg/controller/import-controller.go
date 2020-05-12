@@ -69,6 +69,9 @@ const (
 	ErrImportFailedPVC = "ErrImportFailed"
 	// ImportSucceededPVC provides a const to indicate an import to the PVC failed
 	ImportSucceededPVC = "ImportSucceeded"
+
+	// creatingScratch provides a const to indicate scratch is being created.
+	creatingScratch = "CreatingScratchSpace"
 )
 
 // ImportReconciler members
@@ -233,6 +236,8 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 
 	log.V(1).Info("Updating PVC from pod")
 	anno := pvc.GetAnnotations()
+	setConditionFromPodWithPrefix(anno, AnnRunningCondition, pod)
+
 	scratchExitCode := false
 	if pod.Status.ContainerStatuses != nil &&
 		pod.Status.ContainerStatuses[0].LastTerminationState.Terminated != nil &&
@@ -250,6 +255,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	if pod.Status.ContainerStatuses != nil {
 		anno[AnnPodRestarts] = strconv.Itoa(int(pod.Status.ContainerStatuses[0].RestartCount))
 	}
+
 	anno[AnnImportPod] = string(pod.Name)
 	// Even if scratch space is needed, the pod state will still remain running, until the new pod is started.
 	anno[AnnPodPhase] = string(pod.Status.Phase)
@@ -261,7 +267,13 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 				return err
 			}
 		}
+	} else {
+		// No scratch space, or scratch space is bound, remove annotation
+		delete(anno, AnnBoundCondition)
+		delete(anno, AnnBoundConditionMessage)
+		delete(anno, AnnBoundConditionReason)
 	}
+
 	if !checkIfLabelExists(pvc, common.CDILabelKey, common.CDILabelValue) {
 		if pvc.GetLabels() == nil {
 			pvc.SetLabels(make(map[string]string, 0))
@@ -464,6 +476,7 @@ func (r *ImportReconciler) requiresScratchSpace(pvc *corev1.PersistentVolumeClai
 
 func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod) error {
 	scratchPvc := &corev1.PersistentVolumeClaim{}
+	anno := pvc.GetAnnotations()
 	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: pvc.GetNamespace(), Name: scratchNameFromPvc(pvc)}, scratchPvc)
 	if IgnoreNotFound(err) != nil {
 		return err
@@ -476,6 +489,11 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 		if err != nil {
 			return err
 		}
+		anno[AnnBoundCondition] = "false"
+		anno[AnnBoundConditionMessage] = "Creating scratch space"
+		anno[AnnBoundConditionReason] = creatingScratch
+	} else {
+		setBoundConditionFromPVC(anno, AnnBoundCondition, scratchPvc)
 	}
 	return nil
 }

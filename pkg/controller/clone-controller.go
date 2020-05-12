@@ -61,6 +61,8 @@ const (
 	cloneTokenLeeway = 10 * time.Second
 
 	uploadClientCertDuration = 365 * 24 * time.Hour
+
+	cloneComplete = "Clone Complete"
 )
 
 // CloneReconciler members
@@ -211,7 +213,7 @@ func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.Pe
 	if podSucceededFromPVC(pvc) && pvc.Annotations[AnnCloneOf] != "true" {
 		log.V(1).Info("Adding CloneOf annotation to PVC")
 		pvc.Annotations[AnnCloneOf] = "true"
-		r.recorder.Event(pvc, corev1.EventTypeNormal, CloneSucceededPVC, "Clone Successful")
+		r.recorder.Event(pvc, corev1.EventTypeNormal, CloneSucceededPVC, cloneComplete)
 	}
 	if sourcePod != nil && sourcePod.Status.ContainerStatuses != nil {
 		// update pvc annotation tracking pod restarts only if the source pod restart count is greater
@@ -221,6 +223,7 @@ func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.Pe
 		if podRestarts > annPodRestarts {
 			pvc.Annotations[AnnPodRestarts] = strconv.Itoa(podRestarts)
 		}
+		setConditionFromPodWithPrefix(pvc.Annotations, AnnSourceRunningCondition, sourcePod)
 	}
 
 	if !reflect.DeepEqual(currentPvcCopy, pvc) {
@@ -297,7 +300,13 @@ func (r *CloneReconciler) validateSourceAndTarget(targetPvc *corev1.PersistentVo
 		return err
 	}
 
-	return ValidateCanCloneSourceAndTargetSpec(&sourcePvc.Spec, &targetPvc.Spec)
+	err = ValidateCanCloneSourceAndTargetSpec(&sourcePvc.Spec, &targetPvc.Spec)
+	if err == nil {
+		// Validation complete, put source PVC bound status in annotation
+		setBoundConditionFromPVC(targetPvc.GetAnnotations(), AnnBoundCondition, sourcePvc)
+		return nil
+	}
+	return err
 }
 
 func (r *CloneReconciler) addFinalizer(pvc *corev1.PersistentVolumeClaim, name string) *corev1.PersistentVolumeClaim {

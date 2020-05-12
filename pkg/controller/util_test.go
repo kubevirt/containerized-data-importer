@@ -166,6 +166,67 @@ var _ = Describe("DecodePublicKey", func() {
 	})
 })
 
+var _ = Describe("setConditionFromPod", func() {
+	It("Should follow pod container status, running", func() {
+		result := make(map[string]string)
+		testPod := createImporterTestPod(createPvc("test", metav1.NamespaceDefault, nil, nil), "test", nil)
+		testPod.Status = v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Running: &v1.ContainerStateRunning{},
+					},
+				},
+			},
+		}
+		setConditionFromPodWithPrefix(result, AnnRunningCondition, testPod)
+		Expect(result[AnnRunningCondition]).To(Equal("true"))
+		Expect(result[AnnRunningConditionReason]).To(Equal("Pod is running"))
+	})
+
+	It("Should follow pod container status, completed", func() {
+		result := make(map[string]string)
+		testPod := createImporterTestPod(createPvc("test", metav1.NamespaceDefault, nil, nil), "test", nil)
+		testPod.Status = v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{
+							Message: "The container completed",
+							Reason:  "Completed",
+						},
+					},
+				},
+			},
+		}
+		setConditionFromPodWithPrefix(result, AnnRunningCondition, testPod)
+		Expect(result[AnnRunningCondition]).To(Equal("false"))
+		Expect(result[AnnRunningConditionMessage]).To(Equal("The container completed"))
+		Expect(result[AnnRunningConditionReason]).To(Equal("Completed"))
+	})
+
+	It("Should follow pod container status, pending", func() {
+		result := make(map[string]string)
+		testPod := createImporterTestPod(createPvc("test", metav1.NamespaceDefault, nil, nil), "test", nil)
+		testPod.Status = v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Waiting: &v1.ContainerStateWaiting{
+							Message: "container is waiting",
+							Reason:  "Pending",
+						},
+					},
+				},
+			},
+		}
+		setConditionFromPodWithPrefix(result, AnnRunningCondition, testPod)
+		Expect(result[AnnRunningCondition]).To(Equal("false"))
+		Expect(result[AnnRunningConditionMessage]).To(Equal("container is waiting"))
+		Expect(result[AnnRunningConditionReason]).To(Equal("Pending"))
+	})
+})
+
 func createBlockPvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
 	pvcDef := createPvcInStorageClass(name, ns, nil, annotations, labels)
 	volumeMode := v1.PersistentVolumeBlock

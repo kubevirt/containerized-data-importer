@@ -631,7 +631,36 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 			return result, err
 		}
 	}
+	r.updateConditions(dataVolumeCopy, pvc)
 	return result, r.emitEvent(dataVolume, dataVolumeCopy, curPhase, &event)
+}
+
+func (r *DatavolumeReconciler) updateConditions(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) {
+	var anno map[string]string
+
+	if dataVolume.Status.Conditions == nil {
+		dataVolume.Status.Conditions = make([]cdiv1.DataVolumeCondition, 0)
+	}
+
+	if pvc != nil {
+		anno = pvc.Annotations
+	} else {
+		anno = make(map[string]string, 0)
+	}
+
+	readyStatus := corev1.ConditionUnknown
+	switch dataVolume.Status.Phase {
+	case cdiv1.Succeeded:
+		readyStatus = corev1.ConditionTrue
+	case cdiv1.Unknown:
+		readyStatus = corev1.ConditionUnknown
+	default:
+		readyStatus = corev1.ConditionFalse
+	}
+
+	dataVolume.Status.Conditions = updateBoundCondition(dataVolume.Status.Conditions, pvc)
+	dataVolume.Status.Conditions = updateReadyCondition(dataVolume.Status.Conditions, readyStatus, "", "")
+	dataVolume.Status.Conditions = updateRunningCondition(dataVolume.Status.Conditions, anno)
 }
 
 func (r *DatavolumeReconciler) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, curPhase cdiv1.DataVolumePhase, event *DataVolumeEvent) error {

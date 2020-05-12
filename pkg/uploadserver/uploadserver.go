@@ -361,7 +361,7 @@ func filesystemCloneProcessor(stream io.ReadCloser, destDir string) error {
 
 	gzr, err := gzip.NewReader(stream)
 	if err != nil {
-		return errors.Wrap(err, "error creting gzip reader")
+		return errors.Wrap(err, "error creating gzip reader")
 	}
 
 	if err = util.UnArchiveTar(gzr, destDir); err != nil {
