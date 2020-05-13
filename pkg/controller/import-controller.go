@@ -57,6 +57,8 @@ const (
 	AnnImportPod = AnnAPIGroup + "/storage.import.importPodName"
 	// AnnRequiresScratch provides a const for our PVC requires scratch annotation
 	AnnRequiresScratch = AnnAPIGroup + "/storage.import.requiresScratch"
+	//AnnScratchPvc provides a const for our PVC scratchName annotation
+	AnnScratchPvc = AnnAPIGroup + "/storage.import.scratchName"
 	// AnnDiskID provides a const for our PVC diskId annotation
 	AnnDiskID = AnnAPIGroup + "/storage.import.diskId"
 
@@ -188,7 +190,7 @@ func (r *ImportReconciler) findImporterPod(pvc *corev1.PersistentVolumeClaim, lo
 	if k8serrors.IsNotFound(err) {
 		return nil, nil
 	}
-
+	/// TODO: what about other errors? // check upload
 	if !metav1.IsControlledBy(pod, pvc) {
 		return nil, errors.Errorf("Pod is not owned by PVC")
 	}
@@ -216,9 +218,8 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 					return reconcile.Result{}, err
 				}
 			} else {
-				// Create importer pod Name and store in PVC
-				podName := createImportPodNameFromPvc(pvc)
-				if err := r.updatePvcPodName(pvc, podName, log); err != nil {
+				// Create importer pod Name and store in PVC?
+				if err := r.initPvcPodName(pvc, log); err != nil {
 					return reconcile.Result{}, err
 				}
 			}
@@ -240,18 +241,29 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 	return reconcile.Result{}, nil
 }
 
-func (r *ImportReconciler) updatePvcPodName(pvc *corev1.PersistentVolumeClaim, podName string, log logr.Logger) error {
+func (r *ImportReconciler) initPvcPodName(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
 	currentPvcCopy := pvc.DeepCopyObject()
 
-	log.V(1).Info("Updating PVC from pod")
+	log.V(1).Info("Init pod name on PVC")
 	anno := pvc.GetAnnotations()
+
+	podName := createImportPodNameFromPvc(pvc)
 	anno[AnnImportPod] = podName
+
+	requiresScratch := r.requiresScratchSpace(pvc)
+	if requiresScratch {
+		scratchPvcName := scratchNameFromPvc(pvc)
+		anno[AnnScratchPvc] = scratchPvcName
+		anno[AnnRequiresScratch] = "true"
+	}
 
 	if !reflect.DeepEqual(currentPvcCopy, pvc) {
 		if err := r.updatePVC(pvc, log); err != nil {
 			return err
 		}
-		log.V(1).Info("Updated PVC", "pvc.anno.AnnImportPod", anno[AnnImportPod])
+		log.V(1).Info("Updated PVC",
+			"pvc.anno.AnnImportPod", anno[AnnImportPod],
+			"pvc.anno.AnnScratchPvc", anno[AnnScratchPvc])
 	}
 	return nil
 }
@@ -273,6 +285,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			log.V(1).Info("Pod requires scratch space, terminating pod, and restarting with scratch space", "pod.Name", pod.Name)
 			scratchExitCode = true
 			anno[AnnRequiresScratch] = "true"
+			anno[AnnScratchPvc] = scratchNameFromPvc(pvc)
 		} else {
 			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message)
 		}
@@ -358,10 +371,7 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		return err
 	}
 	r.log.V(1).Info("Created POD", "pod.Name", pod.Name)
-	if requiresScratch {
-		r.log.V(1).Info("POD requires scratch space")
-		return r.createScratchPvcForPod(pvc, pod)
-	}
+
 	return nil
 }
 
@@ -601,6 +611,13 @@ func scratchNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 // name, and pvc. A nil secret means the endpoint credentials are not passed to the
 // importer pod.
 func createImporterPod(log logr.Logger, client client.Client, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string) (*corev1.Pod, error) {
+
+	log.V(1).Info("-- Importer pod create",
+		"pod.Name", pvc.Annotations[AnnImportPod],
+		"scratchNeeded", pvc.Annotations[AnnRequiresScratch],
+		"scratchName", pvc.Annotations[AnnScratchPvc],
+		"providedScratchName", scratchPvcName)
+
 	podResourceRequirements, err := GetDefaultPodResourceRequirements(client)
 	if err != nil {
 		return nil, err
