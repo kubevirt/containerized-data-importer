@@ -23,6 +23,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	csiv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
@@ -216,13 +217,6 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		reconciler *DatavolumeReconciler
 	)
 
-	AfterEach(func() {
-		if reconciler != nil {
-			close(reconciler.recorder.(*record.FakeRecorder).Events)
-			reconciler = nil
-		}
-	})
-
 	table.DescribeTable("if no pvc exists", func(current, expected cdiv1.DataVolumePhase) {
 		reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
@@ -244,6 +238,16 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		boundCondition := findConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
 		Expect(boundCondition.Status).To(Equal(corev1.ConditionUnknown))
 		Expect(boundCondition.Message).To(Equal("No PVC found"))
+
+		By("Checking events recorded")
+		close(reconciler.recorder.(*record.FakeRecorder).Events)
+		found := false
+		for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+			if strings.Contains(event, "No PVC found") {
+				found = true
+			}
+		}
+		Expect(found).To(BeTrue())
 	},
 		table.Entry("should remain unset", cdiv1.PhaseUnset, cdiv1.PhaseUnset),
 		table.Entry("should remain pending", cdiv1.Pending, cdiv1.Pending),
@@ -275,7 +279,16 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		Expect(len(dv.Status.Conditions)).To(Equal(3))
 		boundCondition := findConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
 		Expect(boundCondition.Status).To(Equal(corev1.ConditionFalse))
-		Expect(boundCondition.Message).To(Equal("PVC Pending"))
+		Expect(boundCondition.Message).To(Equal("PVC test-dv Pending"))
+		By("Checking events recorded")
+		close(reconciler.recorder.(*record.FakeRecorder).Events)
+		found := false
+		for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+			if strings.Contains(event, "PVC test-dv Pending") {
+				found = true
+			}
+		}
+		Expect(found).To(BeTrue())
 	})
 
 	It("Should switch to succeeded if PVC phase is pending, but pod phase is succeeded", func() {
@@ -302,18 +315,29 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
 		By("Checking error event recorded")
-		event := <-reconciler.recorder.(*record.FakeRecorder).Events
-		Expect(event).To(ContainSubstring("Successfully imported into PVC test-dv"))
+		close(reconciler.recorder.(*record.FakeRecorder).Events)
+		foundSuccess := false
+		foundPending := false
+		for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+			if strings.Contains(event, "Successfully imported into PVC test-dv") {
+				foundSuccess = true
+			}
+			if strings.Contains(event, "PVC test-dv Pending") {
+				foundPending = true
+			}
+		}
+		Expect(foundSuccess).To(BeTrue())
+		Expect(foundPending).To(BeTrue())
 		Expect(len(dv.Status.Conditions)).To(Equal(3))
 		boundCondition := findConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
 		Expect(boundCondition.Status).To(Equal(corev1.ConditionFalse))
-		Expect(boundCondition.Message).To(Equal("PVC Pending"))
+		Expect(boundCondition.Message).To(Equal("PVC test-dv Pending"))
 		readyCondition := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions)
 		Expect(readyCondition.Status).To(Equal(corev1.ConditionTrue))
 		Expect(readyCondition.Message).To(Equal(""))
 	})
 
-	table.DescribeTable("DV phase", func(testDv runtime.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann string) {
+	table.DescribeTable("DV phase", func(testDv runtime.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann, expectedEvent string) {
 		reconciler = createDatavolumeReconciler(testDv)
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 		Expect(err).ToNot(HaveOccurred())
@@ -343,33 +367,43 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		Expect(len(dv.Status.Conditions)).To(Equal(3))
 		boundCondition := findConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
 		Expect(boundCondition.Status).To(Equal(boundStatusByPVCPhase(pvcPhase)))
-		Expect(boundCondition.Message).To(Equal(boundMessageByPVCPhase(pvcPhase)))
+		Expect(boundCondition.Message).To(Equal(boundMessageByPVCPhase(pvcPhase, "test-dv")))
 		readyCondition := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions)
 		Expect(readyCondition.Status).To(Equal(readyStatusByPhase(expected)))
 		Expect(readyCondition.Message).To(Equal(""))
+		By("Checking events recorded")
+		close(reconciler.recorder.(*record.FakeRecorder).Events)
+		found := false
+		for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+			By(event)
+			if strings.Contains(event, expectedEvent) {
+				found = true
+			}
+		}
+		Expect(found).To(BeTrue())
 	},
-		table.Entry("should switch to bound for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.PVCBound, corev1.ClaimBound, corev1.PodPending, "invalid"),
-		table.Entry("should switch to bound for import", newImportDataVolume("test-dv"), cdiv1.Unknown, cdiv1.PVCBound, corev1.ClaimBound, corev1.PodPending, "invalid"),
-		table.Entry("should switch to scheduled for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportScheduled, corev1.ClaimBound, corev1.PodPending, AnnImportPod),
-		table.Entry("should switch to inprogress for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportInProgress, corev1.ClaimBound, corev1.PodRunning, AnnImportPod),
-		table.Entry("should switch to failed for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnImportPod),
-		table.Entry("should switch to failed on claim lost for impot", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnImportPod),
-		table.Entry("should switch to succeeded for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnImportPod),
-		table.Entry("should switch to scheduled for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.CloneScheduled, corev1.ClaimBound, corev1.PodPending, AnnCloneRequest),
-		table.Entry("should switch to clone in progress for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.CloneInProgress, corev1.ClaimBound, corev1.PodRunning, AnnCloneRequest),
-		table.Entry("should switch to failed for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnCloneRequest),
-		table.Entry("should switch to failed on claim lost for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnCloneRequest),
-		table.Entry("should switch to succeeded for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnCloneRequest),
-		table.Entry("should switch to scheduled for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.UploadScheduled, corev1.ClaimBound, corev1.PodPending, AnnUploadRequest),
-		table.Entry("should switch to uploadready for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.UploadReady, corev1.ClaimBound, corev1.PodRunning, AnnUploadRequest),
-		table.Entry("should switch to failed for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnUploadRequest),
-		table.Entry("should switch to failed on claim lost for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnUploadRequest),
-		table.Entry("should switch to succeeded for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnUploadRequest),
-		table.Entry("should switch to scheduled for blank", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportScheduled, corev1.ClaimBound, corev1.PodPending, AnnImportPod),
-		table.Entry("should switch to inprogress for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportInProgress, corev1.ClaimBound, corev1.PodRunning, AnnImportPod),
-		table.Entry("should switch to failed for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnImportPod),
-		table.Entry("should switch to failed on claim lost for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnImportPod),
-		table.Entry("should switch to succeeded for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnImportPod),
+		table.Entry("should switch to bound for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.PVCBound, corev1.ClaimBound, corev1.PodPending, "invalid", "PVC test-dv Bound"),
+		table.Entry("should switch to bound for import", newImportDataVolume("test-dv"), cdiv1.Unknown, cdiv1.PVCBound, corev1.ClaimBound, corev1.PodPending, "invalid", "PVC test-dv Bound"),
+		table.Entry("should switch to scheduled for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportScheduled, corev1.ClaimBound, corev1.PodPending, AnnImportPod, "Import into test-dv scheduled"),
+		table.Entry("should switch to inprogress for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportInProgress, corev1.ClaimBound, corev1.PodRunning, AnnImportPod, "Import into test-dv in progress"),
+		table.Entry("should switch to failed for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnImportPod, "Failed to import into PVC test-dv"),
+		table.Entry("should switch to failed on claim lost for impot", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnImportPod, "PVC test-dv lost"),
+		table.Entry("should switch to succeeded for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnImportPod, "Successfully imported into PVC test-dv"),
+		table.Entry("should switch to scheduled for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.CloneScheduled, corev1.ClaimBound, corev1.PodPending, AnnCloneRequest, "Cloning from default/test into default/test-dv scheduled"),
+		table.Entry("should switch to clone in progress for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.CloneInProgress, corev1.ClaimBound, corev1.PodRunning, AnnCloneRequest, "Cloning from default/test into default/test-dv in progress"),
+		table.Entry("should switch to failed for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnCloneRequest, "Cloning from default/test into default/test-dv failed"),
+		table.Entry("should switch to failed on claim lost for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnCloneRequest, "PVC test-dv lost"),
+		table.Entry("should switch to succeeded for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnCloneRequest, "Successfully cloned from default/test into default/test-dv"),
+		table.Entry("should switch to scheduled for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.UploadScheduled, corev1.ClaimBound, corev1.PodPending, AnnUploadRequest, "Upload into test-dv scheduled"),
+		table.Entry("should switch to uploadready for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.UploadReady, corev1.ClaimBound, corev1.PodRunning, AnnUploadRequest, "Upload into test-dv ready"),
+		table.Entry("should switch to failed for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnUploadRequest, "Upload into test-dv failed"),
+		table.Entry("should switch to failed on claim lost for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnUploadRequest, "PVC test-dv lost"),
+		table.Entry("should switch to succeeded for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnUploadRequest, "Successfully uploaded into test-dv"),
+		table.Entry("should switch to scheduled for blank", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportScheduled, corev1.ClaimBound, corev1.PodPending, AnnImportPod, "Import into test-dv scheduled"),
+		table.Entry("should switch to inprogress for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportInProgress, corev1.ClaimBound, corev1.PodRunning, AnnImportPod, "Import into test-dv in progress"),
+		table.Entry("should switch to failed for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnImportPod, "Failed to import into PVC test-dv"),
+		table.Entry("should switch to failed on claim lost for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnImportPod, "PVC test-dv lost"),
+		table.Entry("should switch to succeeded for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnImportPod, "Successfully imported into PVC test-dv"),
 	)
 })
 
@@ -384,12 +418,12 @@ func boundStatusByPVCPhase(pvcPhase corev1.PersistentVolumeClaimPhase) corev1.Co
 	return corev1.ConditionUnknown
 }
 
-func boundMessageByPVCPhase(pvcPhase corev1.PersistentVolumeClaimPhase) string {
+func boundMessageByPVCPhase(pvcPhase corev1.PersistentVolumeClaimPhase, pvcName string) string {
 	switch pvcPhase {
 	case corev1.ClaimBound:
-		return "PVC Bound"
+		return fmt.Sprintf("PVC %s Bound", pvcName)
 	case corev1.ClaimPending:
-		return "PVC Pending"
+		return fmt.Sprintf("PVC %s Pending", pvcName)
 	case corev1.ClaimLost:
 		return "Claim Lost"
 	default:
@@ -673,7 +707,7 @@ func createDatavolumeReconciler(objects ...runtime.Object) *DatavolumeReconciler
 	// Create a fake client to mock API calls.
 	cl := fake.NewFakeClientWithScheme(s, objs...)
 
-	rec := record.NewFakeRecorder(1)
+	rec := record.NewFakeRecorder(10)
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	r := &DatavolumeReconciler{
 		client:       cl,

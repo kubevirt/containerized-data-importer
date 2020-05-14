@@ -26,12 +26,11 @@ import (
 )
 
 const (
-	boundFalse      = "Bound changed to false"
-	transferRunning = "Transfer is running"
-	pvcBound        = "PVC is bound"
-	pvcPending      = "PVC is pending"
-	claimLost       = "Claim lost"
-	notFound        = "Not found"
+	transferRunning = "TransferRunning"
+	pvcBound        = "Bound"
+	pvcPending      = "Pending"
+	claimLost       = "ClaimLost"
+	notFound        = "NotFound"
 )
 
 func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions []cdiv1.DataVolumeCondition) *cdiv1.DataVolumeCondition {
@@ -76,7 +75,7 @@ func updateRunningCondition(conditions []cdiv1.DataVolumeCondition, anno map[str
 			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
 		}
 	} else {
-		conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
+		conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, anno[AnnRunningConditionMessage], anno[AnnRunningConditionReason])
 	}
 	return conditions
 }
@@ -127,29 +126,29 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 		switch pvc.Status.Phase {
 		case corev1.ClaimBound:
 			if pvcCondition == nil || pvcCondition.Status == corev1.ConditionTrue {
-				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionTrue, "PVC Bound", pvcBound)
+				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionTrue, fmt.Sprintf("PVC %s Bound", pvc.Name), pvcBound)
 			} else {
 				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, pvcCondition.Message, pvcCondition.Reason)
 				conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			}
 		case corev1.ClaimPending:
 			if pvcCondition == nil || pvcCondition.Status == corev1.ConditionTrue {
-				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, "PVC Pending", pvcPending)
+				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("PVC %s Pending", pvc.Name), pvcPending)
 				conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			} else {
-				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("target PVC Pending and %s", pvcCondition.Message), pvcPending)
+				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("target PVC %s Pending and %s", pvc.Name, pvcCondition.Message), pvcPending)
 				conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			}
 		case corev1.ClaimLost:
 			conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, "Claim Lost", claimLost)
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 		default:
-			conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionUnknown, "PVC phase unknown", string(corev1.ConditionUnknown))
-			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
+			conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionUnknown, fmt.Sprintf("PVC %s phase unknown", pvc.Name), string(corev1.ConditionUnknown))
+			conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 		}
 	} else {
 		conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionUnknown, "No PVC found", notFound)
-		conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", boundFalse)
+		conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 	}
 	return conditions
 }

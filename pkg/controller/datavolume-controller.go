@@ -480,7 +480,7 @@ func (r *DatavolumeReconciler) updateSmartCloneStatusPhase(phase cdiv1.DataVolum
 		event.message = fmt.Sprintf(MessageSmartCloneInProgress, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name)
 	}
 
-	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, &event)
+	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, dataVolume.Status.Conditions, &event)
 }
 
 func (r *DatavolumeReconciler) updateCloneStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *DataVolumeEvent) {
@@ -567,8 +567,23 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		// instead, we just mark the DV phase as 'Succeeded' so any consumer will be able to use it.
 		phase, _ := pvc.Annotations[AnnPodPhase]
 		if phase == string(cdiv1.Succeeded) {
-			dataVolumeCopy.Status.Phase = cdiv1.Succeeded
-			r.updateImportStatusPhase(pvc, dataVolumeCopy, &event)
+			updateImport := true
+			_, ok := pvc.Annotations[AnnCloneRequest]
+			if ok {
+				dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
+				r.updateCloneStatusPhase(pvc, dataVolumeCopy, &event)
+				updateImport = false
+			}
+			_, ok = pvc.Annotations[AnnUploadRequest]
+			if ok {
+				dataVolumeCopy.Status.Phase = cdiv1.UploadScheduled
+				r.updateUploadStatusPhase(pvc, dataVolumeCopy, &event)
+				updateImport = false
+			}
+			if updateImport {
+				dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+				r.updateImportStatusPhase(pvc, dataVolumeCopy, &event)
+			}
 		} else {
 			switch pvc.Status.Phase {
 			case corev1.ClaimPending:
@@ -631,8 +646,10 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 			return result, err
 		}
 	}
+	currentCond := make([]cdiv1.DataVolumeCondition, len(dataVolumeCopy.Status.Conditions))
+	copy(currentCond, dataVolumeCopy.Status.Conditions)
 	r.updateConditions(dataVolumeCopy, pvc)
-	return result, r.emitEvent(dataVolume, dataVolumeCopy, curPhase, &event)
+	return result, r.emitEvent(dataVolume, dataVolumeCopy, curPhase, currentCond, &event)
 }
 
 func (r *DatavolumeReconciler) updateConditions(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) {
@@ -663,7 +680,36 @@ func (r *DatavolumeReconciler) updateConditions(dataVolume *cdiv1.DataVolume, pv
 	dataVolume.Status.Conditions = updateRunningCondition(dataVolume.Status.Conditions, anno)
 }
 
-func (r *DatavolumeReconciler) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, curPhase cdiv1.DataVolumePhase, event *DataVolumeEvent) error {
+func (r *DatavolumeReconciler) emitConditionEvent(dataVolume *cdiv1.DataVolume, originalCond []cdiv1.DataVolumeCondition) {
+	r.emitBoundConditionEvent(dataVolume, findConditionByType(cdiv1.DataVolumeBound, dataVolume.Status.Conditions), findConditionByType(cdiv1.DataVolumeBound, originalCond))
+	r.emitFailureConditionEvent(dataVolume, originalCond)
+}
+
+func (r *DatavolumeReconciler) emitBoundConditionEvent(dataVolume *cdiv1.DataVolume, current, original *cdiv1.DataVolumeCondition) {
+	// We know reason and message won't be empty for bound.
+	if current != nil && (original == nil || current.Status != original.Status || current.Reason != original.Reason || current.Message != original.Message) {
+		r.recorder.Event(dataVolume, corev1.EventTypeNormal, current.Reason, current.Message)
+	}
+}
+
+func (r *DatavolumeReconciler) emitFailureConditionEvent(dataVolume *cdiv1.DataVolume, originalCond []cdiv1.DataVolumeCondition) {
+	curReady := findConditionByType(cdiv1.DataVolumeReady, dataVolume.Status.Conditions)
+	curBound := findConditionByType(cdiv1.DataVolumeBound, dataVolume.Status.Conditions)
+	curRunning := findConditionByType(cdiv1.DataVolumeRunning, dataVolume.Status.Conditions)
+	orgRunning := findConditionByType(cdiv1.DataVolumeRunning, originalCond)
+
+	if curReady == nil || curBound == nil || curRunning == nil {
+		return
+	}
+	if curReady.Status == corev1.ConditionFalse && curRunning.Status == corev1.ConditionFalse && curBound.Status == corev1.ConditionTrue {
+		//Bound, not ready, and not running
+		if curRunning.Message != "" && orgRunning.Message != curRunning.Message {
+			r.recorder.Event(dataVolume, corev1.EventTypeWarning, curRunning.Reason, curRunning.Message)
+		}
+	}
+}
+
+func (r *DatavolumeReconciler) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, curPhase cdiv1.DataVolumePhase, originalCond []cdiv1.DataVolumeCondition, event *DataVolumeEvent) error {
 	// Only update the object if something actually changed in the status.
 	if !reflect.DeepEqual(dataVolume, dataVolumeCopy) {
 		if err := r.client.Update(context.TODO(), dataVolumeCopy); err != nil {
@@ -672,8 +718,9 @@ func (r *DatavolumeReconciler) emitEvent(dataVolume *cdiv1.DataVolume, dataVolum
 		}
 		// Emit the event only when the status change happens, not every time
 		if event.eventType != "" && curPhase != dataVolumeCopy.Status.Phase {
-			r.recorder.Event(dataVolume, event.eventType, event.reason, event.message)
+			r.recorder.Event(dataVolumeCopy, event.eventType, event.reason, event.message)
 		}
+		r.emitConditionEvent(dataVolumeCopy, originalCond)
 	}
 	return nil
 }

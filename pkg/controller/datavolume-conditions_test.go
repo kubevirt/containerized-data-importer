@@ -53,7 +53,7 @@ var _ = Describe("updateRunningCondition", func() {
 		Expect(len(conditions)).To(Equal(1))
 		Expect(conditions[0].Type).To(Equal(cdiv1.DataVolumeRunning))
 		Expect(conditions[0].Message).To(BeEmpty())
-		Expect(conditions[0].Status).To(Equal(corev1.ConditionUnknown))
+		Expect(conditions[0].Status).To(Equal(corev1.ConditionFalse))
 		Expect(conditions[0].Reason).To(Equal(""))
 	})
 
@@ -63,7 +63,7 @@ var _ = Describe("updateRunningCondition", func() {
 		Expect(len(conditions)).To(Equal(1))
 		Expect(conditions[0].Type).To(Equal(cdiv1.DataVolumeRunning))
 		Expect(conditions[0].Message).To(BeEmpty())
-		Expect(conditions[0].Status).To(Equal(corev1.ConditionUnknown))
+		Expect(conditions[0].Status).To(Equal(corev1.ConditionFalse))
 		Expect(conditions[0].Reason).To(Equal(""))
 	})
 
@@ -73,7 +73,7 @@ var _ = Describe("updateRunningCondition", func() {
 		Expect(len(conditions)).To(Equal(1))
 		Expect(conditions[0].Type).To(Equal(cdiv1.DataVolumeRunning))
 		Expect(conditions[0].Message).To(Equal("this is a message with quotes \""))
-		Expect(conditions[0].Status).To(Equal(corev1.ConditionUnknown))
+		Expect(conditions[0].Status).To(Equal(corev1.ConditionFalse))
 		Expect(conditions[0].Reason).To(Equal("this is a \" reason with \" quotes"))
 	})
 
@@ -92,7 +92,7 @@ var _ = Describe("updateRunningCondition", func() {
 		table.Entry("condition true", "true", corev1.ConditionTrue, false),
 		table.Entry("condition false", "false", corev1.ConditionFalse, false),
 		table.Entry("condition invalid", "invalid", corev1.ConditionUnknown, false),
-		table.Entry("no condition", "", corev1.ConditionUnknown, true),
+		table.Entry("no condition", "", corev1.ConditionFalse, true),
 	)
 
 	table.DescribeTable("runningConditionAndsource", func(conditionString, message, reason, sourceConditionString, sourceConditionMessage, sourceConditionReason string, status corev1.ConditionStatus, expectedMessage, expectedReason string) {
@@ -150,7 +150,7 @@ var _ = Describe("updateBoundCondition", func() {
 		Expect(len(conditions)).To(Equal(1))
 		condition := findConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
-		Expect(condition.Message).To(Equal("PVC Bound"))
+		Expect(condition.Message).To(Equal("PVC test Bound"))
 		Expect(condition.Reason).To(Equal(pvcBound))
 		Expect(condition.Status).To(Equal(corev1.ConditionTrue))
 	})
@@ -163,7 +163,7 @@ var _ = Describe("updateBoundCondition", func() {
 		Expect(len(conditions)).To(Equal(1))
 		condition := findConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
-		Expect(condition.Message).To(Equal("PVC Bound"))
+		Expect(condition.Message).To(Equal("PVC test Bound"))
 		Expect(condition.Reason).To(Equal(pvcBound))
 		Expect(condition.Status).To(Equal(corev1.ConditionTrue))
 	})
@@ -194,7 +194,7 @@ var _ = Describe("updateBoundCondition", func() {
 		Expect(len(conditions)).To(Equal(2))
 		condition := findConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
-		Expect(condition.Message).To(Equal("PVC Pending"))
+		Expect(condition.Message).To(Equal("PVC test Pending"))
 		Expect(condition.Reason).To(Equal(pvcPending))
 		Expect(condition.Status).To(Equal(corev1.ConditionFalse))
 		condition = findConditionByType(cdiv1.DataVolumeReady, conditions)
@@ -212,7 +212,7 @@ var _ = Describe("updateBoundCondition", func() {
 		Expect(len(conditions)).To(Equal(2))
 		condition := findConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
-		Expect(condition.Message).To(Equal("PVC Pending"))
+		Expect(condition.Message).To(Equal("PVC test Pending"))
 		Expect(condition.Reason).To(Equal(pvcPending))
 		Expect(condition.Status).To(Equal(corev1.ConditionFalse))
 		condition = findConditionByType(cdiv1.DataVolumeReady, conditions)
@@ -230,7 +230,7 @@ var _ = Describe("updateBoundCondition", func() {
 		Expect(len(conditions)).To(Equal(2))
 		condition := findConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
-		Expect(condition.Message).To(Equal("target PVC Pending and scratch PVC not bound"))
+		Expect(condition.Message).To(Equal("target PVC test Pending and scratch PVC not bound"))
 		Expect(condition.Reason).To(Equal(pvcPending))
 		Expect(condition.Status).To(Equal(corev1.ConditionFalse))
 		condition = findConditionByType(cdiv1.DataVolumeReady, conditions)
