@@ -25,23 +25,22 @@ import (
 	"strconv"
 	"time"
 
-	csiv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-
 	corev1 "k8s.io/api/core/v1"
+	extfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
-	extfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
@@ -662,7 +661,7 @@ func createDatavolumeReconciler(objects ...runtime.Object) *DatavolumeReconciler
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
 	cdiv1.AddToScheme(s)
-	csiv1.AddToScheme(s)
+	snapshotv1.AddToScheme(s)
 
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{

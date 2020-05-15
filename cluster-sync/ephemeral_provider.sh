@@ -51,37 +51,20 @@ function configure_hpp() {
 
 function configure_ceph() {
   #Configure ceph storage.
-  set +e
-  _kubectl apply -f https://raw.githubusercontent.com/rook/rook/$ROOK_CEPH_VERSION/cluster/examples/kubernetes/ceph/common.yaml
-  _kubectl apply -f https://raw.githubusercontent.com/rook/rook/$ROOK_CEPH_VERSION/cluster/examples/kubernetes/ceph/operator.yaml
-  # SELinux may be enabled so make storage pod privileged
-  _kubectl patch -n rook-ceph deployment rook-ceph-operator --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/env/7/value", "value": "true"}]'
-  _kubectl apply -f ./cluster-sync/${KUBEVIRT_PROVIDER}/rook_ceph.yaml
-  cat <<EOF | _kubectl apply -f -
-apiVersion: ceph.rook.io/v1
-kind: CephBlockPool
-metadata:
-  name: replicapool
-  namespace: rook-ceph
-spec:
-  failureDomain: host
-  replicated:
-    size: $KUBEVIRT_NUM_NODES
-EOF
+  _kubectl apply -f ./cluster-sync/external-snapshotter
+  _kubectl apply -f ./cluster-sync/rook-ceph/common.yaml
+  _kubectl apply -f ./cluster-sync/rook-ceph/operator.yaml
+  _kubectl apply -f ./cluster-sync/rook-ceph/cluster.yaml
+  _kubectl apply -f ./cluster-sync/rook-ceph/pool.yaml
 
-  _kubectl apply -f ./cluster-sync/${KUBEVIRT_PROVIDER}/ceph_sc.yaml
-  set +e
-  retry_counter=0
-  _kubectl get VolumeSnapshotClass
-  while [[ $? -ne "0" ]] && [[ $retry_counter -lt 60 ]]; do
-    retry_counter=$((retry_counter + 1))
-    echo "Sleep 5s, waiting for VolumeSnapshotClass CRD"
-    sleep 5
-    _kubectl get VolumeSnapshotClass
+  # wait for ceph
+  until _kubectl get cephblockpools -n rook-ceph replicapool -o jsonpath='{.status.phase}' | grep Ready; do
+      ((count++)) && ((count == 60)) && echo "Ceph not ready in time" && exit 1
+      echo "Waiting for Ceph to be Ready, sleeping 5s and rechecking"
+      sleep 5
   done
-  echo "VolumeSnapshotClass CRD available, creating snapshot class"
-  _kubectl apply -f https://raw.githubusercontent.com/rook/rook/$ROOK_CEPH_VERSION/cluster/examples/kubernetes/ceph/csi/rbd/snapshotclass.yaml
-  set -e
+
+  _kubectl patch storageclass rook-ceph-block -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
 }
 
 function configure_nfs() {

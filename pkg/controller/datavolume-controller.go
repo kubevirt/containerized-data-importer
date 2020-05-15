@@ -29,8 +29,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	csisnapshotv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
-	csiv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -187,7 +186,7 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 	if err := storagev1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
-	if err := csiv1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := snapshotv1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
 
@@ -379,14 +378,14 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	}
 
 	// List the snapshot classes
-	scs := &csiv1.VolumeSnapshotClassList{}
+	scs := &snapshotv1.VolumeSnapshotClassList{}
 	if err := r.client.List(context.TODO(), scs); err != nil {
 		r.log.V(3).Info("Cannot list snapshot classes, falling back to host assisted clone")
 		return "", errors.New("cannot list snapshot classes, falling back to host assisted clone")
 	}
 	for _, snapshotClass := range scs.Items {
 		// Validate association between snapshot class and storage class
-		if snapshotClass.Snapshotter == storageClass.Provisioner {
+		if snapshotClass.Driver == storageClass.Provisioner {
 			r.log.V(3).Info("smart-clone is applicable for datavolume", "datavolume",
 				dataVolume.Name, "snapshot class", snapshotClass.Name)
 			return snapshotClass.Name, nil
@@ -397,7 +396,7 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	return "", errors.New("could not match snapshotter with storage class, falling back to host assisted clone")
 }
 
-func newSnapshot(dataVolume *cdiv1.DataVolume, snapshotClassName string) *csisnapshotv1.VolumeSnapshot {
+func newSnapshot(dataVolume *cdiv1.DataVolume, snapshotClassName string) *snapshotv1.VolumeSnapshot {
 	annotations := make(map[string]string)
 	annotations[AnnSmartCloneRequest] = "true"
 	className := snapshotClassName
@@ -405,7 +404,7 @@ func newSnapshot(dataVolume *cdiv1.DataVolume, snapshotClassName string) *csisna
 		common.CDILabelKey:       common.CDILabelValue,
 		common.CDIComponentLabel: common.SmartClonerCDILabel,
 	}
-	snapshot := &csisnapshotv1.VolumeSnapshot{
+	snapshot := &snapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        dataVolume.Name,
 			Namespace:   dataVolume.Namespace,
@@ -419,15 +418,9 @@ func newSnapshot(dataVolume *cdiv1.DataVolume, snapshotClassName string) *csisna
 				}),
 			},
 		},
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: csisnapshotv1.SchemeGroupVersion.String(),
-			Kind:       "VolumeSnapshot",
-		},
-		Status: csisnapshotv1.VolumeSnapshotStatus{},
-		Spec: csisnapshotv1.VolumeSnapshotSpec{
-			Source: &corev1.TypedLocalObjectReference{
-				Name: dataVolume.Spec.Source.PVC.Name,
-				Kind: "PersistentVolumeClaim",
+		Spec: snapshotv1.VolumeSnapshotSpec{
+			Source: snapshotv1.VolumeSnapshotSource{
+				PersistentVolumeClaimName: &dataVolume.Spec.Source.PVC.Name,
 			},
 			VolumeSnapshotClassName: &className,
 		},

@@ -6,8 +6,7 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
-	csisnapshotv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
-	csiv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -16,8 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	"kubevirt.io/containerized-data-importer/pkg/common"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -26,6 +23,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 const (
@@ -66,7 +66,7 @@ func addSmartCloneControllerWatches(mgr manager.Manager, smartCloneController co
 	if err := cdiv1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
-	if err := csiv1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := snapshotv1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
 	// Setup watches
@@ -91,7 +91,7 @@ func addSmartCloneControllerWatches(mgr manager.Manager, smartCloneController co
 	}
 
 	// check if volume snapshots exist
-	err := mgr.GetClient().List(context.TODO(), &csiv1.VolumeSnapshotList{})
+	err := mgr.GetClient().List(context.TODO(), &snapshotv1.VolumeSnapshotList{})
 	if meta.IsNoMatchError(err) {
 		return nil
 	}
@@ -100,21 +100,21 @@ func addSmartCloneControllerWatches(mgr manager.Manager, smartCloneController co
 		return err
 	}
 
-	if err := smartCloneController.Watch(&source.Kind{Type: &csiv1.VolumeSnapshot{}}, &handler.EnqueueRequestForOwner{
+	if err := smartCloneController.Watch(&source.Kind{Type: &snapshotv1.VolumeSnapshot{}}, &handler.EnqueueRequestForOwner{
 		OwnerType:    &cdiv1.DataVolume{},
 		IsController: true,
 	}, predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			return shouldReconcileSnapshot(e.Object.(*csiv1.VolumeSnapshot))
+			return shouldReconcileSnapshot(e.Object.(*snapshotv1.VolumeSnapshot))
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			return shouldReconcileSnapshot(e.ObjectNew.(*csiv1.VolumeSnapshot))
+			return shouldReconcileSnapshot(e.ObjectNew.(*snapshotv1.VolumeSnapshot))
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			return shouldReconcileSnapshot(e.Object.(*csiv1.VolumeSnapshot))
+			return shouldReconcileSnapshot(e.Object.(*snapshotv1.VolumeSnapshot))
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
-			return shouldReconcileSnapshot(e.Object.(*csiv1.VolumeSnapshot))
+			return shouldReconcileSnapshot(e.Object.(*snapshotv1.VolumeSnapshot))
 		},
 	}); err != nil {
 		return err
@@ -123,12 +123,12 @@ func addSmartCloneControllerWatches(mgr manager.Manager, smartCloneController co
 	return nil
 }
 
-func shouldReconcileSnapshot(snapshot *csiv1.VolumeSnapshot) bool {
+func shouldReconcileSnapshot(snapshot *snapshotv1.VolumeSnapshot) bool {
 	_, ok := snapshot.GetAnnotations()[AnnSmartCloneRequest]
 	if !ok {
 		return false
 	}
-	return snapshot.Status.ReadyToUse
+	return snapshot.Status != nil && snapshot.Status.ReadyToUse != nil && *snapshot.Status.ReadyToUse
 }
 
 func shouldReconcilePvc(pvc *corev1.PersistentVolumeClaim) bool {
@@ -148,7 +148,7 @@ func (r *SmartCloneReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 	if err := r.client.Get(context.TODO(), req.NamespacedName, pvc); err != nil {
 		if k8serrors.IsNotFound(err) {
 			// PVC not found, look up smart clone.
-			snapshot := &csiv1.VolumeSnapshot{}
+			snapshot := &snapshotv1.VolumeSnapshot{}
 			if err := r.client.Get(context.TODO(), req.NamespacedName, snapshot); err != nil {
 				if k8serrors.IsNotFound(err) {
 					return reconcile.Result{}, nil
@@ -180,7 +180,7 @@ func (r *SmartCloneReconciler) reconcilePvc(log logr.Logger, pvc *corev1.Persist
 
 	// Don't delete snapshot unless the PVC is bound.
 	if pvc.Status.Phase == corev1.ClaimBound {
-		snapshotToDelete := &csiv1.VolumeSnapshot{}
+		snapshotToDelete := &snapshotv1.VolumeSnapshot{}
 		if err := r.client.Get(context.TODO(), types.NamespacedName{Name: snapshotName, Namespace: pvc.Namespace}, snapshotToDelete); err != nil {
 			if k8serrors.IsNotFound(err) {
 				// Already gone, so no need to try a delete.
@@ -201,7 +201,7 @@ func (r *SmartCloneReconciler) reconcilePvc(log logr.Logger, pvc *corev1.Persist
 	return reconcile.Result{}, nil
 }
 
-func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *csiv1.VolumeSnapshot) (reconcile.Result, error) {
+func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snapshotv1.VolumeSnapshot) (reconcile.Result, error) {
 	log.WithValues("snapshot.Name", snapshot.Name).WithValues("snapshot.Namespace", snapshot.Namespace).Info("Updating datavolume status using snapshot")
 	datavolume := &cdiv1.DataVolume{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: snapshot.Name, Namespace: snapshot.Namespace}, datavolume); err != nil {
@@ -270,7 +270,7 @@ func (r *SmartCloneReconciler) emitEvent(dataVolume *cdiv1.DataVolume, dataVolum
 	return nil
 }
 
-func newPvcFromSnapshot(snapshot *csisnapshotv1.VolumeSnapshot, dataVolume *cdiv1.DataVolume) *corev1.PersistentVolumeClaim {
+func newPvcFromSnapshot(snapshot *snapshotv1.VolumeSnapshot, dataVolume *cdiv1.DataVolume) *corev1.PersistentVolumeClaim {
 	labels := map[string]string{
 		"cdi-controller":         snapshot.Name,
 		common.CDILabelKey:       common.CDILabelValue,
@@ -299,7 +299,7 @@ func newPvcFromSnapshot(snapshot *csisnapshotv1.VolumeSnapshot, dataVolume *cdiv
 			DataSource: &corev1.TypedLocalObjectReference{
 				Name:     snapshot.Name,
 				Kind:     "VolumeSnapshot",
-				APIGroup: &csisnapshotv1.SchemeGroupVersion.Group,
+				APIGroup: &snapshotv1.SchemeGroupVersion.Group,
 			},
 			VolumeMode:       dataVolume.Spec.PVC.VolumeMode,
 			AccessModes:      dataVolume.Spec.PVC.AccessModes,

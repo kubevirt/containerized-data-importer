@@ -612,7 +612,7 @@ func (f *Framework) IsSnapshotStorageClassAvailable() bool {
 	}
 
 	// List the snapshot classes
-	scs, err := f.CsiClient.SnapshotV1alpha1().VolumeSnapshotClasses().List(metav1.ListOptions{})
+	scs, err := f.CsiClient.SnapshotV1beta1().VolumeSnapshotClasses().List(metav1.ListOptions{})
 	if err != nil {
 		klog.V(3).Infof("Cannot list snapshot classes")
 		return false
@@ -620,7 +620,7 @@ func (f *Framework) IsSnapshotStorageClassAvailable() bool {
 
 	for _, snapshotClass := range scs.Items {
 		// Validate association between snapshot class and storage class
-		if snapshotClass.Snapshotter == storageclass.Provisioner {
+		if snapshotClass.Driver == storageclass.Provisioner {
 			return true
 		}
 	}

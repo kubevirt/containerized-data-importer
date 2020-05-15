@@ -40,8 +40,8 @@ ${CODEGEN_PKG}/generate-groups.sh "client,informer,lister" \
   --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
 ${CODEGEN_PKG}/generate-groups.sh "client,informer,lister" \
-  kubevirt.io/containerized-data-importer/pkg/snapshot-client github.com/kubernetes-csi/external-snapshotter/pkg/apis \
-  volumesnapshot:v1alpha1 \
+  kubevirt.io/containerized-data-importer/pkg/snapshot-client github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis \
+  volumesnapshot:v1beta1 \
   --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
 (cd ${SCRIPT_ROOT}/tools/openapi-spec-generator/ && go build -o ../../bin/openapi-spec-generator)
