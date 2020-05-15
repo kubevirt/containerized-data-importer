@@ -57,11 +57,10 @@ func validateSourceURL(sourceURL string) string {
 
 func validateDataVolumeName(name string) []metav1.StatusCause {
 	var causes []metav1.StatusCause
-	// name of data volume cannot be more than 55 characters (not including '-scratch')
-	if len(name) > 55 {
+	if len(name) > 253 {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Name of data volume cannot be more than 55 characters"),
+			Message: fmt.Sprintf("Name of data volume cannot be more than 253 characters"),
 			Field:   "",
 		})
 	}
