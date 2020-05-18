@@ -2,6 +2,7 @@ package framework
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -27,13 +29,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	csiClientset "kubevirt.io/containerized-data-importer/pkg/snapshot-client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 	ginkgo_reporters "kubevirt.io/qe-tools/pkg/ginkgo-reporters"
 )
@@ -78,10 +81,10 @@ type Framework struct {
 	K8sClient *kubernetes.Clientset
 	// CdiClient provides our CDI client pointer
 	CdiClient *cdiClientset.Clientset
-	// CsiClient provides our CSI client pointer
-	CsiClient *csiClientset.Clientset
 	// ExtClient provides our CSI client pointer
 	ExtClient *extclientset.Clientset
+	// CrClient is a controller runtime client
+	CrClient crclient.Client
 	// RestConfig provides a pointer to our REST client config.
 	RestConfig *rest.Config
 	// Namespace provides a namespace for each test generated/unique ns per test
@@ -205,17 +208,17 @@ func NewFramework(prefix string, config Config) (*Framework, error) {
 	}
 	f.CdiClient = cs
 
-	csics, err := f.GetCsiClient()
-	if err != nil {
-		return nil, errors.Wrap(err, "ERROR, unable to create CsiClient")
-	}
-	f.CsiClient = csics
-
 	extcs, err := f.GetExtClient()
 	if err != nil {
 		return nil, errors.Wrap(err, "ERROR, unable to create CsiClient")
 	}
 	f.ExtClient = extcs
+
+	crClient, err := f.GetCrClient()
+	if err != nil {
+		return nil, errors.Wrap(err, "ERROR, unable to create CrClient")
+	}
+	f.CrClient = crClient
 
 	ginkgo.BeforeEach(f.BeforeEach)
 	ginkgo.AfterEach(f.AfterEach)
@@ -352,19 +355,6 @@ func (f *Framework) GetCdiClient() (*cdiClientset.Clientset, error) {
 	return cdiClient, nil
 }
 
-// GetCsiClient gets an instance of a kubernetes client that includes all the CSI extensions.
-func (f *Framework) GetCsiClient() (*csiClientset.Clientset, error) {
-	cfg, err := clientcmd.BuildConfigFromFlags(f.Master, f.KubeConfig)
-	if err != nil {
-		return nil, err
-	}
-	csiClient, err := csiClientset.NewForConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return csiClient, nil
-}
-
 // GetExtClient gets an instance of a kubernetes client that includes all the api extensions.
 func (f *Framework) GetExtClient() (*extclientset.Clientset, error) {
 	cfg, err := clientcmd.BuildConfigFromFlags(f.Master, f.KubeConfig)
@@ -376,6 +366,20 @@ func (f *Framework) GetExtClient() (*extclientset.Clientset, error) {
 		return nil, err
 	}
 	return extClient, nil
+}
+
+// GetCrClient returns a controller runtime client
+func (f *Framework) GetCrClient() (crclient.Client, error) {
+	if err := snapshotv1.AddToScheme(scheme.Scheme); err != nil {
+		return nil, err
+	}
+
+	client, err := crclient.New(f.RestConfig, crclient.Options{Scheme: scheme.Scheme})
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
 }
 
 // GetCdiClientForServiceAccount returns a cdi client for a service account
@@ -611,10 +615,8 @@ func (f *Framework) IsSnapshotStorageClassAvailable() bool {
 		return false
 	}
 
-	// List the snapshot classes
-	scs, err := f.CsiClient.SnapshotV1beta1().VolumeSnapshotClasses().List(metav1.ListOptions{})
-	if err != nil {
-		klog.V(3).Infof("Cannot list snapshot classes")
+	scs := &snapshotv1.VolumeSnapshotClassList{}
+	if err = f.CrClient.List(context.TODO(), scs); err != nil {
 		return false
 	}
 
