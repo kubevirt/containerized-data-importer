@@ -185,9 +185,10 @@ func (f *Framework) GetDiskGroup(namespace *k8sv1.Namespace, pvc *k8sv1.Persiste
 	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-	cmd := fmt.Sprintf("stat -c '%%g' %s/disk.img", utils.DefaultPvcMountPath)
+	cmd := fmt.Sprintf("x=$(ls -ln %s/disk.img); y=($x); echo ${y[3]}", utils.DefaultPvcMountPath)
 
 	output, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: gid of disk.img: %s\n", string(output))
 
 	if err != nil {
 		return "", err
