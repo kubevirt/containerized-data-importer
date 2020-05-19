@@ -428,7 +428,7 @@ var _ = Describe("Namespace with quota", func() {
 	})
 })
 
-var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component] Add a field to DataVolume to track the number of retries", func() {
+var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component] Upload tests", func() {
 	f := framework.NewFrameworkOrDie("upload-func-test")
 
 	var (
@@ -469,7 +469,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	It("[test_id:3993] Upload image to data volume and verify retry count", func() {
 		dvName := "upload-dv"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
-		dv := utils.NewDataVolumeForUpload("uploady-dv", "100Mi")
+		dv := utils.NewDataVolumeForUpload(dvName, "100Mi")
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
 
@@ -527,7 +527,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	It("[test_id:3997] Upload image to data volume - kill container and verify retry count", func() {
 		dvName := "upload-dv"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
-		dv := utils.NewDataVolumeForUpload("uploady-dv", "100Mi")
+		dv := utils.NewDataVolumeForUpload(dvName, "100Mi")
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
 
@@ -566,5 +566,134 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			return restarts
 		}, timeout, pollingInterval).Should(BeNumerically(">=", 1))
 
+	})
+
+	It("[test_id:4273] Upload datavolume with short name creates correct scratch space, pod and service names", func() {
+		shortDvName := "import-long-name-dv"
+		By(fmt.Sprintf("Creating new datavolume %s", shortDvName))
+
+		dv := utils.NewDataVolumeForUpload(shortDvName, "1Gi")
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+
+		phase := cdiv1.UploadReady
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Get an upload token")
+		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
+		By("Do upload")
+		err = uploadImage(uploadProxyURL, token, http.StatusOK)
+		Expect(err).ToNot(HaveOccurred())
+
+		phase = cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("[test_id:4274] Upload datavolume with long name creates correct scratch space, pod and service names", func() {
+		// 20 chars + 100ch + 40chars
+		dvName160Characters := "import-long-name-dv-" +
+			"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-" +
+			"123456789-123456789-123456789-1234567890"
+		By(fmt.Sprintf("Creating new datavolume %s", dvName160Characters))
+
+		dv := utils.NewDataVolumeForUpload(dvName160Characters, "1Gi")
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+
+		phase := cdiv1.UploadReady
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Get an upload token")
+		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
+		By("Do upload")
+		err = uploadImage(uploadProxyURL, token, http.StatusOK)
+		Expect(err).ToNot(HaveOccurred())
+
+		phase = cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("[test_id:4275] Upload datavolume with long name including special chars '.' - creates correct scratch space, pod and service names", func() {
+		// 20 chars + 100ch + 40chars
+		dvName160Characters := "import-long-name-dv." +
+			"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-" +
+			"123456789-123456789-123456789-1234567890"
+		By(fmt.Sprintf("Creating new datavolume %s", dvName160Characters))
+
+		dv := utils.NewDataVolumeForUpload(dvName160Characters, "1Gi")
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+
+		phase := cdiv1.UploadReady
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Get an upload token")
+		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
+		By("Do upload")
+		err = uploadImage(uploadProxyURL, token, http.StatusOK)
+		Expect(err).ToNot(HaveOccurred())
+
+		phase = cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
 	})
 })
