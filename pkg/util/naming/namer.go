@@ -20,6 +20,8 @@
 package naming
 
 import (
+	"strings"
+
 	"github.com/openshift/library-go/pkg/build/naming"
 	kvalidation "k8s.io/apimachinery/pkg/util/validation"
 )
@@ -30,8 +32,11 @@ func GetResourceName(base, suffix string) string {
 	return naming.GetName(base, suffix, kvalidation.DNS1123SubdomainMaxLength)
 }
 
-// GetLabelName creates a name with the length restriction for labels, and shortens if needed
-func GetLabelName(base string) string {
+// GetLabelNameFromResourceName creates a name with the length restriction for labels, and shortens if needed
+func GetLabelNameFromResourceName(resourceName string) string {
+	// resourceName can have dots, service name cannot
+	base := strings.ReplaceAll(resourceName, ".", "-")
+
 	if len(base) <= kvalidation.DNS1035LabelMaxLength {
 		return base
 	}
@@ -44,8 +49,8 @@ func GetLabelName(base string) string {
 	return naming.GetName(base, "cdi", kvalidation.DNS1035LabelMaxLength)
 }
 
-// GetServiceName creates a name with the length restriction for service (label), and shortens if needed
-func GetServiceName(name string) string {
+// GetServiceNameFromResourceName creates a name with the length restriction for service (label), and shortens if needed
+func GetServiceNameFromResourceName(name string) string {
 	// The name of a Service object must be a valid DNS label name.
-	return GetLabelName(name)
+	return GetLabelNameFromResourceName(name)
 }

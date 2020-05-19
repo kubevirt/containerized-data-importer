@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 )
 
 const (
@@ -67,10 +68,11 @@ func DeletePod(clientSet *kubernetes.Clientset, pod *k8sv1.Pod, namespace string
 
 // NewPodWithPVC creates a new pod that mounts the given PVC
 func NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1.Pod {
+	volumeName := naming.GetLabelNameFromResourceName(pvc.GetName())
 	pod := &k8sv1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: podName,
-			Labels: map[string]string{
+			Annotations: map[string]string{
 				"cdi.kubevirt.io/testing": podName,
 			},
 		},
@@ -93,7 +95,7 @@ func NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1
 			},
 			Volumes: []k8sv1.Volume{
 				{
-					Name: pvc.GetName(),
+					Name: volumeName,
 					VolumeSource: k8sv1.VolumeSource{
 						PersistentVolumeClaim: &k8sv1.PersistentVolumeClaimVolumeSource{
 							ClaimName: pvc.GetName(),
@@ -106,17 +108,17 @@ func NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1
 
 	volumeMode := pvc.Spec.VolumeMode
 	if volumeMode != nil && *volumeMode == v1.PersistentVolumeBlock {
-		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices(pvc)
+		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices(pvc, volumeName)
 	} else {
-		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts(pvc)
+		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts(pvc, volumeName)
 	}
 	return pod
 }
 
-func addVolumeDevices(pvc *k8sv1.PersistentVolumeClaim) []v1.VolumeDevice {
+func addVolumeDevices(pvc *k8sv1.PersistentVolumeClaim, volumeName string) []v1.VolumeDevice {
 	volumeDevices := []v1.VolumeDevice{
 		{
-			Name:       pvc.GetName(),
+			Name:       volumeName,
 			DevicePath: DefaultPvcMountPath,
 		},
 	}
@@ -124,10 +126,10 @@ func addVolumeDevices(pvc *k8sv1.PersistentVolumeClaim) []v1.VolumeDevice {
 }
 
 // this is being called for pods using PV with filesystem volume mode
-func addVolumeMounts(pvc *k8sv1.PersistentVolumeClaim) []v1.VolumeMount {
+func addVolumeMounts(pvc *k8sv1.PersistentVolumeClaim, volumeName string) []v1.VolumeMount {
 	volumeMounts := []v1.VolumeMount{
 		{
-			Name:      pvc.GetName(),
+			Name:      volumeName,
 			MountPath: DefaultPvcMountPath,
 		},
 	}
