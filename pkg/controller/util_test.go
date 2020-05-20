@@ -9,10 +9,11 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -22,14 +23,11 @@ import (
 	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	. "kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 )
 
 var (
@@ -81,17 +79,17 @@ var _ = Describe("getVolumeMode", func() {
 })
 
 var _ = Describe("checkIfLabelExists", func() {
-	pvc := createPvc("testPVC", "default", nil, map[string]string{CDILabelKey: CDILabelValue})
+	pvc := createPvc("testPVC", "default", nil, map[string]string{common.CDILabelKey: common.CDILabelValue})
 	pvcNoLbl := createPvc("testPVC2", "default", nil, nil)
 
 	table.DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, key, value string, expectedResult bool) {
 		result := checkIfLabelExists(pvc, key, value)
 		Expect(result).To(Equal(expectedResult))
 	},
-		table.Entry("return true if label with value exists", pvc, CDILabelKey, CDILabelValue, true),
+		table.Entry("return true if label with value exists", pvc, common.CDILabelKey, common.CDILabelValue, true),
 		table.Entry("return false if label with value does not exists", pvc, AnnCreatedBy, "yes", false),
-		table.Entry("return false if label exists, but value doesn't match", pvc, CDILabelKey, "something", false),
-		table.Entry("return false if pvc has no labels", pvcNoLbl, CDILabelKey, CDILabelValue, false),
+		table.Entry("return false if label exists, but value doesn't match", pvc, common.CDILabelKey, "something", false),
+		table.Entry("return false if pvc has no labels", pvcNoLbl, common.CDILabelKey, common.CDILabelValue, false),
 		table.Entry("return false if pvc has no labels and check key and value are blank", pvcNoLbl, "", "", false),
 	)
 })
@@ -101,9 +99,12 @@ var _ = Describe("addToMap", func() {
 		result := addToMap(m1, m2)
 		Expect(reflect.DeepEqual(result, expectedResult)).To(BeTrue())
 	},
-		table.Entry("use different key for map1 and map2 expect both maps to be returned", map[string]string{AnnImportPod: "mypod"}, map[string]string{CDILabelKey: CDILabelValue}, map[string]string{AnnImportPod: "mypod", CDILabelKey: CDILabelValue}),
-		table.Entry("use same key for map1 and map2 expect map2 to be returned", map[string]string{AnnImportPod: "mypod"}, map[string]string{AnnImportPod: "map2pod"}, map[string]string{AnnImportPod: "map2pod"}),
-		table.Entry("pass in empty map1 and map2 expect empty map", nil, nil, map[string]string{}),
+		table.Entry("use different key for map1 and map2 expect both maps to be returned",
+			map[string]string{AnnImportPod: "mypod"}, map[string]string{common.CDILabelKey: common.CDILabelValue}, map[string]string{AnnImportPod: "mypod", common.CDILabelKey: common.CDILabelValue}),
+		table.Entry("use same key for map1 and map2 expect map2 to be returned",
+			map[string]string{AnnImportPod: "mypod"}, map[string]string{AnnImportPod: "map2pod"}, map[string]string{AnnImportPod: "map2pod"}),
+		table.Entry("pass in empty map1 and map2 expect empty map",
+			nil, nil, map[string]string{}),
 	)
 })
 
@@ -387,68 +388,89 @@ func createSnapshotClass(name string, annotations map[string]string, snapshotter
 			Name:        name,
 			Annotations: annotations,
 		},
-		Snapshotter: snapshotter,
+		Driver: snapshotter,
 	}
 }
 
 func createVolumeSnapshotContentCrd() *apiextensionsv1beta1.CustomResourceDefinition {
+	pluralName := "volumesnapshotcontents"
 	return &apiextensionsv1beta1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CustomResourceDefinition",
 			APIVersion: apiextensionsv1beta1.SchemeGroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: crdv1.VolumeSnapshotContentResourcePlural + "." + crdv1.GroupName,
+			Name: pluralName + "." + snapshotv1.GroupName,
 		},
 		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
-			Group:   crdv1.GroupName,
-			Version: crdv1.SchemeGroupVersion.Version,
+			Group:   snapshotv1.GroupName,
+			Version: snapshotv1.SchemeGroupVersion.Version,
 			Scope:   apiextensionsv1beta1.ClusterScoped,
 			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
-				Plural: crdv1.VolumeSnapshotContentResourcePlural,
-				Kind:   reflect.TypeOf(crdv1.VolumeSnapshotContent{}).Name(),
+				Plural: pluralName,
+				Kind:   reflect.TypeOf(snapshotv1.VolumeSnapshotContent{}).Name(),
+			},
+			Versions: []apiextensionsv1beta1.CustomResourceDefinitionVersion{
+				{
+					Name:   snapshotv1.SchemeGroupVersion.Version,
+					Served: true,
+				},
 			},
 		},
 	}
 }
 
 func createVolumeSnapshotClassCrd() *apiextensionsv1beta1.CustomResourceDefinition {
+	pluralName := "volumesnapshotclasses"
 	return &apiextensionsv1beta1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CustomResourceDefinition",
 			APIVersion: apiextensionsv1beta1.SchemeGroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: crdv1.VolumeSnapshotClassResourcePlural + "." + crdv1.GroupName,
+			Name: pluralName + "." + snapshotv1.GroupName,
 		},
 		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
-			Group:   crdv1.GroupName,
-			Version: crdv1.SchemeGroupVersion.Version,
+			Group:   snapshotv1.GroupName,
+			Version: snapshotv1.SchemeGroupVersion.Version,
 			Scope:   apiextensionsv1beta1.ClusterScoped,
 			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
-				Plural: crdv1.VolumeSnapshotClassResourcePlural,
-				Kind:   reflect.TypeOf(crdv1.VolumeSnapshotClass{}).Name(),
+				Plural: pluralName,
+				Kind:   reflect.TypeOf(snapshotv1.VolumeSnapshotClass{}).Name(),
+			},
+			Versions: []apiextensionsv1beta1.CustomResourceDefinitionVersion{
+				{
+					Name:   snapshotv1.SchemeGroupVersion.Version,
+					Served: true,
+				},
 			},
 		},
 	}
 }
 
 func createVolumeSnapshotCrd() *apiextensionsv1beta1.CustomResourceDefinition {
+	pluralName := "volumesnapshots"
 	return &apiextensionsv1beta1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CustomResourceDefinition",
 			APIVersion: apiextensionsv1beta1.SchemeGroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: crdv1.VolumeSnapshotResourcePlural + "." + crdv1.GroupName,
+			Name: pluralName + "." + snapshotv1.GroupName,
 		},
 		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
-			Group:   crdv1.GroupName,
-			Version: crdv1.SchemeGroupVersion.Version,
+			Group:   snapshotv1.GroupName,
+			Version: snapshotv1.SchemeGroupVersion.Version,
 			Scope:   apiextensionsv1beta1.NamespaceScoped,
 			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
-				Plural: crdv1.VolumeSnapshotResourcePlural,
-				Kind:   reflect.TypeOf(crdv1.VolumeSnapshot{}).Name(),
+				Plural: pluralName,
+				Kind:   reflect.TypeOf(snapshotv1.VolumeSnapshot{}).Name(),
+			},
+			Versions: []apiextensionsv1beta1.CustomResourceDefinitionVersion{
+				{
+					Name:   snapshotv1.SchemeGroupVersion.Version,
+					Served: true,
+				},
 			},
 		},
 	}

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -277,24 +277,29 @@ func MakePodOwnerReference(pod *v1.Pod) metav1.OwnerReference {
 
 // IsCsiCrdsDeployed checks whether the CSI snapshotter CRD are deployed
 func IsCsiCrdsDeployed(c extclientset.Interface) bool {
-	vsClass := crdv1alpha1.VolumeSnapshotClassResourcePlural + "." + crdv1alpha1.GroupName
-	vsContent := crdv1alpha1.VolumeSnapshotContentResourcePlural + "." + crdv1alpha1.GroupName
-	vs := crdv1alpha1.VolumeSnapshotResourcePlural + "." + crdv1alpha1.GroupName
+	version := "v1beta1"
+	vsClass := "volumesnapshotclasses." + snapshotv1.GroupName
+	vsContent := "volumesnapshotcontents." + snapshotv1.GroupName
+	vs := "volumesnapshots." + snapshotv1.GroupName
 
-	return isCrdDeployed(c, vsClass) &&
-		isCrdDeployed(c, vsContent) &&
-		isCrdDeployed(c, vs)
+	return isCrdDeployed(c, vsClass, version) &&
+		isCrdDeployed(c, vsContent, version) &&
+		isCrdDeployed(c, vs, version)
 }
 
-func isCrdDeployed(c extclientset.Interface, name string) bool {
+func isCrdDeployed(c extclientset.Interface, name, version string) bool {
 	obj, err := c.ApiextensionsV1beta1().CustomResourceDefinitions().Get(name, metav1.GetOptions{})
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			return false
-		}
 		return false
 	}
-	return obj != nil
+
+	for _, v := range obj.Spec.Versions {
+		if v.Name == version && v.Served {
+			return true
+		}
+	}
+
+	return false
 }
 
 func isPodReady(pod *v1.Pod) bool {

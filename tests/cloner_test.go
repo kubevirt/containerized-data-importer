@@ -864,15 +864,11 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 	err = utils.WaitForDataVolumePhase(f.CdiClient, targetNs.Name, cdiv1.Succeeded, targetPvc.Name)
 
 	Expect(f.VerifyTargetPVCContentMD5(targetNs, targetPvc, filePath, expectedMD5)).To(BeTrue())
-	// Clean up PVC, the AfterEach will also clean it up, through the Namespace delete.
-	if targetPvc != nil {
-		err = utils.DeletePVC(f.K8sClient, targetNs.Name, targetPvc)
-		Expect(err).ToNot(HaveOccurred())
-	}
+
 	if utils.DefaultStorageCSI {
 		// CSI storage class, it should respect fsGroup
 		By("Checking that disk image group is qemu")
-		Expect(f.GetDiskGroup(f.Namespace, targetPvc)).To(Equal(sourcePvcDiskGroup))
+		Expect(f.GetDiskGroup(targetNs, targetPvc)).To(Equal(sourcePvcDiskGroup))
 	}
 }
 

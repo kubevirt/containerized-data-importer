@@ -10,7 +10,7 @@ import (
 	"strconv"
 
 	"github.com/go-logr/logr"
-	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -231,7 +231,7 @@ func addCrdInformerEventHandlers(crdInformer cache.SharedIndexInformer, extclien
 			crd := obj.(*v1beta1.CustomResourceDefinition)
 			crdName := crd.Name
 
-			vs := crdv1alpha1.VolumeSnapshotResourcePlural + "." + crdv1alpha1.GroupName
+			vs := "volumesnapshots." + snapshotv1.GroupName
 
 			switch crdName {
 			case vs:

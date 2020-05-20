@@ -19,14 +19,10 @@ package controller
 import (
 	"context"
 
-	csiv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
-
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +30,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -48,12 +47,12 @@ var _ = Describe("Smart-clone reconcile functions", func() {
 		if annotation != "" {
 			annotations[annotation] = ""
 		}
-		val := &csiv1.VolumeSnapshot{
+		val := &snapshotv1.VolumeSnapshot{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: annotations,
 			},
-			Status: csiv1.VolumeSnapshotStatus{
-				ReadyToUse: ready,
+			Status: &snapshotv1.VolumeSnapshotStatus{
+				ReadyToUse: &ready,
 			},
 		}
 		Expect(shouldReconcileSnapshot(val)).To(Equal(expectSuccess))
@@ -143,7 +142,7 @@ var _ = Describe("Smart-clone controller reconcilePVC loop", func() {
 		By("Checking error event recorded")
 		event := <-reconciler.recorder.(*record.FakeRecorder).Events
 		Expect(event).To(ContainSubstring("Successfully cloned from default/test into default/test-dv"))
-		snapshot := &csiv1.VolumeSnapshot{}
+		snapshot := &snapshotv1.VolumeSnapshot{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, snapshot)
 		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 	})
@@ -155,7 +154,7 @@ var _ = Describe("Smart-clone controller reconcilePVC loop", func() {
 		By("Checking error event recorded")
 		event := <-reconciler.recorder.(*record.FakeRecorder).Events
 		Expect(event).To(ContainSubstring("Successfully cloned from default/test into default/test-dv"))
-		snapshot := &csiv1.VolumeSnapshot{}
+		snapshot := &snapshotv1.VolumeSnapshot{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, snapshot)
 		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 	})
@@ -223,7 +222,7 @@ func createSmartCloneReconciler(objects ...runtime.Object) *SmartCloneReconciler
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
 	cdiv1.AddToScheme(s)
-	csiv1.AddToScheme(s)
+	snapshotv1.AddToScheme(s)
 
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
@@ -249,18 +248,18 @@ func createPVCWithSnapshotSource(name, snapshotName string) *corev1.PersistentVo
 	pvc.Spec.DataSource = &corev1.TypedLocalObjectReference{
 		Name:     snapshotName,
 		Kind:     "VolumeSnapshot",
-		APIGroup: &csiv1.SchemeGroupVersion.Group,
+		APIGroup: &snapshotv1.SchemeGroupVersion.Group,
 	}
 	pvc.Status.Phase = corev1.ClaimBound
 	return pvc
 }
 
-func createSnapshotVolume(name, namespace string, owner *metav1.OwnerReference) *csiv1.VolumeSnapshot {
+func createSnapshotVolume(name, namespace string, owner *metav1.OwnerReference) *snapshotv1.VolumeSnapshot {
 	ownerRefs := make([]metav1.OwnerReference, 0)
 	if owner != nil {
 		ownerRefs = append(ownerRefs, *owner)
 	}
-	return &csiv1.VolumeSnapshot{
+	return &snapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
 			Namespace:       namespace,
