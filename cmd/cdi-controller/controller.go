@@ -153,8 +153,6 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		os.Exit(1)
 	}
 
-	startSmartController(extClient, mgr, log)
-
 	if _, err := controller.NewUploadController(mgr, log, uploadServerImage, pullPolicy, verbose, uploadServerCertGenerator, uploadClientBundleFetcher); err != nil {
 		klog.Errorf("Unable to setup upload controller: %v", err)
 		os.Exit(1)
