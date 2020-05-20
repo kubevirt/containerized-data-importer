@@ -10,6 +10,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -132,11 +133,25 @@ var _ = Describe("[rfe_id:1250][crit:high][test_id:1889][vendor:cnv-qe@redhat.co
 		err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).Delete(leaderPodName, &metav1.DeleteOptions{})
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to kill leader: %v", err))
 
+		By("Verifying that the original leader pod is gone.")
 		Eventually(func() bool {
+			_, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).Get(leaderPodName, metav1.GetOptions{})
+			return err != nil && k8serrors.IsNotFound(err)
+		}, timeout, pollingInterval).Should(BeTrue())
+
+		Eventually(func() bool {
+			newDeploymentPodName := locateNewPod(f, newPodName)
+			newDeploymentLog := ""
+			if newDeploymentPodName != "" {
+				newDeploymentLog = getLog(f, newDeploymentPodName)
+			}
 			log := getLog(f, newPodName)
 			fmt.Fprintf(GinkgoWriter, "INFO: Lookin for: %s\n", logIsLeaderRegex)
-			fmt.Fprintf(GinkgoWriter, "INFO: In: %s\n", log)
-			return checkLogForRegEx(logIsLeaderRegex, log)
+			fmt.Fprintf(GinkgoWriter, "INFO: In new deployment pod log: %s\n", log)
+			if newDeploymentLog != "" {
+				fmt.Fprintf(GinkgoWriter, "INFO: In original leader pod log: %s\n", newDeploymentLog)
+			}
+			return checkLogForRegEx(logIsLeaderRegex, log) || checkLogForRegEx(logIsLeaderRegex, newDeploymentLog)
 		}, timeout, pollingInterval).Should(BeTrue())
 
 		By("Verifying imported pod has progressed without issue")
