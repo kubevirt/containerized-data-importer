@@ -159,12 +159,21 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					// will not match if the pod hasn't failed and the backoff is not long enough yet
 					resultDv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
 					Expect(dverr).ToNot(HaveOccurred())
+					resultPvc, err := utils.FindPVCForDV(f.K8sClient, dataVolume)
+					Expect(err).ToNot(HaveOccurred())
+
+					args.boundCondition = &cdiv1.DataVolumeCondition{
+						Type:    cdiv1.DataVolumeBound,
+						Status:  v1.ConditionTrue,
+						Message: fmt.Sprintf("PVC %v Bound", resultPvc.Name),
+						Reason:  "Bound",
+					}
 					return verifyConditions(resultDv.Status.Conditions, startTime, args.readyCondition, args.runningCondition, args.boundCondition)
 				}, timeout, pollingInterval).Should(BeTrue())
 
 				// verify PVC was created
 				By("verifying pvc was created")
-				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+				pvc, err := utils.FindPVCForDV(f.K8sClient, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
 
 				By(fmt.Sprint("Verifying event occurred"))
@@ -190,7 +199,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
 				Expect(err).ToNot(HaveOccurred())
 				Eventually(func() bool {
-					_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+					_, err = utils.FindPVCForDV(f.K8sClient, dataVolume)
 					if k8serrors.IsNotFound(err) {
 						return true
 					}
@@ -210,12 +219,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
 				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-http-import Bound",
-					Reason:  "Bound",
-				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
@@ -233,12 +236,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionFalse,
-				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-http-import-invalid-url Bound",
-					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
@@ -258,12 +255,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionFalse,
 				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-http-import-404 Bound",
-					Reason:  "Bound",
-				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
@@ -281,12 +272,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionFalse,
-				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-invalid-qcow-large-size Bound",
-					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
@@ -306,12 +291,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionFalse,
 				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-invalid-qcow-large-json Bound",
-					Reason:  "Bound",
-				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
@@ -329,12 +308,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionFalse,
-				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-invalid-qcow-large-memory Bound",
-					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
@@ -354,12 +327,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionFalse,
 				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-invalid-qcow-backing-file Bound",
-					Reason:  "Bound",
-				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
@@ -378,12 +345,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
 				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-http-stream-import Bound",
-					Reason:  "Bound",
-				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
@@ -401,12 +362,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
-				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-https-import Bound",
-					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
@@ -449,12 +404,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
 				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC blank-image-dv Bound",
-					Reason:  "Bound",
-				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
@@ -472,12 +421,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Status: v1.ConditionFalse,
 					Reason: "TransferRunning",
 				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC upload-dv Bound",
-					Reason:  "Bound",
-				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeRunning,
 					Status: v1.ConditionTrue,
@@ -493,12 +436,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
-				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-tar-archive Bound",
-					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
@@ -518,12 +455,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionFalse,
 				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-non-tar-archive Bound",
-					Reason:  "Bound",
-				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
@@ -542,12 +473,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
 				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-imageio-test Bound",
-					Reason:  "Bound",
-				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
@@ -564,12 +489,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
-				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-clone-test1 Bound",
-					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
@@ -589,12 +508,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
-				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-import-registry Bound",
-					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
@@ -655,7 +568,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			for _, dv := range dvs {
 				err := utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(f.VerifyBlankDisk(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv))).To(BeTrue())
+				pvc, err := utils.FindPVCForDV(f.K8sClient, dv)
+				Expect(f.VerifyBlankDisk(f.Namespace, pvc)).To(BeTrue())
 			}
 		})
 	})
@@ -697,7 +611,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			// verify PVC was created
 			By("verifying pvc was created")
-			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+			_, err = utils.FindPVCForDV(f.K8sClient, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
 			By(fmt.Sprint("Verifying event occurred"))
@@ -731,7 +645,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 				// verify PVC was created
 				By("verifying pvc and pod were created")
-				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+				pvc, err := utils.FindPVCForDV(f.K8sClient, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
 
 				pvcName := pvc.Name
@@ -924,7 +838,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Waiting for DV's PVC")
-			pvc, err := utils.WaitForPVC(f.K8sClient, f.Namespace.Name, dataVolume.Name)
+			pvc, err := utils.WaitForPVCForDV(f.K8sClient, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 			pvcUID := pvc.GetUID()
 
@@ -939,7 +853,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(deleted).To(BeTrue())
 
 			By("Wait for PVC to be recreated")
-			pvc, err = utils.WaitForPVC(f.K8sClient, f.Namespace.Name, dataVolume.Name)
+			pvc, err = utils.WaitForPVCForDV(f.K8sClient, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(pvc.GetUID()).ToNot(Equal(pvcUID))
@@ -963,8 +877,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("verifying pvc was created")
 			Eventually(func() bool {
-				// TODO: fix this to use the mechanism to find the correct PVC once we decouple the DV and PVC names
-				pvc, _ = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+				pvc, _ = utils.FindPVCForDV(f.K8sClient, dataVolume)
 				return pvc != nil && pvc.Name != ""
 			}, timeout, pollingInterval).Should(BeTrue())
 

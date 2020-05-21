@@ -186,7 +186,11 @@ var _ = Describe("Operator delete CDI tests", func() {
 
 		By("Waiting for pod to be running")
 		Eventually(func() bool {
-			pod, err := f.K8sClient.CoreV1().Pods(dv.Namespace).Get("cdi-upload-"+dv.Name, metav1.GetOptions{})
+			pvc, err := utils.FindPVCForDV(f.K8sClient, dv)
+			if err != nil {
+				return false
+			}
+			pod, err := f.K8sClient.CoreV1().Pods(dv.Namespace).Get("cdi-upload-"+pvc.Name, metav1.GetOptions{})
 			if errors.IsNotFound(err) {
 				return false
 			}

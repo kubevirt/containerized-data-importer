@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
 const (
@@ -54,10 +55,26 @@ func CreatePVCFromDefinition(clientSet *kubernetes.Clientset, namespace string, 
 
 // WaitForPVC waits for a PVC
 func WaitForPVC(clientSet *kubernetes.Clientset, namespace, name string) (*k8sv1.PersistentVolumeClaim, error) {
+	return waitForPVCFn(clientSet, namespace, name, FindPVC)
+}
+
+// WaitForPVCForDV waits for a PVC created by DV
+func WaitForPVCForDV(clientSet *kubernetes.Clientset, dv *cdiv1.DataVolume) (*k8sv1.PersistentVolumeClaim, error) {
+	return WaitForPVCByLabel(clientSet, dv.Namespace, dv.Name)
+}
+
+// WaitForPVCByLabel waits for a PVC looked up by label 'cdi-controller'
+func WaitForPVCByLabel(clientSet *kubernetes.Clientset, namespace, name string) (*k8sv1.PersistentVolumeClaim, error) {
+	return waitForPVCFn(clientSet, namespace, name, FindPVCByLabel)
+}
+
+type findPVCFn func(*kubernetes.Clientset, string, string) (*k8sv1.PersistentVolumeClaim, error)
+
+func waitForPVCFn(clientSet *kubernetes.Clientset, namespace, name string, findPVCFn findPVCFn) (*k8sv1.PersistentVolumeClaim, error) {
 	var pvc *k8sv1.PersistentVolumeClaim
 	err := wait.PollImmediate(pvcPollInterval, pvcCreateTime, func() (bool, error) {
 		var err error
-		pvc, err = FindPVC(clientSet, namespace, name)
+		pvc, err = findPVCFn(clientSet, namespace, name)
 		if err != nil {
 			if apierrs.IsNotFound(err) {
 				return false, nil
@@ -81,6 +98,32 @@ func DeletePVC(clientSet *kubernetes.Clientset, namespace string, pvc *k8sv1.Per
 		}
 		return false, err
 	})
+}
+
+// FindPVCForDV finds a PVC created by DV
+func FindPVCForDV(clientSet *kubernetes.Clientset, dv *cdiv1.DataVolume) (*k8sv1.PersistentVolumeClaim, error) {
+	return FindPVCByLabel(clientSet, dv.Namespace, dv.Name)
+}
+
+// FindPVCByLabel finds a PVC with label 'cdi-controller=' for a DV
+func FindPVCByLabel(clientSet *kubernetes.Clientset, namespace, dvName string) (*k8sv1.PersistentVolumeClaim, error) {
+	pvcList, err := clientSet.CoreV1().PersistentVolumeClaims(namespace).List(metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, pvc := range pvcList.Items {
+		for _, or := range pvc.ObjectMeta.OwnerReferences {
+			if or.Kind != "DataVolume" || or.Name != dvName {
+				continue
+			}
+
+			return &pvc, nil
+		}
+	}
+
+	return nil, apierrs.NewNotFound(k8sv1.Resource("persistentvolumeclaim"),
+		fmt.Sprintf("Not found PVC created by DV %v/%v", namespace, dvName))
 }
 
 // FindPVC Finds the passed in PVC

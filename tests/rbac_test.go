@@ -92,7 +92,7 @@ var _ = Describe("Aggregated role in-action tests", func() {
 
 		var pvc *corev1.PersistentVolumeClaim
 		Eventually(func() error {
-			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(dv.Name, metav1.GetOptions{})
+			pvc, err = utils.FindPVCByLabel(f.K8sClient, f.Namespace.Name, dv.Name)
 			if err != nil {
 				return err
 			}

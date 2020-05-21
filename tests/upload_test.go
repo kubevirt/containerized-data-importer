@@ -495,7 +495,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
 		dv := utils.NewDataVolumeForUpload(dvName, "100Mi")
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
-		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+		pvc, err = utils.WaitForPVCForDV(f.K8sClient, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
 
 		phase := cdiv1.UploadReady
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -553,7 +554,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
 		dv := utils.NewDataVolumeForUpload(dvName, "100Mi")
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
-		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+		pvc, err = utils.WaitForPVCForDV(f.K8sClient, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
 
 		phase := cdiv1.UploadReady
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -599,7 +601,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		dv := utils.NewDataVolumeForUpload(shortDvName, "1Gi")
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
-		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+		pvc, err = utils.WaitForPVCForDV(f.K8sClient, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
 
 		phase := cdiv1.UploadReady
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -643,7 +646,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		dv := utils.NewDataVolumeForUpload(dvName160Characters, "1Gi")
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
-		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+		pvc, err = utils.WaitForPVCForDV(f.K8sClient, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
 
 		phase := cdiv1.UploadReady
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -687,7 +691,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		dv := utils.NewDataVolumeForUpload(dvName160Characters, "1Gi")
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
-		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+		pvc, err = utils.WaitForPVCForDV(f.K8sClient, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
 
 		phase := cdiv1.UploadReady
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))

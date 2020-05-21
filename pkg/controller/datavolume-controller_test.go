@@ -36,6 +36,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
@@ -77,13 +78,13 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 	})
 
 	It("Should create a PVC on a valid import DV", func() {
-		reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
+		dv := newImportDataVolume("test-dv")
+		reconciler = createDatavolumeReconciler(dv)
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 		Expect(err).ToNot(HaveOccurred())
-		pvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		pvc, err := reconciler.findPVCForDV(dv.Namespace, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(pvc.Name).To(Equal("test-dv"))
+		Expect(pvc.GenerateName).To(Equal("test-dv-"))
 	})
 
 	It("Should pass annotation from DV to created a PVC on a DV", func() {
@@ -95,10 +96,9 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		reconciler = createDatavolumeReconciler(dv)
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 		Expect(err).ToNot(HaveOccurred())
-		pvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		pvc, err := reconciler.findPVCForDV(dv.Namespace, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(pvc.Name).To(Equal("test-dv"))
+		Expect(pvc.GenerateName).To(Equal("test-dv-"))
 		Expect(pvc.GetAnnotations()).ToNot(BeNil())
 		Expect(pvc.GetAnnotations()["test-ann-1"]).To(Equal("test-value-1"))
 		Expect(pvc.GetAnnotations()["test-ann-2"]).To(Equal("test-value-2"))
@@ -106,15 +106,15 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 	})
 
 	It("Should follow the phase of the created PVC", func() {
-		reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
+		dv := newImportDataVolume("test-dv")
+		reconciler = createDatavolumeReconciler(dv)
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 		Expect(err).ToNot(HaveOccurred())
-		pvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		pvc, err := reconciler.findPVCForDV(dv.Namespace, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(pvc.Name).To(Equal("test-dv"))
+		Expect(pvc.GenerateName).To(Equal("test-dv-"))
 
-		dv := &cdiv1.DataVolume{}
+		dv = &cdiv1.DataVolume{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dv.Status.Phase).To(BeEquivalentTo(""))
@@ -133,15 +133,15 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 	})
 
 	It("Should follow the restarts of the PVC", func() {
-		reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
+		dv := newImportDataVolume("test-dv")
+		reconciler = createDatavolumeReconciler(dv)
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 		Expect(err).ToNot(HaveOccurred())
-		pvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		pvc, err := reconciler.findPVCForDV(dv.Namespace, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(pvc.Name).To(Equal("test-dv"))
+		Expect(pvc.GenerateName).To(Equal("test-dv-"))
 
-		dv := &cdiv1.DataVolume{}
+		dv = &cdiv1.DataVolume{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dv.Status.RestartCount).To(Equal(int32(0)))
@@ -159,25 +159,23 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(dv.Status.RestartCount).To(Equal(int32(2)))
 	})
 
-	It("Should error if a PVC with same name already exists that is not owned by us", func() {
-		reconciler = createDatavolumeReconciler(createPvc("test-dv", metav1.NamespaceDefault, map[string]string{}, nil), newImportDataVolume("test-dv"))
+	It("Should not error if a PVC with same name already exists", func() {
+		pvc := createPvc("test-dv", metav1.NamespaceDefault, map[string]string{}, nil)
+		reconciler = createDatavolumeReconciler(pvc, newImportDataVolume("test-dv"))
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
-		Expect(err).To(HaveOccurred())
-		By("Checking error event recorded")
-		event := <-reconciler.recorder.(*record.FakeRecorder).Events
-		Expect(event).To(ContainSubstring("Resource \"test-dv\" already exists and is not managed by DataVolume"))
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("Should add owner to pre populated PVC", func() {
 		annotations := map[string]string{"cdi.kubevirt.io/storage.populatedFor": "test-dv"}
-		pvc := createPvc("test-dv", metav1.NamespaceDefault, annotations, nil)
+		pvc := createPvc("test-dv-abc123", metav1.NamespaceDefault, annotations, nil)
 		pvc.Status.Phase = corev1.ClaimBound
 		dv := newImportDataVolume("test-dv")
 		reconciler = createDatavolumeReconciler(pvc, dv)
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 		Expect(err).ToNot(HaveOccurred())
 
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		pvc, err = reconciler.findPVCForDV(dv.Namespace, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(pvc.OwnerReferences).To(HaveLen(1))
 		or := pvc.OwnerReferences[0]
@@ -185,7 +183,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(dv.Annotations["cdi.kubevirt.io/storage.prePopulated"]).To(Equal("test-dv"))
+		Expect(dv.Annotations["cdi.kubevirt.io/storage.prePopulated"]).To(Equal("test-dv-abc123"))
 		Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
 		Expect(string(dv.Status.Progress)).To(Equal("N/A"))
 	})
@@ -296,13 +294,13 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 		Expect(err).ToNot(HaveOccurred())
 
-		pvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		pvc, err := reconciler.findPVCForDV(dv.Namespace, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(pvc.Name).To(Equal("test-dv"))
+		Expect(pvc.GenerateName).To(Equal("test-dv-"))
 		pvc.Status.Phase = corev1.ClaimPending
 		err = reconciler.client.Update(context.TODO(), pvc)
 		Expect(err).ToNot(HaveOccurred())
+		pvc.Name = "test-dv-test12"
 		_, err = reconciler.reconcileDataVolumeStatus(dv, pvc)
 		Expect(err).ToNot(HaveOccurred())
 		dv = &cdiv1.DataVolume{}
@@ -312,12 +310,12 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		Expect(len(dv.Status.Conditions)).To(Equal(3))
 		boundCondition := findConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
 		Expect(boundCondition.Status).To(Equal(corev1.ConditionFalse))
-		Expect(boundCondition.Message).To(Equal("PVC test-dv Pending"))
+		Expect(boundCondition.Message).To(Equal("PVC test-dv-test12 Pending"))
 		By("Checking events recorded")
 		close(reconciler.recorder.(*record.FakeRecorder).Events)
 		found := false
 		for event := range reconciler.recorder.(*record.FakeRecorder).Events {
-			if strings.Contains(event, "PVC test-dv Pending") {
+			if strings.Contains(event, "PVC test-dv-test12 Pending") {
 				found = true
 			}
 		}
@@ -332,15 +330,15 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 		Expect(err).ToNot(HaveOccurred())
 
-		pvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		pvc, err := reconciler.findPVCForDV(dv.Namespace, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(pvc.Name).To(Equal("test-dv"))
+		Expect(pvc.GenerateName).To(Equal("test-dv-"))
 		pvc.Status.Phase = corev1.ClaimPending
 		pvc.SetAnnotations(make(map[string]string))
 		pvc.GetAnnotations()[AnnPodPhase] = string(corev1.PodSucceeded)
 		err = reconciler.client.Update(context.TODO(), pvc)
 		Expect(err).ToNot(HaveOccurred())
+		pvc.Name = "test-dv-test12"
 		_, err = reconciler.reconcileDataVolumeStatus(dv, pvc)
 		Expect(err).ToNot(HaveOccurred())
 		dv = &cdiv1.DataVolume{}
@@ -352,10 +350,11 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		foundSuccess := false
 		foundPending := false
 		for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+			By(fmt.Sprintf("Event: %v", event))
 			if strings.Contains(event, "Successfully imported into PVC test-dv") {
 				foundSuccess = true
 			}
-			if strings.Contains(event, "PVC test-dv Pending") {
+			if strings.Contains(event, "PVC test-dv-test12 Pending") {
 				foundPending = true
 			}
 		}
@@ -364,7 +363,7 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		Expect(len(dv.Status.Conditions)).To(Equal(3))
 		boundCondition := findConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
 		Expect(boundCondition.Status).To(Equal(corev1.ConditionFalse))
-		Expect(boundCondition.Message).To(Equal("PVC test-dv Pending"))
+		Expect(boundCondition.Message).To(Equal("PVC test-dv-test12 Pending"))
 		readyCondition := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions)
 		Expect(readyCondition.Status).To(Equal(corev1.ConditionTrue))
 		Expect(readyCondition.Message).To(Equal(""))
@@ -381,10 +380,9 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		err = reconciler.client.Update(context.TODO(), dv)
 		Expect(err).ToNot(HaveOccurred())
 
-		pvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		pvc, err := reconciler.findPVCForDV(dv.Namespace, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(pvc.Name).To(Equal("test-dv"))
+		Expect(pvc.GenerateName).To(Equal("test-dv-"))
 		pvc.Status.Phase = pvcPhase
 		pvc.SetAnnotations(make(map[string]string))
 		pvc.GetAnnotations()[ann] = "something"
@@ -392,6 +390,7 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		for i := 0; i < len(extraAnnotations); i += 2 {
 			pvc.GetAnnotations()[extraAnnotations[i]] = extraAnnotations[i+1]
 		}
+		pvc.Name = "test-dv-test12"
 
 		_, err = reconciler.reconcileDataVolumeStatus(dv, pvc)
 		Expect(err).ToNot(HaveOccurred())
@@ -403,7 +402,7 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		Expect(len(dv.Status.Conditions)).To(Equal(3))
 		boundCondition := findConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
 		Expect(boundCondition.Status).To(Equal(boundStatusByPVCPhase(pvcPhase)))
-		Expect(boundCondition.Message).To(Equal(boundMessageByPVCPhase(pvcPhase, "test-dv")))
+		Expect(boundCondition.Message).To(Equal(boundMessageByPVCPhase(pvcPhase, "test-dv-test12")))
 		readyCondition := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions)
 		Expect(readyCondition.Status).To(Equal(readyStatusByPhase(expected)))
 		Expect(readyCondition.Message).To(Equal(""))
@@ -412,35 +411,98 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		found := false
 		for event := range reconciler.recorder.(*record.FakeRecorder).Events {
 			By(event)
+			By(expectedEvent)
 			if strings.Contains(event, expectedEvent) {
 				found = true
 			}
 		}
 		Expect(found).To(BeTrue())
 	},
-		Entry("should switch to bound for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.PVCBound, corev1.ClaimBound, corev1.PodPending, "invalid", "PVC test-dv Bound"),
-		Entry("should switch to bound for import", newImportDataVolume("test-dv"), cdiv1.Unknown, cdiv1.PVCBound, corev1.ClaimBound, corev1.PodPending, "invalid", "PVC test-dv Bound"),
-		Entry("should switch to scheduled for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportScheduled, corev1.ClaimBound, corev1.PodPending, AnnImportPod, "Import into test-dv scheduled"),
-		Entry("should switch to inprogress for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportInProgress, corev1.ClaimBound, corev1.PodRunning, AnnImportPod, "Import into test-dv in progress"),
-		Entry("should switch to failed for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnImportPod, "Failed to import into PVC test-dv"),
-		Entry("should switch to failed on claim lost for impot", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnImportPod, "PVC test-dv lost"),
-		Entry("should switch to succeeded for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnImportPod, "Successfully imported into PVC test-dv"),
-		Entry("should switch to scheduled for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.CloneScheduled, corev1.ClaimBound, corev1.PodPending, AnnCloneRequest, "Cloning from default/test into default/test-dv scheduled"),
-		Entry("should switch to clone in progress for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.CloneInProgress, corev1.ClaimBound, corev1.PodRunning, AnnCloneRequest, "Cloning from default/test into default/test-dv in progress"),
-		Entry("should switch to failed for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnCloneRequest, "Cloning from default/test into default/test-dv failed"),
-		Entry("should switch to failed on claim lost for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnCloneRequest, "PVC test-dv lost"),
-		Entry("should switch to succeeded for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnCloneRequest, "Successfully cloned from default/test into default/test-dv"),
-		Entry("should switch to scheduled for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.UploadScheduled, corev1.ClaimBound, corev1.PodPending, AnnUploadRequest, "Upload into test-dv scheduled"),
-		Entry("should switch to uploadready for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.UploadReady, corev1.ClaimBound, corev1.PodRunning, AnnUploadRequest, "Upload into test-dv ready", AnnPodReady, "true"),
-		Entry("should switch to failed for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnUploadRequest, "Upload into test-dv failed"),
-		Entry("should switch to failed on claim lost for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnUploadRequest, "PVC test-dv lost"),
-		Entry("should switch to succeeded for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnUploadRequest, "Successfully uploaded into test-dv"),
-		Entry("should switch to scheduled for blank", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportScheduled, corev1.ClaimBound, corev1.PodPending, AnnImportPod, "Import into test-dv scheduled"),
-		Entry("should switch to inprogress for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportInProgress, corev1.ClaimBound, corev1.PodRunning, AnnImportPod, "Import into test-dv in progress"),
-		Entry("should switch to failed for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnImportPod, "Failed to import into PVC test-dv"),
-		Entry("should switch to failed on claim lost for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnImportPod, "PVC test-dv lost"),
-		Entry("should switch to succeeded for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnImportPod, "Successfully imported into PVC test-dv"),
+		Entry("should switch to bound for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.PVCBound, corev1.ClaimBound, corev1.PodPending, "invalid", "PVC test-dv-test12 Bound"),
+		Entry("should switch to bound for import", newImportDataVolume("test-dv"), cdiv1.Unknown, cdiv1.PVCBound, corev1.ClaimBound, corev1.PodPending, "invalid", "PVC test-dv-test12 Bound"),
+		Entry("should switch to scheduled for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportScheduled, corev1.ClaimBound, corev1.PodPending, AnnImportPod, "Import into test-dv-test12 scheduled"),
+		Entry("should switch to inprogress for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportInProgress, corev1.ClaimBound, corev1.PodRunning, AnnImportPod, "Import into test-dv-test12 in progress"),
+		Entry("should switch to failed for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnImportPod, "Failed to import into PVC test-dv-test12"),
+		Entry("should switch to failed on claim lost for impot", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnImportPod, "PVC test-dv-test12 lost"),
+		Entry("should switch to succeeded for import", newImportDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnImportPod, "Successfully imported into PVC test-dv-test12"),
+		Entry("should switch to scheduled for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.CloneScheduled, corev1.ClaimBound, corev1.PodPending, AnnCloneRequest, "Cloning from default/test into default/test-dv-test12 scheduled"),
+		Entry("should switch to clone in progress for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.CloneInProgress, corev1.ClaimBound, corev1.PodRunning, AnnCloneRequest, "Cloning from default/test into default/test-dv-test12 in progress"),
+		Entry("should switch to failed for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnCloneRequest, "Cloning from default/test into default/test-dv-test12 failed"),
+		Entry("should switch to failed on claim lost for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnCloneRequest, "PVC test-dv-test12 lost"),
+		Entry("should switch to succeeded for clone", newCloneDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnCloneRequest, "Successfully cloned from default/test into default/test-dv-test12"),
+		Entry("should switch to scheduled for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.UploadScheduled, corev1.ClaimBound, corev1.PodPending, AnnUploadRequest, "Upload into test-dv-test12 scheduled"),
+		Entry("should switch to uploadready for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.UploadReady, corev1.ClaimBound, corev1.PodRunning, AnnUploadRequest, "Upload into test-dv-test12 ready", AnnPodReady, "true"),
+		Entry("should switch to failed for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnUploadRequest, "Upload into test-dv-test12 failed"),
+		Entry("should switch to failed on claim lost for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnUploadRequest, "PVC test-dv-test12 lost"),
+		Entry("should switch to succeeded for upload", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnUploadRequest, "Successfully uploaded into test-dv-test12"),
+		Entry("should switch to scheduled for blank", newUploadDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportScheduled, corev1.ClaimBound, corev1.PodPending, AnnImportPod, "Import into test-dv-test12 scheduled"),
+		Entry("should switch to inprogress for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.ImportInProgress, corev1.ClaimBound, corev1.PodRunning, AnnImportPod, "Import into test-dv-test12 in progress"),
+		Entry("should switch to failed for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimBound, corev1.PodFailed, AnnImportPod, "Failed to import into PVC test-dv-test12"),
+		Entry("should switch to failed on claim lost for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Failed, corev1.ClaimLost, corev1.PodFailed, AnnImportPod, "PVC test-dv-test12 lost"),
+		Entry("should switch to succeeded for blank", newBlankImageDataVolume("test-dv"), cdiv1.Pending, cdiv1.Succeeded, corev1.ClaimBound, corev1.PodSucceeded, AnnImportPod, "Successfully imported into PVC test-dv-test12"),
 	)
+})
+
+var _ = Describe("Find PVC for DV", func() {
+	var (
+		reconciler *DatavolumeReconciler
+	)
+
+	It("Should find a PVC populated for DV", func() {
+		annotations := map[string]string{AnnPopulatedFor: "test-dv"}
+		pvc := createPvc("test-dv-abc123", metav1.NamespaceDefault, annotations, map[string]string{})
+		dv := newImportDataVolume("test-dv")
+		reconciler = createDatavolumeReconciler(pvc, dv)
+		foundPvc, err := reconciler.findPVCForDV(dv.Namespace, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(foundPvc.UID).To(Equal(pvc.UID))
+	})
+
+	It("Should find a PVC owned by the DV", func() {
+		pvc := createPvc("test-dv-abc123", metav1.NamespaceDefault, map[string]string{}, map[string]string{})
+		dv := newImportDataVolume("test-dv")
+		pvc.ObjectMeta.OwnerReferences = append(pvc.ObjectMeta.OwnerReferences,
+			*metav1.NewControllerRef(dv, schema.GroupVersionKind{
+				Group:   cdiv1.SchemeGroupVersion.Group,
+				Version: cdiv1.SchemeGroupVersion.Version,
+				Kind:    "DataVolume",
+			}),
+		)
+		reconciler = createDatavolumeReconciler(pvc, dv)
+		foundPvc, err := reconciler.findPVCForDV(dv.Namespace, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(foundPvc.UID).To(Equal(pvc.UID))
+	})
+
+	It("Should error if there is more than one PVC owned by the DV", func() {
+		pvc1 := createPvc("test-dv-abc123", metav1.NamespaceDefault, map[string]string{}, map[string]string{})
+		pvc2 := createPvc("test-dv-321abc", metav1.NamespaceDefault, map[string]string{}, map[string]string{})
+		dv := newImportDataVolume("test-dv")
+		pvc1.ObjectMeta.OwnerReferences = append(pvc1.ObjectMeta.OwnerReferences,
+			*metav1.NewControllerRef(dv, schema.GroupVersionKind{
+				Group:   cdiv1.SchemeGroupVersion.Group,
+				Version: cdiv1.SchemeGroupVersion.Version,
+				Kind:    "DataVolume",
+			}),
+		)
+		pvc2.ObjectMeta.OwnerReferences = append(pvc2.ObjectMeta.OwnerReferences,
+			*metav1.NewControllerRef(dv, schema.GroupVersionKind{
+				Group:   cdiv1.SchemeGroupVersion.Group,
+				Version: cdiv1.SchemeGroupVersion.Version,
+				Kind:    "DataVolume",
+			}),
+		)
+		reconciler = createDatavolumeReconciler(pvc1, pvc2, dv)
+		_, err := reconciler.findPVCForDV(dv.Namespace, dv.Name)
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("Should error if no PVC is found", func() {
+		dv := newImportDataVolume("test-dv")
+		reconciler = createDatavolumeReconciler(dv)
+		_, err := reconciler.findPVCForDV(dv.Namespace, dv.Name)
+		Expect(err).To(HaveOccurred())
+	})
 })
 
 func podUsingCloneSource(dv *cdiv1.DataVolume, readOnly bool) *corev1.Pod {
@@ -629,11 +691,11 @@ var _ = Describe("Get Pod from PVC", func() {
 		pvc        *corev1.PersistentVolumeClaim
 	)
 	BeforeEach(func() {
-		reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
+		dv := newImportDataVolume("test-dv")
+		reconciler = createDatavolumeReconciler(dv)
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 		Expect(err).ToNot(HaveOccurred())
-		pvc = &corev1.PersistentVolumeClaim{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		pvc, err = reconciler.findPVCForDV(dv.Namespace, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -689,7 +751,7 @@ var _ = Describe("Update Progress from pod", func() {
 	)
 
 	BeforeEach(func() {
-		pvc = createPvc("test", metav1.NamespaceDefault, nil, nil)
+		pvc = createPvc("test-abc123", metav1.NamespaceDefault, nil, nil)
 		pod = createImporterTestPod(pvc, "test", nil)
 		dv = newImportDataVolume("test")
 	})

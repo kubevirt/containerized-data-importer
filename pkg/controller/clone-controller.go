@@ -613,7 +613,11 @@ func validateCloneToken(validator token.Validator, source, target *corev1.Persis
 		tokenData.Namespace != source.Namespace ||
 		tokenData.Resource.Resource != "persistentvolumeclaims" ||
 		tokenData.Params["targetNamespace"] != target.Namespace ||
-		tokenData.Params["targetName"] != target.Name {
+		// Either target.Name (PVC name) is token["targetName"] (DV Name) + 5 random chars
+		//     OR token["targetName"] (DV Name) is very long and the PVC name is made of
+		//        DV name cut to size + 5 random chars
+		!(strings.HasPrefix(target.Name, tokenData.Params["targetName"]) ||
+			strings.HasPrefix(tokenData.Params["targetName"], target.Name[:len(target.Name)-5])) {
 		return errors.New("invalid token")
 	}
 

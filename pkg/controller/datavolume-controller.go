@@ -227,8 +227,8 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 
 	pvcExists := true
 	// Get the pvc with the name specified in DataVolume.spec
-	pvc := &corev1.PersistentVolumeClaim{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: datavolume.Namespace, Name: datavolume.Name}, pvc); err != nil {
+	pvc, err := r.findPVCForDV(datavolume.Namespace, datavolume.Name)
+	if err != nil {
 		// If the resource doesn't exist, we'll create it
 		if k8serrors.IsNotFound(err) {
 			pvcExists = false
@@ -298,6 +298,49 @@ func (r *DatavolumeReconciler) sourceInUse(dv *cdiv1.DataVolume) (bool, error) {
 	}
 
 	return len(pods) > 0, nil
+}
+
+func (r *DatavolumeReconciler) findPVCForDV(dataVolumeNamespace string, dataVolumeName string) (*corev1.PersistentVolumeClaim, error) {
+	pvcList := &corev1.PersistentVolumeClaimList{}
+	err := r.client.List(context.TODO(), pvcList, &client.ListOptions{Namespace: dataVolumeNamespace})
+	if err != nil {
+		return nil, err
+	}
+
+	found := false
+	var foundPvc corev1.PersistentVolumeClaim
+	for _, pvc := range pvcList.Items {
+		// First, check if the PVC is not prepopulated for the DV
+		dvName, ok := pvc.Annotations[AnnPopulatedFor]
+		if ok && dvName == dataVolumeName {
+			found = true
+			foundPvc = pvc
+			break // This is the one, no need to look further
+		}
+
+		// Second, check for ownership
+		for _, or := range pvc.ObjectMeta.OwnerReferences {
+			if or.Kind != "DataVolume" || or.Name != dataVolumeName {
+				continue
+			}
+
+			if found {
+				return nil, k8serrors.NewInternalError(fmt.Errorf("Too many PVCs for data volume %v (%v, %v)",
+					dataVolumeName, foundPvc.Name, pvc.Name))
+			}
+
+			found = true
+			foundPvc = pvc
+			break // no need to process more Owner References
+		}
+
+	}
+
+	if !found {
+		return nil, k8serrors.NewNotFound(corev1.Resource("persistentvolumeclaim"), dataVolumeName)
+	}
+
+	return &foundPvc, nil
 }
 
 func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, pvcUID types.UID) (reconcile.Result, error) {
@@ -929,10 +972,10 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        dataVolume.Name,
-			Namespace:   dataVolume.Namespace,
-			Labels:      labels,
-			Annotations: annotations,
+			GenerateName: fmt.Sprintf("%s-", dataVolume.Name),
+			Namespace:    dataVolume.Namespace,
+			Labels:       labels,
+			Annotations:  annotations,
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(dataVolume, schema.GroupVersionKind{
 					Group:   cdiv1.SchemeGroupVersion.Group,

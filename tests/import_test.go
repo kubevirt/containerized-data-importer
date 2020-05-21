@@ -556,7 +556,8 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		dv := utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", tinyCoreIsoURL)
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
-		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+		pvc, err = utils.WaitForPVCForDV(f.K8sClient, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
 
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -587,7 +588,8 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		dv := utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", invalidQcowImagesURL)
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
-		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+		pvc, err = utils.WaitForPVCForDV(f.K8sClient, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
 
 		phase := cdiv1.ImportInProgress
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
