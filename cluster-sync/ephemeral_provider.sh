@@ -59,7 +59,10 @@ function configure_ceph() {
 
   # wait for ceph
   until _kubectl get cephblockpools -n rook-ceph replicapool -o jsonpath='{.status.phase}' | grep Ready; do
-      ((count++)) && ((count == 60)) && echo "Ceph not ready in time" && exit 1
+      ((count++)) && ((count == 120)) && echo "Ceph not ready in time" && exit 1
+      if ! ((count % 6 )); then
+        _kubectl get pods -n rook-ceph
+      fi
       echo "Waiting for Ceph to be Ready, sleeping 5s and rechecking"
       sleep 5
   done
