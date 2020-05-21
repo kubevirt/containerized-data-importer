@@ -203,7 +203,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 	})
 
 	It("Should return nil and create a pod and service when a clone pvc", func() {
-		testPvc := createPvc("testPvc1", "default", map[string]string{AnnCloneRequest: "default/testPvc2"}, nil)
+		testPvc := createPvc("testPvc1", "default", map[string]string{AnnCloneRequest: "default/testPvc2", AnnUploadPod: createUploadResourceName("testPvc1")}, nil)
 		testPvcSource := createPvc("testPvc2", "default", map[string]string{}, nil)
 		reconciler := createUploadReconciler(testPvc, testPvcSource)
 		By("Verifying the pod and service do not exist")
@@ -231,20 +231,49 @@ var _ = Describe("Upload controller reconcile loop", func() {
 })
 
 var _ = Describe("reconcilePVC loop", func() {
+	testPvcName := "testPvc1"
+	uploadResourceName := "uploader" //createUploadResourceName(testPvcName)
+
 	Context("Is clone", func() {
 		isClone := true
 
-		It("Should create the service and pod", func() {
-			testPvc := createPvc("testPvc1", "default", map[string]string{AnnCloneRequest: "default/testPvc2"}, nil)
+		// TODO: should find pod with legacy name
+		It("Should create the pod name", func() {
+			testPvc := createPvc(testPvcName, "default", map[string]string{AnnCloneRequest: "default/testPvc2"}, nil)
 			testPvcSource := createPvc("testPvc2", "default", map[string]string{}, nil)
 			reconciler := createUploadReconciler(testPvc, testPvcSource)
 			By("Verifying the pod and service do not exist")
 			uploadPod := &corev1.Pod{}
-			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadPod)
 			Expect(err).To(HaveOccurred())
 
 			uploadService := &corev1.Service{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: naming.GetServiceNameFromResourceName(createUploadResourceName("testPvc1")), Namespace: "default"}, uploadService)
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: naming.GetServiceNameFromResourceName(uploadResourceName), Namespace: "default"}, uploadService)
+			Expect(err).To(HaveOccurred())
+
+			_, err = reconciler.reconcilePVC(reconciler.log, testPvc, isClone)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Verifying the pod name annotation")
+
+			resultPvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: testPvcName, Namespace: "default"}, resultPvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(resultPvc.GetAnnotations()[AnnUploadPod]).To(Equal("cdi-upload-testPvc1"))
+			Expect(resultPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(uploadPod.Status.Phase))
+		})
+
+		It("Should create the service and pod", func() {
+			testPvc := createPvc(testPvcName, "default", map[string]string{AnnCloneRequest: "default/testPvc2", AnnUploadPod: uploadResourceName}, nil)
+			testPvcSource := createPvc("testPvc2", "default", map[string]string{}, nil)
+			reconciler := createUploadReconciler(testPvc, testPvcSource)
+			By("Verifying the pod and service do not exist")
+			uploadPod := &corev1.Pod{}
+			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadPod)
+			Expect(err).To(HaveOccurred())
+
+			uploadService := &corev1.Service{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: naming.GetServiceNameFromResourceName(uploadResourceName), Namespace: "default"}, uploadService)
 			Expect(err).To(HaveOccurred())
 
 			_, err = reconciler.reconcilePVC(reconciler.log, testPvc, isClone)
@@ -252,17 +281,17 @@ var _ = Describe("reconcilePVC loop", func() {
 
 			By("Verifying the pod and service now exist")
 			uploadPod = &corev1.Pod{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadPod)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(uploadPod.Name).To(Equal(createUploadResourceName(testPvc.Name)))
+			Expect(uploadPod.Name).To(Equal(uploadResourceName))
 
 			uploadService = &corev1.Service{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: naming.GetServiceNameFromResourceName(createUploadResourceName("testPvc1")), Namespace: "default"}, uploadService)
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: naming.GetServiceNameFromResourceName(uploadResourceName), Namespace: "default"}, uploadService)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(uploadService.Name).To(Equal(createUploadResourceName(testPvc.Name)))
+			Expect(uploadService.Name).To(Equal(uploadResourceName))
 
 			resultPvc := &corev1.PersistentVolumeClaim{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resultPvc)
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: testPvcName, Namespace: "default"}, resultPvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(resultPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(uploadPod.Status.Phase))
 			Expect(resultPvc.GetAnnotations()[AnnPodReady]).To(Equal("false"))
@@ -273,29 +302,29 @@ var _ = Describe("reconcilePVC loop", func() {
 		isClone := false
 
 		It("Should create the service and pod", func() {
-			testPvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: ""}, nil)
+			testPvc := createPvc(testPvcName, "default", map[string]string{AnnUploadRequest: "", AnnUploadPod: uploadResourceName}, nil)
 			reconciler := createUploadReconciler(testPvc)
 			By("Verifying the pod and service do not exist")
 			uploadPod := &corev1.Pod{}
-			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadPod)
 			Expect(err).To(HaveOccurred())
 
 			uploadService := &corev1.Service{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadService)
 			Expect(err).To(HaveOccurred())
 
 			_, err = reconciler.reconcilePVC(reconciler.log, testPvc, isClone)
 			Expect(err).ToNot(HaveOccurred())
 			By("Verifying the pod and service now exist")
 			uploadPod = &corev1.Pod{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadPod)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(uploadPod.Name).To(Equal(createUploadResourceName(testPvc.Name)))
+			Expect(uploadPod.Name).To(Equal(uploadResourceName))
 
 			uploadService = &corev1.Service{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadService)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(uploadService.Name).To(Equal(createUploadResourceName(testPvc.Name)))
+			Expect(uploadService.Name).To(Equal(uploadResourceName))
 
 			scratchPvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1-scratch", Namespace: "default"}, scratchPvc)
@@ -306,7 +335,7 @@ var _ = Describe("reconcilePVC loop", func() {
 
 var _ = Describe("Update PVC", func() {
 
-	FIt("Should update AnnPodRestarts on pvc from upload pod restarts", func() {
+	It("Should update AnnPodRestarts on pvc from upload pod restarts", func() {
 		testPvc := createPvc("testPvc1", "default",
 			map[string]string{
 				AnnUploadRequest: "",

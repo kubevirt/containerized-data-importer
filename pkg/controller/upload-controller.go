@@ -555,7 +555,7 @@ func getUploadResourceNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 	return naming.GetResourceName("cdi-upload", pvc.Name)
 }
 
-// getUploadResourceName returns the name given to upload resources
+// createUploadResourceName returns the name given to upload resources
 func createUploadResourceName(name string) string {
 	return naming.GetResourceName("cdi-upload", name)
 }
@@ -570,8 +570,14 @@ func UploadPossibleForPVC(pvc *v1.PersistentVolumeClaim) error {
 
 // GetUploadServerURL returns the url the proxy should post to for a particular pvc
 func GetUploadServerURL(namespace, pvc, uploadPath string) string {
-	serviceName := naming.GetServiceNameFromResourceName(createUploadResourceName(pvc))
+	serviceName := createUploadServiceNameFromPvcName(pvc)
 	return fmt.Sprintf("https://%s.%s.svc%s", serviceName, namespace, uploadPath)
+}
+
+// createUploadServiceName returns the name given to upload service shortened if needed
+func createUploadServiceNameFromPvcName(pvc string) string {
+	// TODO: first find from annotation... then create
+	return naming.GetServiceNameFromResourceName(createUploadResourceName(pvc))
 }
 
 func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequirements *v1.ResourceRequirements) *v1.Pod {
