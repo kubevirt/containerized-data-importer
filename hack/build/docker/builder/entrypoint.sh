@@ -24,6 +24,6 @@ export PATH=${GOPATH}/bin:/opt/gradle/gradle-4.3.1/bin:$PATH
 
 eval "$@"
 
-if [ -n ${RUN_UID} ] && [ -n ${RUN_GID} ]; then
+if [ "$KUBEVIRTCI_RUNTIME" != "podman" ] && [ -n ${RUN_UID} ] && [ -n ${RUN_GID} ]; then
     find . -user root -exec chown -h ${RUN_UID}:${RUN_GID} {} \;
 fi
