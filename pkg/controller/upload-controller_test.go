@@ -237,7 +237,6 @@ var _ = Describe("reconcilePVC loop", func() {
 	Context("Is clone", func() {
 		isClone := true
 
-		// TODO: should find pod with legacy name
 		It("Should create the pod name", func() {
 			testPvc := createPvc(testPvcName, "default", map[string]string{AnnCloneRequest: "default/testPvc2"}, nil)
 			testPvcSource := createPvc("testPvc2", "default", map[string]string{}, nil)
@@ -295,6 +294,59 @@ var _ = Describe("reconcilePVC loop", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(resultPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(uploadPod.Status.Phase))
 			Expect(resultPvc.GetAnnotations()[AnnPodReady]).To(Equal("false"))
+		})
+
+		It("Should error if a POD with the same name exists, but is not owned by the PVC, if a PVC with all needed annotations is passed", func() {
+			pod := &corev1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Pod",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      uploadResourceName,
+					Namespace: "default",
+				},
+			}
+			testPvc := createPvc(testPvcName, "default", map[string]string{AnnCloneRequest: "default/testPvc2", AnnUploadPod: uploadResourceName}, nil)
+			testPvcSource := createPvc("testPvc2", "default", map[string]string{}, nil)
+			reconciler := createUploadReconciler(testPvc, testPvcSource, pod)
+
+			_, err := reconciler.reconcilePVC(reconciler.log, testPvc, isClone)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("uploader pod not controlled by pvc testPvc1"))
+
+			uploadService := &corev1.Service{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: naming.GetServiceNameFromResourceName(uploadResourceName), Namespace: "default"}, uploadService)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("Should error if a Service with the same name exists, but is not owned by the PVC, if a PVC with all needed annotations is passed", func() {
+			svcName := naming.GetServiceNameFromResourceName(uploadResourceName)
+			service := &corev1.Service{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Service",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      svcName,
+					Namespace: "default",
+					//Annotations: map[string]string{
+					//	annCreatedByUpload: "yes",
+					//},
+					Labels: map[string]string{
+						"app":             "containerized-data-importer",
+						"cdi.kubevirt.io": "cdi-upload-server",
+					},
+				},
+			}
+
+			testPvc := createPvc(testPvcName, "default", map[string]string{AnnCloneRequest: "default/testPvc2", AnnUploadPod: uploadResourceName}, nil)
+			testPvcSource := createPvc("testPvc2", "default", map[string]string{}, nil)
+			reconciler := createUploadReconciler(testPvc, testPvcSource, service)
+
+			_, err := reconciler.reconcilePVC(reconciler.log, testPvc, isClone)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("uploader service not controlled by pvc testPvc1"))
 		})
 	})
 
