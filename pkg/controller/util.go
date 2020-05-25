@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"crypto/rsa"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -362,4 +363,18 @@ func setBoundConditionFromPVC(anno map[string]string, prefix string, pvc *v1.Per
 		anno[prefix+".message"] = "Unknown"
 		anno[prefix+".reason"] = "Unknown"
 	}
+}
+
+func getScratchNameFromPod(pod *v1.Pod) string {
+	for _, vol := range pod.Spec.Volumes {
+		if vol.Name == ScratchVolName {
+			return vol.PersistentVolumeClaim.ClaimName
+		}
+	}
+
+	return ""
+}
+
+func createScratchNameFromPvc(pvc *v1.PersistentVolumeClaim) string {
+	return naming.GetResourceName(pvc.Name, common.ScratchNameSuffix)
 }

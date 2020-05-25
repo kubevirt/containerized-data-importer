@@ -57,8 +57,6 @@ const (
 	AnnImportPod = AnnAPIGroup + "/storage.import.importPodName"
 	// AnnRequiresScratch provides a const for our PVC requires scratch annotation
 	AnnRequiresScratch = AnnAPIGroup + "/storage.import.requiresScratch"
-	//AnnScratchPvc provides a const for our PVC scratchName annotation
-	AnnScratchPvc = AnnAPIGroup + "/storage.import.scratchName"
 	// AnnDiskID provides a const for our PVC diskId annotation
 	AnnDiskID = AnnAPIGroup + "/storage.import.diskId"
 
@@ -252,8 +250,6 @@ func (r *ImportReconciler) initPvcPodName(pvc *corev1.PersistentVolumeClaim, log
 
 	requiresScratch := r.requiresScratchSpace(pvc)
 	if requiresScratch {
-		scratchPvcName := scratchNameFromPvc(pvc)
-		anno[AnnScratchPvc] = scratchPvcName
 		anno[AnnRequiresScratch] = "true"
 	}
 
@@ -261,9 +257,7 @@ func (r *ImportReconciler) initPvcPodName(pvc *corev1.PersistentVolumeClaim, log
 		if err := r.updatePVC(pvc, log); err != nil {
 			return err
 		}
-		log.V(1).Info("Updated PVC",
-			"pvc.anno.AnnImportPod", anno[AnnImportPod],
-			"pvc.anno.AnnScratchPvc", anno[AnnScratchPvc])
+		log.V(1).Info("Updated PVC", "pvc.anno.AnnImportPod", anno[AnnImportPod])
 	}
 	return nil
 }
@@ -285,7 +279,6 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			log.V(1).Info("Pod requires scratch space, terminating pod, and restarting with scratch space", "pod.Name", pod.Name)
 			scratchExitCode = true
 			anno[AnnRequiresScratch] = "true"
-			anno[AnnScratchPvc] = scratchNameFromPvc(pvc)
 		} else {
 			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message)
 		}
@@ -355,7 +348,7 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 
 	requiresScratch := r.requiresScratchSpace(pvc)
 	if requiresScratch {
-		name := scratchNameFromPvc(pvc)
+		name := createScratchNameFromPvc(pvc)
 		scratchPvcName = &name
 	}
 
@@ -512,13 +505,13 @@ func (r *ImportReconciler) requiresScratchSpace(pvc *corev1.PersistentVolumeClai
 
 func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod) error {
 	scratchPvc := &corev1.PersistentVolumeClaim{}
+	scratchPVCName := getScratchName(pod, pvc)
 	anno := pvc.GetAnnotations()
-	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: pvc.GetNamespace(), Name: scratchNameFromPvc(pvc)}, scratchPvc)
+	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: pvc.GetNamespace(), Name: createScratchNameFromPvc(pvc)}, scratchPvc)
 	if IgnoreNotFound(err) != nil {
 		return err
 	}
 	if k8serrors.IsNotFound(err) {
-		scratchPVCName := scratchNameFromPvc(pvc)
 		storageClassName := GetScratchPvcStorageClass(r.client, pvc)
 		// Scratch PVC doesn't exist yet, create it. Determine which storage class to use.
 		_, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, scratchPVCName, storageClassName)
@@ -603,8 +596,12 @@ func createImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 	return naming.GetResourceName(common.ImporterPodName, pvc.Name)
 }
 
-func scratchNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
-	return naming.GetResourceName(pvc.Name, common.ScratchNameSuffix)
+func getScratchName(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim) string {
+	scratchPVCName := getScratchNameFromPod(pod)
+	if scratchPVCName == "" {
+		scratchPVCName = createScratchNameFromPvc(pvc)
+	}
+	return scratchPVCName
 }
 
 // createImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret
@@ -615,7 +612,6 @@ func createImporterPod(log logr.Logger, client client.Client, image, verbose, pu
 	log.V(1).Info("-- Importer pod create",
 		"pod.Name", pvc.Annotations[AnnImportPod],
 		"scratchNeeded", pvc.Annotations[AnnRequiresScratch],
-		"scratchName", pvc.Annotations[AnnScratchPvc],
 		"providedScratchName", scratchPvcName)
 
 	podResourceRequirements, err := GetDefaultPodResourceRequirements(client)

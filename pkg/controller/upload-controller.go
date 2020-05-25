@@ -129,7 +129,7 @@ func (r *UploadReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 }
 
 func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentVolumeClaim, isCloneTarget bool) (reconcile.Result, error) {
-	var uploadClientName, scratchPVCName string
+	var uploadClientName string
 	pvcCopy := pvc.DeepCopy()
 	anno := pvcCopy.Annotations
 
@@ -148,7 +148,6 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		anno[AnnUploadClientName] = uploadClientName
 	} else {
 		uploadClientName = uploadServerClientName
-		scratchPVCName = getScratchPvcName(pvc.Name)
 	}
 
 	pod, err := r.findUploadPodForPvc(pvc, log)
@@ -158,13 +157,14 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 
 	if pod == nil {
 		podName, ok := pvc.Annotations[AnnUploadPod]
+		scratchPVCName := createScratchPvcNameFromPvc(pvc, isCloneTarget)
 
 		if !ok {
 			podName = createUploadResourceName(pvc.Name)
 			if err := r.updatePvcPodName(pvc, podName, log); err != nil {
 				return reconcile.Result{}, err
 			}
-			return reconcile.Result{}, nil
+			return reconcile.Result{Requeue: true}, nil
 		}
 		pod, err = r.createUploadPodForPvc(pvc, podName, scratchPVCName, uploadClientName)
 		if err != nil {
@@ -173,6 +173,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 	}
 
 	// Always try to get or create the scratch PVC for a pod that is not successful yet, if it exists nothing happens otherwise attempt to create.
+	scratchPVCName := getScratchNameFromPod(pod)
 	if scratchPVCName != "" {
 		_, err := r.getOrCreateScratchPvc(pvcCopy, pod, scratchPVCName)
 		if err != nil {
@@ -213,7 +214,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 	return reconcile.Result{}, nil
 }
 
-func (r *UploadReconciler) updatePvcPodName(pvc *corev1.PersistentVolumeClaim, podName string, log logr.Logger) error {
+func (r *UploadReconciler) updatePvcPodName(pvc *v1.PersistentVolumeClaim, podName string, log logr.Logger) error {
 	currentPvcCopy := pvc.DeepCopyObject()
 
 	log.V(1).Info("Updating PVC from pod")
@@ -538,9 +539,12 @@ func addUploadControllerWatches(mgr manager.Manager, importController controller
 	return nil
 }
 
-// getScratchPvcName returns the name given to scratch pvc
-func getScratchPvcName(name string) string {
-	return naming.GetResourceName(name, common.ScratchNameSuffix)
+func createScratchPvcNameFromPvc(pvc *v1.PersistentVolumeClaim, isCloneTarget bool) string {
+	if isCloneTarget {
+		return ""
+	}
+
+	return naming.GetResourceName(pvc.Name, common.ScratchNameSuffix)
 }
 
 // getUploadResourceName returns the name given to upload resources
@@ -576,7 +580,6 @@ func GetUploadServerURL(namespace, pvc, uploadPath string) string {
 
 // createUploadServiceName returns the name given to upload service shortened if needed
 func createUploadServiceNameFromPvcName(pvc string) string {
-	// TODO: first find from annotation... then create
 	return naming.GetServiceNameFromResourceName(createUploadResourceName(pvc))
 }
 
