@@ -553,6 +553,36 @@ var _ = Describe("Controller", func() {
 			*/
 		)
 
+		It("check detects upgrade w/o prev version", func() {
+			prevVersion := ""
+			newVersion := "v1.2.3"
+
+			args := createFromArgs(prevVersion)
+			doReconcile(args)
+			setDeploymentsReady(args)
+
+			Expect(args.cdi.Status.ObservedVersion).To(BeEmpty())
+			Expect(args.cdi.Status.OperatorVersion).To(BeEmpty())
+			Expect(args.cdi.Status.TargetVersion).To(BeEmpty())
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+
+			args.reconciler.namespacedArgs.OperatorVersion = newVersion
+			setDeploymentsDegraded(args)
+			doReconcile(args)
+			Expect(args.cdi.Status.ObservedVersion).To(BeEmpty())
+			Expect(args.cdi.Status.OperatorVersion).Should(Equal(newVersion))
+			Expect(args.cdi.Status.TargetVersion).Should(Equal(newVersion))
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseUpgrading))
+
+			//change deployment to ready
+			isReady := setDeploymentsReady(args)
+			Expect(isReady).To(BeTrue())
+			Expect(args.cdi.Status.ObservedVersion).Should(Equal(newVersion))
+			Expect(args.cdi.Status.OperatorVersion).Should(Equal(newVersion))
+			Expect(args.cdi.Status.TargetVersion).Should(Equal(newVersion))
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+		})
+
 		Describe("CDI CR deletion during upgrade", func() {
 			Context("cr deletion during upgrade", func() {
 				It("should delete CR if it is marked for deletion and not begin upgrade flow", func() {

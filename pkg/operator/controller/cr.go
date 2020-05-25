@@ -26,7 +26,8 @@ import (
 )
 
 func (r *ReconcileCDI) isUpgrading(cr *cdiv1alpha1.CDI) bool {
-	return cr.Status.ObservedVersion != "" && cr.Status.ObservedVersion != cr.Status.TargetVersion
+	deploying := cr.Status.Phase == cdiv1alpha1.CDIPhaseDeploying
+	return (cr.Status.ObservedVersion != "" || !deploying) && cr.Status.ObservedVersion != cr.Status.TargetVersion
 }
 
 // this is used for testing.  wish this a helper function in test file instead of member
