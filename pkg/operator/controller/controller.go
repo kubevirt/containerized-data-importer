@@ -235,15 +235,19 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 	return res, err
 }
 
-func shouldTakeUpdatePath(logger logr.Logger, targetVersion, currentVersion string) (bool, error) {
+func shouldTakeUpdatePath(logger logr.Logger, targetVersion, currentVersion string, deploying bool) (bool, error) {
 
-	// if no current version, then this can't be an update
-	if currentVersion == "" {
+	if deploying {
+		return false, nil
+	}
+	if targetVersion == currentVersion {
 		return false, nil
 	}
 
-	if targetVersion == currentVersion {
-		return false, nil
+	// if no current version, then we can't perform semantic version comparison. But since the target version is not
+	// empty, and since we are not deploying, then we're upgrading
+	if currentVersion == "" {
+		return true, nil
 	}
 
 	// semver doesn't like the 'v' prefix
@@ -329,7 +333,8 @@ func (r *ReconcileCDI) checkUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) err
 		}
 	}
 
-	isUpgrade, err := shouldTakeUpdatePath(logger, r.namespacedArgs.OperatorVersion, cr.Status.ObservedVersion)
+	deploying := cr.Status.Phase == cdiv1alpha1.CDIPhaseDeploying
+	isUpgrade, err := shouldTakeUpdatePath(logger, r.namespacedArgs.OperatorVersion, cr.Status.ObservedVersion, deploying)
 	if err != nil {
 		return err
 	}
