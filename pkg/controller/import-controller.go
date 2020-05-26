@@ -183,12 +183,13 @@ func (r *ImportReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 func (r *ImportReconciler) findImporterPod(pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*corev1.Pod, error) {
 	podName := getImportPodNameFromPvc(pvc)
 	pod := &corev1.Pod{}
-	err := r.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: pvc.GetNamespace()}, pod)
-
-	if k8serrors.IsNotFound(err) {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: pvc.GetNamespace()}, pod); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return nil, errors.Wrapf(err, "error getting import pod %s/%s", pvc.Namespace, podName)
+		}
 		return nil, nil
 	}
-	/// TODO: what about other errors? // check upload
+
 	if !metav1.IsControlledBy(pod, pvc) {
 		return nil, errors.Errorf("Pod is not owned by PVC")
 	}
