@@ -210,8 +210,7 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 			log.V(1).Info("PVC is already complete")
 		} else if pvc.DeletionTimestamp == nil {
 
-			_, ok := pvc.Annotations[AnnImportPod]
-			if ok {
+			if _, ok := pvc.Annotations[AnnImportPod]; ok {
 				// Create importer pod, make sure the PVC owns it.
 				if err := r.createImporterPod(pvc); err != nil {
 					return reconcile.Result{}, err
@@ -365,6 +364,10 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		return err
 	}
 	r.log.V(1).Info("Created POD", "pod.Name", pod.Name)
+	if requiresScratch {
+		r.log.V(1).Info("Pod requires scratch space")
+		return r.createScratchPvcForPod(pvc, pod)
+	}
 
 	return nil
 }
@@ -632,7 +635,7 @@ func createImporterPod(log logr.Logger, client client.Client, image, verbose, pu
 // makeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
 func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, podResourceRequirements *corev1.ResourceRequirements) *corev1.Pod {
 	// importer pod name contains the pvc name
-	podName := getImportPodNameFromPvc(pvc)
+	podName, _ := pvc.Annotations[AnnImportPod]
 
 	blockOwnerDeletion := true
 	isController := true

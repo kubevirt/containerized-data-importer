@@ -324,7 +324,6 @@ func (app *cdiAPIApp) uploadHandler(request *restful.Request, response *restful.
 
 	tokenData := &token.Payload{
 		Operation: token.OperationUpload,
-		// this is service or pod but not pvc?
 		Name:      pvcName,
 		Namespace: namespace,
 		Resource: metav1.GroupVersionResource{

@@ -29,6 +29,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kvalidation "k8s.io/apimachinery/pkg/util/validation"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
@@ -57,7 +58,7 @@ func validateSourceURL(sourceURL string) string {
 
 func validateDataVolumeName(name string) []metav1.StatusCause {
 	var causes []metav1.StatusCause
-	if len(name) > 253 {
+	if len(name) > kvalidation.DNS1123SubdomainMaxLength {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: fmt.Sprintf("Name of data volume cannot be more than 253 characters"),
