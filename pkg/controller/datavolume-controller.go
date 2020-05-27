@@ -736,8 +736,9 @@ func (r *DatavolumeReconciler) getPodFromPvc(namespace string, pvcUID types.UID)
 			}
 		}
 
+		// TODO: check this
 		val, exists := pod.Labels[CloneUniqueID]
-		if exists && val == string(pvcUID)+"-source-pod" {
+		if exists && val == string(pvcUID)+common.ClonerSourcePodNameSuffix {
 			return &pod, nil
 		}
 	}
