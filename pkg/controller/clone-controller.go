@@ -175,8 +175,8 @@ func (r *CloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, er
 	}
 
 	_, nameExists := pvc.Annotations[AnnCloneSourcePod]
-	if sourcePod == nil && !nameExists {
-		if err := r.initCloneSourcePodName(pvc, log); err != nil {
+	if !nameExists {
+		if err := r.initCloneSourcePodName(pvc, log, sourcePod); err != nil {
 			return reconcile.Result{}, err
 		}
 		return reconcile.Result{Requeue: true}, nil
@@ -192,12 +192,18 @@ func (r *CloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, er
 	return reconcile.Result{}, nil
 }
 
-func (r *CloneReconciler) initCloneSourcePodName(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
+func (r *CloneReconciler) initCloneSourcePodName(pvc *corev1.PersistentVolumeClaim, log logr.Logger, sourcePod *corev1.Pod) error {
 	currentPvcCopy := pvc.DeepCopyObject()
+	var sourcePodName string
+	if sourcePod != nil {
+		sourcePodName = sourcePod.Name
+	} else {
+		sourcePodName = createCloneSourcePodName(pvc)
+	}
 
 	log.V(1).Info("Init pod name on PVC")
 	anno := pvc.GetAnnotations()
-	anno[AnnCloneSourcePod] = createCloneSourcePodName(pvc)
+	anno[AnnCloneSourcePod] = sourcePodName
 
 	if !reflect.DeepEqual(currentPvcCopy, pvc) {
 		if err := r.updatePVC(pvc); err != nil {

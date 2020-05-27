@@ -122,9 +122,40 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("error parsing %s annotation", AnnPodReady)))
 	})
 
+	It("Should create source pod name", func() {
+		testPvc := createPvc("testPvc1", "default", map[string]string{
+			AnnCloneRequest:     "default/source",
+			AnnPodReady:         "true",
+			AnnCloneToken:       "foobaz",
+			AnnUploadClientName: "uploadclient"}, nil)
+		reconciler = createCloneReconciler(testPvc, createPvc("source", "default", map[string]string{}, nil))
+		By("Setting up the match token")
+		reconciler.tokenValidator.(*FakeValidator).match = "foobaz"
+		reconciler.tokenValidator.(*FakeValidator).Name = "source"
+		reconciler.tokenValidator.(*FakeValidator).Namespace = "default"
+		reconciler.tokenValidator.(*FakeValidator).Params["targetNamespace"] = "default"
+		reconciler.tokenValidator.(*FakeValidator).Params["targetName"] = "testPvc1"
+		By("Verifying no source pod exists")
+		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
+		Expect(sourcePod).To(BeNil())
+		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		By("Verifying no source pod exists")
+		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
+		Expect(sourcePod).To(BeNil())
+		By("Verifying the PVC now has a source pod name")
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(testPvc.Annotations[AnnCloneSourcePod]).To(Equal("default-testPvc1-source-pod"))
+	})
+
 	It("Should create new source pod if none exists, and target pod is marked ready", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{
-			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient"}, nil)
+			AnnCloneRequest:     "default/source",
+			AnnPodReady:         "true",
+			AnnCloneToken:       "foobaz",
+			AnnUploadClientName: "uploadclient",
+			AnnCloneSourcePod:   "default-testPvc1-source-pod"}, nil)
 		reconciler = createCloneReconciler(testPvc, createPvc("source", "default", map[string]string{}, nil))
 		By("Setting up the match token")
 		reconciler.tokenValidator.(*FakeValidator).match = "foobaz"
@@ -140,6 +171,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		By("Verifying source pod exists")
 		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
+		Expect(sourcePod).ToNot(BeNil())
 		Expect(sourcePod.GetLabels()[CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
 		By("Verifying the PVC now has a finalizer")
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
@@ -149,7 +181,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 
 	It("Should error with missing upload client name annotation if none provided", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{
-			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz"}, nil)
+			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnCloneSourcePod: "default-testPvc1-source-pod"}, nil)
 		reconciler = createCloneReconciler(testPvc, createPvc("source", "default", map[string]string{}, nil))
 		By("Setting up the match token")
 		reconciler.tokenValidator.(*FakeValidator).match = "foobaz"
@@ -167,7 +199,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 
 	It("Should update the PVC from the pod status", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{
-			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient"}, nil)
+			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod"}, nil)
 		reconciler = createCloneReconciler(testPvc, createPvc("source", "default", map[string]string{}, nil))
 		By("Setting up the match token")
 		reconciler.tokenValidator.(*FakeValidator).match = "foobaz"
@@ -205,6 +237,12 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(sourcePod).To(BeNil())
 		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
+		By("Verifying the PVC now has a source pod name")
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(testPvc.Annotations[AnnCloneSourcePod]).To(Equal("default-testPvc1-source-pod"))
+		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
 		By("Verifying source pod exists")
 		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
@@ -215,7 +253,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 		By("Updating the PVC to completed")
 		testPvc = createPvc("testPvc1", "default", map[string]string{
-			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnPodPhase: string(corev1.PodSucceeded)}, nil)
+			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod", AnnPodPhase: string(corev1.PodSucceeded)}, nil)
 		reconciler.client.Update(context.TODO(), testPvc)
 		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
@@ -250,6 +288,12 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(sourcePod).To(BeNil())
 		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
+		By("Verifying the PVC now has a source pod name")
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(testPvc.Annotations[AnnCloneSourcePod]).To(Equal("default-testPvc1-source-pod"))
+		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
 		By("Verifying source pod exists")
 		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
@@ -260,7 +304,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 		By("Updating the PVC to completed")
 		testPvc = createPvc("testPvc1", "default", map[string]string{
-			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnPodPhase: string(corev1.PodSucceeded)}, nil)
+			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod", AnnPodPhase: string(corev1.PodSucceeded)}, nil)
 		reconciler.client.Update(context.TODO(), testPvc)
 		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
@@ -282,7 +326,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 
 	It("Should error when source and target volume modes do not match (fs->block)", func() {
 		testPvc := createBlockPvc("testPvc1", "default", map[string]string{
-			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient"}, nil)
+			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod"}, nil)
 		reconciler = createCloneReconciler(testPvc, createPvc("source", "default", map[string]string{}, nil))
 		By("Setting up the match token")
 		reconciler.tokenValidator.(*FakeValidator).match = "foobaz"
@@ -300,7 +344,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 
 	It("Should error when source and target volume modes do not match (fs->block)", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{
-			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient"}, nil)
+			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod"}, nil)
 		reconciler = createCloneReconciler(testPvc, createBlockPvc("source", "default", map[string]string{}, nil))
 		By("Setting up the match token")
 		reconciler.tokenValidator.(*FakeValidator).match = "foobaz"
