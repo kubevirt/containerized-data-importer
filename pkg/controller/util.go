@@ -365,14 +365,14 @@ func setBoundConditionFromPVC(anno map[string]string, prefix string, pvc *v1.Per
 	}
 }
 
-func getScratchNameFromPod(pod *v1.Pod) string {
+func getScratchNameFromPod(pod *v1.Pod) (string, bool) {
 	for _, vol := range pod.Spec.Volumes {
 		if vol.Name == ScratchVolName {
-			return vol.PersistentVolumeClaim.ClaimName
+			return vol.PersistentVolumeClaim.ClaimName, true
 		}
 	}
 
-	return ""
+	return "", false
 }
 
 func createScratchNameFromPvc(pvc *v1.PersistentVolumeClaim) string {

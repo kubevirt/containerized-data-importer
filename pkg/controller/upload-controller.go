@@ -173,8 +173,8 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 	}
 
 	// Always try to get or create the scratch PVC for a pod that is not successful yet, if it exists nothing happens otherwise attempt to create.
-	scratchPVCName := getScratchNameFromPod(pod)
-	if scratchPVCName != "" {
+	scratchPVCName, exists := getScratchNameFromPod(pod)
+	if exists {
 		_, err := r.getOrCreateScratchPvc(pvcCopy, pod, scratchPVCName)
 		if err != nil {
 			return reconcile.Result{}, err

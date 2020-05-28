@@ -295,8 +295,10 @@ var _ = Describe("Update PVC from POD", func() {
 	})
 
 	It("Should create scratch PVC, if pod is pending and PVC is marked with scratch", func() {
+		scratchPvcName := &corev1.PersistentVolumeClaim{}
+		scratchPvcName.Name = "testPvc1-scratch"
 		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnRequiresScratch: "true"}, nil)
-		pod := createImporterTestPod(pvc, "testPvc1", nil)
+		pod := createImporterTestPod(pvc, "testPvc1", scratchPvcName)
 		pod.Status = corev1.PodStatus{
 			Phase: corev1.PodPending,
 			ContainerStatuses: []v1.ContainerStatus{
@@ -378,7 +380,9 @@ var _ = Describe("Update PVC from POD", func() {
 
 	It("Should update phase on PVC, if pod exited with error state that is scratchspace exit", func() {
 		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodRunning)}, nil)
-		pod := createImporterTestPod(pvc, "testPvc1", nil)
+		scratchPvcName := &corev1.PersistentVolumeClaim{}
+		scratchPvcName.Name = "testPvc1-scratch"
+		pod := createImporterTestPod(pvc, "testPvc1", scratchPvcName)
 		pod.Status = corev1.PodStatus{
 			Phase: corev1.PodPending,
 			ContainerStatuses: []corev1.ContainerStatus{

@@ -209,7 +209,6 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 			// Don't create the POD if the PVC is completed already
 			log.V(1).Info("PVC is already complete")
 		} else if pvc.DeletionTimestamp == nil {
-
 			if _, ok := pvc.Annotations[AnnImportPod]; ok {
 				// Create importer pod, make sure the PVC owns it.
 				if err := r.createImporterPod(pvc); err != nil {
@@ -245,8 +244,7 @@ func (r *ImportReconciler) initPvcPodName(pvc *corev1.PersistentVolumeClaim, log
 	log.V(1).Info("Init pod name on PVC")
 	anno := pvc.GetAnnotations()
 
-	podName := createImportPodNameFromPvc(pvc)
-	anno[AnnImportPod] = podName
+	anno[AnnImportPod] = createImportPodNameFromPvc(pvc)
 
 	requiresScratch := r.requiresScratchSpace(pvc)
 	if requiresScratch {
@@ -509,9 +507,12 @@ func (r *ImportReconciler) requiresScratchSpace(pvc *corev1.PersistentVolumeClai
 
 func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod) error {
 	scratchPvc := &corev1.PersistentVolumeClaim{}
-	scratchPVCName := getScratchName(pod, pvc)
+	scratchPVCName, exists := getScratchNameFromPod(pod)
+	if !exists {
+		return errors.New("Scratch Volume not configured for pod")
+	}
 	anno := pvc.GetAnnotations()
-	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: pvc.GetNamespace(), Name: createScratchNameFromPvc(pvc)}, scratchPvc)
+	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: pvc.GetNamespace(), Name: scratchPVCName}, scratchPvc)
 	if IgnoreNotFound(err) != nil {
 		return err
 	}
@@ -598,14 +599,6 @@ func getImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 
 func createImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 	return naming.GetResourceName(common.ImporterPodName, pvc.Name)
-}
-
-func getScratchName(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim) string {
-	scratchPVCName := getScratchNameFromPod(pod)
-	if scratchPVCName == "" {
-		scratchPVCName = createScratchNameFromPvc(pvc)
-	}
-	return scratchPVCName
 }
 
 // createImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret
