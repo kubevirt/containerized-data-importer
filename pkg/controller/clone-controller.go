@@ -175,8 +175,8 @@ func (r *CloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, er
 	}
 
 	_, nameExists := pvc.Annotations[AnnCloneSourcePod]
-	if !nameExists {
-		if err := r.initCloneSourcePodName(pvc, log, sourcePod); err != nil {
+	if !nameExists && sourcePod == nil {
+		if err := r.initCloneSourcePodName(pvc, log); err != nil {
 			return reconcile.Result{}, err
 		}
 		return reconcile.Result{Requeue: true}, nil
@@ -192,18 +192,11 @@ func (r *CloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, er
 	return reconcile.Result{}, nil
 }
 
-func (r *CloneReconciler) initCloneSourcePodName(pvc *corev1.PersistentVolumeClaim, log logr.Logger, sourcePod *corev1.Pod) error {
+func (r *CloneReconciler) initCloneSourcePodName(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
 	currentPvcCopy := pvc.DeepCopyObject()
-	var sourcePodName string
-	if sourcePod != nil {
-		sourcePodName = sourcePod.Name
-	} else {
-		sourcePodName = createCloneSourcePodName(pvc)
-	}
-
 	log.V(1).Info("Init pod name on PVC")
 	anno := pvc.GetAnnotations()
-	anno[AnnCloneSourcePod] = sourcePodName
+	anno[AnnCloneSourcePod] = createCloneSourcePodName(pvc)
 
 	if !reflect.DeepEqual(currentPvcCopy, pvc) {
 		if err := r.updatePVC(pvc); err != nil {
@@ -302,7 +295,6 @@ func (r *CloneReconciler) findCloneSourcePod(pvc *corev1.PersistentVolumeClaim) 
 		cloneSourcePodName = createCloneSourcePodName(pvc)
 	}
 
-	// TODO: I think we might even get pod by name directly not using label selector
 	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			CloneUniqueID: cloneSourcePodName,
