@@ -40,6 +40,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	tinyCoreIsoURL := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
 	httpsTinyCoreIsoURL := fmt.Sprintf(utils.HTTPSTinyCoreIsoURL, f.CdiInstallNs)
+	httpsTinyCoreQcow2URL := fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs)
 	tinyCoreIsoRegistryURL := fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs)
 	tarArchiveURL := fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs)
 	InvalidQcowImagesURL := fmt.Sprintf(utils.InvalidQcowImagesURL, f.CdiInstallNs)
@@ -391,6 +392,29 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:    cdiv1.DataVolumeBound,
 					Status:  v1.ConditionTrue,
 					Message: "PVC dv-https-import Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid qcow2 url (https) should require scratchspace", dataVolumeTestArguments{
+				name:        "dv-https-import-qcow2",
+				size:        "1Gi",
+				url:         httpsTinyCoreQcow2URL,
+				dvFunc:      createHTTPSDataVolume,
+				eventReason: controller.ImportSucceeded,
+				phase:       cdiv1.Succeeded,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-https-import-qcow2 Bound",
 					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{

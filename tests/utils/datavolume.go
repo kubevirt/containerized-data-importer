@@ -30,6 +30,8 @@ const (
 	TinyCoreIsoRegistryURL = "docker://cdi-docker-registry-host.%s/tinycoreqcow2"
 	// HTTPSTinyCoreIsoURL provides a test (https) url for the tineyCore iso image
 	HTTPSTinyCoreIsoURL = "https://cdi-file-host.%s/tinyCore.iso"
+	// HTTPSTinyCoreQcow2URL provides a test (https) url for the tineyCore qcow2 image
+	HTTPSTinyCoreQcow2URL = "https://cdi-file-host.%s/tinyCore.qcow2"
 	// TinyCoreQcow2URLRateLimit provides a test url for the tineyCore iso image
 	TinyCoreQcow2URLRateLimit = "http://cdi-file-host.%s:82/tinyCore.qcow2"
 	// InvalidQcowImagesURL provides a test url for invalid qcow images
