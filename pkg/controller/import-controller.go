@@ -612,12 +612,6 @@ func getScratchName(pod *corev1.Pod, pvc *corev1.PersistentVolumeClaim) string {
 // name, and pvc. A nil secret means the endpoint credentials are not passed to the
 // importer pod.
 func createImporterPod(log logr.Logger, client client.Client, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string) (*corev1.Pod, error) {
-
-	log.V(1).Info("-- Importer pod create",
-		"pod.Name", pvc.Annotations[AnnImportPod],
-		"scratchNeeded", pvc.Annotations[AnnRequiresScratch],
-		"providedScratchName", scratchPvcName)
-
 	podResourceRequirements, err := GetDefaultPodResourceRequirements(client)
 	if err != nil {
 		return nil, err

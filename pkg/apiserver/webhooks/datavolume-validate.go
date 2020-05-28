@@ -61,7 +61,7 @@ func validateDataVolumeName(name string) []metav1.StatusCause {
 	if len(name) > kvalidation.DNS1123SubdomainMaxLength {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Name of data volume cannot be more than 253 characters"),
+			Message: fmt.Sprintf("Name of data volume cannot be more than %d characters", kvalidation.DNS1123SubdomainMaxLength),
 			Field:   "",
 		})
 	}
