@@ -1,4 +1,3 @@
----
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -54,7 +53,7 @@ rules:
     resources: ["volumesnapshots"]
     verbs: ["get", "list", "watch", "update"]
   - apiGroups: ["snapshot.storage.k8s.io"]
-    resources: ["volumesnapshots/status"]
+    resources: ["volumesnapshotcontents/status"]
     verbs: ["update"]
   - apiGroups: ["storage.k8s.io"]
     resources: ["csinodes"]
@@ -66,7 +65,9 @@ metadata:
   name: ember-csi.io
 spec:
   attachRequired: true
-  podInfoOnMount: false
+  podInfoOnMount: true
+  # volumeLifecycleModes: # added in Kubernetes 1.16, we use default
+  # - Persistent
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
@@ -126,14 +127,19 @@ kind: DaemonSet
 apiVersion: apps/v1
 metadata:
   name: csi-node
+  labels:
+    app: embercsi
+    embercsi_cr: lvm
 spec:
   selector:
     matchLabels:
-      app: csi-node
+      app: embercsi
+      embercsi_cr: lvm
   template:
     metadata:
       labels:
-        app: csi-node
+        app: embercsi
+        embercsi_cr: lvm
     spec:
       serviceAccount: csi-node-sa
       # Required by iSCSI
@@ -144,9 +150,11 @@ spec:
         - name: driver-registrar
           image: quay.io/k8scsi/csi-node-driver-registrar:v1.2.0
           args:
-          - --v=1
+          - --v=5
           - --csi-address=/var/lib/ember-csi/csi.sock
           - --kubelet-registration-path=/var/lib/ember-csi/ember-csi.io/csi.sock
+          securityContext:
+            privileged: true
           env:
             - name: KUBE_NODE_NAME
               valueFrom:
@@ -159,8 +167,10 @@ spec:
             - name: registration-dir
               mountPath: /registration
         - name: csi-driver
-          image: "quay.io/awels/embercsi:1"
-          # Priviledged needed for access to lvm backend
+          image: mhenriks/ember-csi:centos8
+          terminationMessagePath: /tmp/termination-log
+          #command: ["tail"]
+          #args: ["-f", "/dev/null"]
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
