@@ -65,7 +65,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
 		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
-		doFileBasedCloneTest(f, pvcDef, f.Namespace)
+		doFileBasedCloneTest(f, pvcDef, f.Namespace, "target-dv")
 	})
 
 	It("Should clone imported data within same namespace and preserve fsGroup", func() {
@@ -116,7 +116,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		})
 		Expect(err).NotTo(HaveOccurred())
 		f.AddNamespaceToDelete(targetNs)
-		doFileBasedCloneTest(f, pvcDef, targetNs)
+		doFileBasedCloneTest(f, pvcDef, targetNs, "target-dv")
 	})
 
 	It("[test_id:1356]Should not clone anything when CloneOf annotation exists", func() {
@@ -603,7 +603,7 @@ var _ = Describe("Namespace with quota", func() {
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
 		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
-		doFileBasedCloneTest(f, pvcDef, f.Namespace)
+		doFileBasedCloneTest(f, pvcDef, f.Namespace, "target-dv")
 	})
 
 	It("Should fail to clone in namespace with quota when pods have higher requirements", func() {
@@ -700,7 +700,7 @@ var _ = Describe("Namespace with quota", func() {
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
 		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
-		doFileBasedCloneTest(f, pvcDef, f.Namespace)
+		doFileBasedCloneTest(f, pvcDef, f.Namespace, "target-dv")
 	})
 
 	It("Should fail clone data across namespaces, if a namespace doesn't have enough quota", func() {
@@ -763,10 +763,10 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		})
 		Expect(err).NotTo(HaveOccurred())
 		f.AddNamespaceToDelete(targetNs)
-		doFileBasedCloneTest(f, pvcDef, targetNs)
+		targetDvName := "target-dv"
+		doFileBasedCloneTest(f, pvcDef, targetNs, targetDvName)
 
 		By("Verify retry annotation on PVC")
-		targetDvName := "target-dv"
 		targetPvc, err := utils.WaitForPVC(f.K8sClient, targetNs.Name, targetDvName)
 		Expect(err).ToNot(HaveOccurred())
 		restartsValue, status, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodRestarts)
@@ -831,11 +831,107 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 	})
 
+	It("[test_id:4276] Clone datavolume with short name", func() {
+		shortDvName := "import-long-name-dv"
+
+		By(fmt.Sprintf("Create PVC %s", shortDvName))
+		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+		pvcDef.Namespace = f.Namespace.Name
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		targetDvName := shortDvName
+		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+			framework.NsPrefixLabel: f.NsPrefix,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		f.AddNamespaceToDelete(targetNs)
+
+		doFileBasedCloneTest(f, pvcDef, targetNs, targetDvName)
+
+		By("Verify retry annotation on PVC")
+		targetPvc, err := utils.WaitForPVC(f.K8sClient, targetNs.Name, targetDvName)
+		Expect(err).ToNot(HaveOccurred())
+		restartsValue, status, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodRestarts)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(status).To(BeTrue())
+		Expect(restartsValue).To(Equal("0"))
+
+		By("Verify the number of retries on the datavolume")
+		dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
+	})
+
+	It("[test_id:4277] Clone datavolume with long name", func() {
+		// 20 chars + 100ch + 40chars
+		dvName160Characters := "import-long-name-dv-" +
+			"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-" +
+			"123456789-123456789-123456789-1234567890"
+
+		By(fmt.Sprintf("Create PVC %s", dvName160Characters))
+		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+		pvcDef.Namespace = f.Namespace.Name
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		targetDvName := dvName160Characters
+		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+			framework.NsPrefixLabel: f.NsPrefix,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		f.AddNamespaceToDelete(targetNs)
+
+		doFileBasedCloneTest(f, pvcDef, targetNs, targetDvName)
+
+		By("Verify retry annotation on PVC")
+		targetPvc, err := utils.WaitForPVC(f.K8sClient, targetNs.Name, targetDvName)
+		Expect(err).ToNot(HaveOccurred())
+		restartsValue, status, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodRestarts)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(status).To(BeTrue())
+		Expect(restartsValue).To(Equal("0"))
+
+		By("Verify the number of retries on the datavolume")
+		dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
+	})
+
+	It("[test_id:4278] Clone datavolume with long name including special character '.'", func() {
+		// 20 chars + 100ch + 40chars
+		dvName160Characters := "import-long-name-dv." +
+			"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-" +
+			"123456789-123456789-123456789-1234567890"
+
+		By(fmt.Sprintf("Create PVC %s", dvName160Characters))
+		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+		pvcDef.Namespace = f.Namespace.Name
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		targetDvName := dvName160Characters
+		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+			framework.NsPrefixLabel: f.NsPrefix,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		f.AddNamespaceToDelete(targetNs)
+
+		doFileBasedCloneTest(f, pvcDef, targetNs, targetDvName)
+
+		By("Verify retry annotation on PVC")
+		targetPvc, err := utils.WaitForPVC(f.K8sClient, targetNs.Name, targetDvName)
+		Expect(err).ToNot(HaveOccurred())
+		restartsValue, status, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodRestarts)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(status).To(BeTrue())
+		Expect(restartsValue).To(Equal("0"))
+
+		By("Verify the number of retries on the datavolume")
+		dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
+	})
+
 })
 
-func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClaim, targetNs *v1.Namespace) {
+func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClaim, targetNs *v1.Namespace, targetDv string) {
 	// Create targetPvc in new NS.
-	targetDV := utils.NewCloningDataVolume("target-dv", "1G", srcPVCDef)
+	targetDV := utils.NewCloningDataVolume(targetDv, "1G", srcPVCDef)
 	dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -863,6 +959,7 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 	By("Verify the clone status is success on the target datavolume")
 	err = utils.WaitForDataVolumePhase(f.CdiClient, targetNs.Name, cdiv1.Succeeded, targetPvc.Name)
 
+	By("Verify the content")
 	Expect(f.VerifyTargetPVCContentMD5(targetNs, targetPvc, filePath, expectedMD5)).To(BeTrue())
 
 	if utils.DefaultStorageCSI {

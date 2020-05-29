@@ -49,14 +49,18 @@ var _ = Describe("GetName", func() {
 		table.Entry("Should shorten too long name dropping too long suffix", "abc123", suffix250, And(HavePrefix("abc123"), HaveLen(15))),
 	)
 
+	It("Should handle dot '.' correctly", func() {
+		Expect(GetLabelNameFromResourceName("name.subname")).To(Equal("name-subname"))
+	})
+
 	It("Should not shorten label name if it fits", func() {
-		Expect(GetLabelName("name")).To(Equal("name"))
-		Expect(GetLabelName(word63)).To(Equal(word63))
+		Expect(GetLabelNameFromResourceName("name")).To(Equal("name"))
+		Expect(GetLabelNameFromResourceName(word63)).To(Equal(word63))
 	})
 
 	It("Should shorten to long label correctly", func() {
 		word64 := util.RandAlphaNum(64)
-		result := GetLabelName(word64)
+		result := GetLabelNameFromResourceName(word64)
 		Expect(len(result)).To(BeNumerically("<=", 63))
 
 		shortenedWithoutHash := word64[0 : 63-13]

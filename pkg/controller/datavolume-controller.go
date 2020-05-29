@@ -736,8 +736,9 @@ func (r *DatavolumeReconciler) getPodFromPvc(namespace string, pvcUID types.UID)
 			}
 		}
 
+		// TODO: check this
 		val, exists := pod.Labels[CloneUniqueID]
-		if exists && val == string(pvcUID)+"-source-pod" {
+		if exists && val == string(pvcUID)+common.ClonerSourcePodNameSuffix {
 			return &pod, nil
 		}
 	}
@@ -830,8 +831,7 @@ func buildHTTPClient() *http.Client {
 // that 'owns' it.
 func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentVolumeClaim, error) {
 	labels := map[string]string{
-		"cdi-controller": dataVolume.Name,
-		"app":            "containerized-data-importer",
+		"app": "containerized-data-importer",
 	}
 
 	if dataVolume.Spec.PVC == nil {

@@ -181,11 +181,12 @@ func (r *ImportReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 }
 
 func (r *ImportReconciler) findImporterPod(pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*corev1.Pod, error) {
-	podName := importPodNameFromPvc(pvc)
+	podName := getImportPodNameFromPvc(pvc)
 	pod := &corev1.Pod{}
-	err := r.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: pvc.GetNamespace()}, pod)
-
-	if k8serrors.IsNotFound(err) {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: pvc.GetNamespace()}, pod); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return nil, errors.Wrapf(err, "error getting import pod %s/%s", pvc.Namespace, podName)
+		}
 		return nil, nil
 	}
 
@@ -208,9 +209,16 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 			// Don't create the POD if the PVC is completed already
 			log.V(1).Info("PVC is already complete")
 		} else if pvc.DeletionTimestamp == nil {
-			// Create importer pod, make sure the PVC owns it.
-			if err := r.createImporterPod(pvc); err != nil {
-				return reconcile.Result{}, err
+			if _, ok := pvc.Annotations[AnnImportPod]; ok {
+				// Create importer pod, make sure the PVC owns it.
+				if err := r.createImporterPod(pvc); err != nil {
+					return reconcile.Result{}, err
+				}
+			} else {
+				// Create importer pod Name and store in PVC?
+				if err := r.initPvcPodName(pvc, log); err != nil {
+					return reconcile.Result{}, err
+				}
 			}
 		}
 	} else {
@@ -228,6 +236,28 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 		}
 	}
 	return reconcile.Result{}, nil
+}
+
+func (r *ImportReconciler) initPvcPodName(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
+	currentPvcCopy := pvc.DeepCopyObject()
+
+	log.V(1).Info("Init pod name on PVC")
+	anno := pvc.GetAnnotations()
+
+	anno[AnnImportPod] = createImportPodNameFromPvc(pvc)
+
+	requiresScratch := r.requiresScratchSpace(pvc)
+	if requiresScratch {
+		anno[AnnRequiresScratch] = "true"
+	}
+
+	if !reflect.DeepEqual(currentPvcCopy, pvc) {
+		if err := r.updatePVC(pvc, log); err != nil {
+			return err
+		}
+		log.V(1).Info("Updated PVC", "pvc.anno.AnnImportPod", anno[AnnImportPod])
+	}
+	return nil
 }
 
 func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, log logr.Logger) error {
@@ -316,7 +346,7 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 
 	requiresScratch := r.requiresScratchSpace(pvc)
 	if requiresScratch {
-		name := scratchNameFromPvc(pvc)
+		name := createScratchNameFromPvc(pvc)
 		scratchPvcName = &name
 	}
 
@@ -333,9 +363,10 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 	}
 	r.log.V(1).Info("Created POD", "pod.Name", pod.Name)
 	if requiresScratch {
-		r.log.V(1).Info("POD requires scratch space")
+		r.log.V(1).Info("Pod requires scratch space")
 		return r.createScratchPvcForPod(pvc, pod)
 	}
+
 	return nil
 }
 
@@ -476,13 +507,16 @@ func (r *ImportReconciler) requiresScratchSpace(pvc *corev1.PersistentVolumeClai
 
 func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod) error {
 	scratchPvc := &corev1.PersistentVolumeClaim{}
+	scratchPVCName, exists := getScratchNameFromPod(pod)
+	if !exists {
+		return errors.New("Scratch Volume not configured for pod")
+	}
 	anno := pvc.GetAnnotations()
-	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: pvc.GetNamespace(), Name: scratchNameFromPvc(pvc)}, scratchPvc)
+	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: pvc.GetNamespace(), Name: scratchPVCName}, scratchPvc)
 	if IgnoreNotFound(err) != nil {
 		return err
 	}
 	if k8serrors.IsNotFound(err) {
-		scratchPVCName := scratchNameFromPvc(pvc)
 		storageClassName := GetScratchPvcStorageClass(r.client, pvc)
 		// Scratch PVC doesn't exist yet, create it. Determine which storage class to use.
 		_, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, scratchPVCName, storageClassName)
@@ -553,12 +587,18 @@ func getDiskID(pvc *corev1.PersistentVolumeClaim) string {
 	return diskID
 }
 
-func importPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
+func getImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
+	podName, ok := pvc.Annotations[AnnImportPod]
+	if ok {
+		return podName
+	}
+	// fallback to legacy naming, in fact the following function is fully compatible with legacy
+	// name concatenation "importer-{pvc.Name}" if the name length is under the size limits,
 	return naming.GetResourceName(common.ImporterPodName, pvc.Name)
 }
 
-func scratchNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
-	return naming.GetResourceName(pvc.Name, common.ScratchNameSuffix)
+func createImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
+	return naming.GetResourceName(common.ImporterPodName, pvc.Name)
 }
 
 // createImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret
@@ -582,7 +622,7 @@ func createImporterPod(log logr.Logger, client client.Client, image, verbose, pu
 // makeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
 func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, podResourceRequirements *corev1.ResourceRequirements) *corev1.Pod {
 	// importer pod name contains the pvc name
-	podName := importPodNameFromPvc(pvc)
+	podName, _ := pvc.Annotations[AnnImportPod]
 
 	blockOwnerDeletion := true
 	isController := true
@@ -625,9 +665,7 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 			Labels: map[string]string{
 				common.CDILabelKey:       common.CDILabelValue,
 				common.CDIComponentLabel: common.ImporterPodName,
-				// this label is used when searching for a pvc's import pod.
-				LabelImportPvc:         pvc.Name,
-				common.PrometheusLabel: "",
+				common.PrometheusLabel:   "",
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{

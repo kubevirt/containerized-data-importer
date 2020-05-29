@@ -114,9 +114,12 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(false))
 		})
 
-		It("should reject DataVolume with name length greater than 55 characters", func() {
+		It("should reject DataVolume with name length greater than 253 characters", func() {
+			longName := "the-name-length-of-this-datavolume-is-greater-then-253-characters" +
+				"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-" +
+				"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789"
 			dataVolume := newHTTPDataVolume(
-				"the-name-length-of-this-datavolume-is-greater-then-55cha",
+				longName,
 				"http://www.example.com")
 			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(false))

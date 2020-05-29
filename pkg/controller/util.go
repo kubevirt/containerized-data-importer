@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"crypto/rsa"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -117,9 +118,7 @@ func checkIfLabelExists(pvc *v1.PersistentVolumeClaim, lbl string, val string) b
 // which allows handleObject to discover the pod resource that 'owns' it, and clean up when needed.
 func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, name, storageClassName string) *v1.PersistentVolumeClaim {
 	labels := map[string]string{
-		"cdi-controller": pod.Name,
-		"app":            "containerized-data-importer",
-		LabelImportPvc:   pvc.Name,
+		"app": "containerized-data-importer",
 	}
 
 	annotations := make(map[string]string, 0)
@@ -364,4 +363,18 @@ func setBoundConditionFromPVC(anno map[string]string, prefix string, pvc *v1.Per
 		anno[prefix+".message"] = "Unknown"
 		anno[prefix+".reason"] = "Unknown"
 	}
+}
+
+func getScratchNameFromPod(pod *v1.Pod) (string, bool) {
+	for _, vol := range pod.Spec.Volumes {
+		if vol.Name == ScratchVolName {
+			return vol.PersistentVolumeClaim.ClaimName, true
+		}
+	}
+
+	return "", false
+}
+
+func createScratchNameFromPvc(pvc *v1.PersistentVolumeClaim) string {
+	return naming.GetResourceName(pvc.Name, common.ScratchNameSuffix)
 }

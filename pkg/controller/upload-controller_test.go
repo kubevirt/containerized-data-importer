@@ -38,6 +38,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 )
 
 const (
@@ -98,14 +99,14 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		)
 		By("Verifying the pod and service exists")
 		uploadPod := &corev1.Pod{}
-		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(uploadPod.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+		Expect(uploadPod.Name).To(Equal(createUploadResourceName(testPvc.Name)))
 
 		uploadService := &corev1.Service{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(uploadService.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+		Expect(uploadService.Name).To(Equal(createUploadResourceName(testPvc.Name)))
 
 		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
@@ -130,14 +131,14 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		)
 		By("Verifying the pod and service exists")
 		uploadPod := &corev1.Pod{}
-		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(uploadPod.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+		Expect(uploadPod.Name).To(Equal(createUploadResourceName(testPvc.Name)))
 
 		uploadService := &corev1.Service{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(uploadService.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+		Expect(uploadService.Name).To(Equal(createUploadResourceName(testPvc.Name)))
 
 		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
@@ -164,14 +165,14 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		)
 		By("Verifying the pod and service exists")
 		uploadPod := &corev1.Pod{}
-		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(uploadPod.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+		Expect(uploadPod.Name).To(Equal(createUploadResourceName(testPvc.Name)))
 
 		uploadService := &corev1.Service{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(uploadService.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+		Expect(uploadService.Name).To(Equal(createUploadResourceName(testPvc.Name)))
 
 		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
@@ -202,68 +203,150 @@ var _ = Describe("Upload controller reconcile loop", func() {
 	})
 
 	It("Should return nil and create a pod and service when a clone pvc", func() {
-		testPvc := createPvc("testPvc1", "default", map[string]string{AnnCloneRequest: "default/testPvc2"}, nil)
+		testPvc := createPvc("testPvc1", "default", map[string]string{AnnCloneRequest: "default/testPvc2", AnnUploadPod: createUploadResourceName("testPvc1")}, nil)
 		testPvcSource := createPvc("testPvc2", "default", map[string]string{}, nil)
 		reconciler := createUploadReconciler(testPvc, testPvcSource)
 		By("Verifying the pod and service do not exist")
 		uploadPod := &corev1.Pod{}
-		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
 		Expect(err).To(HaveOccurred())
 
 		uploadService := &corev1.Service{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
 		Expect(err).To(HaveOccurred())
 
 		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying the pod and service now exist")
 		uploadPod = &corev1.Pod{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(uploadPod.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+		Expect(uploadPod.Name).To(Equal(createUploadResourceName(testPvc.Name)))
 
 		uploadService = &corev1.Service{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(uploadService.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+		Expect(uploadService.Name).To(Equal(createUploadResourceName(testPvc.Name)))
 	})
 })
 
 var _ = Describe("reconcilePVC loop", func() {
+	testPvcName := "testPvc1"
+	uploadResourceName := "uploader" //createUploadResourceName(testPvcName)
+
 	Context("Is clone", func() {
 		isClone := true
 
-		It("Should create the service and pod", func() {
-			testPvc := createPvc("testPvc1", "default", map[string]string{AnnCloneRequest: "default/testPvc2"}, nil)
+		It("Should create the pod name", func() {
+			testPvc := createPvc(testPvcName, "default", map[string]string{AnnCloneRequest: "default/testPvc2"}, nil)
 			testPvcSource := createPvc("testPvc2", "default", map[string]string{}, nil)
 			reconciler := createUploadReconciler(testPvc, testPvcSource)
 			By("Verifying the pod and service do not exist")
 			uploadPod := &corev1.Pod{}
-			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadPod)
 			Expect(err).To(HaveOccurred())
 
 			uploadService := &corev1.Service{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: naming.GetServiceNameFromResourceName(uploadResourceName), Namespace: "default"}, uploadService)
 			Expect(err).To(HaveOccurred())
 
 			_, err = reconciler.reconcilePVC(reconciler.log, testPvc, isClone)
 			Expect(err).ToNot(HaveOccurred())
-			By("Verifying the pod and service now exist")
-			uploadPod = &corev1.Pod{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(uploadPod.Name).To(Equal(getUploadResourceName(testPvc.Name)))
 
-			uploadService = &corev1.Service{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(uploadService.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+			By("Verifying the pod name annotation")
 
 			resultPvc := &corev1.PersistentVolumeClaim{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resultPvc)
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: testPvcName, Namespace: "default"}, resultPvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(resultPvc.GetAnnotations()[AnnUploadPod]).To(Equal("cdi-upload-testPvc1"))
+			Expect(resultPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(uploadPod.Status.Phase))
+		})
+
+		It("Should create the service and pod", func() {
+			testPvc := createPvc(testPvcName, "default", map[string]string{AnnCloneRequest: "default/testPvc2", AnnUploadPod: uploadResourceName}, nil)
+			testPvcSource := createPvc("testPvc2", "default", map[string]string{}, nil)
+			reconciler := createUploadReconciler(testPvc, testPvcSource)
+			By("Verifying the pod and service do not exist")
+			uploadPod := &corev1.Pod{}
+			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadPod)
+			Expect(err).To(HaveOccurred())
+
+			uploadService := &corev1.Service{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: naming.GetServiceNameFromResourceName(uploadResourceName), Namespace: "default"}, uploadService)
+			Expect(err).To(HaveOccurred())
+
+			_, err = reconciler.reconcilePVC(reconciler.log, testPvc, isClone)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Verifying the pod and service now exist")
+			uploadPod = &corev1.Pod{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadPod)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(uploadPod.Name).To(Equal(uploadResourceName))
+
+			uploadService = &corev1.Service{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: naming.GetServiceNameFromResourceName(uploadResourceName), Namespace: "default"}, uploadService)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(uploadService.Name).To(Equal(uploadResourceName))
+
+			resultPvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: testPvcName, Namespace: "default"}, resultPvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(resultPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(uploadPod.Status.Phase))
 			Expect(resultPvc.GetAnnotations()[AnnPodReady]).To(Equal("false"))
+		})
+
+		It("Should error if a POD with the same name exists, but is not owned by the PVC, if a PVC with all needed annotations is passed", func() {
+			pod := &corev1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Pod",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      uploadResourceName,
+					Namespace: "default",
+				},
+			}
+			testPvc := createPvc(testPvcName, "default", map[string]string{AnnCloneRequest: "default/testPvc2", AnnUploadPod: uploadResourceName}, nil)
+			testPvcSource := createPvc("testPvc2", "default", map[string]string{}, nil)
+			reconciler := createUploadReconciler(testPvc, testPvcSource, pod)
+
+			_, err := reconciler.reconcilePVC(reconciler.log, testPvc, isClone)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("uploader pod not controlled by pvc testPvc1"))
+
+			uploadService := &corev1.Service{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: naming.GetServiceNameFromResourceName(uploadResourceName), Namespace: "default"}, uploadService)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("Should error if a Service with the same name exists, but is not owned by the PVC, if a PVC with all needed annotations is passed", func() {
+			svcName := naming.GetServiceNameFromResourceName(uploadResourceName)
+			service := &corev1.Service{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Service",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      svcName,
+					Namespace: "default",
+					//Annotations: map[string]string{
+					//	annCreatedByUpload: "yes",
+					//},
+					Labels: map[string]string{
+						"app":             "containerized-data-importer",
+						"cdi.kubevirt.io": "cdi-upload-server",
+					},
+				},
+			}
+
+			testPvc := createPvc(testPvcName, "default", map[string]string{AnnCloneRequest: "default/testPvc2", AnnUploadPod: uploadResourceName}, nil)
+			testPvcSource := createPvc("testPvc2", "default", map[string]string{}, nil)
+			reconciler := createUploadReconciler(testPvc, testPvcSource, service)
+
+			_, err := reconciler.reconcilePVC(reconciler.log, testPvc, isClone)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("uploader service not controlled by pvc testPvc1"))
 		})
 	})
 
@@ -271,29 +354,29 @@ var _ = Describe("reconcilePVC loop", func() {
 		isClone := false
 
 		It("Should create the service and pod", func() {
-			testPvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: ""}, nil)
+			testPvc := createPvc(testPvcName, "default", map[string]string{AnnUploadRequest: "", AnnUploadPod: uploadResourceName}, nil)
 			reconciler := createUploadReconciler(testPvc)
 			By("Verifying the pod and service do not exist")
 			uploadPod := &corev1.Pod{}
-			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadPod)
 			Expect(err).To(HaveOccurred())
 
 			uploadService := &corev1.Service{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadService)
 			Expect(err).To(HaveOccurred())
 
 			_, err = reconciler.reconcilePVC(reconciler.log, testPvc, isClone)
 			Expect(err).ToNot(HaveOccurred())
 			By("Verifying the pod and service now exist")
 			uploadPod = &corev1.Pod{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadPod)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(uploadPod.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+			Expect(uploadPod.Name).To(Equal(uploadResourceName))
 
 			uploadService = &corev1.Service{}
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: getUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadService)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(uploadService.Name).To(Equal(getUploadResourceName(testPvc.Name)))
+			Expect(uploadService.Name).To(Equal(uploadResourceName))
 
 			scratchPvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1-scratch", Namespace: "default"}, scratchPvc)

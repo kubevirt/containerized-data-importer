@@ -43,6 +43,8 @@ const (
 
 	//CloneUniqueID is used as a special label to be used when we search for the pod
 	CloneUniqueID = "cdi.kubevirt.io/storage.clone.cloneUniqeId"
+	// AnnCloneSourcePod name of the source clone pod
+	AnnCloneSourcePod = "cdi.kubevirt.io/storage.sourceClonePodName"
 
 	// ErrIncompatiblePVC provides a const to indicate a clone is not possible due to an incompatible PVC
 	ErrIncompatiblePVC = "ErrIncompatiblePVC"
@@ -172,6 +174,15 @@ func (r *CloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, er
 		return reconcile.Result{}, err
 	}
 
+	_, nameExists := pvc.Annotations[AnnCloneSourcePod]
+	if !nameExists && sourcePod == nil {
+		pvc.Annotations[AnnCloneSourcePod] = createCloneSourcePodName(pvc)
+		if err := r.updatePVC(pvc); err != nil {
+			return reconcile.Result{}, err
+		}
+		return reconcile.Result{Requeue: true}, nil
+	}
+
 	if err := r.reconcileSourcePod(sourcePod, pvc, log); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -264,10 +275,15 @@ func (r *CloneReconciler) findCloneSourcePod(pvc *corev1.PersistentVolumeClaim) 
 	if !isCloneRequest {
 		return nil, nil
 	}
+	cloneSourcePodName, exists := pvc.Annotations[AnnCloneSourcePod]
+	if !exists {
+		// fallback to legacy name, to find any pod that still might be running after upgrade
+		cloneSourcePodName = createCloneSourcePodName(pvc)
+	}
 
 	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
 		MatchLabels: map[string]string{
-			CloneUniqueID: string(pvc.GetUID()) + "-source-pod",
+			CloneUniqueID: cloneSourcePodName,
 		},
 	})
 	if err != nil {
@@ -418,8 +434,8 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy, clientName str
 	return pod, nil
 }
 
-func getCloneSourcePodName(targetPvc *corev1.PersistentVolumeClaim) string {
-	return string(targetPvc.GetUID()) + "-source-pod"
+func createCloneSourcePodName(targetPvc *corev1.PersistentVolumeClaim) string {
+	return string(targetPvc.GetUID()) + common.ClonerSourcePodNameSuffix
 }
 
 // MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
@@ -427,7 +443,7 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace
 	clientKey, clientCert, serverCACert []byte, targetPvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements) *corev1.Pod {
 
 	var ownerID string
-	podName := getCloneSourcePodName(targetPvc)
+	cloneSourcePodName, _ := targetPvc.Annotations[AnnCloneSourcePod]
 	url := GetUploadServerURL(targetPvc.Namespace, targetPvc.Name, common.UploadPathSync)
 	pvcOwner := metav1.GetControllerOf(targetPvc)
 	if pvcOwner != nil && pvcOwner.Kind == "DataVolume" {
@@ -436,7 +452,7 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      podName,
+			Name:      cloneSourcePodName,
 			Namespace: sourcePvcNamespace,
 			Annotations: map[string]string{
 				AnnCreatedBy: "yes",
@@ -446,7 +462,7 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace
 				common.CDILabelKey:       common.CDILabelValue, //filtered by the podInformer
 				common.CDIComponentLabel: common.ClonerSourcePodName,
 				// this label is used when searching for a pvc's cloner source pod.
-				CloneUniqueID:          getCloneSourcePodName(targetPvc),
+				CloneUniqueID:          cloneSourcePodName,
 				common.PrometheusLabel: "",
 			},
 		},
