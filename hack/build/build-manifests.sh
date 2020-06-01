@@ -30,7 +30,6 @@ echo "NAMESPACE=${NAMESPACE}"
 
 source "${script_dir}"/resource-generator.sh
 
-
 mkdir -p "${MANIFEST_GENERATED_DIR}/"
 
 #generate operator related manifests used to deploy cdi with operator-framework
@@ -40,4 +39,3 @@ generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator" "everythi
 tempDir=${MANIFEST_TEMPLATE_DIR}
 processDirTemplates ${tempDir} ${OUT_DIR}/manifests ${OUT_DIR}/manifests/templates ${generator} ${MANIFEST_GENERATED_DIR} 
 processDirTemplates ${tempDir}/release ${OUT_DIR}/manifests/release ${OUT_DIR}/manifests/templates/release ${generator} ${MANIFEST_GENERATED_DIR}
-

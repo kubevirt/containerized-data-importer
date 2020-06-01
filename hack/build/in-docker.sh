@@ -30,6 +30,7 @@ docker run ${USE_TTY} \
     -v ${CACHE_DIR}:/gocache:rw,Z \
     -e RUN_UID=$(id -u) \
     -e RUN_GID=$(id -g) \
+    -e KUBEVIRTCI_RUNTIME=${KUBEVIRTCI_RUNTIME} \
     -e GOCACHE=/gocache \
     -w ${WORK_DIR} \
     ${BUILDER_IMAGE} "$1"
