@@ -391,7 +391,7 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 		Returns(http.StatusOK, "OK", objExample).
 		Returns(http.StatusCreated, "Created", objExample).
 		Returns(http.StatusAccepted, "Accepted", objExample).
-		Returns(http.StatusUnauthorized, "Unauthorized", nil).
+		Returns(http.StatusUnauthorized, "Unauthorized", "").
 		Param(uploadTokenWs.PathParameter("namespace", "Object name and auth scope, such as for teams and projects").Required(true)))
 
 	// Return empty api resource list.
@@ -419,10 +419,10 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 			})
 			response.WriteAsJson(list)
 		}).
-		Operation("getAPIResources").
+		Operation("getUploadAPIResources").
 		Doc("Get a CDI API resources").
 		Returns(http.StatusOK, "OK", metav1.APIResourceList{}).
-		Returns(http.StatusNotFound, "Not Found", nil))
+		Returns(http.StatusNotFound, "Not Found", ""))
 
 	app.container.Add(uploadTokenWs)
 
@@ -441,10 +441,10 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 				},
 			})
 		}).
-		Operation("getRootPaths").
+		Operation("getUploadRootPaths").
 		Doc("Get a CDI API root paths").
 		Returns(http.StatusOK, "OK", metav1.RootPaths{}).
-		Returns(http.StatusNotFound, "Not Found", nil))
+		Returns(http.StatusNotFound, "Not Found", ""))
 
 	// K8s needs the ability to query info about a specific API group
 	ws.Route(ws.GET(groupPath).
@@ -452,10 +452,10 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 		To(func(request *restful.Request, response *restful.Response) {
 			response.WriteAsJson(uploadTokenAPIGroup())
 		}).
-		Operation("getAPIGroup").
+		Operation("getUploadAPIGroup").
 		Doc("Get a CDI API Group").
 		Returns(http.StatusOK, "OK", metav1.APIGroup{}).
-		Returns(http.StatusNotFound, "Not Found", nil))
+		Returns(http.StatusNotFound, "Not Found", ""))
 
 	// K8s needs the ability to query the list of API groups this endpoint supports
 	ws.Route(ws.GET("apis").
@@ -467,10 +467,10 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 			list.Groups = append(list.Groups, uploadTokenAPIGroup())
 			response.WriteAsJson(list)
 		}).
-		Operation("getAPIGroup").
+		Operation("getUploadAPIs").
 		Doc("Get a CDI API GroupList").
 		Returns(http.StatusOK, "OK", metav1.APIGroupList{}).
-		Returns(http.StatusNotFound, "Not Found", nil))
+		Returns(http.StatusNotFound, "Not Found", ""))
 
 	ws.Route(ws.GET(healthzPath).To(app.healthzHandler))
 
