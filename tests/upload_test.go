@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
@@ -112,10 +113,24 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		} else {
 			uploader, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
 			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
-			By("Verifying PVC is empty")
-			By(fmt.Sprintf("uploader.Spec.NodeName %q", uploader.Spec.NodeName))
+
+			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			delete(pvc.Annotations, controller.AnnUploadRequest)
+			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				_, err = f.K8sClient.CoreV1().Pods(uploader.Namespace).Get(uploader.Name, metav1.GetOptions{})
+				if k8serrors.IsNotFound(err) {
+					return true
+				}
+				Expect(err).ToNot(HaveOccurred())
+				return false
+			}, timeout, pollingInterval).Should(BeTrue())
+
 			By("Verify PVC empty")
-			_, err = framework.VerifyPVCIsEmpty(f, pvc, uploader.Spec.NodeName)
+			_, err = framework.VerifyPVCIsEmpty(f, pvc, "")
 			Expect(err).ToNot(HaveOccurred())
 		}
 	},

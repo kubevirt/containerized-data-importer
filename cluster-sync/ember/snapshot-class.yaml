@@ -1,5 +1,6 @@
-apiVersion: snapshot.storage.k8s.io/v1alpha1
+apiVersion: snapshot.storage.k8s.io/v1beta1
 kind: VolumeSnapshotClass
 metadata:
-  name: csi-snap
-snapshotter: ember-csi.io
+  name: ember-csi-lvm-snapclass
+driver: ember-csi.io
+deletionPolicy: Delete

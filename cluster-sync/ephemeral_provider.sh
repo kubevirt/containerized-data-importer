@@ -79,6 +79,8 @@ function configure_nfs() {
 }
 
 function configure_ember_lvm() {
+  _kubectl apply -f ./cluster-sync/external-snapshotter
+
   _kubectl apply -f ./cluster-sync/ember/loop_back.yaml -n ember-csi-lvm
   set +e
 
@@ -117,16 +119,21 @@ kind: StatefulSet
 apiVersion: apps/v1
 metadata:
   name: csi-controller
+  labels:
+    app: embercsi
+    embercsi_cr: lvm
 spec:
   serviceName: csi-controller
   replicas: 1
   selector:
     matchLabels:
-      app: csi-controller
+      app: embercsi
+      embercsi_cr: lvm
   template:
     metadata:
       labels:
-        app: csi-controller
+        app: embercsi
+        embercsi_cr: lvm
     spec:
       nodeSelector:
         kubernetes.io/hostname: $loopdeviceNode
@@ -137,44 +144,54 @@ spec:
       hostIPC: true
       containers:
       - name: external-provisioner
-        image: quay.io/k8scsi/csi-provisioner:v1.4.0
+        image: quay.io/k8scsi/csi-provisioner:v1.5.0
         args:
-        - --v=1
+        - --v=5
         - --provisioner=ember-csi.io
         - --csi-address=/csi-data/csi.sock
         - --feature-gates=Topology=true
+        securityContext:
+          privileged: true
         volumeMounts:
         - mountPath: /csi-data
           name: socket-dir
       - name: external-attacher
-        image: quay.io/k8scsi/csi-attacher:v2.0.0
+        image: quay.io/k8scsi/csi-attacher:v2.1.0
         args:
-        - --v=1
+        - --v=5
         - --csi-address=/csi-data/csi.sock
         - --timeout=120s
+        securityContext:
+          privileged: true
         volumeMounts:
         - mountPath: /csi-data
           name: socket-dir
       - name: external-snapshotter
-        image: quay.io/k8scsi/csi-snapshotter:v1.2.2
+        image: quay.io/k8scsi/csi-snapshotter:v2.1.0
         args:
-        - --v=1
+        - --v=5
         - --csi-address=/csi-data/csi.sock
+        securityContext:
+          privileged: true
         volumeMounts:
         - mountPath: /csi-data
           name: socket-dir
       - name: external-resizer
         image: quay.io/k8scsi/csi-resizer:v0.3.0
         args:
-        - --v=1
+        - --v=5
         - --csi-address=/csi-data/csi.sock
+        securityContext:
+          privileged: true
         volumeMounts:
         - mountPath: /csi-data
           name: socket-dir
       - name: csi-driver
-        image: "quay.io/awels/embercsi:1"
+        image: mhenriks/ember-csi:centos8
+        terminationMessagePath: /tmp/termination-log
+        # command: ["tail"]
+        # args: ["-f", "/dev/null"]
         imagePullPolicy: Always
-        # Priviledged needed for access to lvm backend
         securityContext:
           privileged: true
           allowPrivilegeEscalation: true
@@ -250,6 +267,8 @@ spec:
         image: embercsi/csc:v1.1.0
         command: ["tail"]
         args: ["-f", "/dev/null"]
+        securityContext:
+          privileged: true
         env:
           - name: CSI_ENDPOINT
             value: unix:///csi-data/csi.sock
@@ -297,18 +316,16 @@ spec:
           path: /var/lib/iscsi
 EOF
 
-  set +e
+  echo "Waiting for ember-csi controller to be running"
+  running=$(_kubectl get pod -n ember-csi-lvm csi-controller-0 -o=jsonpath={".status.phase"})
   retry_counter=0
-  _kubectl get VolumeSnapshotClass
-  while [[ $? -ne "0" ]] && [[ $retry_counter -lt 60 ]]; do
+  while [[ $running != "Running" ]] && [[ $retry_counter -lt 60 ]]; do
     retry_counter=$((retry_counter + 1))
-    echo "Sleep 5s, waiting for VolumeSnapshotClass CRD"
-   sleep 5
-   _kubectl get VolumeSnapshotClass
+    sleep 5
+    running=$(_kubectl get pod -n ember-csi-lvm csi-controller-0 -o=jsonpath={".status.phase"})
   done
-  echo "VolumeSnapshotClass CRD available, creating snapshot class"
+
   _kubectl apply -f ./cluster-sync/ember/snapshot-class.yaml
-  set -e
 
   _kubectl patch storageclass ember-csi-lvm -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
 }
