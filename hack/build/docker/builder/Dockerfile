@@ -11,6 +11,7 @@ RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
 	microdnf update -y && microdnf install -y \
 	bazel \
 	cpio \
+    diffutils \
 	git \
 	python3-pip \
 	python3-devel \
