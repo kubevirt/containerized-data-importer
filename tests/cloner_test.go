@@ -234,9 +234,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
-		sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, sourcePVC)
-		Expect(err).ToNot(HaveOccurred())
-		completeClone(f, f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum, sourcePvcDiskGroup)
+		completeClone(f, f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum, "")
 	})
 })
 
@@ -962,7 +960,7 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 	By("Verify the content")
 	Expect(f.VerifyTargetPVCContentMD5(targetNs, targetPvc, filePath, expectedMD5)).To(BeTrue())
 
-	if utils.DefaultStorageCSI {
+	if utils.DefaultStorageCSI && sourcePvcDiskGroup != "" {
 		// CSI storage class, it should respect fsGroup
 		By("Checking that disk image group is qemu")
 		Expect(f.GetDiskGroup(targetNs, targetPvc)).To(Equal(sourcePvcDiskGroup))
