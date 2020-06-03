@@ -337,8 +337,8 @@ github.com/openshift/api v0.0.0-20191219222812-2987a591a72c h1:WRWMmqacvmZDbUat6
 github.com/openshift/api v0.0.0-20191219222812-2987a591a72c/go.mod h1:dh9o4Fs58gpFXGSYfnVxGR9PnV53I8TW84pQaJDdGiY=
 github.com/openshift/client-go v0.0.0-20191125132246-f6563a70e19a h1:Otk3CuCAEHiMUr4Er6b+csq4Ar6qilAs9h93tbea+qM=
 github.com/openshift/client-go v0.0.0-20191125132246-f6563a70e19a/go.mod h1:6rzn+JTr7+WYS2E1TExP4gByoABxMznR6y2SnUIkmxk=
-github.com/openshift/custom-resource-status v0.0.0-20190822192428-e62f2f3b79f3 h1:XuAys09+XqT5/FjdR23G/UtbBLII89dFe9XIi73EKIQ=
-github.com/openshift/custom-resource-status v0.0.0-20190822192428-e62f2f3b79f3/go.mod h1:GDjWl0tX6FNIj82vIxeudWeSx2Ff6nDZ8uJn0ohUFvo=
+github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca h1:F1MEnOMwSrTA0YAkO0he9ip9w0JhYzI/iCB2mXmaSPg=
+github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca/go.mod h1:GDjWl0tX6FNIj82vIxeudWeSx2Ff6nDZ8uJn0ohUFvo=
 github.com/operator-framework/go-appr v0.0.0-20180917210448-f2aef88446f2 h1:c7gnBIMtxxenMKXZjeCuQaDfn7IGGmgh9laEGsOEeU4=
 github.com/operator-framework/go-appr v0.0.0-20180917210448-f2aef88446f2/go.mod h1:YNzwUx1i6C4dXWcffyq3yaIb0rh/K8/OvQ4vG0SNlSw=
 github.com/operator-framework/operator-lifecycle-manager v0.0.0-20181023032605-e838f7fb2186 h1:2uka3I8KU+4/p3sEQq4/TRfqsOsuXH4QaDDpuygfOnY=
