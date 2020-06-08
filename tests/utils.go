@@ -21,7 +21,7 @@ const (
 var (
 	versionRegex           = regexp.MustCompile(`ubernetes .*v(\d+\.\d+\.\d+)`)
 	versionRegexServer     = regexp.MustCompile(`Server Version: .*({.*})`)
-	versionRegexGitVersion = regexp.MustCompile(`GitVersion:"v(\d+\.\d+\.\d+)"`)
+	versionRegexGitVersion = regexp.MustCompile(`GitVersion:"v(\d+\.\d+\.\d+)\+?\S*"`)
 )
 
 // CDIFailHandler call ginkgo.Fail with printing the additional information
