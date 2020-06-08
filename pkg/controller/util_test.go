@@ -369,6 +369,16 @@ func createStorageClass(name string, annotations map[string]string) *storagev1.S
 	}
 }
 
+func createStorageClassWithBindingMode(name string, annotations map[string]string, bindingMode storagev1.VolumeBindingMode) *storagev1.StorageClass {
+	return &storagev1.StorageClass{
+		VolumeBindingMode: &bindingMode,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Annotations: annotations,
+		},
+	}
+}
+
 func createStorageClassWithProvisioner(name string, annotations map[string]string, provisioner string) *storagev1.StorageClass {
 	return &storagev1.StorageClass{
 		Provisioner: provisioner,

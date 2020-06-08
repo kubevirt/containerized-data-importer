@@ -300,6 +300,40 @@ func (r *DatavolumeReconciler) sourceInUse(dv *cdiv1.DataVolume) (bool, error) {
 	return len(pods) > 0, nil
 }
 
+func (r *DatavolumeReconciler) getStorageClassBindingMode(dataVolume *cdiv1.DataVolume) (storagev1.VolumeBindingMode, error) {
+	var targetPvcStorageClass *storagev1.StorageClass
+	targetPvcStorageClassName := dataVolume.Spec.PVC.StorageClassName
+
+	// Handle unspecified storage class name, fallback to default storage class
+	if targetPvcStorageClassName == nil {
+		storageClasses := &storagev1.StorageClassList{}
+		if err := r.client.List(context.TODO(), storageClasses); err != nil {
+			r.log.V(3).Info("Unable to retrieve storage class and volume binding mode")
+			return "", errors.New("unable to retrieve storage class and volume binding mode")
+		}
+		for _, storageClass := range storageClasses.Items {
+			if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" {
+				targetPvcStorageClass = &storageClass
+				break
+			}
+		}
+	} else {
+		storageClass := &storagev1.StorageClass{}
+		if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *targetPvcStorageClassName}, storageClass); err != nil {
+			r.log.V(3).Info("Unable to retrieve storage class and volume binding mode", "storage class name", *targetPvcStorageClassName)
+			return "", errors.New("unable to retrieve storage class and volume binding mode")
+		}
+		targetPvcStorageClass = storageClass
+	}
+
+	if targetPvcStorageClass != nil && targetPvcStorageClass.VolumeBindingMode != nil {
+		return *targetPvcStorageClass.VolumeBindingMode, nil
+	}
+
+	// no storage class, then the assumption is immediate binding
+	return storagev1.VolumeBindingImmediate, nil
+}
+
 func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, pvcUID types.UID) (reconcile.Result, error) {
 	var podNamespace string
 	if datavolume.Status.Progress == "" {
@@ -567,6 +601,11 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 	dataVolumeCopy := dataVolume.DeepCopy()
 	var event DataVolumeEvent
 
+	storageClassBindingMode, err := r.getStorageClassBindingMode(dataVolume)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
 	curPhase := dataVolumeCopy.Status.Phase
 	if pvc == nil {
 		if curPhase != cdiv1.PhaseUnset && curPhase != cdiv1.Pending && curPhase != cdiv1.SnapshotForSmartCloneInProgress {
@@ -605,10 +644,16 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		} else {
 			switch pvc.Status.Phase {
 			case corev1.ClaimPending:
-				dataVolumeCopy.Status.Phase = cdiv1.Pending
+				if storageClassBindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
+					dataVolumeCopy.Status.Phase = cdiv1.WaitForFirstConsumer
+				} else {
+					dataVolumeCopy.Status.Phase = cdiv1.Pending
+				}
 			case corev1.ClaimBound:
 				switch dataVolumeCopy.Status.Phase {
 				case cdiv1.Pending:
+					dataVolumeCopy.Status.Phase = cdiv1.PVCBound
+				case cdiv1.WaitForFirstConsumer:
 					dataVolumeCopy.Status.Phase = cdiv1.PVCBound
 				case cdiv1.Unknown:
 					dataVolumeCopy.Status.Phase = cdiv1.PVCBound
@@ -657,7 +702,7 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		}
 	}
 	result := reconcile.Result{}
-	var err error
+
 	if pvc != nil {
 		result, err = r.reconcileProgressUpdate(dataVolumeCopy, pvc.GetUID())
 		if err != nil {
