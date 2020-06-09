@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 )
 
@@ -69,6 +70,7 @@ func DeletePod(clientSet *kubernetes.Clientset, pod *k8sv1.Pod, namespace string
 // NewPodWithPVC creates a new pod that mounts the given PVC
 func NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1.Pod {
 	volumeName := naming.GetLabelNameFromResourceName(pvc.GetName())
+	fsGroup := common.QemuSubGid
 	pod := &k8sv1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: podName,
@@ -102,6 +104,9 @@ func NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1
 						},
 					},
 				},
+			},
+			SecurityContext: &k8sv1.PodSecurityContext{
+				FSGroup: &fsGroup,
 			},
 		},
 	}
