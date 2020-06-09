@@ -47,12 +47,16 @@ type ImageioDataSource struct {
 	url *url.URL
 	// the content length reported by ovirt-imageio.
 	contentLength uint64
+	// imageTransfer is the tranfer object handling the tranfer of oVirt disk
+	imageTransfer *ovirtsdk4.ImageTransfer
+	// connection is connection to the oVirt system
+	connection ConnectionInterface
 }
 
 // NewImageioDataSource creates a new instance of the ovirt-imageio data provider.
 func NewImageioDataSource(endpoint string, accessKey string, secKey string, certDir string, diskID string) (*ImageioDataSource, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	imageioReader, contentLength, err := createImageioReader(ctx, endpoint, accessKey, secKey, certDir, diskID)
+	imageioReader, contentLength, it, conn, err := createImageioReader(ctx, endpoint, accessKey, secKey, certDir, diskID)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -62,6 +66,8 @@ func NewImageioDataSource(endpoint string, accessKey string, secKey string, cert
 		cancel:        cancel,
 		imageioReader: imageioReader,
 		contentLength: contentLength,
+		imageTransfer: it,
+		connection:    conn,
 	}
 	// We know this is a counting reader, so no need to check.
 	countingReader := imageioReader.(*util.CountingReader)
@@ -127,6 +133,15 @@ func (is *ImageioDataSource) Close() error {
 	if is.readers != nil {
 		err = is.readers.Close()
 	}
+	if is.imageTransfer != nil {
+		if itID, ok := is.imageTransfer.Id(); ok {
+			transfersService := is.connection.SystemService().ImageTransfersService()
+			_, err = transfersService.ImageTransferService(itID).Finalize().Send()
+		}
+	}
+	if is.connection != nil {
+		err = is.connection.Close()
+	}
 	is.cancelLock.Lock()
 	if is.cancel != nil {
 		is.cancel()
@@ -163,26 +178,25 @@ func (is *ImageioDataSource) pollProgress(reader *util.CountingReader, idleTime,
 	}
 }
 
-func createImageioReader(ctx context.Context, ep string, accessKey string, secKey string, certDir string, diskID string) (io.ReadCloser, uint64, error) {
+func createImageioReader(ctx context.Context, ep string, accessKey string, secKey string, certDir string, diskID string) (io.ReadCloser, uint64, *ovirtsdk4.ImageTransfer, ConnectionInterface, error) {
 	conn, err := newOvirtClientFunc(ep, accessKey, secKey)
 	if err != nil {
-		return nil, uint64(0), errors.Wrap(err, "Error creating connection")
+		return nil, uint64(0), nil, conn, errors.Wrap(err, "Error creating connection")
 	}
-	defer conn.Close()
 
 	it, total, err := getTransfer(conn, diskID)
 	if err != nil {
-		return nil, uint64(0), err
+		return nil, uint64(0), it, conn, err
 	}
 
 	// Use the create client from http source.
 	client, err := createHTTPClient(certDir)
 	if err != nil {
-		return nil, uint64(0), err
+		return nil, uint64(0), it, conn, err
 	}
 	transferURL, available := it.TransferUrl()
 	if !available {
-		return nil, uint64(0), errors.New("Error transfer url not available")
+		return nil, uint64(0), it, conn, errors.New("Error transfer url not available")
 	}
 
 	req, err := http.NewRequest("GET", transferURL, nil)
@@ -190,10 +204,10 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, uint64(0), errors.Wrap(err, "Sending request failed")
+		return nil, uint64(0), it, conn, errors.Wrap(err, "Sending request failed")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, uint64(0), errors.Errorf("bad status: %s", resp.Status)
+		return nil, uint64(0), it, conn, errors.Errorf("bad status: %s", resp.Status)
 	}
 
 	if total == 0 {
@@ -204,7 +218,7 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 		Reader:  resp.Body,
 		Current: 0,
 	}
-	return countingReader, total, nil
+	return countingReader, total, it, conn, nil
 }
 
 func getTransfer(conn ConnectionInterface, diskID string) (*ovirtsdk4.ImageTransfer, uint64, error) {
@@ -350,6 +364,21 @@ type SystemServiceInteface interface {
 // ImageTransfersServiceInterface defines service methods
 type ImageTransfersServiceInterface interface {
 	Add() ImageTransferServiceAddInterface
+	ImageTransferService(string) ImageTransferServiceInterface
+}
+
+// ImageTransferServiceInterface defines service methods
+type ImageTransferServiceInterface interface {
+	Finalize() ImageTransferServiceFinalizeRequestInterface
+}
+
+// ImageTransferServiceFinalizeRequestInterface defines service methods
+type ImageTransferServiceFinalizeRequestInterface interface {
+	Send() (ImageTransferServiceFinalizeResponseInterface, error)
+}
+
+// ImageTransferServiceFinalizeResponseInterface defines service methods
+type ImageTransferServiceFinalizeResponseInterface interface {
 }
 
 // ImageTransferServiceAddInterface defines service methods
@@ -403,6 +432,11 @@ type ImageTransfersService struct {
 	srv *ovirtsdk4.ImageTransfersService
 }
 
+// ImageTransferService wraps ovirt transfer service
+type ImageTransferService struct {
+	srv *ovirtsdk4.ImageTransferService
+}
+
 // ImageTransfersServiceAdd wraps ovirt add transfer service
 type ImageTransfersServiceAdd struct {
 	srv *ovirtsdk4.ImageTransfersServiceAddRequest
@@ -416,6 +450,16 @@ type ImageTransfersServiceResponse struct {
 // ImageTransfersServiceAddResponse wraps ovirt add transfer service
 type ImageTransfersServiceAddResponse struct {
 	srv *ovirtsdk4.ImageTransfersServiceAddResponse
+}
+
+// ImageTransferServiceFinalizeRequest warps finalize request
+type ImageTransferServiceFinalizeRequest struct {
+	srv *ovirtsdk4.ImageTransferServiceFinalizeRequest
+}
+
+// ImageTransferServiceFinalizeResponse warps finalize response
+type ImageTransferServiceFinalizeResponse struct {
+	srv *ovirtsdk4.ImageTransferServiceFinalizeResponse
 }
 
 // ImageTransfer sets image transfer and returns add request
@@ -454,6 +498,14 @@ func (service *ImageTransfersServiceResponse) Send() (ImageTransfersServiceAddRe
 }
 
 // Send returns disk get response
+func (service *ImageTransferServiceFinalizeRequest) Send() (ImageTransferServiceFinalizeResponseInterface, error) {
+	resp, err := service.srv.Send()
+	return &ImageTransferServiceFinalizeResponse{
+		srv: resp,
+	}, err
+}
+
+// Send returns disk get response
 func (service *DiskServiceGet) Send() (DiskServiceResponseInterface, error) {
 	resp, err := service.srv.Send()
 	return &DiskServiceResponse{
@@ -486,6 +538,20 @@ func (service *SystemService) DisksService() DisksServiceInterface {
 func (service *SystemService) ImageTransfersService() ImageTransfersServiceInterface {
 	return &ImageTransfersService{
 		srv: service.srv.ImageTransfersService(),
+	}
+}
+
+// ImageTransferService returns image service
+func (service *ImageTransfersService) ImageTransferService(id string) ImageTransferServiceInterface {
+	return &ImageTransferService{
+		srv: service.srv.ImageTransferService(id),
+	}
+}
+
+// Finalize returns image service
+func (service *ImageTransferService) Finalize() ImageTransferServiceFinalizeRequestInterface {
+	return &ImageTransferServiceFinalizeRequest{
+		srv: service.srv.Finalize(),
 	}
 }
 

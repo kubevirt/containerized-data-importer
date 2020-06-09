@@ -54,13 +54,13 @@ var _ = Describe("Imageio reader", func() {
 
 	It("should fail creating client", func() {
 		newOvirtClientFunc = failMockOvirtClient
-		_, total, err := createImageioReader(context.Background(), "invalid/", "", "", "", "")
+		_, total, _, _, err := createImageioReader(context.Background(), "invalid/", "", "", "", "")
 		Expect(err).To(HaveOccurred())
 		Expect(uint64(0)).To(Equal(total))
 	})
 
 	It("should create reader", func() {
-		reader, total, err := createImageioReader(context.Background(), "", "", "", tempDir, "")
+		reader, total, _, _, err := createImageioReader(context.Background(), "", "", "", tempDir, "")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(1024)).To(Equal(total))
 		err = reader.Close()
@@ -239,8 +239,16 @@ type MockAddService struct {
 	client *MockOvirtClient
 }
 
+type MockFinalizeService struct {
+	client *MockOvirtClient
+}
+
 type MockImageTransfersServiceAddResponse struct {
 	srv *ovirtsdk4.ImageTransfersServiceAddResponse
+}
+
+type MockImageTransferServiceFinalizeResponse struct {
+	srv *ovirtsdk4.ImageTransferServiceFinalizeResponse
 }
 
 func (conn *MockOvirtClient) Disk() (*ovirtsdk4.Disk, bool) {
@@ -267,6 +275,16 @@ func (conn *MockOvirtClient) ImageTransfersService() ImageTransfersServiceInterf
 	return conn
 }
 
+func (conn *MockOvirtClient) ImageTransferService(string) ImageTransferServiceInterface {
+	return conn
+}
+
+func (conn *MockOvirtClient) Finalize() ImageTransferServiceFinalizeRequestInterface {
+	return &MockFinalizeService{
+		client: conn,
+	}
+}
+
 func (conn *MockOvirtClient) Add() ImageTransferServiceAddInterface {
 	return &MockAddService{
 		client: conn,
@@ -278,6 +296,10 @@ func (conn *MockAddService) ImageTransfer(imageTransfer *ovirtsdk4.ImageTransfer
 
 func (conn *MockAddService) Send() (ImageTransfersServiceAddResponseInterface, error) {
 	return &MockImageTransfersServiceAddResponse{srv: nil}, nil
+}
+
+func (conn *MockFinalizeService) Send() (ImageTransferServiceFinalizeResponseInterface, error) {
+	return &MockImageTransferServiceFinalizeResponse{srv: nil}, nil
 }
 
 func (conn *MockImageTransfersServiceAddResponse) ImageTransfer() (*ovirtsdk4.ImageTransfer, bool) {
