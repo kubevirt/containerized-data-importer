@@ -110,6 +110,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				By("Checking that disk image group is qemu")
 				Expect(f.GetDiskGroup(f.Namespace, pvc)).To(Equal("107"))
 			}
+			By("Verifying permissions are 660")
+			Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
 		} else {
 			uploader, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
 			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
@@ -157,6 +159,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		found, err = utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(found).To(BeTrue())
+		By("Verifying permissions are 660")
+		Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
 
 		By("Try upload again")
 		err = uploadImage(uploadProxyURL, token, http.StatusServiceUnavailable)

@@ -117,6 +117,8 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(f.VerifyBlankDisk(f.Namespace, pvc)).To(BeTrue())
 		By("Verifying the image is sparse")
 		Expect(f.VerifySparse(f.Namespace, pvc)).To(BeTrue())
+		By("Verifying permissions are 660")
+		Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
 		if utils.DefaultStorageCSI {
 			// CSI storage class, it should respect fsGroup
 			By("Checking that disk image group is qemu")
@@ -407,6 +409,8 @@ var _ = Describe("Namespace with quota", func() {
 		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", "d41d8cd98f00b204e9800998ecf8427e", utils.UploadFileSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
+		By("Verifying permissions are 660")
+		Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
 
 	})
 
@@ -480,6 +484,8 @@ var _ = Describe("Namespace with quota", func() {
 		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", "d41d8cd98f00b204e9800998ecf8427e", utils.UploadFileSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
+		By("Verifying permissions are 660")
+		Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
 	})
 
 	It("Should create import pod in namespace with quota with CDIConfig within limits", func() {
@@ -513,6 +519,8 @@ var _ = Describe("Namespace with quota", func() {
 		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", "d41d8cd98f00b204e9800998ecf8427e", utils.UploadFileSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
+		By("Verifying permissions are 660")
+		Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
 
 	})
 })
