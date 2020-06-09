@@ -196,6 +196,10 @@ func uploadImage(portForwardURL, token string, expectedStatus int) error {
 		return fmt.Errorf("Unexpected return value %d expected %d, Response: %s", resp.StatusCode, expectedStatus, resp.Body)
 	}
 
+	if resp.StatusCode == http.StatusOK && resp.Header.Get("Access-Control-Allow-Origin") != "*" {
+		return fmt.Errorf("Auth response header missing")
+	}
+
 	return nil
 }
 
