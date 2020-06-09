@@ -161,15 +161,15 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				// can't list dvs in source
-				_, err = client.CdiV1alpha1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
+				_, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
 				Expect(err).To(HaveOccurred())
 
 				// can list dvs in dest
-				_, err = client.CdiV1alpha1().DataVolumes(targetNamespace.Name).List(metav1.ListOptions{})
+				_, err = client.CdiV1beta1().DataVolumes(targetNamespace.Name).List(metav1.ListOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				// can't create clone of dv in source
-				_, err = client.CdiV1alpha1().DataVolumes(targetNamespace.Name).Create(targetDV)
+				_, err = client.CdiV1beta1().DataVolumes(targetNamespace.Name).Create(targetDV)
 				Expect(err).To(HaveOccurred())
 
 				// let's do manual check as well
@@ -187,12 +187,12 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 
 				// now can list dvs in source
 				Eventually(func() error {
-					_, err = client.CdiV1alpha1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
+					_, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
 					return err
 				}, 60*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
 
 				// now can create clone of dv in source
-				_, err = client.CdiV1alpha1().DataVolumes(targetNamespace.Name).Create(targetDV)
+				_, err = client.CdiV1beta1().DataVolumes(targetNamespace.Name).Create(targetDV)
 				Expect(err).ToNot(HaveOccurred())
 
 				// let's do another manual check as well

@@ -10,7 +10,7 @@ import (
 	"k8s.io/kube-openapi/pkg/builder"
 	"k8s.io/kube-openapi/pkg/common"
 
-	cdicorev1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdicorev1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdiuploadv1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
 )
 

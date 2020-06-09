@@ -7,7 +7,7 @@ By default all pods created by CDI will have a cpu/memory request/limit of 0, wh
 There might be circumstances where the admin wants to override this behavior and configure requests and limits of a particular value for CDI. The admin can update the spec section of the cdi config to override the defaults.
 Example CDIConfig yaml
 ```yaml
-apiVersion: cdi.kubevirt.io/v1alpha1
+apiVersion: cdi.kubevirt.io/v1beta1
 kind: CDIConfig
 metadata:
   labels:

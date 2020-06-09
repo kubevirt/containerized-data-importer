@@ -26,8 +26,22 @@ func createCDIConfigCRD() *extv1beta1.CustomResourceDefinition {
 					"all",
 				},
 			},
-			Version: "v1alpha1",
-			Scope:   "Cluster",
+			Versions: []extv1beta1.CustomResourceDefinitionVersion{
+				{
+					Name:    "v1beta1",
+					Served:  true,
+					Storage: true,
+				},
+				{
+					Name:    "v1alpha1",
+					Served:  true,
+					Storage: false,
+				},
+			},
+			Conversion: &extv1beta1.CustomResourceConversion{
+				Strategy: extv1beta1.NoneConverter,
+			},
+			Scope: "Cluster",
 			Validation: &extv1beta1.CustomResourceValidation{
 				OpenAPIV3Schema: &extv1beta1.JSONSchemaProps{
 					Description: "CDIConfig is the configuration object for Containerized Data Importer",

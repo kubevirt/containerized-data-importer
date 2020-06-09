@@ -35,7 +35,7 @@ spec:
     path: /dev/loop10   # This is the local path on the node where we import the image to
   accessModes:
     - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Delete 
+  persistentVolumeReclaimPolicy: Delete
 ```
 
 Then, create the local block device on the node itself (in that case node01 as defined in the PV nodeAffinity), by running the following commands as root on the node:
@@ -54,7 +54,7 @@ Note: the path you create on the node has to be the same path that you define in
 Create the following DataVolume manifest (import-block-pv-datavolume.yaml):
 
 ```bash
-apiVersion: cdi.kubevirt.io/v1alpha1
+apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
 metadata:
   name: import-block-pv-datavolume
@@ -70,7 +70,7 @@ spec:
       - ReadWriteOnce
     resources:
       requests:
-        storage: 1Gi  
+        storage: 1Gi
 ```
 
 Deploy the DataVolume manifest:
@@ -80,11 +80,3 @@ kubectl create -f import-block-pv-datavolume.yaml
 ```
 
 An importer pod will be spawned and the new image will be created on your data volume.
-
-
-
-
-
-
-
-

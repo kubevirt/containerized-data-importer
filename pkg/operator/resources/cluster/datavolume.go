@@ -46,8 +46,22 @@ func createDataVolumeCRD() *extv1beta1.CustomResourceDefinition {
 					"all",
 				},
 			},
-			Version: "v1alpha1",
-			Scope:   "Namespaced",
+			Versions: []extv1beta1.CustomResourceDefinitionVersion{
+				{
+					Name:    "v1beta1",
+					Served:  true,
+					Storage: true,
+				},
+				{
+					Name:    "v1alpha1",
+					Served:  true,
+					Storage: false,
+				},
+			},
+			Conversion: &extv1beta1.CustomResourceConversion{
+				Strategy: extv1beta1.NoneConverter,
+			},
+			Scope: "Namespaced",
 			Validation: &extv1beta1.CustomResourceValidation{
 				OpenAPIV3Schema: &extv1beta1.JSONSchemaProps{
 					Description: "DataVolumes are an abstraction on top of PersistentVolumeClaims to allow easy population of those PersistentVolumeClaims with relation to VirtualMachines",

@@ -92,13 +92,13 @@
      }
     }
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/": {
+   "/apis/cdi.kubevirt.io/v1beta1/": {
     "get": {
      "description": "Get KubeVirt API Resources",
      "produces": [
       "application/json"
      ],
-     "operationId": "getAPIResources-cdi.kubevirt.io-v1alpha1",
+     "operationId": "getAPIResources-cdi.kubevirt.io-v1beta1",
      "responses": {
       "200": {
        "description": "OK",
@@ -118,7 +118,7 @@
      }
     }
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/cdiconfigs": {
+   "/apis/cdi.kubevirt.io/v1beta1/cdiconfigs": {
     "get": {
      "description": "Get a list of all CDIConfig objects.",
      "produces": [
@@ -131,7 +131,7 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDIConfigList"
+        "$ref": "#/definitions/v1beta1.CDIConfigList"
        }
       },
       "401": {
@@ -201,7 +201,7 @@
      }
     ]
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/cdis": {
+   "/apis/cdi.kubevirt.io/v1beta1/cdis": {
     "get": {
      "description": "Get a list of all CDI objects.",
      "produces": [
@@ -214,7 +214,7 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDIList"
+        "$ref": "#/definitions/v1beta1.CDIList"
        }
       },
       "401": {
@@ -284,7 +284,7 @@
      }
     ]
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/datavolumes": {
+   "/apis/cdi.kubevirt.io/v1beta1/datavolumes": {
     "get": {
      "description": "Get a list of all DataVolume objects.",
      "produces": [
@@ -297,7 +297,7 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.DataVolumeList"
+        "$ref": "#/definitions/v1beta1.DataVolumeList"
        }
       },
       "401": {
@@ -367,7 +367,7 @@
      }
     ]
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/cdiconfigs": {
+   "/apis/cdi.kubevirt.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/cdiconfigs": {
     "get": {
      "description": "Get a list of CDIConfig objects.",
      "produces": [
@@ -446,7 +446,7 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDIConfigList"
+        "$ref": "#/definitions/v1beta1.CDIConfigList"
        }
       },
       "401": {
@@ -474,7 +474,7 @@
        "in": "body",
        "required": true,
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDIConfig"
+        "$ref": "#/definitions/v1beta1.CDIConfig"
        }
       },
       {
@@ -490,19 +490,19 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDIConfig"
+        "$ref": "#/definitions/v1beta1.CDIConfig"
        }
       },
       "201": {
        "description": "Created",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDIConfig"
+        "$ref": "#/definitions/v1beta1.CDIConfig"
        }
       },
       "202": {
        "description": "Accepted",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDIConfig"
+        "$ref": "#/definitions/v1beta1.CDIConfig"
        }
       },
       "401": {
@@ -594,7 +594,7 @@
      }
     }
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/cdiconfigs/{name:[a-z0-9][a-z0-9\\-]*}": {
+   "/apis/cdi.kubevirt.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/cdiconfigs/{name:[a-z0-9][a-z0-9\\-]*}": {
     "get": {
      "description": "Get a CDIConfig object.",
      "produces": [
@@ -623,7 +623,7 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDIConfig"
+        "$ref": "#/definitions/v1beta1.CDIConfig"
        }
       },
       "401": {
@@ -651,7 +651,7 @@
        "in": "body",
        "required": true,
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDIConfig"
+        "$ref": "#/definitions/v1beta1.CDIConfig"
        }
       }
      ],
@@ -659,13 +659,13 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDIConfig"
+        "$ref": "#/definitions/v1beta1.CDIConfig"
        }
       },
       "201": {
        "description": "Create",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDIConfig"
+        "$ref": "#/definitions/v1beta1.CDIConfig"
        }
       },
       "401": {
@@ -757,7 +757,7 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDIConfig"
+        "$ref": "#/definitions/v1beta1.CDIConfig"
        }
       },
       "401": {
@@ -787,7 +787,7 @@
      }
     ]
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/cdis": {
+   "/apis/cdi.kubevirt.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/cdis": {
     "get": {
      "description": "Get a list of CDI objects.",
      "produces": [
@@ -866,7 +866,7 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDIList"
+        "$ref": "#/definitions/v1beta1.CDIList"
        }
       },
       "401": {
@@ -894,7 +894,7 @@
        "in": "body",
        "required": true,
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDI"
+        "$ref": "#/definitions/v1beta1.CDI"
        }
       },
       {
@@ -910,19 +910,19 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDI"
+        "$ref": "#/definitions/v1beta1.CDI"
        }
       },
       "201": {
        "description": "Created",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDI"
+        "$ref": "#/definitions/v1beta1.CDI"
        }
       },
       "202": {
        "description": "Accepted",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDI"
+        "$ref": "#/definitions/v1beta1.CDI"
        }
       },
       "401": {
@@ -1014,7 +1014,7 @@
      }
     }
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/cdis/{name:[a-z0-9][a-z0-9\\-]*}": {
+   "/apis/cdi.kubevirt.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/cdis/{name:[a-z0-9][a-z0-9\\-]*}": {
     "get": {
      "description": "Get a CDI object.",
      "produces": [
@@ -1043,7 +1043,7 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDI"
+        "$ref": "#/definitions/v1beta1.CDI"
        }
       },
       "401": {
@@ -1071,7 +1071,7 @@
        "in": "body",
        "required": true,
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDI"
+        "$ref": "#/definitions/v1beta1.CDI"
        }
       }
      ],
@@ -1079,13 +1079,13 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDI"
+        "$ref": "#/definitions/v1beta1.CDI"
        }
       },
       "201": {
        "description": "Create",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDI"
+        "$ref": "#/definitions/v1beta1.CDI"
        }
       },
       "401": {
@@ -1177,7 +1177,7 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.CDI"
+        "$ref": "#/definitions/v1beta1.CDI"
        }
       },
       "401": {
@@ -1207,7 +1207,7 @@
      }
     ]
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/datavolumes": {
+   "/apis/cdi.kubevirt.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/datavolumes": {
     "get": {
      "description": "Get a list of DataVolume objects.",
      "produces": [
@@ -1286,7 +1286,7 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.DataVolumeList"
+        "$ref": "#/definitions/v1beta1.DataVolumeList"
        }
       },
       "401": {
@@ -1314,7 +1314,7 @@
        "in": "body",
        "required": true,
        "schema": {
-        "$ref": "#/definitions/v1alpha1.DataVolume"
+        "$ref": "#/definitions/v1beta1.DataVolume"
        }
       },
       {
@@ -1330,19 +1330,19 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.DataVolume"
+        "$ref": "#/definitions/v1beta1.DataVolume"
        }
       },
       "201": {
        "description": "Created",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.DataVolume"
+        "$ref": "#/definitions/v1beta1.DataVolume"
        }
       },
       "202": {
        "description": "Accepted",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.DataVolume"
+        "$ref": "#/definitions/v1beta1.DataVolume"
        }
       },
       "401": {
@@ -1434,7 +1434,7 @@
      }
     }
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/datavolumes/{name:[a-z0-9][a-z0-9\\-]*}": {
+   "/apis/cdi.kubevirt.io/v1beta1/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/datavolumes/{name:[a-z0-9][a-z0-9\\-]*}": {
     "get": {
      "description": "Get a DataVolume object.",
      "produces": [
@@ -1463,7 +1463,7 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.DataVolume"
+        "$ref": "#/definitions/v1beta1.DataVolume"
        }
       },
       "401": {
@@ -1491,7 +1491,7 @@
        "in": "body",
        "required": true,
        "schema": {
-        "$ref": "#/definitions/v1alpha1.DataVolume"
+        "$ref": "#/definitions/v1beta1.DataVolume"
        }
       }
      ],
@@ -1499,13 +1499,13 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.DataVolume"
+        "$ref": "#/definitions/v1beta1.DataVolume"
        }
       },
       "201": {
        "description": "Create",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.DataVolume"
+        "$ref": "#/definitions/v1beta1.DataVolume"
        }
       },
       "401": {
@@ -1597,7 +1597,7 @@
       "200": {
        "description": "OK",
        "schema": {
-        "$ref": "#/definitions/v1alpha1.DataVolume"
+        "$ref": "#/definitions/v1beta1.DataVolume"
        }
       },
       "401": {
@@ -1627,7 +1627,7 @@
      }
     ]
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/watch/cdiconfigs": {
+   "/apis/cdi.kubevirt.io/v1beta1/watch/cdiconfigs": {
     "get": {
      "description": "Watch a CDIConfigList object.",
      "produces": [
@@ -1708,7 +1708,7 @@
      }
     ]
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/watch/cdis": {
+   "/apis/cdi.kubevirt.io/v1beta1/watch/cdis": {
     "get": {
      "description": "Watch a CDIList object.",
      "produces": [
@@ -1789,7 +1789,7 @@
      }
     ]
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/watch/datavolumes": {
+   "/apis/cdi.kubevirt.io/v1beta1/watch/datavolumes": {
     "get": {
      "description": "Watch a DataVolumeList object.",
      "produces": [
@@ -1870,7 +1870,7 @@
      }
     ]
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/watch/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/cdiconfigs": {
+   "/apis/cdi.kubevirt.io/v1beta1/watch/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/cdiconfigs": {
     "get": {
      "description": "Watch a CDIConfig object.",
      "produces": [
@@ -1959,7 +1959,7 @@
      }
     ]
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/watch/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/cdis": {
+   "/apis/cdi.kubevirt.io/v1beta1/watch/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/cdis": {
     "get": {
      "description": "Watch a CDI object.",
      "produces": [
@@ -2048,7 +2048,7 @@
      }
     ]
    },
-   "/apis/cdi.kubevirt.io/v1alpha1/watch/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/datavolumes": {
+   "/apis/cdi.kubevirt.io/v1beta1/watch/namespaces/{namespace:[a-z0-9][a-z0-9\\-]*}/datavolumes": {
     "get": {
      "description": "Watch a DataVolume object.",
      "produces": [
@@ -3076,7 +3076,7 @@
      }
     }
    },
-   "v1alpha1.CDI": {
+   "v1beta1.CDI": {
     "description": "CDI is the CDI Operator CRD",
     "type": "object",
     "required": [
@@ -3096,14 +3096,14 @@
       "$ref": "#/definitions/v1.ObjectMeta"
      },
      "spec": {
-      "$ref": "#/definitions/v1alpha1.CDISpec"
+      "$ref": "#/definitions/v1beta1.CDISpec"
      },
      "status": {
-      "$ref": "#/definitions/v1alpha1.CDIStatus"
+      "$ref": "#/definitions/v1beta1.CDIStatus"
      }
     }
    },
-   "v1alpha1.CDIConfig": {
+   "v1beta1.CDIConfig": {
     "description": "CDIConfig provides a user configuration for CDI",
     "type": "object",
     "required": [
@@ -3122,14 +3122,14 @@
       "$ref": "#/definitions/v1.ObjectMeta"
      },
      "spec": {
-      "$ref": "#/definitions/v1alpha1.CDIConfigSpec"
+      "$ref": "#/definitions/v1beta1.CDIConfigSpec"
      },
      "status": {
-      "$ref": "#/definitions/v1alpha1.CDIConfigStatus"
+      "$ref": "#/definitions/v1beta1.CDIConfigStatus"
      }
     }
    },
-   "v1alpha1.CDIConfigList": {
+   "v1beta1.CDIConfigList": {
     "description": "CDIConfigList provides the needed parameters to do request a list of CDIConfigs from the system",
     "type": "object",
     "required": [
@@ -3145,7 +3145,7 @@
       "description": "Items provides a list of CDIConfigs",
       "type": "array",
       "items": {
-       "$ref": "#/definitions/v1alpha1.CDIConfig"
+       "$ref": "#/definitions/v1beta1.CDIConfig"
       }
      },
      "kind": {
@@ -3157,7 +3157,7 @@
      }
     }
    },
-   "v1alpha1.CDIConfigSpec": {
+   "v1beta1.CDIConfigSpec": {
     "description": "CDIConfigSpec defines specification for user configuration",
     "type": "object",
     "properties": {
@@ -3172,7 +3172,7 @@
      }
     }
    },
-   "v1alpha1.CDIConfigStatus": {
+   "v1beta1.CDIConfigStatus": {
     "description": "CDIConfigStatus provides",
     "type": "object",
     "nullable": true,
@@ -3188,7 +3188,7 @@
      }
     }
    },
-   "v1alpha1.CDIList": {
+   "v1beta1.CDIList": {
     "description": "CDIList provides the needed parameters to do request a list of CDIs from the system",
     "type": "object",
     "required": [
@@ -3204,7 +3204,7 @@
       "description": "Items provides a list of CDIs",
       "type": "array",
       "items": {
-       "$ref": "#/definitions/v1alpha1.CDI"
+       "$ref": "#/definitions/v1beta1.CDI"
       }
      },
      "kind": {
@@ -3216,7 +3216,7 @@
      }
     }
    },
-   "v1alpha1.CDISpec": {
+   "v1beta1.CDISpec": {
     "description": "CDISpec defines our specification for the CDI installation",
     "type": "object",
     "properties": {
@@ -3228,7 +3228,7 @@
      }
     }
    },
-   "v1alpha1.CDIStatus": {
+   "v1beta1.CDIStatus": {
     "description": "CDIStatus defines the status of the CDI installation",
     "type": "object",
     "nullable": true,
@@ -3253,7 +3253,7 @@
      }
     }
    },
-   "v1alpha1.DataVolume": {
+   "v1beta1.DataVolume": {
     "description": "DataVolume provides a representation of our data volume",
     "type": "object",
     "required": [
@@ -3272,18 +3272,18 @@
       "$ref": "#/definitions/v1.ObjectMeta"
      },
      "spec": {
-      "$ref": "#/definitions/v1alpha1.DataVolumeSpec"
+      "$ref": "#/definitions/v1beta1.DataVolumeSpec"
      },
      "status": {
-      "$ref": "#/definitions/v1alpha1.DataVolumeStatus"
+      "$ref": "#/definitions/v1beta1.DataVolumeStatus"
      }
     }
    },
-   "v1alpha1.DataVolumeBlankImage": {
+   "v1beta1.DataVolumeBlankImage": {
     "description": "DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC",
     "type": "object"
    },
-   "v1alpha1.DataVolumeCondition": {
+   "v1beta1.DataVolumeCondition": {
     "description": "DataVolumeCondition represents the state of a data volume condition.",
     "type": "object",
     "required": [
@@ -3320,7 +3320,7 @@
      }
     }
    },
-   "v1alpha1.DataVolumeList": {
+   "v1beta1.DataVolumeList": {
     "description": "DataVolumeList provides the needed parameters to do request a list of Data Volumes from the system",
     "type": "object",
     "required": [
@@ -3336,7 +3336,7 @@
       "description": "Items provides a list of DataVolumes",
       "type": "array",
       "items": {
-       "$ref": "#/definitions/v1alpha1.DataVolume"
+       "$ref": "#/definitions/v1beta1.DataVolume"
       }
      },
      "kind": {
@@ -3348,34 +3348,34 @@
      }
     }
    },
-   "v1alpha1.DataVolumeSource": {
+   "v1beta1.DataVolumeSource": {
     "description": "DataVolumeSource represents the source for our Data Volume, this can be HTTP, Imageio, S3, Registry or an existing PVC",
     "type": "object",
     "properties": {
      "blank": {
-      "$ref": "#/definitions/v1alpha1.DataVolumeBlankImage"
+      "$ref": "#/definitions/v1beta1.DataVolumeBlankImage"
      },
      "http": {
-      "$ref": "#/definitions/v1alpha1.DataVolumeSourceHTTP"
+      "$ref": "#/definitions/v1beta1.DataVolumeSourceHTTP"
      },
      "imageio": {
-      "$ref": "#/definitions/v1alpha1.DataVolumeSourceImageIO"
+      "$ref": "#/definitions/v1beta1.DataVolumeSourceImageIO"
      },
      "pvc": {
-      "$ref": "#/definitions/v1alpha1.DataVolumeSourcePVC"
+      "$ref": "#/definitions/v1beta1.DataVolumeSourcePVC"
      },
      "registry": {
-      "$ref": "#/definitions/v1alpha1.DataVolumeSourceRegistry"
+      "$ref": "#/definitions/v1beta1.DataVolumeSourceRegistry"
      },
      "s3": {
-      "$ref": "#/definitions/v1alpha1.DataVolumeSourceS3"
+      "$ref": "#/definitions/v1beta1.DataVolumeSourceS3"
      },
      "upload": {
-      "$ref": "#/definitions/v1alpha1.DataVolumeSourceUpload"
+      "$ref": "#/definitions/v1beta1.DataVolumeSourceUpload"
      }
     }
    },
-   "v1alpha1.DataVolumeSourceHTTP": {
+   "v1beta1.DataVolumeSourceHTTP": {
     "description": "DataVolumeSourceHTTP provides the parameters to create a Data Volume from an HTTP source",
     "type": "object",
     "properties": {
@@ -3393,7 +3393,7 @@
      }
     }
    },
-   "v1alpha1.DataVolumeSourceImageIO": {
+   "v1beta1.DataVolumeSourceImageIO": {
     "description": "DataVolumeSourceImageIO provides the parameters to create a Data Volume from an imageio source",
     "type": "object",
     "properties": {
@@ -3415,7 +3415,7 @@
      }
     }
    },
-   "v1alpha1.DataVolumeSourcePVC": {
+   "v1beta1.DataVolumeSourcePVC": {
     "description": "DataVolumeSourcePVC provides the parameters to create a Data Volume from an existing PVC",
     "type": "object",
     "properties": {
@@ -3427,7 +3427,7 @@
      }
     }
    },
-   "v1alpha1.DataVolumeSourceRegistry": {
+   "v1beta1.DataVolumeSourceRegistry": {
     "description": "DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source",
     "type": "object",
     "properties": {
@@ -3445,7 +3445,7 @@
      }
     }
    },
-   "v1alpha1.DataVolumeSourceS3": {
+   "v1beta1.DataVolumeSourceS3": {
     "description": "DataVolumeSourceS3 provides the parameters to create a Data Volume from an S3 source",
     "type": "object",
     "properties": {
@@ -3459,11 +3459,11 @@
      }
     }
    },
-   "v1alpha1.DataVolumeSourceUpload": {
+   "v1beta1.DataVolumeSourceUpload": {
     "description": "DataVolumeSourceUpload provides the parameters to create a Data Volume by uploading the source",
     "type": "object"
    },
-   "v1alpha1.DataVolumeSpec": {
+   "v1beta1.DataVolumeSpec": {
     "description": "DataVolumeSpec defines our specification for a DataVolume type",
     "type": "object",
     "required": [
@@ -3481,11 +3481,11 @@
      },
      "source": {
       "description": "Source is the src of the data for the requested DataVolume",
-      "$ref": "#/definitions/v1alpha1.DataVolumeSource"
+      "$ref": "#/definitions/v1beta1.DataVolumeSource"
      }
     }
    },
-   "v1alpha1.DataVolumeStatus": {
+   "v1beta1.DataVolumeStatus": {
     "description": "DataVolumeStatus provides the parameters to store the phase of the Data Volume",
     "type": "object",
     "nullable": true,
@@ -3493,7 +3493,7 @@
      "conditions": {
       "type": "array",
       "items": {
-       "$ref": "#/definitions/v1alpha1.DataVolumeCondition"
+       "$ref": "#/definitions/v1beta1.DataVolumeCondition"
       },
       "x-kubernetes-list-type": "set"
      },

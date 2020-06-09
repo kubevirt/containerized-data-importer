@@ -11,7 +11,7 @@ The purpose of this document is to show how to clone an image from an existing r
 Create the following DataVolume manifest (clone-block-datavolume.yaml):
 
 ```yaml
-apiVersion: cdi.kubevirt.io/v1alpha1
+apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
 metadata:
   name: clone-block-datavolume

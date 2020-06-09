@@ -22,19 +22,19 @@ import (
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 
-	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
-func (r *ReconcileCDI) isUpgrading(cr *cdiv1alpha1.CDI) bool {
-	deploying := cr.Status.Phase == cdiv1alpha1.CDIPhaseDeploying
+func (r *ReconcileCDI) isUpgrading(cr *cdiv1.CDI) bool {
+	deploying := cr.Status.Phase == cdiv1.CDIPhaseDeploying
 	return (cr.Status.ObservedVersion != "" || !deploying) && cr.Status.ObservedVersion != cr.Status.TargetVersion
 }
 
 // this is used for testing.  wish this a helper function in test file instead of member
-func (r *ReconcileCDI) crSetVersion(cr *cdiv1alpha1.CDI, version string) error {
-	phase := cdiv1alpha1.CDIPhaseDeployed
+func (r *ReconcileCDI) crSetVersion(cr *cdiv1.CDI, version string) error {
+	phase := cdiv1.CDIPhaseDeployed
 	if version == "" {
-		phase = cdiv1alpha1.CDIPhase("")
+		phase = cdiv1.CDIPhase("")
 	}
 	cr.Status.ObservedVersion = version
 	cr.Status.OperatorVersion = version
@@ -42,21 +42,21 @@ func (r *ReconcileCDI) crSetVersion(cr *cdiv1alpha1.CDI, version string) error {
 	return r.crUpdate(phase, cr)
 }
 
-func (r *ReconcileCDI) crInit(cr *cdiv1alpha1.CDI) error {
+func (r *ReconcileCDI) crInit(cr *cdiv1.CDI) error {
 	cr.Finalizers = append(cr.Finalizers, finalizerName)
 	cr.Status.OperatorVersion = r.namespacedArgs.OperatorVersion
 	cr.Status.TargetVersion = r.namespacedArgs.OperatorVersion
-	return r.crUpdate(cdiv1alpha1.CDIPhaseDeploying, cr)
+	return r.crUpdate(cdiv1.CDIPhaseDeploying, cr)
 }
 
-func (r *ReconcileCDI) crError(cr *cdiv1alpha1.CDI) error {
-	if cr.Status.Phase != cdiv1alpha1.CDIPhaseError {
-		return r.crUpdate(cdiv1alpha1.CDIPhaseError, cr)
+func (r *ReconcileCDI) crError(cr *cdiv1.CDI) error {
+	if cr.Status.Phase != cdiv1.CDIPhaseError {
+		return r.crUpdate(cdiv1.CDIPhaseError, cr)
 	}
 	return nil
 }
 
-func (r *ReconcileCDI) crUpdate(phase cdiv1alpha1.CDIPhase, cr *cdiv1alpha1.CDI) error {
+func (r *ReconcileCDI) crUpdate(phase cdiv1.CDIPhase, cr *cdiv1.CDI) error {
 	cr.Status.Phase = phase
 	return r.client.Update(context.TODO(), cr)
 }
@@ -89,7 +89,7 @@ func conditionsChanged(originalValues, newValues map[conditions.ConditionType]co
 // ApplicationAvailable: true
 // Progressing: false
 // Degraded: false
-func MarkCrHealthyMessage(cr *cdiv1alpha1.CDI, reason, message string) {
+func MarkCrHealthyMessage(cr *cdiv1.CDI, reason, message string) {
 	conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 		Type:    conditions.ConditionAvailable,
 		Status:  corev1.ConditionTrue,
@@ -111,7 +111,7 @@ func MarkCrHealthyMessage(cr *cdiv1alpha1.CDI, reason, message string) {
 // ApplicationAvailable: true
 // Progressing: true
 // Degraded: true
-func MarkCrUpgradeHealingDegraded(cr *cdiv1alpha1.CDI, reason, message string) {
+func MarkCrUpgradeHealingDegraded(cr *cdiv1.CDI, reason, message string) {
 	conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 		Type:   conditions.ConditionAvailable,
 		Status: corev1.ConditionTrue,
@@ -133,7 +133,7 @@ func MarkCrUpgradeHealingDegraded(cr *cdiv1alpha1.CDI, reason, message string) {
 // ApplicationAvailable: false
 // Progressing: false
 // Degraded: true
-func MarkCrFailed(cr *cdiv1alpha1.CDI, reason, message string) {
+func MarkCrFailed(cr *cdiv1.CDI, reason, message string) {
 	conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 		Type:   conditions.ConditionAvailable,
 		Status: corev1.ConditionFalse,
@@ -155,7 +155,7 @@ func MarkCrFailed(cr *cdiv1alpha1.CDI, reason, message string) {
 // ApplicationAvailable: false
 // Progressing: true
 // Degraded: true
-func MarkCrFailedHealing(cr *cdiv1alpha1.CDI, reason, message string) {
+func MarkCrFailedHealing(cr *cdiv1.CDI, reason, message string) {
 	conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 		Type:   conditions.ConditionAvailable,
 		Status: corev1.ConditionFalse,
@@ -177,7 +177,7 @@ func MarkCrFailedHealing(cr *cdiv1alpha1.CDI, reason, message string) {
 // ApplicationAvailable: false
 // Progressing: true
 // Degraded: false
-func MarkCrDeploying(cr *cdiv1alpha1.CDI, reason, message string) {
+func MarkCrDeploying(cr *cdiv1.CDI, reason, message string) {
 	conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 		Type:   conditions.ConditionAvailable,
 		Status: corev1.ConditionFalse,

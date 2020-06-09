@@ -26,7 +26,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
 
-	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/clone"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/token"
@@ -46,7 +46,7 @@ var (
 )
 
 func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admissionv1beta1.AdmissionResponse {
-	var dataVolume, oldDataVolume cdiv1alpha1.DataVolume
+	var dataVolume, oldDataVolume cdiv1.DataVolume
 	deserializer := codecs.UniversalDeserializer()
 
 	klog.V(3).Infof("Got AdmissionReview %+v", ar)

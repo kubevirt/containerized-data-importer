@@ -6,7 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
@@ -15,7 +15,7 @@ func MakeEmptyCDIConfigSpec(name string) *cdiv1.CDIConfig {
 	return &cdiv1.CDIConfig{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CDIConfig",
-			APIVersion: "cdi.kubevirt.io/v1alpha1",
+			APIVersion: "cdi.kubevirt.io/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,

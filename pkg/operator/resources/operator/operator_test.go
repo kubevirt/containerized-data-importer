@@ -3,18 +3,19 @@ package operator
 import (
 	"fmt"
 	"io/ioutil"
-
-	"github.com/RHsyseng/operator-utils/pkg/validation"
-	"github.com/ghodss/yaml"
-	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"strings"
+
+	"github.com/RHsyseng/operator-utils/pkg/validation"
+	"github.com/ghodss/yaml"
+
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
 var crdTypeMap = map[string]interface{}{
-	"operator-crd": &cdiv1alpha1.CDI{},
+	"operator-crd": &cdiv1.CDI{},
 }
 
 var _ = Describe("Operator resource test", func() {
@@ -50,7 +51,7 @@ var _ = Describe("Operator resource test", func() {
 
 	It("Test invalid custom resources", func() {
 		crFileName := []byte(` {
-		  "apiVersion":"cdi.kubevirt.io/v1alpha1",
+		  "apiVersion":"cdi.kubevirt.io/v1beta1",
 		  "kind":"CDI",
 		  "metadata": {
 		    "name":"cdi",

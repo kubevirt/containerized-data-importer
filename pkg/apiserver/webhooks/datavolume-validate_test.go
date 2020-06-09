@@ -37,7 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeclient "k8s.io/client-go/kubernetes/fake"
 
-	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
 var _ = Describe("Validating Webhook", func() {
@@ -158,7 +158,7 @@ var _ = Describe("Validating Webhook", func() {
 
 		It("should accept DataVolume with Blank source and kubevirt contentType", func() {
 			dataVolume := newBlankDataVolume("blank")
-			dataVolume.Spec.ContentType = cdicorev1alpha1.DataVolumeKubeVirt
+			dataVolume.Spec.ContentType = cdiv1.DataVolumeKubeVirt
 			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(true))
 
@@ -166,7 +166,7 @@ var _ = Describe("Validating Webhook", func() {
 
 		It("should reject DataVolume with Blank source and archive contentType", func() {
 			dataVolume := newBlankDataVolume("blank")
-			dataVolume.Spec.ContentType = cdicorev1alpha1.DataVolumeArchive
+			dataVolume.Spec.ContentType = cdiv1.DataVolumeArchive
 			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(false))
 
@@ -182,7 +182,7 @@ var _ = Describe("Validating Webhook", func() {
 
 		It("should accept DataVolume with archive contentType", func() {
 			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
-			dataVolume.Spec.ContentType = cdicorev1alpha1.DataVolumeArchive
+			dataVolume.Spec.ContentType = cdiv1.DataVolumeArchive
 			resp := validateDataVolumeCreate(dataVolume)
 			Expect(resp.Allowed).To(Equal(true))
 
@@ -200,8 +200,8 @@ var _ = Describe("Validating Webhook", func() {
 				Request: &v1beta1.AdmissionRequest{
 					Operation: v1beta1.Update,
 					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+						Group:    cdiv1.SchemeGroupVersion.Group,
+						Version:  cdiv1.SchemeGroupVersion.Version,
 						Resource: "datavolumes",
 					},
 					Object: runtime.RawExtension{
@@ -229,8 +229,8 @@ var _ = Describe("Validating Webhook", func() {
 				Request: &v1beta1.AdmissionRequest{
 					Operation: v1beta1.Update,
 					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+						Group:    cdiv1.SchemeGroupVersion.Group,
+						Version:  cdiv1.SchemeGroupVersion.Version,
 						Resource: "datavolumes",
 					},
 					Object: runtime.RawExtension{
@@ -248,33 +248,33 @@ var _ = Describe("Validating Webhook", func() {
 	})
 })
 
-func newHTTPDataVolume(name, url string) *cdicorev1alpha1.DataVolume {
-	httpSource := cdicorev1alpha1.DataVolumeSource{
-		HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{URL: url},
+func newHTTPDataVolume(name, url string) *cdiv1.DataVolume {
+	httpSource := cdiv1.DataVolumeSource{
+		HTTP: &cdiv1.DataVolumeSourceHTTP{URL: url},
 	}
 	pvc := newPVCSpec(5, "M")
 	return newDataVolume(name, httpSource, pvc)
 }
 
-func newRegistryDataVolume(name, url string) *cdicorev1alpha1.DataVolume {
-	registrySource := cdicorev1alpha1.DataVolumeSource{
-		Registry: &cdicorev1alpha1.DataVolumeSourceRegistry{URL: url},
+func newRegistryDataVolume(name, url string) *cdiv1.DataVolume {
+	registrySource := cdiv1.DataVolumeSource{
+		Registry: &cdiv1.DataVolumeSourceRegistry{URL: url},
 	}
 	pvc := newPVCSpec(5, "M")
 	return newDataVolume(name, registrySource, pvc)
 }
 
-func newBlankDataVolume(name string) *cdicorev1alpha1.DataVolume {
-	blankSource := cdicorev1alpha1.DataVolumeSource{
-		Blank: &cdicorev1alpha1.DataVolumeBlankImage{},
+func newBlankDataVolume(name string) *cdiv1.DataVolume {
+	blankSource := cdiv1.DataVolumeSource{
+		Blank: &cdiv1.DataVolumeBlankImage{},
 	}
 	pvc := newPVCSpec(5, "M")
 	return newDataVolume(name, blankSource, pvc)
 }
 
-func newPVCDataVolume(name, pvcNamespace, pvcName string) *cdicorev1alpha1.DataVolume {
-	pvcSource := cdicorev1alpha1.DataVolumeSource{
-		PVC: &cdicorev1alpha1.DataVolumeSourcePVC{
+func newPVCDataVolume(name, pvcNamespace, pvcName string) *cdiv1.DataVolume {
+	pvcSource := cdiv1.DataVolumeSource{
+		PVC: &cdiv1.DataVolumeSourcePVC{
 			Namespace: pvcNamespace,
 			Name:      pvcName,
 		},
@@ -283,49 +283,49 @@ func newPVCDataVolume(name, pvcNamespace, pvcName string) *cdicorev1alpha1.DataV
 	return newDataVolume(name, pvcSource, pvc)
 }
 
-func newDataVolumeWithEmptyPVCSpec(name, url string) *cdicorev1alpha1.DataVolume {
+func newDataVolumeWithEmptyPVCSpec(name, url string) *cdiv1.DataVolume {
 
-	httpSource := cdicorev1alpha1.DataVolumeSource{
-		HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{URL: url},
+	httpSource := cdiv1.DataVolumeSource{
+		HTTP: &cdiv1.DataVolumeSourceHTTP{URL: url},
 	}
 
 	return newDataVolume(name, httpSource, nil)
 }
 
-func newDataVolumeWithMultipleSources(name string) *cdicorev1alpha1.DataVolume {
-	source := cdicorev1alpha1.DataVolumeSource{
-		HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{URL: "http://www.example.com"},
-		S3:   &cdicorev1alpha1.DataVolumeSourceS3{URL: "http://s3.examples3.com"},
+func newDataVolumeWithMultipleSources(name string) *cdiv1.DataVolume {
+	source := cdiv1.DataVolumeSource{
+		HTTP: &cdiv1.DataVolumeSourceHTTP{URL: "http://www.example.com"},
+		S3:   &cdiv1.DataVolumeSourceS3{URL: "http://s3.examples3.com"},
 	}
 	pvc := newPVCSpec(5, "M")
 
 	return newDataVolume(name, source, pvc)
 }
 
-func newDataVolumeWithPVCSizeZero(name, url string) *cdicorev1alpha1.DataVolume {
+func newDataVolumeWithPVCSizeZero(name, url string) *cdiv1.DataVolume {
 
-	httpSource := cdicorev1alpha1.DataVolumeSource{
-		HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{URL: url},
+	httpSource := cdiv1.DataVolumeSource{
+		HTTP: &cdiv1.DataVolumeSourceHTTP{URL: url},
 	}
 	pvc := newPVCSpec(0, "M")
 
 	return newDataVolume(name, httpSource, pvc)
 }
 
-func newDataVolume(name string, source cdicorev1alpha1.DataVolumeSource, pvc *corev1.PersistentVolumeClaimSpec) *cdicorev1alpha1.DataVolume {
+func newDataVolume(name string, source cdiv1.DataVolumeSource, pvc *corev1.PersistentVolumeClaimSpec) *cdiv1.DataVolume {
 	namespace := k8sv1.NamespaceDefault
-	dv := &cdicorev1alpha1.DataVolume{
+	dv := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
-			SelfLink:  fmt.Sprintf("/apis/%s/namespaces/%s/datavolumes/%s", cdicorev1alpha1.SchemeGroupVersion.String(), namespace, name),
+			SelfLink:  fmt.Sprintf("/apis/%s/namespaces/%s/datavolumes/%s", cdiv1.SchemeGroupVersion.String(), namespace, name),
 		},
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: cdicorev1alpha1.SchemeGroupVersion.String(),
+			APIVersion: cdiv1.SchemeGroupVersion.String(),
 			Kind:       "DataVolume",
 		},
-		Status: cdicorev1alpha1.DataVolumeStatus{},
-		Spec: cdicorev1alpha1.DataVolumeSpec{
+		Status: cdiv1.DataVolumeStatus{},
+		Spec: cdiv1.DataVolumeSpec{
 			Source: source,
 			PVC:    pvc,
 		},
@@ -350,7 +350,7 @@ func newPVCSpec(sizeValue int64, sizeFormat resource.Format) *corev1.PersistentV
 	return pvc
 }
 
-func validateDataVolumeCreate(dv *cdicorev1alpha1.DataVolume, objects ...runtime.Object) *v1beta1.AdmissionResponse {
+func validateDataVolumeCreate(dv *cdiv1.DataVolume, objects ...runtime.Object) *v1beta1.AdmissionResponse {
 	client := fakeclient.NewSimpleClientset(objects...)
 	wh := NewDataVolumeValidatingWebhook(client)
 
@@ -359,8 +359,8 @@ func validateDataVolumeCreate(dv *cdicorev1alpha1.DataVolume, objects ...runtime
 		Request: &v1beta1.AdmissionRequest{
 			Operation: v1beta1.Create,
 			Resource: metav1.GroupVersionResource{
-				Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-				Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+				Group:    cdiv1.SchemeGroupVersion.Group,
+				Version:  cdiv1.SchemeGroupVersion.Version,
 				Resource: "datavolumes",
 			},
 			Object: runtime.RawExtension{

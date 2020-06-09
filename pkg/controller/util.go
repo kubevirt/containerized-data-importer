@@ -5,6 +5,8 @@ import (
 	"crypto/rsa"
 	"strings"
 
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
+
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
@@ -17,7 +19,7 @@ import (
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
@@ -291,6 +293,10 @@ func isCrdDeployed(c extclientset.Interface, name, version string) bool {
 	obj, err := c.ApiextensionsV1beta1().CustomResourceDefinitions().Get(name, metav1.GetOptions{})
 	if err != nil {
 		return false
+	}
+
+	if obj.Spec.Version == version {
+		return true
 	}
 
 	for _, v := range obj.Spec.Versions {

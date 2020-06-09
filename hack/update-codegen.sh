@@ -35,16 +35,16 @@ ${SCRIPT_ROOT}/hack/build/build-go.sh generate
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
 ${CODEGEN_PKG}/generate-groups.sh "deepcopy,client,informer,lister" \
   kubevirt.io/containerized-data-importer/pkg/client kubevirt.io/containerized-data-importer/pkg/apis \
-  "core:v1alpha1 upload:v1beta1" \
+  "core:v1beta1 upload:v1beta1" \
   --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
 echo "Generating swagger doc"
-swagger-doc -in ${SCRIPT_ROOT}/pkg/apis/core/v1alpha1/types.go
+swagger-doc -in ${SCRIPT_ROOT}/pkg/apis/core/v1beta1/types.go
 swagger-doc -in ${SCRIPT_ROOT}/pkg/apis/upload/v1beta1/types.go
 
 echo "Generating openapi"
-openapi-gen --input-dirs k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/api/core/v1,github.com/openshift/custom-resource-status/conditions/v1,kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1 \
-    --output-package kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1 \
+openapi-gen --input-dirs k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/api/core/v1,github.com/openshift/custom-resource-status/conditions/v1,kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1 \
+    --output-package kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1 \
     --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
 openapi-gen --input-dirs k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/api/core/v1,kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1 --output-package=kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1 \

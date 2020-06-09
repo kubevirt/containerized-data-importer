@@ -69,7 +69,7 @@ Specifying an 'upload' source will mark the data volume as a target for upload.
 
 To create an upload datavolume use the following [example](../manifests/example/upload-datavolume.yaml).
 ```yaml
-apiVersion: cdi.kubevirt.io/v1alpha1
+apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
 metadata:
   name: upload-datavolume

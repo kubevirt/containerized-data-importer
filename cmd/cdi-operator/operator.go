@@ -31,7 +31,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
 
-	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/operator/controller"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -79,7 +79,7 @@ func main() {
 
 	log.Info("Registering Components.")
 
-	if err := cdiv1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := cdiv1.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "")
 		os.Exit(1)
 	}

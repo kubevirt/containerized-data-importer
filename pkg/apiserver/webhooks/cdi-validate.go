@@ -26,7 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 
-	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 )
 
@@ -39,7 +39,7 @@ type cdiValidatingWebhook struct {
 func (wh *cdiValidatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admissionv1beta1.AdmissionResponse {
 	klog.V(3).Infof("Got AdmissionReview %+v", ar)
 
-	if ar.Request.Resource.Group != cdiv1alpha1.CDIGroupVersionKind.Group || ar.Request.Resource.Resource != "cdis" {
+	if ar.Request.Resource.Group != cdiv1.CDIGroupVersionKind.Group || ar.Request.Resource.Resource != "cdis" {
 		klog.V(3).Infof("Got unexpected resource type %s", ar.Request.Resource.Resource)
 		return toAdmissionResponseError(fmt.Errorf("unexpected resource: %s", ar.Request.Resource.Resource))
 	}
@@ -55,12 +55,12 @@ func (wh *cdiValidatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admi
 	}
 
 	switch cdi.Status.Phase {
-	case cdiv1alpha1.CDIPhaseEmpty, cdiv1alpha1.CDIPhaseError:
+	case cdiv1.CDIPhaseEmpty, cdiv1.CDIPhaseError:
 		return allowedAdmissionResponse()
 	}
 
-	if cdi.Spec.UninstallStrategy != nil && *cdi.Spec.UninstallStrategy == cdiv1alpha1.CDIUninstallStrategyBlockUninstallIfWorkloadsExist {
-		dvs, err := wh.client.CdiV1alpha1().DataVolumes(metav1.NamespaceAll).List(metav1.ListOptions{Limit: 2})
+	if cdi.Spec.UninstallStrategy != nil && *cdi.Spec.UninstallStrategy == cdiv1.CDIUninstallStrategyBlockUninstallIfWorkloadsExist {
+		dvs, err := wh.client.CdiV1beta1().DataVolumes(metav1.NamespaceAll).List(metav1.ListOptions{Limit: 2})
 		if err != nil {
 			return toAdmissionResponseError(err)
 		}
@@ -73,18 +73,18 @@ func (wh *cdiValidatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admi
 	return allowedAdmissionResponse()
 }
 
-func (wh *cdiValidatingWebhook) getResource(ar admissionv1beta1.AdmissionReview) (*cdiv1alpha1.CDI, error) {
-	var cdi *cdiv1alpha1.CDI
+func (wh *cdiValidatingWebhook) getResource(ar admissionv1beta1.AdmissionReview) (*cdiv1.CDI, error) {
+	var cdi *cdiv1.CDI
 	deserializer := codecs.UniversalDeserializer()
 
 	if len(ar.Request.OldObject.Raw) > 0 {
-		cdi = &cdiv1alpha1.CDI{}
+		cdi = &cdiv1.CDI{}
 		if _, _, err := deserializer.Decode(ar.Request.OldObject.Raw, nil, cdi); err != nil {
 			return nil, err
 		}
 	} else if len(ar.Request.Name) > 0 {
 		var err error
-		cdi, err = wh.client.CdiV1alpha1().CDIs().Get(ar.Request.Name, metav1.GetOptions{})
+		cdi, err = wh.client.CdiV1beta1().CDIs().Get(ar.Request.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, err
 		}

@@ -29,7 +29,7 @@ import (
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdicorev1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdiuploadv1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
@@ -189,8 +189,8 @@ func createDataVolumeValidatingWebhook(namespace string, c client.Client, l logr
 						admissionregistrationv1beta1.Update,
 					},
 					Rule: admissionregistrationv1beta1.Rule{
-						APIGroups:   []string{cdicorev1alpha1.SchemeGroupVersion.Group},
-						APIVersions: []string{cdicorev1alpha1.SchemeGroupVersion.Version},
+						APIGroups:   []string{cdicorev1.SchemeGroupVersion.Group},
+						APIVersions: []string{cdicorev1.SchemeGroupVersion.Version},
 						Resources:   []string{"datavolumes"},
 					},
 				}},
@@ -242,8 +242,8 @@ func createCDIValidatingWebhook(namespace string, c client.Client, l logr.Logger
 						admissionregistrationv1beta1.Delete,
 					},
 					Rule: admissionregistrationv1beta1.Rule{
-						APIGroups:   []string{cdicorev1alpha1.SchemeGroupVersion.Group},
-						APIVersions: []string{cdicorev1alpha1.SchemeGroupVersion.Version},
+						APIGroups:   []string{cdicorev1.SchemeGroupVersion.Group},
+						APIVersions: []string{cdicorev1.SchemeGroupVersion.Version},
 						Resources:   []string{"cdis"},
 					},
 				}},
@@ -298,8 +298,8 @@ func createDataVolumeMutatingWebhook(namespace string, c client.Client, l logr.L
 						admissionregistrationv1beta1.Update,
 					},
 					Rule: admissionregistrationv1beta1.Rule{
-						APIGroups:   []string{cdicorev1alpha1.SchemeGroupVersion.Group},
-						APIVersions: []string{cdicorev1alpha1.SchemeGroupVersion.Version},
+						APIGroups:   []string{cdicorev1.SchemeGroupVersion.Group},
+						APIVersions: []string{cdicorev1.SchemeGroupVersion.Version},
 						Resources:   []string{"datavolumes"},
 					},
 				}},

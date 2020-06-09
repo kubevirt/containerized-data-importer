@@ -70,23 +70,6 @@ install_cdi
 #wait cdi crd is installed with timeout
 wait_cdi_crd_installed $CDI_INSTALL_TIMEOUT
 
-_kubectl apply -f "./_out/manifests/release/cdi-cr.yaml"
-echo "Waiting $CDI_AVAILABLE_TIMEOUT seconds for CDI to become available"
-if [ "$KUBEVIRT_PROVIDER" == "os-3.11.0-crio" ]; then
-  echo "Openshift 3.11 provider"
-  available=$(_kubectl get cdi cdi -o jsonpath={.status.conditions[0].status})
-  wait_time=0
-  while [[ $available != "True" ]] && [[ $retry_counter -lt ${CDI_AVAILABLE_TIMEOUT} ]]; do
-    wait_time=$((wait_time + 5))
-    sleep 5
-    available=$(_kubectl get cdi cdi -o jsonpath={.status.conditions[0].status})
-    fix_failed_sdn_pods
-  done
-
-else
-_kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=${CDI_AVAILABLE_TIMEOUT}s
-fi
-
 # If we are upgrading, verify our current value.
 if [[ ! -z "$UPGRADE_FROM" ]]; then
   UPGRADE_FROM_LIST=( $UPGRADE_FROM )
@@ -98,6 +81,10 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
       sed -i "s/namespace: cdi/namespace: $CDI_NAMESPACE/g" cdi-operator.yaml
       echo $(cat cdi-operator.yaml)
       _kubectl apply -f cdi-operator.yaml
+    else
+      _kubectl apply -f "https://github.com/kubevirt/containerized-data-importer/releases/download/${VERSION}/cdi-cr.yaml"
+      echo "Waiting $CDI_AVAILABLE_TIMEOUT seconds for CDI to become available"
+      _kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=${CDI_AVAILABLE_TIMEOUT}s
     fi
     retry_counter=0
     kill_count=0
@@ -116,10 +103,10 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
       sleep 5
     done
     if [ $retry_counter -eq $CDI_UPGRADE_RETRY_COUNT ]; then
-    echo "Unable to deploy to version $VERSION"
-    cdi_obj=$(_kubectl get CDI -o yaml)
-    echo $cdi_obj
-    exit 1
+      echo "Unable to deploy to version $VERSION"
+      cdi_obj=$(_kubectl get CDI -o yaml)
+      echo $cdi_obj
+      exit 1
     fi
     echo "Currently at version: $VERSION"
   done
@@ -137,13 +124,29 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
     sleep 5
   done
   if [ $retry_counter -eq $CDI_UPGRADE_RETRY_COUNT ]; then
-	echo "Unable to deploy to latest version"
-	cdi_obj=$(_kubectl get CDI -o yaml)
-	echo $cdi_obj
-	exit 1
+	  echo "Unable to deploy to latest version"
+	  cdi_obj=$(_kubectl get CDI -o yaml)
+	  echo $cdi_obj
+	  exit 1
   fi
   echo "Waiting $CDI_AVAILABLE_TIMEOUT seconds for CDI to become available"
   _kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=${CDI_AVAILABLE_TIMEOUT}s
+else
+  _kubectl apply -f "./_out/manifests/release/cdi-cr.yaml"
+  echo "Waiting $CDI_AVAILABLE_TIMEOUT seconds for CDI to become available"
+  if [ "$KUBEVIRT_PROVIDER" == "os-3.11.0-crio" ]; then
+    echo "Openshift 3.11 provider"
+    available=$(_kubectl get cdi cdi -o jsonpath={.status.conditions[0].status})
+    wait_time=0
+    while [[ $available != "True" ]] && [[ $retry_counter -lt ${CDI_AVAILABLE_TIMEOUT} ]]; do
+      wait_time=$((wait_time + 5))
+      sleep 5
+      available=$(_kubectl get cdi cdi -o jsonpath={.status.conditions[0].status})
+      fix_failed_sdn_pods
+    done
+  else
+    _kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=${CDI_AVAILABLE_TIMEOUT}s
+  fi
 fi
 
 # Grab all the CDI crds so we can check if they are structural schemas

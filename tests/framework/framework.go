@@ -534,7 +534,7 @@ func (f *Framework) UpdateQuotaInNs(requestCPU, requestMemory, limitsCPU, limits
 
 // UpdateCdiConfigResourceLimits sets the limits in the CDIConfig object
 func (f *Framework) UpdateCdiConfigResourceLimits(resourceCPU, resourceMemory, limitsCPU, limitsMemory int64) error {
-	config, err := f.CdiClient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+	config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -546,7 +546,7 @@ func (f *Framework) UpdateCdiConfigResourceLimits(resourceCPU, resourceMemory, l
 			v1.ResourceCPU:    *resource.NewQuantity(limitsCPU, resource.DecimalSI),
 			v1.ResourceMemory: *resource.NewQuantity(limitsMemory, resource.DecimalSI)},
 	}
-	_, err = f.CdiClient.CdiV1alpha1().CDIConfigs().Update(config)
+	_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(config)
 	if err != nil {
 		return err
 	}
@@ -808,7 +808,7 @@ func (r *KubernetesReporter) logDVs(cdiClientset *cdiClientset.Clientset) {
 	}
 	defer f.Close()
 
-	dvs, err := cdiClientset.CdiV1alpha1().DataVolumes(v1.NamespaceAll).List(metav1.ListOptions{})
+	dvs, err := cdiClientset.CdiV1beta1().DataVolumes(v1.NamespaceAll).List(metav1.ListOptions{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to fetch datavolumes: %v\n", err)
 		return

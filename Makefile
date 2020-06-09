@@ -50,7 +50,7 @@ gomod-update:
 deps-update: gomod-update bazel-generate
 
 apidocs:
-	${DO} "./hack/update-codegen.sh && ./hack/gen-swagger-doc/gen-swagger-docs.sh v1alpha1 html"
+	${DO} "./hack/update-codegen.sh && ./hack/gen-swagger-doc/gen-swagger-docs.sh v1beta1 html"
 
 build-functest:
 	${DO} ./hack/build/build-functest.sh
@@ -70,8 +70,8 @@ test-functional: build-functest
 test-lint:
 	${DO} "./hack/build/run-lint-checks.sh"
 
-docker-registry-cleanup: 
-	./hack/build/cleanup_docker.sh 
+docker-registry-cleanup:
+	./hack/build/cleanup_docker.sh
 
 publish: manifests push
 
@@ -93,7 +93,7 @@ release-description:
 cluster-up:
 	./cluster-up/up.sh
 
-cluster-down: 
+cluster-down:
 	./cluster-up/down.sh
 
 cluster-down-purge: docker-registry-cleanup cluster-down

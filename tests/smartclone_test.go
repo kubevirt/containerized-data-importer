@@ -17,7 +17,7 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
 var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", func() {
@@ -130,7 +130,7 @@ func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f
 	err := utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
 	if err != nil {
 		PrintControllerLog(f)
-		dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+		dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
 		if dverr != nil {
 			Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 		}
