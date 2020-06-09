@@ -116,10 +116,11 @@ func (r *UploadReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 	}
 
 	// force cleanup if PVC pending delete and pod running or the upload/clone annotation was removed
-	if (!isUpload && !isCloneTarget) || podSucceededFromPVC(pvc) || pvc.DeletionTimestamp != nil {
+	if !r.shouldReconcile(isUpload, isCloneTarget, pvc, log) || podSucceededFromPVC(pvc) || pvc.DeletionTimestamp != nil {
 		log.V(1).Info("not doing anything with PVC",
 			"isUpload", isUpload,
 			"isCloneTarget", isCloneTarget,
+			"isBound", isBound(pvc, log),
 			"podSucceededFromPVC", podSucceededFromPVC(pvc),
 			"deletionTimeStamp set?", pvc.DeletionTimestamp != nil)
 		if err := r.cleanup(pvc); err != nil {
@@ -130,6 +131,10 @@ func (r *UploadReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 
 	log.Info("Calling Upload reconcile PVC")
 	return r.reconcilePVC(log, pvc, isCloneTarget)
+}
+
+func (r *UploadReconciler) shouldReconcile(isUpload bool, isCloneTarget bool, pvc *v1.PersistentVolumeClaim, log logr.Logger) bool {
+	return (isUpload || isCloneTarget) && isBound(pvc, log)
 }
 
 func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentVolumeClaim, isCloneTarget bool) (reconcile.Result, error) {

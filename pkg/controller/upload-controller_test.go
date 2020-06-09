@@ -215,8 +215,8 @@ var _ = Describe("Upload controller reconcile loop", func() {
 
 	It("Should return err and not clone if validation error occurs", func() {
 		storageClassName := "test"
-		testPvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{cloneRequestAnnotation: "default/sourcePvc"}, nil)
-		sourcePvc := createPvcInStorageClass("sourcePvc", "default", &storageClassName, nil, nil)
+		testPvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{cloneRequestAnnotation: "default/sourcePvc"}, nil, corev1.ClaimBound)
+		sourcePvc := createPvcInStorageClass("sourcePvc", "default", &storageClassName, nil, nil, corev1.ClaimBound)
 		vm := corev1.PersistentVolumeBlock
 		sourcePvc.Spec.VolumeMode = &vm
 		reconciler := createUploadReconciler(testPvc, sourcePvc)

@@ -89,6 +89,15 @@ func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string, log logr.Logger)
 	return true
 }
 
+func isBound(pvc *v1.PersistentVolumeClaim, log logr.Logger) bool {
+	if pvc.Status.Phase != v1.ClaimBound {
+		log.V(1).Info("PVC not bound, skipping pvc", "Phase", pvc.Status.Phase)
+		return false
+	}
+
+	return true
+}
+
 func getRequestedImageSize(pvc *v1.PersistentVolumeClaim) (string, error) {
 	pvcSize, found := pvc.Spec.Resources.Requests[v1.ResourceStorage]
 	if !found {

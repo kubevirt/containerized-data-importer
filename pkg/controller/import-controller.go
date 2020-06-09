@@ -136,7 +136,9 @@ func addImportControllerWatches(mgr manager.Manager, importController controller
 }
 
 func shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim, log logr.Logger) bool {
-	return !isPVCComplete(pvc) && (checkPVC(pvc, AnnEndpoint, log) || checkPVC(pvc, AnnSource, log))
+	return !isPVCComplete(pvc) &&
+		(checkPVC(pvc, AnnEndpoint, log) || checkPVC(pvc, AnnSource, log)) &&
+		isBound(pvc, log)
 }
 
 func isPVCComplete(pvc *corev1.PersistentVolumeClaim) bool {
@@ -159,8 +161,11 @@ func (r *ImportReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 	}
 
 	if !shouldReconcilePVC(pvc, log) {
-		log.V(1).Info("Should not reconcile this PVC", "pvc.annotation.phase.complete", isPVCComplete(pvc),
-			"pvc.annotations.endpoint", checkPVC(pvc, AnnEndpoint, log), "pvc.annotations.source", checkPVC(pvc, AnnSource, log))
+		log.V(1).Info("Should not reconcile this PVC",
+			"pvc.annotation.phase.complete", isPVCComplete(pvc),
+			"pvc.annotations.endpoint", checkPVC(pvc, AnnEndpoint, log),
+			"pvc.annotations.source", checkPVC(pvc, AnnSource, log),
+			"isBound", isBound(pvc, log))
 		return reconcile.Result{}, nil
 	}
 

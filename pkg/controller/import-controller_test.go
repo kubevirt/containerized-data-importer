@@ -142,7 +142,9 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 	})
 
 	It("Should init PVC with a POD name if a PVC with all needed annotations is passed", func() {
-		reconciler = createImportReconciler(createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint}, nil))
+		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+		reconciler = createImportReconciler(pvc)
 		_, err := reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		resultPvc := &corev1.PersistentVolumeClaim{}
@@ -152,7 +154,9 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 	})
 
 	It("Should create a POD if a PVC with all needed annotations is passed", func() {
-		reconciler = createImportReconciler(createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1"}, nil))
+		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1"}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+		reconciler = createImportReconciler(pvc)
 		_, err := reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
@@ -170,8 +174,10 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(*pod.Spec.SecurityContext.FSGroup).To(Equal(int64(107)))
 	})
 
-	It("Should create a POD if a PVC with all needed annotations is passed, but not set fsgroup if not kubevirt contenttype", func() {
-		reconciler = createImportReconciler(createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1", AnnContentType: string(cdiv1.DataVolumeArchive)}, nil))
+	It("Should create a POD if a bound PVC with all needed annotations is passed, but not set fsgroup if not kubevirt contenttype", func() {
+		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1", AnnContentType: string(cdiv1.DataVolumeArchive)}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+		reconciler = createImportReconciler(pvc)
 		_, err := reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
@@ -297,7 +303,7 @@ var _ = Describe("Update PVC from POD", func() {
 	It("Should create scratch PVC, if pod is pending and PVC is marked with scratch", func() {
 		scratchPvcName := &corev1.PersistentVolumeClaim{}
 		scratchPvcName.Name = "testPvc1-scratch"
-		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnRequiresScratch: "true"}, nil)
+		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnRequiresScratch: "true"}, nil, corev1.ClaimBound)
 		pod := createImporterTestPod(pvc, "testPvc1", scratchPvcName)
 		pod.Status = corev1.PodStatus{
 			Phase: corev1.PodPending,
@@ -336,7 +342,7 @@ var _ = Describe("Update PVC from POD", func() {
 
 	// TODO: Update me to stay in progress if we were in progress already, its a pod failure and it will get restarted.
 	It("Should update phase on PVC, if pod exited with error state that is NOT scratchspace exit", func() {
-		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodRunning)}, nil)
+		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodRunning)}, nil, corev1.ClaimBound)
 		pod := createImporterTestPod(pvc, "testPvc1", nil)
 		pod.Status = corev1.PodStatus{
 			Phase: corev1.PodFailed,
@@ -379,7 +385,7 @@ var _ = Describe("Update PVC from POD", func() {
 	})
 
 	It("Should NOT update phase on PVC, if pod exited with error state that is scratchspace exit", func() {
-		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodRunning)}, nil)
+		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodRunning)}, nil, corev1.ClaimBound)
 		scratchPvcName := &corev1.PersistentVolumeClaim{}
 		scratchPvcName.Name = "testPvc1-scratch"
 		pod := createImporterTestPod(pvc, "testPvc1", scratchPvcName)
