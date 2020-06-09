@@ -19,6 +19,7 @@ package importer
 import (
 	"fmt"
 	"net/url"
+	"os"
 
 	"github.com/pkg/errors"
 
@@ -241,6 +242,13 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 		err := ResizeImage(dp.dataFile, dp.requestImageSize, dp.availableSpace)
 		if err != nil {
 			return ProcessingPhaseError, errors.Wrap(err, "Resize of image failed")
+		}
+	}
+	if dp.dataFile != "" {
+		// Change permissions to 0660
+		err := os.Chmod(dp.dataFile, 0660)
+		if err != nil {
+			err = errors.Wrap(err, "Unable to change permissions of target file")
 		}
 	}
 	return ProcessingPhaseComplete, nil

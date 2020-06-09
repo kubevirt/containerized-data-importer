@@ -23,7 +23,21 @@ const (
 
 	podCreateTime = defaultPollPeriod
 	podDeleteTime = defaultPollPeriod
+
+	//VerifierPodName is the name of the verifier pod.
+	VerifierPodName = "verifier"
 )
+
+// CreateVerifierPodWithPVC creates a Pod called verifier, with the passed in PVC mounted under /pvc. You can then use the executor utilities to
+// run commands against the PVC through this Pod.
+func CreateVerifierPodWithPVC(clientSet *kubernetes.Clientset, namespace string, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
+	return CreateExecutorPodWithPVC(clientSet, VerifierPodName, namespace, pvc)
+}
+
+// DeleteVerifierPod deletes the verifier pod
+func DeleteVerifierPod(clientSet *kubernetes.Clientset, namespace string) error {
+	return DeletePodByName(clientSet, VerifierPodName, namespace)
+}
 
 // CreateExecutorPodWithPVC creates a Pod with the passed in PVC mounted under /pvc. You can then use the executor utilities to
 // run commands against the PVC through this Pod.
@@ -43,27 +57,31 @@ func CreateExecutorPodWithPVCSpecificNode(clientSet *kubernetes.Clientset, podNa
 
 // CreatePod calls the Kubernetes API to create a Pod
 func CreatePod(clientSet *kubernetes.Clientset, namespace string, podDef *k8sv1.Pod) (*k8sv1.Pod, error) {
-	var pod *k8sv1.Pod
 	err := wait.PollImmediate(2*time.Second, podCreateTime, func() (bool, error) {
 		var err error
-		pod, err = clientSet.CoreV1().Pods(namespace).Create(podDef)
+		_, err = clientSet.CoreV1().Pods(namespace).Create(podDef)
 		if err != nil {
 			return false, err
 		}
 		return true, nil
 	})
-	return pod, err
+	return podDef, err
 }
 
-// DeletePod deletes the passed in Pod from the passed in Namespace
-func DeletePod(clientSet *kubernetes.Clientset, pod *k8sv1.Pod, namespace string) error {
+// DeletePodByName deletes the pod based on the passed in name from the passed in Namespace
+func DeletePodByName(clientSet *kubernetes.Clientset, podName, namespace string) error {
 	return wait.PollImmediate(2*time.Second, podDeleteTime, func() (bool, error) {
-		err := clientSet.CoreV1().Pods(namespace).Delete(pod.GetName(), &metav1.DeleteOptions{})
+		err := clientSet.CoreV1().Pods(namespace).Delete(podName, &metav1.DeleteOptions{})
 		if err != nil {
 			return false, nil
 		}
 		return true, nil
 	})
+}
+
+// DeletePod deletes the passed in Pod from the passed in Namespace
+func DeletePod(clientSet *kubernetes.Clientset, pod *k8sv1.Pod, namespace string) error {
+	return DeletePodByName(clientSet, pod.Name, namespace)
 }
 
 // NewPodWithPVC creates a new pod that mounts the given PVC
@@ -176,7 +194,7 @@ func findPodByCompFunc(clientSet *kubernetes.Clientset, namespace, prefix, label
 }
 
 func newExecutorPodWithPVC(podName string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1.Pod {
-	return NewPodWithPVC(podName, "sleep 30; echo I am an executor pod;", pvc)
+	return NewPodWithPVC(podName, "while true; do echo hello; sleep 2;done", pvc)
 }
 
 // WaitTimeoutForPodReady waits for the given pod to be created and ready

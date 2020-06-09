@@ -76,6 +76,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			eventReason      string
 			phase            cdiv1.DataVolumePhase
 			repeat           int
+			checkPermissions bool
 			readyCondition   *cdiv1.DataVolumeCondition
 			boundCondition   *cdiv1.DataVolumeCondition
 			runningCondition *cdiv1.DataVolumeCondition
@@ -161,7 +162,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 				// verify PVC was created
 				By("verifying pvc was created")
-				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				By(fmt.Sprint("Verifying event occurred"))
@@ -176,6 +177,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					return false
 				}, timeout, pollingInterval).Should(BeTrue())
 
+				if args.checkPermissions {
+					// Verify the created disk image has the right permissions.
+					By("Verifying permissions are 660")
+					Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
+					err := utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
+					Expect(err).ToNot(HaveOccurred())
+				}
+				By("Cleaning up")
 				err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
 				Expect(err).ToNot(HaveOccurred())
 				Eventually(func() bool {
@@ -188,12 +197,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 		},
 			table.Entry("[rfe_id:1115][crit:high][test_id:1357]succeed creating import dv with given valid url", dataVolumeTestArguments{
-				name:        "dv-http-import",
-				size:        "1Gi",
-				url:         tinyCoreIsoURL,
-				dvFunc:      utils.NewDataVolumeWithHTTPImport,
-				eventReason: controller.ImportSucceeded,
-				phase:       cdiv1.Succeeded,
+				name:             "dv-http-import",
+				size:             "1Gi",
+				url:              tinyCoreIsoURL,
+				dvFunc:           utils.NewDataVolumeWithHTTPImport,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
@@ -355,12 +365,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Reason:  "Error",
 				}}),
 			table.Entry("[test_id:3931]succeed creating import dv with streaming image conversion", dataVolumeTestArguments{
-				name:        "dv-http-stream-import",
-				size:        "1Gi",
-				url:         cirrosURL,
-				dvFunc:      utils.NewDataVolumeWithHTTPImport,
-				eventReason: controller.ImportSucceeded,
-				phase:       cdiv1.Succeeded,
+				name:             "dv-http-stream-import",
+				size:             "1Gi",
+				url:              cirrosURL,
+				dvFunc:           utils.NewDataVolumeWithHTTPImport,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
@@ -378,12 +389,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Reason:  "Completed",
 				}}),
 			table.Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid url (https)", dataVolumeTestArguments{
-				name:        "dv-https-import",
-				size:        "1Gi",
-				url:         httpsTinyCoreIsoURL,
-				dvFunc:      createHTTPSDataVolume,
-				eventReason: controller.ImportSucceeded,
-				phase:       cdiv1.Succeeded,
+				name:             "dv-https-import",
+				size:             "1Gi",
+				url:              httpsTinyCoreIsoURL,
+				dvFunc:           createHTTPSDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
@@ -401,12 +413,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Reason:  "Completed",
 				}}),
 			table.Entry("[rfe_id:1115][crit:high][test_id:1379]succeed creating import dv with given valid qcow2 url (https) should require scratchspace", dataVolumeTestArguments{
-				name:        "dv-https-import-qcow2",
-				size:        "1Gi",
-				url:         httpsTinyCoreQcow2URL,
-				dvFunc:      createHTTPSDataVolume,
-				eventReason: controller.ImportSucceeded,
-				phase:       cdiv1.Succeeded,
+				name:             "dv-https-import-qcow2",
+				size:             "1Gi",
+				url:              httpsTinyCoreQcow2URL,
+				dvFunc:           createHTTPSDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
@@ -424,11 +437,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Reason:  "Completed",
 				}}),
 			table.Entry("[rfe_id:1111][crit:high][test_id:1361]succeed creating blank image dv", dataVolumeTestArguments{
-				name:        "blank-image-dv",
-				size:        "1Gi",
-				dvFunc:      createBlankRawDataVolume,
-				eventReason: controller.ImportSucceeded,
-				phase:       cdiv1.Succeeded,
+				name:             "blank-image-dv",
+				size:             "1Gi",
+				dvFunc:           createBlankRawDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
@@ -515,12 +529,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Reason:  "Error",
 				}}),
 			table.Entry("[test_id:3932]succeed creating dv from imageio source", dataVolumeTestArguments{
-				name:        "dv-imageio-test",
-				size:        "1Gi",
-				url:         imageioURL,
-				dvFunc:      createImageIoDataVolume,
-				eventReason: controller.ImportSucceeded,
-				phase:       cdiv1.Succeeded,
+				name:             "dv-imageio-test",
+				size:             "1Gi",
+				url:              imageioURL,
+				dvFunc:           createImageIoDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
@@ -561,13 +576,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Reason:  "Completed",
 				}}),
 			table.Entry("[rfe_id:1115][crit:high][test_id:1478]succeed creating import dv with given valid registry url", dataVolumeTestArguments{
-				name:        "dv-import-registry",
-				size:        "1Gi",
-				url:         tinyCoreIsoRegistryURL,
-				dvFunc:      createRegistryImportDataVolume,
-				eventReason: controller.ImportSucceeded,
-				phase:       cdiv1.Succeeded,
-				repeat:      10,
+				name:             "dv-import-registry",
+				size:             "1Gi",
+				url:              tinyCoreIsoRegistryURL,
+				dvFunc:           createRegistryImportDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				repeat:           10,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
