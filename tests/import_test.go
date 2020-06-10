@@ -75,6 +75,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			map[string]string{controller.AnnEndpoint: invalidEndpoint},
 			nil))
 		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
@@ -107,6 +108,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			map[string]string{controller.AnnSource: controller.SourceNone, controller.AnnContentType: string(cdiv1.DataVolumeKubeVirt)},
 			nil))
 		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		By("Verify the pod status is succeeded on the target PVC")
 		found, err := utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
@@ -166,6 +168,7 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.qcow2"))
 		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-e2e", "40Mi", pvcAnn, nil))
 		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
+		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
@@ -260,6 +263,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 			nil,
 			f.BlockSCName))
 		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		By("Verify the pod status is succeeded on the target PVC")
 		Eventually(func() string {
@@ -283,6 +287,12 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		dv := utils.NewDataVolumeForBlankRawImageBlock("create-blank-image-to-block-pvc", "500Mi", f.BlockSCName)
 		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
+
+		By("verifying pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
 		By("Waiting for import to be completed")
 		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
 		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
@@ -312,6 +322,7 @@ var _ = Describe("[rfe_id:1947][crit:high][test_id:2145][vendor:cnv-qe@redhat.co
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/archive.tar"))
 		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-archive", "100Mi", pvcAnn, nil))
 		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
+		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		By("Verify the pod status is succeeded on the target PVC")
 		found, err := utils.WaitPVCPodStatusSucceeded(c, pvc)
@@ -339,6 +350,7 @@ var _ = Describe("PVC import phase matches pod phase", func() {
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/invaliddoesntexist"))
 		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("import-archive", "100Mi", pvcAnn, nil))
 		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
+		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		By("Verify the pod status is succeeded on the target PVC")
 		found, err := utils.WaitPVCPodStatusRunning(c, pvc)
@@ -396,6 +408,7 @@ var _ = Describe("Namespace with quota", func() {
 			pvcAnn,
 			nil))
 		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		By("Verify the pod status is succeeded on the target PVC")
 		Eventually(func() string {
@@ -426,12 +439,13 @@ var _ = Describe("Namespace with quota", func() {
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", httpEp+"/tinyCore.iso"))
 
-		_, err = f.CreatePVCFromDefinition(utils.NewPVCDefinition(
+		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
 			"import-image-to-pvc",
 			"500Mi",
 			pvcAnn,
 			nil))
 		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		By("Verify Quota was exceeded in logs")
 		matchString := fmt.Sprintf("\"controller\": \"import-controller\", \"request\": \"%s/import-image-to-pvc\", \"error\": \"pods \\\"importer-import-image-to-pvc\\\" is forbidden: exceeded quota: test-quota, requested", f.Namespace.Name)
@@ -460,6 +474,7 @@ var _ = Describe("Namespace with quota", func() {
 			pvcAnn,
 			nil))
 		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		By("Verify Quota was exceeded in logs")
 		matchString := fmt.Sprintf("\"controller\": \"import-controller\", \"request\": \"%s/import-image-to-pvc\", \"error\": \"pods \\\"importer-import-image-to-pvc\\\" is forbidden: exceeded quota: test-quota, requested", f.Namespace.Name)
@@ -506,6 +521,7 @@ var _ = Describe("Namespace with quota", func() {
 			pvcAnn,
 			nil))
 		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		By("Verify the pod status is succeeded on the target PVC")
 		Eventually(func() string {
@@ -529,7 +545,6 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	f := framework.NewFrameworkOrDie(namespacePrefix)
 
 	var (
-		pvc                  *v1.PersistentVolumeClaim
 		dataVolume           *cdiv1.DataVolume
 		err                  error
 		tinyCoreIsoURL       = fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
@@ -556,7 +571,11 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		dv := utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", tinyCoreIsoURL)
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
-		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+
+		By("verifying pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -587,7 +606,12 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		dv := utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", invalidQcowImagesURL)
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
-		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+		//pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+
+		By("verifying pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		phase := cdiv1.ImportInProgress
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -652,6 +676,11 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 
+		By("verifying pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
 		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
@@ -673,6 +702,11 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		dv := utils.NewDataVolumeWithArchiveContent(dvName160Characters, "1Gi", tinyCoreIsoURL)
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
+
+		By("verifying pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -696,6 +730,11 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		dv := utils.NewDataVolumeWithArchiveContent(dvName160Characters, "1Gi", tinyCoreIsoURL)
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
+
+		By("verifying pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		phase := cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))

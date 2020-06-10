@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	storagev1 "k8s.io/api/storage/v1"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -637,6 +638,19 @@ func (f *Framework) IsBlockVolumeStorageClassAvailable() bool {
 		return false
 	}
 	return sc.Name == f.BlockSCName
+}
+
+// IsBindingModeWaitForFirstConsumer checks if the storage class with specified name has the VolumeBindingMode set to WaitForFirstConsumer
+func (f *Framework) IsBindingModeWaitForFirstConsumer(storageClassName *string) bool {
+	if storageClassName == nil {
+		return false
+	}
+	storageClass, err := f.K8sClient.StorageV1().StorageClasses().Get(*storageClassName, metav1.GetOptions{})
+	if err != nil {
+		return false
+	}
+	return storageClass.VolumeBindingMode != nil &&
+		*storageClass.VolumeBindingMode == storagev1.VolumeBindingWaitForFirstConsumer
 }
 
 func getMaxFailsFromEnv() int {
