@@ -36,7 +36,6 @@ import (
 	restful "github.com/emicklei/go-restful"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
@@ -304,27 +303,9 @@ func (app *cdiAPIApp) uploadHandler(request *restful.Request, response *restful.
 		return
 	}
 
-	pvcName := uploadToken.Spec.PvcName
-	pvc, err := app.client.CoreV1().PersistentVolumeClaims(namespace).Get(pvcName, metav1.GetOptions{})
-	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			klog.Infof("Rejecting request for PVC %s that doesn't exist", pvcName)
-			response.WriteError(http.StatusBadRequest, err)
-			return
-		}
-		klog.Error(err)
-		response.WriteError(http.StatusInternalServerError, err)
-		return
-	}
-
-	if err = app.uploadPossible(pvc); err != nil {
-		response.WriteError(http.StatusServiceUnavailable, err)
-		return
-	}
-
 	tokenData := &token.Payload{
 		Operation: token.OperationUpload,
-		Name:      pvcName,
+		Name:      uploadToken.Spec.PvcName,
 		Namespace: namespace,
 		Resource: metav1.GroupVersionResource{
 			Group:    "",

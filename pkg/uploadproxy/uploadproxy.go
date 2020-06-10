@@ -191,6 +191,8 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 	err = app.uploadReady(tokenData.Name, tokenData.Namespace)
 	if err != nil {
 		klog.Error(err)
+		// Return the error to the caller in the body.
+		w.Write([]byte(err.Error()))
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
