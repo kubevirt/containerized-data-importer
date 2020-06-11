@@ -35,7 +35,6 @@ import (
 
 	restful "github.com/emicklei/go-restful"
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
@@ -45,7 +44,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/apiserver/webhooks"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -77,8 +75,6 @@ type CertWatcher interface {
 	GetCertificate(_ *tls.ClientHelloInfo) (*tls.Certificate, error)
 }
 
-type uploadPossibleFunc func(*v1.PersistentVolumeClaim) error
-
 type cdiAPIApp struct {
 	bindAddress string
 	bindPort    uint
@@ -97,9 +93,6 @@ type cdiAPIApp struct {
 	certWarcher CertWatcher
 
 	tokenGenerator token.Generator
-
-	// test hook
-	uploadPossible uploadPossibleFunc
 }
 
 // UploadTokenRequestAPI returns web service for swagger generation
@@ -126,7 +119,6 @@ func NewCdiAPIServer(bindAddress string,
 		aggregatorClient:  aggregatorClient,
 		cdiClient:         cdiClient,
 		authorizer:        authorizor,
-		uploadPossible:    controller.UploadPossibleForPVC,
 		authConfigWatcher: authConfigWatcher,
 		certWarcher:       certWatcher,
 	}

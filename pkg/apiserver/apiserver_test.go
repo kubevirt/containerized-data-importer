@@ -24,12 +24,13 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
-	. "github.com/onsi/gomega"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+
+	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/gomega"
 
 	"github.com/appscode/jsonpatch"
 	restful "github.com/emicklei/go-restful"
@@ -316,9 +317,8 @@ var _ = Describe("API server tests", func() {
 	})
 
 	type args struct {
-		authorizer     CdiAPIAuthorizer
-		pvc            *v1.PersistentVolumeClaim
-		uploadPossible uploadPossibleFunc
+		authorizer CdiAPIAuthorizer
+		pvc        *v1.PersistentVolumeClaim
 	}
 
 	signingKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -360,7 +360,6 @@ var _ = Describe("API server tests", func() {
 		app := &cdiAPIApp{client: client,
 			privateSigningKey: signingKey,
 			authorizer:        args.authorizer,
-			uploadPossible:    args.uploadPossible,
 			tokenGenerator:    newUploadTokenGenerator(signingKey)}
 		app.composeUploadTokenAPI()
 
@@ -401,23 +400,13 @@ var _ = Describe("API server tests", func() {
 			args{
 				authorizer: authorizeSuccess,
 			},
-			http.StatusBadRequest,
-			false),
-
-		table.Entry("upload not possible",
-			args{
-				authorizer:     authorizeSuccess,
-				pvc:            pvc,
-				uploadPossible: func(*v1.PersistentVolumeClaim) error { return fmt.Errorf("NOPE") },
-			},
-			http.StatusServiceUnavailable,
+			http.StatusOK,
 			false),
 
 		table.Entry("upload possible",
 			args{
-				authorizer:     authorizeSuccess,
-				pvc:            pvc,
-				uploadPossible: func(*v1.PersistentVolumeClaim) error { return nil },
+				authorizer: authorizeSuccess,
+				pvc:        pvc,
 			},
 			http.StatusOK,
 			true),

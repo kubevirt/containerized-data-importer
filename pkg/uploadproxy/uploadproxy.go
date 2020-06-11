@@ -53,6 +53,7 @@ type ClientCreator interface {
 }
 
 type urlLookupFunc func(string, string, string) string
+type uploadPossibleFunc func(*v1.PersistentVolumeClaim) error
 
 type uploadProxyApp struct {
 	bindAddress string
@@ -68,8 +69,9 @@ type uploadProxyApp struct {
 
 	mux *http.ServeMux
 
-	// test hook
-	urlResolver urlLookupFunc
+	// test hooks
+	urlResolver    urlLookupFunc
+	uploadPossible uploadPossibleFunc
 }
 
 type clientCreator struct {
@@ -89,12 +91,13 @@ func NewUploadProxy(bindAddress string,
 	client kubernetes.Interface) (Server, error) {
 	var err error
 	app := &uploadProxyApp{
-		bindAddress:   bindAddress,
-		bindPort:      bindPort,
-		certWatcher:   certWatcher,
-		clientCreator: &clientCreator{certFetcher: clientCertFetcher, bundleFetcher: serverCAFetcher},
-		client:        client,
-		urlResolver:   controller.GetUploadServerURL,
+		bindAddress:    bindAddress,
+		bindPort:       bindPort,
+		certWatcher:    certWatcher,
+		clientCreator:  &clientCreator{certFetcher: clientCertFetcher, bundleFetcher: serverCAFetcher},
+		client:         client,
+		urlResolver:    controller.GetUploadServerURL,
+		uploadPossible: controller.UploadPossibleForPVC,
 	}
 	// retrieve RSA key used by apiserver to sign tokens
 	err = app.getSigningKey(apiServerPublicKey)
@@ -191,9 +194,9 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 	err = app.uploadReady(tokenData.Name, tokenData.Namespace)
 	if err != nil {
 		klog.Error(err)
+		w.WriteHeader(http.StatusServiceUnavailable)
 		// Return the error to the caller in the body.
 		w.Write([]byte(err.Error()))
-		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
 
@@ -211,6 +214,10 @@ func (app *uploadProxyApp) uploadReady(pvcName, pvcNamespace string) error {
 			return false, err
 		}
 
+		err = app.uploadPossible(pvc)
+		if err != nil {
+			return false, err
+		}
 		phase := v1.PodPhase(pvc.Annotations[controller.AnnPodPhase])
 		if phase == v1.PodSucceeded {
 			return false, fmt.Errorf("rejecting Upload Request for PVC %s that already finished uploading", pvcName)
