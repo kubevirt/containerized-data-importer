@@ -644,7 +644,7 @@ _The CDI Operator does not support updates yet._
 				Owned: []csvv1.CRDDescription{
 					{
 						Name:        "cdis.cdi.kubevirt.io",
-						Version:     "v1alpha1",
+						Version:     "v1beta1",
 						Kind:        "CDI",
 						DisplayName: "CDI deployment",
 						Description: "Represents a CDI deployment",

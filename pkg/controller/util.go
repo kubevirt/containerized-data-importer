@@ -5,8 +5,6 @@ import (
 	"crypto/rsa"
 	"strings"
 
-	"kubevirt.io/containerized-data-importer/pkg/util/naming"
-
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"

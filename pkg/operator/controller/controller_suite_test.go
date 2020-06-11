@@ -57,8 +57,19 @@ var crd = &extv1beta1.CustomResourceDefinition{
 			Plural:   "cdis",
 			Singular: "cdi",
 		},
-		Scope:   "Cluster",
-		Version: "v1alpha1",
+		Scope: "Cluster",
+		Versions: []extv1beta1.CustomResourceDefinitionVersion{
+			{
+				Name:    "v1beta1",
+				Served:  true,
+				Storage: true,
+			},
+			{
+				Name:    "v1alpha1",
+				Served:  true,
+				Storage: false,
+			},
+		},
 	},
 }
 

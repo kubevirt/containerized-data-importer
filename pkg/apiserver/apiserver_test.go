@@ -41,7 +41,7 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 
-	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
+	cdiuploadv1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
 )
 
@@ -334,12 +334,12 @@ var _ = Describe("API server tests", func() {
 		panic(err)
 	}
 
-	request := &cdiuploadv1alpha1.UploadTokenRequest{
+	request := &cdiuploadv1.UploadTokenRequest{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-token",
 			Namespace: "default",
 		},
-		Spec: cdiuploadv1alpha1.UploadTokenRequestSpec{
+		Spec: cdiuploadv1.UploadTokenRequestSpec{
 			PvcName: "test-pvc",
 		},
 	}
@@ -384,7 +384,7 @@ var _ = Describe("API server tests", func() {
 		Expect(status).To(Equal(expectedStatus))
 
 		if checkToken {
-			uploadTokenRequest := &cdiuploadv1alpha1.UploadTokenRequest{}
+			uploadTokenRequest := &cdiuploadv1.UploadTokenRequest{}
 			err := json.Unmarshal(rr.Body.Bytes(), &uploadTokenRequest)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(uploadTokenRequest.Status.Token).To(Not(Equal("")))
