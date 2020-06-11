@@ -23,7 +23,7 @@ const (
 )
 
 var _ = Describe("Cert rotation tests", func() {
-	f := framework.NewFrameworkOrDie("operator-test")
+	f := framework.NewFrameworkOrDie("certrotation-test")
 
 	Context("with port forward", func() {
 		DescribeTable("check secrets re read", func(serviceName, secretName string) {
