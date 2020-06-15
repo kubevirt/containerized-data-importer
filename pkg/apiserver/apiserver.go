@@ -35,8 +35,6 @@ import (
 
 	restful "github.com/emicklei/go-restful"
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
@@ -46,7 +44,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/apiserver/webhooks"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -78,8 +75,6 @@ type CertWatcher interface {
 	GetCertificate(_ *tls.ClientHelloInfo) (*tls.Certificate, error)
 }
 
-type uploadPossibleFunc func(*v1.PersistentVolumeClaim) error
-
 type cdiAPIApp struct {
 	bindAddress string
 	bindPort    uint
@@ -98,9 +93,6 @@ type cdiAPIApp struct {
 	certWarcher CertWatcher
 
 	tokenGenerator token.Generator
-
-	// test hook
-	uploadPossible uploadPossibleFunc
 }
 
 // UploadTokenRequestAPI returns web service for swagger generation
@@ -127,7 +119,6 @@ func NewCdiAPIServer(bindAddress string,
 		aggregatorClient:  aggregatorClient,
 		cdiClient:         cdiClient,
 		authorizer:        authorizor,
-		uploadPossible:    controller.UploadPossibleForPVC,
 		authConfigWatcher: authConfigWatcher,
 		certWarcher:       certWatcher,
 	}
@@ -304,27 +295,9 @@ func (app *cdiAPIApp) uploadHandler(request *restful.Request, response *restful.
 		return
 	}
 
-	pvcName := uploadToken.Spec.PvcName
-	pvc, err := app.client.CoreV1().PersistentVolumeClaims(namespace).Get(pvcName, metav1.GetOptions{})
-	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			klog.Infof("Rejecting request for PVC %s that doesn't exist", pvcName)
-			response.WriteError(http.StatusBadRequest, err)
-			return
-		}
-		klog.Error(err)
-		response.WriteError(http.StatusInternalServerError, err)
-		return
-	}
-
-	if err = app.uploadPossible(pvc); err != nil {
-		response.WriteError(http.StatusServiceUnavailable, err)
-		return
-	}
-
 	tokenData := &token.Payload{
 		Operation: token.OperationUpload,
-		Name:      pvcName,
+		Name:      uploadToken.Spec.PvcName,
 		Namespace: namespace,
 		Resource: metav1.GroupVersionResource{
 			Group:    "",
