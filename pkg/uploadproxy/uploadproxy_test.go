@@ -13,6 +13,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
@@ -185,6 +186,7 @@ var _ = Describe("submit request and check status", func() {
 		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(statusCode)
 		}))
+		app.uploadPossible = func(*v1.PersistentVolumeClaim) error { return nil }
 
 		req := newProxyRequest("Bearer valid")
 		submitRequestAndCheckStatusAndHeader(req, statusCode, app)
@@ -196,6 +198,7 @@ var _ = Describe("submit request and check status", func() {
 		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(statusCode)
 		}))
+		app.uploadPossible = func(*v1.PersistentVolumeClaim) error { return nil }
 
 		req := newProxyHeadRequest("Bearer valid")
 		submitRequestAndCheckStatus(req, statusCode, app)
@@ -218,6 +221,25 @@ var _ = Describe("submit request and check status", func() {
 		table.Entry("No auth header", "", http.StatusBadRequest),
 		table.Entry("Malformed auth header: invalid prefix", "Beereer valid", http.StatusBadRequest),
 	)
+	It("Test healthz", func() {
+		req, err := http.NewRequest("GET", healthzPath, nil)
+		Expect(err).ToNot(HaveOccurred())
+		submitRequestAndCheckStatus(req, http.StatusOK, nil)
+	})
+
+	table.DescribeTable("Test proxy upload possible", func(uploadPossible uploadPossibleFunc, statusCode int) {
+		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(statusCode)
+		}))
+		app.uploadPossible = func(*v1.PersistentVolumeClaim) error { return nil }
+
+		req := newProxyRequest("Bearer valid")
+		submitRequestAndCheckStatusAndHeader(req, statusCode, app)
+	},
+		table.Entry("Test OK", func(*v1.PersistentVolumeClaim) error { return nil }, http.StatusOK),
+		table.Entry("Test no annotation", func(*v1.PersistentVolumeClaim) error { return fmt.Errorf("NOPE") }, http.StatusBadRequest),
+	)
+
 	It("Test healthz", func() {
 		req, err := http.NewRequest("GET", healthzPath, nil)
 		Expect(err).ToNot(HaveOccurred())
