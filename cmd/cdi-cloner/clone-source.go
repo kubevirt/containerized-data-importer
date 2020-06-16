@@ -24,7 +24,7 @@ var (
 )
 
 func init() {
-	flag.StringVar(&contentType, "content_type", "", "archive|kubevirt")
+	flag.StringVar(&contentType, "content_type", "", "archive|kubevirt|filesystem-clone|blockdevice-clone")
 	flag.Uint64Var(&uploadBytes, "upload_bytes", 0, "approx number of bytes in input")
 	klog.InitFlags(nil)
 }
