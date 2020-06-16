@@ -411,6 +411,11 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1.CDI) (recon
 			}
 
 			currentRuntimeObjCopy := currentRuntimeObj.DeepCopyObject()
+			currentRuntimeObjCopy, err = stripStatusFromObject(currentRuntimeObjCopy)
+
+			if err != nil {
+				return reconcile.Result{}, err
+			}
 			currentMetaObj := currentRuntimeObj.(metav1.Object)
 
 			// allow users to add new annotations (but not change ours)
@@ -429,7 +434,6 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1.CDI) (recon
 
 			if !reflect.DeepEqual(currentRuntimeObjCopy, currentRuntimeObj) {
 				logJSONDiff(logger, currentRuntimeObjCopy, currentRuntimeObj)
-
 				setLabel(updateVersionLabel, r.namespacedArgs.OperatorVersion, currentMetaObj)
 
 				// PRE_UPDATE callback

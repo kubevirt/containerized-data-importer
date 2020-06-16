@@ -72,10 +72,12 @@ go_test(
         "certrotation_test.go",
         "controller_suite_test.go",
         "controller_test.go",
+        "util_test.go",
     ],
     embed = [":go_default_library"],
     deps = [
         "//pkg/apis/core/v1beta1:go_default_library",
+        "//pkg/apis/upload/v1beta1:go_default_library",
         "//pkg/common:go_default_library",
         "//pkg/operator/resources/cert:go_default_library",
         "//pkg/operator/resources/cluster:go_default_library",
