@@ -4,12 +4,13 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
-	. "github.com/onsi/gomega"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+
+	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -104,6 +105,17 @@ func submitRequestAndCheckStatus(request *http.Request, expectedCode int, app *u
 	Expect(rr.Code).To(Equal(expectedCode))
 }
 
+func submitRequestAndCheckStatusAndHeader(request *http.Request, expectedCode int, app *uploadProxyApp) {
+	rr := httptest.NewRecorder()
+	if app == nil {
+		app = createApp()
+	}
+
+	app.ServeHTTP(rr, request)
+	Expect(rr.Code).To(Equal(expectedCode))
+	Expect(rr.Header().Get("Access-Control-Allow-Origin")).To(Equal("*"))
+}
+
 func createApp() *uploadProxyApp {
 	app := &uploadProxyApp{}
 	app.initHandlers()
@@ -175,7 +187,7 @@ var _ = Describe("submit request and check status", func() {
 		}))
 
 		req := newProxyRequest("Bearer valid")
-		submitRequestAndCheckStatus(req, statusCode, app)
+		submitRequestAndCheckStatusAndHeader(req, statusCode, app)
 	},
 		table.Entry("Test OK", http.StatusOK),
 		table.Entry("Test error", http.StatusInternalServerError),
