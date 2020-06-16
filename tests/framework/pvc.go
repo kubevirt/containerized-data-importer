@@ -3,12 +3,10 @@ package framework
 import (
 	"encoding/json"
 	"fmt"
-	"kubevirt.io/containerized-data-importer/pkg/util/naming"
-	"strings"
-	"time"
-
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
+	"strings"
 
 	k8sv1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -67,8 +65,6 @@ func (f *Framework) ForceBindIfWaitForFirstConsumer(targetPvc *k8sv1.PersistentV
 
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, namespace, k8sv1.ClaimBound, targetPvc.Name)
 		utils.DeletePod(f.K8sClient, executorPod, namespace)
-		_, err = utils.WaitPodDeleted(f.K8sClient, podName, f.Namespace.Name, 270*time.Second)
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	}
 }
 
