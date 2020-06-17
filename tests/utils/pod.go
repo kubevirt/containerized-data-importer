@@ -46,6 +46,11 @@ func CreateExecutorPodWithPVC(clientSet *kubernetes.Clientset, podName, namespac
 	return CreatePod(clientSet, namespace, newExecutorPodWithPVC(podName, pvc))
 }
 
+// CreateNoopPodWithPVC creates a short living pod, that might be used to force bind a pvc
+func CreateNoopPodWithPVC(clientSet *kubernetes.Clientset, podName, namespace string, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
+	return CreatePod(clientSet, namespace, NewPodWithPVC(podName, "echo I am vm doppleganger pod;", pvc))
+}
+
 // CreateExecutorPodWithPVCSpecificNode creates a Pod on a specific node with the passed in PVC mounted under /pvc. You can then use the executor utilities to
 // run commands against the PVC through this Pod.
 func CreateExecutorPodWithPVCSpecificNode(clientSet *kubernetes.Clientset, podName, namespace string, pvc *k8sv1.PersistentVolumeClaim, node string) (*k8sv1.Pod, error) {

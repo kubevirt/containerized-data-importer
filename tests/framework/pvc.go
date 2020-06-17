@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
-	"kubevirt.io/containerized-data-importer/pkg/util/naming"
-	"strings"
-
 	k8sv1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
+	"strings"
 
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -20,6 +19,18 @@ import (
 // CreatePVCFromDefinition is a wrapper around utils.CreatePVCFromDefinition
 func (f *Framework) CreatePVCFromDefinition(def *k8sv1.PersistentVolumeClaim) (*k8sv1.PersistentVolumeClaim, error) {
 	return utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, def)
+}
+
+// CreateBoundPVCFromDefinition is a wrapper around utils.CreatePVCFromDefinition that also force binds pvc on
+// on WaitForFirstConsumer storage class by executing f.ForceBindIfWaitForFirstConsumer(pvc)
+func (f *Framework) CreateBoundPVCFromDefinition(def *k8sv1.PersistentVolumeClaim) (*k8sv1.PersistentVolumeClaim, error) {
+	pvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, def)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	pvc, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, pvc.Name)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+	f.ForceBindIfWaitForFirstConsumer(pvc)
+	return pvc, nil
 }
 
 // DeletePVC is a wrapper around utils.DeletePVC
@@ -58,9 +69,9 @@ func (f *Framework) ForceBindIfWaitForFirstConsumer(targetPvc *k8sv1.PersistentV
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: creating \"consumer-pod\" to force binding PVC: %s\n", targetPvc.Name)
 		namespace := targetPvc.Namespace
 		podName := naming.GetResourceName("consumer-pod", targetPvc.Name)
-		executorPod, err := utils.CreateExecutorPodWithPVC(f.K8sClient, podName, namespace, targetPvc)
+		executorPod, err := utils.CreateNoopPodWithPVC(f.K8sClient, podName, namespace, targetPvc)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace, utils.PodWaitForTime)
+		err = utils.WaitTimeoutForPodSucceeded(f.K8sClient, executorPod.Name, namespace, utils.PodWaitForTime)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, namespace, k8sv1.ClaimBound, targetPvc.Name)

@@ -98,6 +98,31 @@ func isBound(pvc *v1.PersistentVolumeClaim, log logr.Logger) bool {
 	return true
 }
 
+func isPvcUsedByAnyPod(c client.Client, pvc *v1.PersistentVolumeClaim, log logr.Logger) (bool, error) {
+	pods := &v1.PodList{}
+	if err := c.List(context.TODO(), pods, &client.ListOptions{Namespace: pvc.Namespace}); err != nil {
+		return false, errors.Wrap(err, "error listing pods")
+	}
+
+	for _, pod := range pods.Items {
+		if isPvcUsedByPod(pod, pvc.Name) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func isPvcUsedByPod(pod v1.Pod, pvcName string) bool {
+	for _, volume := range pod.Spec.Volumes {
+		if volume.VolumeSource.PersistentVolumeClaim != nil &&
+			volume.PersistentVolumeClaim.ClaimName == pvcName {
+			return true
+		}
+	}
+	return false
+}
+
 func getRequestedImageSize(pvc *v1.PersistentVolumeClaim) (string, error) {
 	pvcSize, found := pvc.Spec.Resources.Requests[v1.ResourceStorage]
 	if !found {

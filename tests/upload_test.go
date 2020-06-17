@@ -63,7 +63,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			}, timeout, pollingInterval).Should(BeTrue())
 		}
 		By("Creating PVC with upload target annotation")
-		pvc, err = f.CreatePVCFromDefinition(utils.UploadPVCDefinition())
+		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Set up port forwarding")
@@ -334,7 +334,7 @@ var _ = Describe("Block PV upload Test", func() {
 		}
 
 		By("Creating PVC with upload target annotation")
-		pvc, err = f.CreatePVCFromDefinition(utils.UploadBlockPVCDefinition(f.BlockSCName))
+		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadBlockPVCDefinition(f.BlockSCName))
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Set up port forwarding")
@@ -458,7 +458,7 @@ var _ = Describe("Namespace with quota", func() {
 		err := f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 		By("Creating PVC with upload target annotation")
-		pvc, err = f.CreatePVCFromDefinition(utils.UploadPVCDefinition())
+		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify PVC annotation says ready")
@@ -478,7 +478,7 @@ var _ = Describe("Namespace with quota", func() {
 		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 		By("Creating PVC with upload target annotation")
-		pvc, err = f.CreatePVCFromDefinition(utils.UploadPVCDefinition())
+		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify Quota was exceeded in logs")
@@ -496,7 +496,7 @@ var _ = Describe("Namespace with quota", func() {
 		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 		By("Creating PVC with upload target annotation")
-		pvc, err = f.CreatePVCFromDefinition(utils.UploadPVCDefinition())
+		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify Quota was exceeded in logs")
@@ -527,7 +527,7 @@ var _ = Describe("Namespace with quota", func() {
 		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 		By("Creating PVC with upload target annotation")
-		pvc, err = f.CreatePVCFromDefinition(utils.UploadPVCDefinition())
+		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify PVC annotation says ready")
@@ -587,6 +587,11 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
 
+		By("verifying pvc was created, force bind if needed")
+		pvc, err := utils.WaitForPVC(f.K8sClient, pvc.Namespace, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
 		phase := cdiv1.UploadReady
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
 		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
@@ -645,6 +650,11 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
 
+		By("verifying pvc was created, force bind if needed")
+		pvc, err := utils.WaitForPVC(f.K8sClient, pvc.Namespace, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
 		phase := cdiv1.UploadReady
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
 		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
@@ -689,6 +699,11 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+
+		By("verifying pvc was created, force bind if needed")
+		pvc, err := utils.WaitForPVC(f.K8sClient, pvc.Namespace, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		phase := cdiv1.UploadReady
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
