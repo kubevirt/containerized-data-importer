@@ -234,5 +234,11 @@ func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity) e
 		os.Remove(dest)
 		return errors.Wrap(err, fmt.Sprintf("could not create raw image with size %s in %s", size.String(), dest))
 	}
+	// Change permissions to 0660
+	err = os.Chmod(dest, 0660)
+	if err != nil {
+		err = errors.Wrap(err, "Unable to change permissions of target file")
+	}
+
 	return nil
 }

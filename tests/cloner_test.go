@@ -64,7 +64,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
-		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 		doFileBasedCloneTest(f, pvcDef, f.Namespace, "target-dv")
 	})
 
@@ -110,7 +110,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	It("[test_id:1355]Should clone data across different namespaces", func() {
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
-		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
 			framework.NsPrefixLabel: f.NsPrefix,
 		})
@@ -121,7 +121,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 	It("[test_id:1356]Should not clone anything when CloneOf annotation exists", func() {
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
-		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 		cloneOfAnnoExistenceTest(f, f.Namespace.Name)
 	})
 
@@ -210,7 +210,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		sourceSelector["source-pv"] = "yes"
 		sourcePVCDef := utils.NewPVCDefinitionWithSelector(sourcePVCName, "1G", storageClassName, sourceSelector, nil, nil)
 		sourcePVCDef.Namespace = f.Namespace.Name
-		sourcePVC := f.CreateAndPopulateSourcePVC(sourcePVCDef, sourcePodFillerName, fillCommand+testFile)
+		sourcePVC := f.CreateAndPopulateSourcePVC(sourcePVCDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 		sourcePVC, err = f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(sourcePVC.Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePVC.Spec.VolumeName).To(Equal(sourcePV.Name))
@@ -267,6 +267,11 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 		Expect(err).ToNot(HaveOccurred())
 		fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete("execute-command", &metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		_, err = utils.WaitPodDeleted(f.K8sClient, "execute-command", f.Namespace.Name, verifyPodDeletedTimeout)
+		Expect(err).ToNot(HaveOccurred())
+
 		By("Cloning from the source DataVolume to target1")
 		targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		By("Cloning from the source DataVolume to target2")
@@ -283,7 +288,9 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 			Expect(err).ToNot(HaveOccurred())
 			matchFile := filepath.Join(testBaseDir, "disk.img")
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), matchFile, md5sum[:32])).To(BeTrue())
-			_, err = utils.WaitPodDeleted(f.K8sClient, "verify-pvc-md5", f.Namespace.Name, verifyPodDeletedTimeout)
+			err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(utils.VerifierPodName, &metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
 			Expect(err).ToNot(HaveOccurred())
 		}
 	})
@@ -308,6 +315,10 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 		}
 		Expect(err).ToNot(HaveOccurred())
 		fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete("execute-command", &metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		_, err = utils.WaitPodDeleted(f.K8sClient, "execute-command", f.Namespace.Name, verifyPodDeletedTimeout)
+		Expect(err).ToNot(HaveOccurred())
 
 		By("Cloning from the source DataVolume to target1")
 		targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
@@ -324,7 +335,9 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), testBaseDir, md5sum[:32])).To(BeTrue())
-			_, err = utils.WaitPodDeleted(f.K8sClient, "verify-pvc-md5", f.Namespace.Name, verifyPodDeletedTimeout)
+			err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(utils.VerifierPodName, &metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
 			Expect(err).ToNot(HaveOccurred())
 		}
 	})
@@ -364,6 +377,11 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 		md5sum, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(sourceDv), "md5sum /pvc/disk.img")
 		Expect(err).ToNot(HaveOccurred())
 		fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
+
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete("execute-command", &metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		_, err = utils.WaitPodDeleted(f.K8sClient, "execute-command", f.Namespace.Name, verifyPodDeletedTimeout)
+		Expect(err).ToNot(HaveOccurred())
 
 		By("Cloning from the source DataVolume to under sized target")
 		targetDv = utils.NewDataVolumeForImageCloning("target-dv", "50Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
@@ -448,6 +466,11 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 		Expect(err).ToNot(HaveOccurred())
 		fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete("execute-command", &metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		_, err = utils.WaitPodDeleted(f.K8sClient, "execute-command", f.Namespace.Name, verifyPodDeletedTimeout)
+		Expect(err).ToNot(HaveOccurred())
+
 		// By not waiting for completion, we will start 3 transfers in parallell
 		By("Cloning from the source DataVolume to target1")
 		targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
@@ -467,9 +490,16 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 			By("Waiting for clone to be completed")
 			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
 			Expect(err).ToNot(HaveOccurred())
+		}
+
+		for _, dv := range dvs {
+			By("Verifying MD5 sum matches")
 			matchFile := filepath.Join(testBaseDir, "disk.img")
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), matchFile, md5sum[:32])).To(BeTrue())
-			_, err = utils.WaitPodDeleted(f.K8sClient, "verify-pvc-md5", f.Namespace.Name, verifyPodDeletedTimeout)
+			By("Deleting verifier pod")
+			err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(utils.VerifierPodName, &metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
 			Expect(err).ToNot(HaveOccurred())
 		}
 	})
@@ -509,10 +539,18 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 			By("Waiting for clone to be completed")
 			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
 			Expect(err).ToNot(HaveOccurred())
+		}
+
+		for _, dv := range dvs {
+			By("Verifying MD5 sum matches")
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), testBaseDir, md5sum[:32])).To(BeTrue())
-			_, err = utils.WaitPodDeleted(f.K8sClient, "verify-pvc-md5", f.Namespace.Name, verifyPodDeletedTimeout)
+			By("Deleting verifier pod")
+			err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(utils.VerifierPodName, &metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
 			Expect(err).ToNot(HaveOccurred())
 		}
+
 	})
 })
 
@@ -600,7 +638,7 @@ var _ = Describe("Namespace with quota", func() {
 
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
-		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 		doFileBasedCloneTest(f, pvcDef, f.Namespace, "target-dv")
 	})
 
@@ -620,7 +658,7 @@ var _ = Describe("Namespace with quota", func() {
 		By("Populating source PVC")
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
-		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 		// Create targetPvc in new NS.
 		By("Creating new DV")
 		targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvcDef)
@@ -655,7 +693,7 @@ var _ = Describe("Namespace with quota", func() {
 		By("Populating source PVC")
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
-		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 		// Create targetPvc in new NS.
 		By("Creating new DV")
 		targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvcDef)
@@ -697,7 +735,7 @@ var _ = Describe("Namespace with quota", func() {
 
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
-		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 		doFileBasedCloneTest(f, pvcDef, f.Namespace, "target-dv")
 	})
 
@@ -708,7 +746,7 @@ var _ = Describe("Namespace with quota", func() {
 		Expect(err).NotTo(HaveOccurred())
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "500M", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
-		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
 			framework.NsPrefixLabel: f.NsPrefix,
 		})
@@ -755,7 +793,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	It("[test_id:3999] Create a data volume and then clone it and verify retry count", func() {
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
-		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
 			framework.NsPrefixLabel: f.NsPrefix,
 		})
@@ -782,7 +820,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		By("Prepare source PVC")
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
-		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 
 		By("Create clone DV")
 		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
@@ -835,7 +873,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		By(fmt.Sprintf("Create PVC %s", shortDvName))
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
-		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 		targetDvName := shortDvName
 		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
 			framework.NsPrefixLabel: f.NsPrefix,
@@ -868,7 +906,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		By(fmt.Sprintf("Create PVC %s", dvName160Characters))
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
-		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 		targetDvName := dvName160Characters
 		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
 			framework.NsPrefixLabel: f.NsPrefix,
@@ -901,7 +939,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		By(fmt.Sprintf("Create PVC %s", dvName160Characters))
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
-		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile)
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 		targetDvName := dvName160Characters
 		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
 			framework.NsPrefixLabel: f.NsPrefix,
@@ -965,6 +1003,8 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 		By("Checking that disk image group is qemu")
 		Expect(f.GetDiskGroup(targetNs, targetPvc)).To(Equal(sourcePvcDiskGroup))
 	}
+	By("Verifying permissions are 660")
+	Expect(f.VerifyPermissions(targetNs, targetPvc)).To(BeTrue(), "Permissions on disk image are not 660")
 }
 
 func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string) {
