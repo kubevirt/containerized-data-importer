@@ -155,7 +155,7 @@ func (o *qemuOperations) Info(url *url.URL) (*ImgInfo, error) {
 		output, err = qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", url.String())
 	}
 	if err != nil {
-		return nil, errors.Wrapf(err, "Error getting info on image %s", url.String())
+		return nil, errors.Errorf("%s, %s", output, err.Error())
 	}
 	var info ImgInfo
 	err = json.Unmarshal(output, &info)
