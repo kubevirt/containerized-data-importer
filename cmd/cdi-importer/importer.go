@@ -80,7 +80,11 @@ func main() {
 	}
 
 	dataDir := common.ImporterDataDir
-	availableDestSpace := util.GetAvailableSpaceByVolumeMode(volumeMode)
+	availableDestSpace, err := util.GetAvailableSpaceByVolumeMode(volumeMode)
+	if err != nil {
+		klog.Errorf("%+v", err)
+		os.Exit(1)
+	}
 	if source == controller.SourceNone && contentType == string(cdiv1.DataVolumeKubeVirt) {
 		requestImageSizeQuantity := resource.MustParse(imageSize)
 		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(availableDestSpace, 0), &requestImageSizeQuantity)
