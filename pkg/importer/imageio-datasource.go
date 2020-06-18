@@ -87,7 +87,8 @@ func (is *ImageioDataSource) Info() (ProcessingPhase, error) {
 // Transfer is called to transfer the data from the source to a scratch location.
 func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
 	// we know that there won't be archives
-	if util.GetAvailableSpace(path) <= int64(0) {
+	size, _ := util.GetAvailableSpace(path)
+	if size <= int64(0) {
 		//Path provided is invalid.
 		return ProcessingPhaseError, ErrInvalidPath
 	}

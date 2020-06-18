@@ -131,12 +131,13 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 // Transfer is called to transfer the data from the source to a scratch location.
 func (hs *HTTPDataSource) Transfer(path string) (ProcessingPhase, error) {
 	if hs.contentType == cdiv1.DataVolumeKubeVirt {
-		if util.GetAvailableSpace(path) <= int64(0) {
+		size, err := util.GetAvailableSpace(path)
+		if size <= int64(0) {
 			//Path provided is invalid.
 			return ProcessingPhaseError, ErrInvalidPath
 		}
 		file := filepath.Join(path, tempFile)
-		err := util.StreamDataToFile(hs.readers.TopReader(), file)
+		err = util.StreamDataToFile(hs.readers.TopReader(), file)
 		if err != nil {
 			return ProcessingPhaseError, err
 		}

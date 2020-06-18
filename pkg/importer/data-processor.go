@@ -124,7 +124,7 @@ func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratch
 
 // ProcessData is the main synchronous processing loop
 func (dp *DataProcessor) ProcessData() error {
-	if util.GetAvailableSpace(dp.scratchDataDir) > int64(0) {
+	if size, _ := util.GetAvailableSpace(dp.scratchDataDir); size > int64(0) {
 		// Clean up before trying to write, in case a previous attempt left a mess. Note the deferred cleanup is intentional.
 		if err := CleanDir(dp.scratchDataDir); err != nil {
 			return errors.Wrap(err, "Failure cleaning up temporary scratch space")
@@ -132,7 +132,8 @@ func (dp *DataProcessor) ProcessData() error {
 		// Attempt to be a good citizen and clean up my mess at the end.
 		defer CleanDir(dp.scratchDataDir)
 	}
-	if util.GetAvailableSpace(dp.dataDir) > int64(0) {
+
+	if size, _ := util.GetAvailableSpace(dp.dataDir); size > int64(0) {
 		// Clean up data dir before trying to write in case a previous attempt failed and left some stuff behind.
 		if err := CleanDir(dp.dataDir); err != nil {
 			return errors.Wrap(err, "Failure cleaning up target space")
@@ -233,8 +234,9 @@ func (dp *DataProcessor) convert(url *url.URL) (ProcessingPhase, error) {
 
 func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 	// Resize only if we have a resize request, and if the image is on a file system pvc.
-	klog.V(3).Infof("Available space in dataFile: %d", getAvailableSpaceBlockFunc(dp.dataFile))
-	if dp.requestImageSize != "" && getAvailableSpaceBlockFunc(dp.dataFile) < int64(0) {
+	size, _ := getAvailableSpaceBlockFunc(dp.dataFile)
+	klog.V(3).Infof("Available space in dataFile: %d", size)
+	if dp.requestImageSize != "" && size < int64(0) {
 		klog.V(3).Infoln("Resizing image")
 		err := ResizeImage(dp.dataFile, dp.requestImageSize, dp.availableSpace)
 		if err != nil {
@@ -274,14 +276,22 @@ func ResizeImage(dataFile, imageSize string, totalTargetSpace int64) error {
 func (dp *DataProcessor) calculateTargetSize() int64 {
 	klog.V(1).Infof("Calculating available size\n")
 	var targetQuantity *resource.Quantity
-	if getAvailableSpaceBlockFunc(dp.dataFile) >= int64(0) {
+	size, err := getAvailableSpaceBlockFunc(dp.dataFile)
+	if err != nil {
+		klog.Error(err)
+	}
+	if size >= int64(0) {
 		// Block volume.
 		klog.V(1).Infof("Checking out block volume size.\n")
-		targetQuantity = resource.NewScaledQuantity(getAvailableSpaceBlockFunc(dp.dataFile), 0)
+		targetQuantity = resource.NewScaledQuantity(size, 0)
 	} else {
 		// File system volume.
 		klog.V(1).Infof("Checking out file system volume size.\n")
-		targetQuantity = resource.NewScaledQuantity(getAvailableSpaceFunc(dp.dataDir), 0)
+		size, err := getAvailableSpaceFunc(dp.dataDir)
+		if err != nil {
+			klog.Error(err)
+		}
+		targetQuantity = resource.NewScaledQuantity(size, 0)
 	}
 	if dp.requestImageSize != "" {
 		klog.V(1).Infof("Request image size not empty.\n")
