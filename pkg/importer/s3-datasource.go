@@ -80,12 +80,16 @@ func (sd *S3DataSource) Info() (ProcessingPhase, error) {
 
 // Transfer is called to transfer the data from the source to a temporary location.
 func (sd *S3DataSource) Transfer(path string) (ProcessingPhase, error) {
-	if util.GetAvailableSpace(path) <= int64(0) {
+	size, err := util.GetAvailableSpace(path)
+	if err != nil {
+		return ProcessingPhaseError, err
+	}
+	if size <= int64(0) {
 		//Path provided is invalid.
 		return ProcessingPhaseError, ErrInvalidPath
 	}
 	file := filepath.Join(path, tempFile)
-	err := util.StreamDataToFile(sd.readers.TopReader(), file)
+	err = util.StreamDataToFile(sd.readers.TopReader(), file)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}

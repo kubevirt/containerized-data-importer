@@ -338,9 +338,9 @@ var _ = Describe("Resize", func() {
 	})
 
 	It("Should not resize and return complete, when requestedSize is valid, but datadir doesn't exist (block device)", func() {
-		replaceAvailableSpaceBlockFunc(func(dataDir string) int64 {
+		replaceAvailableSpaceBlockFunc(func(dataDir string) (int64, error) {
 			Expect("dest").To(Equal(dataDir))
-			return int64(100000)
+			return int64(100000), nil
 		}, func() {
 			url, err := url.Parse("http://fakeurl-notreal.fake")
 			Expect(err).ToNot(HaveOccurred())
@@ -389,12 +389,24 @@ var _ = Describe("Resize", func() {
 	})
 
 	It("Should return same value as replaced function", func() {
-		replaceAvailableSpaceBlockFunc(func(dataDir string) int64 {
-			return int64(100000)
+		replaceAvailableSpaceBlockFunc(func(dataDir string) (int64, error) {
+			return int64(100000), nil
 		}, func() {
 			mdp := &MockDataProvider{}
 			dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "")
 			Expect(int64(100000)).To(Equal(dp.calculateTargetSize()))
+		})
+	})
+
+	It("Should fail if calculate size returns failure", func() {
+		replaceAvailableSpaceBlockFunc(func(dataDir string) (int64, error) {
+			return int64(-1), errors.New("error")
+		}, func() {
+			mdp := &MockDataProvider{}
+			dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "")
+			// We just log the error if one happens.
+			Expect(int64(-1)).To(Equal(dp.calculateTargetSize()))
+
 		})
 	})
 })
@@ -478,7 +490,7 @@ func NewQEMUAllErrors() image.QEMUOperations {
 	return NewFakeQEMUOperations(err, err, fakeInfoOpRetVal{nil, err}, err, err, nil)
 }
 
-func replaceAvailableSpaceBlockFunc(replacement func(string) int64, f func()) {
+func replaceAvailableSpaceBlockFunc(replacement func(string) (int64, error), f func()) {
 	origFunc := getAvailableSpaceBlockFunc
 	getAvailableSpaceBlockFunc = replacement
 	defer func() {
@@ -487,7 +499,7 @@ func replaceAvailableSpaceBlockFunc(replacement func(string) int64, f func()) {
 	f()
 }
 
-func replaceAvailableSpaceFunc(replacement func(string) int64, f func()) {
+func replaceAvailableSpaceFunc(replacement func(string) (int64, error), f func()) {
 	origFunc := getAvailableSpaceFunc
 	getAvailableSpaceFunc = replacement
 	defer func() {
