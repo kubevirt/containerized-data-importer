@@ -76,10 +76,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("verifying pvc was created")
-		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 		By(fmt.Sprintf("waiting for source datavolume to match phase %s", string(cdiv1.Succeeded)))
 		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
@@ -92,6 +89,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(err).ToNot(HaveOccurred())
 
 		By("verifying pvc content")
+		pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
 		sourceMD5, err := f.GetMD5(f.Namespace, pvc, diskImagePath, 0)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -103,11 +101,10 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvc)
 		targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
 
 		targetPvc, err := utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(targetPvc)
-
 		fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
 		sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, pvc, true)
@@ -247,12 +244,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		targetDV.Spec.PVC.Selector = &targetLabelSelector
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 		Expect(err).ToNot(HaveOccurred())
-
-		// TODO: check if we need to use node selector here
-		By("verifying pvc was created, force bind if WFFC")
-		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 		Eventually(func() bool {
 			targetPvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
@@ -287,11 +279,7 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 		sourceDv = utils.NewDataVolumeWithHTTPImport("source-dv", "200Mi", tinyCoreIsoURL)
 		sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err := utils.WaitForPVC(f.K8sClient, sourceDv.Namespace, sourceDv.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 		By("Waiting for import to be completed")
 		utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
@@ -317,11 +305,7 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 		for _, dv := range dvs {
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 			Expect(err).ToNot(HaveOccurred())
-
-			By("verifying pvc was created, force bind if needed")
-			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
-			f.ForceBindIfWaitForFirstConsumer(pvc)
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			By("Waiting for clone to be completed")
 			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
@@ -343,11 +327,7 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 		sourceDv = utils.NewDataVolumeWithHTTPImportToBlockPV("source-dv", "200Mi", tinyCoreIsoURL, f.BlockSCName)
 		sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err := utils.WaitForPVC(f.K8sClient, sourceDv.Namespace, sourceDv.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 		By("Waiting for import to be completed")
 		utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
@@ -377,11 +357,7 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 		for _, dv := range dvs {
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 			Expect(err).ToNot(HaveOccurred())
-
-			By("verifying pvc was created, force bind if needed")
-			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
-			f.ForceBindIfWaitForFirstConsumer(pvc)
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			By("Waiting for clone to be completed")
 			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
@@ -422,11 +398,7 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 		sourceDv = utils.NewDataVolumeWithHTTPImport("source-dv", "200Mi", tinyCoreIsoURL)
 		sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err := utils.WaitForPVC(f.K8sClient, sourceDv.Namespace, sourceDv.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 		By("Waiting for import to be completed")
 		utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
@@ -451,11 +423,7 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 		targetDv = utils.NewDataVolumeForImageCloning("target-dv", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		targetDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err = utils.WaitForPVC(f.K8sClient, targetDv.Namespace, targetDv.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv)
 
 		By("Waiting for clone to be completed")
 		err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, targetDv.Name, 3*90*time.Second)
@@ -475,11 +443,7 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 		sourceDv = utils.NewDataVolumeWithHTTPImportToBlockPV("source-dv", "200Mi", tinyCoreIsoURL, f.BlockSCName)
 		sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err := utils.WaitForPVC(f.K8sClient, sourceDv.Namespace, sourceDv.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 		By("Waiting for import to be completed")
 		utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
@@ -499,11 +463,7 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 		targetDv = utils.NewDataVolumeForImageCloning("target-dv", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		targetDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err = utils.WaitForPVC(f.K8sClient, targetDv.Namespace, targetDv.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv)
 
 		By("Waiting for clone to be completed")
 		err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, targetDv.Name, 3*90*time.Second)
@@ -534,11 +494,7 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 		sourceDv = utils.NewDataVolumeWithHTTPImport("source-dv", "200Mi", tinyCoreIsoURL)
 		sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err := utils.WaitForPVC(f.K8sClient, sourceDv.Namespace, sourceDv.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 		By("Waiting for import to be completed")
 		utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
@@ -558,31 +514,19 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 		targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		targetDv1, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv1)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err = utils.WaitForPVC(f.K8sClient, targetDv1.Namespace, targetDv1.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv1)
 
 		By("Cloning from the source DataVolume to target2 in parallel")
 		targetDv2 = utils.NewDataVolumeForImageCloning("target-dv2", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		targetDv2, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv2)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err = utils.WaitForPVC(f.K8sClient, targetDv2.Namespace, targetDv2.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv2)
 
 		By("Cloning from the source DataVolume to target3 in parallel")
 		targetDv3 = utils.NewDataVolumeForImageCloning("target-dv3", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		targetDv3, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv3)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err = utils.WaitForPVC(f.K8sClient, targetDv3.Namespace, targetDv3.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv3)
 
 		dvs := []*cdiv1.DataVolume{targetDv1, targetDv2, targetDv3}
 		for _, dv := range dvs {
@@ -611,11 +555,7 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 		sourceDv = utils.NewDataVolumeWithHTTPImportToBlockPV("source-dv", "200Mi", tinyCoreIsoURL, f.BlockSCName)
 		sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err := utils.WaitForPVC(f.K8sClient, sourceDv.Namespace, sourceDv.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
 
 		By("Waiting for import to be completed")
 		utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
@@ -630,31 +570,19 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 		targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		targetDv1, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv1)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err = utils.WaitForPVC(f.K8sClient, targetDv1.Namespace, targetDv1.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv1)
 
 		By("Cloning from the source DataVolume to target2 in parallel")
 		targetDv2 = utils.NewDataVolumeForImageCloning("target-dv2", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		targetDv2, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv2)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err = utils.WaitForPVC(f.K8sClient, targetDv2.Namespace, targetDv2.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv2)
 
 		By("Cloning from the source DataVolume to target3 in parallel")
 		targetDv3 = utils.NewDataVolumeForImageCloning("target-dv3", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
 		targetDv3, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv3)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err = utils.WaitForPVC(f.K8sClient, targetDv3.Namespace, targetDv3.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv3)
 
 		dvs := []*cdiv1.DataVolume{targetDv1, targetDv2, targetDv3}
 		for _, dv := range dvs {
@@ -792,11 +720,7 @@ var _ = Describe("Namespace with quota", func() {
 		targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvcDef)
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 		By("Verify Quota was exceeded in logs")
 		matchString := fmt.Sprintf("\\\"cdi-upload-target-dv\\\" is forbidden: exceeded quota: test-quota, requested")
@@ -830,11 +754,7 @@ var _ = Describe("Namespace with quota", func() {
 		targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvcDef)
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 		By("Verify Quota was exceeded in logs")
 		matchString := fmt.Sprintf("\\\"cdi-upload-target-dv\\\" is forbidden: exceeded quota: test-quota, requested")
@@ -890,11 +810,7 @@ var _ = Describe("Namespace with quota", func() {
 		targetDV := utils.NewDataVolumeForImageCloning("target-dv", "500M", sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was created, force bind if needed")
-		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 		By("Verify Quota was exceeded in logs")
 		targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)

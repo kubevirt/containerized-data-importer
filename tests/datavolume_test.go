@@ -695,7 +695,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
-			utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
 			if err != nil {
 				PrintControllerLog(f)
 				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
@@ -735,17 +735,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
-
-				By("verifying pvc was created")
-				pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-				Expect(err).ToNot(HaveOccurred())
-				f.ForceBindIfWaitForFirstConsumer(pvc)
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 				By(fmt.Sprintf("waiting for datavolume to match phase %s", cdiv1.ImportInProgress))
 				utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
 
 				By("verifying pvc and pod were created")
-				pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				podName := pvc.Annotations[controller.AnnImportPod]
 
