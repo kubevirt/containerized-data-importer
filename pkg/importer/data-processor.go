@@ -211,7 +211,7 @@ func (dp *DataProcessor) validate(url *url.URL) error {
 	klog.V(1).Infoln("Validating image")
 	err := qemuOperations.Validate(url, dp.availableSpace)
 	if err != nil {
-		return errors.Wrap(err, "Image validation failed")
+		return err
 	}
 	return nil
 }

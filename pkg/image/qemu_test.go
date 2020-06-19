@@ -215,14 +215,14 @@ var _ = Describe("Validate", func() {
 				Expect(err).To(HaveOccurred())
 				rootErr := errors.Cause(err)
 				if rootErr.Error() != errString {
-					Fail(fmt.Sprintf("got wrong failure: %s, expected %s", rootErr, errString))
+					Fail(fmt.Sprintf("got wrong failure: [%s], expected [%s]", rootErr, errString))
 				}
 			}
 		})
 	},
 		table.Entry("should return success", mockExecFunction(goodValidateJSON, "", expectedLimits, "info", "--output=json", imageName.String()), "", imageName),
 		table.Entry("should return success for http url", mockExecFunction(goodValidateJSON, "", expectedLimits, "info", "--output=json", jsonArg), "", httpImage),
-		table.Entry("should return error", mockExecFunction("", "exit 1", expectedLimits), "exit 1", imageName),
+		table.Entry("should return error", mockExecFunction("explosion", "exit 1", expectedLimits), "explosion, exit 1", imageName),
 		table.Entry("should return error on bad json", mockExecFunction(badValidateJSON, "", expectedLimits), "unexpected end of JSON input", imageName),
 		table.Entry("should return error on bad format", mockExecFunction(badFormatValidateJSON, "", expectedLimits), fmt.Sprintf("Invalid format raw2 for image %s", imageName), imageName),
 		table.Entry("should return error on invalid backing file", mockExecFunction(backingFileValidateJSON, "", expectedLimits), fmt.Sprintf("Image %s is invalid because it has backing file backing-file.qcow2", imageName), imageName),
