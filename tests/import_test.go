@@ -285,7 +285,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 			Skip("Storage Class for block volume is not available")
 		}
 		dv := utils.NewDataVolumeForBlankRawImageBlock("create-blank-image-to-block-pvc", "500Mi", f.BlockSCName)
-		_, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("verifying pvc was created")
