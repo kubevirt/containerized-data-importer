@@ -28,7 +28,7 @@ import (
 var _ = Describe("Operator tests", func() {
 	f := framework.NewFrameworkOrDie("operator-test")
 
-	It("should create a route in OpenShift", func() {
+	It("[test_id:3951]should create a route in OpenShift", func() {
 		if !isOpenshift(f.K8sClient) {
 			Skip("This test is OpenShift specific")
 		}
@@ -64,7 +64,7 @@ var _ = Describe("Operator tests", func() {
 		Expect(promService.Spec.Selector[common.PrometheusLabel]).To(Equal(""))
 	})
 
-	It("add cdi-sa to containerized-data-importer scc", func() {
+	It("[test_id:3952]add cdi-sa to containerized-data-importer scc", func() {
 		if !isOpenshift(f.K8sClient) {
 			Skip("This test is OpenShift specific")
 		}
@@ -80,7 +80,7 @@ var _ = Describe("Operator tests", func() {
 	})
 
 	// Condition flags can be found here with their meaning https://github.com/kubevirt/hyperconverged-cluster-operator/blob/master/docs/conditions.md
-	It("Condition flags on CR should be healthy and operating", func() {
+	It("[test_id:3953]Condition flags on CR should be healthy and operating", func() {
 		cdiObjects, err := f.CdiClient.CdiV1alpha1().CDIs().List(metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(cdiObjects.Items)).To(Equal(1))
@@ -177,7 +177,7 @@ var _ = Describe("Operator delete CDI tests", func() {
 		}
 	})
 
-	It("should delete an upload pod", func() {
+	It("[test_id:3954]should delete an upload pod", func() {
 		dv := utils.NewDataVolumeForUpload("delete-me", "1Gi")
 
 		By("Creating datavolume")
@@ -209,7 +209,7 @@ var _ = Describe("Operator delete CDI tests", func() {
 		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 	})
 
-	It("should block CDI delete", func() {
+	It("[test_id:3955]should block CDI delete", func() {
 		uninstallStrategy := cdiv1alpha1.CDIUninstallStrategyBlockUninstallIfWorkloadsExist
 
 		By("Getting CDI resource")

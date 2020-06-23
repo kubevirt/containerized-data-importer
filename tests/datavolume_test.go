@@ -764,7 +764,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			url := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
 			numTries := 5
 			for i := 1; i <= numTries; i++ {
-				It(fmt.Sprintf("should succeed on loop %d", i), func() {
+				It(fmt.Sprintf("[test_id:3939][test_id:3940][test_id:3941][test_id:3942][test_id:3943]should succeed on loop %d", i), func() {
 					dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
 
 					By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
