@@ -287,8 +287,11 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	}
 
 	anno[AnnImportPod] = string(pod.Name)
-	// Even if scratch space is needed, the pod state will still remain running, until the new pod is started.
-	anno[AnnPodPhase] = string(pod.Status.Phase)
+	if !scratchExitCode {
+		// No scratch exit code, update the phase based on the pod. If we do have scratch exit code we don't want to update the
+		// phase, because the pod might terminate cleanly and mistakenly mark the import complete.
+		anno[AnnPodPhase] = string(pod.Status.Phase)
+	}
 
 	// Check if the POD is waiting for scratch space, if so create some.
 	if pod.Status.Phase == corev1.PodPending && r.requiresScratchSpace(pvc) {
@@ -331,8 +334,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 }
 
 func (r *ImportReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
-	log.V(1).Info("Phase is now", "pvc.anno.Phase", pvc.GetAnnotations()[AnnPodPhase])
-	log.V(1).Info("Restarts is now", "pvc.anno.Restarts", pvc.GetAnnotations()[AnnPodRestarts])
+	log.V(1).Info("Annotations are now", "pvc.anno", pvc.GetAnnotations())
 	if err := r.client.Update(context.TODO(), pvc); err != nil {
 		return err
 	}

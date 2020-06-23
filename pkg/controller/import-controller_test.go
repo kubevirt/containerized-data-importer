@@ -378,7 +378,7 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()[AnnRunningConditionReason]).To(Equal("Explosion"))
 	})
 
-	It("Should update phase on PVC, if pod exited with error state that is scratchspace exit", func() {
+	It("Should NOT update phase on PVC, if pod exited with error state that is scratchspace exit", func() {
 		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodRunning)}, nil)
 		scratchPvcName := &corev1.PersistentVolumeClaim{}
 		scratchPvcName.Name = "testPvc1-scratch"
@@ -411,7 +411,7 @@ var _ = Describe("Update PVC from POD", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying that the phase hasn't changed")
-		Expect(resPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(corev1.PodPending))
+		Expect(resPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(corev1.PodRunning))
 		Expect(resPvc.GetAnnotations()[AnnImportPod]).To(Equal(pod.Name))
 		Expect(resPvc.GetAnnotations()[AnnPodRestarts]).To(Equal("0"))
 		// No scratch space because the pod is not in pending.
