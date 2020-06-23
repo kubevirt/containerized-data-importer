@@ -566,6 +566,17 @@ var _ = Describe("Block PV Cloner Test", func() {
 		sourceMD5, err := f.GetMD5(f.Namespace, sourcePvc, testBaseDir, 0)
 		Expect(err).ToNot(HaveOccurred())
 
+		By("Deleting verifier pod")
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(utils.VerifierPodName, &metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete("fill-source-block-pod", &metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		_, err = utils.WaitPodDeleted(f.K8sClient, "fill-source-block-pod", f.Namespace.Name, verifyPodDeletedTimeout)
+		Expect(err).ToNot(HaveOccurred())
+
 		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
 			framework.NsPrefixLabel: f.NsPrefix,
 		})
