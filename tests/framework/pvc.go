@@ -60,6 +60,7 @@ func (f *Framework) FindPVC(pvcName string) (*k8sv1.PersistentVolumeClaim, error
 	return utils.FindPVC(f.K8sClient, f.Namespace.Name, pvcName)
 }
 
+// ForceBindPvcIfDvIsWaitForFirstConsumer creates a Pod with the PVC for passed in DV mounted under /pvc, which forces the PVC to be scheduled and bound.
 func (f *Framework) ForceBindPvcIfDvIsWaitForFirstConsumer(dv *cdiv1.DataVolume) {
 	fmt.Fprintf(ginkgo.GinkgoWriter, "verifying pvc was created for dv %s\n", dv.Name)
 	pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)

@@ -87,6 +87,11 @@ var _ = Describe("Transport Tests", func() {
 		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("transport-e2e", "400Mi", pvcAnn, nil))
 		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
 
+		By("Verifying pvc was created")
+		pvc, err = utils.WaitForPVC(f.K8sClient, pvc.Namespace, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
 		if shouldSucceed {
 			By("Verify PVC status annotation says succeeded")
 			found, err := utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
