@@ -57,6 +57,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	// An image with a backing file - should be rejected when converted to raw
 	invalidQcowBackingFileURL := InvalidQcowImagesURL + "invalid-qcow-backing-file.img"
 
+	createRegistryImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+		dataVolume := utils.NewDataVolumeWithRegistryImport(dataVolumeName, size, url)
+		cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+		Expect(err).To(BeNil())
+		dataVolume.Spec.Source.Registry.CertConfigMap = cm
+		return dataVolume
+	}
+
 	AfterEach(func() {
 		if sourcePvc != nil {
 			By("[AfterEach] Clean up target PVC")
@@ -108,14 +116,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
 			return utils.NewCloningDataVolume(dataVolumeName, size, sourcePvc)
-		}
-
-		createRegistryImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
-			dataVolume := utils.NewDataVolumeWithRegistryImport(dataVolumeName, size, url)
-			cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
-			Expect(err).To(BeNil())
-			dataVolume.Spec.Source.Registry.CertConfigMap = cm
-			return dataVolume
 		}
 
 		createBlankRawDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
@@ -901,7 +901,51 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name, 300*time.Second)
 			Expect(err).To(BeNil())
 		})
+	})
 
+	Describe("Delete PVC during registry import", func() {
+		var dataVolume *cdiv1.DataVolume
+
+		AfterEach(func() {
+			if dataVolume != nil {
+				By("[AfterEach] Clean up DV")
+				err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+				dataVolume = nil
+			}
+		})
+
+		It("Should create a new PVC when PVC is deleted during import", func() {
+			dataVolumeSpec := createRegistryImportDataVolume(dataVolumeName, "1Gi", tinyCoreIsoRegistryURL)
+			By(fmt.Sprintf("creating new datavolume %s", dataVolumeSpec.Name))
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolumeSpec)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Waiting for DV's PVC")
+			pvc, err := utils.WaitForPVC(f.K8sClient, f.Namespace.Name, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			pvcUID := pvc.GetUID()
+
+			By("Wait for import to start")
+			utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
+
+			By(fmt.Sprintf("Deleting PVC %v", pvc.Name))
+			err = utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			deleted, err := f.WaitPVCDeletedByUID(pvc, 30*time.Second)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(deleted).To(BeTrue())
+
+			By("Wait for PVC to be recreated")
+			pvc, err = utils.WaitForPVC(f.K8sClient, f.Namespace.Name, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(pvc.GetUID()).ToNot(Equal(pvcUID))
+
+			By("Wait for DV to succeed")
+			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name, 10*time.Minute)
+			Expect(err).ToNot(HaveOccurred())
+		})
 	})
 
 })
