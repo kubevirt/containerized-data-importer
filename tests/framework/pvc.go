@@ -53,9 +53,9 @@ func VerifyPVCIsEmpty(f *Framework, pvc *k8sv1.PersistentVolumeClaim, node strin
 	var err error
 	var executorPod *k8sv1.Pod
 	if node != "" {
-		executorPod, err = f.CreateExecutorPodWithPVCSpecificNode("verify-pvc-empty", pvc, node)
+		executorPod, err = f.CreateExecutorPodWithPVCSpecificNode(utils.VerifierPodName, pvc, node)
 	} else {
-		executorPod, err = f.CreateExecutorPodWithPVC("verify-pvc-empty", pvc)
+		executorPod, err = f.CreateExecutorPodWithPVC(utils.VerifierPodName, pvc)
 	}
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = f.WaitTimeoutForPodReady(executorPod.Name, utils.PodWaitForTime)
