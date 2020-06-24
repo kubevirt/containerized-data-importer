@@ -85,7 +85,7 @@ var _ = Describe("CDI storage class config tests", func() {
 		}
 	})
 
-	It("should have the default storage class as its scratchSpaceStorageClass", func() {
+	It("[test_id:3962]should have the default storage class as its scratchSpaceStorageClass", func() {
 		if defaultSc == nil {
 			Skip("No default storage class found, skipping test")
 		}
@@ -95,7 +95,7 @@ var _ = Describe("CDI storage class config tests", func() {
 		Expect(config.Status.ScratchSpaceStorageClass).To(Equal(defaultSc.Name))
 	})
 
-	It("should set the scratch space to blank if no default exists", func() {
+	It("[test_id:3964]should set the scratch space to blank if no default exists", func() {
 		if defaultSc == nil {
 			Skip("No default storage class found, skipping test")
 		}
@@ -114,7 +114,7 @@ var _ = Describe("CDI storage class config tests", func() {
 		}, time.Second*30, time.Second).Should(Equal(""))
 	})
 
-	It("should keep the default if you specify an invalid override", func() {
+	It("[test_id:3965]should keep the default if you specify an invalid override", func() {
 		if defaultSc == nil {
 			Skip("No default storage class found, skipping test")
 		}
@@ -140,7 +140,7 @@ var _ = Describe("CDI storage class config tests", func() {
 		Expect(defaultSc.Name).To(Equal(config.Status.ScratchSpaceStorageClass))
 	})
 
-	It("Should react to switching the default storage class", func() {
+	It("[test_id:3966]Should react to switching the default storage class", func() {
 		storageClasses, err := f.K8sClient.StorageV1().StorageClasses().List(metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		if len(storageClasses.Items) < 2 {
@@ -170,7 +170,7 @@ var _ = Describe("CDI storage class config tests", func() {
 		}, time.Second*30, time.Second).Should(Equal(secondSc.Name))
 	})
 
-	It("Should use the override even if a different default is set", func() {
+	It("[test_id:3967]Should use the override even if a different default is set", func() {
 		storageClasses, err := f.K8sClient.StorageV1().StorageClasses().List(metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		if len(storageClasses.Items) < 2 {
@@ -333,7 +333,7 @@ var _ = Describe("CDI ingress config tests", func() {
 		}
 	})
 
-	It("Should set uploadProxyURL if override is not defined", func() {
+	It("[test_id:3960]Should set uploadProxyURL if override is not defined", func() {
 		// TODO, don't hard code "cdi-uploadproxy", read it from container env of cdi-deployment deployment.
 		ingress = createIngress("test-ingress", f.CdiInstallNs, "cdi-uploadproxy", ingressUrl)
 		_, err := f.K8sClient.ExtensionsV1beta1().Ingresses(f.CdiInstallNs).Create(ingress)
@@ -349,7 +349,7 @@ var _ = Describe("CDI ingress config tests", func() {
 		}, time.Second*30, time.Second).Should(Equal(ingressUrl))
 	})
 
-	It("Should keep override uploadProxyURL if override is defined", func() {
+	It("[test_id:3961]Should keep override uploadProxyURL if override is defined", func() {
 		config, err := f.CdiClient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		override := "www.override.tt.org"

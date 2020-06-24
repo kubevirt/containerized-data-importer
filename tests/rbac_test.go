@@ -118,11 +118,11 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		cfg, err = client.CdiV1alpha1().CDIConfigs().Update(cfg)
 		Expect(err).To(HaveOccurred())
 	},
-		Entry("can do everything with admin", "admin"),
-		Entry("can do everything with edit", "edit"),
+		Entry("[test_id:3948]can do everything with admin", "admin"),
+		Entry("[test_id:3949]can do everything with edit", "edit"),
 	)
 
-	It("view datavolume permission checks", func() {
+	It("[test_id:3950]view datavolume permission checks", func() {
 		const user = "view"
 		var client cdiClientset.Interface
 		var err error
@@ -271,8 +271,8 @@ var _ = Describe("Aggregated role definition tests", func() {
 		}
 		Expect(found).To(BeTrue())
 	},
-		Entry("for admin", "admin", adminRules),
-		Entry("for edit", "edit", editRules),
-		Entry("for view", "view", viewRules),
+		Entry("[test_id:3945]for admin", "admin", adminRules),
+		Entry("[test_id:3946]for edit", "edit", editRules),
+		Entry("[test_id:3947]for view", "view", viewRules),
 	)
 })
