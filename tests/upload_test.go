@@ -205,6 +205,7 @@ func uploadImage(portForwardURL, token string, expectedStatus int) error {
 
 	req.Header.Add("Authorization", "Bearer "+token)
 	req.Header.Add("Content-Type", "application/octet-stream")
+	req.Header.Add("Origin", "foo.bar.com")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -215,7 +216,7 @@ func uploadImage(portForwardURL, token string, expectedStatus int) error {
 		return fmt.Errorf("Unexpected return value %d expected %d, Response: %s", resp.StatusCode, expectedStatus, resp.Body)
 	}
 
-	if resp.StatusCode == http.StatusOK && resp.Header.Get("Access-Control-Allow-Origin") != "*" {
+	if resp.Header.Get("Access-Control-Allow-Origin") != "*" {
 		return fmt.Errorf("Auth response header missing")
 	}
 
