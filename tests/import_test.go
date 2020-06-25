@@ -122,7 +122,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		if utils.DefaultStorageCSI {
 			// CSI storage class, it should respect fsGroup
 			By("Checking that disk image group is qemu")
-			Expect(f.GetDiskGroup(f.Namespace, pvc)).To(Equal("107"))
+			Expect(f.GetDiskGroup(f.Namespace, pvc, false)).To(Equal("107"))
 		}
 	})
 })

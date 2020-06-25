@@ -204,7 +204,7 @@ func (f *Framework) VerifyPermissions(namespace *k8sv1.Namespace, pvc *k8sv1.Per
 }
 
 // GetDiskGroup returns the group of a disk image.
-func (f *Framework) GetDiskGroup(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (string, error) {
+func (f *Framework) GetDiskGroup(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, deletePod bool) (string, error) {
 	var executorPod *k8sv1.Pod
 	var err error
 
@@ -224,6 +224,11 @@ func (f *Framework) GetDiskGroup(namespace *k8sv1.Namespace, pvc *k8sv1.Persiste
 
 	output, err = f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
 	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: gid of disk.img: %s\n", string(output))
+
+	if deletePod {
+		err = f.K8sClient.CoreV1().Pods(namespace.Name).Delete(executorPod.Name, nil)
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	}
 
 	if err != nil {
 		return "", err
