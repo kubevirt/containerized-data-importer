@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 
 	k8sv1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 
 	"kubevirt.io/containerized-data-importer/pkg/image"
@@ -210,7 +212,7 @@ func (f *Framework) VerifyPermissions(namespace *k8sv1.Namespace, pvc *k8sv1.Per
 }
 
 // GetDiskGroup returns the group of a disk image.
-func (f *Framework) GetDiskGroup(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (string, error) {
+func (f *Framework) GetDiskGroup(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, deletePod bool) (string, error) {
 	var executorPod *k8sv1.Pod
 	var err error
 
@@ -231,6 +233,20 @@ func (f *Framework) GetDiskGroup(namespace *k8sv1.Namespace, pvc *k8sv1.Persiste
 	cmd = fmt.Sprintf("x=$(ls -ln %s/disk.img); y=($x); echo ${y[3]}", utils.DefaultPvcMountPath)
 
 	output, stderr, err = f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
+
+	if deletePod {
+		err := f.K8sClient.CoreV1().Pods(namespace.Name).Delete(executorPod.Name, nil)
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+		gomega.Eventually(func() bool {
+			if _, err := f.K8sClient.CoreV1().Pods(namespace.Name).Get(executorPod.Name, metav1.GetOptions{}); err != nil {
+				if apierrs.IsNotFound(err) {
+					return true
+				}
+				gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			}
+			return false
+		}, 90*time.Second, 2*time.Second).Should(gomega.BeTrue())
+	}
 
 	if err != nil {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)

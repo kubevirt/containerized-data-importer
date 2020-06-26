@@ -100,7 +100,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
-		sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, pvc)
+		sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, pvc, true)
 		fmt.Fprintf(GinkgoWriter, "INFO: %s\n", sourcePvcDiskGroup)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -725,7 +725,7 @@ var _ = Describe("Namespace with quota", func() {
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetDV.Name)
 		targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
-		sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, sourcePvc)
+		sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, sourcePvc, true)
 		Expect(err).ToNot(HaveOccurred())
 		completeClone(f, f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum, sourcePvcDiskGroup)
 	})
@@ -987,7 +987,7 @@ func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolume
 
 	fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 	utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)
-	sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, srcPVCDef)
+	sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, srcPVCDef, true)
 	fmt.Fprintf(GinkgoWriter, "INFO: %s\n", sourcePvcDiskGroup)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -1012,7 +1012,7 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 	if utils.DefaultStorageCSI && sourcePvcDiskGroup != "" {
 		// CSI storage class, it should respect fsGroup
 		By("Checking that disk image group is qemu")
-		Expect(f.GetDiskGroup(targetNs, targetPvc)).To(Equal(sourcePvcDiskGroup))
+		Expect(f.GetDiskGroup(targetNs, targetPvc, false)).To(Equal(sourcePvcDiskGroup))
 	}
 	By("Verifying permissions are 660")
 	Expect(f.VerifyPermissions(targetNs, targetPvc)).To(BeTrue(), "Permissions on disk image are not 660")
