@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -20,10 +21,6 @@ import (
 )
 
 var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", func() {
-
-	var sourcePvc *v1.PersistentVolumeClaim
-	var dataVolume *cdiv1.DataVolume
-
 	fillData := "123456789012345678901234567890123456789012345678901234567890"
 	testFile := utils.DefaultPvcMountPath + "/source.txt"
 	fillCommandFilesystem := "echo -n \"" + fillData + "\" >> " + testFile
@@ -31,25 +28,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 
 	f := framework.NewFrameworkOrDie("dv-func-test")
 
-	AfterEach(func() {
-		if sourcePvc != nil {
-			By("[AfterEach] Clean up source PVC")
-			err := f.DeletePVC(sourcePvc)
-			Expect(err).ToNot(HaveOccurred())
-			sourcePvc = nil
-		}
-		if dataVolume != nil {
-			By("[AfterEach] Clean up target DV")
-			err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
-		}
-	})
-
 	It("[rfe_id:1106][test_id:3494][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - volumeMode filesystem - Positive flow", func() {
 		if !f.IsSnapshotStorageClassAvailable() {
 			Skip("Smart Clone is not applicable")
 		}
-		dataVolume = createDataVolume("dv-smart-clone-test-1", sourcePvc, fillCommandFilesystem, v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)
+		dataVolume := createDataVolume("dv-smart-clone-test-1", fillCommandFilesystem, v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)
 		verifyEvent(controller.SnapshotForSmartCloneInProgress, dataVolume.Namespace, f)
 		verifyEvent(controller.SmartClonePVCInProgress, dataVolume.Namespace, f)
 		// Verify PVC's content
@@ -63,11 +46,48 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		if !f.IsSnapshotStorageClassAvailable() {
 			Skip("Smart Clone is not applicable")
 		}
-		dataVolume = createDataVolume("dv-smart-clone-test-1", sourcePvc, fillCommandBlock, v1.PersistentVolumeBlock, f.SnapshotSCName, f)
+		dataVolume := createDataVolume("dv-smart-clone-test-1", fillCommandBlock, v1.PersistentVolumeBlock, f.SnapshotSCName, f)
 		verifyEvent(controller.SnapshotForSmartCloneInProgress, dataVolume.Namespace, f)
 		verifyEvent(controller.SmartClonePVCInProgress, dataVolume.Namespace, f)
 		// Verify PVC's content
 		verifyPVC(dataVolume, f, utils.DefaultPvcMountPath, fillData)
+		// Wait for operation Succeeded
+		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
+		verifyEvent(controller.CloneSucceeded, dataVolume.Namespace, f)
+	})
+
+	It("Verify DataVolume Smart Cloning - volumeMode filesystem - Waits for source to be available", func() {
+		if !f.IsSnapshotStorageClassAvailable() {
+			Skip("Smart Clone is not applicable")
+		}
+		sourcePvc := createAndPopulateSourcePVC("dv-smart-clone-test-1", fillCommandFilesystem, v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)
+		pod, err := utils.CreateExecutorPodWithPVC(f.K8sClient, "temp-pod", f.Namespace.Name, sourcePvc)
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() bool {
+			pod, err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(pod.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return pod.Status.Phase == v1.PodRunning
+		}, 90*time.Second, 2*time.Second).Should(BeTrue())
+
+		By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
+		dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)
+		if f.SnapshotSCName != "" {
+			dataVolume.Spec.PVC.StorageClassName = &f.SnapshotSCName
+		}
+
+		By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		verifyEvent(controller.SmartCloneSourceInUse, dataVolume.Namespace, f)
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(pod.Name, nil)
+		Expect(err).ToNot(HaveOccurred())
+
+		verifyEvent(controller.SnapshotForSmartCloneInProgress, dataVolume.Namespace, f)
+		verifyEvent(controller.SmartClonePVCInProgress, dataVolume.Namespace, f)
+		// Verify PVC's content
+		verifyPVC(dataVolume, f, testFile, fillData)
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		verifyEvent(controller.CloneSucceeded, dataVolume.Namespace, f)
@@ -83,7 +103,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 			}
 		}
 
-		dataVolume = createDataVolume("dv-smart-clone-test-negative", sourcePvc, fillCommandFilesystem, v1.PersistentVolumeFilesystem, "", f)
+		dataVolume := createDataVolume("dv-smart-clone-test-negative", fillCommandFilesystem, v1.PersistentVolumeFilesystem, "", f)
 
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
@@ -117,7 +137,7 @@ func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f
 	}
 }
 
-func createDataVolume(dataVolumeName string, sourcePvc *v1.PersistentVolumeClaim, command string, volumeMode v1.PersistentVolumeMode, scName string, f *framework.Framework) *cdiv1.DataVolume {
+func createAndPopulateSourcePVC(dataVolumeName, command string, volumeMode v1.PersistentVolumeMode, scName string, f *framework.Framework) *v1.PersistentVolumeClaim {
 	By(fmt.Sprintf("Storage Class name: %s", scName))
 	sourcePVCName := fmt.Sprintf("%s-src-pvc", dataVolumeName)
 	sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
@@ -126,7 +146,11 @@ func createDataVolume(dataVolumeName string, sourcePvc *v1.PersistentVolumeClaim
 	if scName != "" {
 		pvcDef.Spec.StorageClassName = &scName
 	}
-	sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
+	return f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
+}
+
+func createDataVolume(dataVolumeName, command string, volumeMode v1.PersistentVolumeMode, scName string, f *framework.Framework) *cdiv1.DataVolume {
+	sourcePvc := createAndPopulateSourcePVC(dataVolumeName, command, volumeMode, scName, f)
 
 	By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
 	dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)
