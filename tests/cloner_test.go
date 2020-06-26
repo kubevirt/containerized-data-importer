@@ -90,6 +90,10 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		sourceMD5, err := f.GetMD5(f.Namespace, pvc, diskImagePath, 0)
 		Expect(err).ToNot(HaveOccurred())
 
+		By("Deleting verifier pod")
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(utils.VerifierPodName, &metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
 		// Create targetPvc in new NS.
 		targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvc)
 		targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
@@ -584,11 +588,6 @@ var _ = Describe("Block PV Cloner Test", func() {
 		_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
 		Expect(err).ToNot(HaveOccurred())
 
-		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete("fill-source-block-pod", &metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		_, err = utils.WaitPodDeleted(f.K8sClient, "fill-source-block-pod", f.Namespace.Name, verifyPodDeletedTimeout)
-		Expect(err).ToNot(HaveOccurred())
-
 		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
 			framework.NsPrefixLabel: f.NsPrefix,
 		})
@@ -1030,7 +1029,7 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 
 	fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 	utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)
-	sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, srcPVCDef)
+	sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, srcPVCDef, true)
 	fmt.Fprintf(GinkgoWriter, "INFO: %s\n", sourcePvcDiskGroup)
 	Expect(err).ToNot(HaveOccurred())
 
