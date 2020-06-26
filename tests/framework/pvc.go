@@ -58,18 +58,20 @@ func VerifyPVCIsEmpty(f *Framework, pvc *k8sv1.PersistentVolumeClaim, node strin
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = f.WaitTimeoutForPodReady(executorPod.Name, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	output, err := f.ExecShellInPod(executorPod.Name, f.Namespace.Name, "ls -1 /pvc | wc -l")
+	output, stderr, err := f.ExecShellInPod(executorPod.Name, f.Namespace.Name, "ls -1 /pvc | wc -l")
 	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 		return false, err
 	}
 	found := strings.Compare("0", output) == 0
 	if !found {
 		// Could be that a file system was created and it has 'lost+found' directory in it, check again.
-		output, err := f.ExecShellInPod(executorPod.Name, f.Namespace.Name, "ls -1 /pvc")
+		output, stderr, err := f.ExecShellInPod(executorPod.Name, f.Namespace.Name, "ls -1 /pvc")
 		if err != nil {
+			fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 			return false, err
 		}
-		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: files found: %s\n", string(output))
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: files found: %s\n", output)
 		found = strings.Compare("lost+found", output) == 0
 	}
 	return found, nil
@@ -119,8 +121,9 @@ func (f *Framework) GetMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolu
 		cmd = fmt.Sprintf("head -c %d %s | md5sum", numBytes, fileName)
 	}
 
-	output, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
+	output, stderr, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
 	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 		return "", err
 	}
 
@@ -143,12 +146,13 @@ func (f *Framework) VerifyBlankDisk(namespace *k8sv1.Namespace, pvc *k8sv1.Persi
 
 	cmd := fmt.Sprintf("tr -d '\\000' <%s/disk.img | grep -q -m 1 ^ || echo \"All zeros\"", utils.DefaultPvcMountPath)
 
-	output, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
+	output, stderr, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
 
 	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 		return false, err
 	}
-	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: empty file check %s\n", string(output))
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: empty file check %s\n", output)
 	return strings.Compare("All zeros", string(output)) == 0, nil
 }
 
@@ -166,12 +170,13 @@ func (f *Framework) VerifySparse(namespace *k8sv1.Namespace, pvc *k8sv1.Persiste
 
 	cmd := fmt.Sprintf("qemu-img info %s/disk.img --output=json", utils.DefaultPvcMountPath)
 
-	output, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
+	output, stderr, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
 
 	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 		return false, err
 	}
-	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: qemu-img info output %s\n", string(output))
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: qemu-img info output %s\n", output)
 	var info image.ImgInfo
 	err = json.Unmarshal([]byte(output), &info)
 	if err != nil {
@@ -194,12 +199,13 @@ func (f *Framework) VerifyPermissions(namespace *k8sv1.Namespace, pvc *k8sv1.Per
 
 	cmd := fmt.Sprintf("x=$(ls -ln %s/disk.img); y=($x); echo ${y[0]}", utils.DefaultPvcMountPath)
 
-	output, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
-	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: permissions of disk.img: %s\n", string(output))
-
+	output, stderr, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
 	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 		return false, err
 	}
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: permissions of disk.img: %s\n", output)
+
 	return strings.Compare(output, "-rw-rw----.") == 0, nil
 }
 
@@ -217,17 +223,20 @@ func (f *Framework) GetDiskGroup(namespace *k8sv1.Namespace, pvc *k8sv1.Persiste
 
 	cmd := fmt.Sprintf("ls -ln %s/disk.img", utils.DefaultPvcMountPath)
 
-	output, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
-	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: ln -ln disk.img: %s\n", string(output))
-
+	output, stderr, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: ln -ln disk.img: %s\n", output)
+	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
+	}
 	cmd = fmt.Sprintf("x=$(ls -ln %s/disk.img); y=($x); echo ${y[3]}", utils.DefaultPvcMountPath)
 
-	output, err = f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
-	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: gid of disk.img: %s\n", string(output))
+	output, stderr, err = f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
 
 	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 		return "", err
 	}
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: gid of disk.img: %s\n", output)
 	return output, nil
 }
 
@@ -242,8 +251,9 @@ func (f *Framework) VerifyTargetPVCArchiveContent(namespace *k8sv1.Namespace, pv
 	}
 	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	output, err := f.ExecShellInPod(executorPod.Name, namespace.Name, "ls "+utils.DefaultPvcMountPath+" | wc -l")
+	output, stderr, err := f.ExecShellInPod(executorPod.Name, namespace.Name, "ls "+utils.DefaultPvcMountPath+" | wc -l")
 	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 		return false, err
 	}
 	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: file count found %s\n", string(output))
@@ -256,8 +266,9 @@ func (f *Framework) RunCommandAndCaptureOutput(pvc *k8sv1.PersistentVolumeClaim,
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = f.WaitTimeoutForPodReady(executorPod.Name, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	output, err := f.ExecShellInPod(executorPod.Name, f.Namespace.Name, cmd)
+	output, stderr, err := f.ExecShellInPod(executorPod.Name, f.Namespace.Name, cmd)
 	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 		return "", err
 	}
 	return output, nil
