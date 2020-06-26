@@ -642,6 +642,7 @@ func (f *Framework) IsBlockVolumeStorageClassAvailable() bool {
 func getMaxFailsFromEnv() int {
 	maxFailsEnv := os.Getenv("REPORTER_MAX_FAILS")
 	if maxFailsEnv == "" {
+		fmt.Fprintf(os.Stderr, "defaulting to 10 reported failures\n")
 		return 10
 	}
 
@@ -651,6 +652,7 @@ func getMaxFailsFromEnv() int {
 		return 10
 	}
 
+	fmt.Fprintf(os.Stderr, "Number of reported failures[%d]\n", maxFails)
 	return maxFails
 }
 
@@ -677,6 +679,7 @@ func (r *KubernetesReporter) Dump(kubeCli *kubernetes.Clientset, cdiClient *cdiC
 	if r.artifactsDir == "" {
 		return
 	}
+	fmt.Fprintf(os.Stderr, "Current failure count[%d]\n", r.FailureCount)
 	if r.FailureCount > r.maxFails {
 		return
 	}
