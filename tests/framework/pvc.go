@@ -289,5 +289,7 @@ func (f *Framework) RunCommandAndCaptureOutput(pvc *k8sv1.PersistentVolumeClaim,
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 		return "", err
 	}
+	err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(executorPod.Name, nil)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	return output, nil
 }
