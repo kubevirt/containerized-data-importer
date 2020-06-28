@@ -519,11 +519,14 @@ func (r *DatavolumeReconciler) updateUploadStatusPhase(pvc *corev1.PersistentVol
 			event.reason = UploadScheduled
 			event.message = fmt.Sprintf(MessageUploadScheduled, pvc.Name)
 		case string(corev1.PodRunning):
-			// TODO: Use a more generic In Progess, like maybe TransferInProgress.
-			dataVolumeCopy.Status.Phase = cdiv1.UploadReady
-			event.eventType = corev1.EventTypeNormal
-			event.reason = UploadReady
-			event.message = fmt.Sprintf(MessageUploadReady, pvc.Name)
+			running := pvc.Annotations[AnnPodReady]
+			if running == "true" {
+				// TODO: Use a more generic In Progess, like maybe TransferInProgress.
+				dataVolumeCopy.Status.Phase = cdiv1.UploadReady
+				event.eventType = corev1.EventTypeNormal
+				event.reason = UploadReady
+				event.message = fmt.Sprintf(MessageUploadReady, pvc.Name)
+			}
 		case string(corev1.PodFailed):
 			dataVolumeCopy.Status.Phase = cdiv1.Failed
 			event.eventType = corev1.EventTypeWarning
