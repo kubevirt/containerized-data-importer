@@ -85,7 +85,7 @@ const (
 	SnapshotForSmartCloneCreated = "SnapshotForSmartCloneCreated"
 	// SmartClonePVCInProgress provides a const to indicate snapshot creation for smart-clone is in progress
 	SmartClonePVCInProgress = "SmartClonePVCInProgress"
-	// SmartCloneSourceInUse proovides a const to indicate a smart clone is being delayed becasuse the source is in use
+	// SmartCloneSourceInUse provides a const to indicate a smart clone is being delayed becasuse the source is in use
 	SmartCloneSourceInUse = "SmartCloneSourceInUse"
 	// CloneFailed provides a const to indicate clone has failed
 	CloneFailed = "CloneFailed"
