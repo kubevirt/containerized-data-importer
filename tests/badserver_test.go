@@ -2,6 +2,7 @@ package tests
 
 import (
 	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -14,6 +15,7 @@ import (
 
 var _ = Describe("Problematic server responses", func() {
 	f := framework.NewFrameworkOrDie("badserver-func-test")
+	const dvWaitTimeout = 500 * time.Second
 	var dataVolume *cdiv1.DataVolume
 
 	It("[rfe_id:4109][test_id:4110][crit:low][vendor:cnv-qe@redhat.com][level:component] Should succeed even if HEAD forbidden", func() {
@@ -38,7 +40,7 @@ var _ = Describe("Problematic server responses", func() {
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
 
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
+		err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name, dvWaitTimeout)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
