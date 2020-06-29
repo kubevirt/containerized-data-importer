@@ -15,7 +15,7 @@ metadata:
     cdi.kubevirt.io: ""
   name: config
 spec: {
-    PodResourceRequirements:
+    podResourceRequirements:
     limits:
       cpu: "4"
       memory: "1Gi"
