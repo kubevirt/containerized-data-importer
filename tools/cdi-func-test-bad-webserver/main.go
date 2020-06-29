@@ -1,13 +1,12 @@
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"regexp"
+	"sync/atomic"
 )
 
 func failHEAD(w http.ResponseWriter, r *http.Request) {
@@ -19,7 +18,7 @@ func failHEAD(w http.ResponseWriter, r *http.Request) {
 }
 
 func flaky(w http.ResponseWriter, r *http.Request) {
-	if getCounter()%4 == 3 {
+	if incrementAndGetCounter()%4 == 3 {
 		// succeed after 10 attempts
 		redirect(w, r)
 		return
@@ -36,33 +35,13 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, redirectURL, 301)
 }
 
-func initCounter() {
-	newCounterBuf := make([]byte, binary.MaxVarintLen64)
-	_ = binary.PutUvarint(newCounterBuf, 0)
-
-	ioutil.WriteFile("state", newCounterBuf, 0644)
+func incrementAndGetCounter() uint64 {
+	return atomic.AddUint64(&counter, 1)
 }
 
-func getCounter() uint64 {
-	counterBuf, err := ioutil.ReadFile("state")
-	if err != nil {
-		panic(err)
-	}
-
-	counter, n := binary.Uvarint(counterBuf)
-	if n <= 0 {
-		counter = 0
-	}
-
-	newCounterBuf := make([]byte, binary.MaxVarintLen64)
-	_ = binary.PutUvarint(newCounterBuf, counter+1)
-	ioutil.WriteFile("state", newCounterBuf, 0644)
-
-	return counter
-}
+var counter uint64 = 0
 
 func main() {
-	initCounter()
 	http.HandleFunc("/forbidden-HEAD/", failHEAD)
 	http.HandleFunc("/flaky/", flaky)
 	err := http.ListenAndServe(":9090", nil)
