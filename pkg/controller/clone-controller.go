@@ -223,7 +223,7 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *c
 		if len(filtered) > 0 {
 			for _, pod := range filtered {
 				r.log.V(1).Info("can't create clone source pod, pvc in use by other pod",
-					"namespace", sourcePvc.Namespace, "name", sourcePvc.Name, "pods", pod.Name)
+					"namespace", sourcePvc.Namespace, "name", sourcePvc.Name, "pod", pod.Name)
 				r.recorder.Eventf(targetPvc, corev1.EventTypeWarning, CloneSourceInUse,
 					"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, sourcePvc.Name)
 			}
