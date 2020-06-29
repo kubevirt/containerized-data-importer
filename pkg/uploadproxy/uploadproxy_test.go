@@ -106,7 +106,7 @@ func submitRequestAndCheckStatus(request *http.Request, expectedCode int, app *u
 	Expect(rr.Code).To(Equal(expectedCode))
 }
 
-func submitRequestAndCheckStatusAndHeader(request *http.Request, expectedCode int, app *uploadProxyApp) {
+func submitRequestAndCheckStatusAndCORS(request *http.Request, expectedCode int, app *uploadProxyApp) {
 	rr := httptest.NewRecorder()
 	if app == nil {
 		app = createApp()
@@ -119,7 +119,7 @@ func submitRequestAndCheckStatusAndHeader(request *http.Request, expectedCode in
 
 func createApp() *uploadProxyApp {
 	app := &uploadProxyApp{}
-	app.initHandlers()
+	app.initHandler()
 	return app
 }
 
@@ -189,7 +189,20 @@ var _ = Describe("submit request and check status", func() {
 		app.uploadPossible = func(*v1.PersistentVolumeClaim) error { return nil }
 
 		req := newProxyRequest("Bearer valid")
-		submitRequestAndCheckStatusAndHeader(req, statusCode, app)
+		submitRequestAndCheckStatus(req, statusCode, app)
+	},
+		table.Entry("Test OK", http.StatusOK),
+		table.Entry("Test error", http.StatusInternalServerError),
+	)
+	table.DescribeTable("Test proxy status code with CORS", func(statusCode int) {
+		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(statusCode)
+		}))
+		app.uploadPossible = func(*v1.PersistentVolumeClaim) error { return nil }
+
+		req := newProxyRequest("Bearer valid")
+		req.Header.Set("Origin", "foo.bar.com")
+		submitRequestAndCheckStatusAndCORS(req, statusCode, app)
 	},
 		table.Entry("Test OK", http.StatusOK),
 		table.Entry("Test error", http.StatusInternalServerError),
@@ -234,7 +247,7 @@ var _ = Describe("submit request and check status", func() {
 		app.uploadPossible = func(*v1.PersistentVolumeClaim) error { return nil }
 
 		req := newProxyRequest("Bearer valid")
-		submitRequestAndCheckStatusAndHeader(req, statusCode, app)
+		submitRequestAndCheckStatus(req, statusCode, app)
 	},
 		table.Entry("Test OK", func(*v1.PersistentVolumeClaim) error { return nil }, http.StatusOK),
 		table.Entry("Test no annotation", func(*v1.PersistentVolumeClaim) error { return fmt.Errorf("NOPE") }, http.StatusBadRequest),

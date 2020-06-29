@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rs/cors"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -67,7 +68,7 @@ type uploadProxyApp struct {
 
 	tokenValidator token.Validator
 
-	mux *http.ServeMux
+	handler http.Handler
 
 	// test hooks
 	urlResolver    urlLookupFunc
@@ -105,7 +106,7 @@ func NewUploadProxy(bindAddress string,
 		return nil, errors.Errorf("unable to retrieve apiserver signing key: %v", errors.WithStack(err))
 	}
 
-	app.initHandlers()
+	app.initHandler()
 
 	return app, nil
 }
@@ -146,15 +147,16 @@ func (c *clientCreator) CreateClient() (*http.Client, error) {
 	return &http.Client{Transport: transport, Timeout: proxyRequestTimeout}, nil
 }
 
-func (app *uploadProxyApp) initHandlers() {
-	app.mux = http.NewServeMux()
-	app.mux.HandleFunc(healthzPath, app.handleHealthzRequest)
-	app.mux.HandleFunc(common.UploadPathSync, app.handleUploadRequest)
-	app.mux.HandleFunc(common.UploadPathAsync, app.handleUploadRequest)
+func (app *uploadProxyApp) initHandler() {
+	mux := http.NewServeMux()
+	mux.HandleFunc(healthzPath, app.handleHealthzRequest)
+	mux.HandleFunc(common.UploadPathSync, app.handleUploadRequest)
+	mux.HandleFunc(common.UploadPathAsync, app.handleUploadRequest)
+	app.handler = cors.AllowAll().Handler(mux)
 }
 
 func (app *uploadProxyApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	app.mux.ServeHTTP(w, r)
+	app.handler.ServeHTTP(w, r)
 }
 
 func (app *uploadProxyApp) handleHealthzRequest(w http.ResponseWriter, r *http.Request) {
@@ -245,10 +247,6 @@ func (app *uploadProxyApp) proxyUploadRequest(namespace, pvc string, w http.Resp
 			}
 		},
 		Transport: client.Transport,
-		ModifyResponse: func(resp *http.Response) error {
-			resp.Header.Set("Access-Control-Allow-Origin", "*")
-			return nil
-		},
 	}
 
 	p.ServeHTTP(w, r)
