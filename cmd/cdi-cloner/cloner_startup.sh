@@ -30,7 +30,7 @@ echo "VOLUME_MODE=$VOLUME_MODE"
 echo "MOUNT_POINT=$MOUNT_POINT"
 
 if [ "$VOLUME_MODE" == "block" ]; then
-    UPLOAD_BYTES=$(lsblk -n -b -o SIZE $MOUNT_POINT)
+    UPLOAD_BYTES=$(blockdev --getsize64 $MOUNT_POINT)
     echo "UPLOAD_BYTES=$UPLOAD_BYTES"
 
     /usr/bin/cdi-cloner -v=3 -alsologtostderr -content_type blockdevice-clone -upload_bytes $UPLOAD_BYTES < $MOUNT_POINT
