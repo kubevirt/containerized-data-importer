@@ -18,11 +18,14 @@ func failHEAD(w http.ResponseWriter, r *http.Request) {
 }
 
 func flaky(w http.ResponseWriter, r *http.Request) {
-	if incrementAndGetCounter()%4 == 3 {
-		// succeed after 10 attempts
+	if r.Method == "GET" && incrementAndGetCounter()%4 == 3 {
+		fmt.Printf("Method: %s, Redirecting\n", r.Method)
 		redirect(w, r)
+
 		return
 	}
+
+	fmt.Printf("Method: %s, Status: %v\n", r.Method, http.StatusServiceUnavailable)
 	w.WriteHeader(http.StatusServiceUnavailable)
 }
 
@@ -36,7 +39,10 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func incrementAndGetCounter() uint64 {
-	return atomic.AddUint64(&counter, 1)
+	a := atomic.AddUint64(&counter, 1)
+	fmt.Printf("Counter: %d\n", a)
+
+	return a
 }
 
 var counter uint64 = 0
