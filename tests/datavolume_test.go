@@ -811,6 +811,108 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 	})
 
+	Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component][test] CDI Import from HTTP/S3", func() {
+
+		var (
+			dataVolume              *cdiv1.DataVolume
+			err                     error
+			originalImageName       = "cirros-qcow2.img"
+			testImageName           = "cirros-qcow2-1990.img"
+			tinyCoreIsoRateLimitURL = fmt.Sprintf("http://cdi-file-host.%s:82/cirros-qcow2-1990.img", f.CdiInstallNs)
+		)
+
+		BeforeEach(func() {
+			By("Prepare the file")
+			fileHostPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, utils.FileHostName, "name="+utils.FileHostName)
+			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
+				"/bin/sh",
+				"-c",
+				"cp /tmp/shared/images/"+originalImageName+" /tmp/shared/images/"+testImageName)
+			Expect(err).To(BeNil())
+		})
+
+		AfterEach(func() {
+			By("Delete DV")
+			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Cleanup the file")
+			fileHostPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, utils.FileHostName, "name="+utils.FileHostName)
+			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
+				"/bin/sh",
+				"-c",
+				"rm -f /tmp/shared/images/"+testImageName)
+			Expect(err).To(BeNil())
+
+			Eventually(func() bool {
+				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				if k8serrors.IsNotFound(err) {
+					return true
+				}
+				return false
+			}, timeout, pollingInterval).Should(BeTrue())
+		})
+
+		It("[test_id:1990] CDI Data Volume - file is removed from http server while import is in progress", func() {
+			dvName := "import-file-removed"
+			By(fmt.Sprintf("Creating new datavolume %s", dvName))
+			dv := utils.NewDataVolumeWithHTTPImport(dvName, "500Mi", tinyCoreIsoRateLimitURL)
+			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+			Expect(err).ToNot(HaveOccurred())
+
+			phase := cdiv1.ImportInProgress
+			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+			if err != nil {
+				dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				if dverr != nil {
+					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+				}
+			}
+			// wait for progress actually being reported
+			Expect(err).ToNot(HaveOccurred())
+
+			// here we want to have more than 0, to be sure it started
+			progressRegExp := regexp.MustCompile("[1-9]\\d{0,2}\\.?\\d{1,2}%")
+			Eventually(func() bool {
+				dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				progress := dv.Status.Progress
+				fmt.Fprintf(GinkgoWriter, "INFO: current progress:%v, matches:%v\n", progress, progressRegExp.MatchString(string(progress)))
+				return progressRegExp.MatchString(string(progress))
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			By("Remove source image file & kill http container to force restart")
+			fileHostPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, utils.FileHostName, "name="+utils.FileHostName)
+			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
+				"/bin/sh",
+				"-c",
+				"rm /tmp/shared/images/"+testImageName)
+			Expect(err).To(BeNil())
+
+			By("Verify the number of retries on the datavolume")
+			Eventually(func() int32 {
+				dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				restarts := dv.Status.RestartCount
+				return restarts
+			}, timeout, pollingInterval).Should(BeNumerically(">=", 1))
+
+			By("Restore the file, import should progress")
+			utils.WaitTimeoutForPodReady(f.K8sClient, fileHostPod.Name, fileHostPod.Namespace, utils.PodWaitForTime)
+			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
+				"/bin/sh",
+				"-c",
+				"cp /tmp/shared/images/"+originalImageName+" /tmp/shared/images/"+testImageName)
+			Expect(err).To(BeNil())
+
+			By("Wait for the eventual success")
+			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name, 300*time.Second)
+			Expect(err).To(BeNil())
+		})
+
+	})
+
 })
 
 func verifyConditions(actualConditions []cdiv1.DataVolumeCondition, startTime time.Time, testConditions ...*cdiv1.DataVolumeCondition) bool {
