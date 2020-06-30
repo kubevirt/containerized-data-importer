@@ -40,6 +40,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -84,6 +85,8 @@ const (
 	SnapshotForSmartCloneCreated = "SnapshotForSmartCloneCreated"
 	// SmartClonePVCInProgress provides a const to indicate snapshot creation for smart-clone is in progress
 	SmartClonePVCInProgress = "SmartClonePVCInProgress"
+	// SmartCloneSourceInUse provides a const to indicate a smart clone is being delayed becasuse the source is in use
+	SmartCloneSourceInUse = "SmartCloneSourceInUse"
 	// CloneFailed provides a const to indicate clone has failed
 	CloneFailed = "CloneFailed"
 	// CloneSucceeded provides a const to indicate clone has succeeded
@@ -253,6 +256,9 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 		snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume)
 		if err == nil {
 			r.log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class", "snapshotClassName", snapshotClassName)
+			if requeue, err := r.sourceInUse(datavolume); requeue || err != nil {
+				return reconcile.Result{Requeue: requeue}, err
+			}
 			newSnapshot := newSnapshot(datavolume, snapshotClassName)
 			if err := r.client.Create(context.TODO(), newSnapshot); err != nil {
 				if k8serrors.IsAlreadyExists(err) {
@@ -276,6 +282,22 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 	// Finally, we update the status block of the DataVolume resource to reflect the
 	// current state of the world
 	return r.reconcileDataVolumeStatus(datavolume, pvc)
+}
+
+func (r *DatavolumeReconciler) sourceInUse(dv *cdiv1.DataVolume) (bool, error) {
+	pods, err := getPodsUsingPVCs(r.client, dv.Spec.Source.PVC.Namespace, sets.NewString(dv.Spec.Source.PVC.Name), false)
+	if err != nil {
+		return false, err
+	}
+
+	for _, pod := range pods {
+		r.log.V(1).Info("Cannot snapshot",
+			"namespace", dv.Namespace, "name", dv.Name, "pod namespace", pod.Namespace, "pod name", pod.Name)
+		r.recorder.Eventf(dv, corev1.EventTypeWarning, SmartCloneSourceInUse,
+			"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, dv.Spec.Source.PVC.Name)
+	}
+
+	return len(pods) > 0, nil
 }
 
 func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, pvcUID types.UID) (reconcile.Result, error) {

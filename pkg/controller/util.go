@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"crypto/rsa"
-	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -14,12 +13,14 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 )
 
 const (
@@ -377,4 +378,39 @@ func getScratchNameFromPod(pod *v1.Pod) (string, bool) {
 
 func createScratchNameFromPvc(pvc *v1.PersistentVolumeClaim) string {
 	return naming.GetResourceName(pvc.Name, common.ScratchNameSuffix)
+}
+
+func getPodsUsingPVCs(c client.Client, namespace string, names sets.String, allowReadOnly bool) ([]v1.Pod, error) {
+	pl := &v1.PodList{}
+	// hopefully using cached client here
+	err := c.List(context.TODO(), pl, &client.ListOptions{Namespace: namespace})
+	if err != nil {
+		return nil, err
+	}
+
+	var pods []v1.Pod
+	for _, pod := range pl.Items {
+		for _, volume := range pod.Spec.Volumes {
+			if volume.VolumeSource.PersistentVolumeClaim != nil &&
+				names.Has(volume.PersistentVolumeClaim.ClaimName) &&
+				(!allowReadOnly || !volume.PersistentVolumeClaim.ReadOnly) {
+				pods = append(pods, pod)
+				break
+			}
+		}
+	}
+
+	return pods, nil
+}
+
+func filterCloneSourcePods(input []v1.Pod) []v1.Pod {
+	var output []v1.Pod
+
+	for _, pod := range input {
+		if pod.Labels[common.CDIComponentLabel] != common.ClonerSourcePodName {
+			output = append(output, pod)
+		}
+	}
+
+	return output
 }
