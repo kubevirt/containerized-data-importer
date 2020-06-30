@@ -83,6 +83,8 @@ func (f *Framework) CreateAndPopulateSourcePVC(pvcDef *k8sv1.PersistentVolumeCla
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = f.WaitTimeoutForPodStatus(pod.Name, k8sv1.PodSucceeded, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(pod.Name, nil)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	return sourcePvc
 }
 
@@ -223,5 +225,7 @@ func (f *Framework) RunCommandAndCaptureOutput(pvc *k8sv1.PersistentVolumeClaim,
 	if err != nil {
 		return "", err
 	}
+	err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(executorPod.Name, nil)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	return output, nil
 }

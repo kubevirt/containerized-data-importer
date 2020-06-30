@@ -32,6 +32,7 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -64,6 +65,9 @@ const (
 
 	// UploadSucceededPVC provides a const to indicate an import to the PVC failed
 	UploadSucceededPVC = "UploadSucceeded"
+
+	// UploadTargetInUse is reason for event created when an upload pvc is in use
+	UploadTargetInUse = "UploadTargetInUse"
 )
 
 // UploadReconciler members
@@ -156,6 +160,22 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 	}
 
 	if pod == nil {
+		podsUsingPVC, err := getPodsUsingPVCs(r.client, pvc.Namespace, sets.NewString(pvc.Name), false)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
+		if len(podsUsingPVC) > 0 {
+			for _, pod := range podsUsingPVC {
+				r.log.V(1).Info("can't create upload pod, pvc in use by other pod",
+					"namespace", pvc.Namespace, "name", pvc.Name, "pod", pod.Name)
+				r.recorder.Eventf(pvc, corev1.EventTypeWarning, UploadTargetInUse,
+					"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, pvc.Name)
+
+			}
+			return reconcile.Result{Requeue: true}, nil
+		}
+
 		podName, ok := pvc.Annotations[AnnUploadPod]
 		scratchPVCName := createScratchPvcNameFromPvc(pvc, isCloneTarget)
 

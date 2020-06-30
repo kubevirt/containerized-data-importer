@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -80,7 +82,29 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		Expect(len(podList.Items)).To(Equal(0))
 	})
 
-	It("Should return error and not create a pod, if neither upload nor clone annotations exist", func() {
+	It("Should requeue and not create a pod if target pvc in use", func() {
+		pvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: ""}, nil)
+		pod := podUsingPVC(pvc, false)
+		reconciler := createUploadReconciler(pvc, pod)
+		result, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result.Requeue).To(BeTrue())
+		podList := &corev1.PodList{}
+		err = reconciler.client.List(context.TODO(), podList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(podList.Items)).To(Equal(1))
+		By("Checking events recorded")
+		close(reconciler.recorder.(*record.FakeRecorder).Events)
+		found := false
+		for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+			if strings.Contains(event, "UploadTargetInUse") {
+				found = true
+			}
+		}
+		Expect(found).To(BeTrue())
+	})
+
+	It("Should return error and not create a pod if both upload and clone annotations exist", func() {
 		reconciler := createUploadReconciler(createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: "", AnnCloneRequest: ""}, nil))
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).To(HaveOccurred())
@@ -485,6 +509,8 @@ func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
 	// Create a fake client to mock API calls.
 	cl := fake.NewFakeClientWithScheme(s, objs...)
 
+	rec := record.NewFakeRecorder(10)
+
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	r := &UploadReconciler{
 		client:              cl,
@@ -492,6 +518,7 @@ func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
 		log:                 uploadLog,
 		serverCertGenerator: &fakeCertGenerator{},
 		clientCAFetcher:     &fetcher.MemCertBundleFetcher{Bundle: []byte("baz")},
+		recorder:            rec,
 	}
 	return r
 }

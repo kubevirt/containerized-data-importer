@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -57,6 +58,9 @@ const (
 
 	// CloneSucceededPVC provides a const to indicate a clone to the PVC succeeded
 	CloneSucceededPVC = "CloneSucceeded"
+
+	// CloneSourceInUse is reason for event created when clone source pvc is in use
+	CloneSourceInUse = "CloneSourceInUse"
 
 	cloneSourcePodFinalizer = "cdi.kubevirt.io/cloneSource"
 
@@ -183,8 +187,8 @@ func (r *CloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, er
 		return reconcile.Result{Requeue: true}, nil
 	}
 
-	if err := r.reconcileSourcePod(sourcePod, pvc, log); err != nil {
-		return reconcile.Result{}, err
+	if requeue, err := r.reconcileSourcePod(sourcePod, pvc, log); requeue || err != nil {
+		return reconcile.Result{Requeue: requeue}, err
 	}
 
 	if err := r.updatePvcFromPod(sourcePod, pvc, log); err != nil {
@@ -193,24 +197,46 @@ func (r *CloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, er
 	return reconcile.Result{}, nil
 }
 
-func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
+func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *corev1.PersistentVolumeClaim, log logr.Logger) (bool, error) {
 	if sourcePod == nil {
-		if err := r.validateSourceAndTarget(pvc); err != nil {
-			return err
-		}
-
-		clientName, ok := pvc.Annotations[AnnUploadClientName]
-		if !ok {
-			return errors.Errorf("PVC %s/%s missing required %s annotation", pvc.Namespace, pvc.Name, AnnUploadClientName)
-		}
-
-		sourcePod, err := r.CreateCloneSourcePod(r.image, r.pullPolicy, clientName, pvc, log)
+		sourcePvc, err := r.getCloneRequestSourcePVC(targetPvc)
 		if err != nil {
-			return err
+			return false, err
+		}
+
+		if err := r.validateSourceAndTarget(sourcePvc, targetPvc); err != nil {
+			return false, err
+		}
+
+		clientName, ok := targetPvc.Annotations[AnnUploadClientName]
+		if !ok {
+			return false, errors.Errorf("PVC %s/%s missing required %s annotation", targetPvc.Namespace, targetPvc.Name, AnnUploadClientName)
+		}
+
+		pods, err := getPodsUsingPVCs(r.client, sourcePvc.Namespace, sets.NewString(sourcePvc.Name), true)
+		if err != nil {
+			return false, err
+		}
+
+		filtered := filterCloneSourcePods(pods)
+
+		if len(filtered) > 0 {
+			for _, pod := range filtered {
+				r.log.V(1).Info("can't create clone source pod, pvc in use by other pod",
+					"namespace", sourcePvc.Namespace, "name", sourcePvc.Name, "pod", pod.Name)
+				r.recorder.Eventf(targetPvc, corev1.EventTypeWarning, CloneSourceInUse,
+					"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, sourcePvc.Name)
+			}
+			return true, nil
+		}
+
+		sourcePod, err := r.CreateCloneSourcePod(r.image, r.pullPolicy, clientName, targetPvc, log)
+		if err != nil {
+			return false, err
 		}
 		log.V(3).Info("Created source pod ", "sourcePod.Namespace", sourcePod.Namespace, "sourcePod.Name", sourcePod.Name)
 	}
-	return nil
+	return false, nil
 }
 
 func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
@@ -306,17 +332,12 @@ func (r *CloneReconciler) findCloneSourcePod(pvc *corev1.PersistentVolumeClaim) 
 	return &podList.Items[0], nil
 }
 
-func (r *CloneReconciler) validateSourceAndTarget(targetPvc *corev1.PersistentVolumeClaim) error {
-	sourcePvc, err := r.getCloneRequestSourcePVC(targetPvc)
-	if err != nil {
+func (r *CloneReconciler) validateSourceAndTarget(sourcePvc, targetPvc *corev1.PersistentVolumeClaim) error {
+	if err := validateCloneToken(r.tokenValidator, sourcePvc, targetPvc); err != nil {
 		return err
 	}
 
-	if err = validateCloneToken(r.tokenValidator, sourcePvc, targetPvc); err != nil {
-		return err
-	}
-
-	err = ValidateCanCloneSourceAndTargetSpec(&sourcePvc.Spec, &targetPvc.Spec)
+	err := ValidateCanCloneSourceAndTargetSpec(&sourcePvc.Spec, &targetPvc.Spec)
 	if err == nil {
 		// Validation complete, put source PVC bound status in annotation
 		setBoundConditionFromPVC(targetPvc.GetAnnotations(), AnnBoundCondition, sourcePvc)

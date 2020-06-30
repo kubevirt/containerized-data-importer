@@ -21,14 +21,14 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
-	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
-
 	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
@@ -45,6 +45,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
 )
 
@@ -149,14 +150,61 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(testPvc.Annotations[AnnCloneSourcePod]).To(Equal("default-testPvc1-source-pod"))
 	})
 
-	It("Should create new source pod if none exists, and target pod is marked ready", func() {
+	DescribeTable("Should NOT create new source pod if source PVC is in use", func(podFunc func(*corev1.PersistentVolumeClaim) *corev1.Pod) {
 		testPvc := createPvc("testPvc1", "default", map[string]string{
 			AnnCloneRequest:     "default/source",
 			AnnPodReady:         "true",
 			AnnCloneToken:       "foobaz",
 			AnnUploadClientName: "uploadclient",
 			AnnCloneSourcePod:   "default-testPvc1-source-pod"}, nil)
-		reconciler = createCloneReconciler(testPvc, createPvc("source", "default", map[string]string{}, nil))
+		sourcePvc := createPvc("source", "default", map[string]string{}, nil)
+		reconciler = createCloneReconciler(testPvc, sourcePvc, podFunc(sourcePvc))
+		By("Setting up the match token")
+		reconciler.tokenValidator.(*FakeValidator).match = "foobaz"
+		reconciler.tokenValidator.(*FakeValidator).Name = "source"
+		reconciler.tokenValidator.(*FakeValidator).Namespace = "default"
+		reconciler.tokenValidator.(*FakeValidator).Params["targetNamespace"] = "default"
+		reconciler.tokenValidator.(*FakeValidator).Params["targetName"] = "testPvc1"
+		By("Verifying no source pod exists")
+		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
+		Expect(sourcePod).To(BeNil())
+		result, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result.Requeue).To(BeTrue())
+		By("Verifying source pod does not exist")
+		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sourcePod).To(BeNil())
+		By("Checking events recorded")
+		close(reconciler.recorder.(*record.FakeRecorder).Events)
+		found := false
+		for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+			if strings.Contains(event, "CloneSourceInUse") {
+				found = true
+			}
+		}
+		Expect(found).To(BeTrue())
+		reconciler = nil
+	},
+		Entry("read/write", func(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
+			return podUsingPVC(pvc, false)
+		}),
+	)
+
+	DescribeTable("Should create new source pod if none exists, and target pod is marked ready and", func(podFunc func(*corev1.PersistentVolumeClaim) *corev1.Pod) {
+		testPvc := createPvc("testPvc1", "default", map[string]string{
+			AnnCloneRequest:     "default/source",
+			AnnPodReady:         "true",
+			AnnCloneToken:       "foobaz",
+			AnnUploadClientName: "uploadclient",
+			AnnCloneSourcePod:   "default-testPvc1-source-pod"}, nil)
+		sourcePvc := createPvc("source", "default", map[string]string{}, nil)
+		otherSourcePod := podFunc(sourcePvc)
+		objs := []runtime.Object{testPvc, sourcePvc}
+		if otherSourcePod != nil {
+			objs = append(objs, otherSourcePod)
+		}
+		reconciler = createCloneReconciler(objs...)
 		By("Setting up the match token")
 		reconciler.tokenValidator.(*FakeValidator).match = "foobaz"
 		reconciler.tokenValidator.(*FakeValidator).Name = "source"
@@ -177,7 +225,19 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
-	})
+	},
+		Entry("no pods are using source PVC", func(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
+			return nil
+		}),
+		Entry("readonly pod using source PVC", func(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
+			return podUsingPVC(pvc, true)
+		}),
+		Entry("other clone source pod using source PVC", func(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
+			pod := podUsingPVC(pvc, false)
+			pod.Labels = map[string]string{"cdi.kubevirt.io": "cdi-clone-source"}
+			return pod
+		}),
+	)
 
 	It("Should error with missing upload client name annotation if none provided", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{
@@ -533,7 +593,7 @@ var _ = Describe("TokenValidation", func() {
 	missingParams := goodTokenData()
 	missingParams.Params = nil
 
-	table.DescribeTable("should", func(p *token.Payload, expectedSuccess bool) {
+	DescribeTable("should", func(p *token.Payload, expectedSuccess bool) {
 		tokenString, err := g.Generate(p)
 		if err != nil {
 			panic("error generating token")
@@ -557,14 +617,14 @@ var _ = Describe("TokenValidation", func() {
 			Expect(reflect.DeepEqual(p, goodTokenData())).To(BeFalse())
 		}
 	},
-		table.Entry("succeed", goodTokenData(), true),
-		table.Entry("fail on bad operation", badOperation, false),
-		table.Entry("fail on bad sourceName", badSourceName, false),
-		table.Entry("fail on bad sourceNamespace", badSourceNamespace, false),
-		table.Entry("fail on bad resource", badResource, false),
-		table.Entry("fail on bad targetName", badTargetName, false),
-		table.Entry("fail on bad targetNamespace", badTargetNamespace, false),
-		table.Entry("fail on bad missing parameters", missingParams, false),
+		Entry("succeed", goodTokenData(), true),
+		Entry("fail on bad operation", badOperation, false),
+		Entry("fail on bad sourceName", badSourceName, false),
+		Entry("fail on bad sourceNamespace", badSourceNamespace, false),
+		Entry("fail on bad resource", badResource, false),
+		Entry("fail on bad targetName", badTargetName, false),
+		Entry("fail on bad targetNamespace", badTargetNamespace, false),
+		Entry("fail on bad missing parameters", missingParams, false),
 	)
 })
 
