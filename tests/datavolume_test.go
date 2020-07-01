@@ -812,13 +812,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	})
 
 	Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component][test] CDI Import from HTTP/S3", func() {
-
+		const (
+			originalImageName = "cirros-qcow2.img"
+			testImageName     = "cirros-qcow2-1990.img"
+		)
 		var (
 			dataVolume              *cdiv1.DataVolume
 			err                     error
-			originalImageName       = "cirros-qcow2.img"
-			testImageName           = "cirros-qcow2-1990.img"
-			tinyCoreIsoRateLimitURL = fmt.Sprintf("http://cdi-file-host.%s:82/cirros-qcow2-1990.img", f.CdiInstallNs)
+			tinyCoreIsoRateLimitURL = "http://cdi-file-host." + f.CdiInstallNs + ":82/cirros-qcow2-1990.img"
 		)
 
 		BeforeEach(func() {
@@ -863,13 +864,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			phase := cdiv1.ImportInProgress
 			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
 			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
-			if err != nil {
-				dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
-				if dverr != nil {
-					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
-				}
-			}
-			// wait for progress actually being reported
 			Expect(err).ToNot(HaveOccurred())
 
 			// here we want to have more than 0, to be sure it started
