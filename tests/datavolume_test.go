@@ -926,7 +926,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Verifying the POD remains pending for 30 seconds")
 			podName := naming.GetResourceName(common.ImporterPodName, pvc.Name)
-			for i := 0; i < 30; i++ {
+			Consistently(func() bool {
 				pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(podName, metav1.GetOptions{})
 				if err == nil {
 					// Found the pod
@@ -940,9 +940,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				} else {
 					Expect(err).ToNot(HaveOccurred())
 				}
-				// Sleep one second and try again.
-				time.Sleep(time.Second)
-			}
+				return true
+			}, time.Second*30, time.Second).Should(BeTrue())
 
 			By("Creating the config map")
 			_, err = utils.CopyRegistryCertConfigMapDestName(f.K8sClient, f.Namespace.Name, f.CdiInstallNs, cmName)
