@@ -87,12 +87,12 @@ function error {
 
 #Iterate over all images build them and push them into cdi registry
 function pushImages {
-   images=$1 
+   images=$1
    registry_host=$2
    registry_port=$3
    registry_tls=$4
    registry=$registry_host":"$registry_port
-   
+
    shopt -s nullglob
    for IMAGEDIR in *$DIR; do
         cd $IMAGEDIR
@@ -101,15 +101,15 @@ function pushImages {
         IMAGENAME=${FILE//.}
         echo "building image "$IMAGENAME
         buildah bud -t $IMAGENAME":latest" $images"/"$IMAGEDIR"/"
-	error $?	
+        error $?
         echo "pushing image "$IMAGENAME" to registry-service: "$registry
         buildah push $registry_tls  $IMAGENAME":latest" "docker://"$registry"/"$IMAGENAME
-	error $?
+	    error $?
         cd ../
    done
 }
 
-#remove storage.conf if exists 
+#remove storage.conf if exists
 rm -rf /etc/containers/storage.conf
 
 #start health beat
@@ -117,7 +117,7 @@ health $HEALTH_PATH $HEALTH_PERIOD &
 
 #prepare and poush images
 prepareImages $IMAGES_SRC $IMAGES_CTR
-pushImages  $IMAGES_CTR $REGISTRY_HOST $REGISTRY_PORT $REGISTRY_TLS
+pushImages $IMAGES_CTR $REGISTRY_HOST $REGISTRY_PORT $REGISTRY_TLS
 
 #mark container as ready
 ready $READYNESS_PATH $READYNESS_PERIOD &

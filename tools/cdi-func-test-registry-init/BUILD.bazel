@@ -119,6 +119,8 @@ filegroup(
     name = "registry-config",
     srcs = [
         ":registry-config.yml",
+        ":registry-auth-config.yml",
+        ":htpasswd",
     ],
 )
 
