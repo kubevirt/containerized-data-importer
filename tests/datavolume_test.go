@@ -845,13 +845,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				"rm -f /tmp/shared/images/"+testImageName)
 			Expect(err).To(BeNil())
 
-			Eventually(func() bool {
-				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
-				if k8serrors.IsNotFound(err) {
-					return true
-				}
-				return false
-			}, timeout, pollingInterval).Should(BeTrue())
+			By("Verifying pvc was deleted")
+			deleted, err := utils.WaitPVCDeleted(f.K8sClient, dataVolume.Name, dataVolume.Namespace, timeout)
+			Expect(deleted).To(BeTrue())
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("[test_id:1990] CDI Data Volume - file is removed from http server while import is in progress", func() {
