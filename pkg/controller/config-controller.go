@@ -64,20 +64,8 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 	// Keep a copy of the original for comparison later.
 	currentConfigCopy := config.DeepCopyObject()
 
-	config.Status.UploadProxyURL = config.Spec.UploadProxyURLOverride
-	// No override, try Ingress
-	if config.Status.UploadProxyURL == nil {
-		if err := r.reconcileIngress(config); err != nil {
-			log.Error(err, "Unable to reconcile Ingress")
-			return reconcile.Result{}, err
-		}
-	}
-	// No override or Ingress, try Route
-	if config.Status.UploadProxyURL == nil {
-		if err := r.reconcileRoute(config); err != nil {
-			log.Error(err, "Unable to reconcile Routes")
-			return reconcile.Result{}, err
-		}
+	if err := r.reconcileUploadProxyUrl(config, log); err != nil {
+		return reconcile.Result{}, err
 	}
 
 	if err := r.reconcileStorageClass(config); err != nil {
@@ -96,6 +84,25 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 		}
 	}
 	return reconcile.Result{}, nil
+}
+
+func (r *CDIConfigReconciler) reconcileUploadProxyUrl(config *cdiv1.CDIConfig, log logr.Logger) error {
+	config.Status.UploadProxyURL = config.Spec.UploadProxyURLOverride
+	// No override, try Ingress
+	if config.Status.UploadProxyURL == nil {
+		if err := r.reconcileIngress(config); err != nil {
+			log.Error(err, "Unable to reconcile Ingress")
+			return err
+		}
+	}
+	// No override or Ingress, try Route
+	if config.Status.UploadProxyURL == nil {
+		if err := r.reconcileRoute(config); err != nil {
+			log.Error(err, "Unable to reconcile Routes")
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *CDIConfigReconciler) reconcileIngress(config *cdiv1.CDIConfig) error {
