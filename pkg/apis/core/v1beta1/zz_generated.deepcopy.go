@@ -133,6 +133,11 @@ func (in *CDIConfigSpec) DeepCopyInto(out *CDIConfigSpec) {
 		*out = new(v1.ResourceRequirements)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.FeatureGates != nil {
+		in, out := &in.FeatureGates, &out.FeatureGates
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 
@@ -158,6 +163,11 @@ func (in *CDIConfigStatus) DeepCopyInto(out *CDIConfigStatus) {
 		in, out := &in.DefaultPodResourceRequirements, &out.DefaultPodResourceRequirements
 		*out = new(v1.ResourceRequirements)
 		(*in).DeepCopyInto(*out)
+	}
+	if in.FeatureGates != nil {
+		in, out := &in.FeatureGates, &out.FeatureGates
+		*out = make([]string, len(*in))
+		copy(*out, *in)
 	}
 	return
 }

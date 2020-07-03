@@ -310,6 +310,7 @@ type CDIConfigSpec struct {
 	UploadProxyURLOverride   *string                      `json:"uploadProxyURLOverride,omitempty"`
 	ScratchSpaceStorageClass *string                      `json:"scratchSpaceStorageClass,omitempty"`
 	PodResourceRequirements  *corev1.ResourceRequirements `json:"podResourceRequirements,omitempty"`
+	FeatureGates             []string                     `json:"featureGates,omitempty"`
 }
 
 //CDIConfigStatus provides
@@ -317,6 +318,7 @@ type CDIConfigStatus struct {
 	UploadProxyURL                 *string                      `json:"uploadProxyURL,omitempty"`
 	ScratchSpaceStorageClass       string                       `json:"scratchSpaceStorageClass,omitempty"`
 	DefaultPodResourceRequirements *corev1.ResourceRequirements `json:"defaultPodResourceRequirements,omitempty"`
+	FeatureGates                   []string                     `json:"featureGates,omitempty"`
 }
 
 //CDIConfigList provides the needed parameters to do request a list of CDIConfigs from the system
