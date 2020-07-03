@@ -153,6 +153,7 @@ type DatavolumeReconciler struct {
 	recorder     record.EventRecorder
 	scheme       *runtime.Scheme
 	log          logr.Logger
+	config       *FeatureGates
 }
 
 func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
@@ -162,12 +163,18 @@ func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) boo
 
 // NewDatavolumeController creates a new instance of the datavolume controller.
 func NewDatavolumeController(mgr manager.Manager, extClientSet extclientset.Interface, log logr.Logger) (controller.Controller, error) {
+	client := mgr.GetClient()
+	featureGates, err := NewFeatureGates(client)
+	if err != nil {
+		return nil, err
+	}
 	reconciler := &DatavolumeReconciler{
-		client:       mgr.GetClient(),
+		client:       client,
 		scheme:       mgr.GetScheme(),
 		extClientSet: extClientSet,
 		log:          log.WithName("datavolume-controller"),
 		recorder:     mgr.GetEventRecorderFor("datavolume-controller"),
+		config:       featureGates,
 	}
 	datavolumeController, err := controller.New("datavolume-controller", mgr, controller.Options{
 		Reconciler: reconciler,
@@ -210,6 +217,8 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 // Reconcile the reconcile loop for the data volumes.
 func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("Datavolume", req.NamespacedName)
+
+	// log.Info("FeatureGate ", "SkipWFFCVolumesEnabled", r.config.SkipWFFCVolumesEnabled())
 
 	// Get the Datavolume.
 	datavolume := &cdiv1.DataVolume{}

@@ -137,6 +137,10 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	}
 	uploadServerCertGenerator := &generator.FetchCertGenerator{Fetcher: uploadServerCAFetcher}
 
+	if _, err := controller.NewConfigController(mgr, log, uploadProxyServiceName, configName); err != nil {
+		klog.Errorf("Unable to setup config controller: %v", err)
+		os.Exit(1)
+	}
 	// TODO: Current DV controller had threadiness 3, should we do the same here, defaults to one thread.
 	if _, err := controller.NewDatavolumeController(mgr, extClient, log); err != nil {
 		klog.Errorf("Unable to setup datavolume controller: %v", err)
@@ -155,10 +159,6 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 
 	if _, err := controller.NewUploadController(mgr, log, uploadServerImage, pullPolicy, verbose, uploadServerCertGenerator, uploadClientBundleFetcher); err != nil {
 		klog.Errorf("Unable to setup upload controller: %v", err)
-		os.Exit(1)
-	}
-	if _, err := controller.NewConfigController(mgr, log, uploadProxyServiceName, configName); err != nil {
-		klog.Errorf("Unable to setup config controller: %v", err)
 		os.Exit(1)
 	}
 
