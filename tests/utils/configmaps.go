@@ -22,6 +22,15 @@ func CopyRegistryCertConfigMap(client kubernetes.Interface, destNamespace, cdiNa
 	return n, nil
 }
 
+// CopyRegistryCertConfigMapDestName copies the test registry configmap, it assumes the Registry host is in the CDI namespace
+func CopyRegistryCertConfigMapDestName(client kubernetes.Interface, destNamespace, cdiNamespace, destName string) (string, error) {
+	n, err := CopyConfigMap(client, cdiNamespace, RegistryCertConfigMap, destNamespace, destName)
+	if err != nil {
+		return "", err
+	}
+	return n, nil
+}
+
 // CopyFileHostCertConfigMap copies the test file host configmap, it assumes the File host is in the CDI namespace
 func CopyFileHostCertConfigMap(client kubernetes.Interface, destNamespace, cdiNamespace string) (string, error) {
 	n, err := CopyConfigMap(client, cdiNamespace, FileHostCertConfigMap, destNamespace, "")

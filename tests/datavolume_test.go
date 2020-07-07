@@ -11,12 +11,14 @@ import (
 
 	"github.com/onsi/ginkgo/extensions/table"
 
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 
@@ -904,6 +906,52 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	})
 
+	Describe("Registry import with missing configmap", func() {
+		const cmName = "cert-registry-cm"
+
+		It("Import POD should remain pending until CM exists", func() {
+			var pvc *corev1.PersistentVolumeClaim
+
+			dataVolumeDef := utils.NewDataVolumeWithRegistryImport("missing-cm-registry-dv", "1Gi", tinyCoreIsoRegistryURL)
+			dataVolumeDef.Spec.Source.Registry.CertConfigMap = cmName
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolumeDef)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying pvc was created")
+			Eventually(func() bool {
+				// TODO: fix this to use the mechanism to find the correct PVC once we decouple the DV and PVC names
+				pvc, _ = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+				return pvc != nil && pvc.Name != ""
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			By("Verifying the POD remains pending for 30 seconds")
+			podName := naming.GetResourceName(common.ImporterPodName, pvc.Name)
+			Consistently(func() bool {
+				pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(podName, metav1.GetOptions{})
+				if err == nil {
+					// Found the pod
+					Expect(pod.Status.Phase).To(Equal(corev1.PodPending))
+					if len(pod.Status.ContainerStatuses) == 1 && pod.Status.ContainerStatuses[0].State.Waiting != nil {
+						Expect(pod.Status.ContainerStatuses[0].State.Waiting.Reason).To(Equal("ContainerCreating"))
+					}
+					fmt.Fprintf(GinkgoWriter, "INFO: pod found, pending, container creating: %s\n", podName)
+				} else if k8serrors.IsNotFound(err) {
+					fmt.Fprintf(GinkgoWriter, "INFO: pod not found: %s\n", podName)
+				} else {
+					Expect(err).ToNot(HaveOccurred())
+				}
+				return true
+			}, time.Second*30, time.Second).Should(BeTrue())
+
+			By("Creating the config map")
+			_, err = utils.CopyRegistryCertConfigMapDestName(f.K8sClient, f.Namespace.Name, f.CdiInstallNs, cmName)
+			Expect(err).ToNot(HaveOccurred())
+
+			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(cdiv1.Succeeded)))
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
 })
 
 func verifyConditions(actualConditions []cdiv1.DataVolumeCondition, startTime time.Time, testConditions ...*cdiv1.DataVolumeCondition) bool {
