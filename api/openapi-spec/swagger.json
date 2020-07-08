@@ -3186,12 +3186,6 @@
      "defaultPodResourceRequirements": {
       "$ref": "#/definitions/v1.ResourceRequirements"
      },
-     "featureGates": {
-      "type": "array",
-      "items": {
-       "type": "string"
-      }
-     },
      "scratchSpaceStorageClass": {
       "type": "string"
      },

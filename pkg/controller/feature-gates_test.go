@@ -47,12 +47,12 @@ var _ = Describe("Feature Gates", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		// update the config on the status not the spec
-		cdiConfig.Status.FeatureGates = []string{SkipWaitForFirstConsumerVolumes}
+		cdiConfig.Spec.FeatureGates = []string{SkipWaitForFirstConsumerVolumes}
 		err = featureGates.client.Update(context.TODO(), cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(featureGates.SkipWFFCVolumesEnabled()).To(BeTrue())
 
-		cdiConfig.Status.FeatureGates = []string{}
+		cdiConfig.Spec.FeatureGates = nil
 		err = featureGates.client.Update(context.TODO(), cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(featureGates.SkipWFFCVolumesEnabled()).To(BeFalse())
@@ -74,8 +74,8 @@ func createFeatureGates(objects ...runtime.Object) *FeatureGates {
 	// Create a fake client to mock API calls.
 	cl := fake.NewFakeClientWithScheme(s, objs...)
 
-	// Create a ReconcileMemcached object with the scheme and fake client.
-	f := &FeatureGates{client: cl}
+	// Create a NewFeatureGates with fake client.
+	f, _ := NewFeatureGates(cl)
 
 	return f
 }

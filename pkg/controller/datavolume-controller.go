@@ -218,8 +218,6 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("Datavolume", req.NamespacedName)
 
-	// log.Info("FeatureGate ", "SkipWFFCVolumesEnabled", r.config.SkipWFFCVolumesEnabled())
-
 	// Get the Datavolume.
 	datavolume := &cdiv1.DataVolume{}
 	if err := r.client.Get(context.TODO(), req.NamespacedName, datavolume); err != nil {

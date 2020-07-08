@@ -64,10 +64,6 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 	// Keep a copy of the original for comparison later.
 	currentConfigCopy := config.DeepCopyObject()
 
-	if err := r.reconcileFeatureGates(config); err != nil {
-		return reconcile.Result{}, err
-	}
-
 	if err := r.reconcileUploadProxyURL(config, log); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -88,16 +84,6 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 		}
 	}
 	return reconcile.Result{}, nil
-}
-
-func (r *CDIConfigReconciler) reconcileFeatureGates(config *cdiv1.CDIConfig) error {
-	if config.Spec.FeatureGates != nil {
-		config.Status.FeatureGates = config.Spec.FeatureGates
-	} else {
-		config.Status.FeatureGates = []string{}
-	}
-
-	return nil
 }
 
 func (r *CDIConfigReconciler) reconcileUploadProxyURL(config *cdiv1.CDIConfig, log logr.Logger) error {

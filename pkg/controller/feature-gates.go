@@ -6,6 +6,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sync"
 )
 
 const (
@@ -15,23 +16,24 @@ const (
 
 // FeatureGates is a util for determining whether an optional feature is enabled or not.
 type FeatureGates struct {
-	client client.Client
+	client               client.Client
+	lock                 *sync.Mutex
+	lasValidFeatureGates []string
 }
 
 // NewFeatureGates creates a new instance of the feature gates
 func NewFeatureGates(c client.Client) (*FeatureGates, error) {
-	fg := &FeatureGates{client: c}
+	fg := &FeatureGates{
+		client: c,
+		lock:   &sync.Mutex{},
+	}
 	return fg, nil
 }
 
 func (f *FeatureGates) isFeatureGateEnabled(featureGate string) bool {
-	cfg, err := getConfig(f.client)
-	if err != nil {
-		// TODO: what to do here? kubevirt always has config in ClusterConfig object available
-		return false
-	}
+	featureGates := f.getConfig()
 
-	for _, fg := range cfg.Status.FeatureGates {
+	for _, fg := range featureGates {
 		if fg == featureGate {
 			return true
 		}
@@ -39,12 +41,16 @@ func (f *FeatureGates) isFeatureGateEnabled(featureGate string) bool {
 	return false
 }
 
-func getConfig(client client.Client) (*cdiv1.CDIConfig, error) {
+func (f *FeatureGates) getConfig() []string {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
 	config := &cdiv1.CDIConfig{}
-	if err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, config); err != nil {
-		return nil, err
+	if err := f.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, config); err != nil {
+		return f.lasValidFeatureGates
 	}
-	return config, nil
+	f.lasValidFeatureGates = config.Spec.FeatureGates
+	return f.lasValidFeatureGates
 }
 
 // SkipWFFCVolumesEnabled - see SkipWaitForFirstConsumerVolumes const
