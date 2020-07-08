@@ -145,7 +145,7 @@ help:
 	@echo " clean "
 	@echo "  : cleans up previous build artifacts"
 	@echo " cluster-up "
-	@echo "  : start a default Kubernetes or Open Shift cluster. set KUBEVIRT_PROVIDER environment variable to either 'k8s-1.16.2' or 'os-3.11.0' to select the type of cluster. set KUBEVIRT_NUM_NODES to something higher than 1 to have more than one node."
+	@echo "  : start a default Kubernetes or Open Shift cluster. set KUBEVIRT_PROVIDER environment variable to either 'k8s-1.18' or 'os-3.11.0' to select the type of cluster. set KUBEVIRT_NUM_NODES to something higher than 1 to have more than one node."
 	@echo " cluster-down "
 	@echo "  : stop the cluster, doing a make cluster-down && make cluster-up will basically restart the cluster into an empty fresh state."
 	@echo " cluster-down-purge "
