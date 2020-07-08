@@ -236,3 +236,22 @@ func WaitPVCDeleted(clientSet *kubernetes.Clientset, pvcName, namespace string, 
 	})
 	return result, err
 }
+
+// WaitPVCDeletedByUID polls the specified PVC until timeout or it's not found, returns true if the PVC with the same UID is deleted
+// in the specified timeout period, and any errors
+func WaitPVCDeletedByUID(clientSet *kubernetes.Clientset, pvcSpec *k8sv1.PersistentVolumeClaim, timeout time.Duration) (bool, error) {
+	var result bool
+	err := wait.PollImmediate(2*time.Second, timeout, func() (bool, error) {
+		pvc, err := clientSet.CoreV1().PersistentVolumeClaims(pvcSpec.Namespace).Get(pvcSpec.Name, metav1.GetOptions{})
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				result = true
+				return true, nil
+			}
+			return false, err
+		}
+		result = pvcSpec.GetUID() != pvc.GetUID()
+		return result, nil
+	})
+	return result, err
+}

@@ -48,6 +48,11 @@ func (f *Framework) FindPVC(pvcName string) (*k8sv1.PersistentVolumeClaim, error
 	return utils.FindPVC(f.K8sClient, f.Namespace.Name, pvcName)
 }
 
+// WaitPVCDeletedByUID is a wrapper around utils.WaitPVCDeletedByUID
+func (f *Framework) WaitPVCDeletedByUID(pvcSpec *k8sv1.PersistentVolumeClaim, timeout time.Duration) (bool, error) {
+	return utils.WaitPVCDeletedByUID(f.K8sClient, pvcSpec, timeout)
+}
+
 // VerifyPVCIsEmpty verifies a passed in PVC is empty, returns true if the PVC is empty, false if it is not. Optionaly, specify node for the pod.
 func VerifyPVCIsEmpty(f *Framework, pvc *k8sv1.PersistentVolumeClaim, node string) (bool, error) {
 	var err error
