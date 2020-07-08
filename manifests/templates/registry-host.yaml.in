@@ -30,6 +30,7 @@ spec:
       containers:
       - name: registry
         image: {{ .DockerRepo }}/cdi-func-test-registry:{{ .DockerTag }}
+        command: ["/start-registry.sh", "/etc/docker/registry/registry-config.yml"]
         imagePullPolicy: {{ .PullPolicy }}
         ports:
           - name: sec-docker-reg
@@ -40,11 +41,35 @@ spec:
           mountPath: "/tmp/health"
         - name: "images"
           mountPath: "/tmp/shared"
+        - name: "registry-storage"
+          mountPath: "/var/lib/registry"
         readinessProbe:
           exec:
             command:
              - cat
              - /tmp/health/ready
+          initialDelaySeconds: 20
+          periodSeconds: 20
+      - name: registry-auth
+        image: {{ .DockerRepo }}/cdi-func-test-registry:{{ .DockerTag }}
+        command: ["/start-registry.sh", "/etc/docker/registry/registry-auth-config.yml"]
+        imagePullPolicy: {{ .PullPolicy }}
+        ports:
+          - name: auth-docker-reg
+            containerPort: 1443
+        resources: {}
+        volumeMounts:
+        - name: "health"
+          mountPath: "/tmp/health"
+        - name: "images"
+          mountPath: "/tmp/shared"
+        - name: "registry-storage"
+          mountPath: "/var/lib/registry"
+        readinessProbe:
+          exec:
+            command:
+              - cat
+              - /tmp/health/ready
           initialDelaySeconds: 20
           periodSeconds: 20
       - name: registry-populate
@@ -75,6 +100,8 @@ spec:
         emptyDir: {}
       - name: "health"
         emptyDir: {}
+      - name: "registry-storage"
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -93,3 +120,6 @@ spec:
   - name: alt-sec-docker-reg
     port: 5000
     targetPort: 443
+  - name: auth-docker-reg
+    port: 1443
+    targetPort: 1443
