@@ -20,18 +20,21 @@
 package uploadserver
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
-	. "github.com/onsi/gomega"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"time"
+
+	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/gomega"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
@@ -221,6 +224,8 @@ var _ = Describe("Upload server tests", func() {
 	},
 		table.Entry("async", common.UploadPathAsync),
 		table.Entry("sync", common.UploadPathSync),
+		table.Entry("form async", common.UploadFormAsync),
+		table.Entry("form sync", common.UploadFormSync),
 	)
 
 	table.DescribeTable("Completion conflict", func(uploadPath string) {
@@ -240,6 +245,8 @@ var _ = Describe("Upload server tests", func() {
 	},
 		table.Entry("async", common.UploadPathAsync),
 		table.Entry("sync", common.UploadPathSync),
+		table.Entry("form async", common.UploadFormAsync),
+		table.Entry("form sync", common.UploadFormSync),
 	)
 
 	It("Success", func() {
@@ -275,8 +282,24 @@ var _ = Describe("Upload server tests", func() {
 		table.Entry("HEAD", "HEAD"),
 	)
 
-	table.DescribeTable("Stream fail", func(uploadPath string) {
-		withAsyncProcessorFailure(func() {
+	table.DescribeTable("Success, form", func(processorFunc func(func()), path string) {
+		processorFunc(func() {
+			req := newFormRequest(path)
+			rr := httptest.NewRecorder()
+
+			server := newServer()
+			server.ServeHTTP(rr, req)
+
+			status := rr.Code
+			Expect(status).To(Equal(http.StatusOK))
+		})
+	},
+		table.Entry("Sync", withProcessorSuccess, common.UploadFormSync),
+		table.Entry("Async", withAsyncProcessorSuccess, common.UploadFormAsync),
+	)
+
+	table.DescribeTable("Stream fail", func(processorFunc func(func()), uploadPath string) {
+		processorFunc(func() {
 			req, err := http.NewRequest("POST", uploadPath, strings.NewReader("data"))
 			Expect(err).ToNot(HaveOccurred())
 
@@ -289,8 +312,24 @@ var _ = Describe("Upload server tests", func() {
 			Expect(status).To(Equal(http.StatusInternalServerError))
 		})
 	},
-		table.Entry("async", common.UploadPathAsync),
-		table.Entry("sync", common.UploadPathSync),
+		table.Entry("async", withAsyncProcessorFailure, common.UploadPathAsync),
+		table.Entry("sync", withProcessorFailure, common.UploadPathSync),
+	)
+
+	table.DescribeTable("Stream fail form", func(processorFunc func(func()), uploadPath string) {
+		processorFunc(func() {
+			req := newFormRequest(uploadPath)
+			rr := httptest.NewRecorder()
+
+			server := newServer()
+			server.ServeHTTP(rr, req)
+
+			status := rr.Code
+			Expect(status).To(Equal(http.StatusInternalServerError))
+		})
+	},
+		table.Entry("async", withAsyncProcessorFailure, common.UploadFormAsync),
+		table.Entry("sync", withProcessorFailure, common.UploadFormSync),
 	)
 
 	table.DescribeTable("Real upload with client", func(certName string, expectedName string, expectedResponse int) {
@@ -333,3 +372,24 @@ var _ = Describe("Upload server tests", func() {
 		table.Entry("Invalid data", "foo", "bar", 401),
 	)
 })
+
+func newFormRequest(path string) *http.Request {
+	var b bytes.Buffer
+	w := multipart.NewWriter(&b)
+	data := strings.NewReader("data")
+
+	fw, err := w.CreateFormFile("file", "myimage.img")
+	Expect(err).ToNot(HaveOccurred())
+
+	_, err = io.Copy(fw, data)
+	Expect(err).ToNot(HaveOccurred())
+	err = w.Close()
+	Expect(err).ToNot(HaveOccurred())
+
+	req, err := http.NewRequest("POST", path, &b)
+	Expect(err).ToNot(HaveOccurred())
+
+	req.Header.Set("Content-Type", w.FormDataContentType())
+
+	return req
+}

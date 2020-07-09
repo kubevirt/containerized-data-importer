@@ -3,6 +3,8 @@ package tests_test
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"os/exec"
@@ -24,6 +26,18 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
+
+const (
+	syncUploadPath  = "/v1alpha1/upload"
+	asyncUploadPath = "/v1alpha1/upload-async"
+
+	syncFormPath  = "/v1alpha1/upload-form"
+	asyncFormPath = "/v1alpha1/upload-form-async"
+)
+
+type uploadFunc func(string, string, int) error
+
+type uploadRequestCreator func(string) (*http.Request, error)
 
 var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component]Upload tests", func() {
 
@@ -73,7 +87,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(deleted).To(BeTrue())
 	})
 
-	DescribeTable("should", func(validToken bool, expectedStatus int) {
+	DescribeTable("should", func(uploader uploadFunc, validToken bool, expectedStatus int) {
 		By("Verify PVC annotation says ready")
 		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 		Expect(err).ToNot(HaveOccurred())
@@ -90,7 +104,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		}
 
 		By("Do upload")
-		err = uploadImage(uploadProxyURL, token, expectedStatus)
+		err = uploader(uploadProxyURL, token, expectedStatus)
 		Expect(err).ToNot(HaveOccurred())
 
 		if validToken {
@@ -113,7 +127,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			By("Verifying permissions are 660")
 			Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
 		} else {
-			uploader, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
+			uploadPod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
 			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
 
 			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
@@ -123,7 +137,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(err).ToNot(HaveOccurred())
 
 			Eventually(func() bool {
-				_, err = f.K8sClient.CoreV1().Pods(uploader.Namespace).Get(uploader.Name, metav1.GetOptions{})
+				_, err = f.K8sClient.CoreV1().Pods(uploadPod.Namespace).Get(uploadPod.Name, metav1.GetOptions{})
 				if k8serrors.IsNotFound(err) {
 					return true
 				}
@@ -136,8 +150,11 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(err).ToNot(HaveOccurred())
 		}
 	},
-		Entry("[test_id:1368]succeed given a valid token", true, http.StatusOK),
-		Entry("[posneg:negative][test_id:1369]fail given an invalid token", false, http.StatusUnauthorized),
+		Entry("[test_id:1368]succeed given a valid token", uploadImage, true, http.StatusOK),
+		Entry("succeed given a valid token (async)", uploadImageAsync, true, http.StatusOK),
+		Entry("succeed given a valid token (form)", uploadForm, true, http.StatusOK),
+		Entry("succeed given a valid token (form async)", uploadFormAsync, true, http.StatusOK),
+		Entry("[posneg:negative][test_id:1369]fail given an invalid token", uploadImage, false, http.StatusUnauthorized),
 	)
 	It("Verify upload to the same pvc fails", func() {
 		By("Verify PVC annotation says ready")
@@ -183,14 +200,74 @@ func startUploadProxyPortForward(f *framework.Framework) (string, *exec.Cmd, err
 	return url, cmd, nil
 }
 
-func uploadImage(portForwardURL, token string, expectedStatus int) error {
-	url := portForwardURL + "/v1alpha1/upload"
-
+func formRequestFunc(url string) (*http.Request, error) {
 	f, err := os.Open(utils.UploadFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer f.Close()
+
+	pipeReader, pipeWriter := io.Pipe()
+	multipartWriter := multipart.NewWriter(pipeWriter)
+
+	req, err := http.NewRequest("POST", url, pipeReader)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", multipartWriter.FormDataContentType())
+
+	go func() {
+		defer GinkgoRecover()
+		defer f.Close()
+		defer pipeWriter.Close()
+
+		formFile, err := multipartWriter.CreateFormFile("file", utils.UploadFile)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = io.Copy(formFile, f)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = multipartWriter.Close()
+		Expect(err).ToNot(HaveOccurred())
+	}()
+
+	return req, nil
+}
+
+func binaryRequestFunc(url string) (*http.Request, error) {
+	f, err := os.Open(utils.UploadFile)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", url, f)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", "application/octet-stream")
+
+	return req, nil
+}
+
+func uploadImage(portForwardURL, token string, expectedStatus int) error {
+	return uploadToPath(binaryRequestFunc, portForwardURL, syncUploadPath, token, expectedStatus)
+}
+
+func uploadImageAsync(portForwardURL, token string, expectedStatus int) error {
+	return uploadToPath(binaryRequestFunc, portForwardURL, asyncUploadPath, token, expectedStatus)
+}
+
+func uploadForm(portForwardURL, token string, expectedStatus int) error {
+	return uploadToPath(formRequestFunc, portForwardURL, syncFormPath, token, expectedStatus)
+}
+
+func uploadFormAsync(portForwardURL, token string, expectedStatus int) error {
+	return uploadToPath(formRequestFunc, portForwardURL, syncFormPath, token, expectedStatus)
+}
+
+func uploadToPath(requestFunc uploadRequestCreator, portForwardURL, path, token string, expectedStatus int) error {
+	url := portForwardURL + path
 
 	client := &http.Client{
 		Transport: &http.Transport{
@@ -198,13 +275,13 @@ func uploadImage(portForwardURL, token string, expectedStatus int) error {
 		},
 	}
 
-	req, err := http.NewRequest("POST", url, f)
+	req, err := requestFunc(url)
 	if err != nil {
 		return err
 	}
+	defer req.Body.Close()
 
 	req.Header.Add("Authorization", "Bearer "+token)
-	req.Header.Add("Content-Type", "application/octet-stream")
 	req.Header.Add("Origin", "foo.bar.com")
 
 	resp, err := client.Do(req)

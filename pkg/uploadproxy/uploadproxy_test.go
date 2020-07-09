@@ -76,8 +76,8 @@ func getHTTPClientConfig() *httpClientConfig {
 	}
 }
 
-func newProxyRequest(authHeaderValue string) *http.Request {
-	req, err := http.NewRequest("POST", common.UploadPathSync, strings.NewReader("data"))
+func newProxyRequest(path, authHeaderValue string) *http.Request {
+	req, err := http.NewRequest("POST", path, strings.NewReader("data"))
 	Expect(err).ToNot(HaveOccurred())
 
 	if authHeaderValue != "" {
@@ -182,30 +182,42 @@ func setupProxyTests(handler http.HandlerFunc) *uploadProxyApp {
 }
 
 var _ = Describe("submit request and check status", func() {
-	table.DescribeTable("Test proxy status code", func(statusCode int) {
+	table.DescribeTable("Test proxy status code", func(path string, statusCode int) {
 		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(statusCode)
 		}))
 		app.uploadPossible = func(*v1.PersistentVolumeClaim) error { return nil }
 
-		req := newProxyRequest("Bearer valid")
+		req := newProxyRequest(path, "Bearer valid")
 		submitRequestAndCheckStatus(req, statusCode, app)
 	},
-		table.Entry("Test OK", http.StatusOK),
-		table.Entry("Test error", http.StatusInternalServerError),
+		table.Entry("Test Sync OK", common.UploadPathSync, http.StatusOK),
+		table.Entry("Test Sync error", common.UploadPathSync, http.StatusInternalServerError),
+		table.Entry("Test Async OK", common.UploadPathAsync, http.StatusOK),
+		table.Entry("Test Async error", common.UploadPathAsync, http.StatusInternalServerError),
+		table.Entry("Test Form Sync OK", common.UploadFormSync, http.StatusOK),
+		table.Entry("Test Form Sync error", common.UploadFormSync, http.StatusInternalServerError),
+		table.Entry("Test Form Async OK", common.UploadFormAsync, http.StatusOK),
+		table.Entry("Test Form Async error", common.UploadFormAsync, http.StatusInternalServerError),
 	)
-	table.DescribeTable("Test proxy status code with CORS", func(statusCode int) {
+	table.DescribeTable("Test proxy status code with CORS", func(path string, statusCode int) {
 		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(statusCode)
 		}))
 		app.uploadPossible = func(*v1.PersistentVolumeClaim) error { return nil }
 
-		req := newProxyRequest("Bearer valid")
+		req := newProxyRequest(path, "Bearer valid")
 		req.Header.Set("Origin", "foo.bar.com")
 		submitRequestAndCheckStatusAndCORS(req, statusCode, app)
 	},
-		table.Entry("Test OK", http.StatusOK),
-		table.Entry("Test error", http.StatusInternalServerError),
+		table.Entry("Test Sync OK", common.UploadPathSync, http.StatusOK),
+		table.Entry("Test Sync error", common.UploadPathSync, http.StatusInternalServerError),
+		table.Entry("Test Async OK", common.UploadPathAsync, http.StatusOK),
+		table.Entry("Test Async error", common.UploadPathAsync, http.StatusInternalServerError),
+		table.Entry("Test Form Sync OK", common.UploadFormSync, http.StatusOK),
+		table.Entry("Test Form Sync error", common.UploadFormSync, http.StatusInternalServerError),
+		table.Entry("Test Form Async OK", common.UploadFormAsync, http.StatusOK),
+		table.Entry("Test Form Async error", common.UploadFormAsync, http.StatusInternalServerError),
 	)
 	table.DescribeTable("Test head proxy status code", func(statusCode int) {
 		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -223,12 +235,12 @@ var _ = Describe("submit request and check status", func() {
 		app := createApp()
 		app.tokenValidator = &validateFailure{}
 
-		req := newProxyRequest("Bearer valid")
+		req := newProxyRequest(common.UploadPathSync, "Bearer valid")
 
 		submitRequestAndCheckStatus(req, http.StatusUnauthorized, app)
 	})
 	table.DescribeTable("Test proxy auth header", func(headerValue string, statusCode int) {
-		req := newProxyRequest(headerValue)
+		req := newProxyRequest(common.UploadPathSync, headerValue)
 		submitRequestAndCheckStatus(req, statusCode, nil)
 	},
 		table.Entry("No auth header", "", http.StatusBadRequest),
@@ -246,7 +258,7 @@ var _ = Describe("submit request and check status", func() {
 		}))
 		app.uploadPossible = func(*v1.PersistentVolumeClaim) error { return nil }
 
-		req := newProxyRequest("Bearer valid")
+		req := newProxyRequest(common.UploadPathSync, "Bearer valid")
 		submitRequestAndCheckStatus(req, statusCode, app)
 	},
 		table.Entry("Test OK", func(*v1.PersistentVolumeClaim) error { return nil }, http.StatusOK),
