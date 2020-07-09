@@ -66,7 +66,8 @@ func (f *Framework) ForceBindPvcIfDvIsWaitForFirstConsumer(dv *cdiv1.DataVolume)
 	pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	if f.IsBindingModeWaitForFirstConsumer(pvc.Spec.StorageClassName) {
-		utils.WaitForDataVolumePhase(f.CdiClient, dv.Namespace, cdiv1.WaitForFirstConsumer, dv.Name)
+		err = utils.WaitForDataVolumePhase(f.CdiClient, dv.Namespace, cdiv1.WaitForFirstConsumer, dv.Name)
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 		createConsumerPod(pvc, f)
 	}
 }
@@ -86,13 +87,19 @@ func (f *Framework) ForceBindIfWaitForFirstConsumer(targetPvc *k8sv1.PersistentV
 func createConsumerPod(targetPvc *k8sv1.PersistentVolumeClaim, f *Framework) {
 	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: creating \"consumer-pod\" to force binding PVC: %s\n", targetPvc.Name)
 	namespace := targetPvc.Namespace
+
+	err := utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetPvc.Namespace, k8sv1.ClaimPending, targetPvc.Name)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
 	podName := naming.GetResourceName("consumer-pod", targetPvc.Name)
 	executorPod, err := utils.CreateNoopPodWithPVC(f.K8sClient, podName, namespace, targetPvc)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = utils.WaitTimeoutForPodSucceeded(f.K8sClient, executorPod.Name, namespace, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-	utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, namespace, k8sv1.ClaimBound, targetPvc.Name)
+	err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, namespace, k8sv1.ClaimBound, targetPvc.Name)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
 	utils.DeletePod(f.K8sClient, executorPod, namespace)
 }
 
