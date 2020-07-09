@@ -18,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 
-	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
@@ -192,14 +191,14 @@ var _ = Describe("submit request and check status", func() {
 		req := newProxyRequest(path, "Bearer valid")
 		submitRequestAndCheckStatus(req, statusCode, app)
 	},
-		table.Entry("Test Sync OK", common.UploadPathSync, http.StatusOK),
-		table.Entry("Test Sync error", common.UploadPathSync, http.StatusInternalServerError),
-		table.Entry("Test Async OK", common.UploadPathAsync, http.StatusOK),
-		table.Entry("Test Async error", common.UploadPathAsync, http.StatusInternalServerError),
-		table.Entry("Test Form Sync OK", common.UploadFormSync, http.StatusOK),
-		table.Entry("Test Form Sync error", common.UploadFormSync, http.StatusInternalServerError),
-		table.Entry("Test Form Async OK", common.UploadFormAsync, http.StatusOK),
-		table.Entry("Test Form Async error", common.UploadFormAsync, http.StatusInternalServerError),
+		table.Entry("Test Sync OK", uploadserver.UploadPathSync, http.StatusOK),
+		table.Entry("Test Sync error", uploadserver.UploadPathSync, http.StatusInternalServerError),
+		table.Entry("Test Async OK", uploadserver.UploadPathAsync, http.StatusOK),
+		table.Entry("Test Async error", uploadserver.UploadPathAsync, http.StatusInternalServerError),
+		table.Entry("Test Form Sync OK", uploadserver.UploadFormSync, http.StatusOK),
+		table.Entry("Test Form Sync error", uploadserver.UploadFormSync, http.StatusInternalServerError),
+		table.Entry("Test Form Async OK", uploadserver.UploadFormAsync, http.StatusOK),
+		table.Entry("Test Form Async error", uploadserver.UploadFormAsync, http.StatusInternalServerError),
 	)
 	table.DescribeTable("Test proxy status code with CORS", func(path string, statusCode int) {
 		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -211,14 +210,14 @@ var _ = Describe("submit request and check status", func() {
 		req.Header.Set("Origin", "foo.bar.com")
 		submitRequestAndCheckStatusAndCORS(req, statusCode, app)
 	},
-		table.Entry("Test Sync OK", common.UploadPathSync, http.StatusOK),
-		table.Entry("Test Sync error", common.UploadPathSync, http.StatusInternalServerError),
-		table.Entry("Test Async OK", common.UploadPathAsync, http.StatusOK),
-		table.Entry("Test Async error", common.UploadPathAsync, http.StatusInternalServerError),
-		table.Entry("Test Form Sync OK", common.UploadFormSync, http.StatusOK),
-		table.Entry("Test Form Sync error", common.UploadFormSync, http.StatusInternalServerError),
-		table.Entry("Test Form Async OK", common.UploadFormAsync, http.StatusOK),
-		table.Entry("Test Form Async error", common.UploadFormAsync, http.StatusInternalServerError),
+		table.Entry("Test Sync OK", uploadserver.UploadPathSync, http.StatusOK),
+		table.Entry("Test Sync error", uploadserver.UploadPathSync, http.StatusInternalServerError),
+		table.Entry("Test Async OK", uploadserver.UploadPathAsync, http.StatusOK),
+		table.Entry("Test Async error", uploadserver.UploadPathAsync, http.StatusInternalServerError),
+		table.Entry("Test Form Sync OK", uploadserver.UploadFormSync, http.StatusOK),
+		table.Entry("Test Form Sync error", uploadserver.UploadFormSync, http.StatusInternalServerError),
+		table.Entry("Test Form Async OK", uploadserver.UploadFormAsync, http.StatusOK),
+		table.Entry("Test Form Async error", uploadserver.UploadFormAsync, http.StatusInternalServerError),
 	)
 	table.DescribeTable("Test head proxy status code", func(statusCode int) {
 		app := setupProxyTests(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -236,12 +235,12 @@ var _ = Describe("submit request and check status", func() {
 		app := createApp()
 		app.tokenValidator = &validateFailure{}
 
-		req := newProxyRequest(common.UploadPathSync, "Bearer valid")
+		req := newProxyRequest(uploadserver.UploadPathSync, "Bearer valid")
 
 		submitRequestAndCheckStatus(req, http.StatusUnauthorized, app)
 	})
 	table.DescribeTable("Test proxy auth header", func(headerValue string, statusCode int) {
-		req := newProxyRequest(common.UploadPathSync, headerValue)
+		req := newProxyRequest(uploadserver.UploadPathSync, headerValue)
 		submitRequestAndCheckStatus(req, statusCode, nil)
 	},
 		table.Entry("No auth header", "", http.StatusBadRequest),
@@ -259,7 +258,7 @@ var _ = Describe("submit request and check status", func() {
 		}))
 		app.uploadPossible = func(*v1.PersistentVolumeClaim) error { return nil }
 
-		req := newProxyRequest(common.UploadPathSync, "Bearer valid")
+		req := newProxyRequest(uploadserver.UploadPathSync, "Bearer valid")
 		submitRequestAndCheckStatus(req, statusCode, app)
 	},
 		table.Entry("Test OK", func(*v1.PersistentVolumeClaim) error { return nil }, http.StatusOK),

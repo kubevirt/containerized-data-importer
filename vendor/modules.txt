@@ -484,8 +484,8 @@ k8s.io/apimachinery/pkg/types
 k8s.io/apimachinery/pkg/labels
 k8s.io/apimachinery/pkg/api/meta
 k8s.io/apimachinery/pkg/util/intstr
-k8s.io/apimachinery/pkg/util/clock
 k8s.io/apimachinery/pkg/util/sets
+k8s.io/apimachinery/pkg/util/clock
 k8s.io/apimachinery/pkg/util/wait
 k8s.io/apimachinery/pkg/util/jsonmergepatch
 k8s.io/apimachinery/pkg/util/mergepatch

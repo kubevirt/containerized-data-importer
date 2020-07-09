@@ -83,13 +83,6 @@ type clientCreator struct {
 
 var authHeaderMatcher = regexp.MustCompile(`(?i)^Bearer\s+([A-Za-z0-9\-\._~\+\/]+)$`)
 
-var uploadPaths = []string{
-	common.UploadPathSync,
-	common.UploadPathAsync,
-	common.UploadFormSync,
-	common.UploadFormAsync,
-}
-
 // NewUploadProxy returns an initialized uploadProxyApp
 func NewUploadProxy(bindAddress string,
 	bindPort uint,
