@@ -133,6 +133,12 @@ const (
 	// UploadPathAsync is the path to POST CDI uploads in async mode
 	UploadPathAsync = "/v1alpha1/upload-async"
 
+	// UploadFormSync is the path to POST CDI uploads as form data
+	UploadFormSync = "/v1alpha1/upload-form"
+
+	// UploadFormAsync is the path to POST CDI uploads as form data in async mode
+	UploadFormAsync = "/v1alpha1/upload-form-async"
+
 	// QemuSubGid is the gid used as the qemu group in fsGroup
 	QemuSubGid = int64(107)
 
