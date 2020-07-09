@@ -153,7 +153,6 @@ type DatavolumeReconciler struct {
 	recorder     record.EventRecorder
 	scheme       *runtime.Scheme
 	log          logr.Logger
-	config       *FeatureGates
 }
 
 func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
@@ -163,18 +162,12 @@ func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) boo
 
 // NewDatavolumeController creates a new instance of the datavolume controller.
 func NewDatavolumeController(mgr manager.Manager, extClientSet extclientset.Interface, log logr.Logger) (controller.Controller, error) {
-	client := mgr.GetClient()
-	featureGates, err := NewFeatureGates(client)
-	if err != nil {
-		return nil, err
-	}
 	reconciler := &DatavolumeReconciler{
-		client:       client,
+		client:       mgr.GetClient(),
 		scheme:       mgr.GetScheme(),
 		extClientSet: extClientSet,
 		log:          log.WithName("datavolume-controller"),
 		recorder:     mgr.GetEventRecorderFor("datavolume-controller"),
-		config:       featureGates,
 	}
 	datavolumeController, err := controller.New("datavolume-controller", mgr, controller.Options{
 		Reconciler: reconciler,
