@@ -47,7 +47,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	cdiviaplha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiviaplha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	clusterResources "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
@@ -1166,15 +1166,19 @@ var _ = Describe("Controller", func() {
 							},
 						},
 						Spec: extv1beta1.CustomResourceDefinitionSpec{
-							Group:   "cdi.kubevirt.io",
-							Version: "v1alpha1",
-							Scope:   "Cluster",
+							Group: "cdi.kubevirt.io",
+							Scope: "Cluster",
 
 							Versions: []extv1beta1.CustomResourceDefinitionVersion{
 								{
-									Name:    "v1alpha1",
+									Name:    "v1beta1",
 									Served:  true,
 									Storage: true,
+								},
+								{
+									Name:    "v1alpha1",
+									Served:  true,
+									Storage: false,
 								},
 							},
 							Names: extv1beta1.CustomResourceDefinitionNames{

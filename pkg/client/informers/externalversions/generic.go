@@ -23,8 +23,8 @@ import (
 
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
-	v1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
-	uploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
+	v1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	uploadv1beta1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
 )
 
 // GenericInformer is type of SharedIndexInformer which will locate and delegate to other
@@ -53,17 +53,17 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=cdi.kubevirt.io, Version=v1alpha1
-	case v1alpha1.SchemeGroupVersion.WithResource("cdis"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1alpha1().CDIs().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("cdiconfigs"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1alpha1().CDIConfigs().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("datavolumes"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1alpha1().DataVolumes().Informer()}, nil
+	// Group=cdi.kubevirt.io, Version=v1beta1
+	case v1beta1.SchemeGroupVersion.WithResource("cdis"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1beta1().CDIs().Informer()}, nil
+	case v1beta1.SchemeGroupVersion.WithResource("cdiconfigs"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1beta1().CDIConfigs().Informer()}, nil
+	case v1beta1.SchemeGroupVersion.WithResource("datavolumes"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1beta1().DataVolumes().Informer()}, nil
 
-		// Group=upload.cdi.kubevirt.io, Version=v1alpha1
-	case uploadv1alpha1.SchemeGroupVersion.WithResource("uploadtokenrequests"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Upload().V1alpha1().UploadTokenRequests().Informer()}, nil
+		// Group=upload.cdi.kubevirt.io, Version=v1beta1
+	case uploadv1beta1.SchemeGroupVersion.WithResource("uploadtokenrequests"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Upload().V1beta1().UploadTokenRequests().Informer()}, nil
 
 	}
 

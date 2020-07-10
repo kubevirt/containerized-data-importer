@@ -289,16 +289,22 @@ func createCDIListCRD() *extv1beta1.CustomResourceDefinition {
 			},
 		},
 		Spec: extv1beta1.CustomResourceDefinitionSpec{
-			Group:   "cdi.kubevirt.io",
-			Version: "v1alpha1",
-			Scope:   "Cluster",
-
+			Group: "cdi.kubevirt.io",
+			Scope: "Cluster",
 			Versions: []extv1beta1.CustomResourceDefinitionVersion{
 				{
-					Name:    "v1alpha1",
+					Name:    "v1beta1",
 					Served:  true,
 					Storage: true,
 				},
+				{
+					Name:    "v1alpha1",
+					Served:  true,
+					Storage: false,
+				},
+			},
+			Conversion: &extv1beta1.CustomResourceConversion{
+				Strategy: extv1beta1.NoneConverter,
 			},
 			Names: extv1beta1.CustomResourceDefinitionNames{
 				Kind:     "CDI",
@@ -558,7 +564,7 @@ _The CDI Operator does not support updates yet._
 				"alm-examples": `
       [
         {
-          "apiVersion":"cdi.kubevirt.io/v1alpha1",
+          "apiVersion":"cdi.kubevirt.io/v1beta1",
           "kind":"CDI",
           "metadata": {
             "name":"cdi",
@@ -638,7 +644,7 @@ _The CDI Operator does not support updates yet._
 				Owned: []csvv1.CRDDescription{
 					{
 						Name:        "cdis.cdi.kubevirt.io",
-						Version:     "v1alpha1",
+						Version:     "v1beta1",
 						Kind:        "CDI",
 						DisplayName: "CDI deployment",
 						Description: "Represents a CDI deployment",

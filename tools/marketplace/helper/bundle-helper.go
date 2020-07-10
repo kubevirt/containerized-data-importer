@@ -31,7 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/json"
 
 	"github.com/operator-framework/operator-marketplace/pkg/datastore"
-	v1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
 	"k8s.io/klog"
 )
@@ -198,7 +198,7 @@ func (bh *BundleHelper) AddOldManifests(outDir string, currentCSVVersion string)
 
 func (bh *BundleHelper) addOldCRDs(outDir string) error {
 
-	currentVersion := v1.CDIGroupVersionKind.Version
+	currentVersion := cdiv1.CDIGroupVersionKind.Version
 	for _, crd := range bh.CRDs {
 		if crd.Spec.Version == currentVersion {
 			// the current version wil be generated

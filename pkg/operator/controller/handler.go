@@ -24,14 +24,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
 func enqueueCDI(c client.Client) handler.EventHandler {
 	return &handler.EnqueueRequestsFromMapFunc{
 		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
 			var rrs []reconcile.Request
-			cdiList := &cdiv1alpha1.CDIList{}
+			cdiList := &cdiv1.CDIList{}
 
 			if err := c.List(context.TODO(), cdiList, &client.ListOptions{}); err != nil {
 				log.Error(err, "Error listing all CDI objects")

@@ -25,12 +25,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/appscode/jsonpatch"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	"github.com/appscode/jsonpatch"
 	"k8s.io/api/admission/v1beta1"
 	authorization "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,7 +37,7 @@ import (
 	fakeclient "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 
-	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdicorev1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 )
 
@@ -61,8 +60,8 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			ar := &v1beta1.AdmissionReview{
 				Request: &v1beta1.AdmissionRequest{
 					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+						Group:    cdicorev1.SchemeGroupVersion.Group,
+						Version:  cdicorev1.SchemeGroupVersion.Version,
 						Resource: "datavolumes",
 					},
 					Object: runtime.RawExtension{
@@ -90,8 +89,8 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 				Request: &v1beta1.AdmissionRequest{
 					Operation: v1beta1.Update,
 					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+						Group:    cdicorev1.SchemeGroupVersion.Group,
+						Version:  cdicorev1.SchemeGroupVersion.Version,
 						Resource: "datavolumes",
 					},
 					Object: runtime.RawExtension{
@@ -115,8 +114,8 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			ar := &v1beta1.AdmissionReview{
 				Request: &v1beta1.AdmissionRequest{
 					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+						Group:    cdicorev1.SchemeGroupVersion.Group,
+						Version:  cdicorev1.SchemeGroupVersion.Version,
 						Resource: "datavolumes",
 					},
 					Object: runtime.RawExtension{
@@ -137,8 +136,8 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			ar := &v1beta1.AdmissionReview{
 				Request: &v1beta1.AdmissionRequest{
 					Resource: metav1.GroupVersionResource{
-						Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-						Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+						Group:    cdicorev1.SchemeGroupVersion.Group,
+						Version:  cdicorev1.SchemeGroupVersion.Version,
 						Resource: "datavolumes",
 					},
 					Object: runtime.RawExtension{

@@ -69,7 +69,7 @@ Specifying an 'upload' source will mark the data volume as a target for upload.
 
 To create an upload datavolume use the following [example](../manifests/example/upload-datavolume.yaml).
 ```yaml
-apiVersion: cdi.kubevirt.io/v1alpha1
+apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
 metadata:
   name: upload-datavolume
@@ -93,7 +93,7 @@ Before sending data to the Upload Proxy, an Upload Token must be requested.
 
 Take a look at at `manifests/example/upload-datavolume-token.yaml` for an example.
 ```yaml
-apiVersion: upload.cdi.kubevirt.io/v1alpha1
+apiVersion: upload.cdi.kubevirt.io/v1beta1
 kind: UploadTokenRequest
 metadata:
   name: upload-datavolume
@@ -104,12 +104,12 @@ spec:
 ```
 ```bash
 kubectl apply -f manifests/example/upload-datavolume-token.yaml -o yaml
-apiVersion: upload.cdi.kubevirt.io/v1alpha1
+apiVersion: upload.cdi.kubevirt.io/v1beta1
 kind: UploadTokenRequest
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"upload.cdi.kubevirt.io/v1alpha1","kind":"UploadTokenRequest","metadata":{"annotations":{},"name":"upload-datavolume-token","namespace":"default"},"spec":{"pvcName":"upload-datavolume"}}
+      {"apiVersion":"upload.cdi.kubevirt.io/v1beta1","kind":"UploadTokenRequest","metadata":{"annotations":{},"name":"upload-datavolume-token","namespace":"default"},"spec":{"pvcName":"upload-datavolume"}}
   creationTimestamp: null
   name: upload-datavolume-token
   namespace: default
@@ -124,7 +124,7 @@ Save the `token` field of the response status.  It will be used to authorize our
 You can capture the token in an environment variable by doing this:
 ```bash
 TOKEN=$(kubectl apply -f manifests/example/upload-datavolume-token.yaml -o="jsonpath={.status.token}")
-``` 
+```
 
 ## Upload an Image
 We will be using [curl](https://github.com/curl/curl) to upload `tests/images/cirros-qcow2.img` to the datavolume.
@@ -158,4 +158,3 @@ As soon as the data has been transmitted, the connection will be closed. The cal
 
 
 Assuming you did not get an error, the Datavolume `upload-datavolume` should now contain a bootable VM image.
-

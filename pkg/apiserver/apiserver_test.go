@@ -41,7 +41,7 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 
-	cdiuploadv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1"
+	cdiuploadv1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/keys/keystest"
 )
 
@@ -165,10 +165,14 @@ func getExpectedAPIGroup() metav1.APIGroup {
 			APIVersion: "v1",
 		},
 		PreferredVersion: metav1.GroupVersionForDiscovery{
-			GroupVersion: "upload.cdi.kubevirt.io/v1alpha1",
-			Version:      "v1alpha1",
+			GroupVersion: "upload.cdi.kubevirt.io/v1beta1",
+			Version:      "v1beta1",
 		},
 		Versions: []metav1.GroupVersionForDiscovery{
+			{
+				GroupVersion: "upload.cdi.kubevirt.io/v1beta1",
+				Version:      "v1beta1",
+			},
 			{
 				GroupVersion: "upload.cdi.kubevirt.io/v1alpha1",
 				Version:      "v1alpha1",
@@ -227,8 +231,8 @@ var _ = Describe("API server tests", func() {
 		checkActions(actions, client.Actions())
 	})
 
-	It("Get API resource list", func() {
-		rr := doGetRequest("/apis/upload.cdi.kubevirt.io/v1alpha1")
+	table.DescribeTable("Get API resource list", func(version string) {
+		rr := doGetRequest("/apis/upload.cdi.kubevirt.io/" + version)
 
 		resourceList := metav1.APIResourceList{}
 		err := json.Unmarshal(rr.Body.Bytes(), &resourceList)
@@ -239,14 +243,14 @@ var _ = Describe("API server tests", func() {
 				Kind:       "APIResourceList",
 				APIVersion: "v1",
 			},
-			GroupVersion: "upload.cdi.kubevirt.io/v1alpha1",
+			GroupVersion: "upload.cdi.kubevirt.io/" + version,
 			APIResources: []metav1.APIResource{
 				{
 					Name:         "uploadtokenrequests",
 					SingularName: "uploadtokenrequest",
 					Namespaced:   true,
 					Group:        "upload.cdi.kubevirt.io",
-					Version:      "v1alpha1",
+					Version:      version,
 					Kind:         "UploadTokenRequest",
 					Verbs:        []string{"create"},
 					ShortNames:   []string{"utr", "utrs"},
@@ -255,7 +259,10 @@ var _ = Describe("API server tests", func() {
 		}
 
 		Expect(reflect.DeepEqual(expectedResourceList, resourceList)).To(BeTrue())
-	})
+	},
+		table.Entry("for beta api", "v1beta1"),
+		table.Entry("for alpha api", "v1alpha1"),
+	)
 
 	It("Get API group", func() {
 		rr := doGetRequest("/apis/upload.cdi.kubevirt.io")
@@ -282,6 +289,7 @@ var _ = Describe("API server tests", func() {
 				"/apis/",
 				"/apis/upload.cdi.kubevirt.io",
 				"/apis/upload.cdi.kubevirt.io/v1alpha1",
+				"/apis/upload.cdi.kubevirt.io/v1beta1",
 				"/healthz",
 			},
 		}
@@ -326,12 +334,12 @@ var _ = Describe("API server tests", func() {
 		panic(err)
 	}
 
-	request := &cdiuploadv1alpha1.UploadTokenRequest{
+	request := &cdiuploadv1.UploadTokenRequest{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-token",
 			Namespace: "default",
 		},
-		Spec: cdiuploadv1alpha1.UploadTokenRequestSpec{
+		Spec: cdiuploadv1.UploadTokenRequestSpec{
 			PvcName: "test-pvc",
 		},
 	}
@@ -364,7 +372,7 @@ var _ = Describe("API server tests", func() {
 		app.composeUploadTokenAPI()
 
 		req, err := http.NewRequest("POST",
-			"/apis/upload.cdi.kubevirt.io/v1alpha1/namespaces/default/uploadtokenrequests",
+			"/apis/upload.cdi.kubevirt.io/v1beta1/namespaces/default/uploadtokenrequests",
 			bytes.NewReader(serializedRequest))
 		Expect(err).ToNot(HaveOccurred())
 		req.Header.Set("Content-Type", "application/json")
@@ -376,7 +384,7 @@ var _ = Describe("API server tests", func() {
 		Expect(status).To(Equal(expectedStatus))
 
 		if checkToken {
-			uploadTokenRequest := &cdiuploadv1alpha1.UploadTokenRequest{}
+			uploadTokenRequest := &cdiuploadv1.UploadTokenRequest{}
 			err := json.Unmarshal(rr.Body.Bytes(), &uploadTokenRequest)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(uploadTokenRequest.Status.Token).To(Not(Equal("")))

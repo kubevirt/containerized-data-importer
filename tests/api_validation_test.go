@@ -12,7 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -268,7 +268,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			updatedDataVolume := dataVolume.DeepCopy()
 			updatedDataVolume.Spec.Source.HTTP.URL = "http://foo.bar"
 
-			_, err := f.CdiClient.CdiV1alpha1().DataVolumes(updatedDataVolume.Namespace).Update(updatedDataVolume)
+			_, err := f.CdiClient.CdiV1beta1().DataVolumes(updatedDataVolume.Namespace).Update(updatedDataVolume)
 			Expect(err).To(HaveOccurred())
 		})
 	})
@@ -295,7 +295,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			}
 			updatedDataVolume.Annotations["foo"] = "bar"
 
-			_, err := f.CdiClient.CdiV1alpha1().DataVolumes(updatedDataVolume.Namespace).Update(updatedDataVolume)
+			_, err := f.CdiClient.CdiV1beta1().DataVolumes(updatedDataVolume.Namespace).Update(updatedDataVolume)
 			Expect(err).To(HaveOccurred())
 		})
 	})

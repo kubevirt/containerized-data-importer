@@ -35,7 +35,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
 
-	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
@@ -160,8 +160,8 @@ func allowedAdmissionResponse() *admissionv1beta1.AdmissionResponse {
 
 func validateDataVolumeResource(ar v1beta1.AdmissionReview) error {
 	resource := metav1.GroupVersionResource{
-		Group:    cdicorev1alpha1.SchemeGroupVersion.Group,
-		Version:  cdicorev1alpha1.SchemeGroupVersion.Version,
+		Group:    cdiv1.SchemeGroupVersion.Group,
+		Version:  cdiv1.SchemeGroupVersion.Version,
 		Resource: "datavolumes",
 	}
 	if ar.Request.Resource != resource {

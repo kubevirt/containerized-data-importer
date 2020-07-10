@@ -20,7 +20,7 @@ If the contentType is missing, it is defaulted to kubevirt.
 #### examples
 Creating a Datavolume that imports data from an http source with kubevirt(the default) contentType:
 ```yaml
-apiVersion: cdi.kubevirt.io/v1alpha1
+apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
 metadata:
   name: my-data-volume
@@ -35,11 +35,11 @@ spec:
     resources:
       requests:
         storage: 500Mi
-``` 
+```
 
 Creating a Datavolume that imports data from an http source with archive contentType:
 ```yaml
-apiVersion: cdi.kubevirt.io/v1alpha1
+apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
 metadata:
   name: import-archive-datavolume
@@ -54,11 +54,11 @@ spec:
     resources:
       requests:
         storage: 500Mi
-``` 
+```
 
 Creating a Datavolume that imports data from an registry source with kubevirt contentType:
 ```yaml
-apiVersion: cdi.kubevirt.io/v1alpha1
+apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
 metadata:
   name: registry-image-datavolume
@@ -71,7 +71,7 @@ spec:
     resources:
       requests:
         storage: 5Gi
-``` 
+```
 
 ### None
 The none source indicates there is no source to get data from and instead the default action for the contentType should be taken.
@@ -82,7 +82,7 @@ There is currently only one contentType that any meaning with a source of None. 
 #### example
 Creating a Datavolume that creates an empty virtual image:
 ```yaml
-apiVersion: cdi.kubevirt.io/v1alpha1
+apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
 metadata:
   name: blank-image-datavolume
@@ -95,4 +95,4 @@ spec:
     resources:
       requests:
         storage: 500Mi
-``` 
+```

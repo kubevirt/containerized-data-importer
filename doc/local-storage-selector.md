@@ -80,7 +80,7 @@ persistentvolume/local-pv-182992f7 labeled
 Here I picked the label name to be node, but it can be anything you want. Now create a DV like normal, but with a label selector.
 
 ```yaml
-apiVersion: cdi.kubevirt.io/v1alpha1
+apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
 metadata:
   name: "example-import-dv"

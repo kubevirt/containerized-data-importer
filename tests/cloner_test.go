@@ -9,9 +9,11 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -77,7 +79,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		By(fmt.Sprintf("waiting for source datavolume to match phase %s", string(cdiv1.Succeeded)))
 		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
 		if err != nil {
-			dv, dverr := f.CdiClient.CdiV1alpha1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
 			if dverr != nil {
 				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 			}
@@ -620,7 +622,7 @@ var _ = Describe("Namespace with quota", func() {
 
 	BeforeEach(func() {
 		By("Capturing original CDIConfig state")
-		config, err := f.CdiClient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		orgConfig = config.Status.DefaultPodResourceRequirements
 	})
@@ -833,7 +835,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(restartsValue).To(Equal("0"))
 
 		By("Verify the number of retries on the datavolume")
-		dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
+		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
 	})
@@ -881,7 +883,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		By("Verify the number of retries on the datavolume")
 		Eventually(func() int32 {
-			dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+			dv, err := f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			restarts := dv.Status.RestartCount
 			return restarts
@@ -914,7 +916,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(restartsValue).To(Equal("0"))
 
 		By("Verify the number of retries on the datavolume")
-		dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
+		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
 	})
@@ -947,7 +949,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(restartsValue).To(Equal("0"))
 
 		By("Verify the number of retries on the datavolume")
-		dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
+		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
 	})
@@ -980,7 +982,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(restartsValue).To(Equal("0"))
 
 		By("Verify the number of retries on the datavolume")
-		dv, err := f.CdiClient.CdiV1alpha1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
+		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
 	})

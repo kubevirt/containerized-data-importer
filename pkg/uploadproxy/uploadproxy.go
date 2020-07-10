@@ -24,6 +24,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/token"
+	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 )
 
@@ -81,13 +82,6 @@ type clientCreator struct {
 }
 
 var authHeaderMatcher = regexp.MustCompile(`(?i)^Bearer\s+([A-Za-z0-9\-\._~\+\/]+)$`)
-
-var uploadPaths = []string{
-	common.UploadPathSync,
-	common.UploadPathAsync,
-	common.UploadFormSync,
-	common.UploadFormAsync,
-}
 
 // NewUploadProxy returns an initialized uploadProxyApp
 func NewUploadProxy(bindAddress string,
@@ -157,7 +151,7 @@ func (c *clientCreator) CreateClient() (*http.Client, error) {
 func (app *uploadProxyApp) initHandler() {
 	mux := http.NewServeMux()
 	mux.HandleFunc(healthzPath, app.handleHealthzRequest)
-	for _, path := range uploadPaths {
+	for _, path := range uploadserver.ProxyPaths {
 		mux.HandleFunc(path, app.handleUploadRequest)
 	}
 	app.handler = cors.AllowAll().Handler(mux)

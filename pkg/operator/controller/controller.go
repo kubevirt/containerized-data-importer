@@ -50,7 +50,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	cdicerts "kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
@@ -158,7 +158,7 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 
 	// Fetch the CDI instance
 	// check at cluster level
-	cr := &cdiv1alpha1.CDI{}
+	cr := &cdiv1.CDI{}
 	crKey := client.ObjectKey{Namespace: "", Name: request.NamespacedName.Name}
 	if err := r.client.Get(context.TODO(), crKey, cr); err != nil {
 		if errors.IsNotFound(err) {
@@ -276,7 +276,7 @@ func shouldTakeUpdatePath(logger logr.Logger, targetVersion, currentVersion stri
 	return shouldTakeUpdatePath, nil
 }
 
-func (r *ReconcileCDI) checkForOrphans(logger logr.Logger, cr *cdiv1alpha1.CDI) (bool, error) {
+func (r *ReconcileCDI) checkForOrphans(logger logr.Logger, cr *cdiv1.CDI) (bool, error) {
 	resources, err := r.getAllResources(cr)
 	if err != nil {
 		return false, err
@@ -304,7 +304,7 @@ func (r *ReconcileCDI) checkForOrphans(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	return false, nil
 }
 
-func (r *ReconcileCDI) reconcileCreate(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
+func (r *ReconcileCDI) reconcileCreate(logger logr.Logger, cr *cdiv1.CDI) (reconcile.Result, error) {
 	// claim the configmap
 	if err := r.createConfigMap(cr); err != nil {
 		return reconcile.Result{}, err
@@ -323,7 +323,7 @@ func (r *ReconcileCDI) reconcileCreate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	return r.reconcileUpdate(logger, cr)
 }
 
-func (r *ReconcileCDI) checkUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) error {
+func (r *ReconcileCDI) checkUpgrade(logger logr.Logger, cr *cdiv1.CDI) error {
 	// should maybe put this in separate function
 	if cr.Status.OperatorVersion != r.namespacedArgs.OperatorVersion {
 		cr.Status.OperatorVersion = r.namespacedArgs.OperatorVersion
@@ -333,16 +333,16 @@ func (r *ReconcileCDI) checkUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) err
 		}
 	}
 
-	deploying := cr.Status.Phase == cdiv1alpha1.CDIPhaseDeploying
+	deploying := cr.Status.Phase == cdiv1.CDIPhaseDeploying
 	isUpgrade, err := shouldTakeUpdatePath(logger, r.namespacedArgs.OperatorVersion, cr.Status.ObservedVersion, deploying)
 	if err != nil {
 		return err
 	}
 
-	if isUpgrade && cr.Status.Phase != cdiv1alpha1.CDIPhaseUpgrading {
+	if isUpgrade && cr.Status.Phase != cdiv1.CDIPhaseUpgrading {
 		logger.Info("Observed version is not target version. Begin upgrade", "Observed version ", cr.Status.ObservedVersion, "TargetVersion", r.namespacedArgs.OperatorVersion)
 		MarkCrUpgradeHealingDegraded(cr, "UpgradeStarted", fmt.Sprintf("Started upgrade to version %s", r.namespacedArgs.OperatorVersion))
-		if err := r.crUpdate(cdiv1alpha1.CDIPhaseUpgrading, cr); err != nil {
+		if err := r.crUpdate(cdiv1.CDIPhaseUpgrading, cr); err != nil {
 			return err
 		}
 	}
@@ -350,7 +350,7 @@ func (r *ReconcileCDI) checkUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) err
 	return nil
 }
 
-func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
+func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1.CDI) (reconcile.Result, error) {
 	if err := r.checkUpgrade(logger, cr); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -474,11 +474,11 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		return reconcile.Result{}, err
 	}
 
-	if cr.Status.Phase != cdiv1alpha1.CDIPhaseDeployed && !r.isUpgrading(cr) && !degraded {
+	if cr.Status.Phase != cdiv1.CDIPhaseDeployed && !r.isUpgrading(cr) && !degraded {
 		//We are not moving to Deployed phase until new operator deployment is ready in case of Upgrade
 		cr.Status.ObservedVersion = r.namespacedArgs.OperatorVersion
 		MarkCrHealthyMessage(cr, "DeployCompleted", "Deployment Completed")
-		if err = r.crUpdate(cdiv1alpha1.CDIPhaseDeployed, cr); err != nil {
+		if err = r.crUpdate(cdiv1.CDIPhaseDeployed, cr); err != nil {
 			return reconcile.Result{}, err
 		}
 
@@ -496,7 +496,7 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	return reconcile.Result{RequeueAfter: certPollInterval}, nil
 }
 
-func (r *ReconcileCDI) completeUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) error {
+func (r *ReconcileCDI) completeUpgrade(logger logr.Logger, cr *cdiv1.CDI) error {
 	if err := r.cleanupUnusedResources(logger, cr); err != nil {
 		return err
 	}
@@ -505,7 +505,7 @@ func (r *ReconcileCDI) completeUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	cr.Status.ObservedVersion = r.namespacedArgs.OperatorVersion
 
 	MarkCrHealthyMessage(cr, "DeployCompleted", "Deployment Completed")
-	if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeployed, cr); err != nil {
+	if err := r.crUpdate(cdiv1.CDIPhaseDeployed, cr); err != nil {
 		return err
 	}
 
@@ -514,7 +514,7 @@ func (r *ReconcileCDI) completeUpgrade(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	return nil
 }
 
-func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1alpha1.CDI) error {
+func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1.CDI) error {
 	//Iterate over installed resources of
 	//Deployment/CRDs/Services etc and delete all resources that
 	//do not exist in current version
@@ -600,7 +600,7 @@ func (r *ReconcileCDI) isMutable(obj runtime.Object) bool {
 }
 
 // I hate that this function exists, but major refactoring required to make CDI CR the owner of all the things
-func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) (reconcile.Result, error) {
+func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1.CDI) (reconcile.Result, error) {
 	i := -1
 	for j, f := range cr.Finalizers {
 		if f == finalizerName {
@@ -613,8 +613,8 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 		return reconcile.Result{}, nil
 	}
 
-	if cr.Status.Phase != cdiv1alpha1.CDIPhaseDeleting {
-		if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeleting, cr); err != nil {
+	if cr.Status.Phase != cdiv1.CDIPhaseDeleting {
+		if err := r.crUpdate(cdiv1.CDIPhaseDeleting, cr); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
@@ -625,7 +625,7 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 
 	cr.Finalizers = append(cr.Finalizers[0:i], cr.Finalizers[i+1:]...)
 
-	if err := r.crUpdate(cdiv1alpha1.CDIPhaseDeleted, cr); err != nil {
+	if err := r.crUpdate(cdiv1.CDIPhaseDeleted, cr); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -634,7 +634,7 @@ func (r *ReconcileCDI) reconcileDelete(logger logr.Logger, cr *cdiv1alpha1.CDI) 
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileCDI) reconcileError(logger logr.Logger, cr *cdiv1alpha1.CDI, message string) (reconcile.Result, error) {
+func (r *ReconcileCDI) reconcileError(logger logr.Logger, cr *cdiv1.CDI, message string) (reconcile.Result, error) {
 	MarkCrFailed(cr, "ConfigError", message)
 	if err := r.crUpdate(cr.Status.Phase, cr); err != nil {
 		return reconcile.Result{}, err
@@ -646,7 +646,7 @@ func (r *ReconcileCDI) reconcileError(logger logr.Logger, cr *cdiv1alpha1.CDI, m
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileCDI) checkDegraded(logger logr.Logger, cr *cdiv1alpha1.CDI) (bool, error) {
+func (r *ReconcileCDI) checkDegraded(logger logr.Logger, cr *cdiv1.CDI) (bool, error) {
 	degraded := false
 
 	deployments, err := r.getAllDeployments(cr)
@@ -670,7 +670,7 @@ func (r *ReconcileCDI) checkDegraded(logger logr.Logger, cr *cdiv1alpha1.CDI) (b
 	logger.Info("CDI degraded check", "Degraded", degraded)
 
 	// If deployed and degraded, mark degraded, otherwise we are still deploying or not degraded.
-	if degraded && cr.Status.Phase == cdiv1alpha1.CDIPhaseDeployed {
+	if degraded && cr.Status.Phase == cdiv1.CDIPhaseDeployed {
 		conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 			Type:   conditions.ConditionDegraded,
 			Status: corev1.ConditionTrue,
@@ -711,10 +711,10 @@ func (r *ReconcileCDI) add(mgr manager.Manager) error {
 
 func (r *ReconcileCDI) watchCDI() error {
 	// Watch for changes to CDI CR
-	return r.controller.Watch(&source.Kind{Type: &cdiv1alpha1.CDI{}}, &handler.EnqueueRequestForObject{})
+	return r.controller.Watch(&source.Kind{Type: &cdiv1.CDI{}}, &handler.EnqueueRequestForObject{})
 }
 
-func (r *ReconcileCDI) watchDependantResources(cr *cdiv1alpha1.CDI) error {
+func (r *ReconcileCDI) watchDependantResources(cr *cdiv1.CDI) error {
 	r.watchMutex.Lock()
 	defer r.watchMutex.Unlock()
 
@@ -761,7 +761,7 @@ func (r *ReconcileCDI) getConfigMap() (*corev1.ConfigMap, error) {
 	return cm, nil
 }
 
-func (r *ReconcileCDI) createConfigMap(cr *cdiv1alpha1.CDI) error {
+func (r *ReconcileCDI) createConfigMap(cr *cdiv1.CDI) error {
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      operator.ConfigMapName,
@@ -784,7 +784,7 @@ func (r *ReconcileCDI) configMapOwnerDeleted(cm *corev1.ConfigMap) (bool, error)
 			return false, fmt.Errorf("unexpected configmap owner kind %q", ownerRef.Kind)
 		}
 
-		owner := &cdiv1alpha1.CDI{}
+		owner := &cdiv1.CDI{}
 		if err := r.client.Get(context.TODO(), client.ObjectKey{Name: ownerRef.Name}, owner); err != nil {
 			if errors.IsNotFound(err) {
 				return true, nil
@@ -801,7 +801,7 @@ func (r *ReconcileCDI) configMapOwnerDeleted(cm *corev1.ConfigMap) (bool, error)
 	return true, nil
 }
 
-func (r *ReconcileCDI) getAllDeployments(cr *cdiv1alpha1.CDI) ([]*appsv1.Deployment, error) {
+func (r *ReconcileCDI) getAllDeployments(cr *cdiv1.CDI) ([]*appsv1.Deployment, error) {
 	var result []*appsv1.Deployment
 
 	resources, err := r.getAllResources(cr)
@@ -818,7 +818,7 @@ func (r *ReconcileCDI) getAllDeployments(cr *cdiv1alpha1.CDI) ([]*appsv1.Deploym
 	return result, nil
 }
 
-func (r *ReconcileCDI) getNamespacedArgs(cr *cdiv1alpha1.CDI) *cdinamespaced.FactoryArgs {
+func (r *ReconcileCDI) getNamespacedArgs(cr *cdiv1.CDI) *cdinamespaced.FactoryArgs {
 	result := *r.namespacedArgs
 
 	if cr != nil {
@@ -834,7 +834,7 @@ func (r *ReconcileCDI) getCertificateDefinitions() []cdicerts.CertificateDefinit
 	return cdicerts.CreateCertificateDefinitions(&cdicerts.FactoryArgs{Namespace: r.namespace})
 }
 
-func (r *ReconcileCDI) getAllResources(cr *cdiv1alpha1.CDI) ([]runtime.Object, error) {
+func (r *ReconcileCDI) getAllResources(cr *cdiv1.CDI) ([]runtime.Object, error) {
 	var resources []runtime.Object
 
 	if deployClusterResources() {
@@ -892,7 +892,7 @@ func (r *ReconcileCDI) watchResourceTypes(resources []runtime.Object) error {
 
 		eventHandler := &handler.EnqueueRequestForOwner{
 			IsController: true,
-			OwnerType:    &cdiv1alpha1.CDI{},
+			OwnerType:    &cdiv1.CDI{},
 		}
 
 		predicates := []predicate.Predicate{NewIgnoreLeaderElectionPredicate()}
@@ -919,7 +919,7 @@ func (r *ReconcileCDI) addCallback(obj runtime.Object, cb ReconcileCallback) {
 	r.callbacks[t] = append(cbs, cb)
 }
 
-func (r *ReconcileCDI) invokeDeleteCDICallbacks(logger logr.Logger, cr *cdiv1alpha1.CDI) error {
+func (r *ReconcileCDI) invokeDeleteCDICallbacks(logger logr.Logger, cr *cdiv1.CDI) error {
 	desiredResources, err := r.getAllResources(cr)
 	if err != nil {
 		return err
@@ -934,7 +934,7 @@ func (r *ReconcileCDI) invokeDeleteCDICallbacks(logger logr.Logger, cr *cdiv1alp
 	return nil
 }
 
-func (r *ReconcileCDI) invokeCallbacks(l logr.Logger, cr *cdiv1alpha1.CDI, s ReconcileState, desiredObj, currentObj runtime.Object) error {
+func (r *ReconcileCDI) invokeCallbacks(l logr.Logger, cr *cdiv1.CDI, s ReconcileState, desiredObj, currentObj runtime.Object) error {
 	var t reflect.Type
 
 	if desiredObj != nil {

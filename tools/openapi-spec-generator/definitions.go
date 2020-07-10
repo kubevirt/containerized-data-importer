@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
 // code stolen/adapted from https://github.com/kubevirt/kubevirt/blob/master/pkg/virt-api/rest/definitions.go
@@ -48,39 +48,39 @@ const (
 func CoreAPI() []*restful.WebService {
 
 	dvGVR := schema.GroupVersionResource{
-		Group:    cdiv1alpha1.SchemeGroupVersion.Group,
-		Version:  cdiv1alpha1.SchemeGroupVersion.Version,
+		Group:    cdiv1.SchemeGroupVersion.Group,
+		Version:  cdiv1.SchemeGroupVersion.Version,
 		Resource: "datavolumes",
 	}
 
 	cdiGVR := schema.GroupVersionResource{
-		Group:    cdiv1alpha1.SchemeGroupVersion.Group,
-		Version:  cdiv1alpha1.SchemeGroupVersion.Version,
+		Group:    cdiv1.SchemeGroupVersion.Group,
+		Version:  cdiv1.SchemeGroupVersion.Version,
 		Resource: "cdis",
 	}
 
 	cdiConfigGVR := schema.GroupVersionResource{
-		Group:    cdiv1alpha1.SchemeGroupVersion.Group,
-		Version:  cdiv1alpha1.SchemeGroupVersion.Version,
+		Group:    cdiv1.SchemeGroupVersion.Group,
+		Version:  cdiv1.SchemeGroupVersion.Version,
 		Resource: "cdiconfigs",
 	}
 
-	ws, err := groupVersionProxyBase(cdiv1alpha1.SchemeGroupVersion)
+	ws, err := groupVersionProxyBase(cdiv1.SchemeGroupVersion)
 	if err != nil {
 		panic(err)
 	}
 
-	ws, err = genericResourceProxy(ws, dvGVR, &cdiv1alpha1.DataVolume{}, "DataVolume", &cdiv1alpha1.DataVolumeList{})
+	ws, err = genericResourceProxy(ws, dvGVR, &cdiv1.DataVolume{}, "DataVolume", &cdiv1.DataVolumeList{})
 	if err != nil {
 		panic(err)
 	}
 
-	ws, err = genericResourceProxy(ws, cdiGVR, &cdiv1alpha1.CDI{}, "CDI", &cdiv1alpha1.CDIList{})
+	ws, err = genericResourceProxy(ws, cdiGVR, &cdiv1.CDI{}, "CDI", &cdiv1.CDIList{})
 	if err != nil {
 		panic(err)
 	}
 
-	ws, err = genericResourceProxy(ws, cdiConfigGVR, &cdiv1alpha1.CDIConfig{}, "CDIConfig", &cdiv1alpha1.CDIConfigList{})
+	ws, err = genericResourceProxy(ws, cdiConfigGVR, &cdiv1.CDIConfig{}, "CDIConfig", &cdiv1.CDIConfigList{})
 	if err != nil {
 		panic(err)
 	}
