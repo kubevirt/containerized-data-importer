@@ -90,7 +90,7 @@ func conditionsChanged(originalValues, newValues map[conditions.ConditionType]co
 // ApplicationAvailable: true
 // Progressing: false
 // Degraded: false
-func MarkCrHealthyMessage((cr *cdiv1.CDI, reason, message string, recorder record.EventRecorder) {
+func MarkCrHealthyMessage(cr *cdiv1.CDI, reason, message string, recorder record.EventRecorder) {
 	conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 		Type:    conditions.ConditionAvailable,
 		Status:  corev1.ConditionTrue,
@@ -113,7 +113,7 @@ func MarkCrHealthyMessage((cr *cdiv1.CDI, reason, message string, recorder recor
 // ApplicationAvailable: true
 // Progressing: true
 // Degraded: true
-func MarkCrUpgradeHealingDegraded((cr *cdiv1.CDI, reason, message string, recorder record.EventRecorder) {
+func MarkCrUpgradeHealingDegraded(cr *cdiv1.CDI, reason, message string, recorder record.EventRecorder) {
 	conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 		Type:   conditions.ConditionAvailable,
 		Status: corev1.ConditionTrue,
@@ -136,7 +136,7 @@ func MarkCrUpgradeHealingDegraded((cr *cdiv1.CDI, reason, message string, record
 // ApplicationAvailable: false
 // Progressing: false
 // Degraded: true
-func MarkCrFailed((cr *cdiv1.CDI, reason, message string, recorder record.EventRecorder) {
+func MarkCrFailed(cr *cdiv1.CDI, reason, message string, recorder record.EventRecorder) {
 	conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 		Type:   conditions.ConditionAvailable,
 		Status: corev1.ConditionFalse,
@@ -159,7 +159,7 @@ func MarkCrFailed((cr *cdiv1.CDI, reason, message string, recorder record.EventR
 // ApplicationAvailable: false
 // Progressing: true
 // Degraded: true
-func MarkCrFailedHealing((cr *cdiv1.CDI, reason, message string, recorder record.EventRecorder) {
+func MarkCrFailedHealing(cr *cdiv1.CDI, reason, message string, recorder record.EventRecorder) {
 	conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 		Type:   conditions.ConditionAvailable,
 		Status: corev1.ConditionFalse,
@@ -182,7 +182,7 @@ func MarkCrFailedHealing((cr *cdiv1.CDI, reason, message string, recorder record
 // ApplicationAvailable: false
 // Progressing: true
 // Degraded: false
-func MarkCrDeploying((cr *cdiv1.CDI, reason, message string, recorder record.EventRecorder) {
+func MarkCrDeploying(cr *cdiv1.CDI, reason, message string, recorder record.EventRecorder) {
 	conditions.SetStatusCondition(&cr.Status.Conditions, conditions.Condition{
 		Type:   conditions.ConditionAvailable,
 		Status: corev1.ConditionFalse,

@@ -48,7 +48,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	cdiviaplha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	clusterResources "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
@@ -73,7 +73,7 @@ const (
 )
 
 type args struct {
-	cdi        *cdiviaplha1.CDI
+	cdi        *cdiv1.CDI
 	client     client.Client
 	reconciler *ReconcileCDI
 }
@@ -94,7 +94,7 @@ var (
 )
 
 func init() {
-	cdiviaplha1.AddToScheme(scheme.Scheme)
+	cdiv1.AddToScheme(scheme.Scheme)
 	extv1.AddToScheme(scheme.Scheme)
 	apiregistrationv1beta1.AddToScheme(scheme.Scheme)
 	secv1.Install(scheme.Scheme)
@@ -126,7 +126,7 @@ var _ = Describe("Controller", func() {
 				mgr, err := manager.New(cfg, manager.Options{})
 				Expect(err).ToNot(HaveOccurred())
 
-				err = cdiviaplha1.AddToScheme(mgr.GetScheme())
+				err = cdiv1.AddToScheme(mgr.GetScheme())
 				Expect(err).ToNot(HaveOccurred())
 
 				err = extv1.AddToScheme(mgr.GetScheme())
@@ -206,7 +206,7 @@ var _ = Describe("Controller", func() {
 						Name:      configMapName,
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion: cdiviaplha1.SchemeGroupVersion.String(),
+								APIVersion: cdiv1.SchemeGroupVersion.String(),
 								Kind:       "CDI",
 								Name:       "cdi",
 								UID:        "badUID",
@@ -432,7 +432,7 @@ var _ = Describe("Controller", func() {
 				newInstance, err = getCDI(args.client, newInstance)
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(newInstance.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseError))
+				Expect(newInstance.Status.Phase).Should(Equal(cdiv1.CDIPhaseError))
 				Expect(newInstance.Status.Conditions).Should(HaveLen(3))
 				Expect(conditions.IsStatusConditionFalse(newInstance.Status.Conditions, conditions.ConditionAvailable)).To(BeTrue())
 				Expect(conditions.IsStatusConditionFalse(newInstance.Status.Conditions, conditions.ConditionProgressing)).To(BeTrue())
@@ -465,7 +465,7 @@ var _ = Describe("Controller", func() {
 				doReconcile(args)
 
 				Expect(args.cdi.Finalizers).Should(BeEmpty())
-				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeleted))
+				Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseDeleted))
 
 				_, err = getObject(args.client, pod)
 				Expect(errors.IsNotFound(err)).To(BeTrue())
@@ -513,7 +513,7 @@ var _ = Describe("Controller", func() {
 			Expect(args.cdi.Status.ObservedVersion).Should(Equal(newVersion))
 			Expect(args.cdi.Status.OperatorVersion).Should(Equal(newVersion))
 			Expect(args.cdi.Status.TargetVersion).Should(Equal(newVersion))
-			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseDeployed))
 
 			//Modify CRD to be of previousVersion
 			err := args.reconciler.crSetVersion(args.cdi, prevVersion)
@@ -532,13 +532,13 @@ var _ = Describe("Controller", func() {
 				Expect(args.cdi.Status.OperatorVersion).Should(Equal(newVersion))
 				Expect(args.cdi.Status.ObservedVersion).Should(Equal(prevVersion))
 				Expect(args.cdi.Status.TargetVersion).Should(Equal(newVersion))
-				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseUpgrading))
+				Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseUpgrading))
 			} else {
 				//verify upgraded hasn't started
 				Expect(args.cdi.Status.OperatorVersion).Should(Equal(prevVersion))
 				Expect(args.cdi.Status.ObservedVersion).Should(Equal(prevVersion))
 				Expect(args.cdi.Status.TargetVersion).Should(Equal(prevVersion))
-				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+				Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseDeployed))
 			}
 
 			//change deployment to ready
@@ -548,13 +548,13 @@ var _ = Describe("Controller", func() {
 			//now should be upgraded
 			if shouldUpgrade {
 				//verify versions were updated
-				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+				Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseDeployed))
 				Expect(args.cdi.Status.OperatorVersion).Should(Equal(newVersion))
 				Expect(args.cdi.Status.TargetVersion).Should(Equal(newVersion))
 				Expect(args.cdi.Status.ObservedVersion).Should(Equal(newVersion))
 			} else {
 				//verify versions remained unchaged
-				Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+				Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseDeployed))
 				Expect(args.cdi.Status.OperatorVersion).Should(Equal(prevVersion))
 				Expect(args.cdi.Status.TargetVersion).Should(Equal(prevVersion))
 				Expect(args.cdi.Status.ObservedVersion).Should(Equal(prevVersion))
@@ -585,7 +585,7 @@ var _ = Describe("Controller", func() {
 			Expect(args.cdi.Status.ObservedVersion).To(BeEmpty())
 			Expect(args.cdi.Status.OperatorVersion).To(BeEmpty())
 			Expect(args.cdi.Status.TargetVersion).To(BeEmpty())
-			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseDeployed))
 
 			args.reconciler.namespacedArgs.OperatorVersion = newVersion
 			setDeploymentsDegraded(args)
@@ -593,7 +593,7 @@ var _ = Describe("Controller", func() {
 			Expect(args.cdi.Status.ObservedVersion).To(BeEmpty())
 			Expect(args.cdi.Status.OperatorVersion).Should(Equal(newVersion))
 			Expect(args.cdi.Status.TargetVersion).Should(Equal(newVersion))
-			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseUpgrading))
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseUpgrading))
 
 			//change deployment to ready
 			isReady := setDeploymentsReady(args)
@@ -601,7 +601,7 @@ var _ = Describe("Controller", func() {
 			Expect(args.cdi.Status.ObservedVersion).Should(Equal(newVersion))
 			Expect(args.cdi.Status.OperatorVersion).Should(Equal(newVersion))
 			Expect(args.cdi.Status.TargetVersion).Should(Equal(newVersion))
-			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseDeployed))
 		})
 
 		Describe("CDI CR deletion during upgrade", func() {
@@ -618,7 +618,7 @@ var _ = Describe("Controller", func() {
 					Expect(isReady).Should(Equal(true))
 
 					//verify on int version is set
-					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+					Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseDeployed))
 
 					//Modify CRD to be of previousVersion
 					args.reconciler.crSetVersion(args.cdi, prevVersion)
@@ -633,7 +633,7 @@ var _ = Describe("Controller", func() {
 					Expect(args.cdi.Status.OperatorVersion).Should(Equal(prevVersion))
 					Expect(args.cdi.Status.ObservedVersion).Should(Equal(prevVersion))
 					Expect(args.cdi.Status.TargetVersion).Should(Equal(prevVersion))
-					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeleted))
+					Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseDeleted))
 					validateEvents(args.reconciler, createDeleteCDIAfterReadyEventValidationMap())
 				})
 
@@ -646,7 +646,7 @@ var _ = Describe("Controller", func() {
 					setDeploymentsReady(args)
 
 					//verify on int version is set
-					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+					Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseDeployed))
 
 					//Modify CRD to be of previousVersion
 					args.reconciler.crSetVersion(args.cdi, prevVersion)
@@ -664,7 +664,7 @@ var _ = Describe("Controller", func() {
 
 					doReconcile(args)
 					//verify the version cr is marked as deleted
-					Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeleted))
+					Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseDeleted))
 
 					//verify events, this should include an upgrade event
 					match := createDeleteCDIAfterReadyEventValidationMap()
@@ -687,7 +687,7 @@ var _ = Describe("Controller", func() {
 			setDeploymentsReady(args)
 
 			//verify on int version is set
-			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseDeployed))
 
 			//Modify CRD to be of previousVersion
 			args.reconciler.crSetVersion(args.cdi, prevVersion)
@@ -713,14 +713,14 @@ var _ = Describe("Controller", func() {
 			doReconcile(args)
 
 			//verify upgraded has started
-			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseUpgrading))
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseUpgrading))
 
 			//change deployment to ready
 			isReady := setDeploymentsReady(args)
 			Expect(isReady).Should(Equal(true))
 
 			doReconcile(args)
-			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseDeployed))
 
 			//verify that stored object equals to object in getResources
 			storedObj, err = getObject(args.client, oModified)
@@ -1118,7 +1118,7 @@ var _ = Describe("Controller", func() {
 			setDeploymentsReady(args)
 
 			//verify on int version is set
-			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseDeployed))
 
 			//Modify CRD to be of previousVersion
 			args.reconciler.crSetVersion(args.cdi, prevVersion)
@@ -1140,7 +1140,7 @@ var _ = Describe("Controller", func() {
 			doReconcile(args)
 
 			//verify upgraded has started
-			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseUpgrading))
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseUpgrading))
 
 			//verify unused exists before upgrade is done
 			_, err = getObject(args.client, unusedObj)
@@ -1151,7 +1151,7 @@ var _ = Describe("Controller", func() {
 			Expect(isReady).Should(Equal(true))
 
 			doReconcile(args)
-			Expect(args.cdi.Status.Phase).Should(Equal(cdiviaplha1.CDIPhaseDeployed))
+			Expect(args.cdi.Status.Phase).Should(Equal(cdiv1.CDIPhaseDeployed))
 
 			//verify that object no longer exists after upgrade
 			_, err = getObject(args.client, unusedObj)
@@ -1274,7 +1274,7 @@ func getModifiedResource(reconciler *ReconcileCDI, modify modifyResource, tomodi
 }
 
 type cdiOverride interface {
-	Set(cr *cdiviaplha1.CDI)
+	Set(cr *cdiv1.CDI)
 	Check(d *appsv1.Deployment)
 }
 
@@ -1282,7 +1282,7 @@ type pullOverride struct {
 	value corev1.PullPolicy
 }
 
-func (o *pullOverride) Set(cr *cdiviaplha1.CDI) {
+func (o *pullOverride) Set(cr *cdiv1.CDI) {
 	cr.Spec.ImagePullPolicy = o.value
 }
 
@@ -1291,12 +1291,12 @@ func (o *pullOverride) Check(d *appsv1.Deployment) {
 	Expect(pp).Should(Equal(o.value))
 }
 
-func getCDI(client realClient.Client, cdi *cdiviaplha1.CDI) (*cdiviaplha1.CDI, error) {
+func getCDI(client realClient.Client, cdi *cdiv1.CDI) (*cdiv1.CDI, error) {
 	result, err := getObject(client, cdi)
 	if err != nil {
 		return nil, err
 	}
-	return result.(*cdiviaplha1.CDI), nil
+	return result.(*cdiv1.CDI), nil
 }
 
 func getSCC(client realClient.Client, scc *secv1.SecurityContextConstraints) (*secv1.SecurityContextConstraints, error) {
@@ -1472,8 +1472,8 @@ func createClient(objs ...runtime.Object) realClient.Client {
 	return fakeClient.NewFakeClientWithScheme(scheme.Scheme, objs...)
 }
 
-func createCDI(name, uid string) *cdiviaplha1.CDI {
-	return &cdiviaplha1.CDI{ObjectMeta: metav1.ObjectMeta{Name: name, UID: types.UID(uid)}}
+func createCDI(name, uid string) *cdiv1.CDI {
+	return &cdiv1.CDI{ObjectMeta: metav1.ObjectMeta{Name: name, UID: types.UID(uid)}}
 }
 
 func createReconcilerWithVersion(client realClient.Client, version string) *ReconcileCDI {
@@ -1582,10 +1582,10 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.ClusterRole cdi"] = false
 	match[normalCreateStart+" *v1.ClusterRoleBinding cdi-sa"] = false
 	match[normalCreateSuccess+" *v1.ClusterRoleBinding cdi-sa"] = false
-	match[normalCreateStart+" *v1beta1.CustomResourceDefinition datavolumes.cdi.kubevirt.io"] = false
-	match[normalCreateSuccess+" *v1beta1.CustomResourceDefinition datavolumes.cdi.kubevirt.io"] = false
-	match[normalCreateStart+" *v1beta1.CustomResourceDefinition cdiconfigs.cdi.kubevirt.io"] = false
-	match[normalCreateSuccess+" *v1beta1.CustomResourceDefinition cdiconfigs.cdi.kubevirt.io"] = false
+	match[normalCreateStart+" *v1.CustomResourceDefinition datavolumes.cdi.kubevirt.io"] = false
+	match[normalCreateSuccess+" *v1.CustomResourceDefinition datavolumes.cdi.kubevirt.io"] = false
+	match[normalCreateStart+" *v1.CustomResourceDefinition cdiconfigs.cdi.kubevirt.io"] = false
+	match[normalCreateSuccess+" *v1.CustomResourceDefinition cdiconfigs.cdi.kubevirt.io"] = false
 	match[normalCreateStart+" *v1.ClusterRole cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.ClusterRole cdi-uploadproxy"] = false
 	match[normalCreateStart+" *v1.ClusterRoleBinding cdi-uploadproxy"] = false
@@ -1630,6 +1630,8 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.Role cdi-uploadproxy"] = false
 	match[normalCreateStart+" *v1.Deployment cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.Deployment cdi-uploadproxy"] = false
+	match[normalCreateStart+" *v1beta1.APIService v1beta1.upload.cdi.kubevirt.io"] = false
+	match[normalCreateSuccess+" *v1beta1.APIService v1beta1.upload.cdi.kubevirt.io"] = false
 	match[normalCreateStart+" *v1beta1.APIService v1alpha1.upload.cdi.kubevirt.io"] = false
 	match[normalCreateSuccess+" *v1beta1.APIService v1alpha1.upload.cdi.kubevirt.io"] = false
 	match[normalCreateStart+" *v1beta1.ValidatingWebhookConfiguration cdi-api-datavolume-validate"] = false
