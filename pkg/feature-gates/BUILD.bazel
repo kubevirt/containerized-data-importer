@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/common:go_default_library",
+        "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/types:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client:go_default_library",
     ],

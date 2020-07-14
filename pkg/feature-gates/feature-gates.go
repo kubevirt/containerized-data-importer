@@ -2,11 +2,11 @@ package featuregates
 
 import (
 	"context"
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sync"
 )
 
 const (
@@ -16,44 +16,39 @@ const (
 
 // FeatureGates is a util for determining whether an optional feature is enabled or not.
 type FeatureGates struct {
-	client               client.Client
-	lock                 *sync.Mutex
-	lasValidFeatureGates []string
+	client client.Client
 }
 
 // NewFeatureGates creates a new instance of the feature gates
 func NewFeatureGates(c client.Client) (*FeatureGates, error) {
-	fg := &FeatureGates{
-		client: c,
-		lock:   &sync.Mutex{},
-	}
+	fg := &FeatureGates{client: c}
 	return fg, nil
 }
 
-func (f *FeatureGates) isFeatureGateEnabled(featureGate string) bool {
-	featureGates := f.getConfig()
+func (f *FeatureGates) isFeatureGateEnabled(featureGate string) (bool, error) {
+	featureGates, err := f.getConfig()
+	if err != nil {
+		return false, errors.Wrap(err, "error getting CDIConfig")
+	}
 
 	for _, fg := range featureGates {
 		if fg == featureGate {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
-func (f *FeatureGates) getConfig() []string {
-	f.lock.Lock()
-	defer f.lock.Unlock()
-
+func (f *FeatureGates) getConfig() ([]string, error) {
 	config := &cdiv1.CDIConfig{}
 	if err := f.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, config); err != nil {
-		return f.lasValidFeatureGates
+		return nil, err
 	}
-	f.lasValidFeatureGates = config.Spec.FeatureGates
-	return f.lasValidFeatureGates
+
+	return config.Spec.FeatureGates, nil
 }
 
 // HonorWaitForFirstConsumerEnabled - see HonorWaitForFirstConsumer const
-func (f *FeatureGates) HonorWaitForFirstConsumerEnabled() bool {
+func (f *FeatureGates) HonorWaitForFirstConsumerEnabled() (bool, error) {
 	return f.isFeatureGateEnabled(HonorWaitForFirstConsumer)
 }
