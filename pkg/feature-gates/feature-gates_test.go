@@ -38,7 +38,7 @@ var (
 var _ = Describe("Feature Gates", func() {
 	It("Should be false if not set", func() {
 		featureGates := createFeatureGates()
-		Expect(featureGates.SkipWFFCVolumesEnabled()).To(BeFalse())
+		Expect(featureGates.HonorWaitForFirstConsumerEnabled()).To(BeFalse())
 	})
 
 	It("Should reflect config changes", func() {
@@ -48,15 +48,15 @@ var _ = Describe("Feature Gates", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		// update the config on the status not the spec
-		cdiConfig.Spec.FeatureGates = []string{SkipWaitForFirstConsumerVolumes}
+		cdiConfig.Spec.FeatureGates = []string{HonorWaitForFirstConsumer}
 		err = featureGates.client.Update(context.TODO(), cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(featureGates.SkipWFFCVolumesEnabled()).To(BeTrue())
+		Expect(featureGates.HonorWaitForFirstConsumerEnabled()).To(BeTrue())
 
 		cdiConfig.Spec.FeatureGates = nil
 		err = featureGates.client.Update(context.TODO(), cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(featureGates.SkipWFFCVolumesEnabled()).To(BeFalse())
+		Expect(featureGates.HonorWaitForFirstConsumerEnabled()).To(BeFalse())
 	})
 })
 

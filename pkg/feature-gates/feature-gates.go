@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	// SkipWaitForFirstConsumerVolumes - if enabled will not schedule worker pods on a storage with WaitForFirstConsumer binding mode
-	SkipWaitForFirstConsumerVolumes = "SkipWaitForFirstConsumerVolumes"
+	// HonorWaitForFirstConsumer - if enabled will not schedule worker pods on a storage with WaitForFirstConsumer binding mode
+	HonorWaitForFirstConsumer = "HonorWaitForFirstConsumer"
 )
 
 // FeatureGates is a util for determining whether an optional feature is enabled or not.
@@ -53,7 +53,7 @@ func (f *FeatureGates) getConfig() []string {
 	return f.lasValidFeatureGates
 }
 
-// SkipWFFCVolumesEnabled - see SkipWaitForFirstConsumerVolumes const
-func (f *FeatureGates) SkipWFFCVolumesEnabled() bool {
-	return f.isFeatureGateEnabled(SkipWaitForFirstConsumerVolumes)
+// HonorWaitForFirstConsumerEnabled - see HonorWaitForFirstConsumer const
+func (f *FeatureGates) HonorWaitForFirstConsumerEnabled() bool {
+	return f.isFeatureGateEnabled(HonorWaitForFirstConsumer)
 }
