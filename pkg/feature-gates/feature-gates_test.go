@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package featuregates
 
 import (
 	"context"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
@@ -64,7 +65,7 @@ func createFeatureGates(objects ...runtime.Object) *FeatureGates {
 	objs = append(objs, objects...)
 
 	// Append empty CDIConfig object that normally is created by the reconcile loop
-	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
+	cdiConfig := controller.MakeEmptyCDIConfigSpec(common.ConfigName)
 	objs = append(objs, cdiConfig)
 
 	// Register operator types with the runtime scheme.

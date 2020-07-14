@@ -1,4 +1,4 @@
-package controller
+package featuregates
 
 import (
 	"context"
