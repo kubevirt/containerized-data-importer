@@ -12,7 +12,6 @@ import (
 
 	"github.com/onsi/ginkgo/extensions/table"
 
-	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -847,7 +846,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume.Spec.Source.HTTP.CertConfigMap = cm
 			return dataVolume
 		}
-
+		createUploadDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			return utils.NewDataVolumeForUpload(dataVolumeName, size)
+		}
 		var original *bool
 		noSuchFileFileURL := utils.InvalidQcowImagesURL + "no-such-file.img"
 
@@ -933,6 +934,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs),
 				createBlankRawDataVolume,
 				cdiv1.Succeeded),
+			table.Entry("[test_id:4463] Upload - positive flow",
+				"dv-wffc-http-upload",
+				fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs),
+				createUploadDataVolume,
+				cdiv1.UploadReady),
 		)
 	})
 
@@ -1078,7 +1084,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		const cmName = "cert-registry-cm"
 
 		It("Import POD should remain pending until CM exists", func() {
-			var pvc *corev1.PersistentVolumeClaim
+			var pvc *v1.PersistentVolumeClaim
 
 			dataVolumeDef := utils.NewDataVolumeWithRegistryImport("missing-cm-registry-dv", "1Gi", tinyCoreIsoRegistryURL)
 			dataVolumeDef.Spec.Source.Registry.CertConfigMap = cmName
@@ -1098,7 +1104,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(podName, metav1.GetOptions{})
 				if err == nil {
 					// Found the pod
-					Expect(pod.Status.Phase).To(Equal(corev1.PodPending))
+					Expect(pod.Status.Phase).To(Equal(v1.PodPending))
 					if len(pod.Status.ContainerStatuses) == 1 && pod.Status.ContainerStatuses[0].State.Waiting != nil {
 						Expect(pod.Status.ContainerStatuses[0].State.Waiting.Reason).To(Equal("ContainerCreating"))
 					}

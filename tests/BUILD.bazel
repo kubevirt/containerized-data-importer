@@ -40,6 +40,7 @@ go_test(
         "//pkg/clone:go_default_library",
         "//pkg/common:go_default_library",
         "//pkg/controller:go_default_library",
+        "//pkg/feature-gates:go_default_library",
         "//pkg/operator/controller:go_default_library",
         "//pkg/util/naming:go_default_library",
         "//tests/framework:go_default_library",

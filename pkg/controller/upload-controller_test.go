@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"strings"
 	"sync"
 	"time"
@@ -501,6 +502,8 @@ func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		DefaultPodResourceRequirements: createDefaultPodResourceRequirements(int64(0), int64(0), int64(0), int64(0)),
 	}
+	cdiConfig.Spec.FeatureGates = []string{featuregates.HonorWaitForFirstConsumer}
+
 	objs = append(objs, cdiConfig)
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
@@ -519,6 +522,7 @@ func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
 		serverCertGenerator: &fakeCertGenerator{},
 		clientCAFetcher:     &fetcher.MemCertBundleFetcher{Bundle: []byte("baz")},
 		recorder:            rec,
+		featureGates:        featuregates.NewFeatureGates(cl),
 	}
 	return r
 }
