@@ -361,7 +361,12 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 
 		if err != nil {
 			klog.Errorf("Saving stream failed: %s", err)
-			w.WriteHeader(http.StatusInternalServerError)
+			if _, ok := err.(importer.ValidationSizeError); ok {
+				w.WriteHeader(http.StatusBadRequest)
+			} else {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+			w.Write([]byte(fmt.Sprintf("Saving stream failed: %s", err.Error())))
 			app.uploading = false
 			app.mutex.Unlock()
 			return

@@ -13,6 +13,8 @@ import (
 const (
 	// UploadFile is the file to upload
 	UploadFile = "./images/tinyCore.iso"
+	// UploadFileLargeVirtualDisk is the file to upload
+	UploadFileLargeVirtualDisk = "./images/cirros-large-vdisk.qcow2"
 
 	// UploadFileSize is the size of UploadFile
 	UploadFileSize = 18874368

@@ -220,7 +220,7 @@ var _ = Describe("Async Upload data source", func() {
 		result, err := aud.Transfer(scratchPath)
 		if !wantErr {
 			Expect(err).NotTo(HaveOccurred())
-			Expect(ProcessingPhasePause).To(Equal(result))
+			Expect(ProcessingPhaseValidatePause).To(Equal(result))
 			Expect(ProcessingPhaseProcess).To(Equal(aud.GetResumePhase()))
 		} else {
 			Expect(err).To(HaveOccurred())
@@ -255,7 +255,7 @@ var _ = Describe("Async Upload data source", func() {
 		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
 		result, err = aud.TransferFile(filepath.Join(tmpDir, "file"))
 		Expect(err).ToNot(HaveOccurred())
-		Expect(ProcessingPhasePause).To(Equal(result))
+		Expect(ProcessingPhaseValidatePause).To(Equal(result))
 		Expect(ProcessingPhaseResize).To(Equal(aud.GetResumePhase()))
 	})
 
