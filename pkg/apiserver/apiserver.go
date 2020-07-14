@@ -197,15 +197,6 @@ func (app *cdiAPIApp) getKeysAndCerts() error {
 func (app *cdiAPIApp) getTLSConfig() (*tls.Config, error) {
 	authConfig := app.authConfigWatcher.GetAuthConfig()
 
-	validName := func(name string) bool {
-		for _, n := range authConfig.AllowedNames {
-			if n == name {
-				return true
-			}
-		}
-		return false
-	}
-
 	cert, err := app.certWarcher.GetCertificate(nil)
 	if err != nil {
 		return nil, err
@@ -220,7 +211,7 @@ func (app *cdiAPIApp) getTLSConfig() (*tls.Config, error) {
 				return nil
 			}
 			for i := range verifiedChains {
-				if validName(verifiedChains[i][0].Subject.CommonName) {
+				if authConfig.ValidateName(verifiedChains[i][0].Subject.CommonName) {
 					return nil
 				}
 			}

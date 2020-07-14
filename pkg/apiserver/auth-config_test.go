@@ -21,12 +21,14 @@ package apiserver
 
 import (
 	"crypto/tls"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"time"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -63,6 +65,12 @@ func getAPIServerConfigMap() *corev1.ConfigMap {
 			"requestheader-username-headers":     "[\"X-Remote-User\"]",
 		},
 	}
+}
+
+func getAPIServerConfigMapNoAllowedNames() *corev1.ConfigMap {
+	cm := getAPIServerConfigMap()
+	cm.Data["requestheader-allowed-names"] = "[]"
+	return cm
 }
 
 func verifyAuthConfig(cm *corev1.ConfigMap, authConfig *AuthConfig) {
@@ -184,4 +192,20 @@ var _ = Describe("Auth config tests", func() {
 			Fail("Client cert pools do not match")
 		}
 	})
+
+	DescribeTable("Validate client CN", func(f func() *corev1.ConfigMap, name string, allowed bool) {
+		ch := make(chan struct{})
+		kubeobjects := []runtime.Object{}
+		kubeobjects = append(kubeobjects, f())
+
+		client := k8sfake.NewSimpleClientset(kubeobjects...)
+		authConfigWatcher := NewAuthConfigWatcher(client, ch)
+
+		result := authConfigWatcher.GetAuthConfig().ValidateName(name)
+		Expect(result).To(Equal(allowed))
+	},
+		Entry("with allowed names", getAPIServerConfigMap, "front-proxy-client", true),
+		Entry("without allowed names", getAPIServerConfigMapNoAllowedNames, "front-proxy-client", true),
+		Entry("with allowed names", getAPIServerConfigMap, "foobar", false),
+	)
 })
