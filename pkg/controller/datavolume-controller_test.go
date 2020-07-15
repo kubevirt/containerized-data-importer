@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	storagev1 "k8s.io/api/storage/v1"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -848,6 +849,8 @@ func createDatavolumeReconciler(objects ...runtime.Object) *DatavolumeReconciler
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		ScratchSpaceStorageClass: testStorageClass,
 	}
+	cdiConfig.Spec.FeatureGates = []string{featuregates.HonorWaitForFirstConsumer}
+	objs = append(objs, cdiConfig)
 	extfakeclientset := extfake.NewSimpleClientset()
 
 	// Create a fake client to mock API calls.
@@ -861,6 +864,7 @@ func createDatavolumeReconciler(objects ...runtime.Object) *DatavolumeReconciler
 		log:          dvLog,
 		recorder:     rec,
 		extClientSet: extfakeclientset,
+		featureGates: featuregates.NewFeatureGates(cl),
 	}
 	return r
 }

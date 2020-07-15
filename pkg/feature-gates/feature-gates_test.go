@@ -18,10 +18,10 @@ package featuregates
 
 import (
 	"context"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
@@ -65,7 +65,19 @@ func createFeatureGates(objects ...runtime.Object) *FeatureGates {
 	objs = append(objs, objects...)
 
 	// Append empty CDIConfig object that normally is created by the reconcile loop
-	cdiConfig := controller.MakeEmptyCDIConfigSpec(common.ConfigName)
+	cdiConfig := &cdiv1.CDIConfig{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CDIConfig",
+			APIVersion: "cdi.kubevirt.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: common.ConfigName,
+			Labels: map[string]string{
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: "",
+			},
+		},
+	}
 	objs = append(objs, cdiConfig)
 
 	// Register operator types with the runtime scheme.
@@ -76,7 +88,5 @@ func createFeatureGates(objects ...runtime.Object) *FeatureGates {
 	cl := fake.NewFakeClientWithScheme(s, objs...)
 
 	// Create a NewFeatureGates with fake client.
-	f, _ := NewFeatureGates(cl)
-
-	return f
+	return NewFeatureGates(cl)
 }

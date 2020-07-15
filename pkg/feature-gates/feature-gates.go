@@ -20,9 +20,8 @@ type FeatureGates struct {
 }
 
 // NewFeatureGates creates a new instance of the feature gates
-func NewFeatureGates(c client.Client) (*FeatureGates, error) {
-	fg := &FeatureGates{client: c}
-	return fg, nil
+func NewFeatureGates(c client.Client) *FeatureGates {
+	return &FeatureGates{client: c}
 }
 
 func (f *FeatureGates) isFeatureGateEnabled(featureGate string) (bool, error) {

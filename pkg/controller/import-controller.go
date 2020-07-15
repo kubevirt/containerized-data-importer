@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"net/url"
 	"reflect"
 	"strconv"
@@ -85,6 +86,7 @@ type ImportReconciler struct {
 	image          string
 	verbose        string
 	pullPolicy     string
+	featureGates   *featuregates.FeatureGates
 }
 
 type importPodEnvVar struct {
@@ -98,8 +100,10 @@ func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pu
 		Scheme: mgr.GetScheme(),
 		Mapper: mgr.GetRESTMapper(),
 	})
+	client := mgr.GetClient()
+	featureGates := featuregates.NewFeatureGates(client)
 	reconciler := &ImportReconciler{
-		client:         mgr.GetClient(),
+		client:         client,
 		uncachedClient: uncachedClient,
 		scheme:         mgr.GetScheme(),
 		log:            log.WithName("import-controller"),
@@ -107,6 +111,7 @@ func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pu
 		verbose:        verbose,
 		pullPolicy:     pullPolicy,
 		recorder:       mgr.GetEventRecorderFor("import-controller"),
+		featureGates:   featureGates,
 	}
 	importController, err := controller.New("import-controller", mgr, controller.Options{
 		Reconciler: reconciler,
@@ -135,10 +140,15 @@ func addImportControllerWatches(mgr manager.Manager, importController controller
 	return nil
 }
 
-func shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim, log logr.Logger) bool {
+func shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim, featureGates *featuregates.FeatureGates, log logr.Logger) (bool, error) {
+	skipVolume, err := shouldSkipNotBound(pvc, featureGates, log)
+	if err != nil {
+		return false, err
+	}
 	return !isPVCComplete(pvc) &&
-		(checkPVC(pvc, AnnEndpoint, log) || checkPVC(pvc, AnnSource, log)) &&
-		isBound(pvc, log)
+			(checkPVC(pvc, AnnEndpoint, log) || checkPVC(pvc, AnnSource, log)) &&
+			!skipVolume,
+		nil
 }
 
 func isPVCComplete(pvc *corev1.PersistentVolumeClaim) bool {
@@ -160,7 +170,11 @@ func (r *ImportReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 		return reconcile.Result{}, err
 	}
 
-	if !shouldReconcilePVC(pvc, log) {
+	shouldReconcilePvc, err := shouldReconcilePVC(pvc, r.featureGates, log)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	if !shouldReconcilePvc {
 		log.V(1).Info("Should not reconcile this PVC",
 			"pvc.annotation.phase.complete", isPVCComplete(pvc),
 			"pvc.annotations.endpoint", checkPVC(pvc, AnnEndpoint, log),

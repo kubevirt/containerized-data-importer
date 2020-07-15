@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"crypto/rsa"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -87,6 +88,16 @@ func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string, log logr.Logger)
 	}
 
 	return true
+}
+
+// - when the SkipWFFCVolumesEnabled is true, the CDI controller will skip the PVC until it is bound by some external action,
+// - when the SkipWFFCVolumesEnabled is false, the CDI controller will create worker pods for the PVC (this will bind it)
+func shouldSkipNotBound(pvc *v1.PersistentVolumeClaim, featureGates *featuregates.FeatureGates, log logr.Logger) (bool, error) {
+	honorWaitForFirstConsumerEnabled, err := featureGates.HonorWaitForFirstConsumerEnabled()
+	if err != nil {
+		return false, err
+	}
+	return honorWaitForFirstConsumerEnabled && !isBound(pvc, log), nil
 }
 
 func isBound(pvc *v1.PersistentVolumeClaim, log logr.Logger) bool {

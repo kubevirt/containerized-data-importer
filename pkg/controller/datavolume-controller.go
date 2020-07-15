@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -153,6 +154,7 @@ type DatavolumeReconciler struct {
 	recorder     record.EventRecorder
 	scheme       *runtime.Scheme
 	log          logr.Logger
+	featureGates *featuregates.FeatureGates
 }
 
 func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
@@ -162,12 +164,15 @@ func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) boo
 
 // NewDatavolumeController creates a new instance of the datavolume controller.
 func NewDatavolumeController(mgr manager.Manager, extClientSet extclientset.Interface, log logr.Logger) (controller.Controller, error) {
+	client := mgr.GetClient()
+	featureGates := featuregates.NewFeatureGates(client)
 	reconciler := &DatavolumeReconciler{
-		client:       mgr.GetClient(),
+		client:       client,
 		scheme:       mgr.GetScheme(),
 		extClientSet: extClientSet,
 		log:          log.WithName("datavolume-controller"),
 		recorder:     mgr.GetEventRecorderFor("datavolume-controller"),
+		featureGates: featureGates,
 	}
 	datavolumeController, err := controller.New("datavolume-controller", mgr, controller.Options{
 		Reconciler: reconciler,
@@ -644,7 +649,12 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		} else {
 			switch pvc.Status.Phase {
 			case corev1.ClaimPending:
-				if storageClassBindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
+				honorWaitForFirstConsumerEnabled, err := r.featureGates.HonorWaitForFirstConsumerEnabled()
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+				if honorWaitForFirstConsumerEnabled &&
+					storageClassBindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
 					dataVolumeCopy.Status.Phase = cdiv1.WaitForFirstConsumer
 				} else {
 					dataVolumeCopy.Status.Phase = cdiv1.Pending

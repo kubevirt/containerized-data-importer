@@ -18,6 +18,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"reflect"
 	"strconv"
 
@@ -53,6 +54,8 @@ var (
 )
 
 var _ = Describe("Test PVC annotations status", func() {
+	var featureGates = createFeatureGates()
+
 	It("Should return complete if annotation is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodSucceeded)}, nil)
 		Expect(isPVCComplete(testPvc)).To(BeTrue())
@@ -70,22 +73,22 @@ var _ = Describe("Test PVC annotations status", func() {
 
 	It("Should be interesting if NOT complete, and endpoint and source is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
+		Expect(shouldReconcilePVC(testPvc, featureGates, importLog)).To(BeTrue())
 	})
 
 	It("Should NOT be interesting if complete, and endpoint and source is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodSucceeded), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, importLog)).To(BeFalse())
+		Expect(shouldReconcilePVC(testPvc, featureGates, importLog)).To(BeFalse())
 	})
 
 	It("Should be interesting if NOT complete, and endpoint missing and source is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodRunning), AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
+		Expect(shouldReconcilePVC(testPvc, featureGates, importLog)).To(BeTrue())
 	})
 
 	It("Should be interesting if NOT complete, and endpoint set and source is missing", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint}, nil)
-		Expect(shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
+		Expect(shouldReconcilePVC(testPvc, featureGates, importLog)).To(BeTrue())
 	})
 })
 
@@ -667,8 +670,16 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 		scheme:         s,
 		log:            importLog,
 		recorder:       rec,
+		featureGates:   featuregates.NewFeatureGates(cl),
 	}
 	return r
+}
+
+func createFeatureGates() *featuregates.FeatureGates {
+	s := scheme.Scheme
+	cdiv1.AddToScheme(s)
+	cl := fake.NewFakeClientWithScheme(s, MakeEmptyCDIConfigSpec(common.ConfigName))
+	return featuregates.NewFeatureGates(cl)
 }
 
 func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar {
