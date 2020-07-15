@@ -682,11 +682,10 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 	})
 
-	It("[test_id:4273] Upload datavolume with short name creates correct scratch space, pod and service names", func() {
-		shortDvName := "import-long-name-dv"
-		By(fmt.Sprintf("Creating new datavolume %s", shortDvName))
+	DescribeTable("Upload datavolume creates correct scratch space, pod and service names", func(dvName string) {
+		By(fmt.Sprintf("Creating new datavolume %s", dvName))
 
-		dv := utils.NewDataVolumeForUpload(shortDvName, "1Gi")
+		dv := utils.NewDataVolumeForUpload(dvName, "1Gi")
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
@@ -721,93 +720,14 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			}
 		}
 		Expect(err).ToNot(HaveOccurred())
-	})
-
-	It("[test_id:4274] Upload datavolume with long name creates correct scratch space, pod and service names", func() {
-		// 20 chars + 100ch + 40chars
-		dvName160Characters := "import-long-name-dv-" +
-			"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-" +
-			"123456789-123456789-123456789-1234567890"
-		By(fmt.Sprintf("Creating new datavolume %s", dvName160Characters))
-
-		dv := utils.NewDataVolumeForUpload(dvName160Characters, "1Gi")
-		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
-		Expect(err).ToNot(HaveOccurred())
-		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
-
-		phase := cdiv1.UploadReady
-		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
-		if err != nil {
-			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
-			if dverr != nil {
-				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
-			}
-		}
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Get an upload token")
-		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(token).ToNot(BeEmpty())
-
-		By("Do upload")
-		err = uploadImage(uploadProxyURL, token, http.StatusOK)
-		Expect(err).ToNot(HaveOccurred())
-
-		phase = cdiv1.Succeeded
-		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
-		if err != nil {
-			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
-			if dverr != nil {
-				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
-			}
-		}
-		Expect(err).ToNot(HaveOccurred())
-	})
-
-	It("[test_id:4275] Upload datavolume with long name including special chars '.' - creates correct scratch space, pod and service names", func() {
-		// 20 chars + 100ch + 40chars
-		dvName160Characters := "import-long-name-dv." +
-			"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-" +
-			"123456789-123456789-123456789-1234567890"
-		By(fmt.Sprintf("Creating new datavolume %s", dvName160Characters))
-
-		dv := utils.NewDataVolumeForUpload(dvName160Characters, "1Gi")
-		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
-		Expect(err).ToNot(HaveOccurred())
-		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
-
-		phase := cdiv1.UploadReady
-		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
-		if err != nil {
-			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
-			if dverr != nil {
-				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
-			}
-		}
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Get an upload token")
-		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(token).ToNot(BeEmpty())
-
-		By("Do upload")
-		err = uploadImage(uploadProxyURL, token, http.StatusOK)
-		Expect(err).ToNot(HaveOccurred())
-
-		phase = cdiv1.Succeeded
-		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
-		if err != nil {
-			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
-			if dverr != nil {
-				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
-			}
-		}
-		Expect(err).ToNot(HaveOccurred())
-	})
+	},
+		Entry("[test_id:4273] with short DataVolume name", "import-long-name-dv"),
+		Entry("[test_id:4274] with long DataVolume name", "import-long-name-dv-"+
+			"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-"+
+			"123456789-123456789-123456789-1234567890"),
+		Entry("[test_id:4275] with long DataVolume name including special chars '.'",
+			"import-long-name-dv."+
+				"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-"+
+				"123456789-123456789-123456789-1234567890"),
+	)
 })
