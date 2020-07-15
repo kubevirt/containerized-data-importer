@@ -64,6 +64,19 @@ type authConfigWatcher struct {
 	mutex  sync.RWMutex
 }
 
+// ValidateName checks if name is allowed
+func (ac *AuthConfig) ValidateName(name string) bool {
+	klog.V(3).Infof("Validating CN: %s", name)
+	for _, n := range ac.AllowedNames {
+		if n == name {
+			return true
+		}
+	}
+	// no allowed names means anyone is allowed
+	// https://kubernetes.io/docs/tasks/extend-kubernetes/configure-aggregation-layer/#kubernetes-apiserver-client-authentication
+	return len(ac.AllowedNames) == 0
+}
+
 // NewAuthConfigWatcher crates a new authConfigWatcher
 func NewAuthConfigWatcher(client kubernetes.Interface, stopCh <-chan struct{}) AuthConfigWatcher {
 	informerFactory := informers.NewFilteredSharedInformerFactory(client,
