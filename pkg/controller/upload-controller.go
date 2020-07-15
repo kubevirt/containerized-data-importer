@@ -116,17 +116,17 @@ func (r *UploadReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 		log.V(1).Info("PVC has both clone and upload annotations")
 		return reconcile.Result{}, errors.New("PVC has both clone and upload annotations")
 	}
-
-	// force cleanup if PVC pending delete and pod running or the upload/clone annotation was removed
-	shouldReconcile, err := r.shouldReconcile(isUpload, isCloneTarget, pvc, log)
+	honorWaitForFirstConsumer, err := r.featureGates.HonorWaitForFirstConsumerEnabled()
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	if !shouldReconcile || podSucceededFromPVC(pvc) || pvc.DeletionTimestamp != nil {
+	// force cleanup if PVC pending delete and pod running or the upload/clone annotation was removed
+	if !r.shouldReconcile(isUpload, isCloneTarget, honorWaitForFirstConsumer, pvc, log) || podSucceededFromPVC(pvc) || pvc.DeletionTimestamp != nil {
 		log.V(1).Info("not doing anything with PVC",
 			"isUpload", isUpload,
 			"isCloneTarget", isCloneTarget,
 			"isBound", isBound(pvc, log),
+			"honorWaitForFirstConsumer", honorWaitForFirstConsumer,
 			"podSucceededFromPVC", podSucceededFromPVC(pvc),
 			"deletionTimeStamp set?", pvc.DeletionTimestamp != nil)
 		if err := r.cleanup(pvc); err != nil {
@@ -139,12 +139,8 @@ func (r *UploadReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 	return r.reconcilePVC(log, pvc, isCloneTarget)
 }
 
-func (r *UploadReconciler) shouldReconcile(isUpload bool, isCloneTarget bool, pvc *v1.PersistentVolumeClaim, log logr.Logger) (bool, error) {
-	skipVolume, err := shouldSkipNotBound(pvc, r.featureGates, log)
-	if err != nil {
-		return false, err
-	}
-	return (isUpload || isCloneTarget) && !skipVolume, nil
+func (r *UploadReconciler) shouldReconcile(isUpload bool, isCloneTarget bool, honorWaitForFirstConsumer bool, pvc *v1.PersistentVolumeClaim, log logr.Logger) bool {
+	return (isUpload || isCloneTarget) && shouldHandlePvc(pvc, honorWaitForFirstConsumer, log)
 }
 
 func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentVolumeClaim, isCloneTarget bool) (reconcile.Result, error) {

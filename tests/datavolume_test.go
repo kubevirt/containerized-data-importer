@@ -849,6 +849,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		createUploadDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 			return utils.NewDataVolumeForUpload(dataVolumeName, size)
 		}
+
+		createCloneDataVolume := func(dataVolumeName, size, command string) *cdiv1.DataVolume {
+			sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
+			pvcDef := utils.NewPVCDefinition(pvcName, size, nil, nil)
+			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
+
+			By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
+			return utils.NewCloningDataVolume(dataVolumeName, size, sourcePvc)
+		}
 		var original *bool
 		noSuchFileFileURL := utils.InvalidQcowImagesURL + "no-such-file.img"
 
@@ -925,20 +934,25 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				utils.NewDataVolumeWithHTTPImport,
 				cdiv1.ImportInProgress),
 			table.Entry("[test_id:4461] Import qcow2 scratch space",
-				"dv-wffc-http-qcow2-import",
+				"dv-wffc-qcow2-import",
 				fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs),
 				createHTTPSDataVolume,
 				cdiv1.Succeeded),
 			table.Entry("[test_id:4462] Import blank image",
-				"dv-wffc-http-blank-import",
+				"dv-wffc-blank-import",
 				fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs),
 				createBlankRawDataVolume,
 				cdiv1.Succeeded),
 			table.Entry("[test_id:4463] Upload - positive flow",
-				"dv-wffc-http-upload",
+				"dv-wffc-upload",
 				fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs),
 				createUploadDataVolume,
 				cdiv1.UploadReady),
+			table.Entry("[test_id:4464] Clone - positive flow",
+				"dv-wffc-clone",
+				fillCommand, // its not URL, but command, but the parameter lines up.
+				createCloneDataVolume,
+				cdiv1.Succeeded),
 		)
 	})
 
