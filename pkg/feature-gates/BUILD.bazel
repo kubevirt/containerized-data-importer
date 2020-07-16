@@ -28,6 +28,5 @@ go_test(
         "//vendor/k8s.io/apimachinery/pkg/types:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes/scheme:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client/fake:go_default_library",
-        "//vendor/sigs.k8s.io/controller-runtime/pkg/runtime/log:go_default_library",
     ],
 )
