@@ -26,6 +26,7 @@ var _ = Describe("Problematic server responses", func() {
 		By("creating DataVolume")
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
@@ -39,6 +40,7 @@ var _ = Describe("Problematic server responses", func() {
 		By("creating DataVolume")
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 		err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name, dvWaitTimeout)
 		Expect(err).ToNot(HaveOccurred())
