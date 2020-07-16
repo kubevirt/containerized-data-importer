@@ -40,7 +40,7 @@ const (
 
 type uploadFunc func(string, string, int) error
 
-type uploadRequestCreator func(string) (*http.Request, error)
+type uploadFileNameRequestCreator func(string, string) (*http.Request, error)
 
 var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component]Upload tests", func() {
 
@@ -161,6 +161,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Entry("succeed given a valid token (form async)", uploadFormAsync, true, http.StatusOK),
 		Entry("[posneg:negative][test_id:1369]fail given an invalid token", uploadImage, false, http.StatusUnauthorized),
 	)
+
 	It("Verify upload to the same pvc fails", func() {
 		By("Verify PVC annotation says ready")
 		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
@@ -189,6 +190,23 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(err).ToNot(HaveOccurred())
 
 	})
+
+	It("Verify validation error message on async upload if virtual size > pvc size", func() {
+		By("Verify PVC annotation says ready")
+		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+
+		var token string
+		By("Get an upload token")
+		token, err = utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
+		By("Do upload")
+		err = uploadFileNameToPath(binaryRequestFunc, utils.UploadFileLargeVirtualDisk, uploadProxyURL, asyncUploadPath, token, http.StatusBadRequest)
+		Expect(err).ToNot(HaveOccurred())
+	})
 })
 
 func startUploadProxyPortForward(f *framework.Framework) (string, *exec.Cmd, error) {
@@ -205,8 +223,8 @@ func startUploadProxyPortForward(f *framework.Framework) (string, *exec.Cmd, err
 	return url, cmd, nil
 }
 
-func formRequestFunc(url string) (*http.Request, error) {
-	f, err := os.Open(utils.UploadFile)
+func formRequestFunc(url, fileName string) (*http.Request, error) {
+	f, err := os.Open(fileName)
 	if err != nil {
 		return nil, err
 	}
@@ -239,8 +257,8 @@ func formRequestFunc(url string) (*http.Request, error) {
 	return req, nil
 }
 
-func binaryRequestFunc(url string) (*http.Request, error) {
-	f, err := os.Open(utils.UploadFile)
+func binaryRequestFunc(url, fileName string) (*http.Request, error) {
+	f, err := os.Open(fileName)
 	if err != nil {
 		return nil, err
 	}
@@ -256,30 +274,30 @@ func binaryRequestFunc(url string) (*http.Request, error) {
 }
 
 func uploadImage(portForwardURL, token string, expectedStatus int) error {
-	return uploadToPath(binaryRequestFunc, portForwardURL, syncUploadPath, token, expectedStatus)
+	return uploadFileNameToPath(binaryRequestFunc, utils.UploadFile, portForwardURL, syncUploadPath, token, expectedStatus)
 }
 
 func uploadImageAsync(portForwardURL, token string, expectedStatus int) error {
-	return uploadToPath(binaryRequestFunc, portForwardURL, asyncUploadPath, token, expectedStatus)
+	return uploadFileNameToPath(binaryRequestFunc, utils.UploadFile, portForwardURL, asyncUploadPath, token, expectedStatus)
 }
 
 func uploadImageAlpha(portForwardURL, token string, expectedStatus int) error {
-	return uploadToPath(binaryRequestFunc, portForwardURL, alphaSyncUploadPath, token, expectedStatus)
+	return uploadFileNameToPath(binaryRequestFunc, utils.UploadFile, portForwardURL, alphaSyncUploadPath, token, expectedStatus)
 }
 
 func uploadImageAsyncAlpha(portForwardURL, token string, expectedStatus int) error {
-	return uploadToPath(binaryRequestFunc, portForwardURL, alphaAsyncUploadPath, token, expectedStatus)
+	return uploadFileNameToPath(binaryRequestFunc, utils.UploadFile, portForwardURL, alphaAsyncUploadPath, token, expectedStatus)
 }
 
 func uploadForm(portForwardURL, token string, expectedStatus int) error {
-	return uploadToPath(formRequestFunc, portForwardURL, syncFormPath, token, expectedStatus)
+	return uploadFileNameToPath(formRequestFunc, utils.UploadFile, portForwardURL, syncFormPath, token, expectedStatus)
 }
 
 func uploadFormAsync(portForwardURL, token string, expectedStatus int) error {
-	return uploadToPath(formRequestFunc, portForwardURL, syncFormPath, token, expectedStatus)
+	return uploadFileNameToPath(formRequestFunc, utils.UploadFile, portForwardURL, syncFormPath, token, expectedStatus)
 }
 
-func uploadToPath(requestFunc uploadRequestCreator, portForwardURL, path, token string, expectedStatus int) error {
+func uploadFileNameToPath(requestFunc uploadFileNameRequestCreator, fileName, portForwardURL, path, token string, expectedStatus int) error {
 	url := portForwardURL + path
 
 	client := &http.Client{
@@ -288,7 +306,7 @@ func uploadToPath(requestFunc uploadRequestCreator, portForwardURL, path, token 
 		},
 	}
 
-	req, err := requestFunc(url)
+	req, err := requestFunc(url, fileName)
 	if err != nil {
 		return err
 	}

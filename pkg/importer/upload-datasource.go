@@ -74,6 +74,8 @@ func (ud *UploadDataSource) TransferFile(fileName string) (ProcessingPhase, erro
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
+	// If we successfully wrote to the file, then the parse will succeed.
+	ud.url, _ = url.Parse(fileName)
 	return ProcessingPhaseResize, nil
 }
 
@@ -136,7 +138,7 @@ func (aud *AsyncUploadDataSource) Transfer(path string) (ProcessingPhase, error)
 	// If we successfully wrote to the file, then the parse will succeed.
 	aud.uploadDataSource.url, _ = url.Parse(file)
 	aud.ResumePhase = ProcessingPhaseProcess
-	return ProcessingPhasePause, nil
+	return ProcessingPhaseValidatePause, nil
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
@@ -145,8 +147,10 @@ func (aud *AsyncUploadDataSource) TransferFile(fileName string) (ProcessingPhase
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
+	// If we successfully wrote to the file, then the parse will succeed.
+	aud.uploadDataSource.url, _ = url.Parse(fileName)
 	aud.ResumePhase = ProcessingPhaseResize
-	return ProcessingPhasePause, nil
+	return ProcessingPhaseValidatePause, nil
 }
 
 // Process is called to do any special processing before giving the url to the data back to the processor
