@@ -7,7 +7,7 @@ import (
 	"flag"
 	"fmt"
 	storagev1 "k8s.io/api/storage/v1"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -260,7 +260,7 @@ func (f *Framework) BeforeEach() {
 		createNFSPVs(f.K8sClient, f.CdiInstallNs)
 	}
 
-	defaultFeatureGates := []string{controller.SkipWaitForFirstConsumerVolumes}
+	defaultFeatureGates := []string{featuregates.HonorWaitForFirstConsumer}
 	ginkgo.By(fmt.Sprintf("Configuring default FeatureGates %q", defaultFeatureGates))
 	f.setFeatureGates(defaultFeatureGates)
 }
@@ -659,12 +659,12 @@ func (f *Framework) IsBindingModeWaitForFirstConsumer(storageClassName *string) 
 }
 
 func (f *Framework) setFeatureGates(defaultFeatureGates []string) {
-	config, err := f.CdiClient.CdiV1alpha1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+	config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	config.Spec.FeatureGates = defaultFeatureGates
 
-	config, err = f.CdiClient.CdiV1alpha1().CDIConfigs().Update(config)
+	config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(config)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 }
 
