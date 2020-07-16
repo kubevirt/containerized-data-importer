@@ -3161,6 +3161,12 @@
     "description": "CDIConfigSpec defines specification for user configuration",
     "type": "object",
     "properties": {
+     "featureGates": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
      "podResourceRequirements": {
       "$ref": "#/definitions/v1.ResourceRequirements"
      },
