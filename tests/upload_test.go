@@ -657,7 +657,6 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Kill upload container to force restart")
-		utils.UploadPodName(pvc)
 		_, errLog, err := f.ExecShellInPodWithFullOutput(f.Namespace.Name, utils.UploadPodName(pvc), "kill 1")
 		Expect(err).To(BeNil())
 		Expect(errLog).To(BeEmpty())

@@ -862,12 +862,11 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)
 
 		By("Wait for upload pod")
-		err = utils.WaitTimeoutForPodReady(f.K8sClient, "cdi-upload-target-dv", targetNs.Name, utils.PodWaitForTime)
+		err = utils.WaitTimeoutForPodReady(f.K8sClient, utils.UploadPodName(targetPvc), targetNs.Name, utils.PodWaitForTime)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Kill upload pod to force error")
-		utils.UploadPodName(targetPvc)
-		_, errLog, err := f.ExecShellInPodWithFullOutput(targetNs.Name, "cdi-upload-target-dv", "kill 1")
+		_, errLog, err := f.ExecShellInPodWithFullOutput(targetNs.Name, utils.UploadPodName(targetPvc), "kill 1")
 		Expect(err).To(BeNil())
 		Expect(errLog).To(BeEmpty())
 
