@@ -1002,6 +1002,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dv := utils.NewDataVolumeWithHTTPImport(dvName, "500Mi", tinyCoreIsoRateLimitURL)
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			phase := cdiv1.ImportInProgress
 			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -1085,6 +1086,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("Wait for PVC to be recreated")
 			pvc, err = utils.WaitForPVC(f.K8sClient, f.Namespace.Name, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
 
 			Expect(pvc.GetUID()).ToNot(Equal(pvcUID))
 
@@ -1097,13 +1099,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	Describe("Registry import with missing configmap", func() {
 		const cmName = "cert-registry-cm"
 
-		It("Import POD should remain pending until CM exists", func() {
+		It("aaqq Import POD should remain pending until CM exists", func() {
 			var pvc *v1.PersistentVolumeClaim
 
 			dataVolumeDef := utils.NewDataVolumeWithRegistryImport("missing-cm-registry-dv", "1Gi", tinyCoreIsoRegistryURL)
 			dataVolumeDef.Spec.Source.Registry.CertConfigMap = cmName
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolumeDef)
 			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			By("verifying pvc was created")
 			Eventually(func() bool {

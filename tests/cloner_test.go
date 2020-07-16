@@ -1057,6 +1057,7 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 
 	targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 	Expect(err).ToNot(HaveOccurred())
+	f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 	verifyEvent(controller.CloneSourceInUse, targetNs.Name, f)
 	err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(pod.Name, nil)
