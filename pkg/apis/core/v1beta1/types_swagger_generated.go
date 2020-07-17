@@ -79,6 +79,17 @@ func (DataVolumeSourceImageIO) SwaggerDoc() map[string]string {
 	}
 }
 
+func (DataVolumeSourceVDDK) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":            "DataVolumeSourceVDDK provides the parameters to create a Data Volume from a Vmware source",
+		"url":         "URL is the URL of the vcenter or esxi host",
+		"uuid":        "UUID is the UUID of the virtual machine the disk is attached to",
+		"backingFile": "BackingFile is the path to the disk's backing file in the datastore",
+		"thumbprint":  "Thumbprint is the certificate thumbprint of the vcenter or esxi host",
+		"secretRef":   "SecretRef provides the secret reference needed to access the vcenter or esxi host",
+	}
+}
+
 func (DataVolumeStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":             "DataVolumeStatus contains the current status of the DataVolume",

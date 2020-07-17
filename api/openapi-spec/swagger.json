@@ -3387,6 +3387,9 @@
      },
      "upload": {
       "$ref": "#/definitions/v1beta1.DataVolumeSourceUpload"
+     },
+     "vddk": {
+      "$ref": "#/definitions/v1beta1.DataVolumeSourceVDDK"
      }
     }
    },
@@ -3496,6 +3499,32 @@
    "v1beta1.DataVolumeSourceUpload": {
     "description": "DataVolumeSourceUpload provides the parameters to create a Data Volume by uploading the source",
     "type": "object"
+   },
+   "v1beta1.DataVolumeSourceVDDK": {
+    "description": "DataVolumeSourceVDDK provides the parameters to create a Data Volume from a Vmware source",
+    "type": "object",
+    "properties": {
+     "backingFile": {
+      "description": "BackingFile is the path to the disk's backing file in the datastore",
+      "type": "string"
+     },
+     "secretRef": {
+      "description": "SecretRef provides the secret reference needed to access the vcenter or esxi host",
+      "type": "string"
+     },
+     "thumbprint": {
+      "description": "Thumbprint is the certificate thumbprint of the vcenter or esxi host",
+      "type": "string"
+     },
+     "url": {
+      "description": "URL is the URL of the vcenter or esxi host",
+      "type": "string"
+     },
+     "uuid": {
+      "description": "UUID is the UUID of the virtual machine the disk is attached to",
+      "type": "string"
+     }
+    }
    },
    "v1beta1.DataVolumeSpec": {
     "description": "DataVolumeSpec defines the DataVolume type specification",

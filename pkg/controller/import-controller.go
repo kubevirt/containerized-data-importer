@@ -44,6 +44,8 @@ const (
 	SourceRegistry = "registry"
 	// SourceImageio is the source type ovirt-imageio
 	SourceImageio = "imageio"
+	// SourceVDDK is the source type of VDDK
+	SourceVDDK = "vddk"
 
 	// AnnSource provide a const for our PVC import source annotation
 	AnnSource = AnnAPIGroup + "/storage.import.source"
@@ -61,6 +63,12 @@ const (
 	AnnRequiresScratch = AnnAPIGroup + "/storage.import.requiresScratch"
 	// AnnDiskID provides a const for our PVC diskId annotation
 	AnnDiskID = AnnAPIGroup + "/storage.import.diskId"
+	// AnnUUID provides a const for our PVC uuid annotation
+	AnnUUID = AnnAPIGroup + "/storage.import.uuid"
+	// AnnBackingFile provides a const for our PVC backing file annotation
+	AnnBackingFile = AnnAPIGroup + "/storage.import.backingFile"
+	// AnnThumbprint provides a const for our PVC backing thumbprint annotation
+	AnnThumbprint = AnnAPIGroup + "/storage.import.thumbprint"
 
 	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
 	LabelImportPvc = AnnAPIGroup + "/storage.import.importPvcName"
@@ -90,8 +98,17 @@ type ImportReconciler struct {
 }
 
 type importPodEnvVar struct {
-	ep, secretName, source, contentType, imageSize, certConfigMap, diskID string
-	insecureTLS                                                           bool
+	ep            string
+	secretName    string
+	source        string
+	contentType   string
+	imageSize     string
+	certConfigMap string
+	diskID        string
+	uuid          string
+	backingFile   string
+	thumbprint    string
+	insecureTLS   bool
 }
 
 // NewImportController creates a new instance of the import controller.
@@ -416,7 +433,10 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		if err != nil {
 			return nil, err
 		}
-		podEnvVar.diskID = getDiskID(pvc)
+		podEnvVar.diskID = getValueFromAnnotation(pvc, AnnDiskID)
+		podEnvVar.backingFile = getValueFromAnnotation(pvc, AnnBackingFile)
+		podEnvVar.uuid = getValueFromAnnotation(pvc, AnnUUID)
+		podEnvVar.thumbprint = getValueFromAnnotation(pvc, AnnThumbprint)
 	}
 	//get the requested image size.
 	podEnvVar.imageSize, err = getRequestedImageSize(pvc)
@@ -604,10 +624,10 @@ func getEndpoint(pvc *corev1.PersistentVolumeClaim) (string, error) {
 	return ep, nil
 }
 
-// getDiskID returns the imageio disk io from the annotation.
-func getDiskID(pvc *corev1.PersistentVolumeClaim) string {
-	diskID, _ := pvc.Annotations[AnnDiskID]
-	return diskID
+// getValueFromAnnotation returns the value of an annotation
+func getValueFromAnnotation(pvc *corev1.PersistentVolumeClaim, annotation string) string {
+	value, _ := pvc.Annotations[annotation]
+	return value
 }
 
 func getImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
@@ -822,6 +842,18 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.ImporterDiskID,
 			Value: podEnvVar.diskID,
+		},
+		{
+			Name: common.ImporterUUID,
+			Value: podEnvVar.uuid,
+		},
+		{
+			Name: common.ImporterBackingFile,
+			Value: podEnvVar.backingFile,
+		},
+		{
+			Name: common.ImporterThumbprint,
+			Value: podEnvVar.thumbprint,
 		},
 	}
 	if podEnvVar.secretName != "" {
