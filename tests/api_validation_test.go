@@ -71,6 +71,19 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 							"secretRef":     secretName,
 							"certConfigMap": configMap,
 							"diskId":        diskID}}
+				case "vddk":
+					url := args[0]
+					secretName := args[1]
+					uuid := args[2]
+					backingFile := args[3]
+					thumbprint := args[4]
+					dv["spec"].(map[string]interface{})["source"] = map[string]interface{}{
+						"vddk": map[string]interface{}{
+							"url":         url,
+							"secretRef":   secretName,
+							"uuid":        uuid,
+							"backingFile": backingFile,
+							"thumbprint":  thumbprint}}
 				}
 
 				err = structToYamlFile(destinationFile, dv)
@@ -94,6 +107,9 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				table.Entry("[test_id:1326]fail with empty PVC source name", "pvc", "test", ""),
 				table.Entry("[test_id:3917]fail with source PVC doesn't exist", "pvc", "test", "test-pvc"),
 				table.Entry("[test_id:3918]fail with empty Imageio source diskId", "imageio", validURL, "secret", "tls-cert", ""),
+				table.Entry("[test_id:3918]fail with empty VDDK source UUID", "vddk", validURL, "secret", "", "backingfile", "thumbprint"),
+				table.Entry("[test_id:3918]fail with empty VDDK source backing file", "vddk", validURL, "secret", "uuid", "", "thumbprint"),
+				table.Entry("[test_id:3918]fail with empty VDDK source thumbprint", "vddk", validURL, "secret", "uuid", "backingfile", ""),
 			)
 
 			table.DescribeTable("with Datavolume PVC size should", func(size string) {

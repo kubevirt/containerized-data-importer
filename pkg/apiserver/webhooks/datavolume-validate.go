@@ -98,7 +98,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 		return causes
 	}
 	// if source types are HTTP, Imageio or S3, check if URL is valid
-	if spec.Source.HTTP != nil || spec.Source.S3 != nil || spec.Source.Imageio != nil {
+	if spec.Source.HTTP != nil || spec.Source.S3 != nil || spec.Source.Imageio != nil || spec.Source.VDDK != nil {
 		if spec.Source.HTTP != nil {
 			url = spec.Source.HTTP.URL
 			sourceType = field.Child("source", "HTTP", "url").String()
@@ -108,6 +108,9 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 		} else if spec.Source.Imageio != nil {
 			url = spec.Source.Imageio.URL
 			sourceType = field.Child("source", "Imageio", "url").String()
+		} else if spec.Source.VDDK != nil {
+			url = spec.Source.VDDK.URL
+			sourceType = field.Child("source", "VDDK", "url").String()
 		}
 		err := validateSourceURL(url)
 		if err != "" {
@@ -157,6 +160,17 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 				Type:    metav1.CauseTypeFieldValueInvalid,
 				Message: fmt.Sprintf("%s source Imageio is not valid", field.Child("source", "Imageio").String()),
 				Field:   field.Child("source", "Imageio").String(),
+			})
+			return causes
+		}
+	}
+
+	if spec.Source.VDDK != nil {
+		if spec.Source.VDDK.SecretRef == "" || spec.Source.VDDK.UUID == "" || spec.Source.VDDK.BackingFile == "" || spec.Source.VDDK.Thumbprint == "" {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("%s source VDDK is not valid", field.Child("source", "VDDK").String()),
+				Field:   field.Child("source", "VDDK").String(),
 			})
 			return causes
 		}
