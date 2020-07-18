@@ -27,7 +27,7 @@ import (
 	"github.com/operator-framework/operator-marketplace/pkg/appregistry"
 	"gopkg.in/yaml.v2"
 
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 
 	"github.com/operator-framework/operator-marketplace/pkg/datastore"
@@ -65,7 +65,7 @@ type BundleHelper struct {
 	repo      string
 	namespace string
 	Pkgs      []Pkg
-	CRDs      []v1beta1.CustomResourceDefinition
+	CRDs      []extv1.CustomResourceDefinition
 	CSVs      []yaml.MapSlice
 }
 
@@ -200,7 +200,13 @@ func (bh *BundleHelper) addOldCRDs(outDir string) error {
 
 	currentVersion := cdiv1.CDIGroupVersionKind.Version
 	for _, crd := range bh.CRDs {
-		if crd.Spec.Version == currentVersion {
+		crdVersion := "v1alpha1"
+		for _, version := range crd.Spec.Versions {
+			if version.Storage {
+				crdVersion = version.Name
+			}
+		}
+		if crdVersion == currentVersion {
 			// the current version wil be generated
 			continue
 		}
@@ -210,7 +216,7 @@ func (bh *BundleHelper) addOldCRDs(outDir string) error {
 			klog.Errorf("Failed to marshal old CRDs %v", err)
 			return err
 		}
-		filename := fmt.Sprintf("%v/%v-%v.crd.yaml", outDir, crd.Name, crd.Spec.Version)
+		filename := fmt.Sprintf("%v/%v-%v.crd.yaml", outDir, crd.Name, crdVersion)
 		err = ioutil.WriteFile(filename, bytes, 0644)
 		if err != nil {
 			klog.Errorf("Failed to write old CRDs in %s %v", filename, err)

@@ -33,7 +33,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -528,7 +528,7 @@ func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1.CDI)
 	}
 
 	listTypes := []runtime.Object{
-		&extv1beta1.CustomResourceDefinitionList{},
+		&extv1.CustomResourceDefinitionList{},
 		&rbacv1.ClusterRoleBindingList{},
 		&rbacv1.ClusterRoleList{},
 		&appsv1.DeploymentList{},

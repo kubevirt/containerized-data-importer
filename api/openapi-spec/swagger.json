@@ -3080,8 +3080,7 @@
     "description": "CDI is the CDI Operator CRD",
     "type": "object",
     "required": [
-     "spec",
-     "status"
+     "spec"
     ],
     "properties": {
      "apiVersion": {
@@ -3162,6 +3161,7 @@
     "type": "object",
     "properties": {
      "featureGates": {
+      "description": "FeatureGates are a list of specific enabled feature gates",
       "type": "array",
       "items": {
        "type": "string"
@@ -3171,15 +3171,17 @@
       "$ref": "#/definitions/v1.ResourceRequirements"
      },
      "scratchSpaceStorageClass": {
+      "description": "Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space",
       "type": "string"
      },
      "uploadProxyURLOverride": {
+      "description": "Override the URL used when uploading to a DataVolume",
       "type": "string"
      }
     }
    },
    "v1beta1.CDIConfigStatus": {
-    "description": "CDIConfigStatus provides",
+    "description": "CDIConfigStatus provides the most recently observed status of the CDI Config resource",
     "type": "object",
     "nullable": true,
     "properties": {
@@ -3187,9 +3189,11 @@
       "$ref": "#/definitions/v1.ResourceRequirements"
      },
      "scratchSpaceStorageClass": {
+      "description": "The calculated storage class to be used for scratch space",
       "type": "string"
      },
      "uploadProxyURL": {
+      "description": "The calculated upload proxy URL",
       "type": "string"
      }
     }
@@ -3227,6 +3231,7 @@
     "type": "object",
     "properties": {
      "imagePullPolicy": {
+      "description": "PullPolicy describes a policy for if/when to pull a container image",
       "type": "string"
      },
      "uninstallStrategy": {
@@ -3240,27 +3245,31 @@
     "nullable": true,
     "properties": {
      "conditions": {
+      "description": "A list of current conditions of the CDI resource",
       "type": "array",
       "items": {
        "$ref": "#/definitions/v1.Condition"
       }
      },
      "observedVersion": {
+      "description": "The observed version of the CDI resource",
       "type": "string"
      },
      "operatorVersion": {
+      "description": "The version of the CDI resource as defined by the operator",
       "type": "string"
      },
      "phase": {
       "type": "string"
      },
      "targetVersion": {
+      "description": "The desired version of the CDI resource",
       "type": "string"
      }
     }
    },
    "v1beta1.DataVolume": {
-    "description": "DataVolume provides a representation of our data volume",
+    "description": "DataVolume is an abstraction on top of PersistentVolumeClaims to allow easy population of those PersistentVolumeClaims with relation to VirtualMachines",
     "type": "object",
     "required": [
      "spec"
@@ -3297,7 +3306,7 @@
      "status"
     ],
     "properties": {
-     "lastHeartBeatTime": {
+     "lastHeartbeatTime": {
       "$ref": "#/definitions/v1.Time"
      },
      "lastProbeTime": {
@@ -3382,19 +3391,22 @@
     }
    },
    "v1beta1.DataVolumeSourceHTTP": {
-    "description": "DataVolumeSourceHTTP provides the parameters to create a Data Volume from an HTTP source",
+    "description": "DataVolumeSourceHTTP can be either an http or https endpoint, with an optional basic auth user name and password, and an optional configmap containing additional CAs",
     "type": "object",
+    "required": [
+     "url"
+    ],
     "properties": {
      "certConfigMap": {
-      "description": "CertConfigMap provides a reference to the Registry certs",
+      "description": "CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate",
       "type": "string"
      },
      "secretRef": {
-      "description": "SecretRef provides the secret reference needed to access the HTTP source",
+      "description": "SecretRef A Secret reference, the secret should contain accessKeyId (user name) base64 encoded, and secretKey (password) also base64 encoded",
       "type": "string"
      },
      "url": {
-      "description": "URL is the URL of the http source",
+      "description": "URL is the URL of the http(s) endpoint",
       "type": "string"
      }
     }
@@ -3402,6 +3414,10 @@
    "v1beta1.DataVolumeSourceImageIO": {
     "description": "DataVolumeSourceImageIO provides the parameters to create a Data Volume from an imageio source",
     "type": "object",
+    "required": [
+     "url",
+     "diskId"
+    ],
     "properties": {
      "certConfigMap": {
       "description": "CertConfigMap provides a reference to the CA cert",
@@ -3424,11 +3440,17 @@
    "v1beta1.DataVolumeSourcePVC": {
     "description": "DataVolumeSourcePVC provides the parameters to create a Data Volume from an existing PVC",
     "type": "object",
+    "required": [
+     "namespace",
+     "name"
+    ],
     "properties": {
      "name": {
+      "description": "The name of the source PVC",
       "type": "string"
      },
      "namespace": {
+      "description": "The namespace of the source PVC",
       "type": "string"
      }
     }
@@ -3436,6 +3458,9 @@
    "v1beta1.DataVolumeSourceRegistry": {
     "description": "DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source",
     "type": "object",
+    "required": [
+     "url"
+    ],
     "properties": {
      "certConfigMap": {
       "description": "CertConfigMap provides a reference to the Registry certs",
@@ -3454,6 +3479,9 @@
    "v1beta1.DataVolumeSourceS3": {
     "description": "DataVolumeSourceS3 provides the parameters to create a Data Volume from an S3 source",
     "type": "object",
+    "required": [
+     "url"
+    ],
     "properties": {
      "secretRef": {
       "description": "SecretRef provides the secret reference needed to access the S3 source",
@@ -3470,7 +3498,7 @@
     "type": "object"
    },
    "v1beta1.DataVolumeSpec": {
-    "description": "DataVolumeSpec defines our specification for a DataVolume type",
+    "description": "DataVolumeSpec defines the DataVolume type specification",
     "type": "object",
     "required": [
      "source",
@@ -3482,7 +3510,7 @@
       "type": "string"
      },
      "pvc": {
-      "description": "PVC is a pointer to the PVC Spec we want to use",
+      "description": "PVC is the PVC specification",
       "$ref": "#/definitions/v1.PersistentVolumeClaimSpec"
      },
      "source": {
@@ -3492,7 +3520,7 @@
     }
    },
    "v1beta1.DataVolumeStatus": {
-    "description": "DataVolumeStatus provides the parameters to store the phase of the Data Volume",
+    "description": "DataVolumeStatus contains the current status of the DataVolume",
     "type": "object",
     "nullable": true,
     "properties": {
@@ -3500,8 +3528,7 @@
       "type": "array",
       "items": {
        "$ref": "#/definitions/v1beta1.DataVolumeCondition"
-      },
-      "x-kubernetes-list-type": "set"
+      }
      },
      "phase": {
       "description": "Phase is the current phase of the data volume",
@@ -3511,6 +3538,7 @@
       "type": "string"
      },
      "restartCount": {
+      "description": "RestartCount is the number of times the pod populating the DataVolume has restarted",
       "type": "integer",
       "format": "int32"
      }

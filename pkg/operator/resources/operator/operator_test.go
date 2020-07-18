@@ -80,7 +80,7 @@ func getSchema() validation.Schema {
 	Expect(err).ToNot(HaveOccurred())
 	yamlString := string(crdFiles)
 	Expect(err).ToNot(HaveOccurred())
-	schema, err := validation.New([]byte(yamlString))
+	schema, err := validation.NewVersioned([]byte(yamlString), "v1beta1")
 	Expect(err).ToNot(HaveOccurred())
 
 	return schema
