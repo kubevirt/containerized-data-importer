@@ -29,6 +29,8 @@ RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
 	patch \
     unzip \
     java-1.8.0-openjdk \
+	btrfs-progs-devel \
+	device-mapper-devel \
 	&& microdnf clean all && \
 	mv /etc/yum.repos.d/old/* /etc/yum.repos.d/ && \
 	rmdir /etc/yum.repos.d/old
