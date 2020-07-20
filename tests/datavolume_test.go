@@ -820,7 +820,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 	})
 
-	Describe("[rfe_id:4223][crit:high] DataVolume - WitForFirstConsumer", func() {
+	Describe("[rfe_id:4223][crit:high] DataVolume - WaitForFirstConsumer", func() {
 		type dataVolumeTestArguments struct {
 			name             string
 			size             string
@@ -1099,7 +1099,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	Describe("Registry import with missing configmap", func() {
 		const cmName = "cert-registry-cm"
 
-		It("aaqq Import POD should remain pending until CM exists", func() {
+		It("Import POD should remain pending until CM exists", func() {
 			var pvc *v1.PersistentVolumeClaim
 
 			dataVolumeDef := utils.NewDataVolumeWithRegistryImport("missing-cm-registry-dv", "1Gi", tinyCoreIsoRegistryURL)
