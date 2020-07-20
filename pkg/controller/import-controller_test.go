@@ -489,7 +489,7 @@ var _ = Describe("Import test env", func() {
 	const mockUID = "1111-1111-1111-1111"
 
 	It("Should create import env", func() {
-		testEnvVar := &importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, string(cdiv1.DataVolumeKubeVirt), "1G", "", "", "", "", false}
+		testEnvVar := &importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, string(cdiv1.DataVolumeKubeVirt), "1G", "", "", "", "", "", false}
 		Expect(reflect.DeepEqual(makeImportEnv(testEnvVar, mockUID), createImportTestEnv(testEnvVar, mockUID))).To(BeTrue())
 	})
 })
