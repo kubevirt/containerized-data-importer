@@ -101,7 +101,6 @@ func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pu
 		Mapper: mgr.GetRESTMapper(),
 	})
 	client := mgr.GetClient()
-	featureGates := featuregates.NewFeatureGates(client)
 	reconciler := &ImportReconciler{
 		client:         client,
 		uncachedClient: uncachedClient,
@@ -111,7 +110,7 @@ func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pu
 		verbose:        verbose,
 		pullPolicy:     pullPolicy,
 		recorder:       mgr.GetEventRecorderFor("import-controller"),
-		featureGates:   featureGates,
+		featureGates:   featuregates.NewFeatureGates(client),
 	}
 	importController, err := controller.New("import-controller", mgr, controller.Options{
 		Reconciler: reconciler,

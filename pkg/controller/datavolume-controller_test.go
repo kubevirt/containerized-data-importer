@@ -641,10 +641,16 @@ var _ = Describe("Smart clone", func() {
 	It("Should not return storage class, if source SC and target SC do not match", func() {
 		dv := newCloneDataVolume("test-dv")
 		targetSc := "testsc"
+		tsc := createStorageClass(targetSc, map[string]string{
+			AnnDefaultStorageClass: "true",
+		})
 		dv.Spec.PVC.StorageClassName = &targetSc
 		sourceSc := "testsc2"
+		ssc := createStorageClass(sourceSc, map[string]string{
+			AnnDefaultStorageClass: "true",
+		})
 		pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &sourceSc, nil, nil, corev1.ClaimBound)
-		reconciler := createDatavolumeReconciler(dv, pvc)
+		reconciler := createDatavolumeReconciler(ssc, tsc, dv, pvc)
 		reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 		snapclass, err := reconciler.getSnapshotClassForSmartClone(dv)
 		Expect(err).To(HaveOccurred())
@@ -655,10 +661,13 @@ var _ = Describe("Smart clone", func() {
 	It("Should not return storage class, if source NS and target NS do not match", func() {
 		dv := newCloneDataVolume("test-dv")
 		scName := "testsc"
+		sc := createStorageClass(scName, map[string]string{
+			AnnDefaultStorageClass: "true",
+		})
 		dv.Spec.PVC.StorageClassName = &scName
 		dv.Spec.Source.PVC.Namespace = "other-ns"
 		pvc := createPvcInStorageClass("test", "other-ns", &scName, nil, nil, corev1.ClaimBound)
-		reconciler := createDatavolumeReconciler(dv, pvc)
+		reconciler := createDatavolumeReconciler(sc, dv, pvc)
 		reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 		snapclass, err := reconciler.getSnapshotClassForSmartClone(dv)
 		Expect(err).To(HaveOccurred())
@@ -675,7 +684,7 @@ var _ = Describe("Smart clone", func() {
 		reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 		snapclass, err := reconciler.getSnapshotClassForSmartClone(dv)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("unable to retrieve storage class, falling back to host assisted clone"))
+		Expect(err.Error()).To(ContainSubstring("unable to retrieve storage class"))
 		Expect(snapclass).To(BeEmpty())
 	})
 
