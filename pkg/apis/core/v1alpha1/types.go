@@ -97,7 +97,7 @@ type DataVolumeSourceS3 struct {
 
 // DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source
 type DataVolumeSourceRegistry struct {
-	//URL is the url of the Registry source
+	//URL is the url of the Docker registry source
 	URL string `json:"url"`
 	//SecretRef provides the secret reference needed to access the Registry source
 	SecretRef string `json:"secretRef,omitempty"`
@@ -239,7 +239,7 @@ type CDI struct {
 
 	Spec CDISpec `json:"spec"`
 	// +optional
-	Status CDIStatus `json:"status,omitempty"`
+	Status CDIStatus `json:"status"`
 }
 
 // CDISpec defines our specification for the CDI installation

@@ -85,16 +85,6 @@ var _ = BeforeSuite(func(done Done) {
 	clientset, err = kubernetes.NewForConfig(cfg)
 	Expect(err).NotTo(HaveOccurred())
 
-	opts := envtest.CRDInstallOptions{
-		// TODO: Fix me before merge
-		//		CRDs: []*extv1.CustomResourceDefinition{crd},
-	}
-
-	crds, err := envtest.InstallCRDs(cfg, opts)
-	Expect(err).NotTo(HaveOccurred())
-	err = envtest.WaitForCRDs(cfg, crds, envtest.CRDInstallOptions{})
-	Expect(err).NotTo(HaveOccurred())
-
 	// Prevent the metrics listener being created
 	metrics.DefaultBindAddress = "0"
 

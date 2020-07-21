@@ -54,7 +54,7 @@ func (DataVolumeSourceS3) SwaggerDoc() map[string]string {
 func (DataVolumeSourceRegistry) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":              "DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source",
-		"url":           "URL is the url of the Registry source",
+		"url":           "URL is the url of the Docker registry source",
 		"secretRef":     "SecretRef provides the secret reference needed to access the Registry source",
 		"certConfigMap": "CertConfigMap provides a reference to the Registry certs",
 	}

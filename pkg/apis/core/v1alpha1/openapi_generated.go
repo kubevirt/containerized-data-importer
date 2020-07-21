@@ -14045,7 +14045,7 @@ func schema_pkg_apis_core_v1alpha1_DataVolumeSourceRegistry(ref common.Reference
 				Properties: map[string]spec.Schema{
 					"url": {
 						SchemaProps: spec.SchemaProps{
-							Description: "URL is the url of the Registry source",
+							Description: "URL is the url of the Docker registry source",
 							Type:        []string{"string"},
 							Format:      "",
 						},
