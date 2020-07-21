@@ -304,22 +304,20 @@ func (r *DatavolumeReconciler) sourceInUse(dv *cdiv1.DataVolume) (bool, error) {
 	return len(pods) > 0, nil
 }
 
-func (r *DatavolumeReconciler) getStorageClassBindingMode(dataVolume *cdiv1.DataVolume) (storagev1.VolumeBindingMode, error) {
-	var targetPvcStorageClass *storagev1.StorageClass
-	targetPvcStorageClassName := dataVolume.Spec.PVC.StorageClassName
-
+func (r *DatavolumeReconciler) getStorageClassBindingMode(dataVolume *cdiv1.DataVolume) (*storagev1.VolumeBindingMode, error) {
 	// Handle unspecified storage class name, fallback to default storage class
-	targetPvcStorageClass, err := r.getStorageClassByName(targetPvcStorageClassName)
+	storageClass, err := r.getStorageClassByName(dataVolume.Spec.PVC.StorageClassName)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	if targetPvcStorageClass != nil && targetPvcStorageClass.VolumeBindingMode != nil {
-		return *targetPvcStorageClass.VolumeBindingMode, nil
+	if storageClass != nil && storageClass.VolumeBindingMode != nil {
+		return storageClass.VolumeBindingMode, nil
 	}
 
 	// no storage class, then the assumption is immediate binding
-	return storagev1.VolumeBindingImmediate, nil
+	volumeBindingImmediate := storagev1.VolumeBindingImmediate
+	return &volumeBindingImmediate, nil
 }
 
 func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, pvcUID types.UID) (reconcile.Result, error) {
@@ -651,7 +649,7 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 					return reconcile.Result{}, err
 				}
 				if honorWaitForFirstConsumerEnabled &&
-					storageClassBindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
+					*storageClassBindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
 					dataVolumeCopy.Status.Phase = cdiv1.WaitForFirstConsumer
 				} else {
 					dataVolumeCopy.Status.Phase = cdiv1.Pending
