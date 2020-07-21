@@ -1113,7 +1113,7 @@ func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string
 
 	By("Checking no cloning pods were created")
 
-	matchString := fmt.Sprintf("{\"PVC\": \"%s/target-pvc\", \"isUpload\": false, \"isCloneTarget\": true, \"isBound\": true, \"honorWaitForFirstConsumer\": true, \"podSucceededFromPVC\": true, \"deletionTimeStamp set?\": false}", f.Namespace.Name)
+	matchString := fmt.Sprintf("{\"PVC\": \"%s/target-pvc\", \"isUpload\": false, \"isCloneTarget\": true, \"isBound\": true, \"podSucceededFromPVC\": true, \"deletionTimeStamp set?\": false}", f.Namespace.Name)
 	Eventually(func() bool {
 		log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 		Expect(err).NotTo(HaveOccurred())
