@@ -154,7 +154,7 @@ type DatavolumeReconciler struct {
 	recorder     record.EventRecorder
 	scheme       *runtime.Scheme
 	log          logr.Logger
-	featureGates *featuregates.FeatureGates
+	featureGates featuregates.FeatureGates
 }
 
 func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {

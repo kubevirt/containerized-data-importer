@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	. "github.com/onsi/ginkgo"
@@ -32,30 +33,30 @@ import (
 
 var _ = Describe("Feature Gates", func() {
 	It("Should be false if not set", func() {
-		featureGates := createFeatureGates()
+		featureGates, _ := createFeatureGatesAndClient()
 		Expect(featureGates.HonorWaitForFirstConsumerEnabled()).To(BeFalse())
 	})
 
 	It("Should reflect config changes", func() {
-		featureGates := createFeatureGates()
+		featureGates, client := createFeatureGatesAndClient()
 		cdiConfig := &cdiv1.CDIConfig{}
-		err := featureGates.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 
 		// update the config on the status not the spec
 		cdiConfig.Spec.FeatureGates = []string{HonorWaitForFirstConsumer}
-		err = featureGates.client.Update(context.TODO(), cdiConfig)
+		err = client.Update(context.TODO(), cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(featureGates.HonorWaitForFirstConsumerEnabled()).To(BeTrue())
 
 		cdiConfig.Spec.FeatureGates = nil
-		err = featureGates.client.Update(context.TODO(), cdiConfig)
+		err = client.Update(context.TODO(), cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(featureGates.HonorWaitForFirstConsumerEnabled()).To(BeFalse())
 	})
 })
 
-func createFeatureGates(objects ...runtime.Object) *FeatureGates {
+func createFeatureGatesAndClient(objects ...runtime.Object) (FeatureGates, client.Client) {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)
 
@@ -83,5 +84,5 @@ func createFeatureGates(objects ...runtime.Object) *FeatureGates {
 	cl := fake.NewFakeClientWithScheme(s, objs...)
 
 	// Create a NewFeatureGates with fake client.
-	return NewFeatureGates(cl)
+	return NewFeatureGates(cl), cl
 }

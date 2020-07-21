@@ -72,22 +72,22 @@ var _ = Describe("Test PVC annotations status", func() {
 
 	It("Should be interesting if NOT complete, and endpoint and source is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, false, importLog)).To(BeTrue())
+		Expect(shouldReconcilePVC(testPvc, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
 	})
 
 	It("Should NOT be interesting if complete, and endpoint and source is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodSucceeded), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, false, importLog)).To(BeFalse())
+		Expect(shouldReconcilePVC(testPvc, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeFalse())
 	})
 
 	It("Should be interesting if NOT complete, and endpoint missing and source is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodRunning), AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, false, importLog)).To(BeTrue())
+		Expect(shouldReconcilePVC(testPvc, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
 	})
 
 	It("Should be interesting if NOT complete, and endpoint set and source is missing", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint}, nil)
-		Expect(shouldReconcilePVC(testPvc, false, importLog)).To(BeTrue())
+		Expect(shouldReconcilePVC(testPvc, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
 	})
 })
 
@@ -674,7 +674,7 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	return r
 }
 
-func createFeatureGates() *featuregates.FeatureGates {
+func createFeatureGates() featuregates.FeatureGates {
 	s := scheme.Scheme
 	cdiv1.AddToScheme(s)
 	cl := fake.NewFakeClientWithScheme(s, MakeEmptyCDIConfigSpec(common.ConfigName))
@@ -869,4 +869,12 @@ func createImporterTestPod(pvc *corev1.PersistentVolumeClaim, dvname string, scr
 	}
 
 	return pod
+}
+
+type FakeFeatureGates struct {
+	honorWaitForFirstConsumerEnabled bool
+}
+
+func (f *FakeFeatureGates) HonorWaitForFirstConsumerEnabled() (bool, error) {
+	return f.honorWaitForFirstConsumerEnabled, nil
 }

@@ -86,7 +86,7 @@ type ImportReconciler struct {
 	image          string
 	verbose        string
 	pullPolicy     string
-	featureGates   *featuregates.FeatureGates
+	featureGates   featuregates.FeatureGates
 }
 
 type importPodEnvVar struct {
@@ -139,10 +139,18 @@ func addImportControllerWatches(mgr manager.Manager, importController controller
 	return nil
 }
 
-func shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim, honorWaitForFirstConsumer bool, log logr.Logger) bool {
+func shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim,
+	featureGates featuregates.FeatureGates,
+	log logr.Logger) (bool, error) {
+
+	honorWaitForFirstConsumer, err := featureGates.HonorWaitForFirstConsumerEnabled()
+	if err != nil {
+		return false, err
+	}
 	return !isPVCComplete(pvc) &&
-		(checkPVC(pvc, AnnEndpoint, log) || checkPVC(pvc, AnnSource, log)) &&
-		shouldHandlePvc(pvc, honorWaitForFirstConsumer, log)
+			(checkPVC(pvc, AnnEndpoint, log) || checkPVC(pvc, AnnSource, log)) &&
+			shouldHandlePvc(pvc, honorWaitForFirstConsumer, log),
+		nil
 }
 
 func isPVCComplete(pvc *corev1.PersistentVolumeClaim) bool {
@@ -163,17 +171,16 @@ func (r *ImportReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 		}
 		return reconcile.Result{}, err
 	}
-	honorWaitForFirstConsumer, err := r.featureGates.HonorWaitForFirstConsumerEnabled()
+	shouldReconcile, err := shouldReconcilePVC(pvc, r.featureGates, log)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	if !shouldReconcilePVC(pvc, honorWaitForFirstConsumer, log) {
+	if !shouldReconcile {
 		log.V(1).Info("Should not reconcile this PVC",
 			"pvc.annotation.phase.complete", isPVCComplete(pvc),
 			"pvc.annotations.endpoint", checkPVC(pvc, AnnEndpoint, log),
 			"pvc.annotations.source", checkPVC(pvc, AnnSource, log),
-			"isBound", isBound(pvc, log),
-			"honorWaitForFirstConsumer", honorWaitForFirstConsumer)
+			"isBound", isBound(pvc, log))
 		return reconcile.Result{}, nil
 	}
 
