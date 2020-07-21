@@ -85,6 +85,16 @@ var _ = BeforeSuite(func(done Done) {
 	clientset, err = kubernetes.NewForConfig(cfg)
 	Expect(err).NotTo(HaveOccurred())
 
+	// TODO: Update this once we are on a new version of the controller runtime that supports v1 apiextensions.
+	// opts := envtest.CRDInstallOptions{
+	// 	CRDs: []*extv1.CustomResourceDefinition{crd},
+	// }
+
+	// crds, err := envtest.InstallCRDs(cfg, opts)
+	// Expect(err).NotTo(HaveOccurred())
+	// err = envtest.WaitForCRDs(cfg, crds, envtest.CRDInstallOptions{})
+	// Expect(err).NotTo(HaveOccurred())
+
 	// Prevent the metrics listener being created
 	metrics.DefaultBindAddress = "0"
 

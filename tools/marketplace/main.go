@@ -46,7 +46,9 @@ func main() {
 		fmt.Printf("csv: %v\n", helper.GetCSVName(csv))
 	}
 	for _, crd := range bh.CRDs {
-		fmt.Printf("crd: %v %v\n", crd.Name, crd.Spec.Version)
+		for _, version := range crd.Spec.Versions {
+			fmt.Printf("crd: %v %v\n", crd.Name, version)
+		}
 	}
 
 }

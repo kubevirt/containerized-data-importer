@@ -3471,7 +3471,7 @@
       "type": "string"
      },
      "url": {
-      "description": "URL is the url of the Registry source",
+      "description": "URL is the url of the Docker registry source",
       "type": "string"
      }
     }

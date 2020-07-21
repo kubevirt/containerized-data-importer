@@ -27,11 +27,12 @@ var (
 	exportPath = flag.String("export-path", "", "")
 )
 
+// Export the CDI CRDs schemas from code to yaml.
 func main() {
 	flag.Parse()
 
 	if *exportPath != "" {
-		if err := os.Mkdir(*exportPath, 0755); os.IsExist(err) {
+		if err := os.Mkdir(*exportPath, 0755); !os.IsExist(err) {
 			panic(err)
 		}
 	}

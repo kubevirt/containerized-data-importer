@@ -166,7 +166,7 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 													Type:        "object",
 													Properties: map[string]extv1.JSONSchemaProps{
 														"url": {
-															Description: "URL is the url of the Registry source",
+															Description: "URL is the url of the Docker registry source",
 															Type:        "string",
 														},
 														"secretRef": {
@@ -554,7 +554,7 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 													Type:        "object",
 													Properties: map[string]extv1.JSONSchemaProps{
 														"url": {
-															Description: "URL is the url of the Registry source",
+															Description: "URL is the url of the Docker registry source",
 															Type:        "string",
 														},
 														"secretRef": {
