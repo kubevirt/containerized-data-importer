@@ -14,6 +14,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -31,9 +32,13 @@ var (
 func main() {
 	flag.Parse()
 
+	fmt.Printf("Exporting to directory: %s\n", *exportPath)
 	if *exportPath != "" {
-		if err := os.Mkdir(*exportPath, 0755); !os.IsExist(err) {
-			panic(err)
+		if err := os.Mkdir(*exportPath, 0755); err != nil {
+			if !os.IsExist(err) {
+				fmt.Printf("error %s", err.Error())
+				panic(err)
+			}
 		}
 	}
 	crds := make([]*extv1.CustomResourceDefinition, 0)

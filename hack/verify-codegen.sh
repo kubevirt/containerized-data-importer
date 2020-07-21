@@ -45,3 +45,13 @@ else
     echo "${DIFFROOT} is out of date. Please run hack/update-codegen.sh"
     exit 1
 fi
+
+echo "************** verifying schemas match *****************"
+go build -o ./bin/schema-exporter ./tools/schema-exporter
+./bin/schema-exporter -export-path ./_out/manifests/code_schema
+
+curl https://github.com/mikefarah/yq/releases/download/3.3.2/yq_linux_amd64 -L --output ./bin/yq
+chmod +x ./bin/yq
+./bin/yq compare _out/manifests/schema/cdi.kubevirt.io_cdiconfigs.yaml _out/manifests/code_schema/cdiconfigs.cdi.kubevirt.io spec || echo "CDIConfg crd schema does not match"
+./bin/yq compare _out/manifests/schema/cdi.kubevirt.io_cdis.yaml _out/manifests/code_schema/cdis.cdi.kubevirt.io spec || echo "CDI crd schema does not match"
+./bin/yq compare _out/manifests/schema/cdi.kubevirt.io_datavolumes.yaml _out/manifests/code_schema/datavolumes.cdi.kubevirt.io spec || echo "Datavolume crd schema does not match"
