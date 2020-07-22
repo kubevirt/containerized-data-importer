@@ -29,7 +29,7 @@ var _ = Describe("Transport Tests", func() {
 
 	var (
 		ns  string
-		f   = framework.NewFrameworkOrDie("transport", framework.Config{SkipNamespaceCreation: false})
+		f   = framework.NewFramework("transport", framework.Config{SkipNamespaceCreation: false})
 		c   = f.K8sClient
 		sec *v1.Secret
 	)

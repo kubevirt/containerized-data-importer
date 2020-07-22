@@ -16,7 +16,7 @@ import (
 )
 
 var _ = Describe("Alpha API tests", func() {
-	f := framework.NewFrameworkOrDie("alpha-api-test")
+	f := framework.NewFramework("alpha-api-test")
 
 	Context("with v1alpha1 api", func() {
 

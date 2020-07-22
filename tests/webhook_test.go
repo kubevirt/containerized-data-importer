@@ -127,7 +127,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 	}
 
-	f := framework.NewFrameworkOrDie("clone-auth-webhook-test")
+	f := framework.NewFramework("clone-auth-webhook-test")
 
 	Describe("Verify DataVolume validation", func() {
 		Context("Authorization checks", func() {

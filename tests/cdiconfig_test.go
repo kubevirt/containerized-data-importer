@@ -35,7 +35,7 @@ var (
 
 var _ = Describe("CDI storage class config tests", func() {
 	var (
-		f                   = framework.NewFrameworkOrDie("cdiconfig-test")
+		f                   = framework.NewFramework("cdiconfig-test")
 		defaultSc, secondSc *storagev1.StorageClass
 	)
 
@@ -201,7 +201,7 @@ var _ = Describe("CDI storage class config tests", func() {
 
 var _ = Describe("CDI ingress config tests, using manifests", func() {
 	var (
-		f            = framework.NewFrameworkOrDie("cdiconfig-test")
+		f            = framework.NewFramework("cdiconfig-test")
 		manifestFile string
 	)
 
@@ -272,7 +272,7 @@ var _ = Describe("CDI ingress config tests, using manifests", func() {
 
 var _ = Describe("CDI ingress config tests", func() {
 	var (
-		f          = framework.NewFrameworkOrDie("cdiconfig-test")
+		f          = framework.NewFramework("cdiconfig-test")
 		routeStart = fmt.Sprintf("%s-%s.", routeName, f.CdiInstallNs)
 		ingress    *extensionsv1beta1.Ingress
 	)
@@ -374,7 +374,7 @@ var _ = Describe("CDI ingress config tests", func() {
 
 var _ = Describe("CDI route config tests", func() {
 	var (
-		f               = framework.NewFrameworkOrDie("cdiconfig-test")
+		f               = framework.NewFramework("cdiconfig-test")
 		routeStart      = fmt.Sprintf("%s-%s.", routeName, f.CdiInstallNs)
 		openshiftClient *route1client.Clientset
 	)
@@ -430,7 +430,7 @@ var _ = Describe("CDI route config tests", func() {
 })
 
 var _ = Describe("CDIConfig instance management", func() {
-	f := framework.NewFrameworkOrDie("cdiconfig-test")
+	f := framework.NewFramework("cdiconfig-test")
 
 	It("Should re-create the object if deleted", func() {
 		By("Verifying the object exists")

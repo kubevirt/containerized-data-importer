@@ -40,7 +40,7 @@ const (
 var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component]Importer Test Suite", func() {
 	var (
 		ns string
-		f  = framework.NewFrameworkOrDie(namespacePrefix)
+		f  = framework.NewFramework(namespacePrefix)
 		c  = f.K8sClient
 	)
 
@@ -138,7 +138,7 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}
-	f := framework.NewFrameworkOrDie(namespacePrefix)
+	f := framework.NewFramework(namespacePrefix)
 
 	BeforeEach(func() {
 		_, err := f.CreatePrometheusServiceInNs(f.Namespace.Name)
@@ -235,7 +235,7 @@ func startPrometheusPortForward(f *framework.Framework) (string, *exec.Cmd, erro
 }
 
 var _ = Describe("Importer Test Suite-Block_device", func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix)
+	f := framework.NewFramework(namespacePrefix)
 	var pvc *v1.PersistentVolumeClaim
 	var err error
 
@@ -308,7 +308,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 })
 
 var _ = Describe("[rfe_id:1947][crit:high][test_id:2145][vendor:cnv-qe@redhat.com][level:component]Importer Archive ContentType", func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix)
+	f := framework.NewFramework(namespacePrefix)
 
 	It("Should import archive content type tar file", func() {
 		c := f.K8sClient
@@ -337,7 +337,7 @@ var _ = Describe("[rfe_id:1947][crit:high][test_id:2145][vendor:cnv-qe@redhat.co
 })
 
 var _ = Describe("PVC import phase matches pod phase", func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix)
+	f := framework.NewFramework(namespacePrefix)
 
 	It("Should never go to failed even if import fails", func() {
 		c := f.K8sClient
@@ -370,7 +370,7 @@ var _ = Describe("PVC import phase matches pod phase", func() {
 })
 
 var _ = Describe("Namespace with quota", func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix)
+	f := framework.NewFramework(namespacePrefix)
 	var (
 		orgConfig *v1.ResourceRequirements
 	)
@@ -542,7 +542,7 @@ var _ = Describe("Namespace with quota", func() {
 })
 
 var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component] Add a field to DataVolume to track the number of retries", func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix)
+	f := framework.NewFramework(namespacePrefix)
 
 	var (
 		dataVolume           *cdiv1.DataVolume
@@ -645,7 +645,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 })
 
 var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component] CDI Label Naming - Import", func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix)
+	f := framework.NewFramework(namespacePrefix)
 
 	var (
 		// pvc            *v1.PersistentVolumeClaim

@@ -38,26 +38,50 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	testFile := utils.DefaultPvcMountPath + "/source.txt"
 	fillCommand := "echo \"" + fillData + "\" >> " + testFile
 
-	f := framework.NewFrameworkOrDie("dv-func-test")
+	f := framework.NewFramework("dv-func-test")
 
-	tinyCoreIsoURL := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
-	httpsTinyCoreIsoURL := fmt.Sprintf(utils.HTTPSTinyCoreIsoURL, f.CdiInstallNs)
-	httpsTinyCoreQcow2URL := fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs)
-	tinyCoreIsoRegistryURL := fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs)
-	tarArchiveURL := fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs)
-	InvalidQcowImagesURL := fmt.Sprintf(utils.InvalidQcowImagesURL, f.CdiInstallNs)
-	cirrosURL := fmt.Sprintf(utils.CirrosURL, f.CdiInstallNs)
-	imageioURL := fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs)
+	tinyCoreIsoURL := func() string {
+		return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
+	}
+	httpsTinyCoreIsoURL := func() string {
+		return fmt.Sprintf(utils.HTTPSTinyCoreIsoURL, f.CdiInstallNs)
+	}
+	httpsTinyCoreQcow2URL := func() string {
+		return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs)
+	}
+	tinyCoreIsoRegistryURL := func() string {
+		return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs)
+	}
+	tarArchiveURL := func() string {
+		return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs)
+	}
+	InvalidQcowImagesURL := func() string {
+		return fmt.Sprintf(utils.InvalidQcowImagesURL, f.CdiInstallNs)
+	}
+	cirrosURL := func() string {
+		return fmt.Sprintf(utils.CirrosURL, f.CdiInstallNs)
+	}
+	imageioURL := func() string {
+		return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs)
+	}
 
 	// Invalid (malicious) QCOW images:
 	// An image that causes qemu-img to allocate 152T (original image is 516 bytes)
-	invalidQcowLargeSizeURL := InvalidQcowImagesURL + "invalid-qcow-large-size.img"
+	invalidQcowLargeSizeURL := func() string {
+		return InvalidQcowImagesURL() + "invalid-qcow-large-size.img"
+	}
 	// An image that causes qemu-img info to output half a million lines of JSON
-	invalidQcowLargeJSONURL := InvalidQcowImagesURL + "invalid-qcow-large-json.img"
+	invalidQcowLargeJSONURL := func() string {
+		return InvalidQcowImagesURL() + "invalid-qcow-large-json.img"
+	}
 	// An image that causes qemu-img info to allocate large amounts of RAM
-	invalidQcowLargeMemoryURL := InvalidQcowImagesURL + "invalid-qcow-large-memory.img"
+	invalidQcowLargeMemoryURL := func() string {
+		return InvalidQcowImagesURL() + "invalid-qcow-large-memory.img"
+	}
 	// An image with a backing file - should be rejected when converted to raw
-	invalidQcowBackingFileURL := InvalidQcowImagesURL + "invalid-qcow-backing-file.img"
+	invalidQcowBackingFileURL := func() string {
+		return InvalidQcowImagesURL() + "invalid-qcow-backing-file.img"
+	}
 
 	createRegistryImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 		dataVolume := utils.NewDataVolumeWithRegistryImport(dataVolumeName, size, url)
@@ -80,9 +104,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		type dataVolumeTestArguments struct {
 			name             string
 			size             string
-			url              string
+			url              func() string
 			dvFunc           func(string, string, string) *cdiv1.DataVolume
 			errorMessage     string
+			errorMessageFunc func() string
 			eventReason      string
 			phase            cdiv1.DataVolumePhase
 			repeat           int
@@ -130,7 +155,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		table.DescribeTable("should", func(args dataVolumeTestArguments) {
 			// Have to call the function in here, to make sure the BeforeEach in the Framework has run.
-			dataVolume := args.dvFunc(args.name, args.size, args.url)
+			dataVolume := args.dvFunc(args.name, args.size, args.url())
 			startTime := time.Now()
 			repeat := 1
 			if utils.IsHostpathProvisioner() && args.repeat > 0 {
@@ -226,7 +251,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1358]fail creating import dv due to invalid DNS entry", dataVolumeTestArguments{
 				name:         "dv-http-import-invalid-url",
 				size:         "1Gi",
-				url:          "http://i-made-this-up.kube-system/tinyCore.iso",
+				url:          func() string { return "http://i-made-this-up.kube-system/tinyCore.iso" },
 				dvFunc:       utils.NewDataVolumeWithHTTPImport,
 				errorMessage: "Unable to connect to http data source",
 				eventReason:  "Error",
@@ -250,7 +275,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1359]fail creating import dv due to file not found", dataVolumeTestArguments{
 				name:         "dv-http-import-404",
 				size:         "1Gi",
-				url:          tinyCoreIsoURL + "not.real.file",
+				url:          func() string { return tinyCoreIsoURL() + "not.real.file" },
 				dvFunc:       utils.NewDataVolumeWithHTTPImport,
 				errorMessage: "Unable to connect to http data source: expected status code 200, got 404. Status: 404 Not Found",
 				eventReason:  "Error",
@@ -276,7 +301,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:         "1Gi",
 				url:          invalidQcowLargeSizeURL,
 				dvFunc:       utils.NewDataVolumeWithHTTPImport,
-				errorMessage: "Unable to process data: Invalid format qcow for image " + invalidQcowLargeSizeURL,
+				errorMessage: "Unable to process data: Invalid format qcow for image",
 				eventReason:  "Error",
 				phase:        cdiv1.ImportInProgress,
 				readyCondition: &cdiv1.DataVolumeCondition{
@@ -292,7 +317,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
-					Message: "Unable to process data: Invalid format qcow for image " + invalidQcowLargeSizeURL,
+					Message: "Unable to process data: Invalid format qcow for image",
 					Reason:  "Error",
 				}}),
 			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2554]fail creating import dv: invalid qcow large json", dataVolumeTestArguments{
@@ -442,6 +467,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[rfe_id:1111][crit:high][test_id:1361]succeed creating blank image dv", dataVolumeTestArguments{
 				name:             "blank-image-dv",
 				size:             "1Gi",
+				url:              func() string { return "" },
 				dvFunc:           createBlankRawDataVolume,
 				eventReason:      controller.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
@@ -465,6 +491,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[rfe_id:138][crit:high][test_id:1362]succeed creating upload dv", dataVolumeTestArguments{
 				name:        "upload-dv",
 				size:        "1Gi",
+				url:         func() string { return "" },
 				dvFunc:      createUploadDataVolume,
 				eventReason: controller.UploadReady,
 				phase:       cdiv1.UploadReady,
@@ -558,7 +585,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[rfe_id:1277][crit:high][test_id:1360]succeed creating clone dv", dataVolumeTestArguments{
 				name:        "dv-clone-test1",
 				size:        "1Gi",
-				url:         fillCommand, // its not URL, but command, but the parameter lines up.
+				url:         func() string { return fillCommand }, // its not URL, but command, but the parameter lines up.
 				dvFunc:      createCloneDataVolume,
 				eventReason: controller.CloneSucceeded,
 				phase:       cdiv1.Succeeded,
@@ -612,7 +639,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			pvcDef := utils.NewPVCDefinition(dataVolumeName, "1G", annotations, nil)
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand)
 
-			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", cirrosURL)
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", cirrosURL())
 			By(fmt.Sprintf("creating new populated datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
@@ -677,14 +704,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 		})
 
-		table.DescribeTable("should", func(name, command, url, dataVolumeName, eventReason string, phase cdiv1.DataVolumePhase) {
+		table.DescribeTable("should", func(name, command string, url func() string, dataVolumeName, eventReason string, phase cdiv1.DataVolumePhase) {
 			if !f.IsBlockVolumeStorageClassAvailable() {
 				Skip("Storage Class for block volume is not available")
 			}
 
 			switch name {
 			case "import-http":
-				dataVolume = utils.NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName, "1G", url, f.BlockSCName)
+				dataVolume = utils.NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName, "1G", url(), f.BlockSCName)
 			}
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -764,10 +791,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	Describe("Create/Delete same datavolume in a loop", func() {
 		Context("retry loop", func() {
 			dataVolumeName := "dv1"
-			url := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
 			numTries := 5
 			for i := 1; i <= numTries; i++ {
 				It(fmt.Sprintf("[test_id:3939][test_id:3940][test_id:3941][test_id:3942][test_id:3943]should succeed on loop %d", i), func() {
+					url := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
 					dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
 
 					By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
@@ -776,7 +803,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 					By(fmt.Sprintf("waiting for datavolume to match phase %s", cdiv1.Succeeded))
-					utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
+					err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
+					Expect(err).ToNot(HaveOccurred())
 
 					By("deleting DataVolume")
 					err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolumeName)
@@ -801,7 +829,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			//Due to the rate limit, this will take a while, so we can expect the phase to be in progress.
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
-			utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
 			if err != nil {
 				PrintControllerLog(f)
 				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
@@ -964,7 +992,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		var (
 			dataVolume              *cdiv1.DataVolume
 			err                     error
-			tinyCoreIsoRateLimitURL = "http://cdi-file-host." + f.CdiInstallNs + ":82/cirros-qcow2-1990.img"
+			tinyCoreIsoRateLimitURL = func() string { return "http://cdi-file-host." + f.CdiInstallNs + ":82/cirros-qcow2-1990.img" }
 		)
 
 		BeforeEach(func() {
@@ -999,7 +1027,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		It("[test_id:1990] CDI Data Volume - file is removed from http server while import is in progress", func() {
 			dvName := "import-file-removed"
 			By(fmt.Sprintf("Creating new datavolume %s", dvName))
-			dv := utils.NewDataVolumeWithHTTPImport(dvName, "500Mi", tinyCoreIsoRateLimitURL)
+			dv := utils.NewDataVolumeWithHTTPImport(dvName, "500Mi", tinyCoreIsoRateLimitURL())
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -1062,7 +1090,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		It("Should create a new PVC when PVC is deleted during import", func() {
-			dataVolumeSpec := createRegistryImportDataVolume(dataVolumeName, "1Gi", tinyCoreIsoRegistryURL)
+			dataVolumeSpec := createRegistryImportDataVolume(dataVolumeName, "1Gi", tinyCoreIsoRegistryURL())
 			By(fmt.Sprintf("creating new datavolume %s", dataVolumeSpec.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolumeSpec)
 			Expect(err).ToNot(HaveOccurred())
@@ -1102,7 +1130,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		It("Import POD should remain pending until CM exists", func() {
 			var pvc *v1.PersistentVolumeClaim
 
-			dataVolumeDef := utils.NewDataVolumeWithRegistryImport("missing-cm-registry-dv", "1Gi", tinyCoreIsoRegistryURL)
+			dataVolumeDef := utils.NewDataVolumeWithRegistryImport("missing-cm-registry-dv", "1Gi", tinyCoreIsoRegistryURL())
 			dataVolumeDef.Spec.Source.Registry.CertConfigMap = cmName
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolumeDef)
 			Expect(err).ToNot(HaveOccurred())

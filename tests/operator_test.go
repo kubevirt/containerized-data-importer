@@ -26,7 +26,7 @@ import (
 )
 
 var _ = Describe("Operator tests", func() {
-	f := framework.NewFrameworkOrDie("operator-test")
+	f := framework.NewFramework("operator-test")
 
 	It("[test_id:3951]should create a route in OpenShift", func() {
 		if !isOpenshift(f.K8sClient) {
@@ -95,7 +95,7 @@ var _ = Describe("Operator tests", func() {
 
 var _ = Describe("Operator delete CDI tests", func() {
 	var cr *cdiv1.CDI
-	f := framework.NewFrameworkOrDie("operator-delete-cdi-test")
+	f := framework.NewFramework("operator-delete-cdi-test")
 
 	BeforeEach(func() {
 		var err error

@@ -52,7 +52,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		portForwardCmd *exec.Cmd
 	)
 
-	f := framework.NewFrameworkOrDie("upload-func-test")
+	f := framework.NewFramework("upload-func-test")
 
 	BeforeEach(func() {
 		if pvc != nil {
@@ -340,7 +340,7 @@ var _ = Describe("Block PV upload Test", func() {
 		portForwardCmd *exec.Cmd
 	)
 
-	f := framework.NewFrameworkOrDie(namespacePrefix)
+	f := framework.NewFramework(namespacePrefix)
 
 	BeforeEach(func() {
 		if pvc != nil {
@@ -424,7 +424,7 @@ var _ = Describe("Block PV upload Test", func() {
 })
 
 var _ = Describe("Namespace with quota", func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix)
+	f := framework.NewFramework(namespacePrefix)
 	var (
 		orgConfig      *v1.ResourceRequirements
 		pvc            *v1.PersistentVolumeClaim
@@ -561,7 +561,7 @@ var _ = Describe("Namespace with quota", func() {
 })
 
 var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component] Upload tests", func() {
-	f := framework.NewFrameworkOrDie("upload-func-test")
+	f := framework.NewFramework("upload-func-test")
 
 	var (
 		pvc        *v1.PersistentVolumeClaim

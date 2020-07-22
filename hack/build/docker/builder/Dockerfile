@@ -42,7 +42,7 @@ RUN pip3 install j2cli && pip3 install operator-courier && \
     ln -s /opt/gradle/gradle-4.3.1/bin/gradle /usr/local/bin/gradle && \
     rm gradle-4.3.1-bin.zip
 
-ENV GIMME_GO_VERSION=1.12.14 GOPATH="/go" KUBEBUILDER_VERSION="2.2.0" ARCH="amd64"
+ENV GIMME_GO_VERSION=1.14.6 GOPATH="/go" KUBEBUILDER_VERSION="2.3.1" ARCH="amd64"
 ENV BAZEL_PYTHON=/usr/bin/python3
 
 RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh

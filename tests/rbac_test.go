@@ -54,7 +54,7 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 	}
 
-	f := framework.NewFrameworkOrDie("aggregated-role-tests")
+	f := framework.NewFramework("aggregated-role-tests")
 
 	DescribeTable("admin/edit datavolume permission checks", func(user string) {
 		var client *cdiClientset.Clientset
@@ -255,7 +255,7 @@ var _ = Describe("Aggregated role definition tests", func() {
 		},
 	}
 
-	f := framework.NewFrameworkOrDie("aggregated-role-definition-tests")
+	f := framework.NewFramework("aggregated-role-definition-tests")
 
 	DescribeTable("check all expected rules exist", func(role string, rules []rbacv1.PolicyRule) {
 		clusterRole, err := f.K8sClient.RbacV1().ClusterRoles().Get(role, metav1.GetOptions{})

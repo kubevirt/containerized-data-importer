@@ -29,7 +29,7 @@ var _ = Describe("[rfe_id:1125][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		node string
 	)
 
-	f := framework.NewFrameworkOrDie("local-volume-func-test")
+	f := framework.NewFramework("local-volume-func-test")
 
 	BeforeEach(func() {
 		nodes, err := f.K8sClient.CoreV1().Nodes().List(metav1.ListOptions{})

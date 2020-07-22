@@ -16,7 +16,7 @@ import (
 )
 
 var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:component]Basic Sanity", func() {
-	f := framework.NewFrameworkOrDie("sanity", framework.Config{
+	f := framework.NewFramework("sanity", framework.Config{
 		SkipNamespaceCreation: true,
 	})
 
