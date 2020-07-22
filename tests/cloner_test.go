@@ -830,6 +830,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 	var sourcePvc *v1.PersistentVolumeClaim
 	var targetPvc *v1.PersistentVolumeClaim
+	var errAsString = func(e error) string { return e.Error() }
 
 	AfterEach(func() {
 		if sourcePvc != nil {
@@ -898,9 +899,11 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Kill upload pod to force error")
-		_, errLog, err := f.ExecShellInPodWithFullOutput(targetNs.Name, utils.UploadPodName(targetPvc), "kill 1")
-		Expect(err).To(BeNil())
-		Expect(errLog).To(BeEmpty())
+		// exit code 137 = 128 + 9, it means parent process issued kill -9, in our case it is not a problem
+		_, _, err = f.ExecShellInPod(utils.UploadPodName(targetPvc), targetNs.Name, "kill 1")
+		Expect(err).To(Or(
+			BeNil(),
+			WithTransform(errAsString, ContainSubstring("137"))))
 
 		By("Verify retry annotation on PVC")
 		Eventually(func() int {

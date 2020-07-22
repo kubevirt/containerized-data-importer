@@ -570,6 +570,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 		uploadProxyURL string
 		portForwardCmd *exec.Cmd
+		errAsString    = func(e error) string { return e.Error() }
 	)
 
 	BeforeEach(func() {
@@ -684,10 +685,12 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		}
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Kill upload container to force restart")
-		_, errLog, err := f.ExecShellInPodWithFullOutput(f.Namespace.Name, utils.UploadPodName(pvc), "kill 1")
-		Expect(err).To(BeNil())
-		Expect(errLog).To(BeEmpty())
+		By("Kill upload pod to force error")
+		// exit code 137 = 128 + 9, it means parent process issued kill -9, in our case it is not a problem
+		_, _, err = f.ExecShellInPod(utils.UploadPodName(pvc), f.Namespace.Name, "kill 1")
+		Expect(err).To(Or(
+			BeNil(),
+			WithTransform(errAsString, ContainSubstring("137"))))
 
 		By("Verify retry annotation on PVC")
 		Eventually(func() int {
