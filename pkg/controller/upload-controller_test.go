@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"strings"
 	"sync"
 	"time"
@@ -215,8 +216,8 @@ var _ = Describe("Upload controller reconcile loop", func() {
 
 	It("Should return err and not clone if validation error occurs", func() {
 		storageClassName := "test"
-		testPvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{cloneRequestAnnotation: "default/sourcePvc"}, nil)
-		sourcePvc := createPvcInStorageClass("sourcePvc", "default", &storageClassName, nil, nil)
+		testPvc := createPvcInStorageClass("testPvc1", "default", &storageClassName, map[string]string{cloneRequestAnnotation: "default/sourcePvc"}, nil, corev1.ClaimBound)
+		sourcePvc := createPvcInStorageClass("sourcePvc", "default", &storageClassName, nil, nil, corev1.ClaimBound)
 		vm := corev1.PersistentVolumeBlock
 		sourcePvc.Spec.VolumeMode = &vm
 		reconciler := createUploadReconciler(testPvc, sourcePvc)
@@ -501,6 +502,8 @@ func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		DefaultPodResourceRequirements: createDefaultPodResourceRequirements(int64(0), int64(0), int64(0), int64(0)),
 	}
+	cdiConfig.Spec.FeatureGates = []string{featuregates.HonorWaitForFirstConsumer}
+
 	objs = append(objs, cdiConfig)
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
@@ -519,6 +522,7 @@ func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
 		serverCertGenerator: &fakeCertGenerator{},
 		clientCAFetcher:     &fetcher.MemCertBundleFetcher{Bundle: []byte("baz")},
 		recorder:            rec,
+		featureGates:        featuregates.NewFeatureGates(cl),
 	}
 	return r
 }

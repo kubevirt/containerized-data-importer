@@ -2,6 +2,7 @@ package tests
 
 import (
 	"fmt"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"regexp"
 	"strings"
 	"time"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/onsi/ginkgo/extensions/table"
 
-	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -142,6 +142,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 				By(fmt.Sprintf("waiting for datavolume to match phase %s", string(args.phase)))
 				err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, args.phase, dataVolume.Name)
@@ -647,8 +648,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			dvs := []*cdiv1.DataVolume{dataVolume1, dataVolume2, dataVolume3, dataVolume4}
 			for _, dv := range dvs {
-				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 				Expect(err).ToNot(HaveOccurred())
+
+				By("verifying pvc was created")
+				pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindIfWaitForFirstConsumer(pvc)
 			}
 
 			By("Waiting for Datavolume to have succeeded")
@@ -685,7 +691,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
-			utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
 			if err != nil {
 				PrintControllerLog(f)
 				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
@@ -725,20 +731,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 				By(fmt.Sprintf("waiting for datavolume to match phase %s", cdiv1.ImportInProgress))
 				utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
 
-				// verify PVC was created
 				By("verifying pvc and pod were created")
 				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
-
-				pvcName := pvc.Name
 				podName := pvc.Annotations[controller.AnnImportPod]
-
-				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(pvcName, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
 
 				pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(podName, metav1.GetOptions{})
 				Expect(err).NotTo(HaveOccurred())
@@ -772,6 +773,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 					dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 					Expect(err).ToNot(HaveOccurred())
+					f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 					By(fmt.Sprintf("waiting for datavolume to match phase %s", cdiv1.Succeeded))
 					utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
@@ -792,6 +794,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
+			By("verifying pvc was created")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+
 			//Due to the rate limit, this will take a while, so we can expect the phase to be in progress.
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
 			utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
@@ -811,6 +818,142 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				return progressRegExp.MatchString(string(progress))
 			}, timeout, pollingInterval).Should(BeTrue())
 		})
+	})
+
+	Describe("[rfe_id:4223][crit:high] DataVolume - WaitForFirstConsumer", func() {
+		type dataVolumeTestArguments struct {
+			name             string
+			size             string
+			url              string
+			dvFunc           func(string, string, string) *cdiv1.DataVolume
+			errorMessage     string
+			eventReason      string
+			phase            cdiv1.DataVolumePhase
+			repeat           int
+			checkPermissions bool
+			readyCondition   *cdiv1.DataVolumeCondition
+			boundCondition   *cdiv1.DataVolumeCondition
+			runningCondition *cdiv1.DataVolumeCondition
+		}
+
+		createBlankRawDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			return utils.NewDataVolumeForBlankRawImage(dataVolumeName, size)
+		}
+		createHTTPSDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, url)
+			cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+			Expect(err).To(BeNil())
+			dataVolume.Spec.Source.HTTP.CertConfigMap = cm
+			return dataVolume
+		}
+		createUploadDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			return utils.NewDataVolumeForUpload(dataVolumeName, size)
+		}
+
+		createCloneDataVolume := func(dataVolumeName, size, command string) *cdiv1.DataVolume {
+			sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
+			pvcDef := utils.NewPVCDefinition(pvcName, size, nil, nil)
+			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
+
+			By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
+			return utils.NewCloningDataVolume(dataVolumeName, size, sourcePvc)
+		}
+		var original *bool
+		noSuchFileFileURL := utils.InvalidQcowImagesURL + "no-such-file.img"
+
+		BeforeEach(func() {
+			previousValue, err := utils.DisableFeatureGate(f.CdiClient, featuregates.HonorWaitForFirstConsumer)
+			Expect(err).ToNot(HaveOccurred())
+			original = previousValue
+		})
+
+		AfterEach(func() {
+			if original != nil && *original {
+				// restore
+				_, err := utils.EnableFeatureGate(f.CdiClient, featuregates.HonorWaitForFirstConsumer)
+				Expect(err).ToNot(HaveOccurred())
+			}
+		})
+
+		table.DescribeTable("Feature Gate - disabled", func(
+			dvName string,
+			url string,
+			dvFunc func(string, string, string) *cdiv1.DataVolume,
+			phase cdiv1.DataVolumePhase) {
+			if !utils.IsHostpathProvisioner() {
+				Skip("Not HPP")
+			}
+			size := "1Gi"
+			By("Verify No FeatureGates")
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config.Spec.FeatureGates).To(BeNil())
+
+			dataVolume := dvFunc(dvName, size, url)
+
+			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			// verify PVC was created
+			By("verifying pvc was created and is Bound")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+			if err != nil {
+				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				if dverr != nil {
+					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+				}
+			}
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Cleaning up")
+			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(func() bool {
+				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				if k8serrors.IsNotFound(err) {
+					return true
+				}
+				return false
+			}, timeout, pollingInterval).Should(BeTrue())
+		},
+			table.Entry("[test_id:4459] Import Positive flow",
+				"dv-wffc-http-import",
+				fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs),
+				utils.NewDataVolumeWithHTTPImport,
+				cdiv1.Succeeded),
+			table.Entry("[test_id:4460] Import invalid url",
+				"dv-wffc-http-url-not-valid-import",
+				fmt.Sprintf(noSuchFileFileURL, f.CdiInstallNs),
+				utils.NewDataVolumeWithHTTPImport,
+				cdiv1.ImportInProgress),
+			table.Entry("[test_id:4461] Import qcow2 scratch space",
+				"dv-wffc-qcow2-import",
+				fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs),
+				createHTTPSDataVolume,
+				cdiv1.Succeeded),
+			table.Entry("[test_id:4462] Import blank image",
+				"dv-wffc-blank-import",
+				fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs),
+				createBlankRawDataVolume,
+				cdiv1.Succeeded),
+			table.Entry("[test_id:4463] Upload - positive flow",
+				"dv-wffc-upload",
+				fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs),
+				createUploadDataVolume,
+				cdiv1.UploadReady),
+			table.Entry("[test_id:4464] Clone - positive flow",
+				"dv-wffc-clone",
+				fillCommand, // its not URL, but command, but the parameter lines up.
+				createCloneDataVolume,
+				cdiv1.Succeeded),
+		)
 	})
 
 	Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component][test] CDI Import from HTTP/S3", func() {
@@ -859,6 +1002,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dv := utils.NewDataVolumeWithHTTPImport(dvName, "500Mi", tinyCoreIsoRateLimitURL)
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			phase := cdiv1.ImportInProgress
 			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -922,6 +1066,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolumeSpec.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolumeSpec)
 			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			By("Waiting for DV's PVC")
 			pvc, err := utils.WaitForPVC(f.K8sClient, f.Namespace.Name, dataVolume.Name)
@@ -941,6 +1086,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("Wait for PVC to be recreated")
 			pvc, err = utils.WaitForPVC(f.K8sClient, f.Namespace.Name, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
 
 			Expect(pvc.GetUID()).ToNot(Equal(pvcUID))
 
@@ -954,12 +1100,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		const cmName = "cert-registry-cm"
 
 		It("Import POD should remain pending until CM exists", func() {
-			var pvc *corev1.PersistentVolumeClaim
+			var pvc *v1.PersistentVolumeClaim
 
 			dataVolumeDef := utils.NewDataVolumeWithRegistryImport("missing-cm-registry-dv", "1Gi", tinyCoreIsoRegistryURL)
 			dataVolumeDef.Spec.Source.Registry.CertConfigMap = cmName
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolumeDef)
 			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			By("verifying pvc was created")
 			Eventually(func() bool {
@@ -974,7 +1121,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(podName, metav1.GetOptions{})
 				if err == nil {
 					// Found the pod
-					Expect(pod.Status.Phase).To(Equal(corev1.PodPending))
+					Expect(pod.Status.Phase).To(Equal(v1.PodPending))
 					if len(pod.Status.ContainerStatuses) == 1 && pod.Status.ContainerStatuses[0].State.Waiting != nil {
 						Expect(pod.Status.ContainerStatuses[0].State.Waiting.Reason).To(Equal("ContainerCreating"))
 					}

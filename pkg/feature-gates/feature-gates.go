@@ -15,17 +15,22 @@ const (
 )
 
 // FeatureGates is a util for determining whether an optional feature is enabled or not.
-type FeatureGates struct {
+type FeatureGates interface {
+	// HonorWaitForFirstConsumerEnabled - see the HonorWaitForFirstConsumer const
+	HonorWaitForFirstConsumerEnabled() (bool, error)
+}
+
+// CDIConfigFeatureGates is a util for determining whether an optional feature is enabled or not.
+type CDIConfigFeatureGates struct {
 	client client.Client
 }
 
 // NewFeatureGates creates a new instance of the feature gates
-func NewFeatureGates(c client.Client) (*FeatureGates, error) {
-	fg := &FeatureGates{client: c}
-	return fg, nil
+func NewFeatureGates(c client.Client) *CDIConfigFeatureGates {
+	return &CDIConfigFeatureGates{client: c}
 }
 
-func (f *FeatureGates) isFeatureGateEnabled(featureGate string) (bool, error) {
+func (f *CDIConfigFeatureGates) isFeatureGateEnabled(featureGate string) (bool, error) {
 	featureGates, err := f.getConfig()
 	if err != nil {
 		return false, errors.Wrap(err, "error getting CDIConfig")
@@ -39,7 +44,7 @@ func (f *FeatureGates) isFeatureGateEnabled(featureGate string) (bool, error) {
 	return false, nil
 }
 
-func (f *FeatureGates) getConfig() ([]string, error) {
+func (f *CDIConfigFeatureGates) getConfig() ([]string, error) {
 	config := &cdiv1.CDIConfig{}
 	if err := f.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, config); err != nil {
 		return nil, err
@@ -48,7 +53,7 @@ func (f *FeatureGates) getConfig() ([]string, error) {
 	return config.Spec.FeatureGates, nil
 }
 
-// HonorWaitForFirstConsumerEnabled - see HonorWaitForFirstConsumer const
-func (f *FeatureGates) HonorWaitForFirstConsumerEnabled() (bool, error) {
+// HonorWaitForFirstConsumerEnabled - see the HonorWaitForFirstConsumer const
+func (f *CDIConfigFeatureGates) HonorWaitForFirstConsumerEnabled() (bool, error) {
 	return f.isFeatureGateEnabled(HonorWaitForFirstConsumer)
 }

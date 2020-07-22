@@ -18,54 +18,62 @@ package featuregates
 
 import (
 	"context"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
-
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-var (
-	log = logf.Log.WithName("feature-gates-test")
-)
 var _ = Describe("Feature Gates", func() {
 	It("Should be false if not set", func() {
-		featureGates := createFeatureGates()
+		featureGates, _ := createFeatureGatesAndClient()
 		Expect(featureGates.HonorWaitForFirstConsumerEnabled()).To(BeFalse())
 	})
 
 	It("Should reflect config changes", func() {
-		featureGates := createFeatureGates()
+		featureGates, client := createFeatureGatesAndClient()
 		cdiConfig := &cdiv1.CDIConfig{}
-		err := featureGates.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 
 		// update the config on the status not the spec
 		cdiConfig.Spec.FeatureGates = []string{HonorWaitForFirstConsumer}
-		err = featureGates.client.Update(context.TODO(), cdiConfig)
+		err = client.Update(context.TODO(), cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(featureGates.HonorWaitForFirstConsumerEnabled()).To(BeTrue())
 
 		cdiConfig.Spec.FeatureGates = nil
-		err = featureGates.client.Update(context.TODO(), cdiConfig)
+		err = client.Update(context.TODO(), cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(featureGates.HonorWaitForFirstConsumerEnabled()).To(BeFalse())
 	})
 })
 
-func createFeatureGates(objects ...runtime.Object) *FeatureGates {
+func createFeatureGatesAndClient(objects ...runtime.Object) (FeatureGates, client.Client) {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)
 
 	// Append empty CDIConfig object that normally is created by the reconcile loop
-	cdiConfig := controller.MakeEmptyCDIConfigSpec(common.ConfigName)
+	cdiConfig := &cdiv1.CDIConfig{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CDIConfig",
+			APIVersion: "cdi.kubevirt.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: common.ConfigName,
+			Labels: map[string]string{
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: "",
+			},
+		},
+	}
 	objs = append(objs, cdiConfig)
 
 	// Register operator types with the runtime scheme.
@@ -76,7 +84,5 @@ func createFeatureGates(objects ...runtime.Object) *FeatureGates {
 	cl := fake.NewFakeClientWithScheme(s, objs...)
 
 	// Create a NewFeatureGates with fake client.
-	f, _ := NewFeatureGates(cl)
-
-	return f
+	return NewFeatureGates(cl), cl
 }

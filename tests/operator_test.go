@@ -183,6 +183,7 @@ var _ = Describe("Operator delete CDI tests", func() {
 		By("Creating datavolume")
 		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
 
 		By("Waiting for pod to be running")
 		Eventually(func() bool {
@@ -231,6 +232,7 @@ var _ = Describe("Operator delete CDI tests", func() {
 		dv := utils.NewDataVolumeForUpload("delete-me", "1Gi")
 		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
 
 		By("Cannot delete CDI")
 		err = f.CdiClient.CdiV1beta1().CDIs().Delete(cr.Name, &metav1.DeleteOptions{DryRun: []string{"All"}})

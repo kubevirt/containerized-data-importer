@@ -18,6 +18,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"reflect"
 	"strconv"
 
@@ -53,6 +54,7 @@ var (
 )
 
 var _ = Describe("Test PVC annotations status", func() {
+
 	It("Should return complete if annotation is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodSucceeded)}, nil)
 		Expect(isPVCComplete(testPvc)).To(BeTrue())
@@ -70,22 +72,22 @@ var _ = Describe("Test PVC annotations status", func() {
 
 	It("Should be interesting if NOT complete, and endpoint and source is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
+		Expect(shouldReconcilePVC(testPvc, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
 	})
 
 	It("Should NOT be interesting if complete, and endpoint and source is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodSucceeded), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, importLog)).To(BeFalse())
+		Expect(shouldReconcilePVC(testPvc, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeFalse())
 	})
 
 	It("Should be interesting if NOT complete, and endpoint missing and source is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodRunning), AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
+		Expect(shouldReconcilePVC(testPvc, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
 	})
 
 	It("Should be interesting if NOT complete, and endpoint set and source is missing", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint}, nil)
-		Expect(shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
+		Expect(shouldReconcilePVC(testPvc, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
 	})
 })
 
@@ -142,7 +144,9 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 	})
 
 	It("Should init PVC with a POD name if a PVC with all needed annotations is passed", func() {
-		reconciler = createImportReconciler(createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint}, nil))
+		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+		reconciler = createImportReconciler(pvc)
 		_, err := reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		resultPvc := &corev1.PersistentVolumeClaim{}
@@ -152,7 +156,9 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 	})
 
 	It("Should create a POD if a PVC with all needed annotations is passed", func() {
-		reconciler = createImportReconciler(createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1"}, nil))
+		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1"}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+		reconciler = createImportReconciler(pvc)
 		_, err := reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
@@ -170,8 +176,10 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(*pod.Spec.SecurityContext.FSGroup).To(Equal(int64(107)))
 	})
 
-	It("Should create a POD if a PVC with all needed annotations is passed, but not set fsgroup if not kubevirt contenttype", func() {
-		reconciler = createImportReconciler(createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1", AnnContentType: string(cdiv1.DataVolumeArchive)}, nil))
+	It("Should create a POD if a bound PVC with all needed annotations is passed, but not set fsgroup if not kubevirt contenttype", func() {
+		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1", AnnContentType: string(cdiv1.DataVolumeArchive)}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+		reconciler = createImportReconciler(pvc)
 		_, err := reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
@@ -297,7 +305,7 @@ var _ = Describe("Update PVC from POD", func() {
 	It("Should create scratch PVC, if pod is pending and PVC is marked with scratch", func() {
 		scratchPvcName := &corev1.PersistentVolumeClaim{}
 		scratchPvcName.Name = "testPvc1-scratch"
-		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnRequiresScratch: "true"}, nil)
+		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnRequiresScratch: "true"}, nil, corev1.ClaimBound)
 		pod := createImporterTestPod(pvc, "testPvc1", scratchPvcName)
 		pod.Status = corev1.PodStatus{
 			Phase: corev1.PodPending,
@@ -336,7 +344,7 @@ var _ = Describe("Update PVC from POD", func() {
 
 	// TODO: Update me to stay in progress if we were in progress already, its a pod failure and it will get restarted.
 	It("Should update phase on PVC, if pod exited with error state that is NOT scratchspace exit", func() {
-		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodRunning)}, nil)
+		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodRunning)}, nil, corev1.ClaimBound)
 		pod := createImporterTestPod(pvc, "testPvc1", nil)
 		pod.Status = corev1.PodStatus{
 			Phase: corev1.PodFailed,
@@ -379,7 +387,7 @@ var _ = Describe("Update PVC from POD", func() {
 	})
 
 	It("Should NOT update phase on PVC, if pod exited with error state that is scratchspace exit", func() {
-		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodRunning)}, nil)
+		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodRunning)}, nil, corev1.ClaimBound)
 		scratchPvcName := &corev1.PersistentVolumeClaim{}
 		scratchPvcName.Name = "testPvc1-scratch"
 		pod := createImporterTestPod(pvc, "testPvc1", scratchPvcName)
@@ -661,8 +669,16 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 		scheme:         s,
 		log:            importLog,
 		recorder:       rec,
+		featureGates:   featuregates.NewFeatureGates(cl),
 	}
 	return r
+}
+
+func createFeatureGates() featuregates.FeatureGates {
+	s := scheme.Scheme
+	cdiv1.AddToScheme(s)
+	cl := fake.NewFakeClientWithScheme(s, MakeEmptyCDIConfigSpec(common.ConfigName))
+	return featuregates.NewFeatureGates(cl)
 }
 
 func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar {
@@ -853,4 +869,12 @@ func createImporterTestPod(pvc *corev1.PersistentVolumeClaim, dvname string, scr
 	}
 
 	return pod
+}
+
+type FakeFeatureGates struct {
+	honorWaitForFirstConsumerEnabled bool
+}
+
+func (f *FakeFeatureGates) HonorWaitForFirstConsumerEnabled() (bool, error) {
+	return f.honorWaitForFirstConsumerEnabled, nil
 }

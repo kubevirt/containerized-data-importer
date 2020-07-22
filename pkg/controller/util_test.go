@@ -132,14 +132,14 @@ var _ = Describe("GetScratchPVCStorageClass", func() {
 	It("Should return storage class from pvc", func() {
 		storageClassName := "storageClass"
 		client := createClient(createCDIConfigWithStorageClass(common.ConfigName, ""))
-		pvc := createPvcInStorageClass("test", "test", &storageClassName, nil, nil)
+		pvc := createPvcInStorageClass("test", "test", &storageClassName, nil, nil, v1.ClaimBound)
 		Expect(GetScratchPvcStorageClass(client, pvc)).To(Equal(storageClassName))
 	})
 
 	It("Should return blank if CDIConfig not there", func() {
 		storageClassName := "storageClass"
 		client := createClient()
-		pvc := createPvcInStorageClass("test", "test", &storageClassName, nil, nil)
+		pvc := createPvcInStorageClass("test", "test", &storageClassName, nil, nil, v1.ClaimBound)
 		Expect(GetScratchPvcStorageClass(client, pvc)).To(Equal(""))
 	})
 })
@@ -229,17 +229,21 @@ var _ = Describe("setConditionFromPod", func() {
 })
 
 func createBlockPvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
-	pvcDef := createPvcInStorageClass(name, ns, nil, annotations, labels)
+	pvcDef := createPvcInStorageClass(name, ns, nil, annotations, labels, v1.ClaimBound)
 	volumeMode := v1.PersistentVolumeBlock
 	pvcDef.Spec.VolumeMode = &volumeMode
 	return pvcDef
 }
 
 func createPvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
-	return createPvcInStorageClass(name, ns, nil, annotations, labels)
+	return createPvcInStorageClass(name, ns, nil, annotations, labels, v1.ClaimBound)
 }
 
-func createPvcInStorageClass(name, ns string, storageClassName *string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
+func createPendingPvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
+	return createPvcInStorageClass(name, ns, nil, annotations, labels, v1.ClaimPending)
+}
+
+func createPvcInStorageClass(name, ns string, storageClassName *string, annotations, labels map[string]string, phase v1.PersistentVolumeClaimPhase) *v1.PersistentVolumeClaim {
 	return &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
@@ -256,6 +260,9 @@ func createPvcInStorageClass(name, ns string, storageClassName *string, annotati
 				},
 			},
 			StorageClassName: storageClassName,
+		},
+		Status: v1.PersistentVolumeClaimStatus{
+			Phase: phase,
 		},
 	}
 }
@@ -362,6 +369,16 @@ func createCDIConfigWithStorageClass(name string, storageClass string) *cdiv1.CD
 
 func createStorageClass(name string, annotations map[string]string) *storagev1.StorageClass {
 	return &storagev1.StorageClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Annotations: annotations,
+		},
+	}
+}
+
+func createStorageClassWithBindingMode(name string, annotations map[string]string, bindingMode storagev1.VolumeBindingMode) *storagev1.StorageClass {
+	return &storagev1.StorageClass{
+		VolumeBindingMode: &bindingMode,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Annotations: annotations,

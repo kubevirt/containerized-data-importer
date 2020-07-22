@@ -6,6 +6,9 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 // cdi-file-host pod/service relative values
@@ -108,4 +111,67 @@ func IsNfs() bool {
 		return false
 	}
 	return true
+}
+
+// EnableFeatureGate sets specified FeatureGate in the CDIConfig
+func EnableFeatureGate(client *cdiclientset.Clientset, feature string) (*bool, error) {
+	var previousValue = false
+	config, err := client.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	if HasFeature(config, feature) {
+		previousValue = true
+		return &previousValue, nil
+	}
+
+	config.Spec.FeatureGates = append(config.Spec.FeatureGates, feature)
+	config, err = client.CdiV1beta1().CDIConfigs().Update(config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &previousValue, nil
+}
+
+// DisableFeatureGate unsets specified FeatureGate in the CDIConfig
+func DisableFeatureGate(client *cdiclientset.Clientset, featureGate string) (*bool, error) {
+	var previousValue = false
+	config, err := client.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	if !HasFeature(config, featureGate) {
+		return &previousValue, nil
+	}
+
+	previousValue = true
+	config.Spec.FeatureGates = removeString(config.Spec.FeatureGates, featureGate)
+	config, err = client.CdiV1beta1().CDIConfigs().Update(config)
+	if err != nil {
+		return nil, nil
+	}
+
+	return &previousValue, nil
+}
+
+func removeString(featureGates []string, featureGate string) []string {
+	var output []string
+	for _, fg := range featureGates {
+		if fg != featureGate {
+			output = append(output, fg)
+		}
+	}
+	return output
+}
+
+// HasFeature - helper to check if specified FeatureGate is in the CDIConfig
+func HasFeature(config *cdiv1.CDIConfig, featureGate string) bool {
+	for _, fg := range config.Spec.FeatureGates {
+		if fg == featureGate {
+			return true
+		}
+	}
+
+	return false
 }

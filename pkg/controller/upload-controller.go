@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"reflect"
 	"strconv"
 	"time"
@@ -82,6 +83,7 @@ type UploadReconciler struct {
 	uploadProxyServiceName string
 	serverCertGenerator    generator.CertGenerator
 	clientCAFetcher        fetcher.CertBundleFetcher
+	featureGates           featuregates.FeatureGates
 }
 
 // UploadPodArgs are the parameters required to create an upload pod
@@ -114,12 +116,16 @@ func (r *UploadReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 		log.V(1).Info("PVC has both clone and upload annotations")
 		return reconcile.Result{}, errors.New("PVC has both clone and upload annotations")
 	}
-
+	shouldReconcile, err := r.shouldReconcile(isUpload, isCloneTarget, pvc, log)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 	// force cleanup if PVC pending delete and pod running or the upload/clone annotation was removed
-	if (!isUpload && !isCloneTarget) || podSucceededFromPVC(pvc) || pvc.DeletionTimestamp != nil {
+	if !shouldReconcile || podSucceededFromPVC(pvc) || pvc.DeletionTimestamp != nil {
 		log.V(1).Info("not doing anything with PVC",
 			"isUpload", isUpload,
 			"isCloneTarget", isCloneTarget,
+			"isBound", isBound(pvc, log),
 			"podSucceededFromPVC", podSucceededFromPVC(pvc),
 			"deletionTimeStamp set?", pvc.DeletionTimestamp != nil)
 		if err := r.cleanup(pvc); err != nil {
@@ -130,6 +136,17 @@ func (r *UploadReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 
 	log.Info("Calling Upload reconcile PVC")
 	return r.reconcilePVC(log, pvc, isCloneTarget)
+}
+
+func (r *UploadReconciler) shouldReconcile(isUpload bool, isCloneTarget bool, pvc *v1.PersistentVolumeClaim, log logr.Logger) (bool, error) {
+	honorWaitForFirstConsumer, err := r.featureGates.HonorWaitForFirstConsumerEnabled()
+	if err != nil {
+		return false, err
+	}
+
+	return (isUpload || isCloneTarget) &&
+			shouldHandlePvc(pvc, honorWaitForFirstConsumer, log),
+		nil
 }
 
 func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentVolumeClaim, isCloneTarget bool) (reconcile.Result, error) {
@@ -514,8 +531,9 @@ func (r *UploadReconciler) createUploadPod(args UploadPodArgs) (*v1.Pod, error) 
 
 // NewUploadController creates a new instance of the upload controller.
 func NewUploadController(mgr manager.Manager, log logr.Logger, uploadImage, pullPolicy, verbose string, serverCertGenerator generator.CertGenerator, clientCAFetcher fetcher.CertBundleFetcher) (controller.Controller, error) {
+	client := mgr.GetClient()
 	reconciler := &UploadReconciler{
-		client:              mgr.GetClient(),
+		client:              client,
 		scheme:              mgr.GetScheme(),
 		log:                 log.WithName("upload-controller"),
 		image:               uploadImage,
@@ -524,6 +542,7 @@ func NewUploadController(mgr manager.Manager, log logr.Logger, uploadImage, pull
 		recorder:            mgr.GetEventRecorderFor("upload-controller"),
 		serverCertGenerator: serverCertGenerator,
 		clientCAFetcher:     clientCAFetcher,
+		featureGates:        featuregates.NewFeatureGates(client),
 	}
 	uploadController, err := controller.New("upload-controller", mgr, controller.Options{
 		Reconciler: reconciler,

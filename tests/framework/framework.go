@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	storagev1 "k8s.io/api/storage/v1"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -257,6 +259,10 @@ func (f *Framework) BeforeEach() {
 		ginkgo.By("Creating NFS PVs before the test")
 		createNFSPVs(f.K8sClient, f.CdiInstallNs)
 	}
+
+	defaultFeatureGates := []string{featuregates.HonorWaitForFirstConsumer}
+	ginkgo.By(fmt.Sprintf("Configuring default FeatureGates %q", defaultFeatureGates))
+	f.setFeatureGates(defaultFeatureGates)
 }
 
 // AfterEach provides a set of operations to run after each test
@@ -637,6 +643,29 @@ func (f *Framework) IsBlockVolumeStorageClassAvailable() bool {
 		return false
 	}
 	return sc.Name == f.BlockSCName
+}
+
+// IsBindingModeWaitForFirstConsumer checks if the storage class with specified name has the VolumeBindingMode set to WaitForFirstConsumer
+func (f *Framework) IsBindingModeWaitForFirstConsumer(storageClassName *string) bool {
+	if storageClassName == nil {
+		return false
+	}
+	storageClass, err := f.K8sClient.StorageV1().StorageClasses().Get(*storageClassName, metav1.GetOptions{})
+	if err != nil {
+		return false
+	}
+	return storageClass.VolumeBindingMode != nil &&
+		*storageClass.VolumeBindingMode == storagev1.VolumeBindingWaitForFirstConsumer
+}
+
+func (f *Framework) setFeatureGates(defaultFeatureGates []string) {
+	config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+	config.Spec.FeatureGates = defaultFeatureGates
+
+	config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(config)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 }
 
 func getMaxFailsFromEnv() int {

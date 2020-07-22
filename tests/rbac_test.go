@@ -98,6 +98,7 @@ var _ = Describe("Aggregated role in-action tests", func() {
 			}
 			return nil
 		}, 90*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
 
 		found, err := utils.WaitPVCPodStatusRunning(f.K8sClient, pvc)
 		Expect(err).ToNot(HaveOccurred())

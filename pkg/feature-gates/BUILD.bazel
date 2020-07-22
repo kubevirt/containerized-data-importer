@@ -21,13 +21,13 @@ go_test(
     deps = [
         "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/common:go_default_library",
-        "//pkg/controller:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/types:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes/scheme:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/client:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client/fake:go_default_library",
-        "//vendor/sigs.k8s.io/controller-runtime/pkg/runtime/log:go_default_library",
     ],
 )

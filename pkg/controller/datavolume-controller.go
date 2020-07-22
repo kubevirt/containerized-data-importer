@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -153,6 +154,7 @@ type DatavolumeReconciler struct {
 	recorder     record.EventRecorder
 	scheme       *runtime.Scheme
 	log          logr.Logger
+	featureGates featuregates.FeatureGates
 }
 
 func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
@@ -162,12 +164,14 @@ func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) boo
 
 // NewDatavolumeController creates a new instance of the datavolume controller.
 func NewDatavolumeController(mgr manager.Manager, extClientSet extclientset.Interface, log logr.Logger) (controller.Controller, error) {
+	client := mgr.GetClient()
 	reconciler := &DatavolumeReconciler{
-		client:       mgr.GetClient(),
+		client:       client,
 		scheme:       mgr.GetScheme(),
 		extClientSet: extClientSet,
 		log:          log.WithName("datavolume-controller"),
 		recorder:     mgr.GetEventRecorderFor("datavolume-controller"),
+		featureGates: featuregates.NewFeatureGates(client),
 	}
 	datavolumeController, err := controller.New("datavolume-controller", mgr, controller.Options{
 		Reconciler: reconciler,
@@ -300,6 +304,22 @@ func (r *DatavolumeReconciler) sourceInUse(dv *cdiv1.DataVolume) (bool, error) {
 	return len(pods) > 0, nil
 }
 
+func (r *DatavolumeReconciler) getStorageClassBindingMode(dataVolume *cdiv1.DataVolume) (*storagev1.VolumeBindingMode, error) {
+	// Handle unspecified storage class name, fallback to default storage class
+	storageClass, err := r.getStorageClassByName(dataVolume.Spec.PVC.StorageClassName)
+	if err != nil {
+		return nil, err
+	}
+
+	if storageClass != nil && storageClass.VolumeBindingMode != nil {
+		return storageClass.VolumeBindingMode, nil
+	}
+
+	// no storage class, then the assumption is immediate binding
+	volumeBindingImmediate := storagev1.VolumeBindingImmediate
+	return &volumeBindingImmediate, nil
+}
+
 func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, pvcUID types.UID) (reconcile.Result, error) {
 	var podNamespace string
 	if datavolume.Status.Progress == "" {
@@ -355,27 +375,15 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	}
 
 	targetPvcStorageClassName := dataVolume.Spec.PVC.StorageClassName
-
-	// Handle unspecified storage class name, fallback to default storage class
-	if targetPvcStorageClassName == nil {
-		storageClasses := &storagev1.StorageClassList{}
-		if err := r.client.List(context.TODO(), storageClasses); err != nil {
-			r.log.V(3).Info("Unable to retrieve available storage classes, falling back to host assisted clone")
-			return "", errors.New("unable to retrieve storage classes")
-		}
-		for _, storageClass := range storageClasses.Items {
-			if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" {
-				targetPvcStorageClassName = &storageClass.Name
-				break
-			}
-		}
+	targetStorageClass, err := r.getStorageClassByName(targetPvcStorageClassName)
+	if err != nil {
+		return "", err
 	}
-
-	if targetPvcStorageClassName == nil {
+	if targetStorageClass == nil {
 		r.log.V(3).Info("Target PVC's Storage Class not found")
 		return "", errors.New("Target PVC storage class not found")
 	}
-
+	targetPvcStorageClassName = &targetStorageClass.Name
 	sourcePvcStorageClassName := pvc.Spec.StorageClassName
 
 	// Compare source and target storage classess
@@ -393,8 +401,8 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	}
 
 	// Fetch the source storage class
-	storageClass := &storagev1.StorageClass{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *sourcePvcStorageClassName}, storageClass); err != nil {
+	srcStorageClass := &storagev1.StorageClass{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *sourcePvcStorageClassName}, srcStorageClass); err != nil {
 		r.log.V(3).Info("Unable to retrieve storage class, falling back to host assisted clone", "storage class", *sourcePvcStorageClassName)
 		return "", errors.New("unable to retrieve storage class, falling back to host assisted clone")
 	}
@@ -407,7 +415,7 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	}
 	for _, snapshotClass := range scs.Items {
 		// Validate association between snapshot class and storage class
-		if snapshotClass.Driver == storageClass.Provisioner {
+		if snapshotClass.Driver == srcStorageClass.Provisioner {
 			r.log.V(3).Info("smart-clone is applicable for datavolume", "datavolume",
 				dataVolume.Name, "snapshot class", snapshotClass.Name)
 			return snapshotClass.Name, nil
@@ -416,6 +424,32 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 
 	r.log.V(3).Info("Could not match snapshotter with storage class, falling back to host assisted clone")
 	return "", errors.New("could not match snapshotter with storage class, falling back to host assisted clone")
+}
+
+// getStorageClassByName looks up the storage class based on the name. If no storage class is found returns nil
+func (r *DatavolumeReconciler) getStorageClassByName(name *string) (*storagev1.StorageClass, error) {
+	// look up storage class by name
+	if name == nil {
+		storageClasses := &storagev1.StorageClassList{}
+		if err := r.client.List(context.TODO(), storageClasses); err != nil {
+			r.log.V(3).Info("Unable to retrieve available storage classes")
+			return nil, errors.New("unable to retrieve storage classes")
+		}
+		for _, storageClass := range storageClasses.Items {
+			if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" {
+				return &storageClass, nil
+			}
+		}
+	} else {
+		storageClass := &storagev1.StorageClass{}
+		if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *name}, storageClass); err != nil {
+			r.log.V(3).Info("Unable to retrieve storage class", "storage class name", *name)
+			return nil, errors.New("unable to retrieve storage class")
+		}
+		return storageClass, nil
+	}
+	// No storage class found, just return nil for storage class and let caller deal with it.
+	return nil, nil
 }
 
 func newSnapshot(dataVolume *cdiv1.DataVolume, snapshotClassName string) *snapshotv1.VolumeSnapshot {
@@ -567,6 +601,11 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 	dataVolumeCopy := dataVolume.DeepCopy()
 	var event DataVolumeEvent
 
+	storageClassBindingMode, err := r.getStorageClassBindingMode(dataVolume)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
 	curPhase := dataVolumeCopy.Status.Phase
 	if pvc == nil {
 		if curPhase != cdiv1.PhaseUnset && curPhase != cdiv1.Pending && curPhase != cdiv1.SnapshotForSmartCloneInProgress {
@@ -605,10 +644,21 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		} else {
 			switch pvc.Status.Phase {
 			case corev1.ClaimPending:
-				dataVolumeCopy.Status.Phase = cdiv1.Pending
+				honorWaitForFirstConsumerEnabled, err := r.featureGates.HonorWaitForFirstConsumerEnabled()
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+				if honorWaitForFirstConsumerEnabled &&
+					*storageClassBindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
+					dataVolumeCopy.Status.Phase = cdiv1.WaitForFirstConsumer
+				} else {
+					dataVolumeCopy.Status.Phase = cdiv1.Pending
+				}
 			case corev1.ClaimBound:
 				switch dataVolumeCopy.Status.Phase {
 				case cdiv1.Pending:
+					dataVolumeCopy.Status.Phase = cdiv1.PVCBound
+				case cdiv1.WaitForFirstConsumer:
 					dataVolumeCopy.Status.Phase = cdiv1.PVCBound
 				case cdiv1.Unknown:
 					dataVolumeCopy.Status.Phase = cdiv1.PVCBound
@@ -657,7 +707,7 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		}
 	}
 	result := reconcile.Result{}
-	var err error
+
 	if pvc != nil {
 		result, err = r.reconcileProgressUpdate(dataVolumeCopy, pvc.GetUID())
 		if err != nil {

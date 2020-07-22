@@ -162,6 +162,11 @@ func createDataVolume(dataVolumeName, command string, volumeMode v1.PersistentVo
 	dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 	Expect(err).ToNot(HaveOccurred())
 
+	By("verifying pvc was created, force bind if needed")
+	pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+	Expect(err).ToNot(HaveOccurred())
+	f.ForceBindIfWaitForFirstConsumer(pvc)
+
 	return dataVolume
 }
 

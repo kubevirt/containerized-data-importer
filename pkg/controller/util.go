@@ -89,6 +89,49 @@ func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string, log logr.Logger)
 	return true
 }
 
+// - when the SkipWFFCVolumesEnabled is true, the CDI controller will only handle BOUND the PVC
+// - when the SkipWFFCVolumesEnabled is false, the CDI controller will can handle it - it will create worker pods for the PVC (this will bind it)
+func shouldHandlePvc(pvc *v1.PersistentVolumeClaim, honorWaitForFirstConsumerEnabled bool, log logr.Logger) bool {
+	if honorWaitForFirstConsumerEnabled {
+		return isBound(pvc, log)
+	}
+	return true
+}
+
+func isBound(pvc *v1.PersistentVolumeClaim, log logr.Logger) bool {
+	if pvc.Status.Phase != v1.ClaimBound {
+		log.V(1).Info("PVC not bound, skipping pvc", "Phase", pvc.Status.Phase)
+		return false
+	}
+
+	return true
+}
+
+func isPvcUsedByAnyPod(c client.Client, pvc *v1.PersistentVolumeClaim, log logr.Logger) (bool, error) {
+	pods := &v1.PodList{}
+	if err := c.List(context.TODO(), pods, &client.ListOptions{Namespace: pvc.Namespace}); err != nil {
+		return false, errors.Wrap(err, "error listing pods")
+	}
+
+	for _, pod := range pods.Items {
+		if isPvcUsedByPod(pod, pvc.Name) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func isPvcUsedByPod(pod v1.Pod, pvcName string) bool {
+	for _, volume := range pod.Spec.Volumes {
+		if volume.VolumeSource.PersistentVolumeClaim != nil &&
+			volume.PersistentVolumeClaim.ClaimName == pvcName {
+			return true
+		}
+	}
+	return false
+}
+
 func getRequestedImageSize(pvc *v1.PersistentVolumeClaim) (string, error) {
 	pvcSize, found := pvc.Spec.Resources.Requests[v1.ResourceStorage]
 	if !found {
