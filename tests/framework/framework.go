@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	storagev1 "k8s.io/api/storage/v1"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	storagev1 "k8s.io/api/storage/v1"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
@@ -137,6 +138,13 @@ func (f *Framework) BeforeEach() {
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		f.Namespace = ns
 		f.AddNamespaceToDelete(ns)
+	}
+
+	if f.ControllerPod == nil {
+		pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiPodPrefix, common.CDILabelSelector)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Located cdi-controller-pod: %q\n", pod.Name)
+		f.ControllerPod = pod
 	}
 
 	if utils.IsNfs() {
@@ -543,13 +551,15 @@ func (f *Framework) IsBindingModeWaitForFirstConsumer(storageClassName *string) 
 }
 
 func (f *Framework) setFeatureGates(defaultFeatureGates []string) {
-	config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	gomega.Eventually(func() bool {
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-	config.Spec.FeatureGates = defaultFeatureGates
+		config.Spec.FeatureGates = defaultFeatureGates
 
-	config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(config)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(config)
+		return err == nil
+	}, timeout, pollingInterval).Should(gomega.BeTrue())
 }
 
 func getMaxFailsFromEnv() int {

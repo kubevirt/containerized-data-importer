@@ -41,7 +41,6 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	var (
 		ns string
 		f  = framework.NewFramework(namespacePrefix)
-		c  = f.K8sClient
 	)
 
 	BeforeEach(func() {
@@ -77,9 +76,9 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
-		importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
+		importer, err := utils.FindPodByPrefix(f.K8sClient, ns, common.ImporterPodName, common.CDILabelSelector)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
-		utils.WaitTimeoutForPodStatus(c, importer.Name, importer.Namespace, v1.PodFailed, utils.PodWaitForTime)
+		utils.WaitTimeoutForPodStatus(f.K8sClient, importer.Name, importer.Namespace, v1.PodFailed, utils.PodWaitForTime)
 
 		By("Verify the pod status is Failed on the target PVC")
 		_, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodPhase)
@@ -547,8 +546,8 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	var (
 		dataVolume           *cdiv1.DataVolume
 		err                  error
-		tinyCoreIsoURL       = fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
-		invalidQcowImagesURL = fmt.Sprintf(utils.InvalidQcowImagesURL, f.CdiInstallNs)
+		tinyCoreIsoURL       = func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
+		invalidQcowImagesURL = func() string { return fmt.Sprintf(utils.InvalidQcowImagesURL, f.CdiInstallNs) }
 	)
 
 	AfterEach(func() {
@@ -568,7 +567,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	It("[test_id:3994] Import datavolume with good url will leave dv retry count unchanged", func() {
 		dvName := "import-dv"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
-		dv := utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", tinyCoreIsoURL)
+		dv := utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", tinyCoreIsoURL())
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -603,7 +602,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	It("[test_id:3996] Import datavolume with bad url will increase dv retry count", func() {
 		dvName := "import-dv-bad-url"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
-		dv := utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", invalidQcowImagesURL)
+		dv := utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", invalidQcowImagesURL())
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 		//pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
@@ -651,7 +650,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		// pvc            *v1.PersistentVolumeClaim
 		dataVolume     *cdiv1.DataVolume
 		err            error
-		tinyCoreIsoURL = fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs)
+		tinyCoreIsoURL = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
 	)
 
 	AfterEach(func() {
@@ -672,7 +671,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		dvName := "import-short-name-dv"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
 
-		dv := utils.NewDataVolumeWithArchiveContent(dvName, "1Gi", tinyCoreIsoURL)
+		dv := utils.NewDataVolumeWithArchiveContent(dvName, "1Gi", tinyCoreIsoURL())
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -699,7 +698,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-" +
 			"123456789-123456789-123456789-1234567890"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName160Characters))
-		dv := utils.NewDataVolumeWithArchiveContent(dvName160Characters, "1Gi", tinyCoreIsoURL)
+		dv := utils.NewDataVolumeWithArchiveContent(dvName160Characters, "1Gi", tinyCoreIsoURL())
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -727,7 +726,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			"123456789-123456789-123456789-1234567890"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName160Characters))
 
-		dv := utils.NewDataVolumeWithArchiveContent(dvName160Characters, "1Gi", tinyCoreIsoURL)
+		dv := utils.NewDataVolumeWithArchiveContent(dvName160Characters, "1Gi", tinyCoreIsoURL())
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 

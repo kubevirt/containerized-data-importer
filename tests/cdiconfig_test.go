@@ -273,7 +273,7 @@ var _ = Describe("CDI ingress config tests, using manifests", func() {
 var _ = Describe("CDI ingress config tests", func() {
 	var (
 		f          = framework.NewFramework("cdiconfig-test")
-		routeStart = fmt.Sprintf("%s-%s.", routeName, f.CdiInstallNs)
+		routeStart = func() string { return fmt.Sprintf("%s-%s.", routeName, f.CdiInstallNs) }
 		ingress    *extensionsv1beta1.Ingress
 	)
 
@@ -292,7 +292,7 @@ var _ = Describe("CDI ingress config tests", func() {
 				if config.Status.UploadProxyURL == nil {
 					return false
 				}
-				return strings.HasPrefix(*config.Status.UploadProxyURL, routeStart)
+				return strings.HasPrefix(*config.Status.UploadProxyURL, routeStart())
 			}, time.Second*30, time.Second).Should(BeTrue())
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
@@ -375,7 +375,7 @@ var _ = Describe("CDI ingress config tests", func() {
 var _ = Describe("CDI route config tests", func() {
 	var (
 		f               = framework.NewFramework("cdiconfig-test")
-		routeStart      = fmt.Sprintf("%s-%s.", routeName, f.CdiInstallNs)
+		routeStart      = func() string { return fmt.Sprintf("%s-%s.", routeName, f.CdiInstallNs) }
 		openshiftClient *route1client.Clientset
 	)
 
@@ -395,7 +395,7 @@ var _ = Describe("CDI route config tests", func() {
 			if config.Status.UploadProxyURL == nil {
 				return false
 			}
-			return strings.HasPrefix(*config.Status.UploadProxyURL, routeStart)
+			return strings.HasPrefix(*config.Status.UploadProxyURL, routeStart())
 		}, time.Second*30, time.Second).Should(BeTrue())
 	})
 

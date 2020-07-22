@@ -2,10 +2,11 @@ package tests
 
 import (
 	"fmt"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"regexp"
 	"strings"
 	"time"
+
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -905,7 +906,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		table.DescribeTable("Feature Gate - disabled", func(
 			dvName string,
-			url string,
+			url func() string,
 			dvFunc func(string, string, string) *cdiv1.DataVolume,
 			phase cdiv1.DataVolumePhase) {
 			if !utils.IsHostpathProvisioner() {
@@ -917,7 +918,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(config.Spec.FeatureGates).To(BeNil())
 
-			dataVolume := dvFunc(dvName, size, url)
+			dataVolume := dvFunc(dvName, size, url())
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -953,32 +954,32 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		},
 			table.Entry("[test_id:4459] Import Positive flow",
 				"dv-wffc-http-import",
-				fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs),
+				func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) },
 				utils.NewDataVolumeWithHTTPImport,
 				cdiv1.Succeeded),
 			table.Entry("[test_id:4460] Import invalid url",
 				"dv-wffc-http-url-not-valid-import",
-				fmt.Sprintf(noSuchFileFileURL, f.CdiInstallNs),
+				func() string { return fmt.Sprintf(noSuchFileFileURL, f.CdiInstallNs) },
 				utils.NewDataVolumeWithHTTPImport,
 				cdiv1.ImportInProgress),
 			table.Entry("[test_id:4461] Import qcow2 scratch space",
 				"dv-wffc-qcow2-import",
-				fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs),
+				func() string { return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs) },
 				createHTTPSDataVolume,
 				cdiv1.Succeeded),
 			table.Entry("[test_id:4462] Import blank image",
 				"dv-wffc-blank-import",
-				fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs),
+				func() string { return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs) },
 				createBlankRawDataVolume,
 				cdiv1.Succeeded),
 			table.Entry("[test_id:4463] Upload - positive flow",
 				"dv-wffc-upload",
-				fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs),
+				func() string { return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs) },
 				createUploadDataVolume,
 				cdiv1.UploadReady),
 			table.Entry("[test_id:4464] Clone - positive flow",
 				"dv-wffc-clone",
-				fillCommand, // its not URL, but command, but the parameter lines up.
+				func() string { return fillCommand }, // its not URL, but command, but the parameter lines up.
 				createCloneDataVolume,
 				cdiv1.Succeeded),
 		)
