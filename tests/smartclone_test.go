@@ -26,7 +26,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 	fillCommandFilesystem := "echo -n \"" + fillData + "\" >> " + testFile
 	fillCommandBlock := "echo -n \"" + fillData + "\" | dd of=" + utils.DefaultPvcMountPath
 
-	f := framework.NewFrameworkOrDie("dv-func-test")
+	f := framework.NewFramework("dv-func-test")
 
 	It("[rfe_id:1106][test_id:3494][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - volumeMode filesystem - Positive flow", func() {
 		if !f.IsSnapshotStorageClassAvailable() {

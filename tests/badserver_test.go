@@ -14,7 +14,7 @@ import (
 )
 
 var _ = Describe("Problematic server responses", func() {
-	f := framework.NewFrameworkOrDie("badserver-func-test")
+	f := framework.NewFramework("badserver-func-test")
 	const dvWaitTimeout = 500 * time.Second
 	var dataVolume *cdiv1.DataVolume
 

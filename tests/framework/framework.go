@@ -4,18 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
-	storagev1 "k8s.io/api/storage/v1"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
+
+	storagev1 "k8s.io/api/storage/v1"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
@@ -40,7 +39,6 @@ import (
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/tests/utils"
-	ginkgo_reporters "kubevirt.io/qe-tools/pkg/ginkgo-reporters"
 )
 
 const (
@@ -53,14 +51,8 @@ const (
 
 // run-time flags
 var (
-	kubectlPath    *string
-	ocPath         *string
-	cdiInstallNs   *string
-	kubeConfig     *string
-	master         *string
-	goCLIPath      *string
-	snapshotSCName *string
-	blockSCName    *string
+	ClientsInstance = &Clients{}
+	reporter        = NewKubernetesReporter()
 )
 
 // Config provides some basic test config options
@@ -68,17 +60,19 @@ type Config struct {
 	// SkipNamespaceCreation sets whether to skip creating a namespace. Use this ONLY for tests that do not require
 	// a namespace at all, like basic sanity or other global tests.
 	SkipNamespaceCreation bool
-	// SkipControllerPodLookup sets whether to skip looking up the name of the cdi controller pod.
-	SkipControllerPodLookup bool
 }
 
-// Framework supports common operations used by functional/e2e tests. It holds the k8s and cdi clients,
-// a generated unique namespace, run-time flags, and more fields will be added over time as cdi e2e
-// evolves. Global BeforeEach and AfterEach are called in the Framework constructor.
-type Framework struct {
-	Config
-	// NsPrefix is a prefix for generated namespace
-	NsPrefix string
+// Clients is the struct containing the client-go kubernetes clients
+type Clients struct {
+	KubectlPath    string
+	OcPath         string
+	CdiInstallNs   string
+	KubeConfig     string
+	Master         string
+	GoCLIPath      string
+	SnapshotSCName string
+	BlockSCName    string
+
 	//  k8sClient provides our k8s client pointer
 	K8sClient *kubernetes.Clientset
 	// CdiClient provides our CDI client pointer
@@ -89,6 +83,15 @@ type Framework struct {
 	CrClient crclient.Client
 	// RestConfig provides a pointer to our REST client config.
 	RestConfig *rest.Config
+}
+
+// Framework supports common operations used by functional/e2e tests. It holds the k8s and cdi clients,
+// a generated unique namespace, run-time flags, and more fields will be added over time as cdi e2e
+// evolves. Global BeforeEach and AfterEach are called in the Framework constructor.
+type Framework struct {
+	Config
+	// NsPrefix is a prefix for generated namespace
+	NsPrefix string
 	// Namespace provides a namespace for each test generated/unique ns per test
 	Namespace *v1.Namespace
 	// Namespace2 provides an additional generated/unique secondary ns for testing across namespaces (eg. clone tests)
@@ -98,152 +101,34 @@ type Framework struct {
 	// ControllerPod provides a pointer to our test controller pod
 	ControllerPod *v1.Pod
 
-	// KubectlPath is a test run-time flag so we can find kubectl
-	KubectlPath string
-	// OcPath is a test run-time flag so we can find OpenShift Client
-	OcPath string
-	// CdiInstallNs is a test run-time flag to store the Namespace we installed CDI in
-	CdiInstallNs string
-	// KubeConfig is a test run-time flag to store the location of our test setup kubeconfig
-	KubeConfig string
-	// Master is a test run-time flag to store the id of our master node
-	Master string
-	// GoCliPath is a test run-time flag to store the location of gocli
-	GoCLIPath string
-	// SnapshotSCName is the Storage Class name that supports Snapshots
-	SnapshotSCName string
-	// BlockSCName is the Storage Class name that supports block mode
-	BlockSCName string
-
+	*Clients
 	reporter *KubernetesReporter
-
-	mux sync.Mutex
 }
 
-// TODO: look into k8s' SynchronizedBeforeSuite() and SynchronizedAfterSuite() code and their general
-//       purpose test/e2e/framework/cleanup.go function support.
-
-// initialize run-time flags
-func init() {
-	// By accessing something in the ginkgo_reporters package, we are ensuring that the init() is called
-	// That init calls flag.StringVar, and makes sure the --junit-output flag is added before we call
-	// flag.Parse in NewFramework. Without this, the flag is NOT added.
-	fmt.Fprintf(ginkgo.GinkgoWriter, "Making sure junit flag is available %v\n", ginkgo_reporters.JunitOutput)
-	kubectlPath = flag.String("kubectl-path", "kubectl", "The path to the kubectl binary")
-	ocPath = flag.String("oc-path", "oc", "The path to the oc binary")
-	cdiInstallNs = flag.String("cdi-namespace", "cdi", "The namespace of the CDI controller")
-	kubeConfig = flag.String("kubeconfig", "/var/run/kubernetes/admin.kubeconfig", "The absolute path to the kubeconfig file")
-	master = flag.String("master", "", "master url:port")
-	goCLIPath = flag.String("gocli-path", "cli.sh", "The path to cli script")
-	snapshotSCName = flag.String("snapshot-sc", "", "The Storage Class supporting snapshots")
-	blockSCName = flag.String("block-sc", "", "The Storage Class supporting block mode volumes")
-}
-
-// NewFrameworkOrDie calls NewFramework and handles errors by calling Fail. Config is optional, but
+// NewFramework calls NewFramework and handles errors by calling Fail. Config is optional, but
 // if passed there can only be one.
-func NewFrameworkOrDie(prefix string, config ...Config) *Framework {
+// To understand the order in which things are run, read http://onsi.github.io/ginkgo/#understanding-ginkgos-lifecycle
+// flag parsing happens AFTER ginkgo has constructed the entire testing tree. So anything that uses information from flags
+// cannot work when called during test tree construction.
+func NewFramework(prefix string, config ...Config) *Framework {
 	cfg := Config{}
 	if len(config) > 0 {
 		cfg = config[0]
 	}
-	f, err := NewFramework(prefix, cfg)
-	if err != nil {
-		ginkgo.Fail(fmt.Sprintf("failed to create test framework with config %+v: %v", cfg, err))
-	}
-	return f
-}
-
-// NewFramework makes a new framework and sets up the global BeforeEach/AfterEach's.
-// Test run-time flags are parsed and added to the Framework struct.
-func NewFramework(prefix string, config Config) (*Framework, error) {
 	f := &Framework{
-		Config:   config,
+		Config:   cfg,
 		NsPrefix: prefix,
+		Clients:  ClientsInstance,
+		reporter: reporter,
 	}
-
-	// handle run-time flags
-	if !flag.Parsed() {
-		flag.Parse()
-		klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
-		klog.InitFlags(klogFlags)
-		flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
-			f2 := klogFlags.Lookup(f1.Name)
-			if f2 != nil {
-				value := f1.Value.String()
-				f2.Value.Set(value)
-			}
-		})
-
-		fmt.Fprintf(ginkgo.GinkgoWriter, "** Test flags:\n")
-		flag.Visit(func(f *flag.Flag) {
-			fmt.Fprintf(ginkgo.GinkgoWriter, "   %s = %q\n", f.Name, f.Value.String())
-		})
-		fmt.Fprintf(ginkgo.GinkgoWriter, "**\n")
-	}
-
-	f.KubectlPath = *kubectlPath
-	f.OcPath = *ocPath
-	f.CdiInstallNs = *cdiInstallNs
-	f.KubeConfig = *kubeConfig
-	f.Master = *master
-	f.GoCLIPath = *goCLIPath
-	f.SnapshotSCName = *snapshotSCName
-	f.BlockSCName = *blockSCName
-
-	restConfig, err := f.LoadConfig()
-	if err != nil {
-		// Can't use Expect here due this being called outside of an It block, and Expect
-		// requires any calls to it to be inside an It block.
-		return nil, errors.Wrap(err, "ERROR, unable to load RestConfig")
-	}
-	f.RestConfig = restConfig
-	// clients
-	kcs, err := f.GetKubeClient()
-	if err != nil {
-		return nil, errors.Wrap(err, "ERROR, unable to create K8SClient")
-	}
-	f.K8sClient = kcs
-
-	cs, err := f.GetCdiClient()
-	if err != nil {
-		return nil, errors.Wrap(err, "ERROR, unable to create CdiClient")
-	}
-	f.CdiClient = cs
-
-	extcs, err := f.GetExtClient()
-	if err != nil {
-		return nil, errors.Wrap(err, "ERROR, unable to create CsiClient")
-	}
-	f.ExtClient = extcs
-
-	crClient, err := f.GetCrClient()
-	if err != nil {
-		return nil, errors.Wrap(err, "ERROR, unable to create CrClient")
-	}
-	f.CrClient = crClient
 
 	ginkgo.BeforeEach(f.BeforeEach)
 	ginkgo.AfterEach(f.AfterEach)
-	f.reporter = NewKubernetesReporter()
-
-	f.mux.Lock()
-	utils.CacheTestsData(f.K8sClient, f.CdiInstallNs)
-	f.mux.Unlock()
-
-	return f, err
+	return f
 }
 
 // BeforeEach provides a set of operations to run before each test
 func (f *Framework) BeforeEach() {
-	if !f.SkipControllerPodLookup {
-		if f.ControllerPod == nil {
-			pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiPodPrefix, common.CDILabelSelector)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Located cdi-controller-pod: %q\n", pod.Name)
-			f.ControllerPod = pod
-		}
-	}
-
 	if !f.SkipNamespaceCreation {
 		// generate unique primary ns (ns2 not created here)
 		ginkgo.By(fmt.Sprintf("Building a %q namespace api object", f.NsPrefix))
@@ -253,6 +138,13 @@ func (f *Framework) BeforeEach() {
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		f.Namespace = ns
 		f.AddNamespaceToDelete(ns)
+	}
+
+	if f.ControllerPod == nil {
+		pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiPodPrefix, common.CDILabelSelector)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Located cdi-controller-pod: %q\n", pod.Name)
+		f.ControllerPod = pod
 	}
 
 	if utils.IsNfs() {
@@ -349,8 +241,8 @@ func DeleteNS(c *kubernetes.Clientset, ns string) error {
 }
 
 // GetCdiClient gets an instance of a kubernetes client that includes all the CDI extensions.
-func (f *Framework) GetCdiClient() (*cdiClientset.Clientset, error) {
-	cfg, err := clientcmd.BuildConfigFromFlags(f.Master, f.KubeConfig)
+func (c *Clients) GetCdiClient() (*cdiClientset.Clientset, error) {
+	cfg, err := clientcmd.BuildConfigFromFlags(c.Master, c.KubeConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -362,8 +254,8 @@ func (f *Framework) GetCdiClient() (*cdiClientset.Clientset, error) {
 }
 
 // GetExtClient gets an instance of a kubernetes client that includes all the api extensions.
-func (f *Framework) GetExtClient() (*extclientset.Clientset, error) {
-	cfg, err := clientcmd.BuildConfigFromFlags(f.Master, f.KubeConfig)
+func (c *Clients) GetExtClient() (*extclientset.Clientset, error) {
+	cfg, err := clientcmd.BuildConfigFromFlags(c.Master, c.KubeConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -375,12 +267,12 @@ func (f *Framework) GetExtClient() (*extclientset.Clientset, error) {
 }
 
 // GetCrClient returns a controller runtime client
-func (f *Framework) GetCrClient() (crclient.Client, error) {
+func (c *Clients) GetCrClient() (crclient.Client, error) {
 	if err := snapshotv1.AddToScheme(scheme.Scheme); err != nil {
 		return nil, err
 	}
 
-	client, err := crclient.New(f.RestConfig, crclient.Options{Scheme: scheme.Scheme})
+	client, err := crclient.New(c.RestConfig, crclient.Options{Scheme: scheme.Scheme})
 	if err != nil {
 		return nil, err
 	}
@@ -439,13 +331,13 @@ func (f *Framework) GetCdiClientForServiceAccount(namespace, name string) (*cdiC
 }
 
 // GetKubeClient returns a Kubernetes rest client
-func (f *Framework) GetKubeClient() (*kubernetes.Clientset, error) {
-	return GetKubeClientFromRESTConfig(f.RestConfig)
+func (c *Clients) GetKubeClient() (*kubernetes.Clientset, error) {
+	return GetKubeClientFromRESTConfig(c.RestConfig)
 }
 
 // LoadConfig loads our specified kubeconfig
-func (f *Framework) LoadConfig() (*rest.Config, error) {
-	return clientcmd.BuildConfigFromFlags(f.Master, f.KubeConfig)
+func (c *Clients) LoadConfig() (*rest.Config, error) {
+	return clientcmd.BuildConfigFromFlags(c.Master, c.KubeConfig)
 }
 
 // GetKubeClientFromRESTConfig provides a function to get a K8s client using hte REST config
@@ -659,13 +551,15 @@ func (f *Framework) IsBindingModeWaitForFirstConsumer(storageClassName *string) 
 }
 
 func (f *Framework) setFeatureGates(defaultFeatureGates []string) {
-	config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	gomega.Eventually(func() bool {
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-	config.Spec.FeatureGates = defaultFeatureGates
+		config.Spec.FeatureGates = defaultFeatureGates
 
-	config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(config)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(config)
+		return err == nil
+	}, timeout, pollingInterval).Should(gomega.BeTrue())
 }
 
 func getMaxFailsFromEnv() int {

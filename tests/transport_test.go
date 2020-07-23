@@ -29,33 +29,32 @@ var _ = Describe("Transport Tests", func() {
 
 	var (
 		ns  string
-		f   = framework.NewFrameworkOrDie("transport", framework.Config{SkipNamespaceCreation: false})
-		c   = f.K8sClient
+		f   = framework.NewFramework("transport", framework.Config{SkipNamespaceCreation: false})
 		sec *v1.Secret
 	)
 
 	BeforeEach(func() {
 		ns = f.Namespace.Name
 		By(fmt.Sprintf("Waiting for all \"%s/%s\" deployment replicas to be Ready", f.CdiInstallNs, utils.FileHostName))
-		utils.WaitForDeploymentReplicasReadyOrDie(c, f.CdiInstallNs, utils.FileHostName)
+		utils.WaitForDeploymentReplicasReadyOrDie(f.K8sClient, f.CdiInstallNs, utils.FileHostName)
 	})
 
 	// it() is the body of the test and is executed once per Entry() by DescribeTable()
 	// closes over c and ns
-	it := func(ep, file, accessKey, secretKey, source, certConfigMap string, insecureRegistry, shouldSucceed bool) {
+	it := func(ep func() string, file, accessKey, secretKey, source, certConfigMap string, insecureRegistry, shouldSucceed bool) {
 
 		var (
 			err error // prevent shadowing
 		)
 
 		pvcAnn := map[string]string{
-			controller.AnnEndpoint: ep + "/" + file,
+			controller.AnnEndpoint: ep() + "/" + file,
 			controller.AnnSecret:   "",
 			controller.AnnSource:   source,
 		}
 
 		if accessKey != "" || secretKey != "" {
-			By(fmt.Sprintf("Creating secret for endpoint %s", ep))
+			By(fmt.Sprintf("Creating secret for endpoint %s", ep()))
 			if accessKey == "" {
 				accessKey = utils.AccessKeyValue
 			}
@@ -66,25 +65,25 @@ var _ = Describe("Transport Tests", func() {
 			stringData[common.KeyAccess] = accessKey
 			stringData[common.KeySecret] = secretKey
 
-			sec, err = utils.CreateSecretFromDefinition(c, utils.NewSecretDefinition(nil, stringData, nil, ns, secretPrefix))
+			sec, err = utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, ns, secretPrefix))
 			Expect(err).NotTo(HaveOccurred(), "Error creating test secret")
 			pvcAnn[controller.AnnSecret] = sec.Name
 		}
 
 		if certConfigMap != "" {
-			n, err := utils.CopyConfigMap(c, f.CdiInstallNs, certConfigMap, ns, "")
+			n, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, certConfigMap, ns, "")
 			Expect(err).To(BeNil())
 			pvcAnn[controller.AnnCertConfigMap] = n
 		}
 
 		if insecureRegistry {
-			err = utils.SetInsecureRegistry(c, f.CdiInstallNs, ep)
+			err = utils.SetInsecureRegistry(f.K8sClient, f.CdiInstallNs, ep())
 			Expect(err).To(BeNil())
-			defer utils.ClearInsecureRegistry(c, f.CdiInstallNs)
+			defer utils.ClearInsecureRegistry(f.K8sClient, f.CdiInstallNs)
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", pvcAnn[controller.AnnEndpoint]))
-		pvc, err := utils.CreatePVCFromDefinition(c, ns, utils.NewPVCDefinition("transport-e2e", "400Mi", pvcAnn, nil))
+		pvc, err := utils.CreatePVCFromDefinition(f.K8sClient, ns, utils.NewPVCDefinition("transport-e2e", "400Mi", pvcAnn, nil))
 		Expect(err).NotTo(HaveOccurred(), "Error creating PVC")
 
 		By("Verifying pvc was created")
@@ -119,19 +118,25 @@ var _ = Describe("Transport Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(found).To(BeTrue())
 			Eventually(func() bool {
-				importer, err := utils.FindPodByPrefix(c, ns, common.ImporterPodName, common.CDILabelSelector)
+				importer, err := utils.FindPodByPrefix(f.K8sClient, ns, common.ImporterPodName, common.CDILabelSelector)
 				Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
 				return importer.Status.ContainerStatuses[0].RestartCount > 0
 			}, timeout, pollingInterval).Should(BeTrue())
 		}
 	}
 
-	httpNoAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
-	httpsNoAuthEp := fmt.Sprintf("https://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPSNoAuthPort)
-	httpAuthEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPAuthPort)
-	registryNoAuthEp := fmt.Sprintf("docker://%s", utils.RegistryHostName+"."+f.CdiInstallNs)
-	registryAuthEp := fmt.Sprintf("docker://%s.%s:%d", utils.RegistryHostName, f.CdiInstallNs, 1443)
-	altRegistryNoAuthEp := fmt.Sprintf("docker://%s.%s:%d", utils.RegistryHostName, f.CdiInstallNs, 5000)
+	httpNoAuthEp := func() string {
+		return fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
+	}
+	httpsNoAuthEp := func() string {
+		return fmt.Sprintf("https://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPSNoAuthPort)
+	}
+	httpAuthEp := func() string {
+		return fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPAuthPort)
+	}
+	registryNoAuthEp := func() string { return fmt.Sprintf("docker://%s", utils.RegistryHostName+"."+f.CdiInstallNs) }
+	registryAuthEp := func() string { return fmt.Sprintf("docker://%s.%s:%d", utils.RegistryHostName, f.CdiInstallNs, 1443) }
+	altRegistryNoAuthEp := func() string { return fmt.Sprintf("docker://%s.%s:%d", utils.RegistryHostName, f.CdiInstallNs, 5000) }
 	DescribeTable("Transport Test Table", it,
 		Entry("should connect to http endpoint without credentials", httpNoAuthEp, targetFile, "", "", controller.SourceHTTP, "", false, true),
 		Entry("should connect to http endpoint with credentials", httpAuthEp, targetFile, utils.AccessKeyValue, utils.SecretKeyValue, controller.SourceHTTP, "", false, true),

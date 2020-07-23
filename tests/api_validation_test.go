@@ -27,7 +27,7 @@ const (
 )
 
 var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redhat.com][level:component]Validation tests", func() {
-	f := framework.NewFrameworkOrDie("api-validation-func-test")
+	f := framework.NewFramework("api-validation-func-test")
 
 	Describe("Verify DataVolume validation", func() {
 		Context("when creating Datavolume", func() {

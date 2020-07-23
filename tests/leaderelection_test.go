@@ -49,7 +49,7 @@ func checkLogForRegEx(regEx *regexp.Regexp, log string) bool {
 }
 
 var _ = Describe("[rfe_id:1250][crit:high][vendor:cnv-qe@redhat.com][level:component]Leader election tests", func() {
-	f := framework.NewFrameworkOrDie("leaderelection-test")
+	f := framework.NewFramework("leaderelection-test")
 	var (
 		leaderPodName string
 		newDeployment *appsv1.Deployment
@@ -85,7 +85,7 @@ var _ = Describe("[rfe_id:1250][crit:high][vendor:cnv-qe@redhat.com][level:compo
 })
 
 var _ = Describe("[rfe_id:1250][crit:high][test_id:1889][vendor:cnv-qe@redhat.com][level:component]Leader election tests during import", func() {
-	f := framework.NewFrameworkOrDie("leaderelection-test")
+	f := framework.NewFramework("leaderelection-test")
 	var (
 		leaderPodName string
 		newDeployment *appsv1.Deployment

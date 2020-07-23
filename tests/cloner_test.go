@@ -37,10 +37,11 @@ const (
 )
 
 var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:component]Cloner Test Suite", func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix)
+	f := framework.NewFramework(namespacePrefix)
 
 	var sourcePvc *v1.PersistentVolumeClaim
 	var targetPvc *v1.PersistentVolumeClaim
+
 	AfterEach(func() {
 		if sourcePvc != nil {
 			By("[AfterEach] Clean up source PVC")
@@ -259,8 +260,8 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 })
 
 var _ = Describe("Validate creating multiple clones of same source Data Volume", func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix)
-	tinyCoreIsoURL := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
+	f := framework.NewFramework(namespacePrefix)
+	tinyCoreIsoURL := func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
 
 	var (
 		sourceDv, targetDv1, targetDv2, targetDv3 *cdiv1.DataVolume
@@ -276,7 +277,7 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 
 	It("[rfe_id:1277][test_id:1891][crit:High][vendor:cnv-qe@redhat.com][level:component]Should allow multiple clones from a single source datavolume", func() {
 		By("Creating a source from a real image")
-		sourceDv = utils.NewDataVolumeWithHTTPImport("source-dv", "200Mi", tinyCoreIsoURL)
+		sourceDv = utils.NewDataVolumeWithHTTPImport("source-dv", "200Mi", tinyCoreIsoURL())
 		sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
@@ -324,7 +325,7 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 			Skip("Storage Class for block volume is not available")
 		}
 		By("Creating a source from a real image")
-		sourceDv = utils.NewDataVolumeWithHTTPImportToBlockPV("source-dv", "200Mi", tinyCoreIsoURL, f.BlockSCName)
+		sourceDv = utils.NewDataVolumeWithHTTPImportToBlockPV("source-dv", "200Mi", tinyCoreIsoURL(), f.BlockSCName)
 		sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
@@ -372,8 +373,8 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 })
 
 var _ = Describe("Validate Data Volume clone to smaller size", func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix)
-	tinyCoreIsoURL := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
+	f := framework.NewFramework(namespacePrefix)
+	tinyCoreIsoURL := func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
 
 	var (
 		sourceDv, targetDv *cdiv1.DataVolume
@@ -395,7 +396,7 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 
 	It("[rfe_id:1126][test_id:1896][crit:High][vendor:cnv-qe@redhat.com][level:component] Should not allow cloning into a smaller sized data volume", func() {
 		By("Creating a source from a real image")
-		sourceDv = utils.NewDataVolumeWithHTTPImport("source-dv", "200Mi", tinyCoreIsoURL)
+		sourceDv = utils.NewDataVolumeWithHTTPImport("source-dv", "200Mi", tinyCoreIsoURL())
 		sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
@@ -440,7 +441,7 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 			Skip("Storage Class for block volume is not available")
 		}
 		By("Creating a source from a real image")
-		sourceDv = utils.NewDataVolumeWithHTTPImportToBlockPV("source-dv", "200Mi", tinyCoreIsoURL, f.BlockSCName)
+		sourceDv = utils.NewDataVolumeWithHTTPImportToBlockPV("source-dv", "200Mi", tinyCoreIsoURL(), f.BlockSCName)
 		sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
@@ -474,8 +475,8 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 })
 
 var _ = Describe("Validate Data Volume should clone multiple clones in parallel", func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix)
-	tinyCoreIsoURL := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
+	f := framework.NewFramework(namespacePrefix)
+	tinyCoreIsoURL := func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
 
 	var (
 		sourceDv, targetDv1, targetDv2, targetDv3 *cdiv1.DataVolume
@@ -491,7 +492,7 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 
 	It("[rfe_id:1277][test_id:1899][crit:High][vendor:cnv-qe@redhat.com][level:component] Should allow multiple cloning operations in parallel", func() {
 		By("Creating a source from a real image")
-		sourceDv = utils.NewDataVolumeWithHTTPImport("source-dv", "200Mi", tinyCoreIsoURL)
+		sourceDv = utils.NewDataVolumeWithHTTPImport("source-dv", "200Mi", tinyCoreIsoURL())
 		sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
@@ -552,7 +553,7 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 			Skip("Storage Class for block volume is not available")
 		}
 		By("Creating a source from a real image")
-		sourceDv = utils.NewDataVolumeWithHTTPImportToBlockPV("source-dv", "200Mi", tinyCoreIsoURL, f.BlockSCName)
+		sourceDv = utils.NewDataVolumeWithHTTPImportToBlockPV("source-dv", "200Mi", tinyCoreIsoURL(), f.BlockSCName)
 		sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
@@ -605,7 +606,7 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 })
 
 var _ = Describe("Block PV Cloner Test", func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix)
+	f := framework.NewFramework(namespacePrefix)
 
 	It("Should clone data across namespaces", func() {
 		if !f.IsBlockVolumeStorageClassAvailable() {
@@ -645,7 +646,7 @@ var _ = Describe("Block PV Cloner Test", func() {
 })
 
 var _ = Describe("Namespace with quota", func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix)
+	f := framework.NewFramework(namespacePrefix)
 	var (
 		orgConfig *v1.ResourceRequirements
 		sourcePvc *v1.PersistentVolumeClaim
@@ -826,7 +827,7 @@ var _ = Describe("Namespace with quota", func() {
 })
 
 var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:component]Cloner Test Suite", func() {
-	f := framework.NewFrameworkOrDie(namespacePrefix)
+	f := framework.NewFramework(namespacePrefix)
 
 	var sourcePvc *v1.PersistentVolumeClaim
 	var targetPvc *v1.PersistentVolumeClaim
