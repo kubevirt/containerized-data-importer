@@ -19,14 +19,15 @@ package controller
 import (
 	"context"
 	"fmt"
-	storagev1 "k8s.io/api/storage/v1"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	storagev1 "k8s.io/api/storage/v1"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -287,7 +288,7 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		Entry("should remain unset", cdiv1.PhaseUnset, cdiv1.PhaseUnset),
 		Entry("should remain pending", cdiv1.Pending, cdiv1.Pending),
 		Entry("should remain snapshotforsmartcloninginprogress", cdiv1.SnapshotForSmartCloneInProgress, cdiv1.SnapshotForSmartCloneInProgress),
-		Entry("should switch to failed from inprogress", cdiv1.ImportInProgress, cdiv1.Failed),
+		Entry("should remain inprogress", cdiv1.ImportInProgress, cdiv1.ImportInProgress),
 	)
 
 	It("Should switch to pending if PVC phase is pending", func() {
