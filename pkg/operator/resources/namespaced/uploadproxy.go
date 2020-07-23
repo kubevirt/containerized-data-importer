@@ -82,6 +82,7 @@ func createUploadProxyRole() *rbacv1.Role {
 }
 
 func createUploadProxyDeployment(image, verbosity, pullPolicy string) *appsv1.Deployment {
+	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
 	deployment := utils.CreateDeployment(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, uploadProxyResourceName, int32(1))
 	container := utils.CreateContainer(uploadProxyResourceName, image, verbosity, corev1.PullPolicy(pullPolicy))
 	container.Env = []corev1.EnvVar{
@@ -110,6 +111,9 @@ func createUploadProxyDeployment(image, verbosity, pullPolicy string) *appsv1.De
 		},
 		InitialDelaySeconds: 2,
 		PeriodSeconds:       5,
+		FailureThreshold:    3,
+		SuccessThreshold:    1,
+		TimeoutSeconds:      1,
 	}
 	container.VolumeMounts = []corev1.VolumeMount{
 		{
@@ -140,6 +144,7 @@ func createUploadProxyDeployment(image, verbosity, pullPolicy string) *appsv1.De
 							Path: "tls.key",
 						},
 					},
+					DefaultMode: &defaultMode,
 				},
 			},
 		},
@@ -158,6 +163,7 @@ func createUploadProxyDeployment(image, verbosity, pullPolicy string) *appsv1.De
 							Path: "tls.key",
 						},
 					},
+					DefaultMode: &defaultMode,
 				},
 			},
 		},

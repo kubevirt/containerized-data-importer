@@ -71,16 +71,8 @@ func mergeObject(desiredObj, currentObj runtime.Object) (runtime.Object, error) 
 	if err != nil {
 		return nil, err
 	}
-	modified, err = stripStatusByte(modified)
-	if err != nil {
-		return nil, err
-	}
 
 	current, err := json.Marshal(currentObj)
-	if err != nil {
-		return nil, err
-	}
-	current, err = stripStatusByte(current)
 	if err != nil {
 		return nil, err
 	}

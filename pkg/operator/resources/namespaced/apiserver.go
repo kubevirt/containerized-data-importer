@@ -87,6 +87,7 @@ func createAPIServerService() *corev1.Service {
 }
 
 func createAPIServerDeployment(image, verbosity, pullPolicy string) *appsv1.Deployment {
+	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
 	deployment := utils.CreateDeployment(apiServerRessouceName, cdiLabel, apiServerRessouceName, apiServerRessouceName, 1)
 	container := utils.CreateContainer(apiServerRessouceName, image, verbosity, corev1.PullPolicy(pullPolicy))
 	container.ReadinessProbe = &corev1.Probe{
@@ -102,6 +103,9 @@ func createAPIServerDeployment(image, verbosity, pullPolicy string) *appsv1.Depl
 		},
 		InitialDelaySeconds: 2,
 		PeriodSeconds:       5,
+		FailureThreshold:    3,
+		SuccessThreshold:    1,
+		TimeoutSeconds:      1,
 	}
 	container.VolumeMounts = []corev1.VolumeMount{
 		{
@@ -130,6 +134,7 @@ func createAPIServerDeployment(image, verbosity, pullPolicy string) *appsv1.Depl
 							Path: "ca-bundle.crt",
 						},
 					},
+					DefaultMode: &defaultMode,
 				},
 			},
 		},
@@ -148,6 +153,7 @@ func createAPIServerDeployment(image, verbosity, pullPolicy string) *appsv1.Depl
 							Path: "tls.key",
 						},
 					},
+					DefaultMode: &defaultMode,
 				},
 			},
 		},

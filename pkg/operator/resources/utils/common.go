@@ -236,10 +236,12 @@ func CreatePortsContainer(name, image, verbosity string, pullPolicy corev1.PullP
 // CreateContainer creates container
 func CreateContainer(name, image, verbosity string, pullPolicy corev1.PullPolicy) corev1.Container {
 	return corev1.Container{
-		Name:            name,
-		Image:           image,
-		ImagePullPolicy: pullPolicy,
-		Args:            []string{"-v=" + verbosity},
+		Name:                     name,
+		Image:                    image,
+		ImagePullPolicy:          pullPolicy,
+		Args:                     []string{"-v=" + verbosity},
+		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+		TerminationMessagePath:   corev1.TerminationMessagePathDefault,
 	}
 }
 
