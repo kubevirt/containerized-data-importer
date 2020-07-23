@@ -478,3 +478,19 @@ http_file(
         "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/i/isns-utils-libs-0.97-9.fc31.x86_64.rpm",
     ],
 )
+
+http_file(
+    name = "nbdkit-server",
+    sha256 = "20289b472fc2f075db4d9e993505ff088852417527a06e29e457778cb7f55183",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/n/nbdkit-server-1.14.2-1.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "nbdkit-vddk-plugin",
+    sha256 = "b9b2eb86b0f8d8355be6a1ef42107526aa7f7d35e5b31af7441750e6b770e9b4",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/n/nbdkit-vddk-plugin-1.14.2-1.fc31.x86_64.rpm",
+    ],
+)
