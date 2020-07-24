@@ -547,13 +547,10 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 				Strategy: extv1.NoneConverter,
 			},
 			Names: extv1.CustomResourceDefinitionNames{
-				Kind:     "CDI",
-				ListKind: "CDIList",
-				Plural:   "cdis",
-				Singular: "cdi",
-				Categories: []string{
-					"all",
-				},
+				Kind:       "CDI",
+				ListKind:   "CDIList",
+				Plural:     "cdis",
+				Singular:   "cdi",
 				ShortNames: []string{"cdi", "cdis"},
 			},
 		},

@@ -29,9 +29,6 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 				Plural:   "cdiconfigs",
 				Singular: "cdiconfig",
 				ListKind: "CDIConfigList",
-				Categories: []string{
-					"all",
-				},
 			},
 			Versions: []extv1.CustomResourceDefinitionVersion{
 				{

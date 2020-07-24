@@ -232,7 +232,7 @@ const DataVolumeCloneSourceSubresource = "source"
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:storageversion
-// +kubebuilder:resource:shortName=cdi;cdis,categories=all,scope=Cluster
+// +kubebuilder:resource:shortName=cdi;cdis,scope=Cluster
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase"
 type CDI struct {
@@ -322,7 +322,7 @@ type CDIList struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:storageversion
-// +kubebuilder:resource:categories=all,scope=Cluster
+// +kubebuilder:resource:scope=Cluster
 type CDIConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
