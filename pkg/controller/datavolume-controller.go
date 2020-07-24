@@ -21,13 +21,14 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"net/http"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
@@ -606,19 +607,10 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		return reconcile.Result{}, err
 	}
 
-	curPhase := dataVolumeCopy.Status.Phase
-	if pvc == nil {
-		if curPhase != cdiv1.PhaseUnset && curPhase != cdiv1.Pending && curPhase != cdiv1.SnapshotForSmartCloneInProgress {
-			// if pvc doesn't exist and we're not still initializing, then
-			// something has gone wrong. Perhaps the PVC was deleted out from
-			// underneath the DataVolume
-			dataVolumeCopy.Status.Phase = cdiv1.Failed
-			event.eventType = corev1.EventTypeWarning
-			event.reason = DataVolumeFailed
-			event.message = fmt.Sprintf(MessageResourceDoesntExist, dataVolume.Name)
-		}
-	} else {
+	result := reconcile.Result{}
 
+	curPhase := dataVolumeCopy.Status.Phase
+	if pvc != nil {
 		// the following check is for a case where the request is to create a blank disk for a block device.
 		// in that case, we do not create a pod as there is no need to create a blank image.
 		// instead, we just mark the DV phase as 'Succeeded' so any consumer will be able to use it.
@@ -699,21 +691,15 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 				}
 			}
 		}
-	}
-
-	if pvc != nil {
 		if i, err := strconv.Atoi(pvc.Annotations[AnnPodRestarts]); err == nil && i >= 0 {
 			dataVolumeCopy.Status.RestartCount = int32(i)
 		}
-	}
-	result := reconcile.Result{}
-
-	if pvc != nil {
 		result, err = r.reconcileProgressUpdate(dataVolumeCopy, pvc.GetUID())
 		if err != nil {
 			return result, err
 		}
 	}
+
 	currentCond := make([]cdiv1.DataVolumeCondition, len(dataVolumeCopy.Status.Conditions))
 	copy(currentCond, dataVolumeCopy.Status.Conditions)
 	r.updateConditions(dataVolumeCopy, pvc)
