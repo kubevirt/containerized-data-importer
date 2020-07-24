@@ -29,7 +29,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/kelseyhightower/envconfig"
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
-	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -39,7 +39,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -533,9 +533,9 @@ func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1.CDI)
 		&rbacv1.RoleBindingList{},
 		&rbacv1.RoleList{},
 		&corev1.ServiceAccountList{},
-		&apiregistrationv1beta1.APIServiceList{},
-		&admissionregistrationv1beta1.ValidatingWebhookConfigurationList{},
-		&admissionregistrationv1beta1.MutatingWebhookConfigurationList{},
+		&apiregistrationv1.APIServiceList{},
+		&admissionregistrationv1.ValidatingWebhookConfigurationList{},
+		&admissionregistrationv1.MutatingWebhookConfigurationList{},
 	}
 
 	ls, err := labels.Parse(createVersionLabel)

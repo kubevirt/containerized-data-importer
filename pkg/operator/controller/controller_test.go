@@ -39,7 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	realClient "sigs.k8s.io/controller-runtime/pkg/client"
 	fakeClient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -86,7 +86,7 @@ var (
 func init() {
 	cdiviaplha1.AddToScheme(scheme.Scheme)
 	extv1beta1.AddToScheme(scheme.Scheme)
-	apiregistrationv1beta1.AddToScheme(scheme.Scheme)
+	apiregistrationv1.AddToScheme(scheme.Scheme)
 	secv1.Install(scheme.Scheme)
 	routev1.Install(scheme.Scheme)
 }
