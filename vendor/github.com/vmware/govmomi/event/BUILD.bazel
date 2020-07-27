@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "history_collector.go",
+        "manager.go",
+        "processor.go",
+        "sort.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/vmware/govmomi/event",
+    importpath = "github.com/vmware/govmomi/event",
+    visibility = ["//visibility:public"],
+)
