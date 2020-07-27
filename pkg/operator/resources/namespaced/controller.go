@@ -92,6 +92,7 @@ func createControllerServiceAccount() *corev1.ServiceAccount {
 }
 
 func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string) *appsv1.Deployment {
+	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
 	deployment := utils.CreateDeployment(controllerResourceName, "app", "containerized-data-importer", common.ControllerServiceAccountName, int32(1))
 	container := utils.CreateContainer("cdi-controller", controllerImage, verbosity, corev1.PullPolicy(pullPolicy))
 	container.Env = []corev1.EnvVar{
@@ -124,6 +125,9 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 		},
 		InitialDelaySeconds: 2,
 		PeriodSeconds:       5,
+		FailureThreshold:    3,
+		SuccessThreshold:    1,
+		TimeoutSeconds:      1,
 	}
 	container.VolumeMounts = []corev1.VolumeMount{
 		{
@@ -160,6 +164,7 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 							Path: "id_rsa.pub",
 						},
 					},
+					DefaultMode: &defaultMode,
 				},
 			},
 		},
@@ -178,6 +183,7 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 							Path: "tls.key",
 						},
 					},
+					DefaultMode: &defaultMode,
 				},
 			},
 		},
@@ -196,6 +202,7 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 							Path: "tls.key",
 						},
 					},
+					DefaultMode: &defaultMode,
 				},
 			},
 		},
@@ -212,6 +219,7 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 							Path: "ca-bundle.crt",
 						},
 					},
+					DefaultMode: &defaultMode,
 				},
 			},
 		},
@@ -228,6 +236,7 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 							Path: "ca-bundle.crt",
 						},
 					},
+					DefaultMode: &defaultMode,
 				},
 			},
 		},

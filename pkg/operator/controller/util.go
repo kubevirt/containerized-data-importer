@@ -32,8 +32,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/mergepatch"
 )
 
+const statusKey = "status"
+
 func mergeLabelsAndAnnotations(src, dest metav1.Object) {
-	// allow users to add labels but not change ours
+	// allow users to add labels but not change ours. The operator supplies the src, so if someone altered dest it will get restored.
 	for k, v := range src.GetLabels() {
 		if dest.GetLabels() == nil {
 			dest.SetLabels(map[string]string{})
@@ -63,7 +65,6 @@ func mergeObject(desiredObj, currentObj runtime.Object) (runtime.Object, error) 
 	}
 
 	original := []byte(v)
-
 	// setting the timestamp saves unnecessary updates because creation timestamp is nulled
 	desiredMetaObj.SetCreationTimestamp(currentMetaObj.GetCreationTimestamp())
 	modified, err := json.Marshal(desiredObj)
@@ -98,6 +99,33 @@ func mergeObject(desiredObj, currentObj runtime.Object) (runtime.Object, error) 
 	}
 
 	return result, nil
+}
+
+func stripStatusFromObject(obj runtime.Object) (runtime.Object, error) {
+	modified, err := json.Marshal(obj)
+	if err != nil {
+		return nil, err
+	}
+	modified, err = stripStatusByte(modified)
+	if err != nil {
+		return nil, err
+	}
+	result := newDefaultInstance(obj)
+	if err = json.Unmarshal(modified, result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func stripStatusByte(in []byte) ([]byte, error) {
+	var result map[string]interface{}
+	json.Unmarshal(in, &result)
+
+	if _, ok := result[statusKey]; ok {
+		delete(result, statusKey)
+	}
+	return json.Marshal(result)
 }
 
 func deployClusterResources() bool {

@@ -410,6 +410,10 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1.CDI) (recon
 				return reconcile.Result{}, err
 			}
 
+			currentRuntimeObj, err = stripStatusFromObject(currentRuntimeObj)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
 			currentRuntimeObjCopy := currentRuntimeObj.DeepCopyObject()
 			currentMetaObj := currentRuntimeObj.(metav1.Object)
 
@@ -429,7 +433,6 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1.CDI) (recon
 
 			if !reflect.DeepEqual(currentRuntimeObjCopy, currentRuntimeObj) {
 				logJSONDiff(logger, currentRuntimeObjCopy, currentRuntimeObj)
-
 				setLabel(updateVersionLabel, r.namespacedArgs.OperatorVersion, currentMetaObj)
 
 				// PRE_UPDATE callback
