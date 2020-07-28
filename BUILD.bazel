@@ -62,6 +62,7 @@ container_bundle(
         "$(container_prefix)/cdi-func-test-registry:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-image",
         "$(container_prefix)/imageio-init:$(container_tag)": "//tools/imageio-init:imageio-init-image",
         "$(container_prefix)/loop-back-lvm:$(container_tag)": "//tools/loop-back-lvm:loop-back-lvm-image",
+        "$(container_prefix)/vddk-init:$(container_tag)": "//tools/vddk-init:vddk-init-image",
     },
 )
 

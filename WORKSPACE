@@ -494,3 +494,11 @@ http_file(
         "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/n/nbdkit-vddk-plugin-1.14.2-1.fc31.x86_64.rpm",
     ],
 )
+
+http_file(
+    name = "libxcrypt-compat",
+    sha256 = "4e5a7185ddd6ac52f454b650f42073cae28f9e4bdfe9a42cad1f2f67b8cc60ca",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/l/libxcrypt-compat-4.4.10-1.fc31.x86_64.rpm",
+    ],
+)
