@@ -27,11 +27,13 @@ PULL_POLICY=$(getTestPullPolicy)
 # build and push it's localhost, but for manifests, we sneak in a change to point a registry container on the
 # kubernetes cluster.  So, we introduced this MANIFEST_REGISTRY variable specifically to deal with that and not
 # have to refactor/rewrite any of the code that works currently.
-MANIFEST_REGISTRY=$DOCKER_PREFIX
 if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
   registry=${IMAGE_REGISTRY:-localhost:$(_port registry)}
   DOCKER_PREFIX=${registry}
   MANIFEST_REGISTRY="registry:5000"
+else
+  up
+  echo "forward PID: $FORWARD_PID"
 fi
 
 # Need to set the DOCKER_PREFIX appropriately in the call to `make docker push`, otherwise make will just pass in the default `kubevirt`
@@ -160,9 +162,15 @@ check_structural_schema "${crds[@]}"
 
 configure_storage
 
+if [[ "$FORWARD_PID" ]]; then
+  #don't like the way I am killing here, but unable to find better way right now.
+  ps -ef | grep port-forward | grep -v grep | grep $FORWARD_PID | awk '{print $2}' | xargs kill
+  echo "Killed port-forward to registry"
+fi
+
 # Start functional test HTTP server.
 # We skip the functional test additions for external provider for now, as they're specific
-if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
+if [ "${KUBEVIRT_PROVIDER}" != "external" ] || [ "${EXTERNAL_PROVIDER}" == "openshift" ]; then
   _kubectl apply -f "./_out/manifests/bad-webserver.yaml"
   _kubectl apply -f "./_out/manifests/file-host.yaml"
   _kubectl apply -f "./_out/manifests/registry-host.yaml"
