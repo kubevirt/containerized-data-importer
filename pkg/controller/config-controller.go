@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"reflect"
+	"regexp"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -19,6 +20,7 @@ import (
 	"github.com/go-logr/logr"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 
@@ -74,6 +76,10 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 	}
 
 	if err := r.reconcileDefaultPodResourceRequirements(config); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if err := r.reconcileFilesystemOverhead(config); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -210,6 +216,62 @@ func (r *CDIConfigReconciler) reconcileDefaultPodResourceRequirements(config *cd
 	}
 
 	return nil
+}
+
+func (r *CDIConfigReconciler) reconcileFilesystemOverhead(config *cdiv1.CDIConfig) error {
+	var globalOverhead cdiv1.Percent = common.DefaultGlobalOverhead
+	var perStorageConfig = make(map[string]cdiv1.Percent)
+
+	log := r.log.WithName("CDIconfig").WithName("FilesystemOverhead")
+
+	// Avoid nil maps and segfaults for the initial case, where filesystemOverhead
+	// is nil for both the spec and the status.
+	if config.Status.FilesystemOverhead == nil {
+		log.Info("No filesystem overhead found in status, initializing to defaults")
+		config.Status.FilesystemOverhead = &cdiv1.FilesystemOverhead{
+			Global:       globalOverhead,
+			StorageClass: make(map[string]cdiv1.Percent),
+		}
+	}
+
+	if config.Spec.FilesystemOverhead != nil {
+		if valid, _ := validOverhead(config.Spec.FilesystemOverhead.Global); valid {
+			globalOverhead = config.Spec.FilesystemOverhead.Global
+		}
+		if config.Spec.FilesystemOverhead.StorageClass != nil {
+			perStorageConfig = config.Spec.FilesystemOverhead.StorageClass
+		}
+	}
+
+	// Set status global overhead
+	config.Status.FilesystemOverhead.Global = globalOverhead
+
+	// Set status per-storageClass overhead
+	storageClassList := &storagev1.StorageClassList{}
+	if err := r.client.List(context.TODO(), storageClassList, &client.ListOptions{}); err != nil {
+		return err
+	}
+	config.Status.FilesystemOverhead.StorageClass = make(map[string]cdiv1.Percent)
+	for _, storageClass := range storageClassList.Items {
+		storageClassName := storageClass.GetName()
+		storageClassNameOverhead, found := perStorageConfig[storageClassName]
+
+		if found {
+			valid, err := validOverhead(storageClassNameOverhead)
+			if !valid {
+				return err
+			}
+			config.Status.FilesystemOverhead.StorageClass[storageClassName] = storageClassNameOverhead
+		} else {
+			config.Status.FilesystemOverhead.StorageClass[storageClassName] = globalOverhead
+		}
+	}
+
+	return nil
+}
+
+func validOverhead(overhead cdiv1.Percent) (bool, error) {
+	return regexp.MatchString(`^(0(?:\.\d{1,3})?|1)$`, string(overhead))
 }
 
 // createCDIConfig creates a new instance of the CDIConfig object if it doesn't exist already, and returns the existing one if found.

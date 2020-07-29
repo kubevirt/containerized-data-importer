@@ -96,23 +96,24 @@ type UploadServer interface {
 }
 
 type uploadServerApp struct {
-	bindAddress string
-	bindPort    int
-	destination string
-	tlsKey      string
-	tlsCert     string
-	clientCert  string
-	clientName  string
-	keyFile     string
-	certFile    string
-	imageSize   string
-	mux         *http.ServeMux
-	uploading   bool
-	processing  bool
-	done        bool
-	doneChan    chan struct{}
-	errChan     chan error
-	mutex       sync.Mutex
+	bindAddress        string
+	bindPort           int
+	destination        string
+	tlsKey             string
+	tlsCert            string
+	clientCert         string
+	clientName         string
+	keyFile            string
+	certFile           string
+	imageSize          string
+	filesystemOverhead float64
+	mux                *http.ServeMux
+	uploading          bool
+	processing         bool
+	done               bool
+	doneChan           chan struct{}
+	errChan            chan error
+	mutex              sync.Mutex
 }
 
 type imageReadCloser func(*http.Request) (io.ReadCloser, error)
@@ -150,21 +151,22 @@ func formReadCloser(r *http.Request) (io.ReadCloser, error) {
 }
 
 // NewUploadServer returns a new instance of uploadServerApp
-func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsCert, clientCert, clientName, imageSize string) UploadServer {
+func NewUploadServer(bindAddress string, bindPort int, destination, tlsKey, tlsCert, clientCert, clientName, imageSize string, filesystemOverhead float64) UploadServer {
 	server := &uploadServerApp{
-		bindAddress: bindAddress,
-		bindPort:    bindPort,
-		destination: destination,
-		tlsKey:      tlsKey,
-		tlsCert:     tlsCert,
-		clientCert:  clientCert,
-		clientName:  clientName,
-		imageSize:   imageSize,
-		mux:         http.NewServeMux(),
-		uploading:   false,
-		done:        false,
-		doneChan:    make(chan struct{}),
-		errChan:     make(chan error),
+		bindAddress:        bindAddress,
+		bindPort:           bindPort,
+		destination:        destination,
+		tlsKey:             tlsKey,
+		tlsCert:            tlsCert,
+		clientCert:         clientCert,
+		clientName:         clientName,
+		filesystemOverhead: filesystemOverhead,
+		imageSize:          imageSize,
+		mux:                http.NewServeMux(),
+		uploading:          false,
+		done:               false,
+		doneChan:           make(chan struct{}),
+		errChan:            make(chan error),
 	}
 
 	for _, path := range syncUploadPaths {
@@ -355,7 +357,7 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 			w.WriteHeader(http.StatusBadRequest)
 		}
 
-		processor, err := uploadProcessorFuncAsync(readCloser, app.destination, app.imageSize, cdiContentType)
+		processor, err := uploadProcessorFuncAsync(readCloser, app.destination, app.imageSize, app.filesystemOverhead, cdiContentType)
 
 		app.mutex.Lock()
 
@@ -409,7 +411,7 @@ func (app *uploadServerApp) uploadHandler(irc imageReadCloser) http.HandlerFunc 
 			w.WriteHeader(http.StatusBadRequest)
 		}
 
-		err = uploadProcessorFunc(readCloser, app.destination, app.imageSize, cdiContentType)
+		err = uploadProcessorFunc(readCloser, app.destination, app.imageSize, app.filesystemOverhead, cdiContentType)
 
 		app.mutex.Lock()
 		defer app.mutex.Unlock()
@@ -430,23 +432,23 @@ func (app *uploadServerApp) uploadHandler(irc imageReadCloser) http.HandlerFunc 
 	}
 }
 
-func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize, contentType string) (*importer.DataProcessor, error) {
+func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, contentType string) (*importer.DataProcessor, error) {
 	if contentType == FilesystemCloneContentType {
 		return nil, fmt.Errorf("async filesystem clone not supported")
 	}
 
 	uds := importer.NewAsyncUploadDataSource(stream)
-	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize)
+	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead)
 	return processor, processor.ProcessDataWithPause()
 }
 
-func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize, contentType string) error {
+func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, contentType string) error {
 	if contentType == FilesystemCloneContentType {
 		return filesystemCloneProcessor(stream, common.ImporterVolumePath)
 	}
 
 	uds := importer.NewUploadDataSource(stream)
-	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize)
+	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead)
 	return processor.ProcessData()
 }
 

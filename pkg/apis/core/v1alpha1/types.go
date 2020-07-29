@@ -349,6 +349,19 @@ type CDIConfig struct {
 	Status CDIConfigStatus `json:"status,omitempty"`
 }
 
+//Percent is a string that can only be a value between [0,1)
+// (Note: we actually rely on reconcile to reject invalid values)
+// +kubebuilder:validation:Pattern=`^(0(?:\.\d{1,3})?|1)$`
+type Percent string
+
+//FilesystemOverhead defines the reserved size for PVCs with VolumeMode: Filesystem
+type FilesystemOverhead struct {
+	// Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (per storageClass)
+	Global Percent `json:"global,omitempty"`
+	// StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value
+	StorageClass map[string]Percent `json:"storageClass,omitempty"`
+}
+
 //CDIConfigSpec defines specification for user configuration
 type CDIConfigSpec struct {
 	// Override the URL used when uploading to a DataVolume
@@ -357,6 +370,8 @@ type CDIConfigSpec struct {
 	ScratchSpaceStorageClass *string `json:"scratchSpaceStorageClass,omitempty"`
 	// ResourceRequirements describes the compute resource requirements.
 	PodResourceRequirements *corev1.ResourceRequirements `json:"podResourceRequirements,omitempty"`
+	// FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)
+	FilesystemOverhead *FilesystemOverhead `json:"filesystemOverhead,omitempty"`
 }
 
 //CDIConfigStatus provides the most recently observed status of the CDI Config resource
@@ -367,6 +382,8 @@ type CDIConfigStatus struct {
 	ScratchSpaceStorageClass string `json:"scratchSpaceStorageClass,omitempty"`
 	// ResourceRequirements describes the compute resource requirements.
 	DefaultPodResourceRequirements *corev1.ResourceRequirements `json:"defaultPodResourceRequirements,omitempty"`
+	// FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A percentage value is between 0 and 1
+	FilesystemOverhead *FilesystemOverhead `json:"filesystemOverhead,omitempty"`
 }
 
 //CDIConfigList provides the needed parameters to do request a list of CDIConfigs from the system

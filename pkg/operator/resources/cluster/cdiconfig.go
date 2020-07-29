@@ -108,6 +108,26 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 												},
 											},
 										},
+										"filesystemOverhead": {
+											Description: "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
+											Type:        "object",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"global": {
+													Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (for example, a per storageClass value)",
+													Type:        "string",
+													Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
+												},
+												"storageClass": {
+													AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+														Schema: &extv1.JSONSchemaProps{
+															Type: "string",
+														},
+													},
+													Description: "StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value",
+													Type:        "object",
+												},
+											},
+										},
 									},
 								},
 								"status": {
@@ -161,6 +181,26 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 															XIntOrString: true,
 														},
 													},
+												},
+											},
+										},
+										"filesystemOverhead": {
+											Description: "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A percentage value is between 0 and 1",
+											Type:        "object",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"global": {
+													Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (for example, a per storageClass value)",
+													Type:        "string",
+													Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
+												},
+												"storageClass": {
+													AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+														Schema: &extv1.JSONSchemaProps{
+															Type: "string",
+														},
+													},
+													Description: "StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value",
+													Type:        "object",
 												},
 											},
 										},
@@ -256,6 +296,26 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 												},
 											},
 										},
+										"filesystemOverhead": {
+											Description: "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
+											Type:        "object",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"global": {
+													Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (for example, a per storageClass value)",
+													Type:        "string",
+													Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
+												},
+												"storageClass": {
+													AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+														Schema: &extv1.JSONSchemaProps{
+															Type: "string",
+														},
+													},
+													Description: "StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value",
+													Type:        "object",
+												},
+											},
+										},
 									},
 								},
 								"status": {
@@ -309,6 +369,26 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 															XIntOrString: true,
 														},
 													},
+												},
+											},
+										},
+										"filesystemOverhead": {
+											Description: "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A percentage value is between 0 and 1",
+											Type:        "object",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"global": {
+													Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (for example, a per storageClass value)",
+													Type:        "string",
+													Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
+												},
+												"storageClass": {
+													AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+														Schema: &extv1.JSONSchemaProps{
+															Type: "string",
+														},
+													},
+													Description: "StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value",
+													Type:        "object",
 												},
 											},
 										},
