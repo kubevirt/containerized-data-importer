@@ -59,9 +59,9 @@ func main() {
 	certDir, _ := util.ParseEnvVar(common.ImporterCertDirVar, false)
 	insecureTLS, _ := strconv.ParseBool(os.Getenv(common.InsecureTLSVar))
 	diskID, _ := util.ParseEnvVar(common.ImporterDiskID, false)
-	//uuid, _ := util.ParseEnvVar(common.ImporterUUID, false)
-	//backingFile, _ := util.ParseEnvVar(common.ImporterBackingFile, false)
-	//thumbprint, _ := util.ParseEnvVar(common.ImporterThumbprint, false)
+	uuid, _ := util.ParseEnvVar(common.ImporterUUID, false)
+	backingFile, _ := util.ParseEnvVar(common.ImporterBackingFile, false)
+	thumbprint, _ := util.ParseEnvVar(common.ImporterThumbprint, false)
 
 	//Registry import currently support kubevirt content type only
 	if contentType != string(cdiv1.DataVolumeKubeVirt) && (source == controller.SourceRegistry || source == controller.SourceImageio) {
@@ -148,16 +148,16 @@ func main() {
 				}
 				os.Exit(1)
 			}
-		//case controller.SourceVDDK:
-		//	dp, err = importer.NewVDDKDataSource(ep, acc, sec, thumbprint, uuid, backingFile)
-		//	if err != nil {
-		//		klog.Errorf("%+v", err)
-		//		err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to vddk data source: %+v", err))
-		//		if err != nil {
-		//			klog.Errorf("%+v", err)
-		//		}
-		//		os.Exit(1)
-		//	}
+		case controller.SourceVDDK:
+			dp, err = importer.NewVDDKDataSource(ep, acc, sec, thumbprint, uuid, backingFile)
+			if err != nil {
+				klog.Errorf("%+v", err)
+				err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to vddk data source: %+v", err))
+				if err != nil {
+					klog.Errorf("%+v", err)
+				}
+				os.Exit(1)
+			}
 		default:
 			klog.Errorf("Unknown source type %s\n", source)
 			err = util.WriteTerminationMessage(fmt.Sprintf("Unknown data source: %s", source))

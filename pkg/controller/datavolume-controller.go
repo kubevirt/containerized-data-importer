@@ -966,6 +966,7 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 		annotations[AnnSecret] = dataVolume.Spec.Source.VDDK.SecretRef
 		annotations[AnnBackingFile] = dataVolume.Spec.Source.VDDK.BackingFile
 		annotations[AnnUUID] = dataVolume.Spec.Source.VDDK.UUID
+		annotations[AnnThumbprint] = dataVolume.Spec.Source.VDDK.Thumbprint
 	} else {
 		return nil, errors.Errorf("no source set for datavolume")
 	}

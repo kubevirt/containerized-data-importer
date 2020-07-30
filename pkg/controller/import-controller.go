@@ -776,6 +776,29 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 		})
 	}
 
+	if getSource(pvc) == SourceVDDK {
+		pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+			Name: "vddk-vol-mount",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		})
+		pod.Spec.InitContainers = append(pod.Spec.InitContainers, corev1.Container{
+			Name:  "vddk-side-car",
+			Image: "registry:5000/vddk-init:latest",
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "vddk-vol-mount",
+					MountPath: "/opt",
+				},
+			},
+		})
+		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      "vddk-vol-mount",
+			MountPath: "/opt",
+		})
+	}
+
 	pod.Spec.Containers[0].Env = makeImportEnv(podEnvVar, ownerUID)
 
 	if podEnvVar.certConfigMap != "" {
