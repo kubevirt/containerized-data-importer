@@ -18,5 +18,7 @@ script_dir="$(readlink -f $(dirname $0))"
 source "${script_dir}"/common.sh
 
 mkdir -p ${TESTS_OUT_DIR}/
+# use vendor
+export GO111MODULE=off
 ginkgo build ${CDI_DIR}/tests/
 mv ${CDI_DIR}/tests/tests.test ${TESTS_OUT_DIR}/

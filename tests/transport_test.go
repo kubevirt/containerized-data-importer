@@ -11,6 +11,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -28,8 +29,11 @@ var _ = Describe("Transport Tests", func() {
 	)
 
 	var (
-		ns  string
-		f   = framework.NewFramework("transport", framework.Config{SkipNamespaceCreation: false})
+		ns string
+		f  = framework.NewFramework("transport", framework.Config{
+			SkipNamespaceCreation: false,
+			FeatureGates:          []string{featuregates.HonorWaitForFirstConsumer},
+		})
 		sec *v1.Secret
 	)
 
