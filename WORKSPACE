@@ -231,15 +231,6 @@ http_file(
 )
 
 http_file(
-    name = "skopeo",
-    sha256 = "9ae93d78a41face16d842c4da4ffc07bc8b119fbcd23d436b41a44a5643d4dc0",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/s/skopeo-0.1.41-1.fc31.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/9ae93d78a41face16d842c4da4ffc07bc8b119fbcd23d436b41a44a5643d4dc0",
-    ],
-)
-
-http_file(
     name = "ostree-libs",
     sha256 = "4011ad8b367db9d528d47202d07c287a958d4bd11a56b11618818dcb3be55bc6",
     urls = [
@@ -269,6 +260,14 @@ http_file(
     sha256 = "d8fa0b0947084bce50438b7eaf5a5085abd35e36c69cfb13d5f58e98a258e36f",
     urls = [
         "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/d/device-mapper-1.02.163-2.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "device-mapper-libs",
+    sha256 = "0ebd37bcd6d2beb5692b7c7e3d94b90a26d45b059696d954b502d85d738b7732",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/d/device-mapper-libs-1.02.163-2.fc31.x86_64.rpm",
     ],
 )
 
