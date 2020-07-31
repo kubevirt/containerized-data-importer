@@ -29,15 +29,18 @@ require (
 	github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190725173916-b56e63a643cc
 	github.com/operator-framework/operator-marketplace v0.0.0-20190617165322-1cbd32624349
 	github.com/ovirt/go-ovirt v4.3.4+incompatible
-	github.com/pkg/errors v0.8.1
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.1.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/rs/cors v1.7.0
 	github.com/smartystreets/assertions v1.0.1 // indirect
 	github.com/smartystreets/goconvey v0.0.0-20190731233626-505e41936337 // indirect
-	github.com/ulikunitz/xz v0.5.6
+	github.com/stretchr/testify v1.6.1 // indirect
+	github.com/ulikunitz/xz v0.5.7
 	go.uber.org/multierr v1.3.0 // indirect
-	golang.org/x/sys v0.0.0-20200323222414-85ca7c5b95cd
+	golang.org/x/crypto v0.0.0-20200423211502-4bdfaf469ed5 // indirect
+	golang.org/x/sys v0.0.0-20200519105757-fe76b779f299
+	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/ini.v1 v1.48.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1
@@ -48,7 +51,6 @@ require (
 	k8s.io/apiserver v0.18.6
 	k8s.io/client-go v8.0.0+incompatible
 	k8s.io/cluster-bootstrap v0.0.0
-	k8s.io/code-generator v0.18.6
 	k8s.io/klog v1.0.0
 	k8s.io/kube-aggregator v0.18.6
 	k8s.io/kube-openapi v0.0.0-20200410145947-61e04a5be9a6
