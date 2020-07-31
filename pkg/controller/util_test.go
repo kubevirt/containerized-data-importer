@@ -13,7 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -409,25 +409,24 @@ func createSnapshotClass(name string, annotations map[string]string, snapshotter
 	}
 }
 
-func createVolumeSnapshotContentCrd() *apiextensionsv1beta1.CustomResourceDefinition {
+func createVolumeSnapshotContentCrd() *extv1.CustomResourceDefinition {
 	pluralName := "volumesnapshotcontents"
-	return &apiextensionsv1beta1.CustomResourceDefinition{
+	return &extv1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CustomResourceDefinition",
-			APIVersion: apiextensionsv1beta1.SchemeGroupVersion.String(),
+			APIVersion: extv1.SchemeGroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: pluralName + "." + snapshotv1.GroupName,
 		},
-		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
-			Group:   snapshotv1.GroupName,
-			Version: snapshotv1.SchemeGroupVersion.Version,
-			Scope:   apiextensionsv1beta1.ClusterScoped,
-			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
+		Spec: extv1.CustomResourceDefinitionSpec{
+			Group: snapshotv1.GroupName,
+			Scope: extv1.ClusterScoped,
+			Names: extv1.CustomResourceDefinitionNames{
 				Plural: pluralName,
 				Kind:   reflect.TypeOf(snapshotv1.VolumeSnapshotContent{}).Name(),
 			},
-			Versions: []apiextensionsv1beta1.CustomResourceDefinitionVersion{
+			Versions: []extv1.CustomResourceDefinitionVersion{
 				{
 					Name:   snapshotv1.SchemeGroupVersion.Version,
 					Served: true,
@@ -437,25 +436,24 @@ func createVolumeSnapshotContentCrd() *apiextensionsv1beta1.CustomResourceDefini
 	}
 }
 
-func createVolumeSnapshotClassCrd() *apiextensionsv1beta1.CustomResourceDefinition {
+func createVolumeSnapshotClassCrd() *extv1.CustomResourceDefinition {
 	pluralName := "volumesnapshotclasses"
-	return &apiextensionsv1beta1.CustomResourceDefinition{
+	return &extv1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CustomResourceDefinition",
-			APIVersion: apiextensionsv1beta1.SchemeGroupVersion.String(),
+			APIVersion: extv1.SchemeGroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: pluralName + "." + snapshotv1.GroupName,
 		},
-		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
-			Group:   snapshotv1.GroupName,
-			Version: snapshotv1.SchemeGroupVersion.Version,
-			Scope:   apiextensionsv1beta1.ClusterScoped,
-			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
+		Spec: extv1.CustomResourceDefinitionSpec{
+			Group: snapshotv1.GroupName,
+			Scope: extv1.ClusterScoped,
+			Names: extv1.CustomResourceDefinitionNames{
 				Plural: pluralName,
 				Kind:   reflect.TypeOf(snapshotv1.VolumeSnapshotClass{}).Name(),
 			},
-			Versions: []apiextensionsv1beta1.CustomResourceDefinitionVersion{
+			Versions: []extv1.CustomResourceDefinitionVersion{
 				{
 					Name:   snapshotv1.SchemeGroupVersion.Version,
 					Served: true,
@@ -465,25 +463,24 @@ func createVolumeSnapshotClassCrd() *apiextensionsv1beta1.CustomResourceDefiniti
 	}
 }
 
-func createVolumeSnapshotCrd() *apiextensionsv1beta1.CustomResourceDefinition {
+func createVolumeSnapshotCrd() *extv1.CustomResourceDefinition {
 	pluralName := "volumesnapshots"
-	return &apiextensionsv1beta1.CustomResourceDefinition{
+	return &extv1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CustomResourceDefinition",
-			APIVersion: apiextensionsv1beta1.SchemeGroupVersion.String(),
+			APIVersion: extv1.SchemeGroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: pluralName + "." + snapshotv1.GroupName,
 		},
-		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
-			Group:   snapshotv1.GroupName,
-			Version: snapshotv1.SchemeGroupVersion.Version,
-			Scope:   apiextensionsv1beta1.NamespaceScoped,
-			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
+		Spec: extv1.CustomResourceDefinitionSpec{
+			Group: snapshotv1.GroupName,
+			Scope: extv1.NamespaceScoped,
+			Names: extv1.CustomResourceDefinitionNames{
 				Plural: pluralName,
 				Kind:   reflect.TypeOf(snapshotv1.VolumeSnapshot{}).Name(),
 			},
-			Versions: []apiextensionsv1beta1.CustomResourceDefinitionVersion{
+			Versions: []extv1.CustomResourceDefinitionVersion{
 				{
 					Name:   snapshotv1.SchemeGroupVersion.Version,
 					Served: true,

@@ -33,7 +33,7 @@ import (
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -85,7 +85,7 @@ var (
 
 func init() {
 	cdiviaplha1.AddToScheme(scheme.Scheme)
-	extv1beta1.AddToScheme(scheme.Scheme)
+	extv1.AddToScheme(scheme.Scheme)
 	apiregistrationv1beta1.AddToScheme(scheme.Scheme)
 	secv1.Install(scheme.Scheme)
 	routev1.Install(scheme.Scheme)
@@ -119,7 +119,7 @@ var _ = Describe("Controller", func() {
 				err = cdiviaplha1.AddToScheme(mgr.GetScheme())
 				Expect(err).ToNot(HaveOccurred())
 
-				err = extv1beta1.AddToScheme(mgr.GetScheme())
+				err = extv1.AddToScheme(mgr.GetScheme())
 				Expect(err).ToNot(HaveOccurred())
 
 				err = secv1.Install(mgr.GetScheme())
@@ -138,7 +138,7 @@ var _ = Describe("Controller", func() {
 		Expect(err).ToNot(HaveOccurred())
 	},
 		Entry("CDI type", createCDI("cdi", "good uid")),
-		Entry("CDR type", &extv1beta1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "crd"}}),
+		Entry("CDR type", &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "crd"}}),
 		Entry("SSC type", &secv1.SecurityContextConstraints{ObjectMeta: metav1.ObjectMeta{Name: "scc"}}),
 		Entry("Route type", &routev1.Route{ObjectMeta: metav1.ObjectMeta{Name: "route"}}),
 	)
@@ -1154,7 +1154,7 @@ var _ = Describe("Controller", func() {
 
 			Entry("verify - unused crd deleted",
 				func() (runtime.Object, error) {
-					crd := &extv1beta1.CustomResourceDefinition{
+					crd := &extv1.CustomResourceDefinition{
 						TypeMeta: metav1.TypeMeta{
 							APIVersion: "apiextensions.k8s.io/v1beta1",
 							Kind:       "CustomResourceDefinition",
@@ -1165,23 +1165,31 @@ var _ = Describe("Controller", func() {
 								"operator.cdi.kubevirt.io": "",
 							},
 						},
-						Spec: extv1beta1.CustomResourceDefinitionSpec{
+						Spec: extv1.CustomResourceDefinitionSpec{
 							Group: "cdi.kubevirt.io",
 							Scope: "Cluster",
 
-							Versions: []extv1beta1.CustomResourceDefinitionVersion{
+							Versions: []extv1.CustomResourceDefinitionVersion{
 								{
 									Name:    "v1beta1",
 									Served:  true,
 									Storage: true,
+									AdditionalPrinterColumns: []extv1.CustomResourceColumnDefinition{
+										{Name: "Age", Type: "date", JSONPath: ".metadata.creationTimestamp"},
+										{Name: "Phase", Type: "string", JSONPath: ".status.phase"},
+									},
 								},
 								{
 									Name:    "v1alpha1",
 									Served:  true,
 									Storage: false,
+									AdditionalPrinterColumns: []extv1.CustomResourceColumnDefinition{
+										{Name: "Age", Type: "date", JSONPath: ".metadata.creationTimestamp"},
+										{Name: "Phase", Type: "string", JSONPath: ".status.phase"},
+									},
 								},
 							},
-							Names: extv1beta1.CustomResourceDefinitionNames{
+							Names: extv1.CustomResourceDefinitionNames{
 								Kind:     "FakeCDI",
 								ListKind: "FakeCDIList",
 								Plural:   "fakecdis",
@@ -1190,11 +1198,6 @@ var _ = Describe("Controller", func() {
 									"all",
 								},
 								ShortNames: []string{"fakecdi", "fakecdis"},
-							},
-
-							AdditionalPrinterColumns: []extv1beta1.CustomResourceColumnDefinition{
-								{Name: "Age", Type: "date", JSONPath: ".metadata.creationTimestamp"},
-								{Name: "Phase", Type: "string", JSONPath: ".status.phase"},
 							},
 						},
 					}

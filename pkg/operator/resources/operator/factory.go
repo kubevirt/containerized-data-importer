@@ -20,7 +20,7 @@ import (
 	"fmt"
 
 	csvv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
@@ -97,7 +97,7 @@ func CreateOperatorResourceGroup(group string, args *FactoryArgs) ([]runtime.Obj
 }
 
 // NewCdiCrd - provides CDI CRD
-func NewCdiCrd() *extv1beta1.CustomResourceDefinition {
+func NewCdiCrd() *extv1.CustomResourceDefinition {
 	return createCDIListCRD()
 }
 

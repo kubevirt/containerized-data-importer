@@ -222,6 +222,14 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 	}
 
 	accessModes := spec.PVC.AccessModes
+	if len(accessModes) == 0 {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Required value: at least 1 access mode is required"),
+			Field:   field.Child("PVC", "accessModes").String(),
+		})
+		return causes
+	}
 	if len(accessModes) > 1 {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,

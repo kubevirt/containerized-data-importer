@@ -331,13 +331,9 @@ func IsCsiCrdsDeployed(c extclientset.Interface) bool {
 }
 
 func isCrdDeployed(c extclientset.Interface, name, version string) bool {
-	obj, err := c.ApiextensionsV1beta1().CustomResourceDefinitions().Get(name, metav1.GetOptions{})
+	obj, err := c.ApiextensionsV1().CustomResourceDefinitions().Get(name, metav1.GetOptions{})
 	if err != nil {
 		return false
-	}
-
-	if obj.Spec.Version == version {
-		return true
 	}
 
 	for _, v := range obj.Spec.Versions {

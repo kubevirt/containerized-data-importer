@@ -12,7 +12,7 @@ import (
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	crdinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	"k8s.io/client-go/kubernetes"
@@ -121,7 +121,7 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	}
 
 	crdInformerFactory := crdinformers.NewSharedInformerFactory(extClient, common.DefaultResyncPeriod)
-	crdInformer := crdInformerFactory.Apiextensions().V1beta1().CustomResourceDefinitions().Informer()
+	crdInformer := crdInformerFactory.Apiextensions().V1().CustomResourceDefinitions().Informer()
 
 	uploadClientCAFetcher := &fetcher.FileCertFetcher{Name: "cdi-uploadserver-client-signer"}
 	uploadClientBundleFetcher := &fetcher.ConfigMapCertBundleFetcher{
@@ -226,7 +226,7 @@ func deleteReadyFile() {
 func addCrdInformerEventHandlers(crdInformer cache.SharedIndexInformer, extclient extclientset.Interface, mgr manager.Manager, log logr.Logger) {
 	crdInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			crd := obj.(*v1beta1.CustomResourceDefinition)
+			crd := obj.(*extv1.CustomResourceDefinition)
 			crdName := crd.Name
 
 			vs := "volumesnapshots." + snapshotv1.GroupName
