@@ -93,7 +93,7 @@ _rsync() {
 }
 
 echo "Rsyncing ${CDI_DIR} to container"
-# Copy kubevirt into the persistent docker volume
+# Copy CDI into the persistent docker volume
 _rsync \
     --delete \
     --exclude 'bazel-bin' \
@@ -120,7 +120,6 @@ else
 fi
 
 # Ensure that a bazel server is running
-
 if [ -z "$(docker ps --format '{{.Names}}' | grep ${BAZEL_BUILDER_SERVER})" ]; then
     if [ "$KUBEVIRTCI_RUNTIME" = "podman" ]; then
         docker run --network host -d ${volumes} --security-opt label=disable --name ${BAZEL_BUILDER_SERVER} -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh

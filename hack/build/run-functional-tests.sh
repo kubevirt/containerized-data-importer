@@ -30,13 +30,23 @@ KUBEVIRTCI_CONFIG_PATH="$(
 
 # functional testing
 BASE_PATH=${KUBEVIRTCI_CONFIG_PATH:-$PWD}
-KUBECONFIG=${BASE_PATH}/$KUBEVIRT_PROVIDER/.kubeconfig
+KUBECONFIG=${KUBECONFIG:-$BASE_PATH/$KUBEVIRT_PROVIDER/.kubeconfig}
 KUBECTL=${BASE_PATH}/$KUBEVIRT_PROVIDER/.kubectl
 GOCLI=${GOCLI:-${CDI_DIR}/cluster-up/cli.sh}
 KUBE_MASTER_URL=${KUBE_MASTER_URL:-""}
 CDI_NAMESPACE=${CDI_NAMESPACE:-cdi}
 SNAPSHOT_SC=${SNAPSHOT_SC:-rook-ceph-block}
 BLOCK_SC=${BLOCK_SC:-rook-ceph-block}
+
+if [ -z "${KUBECTL+x}" ]; then
+    kubevirtci_kubectl="${BASE_PATH}/${KUBEVIRT_PROVIDER}/.kubectl"
+    if [ -e ${kubevirtci_kubectl} ]; then
+        KUBECTL=${kubevirtci_kubectl}
+    else
+        KUBECTL=$(which kubectl)
+    fi
+fi
+
 
 # parsetTestOpts sets 'pkgs' and test_args
 parseTestOpts "${@}"

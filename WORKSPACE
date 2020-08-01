@@ -49,12 +49,9 @@ gazelle_dependencies()
 # bazel docker rules
 http_archive(
     name = "io_bazel_rules_docker",
-    sha256 = "d0b345518236e240d513fe0f59f6d3da274f035480273a7eb00af7d216ae2a06",
-    strip_prefix = "rules_docker-0.11.1",
-    urls = [
-        "https://github.com/bazelbuild/rules_docker/releases/download/v0.11.1/rules_docker-v0.11.1.tar.gz",
-        "https://storage.googleapis.com/builddeps/d0b345518236e240d513fe0f59f6d3da274f035480273a7eb00af7d216ae2a06",
-    ],
+    sha256 = "4521794f0fba2e20f3bf15846ab5e01d5332e587e9ce81629c7f96c793bb7036",
+    strip_prefix = "rules_docker-0.14.4",
+    urls = ["https://github.com/bazelbuild/rules_docker/releases/download/v0.14.4/rules_docker-v0.14.4.tar.gz"],
 )
 
 load(
@@ -74,6 +71,9 @@ container_repositories()
 load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
 
 container_deps()
+
+load("@io_bazel_rules_docker//repositories:pip_repositories.bzl", "pip_deps")
+pip_deps()
 
 # RPM rules
 http_archive(

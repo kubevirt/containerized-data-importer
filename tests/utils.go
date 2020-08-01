@@ -43,6 +43,7 @@ func RunKubectlCommand(f *framework.Framework, args ...string) (string, error) {
 		if len(errb.String()) > 0 {
 			return errb.String(), err
 		}
+		return "", err
 	}
 	return string(stdOutBytes), nil
 }
