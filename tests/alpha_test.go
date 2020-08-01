@@ -67,7 +67,7 @@ var _ = Describe("Alpha API tests", func() {
 			By("create a upload DataVolume")
 			out, err := tests.RunKubectlCommand(f, "create", "-f", "manifests/dvAlphaMissingAccessModes.yaml", "-n", f.Namespace.Name)
 			fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
-			Expect(out).Should(ContainSubstring("spec.pvc.accessModes"))
+			Expect(out).Should(ContainSubstring("at least 1 access mode is required"))
 			Expect(err).To(HaveOccurred())
 		})
 
