@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-script_dir="$(readlink -f $(dirname $0))"
+script_dir="$(cd "$(dirname "$0")" && pwd -P)"
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
@@ -85,7 +85,9 @@ function processDirTemplates {
 
     templates="$(find "${inTmplPath}" -maxdepth 1 -name "*.in"  -type f)"
     for tmpl in ${templates}; do
-        tmpl=$(readlink -f "${tmpl}")
+	tmpl_dir="$(cd "$(dirname "${tmpl}")" && pwd -P)"
+	tmpl_filename="$(basename ${tmpl})"
+	tmpl="${tmpl_dir}/${tmpl_filename}"
         populateResourceManifest  $generator $outFinalManifestPath $outTmplPath $tmpl $genManifestsDir $outFinalManifestPath
     done
 }

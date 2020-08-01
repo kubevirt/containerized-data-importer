@@ -20,7 +20,7 @@ set -o pipefail
 
 export GO111MODULE=off
 
-SCRIPT_ROOT=$(readlink -f $(dirname ${BASH_SOURCE})/..)
+SCRIPT_ROOT="$(cd "$(dirname $0)/../" && pwd -P)"
 CODEGEN_PKG=${CODEGEN_PKG:-$(
     cd ${SCRIPT_ROOT}
     ls -d -1 $GOPATH/src/k8s.io/code-generator 2>/dev/null || echo ../code-generator

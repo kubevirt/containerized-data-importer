@@ -19,7 +19,7 @@ set -euo pipefail
 readonly MAX_CDI_WAIT_RETRY=30
 readonly CDI_WAIT_TIME=10
 
-script_dir="$(readlink -f $(dirname $0))"
+script_dir="$(cd "$(dirname "$0")" && pwd -P)"
 source hack/build/config.sh
 source hack/build/common.sh
 
