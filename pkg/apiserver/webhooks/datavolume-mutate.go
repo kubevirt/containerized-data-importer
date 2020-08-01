@@ -20,6 +20,8 @@
 package webhooks
 
 import (
+	"encoding/json"
+
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
@@ -47,7 +49,6 @@ var (
 
 func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admissionv1beta1.AdmissionResponse {
 	var dataVolume, oldDataVolume cdiv1.DataVolume
-	deserializer := codecs.UniversalDeserializer()
 
 	klog.V(3).Infof("Got AdmissionReview %+v", ar)
 
@@ -55,7 +56,7 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) 
 		return toAdmissionResponseError(err)
 	}
 
-	if _, _, err := deserializer.Decode(ar.Request.Object.Raw, nil, &dataVolume); err != nil {
+	if err := json.Unmarshal(ar.Request.Object.Raw, &dataVolume); err != nil {
 		return toAdmissionResponseError(err)
 	}
 
@@ -80,7 +81,7 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) 
 	}
 
 	if ar.Request.Operation == admissionv1beta1.Update {
-		if _, _, err := deserializer.Decode(ar.Request.OldObject.Raw, nil, &oldDataVolume); err != nil {
+		if err := json.Unmarshal(ar.Request.OldObject.Raw, &oldDataVolume); err != nil {
 			return toAdmissionResponseError(err)
 		}
 

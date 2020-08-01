@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
 
+	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -159,16 +160,26 @@ func allowedAdmissionResponse() *admissionv1beta1.AdmissionResponse {
 }
 
 func validateDataVolumeResource(ar v1beta1.AdmissionReview) error {
-	resource := metav1.GroupVersionResource{
-		Group:    cdiv1.SchemeGroupVersion.Group,
-		Version:  cdiv1.SchemeGroupVersion.Version,
-		Resource: "datavolumes",
+	resources := []metav1.GroupVersionResource{
+		{
+			Group:    cdiv1.SchemeGroupVersion.Group,
+			Version:  cdiv1.SchemeGroupVersion.Version,
+			Resource: "datavolumes",
+		},
+		{
+			Group:    cdiv1alpha1.SchemeGroupVersion.Group,
+			Version:  cdiv1alpha1.SchemeGroupVersion.Version,
+			Resource: "datavolumes",
+		},
 	}
-	if ar.Request.Resource != resource {
-		klog.Errorf("resource is %s but request is: %s", resource, ar.Request.Resource)
-		return fmt.Errorf("expect resource to be '%s'", resource.Resource)
+	for _, resource := range resources {
+		if ar.Request.Resource == resource {
+			return nil
+		}
 	}
-	return nil
+
+	klog.Errorf("resource is %s but request is: %s", resources[0], ar.Request.Resource)
+	return fmt.Errorf("expect resource to be '%s'", resources[0].Resource)
 }
 
 func toPatchResponse(original, current interface{}) *admissionv1beta1.AdmissionResponse {

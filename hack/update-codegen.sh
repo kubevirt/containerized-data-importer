@@ -18,6 +18,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+export GO111MODULE=off
+
 SCRIPT_ROOT=$(readlink -f $(dirname ${BASH_SOURCE})/..)
 CODEGEN_PKG=${CODEGEN_PKG:-$(
     cd ${SCRIPT_ROOT}

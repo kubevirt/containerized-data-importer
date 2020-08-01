@@ -60,6 +60,9 @@ type Config struct {
 	// SkipNamespaceCreation sets whether to skip creating a namespace. Use this ONLY for tests that do not require
 	// a namespace at all, like basic sanity or other global tests.
 	SkipNamespaceCreation bool
+
+	// FeatureGates may be overridden for a framework
+	FeatureGates []string
 }
 
 // Clients is the struct containing the client-go kubernetes clients
@@ -111,7 +114,9 @@ type Framework struct {
 // flag parsing happens AFTER ginkgo has constructed the entire testing tree. So anything that uses information from flags
 // cannot work when called during test tree construction.
 func NewFramework(prefix string, config ...Config) *Framework {
-	cfg := Config{}
+	cfg := Config{
+		FeatureGates: []string{featuregates.HonorWaitForFirstConsumer},
+	}
 	if len(config) > 0 {
 		cfg = config[0]
 	}
@@ -152,9 +157,8 @@ func (f *Framework) BeforeEach() {
 		createNFSPVs(f.K8sClient, f.CdiInstallNs)
 	}
 
-	defaultFeatureGates := []string{featuregates.HonorWaitForFirstConsumer}
-	ginkgo.By(fmt.Sprintf("Configuring default FeatureGates %q", defaultFeatureGates))
-	f.setFeatureGates(defaultFeatureGates)
+	ginkgo.By(fmt.Sprintf("Configuring default FeatureGates %q", f.FeatureGates))
+	f.setFeatureGates(f.FeatureGates)
 }
 
 // AfterEach provides a set of operations to run after each test

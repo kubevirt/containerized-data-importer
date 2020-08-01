@@ -2,13 +2,13 @@ package tests_test
 
 import (
 	"fmt"
-	"net/http"
-	"os/exec"
-	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -16,9 +16,15 @@ import (
 )
 
 var _ = Describe("Alpha API tests", func() {
-	f := framework.NewFramework("alpha-api-test")
+	f := framework.NewFramework("alpha-api-test", framework.Config{})
 
 	Context("with v1alpha1 api", func() {
+
+		It("should get CDI config", func() {
+			config, err := f.CdiClient.CdiV1alpha1().CDIConfigs().Get("config", metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config).ToNot(BeNil())
+		})
 
 		It("should", func() {
 			By("create a upload DataVolume")
@@ -35,54 +41,92 @@ var _ = Describe("Alpha API tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		Context("and kubectl proxy", func() {
-			var proxyCmd *exec.Cmd
-			var proxyUrl string
+		It("should clone across namespace with alpha", func() {
+			By("create source PVC")
+			pvcDef := utils.NewPVCDefinition("source-pvc", "1G", nil, nil)
+			source, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Create(pvcDef)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("create target namespace")
+			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+				framework.NsPrefixLabel: f.NsPrefix,
+			})
+			Expect(err).ToNot(HaveOccurred())
+			f.AddNamespaceToDelete(targetNs)
+
+			targetDef := createCloneDataVolume("target-dv", source)
+			target, err := f.CdiClient.CdiV1alpha1().DataVolumes(targetNs.Name).Create(targetDef)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("waiting for DataVolume to be complete")
+			err = utils.WaitForDataVolumePhase(f.CdiClient, target.Namespace, cdiv1.Succeeded, target.Name)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should not", func() {
+			By("create a upload DataVolume")
+			out, err := tests.RunKubectlCommand(f, "create", "-f", "manifests/dvAlphaMissingAccessModes.yaml", "-n", f.Namespace.Name)
+			fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
+			Expect(out).Should(ContainSubstring("at least 1 access mode is required"))
+			Expect(err).To(HaveOccurred())
+		})
+
+		Context("with deletion blocked", func() {
+			var originalStrategy *cdiv1.CDIUninstallStrategy
 
 			BeforeEach(func() {
-				proxyUrl, proxyCmd = startKubeProxy(f)
+				strategy := cdiv1.CDIUninstallStrategyBlockUninstallIfWorkloadsExist
+				originalStrategy = updateUninstallStrategy(f.CdiClient, &strategy)
 			})
 
 			AfterEach(func() {
-				if proxyCmd != nil {
-					proxyCmd.Process.Kill()
-					proxyCmd.Wait()
-				}
+				updateUninstallStrategy(f.CdiClient, originalStrategy)
 			})
 
-			getResource := func(path string) {
-				resp, err := http.Get(proxyUrl + path)
+			It("should block cdi delete", func() {
+				By("create a upload DataVolume")
+				out, err := tests.RunKubectlCommand(f, "create", "-f", "manifests/dvAlphaUpload.yaml", "-n", f.Namespace.Name)
+				fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(resp.StatusCode).To(Equal(http.StatusOK))
-			}
 
-			It("should", func() {
-				By("get CDIConfig")
-				getResource("/apis/cdi.kubevirt.io/v1alpha1/cdiconfigs/config")
+				By("waiting for DataVolume to be ready")
+				err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.UploadReady, "upload")
 
-				By("get CDI")
-				getResource("/apis/cdi.kubevirt.io/v1alpha1/cdis/cdi")
+				// tests listing alpha api
+				alphaCDIs, err := f.CdiClient.CdiV1alpha1().CDIs().List(metav1.ListOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(alphaCDIs.Items).Should(HaveLen(1))
+
+				// will invoke webhook for alpha
+				err = f.CdiClient.CdiV1alpha1().CDIs().Delete(alphaCDIs.Items[0].Name, &metav1.DeleteOptions{DryRun: []string{"All"}})
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("there are still DataVolumes present"))
 			})
+
 		})
 	})
 })
 
-func startKubeProxy(f *framework.Framework) (string, *exec.Cmd) {
-	port := "18443"
-	url := "http://127.0.0.1:" + port
+func createCloneDataVolume(name string, source *corev1.PersistentVolumeClaim) *cdiv1alpha1.DataVolume {
+	dv := &cdiv1alpha1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: cdiv1alpha1.DataVolumeSpec{
+			Source: cdiv1alpha1.DataVolumeSource{
+				PVC: &cdiv1alpha1.DataVolumeSourcePVC{
+					Namespace: source.Namespace,
+					Name:      source.Name,
+				},
+			},
+			PVC: &corev1.PersistentVolumeClaimSpec{
+				AccessModes:      source.Spec.AccessModes,
+				Resources:        source.Spec.Resources,
+				VolumeMode:       source.Spec.VolumeMode,
+				StorageClassName: source.Spec.StorageClassName,
+			},
+		},
+	}
 
-	cmd := tests.CreateKubectlCommand(f, "proxy", "--port="+port)
-	err := cmd.Start()
-	Expect(err).ToNot(HaveOccurred())
-
-	Eventually(func() error {
-		resp, err := http.Get(url + "/apis")
-		if err != nil {
-			return err
-		}
-		Expect(resp.StatusCode).To(Equal(http.StatusOK))
-		return nil
-	}, 30*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
-
-	return url, cmd
+	return dv
 }

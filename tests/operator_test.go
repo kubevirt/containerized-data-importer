@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	operatorcontroller "kubevirt.io/containerized-data-importer/pkg/operator/controller"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -212,25 +213,11 @@ var _ = Describe("Operator delete CDI tests", func() {
 
 	It("[test_id:3955]should block CDI delete", func() {
 		uninstallStrategy := cdiv1.CDIUninstallStrategyBlockUninstallIfWorkloadsExist
-
-		By("Getting CDI resource")
-		cdi, err := f.CdiClient.CdiV1beta1().CDIs().Get(cr.Name, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-
-		cdi.Spec.UninstallStrategy = &uninstallStrategy
-		_, err = f.CdiClient.CdiV1beta1().CDIs().Update(cdi)
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Waiting for update")
-		Eventually(func() bool {
-			cdi, err = f.CdiClient.CdiV1beta1().CDIs().Get(cr.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			return cdi.Spec.UninstallStrategy != nil && *cdi.Spec.UninstallStrategy == uninstallStrategy
-		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+		updateUninstallStrategy(f.CdiClient, &uninstallStrategy)
 
 		By("Creating datavolume")
 		dv := utils.NewDataVolumeForUpload("delete-me", "1Gi")
-		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
 
@@ -247,6 +234,32 @@ var _ = Describe("Operator delete CDI tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 })
+
+func updateUninstallStrategy(client cdiClientset.Interface, strategy *cdiv1.CDIUninstallStrategy) *cdiv1.CDIUninstallStrategy {
+	By("Getting CDI resource")
+	cdis, err := client.CdiV1beta1().CDIs().List(metav1.ListOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	Expect(cdis.Items).To(HaveLen(1))
+
+	cdi := &cdis.Items[0]
+	result := cdi.Spec.UninstallStrategy
+
+	cdi.Spec.UninstallStrategy = strategy
+	_, err = client.CdiV1beta1().CDIs().Update(cdi)
+	Expect(err).ToNot(HaveOccurred())
+
+	By("Waiting for update")
+	Eventually(func() bool {
+		cdi, err = client.CdiV1beta1().CDIs().Get(cdi.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		if strategy == nil {
+			return cdi.Spec.UninstallStrategy == nil
+		}
+		return cdi.Spec.UninstallStrategy != nil && *cdi.Spec.UninstallStrategy == *strategy
+	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+
+	return result
+}
 
 //IsOpenshift checks if we are on OpenShift platform
 func isOpenshift(client kubernetes.Interface) bool {

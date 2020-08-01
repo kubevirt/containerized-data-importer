@@ -29,7 +29,7 @@ var _ = Describe("Transport Tests", func() {
 
 	var (
 		ns  string
-		f   = framework.NewFramework("transport", framework.Config{SkipNamespaceCreation: false})
+		f   = framework.NewFramework("transport")
 		sec *v1.Secret
 	)
 

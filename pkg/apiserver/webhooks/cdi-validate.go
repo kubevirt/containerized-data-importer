@@ -20,6 +20,7 @@
 package webhooks
 
 import (
+	"encoding/json"
 	"fmt"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
@@ -75,11 +76,11 @@ func (wh *cdiValidatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admi
 
 func (wh *cdiValidatingWebhook) getResource(ar admissionv1beta1.AdmissionReview) (*cdiv1.CDI, error) {
 	var cdi *cdiv1.CDI
-	deserializer := codecs.UniversalDeserializer()
 
 	if len(ar.Request.OldObject.Raw) > 0 {
 		cdi = &cdiv1.CDI{}
-		if _, _, err := deserializer.Decode(ar.Request.OldObject.Raw, nil, cdi); err != nil {
+		err := json.Unmarshal(ar.Request.OldObject.Raw, cdi)
+		if err != nil {
 			return nil, err
 		}
 	} else if len(ar.Request.Name) > 0 {
