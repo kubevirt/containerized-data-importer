@@ -2,6 +2,7 @@ package tests_test
 
 import (
 	"flag"
+	"fmt"
 	"testing"
 
 	"github.com/onsi/ginkgo"
@@ -37,6 +38,7 @@ func TestTests(t *testing.T) {
 // cannot work when called during test tree construction.
 func BuildTestSuite() {
 	BeforeSuite(func() {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Reading parameters\n")
 		// Read flags, and configure client instances
 		framework.ClientsInstance.KubectlPath = *kubectlPath
 		framework.ClientsInstance.OcPath = *ocPath
@@ -46,6 +48,15 @@ func BuildTestSuite() {
 		framework.ClientsInstance.GoCLIPath = *goCLIPath
 		framework.ClientsInstance.SnapshotSCName = *snapshotSCName
 		framework.ClientsInstance.BlockSCName = *blockSCName
+
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Kubectl path: %s\n", framework.ClientsInstance.KubectlPath)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "OC path: %s\n", framework.ClientsInstance.OcPath)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "CDI install NS: %s\n", framework.ClientsInstance.CdiInstallNs)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Kubeconfig: %s\n", framework.ClientsInstance.KubeConfig)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Master: %s\n", framework.ClientsInstance.Master)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "GO CLI path: %s\n", framework.ClientsInstance.GoCLIPath)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Snapshot SC: %s\n", framework.ClientsInstance.SnapshotSCName)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "Block SC: %s\n", framework.ClientsInstance.BlockSCName)
 
 		restConfig, err := framework.ClientsInstance.LoadConfig()
 		if err != nil {

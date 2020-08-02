@@ -31,9 +31,6 @@ if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
   registry=${IMAGE_REGISTRY:-localhost:$(_port registry)}
   DOCKER_PREFIX=${registry}
   MANIFEST_REGISTRY="registry:5000"
-else
-  up
-  echo "forward PID: $FORWARD_PID"
 fi
 
 # Need to set the DOCKER_PREFIX appropriately in the call to `make docker push`, otherwise make will just pass in the default `kubevirt`
@@ -161,12 +158,6 @@ crds+=($operator_crds)
 check_structural_schema "${crds[@]}"
 
 configure_storage
-
-if [[ "$FORWARD_PID" ]]; then
-  #don't like the way I am killing here, but unable to find better way right now.
-  ps -ef | grep port-forward | grep -v grep | grep $FORWARD_PID | awk '{print $2}' | xargs kill
-  echo "Killed port-forward to registry"
-fi
 
 # Start functional test HTTP server.
 # We skip the functional test additions for external provider for now, as they're specific
