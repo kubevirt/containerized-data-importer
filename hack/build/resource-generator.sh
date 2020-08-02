@@ -85,9 +85,9 @@ function processDirTemplates {
 
     templates="$(find "${inTmplPath}" -maxdepth 1 -name "*.in"  -type f)"
     for tmpl in ${templates}; do
-	tmpl_dir="$(cd "$(dirname "${tmpl}")" && pwd -P)"
-	tmpl_filename="$(basename ${tmpl})"
-	tmpl="${tmpl_dir}/${tmpl_filename}"
+        tmpl_dir="$(cd "$(dirname "${tmpl}")" && pwd -P)"
+        tmpl_filename="$(basename ${tmpl})"
+        tmpl="${tmpl_dir}/${tmpl_filename}"
         populateResourceManifest  $generator $outFinalManifestPath $outTmplPath $tmpl $genManifestsDir $outFinalManifestPath
     done
 }
