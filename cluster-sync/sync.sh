@@ -27,6 +27,7 @@ PULL_POLICY=$(getTestPullPolicy)
 # build and push it's localhost, but for manifests, we sneak in a change to point a registry container on the
 # kubernetes cluster.  So, we introduced this MANIFEST_REGISTRY variable specifically to deal with that and not
 # have to refactor/rewrite any of the code that works currently.
+MANIFEST_REGISTRY=$DOCKER_PREFIX
 if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
   registry=${IMAGE_REGISTRY:-localhost:$(_port registry)}
   DOCKER_PREFIX=${registry}
@@ -161,7 +162,7 @@ configure_storage
 
 # Start functional test HTTP server.
 # We skip the functional test additions for external provider for now, as they're specific
-if [ "${KUBEVIRT_PROVIDER}" != "external" ] || [ "${EXTERNAL_PROVIDER}" == "openshift" ]; then
+if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
   _kubectl apply -f "./_out/manifests/bad-webserver.yaml"
   _kubectl apply -f "./_out/manifests/file-host.yaml"
   _kubectl apply -f "./_out/manifests/registry-host.yaml"
