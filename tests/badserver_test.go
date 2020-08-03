@@ -30,8 +30,8 @@ var _ = Describe("Problematic server responses", func() {
 		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
 	},
-		Entry("[rfe_id:4109][test_id:4110][crit:low][vendor:cnv-qe@redhat.com][level:component] Should succeed even if HEAD forbidden", "/forbidden-HEAD/tinyCore.iso"),
-		Entry("[rfe_id:4191][test_id:4193][crit:low][vendor:cnv-qe@redhat.com][level:component] Should succeed even on a flaky server", "/flaky/tinyCore.iso"),
+		Entry("[rfe_id:4109][test_id:4110][crit:low][vendor:cnv-qe@redhat.com][level:component] Should succeed even if HEAD forbidden", "/forbidden-HEAD/cirros-qcow2.img"),
+		Entry("[rfe_id:4191][test_id:4193][crit:low][vendor:cnv-qe@redhat.com][level:component] Should succeed even on a flaky server", "/flaky/cirros-qcow2.img"),
 	)
 
 	AfterEach(func() {
