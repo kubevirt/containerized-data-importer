@@ -21,7 +21,7 @@ var _ = Describe("Problematic server responses", func() {
 
 	DescribeTable("Importing from cdi bad web server", func(pathname string) {
 		cdiBadServer := fmt.Sprintf("http://cdi-bad-webserver.%s:9090", f.CdiInstallNs)
-		dataVolume = utils.NewDataVolumeWithHTTPImport("badserver-dv", "1Gi", cdiBadServer + pathname)
+		dataVolume = utils.NewDataVolumeWithHTTPImport("badserver-dv", "1Gi", cdiBadServer+pathname)
 		By("creating DataVolume")
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
@@ -32,6 +32,7 @@ var _ = Describe("Problematic server responses", func() {
 	},
 		Entry("[rfe_id:4109][test_id:4110][crit:low][vendor:cnv-qe@redhat.com][level:component] Should succeed even if HEAD forbidden", "/forbidden-HEAD/cirros-qcow2.img"),
 		Entry("[rfe_id:4191][test_id:4193][crit:low][vendor:cnv-qe@redhat.com][level:component] Should succeed even on a flaky server", "/flaky/cirros-qcow2.img"),
+		Entry("Should succeed even if Accept-Ranges doesn't exist", "/no-accept-ranges/cirros-qcow2.img"),
 	)
 
 	AfterEach(func() {
