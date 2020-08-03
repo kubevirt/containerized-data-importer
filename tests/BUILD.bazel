@@ -22,6 +22,7 @@ go_test(
         "certrotation_test.go",
         "cloner_test.go",
         "datavolume_test.go",
+        "explain_test.go",
         "import_test.go",
         "leaderelection_test.go",
         "local_volume_test.go",
