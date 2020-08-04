@@ -273,7 +273,7 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 	}
 
 	acceptRanges, ok := resp.Header["Accept-Ranges"]
-	if !ok || acceptRanges[0] != "bytes" {
+	if !ok || acceptRanges[0] == "none" {
 		klog.V(2).Infof("Accept-Ranges isn't bytes, avoiding qemu-img")
 		brokenForQemuImg = true
 	}
