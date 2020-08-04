@@ -2,6 +2,7 @@ FROM registry.fedoraproject.org/fedora-minimal:31
 MAINTAINER "The KubeVirt Project" <kubevirt-dev@googlegroups.com>
 
 COPY fedora.repo /tmp/fedora_ci.dnf.repo
+COPY libdevmapper.a /usr/lib64/libdevmapper.a
 
 RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
     cat /tmp/fedora_ci.dnf.repo && \
@@ -31,6 +32,7 @@ RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
     java-1.8.0-openjdk \
 	btrfs-progs-devel \
 	device-mapper-devel \
+	glibc-static \
 	&& microdnf clean all && \
 	mv /etc/yum.repos.d/old/* /etc/yum.repos.d/ && \
 	rmdir /etc/yum.repos.d/old
