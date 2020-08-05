@@ -20,6 +20,7 @@
 package webhooks
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -61,7 +62,7 @@ func (wh *cdiValidatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admi
 	}
 
 	if cdi.Spec.UninstallStrategy != nil && *cdi.Spec.UninstallStrategy == cdiv1.CDIUninstallStrategyBlockUninstallIfWorkloadsExist {
-		dvs, err := wh.client.CdiV1beta1().DataVolumes(metav1.NamespaceAll).List(metav1.ListOptions{Limit: 2})
+		dvs, err := wh.client.CdiV1beta1().DataVolumes(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{Limit: 2})
 		if err != nil {
 			return toAdmissionResponseError(err)
 		}
@@ -85,7 +86,7 @@ func (wh *cdiValidatingWebhook) getResource(ar admissionv1beta1.AdmissionReview)
 		}
 	} else if len(ar.Request.Name) > 0 {
 		var err error
-		cdi, err = wh.client.CdiV1beta1().CDIs().Get(ar.Request.Name, metav1.GetOptions{})
+		cdi, err = wh.client.CdiV1beta1().CDIs().Get(context.TODO(), ar.Request.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, err
 		}

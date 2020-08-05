@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -32,7 +33,7 @@ var _ = Describe("[rfe_id:1125][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	f := framework.NewFramework("local-volume-func-test")
 
 	BeforeEach(func() {
-		nodes, err := f.K8sClient.CoreV1().Nodes().List(metav1.ListOptions{})
+		nodes, err := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		nodeRef := utils.GetSchedulableNode(nodes)

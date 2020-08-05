@@ -1,6 +1,8 @@
 package events
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -31,6 +33,8 @@ type Recorder interface {
 	// ComponentName returns the current source component name for the event.
 	// This allows to suffix the original component name with 'sub-component'.
 	ComponentName() string
+
+	Shutdown()
 }
 
 // podNameEnv is a name of environment variable inside container that specifies the name of the current replica set.
@@ -66,7 +70,7 @@ func GetControllerReferenceForCurrentPod(client kubernetes.Interface, targetName
 
 	switch reference.Kind {
 	case "Pod":
-		pod, err := client.CoreV1().Pods(reference.Namespace).Get(reference.Name, metav1.GetOptions{})
+		pod, err := client.CoreV1().Pods(reference.Namespace).Get(context.TODO(), reference.Name, metav1.GetOptions{})
 		if err != nil {
 			return getControllerReferenceForNamespace(reference.Namespace), err
 		}
@@ -76,7 +80,7 @@ func GetControllerReferenceForCurrentPod(client kubernetes.Interface, targetName
 		// This is a bare pod without any ownerReference
 		return makeObjectReference(&metav1.OwnerReference{Kind: "Pod", Name: pod.Name, UID: pod.UID, APIVersion: "v1"}, pod.Namespace), nil
 	case "ReplicaSet":
-		rs, err := client.AppsV1().ReplicaSets(reference.Namespace).Get(reference.Name, metav1.GetOptions{})
+		rs, err := client.AppsV1().ReplicaSets(reference.Namespace).Get(context.TODO(), reference.Name, metav1.GetOptions{})
 		if err != nil {
 			return getControllerReferenceForNamespace(reference.Namespace), err
 		}
@@ -113,7 +117,7 @@ func makeObjectReference(owner *metav1.OwnerReference, targetNamespace string) *
 
 // guessControllerReferenceForNamespace tries to guess what resource to reference.
 func guessControllerReferenceForNamespace(client corev1client.PodInterface) (*corev1.ObjectReference, error) {
-	pods, err := client.List(metav1.ListOptions{})
+	pods, err := client.List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -121,15 +125,20 @@ func guessControllerReferenceForNamespace(client corev1client.PodInterface) (*co
 		return nil, fmt.Errorf("unable to setup event recorder as %q env variable is not set and there are no pods", podNameEnv)
 	}
 
-	pod := &pods.Items[0]
-	ownerRef := metav1.GetControllerOf(pod)
-	return &corev1.ObjectReference{
-		Kind:       ownerRef.Kind,
-		Namespace:  pod.Namespace,
-		Name:       ownerRef.Name,
-		UID:        ownerRef.UID,
-		APIVersion: ownerRef.APIVersion,
-	}, nil
+	for _, pod := range pods.Items {
+		ownerRef := metav1.GetControllerOf(&pod)
+		if ownerRef == nil {
+			continue
+		}
+		return &corev1.ObjectReference{
+			Kind:       ownerRef.Kind,
+			Namespace:  pod.Namespace,
+			Name:       ownerRef.Name,
+			UID:        ownerRef.UID,
+			APIVersion: ownerRef.APIVersion,
+		}, nil
+	}
+	return nil, errors.New("can't guess controller ref")
 }
 
 // NewRecorder returns new event recorder.
@@ -151,6 +160,8 @@ type recorder struct {
 func (r *recorder) ComponentName() string {
 	return r.sourceComponent
 }
+
+func (r *recorder) Shutdown() {}
 
 func (r *recorder) ForComponent(componentName string) Recorder {
 	newRecorderForComponent := *r
@@ -175,7 +186,7 @@ func (r *recorder) Warningf(reason, messageFmt string, args ...interface{}) {
 // Event emits the normal type event.
 func (r *recorder) Event(reason, message string) {
 	event := makeEvent(r.involvedObjectRef, r.sourceComponent, corev1.EventTypeNormal, reason, message)
-	if _, err := r.eventClient.Create(event); err != nil {
+	if _, err := r.eventClient.Create(context.TODO(), event, metav1.CreateOptions{}); err != nil {
 		klog.Warningf("Error creating event %+v: %v", event, err)
 	}
 }
@@ -183,7 +194,7 @@ func (r *recorder) Event(reason, message string) {
 // Warning emits the warning type event.
 func (r *recorder) Warning(reason, message string) {
 	event := makeEvent(r.involvedObjectRef, r.sourceComponent, corev1.EventTypeWarning, reason, message)
-	if _, err := r.eventClient.Create(event); err != nil {
+	if _, err := r.eventClient.Create(context.TODO(), event, metav1.CreateOptions{}); err != nil {
 		klog.Warningf("Error creating event %+v: %v", event, err)
 	}
 }

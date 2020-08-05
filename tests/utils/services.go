@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"context"
+
 	"github.com/pkg/errors"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -25,7 +27,7 @@ func GetServiceInNamespaceOrDie(c *kubernetes.Clientset, ns, name string) *v1.Se
 func GetServiceInNamespace(c *kubernetes.Clientset, ns, name string) (*v1.Service, error) {
 	var svc *v1.Service
 	err := wait.PollImmediate(defaultPollInterval, defaultPollPeriod, func() (done bool, err error) {
-		svc, err = c.CoreV1().Services(ns).Get(name, metav1.GetOptions{})
+		svc, err = c.CoreV1().Services(ns).Get(context.TODO(), name, metav1.GetOptions{})
 		// success
 		if err == nil {
 			return true, nil
@@ -46,7 +48,7 @@ func GetServiceInNamespace(c *kubernetes.Clientset, ns, name string) (*v1.Servic
 func GetServicesInNamespaceByLabel(c *kubernetes.Clientset, ns, labelSelector string) (*v1.ServiceList, error) {
 	var svcList *v1.ServiceList
 	err := wait.PollImmediate(defaultPollInterval, defaultPollPeriod, func() (done bool, err error) {
-		svcList, err = c.CoreV1().Services(ns).List(metav1.ListOptions{
+		svcList, err = c.CoreV1().Services(ns).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: labelSelector,
 		})
 		// success

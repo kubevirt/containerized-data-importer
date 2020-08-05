@@ -51,7 +51,7 @@ func SetOwnerRuntime(client client.Client, object metav1.Object) error {
 // SetOwner makes the current "active" CDI CR the owner of the object
 func SetOwner(client kubernetes.Interface, object metav1.Object) error {
 	namespace := util.GetNamespace()
-	configMap, err := client.CoreV1().ConfigMaps(namespace).Get(ConfigMapName, metav1.GetOptions{})
+	configMap, err := client.CoreV1().ConfigMaps(namespace).Get(context.TODO(), ConfigMapName, metav1.GetOptions{})
 	if err != nil {
 		klog.Warningf("ConfigMap %s does not exist, so not assigning owner", ConfigMapName)
 		return nil

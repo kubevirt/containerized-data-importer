@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -157,7 +158,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 		})
 
 		AfterEach(func() {
-			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(dataVolumeName, metav1.GetOptions{})
+			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			err = utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvc)
 			Expect(err).ToNot(HaveOccurred())
@@ -268,7 +269,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			updatedDataVolume := dataVolume.DeepCopy()
 			updatedDataVolume.Spec.Source.HTTP.URL = "http://foo.bar"
 
-			_, err := f.CdiClient.CdiV1beta1().DataVolumes(updatedDataVolume.Namespace).Update(updatedDataVolume)
+			_, err := f.CdiClient.CdiV1beta1().DataVolumes(updatedDataVolume.Namespace).Update(context.TODO(), updatedDataVolume, metav1.UpdateOptions{})
 			Expect(err).To(HaveOccurred())
 		})
 	})
@@ -295,7 +296,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			}
 			updatedDataVolume.Annotations["foo"] = "bar"
 
-			_, err := f.CdiClient.CdiV1beta1().DataVolumes(updatedDataVolume.Namespace).Update(updatedDataVolume)
+			_, err := f.CdiClient.CdiV1beta1().DataVolumes(updatedDataVolume.Namespace).Update(context.TODO(), updatedDataVolume, metav1.UpdateOptions{})
 			Expect(err).To(HaveOccurred())
 		})
 	})

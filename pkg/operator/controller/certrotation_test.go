@@ -48,7 +48,7 @@ func newCertManagerForTest(client kubernetes.Interface, namespace string) CertMa
 }
 
 func checkSecret(client kubernetes.Interface, namespace, name string, exists bool) {
-	s, err := client.CoreV1().Secrets(namespace).Get(name, metav1.GetOptions{})
+	s, err := client.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if !exists {
 		Expect(errors.IsNotFound(err)).To(BeTrue())
 		return
@@ -58,7 +58,7 @@ func checkSecret(client kubernetes.Interface, namespace, name string, exists boo
 }
 
 func checkConfigMap(client kubernetes.Interface, namespace, name string, exists bool) {
-	cm, err := client.CoreV1().ConfigMaps(namespace).Get(name, metav1.GetOptions{})
+	cm, err := client.CoreV1().ConfigMaps(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if !exists {
 		Expect(errors.IsNotFound(err)).To(BeTrue())
 		return

@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"context"
+
 	k8sv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -25,7 +27,7 @@ const (
 // An example of creating a PVC without annotations looks like this:
 // CreatePVCFromDefinition(client, namespace, NewPVCDefinition(name, size, nil, nil))
 func CreatePVFromDefinition(clientSet *kubernetes.Clientset, def *k8sv1.PersistentVolume) (*k8sv1.PersistentVolume, error) {
-	pv, err := clientSet.CoreV1().PersistentVolumes().Create(def)
+	pv, err := clientSet.CoreV1().PersistentVolumes().Create(context.TODO(), def, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +85,7 @@ func WaitTimeoutForPVStatus(clientSet *kubernetes.Clientset, pvName string, stat
 
 func pvPhase(clientSet *kubernetes.Clientset, pvName string, status k8sv1.PersistentVolumePhase) wait.ConditionFunc {
 	return func() (bool, error) {
-		pv, err := clientSet.CoreV1().PersistentVolumes().Get(pvName, metav1.GetOptions{})
+		pv, err := clientSet.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
 		if err != nil {
 			if k8serrors.IsNotFound(err) {
 				return false, nil
@@ -102,7 +104,7 @@ func pvPhase(clientSet *kubernetes.Clientset, pvName string, status k8sv1.Persis
 // DeletePV deletes the passed in PV
 func DeletePV(clientSet *kubernetes.Clientset, pv *k8sv1.PersistentVolume) error {
 	return wait.PollImmediate(pvPollInterval, pvDeleteTime, func() (bool, error) {
-		err := clientSet.CoreV1().PersistentVolumes().Delete(pv.GetName(), nil)
+		err := clientSet.CoreV1().PersistentVolumes().Delete(context.TODO(), pv.GetName(), metav1.DeleteOptions{})
 		if err == nil || apierrs.IsNotFound(err) {
 			return true, nil
 		}

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path"
@@ -51,13 +52,13 @@ func CreateCertForTestService(namespace, serviceName, configMapName, certDir, ce
 		},
 	}
 
-	stored, err := clientset.CoreV1().ConfigMaps(namespace).Get(configMapName, metav1.GetOptions{})
+	stored, err := clientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), configMapName, metav1.GetOptions{})
 	if err != nil {
 		if !k8serrors.IsNotFound(err) {
 			return errors.Wrapf(err, "Error getting configmap %s", configMapName)
 		}
 
-		_, err := clientset.CoreV1().ConfigMaps(namespace).Create(cm)
+		_, err := clientset.CoreV1().ConfigMaps(namespace).Create(context.TODO(), cm, metav1.CreateOptions{})
 		if err != nil {
 			return err
 		}
@@ -65,7 +66,7 @@ func CreateCertForTestService(namespace, serviceName, configMapName, certDir, ce
 	} else {
 		cpy := stored.DeepCopy()
 		cpy.Data = cm.Data
-		_, err := clientset.CoreV1().ConfigMaps(namespace).Update(cpy)
+		_, err := clientset.CoreV1().ConfigMaps(namespace).Update(context.TODO(), cpy, metav1.UpdateOptions{})
 		if err != nil {
 			return err
 		}

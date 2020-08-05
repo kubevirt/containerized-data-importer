@@ -69,7 +69,7 @@ func createConfigMap(client kubernetes.Interface, namespace, name string) error 
 		return err
 	}
 
-	_, err = client.CoreV1().ConfigMaps(namespace).Create(cm)
+	_, err = client.CoreV1().ConfigMaps(namespace).Create(context.TODO(), cm, metav1.CreateOptions{})
 	return err
 }
 

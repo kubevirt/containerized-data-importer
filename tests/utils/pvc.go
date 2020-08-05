@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"strconv"
 	"time"
 
@@ -40,7 +41,7 @@ func CreatePVCFromDefinition(clientSet *kubernetes.Clientset, namespace string, 
 	var pvc *k8sv1.PersistentVolumeClaim
 	err := wait.PollImmediate(pvcPollInterval, pvcCreateTime, func() (bool, error) {
 		var err error
-		pvc, err = clientSet.CoreV1().PersistentVolumeClaims(namespace).Create(def)
+		pvc, err = clientSet.CoreV1().PersistentVolumeClaims(namespace).Create(context.TODO(), def, metav1.CreateOptions{})
 		if err == nil || apierrs.IsAlreadyExists(err) {
 			return true, nil
 		}
@@ -75,7 +76,7 @@ func WaitForPVC(clientSet *kubernetes.Clientset, namespace, name string) (*k8sv1
 // DeletePVC deletes the passed in PVC
 func DeletePVC(clientSet *kubernetes.Clientset, namespace string, pvc *k8sv1.PersistentVolumeClaim) error {
 	return wait.PollImmediate(pvcPollInterval, pvcDeleteTime, func() (bool, error) {
-		err := clientSet.CoreV1().PersistentVolumeClaims(namespace).Delete(pvc.GetName(), nil)
+		err := clientSet.CoreV1().PersistentVolumeClaims(namespace).Delete(context.TODO(), pvc.GetName(), metav1.DeleteOptions{})
 		if err == nil || apierrs.IsNotFound(err) {
 			return true, nil
 		}
@@ -85,7 +86,7 @@ func DeletePVC(clientSet *kubernetes.Clientset, namespace string, pvc *k8sv1.Per
 
 // FindPVC Finds the passed in PVC
 func FindPVC(clientSet *kubernetes.Clientset, namespace, pvcName string) (*k8sv1.PersistentVolumeClaim, error) {
-	return clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(pvcName, metav1.GetOptions{})
+	return clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(context.TODO(), pvcName, metav1.GetOptions{})
 }
 
 // WaitForPVCAnnotation waits for an anotation to appear on a PVC
@@ -207,7 +208,7 @@ func NewBlockPVCDefinition(pvcName string, size string, annotations, labels map[
 // WaitForPersistentVolumeClaimPhase waits for the PVC to be in a particular phase (Pending, Bound, or Lost)
 func WaitForPersistentVolumeClaimPhase(clientSet *kubernetes.Clientset, namespace string, phase k8sv1.PersistentVolumeClaimPhase, pvcName string) error {
 	err := wait.PollImmediate(pvcPollInterval, pvcPhaseTime, func() (bool, error) {
-		pvc, err := clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(pvcName, metav1.GetOptions{})
+		pvc, err := clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(context.TODO(), pvcName, metav1.GetOptions{})
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Checking PVC phase: %s\n", string(pvc.Status.Phase))
 		if err != nil || pvc.Status.Phase != phase {
 			return false, err
@@ -224,7 +225,7 @@ func WaitForPersistentVolumeClaimPhase(clientSet *kubernetes.Clientset, namespac
 func WaitPVCDeleted(clientSet *kubernetes.Clientset, pvcName, namespace string, timeout time.Duration) (bool, error) {
 	var result bool
 	err := wait.PollImmediate(2*time.Second, timeout, func() (bool, error) {
-		_, err := clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(pvcName, metav1.GetOptions{})
+		_, err := clientSet.CoreV1().PersistentVolumeClaims(namespace).Get(context.TODO(), pvcName, metav1.GetOptions{})
 		if err != nil {
 			if k8serrors.IsNotFound(err) {
 				result = true
@@ -242,7 +243,7 @@ func WaitPVCDeleted(clientSet *kubernetes.Clientset, pvcName, namespace string, 
 func WaitPVCDeletedByUID(clientSet *kubernetes.Clientset, pvcSpec *k8sv1.PersistentVolumeClaim, timeout time.Duration) (bool, error) {
 	var result bool
 	err := wait.PollImmediate(2*time.Second, timeout, func() (bool, error) {
-		pvc, err := clientSet.CoreV1().PersistentVolumeClaims(pvcSpec.Namespace).Get(pvcSpec.Name, metav1.GetOptions{})
+		pvc, err := clientSet.CoreV1().PersistentVolumeClaims(pvcSpec.Namespace).Get(context.TODO(), pvcSpec.Name, metav1.GetOptions{})
 		if err != nil {
 			if k8serrors.IsNotFound(err) {
 				result = true

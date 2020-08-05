@@ -1,6 +1,7 @@
 package tests_test
 
 import (
+	"context"
 	"fmt"
 
 	. "github.com/onsi/ginkgo"
@@ -113,7 +114,7 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 	Context("CRDs must be a structural schema", func() {
 		table.DescribeTable("crd name", func(crdName string) {
-			crd, err := f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
+			crd, err := f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
 			if k8serrors.IsNotFound(err) {
 				Skip("Doesn't work on openshift 3.11")
 			}

@@ -69,6 +69,27 @@ message Build {
   optional BuildStatus status = 3;
 }
 
+// BuildCondition describes the state of a build at a certain point.
+message BuildCondition {
+  // Type of build condition.
+  optional string type = 1;
+
+  // Status of the condition, one of True, False, Unknown.
+  optional string status = 2;
+
+  // The last time this condition was updated.
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastUpdateTime = 6;
+
+  // The last time the condition transitioned from one status to another.
+  optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastTransitionTime = 3;
+
+  // The reason for the condition's last transition.
+  optional string reason = 4;
+
+  // A human readable message indicating details about the transition.
+  optional string message = 5;
+}
+
 // Build configurations define a build process for new container images. There are three types of builds possible - a container image build using a Dockerfile, a Source-to-Image build that uses a specially prepared base image that accepts source code that it can make runnable, and a custom build that can run // arbitrary container images as a base and accept the build parameters. Builds run on the cluster and on completion are pushed to the container image registry specified in the "output" section. A build can be triggered via a webhook, when the base image changes, or when a user manually requests a new build be // created.
 //
 // Each build created by a build configuration is numbered and refers back to its parent configuration. Multiple builds can be triggered at once. Builds that do not have "output" set can be used to test code or run a verification build.
@@ -97,6 +118,7 @@ message BuildConfigSpec {
   // triggers determine how new Builds can be launched from a BuildConfig. If
   // no triggers are defined, a new build can only occur as a result of an
   // explicit client build creation.
+  // +optional
   repeated BuildTriggerPolicy triggers = 1;
 
   // RunPolicy describes how the new build created from this build
@@ -180,6 +202,15 @@ message BuildLogOptions {
 
   // version of the build for which to view logs.
   optional int64 version = 10;
+
+  // insecureSkipTLSVerifyBackend indicates that the apiserver should not confirm the validity of the
+  // serving certificate of the backend it is connecting to.  This will make the HTTPS connection between the apiserver
+  // and the backend insecure. This means the apiserver cannot verify the log data it is receiving came from the real
+  // kubelet.  If the kubelet is configured to verify the apiserver's TLS credentials, it does not mean the
+  // connection to the real kubelet is vulnerable to a man in the middle attack (e.g. an attacker could not intercept
+  // the actual log data coming from the real kubelet).
+  // +optional
+  optional bool insecureSkipTLSVerifyBackend = 11;
 }
 
 // BuildOutput is input to a build strategy and describes the container image that the strategy
@@ -436,6 +467,11 @@ message BuildStatus {
 
   // logSnippet is the last few lines of the build log.  This value is only set for builds that failed.
   optional string logSnippet = 12;
+
+  // Conditions represents the latest available observations of a build's current state.
+  // +patchMergeKey=type
+  // +patchStrategy=merge
+  repeated BuildCondition conditions = 13;
 }
 
 // BuildStatusOutput contains the status of the built image.
@@ -472,6 +508,7 @@ message BuildStrategy {
   optional CustomBuildStrategy customStrategy = 4;
 
   // JenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy.
+  // Deprecated: use OpenShift Pipelines
   optional JenkinsPipelineBuildStrategy jenkinsPipelineStrategy = 5;
 }
 
@@ -628,9 +665,9 @@ message CustomBuildStrategy {
 
 // DockerBuildStrategy defines input parameters specific to container image build.
 message DockerBuildStrategy {
-  // from is reference to an DockerImage, ImageStreamTag, or ImageStreamImage from which
-  // the container image should be pulled
-  // the resulting image will be used in the FROM line of the Dockerfile for this build.
+  // from is a reference to an DockerImage, ImageStreamTag, or ImageStreamImage which overrides
+  // the FROM image in the Dockerfile for the build. If the Dockerfile uses multi-stage builds,
+  // this will replace the image in the last FROM directive of the file.
   optional k8s.io.api.core.v1.ObjectReference from = 1;
 
   // pullSecret is the name of a Secret that would be used for setting up
@@ -849,6 +886,7 @@ message ImageSourcePath {
 }
 
 // JenkinsPipelineBuildStrategy holds parameters specific to a Jenkins Pipeline build.
+// Deprecated: use OpenShift Pipelines
 message JenkinsPipelineBuildStrategy {
   // JenkinsfilePath is the optional path of the Jenkinsfile that will be used to configure the pipeline
   // relative to the root of the context (contextDir). If both JenkinsfilePath & Jenkinsfile are

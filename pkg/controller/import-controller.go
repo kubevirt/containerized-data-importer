@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"net/url"
 	"reflect"
 	"strconv"
@@ -25,6 +24,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 )

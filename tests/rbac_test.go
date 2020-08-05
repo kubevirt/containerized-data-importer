@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"reflect"
 	"time"
 
@@ -27,7 +28,7 @@ var _ = Describe("Aggregated role in-action tests", func() {
 			},
 		}
 
-		_, err := client.CoreV1().ServiceAccounts(namespace).Create(sa)
+		_, err := client.CoreV1().ServiceAccounts(namespace).Create(context.TODO(), sa, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 	}
 
@@ -50,7 +51,7 @@ var _ = Describe("Aggregated role in-action tests", func() {
 			},
 		}
 
-		_, err := client.RbacV1().RoleBindings(namespace).Create(rb)
+		_, err := client.RbacV1().RoleBindings(namespace).Create(context.TODO(), rb, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 	}
 
@@ -69,30 +70,30 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		}, 60*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
 
 		dv := utils.NewDataVolumeWithHTTPImport("test-"+user, "1Gi", "http://nonexistant.url")
-		dv, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).Create(dv)
+		dv, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).Create(context.TODO(), dv, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		dvl, err := client.CdiV1beta1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
+		dvl, err := client.CdiV1beta1().DataVolumes(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dvl.Items).To(HaveLen(1))
 
-		dv, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dv.Name, metav1.GetOptions{})
+		dv, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dv.Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).Delete(dv.Name, &metav1.DeleteOptions{})
+		err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).Delete(context.TODO(), dv.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		dvl, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
+		dvl, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dvl.Items).To(HaveLen(0))
 
 		dv = utils.NewDataVolumeForUpload("upload-test-"+user, "1Gi")
-		dv, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).Create(dv)
+		dv, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).Create(context.TODO(), dv, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		var pvc *corev1.PersistentVolumeClaim
 		Eventually(func() error {
-			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(dv.Name, metav1.GetOptions{})
+			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dv.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
@@ -108,15 +109,15 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(token).ToNot(BeEmpty())
 
-		cl, err := client.CdiV1beta1().CDIConfigs().List(metav1.ListOptions{})
+		cl, err := client.CdiV1beta1().CDIConfigs().List(context.TODO(), metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cl.Items).To(HaveLen(1))
 
-		cfg, err := client.CdiV1beta1().CDIConfigs().Get(cl.Items[0].Name, metav1.GetOptions{})
+		cfg, err := client.CdiV1beta1().CDIConfigs().Get(context.TODO(), cl.Items[0].Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		cfg.Spec.ScratchSpaceStorageClass = &[]string{"foobar"}[0]
-		cfg, err = client.CdiV1beta1().CDIConfigs().Update(cfg)
+		cfg, err = client.CdiV1beta1().CDIConfigs().Update(context.TODO(), cfg, metav1.UpdateOptions{})
 		Expect(err).To(HaveOccurred())
 	},
 		Entry("[test_id:3948]can do everything with admin", "admin"),
@@ -137,26 +138,26 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		}, 60*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
 
 		dv := utils.NewDataVolumeWithHTTPImport("test-"+user, "1Gi", "http://nonexistant.url")
-		dv, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).Create(dv)
+		dv, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).Create(context.TODO(), dv, metav1.CreateOptions{})
 		Expect(err).To(HaveOccurred())
 
-		dvl, err := client.CdiV1beta1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
+		dvl, err := client.CdiV1beta1().DataVolumes(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dvl.Items).To(HaveLen(0))
 
-		_, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).Get("test-"+user, metav1.GetOptions{})
+		_, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), "test-"+user, metav1.GetOptions{})
 		Expect(err).To(HaveOccurred())
 		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 
-		cl, err := client.CdiV1beta1().CDIConfigs().List(metav1.ListOptions{})
+		cl, err := client.CdiV1beta1().CDIConfigs().List(context.TODO(), metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cl.Items).To(HaveLen(1))
 
-		cfg, err := client.CdiV1beta1().CDIConfigs().Get(cl.Items[0].Name, metav1.GetOptions{})
+		cfg, err := client.CdiV1beta1().CDIConfigs().Get(context.TODO(), cl.Items[0].Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		cfg.Spec.ScratchSpaceStorageClass = &[]string{"foobar"}[0]
-		cfg, err = client.CdiV1beta1().CDIConfigs().Update(cfg)
+		cfg, err = client.CdiV1beta1().CDIConfigs().Update(context.TODO(), cfg, metav1.UpdateOptions{})
 		Expect(err).To(HaveOccurred())
 	})
 })
@@ -258,7 +259,7 @@ var _ = Describe("Aggregated role definition tests", func() {
 	f := framework.NewFramework("aggregated-role-definition-tests")
 
 	DescribeTable("check all expected rules exist", func(role string, rules []rbacv1.PolicyRule) {
-		clusterRole, err := f.K8sClient.RbacV1().ClusterRoles().Get(role, metav1.GetOptions{})
+		clusterRole, err := f.K8sClient.RbacV1().ClusterRoles().Get(context.TODO(), role, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		found := false

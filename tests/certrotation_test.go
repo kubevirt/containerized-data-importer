@@ -1,6 +1,7 @@
 package tests_test
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"os/exec"
@@ -73,18 +74,18 @@ var _ = Describe("Cert rotation tests", func() {
 
 	DescribeTable("check secrets updated", func(secretName, configMapName string) {
 		var oldBundle *corev1.ConfigMap
-		oldSecret, err := f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Get(secretName, metav1.GetOptions{})
+		oldSecret, err := f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Get(context.TODO(), secretName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		if configMapName != "" {
-			oldBundle, err = f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Get(configMapName, metav1.GetOptions{})
+			oldBundle, err = f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Get(context.TODO(), configMapName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 		}
 
 		rotateCert(f, secretName)
 
 		Eventually(func() bool {
-			updatedSecret, err := f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Get(secretName, metav1.GetOptions{})
+			updatedSecret, err := f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Get(context.TODO(), secretName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			return updatedSecret.Annotations[notAfter] != oldSecret.Annotations[notAfter] &&
@@ -95,7 +96,7 @@ var _ = Describe("Cert rotation tests", func() {
 
 		if configMapName != "" {
 			Eventually(func() bool {
-				updatedBundle, err := f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Get(configMapName, metav1.GetOptions{})
+				updatedBundle, err := f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Get(context.TODO(), configMapName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				return updatedBundle.Data["ca-bundle.crt"] != oldBundle.Data["ca-bundle.crt"]
@@ -117,7 +118,7 @@ var _ = Describe("Cert rotation tests", func() {
 })
 
 func rotateCert(f *framework.Framework, secretName string) {
-	secret, err := f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Get(secretName, metav1.GetOptions{})
+	secret, err := f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Get(context.TODO(), secretName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
 	nb, ok := secret.Annotations[notBefore]
@@ -130,7 +131,7 @@ func rotateCert(f *framework.Framework, secretName string) {
 	newSecret := secret.DeepCopy()
 	newSecret.Annotations[notAfter] = notBefore.Add(time.Second).Format(time.RFC3339)
 
-	newSecret, err = f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Update(newSecret)
+	newSecret, err = f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Update(context.TODO(), newSecret, metav1.UpdateOptions{})
 	Expect(err).ToNot(HaveOccurred())
 }
 

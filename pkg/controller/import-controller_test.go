@@ -18,9 +18,10 @@ package controller
 import (
 	"context"
 	"fmt"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"reflect"
 	"strconv"
+
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -135,10 +136,10 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		orgPvc.TypeMeta.APIVersion = "v1"
 		orgPvc.TypeMeta.Kind = "PersistentVolumeClaim"
 		reconciler = createImportReconciler(orgPvc)
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		resPvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{}, resPvc)
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: orgPvc.Namespace, Name: orgPvc.Name}, resPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(reflect.DeepEqual(orgPvc, resPvc)).To(BeTrue())
 	})
@@ -147,7 +148,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint}, nil)
 		pvc.Status.Phase = v1.ClaimBound
 		reconciler = createImportReconciler(pvc)
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		resultPvc := &corev1.PersistentVolumeClaim{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resultPvc)
@@ -159,7 +160,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1"}, nil)
 		pvc.Status.Phase = v1.ClaimBound
 		reconciler = createImportReconciler(pvc)
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
@@ -180,7 +181,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1", AnnContentType: string(cdiv1.DataVolumeArchive)}, nil)
 		pvc.Status.Phase = v1.ClaimBound
 		reconciler = createImportReconciler(pvc)
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
@@ -209,7 +210,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 			},
 		}
 		reconciler = createImportReconciler(createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint}, nil), pod)
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("Pod is not owned by PVC"))
 	})
@@ -478,10 +479,10 @@ var _ = Describe("Create Importer Pod", func() {
 		Expect(pod.Spec.Containers[0].ImagePullPolicy).To(BeEquivalentTo(testPullPolicy))
 		Expect(pod.Spec.Containers[0].Args[0]).To(Equal("-v=5"))
 	},
-		table.Entry("should create pod with file system volume mode", createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending)}, nil), nil),
-		table.Entry("should create pod with block volume mode", createBlockPvc("testBlockPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending)}, nil), nil),
-		table.Entry("should create pod with file system volume mode and scratchspace", createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending)}, nil), &scratchPvcName),
-		table.Entry("should create pod with block volume mode and scratchspace", createBlockPvc("testBlockPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending)}, nil), &scratchPvcName),
+		table.Entry("should create pod with file system volume mode", createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnImportPod: "podName"}, nil), nil),
+		table.Entry("should create pod with block volume mode", createBlockPvc("testBlockPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnImportPod: "podName"}, nil), nil),
+		table.Entry("should create pod with file system volume mode and scratchspace", createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnImportPod: "podName"}, nil), &scratchPvcName),
+		table.Entry("should create pod with block volume mode and scratchspace", createBlockPvc("testBlockPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnImportPod: "podName"}, nil), &scratchPvcName),
 	)
 })
 

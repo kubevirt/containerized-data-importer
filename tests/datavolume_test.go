@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
@@ -173,7 +174,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				By(fmt.Sprintf("waiting for datavolume to match phase %s", string(args.phase)))
 				err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, args.phase, dataVolume.Name)
 				if err != nil {
-					dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+					dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 					if dverr != nil {
 						Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 					}
@@ -184,14 +185,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Eventually(func() bool {
 					// Doing this as eventually because in failure scenarios, we could still be in a retry and the running condition
 					// will not match if the pod hasn't failed and the backoff is not long enough yet
-					resultDv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+					resultDv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 					Expect(dverr).ToNot(HaveOccurred())
 					return verifyConditions(resultDv.Status.Conditions, startTime, args.readyCondition, args.runningCondition, args.boundCondition)
 				}, timeout, pollingInterval).Should(BeTrue())
 
 				// verify PVC was created
 				By("verifying pvc was created")
-				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				By(fmt.Sprint("Verifying event occurred"))
@@ -217,7 +218,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
 				Expect(err).ToNot(HaveOccurred())
 				Eventually(func() bool {
-					_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+					_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 					if k8serrors.IsNotFound(err) {
 						return true
 					}
@@ -646,7 +647,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 
 			Eventually(func() bool {
-				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				pvcName := dv.Annotations["cdi.kubevirt.io/storage.prePopulated"]
 				return pvcName == pvcDef.Name &&
@@ -722,7 +723,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
 			if err != nil {
 				PrintControllerLog(f)
-				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				if dverr != nil {
 					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 				}
@@ -731,7 +732,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			// verify PVC was created
 			By("verifying pvc was created")
-			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			By(fmt.Sprint("Verifying event occurred"))
@@ -765,11 +766,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
 
 				By("verifying pvc and pod were created")
-				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				podName := pvc.Annotations[controller.AnnImportPod]
 
-				pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(podName, metav1.GetOptions{})
+				pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), podName, metav1.GetOptions{})
 				Expect(err).NotTo(HaveOccurred())
 
 				By("deleting DataVolume")
@@ -833,7 +834,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
 			if err != nil {
 				PrintControllerLog(f)
-				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				if dverr != nil {
 					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 				}
@@ -841,7 +842,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			progressRegExp := regexp.MustCompile("\\d{1,3}\\.?\\d{1,2}%")
 			Eventually(func() bool {
-				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				progress := dv.Status.Progress
 				return progressRegExp.MatchString(string(progress))
@@ -914,7 +915,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 			size := "1Gi"
 			By("Verify No FeatureGates")
-			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(config.Spec.FeatureGates).To(BeNil())
 
@@ -934,7 +935,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
 			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
 			if err != nil {
-				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				if dverr != nil {
 					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 				}
@@ -945,7 +946,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(func() bool {
-				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				if k8serrors.IsNotFound(err) {
 					return true
 				}
@@ -1041,7 +1042,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			// here we want to have more than 0, to be sure it started
 			progressRegExp := regexp.MustCompile("[1-9]\\d{0,2}\\.?\\d{1,2}%")
 			Eventually(func() bool {
-				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				progress := dv.Status.Progress
 				fmt.Fprintf(GinkgoWriter, "INFO: current progress:%v, matches:%v\n", progress, progressRegExp.MatchString(string(progress)))
@@ -1058,7 +1059,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Verify the number of retries on the datavolume")
 			Eventually(func() int32 {
-				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).NotTo(HaveOccurred())
 				restarts := dv.Status.RestartCount
 				return restarts
@@ -1140,14 +1141,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("verifying pvc was created")
 			Eventually(func() bool {
 				// TODO: fix this to use the mechanism to find the correct PVC once we decouple the DV and PVC names
-				pvc, _ = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+				pvc, _ = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				return pvc != nil && pvc.Name != ""
 			}, timeout, pollingInterval).Should(BeTrue())
 
 			By("Verifying the POD remains pending for 30 seconds")
 			podName := naming.GetResourceName(common.ImporterPodName, pvc.Name)
 			Consistently(func() bool {
-				pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(podName, metav1.GetOptions{})
+				pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), podName, metav1.GetOptions{})
 				if err == nil {
 					// Found the pod
 					Expect(pod.Status.Phase).To(Equal(v1.PodPending))

@@ -18,6 +18,7 @@ package framework
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/url"
@@ -115,7 +116,7 @@ func (f *Framework) ExecShellInContainer(namespace, podName, containerName strin
 
 // ExecCommandInPod provides a function to execute a command on a running pod
 func (f *Framework) ExecCommandInPod(podName, namespace string, cmd ...string) (string, string, error) {
-	pod, err := f.K8sClient.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+	pod, err := f.K8sClient.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to get pod")
 	gomega.Expect(pod.Spec.Containers).NotTo(gomega.BeEmpty())
 	stdout, stderr, err := f.ExecCommandInContainer(namespace, podName, pod.Spec.Containers[0].Name, cmd...)
@@ -127,7 +128,7 @@ func (f *Framework) ExecCommandInPod(podName, namespace string, cmd ...string) (
 
 // ExecCommandInPodWithFullOutput provides a function to execute a command in a running pod and to capture its output
 func (f *Framework) ExecCommandInPodWithFullOutput(namespace, podName string, cmd ...string) (string, string, error) {
-	pod, err := f.K8sClient.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+	pod, err := f.K8sClient.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "failed to get pod")
 	gomega.Expect(pod.Spec.Containers).NotTo(gomega.BeEmpty())
 	return f.ExecCommandInContainerWithFullOutput(namespace, podName, pod.Spec.Containers[0].Name, cmd...)

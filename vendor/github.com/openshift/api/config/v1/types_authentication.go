@@ -50,6 +50,12 @@ type AuthenticationSpec struct {
 	// The namespace for these secrets is openshift-config.
 	// +optional
 	WebhookTokenAuthenticators []WebhookTokenAuthenticator `json:"webhookTokenAuthenticators,omitempty"`
+
+	// serviceAccountIssuer is the identifier of the bound service account token
+	// issuer.
+	// The default is https://kubernetes.default.svc
+	// +optional
+	ServiceAccountIssuer string `json:"serviceAccountIssuer"`
 }
 
 type AuthenticationStatus struct {

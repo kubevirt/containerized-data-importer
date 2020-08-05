@@ -1,6 +1,7 @@
 package tests_test
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -133,14 +134,14 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			uploadPod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
 			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
 
-			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(pvc.Name, metav1.GetOptions{})
+			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			delete(pvc.Annotations, controller.AnnUploadRequest)
-			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(pvc)
+			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			Eventually(func() bool {
-				_, err = f.K8sClient.CoreV1().Pods(uploadPod.Namespace).Get(uploadPod.Name, metav1.GetOptions{})
+				_, err = f.K8sClient.CoreV1().Pods(uploadPod.Namespace).Get(context.TODO(), uploadPod.Name, metav1.GetOptions{})
 				if k8serrors.IsNotFound(err) {
 					return true
 				}
@@ -433,7 +434,7 @@ var _ = Describe("Namespace with quota", func() {
 
 	BeforeEach(func() {
 		By("Capturing original CDIConfig state")
-		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		orgConfig = config.Status.DefaultPodResourceRequirements
 		if pvc != nil {
@@ -615,7 +616,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
 		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
 		if err != nil {
-			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			if dverr != nil {
 				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 			}
@@ -635,7 +636,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
 		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
 		if err != nil {
-			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			if dverr != nil {
 				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 			}
@@ -654,7 +655,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 		By("Verify the number of retries on the datavolume")
 		Eventually(func() int32 {
-			dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			restarts := dv.Status.RestartCount
 			return restarts
@@ -678,7 +679,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
 		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
 		if err != nil {
-			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			if dverr != nil {
 				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 			}
@@ -704,7 +705,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 		By("Verify the number of retries on the datavolume")
 		Eventually(func() int32 {
-			dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			restarts := dv.Status.RestartCount
 			return restarts
@@ -729,7 +730,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
 		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
 		if err != nil {
-			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			if dverr != nil {
 				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 			}
@@ -749,7 +750,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
 		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
 		if err != nil {
-			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			if dverr != nil {
 				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 			}

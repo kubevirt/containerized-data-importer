@@ -20,6 +20,7 @@
 package apiserver
 
 import (
+	"context"
 	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
@@ -157,7 +158,7 @@ var _ = Describe("Auth config tests", func() {
 
 		cm.Data["requestheader-client-ca-file"] = generateCACert()
 
-		cm, err = client.CoreV1().ConfigMaps(metav1.NamespaceSystem).Update(cm)
+		cm, err = client.CoreV1().ConfigMaps(metav1.NamespaceSystem).Update(context.TODO(), cm, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		// behavior of this changed in 16.4 used to wait then check so now explicitly waiting

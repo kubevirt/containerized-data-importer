@@ -82,6 +82,7 @@ go_test(
         "//pkg/operator/resources/cert:go_default_library",
         "//pkg/operator/resources/cluster:go_default_library",
         "//pkg/operator/resources/namespaced:go_default_library",
+        "//pkg/operator/resources/operator:go_default_library",
         "//pkg/operator/resources/utils:go_default_library",
         "//tests/reporters:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",

@@ -1,6 +1,7 @@
 package uploadproxy
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -209,7 +210,7 @@ func (app *uploadProxyApp) handleUploadRequest(w http.ResponseWriter, r *http.Re
 
 func (app *uploadProxyApp) uploadReady(pvcName, pvcNamespace string) error {
 	return wait.PollImmediate(waitReadyImterval, waitReadyTime, func() (bool, error) {
-		pvc, err := app.client.CoreV1().PersistentVolumeClaims(pvcNamespace).Get(pvcName, metav1.GetOptions{})
+		pvc, err := app.client.CoreV1().PersistentVolumeClaims(pvcNamespace).Get(context.TODO(), pvcName, metav1.GetOptions{})
 		if err != nil {
 			if k8serrors.IsNotFound(err) {
 				return false, fmt.Errorf("rejecting Upload Request for PVC %s that doesn't exist", pvcName)

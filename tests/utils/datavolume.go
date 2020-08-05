@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -49,7 +50,7 @@ func CreateDataVolumeFromDefinition(clientSet *cdiclientset.Clientset, namespace
 	var dataVolume *cdiv1.DataVolume
 	err := wait.PollImmediate(dataVolumePollInterval, dataVolumeCreateTime, func() (bool, error) {
 		var err error
-		dataVolume, err = clientSet.CdiV1beta1().DataVolumes(namespace).Create(def)
+		dataVolume, err = clientSet.CdiV1beta1().DataVolumes(namespace).Create(context.TODO(), def, metav1.CreateOptions{})
 		if err == nil || apierrs.IsAlreadyExists(err) {
 			return true, nil
 		}
@@ -64,7 +65,7 @@ func CreateDataVolumeFromDefinition(clientSet *cdiclientset.Clientset, namespace
 // DeleteDataVolume deletes the DataVolume with the given name
 func DeleteDataVolume(clientSet *cdiclientset.Clientset, namespace, name string) error {
 	return wait.PollImmediate(dataVolumePollInterval, dataVolumeDeleteTime, func() (bool, error) {
-		err := clientSet.CdiV1beta1().DataVolumes(namespace).Delete(name, nil)
+		err := clientSet.CdiV1beta1().DataVolumes(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 		if err == nil || apierrs.IsNotFound(err) {
 			return true, nil
 		}
@@ -319,7 +320,7 @@ func WaitForDataVolumePhase(clientSet *cdiclientset.Clientset, namespace string,
 // WaitForDataVolumePhaseWithTimeout waits for DV's phase to be in a particular phase (Pending, Bound, or Lost) with a specified timeout
 func WaitForDataVolumePhaseWithTimeout(clientSet *cdiclientset.Clientset, namespace string, phase cdiv1.DataVolumePhase, dataVolumeName string, timeout time.Duration) error {
 	err := wait.PollImmediate(dataVolumePollInterval, timeout, func() (bool, error) {
-		dataVolume, err := clientSet.CdiV1beta1().DataVolumes(namespace).Get(dataVolumeName, metav1.GetOptions{})
+		dataVolume, err := clientSet.CdiV1beta1().DataVolumes(namespace).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
 		if err != nil || dataVolume.Status.Phase != phase {
 			return false, err
 		}

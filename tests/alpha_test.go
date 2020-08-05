@@ -1,6 +1,7 @@
 package tests_test
 
 import (
+	"context"
 	"fmt"
 
 	. "github.com/onsi/ginkgo"
@@ -21,7 +22,7 @@ var _ = Describe("Alpha API tests", func() {
 	Context("with v1alpha1 api", func() {
 
 		It("should get CDI config", func() {
-			config, err := f.CdiClient.CdiV1alpha1().CDIConfigs().Get("config", metav1.GetOptions{})
+			config, err := f.CdiClient.CdiV1alpha1().CDIConfigs().Get(context.TODO(), "config", metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(config).ToNot(BeNil())
 		})
@@ -44,7 +45,7 @@ var _ = Describe("Alpha API tests", func() {
 		It("should clone across namespace with alpha", func() {
 			By("create source PVC")
 			pvcDef := utils.NewPVCDefinition("source-pvc", "1G", nil, nil)
-			source, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Create(pvcDef)
+			source, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Create(context.TODO(), pvcDef, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			By("create target namespace")
@@ -55,7 +56,7 @@ var _ = Describe("Alpha API tests", func() {
 			f.AddNamespaceToDelete(targetNs)
 
 			targetDef := createCloneDataVolume("target-dv", source)
-			target, err := f.CdiClient.CdiV1alpha1().DataVolumes(targetNs.Name).Create(targetDef)
+			target, err := f.CdiClient.CdiV1alpha1().DataVolumes(targetNs.Name).Create(context.TODO(), targetDef, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			By("waiting for DataVolume to be complete")
@@ -93,12 +94,12 @@ var _ = Describe("Alpha API tests", func() {
 				err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.UploadReady, "upload")
 
 				// tests listing alpha api
-				alphaCDIs, err := f.CdiClient.CdiV1alpha1().CDIs().List(metav1.ListOptions{})
+				alphaCDIs, err := f.CdiClient.CdiV1alpha1().CDIs().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(alphaCDIs.Items).Should(HaveLen(1))
 
 				// will invoke webhook for alpha
-				err = f.CdiClient.CdiV1alpha1().CDIs().Delete(alphaCDIs.Items[0].Name, &metav1.DeleteOptions{DryRun: []string{"All"}})
+				err = f.CdiClient.CdiV1alpha1().CDIs().Delete(context.TODO(), alphaCDIs.Items[0].Name, metav1.DeleteOptions{DryRun: []string{"All"}})
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("there are still DataVolumes present"))
 			})
