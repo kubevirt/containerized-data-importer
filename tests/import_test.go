@@ -448,7 +448,7 @@ var _ = Describe("Namespace with quota", func() {
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		By("Verify Quota was exceeded in logs")
-		matchString := fmt.Sprintf("\"controller\": \"import-controller\", \"request\": \"%s/import-image-to-pvc\", \"error\": \"pods \\\"importer-import-image-to-pvc\\\" is forbidden: exceeded quota: test-quota, requested", f.Namespace.Name)
+		matchString := fmt.Sprintf(`"name": "import-image-to-pvc", "namespace": "%s", "error": "pods \"importer-import-image-to-pvc\" is forbidden: exceeded quota: test-quota`, f.Namespace.Name)
 		Eventually(func() string {
 			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 			Expect(err).NotTo(HaveOccurred())
@@ -477,7 +477,7 @@ var _ = Describe("Namespace with quota", func() {
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		By("Verify Quota was exceeded in logs")
-		matchString := fmt.Sprintf("\"controller\": \"import-controller\", \"request\": \"%s/import-image-to-pvc\", \"error\": \"pods \\\"importer-import-image-to-pvc\\\" is forbidden: exceeded quota: test-quota, requested", f.Namespace.Name)
+		matchString := fmt.Sprintf(`"name": "import-image-to-pvc", "namespace": "%s", "error": "pods \"importer-import-image-to-pvc\" is forbidden: exceeded quota: test-quota`, f.Namespace.Name)
 		Eventually(func() string {
 			log, err := tests.RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 			Expect(err).NotTo(HaveOccurred())

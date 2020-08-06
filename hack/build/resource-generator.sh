@@ -19,7 +19,7 @@ source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
 #all generated files are placed in manifests/generated
-function generateResourceManifest {
+function generateResourceManifest() {
     generator=$1
     targetDir=$2
     resourceType=$3
@@ -71,7 +71,7 @@ function generateResourceManifest {
     find ${targetDir}/ -type f -exec sed -i {} -e '${/^$/d;}' \;
 }
 
-function processDirTemplates {
+function processDirTemplates() {
     inTmplPath=$1           #Path to directory from which to take manifests templates for processing
     outFinalManifestPath=$2 #Path to which to store final manifests version
     outTmplPath=$3          #Path to which to store templated manifests version
@@ -83,24 +83,23 @@ function processDirTemplates {
     mkdir -p $outFinalManifestPath
     mkdir -p $outTmplPath
 
-    templates="$(find "${inTmplPath}" -maxdepth 1 -name "*.in"  -type f)"
+    templates="$(find "${inTmplPath}" -maxdepth 1 -name "*.in" -type f)"
     for tmpl in ${templates}; do
         tmpl_dir="$(cd "$(dirname "${tmpl}")" && pwd -P)"
         tmpl_filename="$(basename ${tmpl})"
         tmpl="${tmpl_dir}/${tmpl_filename}"
-        populateResourceManifest  $generator $outFinalManifestPath $outTmplPath $tmpl $genManifestsDir $outFinalManifestPath
+        populateResourceManifest $generator $outFinalManifestPath $outTmplPath $tmpl $genManifestsDir $outFinalManifestPath
     done
 }
 
-
 # all templated final manifsets are located in _out/manifests/
 # all templated  manifsets are located in _out/manifests/templates
-function populateResourceManifest {    
+function populateResourceManifest() {
     generator=$1
     targetDir=$2
     tmplTargetDir=$3
     tmpl=$4
-    generatedManifests=$5    
+    generatedManifests=$5
     outDir=$6
 
     bundleOut="none"
@@ -128,7 +127,7 @@ function populateResourceManifest {
         -verbosity="${VERBOSITY}" \
         -pull-policy="${PULL_POLICY}" \
         -namespace="${NAMESPACE}" \
-        -generated-manifests-path=${generatedManifests} \
+        -generated-manifests-path=${generatedManifests}
     ) 1>>"${targetDir}/"$outfile
 
     (${generator} -template="${tmpl}" \
@@ -146,13 +145,10 @@ function populateResourceManifest {
         -verbosity="${VERBOSITY}" \
         -pull-policy="{{ pull_policy }}" \
         -namespace="{{ cdi_namespace }}" \
-        -generated-manifests-path=${generatedManifests} \
+        -generated-manifests-path=${generatedManifests}
     ) 1>>"${tmplTargetDir}/"$outfile".j2"
 
     # Remove empty lines at the end of files which are added by go templating
     find ${targetDir}/ -type f -exec sed -i {} -e '${/^$/d;}' \;
     find ${tmplTargetDir}/ -type f -exec sed -i {} -e '${/^$/d;}' \;
 }
-
-
-

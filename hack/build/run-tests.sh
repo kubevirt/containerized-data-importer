@@ -24,10 +24,13 @@ parseTestOpts "${@}"
 
 if [ -f "${TESTS_OUT_DIR}/tests.test" ]; then
     test_command="${TESTS_OUT_DIR}/tests.test -test.timeout 270m ${test_args}"
-	echo "${test_command}"
-	(cd ${CDI_DIR}/tests; ${test_command})
+    echo "${test_command}"
+    (
+        cd ${CDI_DIR}/tests
+        ${test_command}
+    )
 else
-	test_command="go test -v -coverprofile=.coverprofile -test.timeout 270m ${pkgs} ${test_args:+-args $test_args}"
-	echo "${test_command}"
-	${test_command}
+    test_command="go test -v -coverprofile=.coverprofile -test.timeout 270m ${pkgs} ${test_args:+-args $test_args}"
+    echo "${test_command}"
+    ${test_command}
 fi

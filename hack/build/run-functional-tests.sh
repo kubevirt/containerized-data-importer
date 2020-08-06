@@ -83,4 +83,7 @@ fi
 
 test_command="${TESTS_OUT_DIR}/tests.test -test.timeout 360m ${test_args}"
 echo "$test_command"
-(cd ${CDI_DIR}/tests; ${test_command})
+(
+    cd ${CDI_DIR}/tests
+    ${test_command}
+)

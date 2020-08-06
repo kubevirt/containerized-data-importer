@@ -5,7 +5,6 @@ manifests/generated/*
 .coverprofile
 release-announcement
 .project
-.vscode
 cluster/.*
 .history
 .gradle

@@ -24,6 +24,9 @@ BUILDER_SPEC="${BUILD_DIR}/docker/builder"
 BUILDER_VOLUME="kubevirt-cdi-volume"
 BAZEL_BUILDER_SERVER="${BUILDER_VOLUME}-bazel-server"
 
+SYNC_OUT=${SYNC_OUT:-true}
+SYNC_VENDOR=${SYNC_VENDOR:-true}
+
 # Be less verbose with bazel
 if [ -n "${TRAVIS_JOB_ID}" ]; then
     cat >.bazelrc <<EOF
@@ -104,11 +107,9 @@ _rsync \
     --exclude 'cluster-up/cluster/**/.kubectl' \
     --exclude 'cluster-up/cluster/**/.oc' \
     --exclude 'cluster-up/cluster/**/.kubeconfig' \
-    --exclude "_out" \
     --exclude ".vagrant" \
     ${CDI_DIR}/ \
     "rsync://root@127.0.0.1:${RSYNCD_PORT}/build"
-
 
 if [ "${KUBEVIRTCI_RUNTIME}" != "podman" ]; then
     volumes="-v ${BUILDER_VOLUME}:/root:rw,z"
@@ -122,9 +123,9 @@ fi
 # Ensure that a bazel server is running
 if [ -z "$(docker ps --format '{{.Names}}' | grep ${BAZEL_BUILDER_SERVER})" ]; then
     if [ "$KUBEVIRTCI_RUNTIME" = "podman" ]; then
-        docker run --network host -d ${volumes} --security-opt label=disable --name ${BAZEL_BUILDER_SERVER} -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
+        docker run --network host -d ${volumes} --security-opt label=disable --name ${BAZEL_BUILDER_SERVER} -e "GOPATH=/root/go" -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
     else
-        docker run --network host -d ${volumes} --security-opt label:disable --name ${BAZEL_BUILDER_SERVER} -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
+        docker run --network host -d ${volumes} --security-opt label:disable --name ${BAZEL_BUILDER_SERVER} -e "GOPATH=/root/go" -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
     fi
 fi
 
@@ -154,4 +155,9 @@ _rsync --delete "rsync://root@127.0.0.1:${RSYNCD_PORT}/build/manifests/generated
 
 if [ "$SYNC_VENDOR" = "true" ] && [ -n $VENDOR_DIR ]; then
     _rsync --delete "rsync://root@127.0.0.1:${RSYNCD_PORT}/vendor" "${VENDOR_DIR}/"
+fi
+
+# Copy the build output out of the container, make sure that _out exactly matches the build result
+if [ "$SYNC_OUT" = "true" ]; then
+    _rsync --delete "rsync://root@127.0.0.1:${RSYNCD_PORT}/out" ${OUT_DIR}
 fi

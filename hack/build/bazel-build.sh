@@ -27,7 +27,7 @@ mkdir -p ${CMD_OUT_DIR}/dump
 
 # Build all binaries for amd64
 bazel build \
-	--verbose_failures \
+    --verbose_failures \
     --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 \
     --sandbox_debug \
     //tools/csv-generator/... //cmd/...
