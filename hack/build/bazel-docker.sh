@@ -151,8 +151,6 @@ _rsync \
     "rsync://root@127.0.0.1:${RSYNCD_PORT}/build" \
     ${CDI_DIR}/
 
-_rsync --delete "rsync://root@127.0.0.1:${RSYNCD_PORT}/build/manifests/generated/" "${CDI_DIR}/manifests/generated"
-
 if [ "$SYNC_VENDOR" = "true" ] && [ -n $VENDOR_DIR ]; then
     _rsync --delete "rsync://root@127.0.0.1:${RSYNCD_PORT}/vendor" "${VENDOR_DIR}/"
 fi
