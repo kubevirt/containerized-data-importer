@@ -1,5 +1,5 @@
 {
     "go.toolsEnvVars": {
-        "GOFLAGS": "-mod=vendor -tags=tools",
+        "GOFLAGS": "-mod=vendor",
     },
 }

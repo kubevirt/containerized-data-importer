@@ -220,24 +220,24 @@ var _ = Describe("CDI ingress config tests, using manifests", func() {
 		By("Checking if a route exists, we set that as default")
 		openshiftClient, err := route1client.NewForConfig(cfg)
 		Expect(err).ToNot(HaveOccurred())
-		_, err = openshiftClient.RouteV1().Routes(f.CdiInstallNs).Get("cdi-uploadproxy", metav1.GetOptions{})
+		_, err = openshiftClient.RouteV1().Routes(f.CdiInstallNs).Get(context.TODO(), "cdi-uploadproxy", metav1.GetOptions{})
 		if err == nil {
 			By("setting defaultURL to route")
 			Eventually(func() bool {
-				config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+				config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				if config.Status.UploadProxyURL == nil {
 					return false
 				}
 				return strings.HasPrefix(*config.Status.UploadProxyURL, routeStart())
 			}, time.Second*30, time.Second).Should(BeTrue())
-			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			defaultUrl = *config.Status.UploadProxyURL
 		}
 		By("Making sure no url is set")
 		Eventually(func() string {
-			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			if config.Status.UploadProxyURL == nil {
 				return ""

@@ -100,7 +100,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), utils.VerifierPodName, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Eventually(func() bool {
-			_, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(utils.VerifierPodName, metav1.GetOptions{})
+			_, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), utils.VerifierPodName, metav1.GetOptions{})
 			return k8serrors.IsNotFound(err)
 		}, 60, 1).Should(BeTrue())
 

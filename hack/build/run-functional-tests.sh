@@ -46,7 +46,6 @@ if [ -z "${KUBECTL+x}" ]; then
     fi
 fi
 
-
 # parsetTestOpts sets 'pkgs' and test_args
 parseTestOpts "${@}"
 

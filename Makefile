@@ -38,8 +38,10 @@ all: manifests bazel-build-images
 clean:
 	${DO_BAZ} "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile release-announcement"
 
-generate:
-	${DO_BAZ} "./hack/update-codegen.sh"; make bazel-generate
+update-codegen:
+	${DO_BAZ} "./hack/update-codegen.sh"
+
+generate: update-codegen bazel-generate
 
 generate-verify:
 	${DO_BAZ} "./hack/verify-codegen.sh"

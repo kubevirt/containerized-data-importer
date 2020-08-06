@@ -42,36 +42,22 @@ RUN pip3 install j2cli && pip3 install operator-courier && \
     ln -s /opt/gradle/gradle-4.3.1/bin/gradle /usr/local/bin/gradle && \
     rm gradle-4.3.1-bin.zip
 
-ENV GIMME_GO_VERSION=1.14.6 GOPATH="/go" KUBEBUILDER_VERSION="2.3.1" ARCH="amd64" GO111MODULE="off"
+ENV GIMME_GO_VERSION=1.14.6 GOPATH="/go" KUBEBUILDER_VERSION="2.3.1" ARCH="amd64" GO111MODULE="on"
 ENV BAZEL_PYTHON=/usr/bin/python3
 
 RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
 
 RUN \
-    mkdir -p ${GOPATH} && \
     source /etc/profile.d/gimme.sh && \
     eval $(go env) && \
-    (go get -u github.com/onsi/ginkgo/ginkgo && \
-     cd $GOPATH/src/github.com/onsi/ginkgo/ginkgo && \
-     go install ./... ) && \
-    go get github.com/onsi/gomega && \
+    go get github.com/onsi/ginkgo/ginkgo && \
     go get golang.org/x/tools/cmd/goimports && \
-    ( go get -d mvdan.cc/sh/cmd/shfmt || echo "**** Expecting error \"cannot find package mvdan.cc/sh/v2/fileutil\"" ) && \
-    ( cd $GOPATH/src/golang.org/x/tools/cmd/goimports && \
-    go install ./... ) && \
-    ( cd $GOPATH/src/mvdan.cc/sh/cmd/shfmt && \
-    git checkout v2.5.0 -b build-v2.5.0 && \
-    go install ./... ) && \
-    ( go get -d github.com/mattn/goveralls && \
-    cd $GOPATH/src/github.com/mattn/goveralls && \
-    go install ./... ) && \
-    ( go get -u golang.org/x/lint/golint ) && \
-    ( go get -u github.com/rmohr/go-swagger-utils/swagger-doc ) && \
-    (go get -u -d sigs.k8s.io/controller-tools/cmd/controller-gen && \
-    cd $GOPATH/src/sigs.k8s.io/controller-tools && \
-    #v0.3.0
-    git checkout 44656d3c15ecaef499d9157825afd843415cbfea && \
-    go install ./...) && \
+    go get mvdan.cc/sh/cmd/shfmt && \
+    go get github.com/mattn/goveralls && \
+    go get -u golang.org/x/lint/golint && \
+    go get github.com/rmohr/go-swagger-utils/swagger-doc && \
+    go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.3.0 && \
+    rm -rf "${GOPATH}/pkg" && \
     (curl -L -O "https://github.com/kubernetes-sigs/kubebuilder/releases/download/v${KUBEBUILDER_VERSION}/kubebuilder_${KUBEBUILDER_VERSION}_linux_${ARCH}.tar.gz" && \
      tar -zxvf kubebuilder_${KUBEBUILDER_VERSION}_linux_${ARCH}.tar.gz && \
      mv kubebuilder_${KUBEBUILDER_VERSION}_linux_${ARCH} /usr/local/kubebuilder && \

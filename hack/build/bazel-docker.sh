@@ -19,7 +19,6 @@ script_dir="$(cd "$(dirname "$0")" && pwd -P)"
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
 
-WORK_DIR="/go/src/kubevirt.io/containerized-data-importer"
 BUILDER_SPEC="${BUILD_DIR}/docker/builder"
 BUILDER_VOLUME="kubevirt-cdi-volume"
 BAZEL_BUILDER_SERVER="${BUILDER_VOLUME}-bazel-server"
