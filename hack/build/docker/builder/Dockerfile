@@ -42,7 +42,7 @@ RUN pip3 install j2cli && pip3 install operator-courier && \
     ln -s /opt/gradle/gradle-4.3.1/bin/gradle /usr/local/bin/gradle && \
     rm gradle-4.3.1-bin.zip
 
-ENV GIMME_GO_VERSION=1.14.6 GOPATH="/go" KUBEBUILDER_VERSION="2.3.1" ARCH="amd64"
+ENV GIMME_GO_VERSION=1.14.6 GOPATH="/go" KUBEBUILDER_VERSION="2.3.1" ARCH="amd64" GO111MODULE="off"
 ENV BAZEL_PYTHON=/usr/bin/python3
 
 RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
@@ -67,20 +67,16 @@ RUN \
     go install ./... ) && \
     ( go get -u golang.org/x/lint/golint ) && \
     ( go get -u github.com/rmohr/go-swagger-utils/swagger-doc ) && \
-    ( go get -u -d k8s.io/klog ) && \
-    ( ln -s /go/src/k8s.io/klog /go/src/k8s.io/klog/v2 ) && \
-    ( go get -u -d k8s.io/code-generator/cmd/deepcopy-gen && \
-    go get -u -d k8s.io/kube-openapi/cmd/openapi-gen ) && \
-    ( cd $GOPATH/src/k8s.io/code-generator/cmd/deepcopy-gen && \
-    git checkout v0.16.4 && \
-    go install ./... ) && \
-    ( cd $GOPATH/src/k8s.io/kube-openapi/cmd/openapi-gen && \
-    git checkout 30be4d16710ac61bce31eb28a01054596fe6a9f1 && \
-    go install ./... ) && \
+    (go get -u -d sigs.k8s.io/controller-tools/cmd/controller-gen && \
+    cd $GOPATH/src/sigs.k8s.io/controller-tools && \
+    #v0.3.0
+    git checkout 44656d3c15ecaef499d9157825afd843415cbfea && \
+    go install ./...) && \
     (curl -L -O "https://github.com/kubernetes-sigs/kubebuilder/releases/download/v${KUBEBUILDER_VERSION}/kubebuilder_${KUBEBUILDER_VERSION}_linux_${ARCH}.tar.gz" && \
      tar -zxvf kubebuilder_${KUBEBUILDER_VERSION}_linux_${ARCH}.tar.gz && \
      mv kubebuilder_${KUBEBUILDER_VERSION}_linux_${ARCH} /usr/local/kubebuilder && \
      rm kubebuilder_${KUBEBUILDER_VERSION}_linux_${ARCH}.tar.gz )
+
 
 ADD entrypoint.sh /entrypoint.sh
 ADD entrypoint-bazel.sh /entrypoint-bazel.sh
