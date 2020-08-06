@@ -30,13 +30,22 @@ KUBEVIRTCI_CONFIG_PATH="$(
 
 # functional testing
 BASE_PATH=${KUBEVIRTCI_CONFIG_PATH:-$PWD}
-KUBECONFIG=${BASE_PATH}/$KUBEVIRT_PROVIDER/.kubeconfig
-KUBECTL=${BASE_PATH}/$KUBEVIRT_PROVIDER/.kubectl
+KUBECONFIG=${KUBECONFIG:-$BASE_PATH/$KUBEVIRT_PROVIDER/.kubeconfig}
 GOCLI=${GOCLI:-${CDI_DIR}/cluster-up/cli.sh}
 KUBE_MASTER_URL=${KUBE_MASTER_URL:-""}
 CDI_NAMESPACE=${CDI_NAMESPACE:-cdi}
 SNAPSHOT_SC=${SNAPSHOT_SC:-rook-ceph-block}
 BLOCK_SC=${BLOCK_SC:-rook-ceph-block}
+
+if [ -z "${KUBECTL+x}" ]; then
+    kubevirtci_kubectl="${BASE_PATH}/${KUBEVIRT_PROVIDER}/.kubectl"
+    if [ -e ${kubevirtci_kubectl} ]; then
+        KUBECTL=${kubevirtci_kubectl}
+    else
+        KUBECTL=$(which kubectl)
+    fi
+fi
+
 
 # parsetTestOpts sets 'pkgs' and test_args
 parseTestOpts "${@}"
@@ -73,4 +82,5 @@ if [ $retry_counter -eq $MAX_CDI_WAIT_RETRY ]; then
 fi
 
 test_command="${TESTS_OUT_DIR}/tests.test -test.timeout 360m ${test_args}"
+echo "$test_command"
 (cd ${CDI_DIR}/tests; ${test_command})

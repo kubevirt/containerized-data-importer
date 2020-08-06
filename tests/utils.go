@@ -43,6 +43,9 @@ func RunKubectlCommand(f *framework.Framework, args ...string) (string, error) {
 		if len(errb.String()) > 0 {
 			return errb.String(), err
 		}
+		// err will not always be nil calling kubectl, this is expected on no results for instance.
+		// still return the value and let the called decide what to do.
+		return string(stdOutBytes), err
 	}
 	return string(stdOutBytes), nil
 }

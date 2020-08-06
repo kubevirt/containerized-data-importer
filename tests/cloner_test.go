@@ -11,6 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
@@ -97,6 +98,10 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		By("Deleting verifier pod")
 		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(utils.VerifierPodName, &metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() bool {
+			_, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(utils.VerifierPodName, metav1.GetOptions{})
+			return k8serrors.IsNotFound(err)
+		}, 60, 1).Should(BeTrue())
 
 		// Create targetPvc in new NS.
 		targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvc)
@@ -733,9 +738,9 @@ var _ = Describe("Namespace with quota", func() {
 	})
 
 	It("Should fail to clone in namespace with quota when pods have higher requirements, then succeed when quota increased", func() {
-		err := f.UpdateCdiConfigResourceLimits(int64(1), int64(1024*1024*1024), int64(1), int64(1024*1024*1024))
+		err := f.UpdateCdiConfigResourceLimits(int64(0), int64(256*1024*1024), int64(0), int64(256*1024*1024))
 		Expect(err).NotTo(HaveOccurred())
-		err = f.CreateQuotaInNs(int64(1), int64(512*1024*1024), int64(1), int64(512*1024*1024))
+		err = f.CreateQuotaInNs(int64(1), int64(128*1024*1024), int64(2), int64(128*1024*1024))
 		Expect(err).NotTo(HaveOccurred())
 		smartApplicable := f.IsSnapshotStorageClassAvailable()
 		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
@@ -764,7 +769,7 @@ var _ = Describe("Namespace with quota", func() {
 			Expect(err).NotTo(HaveOccurred())
 			return log
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
-		err = f.UpdateQuotaInNs(int64(2), int64(2*1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+		err = f.UpdateQuotaInNs(int64(1), int64(512*1024*1024), int64(4), int64(512*1024*1024))
 		Expect(err).NotTo(HaveOccurred())
 		utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetDV.Name)
 		targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
@@ -795,9 +800,9 @@ var _ = Describe("Namespace with quota", func() {
 	})
 
 	It("Should fail clone data across namespaces, if a namespace doesn't have enough quota", func() {
-		err := f.UpdateCdiConfigResourceLimits(int64(2), int64(1024*1024*1024), int64(2), int64(1*1024*1024*1024))
+		err := f.UpdateCdiConfigResourceLimits(int64(0), int64(512*1024*1024), int64(1), int64(512*1024*1024))
 		Expect(err).NotTo(HaveOccurred())
-		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+		err = f.CreateQuotaInNs(int64(1), int64(256*1024*1024), int64(2), int64(256*1024*1024))
 		Expect(err).NotTo(HaveOccurred())
 		pvcDef := utils.NewPVCDefinition(sourcePVCName, "500M", nil, nil)
 		pvcDef.Namespace = f.Namespace.Name
@@ -816,7 +821,7 @@ var _ = Describe("Namespace with quota", func() {
 		By("Verify Quota was exceeded in logs")
 		targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
-		matchString := fmt.Sprintf("\\\"%s-source-pod\\\" is forbidden: exceeded quota: test-quota, requested: requests.cpu=2, used: requests.cpu=0, limited: requests.cpu=1", targetPvc.GetUID())
+		matchString := fmt.Sprintf("\\\"%s-source-pod\\\" is forbidden: exceeded quota: test-quota, requested", targetPvc.GetUID())
 		Eventually(func() string {
 			log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 			Expect(err).NotTo(HaveOccurred())

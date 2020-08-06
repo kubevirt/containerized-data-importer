@@ -427,9 +427,9 @@ var _ = Describe("Namespace with quota", func() {
 	})
 
 	It("Should fail to create import pod in namespace with quota, with resource limits higher in CDIConfig", func() {
-		err := f.UpdateCdiConfigResourceLimits(int64(2), int64(1024*1024*1024), int64(2), int64(1*1024*1024*1024))
+		err := f.UpdateCdiConfigResourceLimits(int64(2), int64(512*1024*1024), int64(2), int64(512*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
-		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(1), int64(2*1024*1024*1024))
+		err = f.CreateQuotaInNs(int64(1), int64(512*1024*1024), int64(1), int64(1024*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
 		pvcAnn := map[string]string{
@@ -456,9 +456,9 @@ var _ = Describe("Namespace with quota", func() {
 	})
 
 	It("Should fail to create import pod in namespace with quota, then succeed once the quota is large enough", func() {
-		err := f.UpdateCdiConfigResourceLimits(int64(1), int64(1024*1024*1024), int64(1), int64(1024*1024*1024))
+		err := f.UpdateCdiConfigResourceLimits(int64(1), int64(512*1024*1024), int64(1), int64(512*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
-		err = f.CreateQuotaInNs(int64(1), int64(512*1024*1024), int64(1), int64(512*1024*1024))
+		err = f.CreateQuotaInNs(int64(1), int64(256*1024*1024), int64(1), int64(256*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
 		pvcAnn := map[string]string{
@@ -483,7 +483,7 @@ var _ = Describe("Namespace with quota", func() {
 			return log
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 
-		err = f.UpdateQuotaInNs(int64(2), int64(1024*1024*1024), int64(2), int64(1024*1024*1024))
+		err = f.UpdateQuotaInNs(int64(2), int64(512*1024*1024), int64(2), int64(512*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify the pod status is succeeded on the target PVC")

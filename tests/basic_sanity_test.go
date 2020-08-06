@@ -137,6 +137,7 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 func ValidateRBACForResource(f *framework.Framework, expectedResults map[string]string, resource string, sa string) {
 	for verb, expectedRes := range expectedResults {
 		By(fmt.Sprintf("verifying cdi-sa "+resource+" rules, for verb %s", verb))
+
 		result, err := tests.RunKubectlCommand(f, "auth", "can-i", "--as", sa, verb, resource)
 		if expectedRes != "no" {
 			Expect(err).ToNot(HaveOccurred())

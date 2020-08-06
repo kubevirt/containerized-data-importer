@@ -509,9 +509,9 @@ var _ = Describe("Namespace with quota", func() {
 	})
 
 	It("Should fail to create upload pod in namespace with quota, and recover when quota fixed", func() {
-		err := f.UpdateCdiConfigResourceLimits(int64(2), int64(1024*1024*1024), int64(2), int64(1*1024*1024*1024))
+		err := f.UpdateCdiConfigResourceLimits(int64(0), int64(512*1024*1024), int64(2), int64(512*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
-		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+		err = f.CreateQuotaInNs(int64(1), int64(256*1024*1024), int64(2), int64(256*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 		By("Creating PVC with upload target annotation")
 		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
@@ -525,7 +525,7 @@ var _ = Describe("Namespace with quota", func() {
 			return log
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 		By("Updating the quota to be enough")
-		err = f.UpdateQuotaInNs(int64(2), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+		err = f.UpdateQuotaInNs(int64(2), int64(512*1024*1024), int64(2), int64(1024*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify PVC annotation says ready")
