@@ -9,6 +9,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 

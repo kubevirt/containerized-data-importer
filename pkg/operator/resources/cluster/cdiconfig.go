@@ -3,6 +3,7 @@ package cluster
 import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 

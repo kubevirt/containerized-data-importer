@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"k8s.io/klog"
+
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 

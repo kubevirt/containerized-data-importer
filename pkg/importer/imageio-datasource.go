@@ -32,6 +32,7 @@ import (
 	ovirtsdk4 "github.com/ovirt/go-ovirt"
 	"github.com/pkg/errors"
 	"k8s.io/klog"
+
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 

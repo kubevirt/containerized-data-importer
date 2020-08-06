@@ -18,7 +18,8 @@ package reporters
 
 import (
 	"github.com/onsi/ginkgo"
-	"kubevirt.io/qe-tools/pkg/ginkgo-reporters"
+
+	ginkgo_reporters "kubevirt.io/qe-tools/pkg/ginkgo-reporters"
 )
 
 // NewReporters is a function to gather new ginkgo test reporters

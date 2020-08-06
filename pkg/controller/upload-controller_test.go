@@ -18,10 +18,11 @@ package controller
 
 import (
 	"context"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"strings"
 	"sync"
 	"time"
+
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

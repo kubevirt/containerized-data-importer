@@ -25,6 +25,7 @@ import (
 	"strconv"
 
 	"k8s.io/klog"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 	"kubevirt.io/containerized-data-importer/pkg/util"

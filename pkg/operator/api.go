@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
+
 	"kubevirt.io/containerized-data-importer/pkg/util"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"

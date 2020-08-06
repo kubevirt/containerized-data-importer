@@ -30,6 +30,7 @@ import (
 	"k8s.io/klog"
 
 	"github.com/prometheus/client_golang/prometheus"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"

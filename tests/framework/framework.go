@@ -14,6 +14,7 @@ import (
 	"time"
 
 	storagev1 "k8s.io/api/storage/v1"
+
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
 	"github.com/onsi/ginkgo"

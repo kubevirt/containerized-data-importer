@@ -22,6 +22,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
