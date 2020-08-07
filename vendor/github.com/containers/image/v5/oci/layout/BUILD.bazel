@@ -1,0 +1,28 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "oci_dest.go",
+        "oci_src.go",
+        "oci_transport.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/oci/layout",
+    importpath = "github.com/containers/image/v5/oci/layout",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/containers/image/v5/directory/explicitfilepath:go_default_library",
+        "//vendor/github.com/containers/image/v5/docker/reference:go_default_library",
+        "//vendor/github.com/containers/image/v5/image:go_default_library",
+        "//vendor/github.com/containers/image/v5/manifest:go_default_library",
+        "//vendor/github.com/containers/image/v5/oci/internal:go_default_library",
+        "//vendor/github.com/containers/image/v5/pkg/tlsclientconfig:go_default_library",
+        "//vendor/github.com/containers/image/v5/transports:go_default_library",
+        "//vendor/github.com/containers/image/v5/types:go_default_library",
+        "//vendor/github.com/docker/go-connections/tlsconfig:go_default_library",
+        "//vendor/github.com/opencontainers/go-digest:go_default_library",
+        "//vendor/github.com/opencontainers/image-spec/specs-go:go_default_library",
+        "//vendor/github.com/opencontainers/image-spec/specs-go/v1:go_default_library",
+        "//vendor/github.com/pkg/errors:go_default_library",
+    ],
+)

@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "error.go",
+        "utils.go",
+        "zfs.go",
+        "zpool.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/mistifyio/go-zfs",
+    importpath = "github.com/mistifyio/go-zfs",
+    visibility = ["//visibility:public"],
+)

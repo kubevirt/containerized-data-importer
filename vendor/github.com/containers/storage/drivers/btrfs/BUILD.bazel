@@ -1,0 +1,30 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "btrfs.go",
+        "dummy_unsupported.go",
+        "version.go",
+        "version_none.go",
+    ],
+    cgo = True,
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/storage/drivers/btrfs",
+    importpath = "github.com/containers/storage/drivers/btrfs",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@io_bazel_rules_go//go/platform:linux": [
+            "//vendor/github.com/containers/storage/drivers:go_default_library",
+            "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+            "//vendor/github.com/containers/storage/pkg/mount:go_default_library",
+            "//vendor/github.com/containers/storage/pkg/parsers:go_default_library",
+            "//vendor/github.com/containers/storage/pkg/system:go_default_library",
+            "//vendor/github.com/docker/go-units:go_default_library",
+            "//vendor/github.com/opencontainers/selinux/go-selinux/label:go_default_library",
+            "//vendor/github.com/pkg/errors:go_default_library",
+            "//vendor/github.com/sirupsen/logrus:go_default_library",
+            "//vendor/golang.org/x/sys/unix:go_default_library",
+        ],
+        "//conditions:default": [],
+    }),
+)

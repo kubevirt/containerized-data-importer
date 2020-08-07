@@ -1,0 +1,17 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["system_registries_v2.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/pkg/sysregistriesv2",
+    importpath = "github.com/containers/image/v5/pkg/sysregistriesv2",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/BurntSushi/toml:go_default_library",
+        "//vendor/github.com/containers/image/v5/docker/reference:go_default_library",
+        "//vendor/github.com/containers/image/v5/types:go_default_library",
+        "//vendor/github.com/containers/storage/pkg/homedir:go_default_library",
+        "//vendor/github.com/pkg/errors:go_default_library",
+        "//vendor/github.com/sirupsen/logrus:go_default_library",
+    ],
+)

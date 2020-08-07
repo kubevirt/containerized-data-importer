@@ -1,0 +1,81 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "archive.go",
+        "archive_110.go",
+        "archive_19.go",
+        "archive_ffjson.go",
+        "archive_linux.go",
+        "archive_other.go",
+        "archive_unix.go",
+        "archive_windows.go",
+        "archive_zstd.go",
+        "changes.go",
+        "changes_linux.go",
+        "changes_other.go",
+        "changes_unix.go",
+        "changes_windows.go",
+        "copy.go",
+        "copy_unix.go",
+        "copy_windows.go",
+        "diff.go",
+        "time_linux.go",
+        "time_unsupported.go",
+        "whiteouts.go",
+        "wrap.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/storage/pkg/archive",
+    importpath = "github.com/containers/storage/pkg/archive",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/containers/storage/pkg/fileutils:go_default_library",
+        "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+        "//vendor/github.com/containers/storage/pkg/ioutils:go_default_library",
+        "//vendor/github.com/containers/storage/pkg/pools:go_default_library",
+        "//vendor/github.com/containers/storage/pkg/promise:go_default_library",
+        "//vendor/github.com/containers/storage/pkg/system:go_default_library",
+        "//vendor/github.com/klauspost/compress/zstd:go_default_library",
+        "//vendor/github.com/klauspost/pgzip:go_default_library",
+        "//vendor/github.com/opencontainers/runc/libcontainer/system:go_default_library",
+        "//vendor/github.com/pkg/errors:go_default_library",
+        "//vendor/github.com/pquerna/ffjson/fflib/v1:go_default_library",
+        "//vendor/github.com/sirupsen/logrus:go_default_library",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:android": [
+            "//vendor/golang.org/x/sys/unix:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "//vendor/golang.org/x/sys/unix:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:dragonfly": [
+            "//vendor/golang.org/x/sys/unix:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:freebsd": [
+            "//vendor/golang.org/x/sys/unix:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "//vendor/golang.org/x/sys/unix:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:nacl": [
+            "//vendor/golang.org/x/sys/unix:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:netbsd": [
+            "//vendor/golang.org/x/sys/unix:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:openbsd": [
+            "//vendor/golang.org/x/sys/unix:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:plan9": [
+            "//vendor/golang.org/x/sys/unix:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:solaris": [
+            "//vendor/golang.org/x/sys/unix:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:windows": [
+            "//vendor/github.com/containers/storage/pkg/longpath:go_default_library",
+        ],
+        "//conditions:default": [],
+    }),
+)

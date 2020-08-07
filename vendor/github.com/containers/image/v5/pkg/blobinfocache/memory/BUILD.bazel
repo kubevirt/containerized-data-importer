@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["memory.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/pkg/blobinfocache/memory",
+    importpath = "github.com/containers/image/v5/pkg/blobinfocache/memory",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/containers/image/v5/pkg/blobinfocache/internal/prioritize:go_default_library",
+        "//vendor/github.com/containers/image/v5/types:go_default_library",
+        "//vendor/github.com/opencontainers/go-digest:go_default_library",
+        "//vendor/github.com/sirupsen/logrus:go_default_library",
+    ],
+)

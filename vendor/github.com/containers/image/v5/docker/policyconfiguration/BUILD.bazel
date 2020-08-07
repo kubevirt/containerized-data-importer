@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["naming.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/docker/policyconfiguration",
+    importpath = "github.com/containers/image/v5/docker/policyconfiguration",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/containers/image/v5/docker/reference:go_default_library",
+        "//vendor/github.com/pkg/errors:go_default_library",
+    ],
+)

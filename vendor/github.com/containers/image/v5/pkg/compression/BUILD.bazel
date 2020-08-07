@@ -1,0 +1,21 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "compression.go",
+        "zstd.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/pkg/compression",
+    importpath = "github.com/containers/image/v5/pkg/compression",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/containers/image/v5/pkg/compression/internal:go_default_library",
+        "//vendor/github.com/containers/image/v5/pkg/compression/types:go_default_library",
+        "//vendor/github.com/klauspost/compress/zstd:go_default_library",
+        "//vendor/github.com/klauspost/pgzip:go_default_library",
+        "//vendor/github.com/pkg/errors:go_default_library",
+        "//vendor/github.com/sirupsen/logrus:go_default_library",
+        "//vendor/github.com/ulikunitz/xz:go_default_library",
+    ],
+)

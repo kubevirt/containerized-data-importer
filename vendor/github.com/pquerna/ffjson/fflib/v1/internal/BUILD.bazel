@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "atof.go",
+        "atoi.go",
+        "extfloat.go",
+        "ftoa.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/pquerna/ffjson/fflib/v1/internal",
+    importpath = "github.com/pquerna/ffjson/fflib/v1/internal",
+    visibility = ["//visibility:public"],
+)
