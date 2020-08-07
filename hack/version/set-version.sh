@@ -3,7 +3,7 @@
 set -eou pipefail
 
 # containerized-data-importer/
-REPO_ROOT="$(cd "$(dirname $0)/../../")" && pwd -P)"
+REPO_ROOT="$(cd "$(dirname $0)/../../)" && pwd -P)"
 
 source $REPO_ROOT/hack/version/lib.sh
 

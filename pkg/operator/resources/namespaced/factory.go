@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
+
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 

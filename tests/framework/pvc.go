@@ -1,18 +1,21 @@
 package framework
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	k8sv1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
+
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
-	"strings"
-	"time"
 
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -145,7 +148,7 @@ func (f *Framework) CreateAndPopulateSourcePVC(pvcDef *k8sv1.PersistentVolumeCla
 
 	err = f.WaitTimeoutForPodStatus(pod.Name, k8sv1.PodSucceeded, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(pod.Name, nil)
+	err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	return sourcePvc
 }
@@ -293,10 +296,10 @@ func (f *Framework) GetDiskGroup(namespace *k8sv1.Namespace, pvc *k8sv1.Persiste
 	output, stderr, err = f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
 
 	if deletePod {
-		err := f.K8sClient.CoreV1().Pods(namespace.Name).Delete(executorPod.Name, nil)
+		err := f.K8sClient.CoreV1().Pods(namespace.Name).Delete(context.TODO(), executorPod.Name, metav1.DeleteOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 		gomega.Eventually(func() bool {
-			if _, err := f.K8sClient.CoreV1().Pods(namespace.Name).Get(executorPod.Name, metav1.GetOptions{}); err != nil {
+			if _, err := f.K8sClient.CoreV1().Pods(namespace.Name).Get(context.TODO(), executorPod.Name, metav1.GetOptions{}); err != nil {
 				if apierrs.IsNotFound(err) {
 					return true
 				}
@@ -345,7 +348,7 @@ func (f *Framework) RunCommandAndCaptureOutput(pvc *k8sv1.PersistentVolumeClaim,
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 		return "", err
 	}
-	err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(executorPod.Name, nil)
+	err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), executorPod.Name, metav1.DeleteOptions{})
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	return output, nil
 }

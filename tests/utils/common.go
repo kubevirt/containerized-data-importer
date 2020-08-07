@@ -1,11 +1,14 @@
 package utils
 
 import (
+	"context"
+
 	"github.com/onsi/ginkgo"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -52,7 +55,7 @@ var (
 )
 
 func getDefaultStorageClass(client *kubernetes.Clientset) *storagev1.StorageClass {
-	storageclasses, err := client.StorageV1().StorageClasses().List(metav1.ListOptions{})
+	storageclasses, err := client.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		ginkgo.Fail("Unable to list storage classes")
 		return nil
@@ -68,7 +71,7 @@ func getDefaultStorageClass(client *kubernetes.Clientset) *storagev1.StorageClas
 
 func isDefaultStorageClassCSI(client *kubernetes.Clientset) bool {
 	if DefaultStorageClass != nil {
-		_, err := client.StorageV1beta1().CSIDrivers().Get(DefaultStorageClass.Provisioner, metav1.GetOptions{})
+		_, err := client.StorageV1beta1().CSIDrivers().Get(context.TODO(), DefaultStorageClass.Provisioner, metav1.GetOptions{})
 		if err != nil {
 			return false
 		}
@@ -98,7 +101,7 @@ func CacheTestsData(client *kubernetes.Clientset, cdiNs string) {
 }
 
 func getNfsService(client *kubernetes.Clientset, cdiNs string) *corev1.Service {
-	service, err := client.CoreV1().Services(cdiNs).Get("nfs-service", metav1.GetOptions{})
+	service, err := client.CoreV1().Services(cdiNs).Get(context.TODO(), "nfs-service", metav1.GetOptions{})
 	if err != nil {
 		return nil
 	}
@@ -116,7 +119,7 @@ func IsNfs() bool {
 // EnableFeatureGate sets specified FeatureGate in the CDIConfig
 func EnableFeatureGate(client *cdiclientset.Clientset, feature string) (*bool, error) {
 	var previousValue = false
-	config, err := client.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+	config, err := client.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +129,7 @@ func EnableFeatureGate(client *cdiclientset.Clientset, feature string) (*bool, e
 	}
 
 	config.Spec.FeatureGates = append(config.Spec.FeatureGates, feature)
-	config, err = client.CdiV1beta1().CDIConfigs().Update(config)
+	config, err = client.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +140,7 @@ func EnableFeatureGate(client *cdiclientset.Clientset, feature string) (*bool, e
 // DisableFeatureGate unsets specified FeatureGate in the CDIConfig
 func DisableFeatureGate(client *cdiclientset.Clientset, featureGate string) (*bool, error) {
 	var previousValue = false
-	config, err := client.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+	config, err := client.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +150,7 @@ func DisableFeatureGate(client *cdiclientset.Clientset, featureGate string) (*bo
 
 	previousValue = true
 	config.Spec.FeatureGates = removeString(config.Spec.FeatureGates, featureGate)
-	config, err = client.CdiV1beta1().CDIConfigs().Update(config)
+	config, err = client.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, nil
 	}

@@ -21,13 +21,15 @@ package token
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"reflect"
 	"testing"
 	"time"
 
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 

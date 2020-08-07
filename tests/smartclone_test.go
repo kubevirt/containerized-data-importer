@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
@@ -65,7 +66,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(func() bool {
-			pod, err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(pod.Name, metav1.GetOptions{})
+			pod, err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			return pod.Status.Phase == v1.PodRunning
 		}, 90*time.Second, 2*time.Second).Should(BeTrue())
@@ -81,7 +82,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		Expect(err).ToNot(HaveOccurred())
 
 		verifyEvent(controller.SmartCloneSourceInUse, dataVolume.Namespace, f)
-		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(pod.Name, nil)
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		verifyEvent(controller.SnapshotForSmartCloneInProgress, dataVolume.Namespace, f)
@@ -95,7 +96,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 
 	It("[rfe_id:1106][test_id:3496][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - Check regular clone works", func() {
 		smartApplicable := f.IsSnapshotStorageClassAvailable()
-		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
+		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
 		if err == nil {
 			value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
 			if smartApplicable && ok && strings.Compare(value, "true") == 0 {
@@ -118,7 +119,7 @@ func verifyPVC(dataVolume *cdiv1.DataVolume, f *framework.Framework, testPath st
 	hash := md5.Sum([]byte(expectedData))
 	md5sum := hex.EncodeToString(hash[:])
 	By("verifying pvc was created")
-	targetPvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+	targetPvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
 	By(fmt.Sprint("Verifying target PVC content"))
@@ -130,7 +131,7 @@ func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f
 	err := utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
 	if err != nil {
 		PrintControllerLog(f)
-		dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+		dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 		if dverr != nil {
 			Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 		}

@@ -19,10 +19,11 @@ package controller
 import (
 	"context"
 	"fmt"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"reflect"
 	"strconv"
 	"time"
+
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"

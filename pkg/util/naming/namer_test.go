@@ -24,6 +24,7 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
+
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 

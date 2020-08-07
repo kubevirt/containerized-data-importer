@@ -6,8 +6,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"kubevirt.io/containerized-data-importer/tests/reporters"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
+
+	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 
 var _ = BeforeSuite(func() {

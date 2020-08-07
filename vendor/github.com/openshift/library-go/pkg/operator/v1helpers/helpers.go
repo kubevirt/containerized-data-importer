@@ -1,9 +1,12 @@
 package v1helpers
 
 import (
+	"errors"
+	"sort"
 	"strings"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -258,4 +261,52 @@ func (agg aggregate) Error() string {
 // Errors is part of the Aggregate interface.
 func (agg aggregate) Errors() []error {
 	return []error(agg)
+}
+
+// Is is part of the Aggregate interface
+func (agg aggregate) Is(target error) bool {
+	return agg.visit(func(err error) bool {
+		return errors.Is(err, target)
+	})
+}
+
+func (agg aggregate) visit(f func(err error) bool) bool {
+	for _, err := range agg {
+		switch err := err.(type) {
+		case aggregate:
+			if match := err.visit(f); match {
+				return match
+			}
+		case utilerrors.Aggregate:
+			for _, nestedErr := range err.Errors() {
+				if match := f(nestedErr); match {
+					return match
+				}
+			}
+		default:
+			if match := f(err); match {
+				return match
+			}
+		}
+	}
+
+	return false
+}
+
+// MapToEnvVars converts a string-string map to a slice of corev1.EnvVar-s
+func MapToEnvVars(mapEnvVars map[string]string) []corev1.EnvVar {
+	if mapEnvVars == nil {
+		return nil
+	}
+
+	envVars := make([]corev1.EnvVar, len(mapEnvVars))
+	i := 0
+	for k, v := range mapEnvVars {
+		envVars[i] = corev1.EnvVar{Name: k, Value: v}
+		i++
+	}
+
+	// need to sort the slice so that kube-controller-manager-pod configmap does not change all the time
+	sort.Slice(envVars, func(i, j int) bool { return envVars[i].Name < envVars[j].Name })
+	return envVars
 }

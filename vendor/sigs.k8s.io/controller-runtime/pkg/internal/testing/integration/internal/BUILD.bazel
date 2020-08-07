@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "apiserver.go",
+        "arguments.go",
+        "bin_path_finder.go",
+        "etcd.go",
+        "process.go",
+        "tinyca.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/sigs.k8s.io/controller-runtime/pkg/internal/testing/integration/internal",
+    importpath = "sigs.k8s.io/controller-runtime/pkg/internal/testing/integration/internal",
+    visibility = ["//vendor/sigs.k8s.io/controller-runtime/pkg:__subpackages__"],
+    deps = [
+        "//vendor/github.com/onsi/gomega/gbytes:go_default_library",
+        "//vendor/github.com/onsi/gomega/gexec:go_default_library",
+        "//vendor/k8s.io/client-go/util/cert:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/internal/testing/integration/addr:go_default_library",
+    ],
+)

@@ -124,13 +124,14 @@ func (ImageRegistryConfigStoragePVC) SwaggerDoc() map[string]string {
 }
 
 var map_ImageRegistryConfigStorageS3 = map[string]string{
-	"":               "ImageRegistryConfigStorageS3 holds the information to configure the registry to use the AWS S3 service for backend storage https://docs.docker.com/registry/storage-drivers/s3/",
-	"bucket":         "bucket is the bucket name in which you want to store the registry's data. Optional, will be generated if not provided.",
-	"region":         "region is the AWS region in which your bucket exists. Optional, will be set based on the installed AWS Region.",
-	"regionEndpoint": "regionEndpoint is the endpoint for S3 compatible storage services. Optional, defaults based on the Region that is provided.",
-	"encrypt":        "encrypt specifies whether the registry stores the image in encrypted format or not. Optional, defaults to false.",
-	"keyID":          "keyID is the KMS key ID to use for encryption. Optional, Encrypt must be true, or this parameter is ignored.",
-	"cloudFront":     "cloudFront configures Amazon Cloudfront as the storage middleware in a registry.",
+	"":                   "ImageRegistryConfigStorageS3 holds the information to configure the registry to use the AWS S3 service for backend storage https://docs.docker.com/registry/storage-drivers/s3/",
+	"bucket":             "bucket is the bucket name in which you want to store the registry's data. Optional, will be generated if not provided.",
+	"region":             "region is the AWS region in which your bucket exists. Optional, will be set based on the installed AWS Region.",
+	"regionEndpoint":     "regionEndpoint is the endpoint for S3 compatible storage services. Optional, defaults based on the Region that is provided.",
+	"encrypt":            "encrypt specifies whether the registry stores the image in encrypted format or not. Optional, defaults to false.",
+	"keyID":              "keyID is the KMS key ID to use for encryption. Optional, Encrypt must be true, or this parameter is ignored.",
+	"cloudFront":         "cloudFront configures Amazon Cloudfront as the storage middleware in a registry.",
+	"virtualHostedStyle": "virtualHostedStyle enables using S3 virtual hosted style bucket paths with a custom RegionEndpoint Optional, defaults to false.",
 }
 
 func (ImageRegistryConfigStorageS3) SwaggerDoc() map[string]string {
@@ -181,6 +182,8 @@ var map_ImageRegistrySpec = map[string]string{
 	"resources":       "resources defines the resource requests+limits for the registry pod.",
 	"nodeSelector":    "nodeSelector defines the node selection constraints for the registry pod.",
 	"tolerations":     "tolerations defines the tolerations for the registry pod.",
+	"rolloutStrategy": "rolloutStrategy defines rollout strategy for the image registry deployment.",
+	"affinity":        "affinity is a group of node affinity scheduling rules for the image registry pod(s).",
 }
 
 func (ImageRegistrySpec) SwaggerDoc() map[string]string {
@@ -195,6 +198,51 @@ var map_ImageRegistryStatus = map[string]string{
 
 func (ImageRegistryStatus) SwaggerDoc() map[string]string {
 	return map_ImageRegistryStatus
+}
+
+var map_ImagePruner = map[string]string{
+	"": "ImagePruner is the configuration object for an image registry pruner managed by the registry operator.",
+}
+
+func (ImagePruner) SwaggerDoc() map[string]string {
+	return map_ImagePruner
+}
+
+var map_ImagePrunerList = map[string]string{
+	"": "ImagePrunerList is a slice of ImagePruner objects.",
+}
+
+func (ImagePrunerList) SwaggerDoc() map[string]string {
+	return map_ImagePrunerList
+}
+
+var map_ImagePrunerSpec = map[string]string{
+	"":                           "ImagePrunerSpec defines the specs for the running image pruner.",
+	"schedule":                   "schedule specifies when to execute the job using standard cronjob syntax: https://wikipedia.org/wiki/Cron. Defaults to `0 0 * * *`.",
+	"suspend":                    "suspend specifies whether or not to suspend subsequent executions of this cronjob. Defaults to false.",
+	"keepTagRevisions":           "keepTagRevisions specifies the number of image revisions for a tag in an image stream that will be preserved. Defaults to 3.",
+	"keepYoungerThan":            "keepYoungerThan specifies the minimum age in nanoseconds of an image and its referrers for it to be considered a candidate for pruning. DEPRECATED: This field is deprecated in favor of keepYoungerThanDuration. If both are set, this field is ignored and keepYoungerThanDuration takes precedence.",
+	"keepYoungerThanDuration":    "keepYoungerThanDuration specifies the minimum age of an image and its referrers for it to be considered a candidate for pruning. Defaults to 60m (60 minutes).",
+	"resources":                  "resources defines the resource requests and limits for the image pruner pod.",
+	"affinity":                   "affinity is a group of node affinity scheduling rules for the image pruner pod.",
+	"nodeSelector":               "nodeSelector defines the node selection constraints for the image pruner pod.",
+	"tolerations":                "tolerations defines the node tolerations for the image pruner pod.",
+	"successfulJobsHistoryLimit": "successfulJobsHistoryLimit specifies how many successful image pruner jobs to retain. Defaults to 3 if not set.",
+	"failedJobsHistoryLimit":     "failedJobsHistoryLimit specifies how many failed image pruner jobs to retain. Defaults to 3 if not set.",
+}
+
+func (ImagePrunerSpec) SwaggerDoc() map[string]string {
+	return map_ImagePrunerSpec
+}
+
+var map_ImagePrunerStatus = map[string]string{
+	"":                   "ImagePrunerStatus reports image pruner operational status.",
+	"observedGeneration": "observedGeneration is the last generation change that has been applied.",
+	"conditions":         "conditions is a list of conditions and their status.",
+}
+
+func (ImagePrunerStatus) SwaggerDoc() map[string]string {
+	return map_ImagePrunerStatus
 }
 
 // AUTO-GENERATED FUNCTIONS END HERE

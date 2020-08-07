@@ -14,6 +14,7 @@ import (
 	"time"
 
 	storagev1 "k8s.io/api/storage/v1"
+
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
 	"github.com/onsi/ginkgo"
@@ -205,7 +206,7 @@ func (f *Framework) CreateNamespace(prefix string, labels map[string]string) (*v
 	c := f.K8sClient
 	err := wait.PollImmediate(2*time.Second, nsCreateTime, func() (bool, error) {
 		var err error
-		nsObj, err = c.CoreV1().Namespaces().Create(ns)
+		nsObj, err = c.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
 		if err == nil || apierrs.IsAlreadyExists(err) {
 			return true, nil // done
 		}
@@ -228,12 +229,12 @@ func (f *Framework) AddNamespaceToDelete(ns *v1.Namespace) {
 // DeleteNS provides a function to delete the specified namespace from the test cluster
 func DeleteNS(c *kubernetes.Clientset, ns string) error {
 	return wait.PollImmediate(2*time.Second, nsDeleteTime, func() (bool, error) {
-		err := c.CoreV1().Namespaces().Delete(ns, nil)
+		err := c.CoreV1().Namespaces().Delete(context.TODO(), ns, metav1.DeleteOptions{})
 		if err != nil && !apierrs.IsNotFound(err) {
 			return false, nil // keep trying
 		}
 		// see if ns is really deleted
-		_, err = c.CoreV1().Namespaces().Get(ns, metav1.GetOptions{})
+		_, err = c.CoreV1().Namespaces().Get(context.TODO(), ns, metav1.GetOptions{})
 		if apierrs.IsNotFound(err) {
 			return true, nil // deleted, done
 		}
@@ -288,7 +289,7 @@ func (c *Clients) GetCrClient() (crclient.Client, error) {
 func (f *Framework) GetCdiClientForServiceAccount(namespace, name string) (*cdiClientset.Clientset, error) {
 	var secretName string
 
-	sl, err := f.K8sClient.CoreV1().Secrets(namespace).List(metav1.ListOptions{})
+	sl, err := f.K8sClient.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +308,7 @@ func (f *Framework) GetCdiClientForServiceAccount(namespace, name string) (*cdiC
 		return nil, fmt.Errorf("couldn't find service account secret")
 	}
 
-	secret, err := f.K8sClient.CoreV1().Secrets(namespace).Get(secretName, metav1.GetOptions{})
+	secret, err := f.K8sClient.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -379,7 +380,7 @@ func (f *Framework) CreatePrometheusServiceInNs(namespace string) (*v1.Service, 
 			},
 		},
 	}
-	return f.K8sClient.CoreV1().Services(namespace).Create(service)
+	return f.K8sClient.CoreV1().Services(namespace).Create(context.TODO(), service, metav1.CreateOptions{})
 }
 
 // CreateQuotaInNs creates a quota and sets it on the current test namespace.
@@ -398,12 +399,12 @@ func (f *Framework) CreateQuotaInNs(requestCPU, requestMemory, limitsCPU, limits
 			},
 		},
 	}
-	_, err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Create(resourceQuota)
+	_, err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Create(context.TODO(), resourceQuota, metav1.CreateOptions{})
 	if err != nil {
 		ginkgo.Fail("Unable to set resource quota " + err.Error())
 	}
 	return wait.PollImmediate(2*time.Second, nsDeleteTime, func() (bool, error) {
-		quota, err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Get("test-quota", metav1.GetOptions{})
+		quota, err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Get(context.TODO(), "test-quota", metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -427,7 +428,7 @@ func (f *Framework) UpdateQuotaInNs(requestCPU, requestMemory, limitsCPU, limits
 			},
 		},
 	}
-	_, err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Update(resourceQuota)
+	_, err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Update(context.TODO(), resourceQuota, metav1.UpdateOptions{})
 	if err != nil {
 		ginkgo.Fail("Unable to set resource quota " + err.Error())
 	}
@@ -436,7 +437,7 @@ func (f *Framework) UpdateQuotaInNs(requestCPU, requestMemory, limitsCPU, limits
 
 // UpdateCdiConfigResourceLimits sets the limits in the CDIConfig object
 func (f *Framework) UpdateCdiConfigResourceLimits(resourceCPU, resourceMemory, limitsCPU, limitsMemory int64) error {
-	config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+	config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -448,7 +449,7 @@ func (f *Framework) UpdateCdiConfigResourceLimits(resourceCPU, resourceMemory, l
 			v1.ResourceCPU:    *resource.NewQuantity(limitsCPU, resource.DecimalSI),
 			v1.ResourceMemory: *resource.NewQuantity(limitsMemory, resource.DecimalSI)},
 	}
-	_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(config)
+	_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
@@ -512,7 +513,7 @@ func (f *Framework) createKubectlCommand(args ...string) *exec.Cmd {
 // IsSnapshotStorageClassAvailable checks if the snapshot storage class exists.
 func (f *Framework) IsSnapshotStorageClassAvailable() bool {
 	// Fetch the storage class
-	storageclass, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
+	storageclass, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
 	if err != nil {
 		return false
 	}
@@ -534,7 +535,7 @@ func (f *Framework) IsSnapshotStorageClassAvailable() bool {
 
 // IsBlockVolumeStorageClassAvailable checks if the block volume storage class exists.
 func (f *Framework) IsBlockVolumeStorageClassAvailable() bool {
-	sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.BlockSCName, metav1.GetOptions{})
+	sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.BlockSCName, metav1.GetOptions{})
 	if err != nil {
 		return false
 	}
@@ -546,7 +547,7 @@ func (f *Framework) IsBindingModeWaitForFirstConsumer(storageClassName *string) 
 	if storageClassName == nil {
 		return false
 	}
-	storageClass, err := f.K8sClient.StorageV1().StorageClasses().Get(*storageClassName, metav1.GetOptions{})
+	storageClass, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), *storageClassName, metav1.GetOptions{})
 	if err != nil {
 		return false
 	}
@@ -556,12 +557,12 @@ func (f *Framework) IsBindingModeWaitForFirstConsumer(storageClassName *string) 
 
 func (f *Framework) setFeatureGates(defaultFeatureGates []string) {
 	gomega.Eventually(func() bool {
-		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		config.Spec.FeatureGates = defaultFeatureGates
 
-		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(config)
+		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
 		return err == nil
 	}, timeout, pollingInterval).Should(gomega.BeTrue())
 }
@@ -644,7 +645,7 @@ func (r *KubernetesReporter) logPods(kubeCli *kubernetes.Clientset) {
 	}
 	defer f.Close()
 
-	pods, err := kubeCli.CoreV1().Pods(v1.NamespaceAll).List(metav1.ListOptions{})
+	pods, err := kubeCli.CoreV1().Pods(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to fetch pods: %v\n", err)
 		return
@@ -667,7 +668,7 @@ func (r *KubernetesReporter) logNodes(kubeCli *kubernetes.Clientset) {
 	}
 	defer f.Close()
 
-	nodes, err := kubeCli.CoreV1().Nodes().List(metav1.ListOptions{})
+	nodes, err := kubeCli.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to fetch nodes: %v\n", err)
 		return
@@ -690,7 +691,7 @@ func (r *KubernetesReporter) logPVs(kubeCli *kubernetes.Clientset) {
 	}
 	defer f.Close()
 
-	pvs, err := kubeCli.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
+	pvs, err := kubeCli.CoreV1().PersistentVolumes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to fetch pvs: %v\n", err)
 		return
@@ -713,7 +714,7 @@ func (r *KubernetesReporter) logPVCs(kubeCli *kubernetes.Clientset) {
 	}
 	defer f.Close()
 
-	pvcs, err := kubeCli.CoreV1().PersistentVolumeClaims(v1.NamespaceAll).List(metav1.ListOptions{})
+	pvcs, err := kubeCli.CoreV1().PersistentVolumeClaims(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to fetch pvcs: %v\n", err)
 		return
@@ -735,7 +736,7 @@ func (r *KubernetesReporter) logDVs(cdiClientset *cdiClientset.Clientset) {
 	}
 	defer f.Close()
 
-	dvs, err := cdiClientset.CdiV1beta1().DataVolumes(v1.NamespaceAll).List(metav1.ListOptions{})
+	dvs, err := cdiClientset.CdiV1beta1().DataVolumes(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to fetch datavolumes: %v\n", err)
 		return
@@ -759,7 +760,7 @@ func (r *KubernetesReporter) logLogs(kubeCli *kubernetes.Clientset, since time.D
 
 	startTime := time.Now().Add(-since).Add(-5 * time.Second)
 
-	pods, err := kubeCli.CoreV1().Pods(v1.NamespaceAll).List(metav1.ListOptions{})
+	pods, err := kubeCli.CoreV1().Pods(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to fetch pods: %v\n", err)
 		return
@@ -782,12 +783,12 @@ func (r *KubernetesReporter) logLogs(kubeCli *kubernetes.Clientset, since time.D
 			defer previous.Close()
 
 			logStart := metav1.NewTime(startTime)
-			logs, err := kubeCli.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{SinceTime: &logStart, Container: container.Name}).DoRaw()
+			logs, err := kubeCli.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{SinceTime: &logStart, Container: container.Name}).DoRaw(context.TODO())
 			if err == nil {
 				fmt.Fprintln(current, string(logs))
 			}
 
-			logs, err = kubeCli.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{SinceTime: &logStart, Container: container.Name, Previous: true}).DoRaw()
+			logs, err = kubeCli.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{SinceTime: &logStart, Container: container.Name, Previous: true}).DoRaw(context.TODO())
 			if err == nil {
 				fmt.Fprintln(previous, string(logs))
 			}
@@ -807,7 +808,7 @@ func (r *KubernetesReporter) logEvents(kubeCli *kubernetes.Clientset, since time
 
 	startTime := time.Now().Add(-since).Add(-5 * time.Second)
 
-	events, err := kubeCli.CoreV1().Events(v1.NamespaceAll).List(metav1.ListOptions{})
+	events, err := kubeCli.CoreV1().Events(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return
 	}

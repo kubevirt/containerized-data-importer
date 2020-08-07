@@ -1,6 +1,7 @@
 package fetcher
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"path"
@@ -62,7 +63,7 @@ type ConfigMapCertBundleFetcher struct {
 
 // BundleBytes returns bundle bytes
 func (f *ConfigMapCertBundleFetcher) BundleBytes() ([]byte, error) {
-	cm, err := f.Client.Get(f.Name, metav1.GetOptions{})
+	cm, err := f.Client.Get(context.TODO(), f.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}

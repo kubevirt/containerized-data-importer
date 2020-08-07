@@ -1,11 +1,12 @@
 package image
 
 import (
+	"math/rand"
+	"reflect"
+
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	"math/rand"
-	"reflect"
 )
 
 var _ = Describe("File format tests", func() {

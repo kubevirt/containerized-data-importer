@@ -23,7 +23,7 @@ export GO111MODULE=off
 SCRIPT_ROOT="$(cd "$(dirname $0)/../" && pwd -P)"
 CODEGEN_PKG=${CODEGEN_PKG:-$(
     cd ${SCRIPT_ROOT}
-    ls -d -1 $GOPATH/src/k8s.io/code-generator 2>/dev/null || echo ../code-generator
+    ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator
 )}
 
 find "${SCRIPT_ROOT}/pkg/" -name "*generated*.go" -exec rm {} -f \;
@@ -35,10 +35,10 @@ ${SCRIPT_ROOT}/hack/build/build-go.sh generate
 # --output-base    because this script should also be able to run inside the vendor dir of
 #                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
-${CODEGEN_PKG}/generate-groups.sh "deepcopy,client,informer,lister" \
-  kubevirt.io/containerized-data-importer/pkg/client kubevirt.io/containerized-data-importer/pkg/apis \
-  "core:v1alpha1 upload:v1alpha1 core:v1beta1 upload:v1beta1" \
-  --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
+/bin/bash ${CODEGEN_PKG}/generate-groups.sh "deepcopy,client,informer,lister" \
+    kubevirt.io/containerized-data-importer/pkg/client kubevirt.io/containerized-data-importer/pkg/apis \
+    "core:v1alpha1 upload:v1alpha1 core:v1beta1 upload:v1beta1" \
+    --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
 echo "Generating swagger doc"
 swagger-doc -in ${SCRIPT_ROOT}/pkg/apis/core/v1alpha1/types.go
@@ -46,6 +46,8 @@ swagger-doc -in ${SCRIPT_ROOT}/pkg/apis/upload/v1alpha1/types.go
 
 swagger-doc -in ${SCRIPT_ROOT}/pkg/apis/core/v1beta1/types.go
 swagger-doc -in ${SCRIPT_ROOT}/pkg/apis/upload/v1beta1/types.go
+
+(go install ${CODEGEN_PKG}/cmd/openapi-gen)
 
 echo "Generating openapi"
 openapi-gen --input-dirs k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/api/core/v1,github.com/openshift/custom-resource-status/conditions/v1,kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1 \
@@ -66,7 +68,7 @@ openapi-gen --input-dirs k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/api/core/v1
 
 (cd ${SCRIPT_ROOT}/tools/openapi-spec-generator/ && go build -o ../../bin/openapi-spec-generator)
 
-${SCRIPT_ROOT}/bin/openapi-spec-generator > ${SCRIPT_ROOT}/api/openapi-spec/swagger.json
+${SCRIPT_ROOT}/bin/openapi-spec-generator >${SCRIPT_ROOT}/api/openapi-spec/swagger.json
 
 # the kubevirtci commit hash to vendor from
 kubevirtci_git_hash=b98abc151e83a12f206d9c50bcf1989dd41b9c33
@@ -76,3 +78,5 @@ rm -rf cluster-up
 
 # download and extract the cluster-up dir from a specific hash in kubevirtci
 curl -L https://github.com/kubevirt/kubevirtci/archive/${kubevirtci_git_hash}/kubevirtci.tar.gz | tar xz kubevirtci-${kubevirtci_git_hash}/cluster-up --strip-component 1
+
+rm -f "${SCRIPT_ROOT}/cluster-up/cluster/kind-k8s-sriov-1.17.0/csrcreator/certsecret.go"

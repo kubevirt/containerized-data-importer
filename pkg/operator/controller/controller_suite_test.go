@@ -22,14 +22,14 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/operator"
 	"kubevirt.io/containerized-data-importer/tests/reporters"
 )
 
@@ -41,37 +41,6 @@ func TestOperator(t *testing.T) {
 var testenv *envtest.Environment
 var cfg *rest.Config
 var clientset *kubernetes.Clientset
-
-var crd = &extv1.CustomResourceDefinition{
-	ObjectMeta: metav1.ObjectMeta{
-		Name: "cdis.cdi.kubevirt.io",
-		Labels: map[string]string{
-			"operator.cdi.kubevirt.io": "",
-		},
-	},
-	Spec: extv1.CustomResourceDefinitionSpec{
-		Group: "cdi.kubevirt.io",
-		Names: extv1.CustomResourceDefinitionNames{
-			Kind:     "CDI",
-			ListKind: "CDIList",
-			Plural:   "cdis",
-			Singular: "cdi",
-		},
-		Scope: "Cluster",
-		Versions: []extv1.CustomResourceDefinitionVersion{
-			{
-				Name:    "v1beta1",
-				Served:  true,
-				Storage: true,
-			},
-			{
-				Name:    "v1alpha1",
-				Served:  true,
-				Storage: false,
-			},
-		},
-	},
-}
 
 var _ = BeforeSuite(func(done Done) {
 	logf.SetLogger(logf.ZapLoggerTo(GinkgoWriter, true))
@@ -85,15 +54,14 @@ var _ = BeforeSuite(func(done Done) {
 	clientset, err = kubernetes.NewForConfig(cfg)
 	Expect(err).NotTo(HaveOccurred())
 
-	// TODO: Update this once we are on a new version of the controller runtime that supports v1 apiextensions.
-	// opts := envtest.CRDInstallOptions{
-	// 	CRDs: []*extv1.CustomResourceDefinition{crd},
-	// }
+	opts := envtest.CRDInstallOptions{
+		CRDs: []runtime.Object{operator.NewCdiCrd()},
+	}
 
-	// crds, err := envtest.InstallCRDs(cfg, opts)
-	// Expect(err).NotTo(HaveOccurred())
-	// err = envtest.WaitForCRDs(cfg, crds, envtest.CRDInstallOptions{})
-	// Expect(err).NotTo(HaveOccurred())
+	crds, err := envtest.InstallCRDs(cfg, opts)
+	Expect(err).NotTo(HaveOccurred())
+	err = envtest.WaitForCRDs(cfg, crds, envtest.CRDInstallOptions{})
+	Expect(err).NotTo(HaveOccurred())
 
 	// Prevent the metrics listener being created
 	metrics.DefaultBindAddress = "0"

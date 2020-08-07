@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -97,12 +98,12 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 			},
 		}
 
-		_, err := client.CoreV1().ServiceAccounts(namespace).Create(sa)
+		_, err := client.CoreV1().ServiceAccounts(namespace).Create(context.TODO(), sa, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 	}
 
 	var addPermissionToNamespace = func(client kubernetes.Interface, role *rbacv1.Role, saNamespace, sa, targetNamesace string) {
-		_, err := client.RbacV1().Roles(targetNamesace).Create(role)
+		_, err := client.RbacV1().Roles(targetNamesace).Create(context.TODO(), role, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		rb := &rbacv1.RoleBinding{
@@ -123,7 +124,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 			},
 		}
 
-		_, err = client.RbacV1().RoleBindings(targetNamesace).Create(rb)
+		_, err = client.RbacV1().RoleBindings(targetNamesace).Create(context.TODO(), rb, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 	}
 
@@ -145,7 +146,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 
 			AfterEach(func() {
 				if targetNamespace != nil {
-					err = f.K8sClient.CoreV1().Namespaces().Delete(targetNamespace.Name, &metav1.DeleteOptions{})
+					err = f.K8sClient.CoreV1().Namespaces().Delete(context.TODO(), targetNamespace.Name, metav1.DeleteOptions{})
 					Expect(err).ToNot(HaveOccurred())
 				}
 			})
@@ -161,15 +162,15 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				// can't list dvs in source
-				_, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
+				_, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(HaveOccurred())
 
 				// can list dvs in dest
-				_, err = client.CdiV1beta1().DataVolumes(targetNamespace.Name).List(metav1.ListOptions{})
+				_, err = client.CdiV1beta1().DataVolumes(targetNamespace.Name).List(context.TODO(), metav1.ListOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				// can't create clone of dv in source
-				_, err = client.CdiV1beta1().DataVolumes(targetNamespace.Name).Create(targetDV)
+				_, err = client.CdiV1beta1().DataVolumes(targetNamespace.Name).Create(context.TODO(), targetDV, metav1.CreateOptions{})
 				Expect(err).To(HaveOccurred())
 
 				// let's do manual check as well
@@ -187,12 +188,12 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 
 				// now can list dvs in source
 				Eventually(func() error {
-					_, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).List(metav1.ListOptions{})
+					_, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
 					return err
 				}, 60*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
 
 				// now can create clone of dv in source
-				_, err = client.CdiV1beta1().DataVolumes(targetNamespace.Name).Create(targetDV)
+				_, err = client.CdiV1beta1().DataVolumes(targetNamespace.Name).Create(context.TODO(), targetDV, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				// let's do another manual check as well

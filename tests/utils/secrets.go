@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"context"
+
 	"github.com/pkg/errors"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -31,7 +33,7 @@ func NewSecretDefinition(labels, stringData map[string]string, data map[string][
 // CreateSecretFromDefinition creates and returns a pointer ot a v1.Secret using a provided v1.Secret
 func CreateSecretFromDefinition(c *kubernetes.Clientset, secret *v1.Secret) (*v1.Secret, error) {
 	err := wait.PollImmediate(secretPollInterval, secretPollPeriod, func() (done bool, err error) {
-		secret, err = c.CoreV1().Secrets(secret.Namespace).Create(secret)
+		secret, err = c.CoreV1().Secrets(secret.Namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 		// success
 		if err == nil {
 			return true, nil
@@ -53,7 +55,7 @@ func CreateSecretFromDefinition(c *kubernetes.Clientset, secret *v1.Secret) (*v1
 //DeleteSecret ...
 func DeleteSecret(clientSet *kubernetes.Clientset, namespace string, secret v1.Secret) error {
 	e := wait.PollImmediate(secretPollInterval, secretPollPeriod, func() (bool, error) {
-		err := clientSet.CoreV1().Secrets(namespace).Delete(secret.GetName(), nil)
+		err := clientSet.CoreV1().Secrets(namespace).Delete(context.TODO(), secret.GetName(), metav1.DeleteOptions{})
 		if err == nil || apierrs.IsNotFound(err) {
 			return true, nil
 		}

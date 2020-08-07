@@ -1,9 +1,11 @@
 package framework
 
 import (
-	k8sv1 "k8s.io/api/core/v1"
-	"kubevirt.io/containerized-data-importer/tests/utils"
 	"time"
+
+	k8sv1 "k8s.io/api/core/v1"
+
+	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
 // CreatePVFromDefinition is a wrapper around utils.CreatePVFromDefinition

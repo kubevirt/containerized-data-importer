@@ -20,10 +20,12 @@
 package clone
 
 import (
+	"context"
 	"fmt"
 
 	authentication "k8s.io/api/authentication/v1"
 	authorization "k8s.io/api/authorization/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
 
@@ -80,7 +82,7 @@ func sendSubjectAccessReviews(client kubernetes.Interface, namespace, name strin
 
 		klog.V(3).Infof("Sending SubjectAccessReview %+v", sar)
 
-		response, err := client.AuthorizationV1().SubjectAccessReviews().Create(sar)
+		response, err := client.AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), sar, metav1.CreateOptions{})
 		if err != nil {
 			return false, "", err
 		}

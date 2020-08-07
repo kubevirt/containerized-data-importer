@@ -86,7 +86,7 @@ function getCurrentVersion() {
 function getVersionedFiles() {
     local curVersion=$1
     local repoRoot=$2
-local verFiles="$(grep -rl --exclude-dir={vender,bin,.git} --exclude={go.mod,go.sum,.git*} "$curVersion" $repoRoot/ 2>/dev/null)"
+    local verFiles="$(grep -rl --exclude-dir={vender,bin,.git} --exclude={go.mod,go.sum,.git*} "$curVersion" $repoRoot/ 2>/dev/null)"
     if [ -z "$verFiles" ]; then
         printf "" # this func exec'd inside subshell, so return null string
         exit 1

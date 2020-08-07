@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"context"
+
 	k8sv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -64,7 +66,7 @@ func RequestUploadToken(clientSet *cdiClientset.Clientset, pvc *k8sv1.Persistent
 		},
 	}
 
-	response, err := clientSet.UploadV1beta1().UploadTokenRequests(pvc.Namespace).Create(request)
+	response, err := clientSet.UploadV1beta1().UploadTokenRequests(pvc.Namespace).Create(context.TODO(), request, metav1.CreateOptions{})
 	if err != nil {
 		return "", err
 	}

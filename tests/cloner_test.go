@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -58,7 +59,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 	It("[test_id:1354]Should clone data within same namespace", func() {
 		smartApplicable := f.IsSnapshotStorageClassAvailable()
-		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
+		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
 		if err == nil {
 			value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
 			if smartApplicable && ok && strings.Compare(value, "true") == 0 {
@@ -83,7 +84,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		By(fmt.Sprintf("waiting for source datavolume to match phase %s", string(cdiv1.Succeeded)))
 		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
 		if err != nil {
-			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(dataVolume.Name, metav1.GetOptions{})
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			if dverr != nil {
 				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 			}
@@ -91,15 +92,15 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(err).ToNot(HaveOccurred())
 
 		By("verifying pvc content")
-		pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+		pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 		sourceMD5, err := f.GetMD5(f.Namespace, pvc, diskImagePath, 0)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Deleting verifier pod")
-		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(utils.VerifierPodName, &metav1.DeleteOptions{})
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), utils.VerifierPodName, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Eventually(func() bool {
-			_, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(utils.VerifierPodName, metav1.GetOptions{})
+			_, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), utils.VerifierPodName, metav1.GetOptions{})
 			return k8serrors.IsNotFound(err)
 		}, 60, 1).Should(BeTrue())
 
@@ -152,7 +153,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 	It("[posneg:negative][test_id:3617]Should clone across nodes when multiple local volumes exist,", func() {
 		// Get nodes, need at least 2
-		nodeList, err := f.K8sClient.CoreV1().Nodes().List(metav1.ListOptions{})
+		nodeList, err := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		if len(nodeList.Items) < 2 {
 			Skip("Need at least 2 nodes to copy accross nodes")
@@ -164,7 +165,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			}
 		}
 		// Find PVs and identify local storage, the PVs should already exist.
-		pvList, err := f.K8sClient.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
+		pvList, err := f.K8sClient.CoreV1().PersistentVolumes().List(context.TODO(), metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		var sourcePV, targetPV *v1.PersistentVolume
 		var storageClassName string
@@ -209,7 +210,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 						sourcePV.SetLabels(make(map[string]string))
 					}
 					sourcePV.GetLabels()["source-pv"] = "yes"
-					sourcePV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(sourcePV)
+					sourcePV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), sourcePV, metav1.UpdateOptions{})
 					Expect(err).ToNot(HaveOccurred())
 				}
 			} else if targetPV == nil {
@@ -222,7 +223,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 						targetPV.SetLabels(make(map[string]string))
 					}
 					targetPV.GetLabels()["target-pv"] = "yes"
-					targetPV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(targetPV)
+					targetPV, err = f.K8sClient.CoreV1().PersistentVolumes().Update(context.TODO(), targetPV, metav1.UpdateOptions{})
 					Expect(err).ToNot(HaveOccurred())
 					break
 				}
@@ -236,7 +237,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		sourcePVCDef := utils.NewPVCDefinitionWithSelector(sourcePVCName, "1G", storageClassName, sourceSelector, nil, nil)
 		sourcePVCDef.Namespace = f.Namespace.Name
 		sourcePVC := f.CreateAndPopulateSourcePVC(sourcePVCDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
-		sourcePVC, err = f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(sourcePVC.Name, metav1.GetOptions{})
+		sourcePVC, err = f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), sourcePVC.Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePVC.Spec.VolumeName).To(Equal(sourcePV.Name))
 
@@ -295,7 +296,7 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 		Expect(err).ToNot(HaveOccurred())
 		fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
-		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete("execute-command", &metav1.DeleteOptions{})
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), "execute-command", metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		_, err = utils.WaitPodDeleted(f.K8sClient, "execute-command", f.Namespace.Name, verifyPodDeletedTimeout)
 		Expect(err).ToNot(HaveOccurred())
@@ -318,7 +319,7 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 			Expect(err).ToNot(HaveOccurred())
 			matchFile := filepath.Join(testBaseDir, "disk.img")
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), matchFile, md5sum[:32])).To(BeTrue())
-			err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(utils.VerifierPodName, &metav1.DeleteOptions{})
+			err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), utils.VerifierPodName, metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
 			Expect(err).ToNot(HaveOccurred())
@@ -347,7 +348,7 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 		}
 		Expect(err).ToNot(HaveOccurred())
 		fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
-		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete("execute-command", &metav1.DeleteOptions{})
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), "execute-command", metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		_, err = utils.WaitPodDeleted(f.K8sClient, "execute-command", f.Namespace.Name, verifyPodDeletedTimeout)
 		Expect(err).ToNot(HaveOccurred())
@@ -369,7 +370,7 @@ var _ = Describe("Validate creating multiple clones of same source Data Volume",
 			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name, 3*90*time.Second)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), testBaseDir, md5sum[:32])).To(BeTrue())
-			err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(utils.VerifierPodName, &metav1.DeleteOptions{})
+			err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), utils.VerifierPodName, metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
 			Expect(err).ToNot(HaveOccurred())
@@ -414,7 +415,7 @@ var _ = Describe("Validate Data Volume clone to smaller size", func() {
 		Expect(err).ToNot(HaveOccurred())
 		fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
-		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete("execute-command", &metav1.DeleteOptions{})
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), "execute-command", metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		_, err = utils.WaitPodDeleted(f.K8sClient, "execute-command", f.Namespace.Name, verifyPodDeletedTimeout)
 		Expect(err).ToNot(HaveOccurred())
@@ -510,7 +511,7 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 		Expect(err).ToNot(HaveOccurred())
 		fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", md5sum[:32])
 
-		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete("execute-command", &metav1.DeleteOptions{})
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), "execute-command", metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		_, err = utils.WaitPodDeleted(f.K8sClient, "execute-command", f.Namespace.Name, verifyPodDeletedTimeout)
 		Expect(err).ToNot(HaveOccurred())
@@ -546,7 +547,7 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 			matchFile := filepath.Join(testBaseDir, "disk.img")
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), matchFile, md5sum[:32])).To(BeTrue())
 			By("Deleting verifier pod")
-			err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(utils.VerifierPodName, &metav1.DeleteOptions{})
+			err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), utils.VerifierPodName, metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
 			Expect(err).ToNot(HaveOccurred())
@@ -601,7 +602,7 @@ var _ = Describe("Validate Data Volume should clone multiple clones in parallel"
 			By("Verifying MD5 sum matches")
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), testBaseDir, md5sum[:32])).To(BeTrue())
 			By("Deleting verifier pod")
-			err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(utils.VerifierPodName, &metav1.DeleteOptions{})
+			err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), utils.VerifierPodName, metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
 			Expect(err).ToNot(HaveOccurred())
@@ -623,7 +624,7 @@ var _ = Describe("Block PV Cloner Test", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Deleting verifier pod")
-		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(utils.VerifierPodName, &metav1.DeleteOptions{})
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), utils.VerifierPodName, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
 		Expect(err).ToNot(HaveOccurred())
@@ -660,7 +661,7 @@ var _ = Describe("Namespace with quota", func() {
 
 	BeforeEach(func() {
 		By("Capturing original CDIConfig state")
-		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(common.ConfigName, metav1.GetOptions{})
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		orgConfig = config.Status.DefaultPodResourceRequirements
 	})
@@ -690,7 +691,7 @@ var _ = Describe("Namespace with quota", func() {
 		err := f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
 		Expect(err).NotTo(HaveOccurred())
 		smartApplicable := f.IsSnapshotStorageClassAvailable()
-		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
+		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
 		if err == nil {
 			value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
 			if smartApplicable && ok && strings.Compare(value, "true") == 0 {
@@ -709,7 +710,7 @@ var _ = Describe("Namespace with quota", func() {
 		Expect(err).NotTo(HaveOccurred())
 		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
 		smartApplicable := f.IsSnapshotStorageClassAvailable()
-		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
+		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
 		if err == nil {
 			value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
 			if smartApplicable && ok && strings.Compare(value, "true") == 0 {
@@ -743,7 +744,7 @@ var _ = Describe("Namespace with quota", func() {
 		err = f.CreateQuotaInNs(int64(1), int64(128*1024*1024), int64(2), int64(128*1024*1024))
 		Expect(err).NotTo(HaveOccurred())
 		smartApplicable := f.IsSnapshotStorageClassAvailable()
-		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
+		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
 		if err == nil {
 			value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
 			if smartApplicable && ok && strings.Compare(value, "true") == 0 {
@@ -785,7 +786,7 @@ var _ = Describe("Namespace with quota", func() {
 		err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
 		Expect(err).NotTo(HaveOccurred())
 		smartApplicable := f.IsSnapshotStorageClassAvailable()
-		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(f.SnapshotSCName, metav1.GetOptions{})
+		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
 		if err == nil {
 			value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
 			if smartApplicable && ok && strings.Compare(value, "true") == 0 {
@@ -872,7 +873,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(restartsValue).To(Equal("0"))
 
 		By("Verify the number of retries on the datavolume")
-		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
+		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(context.TODO(), targetDvName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
 	})
@@ -923,7 +924,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		By("Verify the number of retries on the datavolume")
 		Eventually(func() int32 {
-			dv, err := f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(dataVolume.Name, metav1.GetOptions{})
+			dv, err := f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			restarts := dv.Status.RestartCount
 			return restarts
@@ -956,7 +957,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(restartsValue).To(Equal("0"))
 
 		By("Verify the number of retries on the datavolume")
-		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
+		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(context.TODO(), targetDvName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
 	})
@@ -989,7 +990,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(restartsValue).To(Equal("0"))
 
 		By("Verify the number of retries on the datavolume")
-		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
+		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(context.TODO(), targetDvName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
 	})
@@ -1022,7 +1023,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(restartsValue).To(Equal("0"))
 
 		By("Verify the number of retries on the datavolume")
-		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(targetDvName, metav1.GetOptions{})
+		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(context.TODO(), targetDvName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
 	})
@@ -1053,7 +1054,7 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 	Expect(err).ToNot(HaveOccurred())
 
 	Eventually(func() bool {
-		pod, err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(pod.Name, metav1.GetOptions{})
+		pod, err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		return pod.Status.Phase == v1.PodRunning
 	}, 90*time.Second, 2*time.Second).Should(BeTrue())
@@ -1068,7 +1069,7 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 	f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 	verifyEvent(controller.CloneSourceInUse, targetNs.Name, f)
-	err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(pod.Name, nil)
+	err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
 	fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)

@@ -1,6 +1,7 @@
 package tests_test
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"time"
@@ -131,12 +132,12 @@ var _ = Describe("[rfe_id:1250][crit:high][test_id:1889][vendor:cnv-qe@redhat.co
 
 		// The import is starting, and the transfer is about to happen. Now kill the leader
 		By("Killing leader, we should have a new leader elected")
-		err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).Delete(leaderPodName, &metav1.DeleteOptions{})
+		err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).Delete(context.TODO(), leaderPodName, metav1.DeleteOptions{})
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to kill leader: %v", err))
 
 		By("Verifying that the original leader pod is gone.")
 		Eventually(func() bool {
-			_, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).Get(leaderPodName, metav1.GetOptions{})
+			_, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).Get(context.TODO(), leaderPodName, metav1.GetOptions{})
 			return err != nil && k8serrors.IsNotFound(err)
 		}, timeout, pollingInterval).Should(BeTrue())
 
@@ -185,7 +186,7 @@ func getLeaderAndNewDeployment(f *framework.Framework) (string, *appsv1.Deployme
 	newDeployment.Status = appsv1.DeploymentStatus{}
 
 	By("Creating new controller deployment")
-	newDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Create(newDeployment)
+	newDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Create(context.TODO(), newDeployment, metav1.CreateOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	return leaderPodName, newDeployment
 }
@@ -216,7 +217,7 @@ func locateNewPod(f *framework.Framework, leaderPodName string) string {
 func cleanupTest(f *framework.Framework, newDeployment *appsv1.Deployment) {
 	if newDeployment != nil {
 		By("Cleaning up new deployments")
-		err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Delete(newDeployment.Name, &metav1.DeleteOptions{})
+		err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Delete(context.TODO(), newDeployment.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(func() []appsv1.Deployment {
@@ -236,19 +237,19 @@ func cleanupTest(f *framework.Framework, newDeployment *appsv1.Deployment) {
 }
 
 func getDeployments(f *framework.Framework) *appsv1.DeploymentList {
-	deployments, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).List(metav1.ListOptions{LabelSelector: "app=containerized-data-importer"})
+	deployments, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{LabelSelector: "app=containerized-data-importer"})
 	Expect(err).ToNot(HaveOccurred())
 	return deployments
 }
 
 func getOperatorDeployment(f *framework.Framework) *appsv1.Deployment {
-	deployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(cdiOperatorName, metav1.GetOptions{})
+	deployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), cdiOperatorName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	return deployment
 }
 
 func getPods(f *framework.Framework) *v1.PodList {
-	pods, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(metav1.ListOptions{LabelSelector: "app=containerized-data-importer"})
+	pods, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{LabelSelector: "app=containerized-data-importer"})
 	Expect(err).ToNot(HaveOccurred())
 	return pods
 }

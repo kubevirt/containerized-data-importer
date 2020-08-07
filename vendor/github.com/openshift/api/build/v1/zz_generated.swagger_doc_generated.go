@@ -53,6 +53,20 @@ func (Build) SwaggerDoc() map[string]string {
 	return map_Build
 }
 
+var map_BuildCondition = map[string]string{
+	"":                   "BuildCondition describes the state of a build at a certain point.",
+	"type":               "Type of build condition.",
+	"status":             "Status of the condition, one of True, False, Unknown.",
+	"lastUpdateTime":     "The last time this condition was updated.",
+	"lastTransitionTime": "The last time the condition transitioned from one status to another.",
+	"reason":             "The reason for the condition's last transition.",
+	"message":            "A human readable message indicating details about the transition.",
+}
+
+func (BuildCondition) SwaggerDoc() map[string]string {
+	return map_BuildCondition
+}
+
 var map_BuildConfig = map[string]string{
 	"":       "Build configurations define a build process for new container images. There are three types of builds possible - a container image build using a Dockerfile, a Source-to-Image build that uses a specially prepared base image that accepts source code that it can make runnable, and a custom build that can run // arbitrary container images as a base and accept the build parameters. Builds run on the cluster and on completion are pushed to the container image registry specified in the \"output\" section. A build can be triggered via a webhook, when the base image changes, or when a user manually requests a new build be // created.\n\nEach build created by a build configuration is numbered and refers back to its parent configuration. Multiple builds can be triggered at once. Builds that do not have \"output\" set can be used to test code or run a verification build.",
 	"spec":   "spec holds all the input necessary to produce a new build, and the conditions when to trigger them.",
@@ -111,17 +125,18 @@ func (BuildLog) SwaggerDoc() map[string]string {
 }
 
 var map_BuildLogOptions = map[string]string{
-	"":             "BuildLogOptions is the REST options for a build log",
-	"container":    "cointainer for which to stream logs. Defaults to only container if there is one container in the pod.",
-	"follow":       "follow if true indicates that the build log should be streamed until the build terminates.",
-	"previous":     "previous returns previous build logs. Defaults to false.",
-	"sinceSeconds": "sinceSeconds is a relative time in seconds before the current time from which to show logs. If this value precedes the time a pod was started, only logs since the pod start will be returned. If this value is in the future, no logs will be returned. Only one of sinceSeconds or sinceTime may be specified.",
-	"sinceTime":    "sinceTime is an RFC3339 timestamp from which to show logs. If this value precedes the time a pod was started, only logs since the pod start will be returned. If this value is in the future, no logs will be returned. Only one of sinceSeconds or sinceTime may be specified.",
-	"timestamps":   "timestamps, If true, add an RFC3339 or RFC3339Nano timestamp at the beginning of every line of log output. Defaults to false.",
-	"tailLines":    "tailLines, If set, is the number of lines from the end of the logs to show. If not specified, logs are shown from the creation of the container or sinceSeconds or sinceTime",
-	"limitBytes":   "limitBytes, If set, is the number of bytes to read from the server before terminating the log output. This may not display a complete final line of logging, and may return slightly more or slightly less than the specified limit.",
-	"nowait":       "noWait if true causes the call to return immediately even if the build is not available yet. Otherwise the server will wait until the build has started.",
-	"version":      "version of the build for which to view logs.",
+	"":                             "BuildLogOptions is the REST options for a build log",
+	"container":                    "cointainer for which to stream logs. Defaults to only container if there is one container in the pod.",
+	"follow":                       "follow if true indicates that the build log should be streamed until the build terminates.",
+	"previous":                     "previous returns previous build logs. Defaults to false.",
+	"sinceSeconds":                 "sinceSeconds is a relative time in seconds before the current time from which to show logs. If this value precedes the time a pod was started, only logs since the pod start will be returned. If this value is in the future, no logs will be returned. Only one of sinceSeconds or sinceTime may be specified.",
+	"sinceTime":                    "sinceTime is an RFC3339 timestamp from which to show logs. If this value precedes the time a pod was started, only logs since the pod start will be returned. If this value is in the future, no logs will be returned. Only one of sinceSeconds or sinceTime may be specified.",
+	"timestamps":                   "timestamps, If true, add an RFC3339 or RFC3339Nano timestamp at the beginning of every line of log output. Defaults to false.",
+	"tailLines":                    "tailLines, If set, is the number of lines from the end of the logs to show. If not specified, logs are shown from the creation of the container or sinceSeconds or sinceTime",
+	"limitBytes":                   "limitBytes, If set, is the number of bytes to read from the server before terminating the log output. This may not display a complete final line of logging, and may return slightly more or slightly less than the specified limit.",
+	"nowait":                       "noWait if true causes the call to return immediately even if the build is not available yet. Otherwise the server will wait until the build has started.",
+	"version":                      "version of the build for which to view logs.",
+	"insecureSkipTLSVerifyBackend": "insecureSkipTLSVerifyBackend indicates that the apiserver should not confirm the validity of the serving certificate of the backend it is connecting to.  This will make the HTTPS connection between the apiserver and the backend insecure. This means the apiserver cannot verify the log data it is receiving came from the real kubelet.  If the kubelet is configured to verify the apiserver's TLS credentials, it does not mean the connection to the real kubelet is vulnerable to a man in the middle attack (e.g. an attacker could not intercept the actual log data coming from the real kubelet).",
 }
 
 func (BuildLogOptions) SwaggerDoc() map[string]string {
@@ -207,6 +222,7 @@ var map_BuildStatus = map[string]string{
 	"output":                     "output describes the container image the build has produced.",
 	"stages":                     "stages contains details about each stage that occurs during the build including start time, duration (in milliseconds), and the steps that occured within each stage.",
 	"logSnippet":                 "logSnippet is the last few lines of the build log.  This value is only set for builds that failed.",
+	"conditions":                 "Conditions represents the latest available observations of a build's current state.",
 }
 
 func (BuildStatus) SwaggerDoc() map[string]string {
@@ -237,7 +253,7 @@ var map_BuildStrategy = map[string]string{
 	"dockerStrategy":          "dockerStrategy holds the parameters to the container image build strategy.",
 	"sourceStrategy":          "sourceStrategy holds the parameters to the Source build strategy.",
 	"customStrategy":          "customStrategy holds the parameters to the Custom build strategy",
-	"jenkinsPipelineStrategy": "JenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy.",
+	"jenkinsPipelineStrategy": "JenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy. Deprecated: use OpenShift Pipelines",
 }
 
 func (BuildStrategy) SwaggerDoc() map[string]string {
@@ -326,7 +342,7 @@ func (CustomBuildStrategy) SwaggerDoc() map[string]string {
 
 var map_DockerBuildStrategy = map[string]string{
 	"":                        "DockerBuildStrategy defines input parameters specific to container image build.",
-	"from":                    "from is reference to an DockerImage, ImageStreamTag, or ImageStreamImage from which the container image should be pulled the resulting image will be used in the FROM line of the Dockerfile for this build.",
+	"from":                    "from is a reference to an DockerImage, ImageStreamTag, or ImageStreamImage which overrides the FROM image in the Dockerfile for the build. If the Dockerfile uses multi-stage builds, this will replace the image in the last FROM directive of the file.",
 	"pullSecret":              "pullSecret is the name of a Secret that would be used for setting up the authentication for pulling the container images from the private Docker registries",
 	"noCache":                 "noCache if set to true indicates that the container image build must be executed with the --no-cache=true flag",
 	"env":                     "env contains additional environment variables you want to pass into a builder container.",
@@ -483,7 +499,7 @@ func (ImageSourcePath) SwaggerDoc() map[string]string {
 }
 
 var map_JenkinsPipelineBuildStrategy = map[string]string{
-	"":                "JenkinsPipelineBuildStrategy holds parameters specific to a Jenkins Pipeline build.",
+	"":                "JenkinsPipelineBuildStrategy holds parameters specific to a Jenkins Pipeline build. Deprecated: use OpenShift Pipelines",
 	"jenkinsfilePath": "JenkinsfilePath is the optional path of the Jenkinsfile that will be used to configure the pipeline relative to the root of the context (contextDir). If both JenkinsfilePath & Jenkinsfile are both not specified, this defaults to Jenkinsfile in the root of the specified contextDir.",
 	"jenkinsfile":     "Jenkinsfile defines the optional raw contents of a Jenkinsfile which defines a Jenkins pipeline build.",
 	"env":             "env contains additional environment variables you want to pass into a build pipeline.",

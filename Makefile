@@ -36,31 +36,33 @@ endif
 all: manifests bazel-build-images
 
 clean:
-	${DO} "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile release-announcement"
+	${DO_BAZ} "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile release-announcement"
 
-generate:
-	${DO} "./hack/update-codegen.sh"; make bazel-generate
+update-codegen:
+	${DO_BAZ} "./hack/update-codegen.sh"
+
+generate: update-codegen bazel-generate
 
 generate-verify:
-	${DO} "./hack/verify-codegen.sh"
+	${DO_BAZ} "./hack/verify-codegen.sh"
 
 gomod-update:
-	SYNC_VENDOR=true ${DO_BAZ} "./hack/build/dep-update.sh"
+	${DO_BAZ} "./hack/build/dep-update.sh"
 
 deps-update: gomod-update bazel-generate
 
 apidocs:
-	${DO} "./hack/update-codegen.sh && ./hack/gen-swagger-doc/gen-swagger-docs.sh v1beta1 html"
+	${DO_BAZ} "./hack/update-codegen.sh && ./hack/gen-swagger-doc/gen-swagger-docs.sh v1beta1 html"
 
 build-functest:
-	${DO} ./hack/build/build-functest.sh
+	${DO_BAZ} ./hack/build/build-functest.sh
 
 # WHAT must match go tool style package paths for test targets (e.g. ./path/to/my/package/...)
 test: test-unit test-functional test-lint
 
 test-unit: WHAT = ./pkg/... ./cmd/...
 test-unit:
-	${DO} "./hack/build/run-unit-tests.sh ${WHAT}"
+	${DO_BAZ} "./hack/build/run-unit-tests.sh ${WHAT}"
 
 test-functional:  WHAT = ./tests/...
 test-functional: build-functest
@@ -68,7 +70,7 @@ test-functional: build-functest
 
 # test-lint runs gofmt and golint tests against src files
 test-lint:
-	${DO} "./hack/build/run-lint-checks.sh"
+	${DO_BAZ} "./hack/build/run-lint-checks.sh"
 
 docker-registry-cleanup:
 	./hack/build/cleanup_docker.sh
@@ -76,13 +78,13 @@ docker-registry-cleanup:
 publish: manifests push
 
 vet:
-	${DO} "./hack/build/build-go.sh vet ${WHAT}"
+	${DO_BAZ} "./hack/build/build-go.sh vet ${WHAT}"
 
 format:
-	${DO} "./hack/build/format.sh"
+	${DO_BAZ} "./hack/build/format.sh"
 
 manifests:
-	${DO} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} NAMESPACE=${NAMESPACE} ./hack/build/build-manifests.sh"
+	${DO_BAZ} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} NAMESPACE=${NAMESPACE} ./hack/build/build-manifests.sh"
 
 goveralls: test-unit
 	${DO} "TRAVIS_JOB_ID=${TRAVIS_JOB_ID} TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST} TRAVIS_BRANCH=${TRAVIS_BRANCH} ./hack/build/goveralls.sh"
@@ -105,7 +107,7 @@ cluster-sync: cluster-clean
 	./cluster-sync/sync.sh CDI_AVAILABLE_TIMEOUT=${CDI_AVAILABLE_TIMEOUT} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG}
 
 bazel-generate:
-	SYNC_VENDOR=true ${DO_BAZ} "./hack/build/bazel-generate.sh -- pkg/ tools/ tests/ cmd/ vendor/"
+	${DO_BAZ} "./hack/build/bazel-generate.sh -- pkg/ tools/ tests/ cmd/ vendor/"
 
 bazel-cdi-generate:
 	${DO_BAZ} "./hack/build/bazel-generate.sh -- pkg/ tools/ tests/ cmd/"
