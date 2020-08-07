@@ -108,6 +108,25 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(pvc.GetAnnotations()[AnnSource]).To(Equal(SourceHTTP))
 	})
 
+	It("Should pass annotation from DV with S3 source to created a PVC on a DV", func() {
+		dv := newS3ImportDataVolume("test-dv")
+		dv.SetAnnotations(make(map[string]string))
+		dv.GetAnnotations()["test-ann-1"] = "test-value-1"
+		dv.GetAnnotations()["test-ann-2"] = "test-value-2"
+		dv.GetAnnotations()[AnnSource] = "invalid phase should not copy"
+		reconciler = createDatavolumeReconciler(dv)
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
+		Expect(pvc.GetAnnotations()).ToNot(BeNil())
+		Expect(pvc.GetAnnotations()["test-ann-1"]).To(Equal("test-value-1"))
+		Expect(pvc.GetAnnotations()["test-ann-2"]).To(Equal("test-value-2"))
+		Expect(pvc.GetAnnotations()[AnnSource]).To(Equal(SourceS3))
+	})
+
 	It("Should follow the phase of the created PVC", func() {
 		reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
@@ -890,6 +909,25 @@ func newImportDataVolume(name string) *cdiv1.DataVolume {
 		Spec: cdiv1.DataVolumeSpec{
 			Source: cdiv1.DataVolumeSource{
 				HTTP: &cdiv1.DataVolumeSourceHTTP{
+					URL: "http://example.com/data",
+				},
+			},
+			PVC: &corev1.PersistentVolumeClaimSpec{},
+		},
+	}
+}
+
+func newS3ImportDataVolume(name string) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: metav1.NamespaceDefault,
+			UID:       types.UID(metav1.NamespaceDefault + "-" + name),
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{
+				S3: &cdiv1.DataVolumeSourceS3{
 					URL: "http://example.com/data",
 				},
 			},
