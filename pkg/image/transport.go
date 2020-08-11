@@ -39,7 +39,11 @@ var (
 	cancelTimeout = 300 * time.Second
 )
 
-const tarLayerMediaType = "application/vnd.oci.image.layer.v1.tar"
+const (
+	ociTarLayerMediaType    = "application/vnd.oci.image.layer.v1.tar"
+	dockerTarLayerMediaType = "application/vnd.docker.image.rootfs.diff.tar"
+	whFilePrefix            = ".wh."
+)
 
 func commandTimeoutContext() (context.Context, context.CancelFunc) {
 	ctx := context.Background()
@@ -99,11 +103,15 @@ func copyFile(tarReader *tar.Reader, dstFile *os.File) error {
 }
 
 func isGzipped(layer *types.BlobInfo) bool {
-	return strings.HasSuffix(layer.MediaType, "+gzip")
+	return strings.HasSuffix(layer.MediaType, "gzip")
 }
 
 func isTarLayer(layer *types.BlobInfo) bool {
-	return strings.HasPrefix(layer.MediaType, tarLayerMediaType)
+	return strings.HasPrefix(layer.MediaType, ociTarLayerMediaType) || strings.HasPrefix(layer.MediaType, dockerTarLayerMediaType)
+}
+
+func isWhiteout(path string) bool {
+	return strings.HasPrefix(filepath.Base(path), whFilePrefix)
 }
 
 func processLayer(ctx context.Context,
@@ -157,7 +165,7 @@ func processLayer(ctx context.Context,
 			return false, errors.Wrap(err, "Error reading layer")
 		}
 
-		if matched, _ := regexp.MatchString(fileRegex, hdr.Name); matched {
+		if matched, _ := regexp.MatchString(fileRegex, hdr.Name); matched && !isWhiteout(hdr.Name) {
 			klog.Infof("File '%v' found in the layer", hdr.Name)
 			destFile := filepath.Join(destDir, hdr.Name)
 
@@ -233,7 +241,7 @@ func copyRegistryImage(url, destDir, fileRegex, accessKey, secKey, certDir strin
 	return nil
 }
 
-// CopyRegistryImage2 download image from registry with docker image API. It will extract first file that matches the fileRegex
+// CopyRegistryImage download image from registry with docker image API. It will extract first file that matches the fileRegex
 // url: source registry url.
 // destDir: the scratch space destination.
 // fileRegex: extract files matching the regex.
