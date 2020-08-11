@@ -78,5 +78,7 @@ rm -rf cluster-up
 
 # download and extract the cluster-up dir from a specific hash in kubevirtci
 curl -L https://github.com/kubevirt/kubevirtci/archive/${kubevirtci_git_hash}/kubevirtci.tar.gz | tar xz kubevirtci-${kubevirtci_git_hash}/cluster-up --strip-component 1
+echo "************* running controller-gen to generate schema yaml ********************"
+controller-gen crd:crdVersions=v1 output:dir=./_out/manifests/schema paths=./pkg/apis/core/...
 
 rm -f "${SCRIPT_ROOT}/cluster-up/cluster/kind-k8s-sriov-1.17.0/csrcreator/certsecret.go"
