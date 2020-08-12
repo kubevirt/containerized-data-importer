@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["main.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/vmware/govmomi/examples/datastores",
+    importpath = "github.com/vmware/govmomi/examples/datastores",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//vendor/github.com/vmware/govmomi/examples:go_default_library",
+        "//vendor/github.com/vmware/govmomi/units:go_default_library",
+        "//vendor/github.com/vmware/govmomi/view:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25/mo:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "datastores",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)

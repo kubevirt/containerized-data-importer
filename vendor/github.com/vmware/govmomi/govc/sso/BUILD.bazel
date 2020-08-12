@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["client.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/vmware/govmomi/govc/sso",
+    importpath = "github.com/vmware/govmomi/govc/sso",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/vmware/govmomi/govc/flags:go_default_library",
+        "//vendor/github.com/vmware/govmomi/ssoadmin:go_default_library",
+        "//vendor/github.com/vmware/govmomi/sts:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25/soap:go_default_library",
+    ],
+)

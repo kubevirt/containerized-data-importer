@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["namespace.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/vmware/govmomi/vapi/namespace",
+    importpath = "github.com/vmware/govmomi/vapi/namespace",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/vmware/govmomi/vapi/namespace/internal:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vapi/rest:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25/types:go_default_library",
+    ],
+)

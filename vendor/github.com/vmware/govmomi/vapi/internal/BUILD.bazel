@@ -2,9 +2,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "go_default_library",
-    srcs = [
-        "internal.go",
-    ],
+    srcs = ["internal.go"],
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/vmware/govmomi/vapi/internal",
     importpath = "github.com/vmware/govmomi/vapi/internal",
     visibility = ["//visibility:public"],

@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["forwarding.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/vmware/govmomi/govc/vcsa/log",
+    importpath = "github.com/vmware/govmomi/govc/vcsa/log",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/vmware/govmomi/govc/cli:go_default_library",
+        "//vendor/github.com/vmware/govmomi/govc/flags:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vapi/appliance/logging:go_default_library",
+    ],
+)

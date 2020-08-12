@@ -1,0 +1,37 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "client.go",
+        "cns_util.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/vmware/govmomi/cns",
+    importpath = "github.com/vmware/govmomi/cns",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/vmware/govmomi/cns/methods:go_default_library",
+        "//vendor/github.com/vmware/govmomi/cns/types:go_default_library",
+        "//vendor/github.com/vmware/govmomi/object:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25/soap:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25/types:go_default_library",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = ["client_test.go"],
+    embed = [":go_default_library"],
+    deps = [
+        "//vendor/github.com/vmware/govmomi:go_default_library",
+        "//vendor/github.com/vmware/govmomi/cns/types:go_default_library",
+        "//vendor/github.com/vmware/govmomi/find:go_default_library",
+        "//vendor/github.com/vmware/govmomi/object:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vendor/github.com/kr/pretty:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25/debug:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25/soap:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25/types:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vsan/vsanfs/types:go_default_library",
+    ],
+)

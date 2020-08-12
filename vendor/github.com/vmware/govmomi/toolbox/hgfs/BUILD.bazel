@@ -1,0 +1,28 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "archive.go",
+        "encoding.go",
+        "hgfs_darwin.go",
+        "hgfs_linux.go",
+        "hgfs_windows.go",
+        "protocol.go",
+        "server.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/vmware/govmomi/toolbox/hgfs",
+    importpath = "github.com/vmware/govmomi/toolbox/hgfs",
+    visibility = ["//visibility:public"],
+    deps = ["//vendor/github.com/vmware/govmomi/toolbox/vix:go_default_library"],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = [
+        "archive_test.go",
+        "protocol_test.go",
+        "server_test.go",
+    ],
+    embed = [":go_default_library"],
+)

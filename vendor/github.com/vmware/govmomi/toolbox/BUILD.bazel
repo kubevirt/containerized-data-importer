@@ -1,0 +1,46 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "backdoor.go",
+        "channel.go",
+        "command.go",
+        "guest_info.go",
+        "power.go",
+        "process.go",
+        "service.go",
+        "toolbox_darwin.go",
+        "toolbox_linux.go",
+        "toolbox_windows.go",
+        "trace_channel.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/vmware/govmomi/toolbox",
+    importpath = "github.com/vmware/govmomi/toolbox",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/vmware/govmomi/toolbox/hgfs:go_default_library",
+        "//vendor/github.com/vmware/govmomi/toolbox/vix:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vendor/github.com/davecgh/go-xdr/xdr2:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vendor/github.com/vmware/vmw-guestinfo/message:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vendor/github.com/vmware/vmw-guestinfo/vmcheck:go_default_library",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = [
+        "backdoor_test.go",
+        "command_test.go",
+        "guest_info_test.go",
+        "power_test.go",
+        "process_test.go",
+        "service_test.go",
+    ],
+    embed = [":go_default_library"],
+    deps = [
+        "//vendor/github.com/vmware/govmomi/toolbox/hgfs:go_default_library",
+        "//vendor/github.com/vmware/govmomi/toolbox/vix:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25/types:go_default_library",
+    ],
+)

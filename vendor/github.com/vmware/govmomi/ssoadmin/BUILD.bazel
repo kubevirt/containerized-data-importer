@@ -1,0 +1,28 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["client.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/vmware/govmomi/ssoadmin",
+    importpath = "github.com/vmware/govmomi/ssoadmin",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/vmware/govmomi/lookup:go_default_library",
+        "//vendor/github.com/vmware/govmomi/lookup/types:go_default_library",
+        "//vendor/github.com/vmware/govmomi/ssoadmin/methods:go_default_library",
+        "//vendor/github.com/vmware/govmomi/ssoadmin/types:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25/soap:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25/types:go_default_library",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = ["client_test.go"],
+    embed = [":go_default_library"],
+    deps = [
+        "//vendor/github.com/vmware/govmomi/vim25:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25/soap:go_default_library",
+    ],
+)

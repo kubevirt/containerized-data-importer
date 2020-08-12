@@ -1,0 +1,21 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "property.go",
+        "protocol.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/vmware/govmomi/toolbox/vix",
+    importpath = "github.com/vmware/govmomi/toolbox/vix",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = [
+        "property_test.go",
+        "protocol_test.go",
+    ],
+    embed = [":go_default_library"],
+)

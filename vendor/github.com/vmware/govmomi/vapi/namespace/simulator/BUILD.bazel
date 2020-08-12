@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["simulator.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/vmware/govmomi/vapi/namespace/simulator",
+    importpath = "github.com/vmware/govmomi/vapi/namespace/simulator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/vmware/govmomi:go_default_library",
+        "//vendor/github.com/vmware/govmomi/property:go_default_library",
+        "//vendor/github.com/vmware/govmomi/simulator:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vapi/namespace:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vapi/namespace/internal:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vapi/simulator:go_default_library",
+        "//vendor/github.com/vmware/govmomi/view:go_default_library",
+        "//vendor/github.com/vmware/govmomi/vim25/types:go_default_library",
+    ],
+)
