@@ -205,6 +205,39 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 													Description: "DataVolumeSourceUpload provides the parameters to create a Data Volume by uploading the source",
 													Type:        "object",
 												},
+												"vddk": {
+													Description: "DataVolumeSourceVDDK provides the parameters to create a Data Volume from a VMware source",
+													Type:        "object",
+													Properties: map[string]extv1.JSONSchemaProps{
+														"backingFile": {
+															Description: "BackingFile is the path to the disk's backing file in the datastore",
+															Type:        "string",
+														},
+														"secretRef": {
+															Description: "SecretRef provides the secret reference needed to access the vcenter or esxi host",
+															Type:        "string",
+														},
+														"thumbprint": {
+															Description: "Thumbprint is the certificate thumbprint of the vcenter or esxi host",
+															Type:        "string",
+														},
+														"url": {
+															Description: "URL is the URL of the vcenter or esxi host",
+															Type:        "string",
+														},
+														"uuid": {
+															Description: "UUID is the UUID of the virtual machine the disk is attached to",
+															Type:        "string",
+														},
+													},
+													Required: []string{
+														"backingFile",
+														"secretRef",
+														"thumbprint",
+														"url",
+														"uuid",
+													},
+												},
 												"blank": {
 													Description: "DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC",
 													Type:        "object",
@@ -592,6 +625,39 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 												"upload": {
 													Description: "DataVolumeSourceUpload provides the parameters to create a Data Volume by uploading the source",
 													Type:        "object",
+												},
+												"vddk": {
+													Description: "DataVolumeSourceVDDK provides the parameters to create a Data Volume from a VMware source",
+													Type:        "object",
+													Properties: map[string]extv1.JSONSchemaProps{
+														"backingFile": {
+															Description: "BackingFile is the path to the disk's backing file in the datastore",
+															Type:        "string",
+														},
+														"secretRef": {
+															Description: "SecretRef provides the secret reference needed to access the vcenter or esxi host",
+															Type:        "string",
+														},
+														"thumbprint": {
+															Description: "Thumbprint is the certificate thumbprint of the vcenter or esxi host",
+															Type:        "string",
+														},
+														"url": {
+															Description: "URL is the URL of the vcenter or esxi host",
+															Type:        "string",
+														},
+														"uuid": {
+															Description: "UUID is the UUID of the virtual machine the disk is attached to",
+															Type:        "string",
+														},
+													},
+													Required: []string{
+														"backingFile",
+														"secretRef",
+														"thumbprint",
+														"url",
+														"uuid",
+													},
 												},
 												"blank": {
 													Description: "DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC",
