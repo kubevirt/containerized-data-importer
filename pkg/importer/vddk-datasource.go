@@ -57,7 +57,7 @@ func InstallExtras() error {
 		klog.Infoln("libcrypt.so.1 already present, no need to install libxcrypto-compat RPM.")
 		return nil
 	}
-	install := exec.Command("rpm", "-i", "/opt/libxcrypt-compat.rpm")
+	install := exec.Command("rpm", "-i", "/usr/bin/libxcrypt-compat.rpm")
 	err = install.Run()
 	if err != nil {
 		klog.Infoln("Unable to install libxcrypt-compat RPM!")

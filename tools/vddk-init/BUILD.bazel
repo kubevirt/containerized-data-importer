@@ -4,10 +4,9 @@ container_image(
     name = "vddk-init-image",
     base = "@fedora//image",
     cmd = "mkdir -p /opt",
-    entrypoint = "cp -r /vmware-vix-disklib-distrib /opt; cp /downloaded /opt/libxcrypt-compat.rpm",
+    entrypoint = "cp -r /vmware-vix-disklib-distrib /opt",
     files = [
         "vmware-vix-disklib-distrib",
-        "@libxcrypt-compat//file",
     ],
     visibility = ["//visibility:public"],
 )

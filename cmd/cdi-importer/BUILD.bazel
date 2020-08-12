@@ -57,6 +57,9 @@ container_image(
         "/usr/bin/cdi-importer",
         "-alsologtostderr",
     ],
-    files = [":cdi-importer"],
+    files = [
+        ":cdi-importer",
+        "@libxcrypt-compat//file",
+    ],
     visibility = ["//visibility:public"],
 )
