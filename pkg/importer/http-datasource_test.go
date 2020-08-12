@@ -305,6 +305,7 @@ var _ = Describe("Http reader", func() {
 			defer w.WriteHeader(http.StatusOK)
 			Expect(ok).To(BeFalse())
 			w.Header().Add("Content-Length", "25")
+			w.Header().Add("Accept-Ranges", "bytes")
 		}))
 		defer redirTs.Close()
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -313,7 +314,8 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, _, err := createHTTPReader(context.Background(), ep, "", "", "")
+		r, total, brokenForQemuImg, err := createHTTPReader(context.Background(), ep, "", "", "")
+		Expect(brokenForQemuImg).To(BeFalse())
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
 		err = r.Close()
@@ -324,6 +326,7 @@ var _ = Describe("Http reader", func() {
 		redirTs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer w.WriteHeader(http.StatusOK)
 			w.Header().Add("Content-Length", "intentional gibberish")
+			w.Header().Add("Accept-Ranges", "bytes")
 		}))
 		defer redirTs.Close()
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -347,6 +350,27 @@ var _ = Describe("Http reader", func() {
 				defer w.WriteHeader(http.StatusOK)
 			}
 			w.Header().Add("Content-Length", "25")
+			w.Header().Add("Accept-Ranges", "bytes")
+		}))
+		defer redirTs.Close()
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, redirTs.URL, http.StatusFound)
+		}))
+		defer ts.Close()
+		ep, err := url.Parse(ts.URL)
+		Expect(err).ToNot(HaveOccurred())
+		r, total, brokenForQemuImg, err := createHTTPReader(context.Background(), ep, "", "", "")
+		Expect(brokenForQemuImg).To(BeTrue())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(uint64(25)).To(Equal(total))
+		err = r.Close()
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("should continue even if no Accept-Ranges header found, but mark broken for qemu-img", func() {
+		redirTs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Add("Content-Length", "25")
+			w.WriteHeader(http.StatusOK)
 		}))
 		defer redirTs.Close()
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -272,6 +272,12 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 		return nil, uint64(0), true, errors.Errorf("expected status code 200, got %d. Status: %s", resp.StatusCode, resp.Status)
 	}
 
+	acceptRanges, ok := resp.Header["Accept-Ranges"]
+	if !ok || acceptRanges[0] == "none" {
+		klog.V(2).Infof("Accept-Ranges isn't bytes, avoiding qemu-img")
+		brokenForQemuImg = true
+	}
+
 	if total == 0 {
 		// The total seems bogus. Let's try the GET Content-Length header
 		total = parseHTTPHeader(resp)

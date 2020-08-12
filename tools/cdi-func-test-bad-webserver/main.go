@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -29,13 +30,37 @@ func flaky(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusServiceUnavailable)
 }
 
+func noAcceptRanges(w http.ResponseWriter, r *http.Request) {
+	actualFileURL := getEquivalentFileHostURL(r.URL.String())
+
+	resp, err := http.Get(actualFileURL)
+	if err != nil {
+		panic("Couldn't fetch URL")
+	}
+
+	defer resp.Body.Close()
+
+	contentLength, ok := resp.Header["Content-Length"]
+	if !ok {
+		panic("No content length from cdi-file-host")
+	}
+
+	w.Header().Set("Content-Length", contentLength[0])
+
+	io.Copy(w, resp.Body)
+}
+
 func redirect(w http.ResponseWriter, r *http.Request) {
+	redirectURL := getEquivalentFileHostURL(r.URL.String())
+	http.Redirect(w, r, redirectURL, 301)
+}
+
+func getEquivalentFileHostURL(url string) string {
 	re := regexp.MustCompile(`[^/]*$`)
-	requestedFile := re.Find([]byte(r.URL.String()))
+	requestedFile := re.Find([]byte(url))
 
 	cdiNamespace := os.Getenv("CDI_NAMESPACE")
-	redirectURL := fmt.Sprintf("http://cdi-file-host.%s/%s", cdiNamespace, requestedFile)
-	http.Redirect(w, r, redirectURL, 301)
+	return fmt.Sprintf("http://cdi-file-host.%s/%s", cdiNamespace, requestedFile)
 }
 
 func incrementAndGetCounter() uint64 {
@@ -50,6 +75,7 @@ var counter uint64 = 0
 func main() {
 	http.HandleFunc("/forbidden-HEAD/", failHEAD)
 	http.HandleFunc("/flaky/", flaky)
+	http.HandleFunc("/no-accept-ranges/", noAcceptRanges)
 	err := http.ListenAndServe(":9090", nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
