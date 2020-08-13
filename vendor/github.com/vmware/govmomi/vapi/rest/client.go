@@ -25,7 +25,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -107,21 +106,10 @@ func (c *Client) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// isAPI returns true if path starts with "/api"
-// This hack allows helpers to support both endpoints:
-// "/rest" - value wrapped responses and structured error responses
-// "/api" - raw responses and no structured error responses
-func isAPI(path string) bool {
-	return strings.HasPrefix(path, "/api")
-}
-
 // Resource helper for the given path.
 func (c *Client) Resource(path string) *Resource {
 	r := &Resource{u: c.URL()}
-	if !isAPI(path) {
-		path = Path + path
-	}
-	r.u.Path = path
+	r.u.Path = Path + path
 	return r
 }
 
@@ -186,18 +174,12 @@ func (c *Client) Do(ctx context.Context, req *http.Request, resBody interface{})
 			_, err := io.Copy(b, res.Body)
 			return err
 		default:
-			d := json.NewDecoder(res.Body)
-			if isAPI(req.URL.Path) {
-				// Responses from the /api endpoint are not wrapped
-				return d.Decode(resBody)
-			}
-			// Responses from the /rest endpoint are wrapped in this structure
 			val := struct {
 				Value interface{} `json:"value,omitempty"`
 			}{
 				resBody,
 			}
-			return d.Decode(&val)
+			return json.NewDecoder(res.Body).Decode(&val)
 		}
 	})
 }

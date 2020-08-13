@@ -17,7 +17,6 @@ limitations under the License.
 package types
 
 import (
-	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -62,11 +61,6 @@ func (r *ManagedObjectReference) FromString(o string) bool {
 	r.Value = s[1]
 
 	return true
-}
-
-// Encode ManagedObjectReference for use with URL and File paths
-func (r ManagedObjectReference) Encode() string {
-	return strings.Join([]string{r.Type, url.QueryEscape(r.Value)}, "-")
 }
 
 func (c *PerfCounterInfo) Name() string {
