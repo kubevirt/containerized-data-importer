@@ -382,6 +382,7 @@ func (r *ImportReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim, log logr
 func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) error {
 	r.log.V(1).Info("Creating importer POD for PVC", "pvc.Name", pvc.Name)
 	var scratchPvcName *string
+	var vddkImageName *string
 	var err error
 
 	requiresScratch := r.requiresScratchSpace(pvc)
@@ -390,13 +391,21 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		scratchPvcName = &name
 	}
 
+	if getSource(pvc) == SourceVDDK {
+		r.log.V(1).Info("Pod requires VDDK sidecar for VMware transfer")
+		vddkImageName, err = r.getVddkImageName()
+		if err != nil {
+			return err
+		}
+	}
+
 	podEnvVar, err := r.createImportEnvVar(pvc)
 	if err != nil {
 		return err
 	}
 
 	// all checks passed, let's create the importer pod!
-	pod, err := createImporterPod(r.log, r.client, r.image, r.verbose, r.pullPolicy, podEnvVar, pvc, scratchPvcName)
+	pod, err := createImporterPod(r.log, r.client, r.image, r.verbose, r.pullPolicy, podEnvVar, pvc, scratchPvcName, vddkImageName)
 
 	if err != nil {
 		return err
@@ -575,6 +584,24 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 	return nil
 }
 
+// Get path to VDDK image from 'v2v-vmware' ConfigMap
+func (r *ImportReconciler) getVddkImageName() (*string, error) {
+	cm := &corev1.ConfigMap{}
+	err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: "v2v-vmware", Namespace: "openshift-cnv"}, cm)
+	if err != nil {
+		r.log.V(1).Info("Could not retrieve v2v-vmware ConfigMap from openshift-cnv namespace!")
+		return nil, err
+	}
+
+	image, found := cm.Data["vddk-init-image"]
+	if found {
+		r.log.V(1).Info("Got VDDK image: ", "vddk-init-image", image)
+		return &image, nil
+	}
+
+	return nil, errors.Errorf("Could not find vddk-init-image entry in v2v-vmware ConfigMap")
+}
+
 // returns the source string which determines the type of source. If no source or invalid source found, default to http
 func getSource(pvc *corev1.PersistentVolumeClaim) string {
 	source, found := pvc.Annotations[AnnSource]
@@ -648,7 +675,7 @@ func createImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 // createImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret
 // name, and pvc. A nil secret means the endpoint credentials are not passed to the
 // importer pod.
-func createImporterPod(log logr.Logger, client client.Client, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string) (*corev1.Pod, error) {
+func createImporterPod(log logr.Logger, client client.Client, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, vddkImageName *string) (*corev1.Pod, error) {
 	podResourceRequirements, err := GetDefaultPodResourceRequirements(client)
 	if err != nil {
 		return nil, err
@@ -659,7 +686,7 @@ func createImporterPod(log logr.Logger, client client.Client, image, verbose, pu
 		return nil, err
 	}
 
-	pod := makeImporterPodSpec(pvc.Namespace, image, verbose, pullPolicy, podEnvVar, pvc, scratchPvcName, podResourceRequirements, workloadNodePlacement)
+	pod := makeImporterPodSpec(pvc.Namespace, image, verbose, pullPolicy, podEnvVar, pvc, scratchPvcName, podResourceRequirements, workloadNodePlacement, vddkImageName)
 
 	if err := client.Create(context.TODO(), pod); err != nil {
 		return nil, err
@@ -669,7 +696,7 @@ func createImporterPod(log logr.Logger, client client.Client, image, verbose, pu
 }
 
 // makeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
-func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, podResourceRequirements *corev1.ResourceRequirements, workloadNodePlacement *cdiv1.NodePlacement) *corev1.Pod {
+func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, podResourceRequirements *corev1.ResourceRequirements, workloadNodePlacement *cdiv1.NodePlacement, vddkImageName *string) *corev1.Pod {
 	// importer pod name contains the pvc name
 	podName, _ := pvc.Annotations[AnnImportPod]
 
@@ -776,7 +803,7 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 		})
 	}
 
-	if getSource(pvc) == SourceVDDK {
+	if vddkImageName != nil {
 		pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
 			Name: "vddk-vol-mount",
 			VolumeSource: corev1.VolumeSource{
@@ -785,7 +812,7 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 		})
 		pod.Spec.InitContainers = append(pod.Spec.InitContainers, corev1.Container{
 			Name:  "vddk-side-car",
-			Image: "registry:5000/vddk-init:latest",
+			Image: *vddkImageName,
 			VolumeMounts: []corev1.VolumeMount{
 				{
 					Name:      "vddk-vol-mount",
