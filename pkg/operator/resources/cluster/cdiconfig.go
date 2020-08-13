@@ -21,7 +21,7 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   "cdiconfigs.cdi.kubevirt.io",
-			Labels: utils.WithCommonLabels(nil),
+			Labels: utils.ResourcesBuiler.WithCommonLabels(nil),
 		},
 		Spec: extv1.CustomResourceDefinitionSpec{
 			Group: "cdi.kubevirt.io",

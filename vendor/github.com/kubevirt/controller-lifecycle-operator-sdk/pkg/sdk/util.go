@@ -14,13 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package sdk
 
 import (
 	"encoding/json"
 	"os"
 	"reflect"
 	"strings"
+
+	v1 "k8s.io/api/core/v1"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
 	jsondiff "github.com/appscode/jsonpatch"
 	jsonpatch "github.com/evanphx/json-patch"
@@ -33,8 +36,11 @@ import (
 )
 
 const statusKey = "status"
+const capitalStatusKey = "Status"
 
-func mergeLabelsAndAnnotations(src, dest metav1.Object) {
+var log = logf.Log.WithName("sdk")
+
+func MergeLabelsAndAnnotations(src, dest metav1.Object) {
 	// allow users to add labels but not change ours. The operator supplies the src, so if someone altered dest it will get restored.
 	for k, v := range src.GetLabels() {
 		if dest.GetLabels() == nil {
@@ -54,7 +60,7 @@ func mergeLabelsAndAnnotations(src, dest metav1.Object) {
 	}
 }
 
-func mergeObject(desiredObj, currentObj runtime.Object) (runtime.Object, error) {
+func MergeObject(desiredObj, currentObj runtime.Object, lastAppliedConfigAnnotation string) (runtime.Object, error) {
 	desiredObj = desiredObj.DeepCopyObject()
 	desiredMetaObj := desiredObj.(metav1.Object)
 	currentMetaObj := currentObj.(metav1.Object)
@@ -93,7 +99,7 @@ func mergeObject(desiredObj, currentObj runtime.Object) (runtime.Object, error) 
 		return nil, err
 	}
 
-	result := newDefaultInstance(currentObj)
+	result := NewDefaultInstance(currentObj)
 	if err = json.Unmarshal(newCurrent, result); err != nil {
 		return nil, err
 	}
@@ -101,16 +107,16 @@ func mergeObject(desiredObj, currentObj runtime.Object) (runtime.Object, error) 
 	return result, nil
 }
 
-func stripStatusFromObject(obj runtime.Object) (runtime.Object, error) {
+func StripStatusFromObject(obj runtime.Object) (runtime.Object, error) {
 	modified, err := json.Marshal(obj)
 	if err != nil {
 		return nil, err
 	}
-	modified, err = stripStatusByte(modified)
+	modified, err = StripStatusByte(modified)
 	if err != nil {
 		return nil, err
 	}
-	result := newDefaultInstance(obj)
+	result := NewDefaultInstance(obj)
 	if err = json.Unmarshal(modified, result); err != nil {
 		return nil, err
 	}
@@ -118,21 +124,24 @@ func stripStatusFromObject(obj runtime.Object) (runtime.Object, error) {
 	return result, nil
 }
 
-func stripStatusByte(in []byte) ([]byte, error) {
+func StripStatusByte(in []byte) ([]byte, error) {
 	var result map[string]interface{}
 	json.Unmarshal(in, &result)
 
 	if _, ok := result[statusKey]; ok {
 		delete(result, statusKey)
 	}
+	if _, ok := result[capitalStatusKey]; ok {
+		delete(result, capitalStatusKey)
+	}
 	return json.Marshal(result)
 }
 
-func deployClusterResources() bool {
+func DeployClusterResources() bool {
 	return strings.ToLower(os.Getenv("DEPLOY_CLUSTER_RESOURCES")) != "false"
 }
 
-func logJSONDiff(logger logr.Logger, objA, objB interface{}) {
+func LogJSONDiff(logger logr.Logger, objA, objB interface{}) {
 	aBytes, _ := json.Marshal(objA)
 	bBytes, _ := json.Marshal(objB)
 	patches, _ := jsondiff.CreatePatch(aBytes, bBytes)
@@ -140,7 +149,7 @@ func logJSONDiff(logger logr.Logger, objA, objB interface{}) {
 	logger.Info("DIFF", "obj", objA, "patch", string(pBytes))
 }
 
-func checkDeploymentReady(deployment *appsv1.Deployment) bool {
+func CheckDeploymentReady(deployment *appsv1.Deployment) bool {
 	desiredReplicas := deployment.Spec.Replicas
 	if desiredReplicas == nil {
 		desiredReplicas = &[]int32{1}[0]
@@ -154,16 +163,72 @@ func checkDeploymentReady(deployment *appsv1.Deployment) bool {
 	return true
 }
 
-func newDefaultInstance(obj runtime.Object) runtime.Object {
+func NewDefaultInstance(obj runtime.Object) runtime.Object {
 	typ := reflect.ValueOf(obj).Elem().Type()
 	return reflect.New(typ).Interface().(runtime.Object)
 }
 
-func containsStringValue(values []string, value string) bool {
+func ContainsStringValue(values []string, value string) bool {
 	for _, v := range values {
 		if v == value {
 			return true
 		}
 	}
 	return false
+}
+
+func IsMutable(obj runtime.Object) bool {
+	switch obj.(type) {
+	case *v1.ConfigMap, *v1.Secret:
+		return true
+	}
+	return false
+}
+
+func SetLabel(key, value string, obj metav1.Object) {
+	if obj.GetLabels() == nil {
+		obj.SetLabels(make(map[string]string))
+	}
+	obj.GetLabels()[key] = value
+}
+
+func SameResource(obj1, obj2 runtime.Object) bool {
+	metaObj1 := obj1.(metav1.Object)
+	metaObj2 := obj2.(metav1.Object)
+
+	if reflect.TypeOf(obj1) != reflect.TypeOf(obj2) ||
+		metaObj1.GetNamespace() != metaObj2.GetNamespace() ||
+		metaObj1.GetName() != metaObj2.GetName() {
+		return false
+	}
+
+	return true
+}
+
+// SetLastAppliedConfiguration writes last applied configuration to given annotation
+func SetLastAppliedConfiguration(obj metav1.Object, lastAppliedConfigAnnotation string) error {
+	bytes, err := json.Marshal(obj)
+	if err != nil {
+		return err
+	}
+
+	if obj.GetAnnotations() == nil {
+		obj.SetAnnotations(make(map[string]string))
+	}
+
+	obj.GetAnnotations()[lastAppliedConfigAnnotation] = string(bytes)
+
+	return nil
+}
+
+// GetOperatorToplevel returns the top level source directory of the operator.
+// Can be overridden using the environment variable "OPERATOR_DIR".
+func GetOperatorToplevel() string {
+	// When running unit tests, we pass the OPERATOR_DIR environment variable, because
+	// the tests run in their own directory and module.
+	cwd := os.Getenv("OPERATOR_DIR")
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
+	return cwd
 }

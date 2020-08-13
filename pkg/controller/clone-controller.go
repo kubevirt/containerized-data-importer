@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
+
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -26,7 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
@@ -475,7 +476,7 @@ func createCloneSourcePodName(targetPvc *corev1.PersistentVolumeClaim) string {
 // MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
 func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerRefAnno string,
 	clientKey, clientCert, serverCACert []byte, targetPvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements,
-	workloadNodePlacement *cdiv1.NodePlacement) *corev1.Pod {
+	workloadNodePlacement *sdkapi.NodePlacement) *corev1.Pod {
 
 	var ownerID string
 	cloneSourcePodName, _ := targetPvc.Annotations[AnnCloneSourcePod]

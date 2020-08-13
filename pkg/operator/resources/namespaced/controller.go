@@ -17,6 +17,7 @@ limitations under the License.
 package namespaced
 
 import (
+	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -24,17 +25,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
 const (
-	controllerResourceName   = "cdi-deployment"
-	controllerServiceAccount = "cdi-sa"
-	prometheusLabel          = common.PrometheusLabel
-	prometheusServiceName    = common.PrometheusServiceName
+	controllerResourceName = "cdi-deployment"
+	prometheusLabel        = common.PrometheusLabel
+	prometheusServiceName  = common.PrometheusServiceName
 )
 
 func createControllerResources(args *FactoryArgs) []runtime.Object {
@@ -55,12 +54,11 @@ func createControllerResources(args *FactoryArgs) []runtime.Object {
 }
 
 func createControllerRoleBinding() *rbacv1.RoleBinding {
-	return utils.CreateRoleBinding(controllerResourceName, controllerResourceName, common.ControllerServiceAccountName, "")
+	return utils.ResourcesBuiler.CreateRoleBinding(controllerResourceName, controllerResourceName, common.ControllerServiceAccountName, "")
 }
 
 func createControllerRole() *rbacv1.Role {
-	role := utils.CreateRole(controllerResourceName)
-	role.Rules = []rbacv1.PolicyRule{
+	rules := []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
 				"",
@@ -86,17 +84,17 @@ func createControllerRole() *rbacv1.Role {
 			},
 		},
 	}
-	return role
+	return utils.ResourcesBuiler.CreateRole(controllerResourceName, rules)
 }
 
 func createControllerServiceAccount() *corev1.ServiceAccount {
-	return utils.CreateServiceAccount(common.ControllerServiceAccountName)
+	return utils.ResourcesBuiler.CreateServiceAccount(common.ControllerServiceAccountName)
 }
 
-func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string, infraNodePlacement *cdiv1.NodePlacement) *appsv1.Deployment {
+func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
 	deployment := utils.CreateDeployment(controllerResourceName, "app", "containerized-data-importer", common.ControllerServiceAccountName, int32(1), infraNodePlacement)
-	container := utils.CreateContainer("cdi-controller", controllerImage, verbosity, corev1.PullPolicy(pullPolicy))
+	container := utils.CreateContainer("cdi-controller", controllerImage, verbosity, pullPolicy)
 	container.Env = []corev1.EnvVar{
 		{
 			Name:  "IMPORTER_IMAGE",
@@ -254,13 +252,13 @@ func createInsecureRegConfigMap() *corev1.ConfigMap {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   common.InsecureRegistryConfigMap,
-			Labels: utils.WithCommonLabels(nil),
+			Labels: utils.ResourcesBuiler.WithCommonLabels(nil),
 		},
 	}
 }
 
 func createPrometheusService() *corev1.Service {
-	service := utils.CreateService(prometheusServiceName, prometheusLabel, "")
+	service := utils.ResourcesBuiler.CreateService(prometheusServiceName, prometheusLabel, "", nil)
 	service.Spec.Ports = []corev1.ServicePort{
 		{
 			Name: "metrics",

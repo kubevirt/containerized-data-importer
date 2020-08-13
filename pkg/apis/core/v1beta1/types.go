@@ -17,10 +17,9 @@ limitations under the License.
 package v1beta1
 
 import (
+	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 )
 
 // DataVolume is an abstraction on top of PersistentVolumeClaims to allow easy population of those PersistentVolumeClaims with relation to VirtualMachines
@@ -268,9 +267,9 @@ type CDISpec struct {
 	// CDIUninstallStrategy defines the state to leave CDI on uninstall
 	UninstallStrategy *CDIUninstallStrategy `json:"uninstallStrategy,omitempty"`
 	// Rules on which nodes CDI infrastructure pods will be scheduled
-	Infra NodePlacement `json:"infra,omitempty"`
+	Infra sdkapi.NodePlacement `json:"infra,omitempty"`
 	// Restrict on which nodes CDI workload pods will be scheduled
-	Workloads NodePlacement `json:"workload,omitempty"`
+	Workloads sdkapi.NodePlacement `json:"workload,omitempty"`
 }
 
 // CDIUninstallStrategy defines the state to leave CDI on uninstall
@@ -289,65 +288,7 @@ type CDIPhase string
 
 // CDIStatus defines the status of the CDI installation
 type CDIStatus struct {
-	Phase CDIPhase `json:"phase,omitempty"`
-	// A list of current conditions of the CDI resource
-	Conditions []conditions.Condition `json:"conditions,omitempty" optional:"true"`
-	// The version of the CDI resource as defined by the operator
-	OperatorVersion string `json:"operatorVersion,omitempty" optional:"true"`
-	// The desired version of the CDI resource
-	TargetVersion string `json:"targetVersion,omitempty" optional:"true"`
-	// The observed version of the CDI resource
-	ObservedVersion string `json:"observedVersion,omitempty" optional:"true"`
-}
-
-const (
-	// CDIPhaseDeploying signals that the CDI resources are being deployed
-	CDIPhaseDeploying CDIPhase = "Deploying"
-
-	// CDIPhaseDeployed signals that the CDI resources are successflly deployed
-	CDIPhaseDeployed CDIPhase = "Deployed"
-
-	// CDIPhaseDeleting signals that the CDI resources are being removed
-	CDIPhaseDeleting CDIPhase = "Deleting"
-
-	// CDIPhaseDeleted signals that the CDI resources are deleted
-	CDIPhaseDeleted CDIPhase = "Deleted"
-
-	// CDIPhaseError signals that the CDI deployment is in an error state
-	CDIPhaseError CDIPhase = "Error"
-
-	// CDIPhaseUpgrading signals that the CDI resources are being deployed
-	CDIPhaseUpgrading CDIPhase = "Upgrading"
-
-	// CDIPhaseEmpty is an uninitialized phase
-	CDIPhaseEmpty CDIPhase = ""
-)
-
-// NodePlacement describes CDI node scheduling configuration.
-type NodePlacement struct {
-	// nodeSelector is the node selector applied to the relevant kind of pods
-	// It specifies a map of key-value pairs: for the pod to be eligible to run on a node,
-	// the node must have each of the indicated key-value pairs as labels
-	// (it can have additional labels as well).
-	// See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
-	// +kubebuilder:validation:Optional
-	// +optional
-	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-
-	// affinity enables pod affinity/anti-affinity placement expanding the types of constraints
-	// that can be expressed with nodeSelector.
-	// affinity is going to be applied to the relevant kind of pods in parallel with nodeSelector
-	// See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
-	// +kubebuilder:validation:Optional
-	// +optional
-	Affinity *corev1.Affinity `json:"affinity,omitempty"`
-
-	// tolerations is a list of tolerations applied to the relevant kind of pods
-	// See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info.
-	// These are additional tolerations other than default ones.
-	// +kubebuilder:validation:Optional
-	// +optional
-	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+	sdkapi.Status `json:",inline"`
 }
 
 //CDIList provides the needed parameters to do request a list of CDIs from the system

@@ -125,7 +125,7 @@ func createSecret(name string) *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
-			Labels: utils.WithCommonLabels(nil),
+			Labels: utils.ResourcesBuiler.WithCommonLabels(nil),
 		},
 	}
 }
@@ -134,7 +134,7 @@ func createConfigMap(name string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
-			Labels: utils.WithCommonLabels(nil),
+			Labels: utils.ResourcesBuiler.WithCommonLabels(nil),
 		},
 	}
 }

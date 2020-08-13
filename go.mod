@@ -12,20 +12,19 @@ require (
 	github.com/elazarl/goproxy v0.0.0-20190911111923-ecfe977594f1 // indirect
 	github.com/emicklei/go-restful v2.9.6+incompatible
 	github.com/emicklei/go-restful-openapi v1.2.0
-	github.com/evanphx/json-patch v4.5.0+incompatible
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.1.0
-	github.com/go-logr/zapr v0.1.1 // indirect
 	github.com/go-openapi/spec v0.19.3
 	github.com/google/uuid v1.1.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
+	github.com/kubevirt/controller-lifecycle-operator-sdk v0.0.7
 	github.com/onsi/ginkgo v1.12.1
 	github.com/onsi/gomega v1.10.1
 	github.com/openshift/api v0.0.0
 	github.com/openshift/client-go v0.0.0
 	github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca
-	github.com/openshift/library-go v0.0.0-20200527213645-a9b77f5402e3
+	github.com/openshift/library-go v0.0.0-20200821154433-215f00df72cc
 	github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190725173916-b56e63a643cc
 	github.com/operator-framework/operator-marketplace v0.0.0-20190617165322-1cbd32624349
 	github.com/ovirt/go-ovirt v4.3.4+incompatible
@@ -35,16 +34,14 @@ require (
 	github.com/rs/cors v1.7.0
 	github.com/ulikunitz/xz v0.5.7
 	github.com/vmware/govmomi v0.23.1
-	go.uber.org/multierr v1.3.0 // indirect
 	golang.org/x/sys v0.0.0-20200519105757-fe76b779f299
-	golang.org/x/tools v0.0.0-20200616195046-dc31b401abb5 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/square/go-jose.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.3.0
-	k8s.io/api v0.18.6
-	k8s.io/apiextensions-apiserver v0.18.6
-	k8s.io/apimachinery v0.18.6
-	k8s.io/apiserver v0.18.6
+	k8s.io/api v0.19.0-rc.2
+	k8s.io/apiextensions-apiserver v0.19.0-rc.2
+	k8s.io/apimachinery v0.19.0-rc.2
+	k8s.io/apiserver v0.19.0-rc.2
 	k8s.io/client-go v8.0.0+incompatible
 	k8s.io/cluster-bootstrap v0.0.0
 	k8s.io/code-generator v0.18.6
@@ -86,4 +83,5 @@ replace (
 	k8s.io/sample-controller => k8s.io/sample-controller v0.18.6
 
 	sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v1.0.0
+	vbom.ml/util => github.com/fvbommel/util v0.0.0-20180919145318-efcd4e0f9787
 )

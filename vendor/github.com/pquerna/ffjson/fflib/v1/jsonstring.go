@@ -24,10 +24,10 @@ package v1
 
 import (
 	"io"
-	"strconv"
-	"unicode"
-	"unicode/utf16"
 	"unicode/utf8"
+	"strconv"
+	"unicode/utf16"
+	"unicode"
 )
 
 const hex = "0123456789abcdef"

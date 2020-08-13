@@ -17,13 +17,13 @@ limitations under the License.
 package namespaced
 
 import (
+	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
@@ -47,16 +47,15 @@ func createAPIServerResources(args *FactoryArgs) []runtime.Object {
 }
 
 func createAPIServerServiceAccount() *corev1.ServiceAccount {
-	return utils.CreateServiceAccount(apiServerRessouceName)
+	return utils.ResourcesBuiler.CreateServiceAccount(apiServerRessouceName)
 }
 
 func createAPIServerRoleBinding() *rbacv1.RoleBinding {
-	return utils.CreateRoleBinding(apiServerRessouceName, apiServerRessouceName, apiServerRessouceName, "")
+	return utils.ResourcesBuiler.CreateRoleBinding(apiServerRessouceName, apiServerRessouceName, apiServerRessouceName, "")
 }
 
 func createAPIServerRole() *rbacv1.Role {
-	role := utils.CreateRole(apiServerRessouceName)
-	role.Rules = []rbacv1.PolicyRule{
+	rules := []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
 				"",
@@ -70,11 +69,11 @@ func createAPIServerRole() *rbacv1.Role {
 			},
 		},
 	}
-	return role
+	return utils.ResourcesBuiler.CreateRole(apiServerRessouceName, rules)
 }
 
 func createAPIServerService() *corev1.Service {
-	service := utils.CreateService("cdi-api", cdiLabel, apiServerRessouceName)
+	service := utils.ResourcesBuiler.CreateService("cdi-api", cdiLabel, apiServerRessouceName, nil)
 	service.Spec.Ports = []corev1.ServicePort{
 		{
 			Port: 443,
@@ -88,10 +87,10 @@ func createAPIServerService() *corev1.Service {
 	return service
 }
 
-func createAPIServerDeployment(image, verbosity, pullPolicy string, infraNodePlacement *cdiv1.NodePlacement) *appsv1.Deployment {
+func createAPIServerDeployment(image, verbosity, pullPolicy string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
 	deployment := utils.CreateDeployment(apiServerRessouceName, cdiLabel, apiServerRessouceName, apiServerRessouceName, 1, infraNodePlacement)
-	container := utils.CreateContainer(apiServerRessouceName, image, verbosity, corev1.PullPolicy(pullPolicy))
+	container := utils.CreateContainer(apiServerRessouceName, image, verbosity, pullPolicy)
 	container.ReadinessProbe = &corev1.Probe{
 		Handler: corev1.Handler{
 			HTTPGet: &corev1.HTTPGetAction{

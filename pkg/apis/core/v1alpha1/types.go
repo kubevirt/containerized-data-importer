@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -266,9 +267,9 @@ type CDISpec struct {
 	// CDIUninstallStrategy defines the state to leave CDI on uninstall
 	UninstallStrategy *CDIUninstallStrategy `json:"uninstallStrategy,omitempty"`
 	// Rules on which nodes CDI infrastructure pods will be scheduled
-	Infra NodePlacement `json:"infra,omitempty"`
+	Infra sdkapi.NodePlacement `json:"infra,omitempty"`
 	// Restrict on which nodes CDI workload pods will be scheduled
-	Workloads NodePlacement `json:"workload,omitempty"`
+	Workloads sdkapi.NodePlacement `json:"workload,omitempty"`
 }
 
 // CDIUninstallStrategy defines the state to leave CDI on uninstall
@@ -320,30 +321,6 @@ const (
 	// CDIPhaseEmpty is an uninitialized phase
 	CDIPhaseEmpty CDIPhase = ""
 )
-
-// NodePlacement describes CDI node scheduling configuration.
-type NodePlacement struct {
-	// nodeSelector is the node selector applied to the relevant kind of pods
-	// It specifies a map of key-value pairs: for the pod to be eligible to run on a node,
-	// the node must have each of the indicated key-value pairs as labels
-	// (it can have additional labels as well).
-	// See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
-	// +optional
-	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-
-	// affinity enables pod affinity/anti-affinity placement expanding the types of constraints
-	// that can be expressed with nodeSelector.
-	// affinity is going to be applied to the relevant kind of pods in parallel with nodeSelector
-	// See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
-	// +optional
-	Affinity corev1.Affinity `json:"affinity,omitempty"`
-
-	// tolerations is a list of tolerations applied to the relevant kind of pods
-	// See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info.
-	// These are additional tolerations other than default ones.
-	// +optional
-	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
-}
 
 //CDIList provides the needed parameters to do request a list of CDIs from the system
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

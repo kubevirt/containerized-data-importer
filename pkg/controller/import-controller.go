@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strconv"
 
+	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
+
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -698,7 +700,7 @@ func createImporterPod(log logr.Logger, client client.Client, image, verbose, pu
 }
 
 // makeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
-func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, podResourceRequirements *corev1.ResourceRequirements, workloadNodePlacement *cdiv1.NodePlacement, vddkImageName *string) *corev1.Pod {
+func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, podResourceRequirements *corev1.ResourceRequirements, workloadNodePlacement *sdkapi.NodePlacement, vddkImageName *string) *corev1.Pod {
 	// importer pod name contains the pvc name
 	podName, _ := pvc.Annotations[AnnImportPod]
 

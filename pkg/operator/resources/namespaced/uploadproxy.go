@@ -17,13 +17,13 @@ limitations under the License.
 package namespaced
 
 import (
+	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
@@ -42,7 +42,7 @@ func createUploadProxyResources(args *FactoryArgs) []runtime.Object {
 }
 
 func createUploadProxyService() *corev1.Service {
-	service := utils.CreateService(uploadProxyResourceName, cdiLabel, uploadProxyResourceName)
+	service := utils.ResourcesBuiler.CreateService(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, nil)
 	service.Spec.Ports = []corev1.ServicePort{
 		{
 			Port: 443,
@@ -57,16 +57,15 @@ func createUploadProxyService() *corev1.Service {
 }
 
 func createUploadProxyServiceAccount() *corev1.ServiceAccount {
-	return utils.CreateServiceAccount(uploadProxyResourceName)
+	return utils.ResourcesBuiler.CreateServiceAccount(uploadProxyResourceName)
 }
 
 func createUploadProxyRoleBinding() *rbacv1.RoleBinding {
-	return utils.CreateRoleBinding(uploadProxyResourceName, uploadProxyResourceName, uploadProxyResourceName, "")
+	return utils.ResourcesBuiler.CreateRoleBinding(uploadProxyResourceName, uploadProxyResourceName, uploadProxyResourceName, "")
 }
 
 func createUploadProxyRole() *rbacv1.Role {
-	role := utils.CreateRole(uploadProxyResourceName)
-	role.Rules = []rbacv1.PolicyRule{
+	rules := []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
 				"",
@@ -79,13 +78,13 @@ func createUploadProxyRole() *rbacv1.Role {
 			},
 		},
 	}
-	return role
+	return utils.ResourcesBuiler.CreateRole(uploadProxyResourceName, rules)
 }
 
-func createUploadProxyDeployment(image, verbosity, pullPolicy string, infraNodePlacement *cdiv1.NodePlacement) *appsv1.Deployment {
+func createUploadProxyDeployment(image, verbosity, pullPolicy string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
 	deployment := utils.CreateDeployment(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, uploadProxyResourceName, int32(1), infraNodePlacement)
-	container := utils.CreateContainer(uploadProxyResourceName, image, verbosity, corev1.PullPolicy(pullPolicy))
+	container := utils.CreateContainer(uploadProxyResourceName, image, verbosity, pullPolicy)
 	container.Env = []corev1.EnvVar{
 		{
 			Name: "APISERVER_PUBLIC_KEY",

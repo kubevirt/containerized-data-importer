@@ -5,6 +5,8 @@ import (
 	"crypto/rsa"
 	"strings"
 
+	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
+
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
@@ -459,7 +461,7 @@ func filterCloneSourcePods(input []v1.Pod) []v1.Pod {
 }
 
 // GetWorkloadNodePlacement extracts the workload-specific nodeplacement values from the CDI CR
-func GetWorkloadNodePlacement(c client.Client) (*cdiv1.NodePlacement, error) {
+func GetWorkloadNodePlacement(c client.Client) (*sdkapi.NodePlacement, error) {
 	cr := &cdiv1.CDI{}
 	crKey := client.ObjectKey{Namespace: "", Name: "cdi"}
 	if err := c.Get(context.TODO(), crKey, cr); err != nil {

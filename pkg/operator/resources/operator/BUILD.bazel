@@ -14,6 +14,8 @@ go_library(
         "//pkg/operator/resources/namespaced:go_default_library",
         "//pkg/operator/resources/utils:go_default_library",
         "//vendor/github.com/blang/semver:go_default_library",
+        "//vendor/github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/resources:go_default_library",
+        "//vendor/github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/resources/openapi:go_default_library",
         "//vendor/github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1:go_default_library",
         "//vendor/github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version:go_default_library",
         "//vendor/k8s.io/api/apps/v1:go_default_library",

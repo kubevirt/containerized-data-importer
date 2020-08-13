@@ -50,7 +50,7 @@ swagger-doc -in ${SCRIPT_ROOT}/pkg/apis/upload/v1beta1/types.go
 (go install ${CODEGEN_PKG}/cmd/openapi-gen)
 
 echo "Generating openapi"
-openapi-gen --input-dirs k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/api/core/v1,github.com/openshift/custom-resource-status/conditions/v1,kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1 \
+openapi-gen --input-dirs k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/api/core/v1,github.com/openshift/custom-resource-status/conditions/v1,kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1,github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api \
     --output-package kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1 \
     --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
@@ -58,7 +58,7 @@ openapi-gen --input-dirs k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/api/core/v1
     --output-package kubevirt.io/containerized-data-importer/pkg/apis/upload/v1alpha1 \
     --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 
-openapi-gen --input-dirs k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/api/core/v1,github.com/openshift/custom-resource-status/conditions/v1,kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1 \
+openapi-gen --input-dirs k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/api/core/v1,github.com/openshift/custom-resource-status/conditions/v1,kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1,github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api \
     --output-package kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1 \
     --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
 

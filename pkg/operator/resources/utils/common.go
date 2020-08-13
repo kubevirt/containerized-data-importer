@@ -17,16 +17,10 @@ limitations under the License.
 package utils
 
 import (
-	"fmt"
-	"os"
-
+	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
+	utils "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/resources"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
 const (
@@ -42,254 +36,41 @@ var operatorLabels = map[string]string{
 	"operator.cdi.kubevirt.io": "",
 }
 
-// WithCommonLabels aggregates common lables
-func WithCommonLabels(labels map[string]string) map[string]string {
-	if labels == nil {
-		labels = make(map[string]string)
-	}
+// ResourcesBuiler helps in creating k8s resources
+var ResourcesBuiler = utils.NewResourceBuilder(commonLabels, operatorLabels)
 
-	for k, v := range commonLabels {
-		_, ok := labels[k]
-		if !ok {
-			labels[k] = v
-		}
-	}
-
-	return labels
+// CreateContainer creates container
+func CreateContainer(name, image, verbosity, pullPolicy string) corev1.Container {
+	container := ResourcesBuiler.CreateContainer(name, image, pullPolicy)
+	container.TerminationMessagePolicy = corev1.TerminationMessageReadFile
+	container.TerminationMessagePath = corev1.TerminationMessagePathDefault
+	container.Args = []string{"-v=" + verbosity}
+	return *container
 }
 
-// WithOperatorLabels aggregates common lables
-func WithOperatorLabels(labels map[string]string) map[string]string {
-	if labels == nil {
-		labels = make(map[string]string)
-	}
-
-	for k, v := range operatorLabels {
-		_, ok := labels[k]
-		if !ok {
-			labels[k] = v
-		}
-	}
-
-	return labels
-}
-
-// CreateServiceAccount creates service account
-func CreateServiceAccount(name string) *corev1.ServiceAccount {
-	return &corev1.ServiceAccount{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "ServiceAccount",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   name,
-			Labels: WithCommonLabels(nil),
-		},
-	}
-}
-
-// CreateOperatorServiceAccount creates service account
-func CreateOperatorServiceAccount(name, namespace string) *corev1.ServiceAccount {
-	return &corev1.ServiceAccount{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "ServiceAccount",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    WithOperatorLabels(nil),
-		},
-	}
-}
-
-// CreateRoleBinding creates role binding
-func CreateRoleBinding(name, roleRef, serviceAccount, serviceAccountNamespace string) *rbacv1.RoleBinding {
-	return &rbacv1.RoleBinding{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "rbac.authorization.k8s.io/v1",
-			Kind:       "RoleBinding",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   name,
-			Labels: WithCommonLabels(nil),
-		},
-		RoleRef: rbacv1.RoleRef{
-			Kind:     "Role",
-			Name:     roleRef,
-			APIGroup: "rbac.authorization.k8s.io",
-		},
-		Subjects: []rbacv1.Subject{
-			{
-				Kind:      "ServiceAccount",
-				Name:      serviceAccount,
-				Namespace: serviceAccountNamespace,
-			},
-		},
-	}
-}
-
-// CreateRole creates role
-func CreateRole(name string) *rbacv1.Role {
-	return &rbacv1.Role{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "rbac.authorization.k8s.io/v1",
-			Kind:       "Role",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   name,
-			Labels: WithCommonLabels(nil),
-		},
-	}
-}
-
-// CreateOperatorDeploymentSpec creates deployment
-func CreateOperatorDeploymentSpec(name, matchKey, matchValue, serviceAccount string, numReplicas int32) *appsv1.DeploymentSpec {
-	matchMap := map[string]string{matchKey: matchValue}
-	spec := &appsv1.DeploymentSpec{
-		Replicas: &numReplicas,
-		Selector: &metav1.LabelSelector{
-			MatchLabels: WithOperatorLabels(matchMap),
-		},
-		Template: corev1.PodTemplateSpec{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: WithOperatorLabels(matchMap),
-			},
-			Spec: corev1.PodSpec{
-				SecurityContext: &corev1.PodSecurityContext{
-					RunAsNonRoot: &[]bool{true}[0],
-				},
-			},
-		},
-	}
-
-	if serviceAccount != "" {
-		spec.Template.Spec.ServiceAccountName = serviceAccount
-	}
-
-	return spec
-}
-
-// CreateOperatorDeployment creates deployment
-func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAccount string, numReplicas int32) *appsv1.Deployment {
-	deployment := &appsv1.Deployment{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "apps/v1",
-			Kind:       "Deployment",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: *CreateOperatorDeploymentSpec(name, matchKey, matchValue, serviceAccount, numReplicas),
-	}
-	if serviceAccount != "" {
-		deployment.Spec.Template.Spec.ServiceAccountName = serviceAccount
-	}
-	return deployment
+// CreatePortsContainer creates container with ports
+func CreatePortsContainer(name, image, pullPolicy string, ports []corev1.ContainerPort) corev1.Container {
+	return *ResourcesBuiler.CreatePortsContainer(name, image, pullPolicy, ports)
 }
 
 // CreateDeployment creates deployment
-func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numReplicas int32, infraNodePlacement *cdiv1.NodePlacement) *appsv1.Deployment {
-	matchMap := map[string]string{matchKey: matchValue}
-	deployment := &appsv1.Deployment{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "apps/v1",
-			Kind:       "Deployment",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   name,
-			Labels: WithCommonLabels(matchMap),
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &numReplicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					matchKey: matchValue,
-				},
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: WithCommonLabels(matchMap),
-				},
-				Spec: corev1.PodSpec{
-					SecurityContext: &corev1.PodSecurityContext{
-						RunAsNonRoot: &[]bool{true}[0],
-					},
-				},
-			},
+func CreateDeployment(name, matchKey, matchValue, serviceAccountName string, replicas int32, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
+	podSpec := corev1.PodSpec{
+		SecurityContext: &corev1.PodSecurityContext{
+			RunAsNonRoot: &[]bool{true}[0],
 		},
 	}
-	if infraNodePlacement != nil {
-		deployment.Spec.Template.Spec.NodeSelector = infraNodePlacement.NodeSelector
-		deployment.Spec.Template.Spec.Tolerations = infraNodePlacement.Tolerations
-		deployment.Spec.Template.Spec.Affinity = infraNodePlacement.Affinity
-	}
-	if serviceAccount != "" {
-		deployment.Spec.Template.Spec.ServiceAccountName = serviceAccount
-	}
+	deployment := ResourcesBuiler.CreateDeployment(name, "", matchKey, matchValue, serviceAccountName, replicas, podSpec, infraNodePlacement)
 	return deployment
 }
 
-// CreatePortsContainer creates container
-func CreatePortsContainer(name, image, verbosity string, pullPolicy corev1.PullPolicy, ports *[]corev1.ContainerPort) corev1.Container {
-	return corev1.Container{
-		Name:            name,
-		Image:           image,
-		Ports:           *ports,
-		ImagePullPolicy: pullPolicy,
-	}
-}
-
-// CreateContainer creates container
-func CreateContainer(name, image, verbosity string, pullPolicy corev1.PullPolicy) corev1.Container {
-	return corev1.Container{
-		Name:                     name,
-		Image:                    image,
-		ImagePullPolicy:          pullPolicy,
-		Args:                     []string{"-v=" + verbosity},
-		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
-		TerminationMessagePath:   corev1.TerminationMessagePathDefault,
-	}
-}
-
-// CreateService creates service
-func CreateService(name, matchKey, matchValue string) *corev1.Service {
-	matchMap := map[string]string{matchKey: matchValue}
-	labelMap := map[string]string{matchKey: matchValue}
-	return &corev1.Service{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "Service",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   name,
-			Labels: WithCommonLabels(labelMap),
-		},
-		Spec: corev1.ServiceSpec{
-			Selector: matchMap,
+// CreateOperatorDeployment creates operator deployment
+func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAccount string, numReplicas int32) *appsv1.Deployment {
+	podSpec := corev1.PodSpec{
+		SecurityContext: &corev1.PodSecurityContext{
+			RunAsNonRoot: &[]bool{true}[0],
 		},
 	}
-}
-
-// ValidateGVKs makes sure all resources have initialized GVKs
-func ValidateGVKs(objects []runtime.Object) {
-	for _, obj := range objects {
-		gvk := obj.GetObjectKind().GroupVersionKind()
-		if gvk.Version == "" || gvk.Kind == "" {
-			panic(fmt.Sprintf("Uninitialized GVK for %+v", obj))
-		}
-	}
-}
-
-// GetCdiToplevel returns the top level source directory of CDI.
-// Can be overridden using the environment variable "CDI_DIR".
-func GetCdiToplevel() string {
-	// When running unit tests, we pass the CDI_DIR environment variable, because
-	// the tests run in their own directory and module.
-	cwd := os.Getenv("CDI_DIR")
-	if cwd == "" {
-		cwd, _ = os.Getwd()
-	}
-	return cwd
+	deployment := ResourcesBuiler.CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAccount, numReplicas, podSpec)
+	return deployment
 }

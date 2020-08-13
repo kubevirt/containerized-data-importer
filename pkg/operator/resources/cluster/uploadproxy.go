@@ -19,6 +19,7 @@ package cluster
 import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
 const (
@@ -49,11 +50,9 @@ func getUploadProxyClusterPolicyRules() []rbacv1.PolicyRule {
 }
 
 func createUploadProxyClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
-	return CreateClusterRoleBinding(uploadProxyResourceName, uploadProxyResourceName, uploadProxyResourceName, namespace)
+	return utils.ResourcesBuiler.CreateClusterRoleBinding(uploadProxyResourceName, uploadProxyResourceName, uploadProxyResourceName, namespace)
 }
 
 func createUploadProxyClusterRole() *rbacv1.ClusterRole {
-	clusterRole := CreateClusterRole(uploadProxyResourceName)
-	clusterRole.Rules = getUploadProxyClusterPolicyRules()
-	return clusterRole
+	return utils.ResourcesBuiler.CreateClusterRole(uploadProxyResourceName, getUploadProxyClusterPolicyRules())
 }

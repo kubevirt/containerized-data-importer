@@ -22,6 +22,11 @@ import (
 	"fmt"
 	"reflect"
 
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
+
+	sdk "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk"
 	secv1 "github.com/openshift/api/security/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -37,8 +42,8 @@ const (
 )
 
 // delete when we no longer support <= 1.12.0
-func reconcileDeleteSecrets(args *ReconcileCallbackArgs) error {
-	if args.State != ReconcileStatePostRead {
+func reconcileDeleteSecrets(args *callbacks.ReconcileCallbackArgs) error {
+	if args.State != callbacks.ReconcileStatePostRead {
 		return nil
 	}
 
@@ -66,19 +71,20 @@ func reconcileDeleteSecrets(args *ReconcileCallbackArgs) error {
 		}
 
 		err = args.Client.Delete(context.TODO(), secret)
+		cr := args.Resource.(runtime.Object)
 		if err != nil {
-			args.Recorder.Event(args.Resource, corev1.EventTypeWarning, deleteResourceFailed, fmt.Sprintf("Failed to delete secret %s, %v", s, err))
+			args.Recorder.Event(cr, corev1.EventTypeWarning, deleteResourceFailed, fmt.Sprintf("Failed to delete secret %s, %v", s, err))
 			return err
 		}
-		args.Recorder.Event(args.Resource, corev1.EventTypeNormal, deleteResourceSuccess, fmt.Sprintf("Deleted secret %s successfully", s))
+		args.Recorder.Event(cr, corev1.EventTypeNormal, deleteResourceSuccess, fmt.Sprintf("Deleted secret %s successfully", s))
 	}
 
 	return nil
 }
 
 // delete when we no longer support <= 1.13.3
-func reconcileServiceAccountRead(args *ReconcileCallbackArgs) error {
-	if args.State != ReconcileStatePostRead {
+func reconcileServiceAccountRead(args *callbacks.ReconcileCallbackArgs) error {
+	if args.State != callbacks.ReconcileStatePostRead {
 		return nil
 	}
 
@@ -99,9 +105,9 @@ func reconcileServiceAccountRead(args *ReconcileCallbackArgs) error {
 }
 
 // delete when we no longer support <= 1.13.3
-func reconcileServiceAccounts(args *ReconcileCallbackArgs) error {
+func reconcileServiceAccounts(args *callbacks.ReconcileCallbackArgs) error {
 	switch args.State {
-	case ReconcileStatePreCreate, ReconcileStatePreUpdate, ReconcileStatePostDelete, ReconcileStateCDIDelete:
+	case callbacks.ReconcileStatePreCreate, callbacks.ReconcileStatePreUpdate, callbacks.ReconcileStatePostDelete, callbacks.ReconcileStateOperatorDelete:
 	default:
 		return nil
 	}
@@ -120,7 +126,7 @@ func reconcileServiceAccounts(args *ReconcileCallbackArgs) error {
 	saName := fmt.Sprintf("system:serviceaccount:%s:%s", sa.Namespace, sa.Name)
 
 	switch args.State {
-	case ReconcileStatePreCreate, ReconcileStatePreUpdate:
+	case callbacks.ReconcileStatePreCreate, callbacks.ReconcileStatePreUpdate:
 		val, exists := sa.Annotations[SCCAnnotation]
 		if exists {
 			if err := json.Unmarshal([]byte(val), &desiredSCCs); err != nil {
@@ -144,7 +150,7 @@ func reconcileServiceAccounts(args *ReconcileCallbackArgs) error {
 
 	for _, scc := range listObj.Items {
 		desiredUsers := []string{}
-		add := containsStringValue(desiredSCCs, scc.Name)
+		add := sdk.ContainsStringValue(desiredSCCs, scc.Name)
 		seenUser := false
 
 		for _, u := range scc.Users {
@@ -175,8 +181,8 @@ func reconcileServiceAccounts(args *ReconcileCallbackArgs) error {
 }
 
 // delete when we no longer support <= 1.21.0
-func reconcileInitializeCRD(args *ReconcileCallbackArgs) error {
-	if args.State != ReconcileStatePreUpdate {
+func reconcileInitializeCRD(args *callbacks.ReconcileCallbackArgs) error {
+	if args.State != callbacks.ReconcileStatePreUpdate {
 		return nil
 	}
 
