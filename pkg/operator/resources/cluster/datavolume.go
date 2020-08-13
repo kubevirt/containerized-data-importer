@@ -206,7 +206,7 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 													Type:        "object",
 												},
 												"vddk": {
-													Description: "DataVolumeSourceVDDK provides the parameters to create a Data Volume from a VMware source",
+													Description: "DataVolumeSourceVDDK provides the parameters to create a Data Volume from a Vmware source",
 													Type:        "object",
 													Properties: map[string]extv1.JSONSchemaProps{
 														"backingFile": {
@@ -229,13 +229,6 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 															Description: "UUID is the UUID of the virtual machine the disk is attached to",
 															Type:        "string",
 														},
-													},
-													Required: []string{
-														"backingFile",
-														"secretRef",
-														"thumbprint",
-														"url",
-														"uuid",
 													},
 												},
 												"blank": {
@@ -627,7 +620,7 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 													Type:        "object",
 												},
 												"vddk": {
-													Description: "DataVolumeSourceVDDK provides the parameters to create a Data Volume from a VMware source",
+													Description: "DataVolumeSourceVDDK provides the parameters to create a Data Volume from a Vmware source",
 													Type:        "object",
 													Properties: map[string]extv1.JSONSchemaProps{
 														"backingFile": {
@@ -650,13 +643,6 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 															Description: "UUID is the UUID of the virtual machine the disk is attached to",
 															Type:        "string",
 														},
-													},
-													Required: []string{
-														"backingFile",
-														"secretRef",
-														"thumbprint",
-														"url",
-														"uuid",
 													},
 												},
 												"blank": {
