@@ -1,5 +1,5 @@
 // VSCODE will say this is an error, but it's fine
-// +build ignore
+// +build codegen
 
 package tools
 
