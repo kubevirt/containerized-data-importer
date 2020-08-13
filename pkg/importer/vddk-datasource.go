@@ -37,7 +37,7 @@ const (
 	nbdUnixSocket         = "/var/run/nbd.sock"
 	nbdPidFile            = "/var/run/nbd.pid"
 	nbdLibraryPath        = "/opt/vmware-vix-disklib-distrib/lib64"
-	startupTimeoutSeconds = 3600
+	startupTimeoutSeconds = 60
 )
 
 // VDDKDataSource is the data provider for vddk.
