@@ -33,7 +33,7 @@ import (
 
 const (
 	cryptLibrary          = "/usr/lib64/libcrypt.so.1"
-	destinationFile       = "/data/disk.raw"
+	destinationFile       = "/data/disk.img"
 	nbdUnixSocket         = "/var/run/nbd.sock"
 	nbdPidFile            = "/var/run/nbd.pid"
 	nbdLibraryPath        = "/opt/vmware-vix-disklib-distrib/lib64"
