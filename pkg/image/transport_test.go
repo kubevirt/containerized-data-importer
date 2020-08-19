@@ -50,8 +50,8 @@ var _ = Describe("Registry Importer", func() {
 		file := filepath.Join(tmpDir, "disk/cirros-0.3.4-x86_64-disk.img")
 		Expect(file).To(BeARegularFile())
 	})
-	It("Should extract files matching a regex", func() {
-		err := CopyRegistryImageAll(source, tmpDir, "etc/h.*", "", "", "", false)
+	It("Should extract files prefixed by path", func() {
+		err := CopyRegistryImageAll(source, tmpDir, "etc/", "", "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 
 		file := filepath.Join(tmpDir, "etc/hosts")
@@ -68,8 +68,8 @@ var _ = Describe("Registry Importer", func() {
 		_, err = os.Stat(file)
 		Expect(err).To(HaveOccurred())
 	})
-	It("Should return an error if no files matches a pattern", func() {
-		err := CopyRegistryImageAll(source, tmpDir, "disk/invalid.*", "", "", "", false)
+	It("Should return an error if no files matches a prefix", func() {
+		err := CopyRegistryImageAll(source, tmpDir, "invalid/", "", "", "", false)
 		Expect(err).To(HaveOccurred())
 	})
 })

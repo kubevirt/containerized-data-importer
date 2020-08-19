@@ -23,7 +23,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -35,13 +34,10 @@ import (
 	"k8s.io/klog"
 )
 
-var (
-	cancelTimeout = 300 * time.Second
-)
-
 const (
-	ociTarLayerMediaType    = "application/vnd.oci.image.layer.v1.tar"
+	cancelTimeout           = 300 * time.Second
 	dockerTarLayerMediaType = "application/vnd.docker.image.rootfs.diff.tar"
+	ociTarLayerMediaType    = "application/vnd.oci.image.layer.v1.tar"
 	whFilePrefix            = ".wh."
 )
 
@@ -114,12 +110,16 @@ func isWhiteout(path string) bool {
 	return strings.HasPrefix(filepath.Base(path), whFilePrefix)
 }
 
+func isDir(path string) bool {
+	return strings.HasSuffix(path, "/")
+}
+
 func processLayer(ctx context.Context,
 	sys *types.SystemContext,
 	src types.ImageSource,
 	layer types.BlobInfo,
 	destDir string,
-	fileRegex string,
+	pathPrefix string,
 	cache types.BlobInfoCache,
 	stopAtFirst bool) (bool, error) {
 
@@ -165,7 +165,7 @@ func processLayer(ctx context.Context,
 			return false, errors.Wrap(err, "Error reading layer")
 		}
 
-		if matched, _ := regexp.MatchString(fileRegex, hdr.Name); matched && !isWhiteout(hdr.Name) {
+		if strings.HasPrefix(hdr.Name, pathPrefix) && !isWhiteout(hdr.Name) && !isDir(hdr.Name) {
 			klog.Infof("File '%v' found in the layer", hdr.Name)
 			destFile := filepath.Join(destDir, hdr.Name)
 
@@ -195,8 +195,8 @@ func processLayer(ctx context.Context,
 	return found, nil
 }
 
-func copyRegistryImage(url, destDir, fileRegex, accessKey, secKey, certDir string, insecureRegistry, stopAtFirst bool) error {
-	klog.Infof("Downloading image from %v, copying file %v to %v", url, fileRegex, destDir)
+func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry, stopAtFirst bool) error {
+	klog.Infof("Downloading image from %v, copying file from %v to %v", url, pathPrefix, destDir)
 
 	ctx, cancel := commandTimeoutContext()
 	defer cancel()
@@ -222,7 +222,7 @@ func copyRegistryImage(url, destDir, fileRegex, accessKey, secKey, certDir strin
 	for _, layer := range layers {
 		klog.Infof("Processing layer %+v", layer)
 
-		found, err = processLayer(ctx, srcCtx, src, layer, destDir, fileRegex, cache, stopAtFirst)
+		found, err = processLayer(ctx, srcCtx, src, layer, destDir, pathPrefix, cache, stopAtFirst)
 		if found {
 			break
 		}
@@ -241,26 +241,26 @@ func copyRegistryImage(url, destDir, fileRegex, accessKey, secKey, certDir strin
 	return nil
 }
 
-// CopyRegistryImage download image from registry with docker image API. It will extract first file that matches the fileRegex
+// CopyRegistryImage download image from registry with docker image API. It will extract first file under the pathPrefix
 // url: source registry url.
 // destDir: the scratch space destination.
-// fileRegex: extract files matching the regex.
+// pathPrefix: path to extract files from.
 // accessKey: accessKey for the registry described in url.
 // secKey: secretKey for the registry described in url.
 // certDir: directory public CA keys are stored for registry identity verification
 // insecureRegistry: boolean if true will allow insecure registries.
-func CopyRegistryImage(url, destDir, fileRegex, accessKey, secKey, certDir string, insecureRegistry bool) error {
-	return copyRegistryImage(url, destDir, fileRegex, accessKey, secKey, certDir, insecureRegistry, true)
+func CopyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry bool) error {
+	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir, insecureRegistry, true)
 }
 
-// CopyRegistryImageAll download image from registry with docker image API. It will extract all files matching the fileRegex
+// CopyRegistryImageAll download image from registry with docker image API. It will extract all files under the pathPrefix
 // url: source registry url.
 // destDir: the scratch space destination.
-// fileRegex: extract files matching the regex.
+// pathPrefix: path to extract files from.
 // accessKey: accessKey for the registry described in url.
 // secKey: secretKey for the registry described in url.
 // certDir: directory public CA keys are stored for registry identity verification
 // insecureRegistry: boolean if true will allow insecure registries.
-func CopyRegistryImageAll(url, destDir, fileRegex, accessKey, secKey, certDir string, insecureRegistry bool) error {
-	return copyRegistryImage(url, destDir, fileRegex, accessKey, secKey, certDir, insecureRegistry, false)
+func CopyRegistryImageAll(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry bool) error {
+	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir, insecureRegistry, false)
 }
