@@ -146,6 +146,7 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
 	  exit 1
   fi
   wait_cdi_available
+  _kubectl patch crd cdis.cdi.kubevirt.io -p '{"spec": {"preserveUnknownFields":false}}'
 else
   _kubectl apply -f "./_out/manifests/release/cdi-cr.yaml"
   wait_cdi_available
