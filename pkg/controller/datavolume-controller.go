@@ -924,6 +924,7 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 		}
 	} else if dataVolume.Spec.Source.S3 != nil {
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.S3.URL
+		annotations[AnnSource] = SourceS3
 		if dataVolume.Spec.Source.S3.SecretRef != "" {
 			annotations[AnnSecret] = dataVolume.Spec.Source.S3.SecretRef
 		}
