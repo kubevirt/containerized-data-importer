@@ -25,6 +25,7 @@ import (
 	secv1 "github.com/openshift/api/security/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -167,6 +168,18 @@ func reconcileServiceAccounts(args *ReconcileCallbackArgs) error {
 			}
 		}
 	}
+
+	return nil
+}
+
+// delete when we no longer support <= 1.21.0
+func reconcileInitializeCRD(args *ReconcileCallbackArgs) error {
+	if args.State != ReconcileStatePreUpdate {
+		return nil
+	}
+
+	crd := args.CurrentObject.(*extv1.CustomResourceDefinition)
+	crd.Spec.PreserveUnknownFields = false
 
 	return nil
 }
