@@ -22,6 +22,8 @@ source "${script_dir}"/config.sh
 BUILDER_SPEC="${BUILD_DIR}/docker/builder"
 BUILDER_VOLUME="kubevirt-cdi-volume"
 BAZEL_BUILDER_SERVER="${BUILDER_VOLUME}-bazel-server"
+DOCKER_CA_CERT_FILE="${DOCKER_CA_CERT_FILE:-}"
+DOCKERIZED_CUSTOM_CA_PATH="/etc/pki/ca-trust/source/anchors/custom-ca.crt"
 
 SYNC_OUT=${SYNC_OUT:-true}
 SYNC_VENDOR=${SYNC_VENDOR:-true}
@@ -117,6 +119,10 @@ if [ "${KUBEVIRTCI_RUNTIME}" != "podman" ]; then
     volumes="$volumes -v ${HOME}/.docker:/root/.docker:ro,z"
 else
     volumes="-v ${BUILDER_VOLUME}:/root:rw,z,exec"
+fi
+
+if [ -n "$DOCKER_CA_CERT_FILE" ] ; then
+    volumes="$volumes -v ${DOCKER_CA_CERT_FILE}:${DOCKERIZED_CUSTOM_CA_PATH}:ro,z"
 fi
 
 # Ensure that a bazel server is running
