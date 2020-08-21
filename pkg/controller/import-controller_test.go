@@ -157,6 +157,61 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(resultPvc.GetAnnotations()[AnnImportPod]).ToNot(BeEmpty())
 	})
 
+	It("Should create a POD with node placement", func() {
+		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1"}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+
+		reconciler = createImportReconciler(pvc)
+
+		cr := &cdiv1.CDI{}
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cr)
+		Expect(err).ToNot(HaveOccurred())
+
+		oldSpec := cr.Spec.DeepCopy()
+		dummyNodeSelector := map[string]string{"kubernetes.io/arch": "amd64"}
+		dummyTolerations := []v1.Toleration{{Key: "test", Value: "123"}}
+		dummyAffinity := v1.Affinity{
+			NodeAffinity: &v1.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+					NodeSelectorTerms: []v1.NodeSelectorTerm{
+						{
+							MatchExpressions: []v1.NodeSelectorRequirement{
+								{Key: "kubernetes.io/hostname", Operator: v1.NodeSelectorOpIn, Values: []string{"node01"}},
+							},
+						},
+					},
+				},
+			},
+		}
+		cr.Spec.Workloads.NodeSelector = dummyNodeSelector
+		cr.Spec.Workloads.Affinity = dummyAffinity
+		cr.Spec.Workloads.Tolerations = dummyTolerations
+
+		err = reconciler.client.Update(context.TODO(), cr)
+		Expect(err).ToNot(HaveOccurred())
+
+		placement, err := GetWorkloadNodePlacement(reconciler.client)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(placement.Affinity).To(Equal(dummyAffinity))
+		Expect(placement.NodeSelector).To(Equal(dummyNodeSelector))
+		Expect(placement.Tolerations).To(Equal(dummyTolerations))
+
+		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(*pod.Spec.Affinity).To(Equal(dummyAffinity))
+		Expect(pod.Spec.NodeSelector).To(Equal(dummyNodeSelector))
+		Expect(pod.Spec.Tolerations).To(Equal(dummyTolerations))
+
+		cr.Spec = *oldSpec
+		err = reconciler.client.Update(context.TODO(), cr)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
 	It("Should create a POD if a PVC with all needed annotations is passed", func() {
 		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1"}, nil)
 		pvc.Status.Phase = v1.ClaimBound
