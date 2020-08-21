@@ -153,6 +153,9 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 			MountPath: "/var/run/ca-bundle/cdi-uploadserver-client-signer-bundle",
 		},
 	}
+	if len(deployment.Spec.Template.Spec.NodeSelector) == 0 {
+		deployment.Spec.Template.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "linux"}
+	}
 	deployment.Spec.Template.Spec.Containers = []corev1.Container{container}
 	deployment.Spec.Template.Spec.Volumes = []corev1.Volume{
 		{
