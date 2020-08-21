@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
@@ -46,7 +47,8 @@ func createControllerResources(args *FactoryArgs) []runtime.Object {
 			args.ClonerImage,
 			args.UploadServerImage,
 			args.Verbosity,
-			args.PullPolicy),
+			args.PullPolicy,
+			args.InfraNodePlacement),
 		createInsecureRegConfigMap(),
 		createPrometheusService(),
 	}
@@ -91,9 +93,9 @@ func createControllerServiceAccount() *corev1.ServiceAccount {
 	return utils.CreateServiceAccount(common.ControllerServiceAccountName)
 }
 
-func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string) *appsv1.Deployment {
+func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string, infraNodePlacement cdiv1.NodePlacement) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
-	deployment := utils.CreateDeployment(controllerResourceName, "app", "containerized-data-importer", common.ControllerServiceAccountName, int32(1))
+	deployment := utils.CreateDeployment(controllerResourceName, "app", "containerized-data-importer", common.ControllerServiceAccountName, int32(1), infraNodePlacement)
 	container := utils.CreateContainer("cdi-controller", controllerImage, verbosity, corev1.PullPolicy(pullPolicy))
 	container.Env = []corev1.EnvVar{
 		{

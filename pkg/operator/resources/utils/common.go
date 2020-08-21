@@ -24,6 +24,8 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
 const (
@@ -187,7 +189,7 @@ func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAcco
 }
 
 // CreateDeployment creates deployment
-func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numReplicas int32) *appsv1.Deployment {
+func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numReplicas int32, infraNodePlacement cdiv1.NodePlacement) *appsv1.Deployment {
 	matchMap := map[string]string{matchKey: matchValue}
 	deployment := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -213,6 +215,9 @@ func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numRepl
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: &[]bool{true}[0],
 					},
+					NodeSelector: infraNodePlacement.NodeSelector,
+					Tolerations:  infraNodePlacement.Tolerations,
+					Affinity:     &infraNodePlacement.Affinity,
 				},
 			},
 		},

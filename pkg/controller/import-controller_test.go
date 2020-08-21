@@ -653,6 +653,9 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	s := scheme.Scheme
 	cdiv1.AddToScheme(s)
 
+	cdiCR := MakeEmptyCDICR()
+	objs = append(objs, cdiCR)
+
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		ScratchSpaceStorageClass: testStorageClass,

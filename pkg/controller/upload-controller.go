@@ -43,6 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
@@ -515,7 +516,12 @@ func (r *UploadReconciler) createUploadPod(args UploadPodArgs) (*v1.Pod, error) 
 		return nil, err
 	}
 
-	pod := r.makeUploadPodSpec(args, podResourceRequirements)
+	workloadNodePlacement, err := GetWorkloadNodePlacement(r.client)
+	if err != nil {
+		return nil, err
+	}
+
+	pod := r.makeUploadPodSpec(args, podResourceRequirements, *workloadNodePlacement)
 
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: args.Name, Namespace: ns}, pod); err != nil {
 		if !k8serrors.IsNotFound(err) {
@@ -623,7 +629,7 @@ func createUploadServiceNameFromPvcName(pvc string) string {
 	return naming.GetServiceNameFromResourceName(createUploadResourceName(pvc))
 }
 
-func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequirements *v1.ResourceRequirements) *v1.Pod {
+func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequirements *v1.ResourceRequirements, workloadNodePlacement cdiv1.NodePlacement) *v1.Pod {
 	requestImageSize, _ := getRequestedImageSize(args.PVC)
 	serviceName := naming.GetServiceNameFromResourceName(args.Name)
 	fsGroup := common.QemuSubGid
@@ -706,6 +712,9 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 					},
 				},
 			},
+			NodeSelector: workloadNodePlacement.NodeSelector,
+			Tolerations:  workloadNodePlacement.Tolerations,
+			Affinity:     &workloadNodePlacement.Affinity,
 		},
 	}
 

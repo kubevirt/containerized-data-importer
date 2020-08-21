@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
@@ -36,7 +37,7 @@ func createUploadProxyResources(args *FactoryArgs) []runtime.Object {
 		createUploadProxyService(),
 		createUploadProxyRoleBinding(),
 		createUploadProxyRole(),
-		createUploadProxyDeployment(args.UploadProxyImage, args.Verbosity, args.PullPolicy),
+		createUploadProxyDeployment(args.UploadProxyImage, args.Verbosity, args.PullPolicy, args.InfraNodePlacement),
 	}
 }
 
@@ -81,9 +82,9 @@ func createUploadProxyRole() *rbacv1.Role {
 	return role
 }
 
-func createUploadProxyDeployment(image, verbosity, pullPolicy string) *appsv1.Deployment {
+func createUploadProxyDeployment(image, verbosity, pullPolicy string, infraNodePlacement cdiv1.NodePlacement) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
-	deployment := utils.CreateDeployment(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, uploadProxyResourceName, int32(1))
+	deployment := utils.CreateDeployment(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, uploadProxyResourceName, int32(1), infraNodePlacement)
 	container := utils.CreateContainer(uploadProxyResourceName, image, verbosity, corev1.PullPolicy(pullPolicy))
 	container.Env = []corev1.EnvVar{
 		{

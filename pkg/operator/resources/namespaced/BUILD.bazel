@@ -11,6 +11,7 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/common:go_default_library",
         "//pkg/controller:go_default_library",
         "//pkg/operator/resources/utils:go_default_library",

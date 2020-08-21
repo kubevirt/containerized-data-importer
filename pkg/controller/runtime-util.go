@@ -27,6 +27,19 @@ func MakeEmptyCDIConfigSpec(name string) *cdiv1.CDIConfig {
 	}
 }
 
+// MakeEmptyCDICR creates CDI CustomResouce manifest
+func MakeEmptyCDICR() *cdiv1.CDI {
+	return &cdiv1.CDI{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CDI",
+			APIVersion: "cdis.cdi.kubevirt.io",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cdi",
+		},
+	}
+}
+
 // IgnoreNotFound returns nil if the error is a NotFound error.
 // We generally want to ignore (not requeue) NotFound errors, since we'll get a reconciliation request once the
 // object exists, and requeuing in the meantime won't help.
