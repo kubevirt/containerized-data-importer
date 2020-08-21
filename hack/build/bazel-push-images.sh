@@ -24,6 +24,9 @@ source hack/build/config.sh
 
 docker_tag=$DOCKER_TAG
 docker_prefix=$DOCKER_PREFIX
+if [ -n "$DOCKER_CA_CERT_FILE" ] ; then
+    /usr/bin/update-ca-trust
+fi 
 
 echo "docker_prefix: $docker_prefix"
 for tag in ${docker_tag} ${docker_tag_alt}; do
