@@ -78,6 +78,7 @@ container_image(
         "80",
         "81",
         "82",
+        "83",
     ],
     cmd = "mkdir -p /usr/share/nginx/html/images/priv",
     env = {

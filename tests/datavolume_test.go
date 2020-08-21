@@ -48,14 +48,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	httpsTinyCoreIsoURL := func() string {
 		return fmt.Sprintf(utils.HTTPSTinyCoreIsoURL, f.CdiInstallNs)
 	}
-	httpTinyCoreRateLimit := func() string {
-		return fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs)
-	}
 	httpsTinyCoreQcow2URL := func() string {
 		return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs)
 	}
 	tinyCoreIsoRegistryURL := func() string {
 		return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs)
+	}
+	tinyCoreIsoRegistryProxyURL := func() string {
+		return fmt.Sprintf(utils.TinyCoreIsoRegistryProxyURL, f.CdiInstallNs)
 	}
 	tarArchiveURL := func() string {
 		return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs)
@@ -91,6 +91,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	createRegistryImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 		dataVolume := utils.NewDataVolumeWithRegistryImport(dataVolumeName, size, url)
 		cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+		Expect(err).To(BeNil())
+		dataVolume.Spec.Source.Registry.CertConfigMap = cm
+		return dataVolume
+	}
+
+	createProxyRegistryImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+		dataVolume := utils.NewDataVolumeWithRegistryImport(dataVolumeName, size, url)
+		cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 		Expect(err).To(BeNil())
 		dataVolume.Spec.Source.Registry.CertConfigMap = cm
 		return dataVolume
@@ -1095,7 +1103,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		It("Should create a new PVC when PVC is deleted during import", func() {
-			dataVolumeSpec := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", httpTinyCoreRateLimit())
+			dataVolumeSpec := createProxyRegistryImportDataVolume(dataVolumeName, "1Gi", tinyCoreIsoRegistryProxyURL())
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeSpec.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolumeSpec)
 			Expect(err).ToNot(HaveOccurred())
