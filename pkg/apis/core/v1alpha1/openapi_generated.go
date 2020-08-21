@@ -13719,8 +13719,9 @@ func schema_pkg_apis_core_v1alpha1_CDISpec(ref common.ReferenceCallback) common.
 					},
 					"uninstallStrategy": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Description: "CDIUninstallStrategy defines the state to leave CDI on uninstall",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 				},

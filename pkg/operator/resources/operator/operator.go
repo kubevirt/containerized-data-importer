@@ -18,10 +18,15 @@ package operator
 
 import (
 	"encoding/json"
+	"os"
 
 	"github.com/blang/semver"
 	csvv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
+	"golang.org/x/tools/go/packages"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-tools/pkg/loader"
+	"sigs.k8s.io/controller-tools/pkg/markers"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -33,6 +38,9 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
+
+	crdgen "sigs.k8s.io/controller-tools/pkg/crd"
+	crdmarkers "sigs.k8s.io/controller-tools/pkg/crd/markers"
 )
 
 const (
@@ -277,285 +285,71 @@ func createCRD(args *FactoryArgs) []runtime.Object {
 	}
 }
 
-func createCDIListCRD() *extv1.CustomResourceDefinition {
-	return &extv1.CustomResourceDefinition{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "apiextensions.k8s.io/v1",
-			Kind:       "CustomResourceDefinition",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "cdis.cdi.kubevirt.io",
-			Labels: map[string]string{
-				"operator.cdi.kubevirt.io": "",
-			},
-		},
-		Spec: extv1.CustomResourceDefinitionSpec{
-			Group: "cdi.kubevirt.io",
-			Scope: "Cluster",
-			Versions: []extv1.CustomResourceDefinitionVersion{
-				{
-					Name:    "v1alpha1",
-					Served:  true,
-					Storage: false,
-					Schema: &extv1.CustomResourceValidation{
-						OpenAPIV3Schema: &extv1.JSONSchemaProps{
-							Type:        "object",
-							Description: "CDI is the CDI Operator CRD",
-							Properties: map[string]extv1.JSONSchemaProps{
-								// We are aware apiVersion, kind, and metadata are technically not needed, but to make comparision with
-								// kubebuilder easier, we add it here.
-								"apiVersion": {
-									Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-									Type:        "string",
-								},
-								"kind": {
-									Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-									Type:        "string",
-								},
-								"metadata": {
-									Type: "object",
-								},
-								"spec": {
-									Properties: map[string]extv1.JSONSchemaProps{
-										"imagePullPolicy": {
-											Description: "PullPolicy describes a policy for if/when to pull a container image",
-											Type:        "string",
-											Enum: []extv1.JSON{
-												{
-													Raw: []byte(`"Always"`),
-												},
-												{
-													Raw: []byte(`"IfNotPresent"`),
-												},
-												{
-													Raw: []byte(`"Never"`),
-												},
-											},
-										},
-										"uninstallStrategy": {
-											Type:        "string",
-											Description: "CDIUninstallStrategy defines the state to leave CDI on uninstall",
-											Enum: []extv1.JSON{
-												{
-													Raw: []byte(`"RemoveWorkloads"`),
-												},
-												{
-													Raw: []byte(`"BlockUninstallIfWorkloadsExist"`),
-												},
-											},
-										},
-									},
-									Type:        "object",
-									Description: "CDISpec defines our specification for the CDI installation",
-								},
-								"status": {
-									Type:        "object",
-									Description: "CDIStatus defines the status of the CDI installation",
-									Properties: map[string]extv1.JSONSchemaProps{
-										"targetVersion": {
-											Description: "The desired version of the CDI resource",
-											Type:        "string",
-										},
-										"observedVersion": {
-											Description: "The observed version of the CDI resource",
-											Type:        "string",
-										},
-										"operatorVersion": {
-											Description: "The version of the CDI resource as defined by the operator",
-											Type:        "string",
-										},
-										"phase": {
-											Description: "CDIPhase is the current phase of the CDI deployment",
-											Type:        "string",
-										},
-										"conditions": {
-											Description: "A list of current conditions of the CDI resource",
-											Type:        "array",
-											Items: &extv1.JSONSchemaPropsOrArray{
-												Schema: &extv1.JSONSchemaProps{
-													Type:        "object",
-													Description: "Condition represents the state of the operator's reconciliation functionality.",
-													Properties: map[string]extv1.JSONSchemaProps{
-														"lastHeartbeatTime": {
-															Type:   "string",
-															Format: "date-time",
-														},
-														"lastTransitionTime": {
-															Type:   "string",
-															Format: "date-time",
-														},
-														"message": {
-															Type: "string",
-														},
-														"reason": {
-															Type: "string",
-														},
-														"status": {
-															Type: "string",
-														},
-														"type": {
-															Description: "ConditionType is the state of the operator's reconciliation functionality.",
-															Type:        "string",
-														},
-													},
-													Required: []string{
-														"status",
-														"type",
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-							Required: []string{
-								"spec",
-							},
-						},
-					},
-					AdditionalPrinterColumns: []extv1.CustomResourceColumnDefinition{
-						{Name: "Age", Type: "date", JSONPath: ".metadata.creationTimestamp"},
-						{Name: "Phase", Type: "string", JSONPath: ".status.phase"},
-					},
-					Subresources: &extv1.CustomResourceSubresources{},
-				},
-				{
-					Name:    "v1beta1",
-					Served:  true,
-					Storage: true,
-					Schema: &extv1.CustomResourceValidation{
-						OpenAPIV3Schema: &extv1.JSONSchemaProps{
-							Type:        "object",
-							Description: "CDI is the CDI Operator CRD",
-							Properties: map[string]extv1.JSONSchemaProps{
-								"apiVersion": {
-									Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-									Type:        "string",
-								},
-								"kind": {
-									Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-									Type:        "string",
-								},
-								"metadata": {
-									Type: "object",
-								},
-								"spec": {
-									Properties: map[string]extv1.JSONSchemaProps{
-										"imagePullPolicy": {
-											Description: "PullPolicy describes a policy for if/when to pull a container image",
-											Type:        "string",
-											Enum: []extv1.JSON{
-												{
-													Raw: []byte(`"Always"`),
-												},
-												{
-													Raw: []byte(`"IfNotPresent"`),
-												},
-												{
-													Raw: []byte(`"Never"`),
-												},
-											},
-										},
-										"uninstallStrategy": {
-											Type:        "string",
-											Description: "CDIUninstallStrategy defines the state to leave CDI on uninstall",
-											Enum: []extv1.JSON{
-												{
-													Raw: []byte(`"RemoveWorkloads"`),
-												},
-												{
-													Raw: []byte(`"BlockUninstallIfWorkloadsExist"`),
-												},
-											},
-										},
-									},
-									Type:        "object",
-									Description: "CDISpec defines our specification for the CDI installation",
-								},
-								"status": {
-									Type:        "object",
-									Description: "CDIStatus defines the status of the CDI installation",
-									Properties: map[string]extv1.JSONSchemaProps{
-										"targetVersion": {
-											Description: "The desired version of the CDI resource",
-											Type:        "string",
-										},
-										"observedVersion": {
-											Description: "The observed version of the CDI resource",
-											Type:        "string",
-										},
-										"operatorVersion": {
-											Description: "The version of the CDI resource as defined by the operator",
-											Type:        "string",
-										},
-										"phase": {
-											Description: "CDIPhase is the current phase of the CDI deployment",
-											Type:        "string",
-										},
-										"conditions": {
-											Description: "A list of current conditions of the CDI resource",
-											Type:        "array",
-											Items: &extv1.JSONSchemaPropsOrArray{
-												Schema: &extv1.JSONSchemaProps{
-													Type:        "object",
-													Description: "Condition represents the state of the operator's reconciliation functionality.",
-													Properties: map[string]extv1.JSONSchemaProps{
-														"lastHeartbeatTime": {
-															Type:   "string",
-															Format: "date-time",
-														},
-														"lastTransitionTime": {
-															Type:   "string",
-															Format: "date-time",
-														},
-														"message": {
-															Type: "string",
-														},
-														"reason": {
-															Type: "string",
-														},
-														"status": {
-															Type: "string",
-														},
-														"type": {
-															Description: "ConditionType is the state of the operator's reconciliation functionality.",
-															Type:        "string",
-														},
-													},
-													Required: []string{
-														"status",
-														"type",
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-							Required: []string{
-								"spec",
-							},
-						},
-					},
-					AdditionalPrinterColumns: []extv1.CustomResourceColumnDefinition{
-						{Name: "Age", Type: "date", JSONPath: ".metadata.creationTimestamp"},
-						{Name: "Phase", Type: "string", JSONPath: ".status.phase"},
-					},
-					Subresources: &extv1.CustomResourceSubresources{},
-				},
-			},
-			Conversion: &extv1.CustomResourceConversion{
-				Strategy: extv1.NoneConverter,
-			},
-			Names: extv1.CustomResourceDefinitionNames{
-				Kind:       "CDI",
-				ListKind:   "CDIList",
-				Plural:     "cdis",
-				Singular:   "cdi",
-				ShortNames: []string{"cdi", "cdis"},
-			},
-		},
+func packageErrors(pkg *loader.Package, filterKinds ...packages.ErrorKind) error {
+	toSkip := make(map[packages.ErrorKind]struct{})
+	for _, errKind := range filterKinds {
+		toSkip[errKind] = struct{}{}
 	}
+	var outErr error
+	packages.Visit([]*packages.Package{pkg.Package}, nil, func(pkgRaw *packages.Package) {
+		for _, err := range pkgRaw.Errors {
+			if _, skip := toSkip[err.Kind]; skip {
+				continue
+			}
+			outErr = err
+		}
+	})
+	return outErr
+}
+
+func createCDIListCRD() *extv1.CustomResourceDefinition {
+	// Allow overriding working directory for unit tests which run in their own directory and module
+	cwd := os.Getenv("CDI_DIR")
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
+	pkgs, err := loader.LoadRoots(cwd + "/...")
+	if err != nil {
+		panic(err)
+	}
+	reg := &markers.Registry{}
+	crdmarkers.Register(reg)
+
+	parser := &crdgen.Parser{
+		Collector: &markers.Collector{Registry: reg},
+		Checker:   &loader.TypeChecker{},
+	}
+	crdgen.AddKnownTypes(parser)
+	if len(pkgs) == 0 {
+		panic("Failed identifying packages")
+	}
+	for _, p := range pkgs {
+		parser.NeedPackage(p)
+	}
+	groupKind := schema.GroupKind{Kind: "CDI", Group: "cdi.kubevirt.io"}
+	parser.NeedCRDFor(groupKind, nil)
+	for _, p := range pkgs {
+		err = packageErrors(p, packages.TypeError)
+		if err != nil {
+			panic(err)
+		}
+	}
+	c := parser.CustomResourceDefinitions[groupKind]
+	// enforce validation of CR name to prevent multiple CRs
+
+	for _, v := range c.Spec.Versions {
+		v.Schema.OpenAPIV3Schema.Properties["metadata"] = extv1.JSONSchemaProps{
+			Type: "object",
+			Properties: map[string]extv1.JSONSchemaProps{
+				"name": {
+					Type:    "string",
+					Pattern: "cdi",
+				},
+			},
+		}
+	}
+
+	return &c
 }
 
 func createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy string) []corev1.EnvVar {
