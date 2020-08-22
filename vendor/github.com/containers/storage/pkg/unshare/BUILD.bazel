@@ -1,0 +1,107 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "getenv_linux_cgo.go",
+        "getenv_linux_nocgo.go",
+        "unshare.c",
+        "unshare.go",
+        "unshare_cgo.go",
+        "unshare_linux.go",
+        "unshare_unsupported.go",
+        "unshare_unsupported_cgo.go",
+    ],
+    cgo = True,
+    copts = select({
+        "@io_bazel_rules_go//go/platform:android": [
+            "-DUNSHARE_NO_CODE_AT_ALL",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "-DUNSHARE_NO_CODE_AT_ALL",
+        ],
+        "@io_bazel_rules_go//go/platform:dragonfly": [
+            "-DUNSHARE_NO_CODE_AT_ALL",
+        ],
+        "@io_bazel_rules_go//go/platform:freebsd": [
+            "-DUNSHARE_NO_CODE_AT_ALL",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "-Wall",
+        ],
+        "@io_bazel_rules_go//go/platform:nacl": [
+            "-DUNSHARE_NO_CODE_AT_ALL",
+        ],
+        "@io_bazel_rules_go//go/platform:netbsd": [
+            "-DUNSHARE_NO_CODE_AT_ALL",
+        ],
+        "@io_bazel_rules_go//go/platform:openbsd": [
+            "-DUNSHARE_NO_CODE_AT_ALL",
+        ],
+        "@io_bazel_rules_go//go/platform:plan9": [
+            "-DUNSHARE_NO_CODE_AT_ALL",
+        ],
+        "@io_bazel_rules_go//go/platform:solaris": [
+            "-DUNSHARE_NO_CODE_AT_ALL",
+        ],
+        "@io_bazel_rules_go//go/platform:windows": [
+            "-DUNSHARE_NO_CODE_AT_ALL",
+        ],
+        "//conditions:default": [],
+    }),
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/storage/pkg/unshare",
+    importpath = "github.com/containers/storage/pkg/unshare",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/pkg/errors:go_default_library",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:android": [
+            "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+            "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+            "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:dragonfly": [
+            "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+            "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:freebsd": [
+            "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+            "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+            "//vendor/github.com/containers/storage/pkg/reexec:go_default_library",
+            "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
+            "//vendor/github.com/sirupsen/logrus:go_default_library",
+            "//vendor/github.com/syndtr/gocapability/capability:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:nacl": [
+            "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+            "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:netbsd": [
+            "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+            "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:openbsd": [
+            "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+            "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:plan9": [
+            "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+            "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:solaris": [
+            "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+            "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:windows": [
+            "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+            "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
+        ],
+        "//conditions:default": [],
+    }),
+)

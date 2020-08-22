@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "command_linux.go",
+        "command_unix.go",
+        "command_unsupported.go",
+        "command_windows.go",
+        "reexec.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/storage/pkg/reexec",
+    importpath = "github.com/containers/storage/pkg/reexec",
+    visibility = ["//visibility:public"],
+)

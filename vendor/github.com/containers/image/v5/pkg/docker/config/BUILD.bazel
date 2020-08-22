@@ -1,0 +1,26 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "config.go",
+        "config_linux.go",
+        "config_unsupported.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/pkg/docker/config",
+    importpath = "github.com/containers/image/v5/pkg/docker/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/containers/image/v5/types:go_default_library",
+        "//vendor/github.com/docker/docker-credential-helpers/client:go_default_library",
+        "//vendor/github.com/docker/docker-credential-helpers/credentials:go_default_library",
+        "//vendor/github.com/docker/docker/pkg/homedir:go_default_library",
+        "//vendor/github.com/pkg/errors:go_default_library",
+        "//vendor/github.com/sirupsen/logrus:go_default_library",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:linux": [
+            "//vendor/github.com/containers/image/v5/internal/pkg/keyctl:go_default_library",
+        ],
+        "//conditions:default": [],
+    }),
+)

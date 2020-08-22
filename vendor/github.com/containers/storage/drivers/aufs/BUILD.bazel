@@ -1,0 +1,35 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "aufs.go",
+        "dirs.go",
+        "mount.go",
+        "mount_linux.go",
+        "mount_unsupported.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/storage/drivers/aufs",
+    importpath = "github.com/containers/storage/drivers/aufs",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@io_bazel_rules_go//go/platform:linux": [
+            "//vendor/github.com/containers/storage/drivers:go_default_library",
+            "//vendor/github.com/containers/storage/pkg/archive:go_default_library",
+            "//vendor/github.com/containers/storage/pkg/chrootarchive:go_default_library",
+            "//vendor/github.com/containers/storage/pkg/directory:go_default_library",
+            "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+            "//vendor/github.com/containers/storage/pkg/locker:go_default_library",
+            "//vendor/github.com/containers/storage/pkg/mount:go_default_library",
+            "//vendor/github.com/containers/storage/pkg/parsers:go_default_library",
+            "//vendor/github.com/containers/storage/pkg/system:go_default_library",
+            "//vendor/github.com/opencontainers/runc/libcontainer/system:go_default_library",
+            "//vendor/github.com/opencontainers/selinux/go-selinux/label:go_default_library",
+            "//vendor/github.com/pkg/errors:go_default_library",
+            "//vendor/github.com/sirupsen/logrus:go_default_library",
+            "//vendor/github.com/vbatts/tar-split/tar/storage:go_default_library",
+            "//vendor/golang.org/x/sys/unix:go_default_library",
+        ],
+        "//conditions:default": [],
+    }),
+)

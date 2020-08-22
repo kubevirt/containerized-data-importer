@@ -1,0 +1,31 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "buffer.go",
+        "bytespipe.go",
+        "fswriters.go",
+        "fswriters_linux.go",
+        "fswriters_unsupported.go",
+        "readers.go",
+        "temp_unix.go",
+        "temp_windows.go",
+        "writeflusher.go",
+        "writers.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/storage/pkg/ioutils",
+    importpath = "github.com/containers/storage/pkg/ioutils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/golang.org/x/net/context:go_default_library",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:linux": [
+            "//vendor/golang.org/x/sys/unix:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:windows": [
+            "//vendor/github.com/containers/storage/pkg/longpath:go_default_library",
+        ],
+        "//conditions:default": [],
+    }),
+)

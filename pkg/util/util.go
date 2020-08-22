@@ -197,16 +197,6 @@ func UnArchiveTar(reader io.Reader, destDir string, arg ...string) error {
 	return nil
 }
 
-// UnArchiveLocalTar unarchives a local tar file to the specified destination.
-func UnArchiveLocalTar(filePath, destDir string, arg ...string) error {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return errors.Wrap(err, "could not open tar file")
-	}
-	fileReader := bufio.NewReader(file)
-	return UnArchiveTar(fileReader, destDir, arg...)
-}
-
 // CopyFile copies a file from one location to another.
 func CopyFile(src, dst string) error {
 	in, err := os.Open(src)

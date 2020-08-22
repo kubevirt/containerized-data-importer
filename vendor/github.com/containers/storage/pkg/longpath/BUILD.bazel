@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["longpath.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/storage/pkg/longpath",
+    importpath = "github.com/containers/storage/pkg/longpath",
+    visibility = ["//visibility:public"],
+)

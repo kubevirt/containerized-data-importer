@@ -110,3 +110,6 @@ spec:
   - name: tls
     port: 443
     targetPort: 443
+  - name: rate-limit-registry-proxy
+    port: 83
+    targetPort: 83

@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "builtin.go",
+        "builtin.go.h",
+        "checkout.go",
+        "commit.go",
+        "init.go",
+        "log.go",
+        "prune.go",
+    ],
+    cgo = True,
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/ostreedev/ostree-go/pkg/otbuiltin",
+    importpath = "github.com/ostreedev/ostree-go/pkg/otbuiltin",
+    visibility = ["//visibility:public"],
+    deps = ["//vendor/github.com/ostreedev/ostree-go/pkg/glibobject:go_default_library"],
+)

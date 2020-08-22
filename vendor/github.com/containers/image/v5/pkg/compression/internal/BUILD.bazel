@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["types.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/pkg/compression/internal",
+    importpath = "github.com/containers/image/v5/pkg/compression/internal",
+    visibility = ["//visibility:public"],
+)

@@ -54,6 +54,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	tinyCoreIsoRegistryURL := func() string {
 		return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs)
 	}
+	tinyCoreIsoRegistryProxyURL := func() string {
+		return fmt.Sprintf(utils.TinyCoreIsoRegistryProxyURL, f.CdiInstallNs)
+	}
 	tarArchiveURL := func() string {
 		return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs)
 	}
@@ -88,6 +91,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	createRegistryImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 		dataVolume := utils.NewDataVolumeWithRegistryImport(dataVolumeName, size, url)
 		cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+		Expect(err).To(BeNil())
+		dataVolume.Spec.Source.Registry.CertConfigMap = cm
+		return dataVolume
+	}
+
+	createProxyRegistryImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+		dataVolume := utils.NewDataVolumeWithRegistryImport(dataVolumeName, size, url)
+		cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 		Expect(err).To(BeNil())
 		dataVolume.Spec.Source.Registry.CertConfigMap = cm
 		return dataVolume
@@ -1092,8 +1103,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		It("Should create a new PVC when PVC is deleted during import", func() {
-			dataVolumeSpec := createRegistryImportDataVolume(dataVolumeName, "1Gi", tinyCoreIsoRegistryURL())
-			By(fmt.Sprintf("creating new datavolume %s", dataVolumeSpec.Name))
+			dataVolumeSpec := createProxyRegistryImportDataVolume(dataVolumeName, "1Gi", tinyCoreIsoRegistryProxyURL())
+			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeSpec.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolumeSpec)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -1106,7 +1117,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("Wait for import to start")
 			utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
 
-			By(fmt.Sprintf("Deleting PVC %v", pvc.Name))
+			By(fmt.Sprintf("Deleting PVC %v (id: %v)", pvc.Name, pvcUID))
 			err = utils.DeletePVC(f.K8sClient, f.Namespace.Name, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			deleted, err := f.WaitPVCDeletedByUID(pvc, 30*time.Second)
@@ -1116,9 +1127,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("Wait for PVC to be recreated")
 			pvc, err = utils.WaitForPVC(f.K8sClient, f.Namespace.Name, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
-			f.ForceBindIfWaitForFirstConsumer(pvc)
-
+			By(fmt.Sprintf("Recreated PVC %v (id: %v)", pvc.Name, pvc.GetUID()))
 			Expect(pvc.GetUID()).ToNot(Equal(pvcUID))
+			f.ForceBindIfWaitForFirstConsumer(pvc)
 
 			By("Wait for DV to succeed")
 			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name, 10*time.Minute)
