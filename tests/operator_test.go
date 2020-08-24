@@ -232,39 +232,6 @@ var _ = Describe("Operator delete CDI tests", func() {
 		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 	})
 
-	It("[test_id:3954]should delete an upload pod", func() {
-		dv := utils.NewDataVolumeForUpload("delete-me", "1Gi")
-
-		By("Creating datavolume")
-		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
-
-		By("Waiting for pod to be running")
-		Eventually(func() bool {
-			pod, err := f.K8sClient.CoreV1().Pods(dv.Namespace).Get(context.TODO(), "cdi-upload-"+dv.Name, metav1.GetOptions{})
-			if errors.IsNotFound(err) {
-				return false
-			}
-			Expect(err).ToNot(HaveOccurred())
-			return pod.Status.Phase == corev1.PodRunning
-		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
-
-		By("Deleting CDI")
-		err = f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Waiting for pod to be deleted")
-		Eventually(func() bool {
-			_, err = f.K8sClient.CoreV1().Pods(dv.Namespace).Get(context.TODO(), "cdi-upload-"+dv.Name, metav1.GetOptions{})
-			if errors.IsNotFound(err) {
-				return true
-			}
-			Expect(err).ToNot(HaveOccurred())
-			return false
-		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
-	})
-
 	It("[test_id:3955]should block CDI delete", func() {
 		uninstallStrategy := cdiv1.CDIUninstallStrategyBlockUninstallIfWorkloadsExist
 		updateUninstallStrategy(f.CdiClient, &uninstallStrategy)
