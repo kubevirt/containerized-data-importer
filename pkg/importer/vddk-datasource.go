@@ -153,7 +153,7 @@ func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbpr
 	}
 
 	// Construct VMware SDK URL and get MOref
-	sdkURL := vmwURL.Scheme + "://" + accessKey + ":" + secKey + "@" + vmwURL.Hostname() + "/sdk"
+	sdkURL := vmwURL.Scheme + "://" + accessKey + ":" + secKey + "@" + vmwURL.Host + "/sdk"
 	moref, err := FindMoRef(uuid, sdkURL)
 	if err != nil {
 		return nil, err
@@ -173,7 +173,7 @@ func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbpr
 		"--unix", nbdUnixSocket,
 		"--pidfile", nbdPidFile,
 		"vddk",
-		"server=" + vmwURL.Hostname(),
+		"server=" + vmwURL.Host,
 		"user=" + accessKey,
 		"password=" + secKey,
 		"thumbprint=" + thumbprint,

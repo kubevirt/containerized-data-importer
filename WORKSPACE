@@ -503,3 +503,11 @@ http_file(
         "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/l/libxcrypt-compat-4.4.10-1.fc31.x86_64.rpm",
     ],
 )
+
+http_file(
+    name = "golang-github-vmware-govmomi",
+    sha256 = "9ace85ca6a9a6dfd6a9e621fe9012fadd704ba5c9fbf1d042244eb0f250b3115",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/g/golang-github-vmware-govmomi-0.21.0-2.fc31.x86_64.rpm",
+    ],
+)

@@ -169,4 +169,6 @@ if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
   _kubectl apply -f "./_out/manifests/registry-host.yaml"
   # Imageio test service:
   _kubectl apply -f "./_out/manifests/imageio.yaml"
+  # vCenter (VDDK) test service:
+  _kubectl apply -f "./_out/manifests/vcenter.yaml"
 fi

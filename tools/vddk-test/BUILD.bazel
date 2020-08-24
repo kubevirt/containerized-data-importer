@@ -1,0 +1,24 @@
+load("@io_bazel_rules_docker//container:container.bzl", "container_image")
+load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
+
+container_image(
+    name = "vcenter-simulator-base-image",
+    base = "@fedora//image",
+    cmd = "mkdir -p /opt",
+    directory = "/usr/bin",
+    entrypoint = "/usr/bin/entrypoint.sh",
+    files = [
+        "entrypoint.sh",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+rpm_image(
+    name = "vcenter-simulator",
+    base = ":vcenter-simulator-base-image",
+    rpms = [
+        "@golang-github-vmware-govmomi//file",
+        "@tar//file",
+    ],
+    visibility = ["//visibility:public"],
+)

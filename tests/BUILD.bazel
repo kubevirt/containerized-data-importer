@@ -53,6 +53,7 @@ go_test(
         "//tests/utils:go_default_library",
         "//vendor/github.com/blang/semver:go_default_library",
         "//vendor/github.com/ghodss/yaml:go_default_library",
+        "//vendor/github.com/google/uuid:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",
         "//vendor/github.com/onsi/ginkgo/extensions/table:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
