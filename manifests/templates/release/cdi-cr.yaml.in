@@ -7,3 +7,6 @@ spec:
   infra:
     nodeSelector:
       kubernetes.io/os: linux
+  workload:
+    nodeSelector:
+      kubernetes.io/os: linux
