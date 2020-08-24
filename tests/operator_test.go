@@ -100,7 +100,7 @@ var _ = Describe("Operator tests", func() {
 
 var _ = Describe("Operator delete CDI tests", func() {
 	var cr *cdiv1.CDI
-	var cdiOperator *appsv1.Deployment
+	var cdiOperatorDeployment *appsv1.Deployment
 	f := framework.NewFramework("operator-delete-cdi-test")
 
 	BeforeEach(func() {
@@ -114,7 +114,7 @@ var _ = Describe("Operator delete CDI tests", func() {
 		origCdiOperator, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), "cdi-operator", metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		cdiOperator = &appsv1.Deployment{
+		cdiOperatorDeployment = &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "cdi-operator",
 				Namespace: f.CdiInstallNs,
@@ -128,7 +128,7 @@ var _ = Describe("Operator delete CDI tests", func() {
 			return
 		}
 
-		_, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Create(context.TODO(), cdiOperator, metav1.CreateOptions{})
+		_, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Create(context.TODO(), cdiOperatorDeployment, metav1.CreateOptions{})
 		if err != nil && !apierrs.IsAlreadyExists(err) {
 			Fail(fmt.Sprintf("Failed to create cdi-operator, err %v", err))
 		}
@@ -285,7 +285,7 @@ var _ = Describe("Operator delete CDI tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Recreating CDI operator")
-		_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Create(context.TODO(), cdiOperator, metav1.CreateOptions{})
+		_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Create(context.TODO(), cdiOperatorDeployment, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verifying CDI apiserver, deployment, uploadproxy exist, before continuing")
