@@ -570,7 +570,7 @@ func getSource(pvc *corev1.PersistentVolumeClaim) string {
 		SourceRegistry,
 		SourceImageio:
 	default:
-		source = SourceS3
+		source = SourceHTTP
 	}
 	return source
 }
