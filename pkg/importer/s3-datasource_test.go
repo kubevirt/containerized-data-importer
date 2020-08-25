@@ -14,7 +14,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-var _ = FDescribe("S3 data source", func() {
+var _ = Describe("S3 data source", func() {
 	var (
 		sd     *S3DataSource
 		tmpDir string
