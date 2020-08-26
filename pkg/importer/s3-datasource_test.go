@@ -203,9 +203,9 @@ var _ = Describe("S3 data source", func() {
 // MockMinioClient is a mock minio client
 type MockS3Client struct {
 	endpoint string
-	accKey string
-	secKey string
-	doErr  bool
+	accKey   string
+	secKey   string
+	doErr    bool
 }
 
 func failMockS3Client(endpoint, accKey, secKey string) (S3Client, error) {

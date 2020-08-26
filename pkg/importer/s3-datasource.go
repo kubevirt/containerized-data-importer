@@ -20,7 +20,7 @@ import (
 
 // S3Client is the interface to the used S3 client.
 type S3Client interface {
- 	GetObject(input *s3.GetObjectInput) (*s3.GetObjectOutput, error)
+	GetObject(input *s3.GetObjectInput) (*s3.GetObjectOutput, error)
 }
 
 // may be overridden in tests
@@ -134,7 +134,7 @@ func createS3Reader(ep *url.URL, accessKey, secKey string) (io.ReadCloser, error
 	path := strings.Trim(ep.Path, "/")
 	pathArray := strings.SplitN(path, "/", 2)
 	if len(pathArray) != 2 {
-		return nil, errors.New( "Invalid S3 endpoint")
+		return nil, errors.New("Invalid S3 endpoint")
 	}
 	klog.V(1).Infof("pathArray %s", pathArray)
 
@@ -149,7 +149,7 @@ func createS3Reader(ep *url.URL, accessKey, secKey string) (io.ReadCloser, error
 
 	objInput := &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
-		Key: aws.String(object),
+		Key:    aws.String(object),
 	}
 	objOutput, err := svc.GetObject(objInput)
 	if err != nil {
@@ -163,9 +163,9 @@ func getS3Client(endpoint, accessKey, secKey string) (S3Client, error) {
 	creds := credentials.NewStaticCredentials(accessKey, secKey, "")
 	region := extractregion(endpoint)
 	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(region),
-		Endpoint: aws.String(endpoint),
-		Credentials: creds,
+		Region:           aws.String(region),
+		Endpoint:         aws.String(endpoint),
+		Credentials:      creds,
 		S3ForcePathStyle: aws.Bool(true),
 	},
 	)
