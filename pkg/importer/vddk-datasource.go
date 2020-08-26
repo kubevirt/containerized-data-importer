@@ -63,6 +63,22 @@ func InstallExtras() error {
 		klog.Infoln("Unable to install libxcrypt-compat RPM!")
 		return err
 	}
+
+	// Allow replacement VDDK nbdkit plugins for test. This could also be
+	// used to enable VDDK7 compatibility with a custom-built nbdkit before
+	// CDI updates to a newer Fedora release for packages, but so far no
+	// publicly available RPM works as a ready drop-in replacement.
+	updatedPlugin := "/opt/updates/nbdkit-vddk-plugin.so"
+	_, err = os.Stat(updatedPlugin)
+	if !os.IsNotExist(err) {
+		install = exec.Command("cp", "-f", updatedPlugin, "/usr/lib64/nbdkit/plugins/nbdkit-vddk-plugin.so")
+		err = install.Run()
+		if err != nil {
+			klog.Infoln("Unable to install updated nbdkit VDDK plugin!")
+			return err
+		}
+	}
+
 	return nil
 }
 

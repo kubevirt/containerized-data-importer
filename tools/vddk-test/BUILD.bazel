@@ -22,3 +22,18 @@ rpm_image(
     ],
     visibility = ["//visibility:public"],
 )
+
+container_image(
+    name = "vddk-test-image",
+    base = "@fedora//image",
+    entrypoint = "mkdir -p /opt/updates && cp -f /libvddk-test-plugin.so /opt/updates/nbdkit-vddk-plugin.so",
+    files = [
+        ":vddk-test-plugin",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "vddk-test-plugin",
+    srcs = ["vddk-test-plugin.c"],
+)

@@ -172,7 +172,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		createVddkDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 			// Find vcenter-simulator pod
-			By(fmt.Sprintf("VDDK url is %s", url))
 			pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "vcenter-deployment", "app=vcenter")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pod).ToNot(BeNil())
@@ -190,7 +189,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			// Create v2v-vmware ConfigMap
 			stringData := map[string]string{
-				utils.VddkConfigDataKey: "registry:5000/vddk-init",
+				utils.VddkConfigDataKey: "registry:5000/vddk-test",
 			}
 			configMap := v1.ConfigMap{
 				TypeMeta: metav1.TypeMeta{
@@ -704,7 +703,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				dvFunc:           createVddkDataVolume,
 				eventReason:      controller.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
-				checkPermissions: true,
+				checkPermissions: false,
 				readyCondition: &cdiv1.DataVolumeCondition{
 					Type:   cdiv1.DataVolumeReady,
 					Status: v1.ConditionTrue,
