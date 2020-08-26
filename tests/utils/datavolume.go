@@ -325,11 +325,11 @@ func NewDataVolumeWithVddkImport(dataVolumeName string, size string, backingFile
 		Spec: cdiv1.DataVolumeSpec{
 			Source: cdiv1.DataVolumeSource{
 				VDDK: &cdiv1.DataVolumeSourceVDDK{
-					BackingFile:   backingFile,
-					SecretRef:     secretRef,
-					Thumbprint:    thumbprint,
-					URL:           httpURL,
-					UUID:          uuid,
+					BackingFile: backingFile,
+					SecretRef:   secretRef,
+					Thumbprint:  thumbprint,
+					URL:         httpURL,
+					UUID:        uuid,
 				},
 			},
 			PVC: &k8sv1.PersistentVolumeClaimSpec{

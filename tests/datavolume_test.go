@@ -194,10 +194,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			configMap := v1.ConfigMap{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "v1",
-					Kind: "ConfigMap",
+					Kind:       "ConfigMap",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: utils.VddkConfigMap,
+					Name:      utils.VddkConfigMap,
 					Namespace: utils.VddkConfigMapNamespace,
 				},
 				Data: stringData,
