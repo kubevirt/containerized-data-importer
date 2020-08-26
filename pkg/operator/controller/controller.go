@@ -66,15 +66,12 @@ const (
 	updateVersionLabel          = "operator.cdi.kubevirt.io/updateVersion"
 	lastAppliedConfigAnnotation = "operator.cdi.kubevirt.io/lastAppliedConfiguration"
 
-	createResourceStart   = "CreateResourceStart"
 	createResourceFailed  = "CreateResourceFailed"
 	createResourceSuccess = "CreateResourceSuccess"
 
-	deleteResourceStart   = "DeleteResourceStart"
 	deleteResourceFailed  = "DeleteResourceFailed"
 	deleteResourceSuccess = "DeleteResourceSuccess"
 
-	updateResourceStart   = "UpdateResourceStart"
 	updateResourceFailed  = "UpdateResourceFailed"
 	updateResourceSuccess = "UpdateResourceSuccess"
 
@@ -392,7 +389,6 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1.CDI) (recon
 				return reconcile.Result{}, err
 			}
 
-			r.recorder.Event(cr, corev1.EventTypeNormal, createResourceStart, fmt.Sprintf("Started creation of resource %T %s", desiredMetaObj, desiredMetaObj.GetName()))
 			setLastAppliedConfiguration(desiredMetaObj)
 			setLabel(createVersionLabel, r.namespacedArgs.OperatorVersion, desiredMetaObj)
 
@@ -454,7 +450,6 @@ func (r *ReconcileCDI) reconcileUpdate(logger logr.Logger, cr *cdiv1.CDI) (recon
 			}
 
 			if !reflect.DeepEqual(currentRuntimeObjCopy, currentRuntimeObj) {
-				r.recorder.Event(cr, corev1.EventTypeNormal, updateResourceStart, fmt.Sprintf("Started update of resource %T %s", desiredMetaObj, desiredMetaObj.GetName()))
 				logJSONDiff(logger, currentRuntimeObjCopy, currentRuntimeObj)
 				setLabel(updateVersionLabel, r.namespacedArgs.OperatorVersion, currentMetaObj)
 
@@ -597,7 +592,6 @@ func (r *ReconcileCDI) cleanupUnusedResources(logger logr.Logger, cr *cdiv1.CDI)
 			}
 
 			if !found && metav1.IsControlledBy(observedMetaObj, cr) {
-				r.recorder.Event(cr, corev1.EventTypeNormal, deleteResourceStart, fmt.Sprintf("Start to delete resource %T %s", observedMetaObj, observedMetaObj.GetName()))
 				//Invoke pre delete callback
 				if err = r.invokeCallbacks(logger, cr, ReconcileStatePreDelete, nil, observedObj); err != nil {
 					r.recorder.Event(cr, corev1.EventTypeWarning, deleteResourceFailed, fmt.Sprintf("Failed deleting resource %s, %v", observedMetaObj.GetName(), err))
