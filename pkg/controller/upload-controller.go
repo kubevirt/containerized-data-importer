@@ -521,7 +521,7 @@ func (r *UploadReconciler) createUploadPod(args UploadPodArgs) (*v1.Pod, error) 
 		return nil, err
 	}
 
-	pod := r.makeUploadPodSpec(args, podResourceRequirements, *workloadNodePlacement)
+	pod := r.makeUploadPodSpec(args, podResourceRequirements, workloadNodePlacement)
 
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: args.Name, Namespace: ns}, pod); err != nil {
 		if !k8serrors.IsNotFound(err) {
@@ -629,7 +629,7 @@ func createUploadServiceNameFromPvcName(pvc string) string {
 	return naming.GetServiceNameFromResourceName(createUploadResourceName(pvc))
 }
 
-func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequirements *v1.ResourceRequirements, workloadNodePlacement cdiv1.NodePlacement) *v1.Pod {
+func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequirements *v1.ResourceRequirements, workloadNodePlacement *cdiv1.NodePlacement) *v1.Pod {
 	requestImageSize, _ := getRequestedImageSize(args.PVC)
 	serviceName := naming.GetServiceNameFromResourceName(args.Name)
 	fsGroup := common.QemuSubGid
