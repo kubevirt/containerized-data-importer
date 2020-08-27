@@ -183,13 +183,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).To(BeNil())
 
 			// Create openshift-cnv namespace
-			ns, err := utils.GetOrCreateNamespace(f.K8sClient, utils.VddkConfigMapNamespace)
+			ns, err := utils.GetOrCreateNamespace(f.K8sClient, common.VddkConfigMapNamespaces[0])
 			Expect(err).To(BeNil())
 			Expect(ns).ToNot(BeNil())
 
 			// Create v2v-vmware ConfigMap
 			stringData := map[string]string{
-				utils.VddkConfigDataKey: "registry:5000/vddk-test",
+				common.VddkConfigDataKey: "registry:5000/vddk-test",
 			}
 			configMap := v1.ConfigMap{
 				TypeMeta: metav1.TypeMeta{
@@ -197,12 +197,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Kind:       "ConfigMap",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      utils.VddkConfigMap,
-					Namespace: utils.VddkConfigMapNamespace,
+					Name:      common.VddkConfigMap,
+					Namespace: common.VddkConfigMapNamespaces[0],
 				},
 				Data: stringData,
 			}
-			cm, err := utils.CreateOrUpdateConfigMap(f.K8sClient, utils.VddkConfigMapNamespace, utils.VddkConfigMap, &configMap)
+			cm, err := utils.CreateOrUpdateConfigMap(f.K8sClient, common.VddkConfigMapNamespaces[0], common.VddkConfigMap, &configMap)
 			Expect(err).To(BeNil())
 			Expect(cm).ToNot(BeNil())
 

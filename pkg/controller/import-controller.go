@@ -586,20 +586,27 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 
 // Get path to VDDK image from 'v2v-vmware' ConfigMap
 func (r *ImportReconciler) getVddkImageName() (*string, error) {
-	cm := &corev1.ConfigMap{}
-	err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: "v2v-vmware", Namespace: "openshift-cnv"}, cm)
-	if err != nil {
-		r.log.V(1).Info("Could not retrieve v2v-vmware ConfigMap from openshift-cnv namespace!")
-		return nil, err
+	for _, namespace := range common.VddkConfigMapNamespaces {
+		cm := &corev1.ConfigMap{}
+		err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: common.VddkConfigMap, Namespace: namespace}, cm)
+		if k8serrors.IsNotFound(err) {
+			msg := fmt.Sprintf("No %s ConfigMap present in namespace %s", common.VddkConfigMap, namespace)
+			r.log.V(1).Info(msg)
+			continue
+		}
+
+		image, found := cm.Data[common.VddkConfigDataKey]
+		if found {
+			msg := fmt.Sprintf("Found %s ConfigMap in namespace %s, VDDK image path is: ", common.VddkConfigMap, namespace)
+			r.log.V(1).Info(msg, common.VddkConfigDataKey, image)
+			return &image, nil
+		}
+
+		msg := fmt.Sprintf("Found %s ConfigMap in namespace %s, but it does not contain a '%s' entry.", common.VddkConfigMap, namespace, common.VddkConfigDataKey)
+		r.log.V(1).Info(msg)
 	}
 
-	image, found := cm.Data["vddk-init-image"]
-	if found {
-		r.log.V(1).Info("Got VDDK image: ", "vddk-init-image", image)
-		return &image, nil
-	}
-
-	return nil, errors.Errorf("Could not find vddk-init-image entry in v2v-vmware ConfigMap")
+	return nil, errors.Errorf("Could not find %s entry in any known %s ConfigMap", common.VddkConfigDataKey, common.VddkConfigMap)
 }
 
 // returns the source string which determines the type of source. If no source or invalid source found, default to http

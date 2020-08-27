@@ -42,12 +42,6 @@ const (
 	FileHostCertConfigMap = "cdi-file-host-certs"
 	// ImageIOCertConfigMap is the ConfigMap where the cert fir the file host is stored
 	ImageIOCertConfigMap = "imageio-certs"
-	// VddkConfigMap is the name of the ConfigMap with a reference to the VDDK image
-	VddkConfigMap = "v2v-vmware"
-	// VddkConfigMapNamespace is the namespace that contains the VDDK ConfigMap
-	VddkConfigMapNamespace = "openshift-cnv"
-	// VddkConfigDataKey is the name of the ConfigMap key of the VDDK image reference
-	VddkConfigDataKey = "vddk-init-image"
 )
 
 var (

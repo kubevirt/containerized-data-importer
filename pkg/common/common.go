@@ -138,4 +138,14 @@ const (
 
 	// ControllerServiceAccountName is the name of the CDI controller service account
 	ControllerServiceAccountName = "cdi-sa"
+
+	// VddkConfigMap is the name of the ConfigMap with a reference to the VDDK image
+	VddkConfigMap = "v2v-vmware"
+	// VddkConfigDataKey is the name of the ConfigMap key of the VDDK image reference
+	VddkConfigDataKey = "vddk-init-image"
+)
+
+var (
+	// VddkConfigMapNamespaces is the list of namespaces that may contain the VDDK ConfigMap
+	VddkConfigMapNamespaces = []string{"openshift-cnv", "kubevirt-hyperconverged"}
 )
