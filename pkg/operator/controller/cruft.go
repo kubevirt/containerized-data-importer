@@ -67,8 +67,10 @@ func reconcileDeleteSecrets(args *ReconcileCallbackArgs) error {
 
 		err = args.Client.Delete(context.TODO(), secret)
 		if err != nil {
+			args.Recorder.Event(args.Resource, corev1.EventTypeWarning, deleteResourceFailed, fmt.Sprintf("Failed to delete secret %s, %v", s, err))
 			return err
 		}
+		args.Recorder.Event(args.Resource, corev1.EventTypeNormal, deleteResourceSuccess, fmt.Sprintf("Deleted secret %s successfully", s))
 	}
 
 	return nil
