@@ -198,6 +198,16 @@ var _ = Describe("S3 data source", func() {
 		_, err := getS3Client("", "", "")
 		Expect(err).NotTo(HaveOccurred())
 	})
+
+	It("Should Extract Bucket and Object form the S3 URL", func() {
+		bucket, object := extractBucketAndObject("/Bucket1/Object.tmp")
+		Expect(bucket).Should(Equal("/Bucket1/"))
+		Expect(object).Should(Equal("Object.tmp"))
+
+		bucket, object = extractBucketAndObject("/Bucket1/Bucket2/Object.tmp")
+		Expect(bucket).Should(Equal("/Bucket1/Bucket2/"))
+		Expect(object).Should(Equal("Object.tmp"))
+	})
 })
 
 // MockMinioClient is a mock minio client

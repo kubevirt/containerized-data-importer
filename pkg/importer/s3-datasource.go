@@ -131,16 +131,9 @@ func createS3Reader(ep *url.URL, accessKey, secKey string) (io.ReadCloser, error
 	endpoint := ep.Host
 	klog.Infof("Endpoint %s", endpoint)
 
-	path := strings.Trim(ep.Path, "/")
-	pathArray := strings.SplitN(path, "/", 2)
-	if len(pathArray) != 2 {
-		return nil, errors.New("Invalid S3 endpoint")
-	}
-	klog.V(1).Infof("pathArray %s", pathArray)
+	bucket, object := extractBucketAndObject(ep.Path)
 
-	bucket := pathArray[0]
 	klog.V(1).Infof("bucket %s", bucket)
-	object := pathArray[1]
 	klog.V(1).Infof("object %s", object)
 	svc, err := newClientFunc(endpoint, accessKey, secKey)
 	if err != nil {
@@ -161,7 +154,7 @@ func createS3Reader(ep *url.URL, accessKey, secKey string) (io.ReadCloser, error
 
 func getS3Client(endpoint, accessKey, secKey string) (S3Client, error) {
 	creds := credentials.NewStaticCredentials(accessKey, secKey, "")
-	region := extractregion(endpoint)
+	region := extractRegion(endpoint)
 	sess, err := session.NewSession(&aws.Config{
 		Region:           aws.String(region),
 		Endpoint:         aws.String(endpoint),
@@ -177,8 +170,12 @@ func getS3Client(endpoint, accessKey, secKey string) (S3Client, error) {
 	return svc, nil
 }
 
-func extractregion(s string) string {
+func extractRegion(s string) string {
 	splitted := strings.Split(s, ".")
 	return splitted[0]
+}
 
+func extractBucketAndObject(s string) (string, string) {
+	bucket, object := filepath.Split(s)
+	return bucket, object
 }
