@@ -18,6 +18,8 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
+const s3FolderSep = "/"
+
 // S3Client is the interface to the used S3 client.
 type S3Client interface {
 	GetObject(input *s3.GetObjectInput) (*s3.GetObjectOutput, error)
@@ -130,8 +132,8 @@ func createS3Reader(ep *url.URL, accessKey, secKey string) (io.ReadCloser, error
 
 	endpoint := ep.Host
 	klog.Infof("Endpoint %s", endpoint)
-
-	bucket, object := extractBucketAndObject(ep.Path)
+	path := strings.Trim(ep.Path, "/")
+	bucket, object := extractBucketAndObject(path)
 
 	klog.V(1).Infof("bucket %s", bucket)
 	klog.V(1).Infof("object %s", object)
@@ -176,6 +178,8 @@ func extractRegion(s string) string {
 }
 
 func extractBucketAndObject(s string) (string, string) {
-	bucket, object := filepath.Split(s)
+	pathSplit := strings.Split(s, s3FolderSep)
+	bucket := pathSplit[0]
+	object := strings.Join(pathSplit[1:], s3FolderSep)
 	return bucket, object
 }

@@ -200,13 +200,13 @@ var _ = Describe("S3 data source", func() {
 	})
 
 	It("Should Extract Bucket and Object form the S3 URL", func() {
-		bucket, object := extractBucketAndObject("/Bucket1/Object.tmp")
-		Expect(bucket).Should(Equal("/Bucket1/"))
+		bucket, object := extractBucketAndObject("Bucket1/Object.tmp")
+		Expect(bucket).Should(Equal("Bucket1"))
 		Expect(object).Should(Equal("Object.tmp"))
 
-		bucket, object = extractBucketAndObject("/Bucket1/Bucket2/Object.tmp")
-		Expect(bucket).Should(Equal("/Bucket1/Bucket2/"))
-		Expect(object).Should(Equal("Object.tmp"))
+		bucket, object = extractBucketAndObject("Bucket1/Folder1/Object.tmp")
+		Expect(bucket).Should(Equal("Bucket1"))
+		Expect(object).Should(Equal("Folder1/Object.tmp"))
 	})
 })
 
