@@ -49,6 +49,7 @@ go_test(
         "s3-datasource_test.go",
         "upload-datasource_test.go",
         "util_test.go",
+        "vddk-datasource_test.go",
     ],
     embed = [":go_default_library"],
     deps = [
