@@ -167,7 +167,6 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cr)
 		Expect(err).ToNot(HaveOccurred())
 
-		oldSpec := cr.Spec.DeepCopy()
 		dummyNodeSelector := map[string]string{"kubernetes.io/arch": "amd64"}
 		dummyTolerations := []v1.Toleration{{Key: "test", Value: "123"}}
 		dummyAffinity := v1.Affinity{
@@ -206,10 +205,6 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(*pod.Spec.Affinity).To(Equal(dummyAffinity))
 		Expect(pod.Spec.NodeSelector).To(Equal(dummyNodeSelector))
 		Expect(pod.Spec.Tolerations).To(Equal(dummyTolerations))
-
-		cr.Spec = *oldSpec
-		err = reconciler.client.Update(context.TODO(), cr)
-		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("Should create a POD if a PVC with all needed annotations is passed", func() {
