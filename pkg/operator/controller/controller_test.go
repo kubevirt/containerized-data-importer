@@ -1159,7 +1159,7 @@ var _ = Describe("Controller", func() {
 
 			Entry("verify - unused deployment deleted",
 				func() (runtime.Object, error) {
-					deployment := utils.CreateDeployment("fake-cdi-deployment", "app", "containerized-data-importer", "fake-sa", int32(1), cdiv1.NodePlacement{})
+					deployment := utils.CreateDeployment("fake-cdi-deployment", "app", "containerized-data-importer", "fake-sa", int32(1), &cdiv1.NodePlacement{})
 					return deployment, nil
 				}),
 			Entry("verify - unused service deleted",

@@ -122,7 +122,7 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 		return nil, err
 	}
 
-	namespacedArgs.InfraNodePlacement = *infraNodePlacement
+	namespacedArgs.InfraNodePlacement = infraNodePlacement
 
 	r := &ReconcileCDI{
 		client:         mgr.GetClient(),

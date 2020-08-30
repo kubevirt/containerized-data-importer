@@ -189,7 +189,7 @@ func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAcco
 }
 
 // CreateDeployment creates deployment
-func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numReplicas int32, infraNodePlacement cdiv1.NodePlacement) *appsv1.Deployment {
+func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numReplicas int32, infraNodePlacement *cdiv1.NodePlacement) *appsv1.Deployment {
 	matchMap := map[string]string{matchKey: matchValue}
 	deployment := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -215,12 +215,14 @@ func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numRepl
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: &[]bool{true}[0],
 					},
-					NodeSelector: infraNodePlacement.NodeSelector,
-					Tolerations:  infraNodePlacement.Tolerations,
-					Affinity:     &infraNodePlacement.Affinity,
 				},
 			},
 		},
+	}
+	if infraNodePlacement != nil {
+		deployment.Spec.Template.Spec.NodeSelector = infraNodePlacement.NodeSelector
+		deployment.Spec.Template.Spec.Tolerations = infraNodePlacement.Tolerations
+		deployment.Spec.Template.Spec.Affinity = &infraNodePlacement.Affinity
 	}
 	if serviceAccount != "" {
 		deployment.Spec.Template.Spec.ServiceAccountName = serviceAccount

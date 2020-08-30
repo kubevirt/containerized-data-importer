@@ -88,7 +88,7 @@ func createAPIServerService() *corev1.Service {
 	return service
 }
 
-func createAPIServerDeployment(image, verbosity, pullPolicy string, infraNodePlacement cdiv1.NodePlacement) *appsv1.Deployment {
+func createAPIServerDeployment(image, verbosity, pullPolicy string, infraNodePlacement *cdiv1.NodePlacement) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
 	deployment := utils.CreateDeployment(apiServerRessouceName, cdiLabel, apiServerRessouceName, apiServerRessouceName, 1, infraNodePlacement)
 	container := utils.CreateContainer(apiServerRessouceName, image, verbosity, corev1.PullPolicy(pullPolicy))

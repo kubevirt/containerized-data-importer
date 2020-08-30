@@ -82,7 +82,7 @@ func createUploadProxyRole() *rbacv1.Role {
 	return role
 }
 
-func createUploadProxyDeployment(image, verbosity, pullPolicy string, infraNodePlacement cdiv1.NodePlacement) *appsv1.Deployment {
+func createUploadProxyDeployment(image, verbosity, pullPolicy string, infraNodePlacement *cdiv1.NodePlacement) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
 	deployment := utils.CreateDeployment(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, uploadProxyResourceName, int32(1), infraNodePlacement)
 	container := utils.CreateContainer(uploadProxyResourceName, image, verbosity, corev1.PullPolicy(pullPolicy))

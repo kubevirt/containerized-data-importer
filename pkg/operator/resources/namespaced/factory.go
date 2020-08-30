@@ -38,7 +38,7 @@ type FactoryArgs struct {
 	Verbosity              string `required:"true"`
 	PullPolicy             string `required:"true" split_words:"true"`
 	Namespace              string
-	InfraNodePlacement     cdiv1.NodePlacement
+	InfraNodePlacement     *cdiv1.NodePlacement
 }
 
 type factoryFunc func(*FactoryArgs) []runtime.Object
