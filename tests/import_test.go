@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os/exec"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -157,11 +158,24 @@ var _ = Describe("Importer respects node placement", func() {
 		cr.Spec = *oldSpec.DeepCopy()
 		_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() bool {
+			cr, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return reflect.DeepEqual(cr.Spec, oldSpec)
+		}, 30*time.Second, time.Second)
 	})
 
 	It("Should create import pod with node placement", func() {
 		cr.Spec.Workloads = tests.TestNodePlacementValues(f)
 		_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
+
+		By("Waiting for CDI CR update to take effect")
+		Eventually(func() bool {
+			realCR, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return reflect.DeepEqual(cr.Spec, realCR.Spec)
+		}, 30*time.Second, time.Second)
 
 		dv := utils.NewDataVolumeWithHTTPImport("node-placement-test", "100Mi", invalidQcowLargeSize())
 		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
