@@ -18,7 +18,6 @@ package operator
 
 import (
 	"encoding/json"
-	"os"
 
 	"github.com/blang/semver"
 	csvv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -303,12 +302,7 @@ func packageErrors(pkg *loader.Package, filterKinds ...packages.ErrorKind) error
 }
 
 func createCDIListCRD() *extv1.CustomResourceDefinition {
-	// Allow overriding working directory for unit tests which run in their own directory and module
-	cwd := os.Getenv("CDI_DIR")
-	if cwd == "" {
-		cwd, _ = os.Getwd()
-	}
-	pkgs, err := loader.LoadRoots(cwd + "/...")
+	pkgs, err := loader.LoadRoots(utils.GetCdiToplevel() + "/...")
 	if err != nil {
 		panic(err)
 	}

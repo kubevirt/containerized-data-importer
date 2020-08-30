@@ -18,6 +18,7 @@ package utils
 
 import (
 	"fmt"
+	"os"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -279,4 +280,16 @@ func ValidateGVKs(objects []runtime.Object) {
 			panic(fmt.Sprintf("Uninitialized GVK for %+v", obj))
 		}
 	}
+}
+
+// GetCdiToplevel returns the top level source directory of CDI.
+// Can be overridden using the environment variable "CDI_DIR".
+func GetCdiToplevel() string {
+	// When running unit tests, we pass the CDI_DIR environment variable, because
+	// the tests run in their own directory and module.
+	cwd := os.Getenv("CDI_DIR")
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
+	return cwd
 }
