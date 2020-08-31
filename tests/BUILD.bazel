@@ -81,6 +81,7 @@ exports_files(
         "images/tinyCore.iso",
         "images/archive.tar",
         "images/cirros-qcow2.img",
+        "images/cirros.raw",
         "images/invalid_qcow_images/invalid-qcow-backing-file.img",
         "images/invalid_qcow_images/invalid-qcow-large-json.img",
         "images/invalid_qcow_images/invalid-qcow-large-memory.img",

@@ -26,9 +26,10 @@ rpm_image(
 container_image(
     name = "vddk-test-image",
     base = "@fedora//image",
-    entrypoint = "mkdir -p /opt/updates && cp -f /libvddk-test-plugin.so /opt/updates/nbdkit-vddk-plugin.so",
+    entrypoint = "mkdir -p /opt/updates && cp -f /libvddk-test-plugin.so /opt/updates/nbdkit-vddk-plugin.so && mv /cirros.raw /opt/updates/nbdtest.img",
     files = [
         ":vddk-test-plugin",
+        "//tests:images/cirros.raw",
     ],
     visibility = ["//visibility:public"],
 )

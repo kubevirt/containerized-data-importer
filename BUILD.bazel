@@ -81,6 +81,7 @@ filegroup(
         "//tests:images/tinyCore.iso",
         "//tests:images/archive.tar",
         "//tests:images/cirros-qcow2.img",
+        "//tests:images/cirros.raw",
     ],
     visibility = ["//visibility:public"],
 )
