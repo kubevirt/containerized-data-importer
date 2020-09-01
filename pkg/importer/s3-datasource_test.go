@@ -41,7 +41,7 @@ var _ = Describe("S3 data source", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
-	It("NewS3DataSource should Error, when failing to create minio client", func() {
+	It("NewS3DataSource should Error, when failing to create S3 client", func() {
 		newClientFunc = failMockS3Client
 		sd, err = NewS3DataSource("http://amazon.com", "", "")
 		Expect(err).To(HaveOccurred())
@@ -210,7 +210,7 @@ var _ = Describe("S3 data source", func() {
 	})
 })
 
-// MockMinioClient is a mock minio client
+// MockS3Client is a mock AWS S3 client
 type MockS3Client struct {
 	endpoint string
 	accKey   string
