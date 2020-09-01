@@ -156,6 +156,33 @@ spec:
 [Get secret example](../manifests/example/endpoint-secret.yaml)
 [Get certificate example](../manifests/example/cert-configmap.yaml)
 
+## VDDK Data Volume
+VDDK sources come from VMware vCenter or ESX endpoints. You will need a secret containing administrative credentials for the API provided by the VMware endpoint, as well as a special sidecar image containing the non-redistributable VDDK library folder. Instructions for creating a VDDK image can be found [here](https://docs.openshift.com/container-platform/4.3/cnv/cnv_virtual_machines/cnv_importing_vms/cnv-importing-vmware-vm.html#cnv-creating-vddk-image_cnv-importing-vmware-vm). Note that version 7 of the VDDK is not supported yet.
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: "vddk-dv"
+spec:
+    source:
+        vddk:
+           backingFile: "[iSCSI_Datastore] vm/vm_1.vmdk"
+           url: "https://vcenter.corp.com"
+           uuid: "52260566-b032-36cb-55b1-79bf29e30490"
+           thumbprint: "20:6C:8A:5D:44:40:B3:79:4B:28:EA:76:13:60:90:6E:49:D9:D9:A3"
+           secretRef: "vddk-credentials"
+        pvc:
+           accessModes:
+             - ReadWriteOnce
+           resources:
+             requests:
+               storage: "32Gi"
+```
+[Get secret example](../manifests/example/endpoint-secret.yaml)
+[Get VDDK namespace example](../manifests/example/vddk-namespace.yaml)
+[Get VDDK ConfigMap example](../manifests/example/vddk-configmap.yaml)
+
 ## Block Volume Mode
 You can import, clone and upload a disk image to a raw block persistent volume.
 This is done by assigning the value 'Block' to the PVC volumeMode field in the DataVolume yaml.

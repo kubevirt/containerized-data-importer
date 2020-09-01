@@ -1,0 +1,5 @@
+# For VDDK, the namespace may be "kubevirt-hyperconverged" or "openshift-cnv"
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubevirt-hyperconverged
