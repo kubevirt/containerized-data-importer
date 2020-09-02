@@ -142,10 +142,10 @@ http_file(
 
 http_file(
     name = "xen-libs",
-    sha256 = "06147608a5c32e3678f67dd7ad87abb4cd50b0a234a2bbc3ef643f67eec05e53",
+    sha256 = "6fb0852f73a978d832ba19cb23bfb9c28e14e435842803dc148fbdf8bc5e3fbc",
     urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/x/xen-libs-4.12.2-2.fc31.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/06147608a5c32e3678f67dd7ad87abb4cd50b0a234a2bbc3ef643f67eec05e53",
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/x/xen-libs-4.12.3-3.fc31.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/6fb0852f73a978d832ba19cb23bfb9c28e14e435842803dc148fbdf8bc5e3fbc",
     ],
 )
 
@@ -205,19 +205,19 @@ http_file(
 
 http_file(
     name = "buildah",
-    sha256 = "b375721a3ee2ea54ff550bffe6d6e5c810dce803dd7b91df4f0a1884d2b0a926",
+    sha256 = "ca17366e65d087ea5e5fff9b5e3dce132722f9edd443310cfa1ce4407062c1b3",
     urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/b/buildah-1.14.0-2.fc31.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/b375721a3ee2ea54ff550bffe6d6e5c810dce803dd7b91df4f0a1884d2b0a926",
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/b/buildah-1.15.1-1.fc31.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/ca17366e65d087ea5e5fff9b5e3dce132722f9edd443310cfa1ce4407062c1b3",
     ],
 )
 
 http_file(
     name = "containers-common",
-    sha256 = "410eac36fab2b18ea7a959041175e14a6f3530bc995c655d41e6a4c2604a2a9e",
+    sha256 = "62d601cd849466fe7f098e0d78560b5df4e225ab692525325f1ad570f435c58b",
     urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/c/containers-common-0.1.41-1.fc31.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/410eac36fab2b18ea7a959041175e14a6f3530bc995c655d41e6a4c2604a2a9e",
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/c/containers-common-1.1.1-1.fc31.x86_64.rpm",
+        "https://storage.googleapis.com/builddeps/62d601cd849466fe7f098e0d78560b5df4e225ab692525325f1ad570f435c58b",
     ],
 )
 
