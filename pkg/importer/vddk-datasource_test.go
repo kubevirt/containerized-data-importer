@@ -12,7 +12,7 @@ const (
 	socketPath = "nbd://nbdtest.sock"
 )
 
-var _ = FDescribe("VDDK data source", func() {
+var _ = Describe("VDDK data source", func() {
 	BeforeEach(func() {
 		newVddkDataSource = createMockVddkDataSource
 		qemuOperations = NewFakeQEMUOperations(nil, nil, fakeInfoOpRetVal{imgInfo: &fakeSmallImageInfo, e: nil}, nil, nil, nil)

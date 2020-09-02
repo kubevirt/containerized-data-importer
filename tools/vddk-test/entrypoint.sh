@@ -4,7 +4,7 @@ set -x
 
 mkfifo /tmp/vcfifo
 
-/usr/bin/vcsim -l :8989 -E /tmp/vcfifo -dc 0 &      
+/usr/bin/vcsim -l :8989 -E /tmp/vcfifo -dc 0 &
 eval "$(cat /tmp/vcfifo)"
 
 export GOVC_INSECURE=1
