@@ -122,6 +122,7 @@ func GetKubeVersion(f *framework.Framework) string {
 }
 
 // TestNodePlacementValues returns a pre-defined set of node placement values for testing purposes.
+// The values chosen are valid, but the pod will likely not be schedulable.
 func TestNodePlacementValues(f *framework.Framework) cdiv1.NodePlacement {
 	nodes, _ := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	affinityTestValue = v1.Affinity{
