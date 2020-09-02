@@ -11,15 +11,15 @@ RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
 	microdnf update -y && microdnf install -y \
 	bazel \
 	cpio \
-    diffutils \
+	diffutils \
 	git \
 	python3-pip \
 	python3-devel \
 	mercurial \
 	gcc \
-    gcc-c++ \
-    glibc-devel \
-    findutils \
+	gcc-c++ \
+	glibc-devel \
+	findutils \
 	autoconf \
 	automake \
 	libtool \
@@ -27,8 +27,9 @@ RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
 	rsync-daemon \
 	rsync \
 	patch \
-    unzip \
-    java-1.8.0-openjdk \
+	nbdkit-devel \
+	unzip \
+	java-1.8.0-openjdk \
 	btrfs-progs-devel \
 	device-mapper-devel \
 	&& microdnf clean all && \
