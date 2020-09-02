@@ -1,6 +1,7 @@
 package importer
 
 import (
+	"github.com/aws/aws-sdk-go/service/s3"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -10,7 +11,6 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
-	minio "github.com/minio/minio-go"
 	"github.com/pkg/errors"
 )
 
@@ -41,7 +41,7 @@ var _ = Describe("S3 data source", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
-	It("NewS3DataSource should Error, when failing to create minio client", func() {
+	It("NewS3DataSource should Error, when failing to create S3 client", func() {
 		newClientFunc = failMockS3Client
 		sd, err = NewS3DataSource("http://amazon.com", "", "")
 		Expect(err).To(HaveOccurred())
@@ -59,7 +59,7 @@ var _ = Describe("S3 data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		err = file.Close()
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://amazon.com", "", "")
+		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
@@ -72,7 +72,7 @@ var _ = Describe("S3 data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(cirrosFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://amazon.com", "", "")
+		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
@@ -85,7 +85,7 @@ var _ = Describe("S3 data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://amazon.com", "", "")
+		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
@@ -101,7 +101,7 @@ var _ = Describe("S3 data source", func() {
 		sourceFile, err := os.Open(fileName)
 		Expect(err).NotTo(HaveOccurred())
 
-		sd, err = NewS3DataSource("http://amazon.com", "", "")
+		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = sourceFile
@@ -135,7 +135,7 @@ var _ = Describe("S3 data source", func() {
 		sourceFile, err := os.Open(cirrosFilePath)
 		Expect(err).NotTo(HaveOccurred())
 
-		sd, err = NewS3DataSource("http://amazon.com", "", "")
+		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = sourceFile
@@ -153,7 +153,7 @@ var _ = Describe("S3 data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://amazon.com", "", "")
+		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
@@ -169,7 +169,7 @@ var _ = Describe("S3 data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://amazon.com", "", "")
+		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
@@ -185,7 +185,7 @@ var _ = Describe("S3 data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(cirrosFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://amazon.com", "", "")
+		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
@@ -195,41 +195,50 @@ var _ = Describe("S3 data source", func() {
 	})
 
 	It("GetS3Client should return a real client", func() {
-		_, err := getS3Client("", "", false)
+		_, err := getS3Client("", "", "")
 		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("Should Extract Bucket and Object form the S3 URL", func() {
+		bucket, object := extractBucketAndObject("Bucket1/Object.tmp")
+		Expect(bucket).Should(Equal("Bucket1"))
+		Expect(object).Should(Equal("Object.tmp"))
+
+		bucket, object = extractBucketAndObject("Bucket1/Folder1/Object.tmp")
+		Expect(bucket).Should(Equal("Bucket1"))
+		Expect(object).Should(Equal("Folder1/Object.tmp"))
 	})
 })
 
-// MockMinioClient is a mock minio client
-type MockMinioClient struct {
-	accKey string
-	secKey string
-	secure bool
-	doErr  bool
+// MockS3Client is a mock AWS S3 client
+type MockS3Client struct {
+	endpoint string
+	accKey   string
+	secKey   string
+	doErr    bool
 }
 
-func failMockS3Client(accKey, secKey string, secure bool) (S3Client, error) {
+func failMockS3Client(endpoint, accKey, secKey string) (S3Client, error) {
 	return nil, errors.New("Failed to create client")
 }
 
-func createMockS3Client(accKey, secKey string, secure bool) (S3Client, error) {
-	return &MockMinioClient{
+func createMockS3Client(endpoint, accKey, secKey string) (S3Client, error) {
+	return &MockS3Client{
 		accKey: accKey,
 		secKey: secKey,
-		secure: secure,
 		doErr:  false,
 	}, nil
 }
 
-func createErrMockS3Client(accKey, secKey string, secure bool) (S3Client, error) {
-	return &MockMinioClient{
+func createErrMockS3Client(endpoint, accKey, secKey string) (S3Client, error) {
+	return &MockS3Client{
 		doErr: true,
 	}, nil
 }
 
-func (mc *MockMinioClient) GetObject(bucketName, objectName string, opts minio.GetObjectOptions) (*minio.Object, error) {
+func (mc *MockS3Client) GetObject(input *s3.GetObjectInput) (*s3.GetObjectOutput, error) {
 	if !mc.doErr {
-		return &minio.Object{}, nil
+		return &s3.GetObjectOutput{}, nil
 	}
 	return nil, errors.New("Failed to get object")
 }
