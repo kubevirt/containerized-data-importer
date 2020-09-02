@@ -498,8 +498,7 @@ var _ = Describe("Update PVC", func() {
 func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)
-	cdiCR := MakeEmptyCDICR()
-	objs = append(objs, cdiCR)
+	objs = append(objs, MakeEmptyCDICR())
 	// Append empty CDIConfig object that normally is created by the reconcile loop
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{

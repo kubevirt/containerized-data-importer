@@ -875,8 +875,7 @@ func createDatavolumeReconciler(objects ...runtime.Object) *DatavolumeReconciler
 	cdiv1.AddToScheme(s)
 	snapshotv1.AddToScheme(s)
 
-	cdiCR := MakeEmptyCDICR()
-	objs = append(objs, cdiCR)
+	objs = append(objs, MakeEmptyCDICR())
 
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
