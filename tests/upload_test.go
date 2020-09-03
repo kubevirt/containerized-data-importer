@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -436,7 +437,7 @@ var _ = Describe("Namespace with quota", func() {
 		By("Capturing original CDIConfig state")
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		orgConfig = config.Status.DefaultPodResourceRequirements
+		orgConfig = config.Spec.PodResourceRequirements.DeepCopy()
 		if pvc != nil {
 			By("Making sure no pvc exists")
 			Eventually(func() bool {
@@ -449,11 +450,16 @@ var _ = Describe("Namespace with quota", func() {
 
 	AfterEach(func() {
 		By("Restoring CDIConfig to original state")
-		reqCpu, _ := orgConfig.Requests.Cpu().AsInt64()
-		reqMem, _ := orgConfig.Requests.Memory().AsInt64()
-		limCpu, _ := orgConfig.Limits.Cpu().AsInt64()
-		limMem, _ := orgConfig.Limits.Memory().AsInt64()
-		err := f.UpdateCdiConfigResourceLimits(reqCpu, reqMem, limCpu, limMem)
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		config.Spec.PodResourceRequirements = orgConfig
+		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
+		Eventually(func() bool {
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return reflect.DeepEqual(config.Spec.PodResourceRequirements, orgConfig)
+		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig not properly restored to original value")
+
 		Expect(err).ToNot(HaveOccurred())
 		By("Stop port forwarding")
 		if portForwardCmd != nil {
