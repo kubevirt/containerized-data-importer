@@ -13,6 +13,7 @@ import (
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
 	secclient "github.com/openshift/client-go/security/clientset/versioned"
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -23,6 +24,7 @@ import (
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	operatorcontroller "kubevirt.io/containerized-data-importer/pkg/operator/controller"
+	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -148,10 +150,8 @@ var _ = Describe("Operator delete CDI tests", func() {
 			cdi, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cdi.Status.Phase).ShouldNot(Equal(cdiv1.CDIPhaseError))
-			for _, c := range cdi.Status.Conditions {
-				if c.Type == conditions.ConditionAvailable && c.Status == corev1.ConditionTrue {
-					return true
-				}
+			if conditions.IsStatusConditionTrue(cdi.Status.Conditions, conditions.ConditionAvailable) {
+				return true
 			}
 			return false
 		}, 10*time.Minute, 2*time.Second).Should(BeTrue())
@@ -235,6 +235,152 @@ var _ = Describe("Operator delete CDI tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 })
+
+var _ = Describe("Operator deployment + CDI delete tests", func() {
+	var restoreCdiCr *cdiv1.CDI
+	var restoreCdiOperatorDeployment *appsv1.Deployment
+	f := framework.NewFramework("operator-delete-cdi-test")
+
+	removeCDI := func() {
+		By("Deleting CDI CR")
+		err := f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), restoreCdiCr.Name, metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Waiting for CDI CR and infra deployments to be deleted after CDI CR was removed")
+		Eventually(func() bool { return infraDeploymentGone(f) && crGone(f, restoreCdiCr) }, 15*time.Minute, 2*time.Second).Should(BeTrue())
+
+		By("Deleting CDI operator")
+		err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Delete(context.TODO(), "cdi-operator", metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Waiting for CDI operator deployment to be deleted")
+		Eventually(func() bool { return cdiOperatorDeploymentGone(f) }, 5*time.Minute, 2*time.Second).Should(BeTrue())
+	}
+
+	ensureCDI := func(cr *cdiv1.CDI) {
+		By("Re-creating CDI (CR and deployment)")
+		_, err := f.CdiClient.CdiV1beta1().CDIs().Create(context.TODO(), cr, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Recreating CDI operator")
+		_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Create(context.TODO(), restoreCdiOperatorDeployment, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verifying CDI apiserver, deployment, uploadproxy exist, before continuing")
+		Eventually(func() bool { return infraDeploymentAvailable(f, restoreCdiCr) }, CompletionTimeout, assertionPollInterval).Should(BeTrue(), "Timeout reading CDI deployments")
+
+		By("Verifying CDI config object exists, before continuing")
+		Eventually(func() bool {
+			_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			if k8serrors.IsNotFound(err) {
+				return false
+			}
+			Expect(err).ToNot(HaveOccurred(), "Unable to read CDI Config, %v, expect more failures", err)
+			return true
+		}, CompletionTimeout, assertionPollInterval).Should(BeTrue(), "Timeout reading CDI Config, expect more failures")
+	}
+
+	BeforeEach(func() {
+		var err error
+		currentCR, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		restoreCdiCr = &cdiv1.CDI{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cdi",
+			},
+			Spec: currentCR.Spec,
+		}
+
+		currentCdiOperatorDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), "cdi-operator", metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		restoreCdiOperatorDeployment = &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cdi-operator",
+				Namespace: f.CdiInstallNs,
+			},
+			Spec: currentCdiOperatorDeployment.Spec,
+		}
+
+		removeCDI()
+	})
+
+	AfterEach(func() {
+		removeCDI()
+		ensureCDI(restoreCdiCr)
+	})
+
+	It("Should install CDI infrastructure pods with node placement", func() {
+		By("Creating modified CDI CR, with infra nodePlacement")
+		localSpec := restoreCdiCr.Spec.DeepCopy()
+		localSpec.Infra = tests.TestNodePlacementValues(f)
+
+		tempCdiCr := &cdiv1.CDI{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cdi",
+			},
+			Spec: *localSpec,
+		}
+
+		ensureCDI(tempCdiCr)
+
+		By("Testing all infra deployments have the chosen node placement")
+		for _, deploymentName := range []string{"cdi-apiserver", "cdi-deployment", "cdi-uploadproxy"} {
+			deployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			match := tests.PodSpecHasTestNodePlacementValues(f, deployment.Spec.Template.Spec)
+			Expect(match).To(BeTrue(), fmt.Sprintf("node placement in pod spec\n%v\n differs from node placement values in CDI CR\n%v\n", deployment.Spec.Template.Spec, localSpec.Infra))
+		}
+	})
+})
+
+func infraDeploymentAvailable(f *framework.Framework, cr *cdiv1.CDI) bool {
+	cdi, _ := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
+	if !conditions.IsStatusConditionTrue(cdi.Status.Conditions, conditions.ConditionAvailable) {
+		return false
+	}
+
+	for _, deploymentName := range []string{"cdi-apiserver", "cdi-deployment", "cdi-uploadproxy"} {
+		_, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func infraDeploymentGone(f *framework.Framework) bool {
+	for _, deploymentName := range []string{"cdi-apiserver", "cdi-deployment", "cdi-uploadproxy"} {
+		_, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+		if !errors.IsNotFound(err) {
+			return false
+		}
+	}
+	return true
+}
+
+func crGone(f *framework.Framework, cr *cdiv1.CDI) bool {
+	_, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
+	if !errors.IsNotFound(err) {
+		return false
+	}
+	return true
+}
+
+func cdiOperatorDeploymentGone(f *framework.Framework) bool {
+	_, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), "cdi-operator", metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		return true
+	}
+	Expect(err).ToNot(HaveOccurred())
+	return false
+}
 
 func updateUninstallStrategy(client cdiClientset.Interface, strategy *cdiv1.CDIUninstallStrategy) *cdiv1.CDIUninstallStrategy {
 	By("Getting CDI resource")

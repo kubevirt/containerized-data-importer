@@ -4,3 +4,9 @@ metadata:
   name: cdi
 spec:
   imagePullPolicy: {{.PullPolicy}}
+  infra:
+    nodeSelector:
+      kubernetes.io/os: linux
+  workload:
+    nodeSelector:
+      kubernetes.io/os: linux

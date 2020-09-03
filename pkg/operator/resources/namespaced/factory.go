@@ -21,6 +21,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
@@ -37,6 +38,7 @@ type FactoryArgs struct {
 	Verbosity              string `required:"true"`
 	PullPolicy             string `required:"true" split_words:"true"`
 	Namespace              string
+	InfraNodePlacement     *cdiv1.NodePlacement
 }
 
 type factoryFunc func(*FactoryArgs) []runtime.Object

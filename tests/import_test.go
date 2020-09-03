@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os/exec"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -127,6 +128,71 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			Expect(f.GetDiskGroup(f.Namespace, pvc, false)).To(Equal("107"))
 		}
 	})
+})
+
+var _ = Describe("Importer respects node placement", func() {
+	var cr *cdiv1.CDI
+	var oldSpec *cdiv1.CDISpec
+	f := framework.NewFramework(namespacePrefix)
+
+	// An image that fails import
+	invalidQcowLargeSize := func() string {
+		return fmt.Sprintf(utils.InvalidQcowImagesURL+"invalid-qcow-large-size.img", f.CdiInstallNs)
+	}
+
+	BeforeEach(func() {
+		var err error
+		cr, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		oldSpec = cr.Spec.DeepCopy()
+		nodes, err := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+		Expect(nodes.Items).ToNot(BeEmpty(), "There should be some compute node")
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		cr.Spec = *oldSpec.DeepCopy()
+		_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() bool {
+			cr, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return reflect.DeepEqual(cr.Spec, oldSpec)
+		}, 30*time.Second, time.Second)
+	})
+
+	It("Should create import pod with node placement", func() {
+		cr.Spec.Workloads = tests.TestNodePlacementValues(f)
+		_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
+
+		By("Waiting for CDI CR update to take effect")
+		Eventually(func() bool {
+			realCR, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return reflect.DeepEqual(cr.Spec, realCR.Spec)
+		}, 30*time.Second, time.Second)
+
+		dv := utils.NewDataVolumeWithHTTPImport("node-placement-test", "100Mi", invalidQcowLargeSize())
+		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		importer, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod"))
+
+		By("Verify the import pod has nodeSelector")
+		match := tests.PodSpecHasTestNodePlacementValues(f, importer.Spec)
+		Expect(match).To(BeTrue(), fmt.Sprintf("node placement in pod spec\n%v\n differs from node placement values in CDI CR\n%v\n", importer.Spec, cr.Spec.Workloads))
+	})
+
 })
 
 var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:component]Importer Test Suite-prometheus", func() {

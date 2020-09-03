@@ -875,6 +875,8 @@ func createDatavolumeReconciler(objects ...runtime.Object) *DatavolumeReconciler
 	cdiv1.AddToScheme(s)
 	snapshotv1.AddToScheme(s)
 
+	objs = append(objs, MakeEmptyCDICR())
+
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		ScratchSpaceStorageClass: testStorageClass,

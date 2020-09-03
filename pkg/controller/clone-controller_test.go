@@ -633,6 +633,7 @@ var _ = Describe("TokenValidation", func() {
 func createCloneReconciler(objects ...runtime.Object) *CloneReconciler {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)
+	objs = append(objs, MakeEmptyCDICR())
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
 		DefaultPodResourceRequirements: createDefaultPodResourceRequirements(int64(0), int64(0), int64(0), int64(0)),

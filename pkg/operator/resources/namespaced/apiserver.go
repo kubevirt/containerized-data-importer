@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
@@ -41,7 +42,7 @@ func createAPIServerResources(args *FactoryArgs) []runtime.Object {
 		createAPIServerRoleBinding(),
 		createAPIServerRole(),
 		createAPIServerService(),
-		createAPIServerDeployment(args.APIServerImage, args.Verbosity, args.PullPolicy),
+		createAPIServerDeployment(args.APIServerImage, args.Verbosity, args.PullPolicy, args.InfraNodePlacement),
 	}
 }
 
@@ -87,9 +88,9 @@ func createAPIServerService() *corev1.Service {
 	return service
 }
 
-func createAPIServerDeployment(image, verbosity, pullPolicy string) *appsv1.Deployment {
+func createAPIServerDeployment(image, verbosity, pullPolicy string, infraNodePlacement *cdiv1.NodePlacement) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
-	deployment := utils.CreateDeployment(apiServerRessouceName, cdiLabel, apiServerRessouceName, apiServerRessouceName, 1)
+	deployment := utils.CreateDeployment(apiServerRessouceName, cdiLabel, apiServerRessouceName, apiServerRessouceName, 1, infraNodePlacement)
 	container := utils.CreateContainer(apiServerRessouceName, image, verbosity, corev1.PullPolicy(pullPolicy))
 	container.ReadinessProbe = &corev1.Probe{
 		Handler: corev1.Handler{

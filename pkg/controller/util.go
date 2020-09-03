@@ -457,3 +457,14 @@ func filterCloneSourcePods(input []v1.Pod) []v1.Pod {
 
 	return output
 }
+
+// GetWorkloadNodePlacement extracts the workload-specific nodeplacement values from the CDI CR
+func GetWorkloadNodePlacement(c client.Client) (*cdiv1.NodePlacement, error) {
+	cr := &cdiv1.CDI{}
+	crKey := client.ObjectKey{Namespace: "", Name: "cdi"}
+	if err := c.Get(context.TODO(), crKey, cr); err != nil {
+		return nil, err
+	}
+
+	return &cr.Spec.Workloads, nil
+}

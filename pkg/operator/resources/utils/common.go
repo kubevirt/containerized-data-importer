@@ -18,12 +18,15 @@ package utils
 
 import (
 	"fmt"
+	"os"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
 const (
@@ -187,7 +190,7 @@ func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAcco
 }
 
 // CreateDeployment creates deployment
-func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numReplicas int32) *appsv1.Deployment {
+func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numReplicas int32, infraNodePlacement *cdiv1.NodePlacement) *appsv1.Deployment {
 	matchMap := map[string]string{matchKey: matchValue}
 	deployment := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -216,6 +219,11 @@ func CreateDeployment(name, matchKey, matchValue, serviceAccount string, numRepl
 				},
 			},
 		},
+	}
+	if infraNodePlacement != nil {
+		deployment.Spec.Template.Spec.NodeSelector = infraNodePlacement.NodeSelector
+		deployment.Spec.Template.Spec.Tolerations = infraNodePlacement.Tolerations
+		deployment.Spec.Template.Spec.Affinity = &infraNodePlacement.Affinity
 	}
 	if serviceAccount != "" {
 		deployment.Spec.Template.Spec.ServiceAccountName = serviceAccount
@@ -272,4 +280,16 @@ func ValidateGVKs(objects []runtime.Object) {
 			panic(fmt.Sprintf("Uninitialized GVK for %+v", obj))
 		}
 	}
+}
+
+// GetCdiToplevel returns the top level source directory of CDI.
+// Can be overridden using the environment variable "CDI_DIR".
+func GetCdiToplevel() string {
+	// When running unit tests, we pass the CDI_DIR environment variable, because
+	// the tests run in their own directory and module.
+	cwd := os.Getenv("CDI_DIR")
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
+	return cwd
 }

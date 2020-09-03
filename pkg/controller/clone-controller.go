@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
@@ -451,7 +452,12 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy, clientName str
 		return nil, err
 	}
 
-	pod := MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerKey, clientKey, clientCert, serverCABundle, pvc, podResourceRequirements)
+	workloadNodePlacement, err := GetWorkloadNodePlacement(r.client)
+	if err != nil {
+		return nil, err
+	}
+
+	pod := MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerKey, clientKey, clientCert, serverCABundle, pvc, podResourceRequirements, workloadNodePlacement)
 
 	if err := r.client.Create(context.TODO(), pod); err != nil {
 		return nil, errors.Wrap(err, "source pod API create errored")
@@ -468,7 +474,8 @@ func createCloneSourcePodName(targetPvc *corev1.PersistentVolumeClaim) string {
 
 // MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
 func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerRefAnno string,
-	clientKey, clientCert, serverCACert []byte, targetPvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements) *corev1.Pod {
+	clientKey, clientCert, serverCACert []byte, targetPvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements,
+	workloadNodePlacement *cdiv1.NodePlacement) *corev1.Pod {
 
 	var ownerID string
 	cloneSourcePodName, _ := targetPvc.Annotations[AnnCloneSourcePod]
@@ -552,6 +559,9 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace
 					},
 				},
 			},
+			NodeSelector: workloadNodePlacement.NodeSelector,
+			Tolerations:  workloadNodePlacement.Tolerations,
+			Affinity:     &workloadNodePlacement.Affinity,
 		},
 	}
 

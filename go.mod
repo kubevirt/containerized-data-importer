@@ -35,6 +35,7 @@ require (
 	github.com/ulikunitz/xz v0.5.7
 	go.uber.org/multierr v1.3.0 // indirect
 	golang.org/x/sys v0.0.0-20200519105757-fe76b779f299
+	golang.org/x/tools v0.0.0-20200616195046-dc31b401abb5
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/square/go-jose.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.3.0
@@ -50,6 +51,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20200410145947-61e04a5be9a6
 	kubevirt.io/qe-tools v0.1.3
 	sigs.k8s.io/controller-runtime v0.6.2
+	sigs.k8s.io/controller-tools v0.4.0
 )
 
 replace (
