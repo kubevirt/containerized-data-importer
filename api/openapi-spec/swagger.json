@@ -3393,6 +3393,7 @@
       }
      },
      "podResourceRequirements": {
+      "description": "ResourceRequirements describes the compute resource requirements.",
       "$ref": "#/definitions/v1.ResourceRequirements"
      },
      "scratchSpaceStorageClass": {
@@ -3411,6 +3412,7 @@
     "nullable": true,
     "properties": {
      "defaultPodResourceRequirements": {
+      "description": "ResourceRequirements describes the compute resource requirements.",
       "$ref": "#/definitions/v1.ResourceRequirements"
      },
      "scratchSpaceStorageClass": {

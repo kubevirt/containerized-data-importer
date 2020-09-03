@@ -154,15 +154,17 @@ func (CDIConfigSpec) SwaggerDoc() map[string]string {
 		"":                         "CDIConfigSpec defines specification for user configuration",
 		"uploadProxyURLOverride":   "Override the URL used when uploading to a DataVolume",
 		"scratchSpaceStorageClass": "Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space",
+		"podResourceRequirements":  "ResourceRequirements describes the compute resource requirements.",
 		"featureGates":             "FeatureGates are a list of specific enabled feature gates",
 	}
 }
 
 func (CDIConfigStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                         "CDIConfigStatus provides the most recently observed status of the CDI Config resource",
-		"uploadProxyURL":           "The calculated upload proxy URL",
-		"scratchSpaceStorageClass": "The calculated storage class to be used for scratch space",
+		"":                               "CDIConfigStatus provides the most recently observed status of the CDI Config resource",
+		"uploadProxyURL":                 "The calculated upload proxy URL",
+		"scratchSpaceStorageClass":       "The calculated storage class to be used for scratch space",
+		"defaultPodResourceRequirements": "ResourceRequirements describes the compute resource requirements.",
 	}
 }
 
