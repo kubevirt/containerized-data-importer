@@ -450,12 +450,15 @@ var _ = Describe("Namespace with quota", func() {
 
 	AfterEach(func() {
 		By("Restoring CDIConfig to original state")
-		reqCPU, _ := orgConfig.Requests.Cpu().AsInt64()
-		reqMem, _ := orgConfig.Requests.Memory().AsInt64()
-		limCPU, _ := orgConfig.Limits.Cpu().AsInt64()
-		limMem, _ := orgConfig.Limits.Memory().AsInt64()
-		err := f.UpdateCdiConfigResourceLimits(reqCPU, reqMem, limCPU, limMem)
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
+		config.Spec.PodResourceRequirements = orgConfig
+		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
+		Eventually(func() bool {
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return reflect.DeepEqual(config.Spec.PodResourceRequirements, orgConfig)
+		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig not properly restored to original value")
 	})
 
 	It("Should create import pod in namespace with quota", func() {
