@@ -130,7 +130,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	})
 })
 
-var _ = Describe("Importer respects node placement", func() {
+var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", func() {
 	var cr *cdiv1.CDI
 	var oldSpec *cdiv1.CDISpec
 	f := framework.NewFramework(namespacePrefix)
@@ -166,7 +166,7 @@ var _ = Describe("Importer respects node placement", func() {
 		}, 30*time.Second, time.Second)
 	})
 
-	It("Should create import pod with node placement", func() {
+	It("[test_id:4783] Should create import pod with node placement", func() {
 		cr.Spec.Workloads = tests.TestNodePlacementValues(f)
 		_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
 
