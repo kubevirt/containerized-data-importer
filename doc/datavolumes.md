@@ -167,10 +167,10 @@ metadata:
 spec:
     source:
         vddk:
-           backingFile: "[iSCSI_Datastore] vm/vm_1.vmdk"
+           backingFile: "[iSCSI_Datastore] vm/vm_1.vmdk" # From 'Hard disk'/'Disk File' in vCenter/ESX VM settings
            url: "https://vcenter.corp.com"
            uuid: "52260566-b032-36cb-55b1-79bf29e30490"
-           thumbprint: "20:6C:8A:5D:44:40:B3:79:4B:28:EA:76:13:60:90:6E:49:D9:D9:A3"
+           thumbprint: "20:6C:8A:5D:44:40:B3:79:4B:28:EA:76:13:60:90:6E:49:D9:D9:A3" # SSL fingerprint of vCenter/ESX host
            secretRef: "vddk-credentials"
         pvc:
            accessModes:
@@ -182,6 +182,7 @@ spec:
 [Get secret example](../manifests/example/endpoint-secret.yaml)
 [Get VDDK namespace example](../manifests/example/vddk-namespace.yaml)
 [Get VDDK ConfigMap example](../manifests/example/vddk-configmap.yaml)
+[Ways to find thumbprint](https://libguestfs.org/nbdkit-vddk-plugin.1.html#THUMBPRINTS)
 
 ## Block Volume Mode
 You can import, clone and upload a disk image to a raw block persistent volume.
