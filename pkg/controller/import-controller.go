@@ -726,7 +726,7 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 			Volumes:       volumes,
 			NodeSelector:  workloadNodePlacement.NodeSelector,
 			Tolerations:   workloadNodePlacement.Tolerations,
-			Affinity:      &workloadNodePlacement.Affinity,
+			Affinity:      workloadNodePlacement.Affinity,
 		},
 	}
 

@@ -561,7 +561,7 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace
 			},
 			NodeSelector: workloadNodePlacement.NodeSelector,
 			Tolerations:  workloadNodePlacement.Tolerations,
-			Affinity:     &workloadNodePlacement.Affinity,
+			Affinity:     workloadNodePlacement.Affinity,
 		},
 	}
 

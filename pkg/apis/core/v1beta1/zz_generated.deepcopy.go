@@ -553,7 +553,11 @@ func (in *NodePlacement) DeepCopyInto(out *NodePlacement) {
 			(*out)[key] = val
 		}
 	}
-	in.Affinity.DeepCopyInto(&out.Affinity)
+	if in.Affinity != nil {
+		in, out := &in.Affinity, &out.Affinity
+		*out = new(v1.Affinity)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.Tolerations != nil {
 		in, out := &in.Tolerations, &out.Tolerations
 		*out = make([]v1.Toleration, len(*in))

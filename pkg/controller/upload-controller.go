@@ -714,7 +714,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			},
 			NodeSelector: workloadNodePlacement.NodeSelector,
 			Tolerations:  workloadNodePlacement.Tolerations,
-			Affinity:     &workloadNodePlacement.Affinity,
+			Affinity:     workloadNodePlacement.Affinity,
 		},
 	}
 

@@ -169,7 +169,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 
 		dummyNodeSelector := map[string]string{"kubernetes.io/arch": "amd64"}
 		dummyTolerations := []v1.Toleration{{Key: "test", Value: "123"}}
-		dummyAffinity := v1.Affinity{
+		dummyAffinity := &v1.Affinity{
 			NodeAffinity: &v1.NodeAffinity{
 				RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
 					NodeSelectorTerms: []v1.NodeSelectorTerm{
@@ -202,7 +202,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(*pod.Spec.Affinity).To(Equal(dummyAffinity))
+		Expect(pod.Spec.Affinity).To(Equal(dummyAffinity))
 		Expect(pod.Spec.NodeSelector).To(Equal(dummyNodeSelector))
 		Expect(pod.Spec.Tolerations).To(Equal(dummyTolerations))
 	})

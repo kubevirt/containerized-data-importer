@@ -31,7 +31,7 @@ var (
 	versionRegexGitVersion = regexp.MustCompile(`GitVersion:"v(\d+\.\d+\.\d+)\+?\S*"`)
 	nodeSelectorTestValue  = map[string]string{"kubernetes.io/arch": runtime.GOARCH}
 	tolerationsTestValue   = []v1.Toleration{{Key: "test", Value: "123"}}
-	affinityTestValue      = v1.Affinity{}
+	affinityTestValue      = &v1.Affinity{}
 )
 
 // CDIFailHandler call ginkgo.Fail with printing the additional information
@@ -125,7 +125,7 @@ func GetKubeVersion(f *framework.Framework) string {
 // The values chosen are valid, but the pod will likely not be schedulable.
 func TestNodePlacementValues(f *framework.Framework) cdiv1.NodePlacement {
 	nodes, _ := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
-	affinityTestValue = v1.Affinity{
+	affinityTestValue = &v1.Affinity{
 		NodeAffinity: &v1.NodeAffinity{
 			RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
 				NodeSelectorTerms: []v1.NodeSelectorTerm{
@@ -152,7 +152,7 @@ func PodSpecHasTestNodePlacementValues(f *framework.Framework, podSpec v1.PodSpe
 		fmt.Printf("mismatched nodeSelectors, podSpec:\n%v\nExpected:\n%v\n", podSpec.NodeSelector, nodeSelectorTestValue)
 		return false
 	}
-	if !reflect.DeepEqual(*podSpec.Affinity, affinityTestValue) {
+	if !reflect.DeepEqual(podSpec.Affinity, affinityTestValue) {
 		fmt.Printf("mismatched affinity, podSpec:\n%v\nExpected:\n%v\n", *podSpec.Affinity, affinityTestValue)
 		return false
 	}
