@@ -42,7 +42,6 @@ metadata:
 spec:
   selector:
       app: vcenter
-  type: NodePort
   ports:
   - name: vcsim
     port: 8989
