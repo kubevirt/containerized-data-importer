@@ -28,6 +28,7 @@ import (
 
 	"k8s.io/api/admission/v1beta1"
 	v1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kvalidation "k8s.io/apimachinery/pkg/util/validation"
@@ -285,7 +286,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta
 			return toAdmissionResponseError(err)
 		}
 
-		if !reflect.DeepEqual(dv.Spec, oldDV.Spec) {
+		if !apiequality.Semantic.DeepEqual(dv.Spec, oldDV.Spec) {
 			klog.Errorf("Cannot update spec for DataVolume %s/%s", dv.GetNamespace(), dv.GetName())
 			var causes []metav1.StatusCause
 			causes = append(causes, metav1.StatusCause{
