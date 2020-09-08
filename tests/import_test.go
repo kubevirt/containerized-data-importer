@@ -445,7 +445,8 @@ var _ = Describe("Namespace with quota", func() {
 		By("Capturing original CDIConfig state")
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		orgConfig = config.Status.DefaultPodResourceRequirements
+		orgConfig = config.Spec.PodResourceRequirements
+		fmt.Fprintf(GinkgoWriter, "INFO: original config: %v\n", orgConfig)
 	})
 
 	AfterEach(func() {
@@ -459,6 +460,9 @@ var _ = Describe("Namespace with quota", func() {
 			Expect(err).ToNot(HaveOccurred())
 			return reflect.DeepEqual(config.Spec.PodResourceRequirements, orgConfig)
 		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig not properly restored to original value")
+		config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		fmt.Fprintf(GinkgoWriter, "INFO: new config: %v\n", config.Spec.PodResourceRequirements)
 	})
 
 	It("Should create import pod in namespace with quota", func() {

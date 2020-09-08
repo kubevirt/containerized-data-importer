@@ -664,7 +664,7 @@ var _ = Describe("Namespace with quota", func() {
 		By("Capturing original CDIConfig state")
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		orgConfig = config.Status.DefaultPodResourceRequirements.DeepCopy()
+		orgConfig = config.Spec.PodResourceRequirements.DeepCopy()
 	})
 
 	AfterEach(func() {
