@@ -1,4 +1,4 @@
-# For VDDK, the namespace may be "kubevirt-hyperconverged" or "openshift-cnv"
+# For the vddk-init sidecar reference, the namespace may be "kubevirt-hyperconverged" or "openshift-cnv"
 apiVersion: v1
 kind: Namespace
 metadata:
