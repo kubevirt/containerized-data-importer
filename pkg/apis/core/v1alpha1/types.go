@@ -132,15 +132,15 @@ type DataVolumeSourceImageIO struct {
 
 // DataVolumeSourceVDDK provides the parameters to create a Data Volume from a Vmware source
 type DataVolumeSourceVDDK struct {
-	// URL is the URL of the vcenter or esxi host
+	// URL is the URL of the vCenter or ESXi host with the VM to migrate
 	URL string `json:"url,omitempty"`
-	// UUID is the UUID of the virtual machine the disk is attached to
+	// UUID is the UUID of the virtual machine that the backing file is attached to in vCenter/ESXi
 	UUID string `json:"uuid,omitempty"`
-	// BackingFile is the path to the disk's backing file in the datastore
+	// BackingFile is the path to the virtual hard disk to migrate from vCenter/ESXi
 	BackingFile string `json:"backingFile,omitempty"`
-	// Thumbprint is the certificate thumbprint of the vcenter or esxi host
+	// Thumbprint is the certificate thumbprint of the vCenter or ESXi host
 	Thumbprint string `json:"thumbprint,omitempty"`
-	// SecretRef provides the secret reference needed to access the vcenter or esxi host
+	// SecretRef provides a reference to a secret containing the username and password needed to access the vCenter or ESXi host
 	SecretRef string `json:"secretRef,omitempty"`
 }
 
