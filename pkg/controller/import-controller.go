@@ -68,7 +68,7 @@ const (
 	// AnnBackingFile provides a const for our PVC backing file annotation
 	AnnBackingFile = AnnAPIGroup + "/storage.import.backingFile"
 	// AnnThumbprint provides a const for our PVC backing thumbprint annotation
-	AnnThumbprint = AnnAPIGroup + "/storage.import.thumbprint"
+	AnnThumbprint = AnnAPIGroup + "/storage.import.vddk.thumbprint"
 
 	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
 	LabelImportPvc = AnnAPIGroup + "/storage.import.importPvcName"
