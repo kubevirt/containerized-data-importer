@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"reflect"
 	"strconv"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -425,19 +425,20 @@ var _ = Describe("Block PV upload Test", func() {
 	)
 })
 
-var _ = Describe("Namespace with quota", func() {
+var _ = Describe("CDIConfig manipulation upload tests", func() {
 	f := framework.NewFramework(namespacePrefix)
 	var (
-		orgConfig      *v1.ResourceRequirements
+		origSpec       *cdiv1.CDIConfigSpec
 		pvc            *v1.PersistentVolumeClaim
 		portForwardCmd *exec.Cmd
+		uploadProxyURL string
 	)
 
 	BeforeEach(func() {
 		By("Capturing original CDIConfig state")
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		orgConfig = config.Spec.PodResourceRequirements.DeepCopy()
+		origSpec = config.Spec.DeepCopy()
 		if pvc != nil {
 			By("Making sure no pvc exists")
 			Eventually(func() bool {
@@ -446,18 +447,22 @@ var _ = Describe("Namespace with quota", func() {
 				return err != nil
 			}, timeout, pollingInterval).Should(BeTrue())
 		}
+
+		By("Set up port forwarding")
+		uploadProxyURL, portForwardCmd, err = startUploadProxyPortForward(f)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		By("Restoring CDIConfig to original state")
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		config.Spec.PodResourceRequirements = orgConfig
+		config.Spec = *origSpec
 		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
 		Eventually(func() bool {
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			return reflect.DeepEqual(config.Spec.PodResourceRequirements, orgConfig)
+			return apiequality.Semantic.DeepEqual(config.Spec, *origSpec)
 		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig not properly restored to original value")
 
 		Expect(err).ToNot(HaveOccurred())
@@ -472,6 +477,12 @@ var _ = Describe("Namespace with quota", func() {
 		By("Delete upload PVC")
 		err = f.DeletePVC(pvc)
 		Expect(err).ToNot(HaveOccurred())
+
+		By("Waiting for PVC to be deleted")
+		Eventually(func() bool {
+			_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
+			return k8serrors.IsNotFound(err)
+		}, timeout, pollingInterval).Should(BeTrue())
 
 		By("Wait for upload pod to be deleted")
 		deleted, err := utils.WaitPodDeleted(f.K8sClient, utils.UploadPodName(pvc), f.Namespace.Name, time.Second*20)
@@ -565,6 +576,55 @@ var _ = Describe("Namespace with quota", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(token).ToNot(BeEmpty())
 	})
+
+	DescribeTable("Async upload with filesystem overhead", func(expectedStatus int, globalOverhead, scOverhead string) {
+		defaultSCName := utils.DefaultStorageClass.GetName()
+		testedFilesystemOverhead := &cdiv1.FilesystemOverhead{}
+		if globalOverhead != "" {
+			testedFilesystemOverhead.Global = cdiv1.Percent(globalOverhead)
+		}
+		if scOverhead != "" {
+			testedFilesystemOverhead.StorageClass = map[string]cdiv1.Percent{defaultSCName: cdiv1.Percent(scOverhead)}
+		}
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		config.Spec.FilesystemOverhead = testedFilesystemOverhead.DeepCopy()
+		By(fmt.Sprintf("Updating CDIConfig filesystem overhead to %v", config.Spec.FilesystemOverhead))
+		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		By(fmt.Sprintf("Waiting for filsystem overhead status to be set to %v", testedFilesystemOverhead))
+		Eventually(func() bool {
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			if scOverhead != "" {
+				return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(scOverhead)
+			}
+			return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(globalOverhead)
+		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig filesystem overhead wasn't set")
+
+		By("Creating PVC with upload target annotation")
+		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC annotation says ready")
+		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+
+		By("Get an upload token")
+		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
+		By("Do upload")
+		err = uploadImageAsync(uploadProxyURL, token, expectedStatus)
+		Expect(err).ToNot(HaveOccurred())
+	},
+		Entry("Succeed with low global overhead", http.StatusOK, "0.1", ""),
+		Entry("Fail with high global overhead", http.StatusBadRequest, "0.99", ""),
+		Entry("Succeed with low per-storageclass overhead (despite high global overhead)", http.StatusOK, "0.99", "0.1"),
+		Entry("Fail with high per-storageclass overhead (despite low global overhead)", http.StatusBadRequest, "0.1", "0.99"),
+	)
 })
 
 var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:component] Upload tests", func() {
