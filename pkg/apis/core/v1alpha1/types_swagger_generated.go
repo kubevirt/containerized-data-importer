@@ -82,11 +82,11 @@ func (DataVolumeSourceImageIO) SwaggerDoc() map[string]string {
 func (DataVolumeSourceVDDK) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":            "DataVolumeSourceVDDK provides the parameters to create a Data Volume from a Vmware source",
-		"url":         "URL is the URL of the vcenter or esxi host",
-		"uuid":        "UUID is the UUID of the virtual machine the disk is attached to",
-		"backingFile": "BackingFile is the path to the disk's backing file in the datastore",
-		"thumbprint":  "Thumbprint is the certificate thumbprint of the vcenter or esxi host",
-		"secretRef":   "SecretRef provides the secret reference needed to access the vcenter or esxi host",
+		"url":         "URL is the URL of the vCenter or ESXi host with the VM to migrate",
+		"uuid":        "UUID is the UUID of the virtual machine that the backing file is attached to in vCenter/ESXi",
+		"backingFile": "BackingFile is the path to the virtual hard disk to migrate from vCenter/ESXi",
+		"thumbprint":  "Thumbprint is the certificate thumbprint of the vCenter or ESXi host",
+		"secretRef":   "SecretRef provides a reference to a secret containing the username and password needed to access the vCenter or ESXi host",
 	}
 }
 

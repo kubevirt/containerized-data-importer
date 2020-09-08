@@ -14212,35 +14212,35 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceVDDK(ref common.ReferenceCallb
 				Properties: map[string]spec.Schema{
 					"url": {
 						SchemaProps: spec.SchemaProps{
-							Description: "URL is the URL of the vcenter or esxi host",
+							Description: "URL is the URL of the vCenter or ESXi host with the VM to migrate",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"uuid": {
 						SchemaProps: spec.SchemaProps{
-							Description: "UUID is the UUID of the virtual machine the disk is attached to",
+							Description: "UUID is the UUID of the virtual machine that the backing file is attached to in vCenter/ESXi",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"backingFile": {
 						SchemaProps: spec.SchemaProps{
-							Description: "BackingFile is the path to the disk's backing file in the datastore",
+							Description: "BackingFile is the path to the virtual hard disk to migrate from vCenter/ESXi",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"thumbprint": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Thumbprint is the certificate thumbprint of the vcenter or esxi host",
+							Description: "Thumbprint is the certificate thumbprint of the vCenter or ESXi host",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"secretRef": {
 						SchemaProps: spec.SchemaProps{
-							Description: "SecretRef provides the secret reference needed to access the vcenter or esxi host",
+							Description: "SecretRef provides a reference to a secret containing the username and password needed to access the vCenter or ESXi host",
 							Type:        []string{"string"},
 							Format:      "",
 						},
