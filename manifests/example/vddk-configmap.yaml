@@ -3,4 +3,6 @@ kind: ConfigMap
 metadata:
   name: v2v-vmware
 data:
-  vddk-init-image: registry:5000/vddk-init:latest
+        # Replace registry:5000 with the registry containing your privately-built VDDK image,
+        # and replace vddk-init:latest with your image's name and tag.
+        vddk-init-image: registry:5000/vddk-init:latest
