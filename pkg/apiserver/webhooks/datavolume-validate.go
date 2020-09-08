@@ -97,7 +97,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 		})
 		return causes
 	}
-	// if source types are HTTP, Imageio or S3, check if URL is valid
+	// if source types are HTTP, Imageio, S3 or VDDK, check if URL is valid
 	if spec.Source.HTTP != nil || spec.Source.S3 != nil || spec.Source.Imageio != nil || spec.Source.VDDK != nil {
 		if spec.Source.HTTP != nil {
 			url = spec.Source.HTTP.URL
