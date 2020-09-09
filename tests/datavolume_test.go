@@ -21,7 +21,6 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -194,11 +193,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      common.VddkConfigMap,
-					Namespace: util.GetNamespace(),
+					Namespace: f.CdiInstallNs,
 				},
 				Data: stringData,
 			}
-			cm, err := utils.CreateOrUpdateConfigMap(f.K8sClient, util.GetNamespace(), common.VddkConfigMap, &configMap)
+			cm, err := utils.CreateOrUpdateConfigMap(f.K8sClient, f.CdiInstallNs, common.VddkConfigMap, &configMap)
 			Expect(err).To(BeNil())
 			Expect(cm).ToNot(BeNil())
 
