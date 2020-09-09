@@ -144,8 +144,3 @@ const (
 	// VddkConfigDataKey is the name of the ConfigMap key of the VDDK image reference
 	VddkConfigDataKey = "vddk-init-image"
 )
-
-var (
-	// VddkConfigMapNamespaces is the list of namespaces that may contain the VDDK ConfigMap
-	VddkConfigMapNamespaces = []string{"openshift-cnv", "kubevirt-hyperconverged"}
-)

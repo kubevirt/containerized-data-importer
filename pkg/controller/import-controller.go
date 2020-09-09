@@ -586,27 +586,22 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 
 // Get path to VDDK image from 'v2v-vmware' ConfigMap
 func (r *ImportReconciler) getVddkImageName() (*string, error) {
-	for _, namespace := range common.VddkConfigMapNamespaces {
-		cm := &corev1.ConfigMap{}
-		err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: common.VddkConfigMap, Namespace: namespace}, cm)
-		if k8serrors.IsNotFound(err) {
-			msg := fmt.Sprintf("No %s ConfigMap present in namespace %s", common.VddkConfigMap, namespace)
-			r.log.V(1).Info(msg)
-			continue
-		}
+	namespace := util.GetNamespace()
 
-		image, found := cm.Data[common.VddkConfigDataKey]
-		if found {
-			msg := fmt.Sprintf("Found %s ConfigMap in namespace %s, VDDK image path is: ", common.VddkConfigMap, namespace)
-			r.log.V(1).Info(msg, common.VddkConfigDataKey, image)
-			return &image, nil
-		}
-
-		msg := fmt.Sprintf("Found %s ConfigMap in namespace %s, but it does not contain a '%s' entry.", common.VddkConfigMap, namespace, common.VddkConfigDataKey)
-		r.log.V(1).Info(msg)
+	cm := &corev1.ConfigMap{}
+	err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: common.VddkConfigMap, Namespace: namespace}, cm)
+	if k8serrors.IsNotFound(err) {
+		return nil, errors.Errorf("No %s ConfigMap present in namespace %s", common.VddkConfigMap, namespace)
 	}
 
-	return nil, errors.Errorf("Could not find %s entry in any known %s ConfigMap", common.VddkConfigDataKey, common.VddkConfigMap)
+	image, found := cm.Data[common.VddkConfigDataKey]
+	if found {
+		msg := fmt.Sprintf("Found %s ConfigMap in namespace %s, VDDK image path is: ", common.VddkConfigMap, namespace)
+		r.log.V(1).Info(msg, common.VddkConfigDataKey, image)
+		return &image, nil
+	}
+
+	return nil, errors.Errorf("Found %s ConfigMap in namespace %s, but it does not contain a '%s' entry.", common.VddkConfigMap, namespace, common.VddkConfigDataKey)
 }
 
 // returns the source string which determines the type of source. If no source or invalid source found, default to http

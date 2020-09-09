@@ -10,7 +10,6 @@ go_library(
         "datavolume.go",
         "deployments.go",
         "fileConversion.go",
-        "namespaces.go",
         "pod.go",
         "pv.go",
         "pvc.go",

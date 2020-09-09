@@ -47,6 +47,7 @@ go_test(
         "//pkg/controller:go_default_library",
         "//pkg/feature-gates:go_default_library",
         "//pkg/operator/controller:go_default_library",
+        "//pkg/util:go_default_library",
         "//pkg/util/naming:go_default_library",
         "//tests/framework:go_default_library",
         "//tests/reporters:go_default_library",

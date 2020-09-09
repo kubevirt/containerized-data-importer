@@ -21,6 +21,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -182,11 +183,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			vmid, err := uuid.Parse(strings.TrimSpace(id))
 			Expect(err).To(BeNil())
 
-			// Create openshift-cnv namespace
-			ns, err := utils.GetOrCreateNamespace(f.K8sClient, common.VddkConfigMapNamespaces[0])
-			Expect(err).To(BeNil())
-			Expect(ns).ToNot(BeNil())
-
 			// Create v2v-vmware ConfigMap
 			stringData := map[string]string{
 				common.VddkConfigDataKey: "registry:5000/vddk-test",
@@ -198,11 +194,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      common.VddkConfigMap,
-					Namespace: common.VddkConfigMapNamespaces[0],
+					Namespace: util.GetNamespace(),
 				},
 				Data: stringData,
 			}
-			cm, err := utils.CreateOrUpdateConfigMap(f.K8sClient, common.VddkConfigMapNamespaces[0], common.VddkConfigMap, &configMap)
+			cm, err := utils.CreateOrUpdateConfigMap(f.K8sClient, util.GetNamespace(), common.VddkConfigMap, &configMap)
 			Expect(err).To(BeNil())
 			Expect(cm).ToNot(BeNil())
 
