@@ -34,9 +34,9 @@ int fakevddk_config_complete(void) {
 
 void *fakevddk_open(int readonly) {
     static int fd;
-    fd = open("/opt/updates/nbdtest.img", O_RDONLY);
+    fd = open("/opt/testing/nbdtest.img", O_RDONLY);
     if (fd == -1) {
-        nbdkit_error("Failed to open /opt/updates/nbdtest.img: %m");
+        nbdkit_error("Failed to open /opt/testing/nbdtest.img: %m");
         return NULL;
     }
     return (void *) &fd;

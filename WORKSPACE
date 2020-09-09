@@ -497,10 +497,33 @@ http_file(
 
 http_file(
     name = "libxcrypt-compat",
-    sha256 = "4e5a7185ddd6ac52f454b650f42073cae28f9e4bdfe9a42cad1f2f67b8cc60ca",
-    downloaded_file_path = "libxcrypt-compat.rpm",
+    sha256 = "de561ae2ce6394c9b77d5002a52bd9ee9ffea642ffea39bd8fb84d21dce0825c",
     urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/l/libxcrypt-compat-4.4.10-1.fc31.x86_64.rpm",
+        "https://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/l/libxcrypt-compat-4.4.17-1.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "libxcrypt",
+    sha256 = "779d1ba6fc8d794c067679f5cb3762b78afe9e44c203a80424a27f94ed4969b6",
+    urls = [
+        "https://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/l/libxcrypt-4.4.17-1.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "mkpasswd",
+    sha256 = "cfe92e9aff4080b8eec8fd0668bcd3e12450a05bf503ba13c739f8e0d7893709",
+    urls = [
+        "https://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/m/mkpasswd-5.5.6-1.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "whois-nls",
+    sha256 = "b345fb463c541c6ea69d5308b41b044fa8ef3739206fb3993c019e5538b449e9",
+    urls = [
+        "https://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/w/whois-nls-5.5.6-1.fc31.noarch.rpm",
     ],
 )
 

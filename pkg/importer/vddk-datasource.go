@@ -32,7 +32,6 @@ import (
 )
 
 const (
-	cryptLibrary          = "/usr/lib64/libcrypt.so.1"
 	destinationFile       = "/data/disk.img"
 	nbdUnixSocket         = "/var/run/nbd.sock"
 	nbdPidFile            = "/var/run/nbd.pid"
@@ -42,47 +41,23 @@ const (
 
 // May be overridden in tests
 var newVddkDataSource = createVddkDataSource
+var vddkPluginPath = getVddkPluginPath
+
+func getVddkPluginPath() string {
+	mockPlugin := "/opt/testing/libvddk-test-plugin.so"
+	_, err := os.Stat(mockPlugin)
+	if !os.IsNotExist(err) {
+		return mockPlugin
+	}
+
+	return "vddk"
+}
 
 // VDDKDataSource is the data provider for vddk.
 // Currently just a reference to the nbdkit process.
 type VDDKDataSource struct {
 	Command   *exec.Cmd
 	NbdSocket *url.URL
-}
-
-// InstallExtras installs extra packages if needed. For example: the VDDK needs
-// libcrypt.so.1, which is installed by libxcrypt-compat. But installing this
-// with the usual RPMs list at build time keeps the container from starting up.
-// Until this is fixed, just install the package at runtime.
-func InstallExtras() error {
-	_, err := os.Stat(cryptLibrary)
-	if !os.IsNotExist(err) {
-		klog.Infoln("libcrypt.so.1 already present, no need to install libxcrypto-compat RPM.")
-		return nil
-	}
-	install := exec.Command("rpm", "-i", "/usr/bin/libxcrypt-compat.rpm")
-	err = install.Run()
-	if err != nil {
-		klog.Infoln("Unable to install libxcrypt-compat RPM!")
-		return err
-	}
-
-	// Allow replacement VDDK nbdkit plugins for test. This could also be
-	// used to enable VDDK7 compatibility with a custom-built nbdkit before
-	// CDI updates to a newer Fedora release for packages, but so far no
-	// publicly available RPM works as a ready drop-in replacement.
-	updatedPlugin := "/opt/updates/nbdkit-vddk-plugin.so"
-	_, err = os.Stat(updatedPlugin)
-	if !os.IsNotExist(err) {
-		install = exec.Command("cp", "-f", updatedPlugin, "/usr/lib64/nbdkit/plugins/nbdkit-vddk-plugin.so")
-		err = install.Run()
-		if err != nil {
-			klog.Infoln("Unable to install updated nbdkit VDDK plugin!")
-			return err
-		}
-	}
-
-	return nil
 }
 
 // FindMoRef takes the UUID of the VM to migrate and finds its MOref from the given VMware URL.
@@ -182,20 +157,13 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 		return nil, err
 	}
 
-	// Temporary workaround: install extra RPMs that cause issues if
-	// installed at build time (currently just libxcrypto-compat).
-	err = InstallExtras()
-	if err != nil {
-		return nil, err
-	}
-
 	args := []string{
 		"--foreground",
 		"--readonly",
 		"--exit-with-parent",
 		"--unix", nbdUnixSocket,
 		"--pidfile", nbdPidFile,
-		"vddk",
+		vddkPluginPath(),
 		"server=" + vmwURL.Host,
 		"user=" + accessKey,
 		"password=" + secKey,
