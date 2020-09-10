@@ -315,6 +315,7 @@ type NodePlacement struct {
 	// the node must have each of the indicated key-value pairs as labels
 	// (it can have additional labels as well).
 	// See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+	// +kubebuilder:validation:Optional
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 
@@ -322,12 +323,14 @@ type NodePlacement struct {
 	// that can be expressed with nodeSelector.
 	// affinity is going to be applied to the relevant kind of pods in parallel with nodeSelector
 	// See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+	// +kubebuilder:validation:Optional
 	// +optional
-	Affinity corev1.Affinity `json:"affinity,omitempty"`
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
 
 	// tolerations is a list of tolerations applied to the relevant kind of pods
 	// See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info.
 	// These are additional tolerations other than default ones.
+	// +kubebuilder:validation:Optional
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
