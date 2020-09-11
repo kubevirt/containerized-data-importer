@@ -236,7 +236,7 @@ var _ = Describe("Operator delete CDI tests", func() {
 	})
 })
 
-var _ = Describe("Operator deployment + CDI delete tests", func() {
+var _ = Describe("[rfe_id:4784][crit:high] Operator deployment + CDI delete tests", func() {
 	var restoreCdiCr *cdiv1.CDI
 	var restoreCdiOperatorDeployment *appsv1.Deployment
 	f := framework.NewFramework("operator-delete-cdi-test")
@@ -314,7 +314,7 @@ var _ = Describe("Operator deployment + CDI delete tests", func() {
 		ensureCDI(restoreCdiCr)
 	})
 
-	It("Should install CDI infrastructure pods with node placement", func() {
+	It("[test_id:4782] Should install CDI infrastructure pods with node placement", func() {
 		By("Creating modified CDI CR, with infra nodePlacement")
 		localSpec := restoreCdiCr.Spec.DeepCopy()
 		localSpec.Infra = tests.TestNodePlacementValues(f)
