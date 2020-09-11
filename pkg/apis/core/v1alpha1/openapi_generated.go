@@ -13611,7 +13611,8 @@ func schema_pkg_apis_core_v1alpha1_CDIConfigSpec(ref common.ReferenceCallback) c
 					},
 					"podResourceRequirements": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/api/core/v1.ResourceRequirements"),
+							Description: "ResourceRequirements describes the compute resource requirements.",
+							Ref:         ref("k8s.io/api/core/v1.ResourceRequirements"),
 						},
 					},
 				},
@@ -13645,7 +13646,8 @@ func schema_pkg_apis_core_v1alpha1_CDIConfigStatus(ref common.ReferenceCallback)
 					},
 					"defaultPodResourceRequirements": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/api/core/v1.ResourceRequirements"),
+							Description: "ResourceRequirements describes the compute resource requirements.",
+							Ref:         ref("k8s.io/api/core/v1.ResourceRequirements"),
 						},
 					},
 				},

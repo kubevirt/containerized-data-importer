@@ -368,8 +368,9 @@ type CDIConfigSpec struct {
 	// Override the URL used when uploading to a DataVolume
 	UploadProxyURLOverride *string `json:"uploadProxyURLOverride,omitempty"`
 	// Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space
-	ScratchSpaceStorageClass *string                      `json:"scratchSpaceStorageClass,omitempty"`
-	PodResourceRequirements  *corev1.ResourceRequirements `json:"podResourceRequirements,omitempty"`
+	ScratchSpaceStorageClass *string `json:"scratchSpaceStorageClass,omitempty"`
+	// ResourceRequirements describes the compute resource requirements.
+	PodResourceRequirements *corev1.ResourceRequirements `json:"podResourceRequirements,omitempty"`
 	// FeatureGates are a list of specific enabled feature gates
 	FeatureGates []string `json:"featureGates,omitempty"`
 }
@@ -379,7 +380,8 @@ type CDIConfigStatus struct {
 	// The calculated upload proxy URL
 	UploadProxyURL *string `json:"uploadProxyURL,omitempty"`
 	// The calculated storage class to be used for scratch space
-	ScratchSpaceStorageClass       string                       `json:"scratchSpaceStorageClass,omitempty"`
+	ScratchSpaceStorageClass string `json:"scratchSpaceStorageClass,omitempty"`
+	// ResourceRequirements describes the compute resource requirements.
 	DefaultPodResourceRequirements *corev1.ResourceRequirements `json:"defaultPodResourceRequirements,omitempty"`
 }
 
