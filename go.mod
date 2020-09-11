@@ -33,6 +33,7 @@ require (
 	github.com/prometheus/client_model v0.2.0
 	github.com/rs/cors v1.7.0
 	github.com/ulikunitz/xz v0.5.7
+	github.com/vmware/govmomi v0.23.1
 	go.uber.org/multierr v1.3.0 // indirect
 	golang.org/x/sys v0.0.0-20200519105757-fe76b779f299
 	golang.org/x/tools v0.0.0-20200616195046-dc31b401abb5

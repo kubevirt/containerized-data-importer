@@ -9,6 +9,7 @@ import (
 
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
+	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -68,6 +69,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	}
 	imageioURL := func() string {
 		return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs)
+	}
+	vcenterURL := func() string {
+		return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
 	}
 
 	// Invalid (malicious) QCOW images:
@@ -164,6 +168,50 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		createUploadDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 			return utils.NewDataVolumeForUpload(dataVolumeName, size)
+		}
+
+		createVddkDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			// Find vcenter-simulator pod
+			pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "vcenter-deployment", "app=vcenter")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pod).ToNot(BeNil())
+
+			// Get test VM UUID
+			id, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
+			Expect(err).To(BeNil())
+			vmid, err := uuid.Parse(strings.TrimSpace(id))
+			Expect(err).To(BeNil())
+
+			// Create v2v-vmware ConfigMap
+			stringData := map[string]string{
+				common.VddkConfigDataKey: "registry:5000/vddk-test",
+			}
+			configMap := v1.ConfigMap{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "ConfigMap",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      common.VddkConfigMap,
+					Namespace: f.CdiInstallNs,
+				},
+				Data: stringData,
+			}
+			cm, err := utils.CreateOrUpdateConfigMap(f.K8sClient, f.CdiInstallNs, common.VddkConfigMap, &configMap)
+			Expect(err).To(BeNil())
+			Expect(cm).ToNot(BeNil())
+
+			// Create VDDK login secret
+			stringData = map[string]string{
+				common.KeyAccess: "user",
+				common.KeySecret: "pass",
+			}
+			backingFile := "testdisk.vmdk"
+			secretRef := "vddksecret"
+			thumbprint := "testprint"
+			s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, secretRef))
+
+			return utils.NewDataVolumeWithVddkImport(dataVolumeName, size, backingFile, s.Name, thumbprint, url, vmid.String())
 		}
 
 		table.DescribeTable("should", func(args dataVolumeTestArguments) {
@@ -635,6 +683,30 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:    cdiv1.DataVolumeBound,
 					Status:  v1.ConditionTrue,
 					Message: "PVC dv-import-registry Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("succeed creating import dv from VDDK source", dataVolumeTestArguments{
+				name:             "dv-import-vddk",
+				size:             "1Gi",
+				url:              vcenterURL,
+				dvFunc:           createVddkDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: false,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-import-vddk Bound",
 					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{

@@ -71,6 +71,19 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 							"secretRef":     secretName,
 							"certConfigMap": configMap,
 							"diskId":        diskID}}
+				case "vddk":
+					url := args[0]
+					secretName := args[1]
+					uuid := args[2]
+					backingFile := args[3]
+					thumbprint := args[4]
+					dv["spec"].(map[string]interface{})["source"] = map[string]interface{}{
+						"vddk": map[string]interface{}{
+							"url":         url,
+							"secretRef":   secretName,
+							"uuid":        uuid,
+							"backingFile": backingFile,
+							"thumbprint":  thumbprint}}
 				}
 
 				err = structToYamlFile(destinationFile, dv)
@@ -94,6 +107,9 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				table.Entry("[test_id:1326]fail with empty PVC source name", "pvc", "test", ""),
 				table.Entry("[test_id:3917]fail with source PVC doesn't exist", "pvc", "test", "test-pvc"),
 				table.Entry("[test_id:3918]fail with empty Imageio source diskId", "imageio", validURL, "secret", "tls-cert", ""),
+				table.Entry("[test_id:3926]fail with empty VDDK source UUID", "vddk", validURL, "secret", "", "backingfile", "thumbprint"),
+				table.Entry("[test_id:3927]fail with empty VDDK source backing file", "vddk", validURL, "secret", "uuid", "", "thumbprint"),
+				table.Entry("[test_id:3928]fail with empty VDDK source thumbprint", "vddk", validURL, "secret", "uuid", "backingfile", ""),
 			)
 
 			table.DescribeTable("with Datavolume PVC size should", func(size string) {
@@ -194,6 +210,32 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			Eventually(func() bool {
 
 				_, err := RunKubectlCommand(f, "create", "-f", "manifests/dvImageio.yaml", "-n", f.Namespace.Name)
+				if err != nil {
+					return true
+				}
+				return false
+			}, timeout, pollingInterval).Should(BeTrue())
+
+		})
+	})
+
+	Context("DataVolume destination VDDK", func() {
+		BeforeEach(func() {
+			dataVolume := utils.NewDataVolumeWithVddkImport(dataVolumeName, "500Mi", "testfile", "secret", "thumbprint", validURL, "uuid")
+
+			_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolumeName)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("[test_id:3925]should fail creating a DataVolume with already existing destination VDDK", func() {
+			By("Verifying kubectl create")
+			Eventually(func() bool {
+
+				_, err := RunKubectlCommand(f, "create", "-f", "manifests/dvVddk.yaml", "-n", f.Namespace.Name)
 				if err != nil {
 					return true
 				}

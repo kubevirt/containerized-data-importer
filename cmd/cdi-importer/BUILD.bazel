@@ -5,6 +5,9 @@ rpm_image(
     name = "cdi-importer-base-image",
     base = "@fedora//image",
     rpms = [
+        "@libxcrypt-compat//file",
+        "@nbdkit-server//file",
+        "@nbdkit-vddk-plugin//file",
         "@tar//file",
         "@qemu-img//file",
         "@qemu-block-curl//file",
@@ -55,6 +58,8 @@ container_image(
         "/usr/bin/cdi-importer",
         "-alsologtostderr",
     ],
-    files = [":cdi-importer"],
+    files = [
+        ":cdi-importer",
+    ],
     visibility = ["//visibility:public"],
 )

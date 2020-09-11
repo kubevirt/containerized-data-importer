@@ -43,6 +43,10 @@ The special source `none` can be used to populate a volume with an empty Kubevir
 
 Virtual machine disks can be imported from a running oVirt installation using the `imageio` source.  CDI will use the provided credentials to securely transfer the indicated oVirt disk image so that it can be used with kubevirt.  See [here](doc/datavolumes.md#image-io-data-volume) for more information and examples.
 
+### Import from VMware
+
+Disks can be imported from VMware with the `vddk` source. CDI will transfer the disks using vCenter/ESX API credentials and a user-provided image containing the non-redistributable VDDK library. See [here](doc/datavolumes.md#vddk-data-volume) for instructions.
+
 ### Content Types
 
 CDI features specialized handling for two types of content: Kubevirt VM disk images and tar archives.  The `kubevirt` content type indicates that the data being imported should be treated as a Kubevirt VM disk.  CDI will automatically decompress and convert the file from qcow2 to raw format if needed.  It will also resize the disk to use all available space.  The `archive` content type indicates that the data is a tar archive. Compression is not yet supported for archives.  CDI will extract the contents of the archive into the volume.  The content type can be selected by specifying the `contentType` field in the DataVolume.  `kubevirt` is the default content type.  CDI only supports certain combinations of `source` and `contentType` as indicated below:
@@ -52,6 +56,7 @@ CDI features specialized handling for two types of content: Kubevirt VM disk ima
 * `pvc` &rarr; Not applicable - content is cloned
 * `upload` &rarr; `kubevirt`
 * `imageio` &rarr; `kubevirt`
+* `vddk` &rarr; `kubevirt`
 
 
 ## Deploy it

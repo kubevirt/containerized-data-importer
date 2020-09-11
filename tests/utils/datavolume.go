@@ -45,6 +45,8 @@ const (
 	CirrosURL = "http://cdi-file-host.%s/cirros-qcow2.img"
 	// ImageioURL provides URL of oVirt engine hosting imageio
 	ImageioURL = "https://imageio.%s:12346/ovirt-engine/api"
+	// VcenterURL provides URL of vCenter/ESX simulator
+	VcenterURL = "https://vcenter.%s:8989/sdk"
 )
 
 // CreateDataVolumeFromDefinition is used by tests to create a testable Data Volume
@@ -300,6 +302,34 @@ func NewDataVolumeWithRegistryImport(dataVolumeName string, size string, registr
 			Source: cdiv1.DataVolumeSource{
 				Registry: &cdiv1.DataVolumeSourceRegistry{
 					URL: registryURL,
+				},
+			},
+			PVC: &k8sv1.PersistentVolumeClaimSpec{
+				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+}
+
+// NewDataVolumeWithVddkImport initializes a DataVolume struct for importing disks from vCenter/ESX
+func NewDataVolumeWithVddkImport(dataVolumeName string, size string, backingFile string, secretRef string, thumbprint string, httpURL string, uuid string) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dataVolumeName,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{
+				VDDK: &cdiv1.DataVolumeSourceVDDK{
+					BackingFile: backingFile,
+					SecretRef:   secretRef,
+					Thumbprint:  thumbprint,
+					URL:         httpURL,
+					UUID:        uuid,
 				},
 			},
 			PVC: &k8sv1.PersistentVolumeClaimSpec{

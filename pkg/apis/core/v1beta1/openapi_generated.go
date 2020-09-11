@@ -306,6 +306,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceRegistry": schema_pkg_apis_core_v1beta1_DataVolumeSourceRegistry(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceS3":       schema_pkg_apis_core_v1beta1_DataVolumeSourceS3(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceUpload":   schema_pkg_apis_core_v1beta1_DataVolumeSourceUpload(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceVDDK":     schema_pkg_apis_core_v1beta1_DataVolumeSourceVDDK(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSpec":           schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeStatus":         schema_pkg_apis_core_v1beta1_DataVolumeStatus(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.NodePlacement":            schema_pkg_apis_core_v1beta1_NodePlacement(ref),
@@ -14012,11 +14013,16 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSource(ref common.ReferenceCallback)
 							Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceImageIO"),
 						},
 					},
+					"vddk": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceVDDK"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeBlankImage", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceHTTP", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceImageIO", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourcePVC", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceRegistry", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceS3", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceUpload"},
+			"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeBlankImage", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceHTTP", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceImageIO", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourcePVC", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceRegistry", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceS3", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceUpload", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceVDDK"},
 	}
 }
 
@@ -14194,6 +14200,54 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceUpload(ref common.ReferenceCal
 			SchemaProps: spec.SchemaProps{
 				Description: "DataVolumeSourceUpload provides the parameters to create a Data Volume by uploading the source",
 				Type:        []string{"object"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_DataVolumeSourceVDDK(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "DataVolumeSourceVDDK provides the parameters to create a Data Volume from a Vmware source",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"url": {
+						SchemaProps: spec.SchemaProps{
+							Description: "URL is the URL of the vCenter or ESXi host with the VM to migrate",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"uuid": {
+						SchemaProps: spec.SchemaProps{
+							Description: "UUID is the UUID of the virtual machine that the backing file is attached to in vCenter/ESXi",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"backingFile": {
+						SchemaProps: spec.SchemaProps{
+							Description: "BackingFile is the path to the virtual hard disk to migrate from vCenter/ESXi",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"thumbprint": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Thumbprint is the certificate thumbprint of the vCenter or ESXi host",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"secretRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SecretRef provides a reference to a secret containing the username and password needed to access the vCenter or ESXi host",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
 			},
 		},
 	}

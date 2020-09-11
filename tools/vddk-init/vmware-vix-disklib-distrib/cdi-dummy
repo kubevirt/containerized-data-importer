@@ -1,0 +1,3 @@
+If this is the only file in this directory, then this version of CDI will not support VMware migrations.
+
+The contents of the VDDK archive should be extracted here at build time to create a working sidecar image.

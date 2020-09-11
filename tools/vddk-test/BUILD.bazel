@@ -1,0 +1,40 @@
+load("@io_bazel_rules_docker//container:container.bzl", "container_image")
+load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
+
+container_image(
+    name = "vcenter-simulator-base-image",
+    base = "@fedora//image",
+    cmd = "mkdir -p /opt",
+    directory = "/usr/bin",
+    entrypoint = "/usr/bin/entrypoint.sh",
+    files = [
+        "entrypoint.sh",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+rpm_image(
+    name = "vcenter-simulator",
+    base = ":vcenter-simulator-base-image",
+    rpms = [
+        "@golang-github-vmware-govmomi//file",
+        "@tar//file",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+container_image(
+    name = "vddk-test-image",
+    base = "@fedora//image",
+    entrypoint = "mkdir -p /opt/testing && cp -f /libvddk-test-plugin.so /opt/testing/libvddk-test-plugin.so && mv /cirros.raw /opt/testing/nbdtest.img",
+    files = [
+        ":vddk-test-plugin",
+        "//tests:images/cirros.raw",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "vddk-test-plugin",
+    srcs = ["vddk-test-plugin.c"],
+)

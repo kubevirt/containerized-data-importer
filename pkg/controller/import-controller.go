@@ -44,6 +44,8 @@ const (
 	SourceRegistry = "registry"
 	// SourceImageio is the source type ovirt-imageio
 	SourceImageio = "imageio"
+	// SourceVDDK is the source type of VDDK
+	SourceVDDK = "vddk"
 
 	// AnnSource provide a const for our PVC import source annotation
 	AnnSource = AnnAPIGroup + "/storage.import.source"
@@ -61,6 +63,12 @@ const (
 	AnnRequiresScratch = AnnAPIGroup + "/storage.import.requiresScratch"
 	// AnnDiskID provides a const for our PVC diskId annotation
 	AnnDiskID = AnnAPIGroup + "/storage.import.diskId"
+	// AnnUUID provides a const for our PVC uuid annotation
+	AnnUUID = AnnAPIGroup + "/storage.import.uuid"
+	// AnnBackingFile provides a const for our PVC backing file annotation
+	AnnBackingFile = AnnAPIGroup + "/storage.import.backingFile"
+	// AnnThumbprint provides a const for our PVC backing thumbprint annotation
+	AnnThumbprint = AnnAPIGroup + "/storage.import.vddk.thumbprint"
 
 	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
 	LabelImportPvc = AnnAPIGroup + "/storage.import.importPvcName"
@@ -90,8 +98,17 @@ type ImportReconciler struct {
 }
 
 type importPodEnvVar struct {
-	ep, secretName, source, contentType, imageSize, certConfigMap, diskID string
-	insecureTLS                                                           bool
+	ep            string
+	secretName    string
+	source        string
+	contentType   string
+	imageSize     string
+	certConfigMap string
+	diskID        string
+	uuid          string
+	backingFile   string
+	thumbprint    string
+	insecureTLS   bool
 }
 
 // NewImportController creates a new instance of the import controller.
@@ -365,6 +382,7 @@ func (r *ImportReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim, log logr
 func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) error {
 	r.log.V(1).Info("Creating importer POD for PVC", "pvc.Name", pvc.Name)
 	var scratchPvcName *string
+	var vddkImageName *string
 	var err error
 
 	requiresScratch := r.requiresScratchSpace(pvc)
@@ -373,13 +391,21 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		scratchPvcName = &name
 	}
 
+	if getSource(pvc) == SourceVDDK {
+		r.log.V(1).Info("Pod requires VDDK sidecar for VMware transfer")
+		vddkImageName, err = r.getVddkImageName()
+		if err != nil {
+			return err
+		}
+	}
+
 	podEnvVar, err := r.createImportEnvVar(pvc)
 	if err != nil {
 		return err
 	}
 
 	// all checks passed, let's create the importer pod!
-	pod, err := createImporterPod(r.log, r.client, r.image, r.verbose, r.pullPolicy, podEnvVar, pvc, scratchPvcName)
+	pod, err := createImporterPod(r.log, r.client, r.image, r.verbose, r.pullPolicy, podEnvVar, pvc, scratchPvcName, vddkImageName)
 
 	if err != nil {
 		return err
@@ -416,7 +442,10 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		if err != nil {
 			return nil, err
 		}
-		podEnvVar.diskID = getDiskID(pvc)
+		podEnvVar.diskID = getValueFromAnnotation(pvc, AnnDiskID)
+		podEnvVar.backingFile = getValueFromAnnotation(pvc, AnnBackingFile)
+		podEnvVar.uuid = getValueFromAnnotation(pvc, AnnUUID)
+		podEnvVar.thumbprint = getValueFromAnnotation(pvc, AnnThumbprint)
 	}
 	//get the requested image size.
 	podEnvVar.imageSize, err = getRequestedImageSize(pvc)
@@ -555,6 +584,26 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 	return nil
 }
 
+// Get path to VDDK image from 'v2v-vmware' ConfigMap
+func (r *ImportReconciler) getVddkImageName() (*string, error) {
+	namespace := util.GetNamespace()
+
+	cm := &corev1.ConfigMap{}
+	err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: common.VddkConfigMap, Namespace: namespace}, cm)
+	if k8serrors.IsNotFound(err) {
+		return nil, errors.Errorf("No %s ConfigMap present in namespace %s", common.VddkConfigMap, namespace)
+	}
+
+	image, found := cm.Data[common.VddkConfigDataKey]
+	if found {
+		msg := fmt.Sprintf("Found %s ConfigMap in namespace %s, VDDK image path is: ", common.VddkConfigMap, namespace)
+		r.log.V(1).Info(msg, common.VddkConfigDataKey, image)
+		return &image, nil
+	}
+
+	return nil, errors.Errorf("Found %s ConfigMap in namespace %s, but it does not contain a '%s' entry.", common.VddkConfigMap, namespace, common.VddkConfigDataKey)
+}
+
 // returns the source string which determines the type of source. If no source or invalid source found, default to http
 func getSource(pvc *corev1.PersistentVolumeClaim) string {
 	source, found := pvc.Annotations[AnnSource]
@@ -568,7 +617,8 @@ func getSource(pvc *corev1.PersistentVolumeClaim) string {
 		SourceGlance,
 		SourceNone,
 		SourceRegistry,
-		SourceImageio:
+		SourceImageio,
+		SourceVDDK:
 	default:
 		source = SourceHTTP
 	}
@@ -604,10 +654,10 @@ func getEndpoint(pvc *corev1.PersistentVolumeClaim) (string, error) {
 	return ep, nil
 }
 
-// getDiskID returns the imageio disk io from the annotation.
-func getDiskID(pvc *corev1.PersistentVolumeClaim) string {
-	diskID, _ := pvc.Annotations[AnnDiskID]
-	return diskID
+// getValueFromAnnotation returns the value of an annotation
+func getValueFromAnnotation(pvc *corev1.PersistentVolumeClaim, annotation string) string {
+	value, _ := pvc.Annotations[annotation]
+	return value
 }
 
 func getImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
@@ -627,7 +677,7 @@ func createImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 // createImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret
 // name, and pvc. A nil secret means the endpoint credentials are not passed to the
 // importer pod.
-func createImporterPod(log logr.Logger, client client.Client, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string) (*corev1.Pod, error) {
+func createImporterPod(log logr.Logger, client client.Client, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, vddkImageName *string) (*corev1.Pod, error) {
 	podResourceRequirements, err := GetDefaultPodResourceRequirements(client)
 	if err != nil {
 		return nil, err
@@ -638,7 +688,7 @@ func createImporterPod(log logr.Logger, client client.Client, image, verbose, pu
 		return nil, err
 	}
 
-	pod := makeImporterPodSpec(pvc.Namespace, image, verbose, pullPolicy, podEnvVar, pvc, scratchPvcName, podResourceRequirements, workloadNodePlacement)
+	pod := makeImporterPodSpec(pvc.Namespace, image, verbose, pullPolicy, podEnvVar, pvc, scratchPvcName, podResourceRequirements, workloadNodePlacement, vddkImageName)
 
 	if err := client.Create(context.TODO(), pod); err != nil {
 		return nil, err
@@ -648,7 +698,7 @@ func createImporterPod(log logr.Logger, client client.Client, image, verbose, pu
 }
 
 // makeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
-func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, podResourceRequirements *corev1.ResourceRequirements, workloadNodePlacement *cdiv1.NodePlacement) *corev1.Pod {
+func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, podResourceRequirements *corev1.ResourceRequirements, workloadNodePlacement *cdiv1.NodePlacement, vddkImageName *string) *corev1.Pod {
 	// importer pod name contains the pvc name
 	podName, _ := pvc.Annotations[AnnImportPod]
 
@@ -755,6 +805,29 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 		})
 	}
 
+	if vddkImageName != nil {
+		pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+			Name: "vddk-vol-mount",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		})
+		pod.Spec.InitContainers = append(pod.Spec.InitContainers, corev1.Container{
+			Name:  "vddk-side-car",
+			Image: *vddkImageName,
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "vddk-vol-mount",
+					MountPath: "/opt",
+				},
+			},
+		})
+		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      "vddk-vol-mount",
+			MountPath: "/opt",
+		})
+	}
+
 	pod.Spec.Containers[0].Env = makeImportEnv(podEnvVar, ownerUID)
 
 	if podEnvVar.certConfigMap != "" {
@@ -830,6 +903,18 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.ImporterDiskID,
 			Value: podEnvVar.diskID,
+		},
+		{
+			Name:  common.ImporterUUID,
+			Value: podEnvVar.uuid,
+		},
+		{
+			Name:  common.ImporterBackingFile,
+			Value: podEnvVar.backingFile,
+		},
+		{
+			Name:  common.ImporterThumbprint,
+			Value: podEnvVar.thumbprint,
 		},
 	}
 	if podEnvVar.secretName != "" {

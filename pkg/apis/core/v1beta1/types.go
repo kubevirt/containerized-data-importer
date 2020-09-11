@@ -71,6 +71,7 @@ type DataVolumeSource struct {
 	Upload   *DataVolumeSourceUpload   `json:"upload,omitempty"`
 	Blank    *DataVolumeBlankImage     `json:"blank,omitempty"`
 	Imageio  *DataVolumeSourceImageIO  `json:"imageio,omitempty"`
+	VDDK     *DataVolumeSourceVDDK     `json:"vddk,omitempty"`
 }
 
 // DataVolumeSourcePVC provides the parameters to create a Data Volume from an existing PVC
@@ -128,6 +129,20 @@ type DataVolumeSourceImageIO struct {
 	SecretRef string `json:"secretRef,omitempty"`
 	//CertConfigMap provides a reference to the CA cert
 	CertConfigMap string `json:"certConfigMap,omitempty"`
+}
+
+// DataVolumeSourceVDDK provides the parameters to create a Data Volume from a Vmware source
+type DataVolumeSourceVDDK struct {
+	// URL is the URL of the vCenter or ESXi host with the VM to migrate
+	URL string `json:"url,omitempty"`
+	// UUID is the UUID of the virtual machine that the backing file is attached to in vCenter/ESXi
+	UUID string `json:"uuid,omitempty"`
+	// BackingFile is the path to the virtual hard disk to migrate from vCenter/ESXi
+	BackingFile string `json:"backingFile,omitempty"`
+	// Thumbprint is the certificate thumbprint of the vCenter or ESXi host
+	Thumbprint string `json:"thumbprint,omitempty"`
+	// SecretRef provides a reference to a secret containing the username and password needed to access the vCenter or ESXi host
+	SecretRef string `json:"secretRef,omitempty"`
 }
 
 // DataVolumeStatus contains the current status of the DataVolume

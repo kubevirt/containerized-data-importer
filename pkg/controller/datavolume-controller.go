@@ -960,6 +960,13 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 		annotations[AnnSecret] = dataVolume.Spec.Source.Imageio.SecretRef
 		annotations[AnnCertConfigMap] = dataVolume.Spec.Source.Imageio.CertConfigMap
 		annotations[AnnDiskID] = dataVolume.Spec.Source.Imageio.DiskID
+	} else if dataVolume.Spec.Source.VDDK != nil {
+		annotations[AnnEndpoint] = dataVolume.Spec.Source.VDDK.URL
+		annotations[AnnSource] = SourceVDDK
+		annotations[AnnSecret] = dataVolume.Spec.Source.VDDK.SecretRef
+		annotations[AnnBackingFile] = dataVolume.Spec.Source.VDDK.BackingFile
+		annotations[AnnUUID] = dataVolume.Spec.Source.VDDK.UUID
+		annotations[AnnThumbprint] = dataVolume.Spec.Source.VDDK.Thumbprint
 	} else {
 		return nil, errors.Errorf("no source set for datavolume")
 	}

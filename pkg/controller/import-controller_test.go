@@ -499,7 +499,7 @@ var _ = Describe("Create Importer Pod", func() {
 			diskID:        "",
 			insecureTLS:   false,
 		}
-		pod, err := createImporterPod(reconciler.log, reconciler.client, testImage, "5", testPullPolicy, podEnvVar, pvc, scratchPvcName)
+		pod, err := createImporterPod(reconciler.log, reconciler.client, testImage, "5", testPullPolicy, podEnvVar, pvc, scratchPvcName, nil)
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying PVC owns pod")
 		Expect(len(pod.GetOwnerReferences())).To(Equal(1))
@@ -541,7 +541,7 @@ var _ = Describe("Import test env", func() {
 	const mockUID = "1111-1111-1111-1111"
 
 	It("Should create import env", func() {
-		testEnvVar := &importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, string(cdiv1.DataVolumeKubeVirt), "1G", "", "", false}
+		testEnvVar := &importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, string(cdiv1.DataVolumeKubeVirt), "1G", "", "", "", "", "", false}
 		Expect(reflect.DeepEqual(makeImportEnv(testEnvVar, mockUID), createImportTestEnv(testEnvVar, mockUID))).To(BeTrue())
 	})
 })
@@ -661,6 +661,7 @@ var _ = Describe("getSource", func() {
 	pvcInvalidValue := createPvc("testPVCInvalidValue", "default", map[string]string{AnnSource: "iaminvalid"}, nil)
 	pvcRegistryAnno := createPvc("testPVCRegistryAnno", "default", map[string]string{AnnSource: SourceRegistry}, nil)
 	pvcImageIOAnno := createPvc("testPVCImageIOAnno", "default", map[string]string{AnnSource: SourceImageio}, nil)
+	pvcVDDKAnno := createPvc("testPVCVDDKAnno", "default", map[string]string{AnnSource: SourceVDDK}, nil)
 
 	table.DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult string) {
 		result := getSource(pvc)
@@ -672,6 +673,7 @@ var _ = Describe("getSource", func() {
 		table.Entry("return http if invalid annotation provided", pvcInvalidValue, SourceHTTP),
 		table.Entry("return registry if registry annotation provided", pvcRegistryAnno, SourceRegistry),
 		table.Entry("return imageio if imageio annotation provided", pvcImageIOAnno, SourceImageio),
+		table.Entry("return vddk if vddk annotation provided", pvcVDDKAnno, SourceVDDK),
 	)
 })
 
@@ -764,6 +766,18 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 		{
 			Name:  common.ImporterDiskID,
 			Value: podEnvVar.diskID,
+		},
+		{
+			Name:  common.ImporterUUID,
+			Value: podEnvVar.uuid,
+		},
+		{
+			Name:  common.ImporterBackingFile,
+			Value: podEnvVar.backingFile,
+		},
+		{
+			Name:  common.ImporterThumbprint,
+			Value: podEnvVar.thumbprint,
 		},
 	}
 

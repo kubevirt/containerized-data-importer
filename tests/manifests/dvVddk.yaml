@@ -1,0 +1,18 @@
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: "test-dv"
+spec:
+  source:
+      vddk:
+         backingFile: "testfile"
+         url: "http://f24:8080/sdk"
+         uuid: "uuid"
+         thumbprint: "thumbprint"
+         secretRef: "secret"
+  pvc:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: "500Mi"

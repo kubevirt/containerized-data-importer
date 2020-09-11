@@ -478,3 +478,59 @@ http_file(
         "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/i/isns-utils-libs-0.97-9.fc31.x86_64.rpm",
     ],
 )
+
+http_file(
+    name = "nbdkit-server",
+    sha256 = "20289b472fc2f075db4d9e993505ff088852417527a06e29e457778cb7f55183",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/n/nbdkit-server-1.14.2-1.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "nbdkit-vddk-plugin",
+    sha256 = "b9b2eb86b0f8d8355be6a1ef42107526aa7f7d35e5b31af7441750e6b770e9b4",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/n/nbdkit-vddk-plugin-1.14.2-1.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "libxcrypt-compat",
+    sha256 = "de561ae2ce6394c9b77d5002a52bd9ee9ffea642ffea39bd8fb84d21dce0825c",
+    urls = [
+        "https://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/l/libxcrypt-compat-4.4.17-1.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "libxcrypt",
+    sha256 = "779d1ba6fc8d794c067679f5cb3762b78afe9e44c203a80424a27f94ed4969b6",
+    urls = [
+        "https://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/l/libxcrypt-4.4.17-1.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "mkpasswd",
+    sha256 = "cfe92e9aff4080b8eec8fd0668bcd3e12450a05bf503ba13c739f8e0d7893709",
+    urls = [
+        "https://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/m/mkpasswd-5.5.6-1.fc31.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "whois-nls",
+    sha256 = "b345fb463c541c6ea69d5308b41b044fa8ef3739206fb3993c019e5538b449e9",
+    urls = [
+        "https://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/w/whois-nls-5.5.6-1.fc31.noarch.rpm",
+    ],
+)
+
+http_file(
+    name = "golang-github-vmware-govmomi",
+    sha256 = "9ace85ca6a9a6dfd6a9e621fe9012fadd704ba5c9fbf1d042244eb0f250b3115",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/g/golang-github-vmware-govmomi-0.21.0-2.fc31.x86_64.rpm",
+    ],
+)
