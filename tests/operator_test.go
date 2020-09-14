@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 	"reflect"
+	"time"
 
 	"github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk"
 	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
@@ -100,87 +100,100 @@ var _ = Describe("Operator tests", func() {
 		Expect(conditionMap[conditions.ConditionDegraded]).To(Equal(corev1.ConditionFalse))
 	})
 
-	FIt("should deploy components that tolerate CriticalAddonsOnly taint", func() {
-		var cdiPods *corev1.PodList
+	It("should deploy components that tolerate CriticalAddonsOnly taint", func() {
 		var err error
-		By("finding all nodes that are running cdi components")
-		cdiPods, err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
-		Expect(err).ShouldNot(HaveOccurred(), "failed listing cdi pods")
+		cdiPods, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
+		Expect(err).ToNot(HaveOccurred(), "failed listing cdi pods")
 		Expect(len(cdiPods.Items)).To(BeNumerically(">", 0), "no cdi pods found")
 
-		By("setting a watch for terminated cdi pods")
-		lw, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).Watch(context.TODO(), metav1.ListOptions{})
-		Expect(err).ShouldNot(HaveOccurred())
-		signalTerminatedPods := func(stopCn <-chan bool, eventsCn <-chan watch.Event, terminatedPodsCn chan<- bool) {
-			for {
-				select {
-				case <-stopCn:
-					return
-				case e := <-eventsCn:
-					pod, ok := e.Object.(*corev1.Pod)
-					Expect(ok).To(BeTrue())
-					if _, isTestingComponent := pod.Labels["cdi.kubevirt.io/testing"]; isTestingComponent {
-						continue
-					}
-					if pod.DeletionTimestamp != nil {
-						fmt.Fprintf(GinkgoWriter, "DEBUG: Pod marked for deletion: %+v\n", pod)
-						fmt.Fprintf(GinkgoWriter, "DEBUG: Deletion timestamp: %s\n", pod.DeletionTimestamp.String())
-						terminatedPodsCn <- true
-						return
-					}
-				}
-			}
-		}
-		stopCn := make(chan bool, 1)
-		terminatedPodsCn := make(chan bool)
-		go signalTerminatedPods(stopCn, lw.ResultChan(), terminatedPodsCn)
+		labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{"cdi.kubevirt.io/testing": ""}}
+		cdiTestPods, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{
+			LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
+		})
+		Expect(err).ToNot(HaveOccurred(), "failed listing cdi testing pods")
+		Expect(len(cdiPods.Items)).To(BeNumerically(">", 0), "no cdi testing pods found")
 
-		// nodes that run cdi components.
-		cdiNodes := make(map[string]*corev1.Node)
-		By("adding taints to any node that runs cdi component")
+		By("adding taints to all nodes")
 		criticalPodTaint := corev1.Taint{
 			Key:    "CriticalAddonsOnly",
 			Value:  "",
 			Effect: corev1.TaintEffectNoExecute,
 		}
 
-		for _, cdiPod := range cdiPods.Items {
-			cdiNode, err := f.K8sClient.CoreV1().Nodes().Get(context.TODO(), cdiPod.Spec.NodeName, metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred(), "failed retrieving node")
-			hasTaint := false
-			// check if node already has the taint
-			for _, taint := range cdiNode.Spec.Taints {
-				if reflect.DeepEqual(taint, criticalPodTaint) {
-					// node already have the taint set
-					hasTaint = true
-					break
-				}
-			}
-			if hasTaint {
-				continue
-			}
-			cdiNode.ResourceVersion = ""
-			cdiNodes[cdiPod.Spec.NodeName] = cdiNode
-			cdiNodeCopy := cdiNode.DeepCopy()
-			cdiNodeCopy.Spec.Taints = append(cdiNodeCopy.Spec.Taints, criticalPodTaint)
-			_, err = f.K8sClient.CoreV1().Nodes().Update(context.TODO(), cdiNodeCopy, metav1.UpdateOptions{})
-			Expect(err).ShouldNot(HaveOccurred(), "failed setting taint on node")
-		}
+		nodes, err := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+		Expect(nodes.Items).ToNot(BeEmpty(), "There should be some compute node")
+		Expect(err).ToNot(HaveOccurred())
+
 		defer func() {
 			var errors []error
-			By("restoring nodes")
-			for _, nodeSpec := range cdiNodes {
-				_, err := f.K8sClient.CoreV1().Nodes().Update(context.TODO(), nodeSpec, metav1.UpdateOptions{})
+			By("Restoring nodes")
+			for _, node := range nodes.Items {
+				newNode, err := f.K8sClient.CoreV1().Nodes().Get(context.TODO(), node.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				newNode.Spec = node.Spec
+				_, err = f.K8sClient.CoreV1().Nodes().Update(context.TODO(), newNode, metav1.UpdateOptions{})
 				if err != nil {
 					errors = append(errors, err)
 				}
 			}
 			Expect(errors).Should(BeEmpty(), "failed restoring one or more nodes")
+
+			var newCdiTestPods *corev1.PodList
+			By("Waiting for there to be as many CDI testing pods as before")
+			Eventually(func() bool {
+				newCdiTestPods, err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{
+					LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
+				})
+				Expect(err).ToNot(HaveOccurred(), "failed getting CDI test pods")
+
+				By(fmt.Sprintf("cdi test pod len: %d\n new cdi test pod len: %d\n", len(cdiTestPods.Items), len(newCdiTestPods.Items)))
+				if len(cdiTestPods.Items) != len(newCdiTestPods.Items) {
+					return false
+				}
+				return true
+			}, 5*time.Minute, 2*time.Second).Should(BeTrue())
+
+			for _, newCdiTestPod := range newCdiTestPods.Items {
+				By(fmt.Sprintf("Waiting for CDI test pod %s to be ready", newCdiTestPod.Name))
+				err := utils.WaitTimeoutForPodReady(f.K8sClient, newCdiTestPod.Name, newCdiTestPod.Namespace, 20*time.Minute)
+				Expect(err).ToNot(HaveOccurred())
+			}
 		}()
 
-		Consistently(terminatedPodsCn, 5*time.Second).
-			ShouldNot(Receive(), "pods should not terminate")
-		stopCn <- true
+		for _, node := range nodes.Items {
+			nodeCopy := node.DeepCopy()
+			if nodeHasTaint(node, criticalPodTaint) {
+				continue
+			}
+
+			nodeCopy.Spec.Taints = append(node.Spec.Taints, criticalPodTaint)
+			_, err = f.K8sClient.CoreV1().Nodes().Update(context.TODO(), nodeCopy, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred(), "failed setting taint on node")
+		}
+
+		By("Waiting for all CDI testing pods to terminate")
+		Eventually(func() bool {
+			for _, cdiTestPod := range cdiTestPods.Items {
+				By(fmt.Sprintf("CDI test pod: %s", cdiTestPod.Name))
+				_, err := f.K8sClient.CoreV1().Pods(cdiTestPod.Namespace).Get(context.TODO(), cdiTestPod.Name, metav1.GetOptions{})
+				if !k8serrors.IsNotFound(err) {
+					return false
+				}
+			}
+			return true
+		}, 5*time.Minute, 2*time.Second).Should(BeTrue())
+
+		By("Checking that all the non-testing pods are running")
+		for _, cdiPod := range cdiPods.Items {
+			if _, isTestingComponent := cdiPod.Labels["cdi.kubevirt.io/testing"]; isTestingComponent {
+				continue
+			}
+			By(fmt.Sprintf("Non-test CDI pod: %s", cdiPod.Name))
+			podUpdated, err := f.K8sClient.CoreV1().Pods(cdiPod.Namespace).Get(context.TODO(), cdiPod.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred(), "failed setting taint on node")
+			Expect(podUpdated.Status.Phase).To(Equal(corev1.PodRunning))
+		}
 	})
 })
 
@@ -425,6 +438,15 @@ var _ = Describe("[rfe_id:4784][crit:high] Operator deployment + CDI delete test
 		}
 	})
 })
+
+func nodeHasTaint(node corev1.Node, testedTaint corev1.Taint) bool {
+	for _, taint := range node.Spec.Taints {
+		if reflect.DeepEqual(taint, testedTaint) {
+			return true
+		}
+	}
+	return false
+}
 
 func infraDeploymentAvailable(f *framework.Framework, cr *cdiv1.CDI) bool {
 	cdi, _ := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
