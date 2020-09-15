@@ -210,23 +210,23 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 													Type:        "object",
 													Properties: map[string]extv1.JSONSchemaProps{
 														"backingFile": {
-															Description: "BackingFile is the path to the disk's backing file in the datastore",
+															Description: "BackingFile is the path to the virtual hard disk to migrate from vCenter/ESXi",
 															Type:        "string",
 														},
 														"secretRef": {
-															Description: "SecretRef provides the secret reference needed to access the vcenter or esxi host",
+															Description: "SecretRef provides a reference to a secret containing the username and password needed to access the vCenter or ESXi host",
 															Type:        "string",
 														},
 														"thumbprint": {
-															Description: "Thumbprint is the certificate thumbprint of the vcenter or esxi host",
+															Description: "Thumbprint is the certificate thumbprint of the vCenter or ESXi host",
 															Type:        "string",
 														},
 														"url": {
-															Description: "URL is the URL of the vcenter or esxi host",
+															Description: "URL is the URL of the vCenter or ESXi host with the VM to migrate",
 															Type:        "string",
 														},
 														"uuid": {
-															Description: "UUID is the UUID of the virtual machine the disk is attached to",
+															Description: "UUID is the UUID of the virtual machine that the backing file is attached to in vCenter/ESXi",
 															Type:        "string",
 														},
 													},
@@ -624,23 +624,23 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 													Type:        "object",
 													Properties: map[string]extv1.JSONSchemaProps{
 														"backingFile": {
-															Description: "BackingFile is the path to the disk's backing file in the datastore",
+															Description: "BackingFile is the path to the virtual hard disk to migrate from vCenter/ESXi",
 															Type:        "string",
 														},
 														"secretRef": {
-															Description: "SecretRef provides the secret reference needed to access the vcenter or esxi host",
+															Description: "SecretRef provides a reference to a secret containing the username and password needed to access the vCenter or ESXi host",
 															Type:        "string",
 														},
 														"thumbprint": {
-															Description: "Thumbprint is the certificate thumbprint of the vcenter or esxi host",
+															Description: "Thumbprint is the certificate thumbprint of the vCenter or ESXi host",
 															Type:        "string",
 														},
 														"url": {
-															Description: "URL is the URL of the vcenter or esxi host",
+															Description: "URL is the URL of the vCenter or ESXi host with the VM to migrate",
 															Type:        "string",
 														},
 														"uuid": {
-															Description: "UUID is the UUID of the virtual machine the disk is attached to",
+															Description: "UUID is the UUID of the virtual machine that the backing file is attached to in vCenter/ESXi",
 															Type:        "string",
 														},
 													},
