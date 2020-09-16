@@ -102,6 +102,18 @@ var _ = Describe("Operator tests", func() {
 
 	It("should deploy components that tolerate CriticalAddonsOnly taint", func() {
 		var err error
+		cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		criticalAddonsToleration := corev1.Toleration{
+			Key:      "CriticalAddonsOnly",
+			Operator: corev1.TolerationOpExists,
+		}
+
+		if !tolerationExists(cr.Spec.Infra.Tolerations, criticalAddonsToleration) {
+			Skip("Unexpected CDI CR (not from cdi-cr.yaml), doesn't tolerant CriticalAddonsOnly")
+		}
+
 		cdiPods, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred(), "failed listing cdi pods")
 		Expect(len(cdiPods.Items)).To(BeNumerically(">", 0), "no cdi pods found")
@@ -438,6 +450,15 @@ var _ = Describe("[rfe_id:4784][crit:high] Operator deployment + CDI delete test
 		}
 	})
 })
+
+func tolerationExists(tolerations []corev1.Toleration, testValue corev1.Toleration) bool {
+	for _, toleration := range tolerations {
+		if reflect.DeepEqual(toleration, testValue) {
+			return true
+		}
+	}
+	return false
+}
 
 func nodeHasTaint(node corev1.Node, testedTaint corev1.Taint) bool {
 	for _, taint := range node.Spec.Taints {
