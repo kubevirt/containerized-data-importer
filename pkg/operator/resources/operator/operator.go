@@ -23,13 +23,13 @@ import (
 	csvv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
 
+	sdkopenapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/resources/openapi"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
@@ -138,13 +138,11 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 }
 
 func createClusterRole() *rbacv1.ClusterRole {
-	clusterRole := cluster.CreateOperatorClusterRole(clusterRoleName)
-	clusterRole.Rules = getClusterPolicyRules()
-	return clusterRole
+	return utils.ResourcesBuiler.CreateOperatorClusterRole(clusterRoleName, getClusterPolicyRules())
 }
 
 func createClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
-	return cluster.CreateOperatorClusterRoleBinding(serviceAccountName, clusterRoleName, serviceAccountName, namespace)
+	return utils.ResourcesBuiler.CreateOperatorClusterRoleBinding(serviceAccountName, clusterRoleName, serviceAccountName, namespace)
 }
 
 func createClusterRBAC(args *FactoryArgs) []runtime.Object {
@@ -212,18 +210,17 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 }
 
 func createServiceAccount(namespace string) *corev1.ServiceAccount {
-	return utils.CreateOperatorServiceAccount(serviceAccountName, namespace)
+	return utils.ResourcesBuiler.CreateOperatorServiceAccount(serviceAccountName, namespace)
 }
 
 func createNamespacedRole(namespace string) *rbacv1.Role {
-	role := utils.CreateRole(roleName)
+	role := utils.ResourcesBuiler.CreateRole(roleName, getNamespacedPolicyRules())
 	role.Namespace = namespace
-	role.Rules = getNamespacedPolicyRules()
 	return role
 }
 
 func createNamespacedRoleBinding(namespace string) *rbacv1.RoleBinding {
-	roleBinding := utils.CreateRoleBinding(serviceAccountName, roleName, serviceAccountName, namespace)
+	roleBinding := utils.ResourcesBuiler.CreateRoleBinding(serviceAccountName, roleName, serviceAccountName, namespace)
 	roleBinding.Namespace = namespace
 	return roleBinding
 }
@@ -1520,65 +1517,7 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 									Type:        "object",
 									Description: "CDISpec defines our specification for the CDI installation",
 								},
-								"status": {
-									Type:        "object",
-									Description: "CDIStatus defines the status of the CDI installation",
-									Properties: map[string]extv1.JSONSchemaProps{
-										"targetVersion": {
-											Description: "The desired version of the CDI resource",
-											Type:        "string",
-										},
-										"observedVersion": {
-											Description: "The observed version of the CDI resource",
-											Type:        "string",
-										},
-										"operatorVersion": {
-											Description: "The version of the CDI resource as defined by the operator",
-											Type:        "string",
-										},
-										"phase": {
-											Description: "CDIPhase is the current phase of the CDI deployment",
-											Type:        "string",
-										},
-										"conditions": {
-											Description: "A list of current conditions of the CDI resource",
-											Type:        "array",
-											Items: &extv1.JSONSchemaPropsOrArray{
-												Schema: &extv1.JSONSchemaProps{
-													Type:        "object",
-													Description: "Condition represents the state of the operator's reconciliation functionality.",
-													Properties: map[string]extv1.JSONSchemaProps{
-														"lastHeartbeatTime": {
-															Type:   "string",
-															Format: "date-time",
-														},
-														"lastTransitionTime": {
-															Type:   "string",
-															Format: "date-time",
-														},
-														"message": {
-															Type: "string",
-														},
-														"reason": {
-															Type: "string",
-														},
-														"status": {
-															Type: "string",
-														},
-														"type": {
-															Description: "ConditionType is the state of the operator's reconciliation functionality.",
-															Type:        "string",
-														},
-													},
-													Required: []string{
-														"status",
-														"type",
-													},
-												},
-											},
-										},
-									},
-								},
+								"status": sdkopenapi.OperatorConfigStatus("CDIStatus", "CDI"),
 							},
 							Required: []string{
 								"spec",
@@ -2816,65 +2755,7 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 									Type:        "object",
 									Description: "CDISpec defines our specification for the CDI installation",
 								},
-								"status": {
-									Type:        "object",
-									Description: "CDIStatus defines the status of the CDI installation",
-									Properties: map[string]extv1.JSONSchemaProps{
-										"targetVersion": {
-											Description: "The desired version of the CDI resource",
-											Type:        "string",
-										},
-										"observedVersion": {
-											Description: "The observed version of the CDI resource",
-											Type:        "string",
-										},
-										"operatorVersion": {
-											Description: "The version of the CDI resource as defined by the operator",
-											Type:        "string",
-										},
-										"phase": {
-											Description: "CDIPhase is the current phase of the CDI deployment",
-											Type:        "string",
-										},
-										"conditions": {
-											Description: "A list of current conditions of the CDI resource",
-											Type:        "array",
-											Items: &extv1.JSONSchemaPropsOrArray{
-												Schema: &extv1.JSONSchemaProps{
-													Type:        "object",
-													Description: "Condition represents the state of the operator's reconciliation functionality.",
-													Properties: map[string]extv1.JSONSchemaProps{
-														"lastHeartbeatTime": {
-															Type:   "string",
-															Format: "date-time",
-														},
-														"lastTransitionTime": {
-															Type:   "string",
-															Format: "date-time",
-														},
-														"message": {
-															Type: "string",
-														},
-														"reason": {
-															Type: "string",
-														},
-														"status": {
-															Type: "string",
-														},
-														"type": {
-															Description: "ConditionType is the state of the operator's reconciliation functionality.",
-															Type:        "string",
-														},
-													},
-													Required: []string{
-														"status",
-														"type",
-													},
-												},
-											},
-										},
-									},
-								},
+								"status": sdkopenapi.OperatorConfigStatus("CDIStatus", "CDI"),
 							},
 							Required: []string{
 								"spec",
@@ -2949,14 +2830,14 @@ func createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage
 
 func createOperatorDeployment(operatorVersion, namespace, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy string) *appsv1.Deployment {
 	deployment := utils.CreateOperatorDeployment("cdi-operator", namespace, "name", "cdi-operator", serviceAccountName, int32(1))
-	container := utils.CreatePortsContainer("cdi-operator", operatorImage, verbosity, corev1.PullPolicy(pullPolicy), createPrometheusPorts())
+	container := utils.CreatePortsContainer("cdi-operator", operatorImage, pullPolicy, createPrometheusPorts())
 	container.Env = createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy)
 	deployment.Spec.Template.Spec.Containers = []corev1.Container{container}
 	return deployment
 }
 
-func createPrometheusPorts() *[]corev1.ContainerPort {
-	return &[]corev1.ContainerPort{
+func createPrometheusPorts() []corev1.ContainerPort {
+	return []corev1.ContainerPort{
 		{
 			Name:          "metrics",
 			ContainerPort: 60000,

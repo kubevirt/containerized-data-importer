@@ -23,8 +23,8 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	utils "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/resources"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
-	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
 // FactoryArgs contains the required parameters to generate all cluster-scoped resources

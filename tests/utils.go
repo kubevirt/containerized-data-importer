@@ -11,12 +11,13 @@ import (
 	"runtime"
 	"time"
 
+	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
+
 	"github.com/onsi/ginkgo"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 )
 
@@ -123,7 +124,7 @@ func GetKubeVersion(f *framework.Framework) string {
 
 // TestNodePlacementValues returns a pre-defined set of node placement values for testing purposes.
 // The values chosen are valid, but the pod will likely not be schedulable.
-func TestNodePlacementValues(f *framework.Framework) cdiv1.NodePlacement {
+func TestNodePlacementValues(f *framework.Framework) sdkapi.NodePlacement {
 	nodes, _ := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	affinityTestValue = &v1.Affinity{
 		NodeAffinity: &v1.NodeAffinity{
@@ -139,7 +140,7 @@ func TestNodePlacementValues(f *framework.Framework) cdiv1.NodePlacement {
 		},
 	}
 
-	return cdiv1.NodePlacement{
+	return sdkapi.NodePlacement{
 		NodeSelector: nodeSelectorTestValue,
 		Affinity:     affinityTestValue,
 		Tolerations:  tolerationsTestValue,

@@ -399,11 +399,9 @@ func getAPIServerCABundle(namespace string, c client.Client, l logr.Logger) []by
 }
 
 func createAPIServerClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
-	return CreateClusterRoleBinding(apiServerResourceName, apiServerResourceName, apiServerResourceName, namespace)
+	return utils.ResourcesBuiler.CreateClusterRoleBinding(apiServerResourceName, apiServerResourceName, apiServerResourceName, namespace)
 }
 
 func createAPIServerClusterRole() *rbacv1.ClusterRole {
-	clusterRole := CreateClusterRole(apiServerResourceName)
-	clusterRole.Rules = getAPIServerClusterPolicyRules()
-	return clusterRole
+	return utils.ResourcesBuiler.CreateClusterRole(apiServerResourceName, getAPIServerClusterPolicyRules())
 }

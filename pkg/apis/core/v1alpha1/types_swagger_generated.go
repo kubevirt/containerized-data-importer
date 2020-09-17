@@ -138,15 +138,6 @@ func (CDIStatus) SwaggerDoc() map[string]string {
 	}
 }
 
-func (NodePlacement) SwaggerDoc() map[string]string {
-	return map[string]string{
-		"":             "NodePlacement describes CDI node scheduling configuration.",
-		"nodeSelector": "nodeSelector is the node selector applied to the relevant kind of pods\nIt specifies a map of key-value pairs: for the pod to be eligible to run on a node,\nthe node must have each of the indicated key-value pairs as labels\n(it can have additional labels as well).\nSee https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector\n+optional",
-		"affinity":     "affinity enables pod affinity/anti-affinity placement expanding the types of constraints\nthat can be expressed with nodeSelector.\naffinity is going to be applied to the relevant kind of pods in parallel with nodeSelector\nSee https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity\n+optional",
-		"tolerations":  "tolerations is a list of tolerations applied to the relevant kind of pods\nSee https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info.\nThese are additional tolerations other than default ones.\n+optional",
-	}
-}
-
 func (CDIList) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":      "CDIList provides the needed parameters to do request a list of CDIs from the system\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",

@@ -24,7 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
+	utils "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/resources"
 )
 
 // FactoryArgs contains the required parameters to generate all cluster-scoped resources

@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	sdk "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 )
 
@@ -89,7 +90,7 @@ func ensureSCCExists(logger logr.Logger, c client.Client, saNamespace, saName st
 		return err
 	}
 
-	if !containsStringValue(scc.Users, userName) {
+	if !sdk.ContainsStringValue(scc.Users, userName) {
 		scc.Users = append(scc.Users, userName)
 
 		return c.Update(context.TODO(), scc)

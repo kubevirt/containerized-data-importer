@@ -2343,6 +2343,30 @@
    }
   },
   "definitions": {
+   "api.NodePlacement": {
+    "description": "NodePlacement describes node scheduling configuration.",
+    "type": "object",
+    "properties": {
+     "affinity": {
+      "description": "affinity enables pod affinity/anti-affinity placement expanding the types of constraints that can be expressed with nodeSelector. affinity is going to be applied to the relevant kind of pods in parallel with nodeSelector See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity",
+      "$ref": "#/definitions/v1.Affinity"
+     },
+     "nodeSelector": {
+      "description": "nodeSelector is the node selector applied to the relevant kind of pods It specifies a map of key-value pairs: for the pod to be eligible to run on a node, the node must have each of the indicated key-value pairs as labels (it can have additional labels as well). See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector",
+      "type": "object",
+      "additionalProperties": {
+       "type": "string"
+      }
+     },
+     "tolerations": {
+      "description": "tolerations is a list of tolerations applied to the relevant kind of pods See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info. These are additional tolerations other than default ones.",
+      "type": "array",
+      "items": {
+       "$ref": "#/definitions/v1.Toleration"
+      }
+     }
+    }
+   },
    "resource.Quantity": {
     "description": "Quantity is a fixed-point representation of a number. It provides convenient marshaling/unmarshaling in JSON and YAML, in addition to String() and AsInt64() accessors.\n\nThe serialization format is:\n\n\u003cquantity\u003e        ::= \u003csignedNumber\u003e\u003csuffix\u003e\n  (Note that \u003csuffix\u003e may be empty, from the \"\" case in \u003cdecimalSI\u003e.)\n\u003cdigit\u003e           ::= 0 | 1 | ... | 9 \u003cdigits\u003e          ::= \u003cdigit\u003e | \u003cdigit\u003e\u003cdigits\u003e \u003cnumber\u003e          ::= \u003cdigits\u003e | \u003cdigits\u003e.\u003cdigits\u003e | \u003cdigits\u003e. | .\u003cdigits\u003e \u003csign\u003e            ::= \"+\" | \"-\" \u003csignedNumber\u003e    ::= \u003cnumber\u003e | \u003csign\u003e\u003cnumber\u003e \u003csuffix\u003e          ::= \u003cbinarySI\u003e | \u003cdecimalExponent\u003e | \u003cdecimalSI\u003e \u003cbinarySI\u003e        ::= Ki | Mi | Gi | Ti | Pi | Ei\n  (International System of units; See: http://physics.nist.gov/cuu/Units/binary.html)\n\u003cdecimalSI\u003e       ::= m | \"\" | k | M | G | T | P | E\n  (Note that 1024 = 1Ki but 1000 = 1k; I didn't choose the capitalization.)\n\u003cdecimalExponent\u003e ::= \"e\" \u003csignedNumber\u003e | \"E\" \u003csignedNumber\u003e\n\nNo matter which of the three exponent forms is used, no quantity may represent a number greater than 2^63-1 in magnitude, nor may it have more than 3 decimal places. Numbers larger or more precise will be capped or rounded up. (E.g.: 0.1m will rounded up to 1m.) This may be extended in the future if we require larger or smaller quantities.\n\nWhen a Quantity is parsed from a string, it will remember the type of suffix it had, and will use the same type again when it is serialized.\n\nBefore serializing, Quantity will be put in \"canonical form\". This means that Exponent/suffix will be adjusted up or down (with a corresponding increase or decrease in Mantissa) such that:\n  a. No precision is lost\n  b. No fractional digits will be emitted\n  c. The exponent (or suffix) is as large as possible.\nThe sign will be omitted unless the number is negative.\n\nExamples:\n  1.5 will be serialized as \"1500m\"\n  1.5Gi will be serialized as \"1536Mi\"\n\nNote that the quantity will NEVER be internally represented by a floating point number. That is the whole point of this exercise.\n\nNon-canonical values will still parse as long as they are well formed, but will be re-emitted in their canonical form. (So always use canonical form, or don't diff.)\n\nThis format is intended to make it difficult to use these numbers without writing some sort of special handling code in the hopes that that will cause implementors to also use a fixed point implementation.",
     "type": "string"
@@ -3463,7 +3487,7 @@
      },
      "infra": {
       "description": "Rules on which nodes CDI infrastructure pods will be scheduled",
-      "$ref": "#/definitions/v1beta1.NodePlacement"
+      "$ref": "#/definitions/api.NodePlacement"
      },
      "uninstallStrategy": {
       "description": "CDIUninstallStrategy defines the state to leave CDI on uninstall",
@@ -3471,7 +3495,7 @@
      },
      "workload": {
       "description": "Restrict on which nodes CDI workload pods will be scheduled",
-      "$ref": "#/definitions/v1beta1.NodePlacement"
+      "$ref": "#/definitions/api.NodePlacement"
      }
     }
    },
@@ -3481,25 +3505,25 @@
     "nullable": true,
     "properties": {
      "conditions": {
-      "description": "A list of current conditions of the CDI resource",
+      "description": "A list of current conditions of the resource",
       "type": "array",
       "items": {
        "$ref": "#/definitions/v1.Condition"
       }
      },
      "observedVersion": {
-      "description": "The observed version of the CDI resource",
+      "description": "The observed version of the resource",
       "type": "string"
      },
      "operatorVersion": {
-      "description": "The version of the CDI resource as defined by the operator",
+      "description": "The version of the resource as defined by the operator",
       "type": "string"
      },
      "phase": {
       "type": "string"
      },
      "targetVersion": {
-      "description": "The desired version of the CDI resource",
+      "description": "The desired version of the resource",
       "type": "string"
      }
     }
@@ -3806,30 +3830,6 @@
       "description": "RestartCount is the number of times the pod populating the DataVolume has restarted",
       "type": "integer",
       "format": "int32"
-     }
-    }
-   },
-   "v1beta1.NodePlacement": {
-    "description": "NodePlacement describes CDI node scheduling configuration.",
-    "type": "object",
-    "properties": {
-     "affinity": {
-      "description": "affinity enables pod affinity/anti-affinity placement expanding the types of constraints that can be expressed with nodeSelector. affinity is going to be applied to the relevant kind of pods in parallel with nodeSelector See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity",
-      "$ref": "#/definitions/v1.Affinity"
-     },
-     "nodeSelector": {
-      "description": "nodeSelector is the node selector applied to the relevant kind of pods It specifies a map of key-value pairs: for the pod to be eligible to run on a node, the node must have each of the indicated key-value pairs as labels (it can have additional labels as well). See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector",
-      "type": "object",
-      "additionalProperties": {
-       "type": "string"
-      }
-     },
-     "tolerations": {
-      "description": "tolerations is a list of tolerations applied to the relevant kind of pods See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info. These are additional tolerations other than default ones.",
-      "type": "array",
-      "items": {
-       "$ref": "#/definitions/v1.Toleration"
-      }
      }
     }
    },

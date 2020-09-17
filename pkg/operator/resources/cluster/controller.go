@@ -19,6 +19,7 @@ package cluster
 import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
 const (
@@ -34,7 +35,7 @@ func createControllerResources(args *FactoryArgs) []runtime.Object {
 }
 
 func createControllerClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
-	return CreateClusterRoleBinding(controllerServiceAccountName, controlerClusterRoleName, controllerServiceAccountName, namespace)
+	return utils.ResourcesBuiler.CreateClusterRoleBinding(controllerServiceAccountName, controlerClusterRoleName, controllerServiceAccountName, namespace)
 }
 
 func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
@@ -186,7 +187,5 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 }
 
 func createControllerClusterRole() *rbacv1.ClusterRole {
-	clusterRole := CreateClusterRole(controlerClusterRoleName)
-	clusterRole.Rules = getControllerClusterPolicyRules()
-	return clusterRole
+	return utils.ResourcesBuiler.CreateClusterRole(controlerClusterRoleName, getControllerClusterPolicyRules())
 }

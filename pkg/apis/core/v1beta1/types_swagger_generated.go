@@ -130,20 +130,7 @@ func (CDISpec) SwaggerDoc() map[string]string {
 
 func (CDIStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                "CDIStatus defines the status of the CDI installation",
-		"conditions":      "A list of current conditions of the CDI resource",
-		"operatorVersion": "The version of the CDI resource as defined by the operator",
-		"targetVersion":   "The desired version of the CDI resource",
-		"observedVersion": "The observed version of the CDI resource",
-	}
-}
-
-func (NodePlacement) SwaggerDoc() map[string]string {
-	return map[string]string{
-		"":             "NodePlacement describes CDI node scheduling configuration.",
-		"nodeSelector": "nodeSelector is the node selector applied to the relevant kind of pods\nIt specifies a map of key-value pairs: for the pod to be eligible to run on a node,\nthe node must have each of the indicated key-value pairs as labels\n(it can have additional labels as well).\nSee https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector\n+kubebuilder:validation:Optional\n+optional",
-		"affinity":     "affinity enables pod affinity/anti-affinity placement expanding the types of constraints\nthat can be expressed with nodeSelector.\naffinity is going to be applied to the relevant kind of pods in parallel with nodeSelector\nSee https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity\n+kubebuilder:validation:Optional\n+optional",
-		"tolerations":  "tolerations is a list of tolerations applied to the relevant kind of pods\nSee https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info.\nThese are additional tolerations other than default ones.\n+kubebuilder:validation:Optional\n+optional",
+		"": "CDIStatus defines the status of the CDI installation",
 	}
 }
 

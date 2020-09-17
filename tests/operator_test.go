@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk"
+	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -23,7 +26,6 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	operatorcontroller "kubevirt.io/containerized-data-importer/pkg/operator/controller"
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -89,7 +91,7 @@ var _ = Describe("Operator tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(cdiObjects.Items)).To(Equal(1))
 		cdiObject := cdiObjects.Items[0]
-		conditionMap := operatorcontroller.GetConditionValues(cdiObject.Status.Conditions)
+		conditionMap := sdk.GetConditionValues(cdiObject.Status.Conditions)
 		// Application should be fully operational and healthy.
 		Expect(conditionMap[conditions.ConditionAvailable]).To(Equal(corev1.ConditionTrue))
 		Expect(conditionMap[conditions.ConditionProgressing]).To(Equal(corev1.ConditionFalse))
@@ -149,7 +151,7 @@ var _ = Describe("Operator delete CDI tests", func() {
 		Eventually(func() bool {
 			cdi, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cdi.Status.Phase).ShouldNot(Equal(cdiv1.CDIPhaseError))
+			Expect(cdi.Status.Phase).ShouldNot(Equal(sdkapi.PhaseError))
 			if conditions.IsStatusConditionTrue(cdi.Status.Conditions, conditions.ConditionAvailable) {
 				return true
 			}
