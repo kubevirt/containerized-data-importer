@@ -26,9 +26,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/containers/image/v5/docker"
 	"github.com/containers/image/v5/image"
+	"github.com/containers/image/v5/oci/archive"
 	"github.com/containers/image/v5/pkg/blobinfocache"
-	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 	"k8s.io/klog"
@@ -68,7 +69,7 @@ func buildSourceContext(accessKey, secKey, certDir string, insecureRegistry bool
 }
 
 func readImageSource(ctx context.Context, sys *types.SystemContext, img string) (types.ImageSource, error) {
-	ref, err := alltransports.ParseImageName(img)
+	ref, err := parseImageName(img)
 	if err != nil {
 		klog.Errorf("Could not parse image: %v", err)
 		return nil, errors.Wrap(err, "Could not parse image")
@@ -81,6 +82,20 @@ func readImageSource(ctx context.Context, sys *types.SystemContext, img string) 
 	}
 
 	return src, nil
+}
+
+func parseImageName(img string) (types.ImageReference, error) {
+	parts := strings.SplitN(img, ":", 2)
+	if len(parts) != 2 {
+		return nil, errors.Errorf(`Invalid image name "%s", expected colon-separated transport:reference`, img)
+	}
+	switch parts[0] {
+	case "docker":
+		return docker.ParseReference(parts[1])
+	case "oci-archive":
+		return archive.ParseReference(parts[1])
+	}
+	return nil, errors.Errorf(`Invalid image name "%s", unknown transport`, img)
 }
 
 func closeImage(src types.ImageSource) {

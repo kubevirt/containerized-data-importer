@@ -17,6 +17,7 @@ require (
 	github.com/go-logr/logr v0.1.0
 	github.com/go-logr/zapr v0.1.1 // indirect
 	github.com/go-openapi/spec v0.19.3
+	github.com/google/uuid v1.1.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
 	github.com/onsi/ginkgo v1.12.1
@@ -36,7 +37,7 @@ require (
 	github.com/vmware/govmomi v0.23.1
 	go.uber.org/multierr v1.3.0 // indirect
 	golang.org/x/sys v0.0.0-20200519105757-fe76b779f299
-	golang.org/x/tools v0.0.0-20200616195046-dc31b401abb5
+	golang.org/x/tools v0.0.0-20200616195046-dc31b401abb5 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/square/go-jose.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.3.0
@@ -52,7 +53,6 @@ require (
 	k8s.io/kube-openapi v0.0.0-20200410145947-61e04a5be9a6
 	kubevirt.io/qe-tools v0.1.6
 	sigs.k8s.io/controller-runtime v0.6.2
-	sigs.k8s.io/controller-tools v0.4.0
 )
 
 replace (
