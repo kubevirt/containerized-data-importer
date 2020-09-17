@@ -117,13 +117,6 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 		return nil, err
 	}
 
-	infraNodePlacement, err := getInfraNodePlacement(uncachedClient)
-	if err != nil {
-		return nil, err
-	}
-
-	namespacedArgs.InfraNodePlacement = infraNodePlacement
-
 	r := &ReconcileCDI{
 		client:         mgr.GetClient(),
 		uncachedClient: uncachedClient,
@@ -240,6 +233,8 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 		reqLogger.Info("Reconciling to error state, unwanted CDI object")
 		return r.reconcileError(reqLogger, cr, "Reconciling to error state, unwanted CDI object")
 	}
+
+	r.namespacedArgs.InfraNodePlacement = &cr.Spec.Infra
 
 	currentConditionValues := GetConditionValues(cr.Status.Conditions)
 	reqLogger.Info("Doing reconcile update")
@@ -1054,14 +1049,4 @@ func sameResource(obj1, obj2 runtime.Object) bool {
 	}
 
 	return true
-}
-
-func getInfraNodePlacement(c client.Client) (*cdiv1.NodePlacement, error) {
-	cr := &cdiv1.CDI{}
-	crKey := client.ObjectKey{Namespace: "", Name: "cdi"}
-	if err := c.Get(context.TODO(), crKey, cr); err != nil {
-		return nil, err
-	}
-
-	return &cr.Spec.Infra, nil
 }
