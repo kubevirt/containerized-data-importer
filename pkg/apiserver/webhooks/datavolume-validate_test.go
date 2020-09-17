@@ -245,6 +245,74 @@ var _ = Describe("Validating Webhook", func() {
 			resp := validateAdmissionReview(ar)
 			Expect(resp.Allowed).To(Equal(true))
 		})
+
+		It("should reject DataVolume spec PVC size update", func() {
+			blankSource := cdiv1.DataVolumeSource{
+				Blank: &cdiv1.DataVolumeBlankImage{},
+			}
+			pvc := newPVCSpec(pvcSizeDefault)
+			newDataVolume := newDataVolume("testDv", blankSource, pvc)
+			newBytes, _ := json.Marshal(&newDataVolume)
+
+			oldDataVolume := newDataVolume.DeepCopy()
+			oldDataVolume.Spec.PVC.Resources.Requests["storage"] =
+				*resource.NewQuantity(pvcSizeDefault+1, resource.BinarySI)
+			oldBytes, _ := json.Marshal(oldDataVolume)
+
+			ar := &v1beta1.AdmissionReview{
+				Request: &v1beta1.AdmissionRequest{
+					Operation: v1beta1.Update,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdiv1.SchemeGroupVersion.Group,
+						Version:  cdiv1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: newBytes,
+					},
+					OldObject: runtime.RawExtension{
+						Raw: oldBytes,
+					},
+				},
+			}
+
+			resp := validateAdmissionReview(ar)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should accept DataVolume spec PVC size format update", func() {
+			blankSource := cdiv1.DataVolumeSource{
+				Blank: &cdiv1.DataVolumeBlankImage{},
+			}
+			pvc := newPVCSpec(pvcSizeDefault)
+			newDataVolume := newDataVolume("testDv", blankSource, pvc)
+			newBytes, _ := json.Marshal(&newDataVolume)
+
+			oldDataVolume := newDataVolume.DeepCopy()
+			oldDataVolume.Spec.PVC.Resources.Requests["storage"] =
+				*resource.NewQuantity(pvcSizeDefault, resource.DecimalSI)
+			oldBytes, _ := json.Marshal(oldDataVolume)
+
+			ar := &v1beta1.AdmissionReview{
+				Request: &v1beta1.AdmissionRequest{
+					Operation: v1beta1.Update,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdiv1.SchemeGroupVersion.Group,
+						Version:  cdiv1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: newBytes,
+					},
+					OldObject: runtime.RawExtension{
+						Raw: oldBytes,
+					},
+				},
+			}
+
+			resp := validateAdmissionReview(ar)
+			Expect(resp.Allowed).To(Equal(true))
+		})
 	})
 })
 
@@ -252,7 +320,7 @@ func newHTTPDataVolume(name, url string) *cdiv1.DataVolume {
 	httpSource := cdiv1.DataVolumeSource{
 		HTTP: &cdiv1.DataVolumeSourceHTTP{URL: url},
 	}
-	pvc := newPVCSpec(5, "M")
+	pvc := newPVCSpec(pvcSizeDefault)
 	return newDataVolume(name, httpSource, pvc)
 }
 
@@ -260,7 +328,7 @@ func newRegistryDataVolume(name, url string) *cdiv1.DataVolume {
 	registrySource := cdiv1.DataVolumeSource{
 		Registry: &cdiv1.DataVolumeSourceRegistry{URL: url},
 	}
-	pvc := newPVCSpec(5, "M")
+	pvc := newPVCSpec(pvcSizeDefault)
 	return newDataVolume(name, registrySource, pvc)
 }
 
@@ -268,7 +336,7 @@ func newBlankDataVolume(name string) *cdiv1.DataVolume {
 	blankSource := cdiv1.DataVolumeSource{
 		Blank: &cdiv1.DataVolumeBlankImage{},
 	}
-	pvc := newPVCSpec(5, "M")
+	pvc := newPVCSpec(pvcSizeDefault)
 	return newDataVolume(name, blankSource, pvc)
 }
 
@@ -279,7 +347,7 @@ func newPVCDataVolume(name, pvcNamespace, pvcName string) *cdiv1.DataVolume {
 			Name:      pvcName,
 		},
 	}
-	pvc := newPVCSpec(5, "M")
+	pvc := newPVCSpec(pvcSizeDefault)
 	return newDataVolume(name, pvcSource, pvc)
 }
 
@@ -297,7 +365,7 @@ func newDataVolumeWithMultipleSources(name string) *cdiv1.DataVolume {
 		HTTP: &cdiv1.DataVolumeSourceHTTP{URL: "http://www.example.com"},
 		S3:   &cdiv1.DataVolumeSourceS3{URL: "http://s3.examples3.com"},
 	}
-	pvc := newPVCSpec(5, "M")
+	pvc := newPVCSpec(pvcSizeDefault)
 
 	return newDataVolume(name, source, pvc)
 }
@@ -307,7 +375,7 @@ func newDataVolumeWithPVCSizeZero(name, url string) *cdiv1.DataVolume {
 	httpSource := cdiv1.DataVolumeSource{
 		HTTP: &cdiv1.DataVolumeSourceHTTP{URL: url},
 	}
-	pvc := newPVCSpec(0, "M")
+	pvc := newPVCSpec(0)
 
 	return newDataVolume(name, httpSource, pvc)
 }
@@ -335,9 +403,11 @@ func newDataVolume(name string, source cdiv1.DataVolumeSource, pvc *corev1.Persi
 
 }
 
-func newPVCSpec(sizeValue int64, sizeFormat resource.Format) *corev1.PersistentVolumeClaimSpec {
+const pvcSizeDefault = 5 << 20 // 5Mi
+
+func newPVCSpec(sizeValue int64) *corev1.PersistentVolumeClaimSpec {
 	requests := make(map[corev1.ResourceName]resource.Quantity)
-	requests["storage"] = *resource.NewQuantity(sizeValue, sizeFormat)
+	requests["storage"] = *resource.NewQuantity(sizeValue, resource.BinarySI)
 
 	pvc := &corev1.PersistentVolumeClaimSpec{
 		AccessModes: []corev1.PersistentVolumeAccessMode{

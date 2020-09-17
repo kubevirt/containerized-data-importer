@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/ghodss/yaml"
@@ -290,6 +291,34 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			table.Entry("[test_id:1856]fail without meta data", "manifests/dvNoMetaData.yaml", true, "Required value: name or generateName is required"),
 		)
 
+		It("[test_id:4895][posneg:positive]report progress while importing 1024Mi PVC", func() {
+			By("Verifying kubectl create")
+			out, err := RunKubectlCommand(f, "create", "-f", "manifests/out/dv1024MiPVC.yaml", "-n", f.Namespace.Name)
+			fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Verifying pvc was created")
+			pvc, err := utils.WaitForPVC(f.K8sClient, f.Namespace.Name, dataVolumeName)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+
+			//Due to the rate limit, this will take a while, so we can expect the phase to be in progress.
+			By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dataVolumeName)
+			if err != nil {
+				PrintControllerLog(f)
+				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
+				Expect(dverr).ToNot(HaveOccurred(), "datavolume %s phase %s", dv.Name, dv.Status.Phase)
+			}
+			Expect(err).ToNot(HaveOccurred())
+			progressRegExp := regexp.MustCompile("\\d{1,3}\\.?\\d{1,2}%")
+			Eventually(func() bool {
+				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				progress := dv.Status.Progress
+				return progressRegExp.MatchString(string(progress))
+			}, timeout, pollingInterval).Should(BeTrue())
+		})
 	})
 
 	Context("Cannot update datavolume spec", func() {
