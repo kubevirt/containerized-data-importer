@@ -45,7 +45,7 @@ before_deploy:
 deploy:
   # Release :latest images
 - provider: script
-  script: make builder-push && make publish
+  script: make builder-push && make publish && make openshift-ci-image-push
   skip_cleanup: true
   on:
     branch: master

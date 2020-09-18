@@ -126,6 +126,9 @@ push: bazel-push-images
 builder-push:
 	./hack/build/bazel-build-builder.sh
 
+openshift-ci-image-push:
+	./hack/build/osci-image-builder.sh
+
 help:
 	@echo "Usage: make [Targets ...]"
 	@echo " all "
@@ -168,6 +171,8 @@ help:
 	@echo "  : run code coverage tracking system."
 	@echo " manifests "
 	@echo "  : generate a cdi-controller and operator manifests in '_out/manifests/'.  Accepts [make variables]\(#make-variables\) DOCKER_TAG, DOCKER_PREFIX, VERBOSITY, PULL_POLICY, CSV_VERSION, QUAY_REPOSITORY, QUAY_NAMESPACE"
+	@echo " openshift-ci-image-push "
+	@echo "  : Build and push the OpenShift CI build+test container image, declared in hack/ci/Dockerfile.ci"
 	@echo " push "
 	@echo "  : compiles, builds, and pushes to the repo passed in 'DOCKER_PREFIX=<my repo>'"
 	@echo " release-description "
