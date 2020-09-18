@@ -99,6 +99,60 @@ var _ = Describe("Operator tests", func() {
 		Expect(conditionMap[conditions.ConditionProgressing]).To(Equal(corev1.ConditionFalse))
 		Expect(conditionMap[conditions.ConditionDegraded]).To(Equal(corev1.ConditionFalse))
 	})
+})
+
+var _ = Describe("Tests needing the restore of nodes", func() {
+	var nodes *corev1.NodeList
+	var cdiPods *corev1.PodList
+	var err error
+
+	f := framework.NewFramework("operator-delete-cdi-test")
+
+	BeforeEach(func() {
+		nodes, err = f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+		Expect(nodes.Items).ToNot(BeEmpty(), "There should be some compute node")
+		Expect(err).ToNot(HaveOccurred())
+
+		cdiPods, err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
+		Expect(err).ToNot(HaveOccurred(), "failed listing cdi pods")
+		Expect(len(cdiPods.Items)).To(BeNumerically(">", 0), "no cdi pods found")
+	})
+
+	AfterEach(func() {
+		var errors []error
+		var newCdiPods *corev1.PodList
+		By("Restoring nodes")
+		for _, node := range nodes.Items {
+			newNode, err := f.K8sClient.CoreV1().Nodes().Get(context.TODO(), node.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			newNode.Spec = node.Spec
+			_, err = f.K8sClient.CoreV1().Nodes().Update(context.TODO(), newNode, metav1.UpdateOptions{})
+			if err != nil {
+				errors = append(errors, err)
+			}
+		}
+		Expect(errors).Should(BeEmpty(), "failed restoring one or more nodes")
+
+		By("Waiting for there to be as many CDI pods as before")
+		Eventually(func() bool {
+			newCdiPods, err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
+			Expect(err).ToNot(HaveOccurred(), "failed getting CDI pods")
+
+			By(fmt.Sprintf("number of cdi pods: %d\n new number of cdi pods: %d\n", len(cdiPods.Items), len(newCdiPods.Items)))
+			if len(cdiPods.Items) != len(newCdiPods.Items) {
+				return false
+			}
+			return true
+		}, 5*time.Minute, 2*time.Second).Should(BeTrue())
+
+		for _, newCdiPod := range newCdiPods.Items {
+			By(fmt.Sprintf("Waiting for CDI pod %s to be ready", newCdiPod.Name))
+			err := utils.WaitTimeoutForPodReady(f.K8sClient, newCdiPod.Name, newCdiPod.Namespace, 20*time.Minute)
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+	})
 
 	It("should deploy components that tolerate CriticalAddonsOnly taint", func() {
 		var err error
@@ -114,16 +168,12 @@ var _ = Describe("Operator tests", func() {
 			Skip("Unexpected CDI CR (not from cdi-cr.yaml), doesn't tolerant CriticalAddonsOnly")
 		}
 
-		cdiPods, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
-		Expect(err).ToNot(HaveOccurred(), "failed listing cdi pods")
-		Expect(len(cdiPods.Items)).To(BeNumerically(">", 0), "no cdi pods found")
-
 		labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{"cdi.kubevirt.io/testing": ""}}
 		cdiTestPods, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
 		})
 		Expect(err).ToNot(HaveOccurred(), "failed listing cdi testing pods")
-		Expect(len(cdiPods.Items)).To(BeNumerically(">", 0), "no cdi testing pods found")
+		Expect(len(cdiTestPods.Items)).To(BeNumerically(">", 0), "no cdi testing pods found")
 
 		By("adding taints to all nodes")
 		criticalPodTaint := corev1.Taint{
@@ -131,47 +181,6 @@ var _ = Describe("Operator tests", func() {
 			Value:  "",
 			Effect: corev1.TaintEffectNoExecute,
 		}
-
-		nodes, err := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
-		Expect(nodes.Items).ToNot(BeEmpty(), "There should be some compute node")
-		Expect(err).ToNot(HaveOccurred())
-
-		defer func() {
-			var errors []error
-			By("Restoring nodes")
-			for _, node := range nodes.Items {
-				newNode, err := f.K8sClient.CoreV1().Nodes().Get(context.TODO(), node.Name, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-
-				newNode.Spec = node.Spec
-				_, err = f.K8sClient.CoreV1().Nodes().Update(context.TODO(), newNode, metav1.UpdateOptions{})
-				if err != nil {
-					errors = append(errors, err)
-				}
-			}
-			Expect(errors).Should(BeEmpty(), "failed restoring one or more nodes")
-
-			var newCdiTestPods *corev1.PodList
-			By("Waiting for there to be as many CDI testing pods as before")
-			Eventually(func() bool {
-				newCdiTestPods, err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{
-					LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
-				})
-				Expect(err).ToNot(HaveOccurred(), "failed getting CDI test pods")
-
-				By(fmt.Sprintf("cdi test pod len: %d\n new cdi test pod len: %d\n", len(cdiTestPods.Items), len(newCdiTestPods.Items)))
-				if len(cdiTestPods.Items) != len(newCdiTestPods.Items) {
-					return false
-				}
-				return true
-			}, 5*time.Minute, 2*time.Second).Should(BeTrue())
-
-			for _, newCdiTestPod := range newCdiTestPods.Items {
-				By(fmt.Sprintf("Waiting for CDI test pod %s to be ready", newCdiTestPod.Name))
-				err := utils.WaitTimeoutForPodReady(f.K8sClient, newCdiTestPod.Name, newCdiTestPod.Namespace, 20*time.Minute)
-				Expect(err).ToNot(HaveOccurred())
-			}
-		}()
 
 		for _, node := range nodes.Items {
 			nodeCopy := node.DeepCopy()
@@ -207,6 +216,7 @@ var _ = Describe("Operator tests", func() {
 			Expect(podUpdated.Status.Phase).To(Equal(corev1.PodRunning))
 		}
 	})
+
 })
 
 var _ = Describe("Operator delete CDI tests", func() {

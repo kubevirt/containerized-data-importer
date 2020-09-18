@@ -70,11 +70,11 @@ func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAcco
 		SecurityContext: &corev1.PodSecurityContext{
 			RunAsNonRoot: &[]bool{true}[0],
 		},
-		NodeSelector:map[string]string{"kubernetes.io/os":"linux"},
-		Tolerations:[]corev1.Toleration{
+		NodeSelector: map[string]string{"kubernetes.io/os": "linux"},
+		Tolerations: []corev1.Toleration{
 			{
-				Key:"CriticalAddonsOnly",
-				Operator:corev1.TolerationOpExists,
+				Key:      "CriticalAddonsOnly",
+				Operator: corev1.TolerationOpExists,
 			},
 		},
 	}
