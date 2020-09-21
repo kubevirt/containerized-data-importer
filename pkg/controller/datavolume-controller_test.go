@@ -96,6 +96,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		dv.GetAnnotations()["test-ann-1"] = "test-value-1"
 		dv.GetAnnotations()["test-ann-2"] = "test-value-2"
 		dv.GetAnnotations()[AnnSource] = "invalid phase should not copy"
+		dv.GetAnnotations()[AnnPodNetwork] = "data-network"
 		reconciler = createDatavolumeReconciler(dv)
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 		Expect(err).ToNot(HaveOccurred())
@@ -107,6 +108,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(pvc.GetAnnotations()["test-ann-1"]).To(Equal("test-value-1"))
 		Expect(pvc.GetAnnotations()["test-ann-2"]).To(Equal("test-value-2"))
 		Expect(pvc.GetAnnotations()[AnnSource]).To(Equal(SourceHTTP))
+		Expect(pvc.GetAnnotations()[AnnPodNetwork]).To(Equal("data-network"))
 	})
 
 	It("Should pass annotation from DV with S3 source to created a PVC on a DV", func() {

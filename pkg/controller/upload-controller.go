@@ -771,5 +771,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 		})
 	}
 
+	util.SetPodNetwork(pvc, pod)
+
 	return pod
 }

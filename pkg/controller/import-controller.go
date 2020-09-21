@@ -872,9 +872,7 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 		})
 	}
 
-	if net, ok := pvc.Annotations[AnnImportNetwork]; ok {
-		pod.ObjectMeta.Annotations["k8s.v1.cni.cncf.io/networks"] = net
-	}
+	util.SetPodNetwork(pvc, pod)
 
 	pod.Spec.Containers[0].Env = makeImportEnv(podEnvVar, ownerUID)
 

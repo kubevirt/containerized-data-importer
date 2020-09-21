@@ -81,6 +81,9 @@ const (
 
 	// PodRunningReason is const that defines the pod was started as a reason
 	podRunningReason = "Pod is running"
+
+	// AnnPodNetwork provides a const for our Pod Network annotation
+￼	AnnPodNetwork = AnnAPIGroup + "/storage.pod.network"
 )
 
 func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string, log logr.Logger) bool {
@@ -560,4 +563,11 @@ func IsPopulated(pvc *v1.PersistentVolumeClaim, c client.Client) (bool, error) {
 		err := c.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, dv)
 		return dv, err
 	})
+}
+
+// SetPodNetwork applies the Pod Network annotation on the pod
+func SetPodNetwork(pvc *v1.PersistentVolumeClaim, pod *v1.Pod) error {
+        if net, ok := pvc.Annotations[AnnPodNetwork]; ok {
+￼		pod.ObjectMeta.Annotations["k8s.v1.cni.cncf.io/networks"] = net
+￼	}
 }

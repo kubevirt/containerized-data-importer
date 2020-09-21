@@ -277,6 +277,27 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(*pod.Spec.SecurityContext.FSGroup).To(Equal(int64(107)))
 	})
 
+	It("Should create a POD with network annotation if a PVC with all needed annotations is passed", func() {
+		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1", AnnPodNetwork: "data-network"}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+		reconciler = createImportReconciler(pvc)
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
+		Expect(err).ToNot(HaveOccurred())
+		foundEndPoint := false
+		for _, envVar := range pod.Spec.Containers[0].Env {
+			if envVar.Name == common.ImporterEndpoint {
+				foundEndPoint = true
+				Expect(envVar.Value).To(Equal(testEndPoint))
+			}
+		}
+		Expect(foundEndPoint).To(BeTrue())
+		By("Verifying the pod is annotated with network")
+		Expect(*pod.ObjectMeta.Annotations["k8s.v1.cni.cncf.io/networks"]).To(Equal("data-network"))
+	})
+
 	It("Should create a POD if a bound PVC with all needed annotations is passed, but not set fsgroup if not kubevirt contenttype", func() {
 		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1", AnnContentType: string(cdiv1.DataVolumeArchive)}, nil)
 		pvc.Status.Phase = v1.ClaimBound
