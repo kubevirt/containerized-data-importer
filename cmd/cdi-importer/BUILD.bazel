@@ -5,6 +5,7 @@ rpm_image(
     name = "cdi-importer-base-image",
     base = "@fedora//image",
     rpms = [
+        "@libnbd//file",
         "@libxcrypt-compat//file",
         "@nbdkit-server//file",
         "@nbdkit-vddk-plugin//file",
