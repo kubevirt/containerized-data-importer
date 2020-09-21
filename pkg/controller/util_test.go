@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -141,6 +142,22 @@ var _ = Describe("GetScratchPVCStorageClass", func() {
 		client := createClient()
 		pvc := createPvcInStorageClass("test", "test", &storageClassName, nil, nil, v1.ClaimBound)
 		Expect(GetScratchPvcStorageClass(client, pvc)).To(Equal(""))
+	})
+})
+
+var _ = Describe("GetWorkloadNodePlacement", func() {
+	It("Should return a node placement, with one CDI CR", func() {
+		client := createClient(createCDIWithWorkload("cdi-test", "1111-1111"))
+		res, err := GetWorkloadNodePlacement(client)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(res).ToNot(BeNil())
+	})
+
+	It("Should return an err with > 1 CDI CR", func() {
+		client := createClient(createCDIWithWorkload("cdi-test", "1111-1111"), createCDIWithWorkload("cdi-test2", "2222-2222"))
+		res, err := GetWorkloadNodePlacement(client)
+		Expect(err).To(HaveOccurred())
+		Expect(res).To(BeNil())
 	})
 })
 
@@ -518,6 +535,18 @@ func podUsingPVC(pvc *corev1.PersistentVolumeClaim, readOnly bool) *corev1.Pod {
 					},
 				},
 			},
+		},
+	}
+}
+
+func createCDIWithWorkload(name, uid string) *cdiv1.CDI {
+	return &cdiv1.CDI{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			UID:  types.UID(uid),
+		},
+		Spec: cdiv1.CDISpec{
+			Workloads: api.NodePlacement{},
 		},
 	}
 }
