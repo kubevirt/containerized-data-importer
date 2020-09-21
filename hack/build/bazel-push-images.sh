@@ -32,7 +32,7 @@ echo "docker_prefix: $docker_prefix"
 for tag in ${docker_tag} ${docker_tag_alt}; do
     bazel run \
         --verbose_failures \
-        --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 \
+        --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64_cgo \
         --define container_prefix=${docker_prefix} \
         --define container_tag=${tag} \
         --host_force_python=PY3 \
