@@ -129,6 +129,7 @@ function populateResourceManifest() {
             -uploadserver-image="${DOCKER_PREFIX}/${UPLOADSERVER_IMAGE_NAME}:${DOCKER_TAG}" \
             -verbosity="${VERBOSITY}" \
             -pull-policy="${PULL_POLICY}" \
+            -cr-name="${CR_NAME}" \
             -namespace="${NAMESPACE}" \
             -generated-manifests-path=${generatedManifests}
     ) 1>>"${targetDir}/"$outfile

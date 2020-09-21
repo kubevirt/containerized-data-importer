@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"crypto/rsa"
+	"fmt"
 	"strings"
 
 	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
@@ -462,11 +463,12 @@ func filterCloneSourcePods(input []v1.Pod) []v1.Pod {
 
 // GetWorkloadNodePlacement extracts the workload-specific nodeplacement values from the CDI CR
 func GetWorkloadNodePlacement(c client.Client) (*sdkapi.NodePlacement, error) {
-	cr := &cdiv1.CDI{}
-	crKey := client.ObjectKey{Namespace: "", Name: "cdi"}
-	if err := c.Get(context.TODO(), crKey, cr); err != nil {
+	crList := &cdiv1.CDIList{}
+	if err := c.List(context.TODO(), crList, &client.ListOptions{}); err != nil {
 		return nil, err
 	}
-
-	return &cr.Spec.Workloads, nil
+	if len(crList.Items) != 1 {
+		return nil, fmt.Errorf("Number of CDI CRs != 1")
+	}
+	return &crList.Items[0].Spec.Workloads, nil
 }

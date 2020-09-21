@@ -75,7 +75,7 @@ function wait_cdi_available {
       fix_failed_sdn_pods
     done
   else
-    _kubectl wait cdis.cdi.kubevirt.io/cdi --for=condition=Available --timeout=${CDI_AVAILABLE_TIMEOUT}s
+    _kubectl wait cdis.cdi.kubevirt.io/${CR_NAME} --for=condition=Available --timeout=${CDI_AVAILABLE_TIMEOUT}s
   fi
 }
 

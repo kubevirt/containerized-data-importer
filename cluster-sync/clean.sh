@@ -19,7 +19,7 @@ if [ -f "${OPERATOR_CR_MANIFEST}" ]; then
 	echo "Cleaning CR object ..."
     if _kubectl get crd cdis.cdi.kubevirt.io ; then
         _kubectl delete --ignore-not-found -f "${OPERATOR_CR_MANIFEST}"
-        _kubectl wait cdis.cdi.kubevirt.io/cdi --for=delete | echo "this is fine"
+        _kubectl wait cdis.cdi.kubevirt.io/${CR_NAME} --for=delete | echo "this is fine"
     fi
 fi
 

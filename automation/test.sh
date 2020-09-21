@@ -29,6 +29,10 @@ export CDI_NAMESPACE=$NAMESPACE
 
 echo "namespace: ${NAMESPACE}, cdi-namespace: ${CDI_NAMESPACE}"
 
+if [[ -n "$RANDOM_CR" ]]; then
+  export CR_NAME="${CDI_NAMESPACE}"
+fi
+
 readonly ARTIFACTS_PATH="${ARTIFACTS}"
 readonly BAZEL_CACHE="${BAZEL_CACHE:-http://bazel-cache.kubevirt-prow.svc.cluster.local:8080/kubevirt.io/containerized-data-importer}"
 
