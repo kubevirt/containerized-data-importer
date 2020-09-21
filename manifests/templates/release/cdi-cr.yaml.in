@@ -1,7 +1,7 @@
 apiVersion: cdi.kubevirt.io/v1beta1
 kind: CDI
 metadata:
-  name: cdi
+  name: {{.CrName}}
 spec:
   imagePullPolicy: {{.PullPolicy}}
   infra:

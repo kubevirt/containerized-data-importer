@@ -41,6 +41,7 @@ type templateData struct {
 	UploadServerImage      string
 	Verbosity              string
 	PullPolicy             string
+	CrName                 string
 	Namespace              string
 	GeneratedManifests     map[string]string
 }
@@ -60,6 +61,7 @@ var (
 	uploadServerImage      = flag.String("uploadserver-image", "", "")
 	verbosity              = flag.String("verbosity", "1", "")
 	pullPolicy             = flag.String("pull-policy", "", "")
+	crName                 = flag.String("cr-name", "", "")
 	namespace              = flag.String("namespace", "", "")
 )
 
@@ -101,6 +103,7 @@ func generateFromFile(templFile string) {
 		UploadProxyImage:       *uploadProxyImage,
 		UploadServerImage:      *uploadServerImage,
 		PullPolicy:             *pullPolicy,
+		CrName:                 *crName,
 		Namespace:              *namespace,
 	}
 
