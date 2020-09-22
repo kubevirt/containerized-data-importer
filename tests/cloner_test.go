@@ -804,7 +804,7 @@ var _ = Describe("Namespace with quota", func() {
 		doFileBasedCloneTest(f, pvcDef, f.Namespace, "target-dv")
 	})
 
-	It("Should fail clone data across namespaces, if a namespace doesn't have enough quota", func() {
+	It("Should fail clone data across namespaces, if source namespace doesn't have enough quota", func() {
 		err := f.UpdateCdiConfigResourceLimits(int64(0), int64(512*1024*1024), int64(1), int64(512*1024*1024))
 		Expect(err).NotTo(HaveOccurred())
 		err = f.CreateQuotaInNs(int64(1), int64(256*1024*1024), int64(2), int64(256*1024*1024))
@@ -832,7 +832,34 @@ var _ = Describe("Namespace with quota", func() {
 			Expect(err).NotTo(HaveOccurred())
 			return log
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+	})
 
+	It("Should fail clone data across namespaces, if target namespace doesn't have enough quota", func() {
+		err := f.UpdateCdiConfigResourceLimits(int64(0), int64(512*1024*1024), int64(1), int64(512*1024*1024))
+		Expect(err).NotTo(HaveOccurred())
+		pvcDef := utils.NewPVCDefinition(sourcePVCName, "500M", nil, nil)
+		pvcDef.Namespace = f.Namespace.Name
+		sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
+		targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+			framework.NsPrefixLabel: f.NsPrefix,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		f.AddNamespaceToDelete(targetNs)
+		err = f.CreateQuotaInSpecifiedNs(targetNs.Name, (1), int64(256*1024*1024), int64(2), int64(256*1024*1024))
+		Expect(err).NotTo(HaveOccurred())
+
+		targetDV := utils.NewDataVolumeForImageCloning("target-dv", "500M", sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+		By("Verify Quota was exceeded in logs")
+		matchString := fmt.Sprintf("\"namespace\": \"%s\", \"error\": \"pods \\\"cdi-upload-target-dv\\\" is forbidden: exceeded quota: test-quota, requested", targetNs.Name)
+		Eventually(func() string {
+			log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
+			Expect(err).NotTo(HaveOccurred())
+			return log
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 	})
 })
 
