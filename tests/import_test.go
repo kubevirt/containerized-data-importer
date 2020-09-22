@@ -143,6 +143,9 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", fu
 	BeforeEach(func() {
 		var err error
 		cr, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+		if k8serrors.IsNotFound(err) {
+			Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
+		}
 		Expect(err).ToNot(HaveOccurred())
 
 		oldSpec = cr.Spec.DeepCopy()
