@@ -54,7 +54,8 @@ if [[ -n "$MULTI_UPGRADE" ]]; then
   export UPGRADE_FROM="v1.10.7 v1.11.0 v1.12.0 v1.13.2 v1.14.0 v1.15.0"
 fi
 
-if [[ -z "$UPGRADE_FROM" ]]; then
+# Don't upgrade if we are using a random CR name, otherwise the upgrade will fail
+if [[ -z "$UPGRADE_FROM" ]] && [[ -z "$RANDOM_CR" ]]; then
   export UPGRADE_FROM=$(curl -s https://github.com/kubevirt/containerized-data-importer/releases/latest | grep -o "v[0-9]\.[0-9]*\.[0-9]*")
   echo "Upgrading from verions: $UPGRADE_FROM"
 fi
