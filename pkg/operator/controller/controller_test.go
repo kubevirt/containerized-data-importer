@@ -24,10 +24,10 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
 
-	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
-	sdkr "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/reconciler"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
+	sdkr "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/reconciler"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"

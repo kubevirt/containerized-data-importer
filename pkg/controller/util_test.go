@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	corev1 "k8s.io/api/core/v1"

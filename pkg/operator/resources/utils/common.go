@@ -17,10 +17,10 @@ limitations under the License.
 package utils
 
 import (
-	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
-	utils "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/resources"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
+	utils "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/resources"
 )
 
 const (

@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"time"
 
-	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
 	"github.com/onsi/ginkgo"
 

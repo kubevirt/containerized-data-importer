@@ -20,7 +20,6 @@ go_library(
         "//pkg/controller:go_default_library",
         "//pkg/token:go_default_library",
         "//vendor/github.com/appscode/jsonpatch:go_default_library",
-        "//vendor/github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api:go_default_library",
         "//vendor/k8s.io/api/admission/v1beta1:go_default_library",
         "//vendor/k8s.io/api/admissionregistration/v1beta1:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
@@ -34,6 +33,7 @@ go_library(
         "//vendor/k8s.io/apimachinery/pkg/util/validation/field:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes:go_default_library",
         "//vendor/k8s.io/klog:go_default_library",
+        "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api:go_default_library",
     ],
 )
 
@@ -51,7 +51,6 @@ go_test(
         "//pkg/client/clientset/versioned/fake:go_default_library",
         "//pkg/controller:go_default_library",
         "//vendor/github.com/appscode/jsonpatch:go_default_library",
-        "//vendor/github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",
         "//vendor/github.com/onsi/ginkgo/extensions/table:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
@@ -63,5 +62,6 @@ go_test(
         "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes/fake:go_default_library",
         "//vendor/k8s.io/client-go/testing:go_default_library",
+        "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api:go_default_library",
     ],
 )

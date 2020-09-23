@@ -1,11 +1,11 @@
 package sdk
 
 import (
-	"github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
 	v1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 )
 
 // IsUpgrading checks whether cr status represents upgrade in progress
