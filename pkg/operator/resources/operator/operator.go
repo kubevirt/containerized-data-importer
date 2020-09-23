@@ -19,9 +19,8 @@ package operator
 import (
 	"encoding/json"
 
-	"github.com/blang/semver"
+	"github.com/coreos/go-semver/semver"
 	csvv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -2909,11 +2908,6 @@ _The CDI Operator does not support updates yet._
 		return nil, err
 	}
 
-	csvVersion, err := semver.New(data.CsvVersion)
-	if err != nil {
-		return nil, err
-	}
-
 	return &csvv1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterServiceVersion",
@@ -2948,7 +2942,7 @@ _The CDI Operator does not support updates yet._
 			DisplayName: "CDI",
 			Description: description,
 			Keywords:    []string{"CDI", "Virtualization", "Storage"},
-			Version:     version.OperatorVersion{Version: *csvVersion},
+			Version:     *semver.New(data.CsvVersion),
 			Maturity:    "alpha",
 			Replaces:    data.ReplacesCsvVersion,
 			Maintainers: []csvv1.Maintainer{{
