@@ -65,7 +65,8 @@ func CanServiceAccountClonePVC(client kubernetes.Interface, pvcNamespace, pvcNam
 	user := fmt.Sprintf("system:serviceaccount:%s:%s", saNamespace, saName)
 
 	sarSpec := authorization.SubjectAccessReviewSpec{
-		User: user,
+		User:   user,
+		Groups: []string{"system:serviceaccounts", "system:serviceaccounts:" + saNamespace},
 	}
 
 	return sendSubjectAccessReviews(client, pvcNamespace, pvcName, sarSpec)
