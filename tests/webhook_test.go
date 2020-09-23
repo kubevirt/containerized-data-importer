@@ -108,20 +108,31 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 
 		rb := &rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: sa,
+				Name: "rb",
 			},
 			RoleRef: rbacv1.RoleRef{
 				Kind:     "Role",
 				Name:     role.Name,
 				APIGroup: "rbac.authorization.k8s.io",
 			},
-			Subjects: []rbacv1.Subject{
+		}
+
+		if sa != "" {
+			rb.Subjects = []rbacv1.Subject{
 				{
 					Kind:      "ServiceAccount",
 					Name:      sa,
 					Namespace: saNamespace,
 				},
-			},
+			}
+		} else {
+			rb.Subjects = []rbacv1.Subject{
+				{
+					Kind:     "Group",
+					Name:     "system:serviceaccounts",
+					APIGroup: "rbac.authorization.k8s.io",
+				},
+			}
 		}
 
 		_, err = client.RbacV1().RoleBindings(targetNamesace).Create(context.TODO(), rb, metav1.CreateOptions{})
@@ -151,7 +162,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				}
 			})
 
-			DescribeTable("should deny/allow user when creating datavolume", func(role *rbacv1.Role) {
+			DescribeTable("should deny/allow user when creating datavolume", func(role *rbacv1.Role, saName string) {
 				srcPVCDef := utils.NewPVCDefinition("source-pvc", "1G", nil, nil)
 				srcPVCDef.Namespace = f.Namespace.Name
 				f.CreateAndPopulateSourcePVC(srcPVCDef, "fill-source", fmt.Sprintf("echo \"hello world\" > %s/data.txt", utils.DefaultPvcMountPath))
@@ -184,7 +195,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				Expect(reason).ToNot(BeEmpty())
 				Expect(err).ToNot(HaveOccurred())
 
-				addPermissionToNamespace(f.K8sClient, role, targetNamespace.Name, serviceAccountName, f.Namespace.Name)
+				addPermissionToNamespace(f.K8sClient, role, targetNamespace.Name, saName, f.Namespace.Name)
 
 				// now can list dvs in source
 				Eventually(func() error {
@@ -207,8 +218,9 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				Expect(reason).To(BeEmpty())
 				Expect(err).ToNot(HaveOccurred())
 			},
-				Entry("[test_id:3935]when using explicit CDI permissions", explicitRole),
-				Entry("[test_id:3936]when using implicit CDI permissions", implicitRole),
+				Entry("[test_id:3935]when using explicit CDI permissions", explicitRole, serviceAccountName),
+				Entry("when using explicit CDI permissions and all serviceaccounts", explicitRole, ""),
+				Entry("[test_id:3936]when using implicit CDI permissions", implicitRole, serviceAccountName),
 			)
 		})
 	})
