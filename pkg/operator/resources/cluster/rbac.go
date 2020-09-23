@@ -245,6 +245,11 @@ func createConfigReaderClusterRoleBinding(name string) *rbacv1.ClusterRoleBindin
 				Name:     "system:authenticated",
 				APIGroup: "rbac.authorization.k8s.io",
 			},
+			{
+				Kind:     "Group",
+				Name:     "system:serviceaccount",
+				APIGroup: "rbac.authorization.k8s.io",
+			},
 		},
 	}
 }
