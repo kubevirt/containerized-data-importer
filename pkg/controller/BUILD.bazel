@@ -89,6 +89,7 @@ go_test(
         "//pkg/util/naming:go_default_library",
         "//tests/reporters:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1:go_default_library",
+        "//vendor/github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",
         "//vendor/github.com/onsi/ginkgo/extensions/table:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
