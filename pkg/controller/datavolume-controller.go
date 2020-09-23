@@ -307,7 +307,7 @@ func (r *DatavolumeReconciler) sourceInUse(dv *cdiv1.DataVolume) (bool, error) {
 
 func (r *DatavolumeReconciler) getStorageClassBindingMode(dataVolume *cdiv1.DataVolume) (*storagev1.VolumeBindingMode, error) {
 	// Handle unspecified storage class name, fallback to default storage class
-	storageClass, err := r.getStorageClassByName(dataVolume.Spec.PVC.StorageClassName)
+	storageClass, err := GetStorageClassByName(r.client, dataVolume.Spec.PVC.StorageClassName)
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +376,7 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	}
 
 	targetPvcStorageClassName := dataVolume.Spec.PVC.StorageClassName
-	targetStorageClass, err := r.getStorageClassByName(targetPvcStorageClassName)
+	targetStorageClass, err := GetStorageClassByName(r.client, targetPvcStorageClassName)
 	if err != nil {
 		return "", err
 	}
@@ -425,32 +425,6 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 
 	r.log.V(3).Info("Could not match snapshotter with storage class, falling back to host assisted clone")
 	return "", errors.New("could not match snapshotter with storage class, falling back to host assisted clone")
-}
-
-// getStorageClassByName looks up the storage class based on the name. If no storage class is found returns nil
-func (r *DatavolumeReconciler) getStorageClassByName(name *string) (*storagev1.StorageClass, error) {
-	// look up storage class by name
-	if name == nil {
-		storageClasses := &storagev1.StorageClassList{}
-		if err := r.client.List(context.TODO(), storageClasses); err != nil {
-			r.log.V(3).Info("Unable to retrieve available storage classes")
-			return nil, errors.New("unable to retrieve storage classes")
-		}
-		for _, storageClass := range storageClasses.Items {
-			if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" {
-				return &storageClass, nil
-			}
-		}
-	} else {
-		storageClass := &storagev1.StorageClass{}
-		if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *name}, storageClass); err != nil {
-			r.log.V(3).Info("Unable to retrieve storage class", "storage class name", *name)
-			return nil, errors.New("unable to retrieve storage class")
-		}
-		return storageClass, nil
-	}
-	// No storage class found, just return nil for storage class and let caller deal with it.
-	return nil, nil
 }
 
 func newSnapshot(dataVolume *cdiv1.DataVolume, snapshotClassName string) *snapshotv1.VolumeSnapshot {
