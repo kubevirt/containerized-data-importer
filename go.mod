@@ -6,8 +6,8 @@ require (
 	github.com/RHsyseng/operator-utils v0.0.0-20190906175225-942a3f9c85a9
 	github.com/appscode/jsonpatch v0.0.0-20190108182946-7c0e3b262f30
 	github.com/aws/aws-sdk-go v1.15.77
-	github.com/blang/semver v3.5.1+incompatible
 	github.com/containers/image/v5 v5.5.1
+	github.com/coreos/go-semver v0.3.0
 	github.com/docker/spdystream v0.0.0-20181023171402-6480d4af844c // indirect
 	github.com/elazarl/goproxy v0.0.0-20190911111923-ecfe977594f1 // indirect
 	github.com/emicklei/go-restful v2.9.6+incompatible
@@ -24,6 +24,7 @@ require (
 	github.com/openshift/client-go v0.0.0
 	github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca
 	github.com/openshift/library-go v0.0.0-20200821154433-215f00df72cc
+	github.com/operator-framework/go-appr v0.0.0-20180917210448-f2aef88446f2 // indirect
 	github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190725173916-b56e63a643cc
 	github.com/operator-framework/operator-marketplace v0.0.0-20190617165322-1cbd32624349
 	github.com/ovirt/go-ovirt v4.3.4+incompatible
@@ -33,6 +34,7 @@ require (
 	github.com/rs/cors v1.7.0
 	github.com/ulikunitz/xz v0.5.7
 	github.com/vmware/govmomi v0.23.1
+	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
 	golang.org/x/sys v0.0.0-20200519105757-fe76b779f299
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/square/go-jose.v2 v2.3.1
@@ -56,6 +58,7 @@ replace (
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20200526144822-34f54f12813a
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200521150516-05eb9880269c
 	github.com/openshift/library-go => github.com/mhenriks/library-go v0.0.0-20200804184258-4fc3a5379c7a
+	github.com/operator-framework/operator-lifecycle-manager => github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190128024246-5eb7ae5bdb7a
 
 	k8s.io/api => k8s.io/api v0.18.6
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.18.6

@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/blang/semver"
+	"github.com/coreos/go-semver/semver"
 	route1client "github.com/openshift/client-go/route/clientset/versioned"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -208,11 +208,9 @@ var _ = Describe("CDI ingress config tests, using manifests", func() {
 	)
 
 	BeforeEach(func() {
-		version, err := semver.Make(tests.GetKubeVersion(f))
-		Expect(err).ToNot(HaveOccurred())
-		minVersion, err := semver.Make("1.14.0")
-		Expect(err).ToNot(HaveOccurred())
-		if !version.GE(minVersion) {
+		version := *semver.New(tests.GetKubeVersion(f))
+		minVersion := *semver.New("1.14.0")
+		if version.LessThan(minVersion) {
 			Skip(fmt.Sprintf("kubernetes version %s, doesn't support network ingress", version.String()))
 		}
 		cfg, err := clientcmd.BuildConfigFromFlags(f.Master, f.KubeConfig)
