@@ -20,9 +20,11 @@
 package webhooks
 
 import (
+	"context"
 	"encoding/json"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	authv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/kubernetes"
@@ -37,6 +39,11 @@ import (
 type dataVolumeMutatingWebhook struct {
 	client         kubernetes.Interface
 	tokenGenerator token.Generator
+	proxy          clone.SubjectAccessReviewsProxy
+}
+
+type sarProxy struct {
+	client kubernetes.Interface
 }
 
 var (
@@ -46,6 +53,10 @@ var (
 		Resource: "persistentvolumeclaims",
 	}
 )
+
+func (p *sarProxy) Create(sar *authv1.SubjectAccessReview) (*authv1.SubjectAccessReview, error) {
+	return p.client.AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), sar, metav1.CreateOptions{})
+}
 
 func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admissionv1beta1.AdmissionResponse {
 	var dataVolume, oldDataVolume cdiv1.DataVolume
@@ -92,7 +103,7 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) 
 		}
 	}
 
-	ok, reason, err := clone.CanUserClonePVC(wh.client, sourceNamespace, sourceName, targetNamespace, ar.Request.UserInfo)
+	ok, reason, err := clone.CanUserClonePVC(wh.proxy, sourceNamespace, sourceName, targetNamespace, ar.Request.UserInfo)
 	if err != nil {
 		return toAdmissionResponseError(err)
 	}
