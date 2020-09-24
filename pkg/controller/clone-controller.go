@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"

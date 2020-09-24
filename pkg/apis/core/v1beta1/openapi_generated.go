@@ -31,7 +31,6 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement":        schema_controller_lifecycle_operator_sdk_pkg_sdk_api_NodePlacement(ref),
 		"github.com/openshift/custom-resource-status/conditions/v1.Condition":                    schema_openshift_custom_resource_status_conditions_v1_Condition(ref),
 		"k8s.io/api/core/v1.AWSElasticBlockStoreVolumeSource":                                    schema_k8sio_api_core_v1_AWSElasticBlockStoreVolumeSource(ref),
 		"k8s.io/api/core/v1.Affinity":                                                            schema_k8sio_api_core_v1_Affinity(ref),
@@ -310,55 +309,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceVDDK":     schema_pkg_apis_core_v1beta1_DataVolumeSourceVDDK(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSpec":           schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeStatus":         schema_pkg_apis_core_v1beta1_DataVolumeStatus(ref),
-	}
-}
-
-func schema_controller_lifecycle_operator_sdk_pkg_sdk_api_NodePlacement(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "NodePlacement describes node scheduling configuration.",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"nodeSelector": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeSelector is the node selector applied to the relevant kind of pods It specifies a map of key-value pairs: for the pod to be eligible to run on a node, the node must have each of the indicated key-value pairs as labels (it can have additional labels as well). See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector",
-							Type:        []string{"object"},
-							AdditionalProperties: &spec.SchemaOrBool{
-								Allows: true,
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Type:   []string{"string"},
-										Format: "",
-									},
-								},
-							},
-						},
-					},
-					"affinity": {
-						SchemaProps: spec.SchemaProps{
-							Description: "affinity enables pod affinity/anti-affinity placement expanding the types of constraints that can be expressed with nodeSelector. affinity is going to be applied to the relevant kind of pods in parallel with nodeSelector See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity",
-							Ref:         ref("k8s.io/api/core/v1.Affinity"),
-						},
-					},
-					"tolerations": {
-						SchemaProps: spec.SchemaProps{
-							Description: "tolerations is a list of tolerations applied to the relevant kind of pods See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info. These are additional tolerations other than default ones.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Ref: ref("k8s.io/api/core/v1.Toleration"),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"k8s.io/api/core/v1.Affinity", "k8s.io/api/core/v1.Toleration"},
+		"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement":                schema_controller_lifecycle_operator_sdk_pkg_sdk_api_NodePlacement(ref),
 	}
 }
 
@@ -13794,20 +13745,20 @@ func schema_pkg_apis_core_v1beta1_CDISpec(ref common.ReferenceCallback) common.O
 					"infra": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Rules on which nodes CDI infrastructure pods will be scheduled",
-							Ref:         ref("github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement"),
+							Ref:         ref("kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement"),
 						},
 					},
 					"workload": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Restrict on which nodes CDI workload pods will be scheduled",
-							Ref:         ref("github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement"),
+							Ref:         ref("kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement"},
+			"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement"},
 	}
 }
 
@@ -14381,5 +14332,54 @@ func schema_pkg_apis_core_v1beta1_DataVolumeStatus(ref common.ReferenceCallback)
 		},
 		Dependencies: []string{
 			"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeCondition"},
+	}
+}
+
+func schema_controller_lifecycle_operator_sdk_pkg_sdk_api_NodePlacement(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "NodePlacement describes node scheduling configuration.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeSelector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeSelector is the node selector applied to the relevant kind of pods It specifies a map of key-value pairs: for the pod to be eligible to run on a node, the node must have each of the indicated key-value pairs as labels (it can have additional labels as well). See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"affinity": {
+						SchemaProps: spec.SchemaProps{
+							Description: "affinity enables pod affinity/anti-affinity placement expanding the types of constraints that can be expressed with nodeSelector. affinity is going to be applied to the relevant kind of pods in parallel with nodeSelector See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity",
+							Ref:         ref("k8s.io/api/core/v1.Affinity"),
+						},
+					},
+					"tolerations": {
+						SchemaProps: spec.SchemaProps{
+							Description: "tolerations is a list of tolerations applied to the relevant kind of pods See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info. These are additional tolerations other than default ones.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("k8s.io/api/core/v1.Toleration"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/core/v1.Affinity", "k8s.io/api/core/v1.Toleration"},
 	}
 }

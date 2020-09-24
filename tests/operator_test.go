@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk"
-	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

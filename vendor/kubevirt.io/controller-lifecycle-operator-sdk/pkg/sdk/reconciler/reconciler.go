@@ -9,13 +9,11 @@ import (
 
 	"k8s.io/client-go/tools/record"
 
-	"github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
 
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/go-logr/logr"
-	"github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk"
-	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -24,6 +22,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"

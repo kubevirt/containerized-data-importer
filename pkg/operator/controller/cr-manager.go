@@ -29,10 +29,10 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 
-	"github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk"
-	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
 	"k8s.io/apimachinery/pkg/runtime"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 )
 
 // Status provides CDI status sub-resource

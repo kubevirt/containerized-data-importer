@@ -27,8 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
-	sdkr "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/reconciler"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
+	sdkr "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/reconciler"
 
 	"github.com/kelseyhightower/envconfig"
 	corev1 "k8s.io/api/core/v1"

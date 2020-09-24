@@ -29,8 +29,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	sdk "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
+	sdk "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 )
 
 const sccName = "containerized-data-importer"

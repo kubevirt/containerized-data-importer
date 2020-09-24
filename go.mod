@@ -18,7 +18,6 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
-	github.com/kubevirt/controller-lifecycle-operator-sdk v0.0.7
 	github.com/onsi/ginkgo v1.12.1
 	github.com/onsi/gomega v1.10.1
 	github.com/openshift/api v0.0.0
@@ -48,6 +47,7 @@ require (
 	k8s.io/klog v1.0.0
 	k8s.io/kube-aggregator v0.18.6
 	k8s.io/kube-openapi v0.0.0-20200410145947-61e04a5be9a6
+	kubevirt.io/controller-lifecycle-operator-sdk v0.1.0
 	kubevirt.io/qe-tools v0.1.6
 	sigs.k8s.io/controller-runtime v0.6.2
 )

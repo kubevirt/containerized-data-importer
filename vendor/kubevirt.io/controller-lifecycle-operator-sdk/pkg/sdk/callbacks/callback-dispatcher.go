@@ -22,7 +22,7 @@ import (
 
 	"k8s.io/client-go/tools/record"
 
-	"github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"

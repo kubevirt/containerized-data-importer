@@ -19,11 +19,11 @@ package namespaced
 import (
 	"fmt"
 
-	sdkapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/api"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
 	"k8s.io/apimachinery/pkg/runtime"
 
-	utils "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/resources"
+	utils "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/resources"
 )
 
 // FactoryArgs contains the required parameters to generate all namespaced resources

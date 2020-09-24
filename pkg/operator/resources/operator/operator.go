@@ -23,7 +23,6 @@ import (
 	csvv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
 
-	sdkopenapi "github.com/kubevirt/controller-lifecycle-operator-sdk/pkg/sdk/resources/openapi"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -33,6 +32,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
+	sdkopenapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/resources/openapi"
 )
 
 const (

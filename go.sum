@@ -377,8 +377,6 @@ github.com/kubernetes-csi/csi-test v2.0.0+incompatible/go.mod h1:YxJ4UiuPWIhMBkx
 github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1 h1:t5bmB3Y8nCaLA4aFrIpX0zjHEF/HUkJp6f5rm7BsVzM=
 github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1/go.mod h1:dV5oB3U62KBdlf9ADWkMmjGd3USauqQtwIm2OZb5mqI=
 github.com/kubernetes-sigs/kube-storage-version-migrator v0.0.0-20191127225502-51849bc15f17/go.mod h1:enH0BVV+4+DAgWdwSlMefG8bBzTfVMTr1lApzdLZ/cc=
-github.com/kubevirt/controller-lifecycle-operator-sdk v0.0.7 h1:BlzUX7KZKpaydQk6MmjKZRoQXEYUP40xnquSjpYPseY=
-github.com/kubevirt/controller-lifecycle-operator-sdk v0.0.7/go.mod h1:EZt2SMCCMzuwI9sCjF6LTyiRiimikXvxeZJDVOoWqjI=
 github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de/go.mod h1:zAbeS9B/r2mtpb6U+EI2rYA5OAXxsYw6wTamcNW+zcE=
 github.com/magiconair/properties v1.8.0/go.mod h1:PppfXfuXeibc/6YijjN8zIbojt8czPbwD3XqdrwzmxQ=
 github.com/mailru/easyjson v0.0.0-20160728113105-d5b7844b561a/go.mod h1:C1wdFJiN94OJF2b5HbByQZoLdCWB1Yqtg26g4irojpc=
@@ -895,6 +893,8 @@ k8s.io/utils v0.0.0-20190712204705-3dccf664f023/go.mod h1:sZAwmy6armz5eXlNoLmJcl
 k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89/go.mod h1:sZAwmy6armz5eXlNoLmJcl4F1QuKu7sr+mFQ0byX7Ew=
 k8s.io/utils v0.0.0-20200603063816-c1c6865ac451 h1:v8ud2Up6QK1lNOKFgiIVrZdMg7MpmSnvtrOieolJKoE=
 k8s.io/utils v0.0.0-20200603063816-c1c6865ac451/go.mod h1:jPW/WVKK9YHAvNhRxK0md/EJ228hCsBRufyofKtW8HA=
+kubevirt.io/controller-lifecycle-operator-sdk v0.1.0 h1:wi6kO+nd9fbMDjdMy7rO6dbKXTxLdt6RjVZBpjddOew=
+kubevirt.io/controller-lifecycle-operator-sdk v0.1.0/go.mod h1:M+UuZsp90mmKUVGb5zXDZtIIY1noY5pJk9i2YCQwSnk=
 kubevirt.io/qe-tools v0.1.6 h1:S6z9CATmgV2/z9CWetij++Rhu7l/Z4ObZqerLdNMo0Y=
 kubevirt.io/qe-tools v0.1.6/go.mod h1:PJyH/YXC4W0AmxfheDmXWMbLNsMSboVGXKpMAwfKzVE=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.7/go.mod h1:PHgbrJT7lCHcxMU+mDHEm+nx46H4zuuHZkDP6icnhu0=
