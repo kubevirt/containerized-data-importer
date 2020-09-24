@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	authv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,6 +19,14 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
+
+type sarProxy struct {
+	client kubernetes.Interface
+}
+
+func (p *sarProxy) Create(sar *authv1.SubjectAccessReview) (*authv1.SubjectAccessReview, error) {
+	return p.client.AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), sar, metav1.CreateOptions{})
+}
 
 var _ = Describe("Clone Auth Webhook tests", func() {
 	const serviceAccountName = "cdi-auth-webhook-test"
@@ -185,7 +194,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				Expect(err).To(HaveOccurred())
 
 				// let's do manual check as well
-				allowed, reason, err := clone.CanServiceAccountClonePVC(f.K8sClient,
+				allowed, reason, err := clone.CanServiceAccountClonePVC(&sarProxy{client: f.K8sClient},
 					srcPVCDef.Namespace,
 					srcPVCDef.Name,
 					targetNamespace.Name,
@@ -208,7 +217,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				// let's do another manual check as well
-				allowed, reason, err = clone.CanServiceAccountClonePVC(f.K8sClient,
+				allowed, reason, err = clone.CanServiceAccountClonePVC(&sarProxy{client: f.K8sClient},
 					srcPVCDef.Namespace,
 					srcPVCDef.Name,
 					targetNamespace.Name,
