@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -173,8 +174,15 @@ func getS3Client(endpoint, accessKey, secKey string) (S3Client, error) {
 }
 
 func extractRegion(s string) string {
-	splitted := strings.Split(s, ".")
-	return splitted[0]
+	var region string
+	r, _ := regexp.Compile("s3\\.(.+)\\.amazonaws\\.com")
+	if matches := r.FindStringSubmatch(s); matches != nil {
+		region = matches[1]
+	} else {
+		region = strings.Split(s, ".")[0]
+	}
+
+	return region
 }
 
 func extractBucketAndObject(s string) (string, string) {
