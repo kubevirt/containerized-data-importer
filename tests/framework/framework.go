@@ -385,10 +385,15 @@ func (f *Framework) CreatePrometheusServiceInNs(namespace string) (*v1.Service, 
 
 // CreateQuotaInNs creates a quota and sets it on the current test namespace.
 func (f *Framework) CreateQuotaInNs(requestCPU, requestMemory, limitsCPU, limitsMemory int64) error {
+	return f.CreateQuotaInSpecifiedNs(f.Namespace.GetName(), requestCPU, requestMemory, limitsCPU, limitsMemory)
+}
+
+// CreateQuotaInSpecifiedNs creates a quota and sets it on the specified test namespace.
+func (f *Framework) CreateQuotaInSpecifiedNs(ns string, requestCPU, requestMemory, limitsCPU, limitsMemory int64) error {
 	resourceQuota := &v1.ResourceQuota{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-quota",
-			Namespace: f.Namespace.GetName(),
+			Namespace: ns,
 		},
 		Spec: v1.ResourceQuotaSpec{
 			Hard: v1.ResourceList{
@@ -399,12 +404,12 @@ func (f *Framework) CreateQuotaInNs(requestCPU, requestMemory, limitsCPU, limits
 			},
 		},
 	}
-	_, err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Create(context.TODO(), resourceQuota, metav1.CreateOptions{})
+	_, err := f.K8sClient.CoreV1().ResourceQuotas(ns).Create(context.TODO(), resourceQuota, metav1.CreateOptions{})
 	if err != nil {
 		ginkgo.Fail("Unable to set resource quota " + err.Error())
 	}
 	return wait.PollImmediate(2*time.Second, nsDeleteTime, func() (bool, error) {
-		quota, err := f.K8sClient.CoreV1().ResourceQuotas(f.Namespace.GetName()).Get(context.TODO(), "test-quota", metav1.GetOptions{})
+		quota, err := f.K8sClient.CoreV1().ResourceQuotas(ns).Get(context.TODO(), "test-quota", metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
