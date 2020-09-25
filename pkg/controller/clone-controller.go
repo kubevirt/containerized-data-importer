@@ -212,6 +212,14 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *c
 			return false, err
 		}
 
+		sourcePopulated, err := PopulationComplete(sourcePvc, r.client)
+		if err != nil {
+			return false, err
+		}
+		if !sourcePopulated {
+			return true, nil
+		}
+
 		if err := r.validateSourceAndTarget(sourcePvc, targetPvc); err != nil {
 			return false, err
 		}

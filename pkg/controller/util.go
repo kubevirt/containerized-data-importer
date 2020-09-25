@@ -470,3 +470,12 @@ func GetWorkloadNodePlacement(c client.Client) (*cdiv1.NodePlacement, error) {
 	}
 	return &crList.Items[0].Spec.Workloads, nil
 }
+
+// PopulationComplete returns if the passed in PVC has been populated according to the rules outlined in pkg/apis/core/<version>/utils.go
+func PopulationComplete(pvc *v1.PersistentVolumeClaim, c client.Client) (bool, error) {
+	return cdiv1.PopulationComplete(pvc, func(name, namespace string) (*cdiv1.DataVolume, error) {
+		dv := &cdiv1.DataVolume{}
+		err := c.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, dv)
+		return dv, err
+	})
+}

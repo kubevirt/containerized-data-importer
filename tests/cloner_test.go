@@ -82,28 +82,7 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
-		By(fmt.Sprintf("waiting for source datavolume to match phase %s", string(cdiv1.Succeeded)))
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
-		if err != nil {
-			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			if dverr != nil {
-				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
-			}
-		}
-		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc content")
 		pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-		sourceMD5, err := f.GetMD5(f.Namespace, pvc, diskImagePath, 0)
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Deleting verifier pod")
-		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), utils.VerifierPodName, metav1.DeleteOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		Eventually(func() bool {
-			_, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), utils.VerifierPodName, metav1.GetOptions{})
-			return k8serrors.IsNotFound(err)
-		}, 60, 1).Should(BeTrue())
 
 		// Create targetPvc in new NS.
 		targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvc)
@@ -119,6 +98,17 @@ var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		fmt.Fprintf(GinkgoWriter, "INFO: %s\n", sourcePvcDiskGroup)
 		Expect(err).ToNot(HaveOccurred())
 
+		By("verifying pvc content")
+		sourceMD5, err := f.GetMD5(f.Namespace, pvc, diskImagePath, 0)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Deleting verifier pod")
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), utils.VerifierPodName, metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() bool {
+			_, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), utils.VerifierPodName, metav1.GetOptions{})
+			return k8serrors.IsNotFound(err)
+		}, 60, 1).Should(BeTrue())
 		completeClone(f, f.Namespace, targetPvc, diskImagePath, sourceMD5, sourcePvcDiskGroup)
 	})
 
