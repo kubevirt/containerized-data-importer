@@ -30,7 +30,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -404,7 +403,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err.Error()).To(ContainSubstring("source volumeMode (Filesystem) and target volumeMode (Block) do not match"))
 	})
 
-	It("Should error when source and target volume modes do not match (fs->block)", func() {
+	It("Should error when source and target volume modes do not match (block->fs)", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{
 			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod"}, nil)
 		reconciler = createCloneReconciler(testPvc, createBlockPvc("source", "default", map[string]string{}, nil))
@@ -421,6 +420,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("source volumeMode (Block) and target volumeMode (Filesystem) do not match"))
 	})
+
 })
 
 var _ = Describe("ParseCloneRequestAnnotation", func() {
@@ -567,7 +567,7 @@ var _ = Describe("TokenValidation", func() {
 		}
 	}
 
-	source := &v1.PersistentVolumeClaim{
+	source := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "source",
 			Namespace: "sourcens",
@@ -601,7 +601,7 @@ var _ = Describe("TokenValidation", func() {
 			panic("error generating token")
 		}
 
-		target := &v1.PersistentVolumeClaim{
+		target := &corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "target",
 				Namespace: "targetns",
