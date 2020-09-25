@@ -256,7 +256,7 @@ var _ = Describe("CDI ingress config tests, using manifests", func() {
 		}, time.Second*30, time.Second).Should(Equal(defaultUrl))
 	})
 
-	It("Should properly react to network ingress", func() {
+	It("[test_id:4949]Should properly react to network ingress", func() {
 		manifestFile = "manifests/ingressNetworkApigroup.yaml"
 		out, err := tests.RunKubectlCommand(f, "create", "-f", manifestFile, "-n", f.CdiInstallNs)
 		fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
@@ -271,7 +271,7 @@ var _ = Describe("CDI ingress config tests, using manifests", func() {
 		}, time.Second*30, time.Second).Should(Equal("test.manifest.example.com"))
 	})
 
-	It("Keep current value on no http rule ingress", func() {
+	It("[test_id:4950]Keep current value on no http rule ingress", func() {
 		manifestFile = "manifests/ingressNoHttp.yaml"
 		controllerPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, "app=containerized-data-importer")
 		Expect(err).ToNot(HaveOccurred())
@@ -437,7 +437,7 @@ var _ = Describe("CDI route config tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("Should override uploadProxyURL if override is set", func() {
+	It("[test_id:4951]Should override uploadProxyURL if override is set", func() {
 		if openshiftClient == nil {
 			Skip("Routes not available")
 		}
@@ -461,7 +461,7 @@ var _ = Describe("CDI route config tests", func() {
 var _ = Describe("CDIConfig instance management", func() {
 	f := framework.NewFramework("cdiconfig-test")
 
-	It("Should re-create the object if deleted", func() {
+	It("[test_id:4952]Should re-create the object if deleted", func() {
 		By("Verifying the object exists")
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())

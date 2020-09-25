@@ -717,7 +717,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				}}),
 		)
 
-		It("should handle a pre populated PVC", func() {
+		It("[test_id:4961]should handle a pre populated PVC", func() {
 			By(fmt.Sprintf("initializing source PVC %s", dataVolumeName))
 			sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
 			annotations := map[string]string{"cdi.kubevirt.io/storage.populatedFor": dataVolumeName}
@@ -1174,7 +1174,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 		})
 
-		It("Should create a new PVC when PVC is deleted during import", func() {
+		It("[test_id:4962]Should create a new PVC when PVC is deleted during import", func() {
 			dataVolumeSpec := createProxyRegistryImportDataVolume(dataVolumeName, "1Gi", tinyCoreIsoRegistryProxyURL())
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeSpec.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolumeSpec)
@@ -1212,7 +1212,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	Describe("Registry import with missing configmap", func() {
 		const cmName = "cert-registry-cm"
 
-		It("Import POD should remain pending until CM exists", func() {
+		It("[test_id:4963]Import POD should remain pending until CM exists", func() {
 			var pvc *v1.PersistentVolumeClaim
 
 			dataVolumeDef := utils.NewDataVolumeWithRegistryImport("missing-cm-registry-dv", "1Gi", tinyCoreIsoRegistryURL())

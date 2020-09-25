@@ -13,7 +13,7 @@ var _ = Describe("Explain tests", func() {
 		SkipNamespaceCreation: true,
 	})
 
-	It("explain should have descriptions for CDI", func() {
+	It("[test_id:4964]explain should have descriptions for CDI", func() {
 		out, err := tests.RunKubectlCommand(f, "explain", "CDI")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(ContainSubstring("CDIStatus defines the status of the CDI installation"))
@@ -22,7 +22,7 @@ var _ = Describe("Explain tests", func() {
 		Expect(out).To(ContainSubstring("The desired version of the CDI resource"))
 	})
 
-	It("explain should have descriptions for CDIConfig", func() {
+	It("[test_id:4965]explain should have descriptions for CDIConfig", func() {
 		out, err := tests.RunKubectlCommand(f, "explain", "CDIConfig")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(ContainSubstring("CDIConfigStatus provides the most recently observed status of the CDI"))
@@ -31,7 +31,7 @@ var _ = Describe("Explain tests", func() {
 		Expect(out).To(ContainSubstring("The calculated upload proxy URL"))
 	})
 
-	It("explain should have descriptions for Datavolume", func() {
+	It("[test_id:4966]explain should have descriptions for Datavolume", func() {
 		out, err := tests.RunKubectlCommand(f, "explain", "dv")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(ContainSubstring("DataVolumeStatus contains the current status of the DataVolume"))

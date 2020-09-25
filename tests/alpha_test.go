@@ -21,13 +21,13 @@ var _ = Describe("Alpha API tests", func() {
 
 	Context("with v1alpha1 api", func() {
 
-		It("should get CDI config", func() {
+		It("[test_id:4944]should get CDI config", func() {
 			config, err := f.CdiClient.CdiV1alpha1().CDIConfigs().Get(context.TODO(), "config", metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(config).ToNot(BeNil())
 		})
 
-		It("should", func() {
+		It("[test_id:4945]should", func() {
 			By("create a upload DataVolume")
 			out, err := tests.RunKubectlCommand(f, "create", "-f", "manifests/dvAlphaUpload.yaml", "-n", f.Namespace.Name)
 			fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
@@ -42,7 +42,7 @@ var _ = Describe("Alpha API tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("should clone across namespace with alpha", func() {
+		It("[test_id:4946]should clone across namespace with alpha", func() {
 			By("create source PVC")
 			pvcDef := utils.NewPVCDefinition("source-pvc", "1G", nil, nil)
 			source, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Create(context.TODO(), pvcDef, metav1.CreateOptions{})
@@ -64,7 +64,7 @@ var _ = Describe("Alpha API tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("should not", func() {
+		It("[test_id:4947]should not", func() {
 			By("create a upload DataVolume")
 			out, err := tests.RunKubectlCommand(f, "create", "-f", "manifests/dvAlphaMissingAccessModes.yaml", "-n", f.Namespace.Name)
 			fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
@@ -84,7 +84,7 @@ var _ = Describe("Alpha API tests", func() {
 				updateUninstallStrategy(f.CdiClient, originalStrategy)
 			})
 
-			It("should block cdi delete", func() {
+			It("[test_id:4948]should block cdi delete", func() {
 				By("create a upload DataVolume")
 				out, err := tests.RunKubectlCommand(f, "create", "-f", "manifests/dvAlphaUpload.yaml", "-n", f.Namespace.Name)
 				fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
