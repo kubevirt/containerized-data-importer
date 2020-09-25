@@ -48,7 +48,7 @@ var _ = Describe("Operator tests", func() {
 		Expect(r.Spec.TLS.Termination).To(Equal(routev1.TLSTerminationReencrypt))
 	})
 
-	It("should create a prometheus service in cdi namespace", func() {
+	It("[test_id:4985]should create a prometheus service in cdi namespace", func() {
 		promService, err := f.K8sClient.CoreV1().Services(f.CdiInstallNs).Get(context.TODO(), common.PrometheusServiceName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(promService.Spec.Ports[0].Name).To(Equal("metrics"))
@@ -173,7 +173,7 @@ var _ = Describe("Operator delete CDI tests", func() {
 		ensureCDI()
 	})
 
-	It("should remove/install CDI a number of times successfully", func() {
+	It("[test_id:4986]should remove/install CDI a number of times successfully", func() {
 		for i := 0; i < 10; i++ {
 			err := f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())

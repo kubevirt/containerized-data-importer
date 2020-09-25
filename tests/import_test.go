@@ -49,7 +49,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		ns = f.Namespace.Name
 	})
 
-	It("Should not perform CDI operations on PVC without annotations", func() {
+	It("[test_id:4967]Should not perform CDI operations on PVC without annotations", func() {
 		// Make sure the PVC name is unique, we have no guarantee on order and we are not
 		// deleting the PVC at the end of the test, so if another runs first we will fail.
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition("no-import-ann", "1G", nil, nil))
@@ -69,7 +69,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		// Not deleting PVC as it will be removed with the NS removal.
 	})
 
-	It("[posneg:negative]Import pod status should be Fail on unavailable endpoint", func() {
+	It("[test_id:4968][posneg:negative]Import pod status should be Fail on unavailable endpoint", func() {
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
 			"no-import-noendpoint",
 			"1G",
@@ -102,7 +102,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("Should create import pod for blank raw image", func() {
+	It("[test_id:4969]Should create import pod for blank raw image", func() {
 		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
 			"create-image",
 			"1Gi",
@@ -224,7 +224,7 @@ var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		}
 	})
 
-	It("Import pod should have prometheus stats available while importing", func() {
+	It("[test_id:4970]Import pod should have prometheus stats available while importing", func() {
 		var endpoint *v1.Endpoints
 		c := f.K8sClient
 		ns := f.Namespace.Name
@@ -314,7 +314,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		}
 	})
 
-	It("Should create import pod for block pv", func() {
+	It("[test_id:4971]Should create import pod for block pv", func() {
 		if !f.IsBlockVolumeStorageClassAvailable() {
 			Skip("Storage Class for block volume is not available")
 		}
@@ -349,7 +349,7 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 
 	})
 
-	It("Should create blank raw image for block PV", func() {
+	It("[test_id:4972]Should create blank raw image for block PV", func() {
 		if !f.IsBlockVolumeStorageClassAvailable() {
 			Skip("Storage Class for block volume is not available")
 		}
@@ -408,7 +408,7 @@ var _ = Describe("[rfe_id:1947][crit:high][test_id:2145][vendor:cnv-qe@redhat.co
 var _ = Describe("PVC import phase matches pod phase", func() {
 	f := framework.NewFramework(namespacePrefix)
 
-	It("Should never go to failed even if import fails", func() {
+	It("[test_id:4980]Should never go to failed even if import fails", func() {
 		c := f.K8sClient
 		ns := f.Namespace.Name
 		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
@@ -468,7 +468,7 @@ var _ = Describe("Namespace with quota", func() {
 		fmt.Fprintf(GinkgoWriter, "INFO: new config: %v\n", config.Spec.PodResourceRequirements)
 	})
 
-	It("Should create import pod in namespace with quota", func() {
+	It("[test_id:4981]Should create import pod in namespace with quota", func() {
 		err := f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
@@ -503,7 +503,7 @@ var _ = Describe("Namespace with quota", func() {
 
 	})
 
-	It("Should fail to create import pod in namespace with quota, with resource limits higher in CDIConfig", func() {
+	It("[test_id:4982]Should fail to create import pod in namespace with quota, with resource limits higher in CDIConfig", func() {
 		err := f.UpdateCdiConfigResourceLimits(int64(2), int64(512*1024*1024), int64(2), int64(512*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 		err = f.CreateQuotaInNs(int64(1), int64(512*1024*1024), int64(1), int64(1024*1024*1024))
@@ -532,7 +532,7 @@ var _ = Describe("Namespace with quota", func() {
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 	})
 
-	It("Should fail to create import pod in namespace with quota, then succeed once the quota is large enough", func() {
+	It("[test_id:4983]Should fail to create import pod in namespace with quota, then succeed once the quota is large enough", func() {
 		err := f.UpdateCdiConfigResourceLimits(int64(1), int64(512*1024*1024), int64(1), int64(512*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 		err = f.CreateQuotaInNs(int64(1), int64(256*1024*1024), int64(1), int64(256*1024*1024))
@@ -579,7 +579,7 @@ var _ = Describe("Namespace with quota", func() {
 		Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
 	})
 
-	It("Should create import pod in namespace with quota with CDIConfig within limits", func() {
+	It("[test_id:4984]Should create import pod in namespace with quota with CDIConfig within limits", func() {
 		err := f.UpdateCdiConfigResourceLimits(int64(0), int64(0), int64(1), int64(512*1024*1024))
 		Expect(err).ToNot(HaveOccurred())
 		err = f.CreateQuotaInNs(int64(1), int64(512*1024*1024), int64(2), int64(1*1024*1024*1024))

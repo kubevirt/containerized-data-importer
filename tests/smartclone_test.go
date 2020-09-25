@@ -57,7 +57,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		verifyEvent(controller.CloneSucceeded, dataVolume.Namespace, f)
 	})
 
-	It("Verify DataVolume Smart Cloning - volumeMode filesystem - Waits for source to be available", func() {
+	It("[test_id:4987]Verify DataVolume Smart Cloning - volumeMode filesystem - Waits for source to be available", func() {
 		if !f.IsSnapshotStorageClassAvailable() {
 			Skip("Smart Clone is not applicable")
 		}
