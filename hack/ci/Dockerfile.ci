@@ -6,7 +6,6 @@ ENV KUBEVIRT_RUN_UNNESTED=true
 
 RUN source /etc/profile.d/gimme.sh && \
     export GOPATH="/go" && \
-    go mod vendor && \
     ./hack/ci/build.sh
 
 ENTRYPOINT [ "/entrypoint-bazel.sh" ]
