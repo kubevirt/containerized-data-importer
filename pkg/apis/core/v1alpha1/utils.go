@@ -21,11 +21,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// PopulationComplete indicates if the persistent volume passed in has been fully populated. It follow the following logic
+// IsPopulated indicates if the persistent volume passed in has been fully populated. It follow the following logic
 // 1. If the PVC is not owned by a DataVolume, return true, we assume someone else has properly populated the image
 // 2. If the PVC is owned by a DataVolume, look up the DV and check the phase, if phase succeeded return true
 // 3. If the PVC is owned by a DataVolume, look up the DV and check the phase, if phase !succeeded return false
-func PopulationComplete(pvc *corev1.PersistentVolumeClaim, getDvFunc func(name, namespace string) (*DataVolume, error)) (bool, error) {
+func IsPopulated(pvc *corev1.PersistentVolumeClaim, getDvFunc func(name, namespace string) (*DataVolume, error)) (bool, error) {
 	pvcOwner := metav1.GetControllerOf(pvc)
 	if pvcOwner != nil && pvcOwner.Kind == "DataVolume" {
 		// Find the data volume:
@@ -33,10 +33,9 @@ func PopulationComplete(pvc *corev1.PersistentVolumeClaim, getDvFunc func(name, 
 		if err != nil {
 			return false, err
 		}
-		if dv.Status.Phase == Succeeded {
-			return true, nil
+		if dv.Status.Phase != Succeeded {
+			return false, nil
 		}
-		return false, nil
 	}
 	return true, nil
 }

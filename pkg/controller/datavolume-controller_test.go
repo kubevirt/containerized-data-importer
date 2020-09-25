@@ -563,7 +563,7 @@ var _ = Describe("sourcePVCPopulated", func() {
 		sourcePvc := createPvc("test", "default", nil, nil)
 		targetDv := newCloneDataVolume("test-dv")
 		reconciler = createDatavolumeReconciler(sourcePvc)
-		res, err := reconciler.sourcePVCPopulated(targetDv)
+		res, err := reconciler.isSourcePVCPopulated(targetDv)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(res).To(BeTrue())
 	})
@@ -577,7 +577,7 @@ var _ = Describe("sourcePVCPopulated", func() {
 			Controller: &controller,
 		})
 		reconciler = createDatavolumeReconciler(sourcePvc)
-		res, err := reconciler.sourcePVCPopulated(targetDv)
+		res, err := reconciler.isSourcePVCPopulated(targetDv)
 		Expect(err).To(HaveOccurred())
 		Expect(res).To(BeFalse())
 	})
@@ -593,7 +593,7 @@ var _ = Describe("sourcePVCPopulated", func() {
 			Name:       "source-dv",
 		})
 		reconciler = createDatavolumeReconciler(sourcePvc, sourceDv)
-		res, err := reconciler.sourcePVCPopulated(targetDv)
+		res, err := reconciler.isSourcePVCPopulated(targetDv)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(res).To(BeFalse())
 	})
@@ -610,7 +610,7 @@ var _ = Describe("sourcePVCPopulated", func() {
 			Name:       "source-dv",
 		})
 		reconciler = createDatavolumeReconciler(sourcePvc, sourceDv)
-		res, err := reconciler.sourcePVCPopulated(targetDv)
+		res, err := reconciler.isSourcePVCPopulated(targetDv)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(res).To(BeTrue())
 	})
