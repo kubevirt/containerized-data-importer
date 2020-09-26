@@ -264,6 +264,9 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 			if requeue, err := r.sourceInUse(datavolume); requeue || err != nil {
 				return reconcile.Result{Requeue: requeue}, err
 			}
+			if populated, err := r.isSourcePVCPopulated(datavolume); !populated || err != nil {
+				return reconcile.Result{Requeue: !populated}, err
+			}
 			newSnapshot := newSnapshot(datavolume, snapshotClassName)
 			if err := r.client.Create(context.TODO(), newSnapshot); err != nil {
 				if k8serrors.IsAlreadyExists(err) {
@@ -287,6 +290,15 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 	// Finally, we update the status block of the DataVolume resource to reflect the
 	// current state of the world
 	return r.reconcileDataVolumeStatus(datavolume, pvc)
+}
+
+// Verify that the source PVC has been completely populated.
+func (r *DatavolumeReconciler) isSourcePVCPopulated(dv *cdiv1.DataVolume) (bool, error) {
+	sourcePvc := &corev1.PersistentVolumeClaim{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: dv.Spec.Source.PVC.Name, Namespace: dv.Spec.Source.PVC.Namespace}, sourcePvc); err != nil {
+		return false, err
+	}
+	return IsPopulated(sourcePvc, r.client)
 }
 
 func (r *DatavolumeReconciler) sourceInUse(dv *cdiv1.DataVolume) (bool, error) {
