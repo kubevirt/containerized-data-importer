@@ -443,6 +443,68 @@ var _ = Describe("Reconcile Datavolume status", func() {
 	)
 })
 
+var _ = Describe("sourcePVCPopulated", func() {
+	var (
+		reconciler *DatavolumeReconciler
+	)
+
+	It("Should return true if source has no ownerRef", func() {
+		sourcePvc := createPvc("test", "default", nil, nil)
+		targetDv := newCloneDataVolume("test-dv")
+		reconciler = createDatavolumeReconciler(sourcePvc)
+		res, err := reconciler.isSourcePVCPopulated(targetDv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(res).To(BeTrue())
+	})
+
+	It("Should return false and error if source has an ownerRef, but it doesn't exist", func() {
+		controller := true
+		sourcePvc := createPvc("test", "default", nil, nil)
+		targetDv := newCloneDataVolume("test-dv")
+		sourcePvc.OwnerReferences = append(sourcePvc.OwnerReferences, metav1.OwnerReference{
+			Kind:       "DataVolume",
+			Controller: &controller,
+		})
+		reconciler = createDatavolumeReconciler(sourcePvc)
+		res, err := reconciler.isSourcePVCPopulated(targetDv)
+		Expect(err).To(HaveOccurred())
+		Expect(res).To(BeFalse())
+	})
+
+	It("Should return false if source has an ownerRef, but it is not succeeded", func() {
+		controller := true
+		sourcePvc := createPvc("test", "default", nil, nil)
+		targetDv := newCloneDataVolume("test-dv")
+		sourceDv := newImportDataVolume("source-dv")
+		sourcePvc.OwnerReferences = append(sourcePvc.OwnerReferences, metav1.OwnerReference{
+			Kind:       "DataVolume",
+			Controller: &controller,
+			Name:       "source-dv",
+		})
+		reconciler = createDatavolumeReconciler(sourcePvc, sourceDv)
+		res, err := reconciler.isSourcePVCPopulated(targetDv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(res).To(BeFalse())
+	})
+
+	It("Should return true if source has an ownerRef, but it is succeeded", func() {
+		controller := true
+		sourcePvc := createPvc("test", "default", nil, nil)
+		targetDv := newCloneDataVolume("test-dv")
+		sourceDv := newImportDataVolume("source-dv")
+		sourceDv.Status.Phase = cdiv1.Succeeded
+		sourcePvc.OwnerReferences = append(sourcePvc.OwnerReferences, metav1.OwnerReference{
+			Kind:       "DataVolume",
+			Controller: &controller,
+			Name:       "source-dv",
+		})
+		reconciler = createDatavolumeReconciler(sourcePvc, sourceDv)
+		res, err := reconciler.isSourcePVCPopulated(targetDv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(res).To(BeTrue())
+	})
+})
+
 func podUsingCloneSource(dv *cdiv1.DataVolume, readOnly bool) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
