@@ -182,27 +182,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			vmid, err := uuid.Parse(strings.TrimSpace(id))
 			Expect(err).To(BeNil())
 
-			// Create v2v-vmware ConfigMap
-			stringData := map[string]string{
-				common.VddkConfigDataKey: "registry:5000/vddk-test",
-			}
-			configMap := v1.ConfigMap{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "v1",
-					Kind:       "ConfigMap",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      common.VddkConfigMap,
-					Namespace: f.CdiInstallNs,
-				},
-				Data: stringData,
-			}
-			cm, err := utils.CreateOrUpdateConfigMap(f.K8sClient, f.CdiInstallNs, common.VddkConfigMap, &configMap)
-			Expect(err).To(BeNil())
-			Expect(cm).ToNot(BeNil())
-
 			// Create VDDK login secret
-			stringData = map[string]string{
+			stringData := map[string]string{
 				common.KeyAccess: "user",
 				common.KeySecret: "pass",
 			}
