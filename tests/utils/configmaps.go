@@ -125,15 +125,3 @@ func ClearInsecureRegistry(client kubernetes.Interface, cdiNamespace string) err
 
 	return nil
 }
-
-// CreateOrUpdateConfigMap updates a given ConfigMap or creates it if it does not exist
-func CreateOrUpdateConfigMap(client kubernetes.Interface, cnvNamespace string, name string, configMap *v1.ConfigMap) (*v1.ConfigMap, error) {
-	cm, err := client.CoreV1().ConfigMaps(cnvNamespace).Get(context.TODO(), name, metav1.GetOptions{})
-	if errors.IsNotFound(err) {
-		cm, err = client.CoreV1().ConfigMaps(cnvNamespace).Create(context.TODO(), configMap, metav1.CreateOptions{})
-	} else {
-		cm, err = client.CoreV1().ConfigMaps(cnvNamespace).Update(context.TODO(), configMap, metav1.UpdateOptions{})
-	}
-
-	return cm, err
-}
