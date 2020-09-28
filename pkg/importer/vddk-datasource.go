@@ -70,12 +70,12 @@ func FindMoRef(uuid string, sdkURL string) (string, error) {
 
 	// Log in to vCenter
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	conn, err := govmomi.NewClient(ctx, vmwURL, true)
 	if err != nil {
 		klog.Infof("Unable to connect to vCenter: %s\n", err)
 		return "", err
 	}
-	defer cancel()
 	defer conn.Logout(ctx)
 
 	// Get the list of datacenters to search for VM UUID
