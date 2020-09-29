@@ -168,7 +168,7 @@ var _ = Describe("Tests needing the restore of nodes", func() {
 		}
 
 		if !tolerationExists(cr.Spec.Infra.Tolerations, criticalAddonsToleration) {
-			Skip("Unexpected CDI CR (not from cdi-cr.yaml), doesn't tolerant CriticalAddonsOnly")
+			Skip("Unexpected CDI CR (not from cdi-cr.yaml), doesn't tolerate CriticalAddonsOnly")
 		}
 
 		labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{"cdi.kubevirt.io/testing": ""}}
