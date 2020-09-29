@@ -33,7 +33,7 @@ import (
 	"github.com/operator-framework/operator-marketplace/pkg/datastore"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 //Channel from which OLM bundle is consumed

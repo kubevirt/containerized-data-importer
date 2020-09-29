@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"path/filepath"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )

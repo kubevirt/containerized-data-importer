@@ -27,7 +27,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/ulikunitz/xz"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/prometheus/client_golang/prometheus"
 

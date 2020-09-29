@@ -46,7 +46,7 @@ require (
 	k8s.io/client-go v8.0.0+incompatible
 	k8s.io/cluster-bootstrap v0.0.0
 	k8s.io/code-generator v0.18.6
-	k8s.io/klog v1.0.0
+	k8s.io/klog/v2 v2.0.0
 	k8s.io/kube-aggregator v0.18.6
 	k8s.io/kube-openapi v0.0.0-20200410145947-61e04a5be9a6
 	kubevirt.io/controller-lifecycle-operator-sdk v0.1.0
