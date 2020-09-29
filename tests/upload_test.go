@@ -194,7 +194,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 	})
 
-	It("[test_id:4989]Verify validation error message on async upload if virtual size > pvc size", func() {
+	DescribeTable("Verify validation error message on async upload if virtual size > pvc size", func(filename string) {
 		By("Verify PVC annotation says ready")
 		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 		Expect(err).ToNot(HaveOccurred())
@@ -207,9 +207,44 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(token).ToNot(BeEmpty())
 
 		By("Do upload")
-		err = uploadFileNameToPath(binaryRequestFunc, utils.UploadFileLargeVirtualDisk, uploadProxyURL, asyncUploadPath, token, http.StatusBadRequest)
+		err = uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, asyncUploadPath, token, http.StatusBadRequest)
 		Expect(err).ToNot(HaveOccurred())
-	})
+	},
+		Entry("fail given a RAW XZ file", utils.UploadFileLargeVirtualDiskXz),
+		Entry("[test_id:4989]fail given a QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
+	)
+
+	DescribeTable("[posneg:negative][test_id:2330]Verify failure on sync upload if virtual size > pvc size", func(filename string) {
+		By("Verify PVC annotation says ready")
+		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+
+		var token string
+		By("Get an upload token")
+		token, err = utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
+		By("Do upload")
+		err = uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, syncUploadPath, token, http.StatusOK)
+		Expect(err).To(HaveOccurred())
+
+		uploadPod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
+
+		By("Verify size error in logs")
+		matchString := fmt.Sprintf("is larger than available size")
+		Eventually(func() string {
+			log, err := tests.RunKubectlCommand(f, "logs", uploadPod.Name, "-n", uploadPod.Namespace)
+			Expect(err).NotTo(HaveOccurred())
+			By(log)
+			return log
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
+	},
+		XEntry("fail given a RAW XZ file", utils.UploadFileLargeVirtualDiskXz),
+		Entry("fail given a QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
+	)
 })
 
 var TestFakeError = errors.New("TestFakeError")
