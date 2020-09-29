@@ -17,6 +17,8 @@ limitations under the License.
 package controller
 
 import (
+	"fmt"
+
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 
@@ -67,6 +69,9 @@ func (r *ReconcileCDI) IsCreating(_ controllerutil.Object) (bool, error) {
 	configMap, err := r.getConfigMap()
 	if err != nil {
 		return true, nil
+	}
+	if configMap != nil && configMap.DeletionTimestamp != nil {
+		return true, fmt.Errorf("Found previous config map that is marked for deletion")
 	}
 	return configMap == nil, nil
 }
