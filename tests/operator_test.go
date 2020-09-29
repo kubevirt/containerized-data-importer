@@ -157,6 +157,9 @@ var _ = Describe("Tests needing the restore of nodes", func() {
 	It("should deploy components that tolerate CriticalAddonsOnly taint", func() {
 		var err error
 		cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
+		}
 		Expect(err).ToNot(HaveOccurred())
 
 		criticalAddonsToleration := corev1.Toleration{
