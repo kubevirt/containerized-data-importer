@@ -186,6 +186,12 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 		return reconcile.Result{}, err
 	}
 
+	if configMap != nil && configMap.DeletionTimestamp != nil {
+		// this is a left over from a previous CR, wait for it get deleted.
+		reqLogger.Info("Found previous config that is marked for deletion, requeueing")
+		return reconcile.Result{RequeueAfter: time.Second}, nil
+	}
+
 	if configMap == nil {
 		if cr.Status.Phase != "" {
 			reqLogger.Info("Reconciling to error state, no configmap")
