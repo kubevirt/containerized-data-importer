@@ -3,6 +3,7 @@ package tests_test
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -211,6 +212,34 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	})
 })
 
+var TestFakeError = errors.New("TestFakeError")
+
+// LimitThenErrorReader returns a Reader that reads from r
+// but stops with FakeError after n bytes.
+// Based on io.LimitReader
+func LimitThenErrorReader(r io.Reader, n int64) io.Reader { return &limitThenErrorReader{r, n} }
+
+// A limitThenErrorReader reads from R but limits the amount of
+// data returned to just N bytes. Each call to Read
+// updates N to reflect the new amount remaining.
+// Read returns ERR when N <= 0.
+type limitThenErrorReader struct {
+	r io.Reader // underlying reader
+	n int64     // max bytes remaining
+}
+
+func (l *limitThenErrorReader) Read(p []byte) (n int, err error) {
+	if l.n <= 0 {
+		return 0, TestFakeError // EOF
+	}
+	if int64(len(p)) > l.n {
+		p = p[0:l.n]
+	}
+	n, err = l.r.Read(p)
+	l.n -= int64(n)
+	return
+}
+
 func startUploadProxyPortForward(f *framework.Framework) (string, *exec.Cmd, error) {
 	lp := "18443"
 	pm := lp + ":443"
@@ -266,6 +295,22 @@ func binaryRequestFunc(url, fileName string) (*http.Request, error) {
 	}
 
 	req, err := http.NewRequest("POST", url, f)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", "application/octet-stream")
+
+	return req, nil
+}
+
+func testBadRequestFunc(url, fileName string) (*http.Request, error) {
+	f, err := os.Open(fileName)
+	if err != nil {
+		return nil, err
+	}
+	lr := LimitThenErrorReader(f, 2048)
+	req, err := http.NewRequest("POST", url, lr)
 	if err != nil {
 		return nil, err
 	}
@@ -772,4 +817,70 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				"123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-123456789-"+
 				"123456789-123456789-123456789-1234567890"),
 	)
+
+	It("[test_id:1985] Upload datavolume should succeed on retry after failure", func() {
+		shortDvName := "upload-after-fail-1985"
+		By(fmt.Sprintf("Creating new datavolume %s", shortDvName))
+
+		By("Create DV")
+		dv := utils.NewDataVolumeForUpload(shortDvName, "1Gi")
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+		phase := cdiv1.UploadReady
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Get an upload token")
+		pvc = utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
+		By("Do upload - expecting failure")
+		err = uploadFileNameToPath(testBadRequestFunc, utils.UploadFile, uploadProxyURL, syncUploadPath, token, http.StatusOK)
+		Expect(err).To(HaveOccurred())
+
+		phase = cdiv1.UploadReady
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Retry Upload")
+		err = uploadFileNameToPath(binaryRequestFunc, utils.UploadFile, uploadProxyURL, syncUploadPath, token, http.StatusOK)
+		Expect(err).ToNot(HaveOccurred())
+
+		phase = cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC status annotation says succeeded")
+		found, err := utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5100kbytes, 100000)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(same).To(BeTrue(), "MD5 does not match")
+	})
 })
