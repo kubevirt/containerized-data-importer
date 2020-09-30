@@ -263,6 +263,10 @@ func GetFilesystemOverhead(client client.Client, pvc *v1.PersistentVolumeClaim) 
 	if err != nil {
 		klog.V(1).Info("Storage class", pvc.Spec.StorageClassName, "not found, trying default storage class")
 		targetStorageClass, err = GetStorageClassByName(client, nil)
+		if err != nil {
+			klog.V(1).Info("No default storage class found, continuing with global overhead")
+			return cdiConfig.Status.FilesystemOverhead.Global, nil
+		}
 	}
 
 	klog.V(1).Info("target storage class for overhead", targetStorageClass)
