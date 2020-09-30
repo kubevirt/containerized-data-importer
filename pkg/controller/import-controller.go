@@ -442,7 +442,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		if err != nil {
 			return nil, err
 		}
-		fsOverhead, err := GetFilesystemOverhead(r.uncachedClient, pvc)
+		fsOverhead, err := GetFilesystemOverhead(r.client, pvc)
 		if err != nil {
 			return nil, err
 		}
