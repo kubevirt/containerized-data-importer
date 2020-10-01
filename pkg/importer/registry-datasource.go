@@ -27,7 +27,6 @@ import (
 
 	"k8s.io/klog/v2"
 
-	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -82,7 +81,7 @@ func (rd *RegistryDataSource) Transfer(path string) (ProcessingPhase, error) {
 	rd.imageDir = filepath.Join(path, containerDiskImageDir)
 
 	klog.V(1).Infof("Copying registry image to scratch space.")
-	err = image.CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.certDir, rd.insecureTLS)
+	err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.certDir, rd.insecureTLS)
 	if err != nil {
 		return ProcessingPhaseError, errors.Wrapf(err, "Failed to read registry image")
 	}
