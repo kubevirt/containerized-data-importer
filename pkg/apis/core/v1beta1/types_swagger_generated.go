@@ -130,7 +130,7 @@ func (CDISpec) SwaggerDoc() map[string]string {
 
 func (CDIStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "CDIStatus defines the status of the CDI installation",
+		"": "CDIStatus defines the status of the installation",
 	}
 }
 

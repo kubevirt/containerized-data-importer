@@ -3,29 +3,29 @@ package openapi
 import extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
 // OperatorConfigStatus provides JSONSchemaProps for the Status struct
-func OperatorConfigStatus(statusName string, operatorName string) extv1.JSONSchemaProps {
+func OperatorConfigStatus(statusName string) extv1.JSONSchemaProps {
 	return extv1.JSONSchemaProps{
 		Type:        "object",
-		Description: statusName + " defines the status of the " + operatorName + " installation",
+		Description: statusName + " defines the status of the installation",
 		Properties: map[string]extv1.JSONSchemaProps{
 			"targetVersion": {
-				Description: "The desired version of the " + operatorName + " resource",
+				Description: "The desired version of the resource",
 				Type:        "string",
 			},
 			"observedVersion": {
-				Description: "The observed version of the " + operatorName + " resource",
+				Description: "The observed version of the resource",
 				Type:        "string",
 			},
 			"operatorVersion": {
-				Description: "The version of the " + operatorName + " resource as defined by the operator",
+				Description: "The version of the resource as defined by the operator",
 				Type:        "string",
 			},
 			"phase": {
-				Description: "Phase is the current phase of the " + operatorName + " deployment",
+				Description: "Phase is the current phase of the deployment",
 				Type:        "string",
 			},
 			"conditions": {
-				Description: "A list of current conditions of the " + operatorName + "resource",
+				Description: "A list of current conditions of the resource",
 				Type:        "array",
 				Items: &extv1.JSONSchemaPropsOrArray{
 					Schema: &extv1.JSONSchemaProps{

@@ -1059,7 +1059,7 @@ k8s.io/utils/buffer
 k8s.io/utils/integer
 k8s.io/utils/pointer
 k8s.io/utils/trace
-# kubevirt.io/controller-lifecycle-operator-sdk v0.1.0
+# kubevirt.io/controller-lifecycle-operator-sdk v0.1.1
 ## explicit
 kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk
 kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api

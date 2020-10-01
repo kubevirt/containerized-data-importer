@@ -42,6 +42,12 @@ func (r *Reconciler) WithController(controller controller.Controller) *Reconcile
 	return r
 }
 
+// WithNamespacedCR informs the Reconciler that the configuration CR is namespaced
+func (r *Reconciler) WithNamespacedCR() *Reconciler {
+	r.namespacedCR = true
+	return r
+}
+
 // WithWatching sets watching flag - for testing
 func (r *Reconciler) WithWatching(watching bool) *Reconciler {
 	r.watching = watching

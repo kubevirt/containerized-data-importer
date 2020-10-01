@@ -3500,7 +3500,7 @@
     }
    },
    "v1beta1.CDIStatus": {
-    "description": "CDIStatus defines the status of the CDI installation",
+    "description": "CDIStatus defines the status of the installation",
     "type": "object",
     "nullable": true,
     "properties": {

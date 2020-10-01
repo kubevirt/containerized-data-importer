@@ -102,6 +102,7 @@ type Reconciler struct {
 	recorder                    record.EventRecorder
 	perishablesSyncInterval     time.Duration
 	finalizerName               string
+	namespacedCR                bool
 
 	// Hooks
 	syncPerishables               PerishablesSynchronizer
@@ -114,7 +115,6 @@ type Reconciler struct {
 // Reconcile performs request reconciliation
 func (r *Reconciler) Reconcile(request reconcile.Request, operatorVersion string, reqLogger logr.Logger) (reconcile.Result, error) {
 	// Fetch the CR instance
-	// check at cluster level
 	cr, err := r.GetCr(request.NamespacedName)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -739,9 +739,16 @@ func (r *Reconciler) CrInit(cr controllerutil.Object, operatorVersion string) er
 	return r.CrUpdate(sdkapi.PhaseDeploying, cr)
 }
 
+// GetCr retrieves the CR
 func (r *Reconciler) GetCr(name types.NamespacedName) (controllerutil.Object, error) {
 	cr := r.crManager.Create()
-	crKey := client.ObjectKey{Namespace: "", Name: name.Name}
+	var crKey client.ObjectKey
+	if r.namespacedCR {
+		crKey = name
+	} else {
+		// check at cluster level
+		crKey = client.ObjectKey{Namespace: "", Name: name.Name}
+	}
 	err := r.client.Get(context.TODO(), crKey, cr)
 	return cr, err
 }

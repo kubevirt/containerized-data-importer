@@ -286,7 +286,7 @@ const (
 // CDIPhase is the current phase of the CDI deployment
 type CDIPhase string
 
-// CDIStatus defines the status of the CDI installation
+// CDIStatus defines the status of the installation
 type CDIStatus struct {
 	sdkapi.Status `json:",inline"`
 }
