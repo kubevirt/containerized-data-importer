@@ -14,17 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package image
+package importer
 
 import (
 	"archive/tar"
-	"compress/gzip"
 	"context"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/containers/image/v5/docker"
 	"github.com/containers/image/v5/image"
@@ -36,15 +34,11 @@ import (
 )
 
 const (
-	cancelTimeout           = 300 * time.Second
-	dockerTarLayerMediaType = "application/vnd.docker.image.rootfs.diff.tar"
-	ociTarLayerMediaType    = "application/vnd.oci.image.layer.v1.tar"
-	whFilePrefix            = ".wh."
+	whFilePrefix = ".wh."
 )
 
 func commandTimeoutContext() (context.Context, context.CancelFunc) {
-	ctx := context.Background()
-	return context.WithTimeout(ctx, cancelTimeout)
+	return context.WithCancel(context.Background())
 }
 
 func buildSourceContext(accessKey, secKey, certDir string, insecureRegistry bool) *types.SystemContext {
@@ -113,14 +107,6 @@ func copyFile(tarReader *tar.Reader, dstFile *os.File) error {
 	return nil
 }
 
-func isGzipped(layer *types.BlobInfo) bool {
-	return strings.HasSuffix(layer.MediaType, "gzip")
-}
-
-func isTarLayer(layer *types.BlobInfo) bool {
-	return strings.HasPrefix(layer.MediaType, ociTarLayerMediaType) || strings.HasPrefix(layer.MediaType, dockerTarLayerMediaType)
-}
-
 func isWhiteout(path string) bool {
 	return strings.HasPrefix(filepath.Base(path), whFilePrefix)
 }
@@ -138,37 +124,19 @@ func processLayer(ctx context.Context,
 	cache types.BlobInfoCache,
 	stopAtFirst bool) (bool, error) {
 
-	if !isTarLayer(&layer) {
-		klog.Info("Not a tar layer, skipping")
-		return false, nil
-	}
-
 	var reader io.ReadCloser
 	reader, _, err := src.GetBlob(ctx, layer, cache)
 	if err != nil {
 		klog.Errorf("Could not read layer: %v", err)
 		return false, errors.Wrap(err, "Could not read layer")
 	}
-
-	var gzipReader io.ReadCloser
-	if isGzipped(&layer) {
-		gzipReader, err = gzip.NewReader(reader)
-		if err != nil {
-			klog.Warningf("Error creating gzip reader: %v", err)
-
-			// The stream is not gziped. Need to recreate the reader for tar library
-			// This might happen for docker-archive images
-			reader.Close()
-			gzipReader, _, _ = src.GetBlob(ctx, layer, cache)
-		} else {
-			defer reader.Close()
-		}
-	} else {
-		gzipReader, _, _ = src.GetBlob(ctx, layer, cache)
+	fr, err := NewFormatReaders(reader, 0)
+	if err != nil {
+		return false, errors.Wrap(err, "Could not read layer")
 	}
-	defer gzipReader.Close()
+	defer fr.Close()
 
-	tarReader := tar.NewReader(gzipReader)
+	tarReader := tar.NewReader(fr.TopReader())
 	found := false
 	for {
 		hdr, err := tarReader.Next()
