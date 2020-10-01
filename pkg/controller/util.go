@@ -12,6 +12,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -213,6 +214,81 @@ func CreateScratchPersistentVolumeClaim(client client.Client, pvc *v1.Persistent
 	}
 	klog.V(3).Infof("scratch PVC \"%s/%s\" created\n", scratchPvc.Namespace, scratchPvc.Name)
 	return scratchPvc, nil
+}
+
+// GetStorageClassByName looks up the storage class based on the name. If no storage class is found returns nil
+func GetStorageClassByName(client client.Client, name *string) (*storagev1.StorageClass, error) {
+	// look up storage class by name
+	if name == nil {
+		storageClasses := &storagev1.StorageClassList{}
+		if err := client.List(context.TODO(), storageClasses); err != nil {
+			klog.V(3).Info("Unable to retrieve available storage classes")
+			return nil, errors.New("unable to retrieve storage classes")
+		}
+		for _, storageClass := range storageClasses.Items {
+			if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" {
+				return &storageClass, nil
+			}
+		}
+	} else {
+		storageClass := &storagev1.StorageClass{}
+		if err := client.Get(context.TODO(), types.NamespacedName{Name: *name}, storageClass); err != nil {
+			klog.V(3).Info("Unable to retrieve storage class", "storage class name", *name)
+			return nil, errors.New("unable to retrieve storage class")
+		}
+		return storageClass, nil
+	}
+	// No storage class found, just return nil for storage class and let caller deal with it.
+	return nil, nil
+}
+
+// GetFilesystemOverhead determines the filesystem overhead defined in CDIConfig for this PVC's volumeMode and storageClass.
+func GetFilesystemOverhead(client client.Client, pvc *v1.PersistentVolumeClaim) (cdiv1.Percent, error) {
+	klog.V(1).Info("GetFilesystemOverhead with PVC", pvc)
+	if getVolumeMode(pvc) != v1.PersistentVolumeFilesystem {
+		return "0", nil
+	}
+
+	cdiConfig := &cdiv1.CDIConfig{}
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
+		if k8serrors.IsNotFound(err) {
+			klog.V(1).Info("CDIConfig does not exist, pod will not start until it does")
+			return "0", nil
+		}
+
+		return "0", err
+	}
+
+	targetStorageClass, err := GetStorageClassByName(client, pvc.Spec.StorageClassName)
+	if err != nil {
+		klog.V(1).Info("Storage class", pvc.Spec.StorageClassName, "not found, trying default storage class")
+		targetStorageClass, err = GetStorageClassByName(client, nil)
+		if err != nil {
+			klog.V(1).Info("No default storage class found, continuing with global overhead")
+			return cdiConfig.Status.FilesystemOverhead.Global, nil
+		}
+	}
+
+	klog.V(1).Info("target storage class for overhead", targetStorageClass)
+
+	if cdiConfig.Status.FilesystemOverhead == nil {
+		klog.Errorf("CDIConfig filesystemOverhead used before config controller ran reconcile. Hopefully this only happens during unit testing.")
+		return "0", nil
+	}
+
+	if targetStorageClass == nil {
+		klog.V(1).Info("Storage class", pvc.Spec.StorageClassName, "not found, continuing with global overhead")
+		return cdiConfig.Status.FilesystemOverhead.Global, nil
+	}
+
+	perStorageConfig := cdiConfig.Status.FilesystemOverhead.StorageClass
+
+	storageClassOverhead, found := perStorageConfig[targetStorageClass.GetName()]
+	if found {
+		return storageClassOverhead, nil
+	}
+
+	return cdiConfig.Status.FilesystemOverhead.Global, nil
 }
 
 // GetScratchPvcStorageClass tries to determine which storage class to use for use with a scratch persistent

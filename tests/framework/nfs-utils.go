@@ -29,7 +29,14 @@ func createNFSPVs(client *kubernetes.Clientset, cdiNs string) error {
 
 func deleteNFSPVs(client *kubernetes.Clientset, cdiNs string) error {
 	for i := 1; i <= pvCount; i++ {
-		if err := utils.DeletePV(client, nfsPVDef(strconv.Itoa(i), utils.NfsService.Spec.ClusterIP)); err != nil {
+		pv := nfsPVDef(strconv.Itoa(i), utils.NfsService.Spec.ClusterIP)
+		if err := utils.DeletePV(client, pv); err != nil {
+			return err
+		}
+	}
+	for i := 1; i <= pvCount; i++ {
+		pv := nfsPVDef(strconv.Itoa(i), utils.NfsService.Spec.ClusterIP)
+		if err := utils.WaitTimeoutForPVDeleted(client, pv, timeout); err != nil {
 			return err
 		}
 	}

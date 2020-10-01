@@ -3416,6 +3416,10 @@
        "type": "string"
       }
      },
+     "filesystemOverhead": {
+      "description": "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
+      "$ref": "#/definitions/v1beta1.FilesystemOverhead"
+     },
      "podResourceRequirements": {
       "description": "ResourceRequirements describes the compute resource requirements.",
       "$ref": "#/definitions/v1.ResourceRequirements"
@@ -3438,6 +3442,10 @@
      "defaultPodResourceRequirements": {
       "description": "ResourceRequirements describes the compute resource requirements.",
       "$ref": "#/definitions/v1.ResourceRequirements"
+     },
+     "filesystemOverhead": {
+      "description": "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A percentage value is between 0 and 1",
+      "$ref": "#/definitions/v1beta1.FilesystemOverhead"
      },
      "scratchSpaceStorageClass": {
       "description": "The calculated storage class to be used for scratch space",
@@ -3830,6 +3838,23 @@
       "description": "RestartCount is the number of times the pod populating the DataVolume has restarted",
       "type": "integer",
       "format": "int32"
+     }
+    }
+   },
+   "v1beta1.FilesystemOverhead": {
+    "description": "FilesystemOverhead defines the reserved size for PVCs with VolumeMode: Filesystem",
+    "type": "object",
+    "properties": {
+     "global": {
+      "description": "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (per storageClass)",
+      "type": "string"
+     },
+     "storageClass": {
+      "description": "StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value",
+      "type": "object",
+      "additionalProperties": {
+       "type": "string"
+      }
      }
     }
    },

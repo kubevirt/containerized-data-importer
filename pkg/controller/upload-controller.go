@@ -94,6 +94,7 @@ type UploadPodArgs struct {
 	PVC                             *v1.PersistentVolumeClaim
 	ScratchPVCName                  string
 	ClientName                      string
+	FilesystemOverhead              string
 	ServerCert, ServerKey, ClientCA []byte
 }
 
@@ -355,14 +356,20 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 		return nil, err
 	}
 
+	fsOverhead, err := GetFilesystemOverhead(r.client, pvc)
+	if err != nil {
+		return nil, err
+	}
+
 	args := UploadPodArgs{
-		Name:           podName,
-		PVC:            pvc,
-		ScratchPVCName: scratchPVCName,
-		ClientName:     clientName,
-		ServerCert:     serverCert,
-		ServerKey:      serverKey,
-		ClientCA:       clientCA,
+		Name:               podName,
+		PVC:                pvc,
+		ScratchPVCName:     scratchPVCName,
+		ClientName:         clientName,
+		FilesystemOverhead: string(fsOverhead),
+		ServerCert:         serverCert,
+		ServerKey:          serverKey,
+		ClientCA:           clientCA,
 	}
 
 	r.log.V(3).Info("Creating upload pod")
@@ -674,6 +681,10 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 						{
 							Name:  "CLIENT_CERT",
 							Value: string(args.ClientCA),
+						},
+						{
+							Name:  common.FilesystemOverheadVar,
+							Value: args.FilesystemOverhead,
 						},
 						{
 							Name:  common.UploadImageSize,

@@ -83,6 +83,17 @@ func WaitTimeoutForPVStatus(clientSet *kubernetes.Clientset, pvName string, stat
 	return wait.PollImmediate(2*time.Second, timeout, pvPhase(clientSet, pvName, status))
 }
 
+// WaitTimeoutForPVDeleted waits until the given pv no longer exists
+func WaitTimeoutForPVDeleted(clientSet *kubernetes.Clientset, pv *k8sv1.PersistentVolume, timeout time.Duration) error {
+	return wait.PollImmediate(pvPollInterval, timeout, func() (bool, error) {
+		err := clientSet.CoreV1().PersistentVolumes().Delete(context.TODO(), pv.GetName(), metav1.DeleteOptions{})
+		if apierrs.IsNotFound(err) {
+			return true, nil
+		}
+		return false, err
+	})
+}
+
 func pvPhase(clientSet *kubernetes.Clientset, pvName string, status k8sv1.PersistentVolumePhase) wait.ConditionFunc {
 	return func() (bool, error) {
 		pv, err := clientSet.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})

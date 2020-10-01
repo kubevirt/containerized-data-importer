@@ -88,29 +88,31 @@ const (
 
 // ImportReconciler members
 type ImportReconciler struct {
-	client         client.Client
-	uncachedClient client.Client
-	recorder       record.EventRecorder
-	scheme         *runtime.Scheme
-	log            logr.Logger
-	image          string
-	verbose        string
-	pullPolicy     string
-	featureGates   featuregates.FeatureGates
+	client             client.Client
+	uncachedClient     client.Client
+	recorder           record.EventRecorder
+	scheme             *runtime.Scheme
+	log                logr.Logger
+	image              string
+	verbose            string
+	pullPolicy         string
+	filesystemOverhead string
+	featureGates       featuregates.FeatureGates
 }
 
 type importPodEnvVar struct {
-	ep            string
-	secretName    string
-	source        string
-	contentType   string
-	imageSize     string
-	certConfigMap string
-	diskID        string
-	uuid          string
-	backingFile   string
-	thumbprint    string
-	insecureTLS   bool
+	ep                 string
+	secretName         string
+	source             string
+	contentType        string
+	imageSize          string
+	certConfigMap      string
+	diskID             string
+	uuid               string
+	backingFile        string
+	thumbprint         string
+	filesystemOverhead string
+	insecureTLS        bool
 }
 
 // NewImportController creates a new instance of the import controller.
@@ -440,6 +442,11 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		if err != nil {
 			return nil, err
 		}
+		fsOverhead, err := GetFilesystemOverhead(r.client, pvc)
+		if err != nil {
+			return nil, err
+		}
+		podEnvVar.filesystemOverhead = string(fsOverhead)
 		podEnvVar.insecureTLS, err = r.isInsecureTLS(pvc)
 		if err != nil {
 			return nil, err
@@ -897,6 +904,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.OwnerUID,
 			Value: string(uid),
+		},
+		{
+			Name:  common.FilesystemOverheadVar,
+			Value: podEnvVar.filesystemOverhead,
 		},
 		{
 			Name:  common.InsecureTLSVar,
