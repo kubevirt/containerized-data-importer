@@ -8,16 +8,19 @@ import (
 	"time"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	"github.com/blang/semver"
 	route1client "github.com/openshift/client-go/route/clientset/versioned"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	storagev1 "k8s.io/api/storage/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/clientcmd"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/tests"
@@ -483,6 +486,70 @@ var _ = Describe("CDIConfig instance management", func() {
 			return orgUID != newConfig.GetUID()
 		}, time.Second*30, time.Second).Should(BeTrue())
 	})
+})
+
+var _ = Describe("Modifying CDIConfig spec tests", func() {
+	var origSpec *cdiv1.CDIConfigSpec
+	f := framework.NewFramework("cdiconfig-test")
+	BeforeEach(func() {
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		origSpec = config.Spec.DeepCopy()
+	})
+	AfterEach(func() {
+		By("Restoring CDIConfig to original state")
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		config.Spec = *origSpec
+		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
+		Eventually(func() bool {
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return apiequality.Semantic.DeepEqual(config.Spec, *origSpec)
+		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig not properly restored to original value")
+	})
+
+	DescribeTable("Should disallow invalid global filesystem overhead values", func(invalidValue string) {
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		config.Spec.FilesystemOverhead = &cdiv1.FilesystemOverhead{
+			Global: cdiv1.Percent(invalidValue),
+		}
+		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{DryRun: []string{"All"}})
+		Expect(err).To(HaveOccurred())
+	},
+		Entry("Not a number1", "abc"),
+		Entry("Not a number2", "1.abc"),
+		Entry("Too big1", "1.0001"),
+		Entry("Too big2", "inf"),
+		Entry("Negative", "-0.1"),
+	)
+
+	DescribeTable("Should not update status if per-storageClass filesystem overhead value is invalid", func(invalidValue string) {
+		defaultSCName := utils.DefaultStorageClass.GetName()
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		config.Spec.FilesystemOverhead = &cdiv1.FilesystemOverhead{
+			Global:       "0.99", // Used to easily test that the update happened
+			StorageClass: map[string]cdiv1.Percent{defaultSCName: cdiv1.Percent(invalidValue)},
+		}
+		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Waiting for the CDIConfig status to be updated by the controller")
+		Eventually(func() bool {
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return config.Status.FilesystemOverhead.Global == cdiv1.Percent("0.99")
+		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig not set")
+
+		config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(config.Status.FilesystemOverhead.StorageClass[defaultSCName]).ToNot(Equal(cdiv1.Percent(invalidValue)))
+	},
+		Entry("Not a number1", "abc"),
+		Entry("Not a number2", "1.abc"),
+		Entry("Too big1", "1.0001"),
+		Entry("Too big2", "inf"),
+		Entry("Negative", "-0.1"),
+	)
 })
 
 func createIngress(name, ns, service, hostUrl string) *extensionsv1beta1.Ingress {
