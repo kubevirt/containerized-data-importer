@@ -67,8 +67,12 @@ func CanServiceAccountClonePVC(client SubjectAccessReviewsProxy, pvcNamespace, p
 	user := fmt.Sprintf("system:serviceaccount:%s:%s", saNamespace, saName)
 
 	sarSpec := authorization.SubjectAccessReviewSpec{
-		User:   user,
-		Groups: []string{"system:serviceaccounts", "system:serviceaccounts:" + saNamespace},
+		User: user,
+		Groups: []string{
+			"system:serviceaccounts",
+			"system:serviceaccounts:" + saNamespace,
+			"system:authenticated",
+		},
 	}
 
 	return sendSubjectAccessReviews(client, pvcNamespace, pvcName, sarSpec)
