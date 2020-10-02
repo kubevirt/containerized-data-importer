@@ -118,6 +118,9 @@ type importPodEnvVar struct {
 	thumbprint         string
 	filesystemOverhead string
 	insecureTLS        bool
+	currentCheckpoint  string
+	previousCheckpoint string
+	finalCheckpoint    string
 }
 
 // NewImportController creates a new instance of the import controller.
@@ -483,6 +486,9 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.backingFile = getValueFromAnnotation(pvc, AnnBackingFile)
 		podEnvVar.uuid = getValueFromAnnotation(pvc, AnnUUID)
 		podEnvVar.thumbprint = getValueFromAnnotation(pvc, AnnThumbprint)
+		podEnvVar.previousCheckpoint = getValueFromAnnotation(pvc, AnnPreviousCheckpoint)
+		podEnvVar.currentCheckpoint = getValueFromAnnotation(pvc, AnnCurrentCheckpoint)
+		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, AnnFinalCheckpoint)
 	}
 	//get the requested image size.
 	podEnvVar.imageSize, err = getRequestedImageSize(pvc)

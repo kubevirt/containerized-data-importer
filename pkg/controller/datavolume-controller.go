@@ -77,6 +77,8 @@ const (
 	ImportFailed = "ImportFailed"
 	// ImportSucceeded provides a const to indicate import has succeeded
 	ImportSucceeded = "ImportSucceeded"
+	// ImportPaused provides a const to indicate that a multistage import is waiting for the next stage
+	ImportPaused = "ImportPaused"
 	// CloneScheduled provides a const to indicate clone is scheduled
 	CloneScheduled = "CloneScheduled"
 	// CloneInProgress provides a const to indicate clone is in progress
@@ -117,6 +119,8 @@ const (
 	MessageImportFailed = "Failed to import into PVC %s"
 	// MessageImportSucceeded provides a const to form import has succeeded message
 	MessageImportSucceeded = "Successfully imported into PVC %s"
+	// MessageImportPaused provides a const for a "multistage import paused" message
+	MessageImportPaused = "Multistage import into PVC %s is paused"
 	// MessageCloneScheduled provides a const to form clone is scheduled message
 	MessageCloneScheduled = "Cloning from %s/%s into %s/%s scheduled"
 	// MessageCloneInProgress provides a const to form clone is in progress message
@@ -287,9 +291,44 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 		pvc = newPvc
 	}
 
+	if err := r.setMultistageImportAnnotations(datavolume, pvc); err != nil {
+		r.log.Error(err, "Unable to update pvc annotations", "name", pvc.Name)
+		return reconcile.Result{}, err
+	}
+
 	// Finally, we update the status block of the DataVolume resource to reflect the
 	// current state of the world
 	return r.reconcileDataVolumeStatus(datavolume, pvc)
+}
+
+func (r *DatavolumeReconciler) setMultistageImportAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+	pvcCopy := pvc.DeepCopy()
+	numCheckpoints := len(dataVolume.Spec.Checkpoints)
+	// If these annotations are already set, that means a stage is in progress.
+	// Only update the checkpoint annotations if they aren't set.
+	if numCheckpoints > 0 && (pvcCopy.ObjectMeta.Annotations[AnnPreviousCheckpoint] == "" &&
+		pvcCopy.ObjectMeta.Annotations[AnnCurrentCheckpoint] == "") {
+		pvcCopy.ObjectMeta.Annotations[AnnPreviousCheckpoint] = dataVolume.Spec.Checkpoints[numCheckpoints-1].Previous
+		pvcCopy.ObjectMeta.Annotations[AnnCurrentCheckpoint] = dataVolume.Spec.Checkpoints[numCheckpoints-1].Current
+		pvcCopy.ObjectMeta.Annotations[AnnFinalCheckpoint] = strconv.FormatBool(dataVolume.Spec.FinalCheckpoint)
+	}
+	// only update if something has changed
+	if !reflect.DeepEqual(pvc, pvcCopy) {
+		return r.client.Update(context.TODO(), pvcCopy)
+	}
+	return nil
+}
+
+func (r *DatavolumeReconciler) deleteMultistageImportAnnotations(pvc *corev1.PersistentVolumeClaim) error {
+	pvcCopy := pvc.DeepCopy()
+	delete(pvcCopy.Annotations, AnnCurrentCheckpoint)
+	delete(pvcCopy.Annotations, AnnPreviousCheckpoint)
+	delete(pvcCopy.Annotations, AnnFinalCheckpoint)
+	// only update if something has changed
+	if !reflect.DeepEqual(pvc, pvcCopy) {
+		return r.client.Update(context.TODO(), pvcCopy)
+	}
+	return nil
 }
 
 // Verify that the source PVC has been completely populated.
@@ -493,11 +532,20 @@ func (r *DatavolumeReconciler) updateImportStatusPhase(pvc *corev1.PersistentVol
 			event.reason = ImportFailed
 			event.message = fmt.Sprintf(MessageImportFailed, pvc.Name)
 		case string(corev1.PodSucceeded):
-			dataVolumeCopy.Status.Phase = cdiv1.Succeeded
-			dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress("100.0%")
-			event.eventType = corev1.EventTypeNormal
-			event.reason = ImportSucceeded
-			event.message = fmt.Sprintf(MessageImportSucceeded, pvc.Name)
+			_, ok := pvc.Annotations[AnnCurrentCheckpoint]
+			if ok {
+				// this is a multistage import, set the datavolume status to paused
+				dataVolumeCopy.Status.Phase = cdiv1.Paused
+				event.eventType = corev1.EventTypeNormal
+				event.reason = ImportPaused
+				event.message = fmt.Sprintf(MessageImportPaused, pvc.Name)
+			} else {
+				dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+				dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress("100.0%")
+				event.eventType = corev1.EventTypeNormal
+				event.reason = ImportSucceeded
+				event.message = fmt.Sprintf(MessageImportSucceeded, pvc.Name)
+			}
 		}
 	}
 }
@@ -616,7 +664,22 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 				updateImport = false
 			}
 			if updateImport {
-				dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+				_, ok := pvc.Annotations[AnnCurrentCheckpoint]
+				if ok {
+					// The presence of the current checkpoint annotation
+					// indicates that this is a stage in a multistage import.
+					// We need to remove the annotations from the PVC and
+					// set the DataVolume status to Paused rather than
+					// Succeeded to indicate that the import is not yet done.
+					err = r.deleteMultistageImportAnnotations(pvc)
+					if err != nil {
+						return reconcile.Result{}, err
+					}
+					dataVolumeCopy.Status.Phase = cdiv1.Paused
+				} else {
+					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+
+				}
 				r.updateImportStatusPhase(pvc, dataVolumeCopy, &event)
 			}
 		} else {
