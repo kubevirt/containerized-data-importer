@@ -13779,7 +13779,7 @@ func schema_pkg_apis_core_v1beta1_CDIStatus(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "CDIStatus defines the status of the CDI installation",
+				Description: "CDIStatus defines the status of the installation",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"phase": {

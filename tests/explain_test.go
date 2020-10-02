@@ -16,10 +16,10 @@ var _ = Describe("Explain tests", func() {
 	It("[test_id:4964]explain should have descriptions for CDI", func() {
 		out, err := tests.RunKubectlCommand(f, "explain", "CDI")
 		Expect(err).ToNot(HaveOccurred())
-		Expect(out).To(ContainSubstring("CDIStatus defines the status of the CDI installation"))
+		Expect(out).To(ContainSubstring("CDIStatus defines the status of the installation"))
 		out, err = tests.RunKubectlCommand(f, "explain", "CDI.status")
 		Expect(err).ToNot(HaveOccurred())
-		Expect(out).To(ContainSubstring("The desired version of the CDI resource"))
+		Expect(out).To(ContainSubstring("The desired version of the resource"))
 	})
 
 	It("[test_id:4965]explain should have descriptions for CDIConfig", func() {

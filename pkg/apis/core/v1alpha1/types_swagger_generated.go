@@ -130,11 +130,12 @@ func (CDISpec) SwaggerDoc() map[string]string {
 
 func (CDIStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                "CDIStatus defines the status of the CDI installation",
-		"conditions":      "A list of current conditions of the CDI resource",
-		"operatorVersion": "The version of the CDI resource as defined by the operator",
-		"targetVersion":   "The desired version of the CDI resource",
-		"observedVersion": "The observed version of the CDI resource",
+		"":                "CDIStatus defines the status of the installation",
+		"phase":           "Phase is the current phase of the deployment",
+		"conditions":      "A list of current conditions of the resource",
+		"operatorVersion": "The version of the resource as defined by the operator",
+		"targetVersion":   "The desired version of the resource",
+		"observedVersion": "The observed version of the resource",
 	}
 }
 

@@ -1516,7 +1516,7 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 									Type:        "object",
 									Description: "CDISpec defines our specification for the CDI installation",
 								},
-								"status": sdkopenapi.OperatorConfigStatus("CDIStatus", "CDI"),
+								"status": sdkopenapi.OperatorConfigStatus("CDIStatus"),
 							},
 							Required: []string{
 								"spec",
@@ -2754,7 +2754,7 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 									Type:        "object",
 									Description: "CDISpec defines our specification for the CDI installation",
 								},
-								"status": sdkopenapi.OperatorConfigStatus("CDIStatus", "CDI"),
+								"status": sdkopenapi.OperatorConfigStatus("CDIStatus"),
 							},
 							Required: []string{
 								"spec",

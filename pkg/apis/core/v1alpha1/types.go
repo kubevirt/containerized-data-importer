@@ -286,16 +286,17 @@ const (
 // CDIPhase is the current phase of the CDI deployment
 type CDIPhase string
 
-// CDIStatus defines the status of the CDI installation
+// CDIStatus defines the status of the installation
 type CDIStatus struct {
+	// Phase is the current phase of the deployment
 	Phase CDIPhase `json:"phase,omitempty"`
-	// A list of current conditions of the CDI resource
+	// A list of current conditions of the resource
 	Conditions []conditions.Condition `json:"conditions,omitempty" optional:"true"`
-	// The version of the CDI resource as defined by the operator
+	// The version of the resource as defined by the operator
 	OperatorVersion string `json:"operatorVersion,omitempty" optional:"true"`
-	// The desired version of the CDI resource
+	// The desired version of the resource
 	TargetVersion string `json:"targetVersion,omitempty" optional:"true"`
-	// The observed version of the CDI resource
+	// The observed version of the resource
 	ObservedVersion string `json:"observedVersion,omitempty" optional:"true"`
 }
 
