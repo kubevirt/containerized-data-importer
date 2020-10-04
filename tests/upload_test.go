@@ -207,8 +207,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(token).ToNot(BeEmpty())
 
 		By("Do upload")
-		err = uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, asyncUploadPath, token, http.StatusBadRequest)
-		Expect(err).ToNot(HaveOccurred())
+		err = uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, asyncUploadPath, token, http.StatusOK)
+		Expect(err).To(HaveOccurred())
 	},
 		Entry("fail given a RAW XZ file", utils.UploadFileLargeVirtualDiskXz),
 		Entry("[test_id:4989]fail given a QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
@@ -242,7 +242,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			return log
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring(matchString))
 	},
-		XEntry("fail given a RAW XZ file", utils.UploadFileLargeVirtualDiskXz),
+		PEntry("fail given a RAW XZ file", utils.UploadFileLargeVirtualDiskXz),
 		Entry("fail given a QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
 	)
 })
