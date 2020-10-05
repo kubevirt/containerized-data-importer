@@ -22,15 +22,15 @@
 		release-description \
 		bazel-generate bazel-build bazel-build-images bazel-push-images
 
-DOCKER=1
+DOCKER?=1
 ifeq (${DOCKER}, 1)
-# use entrypoint.sh (default) as your entrypoint into the container
-DO=./hack/build/in-docker.sh
-# use entrypoint-bazel.sh as your entrypoint into the container.
-DO_BAZ=./hack/build/bazel-docker.sh
+	# use entrypoint.sh (default) as your entrypoint into the container
+	DO=./hack/build/in-docker.sh
+	# use entrypoint-bazel.sh as your entrypoint into the container.
+	DO_BAZ=./hack/build/bazel-docker.sh
 else
-DO=eval
-DO_BAZ=eval
+	DO=eval
+	DO_BAZ=eval
 endif
 
 all: manifests bazel-build-images
