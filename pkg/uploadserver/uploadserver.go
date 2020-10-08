@@ -20,7 +20,6 @@
 package uploadserver
 
 import (
-	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -33,6 +32,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/golang/snappy"
 	"github.com/pkg/errors"
 	"k8s.io/klog"
 
@@ -47,6 +47,9 @@ const (
 
 	// FilesystemCloneContentType is the content type when cloning a filesystem
 	FilesystemCloneContentType = "filesystem-clone"
+
+	// BlockdeviceClone is the content type when cloning a block device
+	BlockdeviceClone = "blockdevice-clone"
 
 	// UploadPathSync is the path to POST CDI uploads
 	UploadPathSync = "/v1beta1/upload"
@@ -437,7 +440,7 @@ func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string,
 		return nil, fmt.Errorf("async filesystem clone not supported")
 	}
 
-	uds := importer.NewAsyncUploadDataSource(stream)
+	uds := importer.NewAsyncUploadDataSource(newContentReader(stream, contentType))
 	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead)
 	return processor, processor.ProcessDataWithPause()
 }
@@ -447,7 +450,7 @@ func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, file
 		return filesystemCloneProcessor(stream, common.ImporterVolumePath)
 	}
 
-	uds := importer.NewUploadDataSource(stream)
+	uds := importer.NewUploadDataSource(newContentReader(stream, contentType))
 	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead)
 	return processor.ProcessData()
 }
@@ -457,14 +460,21 @@ func filesystemCloneProcessor(stream io.ReadCloser, destDir string) error {
 		return errors.Wrapf(err, "error removing contents of %s", destDir)
 	}
 
-	gzr, err := gzip.NewReader(stream)
-	if err != nil {
-		return errors.Wrap(err, "error creating gzip reader")
-	}
-
-	if err = util.UnArchiveTar(gzr, destDir); err != nil {
+	if err := util.UnArchiveTar(newSnappyReadCloser(stream), destDir); err != nil {
 		return errors.Wrapf(err, "error unarchiving to %s", destDir)
 	}
 
 	return nil
+}
+
+func newContentReader(stream io.ReadCloser, contentType string) io.ReadCloser {
+	if contentType == BlockdeviceClone {
+		return newSnappyReadCloser(stream)
+	}
+
+	return stream
+}
+
+func newSnappyReadCloser(stream io.ReadCloser) io.ReadCloser {
+	return ioutil.NopCloser(snappy.NewReader(stream))
 }
