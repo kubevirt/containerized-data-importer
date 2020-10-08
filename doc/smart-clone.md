@@ -33,3 +33,4 @@ Here is a description of the flow of the Smart-Cloning:
 - If Smart-Cloning is not possible:
   * Trigger a (slower) host-assisted clone
 
+*Note: For some CSI driver when restoring from a snapshot, the new PVC size must equal the size of the PVC the snapshot was created from*
