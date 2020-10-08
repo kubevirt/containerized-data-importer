@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
@@ -11,6 +10,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/klog/v2"
 
@@ -84,17 +84,21 @@ func createProgressReader(readCloser io.ReadCloser, ownerUID string, totalBytes 
 	return promReader
 }
 
-func pipeToGzip(reader io.ReadCloser) io.ReadCloser {
+func pipeToSnappy(reader io.ReadCloser) io.ReadCloser {
 	pr, pw := io.Pipe()
-	gzw := gzip.NewWriter(pw)
+	sbw := snappy.NewBufferedWriter(pw)
 
 	go func() {
-		n, err := io.Copy(gzw, reader)
+		n, err := io.Copy(sbw, reader)
 		if err != nil {
 			klog.Fatalf("Error %s piping to gzip", err)
 		}
-		gzw.Close()
-		pw.Close()
+		if err = sbw.Close(); err != nil {
+			klog.Fatalf("Error closing snappy writer %+v", err)
+		}
+		if err = pw.Close(); err != nil {
+			klog.Fatalf("Error closing pipe writer %+v", err)
+		}
 		klog.Infof("Wrote %d bytes\n", n)
 	}()
 
@@ -118,7 +122,7 @@ func main() {
 
 	klog.V(1).Infoln("Starting cloner target")
 
-	reader := pipeToGzip(createProgressReader(os.Stdin, ownerUID, uploadBytes))
+	reader := pipeToSnappy(createProgressReader(os.Stdin, ownerUID, uploadBytes))
 
 	startPrometheus()
 
