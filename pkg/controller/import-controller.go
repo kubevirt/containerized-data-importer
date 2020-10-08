@@ -265,7 +265,7 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 				for _, pod := range podsUsingPVC {
 					r.log.V(1).Info("can't create import pod, pvc in use by other pod",
 						"namespace", pvc.Namespace, "name", pvc.Name, "pod", pod.Name)
-					r.recorder.Eventf(pvc, corev1.EventTypeWarning, UploadTargetInUse,
+					r.recorder.Eventf(pvc, corev1.EventTypeWarning, ImportTargetInUse,
 						"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, pvc.Name)
 
 				}

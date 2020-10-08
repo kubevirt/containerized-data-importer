@@ -211,6 +211,7 @@ func CreateScratchPersistentVolumeClaim(client client.Client, pvc *v1.Persistent
 	scratchPvc := &v1.PersistentVolumeClaim{}
 	if err := client.Get(context.TODO(), types.NamespacedName{Name: scratchPvcSpec.Name, Namespace: pvc.Namespace}, scratchPvc); err != nil {
 		klog.Errorf("Unable to get scratch space pvc, %v\n", err)
+		return nil, err
 	}
 	klog.V(3).Infof("scratch PVC \"%s/%s\" created\n", scratchPvc.Namespace, scratchPvc.Name)
 	return scratchPvc, nil
@@ -512,6 +513,9 @@ func getPodsUsingPVCs(c client.Client, namespace string, names sets.String, allo
 
 	var pods []v1.Pod
 	for _, pod := range pl.Items {
+		if pod.Status.Phase == v1.PodSucceeded || pod.Status.Phase == v1.PodFailed {
+			continue
+		}
 		for _, volume := range pod.Spec.Volumes {
 			if volume.VolumeSource.PersistentVolumeClaim != nil &&
 				names.Has(volume.PersistentVolumeClaim.ClaimName) &&
