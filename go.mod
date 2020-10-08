@@ -19,6 +19,7 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kubernetes-csi/external-snapshotter/v2 v2.1.1
+	github.com/mrnold/go-libnbd v1.4.0-cdi
 	github.com/onsi/ginkgo v1.12.1
 	github.com/onsi/gomega v1.10.1
 	github.com/openshift/api v0.0.0
