@@ -574,6 +574,34 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace
 		},
 	}
 
+	if pod.Spec.Affinity == nil {
+		pod.Spec.Affinity = &corev1.Affinity{}
+	}
+
+	if pod.Spec.Affinity.PodAffinity == nil {
+		pod.Spec.Affinity.PodAffinity = &corev1.PodAffinity{}
+	}
+
+	pod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(
+		pod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution,
+		corev1.WeightedPodAffinityTerm{
+			Weight: 100,
+			PodAffinityTerm: corev1.PodAffinityTerm{
+				LabelSelector: &metav1.LabelSelector{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      common.UploadTargetLabel,
+							Operator: metav1.LabelSelectorOpIn,
+							Values:   []string{string(targetPvc.UID)},
+						},
+					},
+				},
+				Namespaces:  []string{targetPvc.Namespace},
+				TopologyKey: corev1.LabelHostname,
+			},
+		},
+	)
+
 	if resourceRequirements != nil {
 		pod.Spec.Containers[0].Resources = *resourceRequirements
 	}
