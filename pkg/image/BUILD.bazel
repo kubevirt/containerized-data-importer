@@ -5,7 +5,6 @@ go_library(
     srcs = [
         "filefmt.go",
         "qemu.go",
-        "transport.go",
         "validate.go",
     ],
     importpath = "kubevirt.io/containerized-data-importer/pkg/image",
@@ -14,11 +13,6 @@ go_library(
         "//pkg/common:go_default_library",
         "//pkg/system:go_default_library",
         "//pkg/util:go_default_library",
-        "//vendor/github.com/containers/image/v5/docker:go_default_library",
-        "//vendor/github.com/containers/image/v5/image:go_default_library",
-        "//vendor/github.com/containers/image/v5/oci/archive:go_default_library",
-        "//vendor/github.com/containers/image/v5/pkg/blobinfocache:go_default_library",
-        "//vendor/github.com/containers/image/v5/types:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/github.com/prometheus/client_golang/prometheus:go_default_library",
         "//vendor/github.com/prometheus/client_model/go:go_default_library",
@@ -33,7 +27,6 @@ go_test(
         "filefmt_test.go",
         "qemu_suite_test.go",
         "qemu_test.go",
-        "transport_test.go",
     ],
     embed = [":go_default_library"],
     deps = [

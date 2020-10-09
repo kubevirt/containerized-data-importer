@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package image
+package importer
 
 import (
 	"io/ioutil"
@@ -23,10 +23,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
-
-const imageDir = "../../tests/images"
-
-var imageFile = filepath.Join(imageDir, "registry-image.tar")
 
 var _ = Describe("Registry Importer", func() {
 	source := "oci-archive:" + imageFile
