@@ -17,6 +17,7 @@ limitations under the License.
 package importer
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"io/ioutil"
@@ -25,6 +26,7 @@ import (
 	"os/exec"
 	"time"
 
+	libnbd "github.com/mrnold/go-libnbd"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
@@ -41,6 +43,7 @@ const (
 
 // May be overridden in tests
 var newVddkDataSource = createVddkDataSource
+var newVddkDataSink = createVddkDataSink
 var vddkPluginPath = getVddkPluginPath
 
 func getVddkPluginPath() string {
@@ -53,11 +56,45 @@ func getVddkPluginPath() string {
 	return "vddk"
 }
 
+// NbdOperations provides a mockable interface for the things needed from libnbd.
+type NbdOperations interface {
+	GetSize() (uint64, error)
+	Pread(buf []byte, offset uint64, optargs *libnbd.PreadOptargs) error
+	Close() *libnbd.LibnbdError
+}
+
+// VDDKDataSink provides a mockable interface for saving data from the source.
+type VDDKDataSink interface {
+	Write(buf []byte) (int, error)
+	Close()
+}
+
+// VDDKFileSink writes the source disk data to a local file.
+type VDDKFileSink struct {
+	file   *os.File
+	writer *bufio.Writer
+}
+
+func (sink VDDKFileSink) Write(buf []byte) (int, error) {
+	written, err := sink.writer.Write(buf)
+	if err != nil {
+		return written, err
+	}
+	err = sink.writer.Flush()
+	return written, err
+}
+
+// Close closes the file after a transfer is complete.
+func (sink VDDKFileSink) Close() {
+	sink.writer.Flush()
+	sink.file.Close()
+}
+
 // VDDKDataSource is the data provider for vddk.
-// Currently just a reference to the nbdkit process.
 type VDDKDataSource struct {
 	Command   *exec.Cmd
 	NbdSocket *url.URL
+	NbdHandle NbdOperations
 }
 
 // FindMoRef takes the UUID of the VM to migrate and finds its MOref from the given VMware URL.
@@ -203,27 +240,56 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 		return nil, err
 	}
 
+	handle, err := libnbd.Create()
+	if err != nil {
+		klog.Infof("Unable to create libnbd handle: %s\n", err)
+		nbdkit.Process.Kill()
+		return nil, err
+	}
+
 	socket, _ := url.Parse("nbd://" + nbdUnixSocket)
+	err = handle.ConnectUri("nbd+unix://?socket=" + nbdUnixSocket)
+	if err != nil {
+		klog.Infof("Unable to connect to socket: %s\n", socket)
+		nbdkit.Process.Kill()
+		return nil, err
+	}
 
 	source := &VDDKDataSource{
 		Command:   nbdkit,
 		NbdSocket: socket,
+		NbdHandle: handle,
 	}
 	return source, nil
 }
 
+func createVddkDataSink(destinationFile string) (VDDKDataSink, error) {
+	file, err := os.OpenFile(destinationFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	writer := bufio.NewWriter(file)
+	sink := VDDKFileSink{
+		file:   file,
+		writer: writer,
+	}
+	return sink, err
+}
+
 // Info is called to get initial information about the data.
 func (vs *VDDKDataSource) Info() (ProcessingPhase, error) {
-	info, err := qemuOperations.Info(vs.GetURL())
+	size, err := vs.NbdHandle.GetSize()
 	if err != nil {
+		klog.Infof("Unable to get size from libnbd handle: %s\n", err)
 		return ProcessingPhaseError, err
 	}
-	klog.Infof("qemu-img info: format %s, backing file %s, virtual size %d, actual size %d\n", info.Format, info.BackingFile, info.VirtualSize, info.ActualSize)
+	klog.Infof("Size of %s: %d\n", vs.NbdSocket, size)
 	return ProcessingPhaseTransferDataFile, nil
 }
 
 // Close closes any readers or other open resources.
 func (vs *VDDKDataSource) Close() error {
+	vs.NbdHandle.Close()
 	return vs.Command.Process.Kill()
 }
 
@@ -244,10 +310,40 @@ func (vs *VDDKDataSource) Transfer(path string) (ProcessingPhase, error) {
 
 // TransferFile is called to transfer the data from the source to the file passed in.
 func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
-	err := qemuOperations.ConvertToRawStream(vs.GetURL(), destinationFile)
+	size, err := vs.NbdHandle.GetSize()
 	if err != nil {
-		klog.Infof("Failed to convert disk: %s\n", err)
+		klog.Infof("Unable to get size from libnbd handle: %s\n", err)
 		return ProcessingPhaseError, err
 	}
+
+	sink, err := newVddkDataSink(destinationFile)
+	if err != nil {
+		return ProcessingPhaseError, err
+	}
+	defer sink.Close()
+
+	start := uint64(0)
+	blocksize := uint64(1024 * 1024)
+	buf := make([]byte, blocksize)
+	for i := start; i < size; i += blocksize {
+		if size-i < blocksize {
+			blocksize = size - i
+			buf = make([]byte, blocksize)
+		}
+		err = vs.NbdHandle.Pread(buf, i, nil)
+		if err != nil {
+			klog.Infof("pread error: %s\n", err)
+			break
+		}
+		written, err := sink.Write(buf)
+		if uint64(written) < blocksize {
+			klog.Infof("buf wrote less than blocksize: %d\n", written)
+		}
+		if err != nil {
+			klog.Infof("buf write error: %s\n", err)
+			break
+		}
+	}
+
 	return ProcessingPhaseComplete, nil
 }
