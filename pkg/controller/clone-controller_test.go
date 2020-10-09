@@ -221,6 +221,29 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).ToNot(BeNil())
 		Expect(sourcePod.GetLabels()[CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
+		Expect(sourcePod.Spec.Affinity).ToNot(BeNil())
+		Expect(sourcePod.Spec.Affinity.PodAffinity).ToNot(BeNil())
+		l := len(sourcePod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution)
+		Expect(l > 0).To(BeTrue())
+		pa := sourcePod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution[l-1]
+		epa := corev1.WeightedPodAffinityTerm{
+			Weight: 100,
+			PodAffinityTerm: corev1.PodAffinityTerm{
+				LabelSelector: &metav1.LabelSelector{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      common.UploadTargetLabel,
+							Operator: metav1.LabelSelectorOpIn,
+							Values:   []string{string(testPvc.UID)},
+						},
+					},
+				},
+				Namespaces:  []string{"default"},
+				TopologyKey: corev1.LabelHostname,
+			},
+		}
+		Expect(pa).To(Equal(epa))
+
 		By("Verifying the PVC now has a finalizer")
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
 		Expect(err).ToNot(HaveOccurred())
