@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -84,6 +85,9 @@ const (
 
 	// creatingScratch provides a const to indicate scratch is being created.
 	creatingScratch = "CreatingScratchSpace"
+
+	// ImportTargetInUse is reason for event created when an import pvc is in use
+	ImportTargetInUse = "ImportTargetInUse"
 )
 
 // ImportReconciler members
@@ -246,11 +250,28 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 	if err != nil {
 		return reconcile.Result{}, err
 	}
+
 	if pod == nil {
 		if isPVCComplete(pvc) {
 			// Don't create the POD if the PVC is completed already
 			log.V(1).Info("PVC is already complete")
 		} else if pvc.DeletionTimestamp == nil {
+			podsUsingPVC, err := getPodsUsingPVCs(r.client, pvc.Namespace, sets.NewString(pvc.Name), false)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+
+			if len(podsUsingPVC) > 0 {
+				for _, pod := range podsUsingPVC {
+					r.log.V(1).Info("can't create import pod, pvc in use by other pod",
+						"namespace", pvc.Namespace, "name", pvc.Name, "pod", pod.Name)
+					r.recorder.Eventf(pvc, corev1.EventTypeWarning, UploadTargetInUse,
+						"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, pvc.Name)
+
+				}
+				return reconcile.Result{Requeue: true}, nil
+			}
+
 			if _, ok := pvc.Annotations[AnnImportPod]; ok {
 				// Create importer pod, make sure the PVC owns it.
 				if err := r.createImporterPod(pvc); err != nil {
