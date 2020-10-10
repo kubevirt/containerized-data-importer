@@ -142,7 +142,7 @@ func createAndPopulateSourcePVC(dataVolumeName, command string, volumeMode v1.Pe
 	By(fmt.Sprintf("Storage Class name: %s", scName))
 	sourcePVCName := fmt.Sprintf("%s-src-pvc", dataVolumeName)
 	sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
-	pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+	pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 	pvcDef.Spec.VolumeMode = &volumeMode
 	if scName != "" {
 		pvcDef.Spec.StorageClassName = &scName
