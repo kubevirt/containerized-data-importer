@@ -515,27 +515,34 @@ var _ = Describe("Modifying CDIConfig spec tests", func() {
 		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig status not restored by config controller")
 	})
 
-	DescribeTable("Should disallow invalid global filesystem overhead values", func(invalidValue string) {
+	DescribeTable("Should disallow invalid global filesystem overhead values", func(overhead string, success bool) {
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		config.Spec.FilesystemOverhead = &cdiv1.FilesystemOverhead{
-			Global: cdiv1.Percent(invalidValue),
+			Global: cdiv1.Percent(overhead),
 		}
 		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{DryRun: []string{"All"}})
-		Expect(err).To(HaveOccurred())
+		if success {
+			Expect(err).ToNot(HaveOccurred())
+		} else {
+			Expect(err).To(HaveOccurred())
+		}
 	},
-		Entry("Not a number1", "abc"),
-		Entry("Not a number2", "1.abc"),
-		Entry("Too big1", "1.0001"),
-		Entry("Too big2", "inf"),
-		Entry("Negative", "-0.1"),
+		Entry("[test_id:4714] Not a number1", "abc", false),
+		Entry("[test_id:4674] Not a number2", "1.abc", false),
+		Entry("[test_id:5011] Too big1", "1.0001", false),
+		Entry("[test_id:5012] Too big2", "inf", false),
+		Entry("[test_id:5013] Negative", "-0.1", false),
+		Entry("one", "1", true),
+		Entry("zero", "0", true),
+		Entry("zero2", "0.0", true),
 	)
 
-	DescribeTable("Should not update status if per-storageClass filesystem overhead value is invalid", func(invalidValue string) {
+	DescribeTable("Should not update status if per-storageClass filesystem overhead value is invalid", func(overhead string, success bool) {
 		defaultSCName := utils.DefaultStorageClass.GetName()
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		config.Spec.FilesystemOverhead = &cdiv1.FilesystemOverhead{
 			Global:       "0.99", // Used to easily test that the update happened
-			StorageClass: map[string]cdiv1.Percent{defaultSCName: cdiv1.Percent(invalidValue)},
+			StorageClass: map[string]cdiv1.Percent{defaultSCName: cdiv1.Percent(overhead)},
 		}
 		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred())
@@ -548,14 +555,24 @@ var _ = Describe("Modifying CDIConfig spec tests", func() {
 		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig not set")
 
 		config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-		Expect(config.Status.FilesystemOverhead.StorageClass[defaultSCName]).ToNot(Equal(cdiv1.Percent(invalidValue)))
+		if success {
+			By(fmt.Sprintf("CDI Config spec %v", config.Spec.FilesystemOverhead.StorageClass))
+			By(fmt.Sprintf("CDI Config status %v", config.Status.FilesystemOverhead.StorageClass))
+			Expect(config.Status.FilesystemOverhead.StorageClass[defaultSCName]).To(Equal(cdiv1.Percent(overhead)))
+		} else {
+			Expect(config.Status.FilesystemOverhead.StorageClass[defaultSCName]).ToNot(Equal(cdiv1.Percent(overhead)))
+		}
 	},
-		Entry("Not a number1", "abc"),
-		Entry("Not a number2", "1.abc"),
-		Entry("Too big1", "1.0001"),
-		Entry("Too big2", "inf"),
-		Entry("Negative", "-0.1"),
+		Entry("[test_id:5014] Not a number1", "abc", false),
+		Entry("[test_id:5015] Not a number2", "1.abc", false),
+		Entry("[test_id:5016] Too big1", "1.01", false),
+		Entry("[test_id:5017] Too big2", "inf", false),
+		Entry("[test_id:5918] Negative", "-0.1", false),
+		Entry("one", "1", true),
+		Entry("zero", "0", true),
+		Entry("zero2", "0.0", true),
 	)
+
 })
 
 func createIngress(name, ns, service, hostUrl string) *extensionsv1beta1.Ingress {

@@ -665,10 +665,10 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 		err = uploadImageAsync(uploadProxyURL, token, expectedStatus)
 		Expect(err).ToNot(HaveOccurred())
 	},
-		Entry("Succeed with low global overhead", http.StatusOK, "0.1", ""),
-		Entry("Fail with high global overhead", http.StatusBadRequest, "0.99", ""),
-		Entry("Succeed with low per-storageclass overhead (despite high global overhead)", http.StatusOK, "0.99", "0.1"),
-		Entry("Fail with high per-storageclass overhead (despite low global overhead)", http.StatusBadRequest, "0.1", "0.99"),
+		Entry("[test_id:4548] Succeed with low global overhead", http.StatusOK, "0.1", ""),
+		Entry("[test_id:4672][posneg:negative] Fail with high global overhead", http.StatusBadRequest, "0.99", ""),
+		Entry("[test_id:4673] Succeed with low per-storageclass overhead (despite high global overhead)", http.StatusOK, "0.99", "0.1"),
+		Entry("[test_id:4714][posneg:negative] Fail with high per-storageclass overhead (despite low global overhead)", http.StatusBadRequest, "0.1", "0.99"),
 	)
 })
 
