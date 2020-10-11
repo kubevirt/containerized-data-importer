@@ -499,12 +499,20 @@ var _ = Describe("Modifying CDIConfig spec tests", func() {
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		config.Spec = *origSpec
+		nilStatus := cdiv1.CDIConfigStatus{}
+		config.Status = nilStatus
 		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
 		Eventually(func() bool {
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			return apiequality.Semantic.DeepEqual(config.Spec, *origSpec)
 		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig not properly restored to original value")
+
+		Eventually(func() bool {
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return !apiequality.Semantic.DeepEqual(config.Status, nilStatus)
+		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig status not restored by config controller")
 	})
 
 	DescribeTable("Should disallow invalid global filesystem overhead values", func(invalidValue string) {
