@@ -203,10 +203,16 @@ func (r *CloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, er
 	_, nameExists := pvc.Annotations[AnnCloneSourcePod]
 	if !nameExists && sourcePod == nil {
 		pvc.Annotations[AnnCloneSourcePod] = createCloneSourcePodName(pvc)
+
+		// add finalizer before creating clone source pod
+		pvc = r.addFinalizer(pvc, cloneSourcePodFinalizer)
+
 		if err := r.updatePVC(pvc); err != nil {
 			return reconcile.Result{}, err
 		}
-		return reconcile.Result{Requeue: true}, nil
+
+		// will reconcile again after PVC update notification
+		return reconcile.Result{}, nil
 	}
 
 	if requeue, err := r.reconcileSourcePod(sourcePod, pvc, log); requeue || err != nil {
@@ -262,8 +268,6 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *c
 func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
 	currentPvcCopy := pvc.DeepCopyObject()
 	log.V(1).Info("Updating PVC from pod")
-
-	pvc = r.addFinalizer(pvc, cloneSourcePodFinalizer)
 
 	log.V(3).Info("Pod phase for PVC", "PVC phase", pvc.Annotations[AnnPodPhase])
 
