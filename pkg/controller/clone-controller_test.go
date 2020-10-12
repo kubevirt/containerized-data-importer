@@ -123,7 +123,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("error parsing %s annotation", AnnPodReady)))
 	})
 
-	It("Should create source pod name", func() {
+	It("Should create source pod name and add finalizer", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{
 			AnnCloneRequest:     "default/source",
 			AnnPodReady:         "true",
@@ -148,6 +148,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(testPvc.Annotations[AnnCloneSourcePod]).To(Equal("default-testPvc1-source-pod"))
+		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 	})
 
 	DescribeTable("Should NOT create new source pod if source PVC is in use", func(podFunc func(*corev1.PersistentVolumeClaim) *corev1.Pod) {
@@ -243,11 +244,6 @@ var _ = Describe("Clone controller reconcile loop", func() {
 			},
 		}
 		Expect(pa).To(Equal(epa))
-
-		By("Verifying the PVC now has a finalizer")
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 	},
 		Entry("no pods are using source PVC", func(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
 			return nil
@@ -299,10 +295,6 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod.GetLabels()[CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
-		By("Verifying the PVC now has a finalizer")
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 	})
 
 	It("Should update the cloneof when complete", func() {
@@ -354,6 +346,11 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).To(BeNil())
+		By("Verifying the PVC does not have a finalizer")
+		testPvc = &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeFalse())
 	})
 
 	It("Should update the cloneof when complete, block mode", func() {
