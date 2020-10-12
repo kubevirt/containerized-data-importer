@@ -25,6 +25,9 @@ const (
 	// PrometheusServiceName is the name of the prometheus service created by the operator.
 	PrometheusServiceName = "cdi-prometheus-metrics"
 
+	// UploadTargetLabel has the UID of upload target PVC
+	UploadTargetLabel = CDIComponentLabel + "/uploadTarget"
+
 	// ImporterVolumePath provides a constant for the directory where the PV is mounted.
 	ImporterVolumePath = "/data"
 	// DiskImageName provides a constant for our importer/datastream_ginkgo_test and to build ImporterWritePath
