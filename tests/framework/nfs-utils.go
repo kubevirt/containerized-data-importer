@@ -5,6 +5,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -19,8 +20,9 @@ const (
 )
 
 func createNFSPVs(client *kubernetes.Clientset, cdiNs string) error {
-	for i := 1; i <= 5; i++ {
+	for i := 1; i <= pvCount; i++ {
 		if _, err := utils.CreatePVFromDefinition(client, nfsPVDef(strconv.Itoa(i), utils.NfsService.Spec.ClusterIP)); err != nil {
+			// reset rangeCount
 			return err
 		}
 	}
@@ -31,7 +33,9 @@ func deleteNFSPVs(client *kubernetes.Clientset, cdiNs string) error {
 	for i := 1; i <= pvCount; i++ {
 		pv := nfsPVDef(strconv.Itoa(i), utils.NfsService.Spec.ClusterIP)
 		if err := utils.DeletePV(client, pv); err != nil {
-			return err
+			if !errors.IsNotFound(err) {
+				return err
+			}
 		}
 	}
 	for i := 1; i <= pvCount; i++ {
@@ -63,7 +67,7 @@ func nfsPVDef(index, serviceIP string) *corev1.PersistentVolume {
 					Path:   "/disk" + index,
 				},
 			},
-			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimRecycle,
+			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimDelete,
 		},
 	}
 }

@@ -33,7 +33,6 @@ const (
 	namespacePrefix                  = "importer"
 	assertionPollInterval            = 2 * time.Second
 	controllerSkipPVCCompleteTimeout = 270 * time.Second
-	invalidEndpoint                  = "http://gopats.com/who-is-the-goat.iso"
 	CompletionTimeout                = 270 * time.Second
 	BlankImageMD5                    = "cd573cfaace07e7949bc0c46028904ff"
 	BlockDeviceMD5                   = "7c55761d39e6428fa27c21d8710a3d19"
@@ -67,39 +66,6 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(err).ToNot(HaveOccurred())
 		Expect(isEmpty).To(BeTrue())
 		// Not deleting PVC as it will be removed with the NS removal.
-	})
-
-	It("[test_id:4968][posneg:negative]Import pod status should be Fail on unavailable endpoint", func() {
-		pvc, err := f.CreatePVCFromDefinition(utils.NewPVCDefinition(
-			"no-import-noendpoint",
-			"1G",
-			map[string]string{controller.AnnEndpoint: invalidEndpoint},
-			nil))
-		Expect(err).ToNot(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
-
-		importer, err := utils.FindPodByPrefix(f.K8sClient, ns, common.ImporterPodName, common.CDILabelSelector)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", ns+"/"+common.ImporterPodName))
-		utils.WaitTimeoutForPodStatus(f.K8sClient, importer.Name, importer.Namespace, v1.PodFailed, utils.PodWaitForTime)
-
-		By("Verify the pod status is Failed on the target PVC")
-		_, phaseAnnotation, err := utils.WaitForPVCAnnotation(f.K8sClient, f.Namespace.Name, pvc, controller.AnnPodPhase)
-		Expect(phaseAnnotation).To(BeTrue())
-		Expect(err).NotTo(HaveOccurred())
-
-		By("deleting PVC")
-		err = utils.DeletePVC(f.K8sClient, pvc.Namespace, pvc)
-		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pod was deleted")
-		deleted, err := utils.WaitPodDeleted(f.K8sClient, importer.Name, f.Namespace.Name, timeout)
-		Expect(deleted).To(BeTrue())
-		Expect(err).ToNot(HaveOccurred())
-
-		By("verifying pvc was deleted")
-		deleted, err = utils.WaitPVCDeleted(f.K8sClient, pvc.Name, f.Namespace.Name, timeout)
-		Expect(deleted).To(BeTrue())
-		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("[test_id:4969]Should create import pod for blank raw image", func() {

@@ -180,6 +180,15 @@ func (f *Framework) AfterEach() {
 		if utils.IsNfs() {
 			ginkgo.By("Deleting NFS PVs after the test")
 			deleteNFSPVs(f.K8sClient, f.CdiInstallNs)
+			// manually clear out the NFS directories as we use delete retain policy.
+			nfsServerPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "nfs-server", "app=nfs-server")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			for i := 1; i <= pvCount; i++ {
+				stdout, stderr, err := f.ExecShellInPod(nfsServerPod.Name, f.CdiInstallNs, fmt.Sprintf("/bin/rm -f /data/nfs/disk%d/*", i))
+				if err != nil {
+					fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: cleaning up nfs disk%d failed: %s, %s\n", i, stdout, stderr)
+				}
+			}
 		}
 	}()
 
@@ -228,21 +237,12 @@ func (f *Framework) AddNamespaceToDelete(ns *v1.Namespace) {
 
 // DeleteNS provides a function to delete the specified namespace from the test cluster
 func DeleteNS(c *kubernetes.Clientset, ns string) error {
-	return wait.PollImmediate(2*time.Second, nsDeleteTime, func() (bool, error) {
-		err := c.CoreV1().Namespaces().Delete(context.TODO(), ns, metav1.DeleteOptions{})
-		if err != nil && !apierrs.IsNotFound(err) {
-			return false, nil // keep trying
-		}
-		// see if ns is really deleted
-		_, err = c.CoreV1().Namespaces().Get(context.TODO(), ns, metav1.GetOptions{})
-		if apierrs.IsNotFound(err) {
-			return true, nil // deleted, done
-		}
-		if err != nil {
-			klog.Warningf("namespace %q Get api error: %v", ns, err)
-		}
-		return false, nil // keep trying
-	})
+	// return wait.PollImmediate(2*time.Second, nsDeleteTime, func() (bool, error) {
+	err := c.CoreV1().Namespaces().Delete(context.TODO(), ns, metav1.DeleteOptions{})
+	if err != nil && !apierrs.IsNotFound(err) {
+		return err
+	}
+	return nil
 }
 
 // GetCdiClient gets an instance of a kubernetes client that includes all the CDI extensions.

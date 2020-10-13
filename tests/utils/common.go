@@ -88,6 +88,14 @@ func IsHostpathProvisioner() bool {
 	return DefaultStorageClass.Provisioner == "kubevirt.io/hostpath-provisioner"
 }
 
+// GetTestNamespaceList returns a list of namespaces that have been created by the functional tests.
+func GetTestNamespaceList(client *kubernetes.Clientset, nsPrefix string) (*corev1.NamespaceList, error) {
+	//Ensure that no namespaces with the prefix label exist
+	return client.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: nsPrefix,
+	})
+}
+
 // CacheTestsData fetch and cache data required for tests
 func CacheTestsData(client *kubernetes.Clientset, cdiNs string) {
 	if DefaultStorageClass == nil {
