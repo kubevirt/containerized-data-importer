@@ -107,6 +107,11 @@ func copyFile(tarReader *tar.Reader, dstFile *os.File) error {
 	return nil
 }
 
+func hasPrefix(path string, pathPrefix string) bool {
+	return strings.HasPrefix(path, pathPrefix) ||
+		strings.HasPrefix(path, "./"+pathPrefix)
+}
+
 func isWhiteout(path string) bool {
 	return strings.HasPrefix(filepath.Base(path), whFilePrefix)
 }
@@ -148,7 +153,7 @@ func processLayer(ctx context.Context,
 			return false, errors.Wrap(err, "Error reading layer")
 		}
 
-		if strings.HasPrefix(hdr.Name, pathPrefix) && !isWhiteout(hdr.Name) && !isDir(hdr.Name) {
+		if hasPrefix(hdr.Name, pathPrefix) && !isWhiteout(hdr.Name) && !isDir(hdr.Name) {
 			klog.Infof("File '%v' found in the layer", hdr.Name)
 			destFile := filepath.Join(destDir, hdr.Name)
 
@@ -179,7 +184,7 @@ func processLayer(ctx context.Context,
 }
 
 func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry, stopAtFirst bool) error {
-	klog.Infof("Downloading image from %v, copying file from %v to %v", url, pathPrefix, destDir)
+	klog.Infof("Downloading image from '%v', copying file from '%v' to '%v'", url, pathPrefix, destDir)
 
 	ctx, cancel := commandTimeoutContext()
 	defer cancel()
