@@ -78,7 +78,7 @@ var _ = Describe("all clone tests", func() {
 
 		It("Should clone imported data within same namespace and preserve fsGroup", func() {
 			diskImagePath := filepath.Join(testBaseDir, testFile)
-			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "500Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -87,7 +87,7 @@ var _ = Describe("all clone tests", func() {
 			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 
 			// Create targetPvc in new NS.
-			targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvc)
+			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvc)
 			targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
