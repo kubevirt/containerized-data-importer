@@ -634,10 +634,6 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 	serviceName := naming.GetServiceNameFromResourceName(args.Name)
 	fsGroup := common.QemuSubGid
 	pod := &v1.Pod{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: "v1",
-		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      args.Name,
 			Namespace: args.PVC.Namespace,
@@ -648,6 +644,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 				common.CDILabelKey:              common.CDILabelValue,
 				common.CDIComponentLabel:        common.UploadServerCDILabel,
 				common.UploadServerServiceLabel: serviceName,
+				common.UploadTargetLabel:        string(args.PVC.UID),
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				MakePVCOwnerReference(args.PVC),
