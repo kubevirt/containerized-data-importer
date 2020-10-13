@@ -16,6 +16,7 @@ require (
 	github.com/go-logr/logr v0.1.0
 	github.com/go-logr/zapr v0.1.1 // indirect
 	github.com/go-openapi/spec v0.19.2
+	github.com/golang/snappy v0.0.2
 	github.com/gopherjs/gopherjs v0.0.0-20190915194858-d3ddacdb130f // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.0.0 // indirect
 	github.com/kelseyhightower/envconfig v1.4.0
@@ -60,6 +61,7 @@ require (
 )
 
 replace (
+	bitbucket.org/ww/goautoneg => github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20191219222812-2987a591a72c
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20191125132246-f6563a70e19a
 	github.com/openshift/library-go => github.com/mhenriks/library-go v0.0.0-20200116194830-9fcc1a687a9d

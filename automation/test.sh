@@ -51,8 +51,10 @@ if [[ -n "$MULTI_UPGRADE" ]]; then
 fi
 
 if [[ -z "$UPGRADE_FROM" ]]; then
-  export UPGRADE_FROM=$(curl -s https://github.com/kubevirt/containerized-data-importer/releases/latest | grep -o "v[0-9]\.[0-9]*\.[0-9]*")
-  echo "Upgrading from verions: $UPGRADE_FROM"
+  #obviously this doesn't work for old branches
+  #export UPGRADE_FROM=$(curl -s https://github.com/kubevirt/containerized-data-importer/releases/latest | grep -o "v[0-9]\.[0-9]*\.[0-9]*")
+  #echo "Upgrading from verions: $UPGRADE_FROM"
+  export UPGRADE_FROM="v1.18.2"
 fi
 export KUBEVIRT_NUM_NODES=2
 
