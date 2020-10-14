@@ -921,8 +921,9 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Retry Upload")
-		err = uploadFileNameToPath(binaryRequestFunc, utils.UploadFile, uploadProxyURL, syncUploadPath, token, http.StatusOK)
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			return uploadFileNameToPath(binaryRequestFunc, utils.UploadFile, uploadProxyURL, syncUploadPath, token, http.StatusOK)
+		}, timeout, pollingInterval).Should(BeNil(), "uploadFileNameToPath should return nil, even if not ready")
 
 		phase = cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
