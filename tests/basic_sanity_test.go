@@ -128,9 +128,9 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 				}
 			}
 		},
-			table.Entry("CDIConfigs", "cdiconfigs.cdi.kubevirt.io"),
-			table.Entry("CDIs", "cdis.cdi.kubevirt.io"),
-			table.Entry("Datavolumes", "datavolumes.cdi.kubevirt.io"),
+			table.Entry("[test_id:5056]CDIConfigs", "cdiconfigs.cdi.kubevirt.io"),
+			table.Entry("[test_id:5057]CDIs", "cdis.cdi.kubevirt.io"),
+			table.Entry("[test_id:5056]Datavolumes", "datavolumes.cdi.kubevirt.io"),
 		)
 	})
 })
