@@ -15,6 +15,7 @@ CDI_INSTALL="install-operator"
 CDI_NAMESPACE=${CDI_NAMESPACE:-cdi}
 CDI_INSTALL_TIMEOUT=${CDI_INSTALL_TIMEOUT:-120}
 CDI_AVAILABLE_TIMEOUT=${CDI_AVAILABLE_TIMEOUT:-480}
+CDI_PODS_UPDATE_TIMEOUT=${CDI_PODS_UPDATE_TIMEOUT:-480}
 CDI_UPGRADE_RETRY_COUNT=${CDI_UPGRADE_RETRY_COUNT:-60}
 
 # Set controller verbosity to 3 for functional tests.
@@ -68,7 +69,7 @@ function wait_cdi_available {
     echo "Openshift 3.11 provider"
     available=$(_kubectl get cdi cdi -o jsonpath={.status.conditions[0].status})
     wait_time=0
-    while [[ $available != "True" ]] && [[ $retry_counter -lt ${CDI_AVAILABLE_TIMEOUT} ]]; do
+    while [[ $available != "True" ]] && [[ $wait_time -lt ${CDI_AVAILABLE_TIMEOUT} ]]; do
       wait_time=$((wait_time + 5))
       sleep 5
       available=$(_kubectl get cdi cdi -o jsonpath={.status.conditions[0].status})
@@ -78,6 +79,40 @@ function wait_cdi_available {
     _kubectl wait cdis.cdi.kubevirt.io/${CR_NAME} --for=condition=Available --timeout=${CDI_AVAILABLE_TIMEOUT}s
   fi
 }
+
+OLD_CDI_VER_PODS="./_out/tests/old_cdi_ver_pods"
+NEW_CDI_VER_PODS="./_out/tests/new_cdi_ver_pods"
+
+# Wait for update of all cdi pods (names, uids and image versions)
+# Note it will fail update to the same version
+function wait_cdi_pods_updated {
+  echo "Waiting $CDI_PODS_UPDATE_TIMEOUT seconds for all CDI pods to update"
+  if [ -f $NEW_CDI_VER_PODS ] ; then
+    mv $NEW_CDI_VER_PODS $OLD_CDI_VER_PODS
+  fi
+  wait_time=0
+  ret=0
+  while [[ $ret -eq 0 ]] && [[ $wait_time -lt ${CDI_PODS_UPDATE_TIMEOUT} ]]; do
+    wait_time=$((wait_time + 5))
+    _kubectl get pods -n $CDI_NAMESPACE -o=jsonpath='{range .items[*]}{.metadata.name}{"\n"}{.metadata.uid}{"\n"}{.spec.containers[*].image}{"\n"}{end}' > $NEW_CDI_VER_PODS
+    if [ -f $OLD_CDI_VER_PODS ] ; then
+      grep -qFxf $OLD_CDI_VER_PODS $NEW_CDI_VER_PODS || ret=$?
+      if [ $ret -eq 0 ] ; then
+        sleep 5
+      fi
+    else
+      ret=1
+    fi
+  done
+  echo "Waited $wait_time seconds"
+  if [ $ret -eq 0 ] ; then
+    echo "Not all pods updated"
+    exit 1
+  fi
+}
+
+mkdir -p ./_out/tests
+rm -f $OLD_CDI_VER_PODS $NEW_CDI_VER_PODS
 
 seed_images
 
@@ -125,6 +160,7 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
       exit 1
     fi
     echo "Currently at version: $VERSION"
+    wait_cdi_pods_updated
   done
   echo "Upgrading to latest"
   retry_counter=0
@@ -146,6 +182,7 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
 	  exit 1
   fi
   wait_cdi_available
+  wait_cdi_pods_updated
   _kubectl patch crd cdis.cdi.kubevirt.io -p '{"spec": {"preserveUnknownFields":false}}'
 else
   _kubectl apply -f "./_out/manifests/release/cdi-cr.yaml"
