@@ -537,7 +537,7 @@ var _ = Describe("Modifying CDIConfig spec tests", func() {
 		Entry("zero2", "0.0", true),
 	)
 
-	DescribeTable("Should not update status if per-storageClass filesystem overhead value is invalid", func(overhead string, success bool) {
+	DescribeTable("Per-storageClass filesystem overhead value", func(overhead string, success bool) {
 		defaultSCName := utils.DefaultStorageClass.GetName()
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		config.Spec.FilesystemOverhead = &cdiv1.FilesystemOverhead{
@@ -545,14 +545,17 @@ var _ = Describe("Modifying CDIConfig spec tests", func() {
 			StorageClass: map[string]cdiv1.Percent{defaultSCName: cdiv1.Percent(overhead)},
 		}
 		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Waiting for the CDIConfig status to be updated by the controller")
-		Eventually(func() bool {
-			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		if success {
 			Expect(err).ToNot(HaveOccurred())
-			return config.Status.FilesystemOverhead.Global == cdiv1.Percent("0.99")
-		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig not set")
+			By("Waiting for the CDIConfig status to be updated by the controller")
+			Eventually(func() bool {
+				config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				return config.Status.FilesystemOverhead.Global == cdiv1.Percent("0.99")
+			}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig not set")
+		} else {
+			Expect(err).To(HaveOccurred())
+		}
 
 		config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		if success {
@@ -563,14 +566,14 @@ var _ = Describe("Modifying CDIConfig spec tests", func() {
 			Expect(config.Status.FilesystemOverhead.StorageClass[defaultSCName]).ToNot(Equal(cdiv1.Percent(overhead)))
 		}
 	},
-		Entry("[test_id:5014] Not a number1", "abc", false),
-		Entry("[test_id:5015] Not a number2", "1.abc", false),
-		Entry("[test_id:5016] Too big1", "1.01", false),
-		Entry("[test_id:5017] Too big2", "inf", false),
-		Entry("[test_id:5918] Negative", "-0.1", false),
-		Entry("one", "1", true),
-		Entry("zero", "0", true),
-		Entry("zero2", "0.0", true),
+		Entry("[test_id:5014]should not update if not a number1", "abc", false),
+		Entry("[test_id:5015]should not update if not a number2", "1.abc", false),
+		Entry("[test_id:5016]should not update if too big1", "1.01", false),
+		Entry("[test_id:5017]should not update if too big2", "inf", false),
+		Entry("[test_id:5918]should not update if value is negative", "-0.1", false),
+		Entry("should update if value is one", "1", true),
+		Entry("should update if value is zero", "0", true),
+		Entry("should update if value is zero2", "0.0", true),
 	)
 
 })

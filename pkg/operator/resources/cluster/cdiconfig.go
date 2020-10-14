@@ -113,14 +113,16 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 											Type:        "object",
 											Properties: map[string]extv1.JSONSchemaProps{
 												"global": {
-													Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (for example, a per storageClass value)",
+													Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (per storageClass)",
 													Type:        "string",
 													Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
 												},
 												"storageClass": {
 													AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
 														Schema: &extv1.JSONSchemaProps{
-															Type: "string",
+															Type:        "string",
+															Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
+															Description: "Percent is a string that can only be a value between [0,1) (Note: we actually rely on reconcile to reject invalid values)",
 														},
 													},
 													Description: "StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value",
@@ -189,14 +191,16 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 											Type:        "object",
 											Properties: map[string]extv1.JSONSchemaProps{
 												"global": {
-													Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (for example, a per storageClass value)",
+													Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (per storageClass)",
 													Type:        "string",
 													Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
 												},
 												"storageClass": {
 													AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
 														Schema: &extv1.JSONSchemaProps{
-															Type: "string",
+															Type:        "string",
+															Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
+															Description: "Percent is a string that can only be a value between [0,1) (Note: we actually rely on reconcile to reject invalid values)",
 														},
 													},
 													Description: "StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value",
@@ -301,14 +305,16 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 											Type:        "object",
 											Properties: map[string]extv1.JSONSchemaProps{
 												"global": {
-													Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (for example, a per storageClass value)",
+													Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (per storageClass)",
 													Type:        "string",
 													Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
 												},
 												"storageClass": {
 													AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
 														Schema: &extv1.JSONSchemaProps{
-															Type: "string",
+															Type:        "string",
+															Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
+															Description: "Percent is a string that can only be a value between [0,1) (Note: we actually rely on reconcile to reject invalid values)",
 														},
 													},
 													Description: "StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value",
@@ -377,14 +383,16 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 											Type:        "object",
 											Properties: map[string]extv1.JSONSchemaProps{
 												"global": {
-													Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (for example, a per storageClass value)",
+													Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (per storageClass)",
 													Type:        "string",
 													Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
 												},
 												"storageClass": {
 													AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
 														Schema: &extv1.JSONSchemaProps{
-															Type: "string",
+															Type:        "string",
+															Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
+															Description: "Percent is a string that can only be a value between [0,1) (Note: we actually rely on reconcile to reject invalid values)",
 														},
 													},
 													Description: "StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value",
