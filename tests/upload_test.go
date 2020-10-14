@@ -109,8 +109,9 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		}
 
 		By("Do upload")
-		err = uploader(uploadProxyURL, token, expectedStatus)
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			return uploader(uploadProxyURL, token, expectedStatus)
+		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		if validToken {
 			By("Verify PVC status annotation says succeeded")
@@ -177,8 +178,9 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(token).ToNot(BeEmpty())
 
 		By("Do upload")
-		err = uploadImage(uploadProxyURL, token, http.StatusOK)
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			return uploadImage(uploadProxyURL, token, http.StatusOK)
+		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		By("Verify PVC status annotation says succeeded")
 		found, err = utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
@@ -206,8 +208,9 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(token).ToNot(BeEmpty())
 
 		By("Do upload")
-		err = uploadFileNameToPath(binaryRequestFunc, utils.UploadFileLargeVirtualDisk, uploadProxyURL, asyncUploadPath, token, http.StatusBadRequest)
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			return uploadFileNameToPath(binaryRequestFunc, utils.UploadFileLargeVirtualDisk, uploadProxyURL, asyncUploadPath, token, http.StatusBadRequest)
+		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
 	})
 })
 
@@ -401,8 +404,9 @@ var _ = Describe("Block PV upload Test", func() {
 		}
 
 		By("Do upload")
-		err = uploadImage(uploadProxyURL, token, expectedStatus)
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			return uploadImage(uploadProxyURL, token, expectedStatus)
+		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		if validToken {
 			By("Verify PVC status annotation says succeeded")
@@ -635,8 +639,9 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(token).ToNot(BeEmpty())
 
 		By("Do upload")
-		err = uploadImage(uploadProxyURL, token, http.StatusOK)
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			return uploadImage(uploadProxyURL, token, http.StatusOK)
+		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		phase = cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -749,8 +754,9 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		Expect(token).ToNot(BeEmpty())
 
 		By("Do upload")
-		err = uploadImage(uploadProxyURL, token, http.StatusOK)
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			return uploadImage(uploadProxyURL, token, http.StatusOK)
+		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		phase = cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
