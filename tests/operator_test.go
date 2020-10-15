@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 	"time"
 
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
@@ -21,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
@@ -97,6 +99,127 @@ var _ = Describe("Operator tests", func() {
 		Expect(conditionMap[conditions.ConditionProgressing]).To(Equal(corev1.ConditionFalse))
 		Expect(conditionMap[conditions.ConditionDegraded]).To(Equal(corev1.ConditionFalse))
 	})
+})
+
+var _ = Describe("Tests needing the restore of nodes", func() {
+	var nodes *corev1.NodeList
+	var cdiPods *corev1.PodList
+	var err error
+
+	f := framework.NewFramework("operator-delete-cdi-test")
+
+	BeforeEach(func() {
+		nodes, err = f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+		Expect(nodes.Items).ToNot(BeEmpty(), "There should be some compute node")
+		Expect(err).ToNot(HaveOccurred())
+
+		cdiPods, err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
+		Expect(err).ToNot(HaveOccurred(), "failed listing cdi pods")
+		Expect(len(cdiPods.Items)).To(BeNumerically(">", 0), "no cdi pods found")
+	})
+
+	AfterEach(func() {
+		var errors []error
+		var newCdiPods *corev1.PodList
+		By("Restoring nodes")
+		for _, node := range nodes.Items {
+			newNode, err := f.K8sClient.CoreV1().Nodes().Get(context.TODO(), node.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			newNode.Spec = node.Spec
+			_, err = f.K8sClient.CoreV1().Nodes().Update(context.TODO(), newNode, metav1.UpdateOptions{})
+			if err != nil {
+				errors = append(errors, err)
+			}
+		}
+		Expect(errors).Should(BeEmpty(), "failed restoring one or more nodes")
+
+		By("Waiting for there to be as many CDI pods as before")
+		Eventually(func() bool {
+			newCdiPods, err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
+			Expect(err).ToNot(HaveOccurred(), "failed getting CDI pods")
+
+			By(fmt.Sprintf("number of cdi pods: %d\n new number of cdi pods: %d\n", len(cdiPods.Items), len(newCdiPods.Items)))
+			if len(cdiPods.Items) != len(newCdiPods.Items) {
+				return false
+			}
+			return true
+		}, 5*time.Minute, 2*time.Second).Should(BeTrue())
+
+		for _, newCdiPod := range newCdiPods.Items {
+			By(fmt.Sprintf("Waiting for CDI pod %s to be ready", newCdiPod.Name))
+			err := utils.WaitTimeoutForPodReady(f.K8sClient, newCdiPod.Name, newCdiPod.Namespace, 20*time.Minute)
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+	})
+
+	It("should deploy components that tolerate CriticalAddonsOnly taint", func() {
+		var err error
+		cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		criticalAddonsToleration := corev1.Toleration{
+			Key:      "CriticalAddonsOnly",
+			Operator: corev1.TolerationOpExists,
+		}
+
+		if !tolerationExists(cr.Spec.Infra.Tolerations, criticalAddonsToleration) {
+			Skip("Unexpected CDI CR (not from cdi-cr.yaml), doesn't tolerate CriticalAddonsOnly")
+		}
+
+		labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{"cdi.kubevirt.io/testing": ""}}
+		cdiTestPods, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{
+			LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
+		})
+		Expect(err).ToNot(HaveOccurred(), "failed listing cdi testing pods")
+		Expect(len(cdiTestPods.Items)).To(BeNumerically(">", 0), "no cdi testing pods found")
+
+		By("adding taints to all nodes")
+		criticalPodTaint := corev1.Taint{
+			Key:    "CriticalAddonsOnly",
+			Value:  "",
+			Effect: corev1.TaintEffectNoExecute,
+		}
+
+		for _, node := range nodes.Items {
+			nodeCopy := node.DeepCopy()
+			if nodeHasTaint(node, criticalPodTaint) {
+				continue
+			}
+
+			nodeCopy.Spec.Taints = append(node.Spec.Taints, criticalPodTaint)
+			_, err = f.K8sClient.CoreV1().Nodes().Update(context.TODO(), nodeCopy, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred(), "failed setting taint on node")
+		}
+
+		By("Waiting for all CDI testing pods to terminate")
+		Eventually(func() bool {
+			for _, cdiTestPod := range cdiTestPods.Items {
+				By(fmt.Sprintf("CDI test pod: %s", cdiTestPod.Name))
+				_, err := f.K8sClient.CoreV1().Pods(cdiTestPod.Namespace).Get(context.TODO(), cdiTestPod.Name, metav1.GetOptions{})
+				if !k8serrors.IsNotFound(err) {
+					return false
+				}
+			}
+			return true
+		}, 5*time.Minute, 2*time.Second).Should(BeTrue())
+
+		By("Checking that all the non-testing pods are running")
+		for _, cdiPod := range cdiPods.Items {
+			if _, isTestingComponent := cdiPod.Labels["cdi.kubevirt.io/testing"]; isTestingComponent {
+				continue
+			}
+			By(fmt.Sprintf("Non-test CDI pod: %s", cdiPod.Name))
+			podUpdated, err := f.K8sClient.CoreV1().Pods(cdiPod.Namespace).Get(context.TODO(), cdiPod.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred(), "failed setting taint on node")
+			Expect(podUpdated.Status.Phase).To(Equal(corev1.PodRunning))
+		}
+	})
+
 })
 
 var _ = Describe("Operator delete CDI tests", func() {
@@ -340,6 +463,24 @@ var _ = Describe("[rfe_id:4784][crit:high] Operator deployment + CDI delete test
 		}
 	})
 })
+
+func tolerationExists(tolerations []corev1.Toleration, testValue corev1.Toleration) bool {
+	for _, toleration := range tolerations {
+		if reflect.DeepEqual(toleration, testValue) {
+			return true
+		}
+	}
+	return false
+}
+
+func nodeHasTaint(node corev1.Node, testedTaint corev1.Taint) bool {
+	for _, taint := range node.Spec.Taints {
+		if reflect.DeepEqual(taint, testedTaint) {
+			return true
+		}
+	}
+	return false
+}
 
 func infraDeploymentAvailable(f *framework.Framework, cr *cdiv1.CDI) bool {
 	cdi, _ := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
