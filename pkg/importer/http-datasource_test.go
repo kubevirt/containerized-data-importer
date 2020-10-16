@@ -141,7 +141,7 @@ var _ = Describe("Http data source", func() {
 		if !wantErr {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(expectedPhase).To(Equal(newPhase))
-			if newPhase == ProcessingPhaseProcess {
+			if newPhase == ProcessingPhaseConvert {
 				file, err := os.Open(filepath.Join(scratchPath, tempFile))
 				Expect(err).NotTo(HaveOccurred())
 				defer file.Close()
@@ -160,7 +160,7 @@ var _ = Describe("Http data source", func() {
 		table.Entry("return Error with invalid content type ", cirrosFileName, cdiv1.DataVolumeContentType("invalid"), ProcessingPhaseError, "", cirrosData, true),
 		table.Entry("return Complete with archive content type and archive endpoint ", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseComplete, "", diskimageArchiveData, false),
 		table.Entry("return Error with invalid target path and archive", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseError, "/imaninvalidpath", cirrosData, true),
-		table.Entry("return Process with scratch space and valid qcow file", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseProcess, "", cirrosData, false),
+		table.Entry("return Process with scratch space and valid qcow file", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseConvert, "", cirrosData, false),
 	)
 
 	It("TransferFile should succeed when writing to valid file, and reading raw gz", func() {
@@ -194,17 +194,6 @@ var _ = Describe("Http data source", func() {
 		result, err = dp.TransferFile("/invalidpath/invalidfile")
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
-	})
-
-	It("calling Process should return Convert", func() {
-		flushRead = cirrosData
-		dp, err = NewHTTPDataSource(ts.URL+"/"+cirrosFileName, "", "", "", cdiv1.DataVolumeKubeVirt)
-		Expect(err).NotTo(HaveOccurred())
-		_, err := dp.Info()
-		Expect(err).NotTo(HaveOccurred())
-		newPhase, err := dp.Process()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseConvert).To(Equal(newPhase))
 	})
 })
 

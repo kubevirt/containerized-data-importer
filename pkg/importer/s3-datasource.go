@@ -97,7 +97,7 @@ func (sd *S3DataSource) Transfer(path string) (ProcessingPhase, error) {
 	}
 	// If streaming succeeded, then parsing the file into URL will also succeed, no need to check error status
 	sd.url, _ = url.Parse(file)
-	return ProcessingPhaseProcess, nil
+	return ProcessingPhaseConvert, nil
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
@@ -107,11 +107,6 @@ func (sd *S3DataSource) TransferFile(fileName string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, err
 	}
 	return ProcessingPhaseResize, nil
-}
-
-// Process is called to do any special processing before giving the url to the data back to the processor
-func (sd *S3DataSource) Process() (ProcessingPhase, error) {
-	return ProcessingPhaseConvert, nil
 }
 
 // GetURL returns the url that the data processor can use when converting the data.

@@ -106,7 +106,7 @@ func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
 	}
 	// If we successfully wrote to the file, then the parse will succeed.
 	is.url, _ = url.Parse(file)
-	return ProcessingPhaseProcess, nil
+	return ProcessingPhaseConvert, nil
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
@@ -117,11 +117,6 @@ func (is *ImageioDataSource) TransferFile(fileName string) (ProcessingPhase, err
 		return ProcessingPhaseError, err
 	}
 	return ProcessingPhaseResize, nil
-}
-
-// Process is called to do any special processing before giving the URI to the data back to the processor
-func (is *ImageioDataSource) Process() (ProcessingPhase, error) {
-	return ProcessingPhaseConvert, nil
 }
 
 // GetURL returns the URI that the data processor can use when converting the data.

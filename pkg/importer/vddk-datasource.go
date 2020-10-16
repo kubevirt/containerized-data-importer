@@ -232,11 +232,6 @@ func (vs *VDDKDataSource) GetURL() *url.URL {
 	return vs.NbdSocket
 }
 
-// Process is called to do any special processing before giving the url to the data back to the processor
-func (vs *VDDKDataSource) Process() (ProcessingPhase, error) {
-	return ProcessingPhaseTransferDataFile, nil
-}
-
 // Transfer is called to transfer the data from the source to the path passed in.
 func (vs *VDDKDataSource) Transfer(path string) (ProcessingPhase, error) {
 	return ProcessingPhaseTransferDataFile, nil

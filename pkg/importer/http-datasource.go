@@ -143,7 +143,7 @@ func (hs *HTTPDataSource) Transfer(path string) (ProcessingPhase, error) {
 		}
 		// If we successfully wrote to the file, then the parse will succeed.
 		hs.url, _ = url.Parse(file)
-		return ProcessingPhaseProcess, nil
+		return ProcessingPhaseConvert, nil
 	} else if hs.contentType == cdiv1.DataVolumeArchive {
 		if err := util.UnArchiveTar(hs.readers.TopReader(), path); err != nil {
 			return ProcessingPhaseError, errors.Wrap(err, "unable to untar files from endpoint")
@@ -162,11 +162,6 @@ func (hs *HTTPDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		return ProcessingPhaseError, err
 	}
 	return ProcessingPhaseResize, nil
-}
-
-// Process is called to do any special processing before giving the URI to the data back to the processor
-func (hs *HTTPDataSource) Process() (ProcessingPhase, error) {
-	return ProcessingPhaseConvert, nil
 }
 
 // GetURL returns the URI that the data processor can use when converting the data.

@@ -46,8 +46,6 @@ const (
 	ProcessingPhaseTransferDataFile ProcessingPhase = "TransferDataFile"
 	// ProcessingPhaseValidatePause is the phase in which the data processor should validate and then pause.
 	ProcessingPhaseValidatePause ProcessingPhase = "ValidatePause"
-	// ProcessingPhaseProcess is the phase in which the data source processes the data just written to the scratch space.
-	ProcessingPhaseProcess ProcessingPhase = "Process"
 	// ProcessingPhaseConvert is the phase in which the data is taken from the url provided by the source, and it is converted to the target RAW disk image format.
 	// The url can be an http end point or file system end point.
 	ProcessingPhaseConvert ProcessingPhase = "Convert"
@@ -86,8 +84,6 @@ type DataSourceInterface interface {
 	Transfer(path string) (ProcessingPhase, error)
 	// TransferFile is called to transfer the data from the source to the file passed in.
 	TransferFile(fileName string) (ProcessingPhase, error)
-	// Process is called to do any special processing before giving the url to the data back to the processor
-	Process() (ProcessingPhase, error)
 	// Geturl returns the url that the data processor can use when converting the data.
 	GetURL() *url.URL
 	// Close closes any readers or other open resources.
@@ -202,11 +198,6 @@ func (dp *DataProcessor) ProcessDataWithPause() error {
 				err = validateErr
 			}
 			dp.currentPhase = ProcessingPhasePause
-		case ProcessingPhaseProcess:
-			dp.currentPhase, err = dp.source.Process()
-			if err != nil {
-				err = errors.Wrap(err, "Unable to process source data to intermediate state before transferring to target")
-			}
 		case ProcessingPhaseConvert:
 			dp.currentPhase, err = dp.convert(dp.source.GetURL())
 			if err != nil {

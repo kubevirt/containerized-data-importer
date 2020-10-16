@@ -2,7 +2,6 @@ package importer
 
 import (
 	"io/ioutil"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,8 +9,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-
-	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 var (
@@ -55,43 +52,17 @@ var _ = Describe("Registry data source", func() {
 		result, err := ds.Transfer(scratchPath)
 		if !wantErr {
 			Expect(err).NotTo(HaveOccurred())
-			Expect(ProcessingPhaseProcess).To(Equal(result))
+			Expect(ProcessingPhaseConvert).To(Equal(result))
 			Expect(filepath.Join(scratchPath, containerDiskImageDir)).To(Equal(ds.imageDir))
 		} else {
 			Expect(err).To(HaveOccurred())
 			Expect(ProcessingPhaseError).To(Equal(result))
 		}
 	},
-		table.Entry("successfully return Process on valid scratch space and empty user parameters", "oci-archive:"+imageFile, "", "", "", "", true, false),
-		table.Entry("successfully return Process on valid scratch space and parameters", "oci-archive:"+imageFile, "username", "password", "/path/to/cert", "", true, false),
+		table.Entry("successfully return Convert on valid scratch space and empty user parameters", "oci-archive:"+imageFile, "", "", "", "", true, false),
+		table.Entry("successfully return Convert on valid scratch space and parameters", "oci-archive:"+imageFile, "username", "password", "/path/to/cert", "", true, false),
 		table.Entry("return Error on invalid scratch space", "oci-archive:"+imageFile, "", "", "", "/invalid", true, true),
 		table.Entry("return Error on valid scratch space, but CopyImage failed", "invalid", "", "", "", "", true, true),
-	)
-
-	table.DescribeTable("Process should ", func(scratchPath string, wantErr bool) {
-		ds = NewRegistryDataSource("", "", "", "", true)
-		if scratchPath == "" {
-			scratchPath = tmpDir
-			err := os.Mkdir(filepath.Join(scratchPath, containerDiskImageDir), os.ModeDir)
-			Expect(err).NotTo(HaveOccurred())
-			err = util.CopyFile(cirrosFilePath, filepath.Join(scratchPath, containerDiskImageDir, cirrosFileName))
-			Expect(err).NotTo(HaveOccurred())
-		}
-		ds.imageDir = filepath.Join(scratchPath, containerDiskImageDir)
-		result, err := ds.Process()
-		if !wantErr {
-			Expect(err).NotTo(HaveOccurred())
-			Expect(ProcessingPhaseConvert).To(Equal(result))
-			imageFileName, err := url.Parse(filepath.Join(scratchPath, containerDiskImageDir, cirrosFileName))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(imageFileName).To(Equal(ds.GetURL()))
-		} else {
-			Expect(err).To(HaveOccurred())
-			Expect(ProcessingPhaseError).To(Equal(result))
-		}
-	},
-		table.Entry("successfully return Convert on valid image file", "", false),
-		table.Entry("return Error on invalid image file", "/invalid", true),
 	)
 
 	It("TransferFile should not be called", func() {
