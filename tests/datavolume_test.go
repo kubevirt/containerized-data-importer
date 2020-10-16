@@ -672,7 +672,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("succeed creating import dv from VDDK source", dataVolumeTestArguments{
+			table.Entry("[test_id:5077]succeed creating import dv from VDDK source", dataVolumeTestArguments{
 				name:             "dv-import-vddk",
 				size:             "1Gi",
 				url:              vcenterURL,
