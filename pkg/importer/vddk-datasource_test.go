@@ -150,7 +150,7 @@ func (sink mockVddkDataSink) Write(buf []byte) (int, error) {
 
 func (sink mockVddkDataSink) Close() {}
 
-func createMockVddkDataSink(destinationFile string) (VDDKDataSink, error) {
+func createMockVddkDataSink(destinationFile string, size uint64) (VDDKDataSink, error) {
 	sink := mockVddkDataSink{}
 	return sink, nil
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
+	"golang.org/x/sys/unix"
 	"k8s.io/klog/v2"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -280,10 +281,14 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	return source, nil
 }
 
-func createVddkDataSink(destinationFile string) (VDDKDataSink, error) {
+func createVddkDataSink(destinationFile string, size uint64) (VDDKDataSink, error) {
 	file, err := os.OpenFile(destinationFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, err
+	}
+	err = unix.Fadvise(int(file.Fd()), 0, int64(size), unix.MADV_SEQUENTIAL)
+	if err != nil {
+		klog.Warningf("Error with sequential fadvise: %v", err)
 	}
 	writer := bufio.NewWriter(file)
 	sink := VDDKFileSink{
@@ -333,7 +338,7 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		return ProcessingPhaseError, err
 	}
 
-	sink, err := newVddkDataSink(destinationFile)
+	sink, err := newVddkDataSink(destinationFile, size)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
