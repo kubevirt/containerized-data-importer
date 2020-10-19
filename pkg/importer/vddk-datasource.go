@@ -20,7 +20,6 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"os/exec"
@@ -43,7 +42,7 @@ const (
 	nbdUnixSocket         = "/var/run/nbd.sock"
 	nbdPidFile            = "/var/run/nbd.pid"
 	nbdLibraryPath        = "/opt/vmware-vix-disklib-distrib/lib64"
-	startupTimeoutSeconds = 60
+	startupTimeoutSeconds = 15
 )
 
 // May be overridden in tests
@@ -119,7 +118,7 @@ func init() {
 func FindMoRef(uuid string, sdkURL string) (string, error) {
 	vmwURL, err := url.Parse(sdkURL)
 	if err != nil {
-		klog.Infof("Unable to create VMware URL: %s\n", err)
+		klog.Errorf("Unable to create VMware URL: %v", err)
 		return "", err
 	}
 
@@ -128,7 +127,7 @@ func FindMoRef(uuid string, sdkURL string) (string, error) {
 	defer cancel()
 	conn, err := govmomi.NewClient(ctx, vmwURL, true)
 	if err != nil {
-		klog.Infof("Unable to connect to vCenter: %s\n", err)
+		klog.Errorf("Unable to connect to vCenter: %v", err)
 		return "", err
 	}
 	defer conn.Logout(ctx)
@@ -137,7 +136,7 @@ func FindMoRef(uuid string, sdkURL string) (string, error) {
 	finder := find.NewFinder(conn.Client, true)
 	datacenters, err := finder.DatacenterList(ctx, "*")
 	if err != nil {
-		klog.Infof("Unable to retrieve datacenter list: %s\n", err)
+		klog.Errorf("Unable to retrieve datacenter list: %v", err)
 		return "", err
 	}
 
@@ -148,10 +147,10 @@ func FindMoRef(uuid string, sdkURL string) (string, error) {
 	for _, datacenter := range datacenters {
 		ref, err := searcher.FindByUuid(ctx, datacenter, uuid, true, &instanceUUID)
 		if err != nil || ref == nil {
-			klog.Infof("VM %s not found in datacenter %s.\n", uuid, datacenter)
+			klog.Infof("VM %s not found in datacenter %s.", uuid, datacenter)
 		} else {
 			moref = ref.Reference().Value
-			klog.Infof("VM %s found in datacenter %s: %s\n", uuid, datacenter, moref)
+			klog.Infof("VM %s found in datacenter %s: %s", uuid, datacenter, moref)
 		}
 	}
 
@@ -166,15 +165,17 @@ func FindMoRef(uuid string, sdkURL string) (string, error) {
 func WaitForNbd(pidfile string) error {
 	nbdCheck := make(chan bool, 1)
 	go func() {
+		klog.Infoln("Waiting for nbdkit PID.")
 		for {
 			select {
 			case <-nbdCheck:
 				return
 			case <-time.After(500 * time.Millisecond):
-				klog.Infoln("Checking for nbdkit PID.")
 				_, err := os.Stat(pidfile)
 				if err != nil {
-					klog.Infof("Error checking for nbdkit PID: %s\n", err)
+					if !os.IsNotExist(err) {
+						klog.Warningf("Error checking for nbdkit PID: %v", err)
+					}
 				} else {
 					nbdCheck <- true
 					return
@@ -201,7 +202,7 @@ func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbpr
 func createVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string) (*VDDKDataSource, error) {
 	vmwURL, err := url.Parse(endpoint)
 	if err != nil {
-		klog.Infof("Unable to parse endpoint: %s\n", endpoint)
+		klog.Errorf("Unable to parse endpoint: %v", endpoint)
 		return nil, err
 	}
 
@@ -235,32 +236,37 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 
 	stdout, err := nbdkit.StdoutPipe()
 	if err != nil {
-		klog.Infof("Error constructing stdout pipe: %s\n", err)
+		klog.Errorf("Error constructing stdout pipe: %v", err)
+		return nil, err
 	}
-	stderr, err := nbdkit.StderrPipe()
-	if err != nil {
-		klog.Infof("Error constructing stderr pipe: %s\n", err)
-	}
+	nbdkit.Stderr = nbdkit.Stdout
+	output := bufio.NewReader(stdout)
+	go func() {
+		for {
+			line, err := output.ReadString('\n')
+			if err != nil {
+				break
+			}
+			klog.Infof("Log line from nbdkit: %s", line)
+		}
+		klog.Infof("Stopped watching nbdkit log.")
+	}()
 
 	err = nbdkit.Start()
 	if err != nil {
-		klog.Infof("Unable to start nbdkit: %s\n", err)
+		klog.Errorf("Unable to start nbdkit: %v", err)
 		return nil, err
 	}
 
 	err = WaitForNbd(nbdPidFile)
 	if err != nil {
-		stdout, _ := ioutil.ReadAll(stdout)
-		klog.Infof("stdout from nbdkit: %s\n", stdout)
-		stderr, _ := ioutil.ReadAll(stderr)
-		klog.Infof("stderr from nbdkit: %s\n", stderr)
-
+		klog.Errorf("Failed waiting for nbdkit to start up: %v", err)
 		return nil, err
 	}
 
 	handle, err := libnbd.Create()
 	if err != nil {
-		klog.Infof("Unable to create libnbd handle: %s\n", err)
+		klog.Errorf("Unable to create libnbd handle: %v", err)
 		nbdkit.Process.Kill()
 		return nil, err
 	}
@@ -268,7 +274,7 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	socket, _ := url.Parse("nbd://" + nbdUnixSocket)
 	err = handle.ConnectUri("nbd+unix://?socket=" + nbdUnixSocket)
 	if err != nil {
-		klog.Infof("Unable to connect to socket: %s\n", socket)
+		klog.Errorf("Unable to connect to socket %s: %v", socket, err)
 		nbdkit.Process.Kill()
 		return nil, err
 	}
@@ -302,7 +308,7 @@ func createVddkDataSink(destinationFile string, size uint64) (VDDKDataSink, erro
 func (vs *VDDKDataSource) Info() (ProcessingPhase, error) {
 	size, err := vs.NbdHandle.GetSize()
 	if err != nil {
-		klog.Infof("Unable to get size from libnbd handle: %s\n", err)
+		klog.Errorf("Unable to get size from libnbd handle: %v", err)
 		return ProcessingPhaseError, err
 	}
 	klog.Infof("Transferring %d-byte disk image...", size)
@@ -334,7 +340,7 @@ func (vs *VDDKDataSource) Transfer(path string) (ProcessingPhase, error) {
 func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
 	size, err := vs.NbdHandle.GetSize()
 	if err != nil {
-		klog.Infof("Unable to get size from libnbd handle: %s\n", err)
+		klog.Errorf("Unable to get size from libnbd handle: %v", err)
 		return ProcessingPhaseError, err
 	}
 
@@ -356,12 +362,23 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 
 		err = vs.NbdHandle.Pread(buf, i, nil)
 		if err != nil {
-			klog.Infof("pread error: %s\n", err)
-			break
+			klog.Errorf("Failed to read from data source at offset %d! First error was: %v", i, err)
+			retryErr := vs.NbdHandle.Pread(buf, i, nil)
+			if retryErr != nil {
+				klog.Errorf("Retry error was: %v", retryErr)
+				return ProcessingPhaseError, err
+			}
+			klog.Infof("Retry was successful.")
 		}
+
 		written, err := sink.Write(buf)
+		if err != nil {
+			klog.Errorf("Failed to write source data to destination: %v", err)
+			return ProcessingPhaseError, err
+		}
 		if uint64(written) < blocksize {
-			klog.Infof("buf wrote less than blocksize: %d\n", written)
+			klog.Errorf("Failed to write whole buffer to destination! Wrote %d/%d bytes.", written, blocksize)
+			return ProcessingPhaseError, errors.New("failed to write whole buffer to destination")
 		}
 
 		// Only log progress at approximately 1% intervals.
