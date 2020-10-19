@@ -27,10 +27,14 @@ import (
 	"time"
 
 	libnbd "github.com/mrnold/go-libnbd"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"k8s.io/klog/v2"
+	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -95,6 +99,19 @@ type VDDKDataSource struct {
 	Command   *exec.Cmd
 	NbdSocket *url.URL
 	NbdHandle NbdOperations
+}
+
+func init() {
+	if err := prometheus.Register(progress); err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			// A counter for that metric has been registered before.
+			// Use the old counter from now on.
+			progress = are.ExistingCollector.(*prometheus.CounterVec)
+		} else {
+			klog.Errorf("Unable to create prometheus progress counter")
+		}
+	}
+	ownerUID, _ = util.ParseEnvVar(common.OwnerUID, false)
 }
 
 // FindMoRef takes the UUID of the VM to migrate and finds its MOref from the given VMware URL.
@@ -283,7 +300,7 @@ func (vs *VDDKDataSource) Info() (ProcessingPhase, error) {
 		klog.Infof("Unable to get size from libnbd handle: %s\n", err)
 		return ProcessingPhaseError, err
 	}
-	klog.Infof("Size of %s: %d\n", vs.NbdSocket, size)
+	klog.Infof("Transferring %d-byte disk image...", size)
 	return ProcessingPhaseTransferDataFile, nil
 }
 
@@ -323,13 +340,15 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 	defer sink.Close()
 
 	start := uint64(0)
+	lastProgress := uint(0)
 	blocksize := uint64(1024 * 1024)
 	buf := make([]byte, blocksize)
 	for i := start; i < size; i += blocksize {
-		if size-i < blocksize {
+		if (size - i) < blocksize {
 			blocksize = size - i
 			buf = make([]byte, blocksize)
 		}
+
 		err = vs.NbdHandle.Pread(buf, i, nil)
 		if err != nil {
 			klog.Infof("pread error: %s\n", err)
@@ -339,9 +358,18 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		if uint64(written) < blocksize {
 			klog.Infof("buf wrote less than blocksize: %d\n", written)
 		}
-		if err != nil {
-			klog.Infof("buf write error: %s\n", err)
-			break
+
+		// Only log progress at approximately 1% intervals.
+		currentProgress := uint(100.0 * (float32(i+uint64(written)) / float32(size)))
+		if currentProgress > lastProgress {
+			klog.Infof("Transferred %d/%d bytes (%d%%)", i+uint64(written), size, currentProgress)
+			lastProgress = currentProgress
+		}
+		v := float64(currentProgress)
+		metric := &dto.Metric{}
+		err = progress.WithLabelValues(ownerUID).Write(metric)
+		if err == nil && v > 0 && v > *metric.Counter.Value {
+			progress.WithLabelValues(ownerUID).Add(v - *metric.Counter.Value)
 		}
 	}
 
