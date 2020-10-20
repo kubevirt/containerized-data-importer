@@ -376,6 +376,31 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 												},
 											},
 										},
+										"checkpoints": {
+											Items: &extv1.JSONSchemaPropsOrArray{
+												Schema: &extv1.JSONSchemaProps{
+													Description: "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
+													Type:        "object",
+													Properties: map[string]extv1.JSONSchemaProps{
+														"previous": {
+															Type: "string",
+														},
+														"current": {
+															Type: "string",
+														},
+													},
+													Required: []string{
+														"previous",
+														"current",
+													},
+												},
+											},
+											Type: "array",
+										},
+										"finalCheckpoint": {
+											Description: "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
+											Type:        "boolean",
+										},
 									},
 									Required: []string{
 										"pvc",
@@ -789,6 +814,31 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 													Type:        "string",
 												},
 											},
+										},
+										"checkpoints": {
+											Items: &extv1.JSONSchemaPropsOrArray{
+												Schema: &extv1.JSONSchemaProps{
+													Description: "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
+													Type:        "object",
+													Properties: map[string]extv1.JSONSchemaProps{
+														"previous": {
+															Type: "string",
+														},
+														"current": {
+															Type: "string",
+														},
+													},
+													Required: []string{
+														"previous",
+														"current",
+													},
+												},
+											},
+											Type: "array",
+										},
+										"finalCheckpoint": {
+											Description: "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
+											Type:        "boolean",
 										},
 									},
 									Required: []string{

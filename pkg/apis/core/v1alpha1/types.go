@@ -236,6 +236,8 @@ const (
 	Failed DataVolumePhase = "Failed"
 	// Unknown represents a DataVolumePhase of Unknown
 	Unknown DataVolumePhase = "Unknown"
+	// Paused represents a DataVolumePhase of Paused
+	Paused DataVolumePhase = "Paused"
 
 	// DataVolumeReady is the condition that indicates if the data volume is ready to be consumed.
 	DataVolumeReady DataVolumeConditionType = "Ready"
