@@ -379,23 +379,26 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 										"checkpoints": {
 											Items: &extv1.JSONSchemaPropsOrArray{
 												Schema: &extv1.JSONSchemaProps{
-													Description: "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
+													Description: "DataVolumeCheckpoint defines a stage in a warm migration.",
 													Type:        "object",
 													Properties: map[string]extv1.JSONSchemaProps{
 														"previous": {
-															Type: "string",
+															Type:        "string",
+															Description: "Previous is the identifier of the snapshot from the previous checkpoint.",
 														},
 														"current": {
-															Type: "string",
+															Type:        "string",
+															Description: "Current is the identifier of the snapshot created for this checkpoint.",
 														},
 													},
 													Required: []string{
-														"previous",
 														"current",
+														"previous",
 													},
 												},
 											},
-											Type: "array",
+											Type:        "array",
+											Description: "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
 										},
 										"finalCheckpoint": {
 											Description: "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
@@ -818,23 +821,26 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 										"checkpoints": {
 											Items: &extv1.JSONSchemaPropsOrArray{
 												Schema: &extv1.JSONSchemaProps{
-													Description: "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
+													Description: "DataVolumeCheckpoint defines a stage in a warm migration.",
 													Type:        "object",
 													Properties: map[string]extv1.JSONSchemaProps{
 														"previous": {
-															Type: "string",
+															Type:        "string",
+															Description: "Previous is the identifier of the snapshot from the previous checkpoint.",
 														},
 														"current": {
-															Type: "string",
+															Type:        "string",
+															Description: "Current is the identifier of the snapshot created for this checkpoint.",
 														},
 													},
 													Required: []string{
-														"previous",
 														"current",
+														"previous",
 													},
 												},
 											},
-											Type: "array",
+											Type:        "array",
+											Description: "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
 										},
 										"finalCheckpoint": {
 											Description: "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
