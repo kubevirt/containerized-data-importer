@@ -119,7 +119,7 @@ int _nbd_get_structured_replies_negotiated_wrapper (struct error *err,
         struct nbd_handle *h);
 int _nbd_set_handshake_flags_wrapper (struct error *err,
         struct nbd_handle *h, uint32_t flags);
-unsigned _nbd_get_handshake_flags_wrapper (struct error *err,
+uint32_t _nbd_get_handshake_flags_wrapper (struct error *err,
         struct nbd_handle *h);
 int _nbd_set_opt_mode_wrapper (struct error *err,
         struct nbd_handle *h, bool enable);

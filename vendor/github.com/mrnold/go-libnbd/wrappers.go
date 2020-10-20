@@ -262,12 +262,9 @@ _nbd_get_tls_wrapper (struct error *err,
   int ret;
 
   ret = nbd_get_tls (h);
-  if (ret == -1)
-    save_error (err);
   return ret;
 #else // !LIBNBD_HAVE_NBD_GET_TLS
   missing_function (err, "get_tls");
-  return -1;
 #endif
 }
 
@@ -458,12 +455,12 @@ _nbd_set_handshake_flags_wrapper (struct error *err,
 #endif
 }
 
-unsigned
+uint32_t
 _nbd_get_handshake_flags_wrapper (struct error *err,
         struct nbd_handle *h)
 {
 #ifdef LIBNBD_HAVE_NBD_GET_HANDSHAKE_FLAGS
-  unsigned ret;
+  uint32_t ret;
 
   ret = nbd_get_handshake_flags (h);
   return ret;

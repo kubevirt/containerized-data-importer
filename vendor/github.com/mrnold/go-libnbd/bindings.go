@@ -351,7 +351,7 @@ func (h *Libnbd) SetTls (tls Tls) error {
 }
 
 /* GetTls: get the TLS request setting */
-func (h *Libnbd) GetTls () (uint, error) {
+func (h *Libnbd) GetTls () (Tls, error) {
     if h.h == nil {
         return 0, closed_handle_error ("get_tls")
     }
@@ -360,12 +360,7 @@ func (h *Libnbd) GetTls () (uint, error) {
 
     ret := C._nbd_get_tls_wrapper (&c_err, h.h)
     runtime.KeepAlive (h.h)
-    if ret == -1 {
-        err := get_error ("get_tls", c_err)
-        C.free_error (&c_err)
-        return 0, err
-    }
-    return uint (ret), nil
+    return Tls (ret), nil
 }
 
 /* GetTlsNegotiated: find out if TLS was negotiated on a connection */
@@ -582,7 +577,7 @@ func (h *Libnbd) SetHandshakeFlags (flags HandshakeFlag) error {
 }
 
 /* GetHandshakeFlags: see which handshake flags are supported */
-func (h *Libnbd) GetHandshakeFlags () (uint, error) {
+func (h *Libnbd) GetHandshakeFlags () (HandshakeFlag, error) {
     if h.h == nil {
         return 0, closed_handle_error ("get_handshake_flags")
     }
@@ -591,7 +586,7 @@ func (h *Libnbd) GetHandshakeFlags () (uint, error) {
 
     ret := C._nbd_get_handshake_flags_wrapper (&c_err, h.h)
     runtime.KeepAlive (h.h)
-    return uint (ret), nil
+    return HandshakeFlag (ret), nil
 }
 
 /* SetOptMode: control option mode, for pausing during option negotiation */
