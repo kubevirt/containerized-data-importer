@@ -27,6 +27,7 @@ RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
 	rsync-daemon \
 	rsync \
 	patch \
+	libnbd-devel \
 	nbdkit-devel \
 	unzip \
 	java-1.8.0-openjdk \
