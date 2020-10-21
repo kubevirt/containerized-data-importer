@@ -21,7 +21,9 @@ package v1beta1
 
 import (
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,44 +31,43 @@ import (
 )
 
 var _ = Describe("IsWaitForFirstConsumerBeforePopulating on Beta1", func() {
-	It("Should return true if source pending, has ownerRef, dv is in WFFC phase", func() {
-		dv := newCloneDataVolume("source-dv", "default")
-		dv.Status.Phase = WaitForFirstConsumer
-		controller := true
-		sourcePvc := createPendingPvc("test", "default")
-		sourcePvc.OwnerReferences = append(sourcePvc.OwnerReferences, metav1.OwnerReference{
-			Kind:       "DataVolume",
-			Controller: &controller,
-			Name:       "source-dv",
-		})
-		res, err := IsWaitForFirstConsumerBeforePopulating(sourcePvc,
-			func(name, namespace string) (*DataVolume, error) {
-				return dv, nil
-			})
-		Expect(err).ToNot(HaveOccurred())
-		Expect(res).To(BeTrue())
-	})
-	It("Should return false if source pending, has ownerRef, dv is NOT in WFFC phase", func() {
-		dv := newCloneDataVolume("source-dv", "default")
-		dv.Status.Phase = Pending
-		controller := true
-		sourcePvc := createPendingPvc("test", "default")
-		sourcePvc.OwnerReferences = append(sourcePvc.OwnerReferences, metav1.OwnerReference{
-			Kind:       "DataVolume",
-			Controller: &controller,
-			Name:       "source-dv",
-		})
+	DescribeTable("PVC with DV as owner",
+		func(volumeClaimPhase corev1.PersistentVolumeClaimPhase, dataVolumePhase DataVolumePhase, expectedResponse bool) {
 
+			dv := newCloneDataVolume("source-dv", "default")
+			dv.Status.Phase = dataVolumePhase
+			controller := true
+			sourcePvc := createPvc("test", "default", volumeClaimPhase)
+			sourcePvc.OwnerReferences = append(sourcePvc.OwnerReferences, metav1.OwnerReference{
+				Kind:       "DataVolume",
+				Controller: &controller,
+				Name:       "source-dv",
+			})
+			res, err := IsWaitForFirstConsumerBeforePopulating(sourcePvc,
+				func(name, namespace string) (*DataVolume, error) {
+					return dv, nil
+				})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(res).To(BeEquivalentTo(expectedResponse))
+		},
+		Entry("PVC Pending, dv is in WFFC phase", corev1.ClaimPending, WaitForFirstConsumer, true),
+		Entry("PVC Pending, dv is NOT in WFFC phase", corev1.ClaimPending, Pending, false),
+		Entry("PVC Bound, phase does not matter", corev1.ClaimBound, PhaseUnset, false),
+	)
+
+	It("Should return false if source has no ownerRef", func() {
+		sourcePvc := createPvc("test", "default", corev1.ClaimPending)
 		res, err := IsWaitForFirstConsumerBeforePopulating(sourcePvc,
 			func(name, namespace string) (*DataVolume, error) {
-				return dv, nil
+				Fail("getDv should never be executed")
+				return nil, nil
 			})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(res).To(BeFalse())
 	})
 
 	It("Should return false if source has no ownerRef", func() {
-		sourcePvc := createPendingPvc("test", "default")
+		sourcePvc := createPvc("test", "default", corev1.ClaimPending)
 		res, err := IsWaitForFirstConsumerBeforePopulating(sourcePvc,
 			func(name, namespace string) (*DataVolume, error) {
 				Fail("getDv should never be executed")
@@ -77,7 +78,7 @@ var _ = Describe("IsWaitForFirstConsumerBeforePopulating on Beta1", func() {
 	})
 })
 
-func createPendingPvc(name, ns string) *corev1.PersistentVolumeClaim {
+func createPvc(name, ns string, claimPhase corev1.PersistentVolumeClaimPhase) *corev1.PersistentVolumeClaim {
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -93,7 +94,7 @@ func createPendingPvc(name, ns string) *corev1.PersistentVolumeClaim {
 			},
 		},
 		Status: corev1.PersistentVolumeClaimStatus{
-			Phase: corev1.ClaimPending,
+			Phase: claimPhase,
 		},
 	}
 }
