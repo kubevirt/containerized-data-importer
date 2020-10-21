@@ -44,21 +44,25 @@ const (
 	// Default address api listens on.
 	defaultHost = "0.0.0.0"
 
-	certDir  = "/var/run/certs/cdi-apiserver-server-cert/"
-	certFile = certDir + "tls.crt"
-	keyFile  = certDir + "tls.key"
+	defaultCertDir  = "/var/run/certs/cdi-apiserver-server-cert/"
+	defaultCertFile = defaultCertDir + "tls.crt"
+	defaultKeyFile  = defaultCertDir + "tls.key"
 )
 
 var (
 	configPath string
 	masterURL  string
 	verbose    string
+	certFile string
+	keyFile string
 )
 
 func init() {
 	// flags
 	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG")
 	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
+	flag.StringVar(&certFile, "cert-file", defaultCertFile, "(Optional) API Server Certificate ")
+	flag.StringVar(&keyFile, "key-file", defaultKeyFile, "(Optional) API Server private key for the certificate")
 	klog.InitFlags(nil)
 	flag.Parse()
 

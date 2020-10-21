@@ -36,7 +36,15 @@ import (
 
 const (
 	readyFile = "/tmp/ready"
+	defaultUploadServerKeyFile = "/var/run/certs/cdi-uploadserver-signer/tls.key"
+	defaultUploadServerCertFile = "/var/run/certs/cdi-uploadserver-signer/tls.crt"
+	defaultUploadClientKeyFile = "/var/run/certs/cdi-uploadserver-client-signer/tls.key"
+	defaultUploadClientCertFile = "/var/run/certs/cdi-uploadserver-client-signer/tls.crt"
+	defaultUploadServerCABundleConfigMap = "cdi-uploadserver-signer-bundle"
+	defaultUploadClientCABundleConfigMap = "cdi-uploadserver-client-signer-bundle"
 )
+
+
 
 var (
 	kubeconfig             string
@@ -49,6 +57,12 @@ var (
 	pullPolicy             string
 	verbose                string
 	log                    = logf.Log.WithName("controller")
+	uploadServerKeyFile   string
+	uploadServerCertFile  string
+	uploadClientKeyFile   string
+	uploadClientCertFile  string
+	uploadServerCABundleConfigMap string
+	uploadClientCABundleConfigMap string
 )
 
 // The importer and cloner images are obtained here along with the supported flags. IMPORTER_IMAGE, CLONER_IMAGE, and UPLOADSERVICE_IMAGE
@@ -58,6 +72,12 @@ var (
 func init() {
 	// flags
 	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
+	flag.StringVar(&uploadServerKeyFile, "uploadserver-ca-key", defaultUploadServerKeyFile,"(Optional) Client certificate for Upload Server")
+	flag.StringVar(&uploadServerCertFile, "uploadserver-ca-cert", defaultUploadServerCertFile, "(Optional) Private key for the client certificate for Upload Server")
+	flag.StringVar(&uploadClientKeyFile, "uploadserver-client-ca-key", defaultUploadClientKeyFile, "(Optional) Client certificate for Upload Server Client")
+	flag.StringVar(&uploadClientCertFile, "uploadserver-client-ca-cert", defaultUploadClientCertFile, "(Optional) Private key for the client certificate for Upload Server Client")
+	flag.StringVar(&uploadServerCABundleConfigMap, "uploadserver-ca-config-map", defaultUploadServerCABundleConfigMap, "(Optional) Name of Config Map containing CA Bundle for Upload Server")
+	flag.StringVar(&uploadClientCABundleConfigMap, "uploadserver-client-ca-config-map", defaultUploadClientCABundleConfigMap, "(Optional) Name of Config Map containing CA Bundle for Upload Server Client")
 	klog.InitFlags(nil)
 	flag.Parse()
 
@@ -124,16 +144,16 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	crdInformerFactory := crdinformers.NewSharedInformerFactory(extClient, common.DefaultResyncPeriod)
 	crdInformer := crdInformerFactory.Apiextensions().V1().CustomResourceDefinitions().Informer()
 
-	uploadClientCAFetcher := &fetcher.FileCertFetcher{Name: "cdi-uploadserver-client-signer"}
+	uploadClientCAFetcher := &fetcher.FileCertFetcher{KeyFileName: uploadClientKeyFile,CertFileName: uploadClientCertFile}
 	uploadClientBundleFetcher := &fetcher.ConfigMapCertBundleFetcher{
-		Name:   "cdi-uploadserver-client-signer-bundle",
+		Name:   uploadClientCABundleConfigMap,
 		Client: client.CoreV1().ConfigMaps(namespace),
 	}
 	uploadClientCertGenerator := &generator.FetchCertGenerator{Fetcher: uploadClientCAFetcher}
 
-	uploadServerCAFetcher := &fetcher.FileCertFetcher{Name: "cdi-uploadserver-signer"}
+	uploadServerCAFetcher := &fetcher.FileCertFetcher{KeyFileName: uploadServerKeyFile,CertFileName:uploadServerCertFile}
 	uploadServerBundleFetcher := &fetcher.ConfigMapCertBundleFetcher{
-		Name:   "cdi-uploadserver-signer-bundle",
+		Name:   uploadServerCABundleConfigMap,
 		Client: client.CoreV1().ConfigMaps(namespace),
 	}
 	uploadServerCertGenerator := &generator.FetchCertGenerator{Fetcher: uploadServerCAFetcher}
