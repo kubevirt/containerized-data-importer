@@ -103,8 +103,13 @@ cluster-down-purge: docker-registry-cleanup cluster-down
 cluster-clean:
 	./cluster-sync/clean.sh
 
-cluster-sync: cluster-clean
+cluster-sync-cdi: cluster-clean
 	./cluster-sync/sync.sh CDI_AVAILABLE_TIMEOUT=${CDI_AVAILABLE_TIMEOUT} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG}
+
+cluster-sync-test-infra:
+	CDI_SYNC="test-infra" ./cluster-sync/sync.sh CDI_AVAILABLE_TIMEOUT=${CDI_AVAILABLE_TIMEOUT} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG}
+
+cluster-sync: cluster-sync-cdi cluster-sync-test-infra
 
 bazel-generate:
 	${DO_BAZ} "./hack/build/bazel-generate.sh -- pkg/ tools/ tests/ cmd/ vendor/"
