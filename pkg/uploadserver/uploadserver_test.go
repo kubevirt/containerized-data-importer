@@ -36,6 +36,7 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
@@ -178,7 +179,7 @@ func replaceAsyncProcessorFunc(replacement func(io.ReadCloser, string, string, f
 var _ = Describe("Upload server tests", func() {
 	It("GET fails", func() {
 		withProcessorSuccess(func() {
-			req, err := http.NewRequest("GET", UploadPathSync, nil)
+			req, err := http.NewRequest("GET", common.UploadPathSync, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -208,7 +209,7 @@ var _ = Describe("Upload server tests", func() {
 
 	table.DescribeTable("Process unavailable", func(uploadPath string) {
 		withProcessorSuccess(func() {
-			req, err := http.NewRequest("POST", UploadPathAsync, strings.NewReader("data"))
+			req, err := http.NewRequest("POST", common.UploadPathAsync, strings.NewReader("data"))
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -221,10 +222,10 @@ var _ = Describe("Upload server tests", func() {
 			Expect(status).To(Equal(http.StatusServiceUnavailable))
 		})
 	},
-		table.Entry("async", UploadPathAsync),
-		table.Entry("sync", UploadPathSync),
-		table.Entry("form async", UploadFormAsync),
-		table.Entry("form sync", UploadFormSync),
+		table.Entry("async", common.UploadPathAsync),
+		table.Entry("sync", common.UploadPathSync),
+		table.Entry("form async", common.UploadFormAsync),
+		table.Entry("form sync", common.UploadFormSync),
 	)
 
 	table.DescribeTable("Completion conflict", func(uploadPath string) {
@@ -242,15 +243,15 @@ var _ = Describe("Upload server tests", func() {
 			Expect(status).To(Equal(http.StatusConflict))
 		})
 	},
-		table.Entry("async", UploadPathAsync),
-		table.Entry("sync", UploadPathSync),
-		table.Entry("form async", UploadFormAsync),
-		table.Entry("form sync", UploadFormSync),
+		table.Entry("async", common.UploadPathAsync),
+		table.Entry("sync", common.UploadPathSync),
+		table.Entry("form async", common.UploadFormAsync),
+		table.Entry("form sync", common.UploadFormSync),
 	)
 
 	It("Success", func() {
 		withProcessorSuccess(func() {
-			req, err := http.NewRequest("POST", UploadPathSync, strings.NewReader("data"))
+			req, err := http.NewRequest("POST", common.UploadPathSync, strings.NewReader("data"))
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -265,7 +266,7 @@ var _ = Describe("Upload server tests", func() {
 
 	table.DescribeTable("Success, async", func(method string) {
 		withAsyncProcessorSuccess(func() {
-			req, err := http.NewRequest(method, UploadPathAsync, strings.NewReader("data"))
+			req, err := http.NewRequest(method, common.UploadPathAsync, strings.NewReader("data"))
 			Expect(err).ToNot(HaveOccurred())
 
 			rr := httptest.NewRecorder()
@@ -293,8 +294,8 @@ var _ = Describe("Upload server tests", func() {
 			Expect(status).To(Equal(http.StatusOK))
 		})
 	},
-		table.Entry("Sync", withProcessorSuccess, UploadFormSync),
-		table.Entry("Async", withAsyncProcessorSuccess, UploadFormAsync),
+		table.Entry("Sync", withProcessorSuccess, common.UploadFormSync),
+		table.Entry("Async", withAsyncProcessorSuccess, common.UploadFormAsync),
 	)
 
 	table.DescribeTable("Stream fail", func(processorFunc func(func()), uploadPath string) {
@@ -311,8 +312,8 @@ var _ = Describe("Upload server tests", func() {
 			Expect(status).To(Equal(http.StatusInternalServerError))
 		})
 	},
-		table.Entry("async", withAsyncProcessorFailure, UploadPathAsync),
-		table.Entry("sync", withProcessorFailure, UploadPathSync),
+		table.Entry("async", withAsyncProcessorFailure, common.UploadPathAsync),
+		table.Entry("sync", withProcessorFailure, common.UploadPathSync),
 	)
 
 	table.DescribeTable("Stream fail form", func(processorFunc func(func()), uploadPath string) {
@@ -327,8 +328,8 @@ var _ = Describe("Upload server tests", func() {
 			Expect(status).To(Equal(http.StatusInternalServerError))
 		})
 	},
-		table.Entry("async", withAsyncProcessorFailure, UploadFormAsync),
-		table.Entry("sync", withProcessorFailure, UploadFormSync),
+		table.Entry("async", withAsyncProcessorFailure, common.UploadFormAsync),
+		table.Entry("sync", withProcessorFailure, common.UploadFormSync),
 	)
 
 	table.DescribeTable("Real upload with client", func(certName string, expectedName string, expectedResponse int) {
@@ -353,7 +354,7 @@ var _ = Describe("Upload server tests", func() {
 
 			Expect(server.bindPort).ToNot(Equal(0))
 
-			url := fmt.Sprintf("https://localhost:%d%s", server.bindPort, UploadPathSync)
+			url := fmt.Sprintf("https://localhost:%d%s", server.bindPort, common.UploadPathSync)
 			stringReader := strings.NewReader("nothing")
 
 			resp, err := client.Post(url, "application/x-www-form-urlencoded", stringReader)
