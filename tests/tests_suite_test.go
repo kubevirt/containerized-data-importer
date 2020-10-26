@@ -4,15 +4,22 @@ import (
 	"flag"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	corev1 "k8s.io/api/core/v1"
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/reporters"
 	"kubevirt.io/containerized-data-importer/tests/utils"
+)
+
+const (
+	pollInterval     = 2 * time.Second
+	nsDeletedTimeout = 270 * time.Second
 )
 
 var (
@@ -91,5 +98,12 @@ func BuildTestSuite() {
 		framework.ClientsInstance.CrClient = crClient
 
 		utils.CacheTestsData(framework.ClientsInstance.K8sClient, framework.ClientsInstance.CdiInstallNs)
+	})
+
+	AfterSuite(func() {
+		Eventually(func() []corev1.Namespace {
+			nsList, _ := utils.GetTestNamespaceList(framework.ClientsInstance.K8sClient, framework.NsPrefixLabel)
+			return nsList.Items
+		}, nsDeletedTimeout, pollInterval).Should(BeEmpty())
 	})
 }

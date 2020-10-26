@@ -114,8 +114,11 @@ func pvPhase(clientSet *kubernetes.Clientset, pvName string, status k8sv1.Persis
 
 // DeletePV deletes the passed in PV
 func DeletePV(clientSet *kubernetes.Clientset, pv *k8sv1.PersistentVolume) error {
+	zero := int64(0)
 	return wait.PollImmediate(pvPollInterval, pvDeleteTime, func() (bool, error) {
-		err := clientSet.CoreV1().PersistentVolumes().Delete(context.TODO(), pv.GetName(), metav1.DeleteOptions{})
+		err := clientSet.CoreV1().PersistentVolumes().Delete(context.TODO(), pv.GetName(), metav1.DeleteOptions{
+			GracePeriodSeconds: &zero,
+		})
 		if err == nil || apierrs.IsNotFound(err) {
 			return true, nil
 		}

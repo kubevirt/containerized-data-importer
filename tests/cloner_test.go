@@ -13,7 +13,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
@@ -40,7 +39,6 @@ const (
 )
 
 var _ = Describe("all clone tests", func() {
-
 	var _ = Describe("[rfe_id:1277][crit:high][vendor:cnv-qe@redhat.com][level:component]Cloner Test Suite", func() {
 		f := framework.NewFramework(namespacePrefix)
 
@@ -105,12 +103,8 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Deleting verifier pod")
-			err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), utils.VerifierPodName, metav1.DeleteOptions{})
+			err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 			Expect(err).ToNot(HaveOccurred())
-			Eventually(func() bool {
-				_, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), utils.VerifierPodName, metav1.GetOptions{})
-				return k8serrors.IsNotFound(err)
-			}, 60, 1).Should(BeTrue())
 			completeClone(f, f.Namespace, targetPvc, diskImagePath, sourceMD5, sourcePvcDiskGroup)
 		})
 
@@ -432,7 +426,9 @@ var _ = Describe("all clone tests", func() {
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv), matchFile, md5sum[:32])).To(BeTrue())
 			By("Verifying the image is sparse")
 			Expect(f.VerifySparse(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv))).To(BeTrue())
-
+			By("Deleting verifier pod")
+			err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("[rfe_id:1126][test_id:1896][crit:High][vendor:cnv-qe@redhat.com][level:component] Should not allow cloning into a smaller sized data volume in block volume mode", func() {
@@ -469,6 +465,9 @@ var _ = Describe("all clone tests", func() {
 			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, targetDv.Name, 3*90*time.Second)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(targetDv), testBaseDir, md5sum[:32])).To(BeTrue())
+			By("Deleting verifier pod")
+			err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 	})
@@ -595,9 +594,7 @@ var _ = Describe("all clone tests", func() {
 				By("Verifying MD5 sum matches")
 				Expect(f.VerifyTargetPVCContentMD5(f.Namespace, utils.PersistentVolumeClaimFromDataVolume(dv), testBaseDir, md5sum[:32])).To(BeTrue())
 				By("Deleting verifier pod")
-				err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), utils.VerifierPodName, metav1.DeleteOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
+				err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 				Expect(err).ToNot(HaveOccurred())
 			}
 
@@ -617,9 +614,7 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Deleting verifier pod")
-			err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), utils.VerifierPodName, metav1.DeleteOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			_, err = utils.WaitPodDeleted(f.K8sClient, utils.VerifierPodName, f.Namespace.Name, verifyPodDeletedTimeout)
+			err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 			Expect(err).ToNot(HaveOccurred())
 
 			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
@@ -641,6 +636,9 @@ var _ = Describe("all clone tests", func() {
 			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, targetNs.Name, cdiv1.Succeeded, "target-dv", 3*90*time.Second)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(f.VerifyTargetPVCContentMD5(targetNs, targetPvc, testBaseDir, sourceMD5)).To(BeTrue())
+			By("Deleting verifier pod")
+			err = utils.DeleteVerifierPod(f.K8sClient, targetNs.Name)
+			Expect(err).ToNot(HaveOccurred())
 		})
 	})
 
@@ -1127,6 +1125,9 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 	}
 	By("Verifying permissions are 660")
 	Expect(f.VerifyPermissions(targetNs, targetPvc)).To(BeTrue(), "Permissions on disk image are not 660")
+	By("Deleting verifier pod")
+	err = utils.DeleteVerifierPod(f.K8sClient, targetNs.Name)
+	Expect(err).ToNot(HaveOccurred())
 }
 
 func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string) {

@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +40,8 @@ func CreateVerifierPodWithPVC(clientSet *kubernetes.Clientset, namespace string,
 
 // DeleteVerifierPod deletes the verifier pod
 func DeleteVerifierPod(clientSet *kubernetes.Clientset, namespace string) error {
-	return DeletePodByName(clientSet, VerifierPodName, namespace)
+	zero := int64(0)
+	return DeletePodByName(clientSet, VerifierPodName, namespace, &zero)
 }
 
 // CreateExecutorPodWithPVC creates a Pod with the passed in PVC mounted under /pvc. You can then use the executor utilities to
@@ -77,19 +79,27 @@ func CreatePod(clientSet *kubernetes.Clientset, namespace string, podDef *k8sv1.
 }
 
 // DeletePodByName deletes the pod based on the passed in name from the passed in Namespace
-func DeletePodByName(clientSet *kubernetes.Clientset, podName, namespace string) error {
+func DeletePodByName(clientSet *kubernetes.Clientset, podName, namespace string, gracePeriod *int64) error {
 	return wait.PollImmediate(2*time.Second, podDeleteTime, func() (bool, error) {
-		err := clientSet.CoreV1().Pods(namespace).Delete(context.TODO(), podName, metav1.DeleteOptions{})
-		if err != nil {
+		err := clientSet.CoreV1().Pods(namespace).Delete(context.TODO(), podName, metav1.DeleteOptions{
+			GracePeriodSeconds: gracePeriod,
+		})
+		if err != nil && !errors.IsNotFound(err) {
 			return false, nil
 		}
 		return true, nil
 	})
 }
 
+// DeletePodNoGrace deletes the passed in Pod from the passed in Namespace
+func DeletePodNoGrace(clientSet *kubernetes.Clientset, pod *k8sv1.Pod, namespace string) error {
+	zero := int64(0)
+	return DeletePodByName(clientSet, pod.Name, namespace, &zero)
+}
+
 // DeletePod deletes the passed in Pod from the passed in Namespace
 func DeletePod(clientSet *kubernetes.Clientset, pod *k8sv1.Pod, namespace string) error {
-	return DeletePodByName(clientSet, pod.Name, namespace)
+	return DeletePodByName(clientSet, pod.Name, namespace, nil)
 }
 
 // NewPodWithPVC creates a new pod that mounts the given PVC
