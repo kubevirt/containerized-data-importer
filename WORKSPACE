@@ -577,5 +577,6 @@ http_file(
     sha256 = "f77f5dc88066d67b665440afafeab69e928a088ddba94d28955c368844a6bfad",
     urls = [
         "http://download.fedoraproject.org/pub/fedora/linux/updates/31/Everything/x86_64/Packages/l/libnbd-1.4.1-1.fc31.x86_64.rpm",
+        "https://mirror.isoc.org.il/pub/fedora/updates/31/Everything/x86_64/Packages/l/libnbd-1.4.1-1.fc31.x86_64.rpm",
     ],
 )
