@@ -1254,7 +1254,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		It("Should create a new scratch PVC when PVC is deleted during import", func() {
-			dvName := "scratch-space-delete"
+			dvName := "import-bug"
 			By(fmt.Sprintf("Creating new datavolume %s", dvName))
 			dv := utils.NewDataVolumeWithHTTPImport(dvName, "500Mi", tinyCoreQcow2URL())
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
@@ -1279,7 +1279,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					By(fmt.Sprintf("Deleted scratch PVC %s %v", scratchPvcName, deleteCounter))
 				}
 				return deleteCounter
-			}, 270*time.Second, 200*time.Millisecond).Should(BeNumerically(">=", 3))
+			}, 270*time.Second, 100*time.Millisecond).Should(BeNumerically(">=", 5))
 
 			By("Wait for PVC to be recreated")
 			scratchPvc, err := utils.WaitForPVC(f.K8sClient, f.Namespace.Name, scratchPvcName)

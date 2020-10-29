@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"time"
 
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
@@ -290,13 +291,19 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 			if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
 				return reconcile.Result{}, err
 			}
-			return reconcile.Result{}, nil
+		} else {
+			// Pod exists, we need to update the PVC status.
+			if err := r.updatePvcFromPod(pvc, pod, log); err != nil {
+				return reconcile.Result{}, err
+			}
 		}
+	}
 
-		// Pod exists, we need to update the PVC status.
-		if err := r.updatePvcFromPod(pvc, pod, log); err != nil {
-			return reconcile.Result{}, err
-		}
+	if !isPVCComplete(pvc) {
+		// We are not done yet, force a re-reconcile in 2 seconds to get an update.
+		log.V(1).Info("Force Reconcile pvc import not finished", "pvc.Name", pvc.Name)
+
+		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
 	}
 	return reconcile.Result{}, nil
 }
@@ -599,6 +606,8 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 		return err
 	}
 	if k8serrors.IsNotFound(err) {
+		r.log.V(1).Info("Creating scratch space for POD and PVC", "pod.Name", pod.Name, "pvc.Name", pvc.Name)
+
 		storageClassName := GetScratchPvcStorageClass(r.client, pvc)
 		// Scratch PVC doesn't exist yet, create it. Determine which storage class to use.
 		_, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, scratchPVCName, storageClassName)
