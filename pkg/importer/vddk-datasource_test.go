@@ -144,13 +144,13 @@ func createMockVddkDataSource(endpoint string, accessKey string, secKey string, 
 
 type mockVddkDataSink struct{}
 
-func (sink mockVddkDataSink) Write(buf []byte) (int, error) {
+func (sink *mockVddkDataSink) Write(buf []byte) (int, error) {
 	return len(buf), nil
 }
 
-func (sink mockVddkDataSink) Close() {}
+func (sink *mockVddkDataSink) Close() {}
 
 func createMockVddkDataSink(destinationFile string, size uint64) (VDDKDataSink, error) {
-	sink := mockVddkDataSink{}
+	sink := &mockVddkDataSink{}
 	return sink, nil
 }

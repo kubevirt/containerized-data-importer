@@ -79,7 +79,7 @@ type VDDKFileSink struct {
 	writer *bufio.Writer
 }
 
-func (sink VDDKFileSink) Write(buf []byte) (int, error) {
+func (sink *VDDKFileSink) Write(buf []byte) (int, error) {
 	written, err := sink.writer.Write(buf)
 	if err != nil {
 		return written, err
@@ -89,8 +89,9 @@ func (sink VDDKFileSink) Write(buf []byte) (int, error) {
 }
 
 // Close closes the file after a transfer is complete.
-func (sink VDDKFileSink) Close() {
+func (sink *VDDKFileSink) Close() {
 	sink.writer.Flush()
+	sink.file.Sync()
 	sink.file.Close()
 }
 
@@ -297,7 +298,7 @@ func createVddkDataSink(destinationFile string, size uint64) (VDDKDataSink, erro
 		klog.Warningf("Error with sequential fadvise: %v", err)
 	}
 	writer := bufio.NewWriter(file)
-	sink := VDDKFileSink{
+	sink := &VDDKFileSink{
 		file:   file,
 		writer: writer,
 	}
