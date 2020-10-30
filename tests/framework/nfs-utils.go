@@ -16,7 +16,7 @@ import (
 const (
 	timeout         = time.Second * 90
 	pollingInterval = time.Second
-	pvCount         = 5
+	pvCount         = 10
 )
 
 func createNFSPVs(client *kubernetes.Clientset, cdiNs string) error {

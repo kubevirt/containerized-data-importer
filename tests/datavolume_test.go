@@ -1254,6 +1254,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		It("Should create a new scratch PVC when PVC is deleted during import", func() {
+			// The test tries to catch issues in handling a deleted scratch PVC during import. There were at least
+			// two problems found and both required a very specific timing between scratch delete and controller actions.
+			// When quickly retrying to delete a scratch a few times the probability of catching the problem is increased.
+			// If there are no problems the test always PASSES
+			// In case of bugs in controller it should fail most of the time .
 			dvName := "import-bug"
 			By(fmt.Sprintf("Creating new datavolume %s", dvName))
 			dv := utils.NewDataVolumeWithHTTPImport(dvName, "500Mi", tinyCoreQcow2URL())
@@ -1272,6 +1277,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By("Trying to delete scratch PVC " + scratchPvcName)
 
 			deleteCounter := 0
+			// The number of retries was chosen empirically. Retrying 5 times is enough to catch the problem.
+			retries := 5
 			Eventually(func() int {
 				err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Delete(context.TODO(), scratchPvcName, metav1.DeleteOptions{})
 				if err == nil {
@@ -1279,7 +1286,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					By(fmt.Sprintf("Deleted scratch PVC %s %v", scratchPvcName, deleteCounter))
 				}
 				return deleteCounter
-			}, 270*time.Second, 100*time.Millisecond).Should(BeNumerically(">=", 5))
+			}, 270*time.Second, 100*time.Millisecond).Should(BeNumerically(">=", retries))
 
 			By("Wait for PVC to be recreated")
 			scratchPvc, err := utils.WaitForPVC(f.K8sClient, f.Namespace.Name, scratchPvcName)
