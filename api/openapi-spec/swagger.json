@@ -3492,6 +3492,10 @@
     "description": "CDISpec defines our specification for the CDI installation",
     "type": "object",
     "properties": {
+     "cloneStrategyOverride": {
+      "description": "Clone strategy override: should we use a host-assisted copy even if snapshots are available?",
+      "type": "string"
+     },
      "config": {
       "description": "CDIConfig at CDI level",
       "$ref": "#/definitions/v1beta1.CDIConfigSpec"
