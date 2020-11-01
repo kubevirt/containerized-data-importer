@@ -50,10 +50,6 @@ container_image(
     name = "cdi-func-test-file-host-init-file-image",
     base = ":cdi-func-test-file-host-init-base-image",
     directory = "/",
-    tars = [
-        ":test-img-tar",
-        ":test-invalid-img-tar",
-    ],
 )
 
 container_image(
@@ -73,7 +69,11 @@ container_image(
     base = ":cdi-func-test-file-host-http-base-image",
     directory = "/",
     entrypoint = ["nginx"],
-    tars = [":nginx-conf-tar"],
+    tars = [
+        ":nginx-conf-tar",
+        ":test-img-tar",
+        ":test-invalid-img-tar",
+    ],
     ports = [
         "80",
         "81",

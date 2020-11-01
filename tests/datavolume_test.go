@@ -1070,7 +1070,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
 				"/bin/sh",
 				"-c",
-				"cp /tmp/shared/images/"+originalImageName+" /tmp/shared/images/"+testImageName)
+				"cp /tmp/source/"+originalImageName+" /tmp/source/"+testImageName)
 			Expect(err).To(BeNil())
 		})
 
@@ -1084,7 +1084,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
 				"/bin/sh",
 				"-c",
-				"rm -f /tmp/shared/images/"+testImageName)
+				"rm -f /tmp/source/"+testImageName)
 			Expect(err).To(BeNil())
 
 			By("Verifying pvc was deleted")
@@ -1121,7 +1121,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
 				"/bin/sh",
 				"-c",
-				"rm /tmp/shared/images/"+testImageName)
+				"rm /tmp/source/"+testImageName)
 			Expect(err).To(BeNil())
 
 			By("Verify the number of retries on the datavolume")
@@ -1137,7 +1137,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			_, _, err = f.ExecCommandInContainerWithFullOutput(fileHostPod.Namespace, fileHostPod.Name, "http",
 				"/bin/sh",
 				"-c",
-				"cp /tmp/shared/images/"+originalImageName+" /tmp/shared/images/"+testImageName)
+				"cp /tmp/source/"+originalImageName+" /tmp/source/"+testImageName)
 			Expect(err).To(BeNil())
 
 			By("Wait for the eventual success")

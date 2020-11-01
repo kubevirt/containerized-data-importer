@@ -24,7 +24,7 @@ spec:
       - name: init
         image: {{ .DockerRepo }}/cdi-func-test-file-host-init:{{ .DockerTag }}
         imagePullPolicy: {{ .PullPolicy }}
-        args: ["-certDir", "/tmp/shared/certs", "-inFile", "/tmp/source/tinyCore.iso", "-outDir", "/tmp/shared/images"]
+        args: ["-certDir", "/tmp/shared/certs"]
         volumeMounts:
         - name: "images"
           mountPath: "/tmp/shared"

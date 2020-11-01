@@ -79,6 +79,8 @@ filegroup(
     name = "test-images",
     srcs = [
         "//tests:images/tinyCore.iso",
+        "//tests:images/tinyCore.qcow2",
+        "//tests:images/tinyCore.qcow2.gz",
         "//tests:images/archive.tar",
         "//tests:images/cirros-qcow2.img",
         "//tests:images/cirros.raw",
