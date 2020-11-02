@@ -152,6 +152,13 @@ func FindMoRef(uuid string, sdkURL string) (string, error) {
 		} else {
 			moref = ref.Reference().Value
 			klog.Infof("VM %s found in datacenter %s: %s", uuid, datacenter, moref)
+			vm := object.NewVirtualMachine(conn.Client, ref.Reference())
+			state, err := vm.PowerState(ctx)
+			if err != nil {
+				klog.Warningf("Unable to get current VM power state: %v", err)
+			} else {
+				klog.Infof("Current VM power state: %s", state)
+			}
 		}
 	}
 
