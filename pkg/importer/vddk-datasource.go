@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	libnbd "github.com/mrnold/go-libnbd"
@@ -207,6 +208,49 @@ func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbpr
 	return newVddkDataSource(endpoint, accessKey, secKey, thumbprint, uuid, backingFile)
 }
 
+func validatePlugins() error {
+	walker := func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		klog.Infof("%s: %d %s", path, info.Size(), info.Mode())
+		return nil
+	}
+
+	klog.Infof("Checking nbdkit plugin directory tree:")
+	err := filepath.Walk("/usr/lib64/nbdkit", walker)
+	if err != nil {
+		klog.Warningf("Unable to get nbdkit plugin directory tree: %v", err)
+	}
+
+	klog.Infof("Checking VDDK library directory tree:")
+	err = filepath.Walk("/opt/vmware-vix-disklib-distrib", walker)
+	if err != nil {
+		klog.Warningf("Unable to get VDDK library directory tree: %v", err)
+	}
+
+	args := []string{
+		"--dump-plugin",
+		vddkPluginPath(),
+	}
+	nbdkit := exec.Command("nbdkit", args...)
+	env := os.Environ()
+	env = append(env, "LD_LIBRARY_PATH="+nbdLibraryPath)
+	nbdkit.Env = env
+	out, err := nbdkit.CombinedOutput()
+	if out != nil {
+		klog.Infof("Output from nbdkit --dump-plugin %s: %s", vddkPluginPath(), out)
+	}
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func createVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string) (*VDDKDataSource, error) {
 	vmwURL, err := url.Parse(endpoint)
 	if err != nil {
@@ -218,6 +262,12 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	sdkURL := vmwURL.Scheme + "://" + accessKey + ":" + secKey + "@" + vmwURL.Host + "/sdk"
 	moref, err := FindMoRef(uuid, sdkURL)
 	if err != nil {
+		return nil, err
+	}
+
+	err = validatePlugins()
+	if err != nil {
+		klog.Errorf("Error validating nbdkit plugins: %v", err)
 		return nil, err
 	}
 
