@@ -23,6 +23,7 @@ go_test(
     ],
     embed = [":go_default_library"],
     deps = [
+        "//pkg/common:go_default_library",
         "//pkg/importer:go_default_library",
         "//pkg/util/cert:go_default_library",
         "//pkg/util/cert/triple:go_default_library",

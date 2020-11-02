@@ -115,13 +115,7 @@ func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string) error {
 		return convertToRaw(url.String(), dest)
 	}
 
-	var jsonArg string
-	if url.Scheme == "nbd" && url.Path != "" {
-		// Convert from local Unix socket
-		jsonArg = fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.path\": \"%s\"}", url.Scheme, url.Path)
-	} else {
-		jsonArg = fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", url.Scheme, url, networkTimeoutSecs)
-	}
+	jsonArg := fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", url.Scheme, url, networkTimeoutSecs)
 
 	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", "convert", "-t", "none", "-p", "-O", "raw", jsonArg, dest)
 	if err != nil {
@@ -156,14 +150,8 @@ func (o *qemuOperations) Info(url *url.URL) (*ImgInfo, error) {
 	var err error
 
 	if len(url.Scheme) > 0 {
-		var jsonArg string
-		if url.Scheme == "nbd" && url.Path != "" {
-			// Get NBD info from local Unix socket
-			jsonArg = fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.path\": \"%s\"}", url.Scheme, url.Path)
-		} else {
-			// Image is a URL, make sure the timeout is long enough.
-			jsonArg = fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", url.Scheme, url, networkTimeoutSecs)
-		}
+		// Image is a URL, make sure the timeout is long enough.
+		jsonArg := fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", url.Scheme, url, networkTimeoutSecs)
 		output, err = qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", jsonArg)
 	} else {
 		output, err = qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", url.String())

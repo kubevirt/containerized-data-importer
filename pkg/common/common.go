@@ -151,4 +151,55 @@ const (
 	VddkConfigMap = "v2v-vmware"
 	// VddkConfigDataKey is the name of the ConfigMap key of the VDDK image reference
 	VddkConfigDataKey = "vddk-init-image"
+
+	// UploadContentTypeHeader is the header upload clients may use to set the content type explicitly
+	UploadContentTypeHeader = "x-cdi-content-type"
+
+	// FilesystemCloneContentType is the content type when cloning a filesystem
+	FilesystemCloneContentType = "filesystem-clone"
+
+	// BlockdeviceClone is the content type when cloning a block device
+	BlockdeviceClone = "blockdevice-clone"
+
+	// UploadPathSync is the path to POST CDI uploads
+	UploadPathSync = "/v1beta1/upload"
+
+	// UploadPathAsync is the path to POST CDI uploads in async mode
+	UploadPathAsync = "/v1beta1/upload-async"
+
+	// UploadFormSync is the path to POST CDI uploads as form data
+	UploadFormSync = "/v1beta1/upload-form"
+
+	// UploadFormAsync is the path to POST CDI uploads as form data in async mode
+	UploadFormAsync = "/v1beta1/upload-form-async"
 )
+
+// ProxyPaths are all supported paths
+var ProxyPaths = append(
+	append(SyncUploadPaths, AsyncUploadPaths...),
+	append(SyncUploadFormPaths, AsyncUploadFormPaths...)...,
+)
+
+// SyncUploadPaths are paths to POST CDI uploads
+var SyncUploadPaths = []string{
+	UploadPathSync,
+	"/v1alpha1/upload",
+}
+
+// AsyncUploadPaths are paths to POST CDI uploads in async mode
+var AsyncUploadPaths = []string{
+	UploadPathAsync,
+	"/v1alpha1/upload-async",
+}
+
+// SyncUploadFormPaths are paths to POST CDI uploads as form data
+var SyncUploadFormPaths = []string{
+	UploadFormSync,
+	"/v1alpha1/upload-form",
+}
+
+// AsyncUploadFormPaths are paths to POST CDI uploads as form data in async mode
+var AsyncUploadFormPaths = []string{
+	UploadFormAsync,
+	"/v1alpha1/upload-form-async",
+}

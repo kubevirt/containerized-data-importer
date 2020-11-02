@@ -17,18 +17,24 @@ limitations under the License.
 package importer
 
 import (
+	"bufio"
 	"context"
 	"errors"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"os/exec"
 	"time"
 
+	libnbd "github.com/mrnold/go-libnbd"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
+	"golang.org/x/sys/unix"
 	"k8s.io/klog/v2"
+	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -36,11 +42,12 @@ const (
 	nbdUnixSocket         = "/var/run/nbd.sock"
 	nbdPidFile            = "/var/run/nbd.pid"
 	nbdLibraryPath        = "/opt/vmware-vix-disklib-distrib/lib64"
-	startupTimeoutSeconds = 60
+	startupTimeoutSeconds = 15
 )
 
 // May be overridden in tests
 var newVddkDataSource = createVddkDataSource
+var newVddkDataSink = createVddkDataSink
 var vddkPluginPath = getVddkPluginPath
 
 func getVddkPluginPath() string {
@@ -53,18 +60,66 @@ func getVddkPluginPath() string {
 	return "vddk"
 }
 
+// NbdOperations provides a mockable interface for the things needed from libnbd.
+type NbdOperations interface {
+	GetSize() (uint64, error)
+	Pread(buf []byte, offset uint64, optargs *libnbd.PreadOptargs) error
+	Close() *libnbd.LibnbdError
+}
+
+// VDDKDataSink provides a mockable interface for saving data from the source.
+type VDDKDataSink interface {
+	Write(buf []byte) (int, error)
+	Close()
+}
+
+// VDDKFileSink writes the source disk data to a local file.
+type VDDKFileSink struct {
+	file   *os.File
+	writer *bufio.Writer
+}
+
+func (sink *VDDKFileSink) Write(buf []byte) (int, error) {
+	written, err := sink.writer.Write(buf)
+	if err != nil {
+		return written, err
+	}
+	err = sink.writer.Flush()
+	return written, err
+}
+
+// Close closes the file after a transfer is complete.
+func (sink *VDDKFileSink) Close() {
+	sink.writer.Flush()
+	sink.file.Sync()
+	sink.file.Close()
+}
+
 // VDDKDataSource is the data provider for vddk.
-// Currently just a reference to the nbdkit process.
 type VDDKDataSource struct {
 	Command   *exec.Cmd
 	NbdSocket *url.URL
+	NbdHandle NbdOperations
+}
+
+func init() {
+	if err := prometheus.Register(progress); err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			// A counter for that metric has been registered before.
+			// Use the old counter from now on.
+			progress = are.ExistingCollector.(*prometheus.CounterVec)
+		} else {
+			klog.Errorf("Unable to create prometheus progress counter")
+		}
+	}
+	ownerUID, _ = util.ParseEnvVar(common.OwnerUID, false)
 }
 
 // FindMoRef takes the UUID of the VM to migrate and finds its MOref from the given VMware URL.
 func FindMoRef(uuid string, sdkURL string) (string, error) {
 	vmwURL, err := url.Parse(sdkURL)
 	if err != nil {
-		klog.Infof("Unable to create VMware URL: %s\n", err)
+		klog.Errorf("Unable to create VMware URL: %v", err)
 		return "", err
 	}
 
@@ -73,7 +128,7 @@ func FindMoRef(uuid string, sdkURL string) (string, error) {
 	defer cancel()
 	conn, err := govmomi.NewClient(ctx, vmwURL, true)
 	if err != nil {
-		klog.Infof("Unable to connect to vCenter: %s\n", err)
+		klog.Errorf("Unable to connect to vCenter: %v", err)
 		return "", err
 	}
 	defer conn.Logout(ctx)
@@ -82,7 +137,7 @@ func FindMoRef(uuid string, sdkURL string) (string, error) {
 	finder := find.NewFinder(conn.Client, true)
 	datacenters, err := finder.DatacenterList(ctx, "*")
 	if err != nil {
-		klog.Infof("Unable to retrieve datacenter list: %s\n", err)
+		klog.Errorf("Unable to retrieve datacenter list: %v", err)
 		return "", err
 	}
 
@@ -93,10 +148,10 @@ func FindMoRef(uuid string, sdkURL string) (string, error) {
 	for _, datacenter := range datacenters {
 		ref, err := searcher.FindByUuid(ctx, datacenter, uuid, true, &instanceUUID)
 		if err != nil || ref == nil {
-			klog.Infof("VM %s not found in datacenter %s.\n", uuid, datacenter)
+			klog.Infof("VM %s not found in datacenter %s.", uuid, datacenter)
 		} else {
 			moref = ref.Reference().Value
-			klog.Infof("VM %s found in datacenter %s: %s\n", uuid, datacenter, moref)
+			klog.Infof("VM %s found in datacenter %s: %s", uuid, datacenter, moref)
 		}
 	}
 
@@ -111,15 +166,17 @@ func FindMoRef(uuid string, sdkURL string) (string, error) {
 func WaitForNbd(pidfile string) error {
 	nbdCheck := make(chan bool, 1)
 	go func() {
+		klog.Infoln("Waiting for nbdkit PID.")
 		for {
 			select {
 			case <-nbdCheck:
 				return
 			case <-time.After(500 * time.Millisecond):
-				klog.Infoln("Checking for nbdkit PID.")
 				_, err := os.Stat(pidfile)
 				if err != nil {
-					klog.Infof("Error checking for nbdkit PID: %s\n", err)
+					if !os.IsNotExist(err) {
+						klog.Warningf("Error checking for nbdkit PID: %v", err)
+					}
 				} else {
 					nbdCheck <- true
 					return
@@ -146,7 +203,7 @@ func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbpr
 func createVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string) (*VDDKDataSource, error) {
 	vmwURL, err := url.Parse(endpoint)
 	if err != nil {
-		klog.Infof("Unable to parse endpoint: %s\n", endpoint)
+		klog.Errorf("Unable to parse endpoint: %v", endpoint)
 		return nil, err
 	}
 
@@ -180,50 +237,88 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 
 	stdout, err := nbdkit.StdoutPipe()
 	if err != nil {
-		klog.Infof("Error constructing stdout pipe: %s\n", err)
+		klog.Errorf("Error constructing stdout pipe: %v", err)
+		return nil, err
 	}
-	stderr, err := nbdkit.StderrPipe()
-	if err != nil {
-		klog.Infof("Error constructing stderr pipe: %s\n", err)
-	}
+	nbdkit.Stderr = nbdkit.Stdout
+	output := bufio.NewReader(stdout)
+	go func() {
+		for {
+			line, err := output.ReadString('\n')
+			if err != nil {
+				break
+			}
+			klog.Infof("Log line from nbdkit: %s", line)
+		}
+		klog.Infof("Stopped watching nbdkit log.")
+	}()
 
 	err = nbdkit.Start()
 	if err != nil {
-		klog.Infof("Unable to start nbdkit: %s\n", err)
+		klog.Errorf("Unable to start nbdkit: %v", err)
 		return nil, err
 	}
 
 	err = WaitForNbd(nbdPidFile)
 	if err != nil {
-		stdout, _ := ioutil.ReadAll(stdout)
-		klog.Infof("stdout from nbdkit: %s\n", stdout)
-		stderr, _ := ioutil.ReadAll(stderr)
-		klog.Infof("stderr from nbdkit: %s\n", stderr)
+		klog.Errorf("Failed waiting for nbdkit to start up: %v", err)
+		return nil, err
+	}
 
+	handle, err := libnbd.Create()
+	if err != nil {
+		klog.Errorf("Unable to create libnbd handle: %v", err)
+		nbdkit.Process.Kill()
 		return nil, err
 	}
 
 	socket, _ := url.Parse("nbd://" + nbdUnixSocket)
+	err = handle.ConnectUri("nbd+unix://?socket=" + nbdUnixSocket)
+	if err != nil {
+		klog.Errorf("Unable to connect to socket %s: %v", socket, err)
+		nbdkit.Process.Kill()
+		return nil, err
+	}
 
 	source := &VDDKDataSource{
 		Command:   nbdkit,
 		NbdSocket: socket,
+		NbdHandle: handle,
 	}
 	return source, nil
 }
 
+func createVddkDataSink(destinationFile string, size uint64) (VDDKDataSink, error) {
+	file, err := os.OpenFile(destinationFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	err = unix.Fadvise(int(file.Fd()), 0, int64(size), unix.MADV_SEQUENTIAL)
+	if err != nil {
+		klog.Warningf("Error with sequential fadvise: %v", err)
+	}
+	writer := bufio.NewWriter(file)
+	sink := &VDDKFileSink{
+		file:   file,
+		writer: writer,
+	}
+	return sink, err
+}
+
 // Info is called to get initial information about the data.
 func (vs *VDDKDataSource) Info() (ProcessingPhase, error) {
-	info, err := qemuOperations.Info(vs.GetURL())
+	size, err := vs.NbdHandle.GetSize()
 	if err != nil {
+		klog.Errorf("Unable to get size from libnbd handle: %v", err)
 		return ProcessingPhaseError, err
 	}
-	klog.Infof("qemu-img info: format %s, backing file %s, virtual size %d, actual size %d\n", info.Format, info.BackingFile, info.VirtualSize, info.ActualSize)
+	klog.Infof("Transferring %d-byte disk image...", size)
 	return ProcessingPhaseTransferDataFile, nil
 }
 
 // Close closes any readers or other open resources.
 func (vs *VDDKDataSource) Close() error {
+	vs.NbdHandle.Close()
 	return vs.Command.Process.Kill()
 }
 
@@ -244,10 +339,62 @@ func (vs *VDDKDataSource) Transfer(path string) (ProcessingPhase, error) {
 
 // TransferFile is called to transfer the data from the source to the file passed in.
 func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
-	err := qemuOperations.ConvertToRawStream(vs.GetURL(), destinationFile)
+	size, err := vs.NbdHandle.GetSize()
 	if err != nil {
-		klog.Infof("Failed to convert disk: %s\n", err)
+		klog.Errorf("Unable to get size from libnbd handle: %v", err)
 		return ProcessingPhaseError, err
 	}
+
+	sink, err := newVddkDataSink(destinationFile, size)
+	if err != nil {
+		return ProcessingPhaseError, err
+	}
+	defer sink.Close()
+
+	start := uint64(0)
+	lastProgress := uint(0)
+	blocksize := uint64(1024 * 1024)
+	buf := make([]byte, blocksize)
+	for i := start; i < size; i += blocksize {
+		if (size - i) < blocksize {
+			blocksize = size - i
+			buf = make([]byte, blocksize)
+		}
+
+		err = vs.NbdHandle.Pread(buf, i, nil)
+		if err != nil {
+			klog.Errorf("Failed to read from data source at offset %d! First error was: %v", i, err)
+			retryErr := vs.NbdHandle.Pread(buf, i, nil)
+			if retryErr != nil {
+				klog.Errorf("Retry error was: %v", retryErr)
+				return ProcessingPhaseError, err
+			}
+			klog.Infof("Retry was successful.")
+		}
+
+		written, err := sink.Write(buf)
+		if err != nil {
+			klog.Errorf("Failed to write source data to destination: %v", err)
+			return ProcessingPhaseError, err
+		}
+		if uint64(written) < blocksize {
+			klog.Errorf("Failed to write whole buffer to destination! Wrote %d/%d bytes.", written, blocksize)
+			return ProcessingPhaseError, errors.New("failed to write whole buffer to destination")
+		}
+
+		// Only log progress at approximately 1% intervals.
+		currentProgress := uint(100.0 * (float32(i+uint64(written)) / float32(size)))
+		if currentProgress > lastProgress {
+			klog.Infof("Transferred %d/%d bytes (%d%%)", i+uint64(written), size, currentProgress)
+			lastProgress = currentProgress
+		}
+		v := float64(currentProgress)
+		metric := &dto.Metric{}
+		err = progress.WithLabelValues(ownerUID).Write(metric)
+		if err == nil && v > 0 && v > *metric.Counter.Value {
+			progress.WithLabelValues(ownerUID).Add(v - *metric.Counter.Value)
+		}
+	}
+
 	return ProcessingPhaseComplete, nil
 }
