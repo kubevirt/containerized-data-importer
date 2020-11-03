@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"os/exec"
@@ -404,7 +405,10 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 	defer sink.Close()
 
 	start := uint64(0)
-	lastProgress := uint(0)
+	lastProgressPercent := uint(0)
+	lastProgressBytes := uint64(0)
+	lastProgressTime := time.Now()
+	initialProgressTime := time.Now()
 	blocksize := uint64(1024 * 1024)
 	buf := make([]byte, blocksize)
 	for i := start; i < size; i += blocksize {
@@ -435,12 +439,32 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		}
 
 		// Only log progress at approximately 1% intervals.
-		currentProgress := uint(100.0 * (float32(i+uint64(written)) / float32(size)))
-		if currentProgress > lastProgress {
-			klog.Infof("Transferred %d/%d bytes (%d%%)", i+uint64(written), size, currentProgress)
-			lastProgress = currentProgress
+		currentProgressBytes := i + uint64(written)
+		currentProgressPercent := uint(100.0 * (float32(currentProgressBytes) / float32(size)))
+		if currentProgressPercent > lastProgressPercent {
+			progressMessage := fmt.Sprintf("Transferred %d/%d bytes (%d%%)", currentProgressBytes, size, currentProgressPercent)
+
+			currentProgressTime := time.Now()
+			overallProgressTime := uint64(time.Since(initialProgressTime).Seconds())
+			if overallProgressTime > 0 {
+				overallProgressRate := currentProgressBytes / overallProgressTime
+				progressMessage += fmt.Sprintf(" at %d bytes/second overall", overallProgressRate)
+			}
+
+			progressTimeDifference := uint64(currentProgressTime.Sub(lastProgressTime).Seconds())
+			if progressTimeDifference > 0 {
+				progressSize := currentProgressBytes - lastProgressBytes
+				progressRate := progressSize / progressTimeDifference
+				progressMessage += fmt.Sprintf(", last 1%% was %d bytes at %d bytes/second", progressSize, progressRate)
+			}
+
+			klog.Info(progressMessage)
+
+			lastProgressBytes = currentProgressBytes
+			lastProgressTime = currentProgressTime
+			lastProgressPercent = currentProgressPercent
 		}
-		v := float64(currentProgress)
+		v := float64(currentProgressPercent)
 		metric := &dto.Metric{}
 		err = progress.WithLabelValues(ownerUID).Write(metric)
 		if err == nil && v > 0 && v > *metric.Counter.Value {
