@@ -67,17 +67,14 @@ const (
 	AnnRequiresScratch = AnnAPIGroup + "/storage.import.requiresScratch"
 	// AnnDiskID provides a const for our PVC diskId annotation
 	AnnDiskID = AnnAPIGroup + "/storage.import.diskId"
-<<<<<<< HEAD
 	// AnnUUID provides a const for our PVC uuid annotation
 	AnnUUID = AnnAPIGroup + "/storage.import.uuid"
 	// AnnBackingFile provides a const for our PVC backing file annotation
 	AnnBackingFile = AnnAPIGroup + "/storage.import.backingFile"
 	// AnnThumbprint provides a const for our PVC backing thumbprint annotation
 	AnnThumbprint = AnnAPIGroup + "/storage.import.vddk.thumbprint"
-=======
 	// AnnImportNetwork provides a const for our importNetwork annotation
 	AnnImportNetwork = AnnAPIGroup + "/storage.import.network"
->>>>>>> Add import network support for importer pod
 
 	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
 	LabelImportPvc = AnnAPIGroup + "/storage.import.importPvcName"
