@@ -40,8 +40,7 @@ func CreateVerifierPodWithPVC(clientSet *kubernetes.Clientset, namespace string,
 
 // DeleteVerifierPod deletes the verifier pod
 func DeleteVerifierPod(clientSet *kubernetes.Clientset, namespace string) error {
-	zero := int64(0)
-	return DeletePodByName(clientSet, VerifierPodName, namespace, &zero)
+	return DeletePodByName(clientSet, VerifierPodName, namespace, nil)
 }
 
 // CreateExecutorPodWithPVC creates a Pod with the passed in PVC mounted under /pvc. You can then use the executor utilities to

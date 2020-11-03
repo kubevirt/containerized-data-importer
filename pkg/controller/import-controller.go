@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"time"
 
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
@@ -16,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -84,6 +86,9 @@ const (
 
 	// creatingScratch provides a const to indicate scratch is being created.
 	creatingScratch = "CreatingScratchSpace"
+
+	// ImportTargetInUse is reason for event created when an import pvc is in use
+	ImportTargetInUse = "ImportTargetInUse"
 )
 
 // ImportReconciler members
@@ -246,11 +251,28 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 	if err != nil {
 		return reconcile.Result{}, err
 	}
+
 	if pod == nil {
 		if isPVCComplete(pvc) {
 			// Don't create the POD if the PVC is completed already
 			log.V(1).Info("PVC is already complete")
 		} else if pvc.DeletionTimestamp == nil {
+			podsUsingPVC, err := getPodsUsingPVCs(r.client, pvc.Namespace, sets.NewString(pvc.Name), false)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+
+			if len(podsUsingPVC) > 0 {
+				for _, pod := range podsUsingPVC {
+					r.log.V(1).Info("can't create import pod, pvc in use by other pod",
+						"namespace", pvc.Namespace, "name", pvc.Name, "pod", pod.Name)
+					r.recorder.Eventf(pvc, corev1.EventTypeWarning, ImportTargetInUse,
+						"pod %s/%s using PersistentVolumeClaim %s", pod.Namespace, pod.Name, pvc.Name)
+
+				}
+				return reconcile.Result{Requeue: true}, nil
+			}
+
 			if _, ok := pvc.Annotations[AnnImportPod]; ok {
 				// Create importer pod, make sure the PVC owns it.
 				if err := r.createImporterPod(pvc); err != nil {
@@ -269,13 +291,19 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 			if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
 				return reconcile.Result{}, err
 			}
-			return reconcile.Result{}, nil
+		} else {
+			// Pod exists, we need to update the PVC status.
+			if err := r.updatePvcFromPod(pvc, pod, log); err != nil {
+				return reconcile.Result{}, err
+			}
 		}
+	}
 
-		// Pod exists, we need to update the PVC status.
-		if err := r.updatePvcFromPod(pvc, pod, log); err != nil {
-			return reconcile.Result{}, err
-		}
+	if !isPVCComplete(pvc) {
+		// We are not done yet, force a re-reconcile in 2 seconds to get an update.
+		log.V(1).Info("Force Reconcile pvc import not finished", "pvc.Name", pvc.Name)
+
+		return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
 	}
 	return reconcile.Result{}, nil
 }
@@ -578,6 +606,8 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 		return err
 	}
 	if k8serrors.IsNotFound(err) {
+		r.log.V(1).Info("Creating scratch space for POD and PVC", "pod.Name", pod.Name, "pvc.Name", pvc.Name)
+
 		storageClassName := GetScratchPvcStorageClass(r.client, pvc)
 		// Scratch PVC doesn't exist yet, create it. Determine which storage class to use.
 		_, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, scratchPVCName, storageClassName)

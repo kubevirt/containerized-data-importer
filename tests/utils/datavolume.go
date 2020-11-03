@@ -27,6 +27,8 @@ const (
 const (
 	// TinyCoreIsoURL provides a test url for the tineyCore iso image
 	TinyCoreIsoURL = "http://cdi-file-host.%s/tinyCore.iso"
+	// TinyCoreQcow2URL provides a test url for the tineyCore qcow2 image
+	TinyCoreQcow2URL = "http://cdi-file-host.%s/tinyCore.qcow2"
 	//TinyCoreIsoRegistryURL provides a test url for the tinycore.qcow2 image wrapped in docker container
 	TinyCoreIsoRegistryURL = "docker://cdi-docker-registry-host.%s/tinycoreqcow2"
 	//TinyCoreIsoRegistryProxyURL provides a test url for the tinycore.qcow2 image wrapped in docker container available through rate-limiting proxy

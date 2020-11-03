@@ -19,7 +19,9 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strconv"
+	"strings"
 
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
@@ -155,6 +157,53 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resultPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resultPvc.GetAnnotations()[AnnImportPod]).ToNot(BeEmpty())
+	})
+
+	It("Should requeue and not create a pod if target pvc in use", func() {
+		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1"}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+		pod := podUsingPVC(pvc, false)
+		reconciler := createImportReconciler(pvc, pod)
+		result, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result.Requeue).To(BeTrue())
+		podList := &corev1.PodList{}
+		err = reconciler.client.List(context.TODO(), podList, &client.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(podList.Items)).To(Equal(1))
+		By("Checking events recorded")
+		close(reconciler.recorder.(*record.FakeRecorder).Events)
+		found := false
+		for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+			By(fmt.Sprintf("Event: %v", event))
+
+			if strings.Contains(event, "ImportTargetInUse") {
+				found = true
+			}
+		}
+		Expect(found).To(BeTrue())
+	})
+	It("Should create a POD if target pvc no longer in use (pod using the PVC failed)", func() {
+		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1"}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+		podFinishedUsingPvc := podUsingPVC(pvc, false)
+		podFinishedUsingPvc.Status.Phase = v1.PodFailed
+		reconciler := createImportReconciler(pvc, podFinishedUsingPvc)
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
+		Expect(err).ToNot(HaveOccurred())
+		foundEndPoint := false
+		for _, envVar := range pod.Spec.Containers[0].Env {
+			if envVar.Name == common.ImporterEndpoint {
+				foundEndPoint = true
+				Expect(envVar.Value).To(Equal(testEndPoint))
+			}
+		}
+		Expect(foundEndPoint).To(BeTrue())
+		By("Verifying the fsGroup of the pod is the qemu user")
+		Expect(*pod.Spec.SecurityContext.FSGroup).To(Equal(int64(107)))
 	})
 
 	It("Should create a POD with node placement", func() {
