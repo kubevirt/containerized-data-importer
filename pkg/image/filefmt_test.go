@@ -60,6 +60,14 @@ var _ = Describe("File format tests", func() {
 			fields{"gz", []byte{0x1F, 0x8B}, 0, 0, 0},
 			[]byte{'Q', 'F', 'I', 0xfb},
 			false),
+		table.Entry("match vmdk",
+			fields{"vmdk", []byte{0x4B, 0x44, 0x4D, 0x56}, 0, 24, 8},
+			[]byte{0x4B, 0x44, 0x4D, 0x56},
+			true),
+		table.Entry("match vdi",
+			fields{"vdi", []byte{0x3C, 0x3C, 0x3C, 0x20}, 0, 24, 8},
+			[]byte{0x3C, 0x3C, 0x3C, 0x20},
+			true),
 	)
 
 	tokenQcow := make([]byte, 20)

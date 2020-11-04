@@ -174,6 +174,12 @@ func (fr *FormatReaders) fileFormatSelector(hdr *image.Header) {
 		if err == nil {
 			fr.Archived = true
 		}
+	case "vmdk":
+		r = nil
+		fr.Convert = true
+	case "vdi":
+		r = nil
+		fr.Convert = true
 	}
 	if err == nil && r != nil {
 		fr.appendReader(rdrTypM[fFmt], r)
