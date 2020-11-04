@@ -46,6 +46,18 @@ var knownHeaders = Headers{
 		SizeOff: 0,
 		SizeLen: 0,
 	},
+	"vmdk": Header{
+		Format:      "vmdk",
+		magicNumber: []byte{0x4B, 0x44, 0x4D, 0x56},
+		SizeOff: 0,
+		SizeLen: 0,
+	},
+	"vdi": Header{
+		Format:      "vdi",
+		magicNumber: []byte{0x3C, 0x3C, 0x3C, 0x20},
+		SizeOff: 0,
+		SizeLen: 0,
+	},
 }
 
 // Header represents our parameters for a file format header
