@@ -14,9 +14,8 @@ import (
 // Sequence of phases:
 // 1a. ProcessingPhaseInfo -> ProcessingPhaseTransferScratch (In Info phase the format readers are configured) In case the readers don't contain a raw file.
 // 1b. ProcessingPhaseInfo -> ProcessingPhaseTransferDataFile, in the case the readers contain a raw file.
-// 2a. ProcessingPhaseTransferScratch -> ProcessingPhaseProcess
+// 2a. ProcessingPhaseTransferScratch -> ProcessingPhaseConvert
 // 2b. ProcessingPhaseTransferDataFile -> ProcessingPhaseResize
-// 3. ProcessingPhaseProcess -> ProcessingPhaseConvert
 type UploadDataSource struct {
 	// Data strean
 	stream io.ReadCloser
@@ -66,7 +65,7 @@ func (ud *UploadDataSource) Transfer(path string) (ProcessingPhase, error) {
 	}
 	// If we successfully wrote to the file, then the parse will succeed.
 	ud.url, _ = url.Parse(file)
-	return ProcessingPhaseProcess, nil
+	return ProcessingPhaseConvert, nil
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
@@ -78,11 +77,6 @@ func (ud *UploadDataSource) TransferFile(fileName string) (ProcessingPhase, erro
 	// If we successfully wrote to the file, then the parse will succeed.
 	ud.url, _ = url.Parse(fileName)
 	return ProcessingPhaseResize, nil
-}
-
-// Process is called to do any special processing before giving the url to the data back to the processor
-func (ud *UploadDataSource) Process() (ProcessingPhase, error) {
-	return ProcessingPhaseConvert, nil
 }
 
 // GetURL returns the url that the data processor can use when converting the data.
@@ -138,7 +132,7 @@ func (aud *AsyncUploadDataSource) Transfer(path string) (ProcessingPhase, error)
 	}
 	// If we successfully wrote to the file, then the parse will succeed.
 	aud.uploadDataSource.url, _ = url.Parse(file)
-	aud.ResumePhase = ProcessingPhaseProcess
+	aud.ResumePhase = ProcessingPhaseConvert
 	return ProcessingPhaseValidatePause, nil
 }
 
@@ -152,11 +146,6 @@ func (aud *AsyncUploadDataSource) TransferFile(fileName string) (ProcessingPhase
 	aud.uploadDataSource.url, _ = url.Parse(fileName)
 	aud.ResumePhase = ProcessingPhaseResize
 	return ProcessingPhaseValidatePause, nil
-}
-
-// Process is called to do any special processing before giving the url to the data back to the processor
-func (aud *AsyncUploadDataSource) Process() (ProcessingPhase, error) {
-	return ProcessingPhaseConvert, nil
 }
 
 // Close closes any readers or other open resources.

@@ -77,7 +77,7 @@ var _ = Describe("Upload data source", func() {
 		result, err := ud.Transfer(scratchPath)
 		if !wantErr {
 			Expect(err).NotTo(HaveOccurred())
-			Expect(ProcessingPhaseProcess).To(Equal(result))
+			Expect(ProcessingPhaseConvert).To(Equal(result))
 			file, err := os.Open(filepath.Join(scratchPath, tempFile))
 			Expect(err).NotTo(HaveOccurred())
 			defer file.Close()
@@ -135,16 +135,6 @@ var _ = Describe("Upload data source", func() {
 		result, err = ud.TransferFile("/invalidpath/invalidfile")
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
-	})
-
-	It("Process should return Convert", func() {
-		// Don't need to defer close, since ud.Close will close the reader
-		file, err := os.Open(cirrosFilePath)
-		Expect(err).NotTo(HaveOccurred())
-		ud = NewUploadDataSource(file)
-		result, err := ud.Process()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseConvert).To(Equal(result))
 	})
 
 	It("Close with nil stream should not fail", func() {
@@ -221,7 +211,7 @@ var _ = Describe("Async Upload data source", func() {
 		if !wantErr {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(ProcessingPhaseValidatePause).To(Equal(result))
-			Expect(ProcessingPhaseProcess).To(Equal(aud.GetResumePhase()))
+			Expect(ProcessingPhaseConvert).To(Equal(aud.GetResumePhase()))
 		} else {
 			Expect(err).To(HaveOccurred())
 		}
@@ -270,16 +260,6 @@ var _ = Describe("Async Upload data source", func() {
 		result, err = aud.TransferFile("/invalidpath/invalidfile")
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
-	})
-
-	It("Process should return Convert", func() {
-		// Don't need to defer close, since ud.Close will close the reader
-		file, err := os.Open(cirrosFilePath)
-		Expect(err).NotTo(HaveOccurred())
-		aud = NewAsyncUploadDataSource(file)
-		result, err := aud.Process()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseConvert).To(Equal(result))
 	})
 
 	It("Close with nil stream should not fail", func() {

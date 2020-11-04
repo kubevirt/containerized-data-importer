@@ -111,7 +111,7 @@ var _ = Describe("S3 data source", func() {
 		result, err := sd.Transfer(scratchPath)
 		if !wantErr {
 			Expect(err).NotTo(HaveOccurred())
-			Expect(ProcessingPhaseProcess).To(Equal(result))
+			Expect(ProcessingPhaseConvert).To(Equal(result))
 			file, err := os.Open(filepath.Join(scratchPath, tempFile))
 			Expect(err).NotTo(HaveOccurred())
 			defer file.Close()
@@ -179,19 +179,6 @@ var _ = Describe("S3 data source", func() {
 		result, err = sd.TransferFile("/invalidpath/invalidfile")
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
-	})
-
-	It("Process should return Convert", func() {
-		// Don't need to defer close, since ud.Close will close the reader
-		file, err := os.Open(cirrosFilePath)
-		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
-		Expect(err).NotTo(HaveOccurred())
-		// Replace minio.Object with a reader we can use.
-		sd.s3Reader = file
-		result, err := sd.Process()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseConvert).To(Equal(result))
 	})
 
 	It("GetS3Client should return a real client", func() {

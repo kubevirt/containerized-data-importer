@@ -108,13 +108,6 @@ var _ = Describe("Imageio data source", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("NewImageioDataSource proccess should not fail with valid endpoint ", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
-		Expect(err).ToNot(HaveOccurred())
-		_, err = dp.Process()
-		Expect(err).ToNot(HaveOccurred())
-	})
-
 	It("NewImageioDataSource tranfer should fail if invalid path", func() {
 		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
 		Expect(err).ToNot(HaveOccurred())

@@ -46,7 +46,6 @@ type fakeQEMUOperations struct {
 type MockDataProvider struct {
 	infoResponse     ProcessingPhase
 	transferResponse ProcessingPhase
-	processResponse  ProcessingPhase
 	url              *url.URL
 	transferPath     string
 	transferFile     string
@@ -86,15 +85,6 @@ func (m *MockDataProvider) TransferFile(fileName string) (ProcessingPhase, error
 	return m.transferResponse, nil
 }
 
-// Process is called to do any special processing before giving the url to the data back to the processor
-func (m *MockDataProvider) Process() (ProcessingPhase, error) {
-	m.calledPhases = append(m.calledPhases, ProcessingPhaseProcess)
-	if m.processResponse == ProcessingPhaseError {
-		return ProcessingPhaseError, errors.New("Process errored")
-	}
-	return m.processResponse, nil
-}
-
 // Geturl returns the url that the data processor can use when converting the data.
 func (m *MockDataProvider) GetURL() *url.URL {
 	return m.url
@@ -125,11 +115,6 @@ func (madp *MockAsyncDataProvider) TransferFile(fileName string) (ProcessingPhas
 	return madp.MockDataProvider.TransferFile(fileName)
 }
 
-// Process is called to do any special processing before giving the url to the data back to the processor
-func (madp *MockAsyncDataProvider) Process() (ProcessingPhase, error) {
-	return madp.MockDataProvider.Process()
-}
-
 // Close closes any readers or other open resources.
 func (madp *MockAsyncDataProvider) Close() error {
 	return madp.MockDataProvider.Close()
@@ -149,32 +134,28 @@ var _ = Describe("Data Processor", func() {
 	It("should call the right phases based on the responses from the provider, Transfer should pass the scratch data dir as a path", func() {
 		mdp := &MockDataProvider{
 			infoResponse:     ProcessingPhaseTransferScratch,
-			transferResponse: ProcessingPhaseProcess,
-			processResponse:  ProcessingPhaseComplete,
+			transferResponse: ProcessingPhaseComplete,
 		}
 		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055)
 		err := dp.ProcessData()
 		Expect(err).ToNot(HaveOccurred())
-		Expect(3).To(Equal(len(mdp.calledPhases)))
+		Expect(2).To(Equal(len(mdp.calledPhases)))
 		Expect(ProcessingPhaseInfo).To(Equal(mdp.calledPhases[0]))
 		Expect(ProcessingPhaseTransferScratch).To(Equal(mdp.calledPhases[1]))
-		Expect(ProcessingPhaseProcess).To(Equal(mdp.calledPhases[2]))
 		Expect("scratchDataDir").To(Equal(mdp.transferPath))
 	})
 
 	It("should call the right phases based on the responses from the provider, TransferTarget should pass the data dir as a path", func() {
 		mdp := &MockDataProvider{
 			infoResponse:     ProcessingPhaseTransferDataDir,
-			transferResponse: ProcessingPhaseProcess,
-			processResponse:  ProcessingPhaseComplete,
+			transferResponse: ProcessingPhaseComplete,
 		}
 		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055)
 		err := dp.ProcessData()
 		Expect(err).ToNot(HaveOccurred())
-		Expect(3).To(Equal(len(mdp.calledPhases)))
+		Expect(2).To(Equal(len(mdp.calledPhases)))
 		Expect(ProcessingPhaseInfo).To(Equal(mdp.calledPhases[0]))
 		Expect(ProcessingPhaseTransferDataDir).To(Equal(mdp.calledPhases[1]))
-		Expect(ProcessingPhaseProcess).To(Equal(mdp.calledPhases[2]))
 		Expect("dataDir").To(Equal(mdp.transferPath))
 	})
 
@@ -258,8 +239,7 @@ var _ = Describe("Data Processor", func() {
 		Expect(err).ToNot(HaveOccurred())
 		mdp := &MockDataProvider{
 			infoResponse:     ProcessingPhaseTransferScratch,
-			transferResponse: ProcessingPhaseProcess,
-			processResponse:  ProcessingPhaseConvert,
+			transferResponse: ProcessingPhaseConvert,
 			url:              url,
 		}
 		dp := NewDataProcessor(mdp, "dest", "dataDir", tmpDir, "1G", 0.055)
@@ -268,10 +248,9 @@ var _ = Describe("Data Processor", func() {
 		replaceQEMUOperations(qemuOperations, func() {
 			err = dp.ProcessData()
 			Expect(err).ToNot(HaveOccurred())
-			Expect(3).To(Equal(len(mdp.calledPhases)))
+			Expect(2).To(Equal(len(mdp.calledPhases)))
 			Expect(ProcessingPhaseInfo).To(Equal(mdp.calledPhases[0]))
 			Expect(ProcessingPhaseTransferScratch).To(Equal(mdp.calledPhases[1]))
-			Expect(ProcessingPhaseProcess).To(Equal(mdp.calledPhases[2]))
 			Expect(tmpDir).To(Equal(mdp.transferPath))
 		})
 	})
