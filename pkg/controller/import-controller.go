@@ -904,6 +904,7 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 		fsGroup := common.QemuSubGid
 		pod.Spec.SecurityContext.FSGroup = &fsGroup
 	}
+	SetPodPvcAnnotations(pod, pvc)
 	return pod
 }
 

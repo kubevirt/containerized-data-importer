@@ -257,7 +257,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 	})
 
 	It("Should create a POD if a PVC with all needed annotations is passed", func() {
-		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1"}, nil)
+		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1", AnnPodNetwork: "net1"}, nil)
 		pvc.Status.Phase = v1.ClaimBound
 		reconciler = createImportReconciler(pvc)
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
@@ -275,6 +275,29 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(foundEndPoint).To(BeTrue())
 		By("Verifying the fsGroup of the pod is the qemu user")
 		Expect(*pod.Spec.SecurityContext.FSGroup).To(Equal(int64(107)))
+		By("Verifying the pod is annotated with network")
+		Expect(pod.GetAnnotations()[AnnPodNetwork]).To(Equal("net1"))
+	})
+
+	It("Should not pass non-approved PVC annotation to created POD", func() {
+		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1", "annot1": "value1"}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+		reconciler = createImportReconciler(pvc)
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
+		Expect(err).ToNot(HaveOccurred())
+		foundEndPoint := false
+		for _, envVar := range pod.Spec.Containers[0].Env {
+			if envVar.Name == common.ImporterEndpoint {
+				foundEndPoint = true
+				Expect(envVar.Value).To(Equal(testEndPoint))
+			}
+		}
+		Expect(foundEndPoint).To(BeTrue())
+		By("Verifying the pod is not annotated with annot")
+		Expect(pod.GetAnnotations()["annot1"]).ToNot(Equal("value1"))
 	})
 
 	It("Should create a POD if a bound PVC with all needed annotations is passed, but not set fsgroup if not kubevirt contenttype", func() {

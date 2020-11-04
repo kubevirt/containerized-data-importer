@@ -89,6 +89,13 @@ const (
 	podRunningReason = "Pod is running"
 )
 
+const (
+	// AnnPodNetwork is used for specifying Pod Network
+	AnnPodNetwork = "k8s.v1.cni.cncf.io/networks"
+	// AnnPodSidecarInjection is used for enabling/disabling Pod istio/AspenMesh sidecar injection
+	AnnPodSidecarInjection = "sidecar.istio.io/inject"
+)
+
 func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string, log logr.Logger) bool {
 	// check if we have proper annotation
 	if !metav1.HasAnnotation(pvc.ObjectMeta, annotation) {
@@ -593,4 +600,15 @@ func IsPopulated(pvc *v1.PersistentVolumeClaim, c client.Client) (bool, error) {
 		err := c.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, dv)
 		return dv, err
 	})
+}
+
+// SetPodPvcAnnotations applies PVC annotations on the pod
+func SetPodPvcAnnotations(pod *v1.Pod, pvc *v1.PersistentVolumeClaim) {
+	allowedAnnotations := []string{AnnPodNetwork, AnnPodSidecarInjection}
+	for _, ann := range allowedAnnotations {
+		if val, ok := pvc.Annotations[ann]; ok {
+			klog.V(1).Info("Applying PVC annotation on the pod", ann, val)
+			pod.ObjectMeta.Annotations[ann] = val
+		}
+	}
 }

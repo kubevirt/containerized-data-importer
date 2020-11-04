@@ -288,8 +288,8 @@ var _ = Describe("reconcilePVC loop", func() {
 			Expect(resultPvc.GetAnnotations()[AnnPodPhase]).To(BeEquivalentTo(uploadPod.Status.Phase))
 		})
 
-		It("Should create the service and pod", func() {
-			testPvc := createPvc(testPvcName, "default", map[string]string{AnnCloneRequest: "default/testPvc2", AnnUploadPod: uploadResourceName}, nil)
+		It("Should create the service and pod with passed annotations", func() {
+			testPvc := createPvc(testPvcName, "default", map[string]string{AnnCloneRequest: "default/testPvc2", AnnUploadPod: uploadResourceName, AnnPodNetwork: "net1"}, nil)
 			testPvcSource := createPvc("testPvc2", "default", map[string]string{}, nil)
 			reconciler := createUploadReconciler(testPvc, testPvcSource)
 			By("Verifying the pod and service do not exist")
@@ -310,6 +310,7 @@ var _ = Describe("reconcilePVC loop", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(uploadPod.Name).To(Equal(uploadResourceName))
 			Expect(uploadPod.Labels[common.UploadTargetLabel]).To(Equal(string(testPvc.UID)))
+			Expect(uploadPod.GetAnnotations()[AnnPodNetwork]).To(Equal("net1"))
 
 			uploadService = &corev1.Service{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: naming.GetServiceNameFromResourceName(uploadResourceName), Namespace: "default"}, uploadService)
