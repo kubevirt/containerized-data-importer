@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -113,11 +114,12 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cl.Items).To(HaveLen(1))
 
-		cfg, err := client.CdiV1beta1().CDIConfigs().Get(context.TODO(), cl.Items[0].Name, metav1.GetOptions{})
+		_, err = client.CdiV1beta1().CDIConfigs().Get(context.TODO(), cl.Items[0].Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		cfg.Spec.ScratchSpaceStorageClass = &[]string{"foobar"}[0]
-		cfg, err = client.CdiV1beta1().CDIConfigs().Update(context.TODO(), cfg, metav1.UpdateOptions{})
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			config.ScratchSpaceStorageClass = &[]string{"foobar"}[0]
+		})
 		Expect(err).To(HaveOccurred())
 	},
 		Entry("[test_id:3948]can do everything with admin", "admin"),
@@ -153,11 +155,12 @@ var _ = Describe("Aggregated role in-action tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cl.Items).To(HaveLen(1))
 
-		cfg, err := client.CdiV1beta1().CDIConfigs().Get(context.TODO(), cl.Items[0].Name, metav1.GetOptions{})
+		_, err = client.CdiV1beta1().CDIConfigs().Get(context.TODO(), cl.Items[0].Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		cfg.Spec.ScratchSpaceStorageClass = &[]string{"foobar"}[0]
-		cfg, err = client.CdiV1beta1().CDIConfigs().Update(context.TODO(), cfg, metav1.UpdateOptions{})
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			config.ScratchSpaceStorageClass = &[]string{"foobar"}[0]
+		})
 		Expect(err).To(HaveOccurred())
 	})
 })

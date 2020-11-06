@@ -6,12 +6,13 @@ import (
 	"github.com/onsi/ginkgo"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
-	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
-	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 )
 
 // cdi-file-host pod/service relative values
@@ -124,21 +125,43 @@ func IsNfs() bool {
 	return true
 }
 
-// EnableFeatureGate sets specified FeatureGate in the CDIConfig
-func EnableFeatureGate(client *cdiclientset.Clientset, feature string) (*bool, error) {
-	var previousValue = false
-	config, err := client.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+// UpdateCDIConfigWithOptions updates CDIConfig with specific UpdateOptions
+func UpdateCDIConfigWithOptions(c client.Client, opts metav1.UpdateOptions, updateFunc func(*cdiv1.CDIConfigSpec)) error {
+	cdi, err := controller.GetActiveCDI(c)
 	if err != nil {
-		return nil, err
-	}
-	if HasFeature(config, feature) {
-		previousValue = true
-		return &previousValue, nil
+		return err
 	}
 
-	config.Spec.FeatureGates = append(config.Spec.FeatureGates, feature)
-	config, err = client.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
-	if err != nil {
+	if cdi.Spec.Config == nil {
+		cdi.Spec.Config = &cdiv1.CDIConfigSpec{}
+	}
+
+	updateFunc(cdi.Spec.Config)
+
+	if apiequality.Semantic.DeepEqual(cdi.Spec.Config, &cdiv1.CDIConfigSpec{}) {
+		cdi.Spec.Config = nil
+	}
+
+	return c.Update(context.TODO(), cdi, &client.UpdateOptions{Raw: &opts})
+}
+
+// UpdateCDIConfig updates CDIConfig
+func UpdateCDIConfig(c client.Client, updateFunc func(*cdiv1.CDIConfigSpec)) error {
+	return UpdateCDIConfigWithOptions(c, metav1.UpdateOptions{}, updateFunc)
+}
+
+// EnableFeatureGate sets specified FeatureGate in the CDIConfig
+func EnableFeatureGate(c client.Client, feature string) (*bool, error) {
+	var previousValue = false
+
+	if err := UpdateCDIConfig(c, func(config *cdiv1.CDIConfigSpec) {
+		if HasFeature(config, feature) {
+			previousValue = true
+			return
+		}
+
+		config.FeatureGates = append(config.FeatureGates, feature)
+	}); err != nil {
 		return nil, err
 	}
 
@@ -146,21 +169,18 @@ func EnableFeatureGate(client *cdiclientset.Clientset, feature string) (*bool, e
 }
 
 // DisableFeatureGate unsets specified FeatureGate in the CDIConfig
-func DisableFeatureGate(client *cdiclientset.Clientset, featureGate string) (*bool, error) {
+func DisableFeatureGate(c client.Client, featureGate string) (*bool, error) {
 	var previousValue = false
-	config, err := client.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	if !HasFeature(config, featureGate) {
-		return &previousValue, nil
-	}
 
-	previousValue = true
-	config.Spec.FeatureGates = removeString(config.Spec.FeatureGates, featureGate)
-	config, err = client.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
-	if err != nil {
-		return nil, nil
+	if err := UpdateCDIConfig(c, func(config *cdiv1.CDIConfigSpec) {
+		if !HasFeature(config, featureGate) {
+			return
+		}
+
+		previousValue = true
+		config.FeatureGates = removeString(config.FeatureGates, featureGate)
+	}); err != nil {
+		return nil, err
 	}
 
 	return &previousValue, nil
@@ -177,8 +197,8 @@ func removeString(featureGates []string, featureGate string) []string {
 }
 
 // HasFeature - helper to check if specified FeatureGate is in the CDIConfig
-func HasFeature(config *cdiv1.CDIConfig, featureGate string) bool {
-	for _, fg := range config.Spec.FeatureGates {
+func HasFeature(config *cdiv1.CDIConfigSpec, featureGate string) bool {
+	for _, fg := range config.FeatureGates {
 		if fg == featureGate {
 			return true
 		}

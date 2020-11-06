@@ -420,16 +420,16 @@ var _ = Describe("Namespace with quota", func() {
 
 	AfterEach(func() {
 		By("Restoring CDIConfig to original state")
-		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			config.PodResourceRequirements = orgConfig
+		})
 		Expect(err).ToNot(HaveOccurred())
-		config.Spec.PodResourceRequirements = orgConfig
-		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
 		Eventually(func() bool {
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			return reflect.DeepEqual(config.Spec.PodResourceRequirements, orgConfig)
 		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig not properly restored to original value")
-		config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		fmt.Fprintf(GinkgoWriter, "INFO: new config: %v\n", config.Spec.PodResourceRequirements)
 	})

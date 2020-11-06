@@ -504,10 +504,9 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 
 	AfterEach(func() {
 		By("Restoring CDIConfig to original state")
-		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		config.Spec = *origSpec
-		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
+		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			origSpec.DeepCopyInto(config)
+		})
 		Eventually(func() bool {
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
@@ -635,11 +634,9 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 		if scOverhead != "" {
 			testedFilesystemOverhead.StorageClass = map[string]cdiv1.Percent{defaultSCName: cdiv1.Percent(scOverhead)}
 		}
-		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		config.Spec.FilesystemOverhead = testedFilesystemOverhead.DeepCopy()
-		By(fmt.Sprintf("Updating CDIConfig filesystem overhead to %v", config.Spec.FilesystemOverhead))
-		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
+		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			config.FilesystemOverhead = testedFilesystemOverhead.DeepCopy()
+		})
 		Expect(err).ToNot(HaveOccurred())
 		By(fmt.Sprintf("Waiting for filsystem overhead status to be set to %v", testedFilesystemOverhead))
 		Eventually(func() bool {

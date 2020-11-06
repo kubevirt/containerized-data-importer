@@ -13,16 +13,13 @@ import (
 	"strings"
 	"time"
 
-	storagev1 "k8s.io/api/storage/v1"
-
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
-
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	v1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -37,8 +34,10 @@ import (
 	"k8s.io/klog/v2"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
@@ -277,6 +276,10 @@ func (c *Clients) GetCrClient() (crclient.Client, error) {
 		return nil, err
 	}
 
+	if err := cdiv1.AddToScheme(scheme.Scheme); err != nil {
+		return nil, err
+	}
+
 	client, err := crclient.New(c.RestConfig, crclient.Options{Scheme: scheme.Scheme})
 	if err != nil {
 		return nil, err
@@ -442,22 +445,20 @@ func (f *Framework) UpdateQuotaInNs(requestCPU, requestMemory, limitsCPU, limits
 
 // UpdateCdiConfigResourceLimits sets the limits in the CDIConfig object
 func (f *Framework) UpdateCdiConfigResourceLimits(resourceCPU, resourceMemory, limitsCPU, limitsMemory int64) error {
-	config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+	err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+		config.PodResourceRequirements = &v1.ResourceRequirements{
+			Requests: map[v1.ResourceName]resource.Quantity{
+				v1.ResourceCPU:    *resource.NewQuantity(resourceCPU, resource.DecimalSI),
+				v1.ResourceMemory: *resource.NewQuantity(resourceMemory, resource.DecimalSI)},
+			Limits: map[v1.ResourceName]resource.Quantity{
+				v1.ResourceCPU:    *resource.NewQuantity(limitsCPU, resource.DecimalSI),
+				v1.ResourceMemory: *resource.NewQuantity(limitsMemory, resource.DecimalSI)},
+		}
+	})
 	if err != nil {
 		return err
 	}
-	config.Spec.PodResourceRequirements = &v1.ResourceRequirements{
-		Requests: map[v1.ResourceName]resource.Quantity{
-			v1.ResourceCPU:    *resource.NewQuantity(resourceCPU, resource.DecimalSI),
-			v1.ResourceMemory: *resource.NewQuantity(resourceMemory, resource.DecimalSI)},
-		Limits: map[v1.ResourceName]resource.Quantity{
-			v1.ResourceCPU:    *resource.NewQuantity(limitsCPU, resource.DecimalSI),
-			v1.ResourceMemory: *resource.NewQuantity(limitsMemory, resource.DecimalSI)},
-	}
-	_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
-	if err != nil {
-		return err
-	}
+
 	// see if config got updated
 	return wait.PollImmediate(2*time.Second, nsDeleteTime, func() (bool, error) {
 		res, err := f.runKubectlCommand("get", "CDIConfig", "config", "-o=jsonpath={.status.defaultPodResourceRequirements..['cpu', 'memory']}")
@@ -562,12 +563,9 @@ func (f *Framework) IsBindingModeWaitForFirstConsumer(storageClassName *string) 
 
 func (f *Framework) setFeatureGates(defaultFeatureGates []string) {
 	gomega.Eventually(func() bool {
-		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-		config.Spec.FeatureGates = defaultFeatureGates
-
-		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), config, metav1.UpdateOptions{})
+		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			config.FeatureGates = defaultFeatureGates
+		})
 		return err == nil
 	}, timeout, pollingInterval).Should(gomega.BeTrue())
 }

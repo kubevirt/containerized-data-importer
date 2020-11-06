@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
-
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
@@ -25,6 +23,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 )
 
 const (
@@ -543,14 +542,41 @@ func filterCloneSourcePods(input []v1.Pod) []v1.Pod {
 
 // GetWorkloadNodePlacement extracts the workload-specific nodeplacement values from the CDI CR
 func GetWorkloadNodePlacement(c client.Client) (*sdkapi.NodePlacement, error) {
+	cr, err := GetActiveCDI(c)
+	if err != nil {
+		return nil, err
+	}
+
+	if cr == nil {
+		return nil, fmt.Errorf("no active CDI")
+	}
+
+	return &cr.Spec.Workloads, nil
+}
+
+// GetActiveCDI returns the active CDI CR
+func GetActiveCDI(c client.Client) (*cdiv1.CDI, error) {
 	crList := &cdiv1.CDIList{}
 	if err := c.List(context.TODO(), crList, &client.ListOptions{}); err != nil {
 		return nil, err
 	}
-	if len(crList.Items) != 1 {
-		return nil, fmt.Errorf("Number of CDI CRs != 1")
+
+	var activeResources []cdiv1.CDI
+	for _, cr := range crList.Items {
+		if cr.Status.Phase != sdkapi.PhaseError {
+			activeResources = append(activeResources, cr)
+		}
 	}
-	return &crList.Items[0].Spec.Workloads, nil
+
+	if len(activeResources) == 0 {
+		return nil, nil
+	}
+
+	if len(activeResources) > 1 {
+		return nil, fmt.Errorf("Number of active CDI CRs > 1")
+	}
+
+	return &activeResources[0], nil
 }
 
 // IsPopulated returns if the passed in PVC has been populated according to the rules outlined in pkg/apis/core/<version>/utils.go

@@ -959,7 +959,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		noSuchFileFileURL := utils.InvalidQcowImagesURL + "no-such-file.img"
 
 		BeforeEach(func() {
-			previousValue, err := utils.DisableFeatureGate(f.CdiClient, featuregates.HonorWaitForFirstConsumer)
+			previousValue, err := utils.DisableFeatureGate(f.CrClient, featuregates.HonorWaitForFirstConsumer)
 			Expect(err).ToNot(HaveOccurred())
 			original = previousValue
 		})
@@ -967,7 +967,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		AfterEach(func() {
 			if original != nil && *original {
 				// restore
-				_, err := utils.EnableFeatureGate(f.CdiClient, featuregates.HonorWaitForFirstConsumer)
+				_, err := utils.EnableFeatureGate(f.CrClient, featuregates.HonorWaitForFirstConsumer)
 				Expect(err).ToNot(HaveOccurred())
 			}
 		})
