@@ -2,6 +2,10 @@ package utils
 
 import (
 	"context"
+	"time"
+
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/onsi/ginkgo"
 	corev1 "k8s.io/api/core/v1"
@@ -138,11 +142,19 @@ func UpdateCDIConfigWithOptions(c client.Client, opts metav1.UpdateOptions, upda
 
 	updateFunc(cdi.Spec.Config)
 
-	if apiequality.Semantic.DeepEqual(cdi.Spec.Config, &cdiv1.CDIConfigSpec{}) {
-		cdi.Spec.Config = nil
+	if err = c.Update(context.TODO(), cdi, &client.UpdateOptions{Raw: &opts}); err != nil {
+		return err
 	}
 
-	return c.Update(context.TODO(), cdi, &client.UpdateOptions{Raw: &opts})
+	if err = wait.PollImmediate(1*time.Second, 10*time.Second, func() (bool, error) {
+		cfg := &cdiv1.CDIConfig{}
+		err := c.Get(context.TODO(), types.NamespacedName{Name: "config"}, cfg)
+		return apiequality.Semantic.DeepEqual(&cfg.Spec, cdi.Spec.Config), err
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // UpdateCDIConfig updates CDIConfig

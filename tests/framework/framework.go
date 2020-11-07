@@ -288,8 +288,8 @@ func (c *Clients) GetCrClient() (crclient.Client, error) {
 	return client, nil
 }
 
-// GetCdiClientForServiceAccount returns a cdi client for a service account
-func (f *Framework) GetCdiClientForServiceAccount(namespace, name string) (*cdiClientset.Clientset, error) {
+// GetRESTConfigForServiceAccount returns a RESTConfig for SA
+func (f *Framework) GetRESTConfigForServiceAccount(namespace, name string) (*rest.Config, error) {
 	var secretName string
 
 	sl, err := f.K8sClient.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{})
@@ -321,13 +321,21 @@ func (f *Framework) GetCdiClientForServiceAccount(namespace, name string) (*cdiC
 		return nil, fmt.Errorf("no token key")
 	}
 
-	cfg := &rest.Config{
+	return &rest.Config{
 		Host:        f.RestConfig.Host,
 		APIPath:     f.RestConfig.APIPath,
 		BearerToken: string(token),
 		TLSClientConfig: rest.TLSClientConfig{
 			Insecure: true,
 		},
+	}, nil
+}
+
+// GetCdiClientForServiceAccount returns a cdi client for a service account
+func (f *Framework) GetCdiClientForServiceAccount(namespace, name string) (*cdiClientset.Clientset, error) {
+	cfg, err := f.GetRESTConfigForServiceAccount(namespace, name)
+	if err != nil {
+		return nil, err
 	}
 
 	cdiClient, err := cdiClientset.NewForConfig(cfg)
