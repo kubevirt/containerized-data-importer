@@ -17,6 +17,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/apis/core/v1beta1:go_default_library",
+        "//pkg/apis/core/v1beta1/utils:go_default_library",
         "//pkg/common:go_default_library",
         "//pkg/feature-gates:go_default_library",
         "//pkg/operator:go_default_library",
