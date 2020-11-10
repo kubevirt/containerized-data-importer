@@ -440,7 +440,7 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 
 		// Only log progress at approximately 1% intervals.
 		currentProgressBytes := i + uint64(written)
-		currentProgressPercent := uint(100.0 * (float32(currentProgressBytes) / float32(size)))
+		currentProgressPercent := uint(100.0 * (float64(currentProgressBytes) / float64(size)))
 		if currentProgressPercent > lastProgressPercent {
 			progressMessage := fmt.Sprintf("Transferred %d/%d bytes (%d%%)", currentProgressBytes, size, currentProgressPercent)
 
