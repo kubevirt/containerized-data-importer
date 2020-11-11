@@ -19,22 +19,18 @@ import (
 	"context"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
 	routev1 "github.com/openshift/api/route/v1"
-	storagev1 "k8s.io/api/storage/v1"
-
 	corev1 "k8s.io/api/core/v1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
+	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
@@ -74,8 +70,12 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		override := "www.override-something.org.tt.test"
-		cdiConfig.Spec.UploadProxyURLOverride = &override
-		err = reconciler.client.Update(context.TODO(), cdiConfig)
+		cdi, err := GetActiveCDI(reconciler.client)
+		Expect(err).ToNot(HaveOccurred())
+		cdi.Spec.Config = &cdiv1.CDIConfigSpec{
+			UploadProxyURLOverride: &override,
+		}
+		err = reconciler.client.Update(context.TODO(), cdi)
 		Expect(err).ToNot(HaveOccurred())
 		_, err = reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
@@ -94,8 +94,12 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		override := "www.override-something.org.tt.test"
-		cdiConfig.Spec.UploadProxyURLOverride = &override
-		err = reconciler.client.Update(context.TODO(), cdiConfig)
+		cdi, err := GetActiveCDI(reconciler.client)
+		Expect(err).ToNot(HaveOccurred())
+		cdi.Spec.Config = &cdiv1.CDIConfigSpec{
+			UploadProxyURLOverride: &override,
+		}
+		err = reconciler.client.Update(context.TODO(), cdi)
 		Expect(err).ToNot(HaveOccurred())
 		_, err = reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
@@ -628,6 +632,14 @@ func createConfigReconciler(objects ...runtime.Object) (*CDIConfigReconciler, *c
 	extensionsv1beta1.AddToScheme(s)
 	routev1.AddToScheme(s)
 	storagev1.AddToScheme(s)
+
+	cdi := &cdiv1.CDI{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cdi",
+		},
+	}
+
+	objs = append(objs, cdi)
 
 	// Create a fake client to mock API calls.
 	cl := fake.NewFakeClientWithScheme(s, objs...)

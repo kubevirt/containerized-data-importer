@@ -8,7 +8,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -29,6 +28,8 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 )
 
 var (
@@ -158,6 +159,15 @@ var _ = Describe("GetWorkloadNodePlacement", func() {
 		res, err := GetWorkloadNodePlacement(client)
 		Expect(err).To(HaveOccurred())
 		Expect(res).To(BeNil())
+	})
+
+	It("Should return a node placement, with one active CDI CR one error", func() {
+		errCR := createCDIWithWorkload("cdi-test2", "2222-2222")
+		errCR.Status.Phase = sdkapi.PhaseError
+		client := createClient(createCDIWithWorkload("cdi-test", "1111-1111"), errCR)
+		res, err := GetWorkloadNodePlacement(client)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(res).ToNot(BeNil())
 	})
 })
 
@@ -547,6 +557,11 @@ func createCDIWithWorkload(name, uid string) *cdiv1.CDI {
 		},
 		Spec: cdiv1.CDISpec{
 			Workloads: api.NodePlacement{},
+		},
+		Status: cdiv1.CDIStatus{
+			Status: sdkapi.Status{
+				Phase: sdkapi.PhaseDeployed,
+			},
 		},
 	}
 }

@@ -1512,6 +1512,84 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 												},
 											},
 										},
+										"config": {
+											Description: "CDIConfig at CDI level",
+											Type:        "object",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"uploadProxyURLOverride": {
+													Description: "Override the URL used when uploading to a DataVolume",
+													Type:        "string",
+												},
+												"scratchSpaceStorageClass": {
+													Description: "Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space",
+													Type:        "string",
+												},
+												"podResourceRequirements": {
+													Description: "ResourceRequirements describes the compute resource requirements.",
+													Type:        "object",
+													Properties: map[string]extv1.JSONSchemaProps{
+														"limits": {
+															Description: "Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
+															Type:        "object",
+															AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+																Schema: &extv1.JSONSchemaProps{
+																	AnyOf: []extv1.JSONSchemaProps{
+																		{
+																			Type: "integer",
+																		},
+																		{
+																			Type: "string",
+																		},
+																	},
+																	Pattern:      "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+																	XIntOrString: true,
+																},
+															},
+														},
+														"requests": {
+															Description: "Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
+															Type:        "object",
+															AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+																Schema: &extv1.JSONSchemaProps{
+																	AnyOf: []extv1.JSONSchemaProps{
+																		{
+																			Type: "integer",
+																		},
+																		{
+																			Type: "string",
+																		},
+																	},
+																	Pattern:      "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+																	XIntOrString: true,
+																},
+															},
+														},
+													},
+												},
+												"filesystemOverhead": {
+													Description: "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
+													Type:        "object",
+													Properties: map[string]extv1.JSONSchemaProps{
+														"global": {
+															Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (per storageClass)",
+															Type:        "string",
+															Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
+														},
+														"storageClass": {
+															AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+																Schema: &extv1.JSONSchemaProps{
+																	Type:        "string",
+																	Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
+																	Description: "Percent is a string that can only be a value between [0,1) (Note: we actually rely on reconcile to reject invalid values)",
+																},
+															},
+															Description: "StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value",
+															Type:        "object",
+														},
+													},
+												},
+											},
+										},
 									},
 									Type:        "object",
 									Description: "CDISpec defines our specification for the CDI installation",
@@ -2747,6 +2825,93 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 												},
 												{
 													Raw: []byte(`"BlockUninstallIfWorkloadsExist"`),
+												},
+											},
+										},
+										"config": {
+											Description: "CDIConfig at CDI level",
+											Type:        "object",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"featureGates": {
+													Description: "FeatureGates are a list of specific enabled feature gates",
+													Items: &extv1.JSONSchemaPropsOrArray{
+														Schema: &extv1.JSONSchemaProps{
+															Type: "string",
+														},
+													},
+													Type: "array",
+												},
+												"uploadProxyURLOverride": {
+													Description: "Override the URL used when uploading to a DataVolume",
+													Type:        "string",
+												},
+												"scratchSpaceStorageClass": {
+													Description: "Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space",
+													Type:        "string",
+												},
+												"podResourceRequirements": {
+													Description: "ResourceRequirements describes the compute resource requirements.",
+													Type:        "object",
+													Properties: map[string]extv1.JSONSchemaProps{
+														"limits": {
+															Description: "Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
+															Type:        "object",
+															AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+																Schema: &extv1.JSONSchemaProps{
+																	AnyOf: []extv1.JSONSchemaProps{
+																		{
+																			Type: "integer",
+																		},
+																		{
+																			Type: "string",
+																		},
+																	},
+																	Pattern:      "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+																	XIntOrString: true,
+																},
+															},
+														},
+														"requests": {
+															Description: "Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
+															Type:        "object",
+															AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+																Schema: &extv1.JSONSchemaProps{
+																	AnyOf: []extv1.JSONSchemaProps{
+																		{
+																			Type: "integer",
+																		},
+																		{
+																			Type: "string",
+																		},
+																	},
+																	Pattern:      "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+																	XIntOrString: true,
+																},
+															},
+														},
+													},
+												},
+												"filesystemOverhead": {
+													Description: "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
+													Type:        "object",
+													Properties: map[string]extv1.JSONSchemaProps{
+														"global": {
+															Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (per storageClass)",
+															Type:        "string",
+															Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
+														},
+														"storageClass": {
+															AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+																Schema: &extv1.JSONSchemaProps{
+																	Type:        "string",
+																	Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
+																	Description: "Percent is a string that can only be a value between [0,1) (Note: we actually rely on reconcile to reject invalid values)",
+																},
+															},
+															Description: "StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value",
+															Type:        "object",
+														},
+													},
 												},
 											},
 										},
