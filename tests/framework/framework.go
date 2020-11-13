@@ -636,6 +636,7 @@ func (r *KubernetesReporter) Dump(kubeCli *kubernetes.Clientset, cdiClient *cdiC
 	r.logPVs(kubeCli)
 	r.logPods(kubeCli)
 	r.logServices(kubeCli)
+	r.logEndpoints(kubeCli)
 	r.logLogs(kubeCli, since)
 }
 
@@ -687,6 +688,29 @@ func (r *KubernetesReporter) logServices(kubeCli *kubernetes.Clientset) {
 	}
 
 	j, err := json.MarshalIndent(services, "", "    ")
+	if err != nil {
+		return
+	}
+	fmt.Fprintln(f, string(j))
+}
+
+func (r *KubernetesReporter) logEndpoints(kubeCli *kubernetes.Clientset) {
+
+	f, err := os.OpenFile(filepath.Join(r.artifactsDir, fmt.Sprintf("%d_endpoints.log", r.FailureCount)),
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to open the file: %v", err)
+		return
+	}
+	defer f.Close()
+
+	endpoints, err := kubeCli.CoreV1().Endpoints(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to fetch endpointss: %v\n", err)
+		return
+	}
+
+	j, err := json.MarshalIndent(endpoints, "", "    ")
 	if err != nil {
 		return
 	}
