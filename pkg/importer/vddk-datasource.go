@@ -20,9 +20,11 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	libnbd "github.com/mrnold/go-libnbd"
@@ -152,6 +154,13 @@ func FindMoRef(uuid string, sdkURL string) (string, error) {
 		} else {
 			moref = ref.Reference().Value
 			klog.Infof("VM %s found in datacenter %s: %s", uuid, datacenter, moref)
+			vm := object.NewVirtualMachine(conn.Client, ref.Reference())
+			state, err := vm.PowerState(ctx)
+			if err != nil {
+				klog.Warningf("Unable to get current VM power state: %v", err)
+			} else {
+				klog.Infof("Current VM power state: %s", state)
+			}
 		}
 	}
 
@@ -200,6 +209,49 @@ func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbpr
 	return newVddkDataSource(endpoint, accessKey, secKey, thumbprint, uuid, backingFile)
 }
 
+func validatePlugins() error {
+	walker := func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		klog.Infof("%s: %d %s", path, info.Size(), info.Mode())
+		return nil
+	}
+
+	klog.Infof("Checking nbdkit plugin directory tree:")
+	err := filepath.Walk("/usr/lib64/nbdkit", walker)
+	if err != nil {
+		klog.Warningf("Unable to get nbdkit plugin directory tree: %v", err)
+	}
+
+	klog.Infof("Checking VDDK library directory tree:")
+	err = filepath.Walk("/opt/vmware-vix-disklib-distrib", walker)
+	if err != nil {
+		klog.Warningf("Unable to get VDDK library directory tree: %v", err)
+	}
+
+	args := []string{
+		"--dump-plugin",
+		vddkPluginPath(),
+	}
+	nbdkit := exec.Command("nbdkit", args...)
+	env := os.Environ()
+	env = append(env, "LD_LIBRARY_PATH="+nbdLibraryPath)
+	nbdkit.Env = env
+	out, err := nbdkit.CombinedOutput()
+	if out != nil {
+		klog.Infof("Output from nbdkit --dump-plugin %s: %s", vddkPluginPath(), out)
+	}
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func createVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string) (*VDDKDataSource, error) {
 	vmwURL, err := url.Parse(endpoint)
 	if err != nil {
@@ -211,6 +263,12 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	sdkURL := vmwURL.Scheme + "://" + accessKey + ":" + secKey + "@" + vmwURL.Host + "/sdk"
 	moref, err := FindMoRef(uuid, sdkURL)
 	if err != nil {
+		return nil, err
+	}
+
+	err = validatePlugins()
+	if err != nil {
+		klog.Errorf("Error validating nbdkit plugins: %v", err)
 		return nil, err
 	}
 
@@ -347,7 +405,10 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 	defer sink.Close()
 
 	start := uint64(0)
-	lastProgress := uint(0)
+	lastProgressPercent := uint(0)
+	lastProgressBytes := uint64(0)
+	lastProgressTime := time.Now()
+	initialProgressTime := time.Now()
 	blocksize := uint64(1024 * 1024)
 	buf := make([]byte, blocksize)
 	for i := start; i < size; i += blocksize {
@@ -378,12 +439,32 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		}
 
 		// Only log progress at approximately 1% intervals.
-		currentProgress := uint(100.0 * (float32(i+uint64(written)) / float32(size)))
-		if currentProgress > lastProgress {
-			klog.Infof("Transferred %d/%d bytes (%d%%)", i+uint64(written), size, currentProgress)
-			lastProgress = currentProgress
+		currentProgressBytes := i + uint64(written)
+		currentProgressPercent := uint(100.0 * (float64(currentProgressBytes) / float64(size)))
+		if currentProgressPercent > lastProgressPercent {
+			progressMessage := fmt.Sprintf("Transferred %d/%d bytes (%d%%)", currentProgressBytes, size, currentProgressPercent)
+
+			currentProgressTime := time.Now()
+			overallProgressTime := uint64(time.Since(initialProgressTime).Seconds())
+			if overallProgressTime > 0 {
+				overallProgressRate := currentProgressBytes / overallProgressTime
+				progressMessage += fmt.Sprintf(" at %d bytes/second overall", overallProgressRate)
+			}
+
+			progressTimeDifference := uint64(currentProgressTime.Sub(lastProgressTime).Seconds())
+			if progressTimeDifference > 0 {
+				progressSize := currentProgressBytes - lastProgressBytes
+				progressRate := progressSize / progressTimeDifference
+				progressMessage += fmt.Sprintf(", last 1%% was %d bytes at %d bytes/second", progressSize, progressRate)
+			}
+
+			klog.Info(progressMessage)
+
+			lastProgressBytes = currentProgressBytes
+			lastProgressTime = currentProgressTime
+			lastProgressPercent = currentProgressPercent
 		}
-		v := float64(currentProgress)
+		v := float64(currentProgressPercent)
 		metric := &dto.Metric{}
 		err = progress.WithLabelValues(ownerUID).Write(metric)
 		if err == nil && v > 0 && v > *metric.Counter.Value {
