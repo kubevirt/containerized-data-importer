@@ -89,6 +89,7 @@ func NewDataVolumeWithHTTPImport(dataVolumeName string, size string, httpURL str
 	return &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
+			Annotations: map[string]string{},
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: cdiv1.DataVolumeSource{
@@ -197,6 +198,7 @@ func NewDataVolumeForUpload(dataVolumeName string, size string) *cdiv1.DataVolum
 	return &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
+			Annotations: map[string]string{},
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: cdiv1.DataVolumeSource{
@@ -267,6 +269,7 @@ func NewDataVolumeForImageCloning(dataVolumeName, size, namespace, pvcName strin
 	dv := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
+			Annotations: map[string]string{},
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: cdiv1.DataVolumeSource{
