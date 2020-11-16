@@ -277,7 +277,7 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 			return reconcile.Result{}, err
 		}
 		snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume)
-		if (err == nil) && (cloneStrategy == cdiv1.CloneStrategySnapshot) {
+		if err == nil && cloneStrategy == cdiv1.CloneStrategySnapshot {
 			r.log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class", "snapshotClassName", snapshotClassName)
 			if requeue, err := r.sourceInUse(datavolume); requeue || err != nil {
 				return reconcile.Result{Requeue: requeue}, err
@@ -493,18 +493,21 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 }
 
 func (r *DatavolumeReconciler) getCloneStrategy() (cdiv1.CDICloneStrategy, error) {
-	crList := &cdiv1.CDIList{}
-	if err := r.client.List(context.TODO(), crList, &client.ListOptions{}); err != nil {
+	cr, err := GetActiveCDI(r.client)
+	if err != nil {
 		return cdiv1.CloneStrategySnapshot, err
 	}
-	if len(crList.Items) != 1 {
-		return cdiv1.CloneStrategySnapshot, fmt.Errorf("Number of CDI CRs != 1")
+
+	if cr == nil {
+		return cdiv1.CloneStrategySnapshot, fmt.Errorf("no active CDI")
 	}
-	if crList.Items[0].Spec.CloneStrategyOverride == nil {
+
+	if cr.Spec.CloneStrategyOverride == nil {
 		return cdiv1.CloneStrategySnapshot, nil
 	}
-	r.log.V(3).Info(fmt.Sprintf("Overriding default clone strategy with %s", *crList.Items[0].Spec.CloneStrategyOverride))
-	return *crList.Items[0].Spec.CloneStrategyOverride, nil
+
+	r.log.V(3).Info(fmt.Sprintf("Overriding default clone strategy with %s", *cr.Spec.CloneStrategyOverride))
+	return *cr.Spec.CloneStrategyOverride, nil
 }
 
 func newSnapshot(dataVolume *cdiv1.DataVolume, snapshotClassName string) *snapshotv1.VolumeSnapshot {
