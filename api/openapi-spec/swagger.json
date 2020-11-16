@@ -2340,6 +2340,22 @@
       }
      }
     }
+   },
+   "/openapi/v2": {
+    "get": {
+     "consumes": [
+      "application/json"
+     ],
+     "produces": [
+      "application/json"
+     ],
+     "operationId": "func5",
+     "responses": {
+      "401": {
+       "description": "Unauthorized"
+      }
+     }
+    }
    }
   },
   "definitions": {
@@ -2559,17 +2575,8 @@
      "lastHeartbeatTime": {
       "$ref": "#/definitions/v1.Time"
      },
-     "lastProbeTime": {
-      "type": [
-       "string",
-       "null"
-      ]
-     },
      "lastTransitionTime": {
-      "type": [
-       "string",
-       "null"
-      ]
+      "$ref": "#/definitions/v1.Time"
      },
      "message": {
       "type": "string"
@@ -2840,10 +2847,7 @@
      },
      "creationTimestamp": {
       "description": "CreationTimestamp is a timestamp representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations. Clients may not set this value. It is represented in RFC3339 form and is in UTC.\n\nPopulated by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
-      "type": [
-       "string",
-       "null"
-      ]
+      "$ref": "#/definitions/v1.Time"
      },
      "deletionGracePeriodSeconds": {
       "description": "Number of seconds allowed for this object to gracefully terminate before it will be removed from the system. Only set when deletionTimestamp is also set. May only be shortened. Read-only.",
@@ -3437,7 +3441,6 @@
    "v1beta1.CDIConfigStatus": {
     "description": "CDIConfigStatus provides the most recently observed status of the CDI Config resource",
     "type": "object",
-    "nullable": true,
     "properties": {
      "defaultPodResourceRequirements": {
       "description": "ResourceRequirements describes the compute resource requirements.",
@@ -3514,7 +3517,6 @@
    "v1beta1.CDIStatus": {
     "description": "CDIStatus defines the status of the installation",
     "type": "object",
-    "nullable": true,
     "properties": {
      "conditions": {
       "description": "A list of current conditions of the resource",
@@ -3581,17 +3583,8 @@
      "lastHeartbeatTime": {
       "$ref": "#/definitions/v1.Time"
      },
-     "lastProbeTime": {
-      "type": [
-       "string",
-       "null"
-      ]
-     },
      "lastTransitionTime": {
-      "type": [
-       "string",
-       "null"
-      ]
+      "$ref": "#/definitions/v1.Time"
      },
      "message": {
       "type": "string"
@@ -3823,7 +3816,6 @@
    "v1beta1.DataVolumeStatus": {
     "description": "DataVolumeStatus contains the current status of the DataVolume",
     "type": "object",
-    "nullable": true,
     "properties": {
      "conditions": {
       "type": "array",
@@ -3866,7 +3858,9 @@
     "description": "UploadTokenRequest is the CR used to initiate a CDI upload",
     "type": "object",
     "required": [
-     "spec"
+     "metadata",
+     "spec",
+     "status"
     ],
     "properties": {
      "apiVersion": {
@@ -3906,7 +3900,6 @@
    "v1beta1.UploadTokenRequestStatus": {
     "description": "UploadTokenRequestStatus stores the status of a token request",
     "type": "object",
-    "nullable": true,
     "properties": {
      "token": {
       "description": "Token is a JWT token to be inserted in \"Authentication Bearer header\"",
