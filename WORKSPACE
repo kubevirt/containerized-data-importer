@@ -532,3 +532,11 @@ http_file(
         "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/l/libnbd-1.4.1-2.fc33.1.x86_64.rpm",
    ],
 )
+
+http_file(
+    name = "liburing",
+    sha256 = "049778a480dd02774934b37c127b345d8748bfbec1e584f9c412a41af34eaf89",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/x86_64/Packages/l/liburing-0.7-3.fc33.x86_64.rpm",
+   ],
+)

@@ -11,6 +11,7 @@ rpm_image(
         "@qemu-block-curl//file",
         "@xen-libs//file",
         "@libaio//file",
+        "@liburing//file",
         "@capstone//file",
     ],
 )
