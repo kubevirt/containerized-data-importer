@@ -540,3 +540,11 @@ http_file(
         "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/x86_64/Packages/l/liburing-0.7-3.fc33.x86_64.rpm",
    ],
 )
+
+http_file(
+    name = "libseccomp",
+    sha256 = "964e39835b59c76b7eb3f78c460bfc6e7acfb0c40b901775c7e8a7204537f8a7",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/l/libseccomp-2.5.0-3.fc33.x86_64.rpm",
+   ],
+)
