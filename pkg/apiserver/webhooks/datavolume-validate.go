@@ -317,13 +317,13 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta
 				// We should reject the DV if a PVC with the same name exists, and that PVC has no ownerRef, or that
 				// PVC has an ownerRef that is not a DataVolume. Because that means that PVC is not managed by the
 				// datavolume controller, and we can't use it.
-				if pvcOwner == nil || (pvcOwner != nil && pvcOwner.Kind != "DataVolume") {
+				if (pvcOwner == nil) || (pvcOwner.Kind != "DataVolume") {
 					klog.Errorf("destination PVC %s/%s already exists", pvc.GetNamespace(), pvc.GetName())
 					var causes []metav1.StatusCause
 					causes = append(causes, metav1.StatusCause{
-						Type: metav1.CauseTypeFieldValueDuplicate,
+						Type:    metav1.CauseTypeFieldValueDuplicate,
 						Message: fmt.Sprintf("Destination PVC %s/%s already exists", pvc.GetNamespace(), pvc.GetName()),
-						Field: k8sfield.NewPath("DataVolume").Child("Name").String(),
+						Field:   k8sfield.NewPath("DataVolume").Child("Name").String(),
 					})
 					return toRejectedAdmissionResponse(causes)
 				}

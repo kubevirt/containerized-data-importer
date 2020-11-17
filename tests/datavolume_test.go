@@ -859,21 +859,23 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	Describe("Create/Delete/Create/Delete same datavolume in a loop", func() {
 		Context("retry loop", func() {
-			dataVolumeName := "test-dv"
-			dataVolumeNamespace := "test-dv-ns"
 			numTries := 5
-			for i := 1; i <= numTries; i++ {
-				It(fmt.Sprintf("[test_id:3939][test_id:3940][test_id:3941][test_id:3942][test_id:3943]should succeed on loop %d", i), func() {
+			It(fmt.Sprintf("[test_id:3939][test_id:3940][test_id:3941][test_id:3942][test_id:3943] should succeed on %d loops", numTries), func() {
+				dataVolumeName := "test-dv"
+				dataVolumeNamespace := f.Namespace
+				for i := 1; i <= numTries; i++ {
+					By(fmt.Sprintf("running loop %d", i))
 					url := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
 					dv := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
 
 					By(fmt.Sprintf("creating new datavolume %s", dataVolumeName))
-					dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, dataVolumeNamespace, dv)
+					dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, dataVolumeNamespace.Name, dv)
 					Expect(err).ToNot(HaveOccurred())
 					f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 					By("verifying pvc was created and is bound")
 					pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+					Expect(err).ToNot(HaveOccurred())
 					//We use the PVC UID to confirm later a new PVC was created
 					pvcUID := pvc.UID
 
@@ -887,7 +889,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 					//Create the DV again to test if a PVC collision with a terminating PVC does not reject the DV creation
 					By("verifying if the DV creation is not rejected if a terminating PVC with same name exists")
-					dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, dataVolumeNamespace, dv)
+					dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, dataVolumeNamespace.Name, dv)
 					Expect(err).ToNot(HaveOccurred())
 					Eventually(func() bool {
 						pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
@@ -908,8 +910,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 						}
 						return false
 					}, timeout, pollingInterval).Should(BeTrue())
-				})
-			}
+				}
+			})
 		})
 	})
 
@@ -988,7 +990,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		noSuchFileFileURL := utils.InvalidQcowImagesURL + "no-such-file.img"
 
 		BeforeEach(func() {
-			previousValue, err := utils.DisableFeatureGate(f.CdiClient, featuregates.HonorWaitForFirstConsumer)
+			previousValue, err := utils.DisableFeatureGate(f.CrClient, featuregates.HonorWaitForFirstConsumer)
 			Expect(err).ToNot(HaveOccurred())
 			original = previousValue
 		})
@@ -996,7 +998,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		AfterEach(func() {
 			if original != nil && *original {
 				// restore
-				_, err := utils.EnableFeatureGate(f.CdiClient, featuregates.HonorWaitForFirstConsumer)
+				_, err := utils.EnableFeatureGate(f.CrClient, featuregates.HonorWaitForFirstConsumer)
 				Expect(err).ToNot(HaveOccurred())
 			}
 		})

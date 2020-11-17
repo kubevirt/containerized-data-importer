@@ -3489,6 +3489,10 @@
     "description": "CDISpec defines our specification for the CDI installation",
     "type": "object",
     "properties": {
+     "config": {
+      "description": "CDIConfig at CDI level",
+      "$ref": "#/definitions/v1beta1.CDIConfigSpec"
+     },
      "imagePullPolicy": {
       "description": "PullPolicy describes a policy for if/when to pull a container image",
       "type": "string"

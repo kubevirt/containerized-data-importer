@@ -114,6 +114,7 @@ var _ = Describe("Tests needing the restore of nodes", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		cdiPods, err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
+
 		Expect(err).ToNot(HaveOccurred(), "failed listing cdi pods")
 		Expect(len(cdiPods.Items)).To(BeNumerically(">", 0), "no cdi pods found")
 	})
@@ -222,12 +223,18 @@ var _ = Describe("Tests needing the restore of nodes", func() {
 
 })
 
-var _ = Describe("Operator delete CDI tests", func() {
+var _ = Describe("Operator delete CDI CR tests", func() {
 	var cr *cdiv1.CDI
 	f := framework.NewFramework("operator-delete-cdi-test")
+	var cdiPods *corev1.PodList
 
 	BeforeEach(func() {
 		var err error
+		cdiPods, err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
+
+		Expect(err).ToNot(HaveOccurred(), "failed listing cdi pods")
+		Expect(len(cdiPods.Items)).To(BeNumerically(">", 0), "no cdi pods found")
+
 		cr, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
@@ -235,7 +242,17 @@ var _ = Describe("Operator delete CDI tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
+	removeCDI := func() {
+		By("Deleting CDI CR if exists")
+		_ = f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{})
+
+		By("Waiting for CDI CR and infra deployments to be gone now that we are sure there's no CDI CR")
+		Eventually(func() bool { return infraDeploymentGone(f) && crGone(f, cr) }, 15*time.Minute, 2*time.Second).Should(BeTrue())
+	}
+
 	ensureCDI := func() {
+		var newCdiPods *corev1.PodList
+
 		if cr == nil {
 			return
 		}
@@ -281,6 +298,9 @@ var _ = Describe("Operator delete CDI tests", func() {
 			return false
 		}, 10*time.Minute, 2*time.Second).Should(BeTrue())
 
+		By("Verifying CDI apiserver, deployment, uploadproxy exist, before continuing")
+		Eventually(func() bool { return infraDeploymentAvailable(f, cr) }, CompletionTimeout, assertionPollInterval).Should(BeTrue(), "Timeout reading CDI deployments")
+
 		By("Verifying CDI config object exists, before continuing")
 		Eventually(func() bool {
 			_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
@@ -290,9 +310,28 @@ var _ = Describe("Operator delete CDI tests", func() {
 			Expect(err).ToNot(HaveOccurred(), "Unable to read CDI Config, %v, expect more failures", err)
 			return true
 		}, CompletionTimeout, assertionPollInterval).Should(BeTrue(), "Timeout reading CDI Config, expect more failures")
+
+		By("Waiting for there to be as many CDI pods as before")
+		Eventually(func() bool {
+			newCdiPods, err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
+			Expect(err).ToNot(HaveOccurred(), "failed getting CDI pods")
+
+			By(fmt.Sprintf("number of cdi pods: %d\n new number of cdi pods: %d\n", len(cdiPods.Items), len(newCdiPods.Items)))
+			if len(cdiPods.Items) != len(newCdiPods.Items) {
+				return false
+			}
+			return true
+		}, 5*time.Minute, 2*time.Second).Should(BeTrue())
+
+		for _, newCdiPod := range newCdiPods.Items {
+			By(fmt.Sprintf("Waiting for CDI pod %s to be ready", newCdiPod.Name))
+			err := utils.WaitTimeoutForPodReady(f.K8sClient, newCdiPod.Name, newCdiPod.Namespace, 20*time.Minute)
+			Expect(err).ToNot(HaveOccurred())
+		}
 	}
 
 	AfterEach(func() {
+		removeCDI()
 		ensureCDI()
 	})
 
@@ -361,7 +400,7 @@ var _ = Describe("Operator delete CDI tests", func() {
 	})
 })
 
-var _ = Describe("[rfe_id:4784][crit:high] Operator deployment + CDI delete tests", func() {
+var _ = Describe("[rfe_id:4784][crit:high] CDI Operator deployment + CDI CR delete tests", func() {
 	var restoreCdiCr *cdiv1.CDI
 	var restoreCdiOperatorDeployment *appsv1.Deployment
 	f := framework.NewFramework("operator-delete-cdi-test")

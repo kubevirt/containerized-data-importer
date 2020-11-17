@@ -5,25 +5,16 @@ import (
 	"reflect"
 	"regexp"
 
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-
+	"github.com/go-logr/logr"
 	routev1 "github.com/openshift/api/route/v1"
-	storagev1 "k8s.io/api/storage/v1"
-
+	v1 "k8s.io/api/core/v1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/go-logr/logr"
-
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/operator"
-	"kubevirt.io/containerized-data-importer/pkg/util"
-
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -33,6 +24,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 // CDIConfigReconciler members
@@ -67,6 +63,11 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 	// Keep a copy of the original for comparison later.
 	currentConfigCopy := config.DeepCopyObject()
 
+	// ignore whatever is in config spec and set to operator view
+	if err := r.setOperatorParams(config); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	if err := r.reconcileUploadProxyURL(config, log); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -90,7 +91,27 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 			return reconcile.Result{}, err
 		}
 	}
+
 	return reconcile.Result{}, nil
+}
+
+func (r *CDIConfigReconciler) setOperatorParams(config *cdiv1.CDIConfig) error {
+	cdiCR, err := GetActiveCDI(r.client)
+	if err != nil {
+		return err
+	}
+
+	if cdiCR == nil {
+		return nil
+	}
+
+	if cdiCR.Spec.Config == nil {
+		config.Spec = cdiv1.CDIConfigSpec{}
+	} else {
+		config.Spec = *cdiCR.Spec.Config
+	}
+
+	return nil
 }
 
 func (r *CDIConfigReconciler) reconcileUploadProxyURL(config *cdiv1.CDIConfig, log logr.Logger) error {
@@ -362,7 +383,17 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 	if err := configController.Watch(&source.Kind{Type: &cdiv1.CDIConfig{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
-	err := configController.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, &handler.EnqueueRequestsFromMapFunc{
+	err := configController.Watch(&source.Kind{Type: &cdiv1.CDI{}}, &handler.EnqueueRequestsFromMapFunc{
+		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{Name: configName},
+			}}
+		}),
+	})
+	if err != nil {
+		return err
+	}
+	err = configController.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, &handler.EnqueueRequestsFromMapFunc{
 		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: configName},
