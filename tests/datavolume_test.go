@@ -930,19 +930,37 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(pod.Annotations["annot1"]).ToNot(Equal("value1"))
 		})
 		It("[test_id:5366]Cloner pod should have specific datavolume annotations passed but not others", func() {
-			sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
-			pvcDef := utils.NewPVCDefinition(pvcName, "1Gi", nil, nil)
-			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand)
-			dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)
+			smartApplicable := f.IsSnapshotStorageClassAvailable()
+			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
+			if err == nil {
+				value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
+				if smartApplicable && ok && strings.Compare(value, "true") == 0 {
+					Skip("Cannot test if annotations are present when all pvcs are smart clone capable.")
+				}
+			}
+
+			sourceDv := utils.NewDataVolumeWithHTTPImport("source-dv", "1Gi", tinyCoreQcow2URL())
+			Expect(sourceDv).ToNot(BeNil())
+			By(fmt.Sprintf("creating new source dv %s with annotations", sourceDv.Name))
+			sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying pvc was created")
+			pvc, err := utils.WaitForPVC(f.K8sClient, sourceDv.Namespace, sourceDv.Name)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+
+			dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", pvc)
+			Expect(dataVolume).ToNot(BeNil())
 
 			By(fmt.Sprintf("creating new datavolume %s with annotations", dataVolume.Name))
 			dataVolume.Annotations[controller.AnnPodNetwork] = "net1"
 			dataVolume.Annotations["annot1"] = "value1"
-			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("verifying pvc was created")
-			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			pvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindIfWaitForFirstConsumer(pvc)
 

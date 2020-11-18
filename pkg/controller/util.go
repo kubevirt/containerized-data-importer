@@ -608,7 +608,10 @@ func SetPodPvcAnnotations(pod *v1.Pod, pvc *v1.PersistentVolumeClaim) {
 	for _, ann := range allowedAnnotations {
 		if val, ok := pvc.Annotations[ann]; ok {
 			klog.V(1).Info("Applying PVC annotation on the pod", ann, val)
-			pod.ObjectMeta.Annotations[ann] = val
+			if pod.Annotations == nil {
+				pod.Annotations = map[string]string{}
+			}
+			pod.Annotations[ann] = val
 		}
 	}
 }
