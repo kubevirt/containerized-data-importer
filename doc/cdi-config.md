@@ -16,6 +16,9 @@ Currently it is used only for holding Upload Proxy URL details.
 | filesystemOverhead      |                       | How much of a Filesystem volume's space should be reserved for overhead related to the Filesystem. |
 |   global                | "0.055"               | The amount to reserve for a Filesystem volume unless a per-storageClass value is chosen. |
 |   storageClass          | nil                   | A value of `local: "0.6"` is understood to mean that the overhead for the local storageClass is 0.6. |
+| preallocation           |                       | If set, the space for DataVolumes is preallocated when DVs are created |
+|   global                | false                 | Preallocatin setting to use unless a per-storageClass or per-dataVolume value is set |
+|   storageClass          | nil                   | A value of `local: true` is understood to mean that all DVs in "local" storageClass should use preallocation |
 
 ## Configuration Status Fields
 
@@ -25,4 +28,6 @@ Currently it is used only for holding Upload Proxy URL details.
 | filesystemOverhead      |                       | updated when the spec values are updated, to show the per-storageClass calculated result as well as the per-storageClass one. |
 |   global                | "0.055"               | The calculated overhead to be used for all storageClasses unless a specific value is chosen for this storageClass |
 |   storageClass          |                       | The calculated overhead to be used for every storageClass in the system, taking into account both global and per-storageClass values. |
-
+| preallocation           |                       | updated when the spec values are updated, to show the per-storageClass calculated result as well as the per-storageClass one. |
+|   global                | false                 | The calculated preallocation setting for all dataVolumes unless a per-storageClass or per-dataVolume value is set |
+|   storageClass          | nil                   | The calculated preallocation setting to be used for every storageClass in the system, taking into account both global and per-storageClass values. |
