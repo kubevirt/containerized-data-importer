@@ -347,8 +347,14 @@ func (f *Framework) RunCommandAndCaptureOutput(pvc *k8sv1.PersistentVolumeClaim,
 
 // NewPodWithPVC creates a new pod that mounts the given PVC
 func (f *Framework) NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1.Pod {
+	var importerImage string
 	volumeName := naming.GetLabelNameFromResourceName(pvc.GetName())
 	fsGroup := common.QemuSubGid
+	for _, e := range f.ControllerPod.Spec.Containers[0].Env {
+		if e.Name == "IMPORTER_IMAGE" {
+			importerImage = e.Value
+		}
+	}
 	pod := &k8sv1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: podName,
@@ -361,7 +367,7 @@ func (f *Framework) NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolu
 			Containers: []k8sv1.Container{
 				{
 					Name:    "runner",
-					Image:   "kubevirt/cdi-importer:latest",
+					Image:   importerImage,
 					Command: []string{"/bin/sh", "-c", cmd},
 					Resources: k8sv1.ResourceRequirements{
 						Limits: map[k8sv1.ResourceName]resource.Quantity{
