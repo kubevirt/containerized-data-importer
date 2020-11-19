@@ -7,18 +7,13 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo"
-	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-
-	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 )
 
 const (
@@ -32,36 +27,9 @@ const (
 	VerifierPodName = "verifier"
 )
 
-// CreateVerifierPodWithPVC creates a Pod called verifier, with the passed in PVC mounted under /pvc. You can then use the executor utilities to
-// run commands against the PVC through this Pod.
-func CreateVerifierPodWithPVC(clientSet *kubernetes.Clientset, namespace string, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
-	return CreateExecutorPodWithPVC(clientSet, VerifierPodName, namespace, pvc)
-}
-
 // DeleteVerifierPod deletes the verifier pod
 func DeleteVerifierPod(clientSet *kubernetes.Clientset, namespace string) error {
 	return DeletePodByName(clientSet, VerifierPodName, namespace, nil)
-}
-
-// CreateExecutorPodWithPVC creates a Pod with the passed in PVC mounted under /pvc. You can then use the executor utilities to
-// run commands against the PVC through this Pod.
-func CreateExecutorPodWithPVC(clientSet *kubernetes.Clientset, podName, namespace string, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
-	return CreatePod(clientSet, namespace, newExecutorPodWithPVC(podName, pvc))
-}
-
-// CreateNoopPodWithPVC creates a short living pod, that might be used to force bind a pvc
-func CreateNoopPodWithPVC(clientSet *kubernetes.Clientset, podName, namespace string, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
-	return CreatePod(clientSet, namespace, NewPodWithPVC(podName, "echo I am vm doppleganger pod;", pvc))
-}
-
-// CreateExecutorPodWithPVCSpecificNode creates a Pod on a specific node with the passed in PVC mounted under /pvc. You can then use the executor utilities to
-// run commands against the PVC through this Pod.
-func CreateExecutorPodWithPVCSpecificNode(clientSet *kubernetes.Clientset, podName, namespace string, pvc *k8sv1.PersistentVolumeClaim, node string) (*k8sv1.Pod, error) {
-	var pod = newExecutorPodWithPVC(podName, pvc)
-	pod.Spec.NodeSelector = map[string]string{
-		"kubernetes.io/hostname": node,
-	}
-	return CreatePod(clientSet, namespace, pod)
 }
 
 // CreatePod calls the Kubernetes API to create a Pod
@@ -101,80 +69,6 @@ func DeletePod(clientSet *kubernetes.Clientset, pod *k8sv1.Pod, namespace string
 	return DeletePodByName(clientSet, pod.Name, namespace, nil)
 }
 
-// NewPodWithPVC creates a new pod that mounts the given PVC
-func NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1.Pod {
-	volumeName := naming.GetLabelNameFromResourceName(pvc.GetName())
-	fsGroup := common.QemuSubGid
-	pod := &k8sv1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: podName,
-			Annotations: map[string]string{
-				"cdi.kubevirt.io/testing": podName,
-			},
-		},
-		Spec: k8sv1.PodSpec{
-			RestartPolicy: k8sv1.RestartPolicyNever,
-			Containers: []k8sv1.Container{
-				{
-					Name:    "runner",
-					Image:   "kubevirt/cdi-importer:latest",
-					Command: []string{"/bin/sh", "-c", cmd},
-					Resources: k8sv1.ResourceRequirements{
-						Limits: map[k8sv1.ResourceName]resource.Quantity{
-							k8sv1.ResourceCPU:    *resource.NewQuantity(0, resource.DecimalSI),
-							k8sv1.ResourceMemory: *resource.NewQuantity(0, resource.DecimalSI)},
-						Requests: map[corev1.ResourceName]resource.Quantity{
-							k8sv1.ResourceCPU:    *resource.NewQuantity(0, resource.DecimalSI),
-							k8sv1.ResourceMemory: *resource.NewQuantity(0, resource.DecimalSI)},
-					},
-				},
-			},
-			Volumes: []k8sv1.Volume{
-				{
-					Name: volumeName,
-					VolumeSource: k8sv1.VolumeSource{
-						PersistentVolumeClaim: &k8sv1.PersistentVolumeClaimVolumeSource{
-							ClaimName: pvc.GetName(),
-						},
-					},
-				},
-			},
-			SecurityContext: &k8sv1.PodSecurityContext{
-				FSGroup: &fsGroup,
-			},
-		},
-	}
-
-	volumeMode := pvc.Spec.VolumeMode
-	if volumeMode != nil && *volumeMode == v1.PersistentVolumeBlock {
-		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices(pvc, volumeName)
-	} else {
-		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts(pvc, volumeName)
-	}
-	return pod
-}
-
-func addVolumeDevices(pvc *k8sv1.PersistentVolumeClaim, volumeName string) []v1.VolumeDevice {
-	volumeDevices := []v1.VolumeDevice{
-		{
-			Name:       volumeName,
-			DevicePath: DefaultPvcMountPath,
-		},
-	}
-	return volumeDevices
-}
-
-// this is being called for pods using PV with filesystem volume mode
-func addVolumeMounts(pvc *k8sv1.PersistentVolumeClaim, volumeName string) []v1.VolumeMount {
-	volumeMounts := []v1.VolumeMount{
-		{
-			Name:      volumeName,
-			MountPath: DefaultPvcMountPath,
-		},
-	}
-	return volumeMounts
-}
-
 // FindPodBysuffix finds the first pod which has the passed in postfix. Returns error if multiple pods with the same prefix are found.
 func FindPodBysuffix(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string) (*k8sv1.Pod, error) {
 	return findPodByCompFunc(clientSet, namespace, prefix, labelSelector, strings.HasSuffix)
@@ -212,10 +106,6 @@ func findPodByCompFunc(clientSet *kubernetes.Clientset, namespace, prefix, label
 		return nil, fmt.Errorf("Unable to find pod containing %s", prefix)
 	}
 	return &result, err
-}
-
-func newExecutorPodWithPVC(podName string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1.Pod {
-	return NewPodWithPVC(podName, "while true; do echo hello; sleep 2;done", pvc)
 }
 
 // WaitTimeoutForPodReady waits for the given pod to be created and ready

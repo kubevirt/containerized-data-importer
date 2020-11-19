@@ -1072,7 +1072,7 @@ func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolume
 }
 
 func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClaim, targetNs *v1.Namespace, targetDv string) {
-	pod, err := utils.CreateExecutorPodWithPVC(f.K8sClient, "temp-pod", f.Namespace.Name, srcPVCDef)
+	pod, err := f.CreateExecutorPodWithPVC("temp-pod", f.Namespace.Name, srcPVCDef)
 	Expect(err).ToNot(HaveOccurred())
 
 	Eventually(func() bool {
