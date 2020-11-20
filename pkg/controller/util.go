@@ -57,6 +57,13 @@ const (
 	// AnnPrePopulated is a PVC annotation telling the datavolume controller that the PVC is already populated
 	AnnPrePopulated = AnnAPIGroup + "/storage.prePopulated"
 
+	// AnnPreviousCheckpoint provides a const to indicate the previous snapshot for a multistage import
+	AnnPreviousCheckpoint = AnnAPIGroup + "/storage.checkpoint.previous"
+	// AnnCurrentCheckpoint provides a const to indicate the current snapshot for a multistage import
+	AnnCurrentCheckpoint = AnnAPIGroup + "/storage.checkpoint.current"
+	// AnnFinalCheckpoint provides a const to indicate whether the current checkpoint is the last one
+	AnnFinalCheckpoint = AnnAPIGroup + "/storage.checkpoint.final"
+
 	// AnnRunningCondition provides a const for the running condition
 	AnnRunningCondition = AnnAPIGroup + "/storage.condition.running"
 	// AnnRunningConditionMessage provides a const for the running condition

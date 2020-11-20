@@ -266,6 +266,86 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 			return podUsingCloneSource(dv, true)
 		}),
 	)
+
+	It("Should set multistage migration annotations on a newly created PVC", func() {
+		dv := newImportDataVolume("test-dv")
+		dv.Spec.Checkpoints = []cdiv1.DataVolumeCheckpoint{
+			{
+				Previous: "previous",
+				Current:  "current",
+			},
+		}
+
+		reconciler = createDatavolumeReconciler(dv)
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
+		Expect(pvc.GetAnnotations()).ToNot(BeNil())
+		Expect(pvc.GetAnnotations()[AnnPreviousCheckpoint]).To(Equal("previous"))
+		Expect(pvc.GetAnnotations()[AnnCurrentCheckpoint]).To(Equal("current"))
+		Expect(pvc.GetAnnotations()[AnnFinalCheckpoint]).To(Equal("false"))
+	})
+
+	It("Should set multistage migration annotations on an existing PVC if they're not set", func() {
+		annotations := map[string]string{AnnPopulatedFor: "test-dv"}
+		pvc := createPvc("test-dv", metav1.NamespaceDefault, annotations, nil)
+		pvc.Status.Phase = corev1.ClaimBound
+
+		dv := newImportDataVolume("test-dv")
+		dv.Spec.Checkpoints = []cdiv1.DataVolumeCheckpoint{
+			{
+				Previous: "previous",
+				Current:  "current",
+			},
+		}
+		dv.Spec.FinalCheckpoint = true
+
+		reconciler = createDatavolumeReconciler(dv, pvc)
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
+		Expect(pvc.GetAnnotations()).ToNot(BeNil())
+		Expect(pvc.GetAnnotations()[AnnPreviousCheckpoint]).To(Equal("previous"))
+		Expect(pvc.GetAnnotations()[AnnCurrentCheckpoint]).To(Equal("current"))
+		Expect(pvc.GetAnnotations()[AnnFinalCheckpoint]).To(Equal("true"))
+	})
+
+	It("Should not set multistage migration annotations on an existing PVC if they're already set", func() {
+		annotations := map[string]string{
+			AnnPopulatedFor:       "test-dv",
+			AnnPreviousCheckpoint: "oldPrevious",
+			AnnCurrentCheckpoint:  "oldCurrent",
+			AnnFinalCheckpoint:    "true",
+		}
+		pvc := createPvc("test-dv", metav1.NamespaceDefault, annotations, nil)
+		pvc.Status.Phase = corev1.ClaimBound
+
+		dv := newImportDataVolume("test-dv")
+		dv.Spec.Checkpoints = []cdiv1.DataVolumeCheckpoint{
+			{
+				Previous: "newPrevious",
+				Current:  "newCurrent",
+			},
+		}
+		dv.Spec.FinalCheckpoint = false
+
+		reconciler = createDatavolumeReconciler(dv, pvc)
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
+		Expect(pvc.GetAnnotations()).ToNot(BeNil())
+		Expect(pvc.GetAnnotations()[AnnPreviousCheckpoint]).To(Equal("oldPrevious"))
+		Expect(pvc.GetAnnotations()[AnnCurrentCheckpoint]).To(Equal("oldCurrent"))
+		Expect(pvc.GetAnnotations()[AnnFinalCheckpoint]).To(Equal("true"))
+	})
+
 })
 
 var _ = Describe("Reconcile Datavolume status", func() {
@@ -478,6 +558,53 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		Expect(boundCondition.Message).To(Equal("PVC test-dv Pending"))
 		readyCondition := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions)
 		Expect(readyCondition.Status).To(Equal(corev1.ConditionTrue))
+		Expect(readyCondition.Message).To(Equal(""))
+	})
+
+	It("Should switch to paused if pod phase is succeeded but a checkpoint is set", func() {
+		reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		dv := &cdiv1.DataVolume{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
+		pvc.Status.Phase = corev1.ClaimPending
+		pvc.SetAnnotations(make(map[string]string))
+		pvc.GetAnnotations()[AnnCurrentCheckpoint] = "current"
+		pvc.GetAnnotations()[AnnPodPhase] = string(corev1.PodSucceeded)
+		err = reconciler.client.Update(context.TODO(), pvc)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = reconciler.reconcileDataVolumeStatus(dv, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		dv = &cdiv1.DataVolume{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dv.Status.Phase).To(Equal(cdiv1.Paused))
+		By("Checking error event recorded")
+		close(reconciler.recorder.(*record.FakeRecorder).Events)
+		foundPaused := false
+		foundPending := false
+		for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+			if strings.Contains(event, "Multistage import into PVC test-dv is paused") {
+				foundPaused = true
+			}
+			if strings.Contains(event, "PVC test-dv Pending") {
+				foundPending = true
+			}
+		}
+		Expect(foundPaused).To(BeTrue())
+		Expect(foundPending).To(BeTrue())
+		Expect(len(dv.Status.Conditions)).To(Equal(3))
+		boundCondition := findConditionByType(cdiv1.DataVolumeBound, dv.Status.Conditions)
+		Expect(boundCondition.Status).To(Equal(corev1.ConditionFalse))
+		Expect(boundCondition.Message).To(Equal("PVC test-dv Pending"))
+		readyCondition := findConditionByType(cdiv1.DataVolumeReady, dv.Status.Conditions)
+		Expect(readyCondition.Status).To(Equal(corev1.ConditionFalse))
 		Expect(readyCondition.Message).To(Equal(""))
 	})
 

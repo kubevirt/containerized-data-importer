@@ -3572,6 +3572,24 @@
     "description": "DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC",
     "type": "object"
    },
+   "v1beta1.DataVolumeCheckpoint": {
+    "description": "DataVolumeCheckpoint defines a stage in a warm migration.",
+    "type": "object",
+    "required": [
+     "previous",
+     "current"
+    ],
+    "properties": {
+     "current": {
+      "description": "Current is the identifier of the snapshot created for this checkpoint.",
+      "type": "string"
+     },
+     "previous": {
+      "description": "Previous is the identifier of the snapshot from the previous checkpoint.",
+      "type": "string"
+     }
+    }
+   },
    "v1beta1.DataVolumeCondition": {
     "description": "DataVolumeCondition represents the state of a data volume condition.",
     "type": "object",
@@ -3799,9 +3817,20 @@
      "pvc"
     ],
     "properties": {
+     "checkpoints": {
+      "description": "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
+      "type": "array",
+      "items": {
+       "$ref": "#/definitions/v1beta1.DataVolumeCheckpoint"
+      }
+     },
      "contentType": {
       "description": "DataVolumeContentType options: \"kubevirt\", \"archive\"",
       "type": "string"
+     },
+     "finalCheckpoint": {
+      "description": "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
+      "type": "boolean"
      },
      "pvc": {
       "description": "PVC is the PVC specification",
