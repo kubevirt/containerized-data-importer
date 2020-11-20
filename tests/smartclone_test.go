@@ -62,7 +62,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 			Skip("Smart Clone is not applicable")
 		}
 		sourcePvc := createAndPopulateSourcePVC("dv-smart-clone-test-1", fillCommandFilesystem, v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)
-		pod, err := utils.CreateExecutorPodWithPVC(f.K8sClient, "temp-pod", f.Namespace.Name, sourcePvc)
+		pod, err := f.CreateExecutorPodWithPVC("temp-pod", f.Namespace.Name, sourcePvc)
 		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(func() bool {
