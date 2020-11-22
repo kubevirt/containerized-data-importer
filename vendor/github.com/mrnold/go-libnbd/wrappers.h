@@ -85,14 +85,6 @@ int _nbd_set_export_name_wrapper (struct error *err,
         struct nbd_handle *h, const char *export_name);
 char * _nbd_get_export_name_wrapper (struct error *err,
         struct nbd_handle *h);
-int _nbd_set_full_info_wrapper (struct error *err,
-        struct nbd_handle *h, bool request);
-int _nbd_get_full_info_wrapper (struct error *err,
-        struct nbd_handle *h);
-char * _nbd_get_canonical_export_name_wrapper (struct error *err,
-        struct nbd_handle *h);
-char * _nbd_get_export_description_wrapper (struct error *err,
-        struct nbd_handle *h);
 int _nbd_set_tls_wrapper (struct error *err,
         struct nbd_handle *h, int tls);
 int _nbd_get_tls_wrapper (struct error *err,
@@ -119,20 +111,16 @@ int _nbd_get_structured_replies_negotiated_wrapper (struct error *err,
         struct nbd_handle *h);
 int _nbd_set_handshake_flags_wrapper (struct error *err,
         struct nbd_handle *h, uint32_t flags);
-uint32_t _nbd_get_handshake_flags_wrapper (struct error *err,
+unsigned _nbd_get_handshake_flags_wrapper (struct error *err,
         struct nbd_handle *h);
-int _nbd_set_opt_mode_wrapper (struct error *err,
-        struct nbd_handle *h, bool enable);
-int _nbd_get_opt_mode_wrapper (struct error *err,
+int _nbd_set_list_exports_wrapper (struct error *err,
+        struct nbd_handle *h, bool list);
+int _nbd_get_list_exports_wrapper (struct error *err,
         struct nbd_handle *h);
-int _nbd_opt_go_wrapper (struct error *err,
+int _nbd_get_nr_list_exports_wrapper (struct error *err,
         struct nbd_handle *h);
-int _nbd_opt_abort_wrapper (struct error *err,
-        struct nbd_handle *h);
-int _nbd_opt_list_wrapper (struct error *err,
-        struct nbd_handle *h, nbd_list_callback list_callback);
-int _nbd_opt_info_wrapper (struct error *err,
-        struct nbd_handle *h);
+char * _nbd_get_list_export_name_wrapper (struct error *err,
+        struct nbd_handle *h, int i);
 int _nbd_add_meta_context_wrapper (struct error *err,
         struct nbd_handle *h, const char *name);
 int _nbd_set_uri_allow_transports_wrapper (struct error *err,
@@ -181,8 +169,6 @@ const char * _nbd_get_protocol_wrapper (struct error *err,
         struct nbd_handle *h);
 int64_t _nbd_get_size_wrapper (struct error *err,
         struct nbd_handle *h);
-int64_t _nbd_get_block_size_wrapper (struct error *err,
-        struct nbd_handle *h, int size_type);
 int _nbd_pread_wrapper (struct error *err,
         struct nbd_handle *h, void *buf, size_t count, uint64_t offset,
         uint32_t flags);
@@ -227,15 +213,6 @@ int _nbd_aio_connect_command_wrapper (struct error *err,
         struct nbd_handle *h, char **argv);
 int _nbd_aio_connect_systemd_socket_activation_wrapper (struct error *err,
         struct nbd_handle *h, char **argv);
-int _nbd_aio_opt_go_wrapper (struct error *err,
-        struct nbd_handle *h, nbd_completion_callback completion_callback);
-int _nbd_aio_opt_abort_wrapper (struct error *err,
-        struct nbd_handle *h);
-int _nbd_aio_opt_list_wrapper (struct error *err,
-        struct nbd_handle *h, nbd_list_callback list_callback,
-        nbd_completion_callback completion_callback);
-int _nbd_aio_opt_info_wrapper (struct error *err,
-        struct nbd_handle *h, nbd_completion_callback completion_callback);
 int64_t _nbd_aio_pread_wrapper (struct error *err,
         struct nbd_handle *h, void *buf, size_t count, uint64_t offset,
         nbd_completion_callback completion_callback, uint32_t flags);
@@ -276,8 +253,6 @@ int _nbd_aio_notify_write_wrapper (struct error *err,
 int _nbd_aio_is_created_wrapper (struct error *err,
         struct nbd_handle *h);
 int _nbd_aio_is_connecting_wrapper (struct error *err,
-        struct nbd_handle *h);
-int _nbd_aio_is_negotiating_wrapper (struct error *err,
         struct nbd_handle *h);
 int _nbd_aio_is_ready_wrapper (struct error *err,
         struct nbd_handle *h);
@@ -330,11 +305,5 @@ int _nbd_extent_callback_wrapper (void *user_data, const char *metacontext,
                                   uint64_t offset, uint32_t *entries,
                                   size_t nr_entries, int *error);
 void _nbd_extent_callback_free (void *user_data);
-
-extern int list_callback ();
-
-int _nbd_list_callback_wrapper (void *user_data, const char *name,
-                                const char *description);
-void _nbd_list_callback_free (void *user_data);
 
 #endif /* LIBNBD_GOLANG_WRAPPERS_H */

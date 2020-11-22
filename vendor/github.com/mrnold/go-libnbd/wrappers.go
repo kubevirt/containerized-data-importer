@@ -170,74 +170,6 @@ _nbd_get_export_name_wrapper (struct error *err,
 }
 
 int
-_nbd_set_full_info_wrapper (struct error *err,
-        struct nbd_handle *h, bool request)
-{
-#ifdef LIBNBD_HAVE_NBD_SET_FULL_INFO
-  int ret;
-
-  ret = nbd_set_full_info (h, request);
-  if (ret == -1)
-    save_error (err);
-  return ret;
-#else // !LIBNBD_HAVE_NBD_SET_FULL_INFO
-  missing_function (err, "set_full_info");
-  return -1;
-#endif
-}
-
-int
-_nbd_get_full_info_wrapper (struct error *err,
-        struct nbd_handle *h)
-{
-#ifdef LIBNBD_HAVE_NBD_GET_FULL_INFO
-  int ret;
-
-  ret = nbd_get_full_info (h);
-  if (ret == -1)
-    save_error (err);
-  return ret;
-#else // !LIBNBD_HAVE_NBD_GET_FULL_INFO
-  missing_function (err, "get_full_info");
-  return -1;
-#endif
-}
-
-char *
-_nbd_get_canonical_export_name_wrapper (struct error *err,
-        struct nbd_handle *h)
-{
-#ifdef LIBNBD_HAVE_NBD_GET_CANONICAL_EXPORT_NAME
-  char * ret;
-
-  ret = nbd_get_canonical_export_name (h);
-  if (ret == NULL)
-    save_error (err);
-  return ret;
-#else // !LIBNBD_HAVE_NBD_GET_CANONICAL_EXPORT_NAME
-  missing_function (err, "get_canonical_export_name");
-  return NULL;
-#endif
-}
-
-char *
-_nbd_get_export_description_wrapper (struct error *err,
-        struct nbd_handle *h)
-{
-#ifdef LIBNBD_HAVE_NBD_GET_EXPORT_DESCRIPTION
-  char * ret;
-
-  ret = nbd_get_export_description (h);
-  if (ret == NULL)
-    save_error (err);
-  return ret;
-#else // !LIBNBD_HAVE_NBD_GET_EXPORT_DESCRIPTION
-  missing_function (err, "get_export_description");
-  return NULL;
-#endif
-}
-
-int
 _nbd_set_tls_wrapper (struct error *err,
         struct nbd_handle *h, int tls)
 {
@@ -262,9 +194,12 @@ _nbd_get_tls_wrapper (struct error *err,
   int ret;
 
   ret = nbd_get_tls (h);
+  if (ret == -1)
+    save_error (err);
   return ret;
 #else // !LIBNBD_HAVE_NBD_GET_TLS
   missing_function (err, "get_tls");
+  return -1;
 #endif
 }
 
@@ -455,12 +390,12 @@ _nbd_set_handshake_flags_wrapper (struct error *err,
 #endif
 }
 
-uint32_t
+unsigned
 _nbd_get_handshake_flags_wrapper (struct error *err,
         struct nbd_handle *h)
 {
 #ifdef LIBNBD_HAVE_NBD_GET_HANDSHAKE_FLAGS
-  uint32_t ret;
+  unsigned ret;
 
   ret = nbd_get_handshake_flags (h);
   return ret;
@@ -470,104 +405,70 @@ _nbd_get_handshake_flags_wrapper (struct error *err,
 }
 
 int
-_nbd_set_opt_mode_wrapper (struct error *err,
-        struct nbd_handle *h, bool enable)
+_nbd_set_list_exports_wrapper (struct error *err,
+        struct nbd_handle *h, bool list)
 {
-#ifdef LIBNBD_HAVE_NBD_SET_OPT_MODE
+#ifdef LIBNBD_HAVE_NBD_SET_LIST_EXPORTS
   int ret;
 
-  ret = nbd_set_opt_mode (h, enable);
+  ret = nbd_set_list_exports (h, list);
   if (ret == -1)
     save_error (err);
   return ret;
-#else // !LIBNBD_HAVE_NBD_SET_OPT_MODE
-  missing_function (err, "set_opt_mode");
+#else // !LIBNBD_HAVE_NBD_SET_LIST_EXPORTS
+  missing_function (err, "set_list_exports");
   return -1;
 #endif
 }
 
 int
-_nbd_get_opt_mode_wrapper (struct error *err,
+_nbd_get_list_exports_wrapper (struct error *err,
         struct nbd_handle *h)
 {
-#ifdef LIBNBD_HAVE_NBD_GET_OPT_MODE
+#ifdef LIBNBD_HAVE_NBD_GET_LIST_EXPORTS
   int ret;
 
-  ret = nbd_get_opt_mode (h);
+  ret = nbd_get_list_exports (h);
   if (ret == -1)
     save_error (err);
   return ret;
-#else // !LIBNBD_HAVE_NBD_GET_OPT_MODE
-  missing_function (err, "get_opt_mode");
+#else // !LIBNBD_HAVE_NBD_GET_LIST_EXPORTS
+  missing_function (err, "get_list_exports");
   return -1;
 #endif
 }
 
 int
-_nbd_opt_go_wrapper (struct error *err,
+_nbd_get_nr_list_exports_wrapper (struct error *err,
         struct nbd_handle *h)
 {
-#ifdef LIBNBD_HAVE_NBD_OPT_GO
+#ifdef LIBNBD_HAVE_NBD_GET_NR_LIST_EXPORTS
   int ret;
 
-  ret = nbd_opt_go (h);
+  ret = nbd_get_nr_list_exports (h);
   if (ret == -1)
     save_error (err);
   return ret;
-#else // !LIBNBD_HAVE_NBD_OPT_GO
-  missing_function (err, "opt_go");
+#else // !LIBNBD_HAVE_NBD_GET_NR_LIST_EXPORTS
+  missing_function (err, "get_nr_list_exports");
   return -1;
 #endif
 }
 
-int
-_nbd_opt_abort_wrapper (struct error *err,
-        struct nbd_handle *h)
+char *
+_nbd_get_list_export_name_wrapper (struct error *err,
+        struct nbd_handle *h, int i)
 {
-#ifdef LIBNBD_HAVE_NBD_OPT_ABORT
-  int ret;
+#ifdef LIBNBD_HAVE_NBD_GET_LIST_EXPORT_NAME
+  char * ret;
 
-  ret = nbd_opt_abort (h);
-  if (ret == -1)
+  ret = nbd_get_list_export_name (h, i);
+  if (ret == NULL)
     save_error (err);
   return ret;
-#else // !LIBNBD_HAVE_NBD_OPT_ABORT
-  missing_function (err, "opt_abort");
-  return -1;
-#endif
-}
-
-int
-_nbd_opt_list_wrapper (struct error *err,
-        struct nbd_handle *h, nbd_list_callback list_callback)
-{
-#ifdef LIBNBD_HAVE_NBD_OPT_LIST
-  int ret;
-
-  ret = nbd_opt_list (h, list_callback);
-  if (ret == -1)
-    save_error (err);
-  return ret;
-#else // !LIBNBD_HAVE_NBD_OPT_LIST
-  missing_function (err, "opt_list");
-  return -1;
-#endif
-}
-
-int
-_nbd_opt_info_wrapper (struct error *err,
-        struct nbd_handle *h)
-{
-#ifdef LIBNBD_HAVE_NBD_OPT_INFO
-  int ret;
-
-  ret = nbd_opt_info (h);
-  if (ret == -1)
-    save_error (err);
-  return ret;
-#else // !LIBNBD_HAVE_NBD_OPT_INFO
-  missing_function (err, "opt_info");
-  return -1;
+#else // !LIBNBD_HAVE_NBD_GET_LIST_EXPORT_NAME
+  missing_function (err, "get_list_export_name");
+  return NULL;
 #endif
 }
 
@@ -979,23 +880,6 @@ _nbd_get_size_wrapper (struct error *err,
 #endif
 }
 
-int64_t
-_nbd_get_block_size_wrapper (struct error *err,
-        struct nbd_handle *h, int size_type)
-{
-#ifdef LIBNBD_HAVE_NBD_GET_BLOCK_SIZE
-  int64_t ret;
-
-  ret = nbd_get_block_size (h, size_type);
-  if (ret == -1)
-    save_error (err);
-  return ret;
-#else // !LIBNBD_HAVE_NBD_GET_BLOCK_SIZE
-  missing_function (err, "get_block_size");
-  return -1;
-#endif
-}
-
 int
 _nbd_pread_wrapper (struct error *err,
         struct nbd_handle *h, void *buf, size_t count, uint64_t offset,
@@ -1310,75 +1194,6 @@ _nbd_aio_connect_systemd_socket_activation_wrapper (struct error *err,
 #endif
 }
 
-int
-_nbd_aio_opt_go_wrapper (struct error *err,
-        struct nbd_handle *h, nbd_completion_callback completion_callback)
-{
-#ifdef LIBNBD_HAVE_NBD_AIO_OPT_GO
-  int ret;
-
-  ret = nbd_aio_opt_go (h, completion_callback);
-  if (ret == -1)
-    save_error (err);
-  return ret;
-#else // !LIBNBD_HAVE_NBD_AIO_OPT_GO
-  missing_function (err, "aio_opt_go");
-  return -1;
-#endif
-}
-
-int
-_nbd_aio_opt_abort_wrapper (struct error *err,
-        struct nbd_handle *h)
-{
-#ifdef LIBNBD_HAVE_NBD_AIO_OPT_ABORT
-  int ret;
-
-  ret = nbd_aio_opt_abort (h);
-  if (ret == -1)
-    save_error (err);
-  return ret;
-#else // !LIBNBD_HAVE_NBD_AIO_OPT_ABORT
-  missing_function (err, "aio_opt_abort");
-  return -1;
-#endif
-}
-
-int
-_nbd_aio_opt_list_wrapper (struct error *err,
-        struct nbd_handle *h, nbd_list_callback list_callback,
-        nbd_completion_callback completion_callback)
-{
-#ifdef LIBNBD_HAVE_NBD_AIO_OPT_LIST
-  int ret;
-
-  ret = nbd_aio_opt_list (h, list_callback, completion_callback);
-  if (ret == -1)
-    save_error (err);
-  return ret;
-#else // !LIBNBD_HAVE_NBD_AIO_OPT_LIST
-  missing_function (err, "aio_opt_list");
-  return -1;
-#endif
-}
-
-int
-_nbd_aio_opt_info_wrapper (struct error *err,
-        struct nbd_handle *h, nbd_completion_callback completion_callback)
-{
-#ifdef LIBNBD_HAVE_NBD_AIO_OPT_INFO
-  int ret;
-
-  ret = nbd_aio_opt_info (h, completion_callback);
-  if (ret == -1)
-    save_error (err);
-  return ret;
-#else // !LIBNBD_HAVE_NBD_AIO_OPT_INFO
-  missing_function (err, "aio_opt_info");
-  return -1;
-#endif
-}
-
 int64_t
 _nbd_aio_pread_wrapper (struct error *err,
         struct nbd_handle *h, void *buf, size_t count, uint64_t offset,
@@ -1640,23 +1455,6 @@ _nbd_aio_is_connecting_wrapper (struct error *err,
   return ret;
 #else // !LIBNBD_HAVE_NBD_AIO_IS_CONNECTING
   missing_function (err, "aio_is_connecting");
-  return -1;
-#endif
-}
-
-int
-_nbd_aio_is_negotiating_wrapper (struct error *err,
-        struct nbd_handle *h)
-{
-#ifdef LIBNBD_HAVE_NBD_AIO_IS_NEGOTIATING
-  int ret;
-
-  ret = nbd_aio_is_negotiating (h);
-  if (ret == -1)
-    save_error (err);
-  return ret;
-#else // !LIBNBD_HAVE_NBD_AIO_IS_NEGOTIATING
-  missing_function (err, "aio_is_negotiating");
   return -1;
 #endif
 }
@@ -1934,20 +1732,6 @@ _nbd_extent_callback_wrapper (void *user_data, const char *metacontext,
 
 void
 _nbd_extent_callback_free (void *user_data)
-{
-  extern void freeCallbackId (long);
-  freeCallbackId ((long)user_data);
-}
-
-int
-_nbd_list_callback_wrapper (void *user_data, const char *name,
-                            const char *description)
-{
-  return list_callback ((long)user_data, name, description);
-}
-
-void
-_nbd_list_callback_free (void *user_data)
 {
   extern void freeCallbackId (long);
   freeCallbackId ((long)user_data);

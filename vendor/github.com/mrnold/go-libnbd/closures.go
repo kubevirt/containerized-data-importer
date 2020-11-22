@@ -103,16 +103,3 @@ func extent_callback (callbackid C.long, metacontext *C.char, offset C.uint64_t,
     return C.int (ret);
 }
 
-type ListCallback func (name string, description string) int
-
-//export list_callback
-func list_callback (callbackid C.long, name *C.char, description *C.char) C.int {
-    callbackFunc := getCallbackId (int (callbackid));
-    callback, ok := callbackFunc.(ListCallback);
-    if !ok {
-        panic ("inappropriate callback type");
-    }
-    ret := callback (C.GoString (name), C.GoString (description))
-    return C.int (ret);
-}
-
