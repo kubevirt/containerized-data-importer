@@ -541,6 +541,31 @@ http_file(
 )
 
 http_file(
+    name = "nbdkit-xz-filter",
+    sha256 = "a77043f110496658d87332b064f34fc10bbf0fdd429c4bbbe9542308ff087007",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/n/nbdkit-xz-filter-1.22.3-2.fc33.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "nbdkit-gzip-filter",
+    sha256 = "52787fd9aff69599837328b8b8dd76376999e7c5c96bd72669b0c77a1ac31d4f",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/n/nbdkit-gzip-filter-1.22.3-2.fc33.x86_64.rpm",
+    ],
+)
+
+http_file(
+    name = "nbdkit-curl-plugin",
+    sha256 = "53412db6df5e098d2439d456a309e567af75b721178a9f7a5c10fa192ecf5d43",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/n/nbdkit-curl-plugin-1.22.3-2.fc33.x86_64.rpm",
+
+    ],
+)
+
+http_file(
     name = "libxcrypt-compat",
     sha256 = "51d74854365a393393b4457e3d92ba103c08671b4c881a8a1d9fcb8a54a4a737",
     urls = [
@@ -581,8 +606,25 @@ http_file(
     sha256 = "8c58134cdcec8a993c7da827abb4e9ab78d974038d984ff1fee39963d92736c5",
     urls = [
         "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/g/golang-github-vmware-govmomi-0.23.1-1.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/8c58134cdcec8a993c7da827abb4e9ab78d974038d984ff1fee39963d92736c5",
-    ],
+   ],
+)
+
+http_file(
+    name = "libnbd",
+    sha256 = "a63602bb9ebc13f31543332164c64e9c5342089e7431fa35b393f0692b6acb97",
+
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/l/libnbd-1.4.1-2.fc33.1.x86_64.rpm",
+
+   ],
+)
+
+http_file(
+    name = "liburing",
+    sha256 = "049778a480dd02774934b37c127b345d8748bfbec1e584f9c412a41af34eaf89",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/g/golang-github-vmware-govmomi-0.23.1-1.fc33.x86_64.rpm",
+   ],
 )
 
 http_file(
@@ -611,3 +653,4 @@ http_file(
         "https://storage.googleapis.com/builddeps/964e39835b59c76b7eb3f78c460bfc6e7acfb0c40b901775c7e8a7204537f8a7",
     ],
 )
+
