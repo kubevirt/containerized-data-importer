@@ -1,10 +1,15 @@
 #!/bin/bash -e
-  
+
 source ./hack/build/config.sh
 source ./cluster-up/hack/common.sh
 source ./cluster-up/cluster/${KUBEVIRT_PROVIDER}/provider.sh
 
 echo "Cleaning up ..."
+
+if [ "${CDI_CLEAN}" == "test-infra" ]; then
+  _kubectl delete all -n cdi -l cdi.kubevirt.io/testing
+  exit 0
+fi
 
 OPERATOR_CR_MANIFEST=./_out/manifests/release/cdi-cr.yaml
 OPERATOR_MANIFEST=./_out/manifests/release/cdi-operator.yaml
@@ -23,7 +28,7 @@ if [ -f "${OPERATOR_CR_MANIFEST}" ]; then
     fi
 fi
 
-if [ -f "${OPERATOR_MANIFEST}" ]; then
+if [ "${CDI_CLEAN}" == "all" ] && [ -f "${OPERATOR_MANIFEST}" ]; then
 	echo "Deleting operator ..."
     _kubectl delete --ignore-not-found -f "${OPERATOR_MANIFEST}"
 fi
@@ -57,8 +62,7 @@ for label in ${LABELS[@]}; do
     done
 done
 
-
-if [ -n "$(_kubectl get ns | grep "cdi ")" ]; then
+if [ "${CDI_CLEAN}" == "all" ] && [ -n "$(_kubectl get ns | grep "cdi ")" ]; then
     echo "Clean cdi namespace"
     _kubectl delete ns $NAMESPACE
 

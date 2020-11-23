@@ -101,12 +101,18 @@ cluster-down:
 cluster-down-purge: docker-registry-cleanup cluster-down
 
 cluster-clean:
+	CDI_CLEAN="all" ./cluster-sync/clean.sh
+
+cluster-clean-cdi:
 	./cluster-sync/clean.sh
 
-cluster-sync-cdi: cluster-clean
+cluster-clean-test-infra:
+	CDI_CLEAN="test-infra" ./cluster-sync/clean.sh
+
+cluster-sync-cdi: cluster-clean-cdi
 	./cluster-sync/sync.sh CDI_AVAILABLE_TIMEOUT=${CDI_AVAILABLE_TIMEOUT} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG}
 
-cluster-sync-test-infra:
+cluster-sync-test-infra: cluster-clean-test-infra
 	CDI_SYNC="test-infra" ./cluster-sync/sync.sh CDI_AVAILABLE_TIMEOUT=${CDI_AVAILABLE_TIMEOUT} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG}
 
 cluster-sync: cluster-sync-cdi cluster-sync-test-infra
