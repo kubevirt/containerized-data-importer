@@ -291,6 +291,7 @@ var _ = Describe("API server tests", func() {
 				"/apis/upload.cdi.kubevirt.io/v1alpha1",
 				"/apis/upload.cdi.kubevirt.io/v1beta1",
 				"/healthz",
+				"/openapi/v2",
 			},
 		}
 

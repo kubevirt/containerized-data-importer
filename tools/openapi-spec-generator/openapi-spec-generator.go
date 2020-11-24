@@ -21,12 +21,20 @@ import (
 	"fmt"
 
 	"github.com/emicklei/go-restful"
+	"k8s.io/kube-openapi/pkg/common"
 
+	cdicorev1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	cdiuploadv1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
+	"kubevirt.io/containerized-data-importer/pkg/util/openapi"
 )
 
-func dumpOpenAPISpec(apiws []*restful.WebService) {
-	openapispec := loadOpenAPISpec(apiws)
+func dumpOpenAPISpec(apiws []*restful.WebService, getDefinitions common.GetOpenAPIDefinitions) {
+	openapispec, err := openapi.LoadOpenAPISpec(apiws, getDefinitions)
+	if err != nil {
+		panic(fmt.Errorf("Failed to build swagger: %s", err))
+	}
+
 	data, err := json.MarshalIndent(openapispec, " ", " ")
 	if err != nil {
 		fmt.Println(err)
@@ -39,5 +47,14 @@ func dumpOpenAPISpec(apiws []*restful.WebService) {
 func main() {
 	webservices := apiserver.UploadTokenRequestAPI()
 	webservices = append(webservices, CoreAPI()...)
-	dumpOpenAPISpec(webservices)
+	dumpOpenAPISpec(webservices, func(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
+		m := cdicorev1.GetOpenAPIDefinitions(ref)
+		m2 := cdiuploadv1.GetOpenAPIDefinitions(ref)
+		for k, v := range m2 {
+			if _, ok := m[k]; !ok {
+				m[k] = v
+			}
+		}
+		return m
+	})
 }

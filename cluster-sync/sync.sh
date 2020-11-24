@@ -115,6 +115,7 @@ function wait_cdi_pods_updated {
 # We skip the functional test additions for external provider for now, as they're specific
 if [ "${KUBEVIRT_PROVIDER}" != "external" ] && [ "${CDI_SYNC}" == "test-infra" ]; then
   _kubectl delete all -n cdi -l cdi.kubevirt.io/testing
+  configure_storage
   _kubectl apply -f "./_out/manifests/bad-webserver.yaml"
   _kubectl apply -f "./_out/manifests/file-host.yaml"
   _kubectl apply -f "./_out/manifests/registry-host.yaml"
@@ -209,5 +210,3 @@ crds=($cdi_crds)
 operator_crds=$(_kubectl get crd -l operator.cdi.kubevirt.io -o jsonpath={.items[*].metadata.name})
 crds+=($operator_crds)
 check_structural_schema "${crds[@]}"
-
-configure_storage

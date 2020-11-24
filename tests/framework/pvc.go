@@ -11,12 +11,14 @@ import (
 	"github.com/onsi/gomega"
 	k8sv1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -46,16 +48,6 @@ func (f *Framework) DeletePVC(pvc *k8sv1.PersistentVolumeClaim) error {
 // WaitForPersistentVolumeClaimPhase is a wrapper around utils.WaitForPersistentVolumeClaimPhase
 func (f *Framework) WaitForPersistentVolumeClaimPhase(phase k8sv1.PersistentVolumeClaimPhase, pvcName string) error {
 	return utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, phase, pvcName)
-}
-
-// CreateExecutorPodWithPVC is a wrapper around utils.CreateExecutorPodWithPVC
-func (f *Framework) CreateExecutorPodWithPVC(podName string, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
-	return utils.CreateExecutorPodWithPVC(f.K8sClient, podName, f.Namespace.Name, pvc)
-}
-
-// CreateExecutorPodWithPVCSpecificNode is a wrapper around utils.CreateExecutorPodWithPVCSpecificNode
-func (f *Framework) CreateExecutorPodWithPVCSpecificNode(podName string, pvc *k8sv1.PersistentVolumeClaim, node string) (*k8sv1.Pod, error) {
-	return utils.CreateExecutorPodWithPVCSpecificNode(f.K8sClient, podName, f.Namespace.Name, pvc, node)
 }
 
 // FindPVC is a wrapper around utils.FindPVC
@@ -96,7 +88,7 @@ func createConsumerPod(targetPvc *k8sv1.PersistentVolumeClaim, f *Framework) {
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	podName := naming.GetResourceName("consumer-pod", targetPvc.Name)
-	executorPod, err := utils.CreateNoopPodWithPVC(f.K8sClient, podName, namespace, targetPvc)
+	executorPod, err := f.CreateNoopPodWithPVC(podName, namespace, targetPvc)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = utils.WaitTimeoutForPodSucceeded(f.K8sClient, executorPod.Name, namespace, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
@@ -112,9 +104,9 @@ func VerifyPVCIsEmpty(f *Framework, pvc *k8sv1.PersistentVolumeClaim, node strin
 	var err error
 	var executorPod *k8sv1.Pod
 	if node != "" {
-		executorPod, err = f.CreateExecutorPodWithPVCSpecificNode(utils.VerifierPodName, pvc, node)
+		executorPod, err = f.CreateExecutorPodWithPVCSpecificNode(utils.VerifierPodName, f.Namespace.Name, pvc, node)
 	} else {
-		executorPod, err = f.CreateExecutorPodWithPVC(utils.VerifierPodName, pvc)
+		executorPod, err = f.CreateExecutorPodWithPVC(utils.VerifierPodName, f.Namespace.Name, pvc)
 	}
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = f.WaitTimeoutForPodReady(executorPod.Name, utils.PodWaitForTime)
@@ -143,7 +135,7 @@ func (f *Framework) CreateAndPopulateSourcePVC(pvcDef *k8sv1.PersistentVolumeCla
 	// Create the source PVC and populate it with a file, so we can verify the clone.
 	sourcePvc, err := f.CreatePVCFromDefinition(pvcDef)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	pod, err := f.CreatePod(utils.NewPodWithPVC(podName, fillCommand, sourcePvc))
+	pod, err := f.CreatePod(f.NewPodWithPVC(podName, fillCommand, sourcePvc))
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	err = f.WaitTimeoutForPodStatus(pod.Name, k8sv1.PodSucceeded, utils.PodWaitForTime)
@@ -172,7 +164,7 @@ func (f *Framework) GetMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolu
 	var executorPod *k8sv1.Pod
 	var err error
 
-	executorPod, err = utils.CreateVerifierPodWithPVC(f.K8sClient, namespace.Name, pvc)
+	executorPod, err = f.CreateVerifierPodWithPVC(namespace.Name, pvc)
 	if !apierrs.IsAlreadyExists(err) {
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	}
@@ -200,7 +192,7 @@ func (f *Framework) VerifyBlankDisk(namespace *k8sv1.Namespace, pvc *k8sv1.Persi
 	var executorPod *k8sv1.Pod
 	var err error
 
-	executorPod, err = utils.CreateVerifierPodWithPVC(f.K8sClient, namespace.Name, pvc)
+	executorPod, err = f.CreateVerifierPodWithPVC(namespace.Name, pvc)
 	if !apierrs.IsAlreadyExists(err) {
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	}
@@ -224,7 +216,7 @@ func (f *Framework) VerifySparse(namespace *k8sv1.Namespace, pvc *k8sv1.Persiste
 	var executorPod *k8sv1.Pod
 	var err error
 
-	executorPod, err = utils.CreateVerifierPodWithPVC(f.K8sClient, namespace.Name, pvc)
+	executorPod, err = f.CreateVerifierPodWithPVC(namespace.Name, pvc)
 	if !apierrs.IsAlreadyExists(err) {
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	}
@@ -253,7 +245,7 @@ func (f *Framework) VerifyPermissions(namespace *k8sv1.Namespace, pvc *k8sv1.Per
 	var executorPod *k8sv1.Pod
 	var err error
 
-	executorPod, err = utils.CreateVerifierPodWithPVC(f.K8sClient, namespace.Name, pvc)
+	executorPod, err = f.CreateVerifierPodWithPVC(namespace.Name, pvc)
 	if !apierrs.IsAlreadyExists(err) {
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	}
@@ -277,7 +269,7 @@ func (f *Framework) GetDiskGroup(namespace *k8sv1.Namespace, pvc *k8sv1.Persiste
 	var executorPod *k8sv1.Pod
 	var err error
 
-	executorPod, err = utils.CreateVerifierPodWithPVC(f.K8sClient, namespace.Name, pvc)
+	executorPod, err = f.CreateVerifierPodWithPVC(namespace.Name, pvc)
 	if !apierrs.IsAlreadyExists(err) {
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	}
@@ -322,7 +314,7 @@ func (f *Framework) VerifyTargetPVCArchiveContent(namespace *k8sv1.Namespace, pv
 	var executorPod *k8sv1.Pod
 	var err error
 
-	executorPod, err = utils.CreateVerifierPodWithPVC(f.K8sClient, namespace.Name, pvc)
+	executorPod, err = f.CreateVerifierPodWithPVC(namespace.Name, pvc)
 	if !apierrs.IsAlreadyExists(err) {
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	}
@@ -339,7 +331,7 @@ func (f *Framework) VerifyTargetPVCArchiveContent(namespace *k8sv1.Namespace, pv
 
 // RunCommandAndCaptureOutput runs a command on a pod that has the passed in PVC mounted and captures the output.
 func (f *Framework) RunCommandAndCaptureOutput(pvc *k8sv1.PersistentVolumeClaim, cmd string) (string, error) {
-	executorPod, err := f.CreateExecutorPodWithPVC("execute-command", pvc)
+	executorPod, err := f.CreateExecutorPodWithPVC("execute-command", f.Namespace.Name, pvc)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	err = f.WaitTimeoutForPodReady(executorPod.Name, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
@@ -351,4 +343,115 @@ func (f *Framework) RunCommandAndCaptureOutput(pvc *k8sv1.PersistentVolumeClaim,
 	err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), executorPod.Name, metav1.DeleteOptions{})
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	return output, nil
+}
+
+// NewPodWithPVC creates a new pod that mounts the given PVC
+func (f *Framework) NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1.Pod {
+	var importerImage string
+	volumeName := naming.GetLabelNameFromResourceName(pvc.GetName())
+	fsGroup := common.QemuSubGid
+	for _, e := range f.ControllerPod.Spec.Containers[0].Env {
+		if e.Name == "IMPORTER_IMAGE" {
+			importerImage = e.Value
+		}
+	}
+	pod := &k8sv1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: podName,
+			Annotations: map[string]string{
+				"cdi.kubevirt.io/testing": podName,
+			},
+		},
+		Spec: k8sv1.PodSpec{
+			RestartPolicy: k8sv1.RestartPolicyNever,
+			Containers: []k8sv1.Container{
+				{
+					Name:    "runner",
+					Image:   importerImage,
+					Command: []string{"/bin/sh", "-c", cmd},
+					Resources: k8sv1.ResourceRequirements{
+						Limits: map[k8sv1.ResourceName]resource.Quantity{
+							k8sv1.ResourceCPU:    *resource.NewQuantity(0, resource.DecimalSI),
+							k8sv1.ResourceMemory: *resource.NewQuantity(0, resource.DecimalSI)},
+						Requests: map[k8sv1.ResourceName]resource.Quantity{
+							k8sv1.ResourceCPU:    *resource.NewQuantity(0, resource.DecimalSI),
+							k8sv1.ResourceMemory: *resource.NewQuantity(0, resource.DecimalSI)},
+					},
+				},
+			},
+			Volumes: []k8sv1.Volume{
+				{
+					Name: volumeName,
+					VolumeSource: k8sv1.VolumeSource{
+						PersistentVolumeClaim: &k8sv1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvc.GetName(),
+						},
+					},
+				},
+			},
+			SecurityContext: &k8sv1.PodSecurityContext{
+				FSGroup: &fsGroup,
+			},
+		},
+	}
+
+	volumeMode := pvc.Spec.VolumeMode
+	if volumeMode != nil && *volumeMode == k8sv1.PersistentVolumeBlock {
+		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices(pvc, volumeName)
+	} else {
+		pod.Spec.Containers[0].VolumeMounts = addVolumeMounts(pvc, volumeName)
+	}
+	return pod
+}
+
+func (f *Framework) newExecutorPodWithPVC(podName string, pvc *k8sv1.PersistentVolumeClaim) *k8sv1.Pod {
+	return f.NewPodWithPVC(podName, "while true; do echo hello; sleep 2;done", pvc)
+}
+
+// CreateExecutorPodWithPVC creates a Pod with the passed in PVC mounted under /pvc. You can then use the executor utilities to
+// run commands against the PVC through this Pod.
+func (f *Framework) CreateExecutorPodWithPVC(podName, namespace string, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
+	return utils.CreatePod(f.K8sClient, namespace, f.newExecutorPodWithPVC(podName, pvc))
+}
+
+// CreateExecutorPodWithPVCSpecificNode creates a Pod on a specific node with the passed in PVC mounted under /pvc. You can then use the executor utilities to
+// run commands against the PVC through this Pod.
+func (f *Framework) CreateExecutorPodWithPVCSpecificNode(podName, namespace string, pvc *k8sv1.PersistentVolumeClaim, node string) (*k8sv1.Pod, error) {
+	var pod = f.newExecutorPodWithPVC(podName, pvc)
+	pod.Spec.NodeSelector = map[string]string{
+		"kubernetes.io/hostname": node,
+	}
+	return utils.CreatePod(f.K8sClient, namespace, pod)
+}
+
+// CreateNoopPodWithPVC creates a short living pod, that might be used to force bind a pvc
+func (f *Framework) CreateNoopPodWithPVC(podName, namespace string, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
+	return utils.CreatePod(f.K8sClient, namespace, f.NewPodWithPVC(podName, "echo I am vm doppleganger pod;", pvc))
+}
+
+// CreateVerifierPodWithPVC creates a Pod called verifier, with the passed in PVC mounted under /pvc. You can then use the executor utilities to
+// run commands against the PVC through this Pod.
+func (f *Framework) CreateVerifierPodWithPVC(namespace string, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
+	return f.CreateExecutorPodWithPVC(utils.VerifierPodName, namespace, pvc)
+}
+
+func addVolumeDevices(pvc *k8sv1.PersistentVolumeClaim, volumeName string) []k8sv1.VolumeDevice {
+	volumeDevices := []k8sv1.VolumeDevice{
+		{
+			Name:       volumeName,
+			DevicePath: utils.DefaultPvcMountPath,
+		},
+	}
+	return volumeDevices
+}
+
+// this is being called for pods using PV with filesystem volume mode
+func addVolumeMounts(pvc *k8sv1.PersistentVolumeClaim, volumeName string) []k8sv1.VolumeMount {
+	volumeMounts := []k8sv1.VolumeMount{
+		{
+			Name:      volumeName,
+			MountPath: utils.DefaultPvcMountPath,
+		},
+	}
+	return volumeMounts
 }

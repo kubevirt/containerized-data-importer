@@ -32,9 +32,11 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	restful "github.com/emicklei/go-restful"
+	"github.com/go-openapi/spec"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -48,6 +50,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/keys"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/util/openapi"
 )
 
 const (
@@ -335,6 +338,7 @@ func uploadTokenAPIGroup() metav1.APIGroup {
 }
 
 func (app *cdiAPIApp) composeUploadTokenAPI() {
+	var allWebServices []*restful.WebService
 	objPointer := &cdiuploadv1.UploadTokenRequest{}
 	objExample := reflect.ValueOf(objPointer).Elem().Interface()
 	objKind := "UploadTokenRequest"
@@ -352,6 +356,7 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 		resourcePath := fmt.Sprintf("/apis/%s/%s", uploadTokenGroup, uploadTokenVersion)
 		resourcePaths = append(resourcePaths, resourcePath)
 		uploadTokenWs := new(restful.WebService)
+		allWebServices = append(allWebServices, uploadTokenWs)
 		uploadTokenWs.Doc("The CDI Upload API.")
 		uploadTokenWs.Path(resourcePath)
 
@@ -394,9 +399,13 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 		app.container.Add(uploadTokenWs)
 	}
 
-	ws := new(restful.WebService)
+	// hack alert, can only have one version represented so get rid of last one
+	allWebServices = allWebServices[0 : len(allWebServices)-1]
 
-	paths := append([]string{"/apis", "/apis/", groupPath, healthzPath}, resourcePaths...)
+	ws := new(restful.WebService)
+	allWebServices = append(allWebServices, ws)
+
+	paths := append([]string{"/apis", "/apis/", "/openapi/v2", groupPath, healthzPath}, resourcePaths...)
 	sort.Strings(paths)
 
 	ws.Route(ws.GET("/").
@@ -436,6 +445,22 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 		Doc("Get a CDI API GroupList").
 		Returns(http.StatusOK, "OK", metav1.APIGroupList{}).
 		Returns(http.StatusNotFound, "Not Found", ""))
+
+	once := sync.Once{}
+	var openapispec *spec.Swagger
+	ws.Route(ws.GET("openapi/v2").
+		Consumes("application/json").
+		Produces("application/json").
+		To(func(request *restful.Request, response *restful.Response) {
+			once.Do(func() {
+				var err error
+				openapispec, err = openapi.LoadOpenAPISpec(allWebServices, cdiuploadv1.GetOpenAPIDefinitions)
+				if err != nil {
+					panic(fmt.Errorf("Failed to build swagger: %s", err))
+				}
+			})
+			response.WriteAsJson(openapispec)
+		}))
 
 	ws.Route(ws.GET(healthzPath).To(app.healthzHandler))
 
