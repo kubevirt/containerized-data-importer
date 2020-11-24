@@ -77,6 +77,12 @@ const (
 	ImporterBackingFile = "IMPORTER_BACKING_FILE"
 	// ImporterThumbprint provides a constant to capture our env variable "IMPORTER_THUMBPRINT"
 	ImporterThumbprint = "IMPORTER_THUMBPRINT"
+	// ImporterCurrentCheckpoint provides a constant to capture our env variable "IMPORTER_CURRENT_CHECKPOINT"
+	ImporterCurrentCheckpoint = "IMPORTER_CURRENT_CHECKPOINT"
+	// ImporterPreviousCheckpoint provides a constant to capture our env variable "IMPORTER_PREVIOUS_CHECKPOINT"
+	ImporterPreviousCheckpoint = "IMPORTER_PREVIOUS_CHECKPOINT"
+	// ImporterFinalCheckpoint provides a constant to capture our env variable "IMPORTER_FINAL_CHECKPOINT"
+	ImporterFinalCheckpoint = "IMPORTER_FINAL_CHECKPOINT"
 
 	// CloningLabelValue provides a constant to use as a label value for pod affinity (controller pkg only)
 	CloningLabelValue = "host-assisted-cloning"

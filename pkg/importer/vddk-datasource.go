@@ -205,8 +205,8 @@ func WaitForNbd(pidfile string) error {
 }
 
 // NewVDDKDataSource creates a new instance of the vddk data provider.
-func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string) (*VDDKDataSource, error) {
-	return newVddkDataSource(endpoint, accessKey, secKey, thumbprint, uuid, backingFile)
+func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string) (*VDDKDataSource, error) {
+	return newVddkDataSource(endpoint, accessKey, secKey, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint)
 }
 
 func validatePlugins() error {
@@ -252,7 +252,8 @@ func validatePlugins() error {
 	return nil
 }
 
-func createVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string) (*VDDKDataSource, error) {
+func createVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string) (*VDDKDataSource, error) {
+	klog.Infof("Checkpoints: %s %s %s", currentCheckpoint, previousCheckpoint, finalCheckpoint)
 	vmwURL, err := url.Parse(endpoint)
 	if err != nil {
 		klog.Errorf("Unable to parse endpoint: %v", endpoint)

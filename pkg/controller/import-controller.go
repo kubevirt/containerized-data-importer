@@ -966,6 +966,18 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 			Name:  common.ImporterThumbprint,
 			Value: podEnvVar.thumbprint,
 		},
+		{
+			Name:  common.ImporterCurrentCheckpoint,
+			Value: podEnvVar.currentCheckpoint,
+		},
+		{
+			Name:  common.ImporterPreviousCheckpoint,
+			Value: podEnvVar.previousCheckpoint,
+		},
+		{
+			Name:  common.ImporterFinalCheckpoint,
+			Value: podEnvVar.finalCheckpoint,
+		},
 	}
 	if podEnvVar.secretName != "" {
 		env = append(env, corev1.EnvVar{
