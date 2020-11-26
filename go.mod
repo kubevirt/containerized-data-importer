@@ -28,7 +28,6 @@ require (
 	github.com/openshift/client-go v0.0.0
 	github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca
 	github.com/openshift/library-go v0.0.0-20200821154433-215f00df72cc
-	github.com/operator-framework/go-appr v0.0.0-20180917210448-f2aef88446f2 // indirect
 	github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190725173916-b56e63a643cc
 	github.com/operator-framework/operator-marketplace v0.0.0-20190617165322-1cbd32624349
 	github.com/ovirt/go-ovirt v4.3.4+incompatible
@@ -38,7 +37,6 @@ require (
 	github.com/rs/cors v1.7.0
 	github.com/ulikunitz/xz v0.5.7
 	github.com/vmware/govmomi v0.23.1
-	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
 	golang.org/x/sys v0.0.0-20200519105757-fe76b779f299
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/square/go-jose.v2 v2.3.1
