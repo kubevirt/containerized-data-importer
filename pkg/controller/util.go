@@ -94,6 +94,9 @@ const (
 
 	// PodRunningReason is const that defines the pod was started as a reason
 	podRunningReason = "Pod is running"
+
+	// Default value for preallocation option if not defined in DV or CDIConfig
+	defaultPreallocation = false
 )
 
 const (
@@ -242,18 +245,7 @@ func CreateScratchPersistentVolumeClaim(client client.Client, pvc *v1.Persistent
 // GetStorageClassByName looks up the storage class based on the name. If no storage class is found returns nil
 func GetStorageClassByName(client client.Client, name *string) (*storagev1.StorageClass, error) {
 	// look up storage class by name
-	if name == nil {
-		storageClasses := &storagev1.StorageClassList{}
-		if err := client.List(context.TODO(), storageClasses); err != nil {
-			klog.V(3).Info("Unable to retrieve available storage classes")
-			return nil, errors.New("unable to retrieve storage classes")
-		}
-		for _, storageClass := range storageClasses.Items {
-			if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" {
-				return &storageClass, nil
-			}
-		}
-	} else {
+	if name != nil {
 		storageClass := &storagev1.StorageClass{}
 		if err := client.Get(context.TODO(), types.NamespacedName{Name: *name}, storageClass); err != nil {
 			klog.V(3).Info("Unable to retrieve storage class", "storage class name", *name)
@@ -262,6 +254,22 @@ func GetStorageClassByName(client client.Client, name *string) (*storagev1.Stora
 		return storageClass, nil
 	}
 	// No storage class found, just return nil for storage class and let caller deal with it.
+	return GetDefaultStorageClass(client)
+}
+
+// GetDefaultStorageClass returns the default storage class or nil if none found
+func GetDefaultStorageClass(client client.Client) (*storagev1.StorageClass, error) {
+	storageClasses := &storagev1.StorageClassList{}
+	if err := client.List(context.TODO(), storageClasses); err != nil {
+		klog.V(3).Info("Unable to retrieve available storage classes")
+		return nil, errors.New("unable to retrieve storage classes")
+	}
+	for _, storageClass := range storageClasses.Items {
+		if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" {
+			return &storageClass, nil
+		}
+	}
+
 	return nil, nil
 }
 
@@ -611,4 +619,63 @@ func SetPodPvcAnnotations(pod *v1.Pod, pvc *v1.PersistentVolumeClaim) {
 			pod.Annotations[ann] = val
 		}
 	}
+}
+
+// GetPreallocation retuns the preallocation setting for DV, falling back to StorageClass and global setting (in this order)
+func GetPreallocation(client client.Client, dataVolume *cdiv1.DataVolume) bool {
+	// First, the DV's preallocation
+	if dataVolume.Spec.Preallocation != nil {
+		return *dataVolume.Spec.Preallocation
+	}
+
+	cdiconfig := &cdiv1.CDIConfig{}
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiconfig); err != nil {
+		klog.Errorf("Unable to find CDI configuration, %v\n", err)
+		return defaultPreallocation
+	}
+	if cdiconfig.Status.Preallocation == nil {
+		// No need to bother reading storage class if Preallocation not defined in the config
+		return defaultPreallocation
+	}
+
+	// Second, the config setting for the storage class
+	sc := GetStorageClassNameForDV(client, dataVolume)
+	if sc != "" {
+		if pre, exists := cdiconfig.Status.Preallocation.StorageClass[sc]; exists {
+			return pre
+		}
+	}
+
+	// Third, the global setting
+	if cdiconfig.Status.Preallocation.Global != nil {
+		return *cdiconfig.Status.Preallocation.Global
+	}
+
+	// Finally, the default false
+	return defaultPreallocation
+}
+
+// GetStorageClassNameForDV returns storage class to be used for the DV's PVC
+func GetStorageClassNameForDV(c client.Client, dv *cdiv1.DataVolume) string {
+	// If DV has a SC, return it
+	if dv != nil && dv.Spec.PVC != nil && dv.Spec.PVC.StorageClassName != nil && *dv.Spec.PVC.StorageClassName != "" {
+		return *dv.Spec.PVC.StorageClassName
+	}
+
+	// If DV's PVC has a SC, return it
+	pvc := &v1.PersistentVolumeClaim{}
+	// TODO change when PVC's name is different from DV's name
+	err := c.Get(context.TODO(), types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}, pvc)
+	if err == nil && pvc.Spec.StorageClassName != nil {
+		return *pvc.Spec.StorageClassName
+	}
+
+	// If there is a default SC, return it
+	sc, _ := GetDefaultStorageClass(c)
+	if sc != nil {
+		return sc.Name
+	}
+
+	// If everything fails, return blank
+	return ""
 }

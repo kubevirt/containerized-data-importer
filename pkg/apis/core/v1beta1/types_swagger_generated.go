@@ -16,6 +16,7 @@ func (DataVolumeSpec) SwaggerDoc() map[string]string {
 		"contentType":     "DataVolumeContentType options: \"kubevirt\", \"archive\"\n+kubebuilder:validation:Enum=\"kubevirt\";\"archive\"",
 		"checkpoints":     "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
 		"finalCheckpoint": "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
+		"preallocation":   "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
 	}
 }
 
@@ -167,6 +168,14 @@ func (FilesystemOverhead) SwaggerDoc() map[string]string {
 	}
 }
 
+func (Preallocation) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":             "Preallocation options controls whether storage for DataVolumes should be allocated in advance.",
+		"global":       "Global is the DataVolume preallocation setting to use unless it is override by a per-storageClass or per-dataVolume value",
+		"storageClass": "StorageClass is the preallocatin setting for DVs in the StorageClass. The keys are the storageClass and the values are the true or false.\nThis value overrides the global value, and is overriden by the more specific value in the DataVolume spec",
+	}
+}
+
 func (CDIConfigSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                         "CDIConfigSpec defines specification for user configuration",
@@ -175,6 +184,7 @@ func (CDIConfigSpec) SwaggerDoc() map[string]string {
 		"podResourceRequirements":  "ResourceRequirements describes the compute resource requirements.",
 		"featureGates":             "FeatureGates are a list of specific enabled feature gates",
 		"filesystemOverhead":       "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
+		"preallocation":            "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
 	}
 }
 
@@ -185,6 +195,7 @@ func (CDIConfigStatus) SwaggerDoc() map[string]string {
 		"scratchSpaceStorageClass":       "The calculated storage class to be used for scratch space",
 		"defaultPodResourceRequirements": "ResourceRequirements describes the compute resource requirements.",
 		"filesystemOverhead":             "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A percentage value is between 0 and 1",
+		"preallocation":                  "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
 	}
 }
 

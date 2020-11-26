@@ -53,6 +53,8 @@ type DataVolumeSpec struct {
 	Checkpoints []DataVolumeCheckpoint `json:"checkpoints,omitempty"`
 	// FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.
 	FinalCheckpoint bool `json:"finalCheckpoint,omitempty"`
+	// Preallocation controls whether storage for DataVolumes should be allocated in advance.
+	Preallocation *bool `json:"preallocation,omitempty"`
 }
 
 // DataVolumeCheckpoint defines a stage in a warm migration.
@@ -362,6 +364,15 @@ type FilesystemOverhead struct {
 	StorageClass map[string]Percent `json:"storageClass,omitempty"`
 }
 
+//Preallocation options controls whether storage for DataVolumes should be allocated in advance.
+type Preallocation struct {
+	// Global is the DataVolume preallocation setting to use unless it is override by a per-storageClass or per-dataVolume value
+	Global *bool `json:"global,omitempty"`
+	// StorageClass is the preallocatin setting for DVs in the StorageClass. The keys are the storageClass and the values are the true or false.
+	// This value overrides the global value, and is overriden by the more specific value in the DataVolume spec
+	StorageClass map[string]bool `json:"storageClass,omitempty"`
+}
+
 //CDIConfigSpec defines specification for user configuration
 type CDIConfigSpec struct {
 	// Override the URL used when uploading to a DataVolume
@@ -374,6 +385,8 @@ type CDIConfigSpec struct {
 	FeatureGates []string `json:"featureGates,omitempty"`
 	// FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)
 	FilesystemOverhead *FilesystemOverhead `json:"filesystemOverhead,omitempty"`
+	// Preallocation controls whether storage for DataVolumes should be allocated in advance.
+	Preallocation *Preallocation `json:"preallocation,omitempty"`
 }
 
 //CDIConfigStatus provides the most recently observed status of the CDI Config resource
@@ -386,6 +399,8 @@ type CDIConfigStatus struct {
 	DefaultPodResourceRequirements *corev1.ResourceRequirements `json:"defaultPodResourceRequirements,omitempty"`
 	// FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A percentage value is between 0 and 1
 	FilesystemOverhead *FilesystemOverhead `json:"filesystemOverhead,omitempty"`
+	// Preallocation controls whether storage for DataVolumes should be allocated in advance.
+	Preallocation *Preallocation `json:"preallocation,omitempty"`
 }
 
 //CDIConfigList provides the needed parameters to do request a list of CDIConfigs from the system

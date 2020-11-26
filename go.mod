@@ -8,9 +8,7 @@ require (
 	github.com/aws/aws-sdk-go v1.15.77
 	github.com/containers/image/v5 v5.5.1
 	github.com/coreos/go-semver v0.3.0
-	github.com/docker/spdystream v0.0.0-20181023171402-6480d4af844c // indirect
-	github.com/elazarl/goproxy v0.0.0-20190911111923-ecfe977594f1 // indirect
-	github.com/emicklei/go-restful v2.9.6+incompatible
+	github.com/emicklei/go-restful v2.10.0+incompatible
 	github.com/emicklei/go-restful-openapi v1.2.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.1.0
@@ -26,7 +24,6 @@ require (
 	github.com/openshift/client-go v0.0.0
 	github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca
 	github.com/openshift/library-go v0.0.0-20200821154433-215f00df72cc
-	github.com/operator-framework/go-appr v0.0.0-20180917210448-f2aef88446f2 // indirect
 	github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190725173916-b56e63a643cc
 	github.com/operator-framework/operator-marketplace v0.0.0-20190617165322-1cbd32624349
 	github.com/ovirt/go-ovirt v4.3.4+incompatible
@@ -36,7 +33,6 @@ require (
 	github.com/rs/cors v1.7.0
 	github.com/ulikunitz/xz v0.5.7
 	github.com/vmware/govmomi v0.23.1
-	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
 	golang.org/x/sys v0.0.0-20200519105757-fe76b779f299
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/square/go-jose.v2 v2.3.1
@@ -45,12 +41,13 @@ require (
 	k8s.io/apiextensions-apiserver v0.19.0-rc.2
 	k8s.io/apimachinery v0.19.0-rc.2
 	k8s.io/apiserver v0.19.0-rc.2
-	k8s.io/client-go v8.0.0+incompatible
+	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cluster-bootstrap v0.0.0
 	k8s.io/code-generator v0.18.6
 	k8s.io/klog/v2 v2.0.0
 	k8s.io/kube-aggregator v0.18.6
 	k8s.io/kube-openapi v0.0.0-20200410145947-61e04a5be9a6
+	kubevirt.io/client-go v0.35.0
 	kubevirt.io/controller-lifecycle-operator-sdk v0.1.1
 	kubevirt.io/qe-tools v0.1.6
 	sigs.k8s.io/controller-runtime v0.6.2
