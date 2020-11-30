@@ -196,7 +196,8 @@ var _ = Describe("Clone controller reconcile loop", func() {
 			AnnPodReady:         "true",
 			AnnCloneToken:       "foobaz",
 			AnnUploadClientName: "uploadclient",
-			AnnCloneSourcePod:   "default-testPvc1-source-pod"}, nil)
+			AnnCloneSourcePod:   "default-testPvc1-source-pod",
+			AnnPodNetwork:       "net1"}, nil)
 		sourcePvc := createPvc("source", "default", map[string]string{}, nil)
 		otherSourcePod := podFunc(sourcePvc)
 		objs := []runtime.Object{testPvc, sourcePvc}
@@ -220,6 +221,8 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).ToNot(BeNil())
 		Expect(sourcePod.GetLabels()[CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
+		By("Verifying source pod annotations passed from pvc")
+		Expect(sourcePod.GetAnnotations()[AnnPodNetwork]).To(Equal("net1"))
 		Expect(sourcePod.Spec.Affinity).ToNot(BeNil())
 		Expect(sourcePod.Spec.Affinity.PodAffinity).ToNot(BeNil())
 		l := len(sourcePod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution)

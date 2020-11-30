@@ -650,7 +650,7 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace
 	}
 
 	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, addVars...)
-
+	SetPodPvcAnnotations(pod, targetPvc)
 	return pod
 }
 

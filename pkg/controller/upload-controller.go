@@ -770,6 +770,6 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			MountPath: common.ScratchDataDir,
 		})
 	}
-
+	SetPodPvcAnnotations(pod, args.PVC)
 	return pod
 }

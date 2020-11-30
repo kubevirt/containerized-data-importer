@@ -884,6 +884,106 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 	})
 
+	Describe("Pass specific datavolume annotations to the transfer pods", func() {
+		It("[test_id:5353]Importer pod should have specific datavolume annotations passed but not others", func() {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs))
+			By(fmt.Sprintf("creating new datavolume %s with annotations", dataVolume.Name))
+			dataVolume.Annotations[controller.AnnPodNetwork] = "net1"
+			dataVolume.Annotations["annot1"] = "value1"
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying pvc was created")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+
+			By("find importer pod")
+			pod, err := utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pod).ToNot(BeNil())
+			By("verifying passed annotation")
+			Expect(pod.Annotations[controller.AnnPodNetwork]).To(Equal("net1"))
+			By("verifying non-passed annotation")
+			Expect(pod.Annotations["annot1"]).ToNot(Equal("value1"))
+		})
+		It("[test_id:5365]Uploader pod should have specific datavolume annotations passed but not others", func() {
+			dataVolume := utils.NewDataVolumeForUpload(dataVolumeName, "1Gi")
+			By(fmt.Sprintf("creating new datavolume %s with annotations", dataVolume.Name))
+			dataVolume.Annotations[controller.AnnPodNetwork] = "net1"
+			dataVolume.Annotations["annot1"] = "value1"
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying pvc was created")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+
+			By("find uploader pod")
+			pod, err := utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pod).ToNot(BeNil())
+			By("verifying passed annotation")
+			Expect(pod.Annotations[controller.AnnPodNetwork]).To(Equal("net1"))
+			By("verifying non-passed annotation")
+			Expect(pod.Annotations["annot1"]).ToNot(Equal("value1"))
+		})
+		It("[test_id:5366]Cloner pod should have specific datavolume annotations passed but not others", func() {
+			smartApplicable := f.IsSnapshotStorageClassAvailable()
+			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
+			if err == nil {
+				value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
+				if smartApplicable && ok && strings.Compare(value, "true") == 0 {
+					Skip("Cannot test if annotations are present when all pvcs are smart clone capable.")
+				}
+			}
+
+			sourceDv := utils.NewDataVolumeWithHTTPImport("source-dv", "1Gi", tinyCoreQcow2URL())
+			Expect(sourceDv).ToNot(BeNil())
+			By(fmt.Sprintf("creating new source dv %s with annotations", sourceDv.Name))
+			sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying pvc was created")
+			pvc, err := utils.WaitForPVC(f.K8sClient, sourceDv.Namespace, sourceDv.Name)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+
+			dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", pvc)
+			Expect(dataVolume).ToNot(BeNil())
+
+			By(fmt.Sprintf("creating new datavolume %s with annotations", dataVolume.Name))
+			dataVolume.Annotations[controller.AnnPodNetwork] = "net1"
+			dataVolume.Annotations["annot1"] = "value1"
+			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying pvc was created")
+			pvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+
+			By("find source pod")
+			pod, err := utils.FindPodBysuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pod).ToNot(BeNil())
+			By("verifying passed annotation")
+			Expect(pod.Annotations[controller.AnnPodNetwork]).To(Equal("net1"))
+			By("verifying non-passed annotation")
+			Expect(pod.Annotations["annot1"]).ToNot(Equal("value1"))
+
+			By("find uploader pod")
+			pod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pod).ToNot(BeNil())
+			By("verifying passed annotation")
+			Expect(pod.Annotations[controller.AnnPodNetwork]).To(Equal("net1"))
+			By("verifying non-passed annotation")
+			Expect(pod.Annotations["annot1"]).ToNot(Equal("value1"))
+		})
+	})
+
 	Describe("Progress reporting on import datavolume", func() {
 		It("[test_id:3934]Should report progress while importing", func() {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs))
