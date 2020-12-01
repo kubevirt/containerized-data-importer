@@ -1,4 +1,4 @@
-package v1alpha1
+package utils
 
 import (
 	. "github.com/onsi/ginkgo"

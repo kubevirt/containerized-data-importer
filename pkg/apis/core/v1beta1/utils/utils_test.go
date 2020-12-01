@@ -17,7 +17,7 @@
  *
  */
 
-package v1beta1
+package utils
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -28,11 +28,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
 var _ = Describe("IsWaitForFirstConsumerBeforePopulating on Beta1", func() {
 	DescribeTable("PVC with DV as owner",
-		func(volumeClaimPhase corev1.PersistentVolumeClaimPhase, dataVolumePhase DataVolumePhase, expectedResponse bool) {
+		func(volumeClaimPhase corev1.PersistentVolumeClaimPhase, dataVolumePhase cdiv1.DataVolumePhase, expectedResponse bool) {
 
 			dv := newCloneDataVolume("source-dv", "default")
 			dv.Status.Phase = dataVolumePhase
@@ -44,21 +46,21 @@ var _ = Describe("IsWaitForFirstConsumerBeforePopulating on Beta1", func() {
 				Name:       "source-dv",
 			})
 			res, err := IsWaitForFirstConsumerBeforePopulating(sourcePvc,
-				func(name, namespace string) (*DataVolume, error) {
+				func(name, namespace string) (*cdiv1.DataVolume, error) {
 					return dv, nil
 				})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(res).To(BeEquivalentTo(expectedResponse))
 		},
-		Entry("PVC Pending, dv is in WFFC phase", corev1.ClaimPending, WaitForFirstConsumer, true),
-		Entry("PVC Pending, dv is NOT in WFFC phase", corev1.ClaimPending, Pending, false),
-		Entry("PVC Bound, phase does not matter", corev1.ClaimBound, PhaseUnset, false),
+		Entry("PVC Pending, dv is in WFFC phase", corev1.ClaimPending, cdiv1.WaitForFirstConsumer, true),
+		Entry("PVC Pending, dv is NOT in WFFC phase", corev1.ClaimPending, cdiv1.Pending, false),
+		Entry("PVC Bound, phase does not matter", corev1.ClaimBound, cdiv1.PhaseUnset, false),
 	)
 
 	It("Should return false if source has no ownerRef", func() {
 		sourcePvc := createPvc("test", "default", corev1.ClaimPending)
 		res, err := IsWaitForFirstConsumerBeforePopulating(sourcePvc,
-			func(name, namespace string) (*DataVolume, error) {
+			func(name, namespace string) (*cdiv1.DataVolume, error) {
 				Fail("getDv should never be executed")
 				return nil, nil
 			})
@@ -69,7 +71,7 @@ var _ = Describe("IsWaitForFirstConsumerBeforePopulating on Beta1", func() {
 	It("Should return false if source has no ownerRef", func() {
 		sourcePvc := createPvc("test", "default", corev1.ClaimPending)
 		res, err := IsWaitForFirstConsumerBeforePopulating(sourcePvc,
-			func(name, namespace string) (*DataVolume, error) {
+			func(name, namespace string) (*cdiv1.DataVolume, error) {
 				Fail("getDv should never be executed")
 				return nil, nil
 			})
@@ -99,10 +101,10 @@ func createPvc(name, ns string, claimPhase corev1.PersistentVolumeClaimPhase) *c
 	}
 }
 
-func newCloneDataVolume(name string, pvcNamespace string) *DataVolume {
+func newCloneDataVolume(name string, pvcNamespace string) *cdiv1.DataVolume {
 	var annCloneToken = "cdi.kubevirt.io/storage.clone.token"
-	return &DataVolume{
-		TypeMeta: metav1.TypeMeta{APIVersion: SchemeGroupVersion.String()},
+	return &cdiv1.DataVolume{
+		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: metav1.NamespaceDefault,
@@ -110,9 +112,9 @@ func newCloneDataVolume(name string, pvcNamespace string) *DataVolume {
 				annCloneToken: "foobar",
 			},
 		},
-		Spec: DataVolumeSpec{
-			Source: DataVolumeSource{
-				PVC: &DataVolumeSourcePVC{
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
 					Name:      "test",
 					Namespace: pvcNamespace,
 				},
