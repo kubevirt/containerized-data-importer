@@ -215,14 +215,18 @@ var _ = Describe("Tests needing the restore of nodes", func() {
 		}
 
 		for _, node := range nodes.Items {
-			nodeCopy := node.DeepCopy()
-			if nodeHasTaint(node, criticalPodTaint) {
-				continue
-			}
+			Eventually(func() bool {
+				nodeCopy, err := f.K8sClient.CoreV1().Nodes().Get(context.TODO(), node.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
 
-			nodeCopy.Spec.Taints = append(node.Spec.Taints, criticalPodTaint)
-			_, err = f.K8sClient.CoreV1().Nodes().Update(context.TODO(), nodeCopy, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred(), "failed setting taint on node")
+				if nodeHasTaint(*nodeCopy, criticalPodTaint) {
+					return true
+				}
+
+				nodeCopy.Spec.Taints = append(nodeCopy.Spec.Taints, criticalPodTaint)
+				_, _ = f.K8sClient.CoreV1().Nodes().Update(context.TODO(), nodeCopy, metav1.UpdateOptions{})
+				return false
+			}, 5*time.Minute, 2*time.Second).Should(BeTrue())
 		}
 
 		By("Waiting for all CDI testing pods to terminate")
