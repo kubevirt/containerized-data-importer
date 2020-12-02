@@ -131,6 +131,28 @@ func addCloneControllerWatches(mgr manager.Manager, cloneController controller.C
 	}); err != nil {
 		return err
 	}
+	if err := cloneController.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestsFromMapFunc{
+		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+			target, ok := obj.Meta.GetAnnotations()[AnnOwnerRef]
+			if !ok {
+				return nil
+			}
+			namespace, name, err := cache.SplitMetaNamespaceKey(target)
+			if err != nil {
+				return nil
+			}
+			return []reconcile.Request{
+				{
+					NamespacedName: types.NamespacedName{
+						Namespace: namespace,
+						Name:      name,
+					},
+				},
+			}
+		}),
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -308,12 +330,7 @@ func (r *CloneReconciler) waitTargetPodRunningOrSucceeded(pvc *corev1.Persistent
 		return false, errors.Wrapf(err, "error parsing %s annotation", AnnPodReady)
 	}
 
-	if !ready {
-		log.V(3).Info("clone target pod not ready")
-		return podSucceededFromPVC(pvc), nil
-	}
-
-	return true, nil
+	return ready || podSucceededFromPVC(pvc), nil
 }
 
 func (r *CloneReconciler) findCloneSourcePod(pvc *corev1.PersistentVolumeClaim) (*corev1.Pod, error) {
