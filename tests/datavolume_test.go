@@ -859,28 +859,48 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	Describe("Create/Delete same datavolume in a loop", func() {
 		Context("retry loop", func() {
-			dataVolumeName := "dv1"
 			numTries := 5
-			for i := 1; i <= numTries; i++ {
-				It(fmt.Sprintf("[test_id:3939][test_id:3940][test_id:3941][test_id:3942][test_id:3943]should succeed on loop %d", i), func() {
+			It(fmt.Sprintf("[test_id:3939][test_id:3940][test_id:3941][test_id:3942][test_id:3943] should succeed on %d loops", numTries), func() {
+				var prevPvcUID string
+				dataVolumeName := "test-dv"
+				dataVolumeNamespace := f.Namespace
+				for i := 1; i <= numTries; i++ {
+					By(fmt.Sprintf("running loop %d", i))
 					url := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
-					dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
+					dv := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url)
 
-					By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
-					dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+					By(fmt.Sprintf("creating new datavolume %s", dataVolumeName))
+					// the DV creation must not fail eventhough the PVC of the previous created DV is still terminating
+					dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, dataVolumeNamespace.Name, dv)
 					Expect(err).ToNot(HaveOccurred())
 					f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
+					By("verifying pvc was created and is bound")
+					_, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+					Expect(err).ToNot(HaveOccurred())
+
+					By("verifying if the created pvc is not the old deleted one")
+					var pvc *v1.PersistentVolumeClaim
+					Eventually(func() bool {
+						pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+						if err != nil {
+							return false
+						}
+						// Return true if the pvc is not being deleted, and the UID is no longer the original one.
+						return pvc.DeletionTimestamp == nil && string(pvc.UID) != prevPvcUID
+					}, timeout, pollingInterval).Should(BeTrue())
+					// We use the PVC UID to confirm later a new PVC was created
+					prevPvcUID = string(pvc.UID)
+
 					By(fmt.Sprintf("waiting for datavolume to match phase %s", cdiv1.Succeeded))
-					err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
+					err = utils.WaitForDataVolumePhase(f.CdiClient, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
 					Expect(err).ToNot(HaveOccurred())
 
 					By("deleting DataVolume")
-					err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolumeName)
+					err = utils.DeleteDataVolume(f.CdiClient, dataVolume.Namespace, dataVolume.Name)
 					Expect(err).ToNot(HaveOccurred())
-
-				})
-			}
+				}
+			})
 		})
 	})
 

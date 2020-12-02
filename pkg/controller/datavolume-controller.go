@@ -63,6 +63,8 @@ const (
 	SuccessSynced = "Synced"
 	// ErrResourceExists provides a const to indicate a resource exists error
 	ErrResourceExists = "ErrResourceExists"
+	// ErrResourceMarkedForDeletion provides a const to indicate a resource marked for deletion error
+	ErrResourceMarkedForDeletion = "ErrResourceMarkedForDeletion"
 	// ErrResourceDoesntExist provides a const to indicate a resource doesn't exist error
 	ErrResourceDoesntExist = "ErrResourceDoesntExist"
 	// ErrClaimLost provides a const to indicate a claim is lost
@@ -103,6 +105,8 @@ const (
 	UploadFailed = "UploadFailed"
 	// UploadSucceeded provides a const to indicate upload has succeeded
 	UploadSucceeded = "UploadSucceeded"
+	// MessageResourceMarkedForDeletion provides a const to form a resource marked for deletion error message
+	MessageResourceMarkedForDeletion = "Resource %q marked for deletion"
 	// MessageResourceExists provides a const to form a resource exists error message
 	MessageResourceExists = "Resource %q already exists and is not managed by DataVolume"
 	// MessageResourceDoesntExist provides a const to form a resource doesn't exist error message
@@ -258,6 +262,12 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 				r.recorder.Event(datavolume, corev1.EventTypeWarning, ErrResourceExists, msg)
 				return reconcile.Result{}, errors.Errorf(msg)
 			}
+		}
+		// If the PVC is being deleted, we should log a warning to the event recorder and return to wait the deletion complete
+		if pvc.DeletionTimestamp != nil {
+			msg := fmt.Sprintf(MessageResourceMarkedForDeletion, pvc.Name)
+			r.recorder.Event(datavolume, corev1.EventTypeWarning, ErrResourceMarkedForDeletion, msg)
+			return reconcile.Result{}, errors.Errorf(msg)
 		}
 	}
 

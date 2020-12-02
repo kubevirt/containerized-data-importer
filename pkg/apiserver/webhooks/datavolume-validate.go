@@ -313,14 +313,20 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta
 		} else {
 			dvName, ok := pvc.Annotations[controller.AnnPopulatedFor]
 			if !ok || dvName != dv.GetName() {
-				klog.Errorf("destination PVC %s/%s already exists", dv.GetNamespace(), dv.GetName())
-				var causes []metav1.StatusCause
-				causes = append(causes, metav1.StatusCause{
-					Type:    metav1.CauseTypeFieldValueDuplicate,
-					Message: fmt.Sprintf("Destination PVC already exists"),
-					Field:   k8sfield.NewPath("DataVolume").Child("Name").String(),
-				})
-				return toRejectedAdmissionResponse(causes)
+				pvcOwner := metav1.GetControllerOf(pvc)
+				// We should reject the DV if a PVC with the same name exists, and that PVC has no ownerRef, or that
+				// PVC has an ownerRef that is not a DataVolume. Because that means that PVC is not managed by the
+				// datavolume controller, and we can't use it.
+				if (pvcOwner == nil) || (pvcOwner.Kind != "DataVolume") {
+					klog.Errorf("destination PVC %s/%s already exists", pvc.GetNamespace(), pvc.GetName())
+					var causes []metav1.StatusCause
+					causes = append(causes, metav1.StatusCause{
+						Type:    metav1.CauseTypeFieldValueDuplicate,
+						Message: fmt.Sprintf("Destination PVC %s/%s already exists", pvc.GetNamespace(), pvc.GetName()),
+						Field:   k8sfield.NewPath("DataVolume").Child("Name").String(),
+					})
+					return toRejectedAdmissionResponse(causes)
+				}
 			}
 
 			klog.Infof("Using initialized PVC %s for DataVolume %s", pvc.GetName(), dv.GetName())
