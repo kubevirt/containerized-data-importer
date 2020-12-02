@@ -171,6 +171,11 @@ func (f *Framework) GetMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolu
 	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
+	pods, err := f.K8sClient.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	for _, pod := range pods.Items {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: pod in namespace %s, %s\n", namespace.Name, pod.Name)
+	}
 	cmd := "md5sum " + fileName
 	if numBytes > 0 {
 		cmd = fmt.Sprintf("head -c %d %s | md5sum", numBytes, fileName)
@@ -392,6 +397,7 @@ func (f *Framework) NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolu
 			SecurityContext: &k8sv1.PodSecurityContext{
 				FSGroup: &fsGroup,
 			},
+			HostNetwork: true,
 		},
 	}
 
