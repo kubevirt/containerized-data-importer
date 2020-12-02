@@ -153,6 +153,23 @@ var _ = Describe("Tests needing the restore of nodes", func() {
 			Expect(err).ToNot(HaveOccurred())
 		}
 
+		Eventually(func() bool {
+			services, err := f.K8sClient.CoreV1().Services(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{})
+			Expect(err).ToNot(HaveOccurred(), "failed getting CDI services")
+			for _, service := range services.Items {
+				if service.Name != "cdi-prometheus-metrics" {
+					endpoint, err := f.K8sClient.CoreV1().Endpoints(f.CdiInstallNs).Get(context.TODO(), service.Name, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred(), "failed getting service endpoint")
+					for _, subset := range endpoint.Subsets {
+						if len(subset.NotReadyAddresses) > 0 {
+							By(fmt.Sprintf("Not all endpoints of service %s are ready", service.Name))
+							return false
+						}
+					}
+				}
+			}
+			return true
+		}, 5*time.Minute, 2*time.Second).Should(BeTrue())
 	})
 
 	It("should deploy components that tolerate CriticalAddonsOnly taint", func() {
