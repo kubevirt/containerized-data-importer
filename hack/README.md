@@ -35,7 +35,7 @@ The standard workflow is performed inside a helper container to normalize the bu
 #### Make Targets
 
 - `all`: cleans up previous build artifacts, compiles all CDI packages and builds containers
-- `apidocs`: generate client-go code (same as 'make generate') and swagger docs.  
+- `apidocs`: generate client-go code (same as 'make generate') and swagger docs.
 - `build`: compile all CDI binary artifacts and generate controller and operator manifests
     - `build-controller`: compile cdi-controller binary
     - `build-importer`: compile cdi-importer binary
@@ -53,7 +53,8 @@ The standard workflow is performed inside a helper container to normalize the bu
 - `cluster-up`: start a default Kubernetes or Open Shift cluster. set KUBEVIRT_PROVIDER environment variable to either 'k8s-1.18' or 'os-3.11.0-crio' to select the type of cluster. set KUBEVIRT_NUM_NODES to something higher than 1 to have more than one node.
 - `cluster-down`: stop the cluster, doing a make cluster-down && make cluster-up will basically restart the cluster into an empty fresh state.
 - `cluster-down-purge`: cluster-down and cleanup all cached images from docker registry. Accepts [make variables](#make-variables) DOCKER_PREFIX. Removes all images of the specified repository. If not specified removes localhost repository of current cluster instance.
-- `cluster-sync`: builds the controller/importer/cloner, and pushes it into a running cluster. The cluster must be up before running a cluster sync. Also generates a manifest and applies it to the running cluster after pushing the images to it.
+- `cluster-sync`: 'make cluster-sync-cdi' followed by 'make cluster-sync-test-infra'
+- `cluster-sync-cdi`: builds the controller/importer/cloner, and pushes it into a running cluster. The cluster must be up before running a cluster sync. Also generates a manifest and applies it to the running cluster after pushing the images to it.
     - `cluster-sync-controller`: builds the controller and pushes it into a running cluster. 
     - `cluster-sync-importer`: builds the importer and pushes it into a running cluster.
     - `cluster-sync-cloner`: builds the cloner and pushes it into a running cluster.
@@ -61,6 +62,9 @@ The standard workflow is performed inside a helper container to normalize the bu
     - `cluster-sync-uploadproxy`: builds the uploadproxy and pushes it into a running cluster.
     - `cluster-sync-uploadserver`: builds the uploadserver and pushes it into a running cluster.
     - `cluster-sync-operator`: builds the operator and pushes it into a running cluster.
+- `cluster-sync-test-infra`: pushes the test-infra pods into a running cluster.
+- `cluster-clean-cdi`: cleans all cdi resources, but not test-infra (cdi.kubevirt.io/testing labeled), cdi namespace and operator manifest.
+- `cluster-clean-test-infra`: cleans all test-infra resources (cdi.kubevirt.io/testing labeled).
 - `deps-update`: runs 'go mod tidy' and 'go mod vendor'
 - `docker`: compile all binaries and build all containerized
     - `docker-controller`: compile cdi-controller and build cdi-controller image
