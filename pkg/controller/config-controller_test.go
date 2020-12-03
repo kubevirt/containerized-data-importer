@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	routev1 "github.com/openshift/api/route/v1"
@@ -64,7 +65,7 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("Should set proxyURL to override if no ingress or route exists", func() {
+	DescribeTable("Should set proxyURL to override if no ingress or route exists", func(authority bool) {
 		reconciler, cdiConfig := createConfigReconciler(createConfigMap(operator.ConfigMapName, testNamespace))
 		_, err := reconciler.Reconcile(reconcile.Request{})
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
@@ -75,16 +76,26 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 		cdi.Spec.Config = &cdiv1.CDIConfigSpec{
 			UploadProxyURLOverride: &override,
 		}
+		if !authority {
+			delete(cdi.Annotations, "cdi.kubevirt.io/configAuthority")
+		}
 		err = reconciler.client.Update(context.TODO(), cdi)
 		Expect(err).ToNot(HaveOccurred())
 		_, err = reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(override).To(Equal(*cdiConfig.Status.UploadProxyURL))
-	})
+		if authority {
+			Expect(override).To(Equal(*cdiConfig.Status.UploadProxyURL))
+		} else {
+			Expect(cdiConfig.Status.UploadProxyURL).To(BeNil())
+		}
+	},
+		Entry("as authority", true),
+		Entry("not authority", false),
+	)
 
-	It("Should set proxyURL to override if ingress or route exists", func() {
+	DescribeTable("Should set proxyURL to override if ingress or route exists", func(authority bool) {
 		reconciler, cdiConfig := createConfigReconciler(createConfigMap(operator.ConfigMapName, testNamespace),
 			createIngressList(
 				*createIngress("test-ingress", "test-ns", testServiceName, testURL),
@@ -99,14 +110,25 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 		cdi.Spec.Config = &cdiv1.CDIConfigSpec{
 			UploadProxyURLOverride: &override,
 		}
+		if !authority {
+			delete(cdi.Annotations, "cdi.kubevirt.io/configAuthority")
+		}
 		err = reconciler.client.Update(context.TODO(), cdi)
 		Expect(err).ToNot(HaveOccurred())
 		_, err = reconciler.Reconcile(reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(override).To(Equal(*cdiConfig.Status.UploadProxyURL))
-	})
+		if authority {
+			Expect(override).To(Equal(*cdiConfig.Status.UploadProxyURL))
+		} else {
+			Expect(cdiConfig.Status.UploadProxyURL).ToNot(BeNil())
+			Expect(override).ToNot(Equal(*cdiConfig.Status.UploadProxyURL))
+		}
+	},
+		Entry("as authority", true),
+		Entry("not authority", false),
+	)
 })
 
 var _ = Describe("Controller ingress reconcile loop", func() {
@@ -636,6 +658,9 @@ func createConfigReconciler(objects ...runtime.Object) (*CDIConfigReconciler, *c
 	cdi := &cdiv1.CDI{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cdi",
+			Annotations: map[string]string{
+				"cdi.kubevirt.io/configAuthority": "",
+			},
 		},
 	}
 
@@ -646,12 +671,13 @@ func createConfigReconciler(objects ...runtime.Object) (*CDIConfigReconciler, *c
 
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	r := &CDIConfigReconciler{
-		client:         cl,
-		uncachedClient: cl,
-		scheme:         s,
-		log:            configLog,
-		configName:     "cdiconfig",
-		cdiNamespace:   testNamespace,
+		client:                 cl,
+		uncachedClient:         cl,
+		scheme:                 s,
+		log:                    configLog,
+		configName:             "cdiconfig",
+		cdiNamespace:           testNamespace,
+		uploadProxyServiceName: testServiceName,
 	}
 	return r, cdiConfig
 }

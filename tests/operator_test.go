@@ -99,6 +99,17 @@ var _ = Describe("Operator tests", func() {
 		Expect(conditionMap[conditions.ConditionProgressing]).To(Equal(corev1.ConditionFalse))
 		Expect(conditionMap[conditions.ConditionDegraded]).To(Equal(corev1.ConditionFalse))
 	})
+
+	It("should make CDI config authority", func() {
+		Eventually(func() bool {
+			cdiObjects, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(len(cdiObjects.Items)).To(Equal(1))
+			cdiObject := cdiObjects.Items[0]
+			_, ok := cdiObject.Annotations["cdi.kubevirt.io/configAuthority"]
+			return ok
+		}, 1*time.Minute, 2*time.Second).Should(BeTrue())
+	})
 })
 
 var _ = Describe("Tests needing the restore of nodes", func() {
