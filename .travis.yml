@@ -2,6 +2,8 @@ sudo: required
 
 language: go
 
+dist: focal
+
 go_import_path: kubevirt.io/containerized-data-importer
 
 go:
