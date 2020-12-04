@@ -18,6 +18,7 @@ go_library(
     deps = [
         "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/common:go_default_library",
+        "//pkg/controller:go_default_library",
         "//pkg/operator:go_default_library",
         "//pkg/operator/resources/cert:go_default_library",
         "//pkg/operator/resources/cluster:go_default_library",

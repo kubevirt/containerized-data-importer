@@ -316,6 +316,53 @@ var _ = Describe("Controller", func() {
 				validateEvents(args.reconciler, createReadyEventValidationMap())
 			})
 
+			It("should set config authority", func() {
+				args := createArgs()
+				doReconcile(args)
+
+				cfg := &cdiv1.CDIConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "config",
+					},
+				}
+
+				err := args.client.Create(context.TODO(), cfg)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				cdi, err := getCDI(args.client, args.cdi)
+				Expect(err).ToNot(HaveOccurred())
+				_, ok := cdi.Annotations["cdi.kubevirt.io/configAuthority"]
+				Expect(ok).To(BeTrue())
+				Expect(cdi.Spec.Config).To(BeNil())
+			})
+
+			It("should set config authority (existing values)", func() {
+				args := createArgs()
+				doReconcile(args)
+
+				cfg := &cdiv1.CDIConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "config",
+					},
+					Spec: cdiv1.CDIConfigSpec{
+						FeatureGates: []string{"foobar"},
+					},
+				}
+
+				err := args.client.Create(context.TODO(), cfg)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				cdi, err := getCDI(args.client, args.cdi)
+				Expect(err).ToNot(HaveOccurred())
+				_, ok := cdi.Annotations["cdi.kubevirt.io/configAuthority"]
+				Expect(ok).To(BeTrue())
+				Expect(cdi.Spec.Config).To(Equal(&cfg.Spec))
+			})
+
 			It("can become become ready, un-ready, and ready again", func() {
 				var deployment *appsv1.Deployment
 

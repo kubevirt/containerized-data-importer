@@ -21,21 +21,22 @@ import (
 	"fmt"
 	"reflect"
 
-	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
-
-	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	sdk "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	cdicontroller "kubevirt.io/containerized-data-importer/pkg/controller"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
 )
 
 func addReconcileCallbacks(r *ReconcileCDI) {
@@ -46,7 +47,7 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCreateRoute)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileDeleteSecrets)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileInitializeCRD)
-
+	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileSetConfigAuthority)
 }
 
 func isControllerDeployment(d *appsv1.Deployment) bool {
@@ -172,4 +173,52 @@ func deleteWorkerResources(l logr.Logger, c client.Client) error {
 	}
 
 	return nil
+}
+
+func reconcileSetConfigAuthority(args *callbacks.ReconcileCallbackArgs) error {
+	if args.State != callbacks.ReconcileStatePostRead {
+		return nil
+	}
+
+	crd := args.CurrentObject.(*extv1.CustomResourceDefinition)
+	if crd.Name != "cdiconfigs.cdi.kubevirt.io" {
+		return nil
+	}
+
+	cdi, ok := args.Resource.(*cdiv1.CDI)
+	if !ok {
+		return nil
+	}
+
+	if _, ok = cdi.Annotations[cdicontroller.AnnConfigAuthority]; ok {
+		return nil
+	}
+
+	if cdi.Spec.Config == nil {
+		cl := &cdiv1.CDIConfigList{}
+		err := args.Client.List(context.TODO(), cl)
+		if err != nil {
+			if meta.IsNoMatchError(err) {
+				return nil
+			}
+
+			return err
+		}
+
+		if len(cl.Items) != 1 {
+			return nil
+		}
+
+		cs := cl.Items[0].Spec.DeepCopy()
+		if !reflect.DeepEqual(cs, &cdiv1.CDIConfigSpec{}) {
+			cdi.Spec.Config = cs
+		}
+	}
+
+	if cdi.Annotations == nil {
+		cdi.Annotations = map[string]string{}
+	}
+	cdi.Annotations[cdicontroller.AnnConfigAuthority] = ""
+
+	return args.Client.Update(context.TODO(), cdi)
 }

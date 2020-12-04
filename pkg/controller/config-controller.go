@@ -31,6 +31,11 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
+// AnnConfigAuthority is the annotation specifying a resource as the CDIConfig authority
+const (
+	AnnConfigAuthority = "cdi.kubevirt.io/configAuthority"
+)
+
 // CDIConfigReconciler members
 type CDIConfigReconciler struct {
 	client client.Client
@@ -102,6 +107,10 @@ func (r *CDIConfigReconciler) setOperatorParams(config *cdiv1.CDIConfig) error {
 	}
 
 	if cdiCR == nil {
+		return nil
+	}
+
+	if _, ok := cdiCR.Annotations[AnnConfigAuthority]; !ok {
 		return nil
 	}
 
