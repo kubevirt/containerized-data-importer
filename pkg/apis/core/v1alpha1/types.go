@@ -295,6 +295,9 @@ type CDICloneStrategy string
 const (
 	// CloneStrategyHostAssisted specifies slower, host-assisted copy
 	CloneStrategyHostAssisted = "copy"
+
+	// CloneStrategySnapshot specifies snapshot-based copying
+	CloneStrategySnapshot = "snapshot"
 )
 
 // CDIUninstallStrategy defines the state to leave CDI on uninstall
