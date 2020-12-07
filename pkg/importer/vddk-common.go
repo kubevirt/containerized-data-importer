@@ -223,34 +223,6 @@ func (vmware *VMwareClient) FindDisk(filename string) (*types.VirtualDisk, error
 	return disk, nil
 }
 
-// FindSnapshot finds a snapshot with the given MORef, only for this VM
-func (vmware *VMwareClient) FindSnapshot(moref string) (*types.VirtualMachineSnapshotTree, error) {
-	var movm mo.VirtualMachine
-	err := vmware.vm.Properties(vmware.context, vmware.vm.Reference(), []string{"snapshot"}, &movm)
-	if err != nil {
-		klog.Errorf("Unable to list snapshots: %v", err)
-		return nil, err
-	}
-
-	for _, rootsnap := range movm.Snapshot.RootSnapshotList {
-		if rootsnap.Snapshot.Value == moref {
-			klog.Infof("Found target snapshot: '%s', moref: %s", rootsnap.Name, rootsnap.Snapshot.Value)
-			return &rootsnap, nil
-		}
-		snap := rootsnap
-		for more := true; more; more = (len(snap.ChildSnapshotList) > 0) {
-			snap = snap.ChildSnapshotList[0]
-			if snap.Snapshot.Value == moref {
-				klog.Infof("Found target snapshot: '%s', moref: %s", snap.Name, snap.Snapshot.Value)
-				return &snap, nil
-			}
-		}
-	}
-
-	klog.Error("Did not find target snapshot!")
-	return nil, errors.New("unable to find target snapshot")
-}
-
 // FindVM takes the UUID of the VM to migrate and finds its MOref
 func FindVM(context context.Context, conn *govmomi.Client, uuid string) (string, *object.VirtualMachine, error) {
 	// Get the list of datacenters to search for VM UUID

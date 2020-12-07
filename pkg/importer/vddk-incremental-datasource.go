@@ -81,21 +81,21 @@ func createVddkIncrementalDataSource(endpoint string, accessKey string, secKey s
 	}
 
 	// Find starting snapshot
-	previous, err := vmware.FindSnapshot(previousCheckpoint)
+	previous, err := vmware.vm.FindSnapshot(vmware.context, previousCheckpoint)
 	if err != nil {
 		klog.Errorf("Could not find previous snapshot %s: %v", previousCheckpoint, err)
 		return nil, err
 	}
 
 	// Find current snapshot
-	current, err := vmware.FindSnapshot(currentCheckpoint)
+	current, err := vmware.vm.FindSnapshot(vmware.context, currentCheckpoint)
 	if err != nil {
 		klog.Errorf("Could not find current snapshot %s: %v", currentCheckpoint, err)
 		return nil, err
 	}
 
 	// Find changed disk areas between the two snapshots
-	changed, err := vmware.vm.QueryChangedDiskAreas(vmware.context, &previous.Snapshot, &current.Snapshot, disk, 0)
+	changed, err := vmware.vm.QueryChangedDiskAreas(vmware.context, previous, current, disk, 0)
 	if err != nil {
 		klog.Errorf("Unable to query changed areas: %s", err)
 		return nil, err
@@ -114,8 +114,8 @@ func createVddkIncrementalDataSource(endpoint string, accessKey string, secKey s
 		NbdKit:   nbdkit,
 		VMware:   vmware,
 		Changed:  &changed,
-		Previous: previous.Name,
-		Current:  current.Name,
+		Previous: previous.Value,
+		Current:  current.Value,
 		Size:     size,
 	}
 	return source, err
