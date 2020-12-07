@@ -140,6 +140,9 @@ builder-push:
 openshift-ci-image-push:
 	./hack/build/osci-image-builder.sh
 
+update-rpms-workspace:
+	./hack/build/update-rpms-workspace.sh
+
 help:
 	@echo "Usage: make [Targets ...]"
 	@echo " all "
@@ -196,6 +199,8 @@ help:
 	@echo "  : Run gofmt and golint against src files"
 	@echo " test-functional "
 	@echo "  : Run functional tests (in tests/ subdirectory)."
+	@echo " update-rpms-workspace"
+	@echo "  : Update rpms in the WORKSPACE"
 	@echo " vet	"
 	@echo "  : lint all CDI packages"
 
