@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -167,7 +168,7 @@ func (vs *VDDKIncrementalDataSource) TransferFile(fileName string) (ProcessingPh
 		return ProcessingPhaseComplete, nil
 	}
 
-	sink, err := newVddkIncrementalDataSink(destinationFile)
+	sink, err := newVddkIncrementalDataSink(fileName)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
@@ -218,6 +219,14 @@ func (vs *VDDKIncrementalDataSource) TransferFile(fileName string) (ProcessingPh
 		if err == nil && v > 0 && v > *metric.Counter.Value {
 			progress.WithLabelValues(ownerUID).Add(v - *metric.Counter.Value)
 		}
+	}
+
+	cmd := exec.Command("md5sum", fileName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		klog.Errorf("Error getting MD5 sum: %v", err)
+	} else {
+		klog.Infof("MD5 sum: %s", output)
 	}
 
 	return ProcessingPhaseComplete, nil

@@ -18,15 +18,15 @@ package importer
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	"golang.org/x/sys/unix"
+	"github.com/vmware/govmomi/vim25/types"
 	"k8s.io/klog/v2"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -80,10 +80,6 @@ func createVddkDataSink(destinationFile string, size uint64) (VDDKDataSink, erro
 	if err != nil {
 		return nil, err
 	}
-	err = unix.Fadvise(int(file.Fd()), 0, int64(size), unix.MADV_SEQUENTIAL)
-	if err != nil {
-		klog.Warningf("Error with sequential fadvise: %v", err)
-	}
 	writer := bufio.NewWriter(file)
 	sink := &VDDKFileSink{
 		file:   file,
@@ -127,78 +123,82 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		return ProcessingPhaseError, err
 	}
 
-	sink, err := newVddkDataSink(destinationFile, size)
+	sink, err := newVddkDataSink(fileName, size)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
 	defer sink.Close()
 
-	start := uint64(0)
-	lastProgressPercent := uint(0)
-	lastProgressBytes := uint64(0)
-	lastProgressTime := time.Now()
+	currentProgressBytes := uint64(0)
+	previousProgressBytes := uint64(0)
+	previousProgressPercent := uint(0)
+	previousProgressTime := time.Now()
 	initialProgressTime := time.Now()
-	blocksize := uint64(23 * 1024 * 1024)
-	buf := make([]byte, blocksize)
+
+	start := uint64(0)
+	blocksize := uint64(MaxBlockStatusLength)
 	for i := start; i < size; i += blocksize {
 		if (size - i) < blocksize {
 			blocksize = size - i
-			buf = make([]byte, blocksize)
 		}
 
-		err = vs.NbdKit.Handle.Pread(buf, i, nil)
+		extent := []types.DiskChangeExtent{{
+			Length: int64(blocksize),
+			Start:  int64(i),
+		}}
+		blocks, err := GetBlockStatus(vs.NbdKit.Handle, extent)
 		if err != nil {
-			klog.Errorf("Failed to read from data source at offset %d! First error was: %v", i, err)
-			retryErr := vs.NbdKit.Handle.Pread(buf, i, nil)
-			if retryErr != nil {
-				klog.Errorf("Retry error was: %v", retryErr)
+			klog.Errorf("Unable to get block status for %d bytes at offset %d: %v", blocksize, i, err)
+			return ProcessingPhaseError, err // Could probably just copy the whole block here instead
+		}
+
+		for _, block := range blocks {
+			written, err := CopyRange(vs.NbdKit.Handle, sink, block)
+			if err != nil {
+				klog.Errorf("Unable to copy block at offset %d: %v", block.Offset, err)
 				return ProcessingPhaseError, err
 			}
-			klog.Infof("Retry was successful.")
-		}
+			// Only log progress at approximately 1% intervals.
+			currentProgressBytes += uint64(written)
+			currentProgressPercent := uint(100.0 * (float64(currentProgressBytes) / float64(size)))
+			if currentProgressPercent > previousProgressPercent {
+				progressMessage := fmt.Sprintf("Transferred %d/%d bytes (%d%%)", currentProgressBytes, size, currentProgressPercent)
 
-		written, err := sink.Write(buf)
-		if err != nil {
-			klog.Errorf("Failed to write source data to destination: %v", err)
-			return ProcessingPhaseError, err
-		}
-		if uint64(written) < blocksize {
-			klog.Errorf("Failed to write whole buffer to destination! Wrote %d/%d bytes.", written, blocksize)
-			return ProcessingPhaseError, errors.New("failed to write whole buffer to destination")
-		}
+				currentProgressTime := time.Now()
+				overallProgressTime := uint64(time.Since(initialProgressTime).Seconds())
+				if overallProgressTime > 0 {
+					overallProgressRate := currentProgressBytes / overallProgressTime
+					progressMessage += fmt.Sprintf(" at %d bytes/second overall", overallProgressRate)
+				}
 
-		// Only log progress at approximately 1% intervals.
-		currentProgressBytes := i + uint64(written)
-		currentProgressPercent := uint(100.0 * (float64(currentProgressBytes) / float64(size)))
-		if currentProgressPercent > lastProgressPercent {
-			progressMessage := fmt.Sprintf("Transferred %d/%d bytes (%d%%)", currentProgressBytes, size, currentProgressPercent)
+				progressTimeDifference := uint64(currentProgressTime.Sub(previousProgressTime).Seconds())
+				if progressTimeDifference > 0 {
+					progressSize := currentProgressBytes - previousProgressBytes
+					progressRate := progressSize / progressTimeDifference
+					progressMessage += fmt.Sprintf(", last 1%% was %d bytes at %d bytes/second", progressSize, progressRate)
+				}
 
-			currentProgressTime := time.Now()
-			overallProgressTime := uint64(time.Since(initialProgressTime).Seconds())
-			if overallProgressTime > 0 {
-				overallProgressRate := currentProgressBytes / overallProgressTime
-				progressMessage += fmt.Sprintf(" at %d bytes/second overall", overallProgressRate)
+				klog.Info(progressMessage)
+
+				previousProgressBytes = currentProgressBytes
+				previousProgressTime = currentProgressTime
+				previousProgressPercent = currentProgressPercent
 			}
-
-			progressTimeDifference := uint64(currentProgressTime.Sub(lastProgressTime).Seconds())
-			if progressTimeDifference > 0 {
-				progressSize := currentProgressBytes - lastProgressBytes
-				progressRate := progressSize / progressTimeDifference
-				progressMessage += fmt.Sprintf(", last 1%% was %d bytes at %d bytes/second", progressSize, progressRate)
+			v := float64(currentProgressPercent)
+			metric := &dto.Metric{}
+			err = progress.WithLabelValues(ownerUID).Write(metric)
+			if err == nil && v > 0 && v > *metric.Counter.Value {
+				progress.WithLabelValues(ownerUID).Add(v - *metric.Counter.Value)
 			}
-
-			klog.Info(progressMessage)
-
-			lastProgressBytes = currentProgressBytes
-			lastProgressTime = currentProgressTime
-			lastProgressPercent = currentProgressPercent
 		}
-		v := float64(currentProgressPercent)
-		metric := &dto.Metric{}
-		err = progress.WithLabelValues(ownerUID).Write(metric)
-		if err == nil && v > 0 && v > *metric.Counter.Value {
-			progress.WithLabelValues(ownerUID).Add(v - *metric.Counter.Value)
-		}
+	}
+
+	cmd := exec.Command("md5sum", fileName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		klog.Errorf("Error getting MD5 sum: %v", err)
+	} else {
+		klog.Infof("MD5 sum: %s", output)
 	}
 
 	return ProcessingPhaseComplete, nil

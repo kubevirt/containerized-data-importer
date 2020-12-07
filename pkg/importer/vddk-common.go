@@ -37,7 +37,6 @@ import (
 )
 
 const (
-	destinationFile       = "/data/disk.img"
 	nbdUnixSocket         = "/var/run/nbd.sock"
 	nbdPidFile            = "/var/run/nbd.pid"
 	nbdLibraryPath        = "/opt/vmware-vix-disklib-distrib/lib64"
@@ -63,6 +62,7 @@ type NbdKitWrapper struct {
 
 // VDDKDataSink provides a mockable interface for saving data from the source.
 type VDDKDataSink interface {
+	Ftruncate(size int64) error
 	Pwrite(buf []byte, offset uint64) (int, error)
 	Write(buf []byte) (int, error)
 	Close()
@@ -85,6 +85,15 @@ type VMwareClient struct {
 	password   string
 	url        *url.URL
 	vm         *object.VirtualMachine
+}
+
+// Ftruncate is used to pad the sink with zeroes to the given size.
+func (sink *VDDKFileSink) Ftruncate(size int64) error {
+	err := syscall.Ftruncate(int(sink.file.Fd()), size)
+	if err != nil {
+		klog.Errorf("Unable to ftruncate file: %v", err)
+	}
+	return err
 }
 
 // Pwrite writes the given byte buffer to the sink at the given offset
@@ -438,7 +447,7 @@ func createNbdKitWrapper(vmware *VMwareClient, backingFile string) (*NbdKitWrapp
 const MaxBlockStatusLength = (2 << 30)
 
 // MaxPreadLength limits individual data block transfers to 23MB, larger block sizes fail
-const MaxPreadLength = (23 * (2 << 20))
+const MaxPreadLength = (23 << 20)
 
 // BlockStatusData holds zero/hole status for one block of data
 type BlockStatusData struct {
@@ -452,54 +461,55 @@ var fixedOptArgs = libnbd.BlockStatusOptargs{
 	FlagsSet: true,
 }
 
-var blocks []*BlockStatusData // Shared between GetBlockStatus and updateBlocksCallback
-// updateBlocksCallback is the callback for libnbd.BlockStatus
-func updateBlocksCallback(metacontext string, offset uint64, extents []uint32, err *int) int {
-	if *err != 0 {
-		klog.Errorf("Block status callback error was: %v", *err)
-		return *err
-	}
-	if metacontext != "base:allocation" {
-		klog.Info("Not base:allocation, ignoring")
-		return 0
-	}
-	klog.Infof("Block status callback offset: %d", offset)
-	klog.Infof("Block status length of extents: %d", len(extents))
-	if (len(extents) % 2) != 0 {
-		klog.Error("Block status entry unexpected length!")
-		return -1
-	}
-	for i := 0; i < len(extents); i += 2 {
-		length, flags := extents[i], extents[i+1]
-		if blocks != nil {
-			last := len(blocks) - 1
-			lastBlock := blocks[last]
-			lastFlags := lastBlock.Flags
-			lastOffset := lastBlock.Offset + uint64(lastBlock.Length)
-			if lastFlags == flags && lastOffset == offset {
-				// Merge with previous block
-				blocks[last] = &BlockStatusData{
-					Offset: lastBlock.Offset,
-					Length: lastBlock.Length,
-					Flags:  lastFlags,
+// GetBlockStatus runs libnbd.BlockStatus on a given list of disk ranges.
+// Translated from IMS v2v-conversion-host.
+func GetBlockStatus(handle NbdOperations, extents []types.DiskChangeExtent) ([]*BlockStatusData, error) {
+	var blocks []*BlockStatusData
+
+	// Callback for libnbd.BlockStatus. Needs to modify blocks list above.
+	updateBlocksCallback := func(metacontext string, offset uint64, extents []uint32, err *int) int {
+		if *err != 0 {
+			klog.Errorf("Block status callback error was: %v", *err)
+			return *err
+		}
+		if metacontext != "base:allocation" {
+			klog.Info("Not base:allocation, ignoring")
+			return 0
+		}
+		klog.Infof("Block status callback offset: %d", offset)
+		klog.Infof("Block status length of extents: %d", len(extents))
+		if (len(extents) % 2) != 0 {
+			klog.Error("Block status entry unexpected length!")
+			return -1
+		}
+		for i := 0; i < len(extents); i += 2 {
+			length, flags := extents[i], extents[i+1]
+			if blocks != nil {
+				last := len(blocks) - 1
+				lastBlock := blocks[last]
+				lastFlags := lastBlock.Flags
+				lastOffset := lastBlock.Offset + uint64(lastBlock.Length)
+				if lastFlags == flags && lastOffset == offset {
+					// Merge with previous block
+					blocks[last] = &BlockStatusData{
+						Offset: lastBlock.Offset,
+						Length: lastBlock.Length,
+						Flags:  lastFlags,
+					}
+					klog.Infof("Block status: merging offset %d, length %d, flags 0x%x into previous offset %d, length %d, flags 0x%x", offset, length, flags, lastOffset, lastBlock.Length, lastFlags)
+				} else {
+					klog.Infof("Block status: offset %d, length %d, flags 0x%x", offset, length, flags)
+					blocks = append(blocks, &BlockStatusData{Offset: offset, Length: length, Flags: flags})
 				}
-				klog.Infof("Block status: merging offset %d, length %d, flags 0x%x into previous offset %d, length %d, flags 0x%x", offset, length, flags, lastOffset, lastBlock.Length, lastFlags)
 			} else {
-				klog.Infof("Block status: offset %d, length %d, flags 0x%x", offset, length, flags)
+				klog.Infof("First block: offset %d, length %d, flags 0x%x", offset, length, flags)
 				blocks = append(blocks, &BlockStatusData{Offset: offset, Length: length, Flags: flags})
 			}
-		} else {
-			klog.Infof("First block: offset %d, length %d, flags 0x%x", offset, length, flags)
-			blocks = append(blocks, &BlockStatusData{Offset: offset, Length: length, Flags: flags})
+			offset += uint64(length)
 		}
-		offset += uint64(length)
+		return 0
 	}
-	return 0
-}
 
-// GetBlockStatus runs libnbd.BlockStatus on a given list of disk ranges.
-// Modifies the global blocks array. Translated from IMS v2v-conversion-host.
-func GetBlockStatus(handle NbdOperations, extents []types.DiskChangeExtent) ([]*BlockStatusData, error) {
 	for _, extent := range extents {
 		if extent.Length < 1024*1024 {
 			klog.Info("Size is less than 1M, avoiding block status request.")
@@ -540,36 +550,36 @@ func GetBlockStatus(handle NbdOperations, extents []types.DiskChangeExtent) ([]*
 // CopyRange takes one data block, checks if it is a hole or filled with zeroes, and copies it to the sink
 func CopyRange(handle NbdOperations, sink VDDKDataSink, block *BlockStatusData) (int, error) {
 	if (block.Flags & libnbd.STATE_HOLE) != 0 {
-		klog.Info("Found a hole, skipping it.")
-		return 0, nil
+		klog.Info("Found a hole, filling destination with zeroes.")
+	}
+	if (block.Flags & libnbd.STATE_ZERO) != 0 {
+		klog.Info("Found a zero block, filling destination with zeroes.")
+	}
+
+	if (block.Flags & (libnbd.STATE_ZERO | libnbd.STATE_HOLE)) != 0 {
+		size := block.Offset + uint64(block.Length)
+		err := sink.Ftruncate(int64(size))
+		return int(block.Length), err
 	}
 
 	buffer := make([]byte, block.Length)
-	if (block.Flags & libnbd.STATE_ZERO) != 0 {
-		for i := uint32(0); i < block.Length; i++ {
-			buffer[i] = 0
+	count := uint32(0)
+	for count < block.Length {
+		var length uint32
+		if block.Length-count > MaxPreadLength {
+			length = MaxPreadLength
+		} else {
+			length = block.Length - count
 		}
-		klog.Info("Found a zero block, skipping read.")
-	} else {
-		count := uint32(0)
-		for count < block.Length {
-			var length uint32
-			if block.Length-count > MaxPreadLength {
-				length = MaxPreadLength
-			} else {
-				length = block.Length - count
-			}
-			offset := block.Offset + uint64(count)
-			klog.Infof("Reading %d-bytes to local %d at file %d", length, count, offset)
-			err := handle.Pread(buffer[count:count+length], offset, nil)
-			if err != nil {
-				klog.Errorf("Error reading from source: %v", err)
-				return 0, err
-			}
-			count += length
+		offset := block.Offset + uint64(count)
+		klog.Infof("Reading %d-bytes to local %d at file %d", length, count, offset)
+		err := handle.Pread(buffer[count:count+length], offset, nil)
+		if err != nil {
+			klog.Errorf("Error reading from source: %v", err)
+			return 0, err
 		}
+		count += length
 	}
-
 	written, err := sink.Pwrite(buffer, uint64(block.Offset))
 	if err != nil {
 		klog.Errorf("Failed to write data block at offset %d to local file: %v", block.Offset, err)
