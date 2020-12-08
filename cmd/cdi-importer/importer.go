@@ -153,26 +153,14 @@ func main() {
 				os.Exit(1)
 			}
 		case controller.SourceVDDK:
-			if currentCheckpoint != "" || previousCheckpoint != "" || finalCheckpoint != "" {
-				dp, err = importer.NewVDDKIncrementalDataSource(ep, acc, sec, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint)
+			dp, err = importer.NewVDDKDataSource(ep, acc, sec, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint)
+			if err != nil {
+				klog.Errorf("%+v", err)
+				err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to vddk data source: %+v", err))
 				if err != nil {
 					klog.Errorf("%+v", err)
-					err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to vddk data source for delta copy: %+v", err))
-					if err != nil {
-						klog.Errorf("%+v", err)
-					}
-					os.Exit(1)
 				}
-			} else {
-				dp, err = importer.NewVDDKDataSource(ep, acc, sec, thumbprint, uuid, backingFile)
-				if err != nil {
-					klog.Errorf("%+v", err)
-					err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to vddk data source: %+v", err))
-					if err != nil {
-						klog.Errorf("%+v", err)
-					}
-					os.Exit(1)
-				}
+				os.Exit(1)
 			}
 		default:
 			klog.Errorf("Unknown source type %s\n", source)
