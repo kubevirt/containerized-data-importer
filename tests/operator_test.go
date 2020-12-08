@@ -19,6 +19,7 @@ import (
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -528,6 +529,147 @@ var _ = Describe("[rfe_id:4784][crit:high] CDI Operator deployment + CDI CR dele
 			match := tests.PodSpecHasTestNodePlacementValues(f, deployment.Spec.Template.Spec)
 			Expect(match).To(BeTrue(), fmt.Sprintf("node placement in pod spec\n%v\n differs from node placement values in CDI CR\n%v\n", deployment.Spec.Template.Spec, localSpec.Infra))
 		}
+	})
+})
+
+var _ = Describe("Strict Reconciliation tests", func() {
+	f := framework.NewFramework("strict-reconciliation-test")
+
+	It("cdi-deployment replicas back to original value on attempt to scale", func() {
+		deploymentName := "cdi-deployment"
+		cdiDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		originalReplicaVal := *cdiDeployment.Spec.Replicas
+
+		By("Overwrite number of replicas with originalVal + 1")
+		cdiDeployment.Spec.Replicas = &[]int32{originalReplicaVal + 1}[0]
+		_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Update(context.TODO(), cdiDeployment, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Ensuring original value of replicas restored & extra deployment pod was cleaned up")
+		Eventually(func() bool {
+			depl, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			_, err = utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, deploymentName, common.CDILabelSelector)
+			return *depl.Spec.Replicas == originalReplicaVal && err == nil
+		}, 5*time.Minute, 1*time.Second).Should(BeTrue())
+	})
+
+	It("Service spec.selector restored on overwrite attempt", func() {
+		service, err := f.K8sClient.CoreV1().Services(f.CdiInstallNs).Get(context.TODO(), "cdi-api", metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		originalSelectorVal := service.Spec.Selector[common.CDIComponentLabel]
+
+		By("Overwrite spec.selector with empty string")
+		service.Spec.Selector[common.CDIComponentLabel] = ""
+		_, err = f.K8sClient.CoreV1().Services(f.CdiInstallNs).Update(context.TODO(), service, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() bool {
+			svc, err := f.K8sClient.CoreV1().Services(f.CdiInstallNs).Get(context.TODO(), "cdi-api", metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			By(fmt.Sprintf("Waiting until original spec.selector value: %s\n Matches current: %s\n", originalSelectorVal, svc.Spec.Selector[common.CDIComponentLabel]))
+			return svc.Spec.Selector[common.CDIComponentLabel] == originalSelectorVal
+		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+	})
+
+	It("ClusterRole verb restored on deletion attempt", func() {
+		clusterRole, err := f.K8sClient.RbacV1().ClusterRoles().Get(context.TODO(), "cdi.kubevirt.io:config-reader", metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Remove list verb")
+		clusterRole.Rules = []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{
+					"cdi.kubevirt.io",
+				},
+				Resources: []string{
+					"cdiconfigs",
+				},
+				Verbs: []string{
+					"get",
+					// "list",
+					"watch",
+				},
+			},
+		}
+
+		_, err = f.K8sClient.RbacV1().ClusterRoles().Update(context.TODO(), clusterRole, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() bool {
+			role, err := f.K8sClient.RbacV1().ClusterRoles().Get(context.TODO(), "cdi.kubevirt.io:config-reader", metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			By("Waiting until list verb exists")
+			for _, verb := range role.Rules[0].Verbs {
+				if verb == "list" {
+					return true
+				}
+			}
+			return false
+		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+	})
+
+	It("ServiceAccount secrets restored on deletion attempt", func() {
+		serviceAccount, err := f.K8sClient.CoreV1().ServiceAccounts(f.CdiInstallNs).Get(context.TODO(), common.ControllerServiceAccountName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Remove secrets from ServiceAccount")
+		serviceAccount.Secrets = []corev1.ObjectReference{}
+
+		_, err = f.K8sClient.CoreV1().ServiceAccounts(f.CdiInstallNs).Update(context.TODO(), serviceAccount, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() bool {
+			sa, err := f.K8sClient.CoreV1().ServiceAccounts(f.CdiInstallNs).Get(context.TODO(), common.ControllerServiceAccountName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			By("Waiting until secrets are repopulated")
+			return len(sa.Secrets) != 0
+		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+	})
+
+	It("Certificate restored to ConfigMap on deletion attempt", func() {
+		configMap, err := f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Get(context.TODO(), "cdi-apiserver-signer-bundle", metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Empty ConfigMap's data")
+		configMap.Data = map[string]string{}
+
+		_, err = f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Update(context.TODO(), configMap, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() bool {
+			cm, err := f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Get(context.TODO(), "cdi-apiserver-signer-bundle", metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			By("Waiting until ConfigMap's data is not empty")
+			return len(cm.Data) != 0
+		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
+	})
+
+	It("Cant enable featureGate by editing CDIConfig resource", func() {
+		feature := "nonExistantFeature"
+		cdiConfig, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Enable non existant featureGate")
+		cdiConfig.Spec = cdiv1.CDIConfigSpec{
+			FeatureGates: []string{feature},
+		}
+
+		_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Update(context.TODO(), cdiConfig, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() bool {
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			By(fmt.Sprintf("Waiting until %s featureGate doesn't exist", feature))
+			for _, fgate := range config.Spec.FeatureGates {
+				if fgate == feature {
+					return false
+				}
+			}
+			return true
+		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 	})
 })
 
