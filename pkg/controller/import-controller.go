@@ -498,6 +498,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 			podEnvVar.preallocation = preallocation
 		} // else use the default "false"
 	}
+
 	//get the requested image size.
 	podEnvVar.imageSize, err = getRequestedImageSize(pvc)
 	if err != nil {
