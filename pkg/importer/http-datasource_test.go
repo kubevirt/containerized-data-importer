@@ -122,7 +122,7 @@ var _ = Describe("Http data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		newPhase, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferDataFile).To(Equal(newPhase))
+		Expect(ProcessingPhaseConvert).To(Equal(newPhase))
 	})
 
 	table.DescribeTable("calling transfer should", func(image string, contentType cdiv1.DataVolumeContentType, expectedPhase ProcessingPhase, scratchPath string, want []byte, wantErr bool) {
@@ -168,10 +168,7 @@ var _ = Describe("Http data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		result, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
-		result, err = dp.TransferFile(filepath.Join(tmpDir, "file"))
-		Expect(err).ToNot(HaveOccurred())
-		Expect(ProcessingPhaseResize).To(Equal(result))
+		Expect(ProcessingPhaseConvert).To(Equal(result))
 	})
 
 	It("TransferFile should succeed when writing to valid file and reading raw xz", func() {
@@ -179,21 +176,7 @@ var _ = Describe("Http data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		result, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
-		result, err = dp.TransferFile(filepath.Join(tmpDir, "file"))
-		Expect(err).ToNot(HaveOccurred())
-		Expect(ProcessingPhaseResize).To(Equal(result))
-	})
-
-	It("TransferFile should fail on streaming error", func() {
-		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
-		Expect(err).NotTo(HaveOccurred())
-		result, err := dp.Info()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
-		result, err = dp.TransferFile("/invalidpath/invalidfile")
-		Expect(err).To(HaveOccurred())
-		Expect(ProcessingPhaseError).To(Equal(result))
+		Expect(ProcessingPhaseConvert).To(Equal(result))
 	})
 })
 
