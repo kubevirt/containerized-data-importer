@@ -21,7 +21,7 @@ function up() {
 
 function configure_storage() {
   if [[ $KUBEVIRT_STORAGE == "hpp" ]] ; then
-    _kubectl apply -f ./cluster-sync/external/resources/machineconfig-worker.yaml
+    _kubectl apply -f https://github.com/kubevirt/hostpath-provisioner-operator/blob/master/contrib/machineconfig-selinux-hpp.yaml
     echo "Installing hostpath provisioner storage, please ensure /var/hpvolumes exists and has the right SELinux labeling"
     HPP_RELEASE=$(curl -s https://github.com/kubevirt/hostpath-provisioner-operator/releases/latest | grep -o "v[0-9]\.[0-9]*\.[0-9]*")
     _kubectl apply -f https://github.com/kubevirt/hostpath-provisioner-operator/releases/download/$HPP_RELEASE/namespace.yaml
