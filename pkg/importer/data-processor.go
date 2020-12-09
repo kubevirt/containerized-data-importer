@@ -124,12 +124,6 @@ type DataProcessor struct {
 
 // NewDataProcessor create a new instance of a data processor using the passed in data provider.
 func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratchDataDir, requestImageSize string, filesystemOverhead float64, preallocation bool) *DataProcessor {
-	needsDataCleanup := true
-	vddkSource, isVddk := dataSource.(*VDDKDataSource)
-	if isVddk {
-		needsDataCleanup = !vddkSource.IsDeltaCopy()
-	}
-
 	dp := &DataProcessor{
 		currentPhase:       ProcessingPhaseInfo,
 		source:             dataSource,

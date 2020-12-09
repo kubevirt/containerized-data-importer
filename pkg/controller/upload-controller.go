@@ -377,6 +377,7 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 		ServerKey:          serverKey,
 		ClientCA:           clientCA,
 		Preallocation:      strconv.FormatBool(preallocationRequested),
+		Preallocation:      strconv.FormatBool(preallocation),
 	}
 
 	r.log.V(3).Info("Creating upload pod")
