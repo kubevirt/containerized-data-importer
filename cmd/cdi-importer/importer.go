@@ -66,6 +66,7 @@ func main() {
 	currentCheckpoint, _ := util.ParseEnvVar(common.ImporterCurrentCheckpoint, false)
 	previousCheckpoint, _ := util.ParseEnvVar(common.ImporterPreviousCheckpoint, false)
 	finalCheckpoint, _ := util.ParseEnvVar(common.ImporterFinalCheckpoint, false)
+	preallocation, err := strconv.ParseBool(os.Getenv(common.Preallocation))
 
 	//Registry import currently support kubevirt content type only
 	if contentType != string(cdiv1.DataVolumeKubeVirt) && (source == controller.SourceRegistry || source == controller.SourceImageio) {
@@ -100,7 +101,7 @@ func main() {
 			// Available dest space is smaller than the size we want to create
 			klog.Warningf("Available space less than requested size, creating blank image sized to available space: %s.\n", minSizeQuantity.String())
 		}
-		err := image.CreateBlankImage(common.ImporterWritePath, minSizeQuantity)
+		err := image.CreateBlankImage(common.ImporterWritePath, minSizeQuantity, preallocation)
 		if err != nil {
 			klog.Errorf("%+v", err)
 			err = util.WriteTerminationMessage(fmt.Sprintf("Unable to create blank image: %+v", err))
@@ -171,7 +172,7 @@ func main() {
 			os.Exit(1)
 		}
 		defer dp.Close()
-		processor := importer.NewDataProcessor(dp, dest, dataDir, common.ScratchDataDir, imageSize, filesystemOverhead)
+		processor := importer.NewDataProcessor(dp, dest, dataDir, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
 		err = processor.ProcessData()
 		if err != nil {
 			klog.Errorf("%+v", err)

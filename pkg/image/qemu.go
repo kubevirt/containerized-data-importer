@@ -56,11 +56,11 @@ type ImgInfo struct {
 
 // QEMUOperations defines the interface for executing qemu subprocesses
 type QEMUOperations interface {
-	ConvertToRawStream(*url.URL, string) error
+	ConvertToRawStream(*url.URL, string, bool) error
 	Resize(string, resource.Quantity) error
 	Info(url *url.URL) (*ImgInfo, error)
 	Validate(*url.URL, int64, float64) error
-	CreateBlankImage(string, resource.Quantity) error
+	CreateBlankImage(string, resource.Quantity, bool) error
 }
 
 type qemuOperations struct{}
@@ -99,8 +99,13 @@ func NewQEMUOperations() QEMUOperations {
 	return &qemuOperations{}
 }
 
-func convertToRaw(src, dest string) error {
-	_, err := qemuExecFunction(nil, nil, "qemu-img", "convert", "-t", "none", "-p", "-O", "raw", src, dest)
+func convertToRaw(src, dest string, preallocate bool) error {
+	args := []string{"convert", "-t", "none", "-p", "-O", "raw", src, dest}
+	if preallocate {
+		klog.V(3).Info("Added preallocation")
+		args = append(args, []string{"-o", "preallocation=falloc"}...)
+	}
+	_, err := qemuExecFunction(nil, nil, "qemu-img", args...)
 	if err != nil {
 		os.Remove(dest)
 		return errors.Wrap(err, "could not convert image to raw")
@@ -109,15 +114,20 @@ func convertToRaw(src, dest string) error {
 	return nil
 }
 
-func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string) error {
+func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string, preallocate bool) error {
 	if len(url.Scheme) == 0 {
 		// File, instead of URL
-		return convertToRaw(url.String(), dest)
+		return convertToRaw(url.String(), dest, preallocate)
 	}
 
 	jsonArg := fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", url.Scheme, url, networkTimeoutSecs)
 
-	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", "convert", "-t", "none", "-p", "-O", "raw", jsonArg, dest)
+	args := []string{"convert", "-t", "none", "-p", "-O", "raw", jsonArg, dest}
+	if preallocate {
+		klog.V(3).Info("Added preallocation")
+		args = append(args, []string{"-o", "preallocation=falloc"}...)
+	}
+	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", args...)
 	if err != nil {
 		// TODO: Determine what to do here, the conversion failed, and we need to clean up the mess, but we could be writing to a block device
 		os.Remove(dest)
@@ -198,8 +208,8 @@ func (o *qemuOperations) Validate(url *url.URL, availableSize int64, filesystemO
 }
 
 // ConvertToRawStream converts an http accessible image to raw format without locally caching the image
-func ConvertToRawStream(url *url.URL, dest string) error {
-	return qemuIterface.ConvertToRawStream(url, dest)
+func ConvertToRawStream(url *url.URL, dest string, preallocate bool) error {
+	return qemuIterface.ConvertToRawStream(url, dest, preallocate)
 }
 
 // Validate does basic validation of a qemu image
@@ -223,15 +233,20 @@ func reportProgress(line string) {
 }
 
 // CreateBlankImage creates empty raw image
-func CreateBlankImage(dest string, size resource.Quantity) error {
-	klog.V(1).Infof("creating raw image with size %s", size.String())
-	return qemuIterface.CreateBlankImage(dest, size)
+func CreateBlankImage(dest string, size resource.Quantity, preallocate bool) error {
+	klog.V(1).Infof("creating raw image with size %s, preallocation %v", size.String(), preallocate)
+	return qemuIterface.CreateBlankImage(dest, size, preallocate)
 }
 
 // CreateBlankImage creates a raw image with a given size
-func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity) error {
+func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity, preallocate bool) error {
 	klog.V(3).Infof("image size is %s", size.String())
-	_, err := qemuExecFunction(nil, nil, "qemu-img", "create", "-f", "raw", dest, convertQuantityToQemuSize(size))
+	args := []string{"create", "-f", "raw", dest, convertQuantityToQemuSize(size)}
+	if preallocate {
+		klog.V(3).Infof("Added preallocation")
+		args = append(args, []string{"-o", "preallocation=falloc"}...)
+	}
+	_, err := qemuExecFunction(nil, nil, "qemu-img", args...)
 	if err != nil {
 		os.Remove(dest)
 		return errors.Wrap(err, fmt.Sprintf("could not create raw image with size %s in %s", size.String(), dest))

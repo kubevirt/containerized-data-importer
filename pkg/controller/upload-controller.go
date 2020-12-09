@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"time"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
 	"github.com/go-logr/logr"
@@ -96,6 +97,7 @@ type UploadPodArgs struct {
 	ClientName                      string
 	FilesystemOverhead              string
 	ServerCert, ServerKey, ClientCA []byte
+	Preallocation                   string
 }
 
 // Reconcile the reconcile loop for the CDIConfig object.
@@ -361,6 +363,12 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 		return nil, err
 	}
 
+	dv := &cdiv1.DataVolume{}
+	preallocation := false
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, dv); err == nil {
+		preallocation = GetPreallocation(r.client, dv)
+	}
+
 	args := UploadPodArgs{
 		Name:               podName,
 		PVC:                pvc,
@@ -370,6 +378,7 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 		ServerCert:         serverCert,
 		ServerKey:          serverKey,
 		ClientCA:           clientCA,
+		Preallocation:      strconv.FormatBool(preallocation),
 	}
 
 	r.log.V(3).Info("Creating upload pod")
@@ -690,6 +699,10 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 						{
 							Name:  "CLIENT_NAME",
 							Value: args.ClientName,
+						},
+						{
+							Name:  common.Preallocation,
+							Value: args.Preallocation,
 						},
 					},
 					Args: []string{"-v=" + r.verbose},
