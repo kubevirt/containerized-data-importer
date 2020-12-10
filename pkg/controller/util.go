@@ -402,15 +402,3 @@ func getPodsUsingPVCs(c client.Client, namespace string, names sets.String, allo
 
 	return pods, nil
 }
-
-func filterCloneSourcePods(input []v1.Pod) []v1.Pod {
-	var output []v1.Pod
-
-	for _, pod := range input {
-		if pod.Labels[common.CDIComponentLabel] != common.ClonerSourcePodName {
-			output = append(output, pod)
-		}
-	}
-
-	return output
-}

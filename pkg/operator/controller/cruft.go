@@ -28,6 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 const (
@@ -165,6 +167,38 @@ func reconcileServiceAccounts(args *ReconcileCallbackArgs) error {
 				args.Logger.Error(err, "Error updating SCC")
 				return err
 			}
+		}
+	}
+
+	return nil
+}
+
+// delete when we no longer support <= 1.27.0
+func reconcileSELinuxPerms(args *ReconcileCallbackArgs) error {
+	if args.State != ReconcileStatePostRead {
+		return nil
+	}
+
+	sa := args.DesiredObject.(*corev1.ServiceAccount)
+	if sa.Name != common.ControllerServiceAccountName {
+		return nil
+	}
+
+	scc := &secv1.SecurityContextConstraints{}
+	err := args.Client.Get(context.TODO(), client.ObjectKey{Name: sccName}, scc)
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	if scc.SELinuxContext.Type != secv1.SELinuxStrategyRunAsAny {
+		scc.SELinuxContext.Type = secv1.SELinuxStrategyRunAsAny
+
+		if err = args.Client.Update(context.TODO(), scc); err != nil {
+			return err
 		}
 	}
 
