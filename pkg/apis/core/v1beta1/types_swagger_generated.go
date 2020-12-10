@@ -168,14 +168,6 @@ func (FilesystemOverhead) SwaggerDoc() map[string]string {
 	}
 }
 
-func (Preallocation) SwaggerDoc() map[string]string {
-	return map[string]string{
-		"":             "Preallocation options controls whether storage for DataVolumes should be allocated in advance.",
-		"global":       "Global is the DataVolume preallocation setting to use unless it is override by a per-storageClass or per-dataVolume value",
-		"storageClass": "StorageClass is the preallocatin setting for DVs in the StorageClass. The keys are the storageClass and the values are the true or false.\nThis value overrides the global value, and is overriden by the more specific value in the DataVolume spec",
-	}
-}
-
 func (CDIConfigSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                         "CDIConfigSpec defines specification for user configuration",

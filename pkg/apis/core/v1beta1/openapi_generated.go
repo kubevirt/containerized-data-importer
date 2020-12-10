@@ -311,7 +311,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSpec":           schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeStatus":         schema_pkg_apis_core_v1beta1_DataVolumeStatus(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead":       schema_pkg_apis_core_v1beta1_FilesystemOverhead(ref),
-		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.Preallocation":            schema_pkg_apis_core_v1beta1_Preallocation(ref),
 		"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement":                schema_controller_lifecycle_operator_sdk_pkg_sdk_api_NodePlacement(ref),
 	}
 }
@@ -13650,7 +13649,7 @@ func schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref common.ReferenceCallback) co
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.ResourceRequirements", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.Preallocation"},
+			"k8s.io/api/core/v1.ResourceRequirements", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead"},
 	}
 }
 
@@ -13698,7 +13697,7 @@ func schema_pkg_apis_core_v1beta1_CDIConfigStatus(ref common.ReferenceCallback) 
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.ResourceRequirements", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.Preallocation"},
+			"k8s.io/api/core/v1.ResourceRequirements", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead"},
 	}
 }
 
@@ -14455,41 +14454,6 @@ func schema_pkg_apis_core_v1beta1_FilesystemOverhead(ref common.ReferenceCallbac
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Type:   []string{"string"},
-										Format: "",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_core_v1beta1_Preallocation(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "Preallocation options controls whether storage for DataVolumes should be allocated in advance.",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"global": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Global is the DataVolume preallocation setting to use unless it is override by a per-storageClass or per-dataVolume value",
-							Type:        []string{"boolean"},
-							Format:      "",
-						},
-					},
-					"storageClass": {
-						SchemaProps: spec.SchemaProps{
-							Description: "StorageClass is the preallocatin setting for DVs in the StorageClass. The keys are the storageClass and the values are the true or false. This value overrides the global value, and is overriden by the more specific value in the DataVolume spec",
-							Type:        []string{"object"},
-							AdditionalProperties: &spec.SchemaOrBool{
-								Allows: true,
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Type:   []string{"boolean"},
 										Format: "",
 									},
 								},
