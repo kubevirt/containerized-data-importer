@@ -3430,7 +3430,7 @@
      },
      "preallocation": {
       "description": "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
-      "$ref": "#/definitions/v1beta1.Preallocation"
+      "type": "boolean"
      },
      "scratchSpaceStorageClass": {
       "description": "Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space",
@@ -3456,7 +3456,7 @@
      },
      "preallocation": {
       "description": "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
-      "$ref": "#/definitions/v1beta1.Preallocation"
+      "type": "boolean"
      },
      "scratchSpaceStorageClass": {
       "description": "The calculated storage class to be used for scratch space",
@@ -3895,23 +3895,6 @@
       "type": "object",
       "additionalProperties": {
        "type": "string"
-      }
-     }
-    }
-   },
-   "v1beta1.Preallocation": {
-    "description": "Preallocation options controls whether storage for DataVolumes should be allocated in advance.",
-    "type": "object",
-    "properties": {
-     "global": {
-      "description": "Global is the DataVolume preallocation setting to use unless it is override by a per-storageClass or per-dataVolume value",
-      "type": "boolean"
-     },
-     "storageClass": {
-      "description": "StorageClass is the preallocatin setting for DVs in the StorageClass. The keys are the storageClass and the values are the true or false. This value overrides the global value, and is overriden by the more specific value in the DataVolume spec",
-      "type": "object",
-      "additionalProperties": {
-       "type": "boolean"
       }
      }
     }

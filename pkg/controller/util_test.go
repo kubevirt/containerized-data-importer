@@ -268,39 +268,11 @@ var _ = Describe("GetPreallocation", func() {
 		preallocation = GetPreallocation(client, dv)
 		Expect(preallocation).To(BeFalse())
 
-		// global: true, storage class: true, data volume overrides to false
-		client = createClient(createCDIConfigWithGlobalAndStorageClassPreallocation(true, "test-class", true))
+		// global: true, data volume overrides to false
+		client = createClient(createCDIConfigWithGlobalPreallocation(true))
 		dv = createDataVolumeWithStorageClassPreallocation("test-dv", "test-ns", "test-class", false)
 		preallocation = GetPreallocation(client, dv)
 		Expect(preallocation).To(BeFalse())
-	})
-
-	It("Should return preallocation for StorageClass if not specified in DataVolume", func() {
-		client := createClient(createCDIConfigWithStorageClassPreallocation("test-class", true))
-		dv := createDataVolumeWithStorageClass("test-dv", "test-ns", "test-class")
-		preallocation := GetPreallocation(client, dv)
-		Expect(preallocation).To(BeTrue())
-
-		client = createClient(createCDIConfigWithStorageClassPreallocation("test-class", false))
-		preallocation = GetPreallocation(client, dv)
-		Expect(preallocation).To(BeFalse())
-
-		// global: true, storage class overrides to false
-		client = createClient(createCDIConfigWithGlobalAndStorageClassPreallocation(true, "test-class", false))
-		preallocation = GetPreallocation(client, dv)
-		Expect(preallocation).To(BeFalse())
-	})
-
-	It("Should return preallocation for default StorageClass if defined", func() {
-		client := createClient(
-			createStorageClass("default-storage-class", map[string]string{
-				AnnDefaultStorageClass: "true",
-			}),
-			createCDIConfigWithStorageClassPreallocation("default-storage-class", true),
-		)
-		dv := createDataVolume("test-dv", "test-ns")
-		preallocation := GetPreallocation(client, dv)
-		Expect(preallocation).To(BeTrue())
 	})
 
 	It("Should return global preallocation setting if not defined in DV or SC", func() {
@@ -312,14 +284,10 @@ var _ = Describe("GetPreallocation", func() {
 		client = createClient(createCDIConfigWithGlobalPreallocation(false))
 		preallocation = GetPreallocation(client, dv)
 		Expect(preallocation).To(BeFalse())
-
-		client = createClient(createCDIConfigWithGlobalAndStorageClassPreallocation(true, "another-test-class", false))
-		preallocation = GetPreallocation(client, dv)
-		Expect(preallocation).To(BeTrue())
 	})
 
 	It("Should be false when niether DV nor Config defines preallocation", func() {
-		client := createClient(createCDIConfigWithStorageClassPreallocation("another-test-class", true))
+		client := createClient(createCDIConfig("test"))
 		dv := createDataVolumeWithStorageClass("test-dv", "test-ns", "test-class")
 		preallocation := GetPreallocation(client, dv)
 		Expect(preallocation).To(BeFalse())
@@ -608,53 +576,6 @@ func createCDIConfigWithStorageClass(name string, storageClass string) *cdiv1.CD
 	}
 }
 
-func createCDIConfigWithStorageClassPreallocation(storageClass string, preallocation bool) *cdiv1.CDIConfig {
-	return &cdiv1.CDIConfig{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "CDIConfig",
-			APIVersion: "cdi.kubevirt.io/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: common.ConfigName,
-			Labels: map[string]string{
-				common.CDILabelKey:       common.CDILabelValue,
-				common.CDIComponentLabel: "",
-			},
-		},
-		Status: cdiv1.CDIConfigStatus{
-			Preallocation: &cdiv1.Preallocation{
-				StorageClass: map[string]bool{
-					storageClass: preallocation,
-				},
-			},
-		},
-	}
-}
-
-func createCDIConfigWithGlobalAndStorageClassPreallocation(globalPreallocation bool, storageClass string, preallocation bool) *cdiv1.CDIConfig {
-	return &cdiv1.CDIConfig{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "CDIConfig",
-			APIVersion: "cdi.kubevirt.io/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: common.ConfigName,
-			Labels: map[string]string{
-				common.CDILabelKey:       common.CDILabelValue,
-				common.CDIComponentLabel: "",
-			},
-		},
-		Status: cdiv1.CDIConfigStatus{
-			Preallocation: &cdiv1.Preallocation{
-				Global: &globalPreallocation,
-				StorageClass: map[string]bool{
-					storageClass: preallocation,
-				},
-			},
-		},
-	}
-}
-
 func createCDIConfigWithGlobalPreallocation(globalPreallocation bool) *cdiv1.CDIConfig {
 	return &cdiv1.CDIConfig{
 		TypeMeta: metav1.TypeMeta{
@@ -669,10 +590,7 @@ func createCDIConfigWithGlobalPreallocation(globalPreallocation bool) *cdiv1.CDI
 			},
 		},
 		Status: cdiv1.CDIConfigStatus{
-			Preallocation: &cdiv1.Preallocation{
-				Global:       &globalPreallocation,
-				StorageClass: map[string]bool{},
-			},
+			Preallocation: globalPreallocation,
 		},
 	}
 }

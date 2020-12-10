@@ -633,26 +633,8 @@ func GetPreallocation(client client.Client, dataVolume *cdiv1.DataVolume) bool {
 		klog.Errorf("Unable to find CDI configuration, %v\n", err)
 		return defaultPreallocation
 	}
-	if cdiconfig.Status.Preallocation == nil {
-		// No need to bother reading storage class if Preallocation not defined in the config
-		return defaultPreallocation
-	}
 
-	// Second, the config setting for the storage class
-	sc := GetStorageClassNameForDV(client, dataVolume)
-	if sc != "" {
-		if pre, exists := cdiconfig.Status.Preallocation.StorageClass[sc]; exists {
-			return pre
-		}
-	}
-
-	// Third, the global setting
-	if cdiconfig.Status.Preallocation.Global != nil {
-		return *cdiconfig.Status.Preallocation.Global
-	}
-
-	// Finally, the default false
-	return defaultPreallocation
+	return cdiconfig.Status.Preallocation
 }
 
 // GetStorageClassNameForDV returns storage class to be used for the DV's PVC

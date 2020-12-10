@@ -2939,22 +2939,7 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 												},
 												"preallocation": {
 													Description: "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
-													Type:        "object",
-													Properties: map[string]extv1.JSONSchemaProps{
-														"global": {
-															Description: "Global is the DataVolume preallocation setting to use unless it is override by a per-storageClass or per-dataVolume value",
-															Type:        "boolean",
-														},
-														"storageClass": {
-															AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-																Schema: &extv1.JSONSchemaProps{
-																	Type: "boolean",
-																},
-															},
-															Description: "StorageClass is the preallocatin setting for DVs in the StorageClass. The keys are the storageClass and the values are the true or false. This value overrides the global value, and is overriden by the more specific value in the DataVolume spec",
-															Type:        "object",
-														},
-													},
+													Type:        "boolean",
 												},
 											},
 										},

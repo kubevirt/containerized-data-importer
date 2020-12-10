@@ -45,31 +45,3 @@ spec:
 ```
 
 If not specified, the `preallocation` option defaults to false.
-
-## Preallocation for StorageClass
-
-It is also possible to define preallocation for all Data Volumes created with a StorageClass.
-`CDIConfig` is used for that, similar to `filesystemOverhead`:
-
-```yaml
-apiVersion: cdi.kubevirt.io/v1beta1
-kind: CDIConfig
-metadata:
-  name: config
-spec:
-  preallocation:
-    # global not specified, defaults to false
-    storageClass:
-      sc-with-preallocation: true
-      another-storage-class: false
-```
-
-## Order of precedence
-
-In order to decide what preallocation setting to use, CDI first checks DataVolume spec. If the
-option is present, its value is used. If not, CDI checks CDIConfig setting for the relevant
-StorageClass. Again, if it is defined, it is used. If not, the global setting from CDIConfig
-is used. Finally, if none of this options is specified, preallocation defaults to false.
-
-In other words, `preallocation` option in DataVolume overrides StorageClass setting, and
-`preallocation` option for StorageClass overrides global setting in CDIConfig.
