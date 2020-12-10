@@ -24,6 +24,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
 
 	secv1 "github.com/openshift/api/security/v1"
@@ -188,6 +189,38 @@ func reconcileInitializeCRD(args *callbacks.ReconcileCallbackArgs) error {
 
 	crd := args.CurrentObject.(*extv1.CustomResourceDefinition)
 	crd.Spec.PreserveUnknownFields = false
+
+	return nil
+}
+
+// delete when we no longer support <= 1.27.0
+func reconcileSELinuxPerms(args *callbacks.ReconcileCallbackArgs) error {
+	if args.State != callbacks.ReconcileStatePostRead {
+		return nil
+	}
+
+	sa := args.DesiredObject.(*corev1.ServiceAccount)
+	if sa.Name != common.ControllerServiceAccountName {
+		return nil
+	}
+
+	scc := &secv1.SecurityContextConstraints{}
+	err := args.Client.Get(context.TODO(), client.ObjectKey{Name: sccName}, scc)
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	if scc.SELinuxContext.Type != secv1.SELinuxStrategyRunAsAny {
+		scc.SELinuxContext.Type = secv1.SELinuxStrategyRunAsAny
+
+		if err = args.Client.Update(context.TODO(), scc); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
