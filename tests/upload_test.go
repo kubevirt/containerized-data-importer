@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -947,5 +948,141 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.UploadFileMD5100kbytes, 100000)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue(), "MD5 does not match")
+	})
+})
+
+var _ = Describe("Preallocation", func() {
+	f := framework.NewFramework(namespacePrefix)
+	dvName := "upload-dv"
+
+	var (
+		dataVolume *cdiv1.DataVolume
+		err        error
+		// tinyCoreIsoURL = func() string { return fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs) }
+		uploadProxyURL string
+		portForwardCmd *exec.Cmd
+		//errAsString    = func(e error) string { return e.Error() }
+	)
+
+	BeforeEach(func() {
+		By("Set up port forwarding")
+		uploadProxyURL, portForwardCmd, err = startUploadProxyPortForward(f)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		if portForwardCmd != nil {
+			By("Delete port forward")
+			err = portForwardCmd.Process.Kill()
+			Expect(err).ToNot(HaveOccurred())
+			portForwardCmd.Wait()
+			portForwardCmd = nil
+		}
+
+		By("Delete DV")
+		err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() bool {
+			_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			if k8serrors.IsNotFound(err) {
+				return true
+			}
+			return false
+		}, timeout, pollingInterval).Should(BeTrue())
+	})
+
+	It("Uploader should add preallocation when requested", func() {
+		By(fmt.Sprintf("Creating new datavolume %s", dvName))
+		dv := utils.NewDataVolumeForUpload(dvName, "100Mi")
+		preallocation := true
+		dv.Spec.Preallocation = &preallocation
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		pvc := utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+
+		By("verifying pvc was created, force bind if needed")
+		pvc, err := utils.WaitForPVC(f.K8sClient, pvc.Namespace, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		phase := cdiv1.UploadReady
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Get an upload token")
+		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
+		By("Do upload")
+		Eventually(func() error {
+			return uploadImage(uploadProxyURL, token, http.StatusOK)
+		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+
+		Eventually(func() string {
+			for {
+				log, err := tests.RunKubectlCommand(f, "logs", "cdi-upload-"+dvName, "-n", f.Namespace.Name)
+				if err != nil {
+					time.Sleep(1 * time.Second)
+					continue
+				}
+				return log
+			}
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring("Added preallocation"))
+	})
+
+	It("Uploader should not add preallocation when preallocation=false", func() {
+		By(fmt.Sprintf("Creating new datavolume %s", dvName))
+		dv := utils.NewDataVolumeForUpload(dvName, "100Mi")
+		preallocation := false
+		dv.Spec.Preallocation = &preallocation
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		pvc := utils.PersistentVolumeClaimFromDataVolume(dataVolume)
+
+		By("verifying pvc was created, force bind if needed")
+		pvc, err := utils.WaitForPVC(f.K8sClient, pvc.Namespace, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		phase := cdiv1.UploadReady
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Get an upload token")
+		token, err := utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
+		By("Do upload")
+		Eventually(func() error {
+			return uploadImage(uploadProxyURL, token, http.StatusOK)
+		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+
+		Eventually(func() string {
+			for {
+				log, err := tests.RunKubectlCommand(f, "logs", "cdi-upload-"+dvName, "-n", f.Namespace.Name)
+				if err != nil {
+					time.Sleep(1 * time.Second)
+					continue
+				}
+				if strings.Contains(log, "New phase: Complete") {
+					return log
+				}
+			}
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).ShouldNot(ContainSubstring("Added preallocation"))
 	})
 })
