@@ -253,7 +253,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 			return podUsingPVC(pvc, true)
 		}),
 		Entry("other clone source pod using source PVC", func(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
-			pod := podUsingPVC(pvc, false)
+			pod := podUsingPVC(pvc, true)
 			pod.Labels = map[string]string{"cdi.kubevirt.io": "cdi-clone-source"}
 			return pod
 		}),

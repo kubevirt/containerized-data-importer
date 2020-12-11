@@ -63,7 +63,7 @@ func ensureSCCExists(logger logr.Logger, c client.Client, saNamespace, saName st
 				Type: secv1.RunAsUserStrategyRunAsAny,
 			},
 			SELinuxContext: secv1.SELinuxContextStrategyOptions{
-				Type: secv1.SELinuxStrategyMustRunAs,
+				Type: secv1.SELinuxStrategyRunAsAny,
 			},
 			SupplementalGroups: secv1.SupplementalGroupsStrategyOptions{
 				Type: secv1.SupplementalGroupsStrategyRunAsAny,
