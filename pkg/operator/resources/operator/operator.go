@@ -1512,6 +1512,18 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 												},
 											},
 										},
+										"cloneStrategyOverride": {
+											Type:        "string",
+											Description: "Clone strategy override: should we use a host-assisted copy even if snapshots are available?",
+											Enum: []extv1.JSON{
+												{
+													Raw: []byte(`"copy"`),
+												},
+												{
+													Raw: []byte(`"snapshot"`),
+												},
+											},
+										},
 										"config": {
 											Description: "CDIConfig at CDI level",
 											Type:        "object",
@@ -2825,6 +2837,18 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 												},
 												{
 													Raw: []byte(`"BlockUninstallIfWorkloadsExist"`),
+												},
+											},
+										},
+										"cloneStrategyOverride": {
+											Type:        "string",
+											Description: "Clone strategy override: should we use a host-assisted copy even if snapshots are available?",
+											Enum: []extv1.JSON{
+												{
+													Raw: []byte(`"copy"`),
+												},
+												{
+													Raw: []byte(`"snapshot"`),
 												},
 											},
 										},

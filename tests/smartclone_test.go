@@ -21,6 +21,66 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
+var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests that modify CDI CR", func() {
+	var cdiCr cdiv1.CDI
+	var cdiCrSpec *cdiv1.CDISpec
+
+	fillData := "123456789012345678901234567890123456789012345678901234567890"
+	testFile := utils.DefaultPvcMountPath + "/source.txt"
+	fillCommandFilesystem := "echo -n \"" + fillData + "\" >> " + testFile
+
+	f := framework.NewFramework("dv-func-test")
+
+	BeforeEach(func() {
+		By("Saving CDI CR spec")
+		crList, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(crList.Items)).To(Equal(1))
+
+		cdiCrSpec = crList.Items[0].Spec.DeepCopy()
+		cdiCr = crList.Items[0]
+	})
+
+	AfterEach(func() {
+		By("Restoring CDI CR spec to original state")
+		crList, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(crList.Items)).To(Equal(1))
+
+		newCdiCr := crList.Items[0]
+		newCdiCr.Spec = *cdiCrSpec
+		_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &newCdiCr, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("[test_id:5278]Verify DataVolume Smart Cloning gets disabled by tunable", func() {
+		if !f.IsSnapshotStorageClassAvailable() {
+			Skip("Smart Clone is not applicable")
+		}
+		var cloneStrategy cdiv1.CDICloneStrategy = cdiv1.CloneStrategyHostAssisted
+		cdiCr.Spec.CloneStrategyOverride = &cloneStrategy
+		_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &cdiCr, metav1.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		dataVolume := createDataVolume("dv-smart-clone-test-1", fillCommandFilesystem, v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)
+		verifyEvent(controller.CloneInProgress, dataVolume.Namespace, f)
+		// Wait for operation Succeeded
+		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
+		verifyEvent(controller.CloneSucceeded, dataVolume.Namespace, f)
+		// Verify PVC's content
+		verifyPVC(dataVolume, f, testFile, fillData)
+
+		events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace)
+		Expect(err).ToNot(HaveOccurred())
+		if strings.Contains(events, controller.SnapshotForSmartCloneInProgress) {
+			Fail(fmt.Sprintf("seen event SmartClonePVCInProgress. Events: %s", events))
+		}
+		if strings.Contains(events, controller.SmartClonePVCInProgress) {
+			Fail(fmt.Sprintf("seen event SmartClonePVCInProgress. Events: %s", events))
+		}
+	})
+})
+
 var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", func() {
 	fillData := "123456789012345678901234567890123456789012345678901234567890"
 	testFile := utils.DefaultPvcMountPath + "/source.txt"

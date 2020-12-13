@@ -934,6 +934,37 @@ var _ = Describe("Smart clone", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(snapclass).To(Equal(expectedSnapshotClass))
 	})
+
+	It("Clone strategy should default to snapshot", func() {
+		dv := newImportDataVolume("test-dv")
+		reconciler := createDatavolumeReconciler(dv)
+		reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		cloneStrategy, err := reconciler.getCloneStrategy()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cloneStrategy).To(Equal(cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)))
+	})
+
+	DescribeTable("Setting clone strategy affects the output of getCloneStrategy", func(expectedCloneStrategy cdiv1.CDICloneStrategy) {
+		dv := newImportDataVolume("test-dv")
+		reconciler := createDatavolumeReconciler(dv)
+		reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+
+		cr := &cdiv1.CDI{}
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cr)
+		Expect(err).ToNot(HaveOccurred())
+
+		cr.Spec.CloneStrategyOverride = &expectedCloneStrategy
+		err = reconciler.client.Update(context.TODO(), cr)
+		Expect(err).ToNot(HaveOccurred())
+
+		cloneStrategy, err := reconciler.getCloneStrategy()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cloneStrategy).To(Equal(expectedCloneStrategy))
+	},
+		Entry("snapshot", cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
+		Entry("copy", cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
+	)
+
 })
 
 var _ = Describe("Get Pod from PVC", func() {
