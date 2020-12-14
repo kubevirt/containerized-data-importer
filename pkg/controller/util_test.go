@@ -25,8 +25,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
-	kubevirtv1 "kubevirt.io/client-go/api/v1"
-	cdiv1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
@@ -353,30 +351,6 @@ func addOwnerToDV(dv *cdiv1.DataVolume, ownerName string) {
 			APIVersion: "v1",
 			Kind:       "VirtualMachine",
 			Name:       ownerName,
-		},
-	}
-}
-
-func createVirtualMachineWithStorageClassName(name, ns, dvName, storageClassName string) *kubevirtv1.VirtualMachine {
-	return &kubevirtv1.VirtualMachine{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: ns,
-		},
-		Spec: kubevirtv1.VirtualMachineSpec{
-			DataVolumeTemplates: []kubevirtv1.DataVolumeTemplateSpec{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      dvName,
-						Namespace: ns,
-					},
-					Spec: cdiv1alpha1.DataVolumeSpec{
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							StorageClassName: &storageClassName,
-						},
-					},
-				},
-			},
 		},
 	}
 }
