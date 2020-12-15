@@ -1602,6 +1602,40 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 												},
 											},
 										},
+										"certConfig": {
+											Type:        "object",
+											Description: "certificate configuration",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"ca": {
+													Type:        "object",
+													Description: "CA configuration CA certs are kept in the CA bundle as long as they are valid",
+													Properties: map[string]extv1.JSONSchemaProps{
+														"duration": {
+															Description: "The requested 'duration' (i.e. lifetime) of the Certificate.",
+															Type:        "string",
+														},
+														"renewBefore": {
+															Description: "The amount of time before the currently issued certificate's `notAfter` time that we will begin to attempt to renew the certificate.",
+															Type:        "string",
+														},
+													},
+												},
+												"server": {
+													Type:        "object",
+													Description: "Server configuration Certs are rotated and discarded",
+													Properties: map[string]extv1.JSONSchemaProps{
+														"duration": {
+															Description: "The requested 'duration' (i.e. lifetime) of the Certificate.",
+															Type:        "string",
+														},
+														"renewBefore": {
+															Description: "The amount of time before the currently issued certificate's `notAfter` time that we will begin to attempt to renew the certificate.",
+															Type:        "string",
+														},
+													},
+												},
+											},
+										},
 									},
 									Type:        "object",
 									Description: "CDISpec defines our specification for the CDI installation",
@@ -2940,6 +2974,40 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 												"preallocation": {
 													Description: "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
 													Type:        "boolean",
+												},
+											},
+										},
+										"certConfig": {
+											Type:        "object",
+											Description: "certificate configuration",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"ca": {
+													Type:        "object",
+													Description: "CA configuration CA certs are kept in the CA bundle as long as they are valid",
+													Properties: map[string]extv1.JSONSchemaProps{
+														"duration": {
+															Description: "The requested 'duration' (i.e. lifetime) of the Certificate.",
+															Type:        "string",
+														},
+														"renewBefore": {
+															Description: "The amount of time before the currently issued certificate's `notAfter` time that we will begin to attempt to renew the certificate.",
+															Type:        "string",
+														},
+													},
+												},
+												"server": {
+													Type:        "object",
+													Description: "Server configuration Certs are rotated and discarded",
+													Properties: map[string]extv1.JSONSchemaProps{
+														"duration": {
+															Description: "The requested 'duration' (i.e. lifetime) of the Certificate.",
+															Type:        "string",
+														},
+														"renewBefore": {
+															Description: "The amount of time before the currently issued certificate's `notAfter` time that we will begin to attempt to renew the certificate.",
+															Type:        "string",
+														},
+													},
 												},
 											},
 										},
