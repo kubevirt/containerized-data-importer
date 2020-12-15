@@ -757,6 +757,13 @@ func (vs *VDDKDataSource) Transfer(path string) (ProcessingPhase, error) {
 	return ProcessingPhaseTransferDataFile, nil
 }
 
+// IsDeltaCopy is called to determine if this is a full copy or one delta copy stage
+// in a warm migration.
+func (vs *VDDKDataSource) IsDeltaCopy() bool {
+	result := vs.PreviousSnapshot != "" && vs.CurrentSnapshot != ""
+	return result
+}
+
 // TransferFile is called to transfer the data from the source to the file passed in.
 func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
 	if vs.ChangedBlocks != nil { // Warm migration pre-checks
