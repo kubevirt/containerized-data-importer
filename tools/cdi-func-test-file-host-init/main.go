@@ -60,18 +60,7 @@ func main() {
 		klog.Fatal(err)
 	}
 
-	// copy archive file
-	if err := util.CopyFile("/tmp/source/archive.tar", filepath.Join(*outDir, "archive.tar")); err != nil {
-		klog.Fatal(err)
-	}
-
-	// copy invalid qcow files
-	if err := util.CopyDir("/tmp/source/invalid_qcow_images", filepath.Join(*outDir, "invalid_qcow_images")); err != nil {
-		klog.Fatal(err)
-	}
-
-	// copy cirros qcow file
-	if err := util.CopyFile("/tmp/source/cirros-qcow2.img", filepath.Join(*outDir, "cirros-qcow2.img")); err != nil {
+	if err := util.CopyDir("/tmp/source/", *outDir); err != nil {
 		klog.Fatal(err)
 	}
 
