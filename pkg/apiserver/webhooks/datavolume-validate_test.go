@@ -313,8 +313,109 @@ var _ = Describe("Validating Webhook", func() {
 			resp := validateAdmissionReview(ar)
 			Expect(resp.Allowed).To(Equal(true))
 		})
+
+		It("should accept a spec change on multi-stage import fields", func() {
+			oldDV := newMultistageDataVolume("multi-stage", false, []string{"stage-1"})
+			oldBytes, _ := json.Marshal(&oldDV)
+
+			newDV := newMultistageDataVolume("multi-stage", true, []string{"stage-1", "stage-2"})
+			newBytes, _ := json.Marshal(&newDV)
+
+			ar := &v1beta1.AdmissionReview{
+				Request: &v1beta1.AdmissionRequest{
+					Operation: v1beta1.Update,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdiv1.SchemeGroupVersion.Group,
+						Version:  cdiv1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: newBytes,
+					},
+					OldObject: runtime.RawExtension{
+						Raw: oldBytes,
+					},
+				},
+			}
+
+			resp := validateAdmissionReview(ar)
+			Expect(resp.Allowed).To(Equal(true))
+		})
+
+		It("should reject a spec change on un-approved fields of a multi-stage import", func() {
+			oldDV := newMultistageDataVolume("multi-stage", false, []string{"stage-1"})
+			oldBytes, _ := json.Marshal(&oldDV)
+
+			newDV := newMultistageDataVolume("multi-stage", true, []string{"stage-1", "stage-2"})
+			newDV.Spec.Source.VDDK.URL = "testing123"
+			newBytes, _ := json.Marshal(&newDV)
+
+			ar := &v1beta1.AdmissionReview{
+				Request: &v1beta1.AdmissionRequest{
+					Operation: v1beta1.Update,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdiv1.SchemeGroupVersion.Group,
+						Version:  cdiv1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: newBytes,
+					},
+					OldObject: runtime.RawExtension{
+						Raw: oldBytes,
+					},
+				},
+			}
+
+			resp := validateAdmissionReview(ar)
+			Expect(resp.Allowed).To(Equal(false))
+		})
 	})
 })
+
+func newMultistageDataVolume(name string, final bool, checkpoints []string) *cdiv1.DataVolume {
+	pvc := newPVCSpec(pvcSizeDefault)
+
+	previous := ""
+	dvCheckpoints := make([]cdiv1.DataVolumeCheckpoint, len(checkpoints))
+	for index, checkpoint := range(checkpoints) {
+		dvCheckpoints[index] = cdiv1.DataVolumeCheckpoint{
+			Current: checkpoint,
+			Previous: previous,
+		}
+		previous = checkpoint
+	}
+
+	namespace := metav1.NamespaceDefault
+	dv := &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+                        Namespace: namespace,
+			SelfLink:  fmt.Sprintf("/apis/%s/namespaces/%s/datavolumes/%s", cdiv1.SchemeGroupVersion.String(), namespace, name),
+		},
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: cdiv1.SchemeGroupVersion.String(),
+			Kind:       "DataVolume",
+		},
+		Status: cdiv1.DataVolumeStatus{},
+		Spec: cdiv1.DataVolumeSpec{
+                        Source: cdiv1.DataVolumeSource{
+                                VDDK: &cdiv1.DataVolumeSourceVDDK{
+					BackingFile: "disk.img",
+                                        URL: "http://example.com/data",
+					UUID: "12345",
+					Thumbprint: "aa:bb:cc",
+					SecretRef: "secret",
+                                },
+                        },
+			FinalCheckpoint: final,
+			Checkpoints: dvCheckpoints,
+			PVC:    pvc,
+		},
+	}
+	return dv
+}
+
 
 func newHTTPDataVolume(name, url string) *cdiv1.DataVolume {
 	httpSource := cdiv1.DataVolumeSource{
