@@ -355,6 +355,10 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		}
 	}
 
+	if anno[AnnCurrentCheckpoint] != "" {
+		anno[AnnCurrentPodID] = string(pod.ObjectMeta.UID)
+	}
+
 	if pod.Status.ContainerStatuses != nil {
 		anno[AnnPodRestarts] = strconv.Itoa(int(pod.Status.ContainerStatuses[0].RestartCount))
 	}
