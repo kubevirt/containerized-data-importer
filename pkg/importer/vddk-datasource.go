@@ -46,7 +46,6 @@ var newVddkDataSource = createVddkDataSource
 var newVddkDataSink = createVddkDataSink
 var vddkPluginPath = getVddkPluginPath
 
-
 /* Section: nbdkit */
 
 const (
@@ -237,7 +236,6 @@ func createNbdKitWrapper(vmware *VMwareClient, diskFileName string) (*NbdKitWrap
 	return source, nil
 }
 
-
 /* Section: VMware API manipulations */
 
 // VMwareClient holds a connection to the VMware API with pre-filled information about one VM
@@ -335,7 +333,7 @@ func (vmware *VMwareClient) FindDisk(filename string) (*types.VirtualDisk, error
 }
 
 // FindSnapshotDiskName finds the name of the given disk at the time the snapshot was taken
-func (vmware *VMwareClient) FindSnapshotDiskName(snapshotRef *types.ManagedObjectReference, diskId string) (string, error) {
+func (vmware *VMwareClient) FindSnapshotDiskName(snapshotRef *types.ManagedObjectReference, diskID string) (string, error) {
 	var snapshot mo.VirtualMachineSnapshot
 	err := vmware.vm.Properties(vmware.context, *snapshotRef, []string{"config.hardware.device"}, &snapshot)
 	if err != nil {
@@ -346,7 +344,7 @@ func (vmware *VMwareClient) FindSnapshotDiskName(snapshotRef *types.ManagedObjec
 	for _, device := range snapshot.Config.Hardware.Device {
 		switch disk := device.(type) {
 		case *types.VirtualDisk:
-			if disk.DiskObjectId == diskId {
+			if disk.DiskObjectId == diskID {
 				device := disk.GetVirtualDevice()
 				backing := device.Backing.(types.BaseVirtualDeviceFileBackingInfo)
 				info := backing.GetVirtualDeviceFileBackingInfo()
@@ -354,7 +352,7 @@ func (vmware *VMwareClient) FindSnapshotDiskName(snapshotRef *types.ManagedObjec
 			}
 		}
 	}
-	return "", errors.New(fmt.Sprintf("Could not find disk image with ID %s in snapshot %s", diskId, snapshotRef.Value))
+	return "", fmt.Errorf("Could not find disk image with ID %s in snapshot %s", diskID, snapshotRef.Value)
 }
 
 // FindVM takes the UUID of the VM to migrate and finds its MOref
@@ -386,7 +384,6 @@ func FindVM(context context.Context, conn *govmomi.Client, uuid string) (string,
 
 	return "", nil, errors.New("unable to locate VM in any datacenter")
 }
-
 
 /* Section: remote source file operations (libnbd) */
 
@@ -472,31 +469,31 @@ func GetBlockStatus(handle NbdOperations, extent types.DiskChangeExtent) ([]*Blo
 			Offset: uint64(extent.Start),
 			Length: uint32(extent.Length),
 			Flags:  0})
-			return blocks, nil
-		}
+		return blocks, nil
+	}
 
-		lastOffset := extent.Start
-		endOffset := extent.Start + extent.Length
-		for lastOffset < endOffset {
-			var length uint64
-			missingLength := endOffset - lastOffset
-			if missingLength > (MaxBlockStatusLength) {
-				length = (MaxBlockStatusLength)
-			} else {
-				length = uint64(missingLength)
-			}
-			err := handle.BlockStatus(length, uint64(lastOffset), updateBlocksCallback, &fixedOptArgs)
-			if err != nil {
-				klog.Errorf("Error getting block status at %d! %v", lastOffset, err)
-				return nil, err
-			}
-			last := len(blocks) - 1
-			newOffset := blocks[last].Offset + uint64(blocks[last].Length)
-			if uint64(lastOffset) == newOffset {
-				klog.Info("No new block status data")
-			}
-			lastOffset = int64(newOffset)
+	lastOffset := extent.Start
+	endOffset := extent.Start + extent.Length
+	for lastOffset < endOffset {
+		var length uint64
+		missingLength := endOffset - lastOffset
+		if missingLength > (MaxBlockStatusLength) {
+			length = (MaxBlockStatusLength)
+		} else {
+			length = uint64(missingLength)
 		}
+		err := handle.BlockStatus(length, uint64(lastOffset), updateBlocksCallback, &fixedOptArgs)
+		if err != nil {
+			klog.Errorf("Error getting block status at %d! %v", lastOffset, err)
+			return nil, err
+		}
+		last := len(blocks) - 1
+		newOffset := blocks[last].Offset + uint64(blocks[last].Length)
+		if uint64(lastOffset) == newOffset {
+			klog.Info("No new block status data")
+		}
+		lastOffset = int64(newOffset)
+	}
 
 	return blocks, nil
 }
@@ -541,7 +538,6 @@ func CopyRange(handle NbdOperations, sink VDDKDataSink, block *BlockStatusData) 
 	return written, err
 }
 
-
 /* Section: Destination file operations */
 
 // VDDKDataSink provides a mockable interface for saving data from the source.
@@ -559,7 +555,7 @@ type VDDKFileSink struct {
 }
 
 func createVddkDataSink(destinationFile string, size uint64) (VDDKDataSink, error) {
-	file, err := os.OpenFile(destinationFile, os.O_CREATE | os.O_WRONLY, 0644)
+	file, err := os.OpenFile(destinationFile, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -570,7 +566,6 @@ func createVddkDataSink(destinationFile string, size uint64) (VDDKDataSink, erro
 	}
 	return sink, err
 }
-
 
 // Ftruncate is used to pad the sink with zeroes to the given size.
 func (sink *VDDKFileSink) Ftruncate(size int64) error {
@@ -611,16 +606,15 @@ func (sink *VDDKFileSink) Close() {
 	sink.file.Close()
 }
 
-
 /* Section: CDI data source */
 
 // VDDKDataSource is the data provider for vddk.
 type VDDKDataSource struct {
-	NbdKit *NbdKitWrapper
-	ChangedBlocks  *types.DiskChangeInfo
-	CurrentSnapshot string
+	NbdKit           *NbdKitWrapper
+	ChangedBlocks    *types.DiskChangeInfo
+	CurrentSnapshot  string
 	PreviousSnapshot string
-	Size uint64
+	Size             uint64
 }
 
 func init() {
@@ -687,11 +681,12 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	// then get the list of changed blocks from VMware for a delta copy.
 	var changed *types.DiskChangeInfo
 	if currentSnapshot != nil && previousSnapshot != nil {
-		*changed, err = vmware.vm.QueryChangedDiskAreas(vmware.context, previousSnapshot, currentSnapshot, currentDisk, 0)
+		changedAreas, err := vmware.vm.QueryChangedDiskAreas(vmware.context, previousSnapshot, currentSnapshot, currentDisk, 0)
 		if err != nil {
 			klog.Errorf("Unable to query changed areas: %s", err)
 			return nil, err
 		}
+		changed = &changedAreas
 	}
 
 	diskFileName := backingFile
@@ -714,7 +709,7 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	var size uint64
 	if changed != nil { // Warm migration: get size of the delta
 		size = 0
-		for _, change := range(changed.ChangedArea) {
+		for _, change := range changed.ChangedArea {
 			size += uint64(change.Length)
 		}
 	} else { // Cold migration: get size of the whole disk
@@ -726,11 +721,11 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	}
 
 	source := &VDDKDataSource{
-		NbdKit: nbdkit,
-		ChangedBlocks: changed,
-		CurrentSnapshot: currentCheckpoint,
+		NbdKit:           nbdkit,
+		ChangedBlocks:    changed,
+		CurrentSnapshot:  currentCheckpoint,
 		PreviousSnapshot: previousCheckpoint,
-		Size: size,
+		Size:             size,
 	}
 	return source, nil
 }
@@ -767,7 +762,7 @@ func (vs *VDDKDataSource) IsDeltaCopy() bool {
 // TransferFile is called to transfer the data from the source to the file passed in.
 func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
 	if vs.ChangedBlocks != nil { // Warm migration pre-checks
-		if (len(vs.ChangedBlocks.ChangedArea) < 1) { // No changes? Immediately return success.
+		if len(vs.ChangedBlocks.ChangedArea) < 1 { // No changes? Immediately return success.
 			klog.Infof("No changes reported between snapshot %s and snapshot %s, marking transfer complete.", vs.PreviousSnapshot, vs.CurrentSnapshot)
 			return ProcessingPhaseComplete, nil
 		}
@@ -827,14 +822,14 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 	}
 
 	if vs.ChangedBlocks != nil { // Warm migration delta copy
-		for _, extent := range(vs.ChangedBlocks.ChangedArea) {
+		for _, extent := range vs.ChangedBlocks.ChangedArea {
 			blocks, err := GetBlockStatus(vs.NbdKit.Handle, extent)
 			if err != nil {
 				klog.Errorf("Unable to get block status for %d bytes at offset %d: %v", extent.Length, extent.Start, err)
 				return ProcessingPhaseError, err // Could probably just copy the whole block here instead
 			}
 
-			for _, block := range(blocks) {
+			for _, block := range blocks {
 				written, err := CopyRange(vs.NbdKit.Handle, sink, block)
 				if err != nil {
 					klog.Errorf("Unable to copy block at offset %d: %v", block.Offset, err)
@@ -862,7 +857,7 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 				return ProcessingPhaseError, err // Could probably just copy the whole block here instead
 			}
 
-			for _, block := range(blocks) {
+			for _, block := range blocks {
 				written, err := CopyRange(vs.NbdKit.Handle, sink, block)
 				if err != nil {
 					klog.Errorf("Unable to copy block at offset %d: %v", block.Offset, err)
