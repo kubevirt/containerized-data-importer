@@ -286,7 +286,22 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta
 			return toAdmissionResponseError(err)
 		}
 
-		if !apiequality.Semantic.DeepEqual(dv.Spec, oldDV.Spec) {
+		// Always admit checkpoint updates for multi-stage migrations.
+		multiStageAdmitted := false
+		isMultiStage := dv.Spec.Source.VDDK != nil && len(dv.Spec.Checkpoints) > 0
+		if isMultiStage {
+			oldSpec := oldDV.Spec.DeepCopy()
+			oldSpec.FinalCheckpoint = false
+			oldSpec.Checkpoints = nil
+
+			newSpec := dv.Spec.DeepCopy()
+			newSpec.FinalCheckpoint = false
+			newSpec.Checkpoints = nil
+
+			multiStageAdmitted = apiequality.Semantic.DeepEqual(newSpec, oldSpec)
+		}
+
+		if !multiStageAdmitted && !apiequality.Semantic.DeepEqual(dv.Spec, oldDV.Spec) {
 			klog.Errorf("Cannot update spec for DataVolume %s/%s", dv.GetNamespace(), dv.GetName())
 			var causes []metav1.StatusCause
 			causes = append(causes, metav1.StatusCause{
