@@ -34,7 +34,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -123,7 +122,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("error parsing %s annotation", AnnPodReady)))
 	})
 
-	It("Should create source pod name", func() {
+	It("Should create source pod name and add finalizer", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{
 			AnnCloneRequest:     "default/source",
 			AnnPodReady:         "true",
@@ -148,6 +147,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(testPvc.Annotations[AnnCloneSourcePod]).To(Equal("default-testPvc1-source-pod"))
+		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 	})
 
 	DescribeTable("Should NOT create new source pod if source PVC is in use", func(podFunc func(*corev1.PersistentVolumeClaim) *corev1.Pod) {
@@ -243,11 +243,6 @@ var _ = Describe("Clone controller reconcile loop", func() {
 			},
 		}
 		Expect(pa).To(Equal(epa))
-
-		By("Verifying the PVC now has a finalizer")
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 	},
 		Entry("no pods are using source PVC", func(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
 			return nil
@@ -256,7 +251,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 			return podUsingPVC(pvc, true)
 		}),
 		Entry("other clone source pod using source PVC", func(pvc *corev1.PersistentVolumeClaim) *corev1.Pod {
-			pod := podUsingPVC(pvc, false)
+			pod := podUsingPVC(pvc, true)
 			pod.Labels = map[string]string{"cdi.kubevirt.io": "cdi-clone-source"}
 			return pod
 		}),
@@ -299,10 +294,6 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod.GetLabels()[CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
-		By("Verifying the PVC now has a finalizer")
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 	})
 
 	It("Should update the cloneof when complete", func() {
@@ -335,8 +326,8 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 		By("Updating the PVC to completed")
-		testPvc = createPvc("testPvc1", "default", map[string]string{
-			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod", AnnPodPhase: string(corev1.PodSucceeded)}, nil)
+		testPvc.Annotations = map[string]string{
+			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod", AnnPodPhase: string(corev1.PodSucceeded)}
 		reconciler.client.Update(context.TODO(), testPvc)
 		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
@@ -354,6 +345,11 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).To(BeNil())
+		By("Verifying the PVC does not have a finalizer")
+		testPvc = &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeFalse())
 	})
 
 	It("Should update the cloneof when complete, block mode", func() {
@@ -386,8 +382,8 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 		By("Updating the PVC to completed")
-		testPvc = createPvc("testPvc1", "default", map[string]string{
-			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod", AnnPodPhase: string(corev1.PodSucceeded)}, nil)
+		testPvc.Annotations = map[string]string{
+			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod", AnnPodPhase: string(corev1.PodSucceeded)}
 		reconciler.client.Update(context.TODO(), testPvc)
 		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
@@ -425,7 +421,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err.Error()).To(ContainSubstring("source volumeMode (Filesystem) and target volumeMode (Block) do not match"))
 	})
 
-	It("Should error when source and target volume modes do not match (fs->block)", func() {
+	It("Should error when source and target volume modes do not match (block->fs)", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{
 			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod"}, nil)
 		reconciler = createCloneReconciler(testPvc, createBlockPvc("source", "default", map[string]string{}, nil))
@@ -442,6 +438,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("source volumeMode (Block) and target volumeMode (Filesystem) do not match"))
 	})
+
 })
 
 var _ = Describe("ParseCloneRequestAnnotation", func() {
@@ -588,7 +585,7 @@ var _ = Describe("TokenValidation", func() {
 		}
 	}
 
-	source := &v1.PersistentVolumeClaim{
+	source := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "source",
 			Namespace: "sourcens",
@@ -622,7 +619,7 @@ var _ = Describe("TokenValidation", func() {
 			panic("error generating token")
 		}
 
-		target := &v1.PersistentVolumeClaim{
+		target := &corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "target",
 				Namespace: "targetns",

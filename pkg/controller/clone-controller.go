@@ -129,6 +129,28 @@ func addCloneControllerWatches(mgr manager.Manager, cloneController controller.C
 	}); err != nil {
 		return err
 	}
+	if err := cloneController.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestsFromMapFunc{
+		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+			target, ok := obj.Meta.GetAnnotations()[AnnOwnerRef]
+			if !ok {
+				return nil
+			}
+			namespace, name, err := cache.SplitMetaNamespaceKey(target)
+			if err != nil {
+				return nil
+			}
+			return []reconcile.Request{
+				{
+					NamespacedName: types.NamespacedName{
+						Namespace: namespace,
+						Name:      name,
+					},
+				},
+			}
+		}),
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -181,10 +203,16 @@ func (r *CloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, er
 	_, nameExists := pvc.Annotations[AnnCloneSourcePod]
 	if !nameExists && sourcePod == nil {
 		pvc.Annotations[AnnCloneSourcePod] = createCloneSourcePodName(pvc)
+
+		// add finalizer before creating clone source pod
+		pvc = r.addFinalizer(pvc, cloneSourcePodFinalizer)
+
 		if err := r.updatePVC(pvc); err != nil {
 			return reconcile.Result{}, err
 		}
-		return reconcile.Result{Requeue: true}, nil
+
+		// will reconcile again after PVC update notification
+		return reconcile.Result{}, nil
 	}
 
 	if requeue, err := r.reconcileSourcePod(sourcePod, pvc, log); requeue || err != nil {
@@ -204,6 +232,14 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *c
 			return false, err
 		}
 
+		sourcePopulated, err := IsPopulated(sourcePvc, r.client)
+		if err != nil {
+			return false, err
+		}
+		if !sourcePopulated {
+			return true, nil
+		}
+
 		if err := r.validateSourceAndTarget(sourcePvc, targetPvc); err != nil {
 			return false, err
 		}
@@ -218,10 +254,8 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *c
 			return false, err
 		}
 
-		filtered := filterCloneSourcePods(pods)
-
-		if len(filtered) > 0 {
-			for _, pod := range filtered {
+		if len(pods) > 0 {
+			for _, pod := range pods {
 				r.log.V(1).Info("can't create clone source pod, pvc in use by other pod",
 					"namespace", sourcePvc.Namespace, "name", sourcePvc.Name, "pod", pod.Name)
 				r.recorder.Eventf(targetPvc, corev1.EventTypeWarning, CloneSourceInUse,
@@ -242,8 +276,6 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *c
 func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
 	currentPvcCopy := pvc.DeepCopyObject()
 	log.V(1).Info("Updating PVC from pod")
-
-	pvc = r.addFinalizer(pvc, cloneSourcePodFinalizer)
 
 	log.V(3).Info("Pod phase for PVC", "PVC phase", pvc.Annotations[AnnPodPhase])
 
@@ -288,12 +320,7 @@ func (r *CloneReconciler) waitTargetPodRunningOrSucceeded(pvc *corev1.Persistent
 		return false, errors.Wrapf(err, "error parsing %s annotation", AnnPodReady)
 	}
 
-	if !ready {
-		log.V(3).Info("clone target pod not ready")
-		return podSucceededFromPVC(pvc), nil
-	}
-
-	return true, nil
+	return ready || podSucceededFromPVC(pvc), nil
 }
 
 func (r *CloneReconciler) findCloneSourcePod(pvc *corev1.PersistentVolumeClaim) (*corev1.Pod, error) {
@@ -490,6 +517,12 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace
 		Spec: corev1.PodSpec{
 			SecurityContext: &corev1.PodSecurityContext{
 				RunAsUser: &[]int64{0}[0],
+				SELinuxOptions: &corev1.SELinuxOptions{
+					User:  "system_u",
+					Role:  "system_r",
+					Type:  "spc_t",
+					Level: "s0",
+				},
 			},
 			Containers: []corev1.Container{
 				{
@@ -538,9 +571,7 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 							ClaimName: sourcePvcName,
-							// Seems to be problematic with k8s-1.17 provider
-							// with SELinux enabled.  Why?  I do not know right now.
-							//ReadOnly:  true,
+							ReadOnly:  true,
 						},
 					},
 				},

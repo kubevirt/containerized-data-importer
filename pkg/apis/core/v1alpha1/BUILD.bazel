@@ -9,6 +9,7 @@ go_library(
         "register.go",
         "types.go",
         "types_swagger_generated.go",
+        "utils.go",
     ],
     importpath = "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1",
     visibility = ["//visibility:public"],

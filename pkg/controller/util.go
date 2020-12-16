@@ -403,14 +403,11 @@ func getPodsUsingPVCs(c client.Client, namespace string, names sets.String, allo
 	return pods, nil
 }
 
-func filterCloneSourcePods(input []v1.Pod) []v1.Pod {
-	var output []v1.Pod
-
-	for _, pod := range input {
-		if pod.Labels[common.CDIComponentLabel] != common.ClonerSourcePodName {
-			output = append(output, pod)
-		}
-	}
-
-	return output
+// IsPopulated returns if the passed in PVC has been populated according to the rules outlined in pkg/apis/core/<version>/utils.go
+func IsPopulated(pvc *v1.PersistentVolumeClaim, c client.Client) (bool, error) {
+	return cdiv1.IsPopulated(pvc, func(name, namespace string) (*cdiv1.DataVolume, error) {
+		dv := &cdiv1.DataVolume{}
+		err := c.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, dv)
+		return dv, err
+	})
 }
