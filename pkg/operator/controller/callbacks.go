@@ -87,6 +87,7 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 	r.addCallback(&appsv1.Deployment{}, reconcileDeleteControllerDeployment)
 	r.addCallback(&corev1.ServiceAccount{}, reconcileServiceAccountRead)
 	r.addCallback(&corev1.ServiceAccount{}, reconcileServiceAccounts)
+	r.addCallback(&corev1.ServiceAccount{}, reconcileSELinuxPerms)
 	r.addCallback(&corev1.ServiceAccount{}, reconcileCreateSCC)
 	r.addCallback(&appsv1.Deployment{}, reconcileCreateRoute)
 	r.addCallback(&appsv1.Deployment{}, reconcileDeleteSecrets)

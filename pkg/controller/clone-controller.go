@@ -240,10 +240,8 @@ func (r *CloneReconciler) reconcileSourcePod(sourcePod *corev1.Pod, targetPvc *c
 			return false, err
 		}
 
-		filtered := filterCloneSourcePods(pods)
-
-		if len(filtered) > 0 {
-			for _, pod := range filtered {
+		if len(pods) > 0 {
+			for _, pod := range pods {
 				r.log.V(1).Info("can't create clone source pod, pvc in use by other pod",
 					"namespace", sourcePvc.Namespace, "name", sourcePvc.Name, "pod", pod.Name)
 				r.recorder.Eventf(targetPvc, corev1.EventTypeWarning, CloneSourceInUse,
@@ -516,6 +514,12 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace
 		Spec: corev1.PodSpec{
 			SecurityContext: &corev1.PodSecurityContext{
 				RunAsUser: &[]int64{0}[0],
+				SELinuxOptions: &corev1.SELinuxOptions{
+					User:  "system_u",
+					Role:  "system_r",
+					Type:  "spc_t",
+					Level: "s0",
+				},
 			},
 			Containers: []corev1.Container{
 				{
@@ -564,9 +568,7 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 							ClaimName: sourcePvcName,
-							// Seems to be problematic with k8s-1.17 provider
-							// with SELinux enabled.  Why?  I do not know right now.
-							//ReadOnly:  true,
+							ReadOnly:  true,
 						},
 					},
 				},
