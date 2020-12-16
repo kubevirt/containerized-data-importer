@@ -202,12 +202,12 @@ spec:
            uuid: "52260566-b032-36cb-55b1-79bf29e30490"
            thumbprint: "20:6C:8A:5D:44:40:B3:79:4B:28:EA:76:13:60:90:6E:49:D9:D9:A3" # SSL fingerprint of vCenter/ESX host
            secretRef: "vddk-credentials"
-	finalCheckpoint: true
-	checkpoints:
+        finalCheckpoint: true
+        checkpoints:
           - current: "snapshot-1"
-	    previous: ""
-	  - current: "snapshot-2"
-	    previous: "snapshot-1"
+            previous: ""
+          - current: "snapshot-2"
+            previous: "snapshot-1"
         pvc:
            accessModes:
              - ReadWriteOnce
