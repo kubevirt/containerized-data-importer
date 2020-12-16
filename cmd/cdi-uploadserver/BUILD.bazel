@@ -12,6 +12,7 @@ rpm_image(
         "@xen-libs//file",
         "@libaio//file",
         "@capstone//file",
+        "@liburing//file",
     ],
 )
 

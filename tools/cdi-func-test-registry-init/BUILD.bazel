@@ -11,6 +11,7 @@ rpm_image(
         "@qemu-block-curl//file",
         "@xen-libs//file",
         "@libaio//file",
+        "@liburing//file",
         "@capstone//file",
     ],
 )
@@ -74,6 +75,8 @@ rpm_image(
     base = "@fedora//image",
     rpms = [
         "@buildah//file",
+        "@libseccomp//file",
+        "@device-mapper-libs//file",
         "@containers-common//file",
     ],
 )
