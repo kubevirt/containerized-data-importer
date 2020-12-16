@@ -93,6 +93,8 @@ const (
 const (
 	// AnnPodNetwork is used for specifying Pod Network
 	AnnPodNetwork = "k8s.v1.cni.cncf.io/networks"
+	// AnnPodMultusDefaultNetwork is used for specifying default Pod Network
+	AnnPodMultusDefaultNetwork = "v1.multus-cni.io/default-network"
 	// AnnPodSidecarInjection is used for enabling/disabling Pod istio/AspenMesh sidecar injection
 	AnnPodSidecarInjection = "sidecar.istio.io/inject"
 )
@@ -593,7 +595,7 @@ func IsPopulated(pvc *v1.PersistentVolumeClaim, c client.Client) (bool, error) {
 
 // SetPodPvcAnnotations applies PVC annotations on the pod
 func SetPodPvcAnnotations(pod *v1.Pod, pvc *v1.PersistentVolumeClaim) {
-	allowedAnnotations := []string{AnnPodNetwork, AnnPodSidecarInjection}
+	allowedAnnotations := []string{AnnPodNetwork, AnnPodSidecarInjection, AnnPodMultusDefaultNetwork}
 	for _, ann := range allowedAnnotations {
 		if val, ok := pvc.Annotations[ann]; ok {
 			klog.V(1).Info("Applying PVC annotation on the pod", ann, val)
