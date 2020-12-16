@@ -27,6 +27,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -83,11 +84,19 @@ func main() {
 		// Cloning instead of uploading.
 		clone = true
 	}
+	var message string
 	if clone {
-		err = util.WriteTerminationMessage("Clone Complete")
+		message = "Clone Complete"
 	} else {
-		err = util.WriteTerminationMessage("Upload Complete")
+		message = "Upload Complete"
 	}
+	switch server.PreallocationApplied() {
+	case "true":
+		message += ", " + controller.PreallocationApplied
+	case "skipped":
+		message += ", " + controller.PreallocationSkipped
+	}
+	err = util.WriteTerminationMessage(message)
 	if err != nil {
 		klog.Errorf("%+v", err)
 		os.Exit(1)
