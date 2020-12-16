@@ -27,6 +27,7 @@ import (
 	"net/http/httptest"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	"k8s.io/api/admission/v1beta1"
@@ -314,11 +315,14 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(Equal(true))
 		})
 
-		It("should accept a spec change on multi-stage import fields", func() {
-			oldDV := newMultistageDataVolume("multi-stage", false, []string{"stage-1"})
+		DescribeTable("should", func(oldFinalCheckpoint bool, oldCheckpoints []string, newFinalCheckpoint bool, newCheckpoints []string, modifyDV func(*cdiv1.DataVolume), expectedSuccess bool) {
+			oldDV := newMultistageDataVolume("multi-stage", oldFinalCheckpoint, oldCheckpoints)
 			oldBytes, _ := json.Marshal(&oldDV)
 
-			newDV := newMultistageDataVolume("multi-stage", true, []string{"stage-1", "stage-2"})
+			newDV := newMultistageDataVolume("multi-stage", newFinalCheckpoint, newCheckpoints)
+			if modifyDV != nil {
+				modifyDV(newDV)
+			}
 			newBytes, _ := json.Marshal(&newDV)
 
 			ar := &v1beta1.AdmissionReview{
@@ -339,37 +343,16 @@ var _ = Describe("Validating Webhook", func() {
 			}
 
 			resp := validateAdmissionReview(ar)
-			Expect(resp.Allowed).To(Equal(true))
-		})
+			Expect(resp.Allowed).To(Equal(expectedSuccess))
+		},
+			Entry("accept a spec change on multi-stage import fields", false, []string{"stage-1"}, true, []string{"stage-1", "stage-2"}, nil, true),
 
-		It("should reject a spec change on un-approved fields of a multi-stage import", func() {
-			oldDV := newMultistageDataVolume("multi-stage", false, []string{"stage-1"})
-			oldBytes, _ := json.Marshal(&oldDV)
+			Entry("reject a spec change on un-approved fields of a multi-stage import", false, []string{"stage-1"}, true, []string{"stage-1", "stage-2"}, func(newDV *cdiv1.DataVolume) { newDV.Spec.Source.VDDK.URL = "testing123" }, false),
 
-			newDV := newMultistageDataVolume("multi-stage", true, []string{"stage-1", "stage-2"})
-			newDV.Spec.Source.VDDK.URL = "testing123"
-			newBytes, _ := json.Marshal(&newDV)
+			Entry("accept identical multi-stage import field changes", false, []string{"stage-1"}, false, []string{"stage-1"}, nil, true),
 
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Operation: v1beta1.Update,
-					Resource: metav1.GroupVersionResource{
-						Group:    cdiv1.SchemeGroupVersion.Group,
-						Version:  cdiv1.SchemeGroupVersion.Version,
-						Resource: "datavolumes",
-					},
-					Object: runtime.RawExtension{
-						Raw: newBytes,
-					},
-					OldObject: runtime.RawExtension{
-						Raw: oldBytes,
-					},
-				},
-			}
-
-			resp := validateAdmissionReview(ar)
-			Expect(resp.Allowed).To(Equal(false))
-		})
+			Entry("reject a spec change on un-approved fields, even with identical non-empty multi-stage fields", false, []string{"stage-1"}, false, []string{"stage-1"}, func(newDV *cdiv1.DataVolume) { newDV.Spec.Source.VDDK.URL = "tesing123" }, false),
+		)
 	})
 })
 
