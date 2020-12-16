@@ -926,5 +926,5 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		}
 	}
 
-	return ProcessingPhaseComplete, nil
+	return ProcessingPhasePreallocate, nil
 }

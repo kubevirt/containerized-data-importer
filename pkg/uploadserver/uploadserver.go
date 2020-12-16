@@ -49,28 +49,30 @@ const (
 // UploadServer is the interface to uploadServerApp
 type UploadServer interface {
 	Run() error
+	PreallocationApplied() string
 }
 
 type uploadServerApp struct {
-	bindAddress        string
-	bindPort           int
-	destination        string
-	tlsKey             string
-	tlsCert            string
-	clientCert         string
-	clientName         string
-	keyFile            string
-	certFile           string
-	imageSize          string
-	filesystemOverhead float64
-	preallocation      bool
-	mux                *http.ServeMux
-	uploading          bool
-	processing         bool
-	done               bool
-	doneChan           chan struct{}
-	errChan            chan error
-	mutex              sync.Mutex
+	bindAddress          string
+	bindPort             int
+	destination          string
+	tlsKey               string
+	tlsCert              string
+	clientCert           string
+	clientName           string
+	keyFile              string
+	certFile             string
+	imageSize            string
+	filesystemOverhead   float64
+	preallocation        bool
+	mux                  *http.ServeMux
+	uploading            bool
+	processing           bool
+	done                 bool
+	preallocationApplied string
+	doneChan             chan struct{}
+	errChan              chan error
+	mutex                sync.Mutex
 }
 
 type imageReadCloser func(*http.Request) (io.ReadCloser, error)
@@ -347,6 +349,7 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 			defer app.mutex.Unlock()
 			app.processing = false
 			app.done = true
+			app.preallocationApplied = processor.PreallocationApplied()
 			klog.Infof("Wrote data to %s", app.destination)
 		}()
 
@@ -369,7 +372,7 @@ func (app *uploadServerApp) uploadHandler(irc imageReadCloser) http.HandlerFunc 
 			w.WriteHeader(http.StatusBadRequest)
 		}
 
-		err = uploadProcessorFunc(readCloser, app.destination, app.imageSize, app.filesystemOverhead, app.preallocation, cdiContentType)
+		app.preallocationApplied, err = uploadProcessorFunc(readCloser, app.destination, app.imageSize, app.filesystemOverhead, app.preallocation, cdiContentType)
 
 		app.mutex.Lock()
 		defer app.mutex.Unlock()
@@ -390,6 +393,10 @@ func (app *uploadServerApp) uploadHandler(irc imageReadCloser) http.HandlerFunc 
 	}
 }
 
+func (app *uploadServerApp) PreallocationApplied() string {
+	return app.preallocationApplied
+}
+
 func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (*importer.DataProcessor, error) {
 	if contentType == common.FilesystemCloneContentType {
 		return nil, fmt.Errorf("async filesystem clone not supported")
@@ -400,14 +407,15 @@ func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string,
 	return processor, processor.ProcessDataWithPause()
 }
 
-func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) error {
+func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (string, error) {
 	if contentType == common.FilesystemCloneContentType {
-		return filesystemCloneProcessor(stream, common.ImporterVolumePath)
+		return "false", filesystemCloneProcessor(stream, common.ImporterVolumePath)
 	}
 
 	uds := importer.NewUploadDataSource(newContentReader(stream, contentType))
 	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
-	return processor.ProcessData()
+	err := processor.ProcessData()
+	return processor.PreallocationApplied(), err
 }
 
 func filesystemCloneProcessor(stream io.ReadCloser, destDir string) error {

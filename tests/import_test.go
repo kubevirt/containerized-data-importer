@@ -13,7 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
@@ -794,13 +796,16 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 var _ = Describe("Preallocation", func() {
 	f := framework.NewFramework(namespacePrefix)
 	dvName := "import-dv"
-	importerPodName := "importer-" + dvName
-	preAllocAdded := "Added preallocation"
 
 	var (
-		dataVolume     *cdiv1.DataVolume
-		err            error
-		tinyCoreIsoURL = func() string { return fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs) }
+		dataVolume          *cdiv1.DataVolume
+		err                 error
+		tinyCoreIsoURL      = func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
+		tinyCoreQcow2URL    = func() string { return fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs) }
+		tinyCoreTarURL      = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
+		tinyCoreRegistryURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
+		imageioURL          = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
+		vcenterURL          = func() string { return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs) }
 	)
 
 	AfterEach(func() {
@@ -829,18 +834,17 @@ var _ = Describe("Preallocation", func() {
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
-		Eventually(func() string {
-			log, err := tests.RunKubectlCommand(f, "logs", importerPodName, "-n", f.Namespace.Name)
-			if err != nil {
-				return ""
-			}
-			return log
-		}, controllerSkipPVCCompleteTimeout, 10*time.Millisecond).Should(ContainSubstring(preAllocAdded))
+		phase := cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Or(Equal("true"), Equal("skipped")))
 	})
 
 	It("Importer should not add preallocation when preallocation=false", func() {
-		var log string
-
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
 		dataVolume = utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", tinyCoreIsoURL())
 		preallocation := false
@@ -853,13 +857,110 @@ var _ = Describe("Preallocation", func() {
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
-		Eventually(func() string {
-			log, err = tests.RunKubectlCommand(f, "logs", importerPodName, "-n", f.Namespace.Name)
-			if err != nil {
-				return ""
-			}
-			return log
-		}, controllerSkipPVCCompleteTimeout, 10*time.Millisecond).Should(ContainSubstring("Import complete"))
-		Expect(log).ToNot(ContainSubstring(preAllocAdded))
+		phase := cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Or(Equal("true"), Equal("skipped")))
 	})
+
+	DescribeTable("All import paths should contain Preallocation step", func(shouldPreallocate bool, dvFunc func() *cdiv1.DataVolume) {
+		dv := dvFunc()
+		By(fmt.Sprintf("Creating new datavolume %s", dv.Name))
+		preallocation := true
+		dv.Spec.Preallocation = &preallocation
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		should := ContainSubstring("New phase: Preallocate")
+		if !shouldPreallocate {
+			should = Not(should)
+		}
+
+		phase := cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		if shouldPreallocate {
+			Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Or(Equal("true"), Equal("skipped")))
+		} else {
+			Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Or(Equal("true"), Equal("skipped")))
+		}
+	},
+		Entry("HTTP import (ISO image)", true, func() *cdiv1.DataVolume {
+			return utils.NewDataVolumeWithHTTPImport("import-dv", "100Mi", tinyCoreIsoURL())
+		}),
+		Entry("HTTP import (QCOW2 image)", true, func() *cdiv1.DataVolume {
+			return utils.NewDataVolumeWithHTTPImport("import-dv", "100Mi", tinyCoreQcow2URL())
+		}),
+		Entry("HTTP import (TAR image)", true, func() *cdiv1.DataVolume {
+			return utils.NewDataVolumeWithHTTPImport("import-dv", "100Mi", tinyCoreTarURL())
+		}),
+		Entry("HTTP import (archive content)", false, func() *cdiv1.DataVolume {
+			return utils.NewDataVolumeWithArchiveContent("import-dv", "100Mi", tinyCoreTarURL())
+		}),
+		Entry("ImageIO import", true, func() *cdiv1.DataVolume {
+			cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+			Expect(err).To(BeNil())
+			stringData := map[string]string{
+				common.KeyAccess: "YWRtaW5AaW50ZXJuYWw=",
+				common.KeySecret: "MTIzNDU2",
+			}
+			s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, "mysecret"))
+			return utils.NewDataVolumeWithImageioImport("import-dv", "100Mi", imageioURL(), s.Name, cm, "123")
+		}),
+		Entry("Registry import", true, func() *cdiv1.DataVolume {
+			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", tinyCoreRegistryURL())
+			cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+			Expect(err).To(BeNil())
+			dataVolume.Spec.Source.Registry.CertConfigMap = cm
+			return dataVolume
+		}),
+		Entry("VddkImport", true, func() *cdiv1.DataVolume {
+			// Find vcenter-simulator pod
+			pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "vcenter-deployment", "app=vcenter")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pod).ToNot(BeNil())
+
+			// Get test VM UUID
+			id, err := tests.RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
+			Expect(err).To(BeNil())
+			vmid, err := uuid.Parse(strings.TrimSpace(id))
+			Expect(err).To(BeNil())
+
+			// Get disk name
+			disk, err := tests.RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
+			Expect(err).To(BeNil())
+			disk = strings.TrimSpace(disk)
+			Expect(err).To(BeNil())
+
+			// Create VDDK login secret
+			stringData := map[string]string{
+				common.KeyAccess: "user",
+				common.KeySecret: "pass",
+			}
+			backingFile := disk
+			secretRef := "vddksecret"
+			thumbprint := "testprint"
+			s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, secretRef))
+
+			return utils.NewDataVolumeWithVddkImport("import-dv", "100Mi", backingFile, s.Name, thumbprint, vcenterURL(), vmid.String())
+		}),
+	)
 })

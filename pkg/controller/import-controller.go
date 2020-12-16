@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
@@ -73,6 +74,8 @@ const (
 	AnnBackingFile = AnnAPIGroup + "/storage.import.backingFile"
 	// AnnThumbprint provides a const for our PVC backing thumbprint annotation
 	AnnThumbprint = AnnAPIGroup + "/storage.import.vddk.thumbprint"
+	// AnnPreallocationApplied provides a const for PVC preallocation annotation
+	AnnPreallocationApplied = AnnAPIGroup + "/storage.preallocation"
 
 	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
 	LabelImportPvc = AnnAPIGroup + "/storage.import.importPvcName"
@@ -89,6 +92,12 @@ const (
 
 	// ImportTargetInUse is reason for event created when an import pvc is in use
 	ImportTargetInUse = "ImportTargetInUse"
+
+	// PreallocationApplied is a string inserted into importer's/uploader's exit message
+	PreallocationApplied = "Preallocation applied"
+
+	// PreallocationSkipped is a string inserted into importer's/uploader's exit message
+	PreallocationSkipped = "Preallocation skipped"
 )
 
 // ImportReconciler members
@@ -353,6 +362,16 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			anno[AnnRequiresScratch] = "true"
 		} else {
 			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message)
+		}
+	}
+	if pod.Status.ContainerStatuses != nil &&
+		pod.Status.ContainerStatuses[0].State.Terminated != nil &&
+		pod.Status.ContainerStatuses[0].State.Terminated.ExitCode == 0 {
+		if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, PreallocationApplied) {
+			anno[AnnPreallocationApplied] = "true"
+		}
+		if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, PreallocationSkipped) {
+			anno[AnnPreallocationApplied] = "skipped"
 		}
 	}
 
