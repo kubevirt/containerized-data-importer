@@ -787,7 +787,7 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 	previousProgressTime := time.Now()
 	initialProgressTime := time.Now()
 	updateProgress := func(written int) {
-		// Only log progress at approximately 1% intervals.
+		// Only log progress at approximately 1% minimum intervals.
 		currentProgressBytes += uint64(written)
 		currentProgressPercent := uint(100.0 * (float64(currentProgressBytes) / float64(vs.Size)))
 		if currentProgressPercent > previousProgressPercent {
@@ -866,14 +866,6 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 				updateProgress(written)
 			}
 		}
-	}
-
-	cmd := exec.Command("md5sum", fileName)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		klog.Errorf("Error getting MD5 sum: %v", err)
-	} else {
-		klog.Infof("MD5 sum: %s", output)
 	}
 
 	return ProcessingPhaseComplete, nil

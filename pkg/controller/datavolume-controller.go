@@ -300,7 +300,7 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 			return reconcile.Result{}, err
 		}
 		checkpoint := r.getNextCheckpoint(datavolume, newPvc)
-		if checkpoint != nil { // Initialize new warm import annotations
+		if checkpoint != nil { // Initialize new warm import annotations before creating PVC
 			newPvc.ObjectMeta.Annotations[AnnCurrentCheckpoint] = checkpoint.Current
 			newPvc.ObjectMeta.Annotations[AnnPreviousCheckpoint] = checkpoint.Previous
 			newPvc.ObjectMeta.Annotations[AnnFinalCheckpoint] = strconv.FormatBool(checkpoint.IsFinal)
@@ -309,6 +309,20 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 			return reconcile.Result{}, err
 		}
 		pvc = newPvc
+	} else {
+		if pvc.Status.Phase == corev1.ClaimBound {
+			// If a PVC already exists with no multi-stage annotations, check if it
+			// needs them set (if not already finished with an import).
+			multiStageImport := (len(datavolume.Spec.Checkpoints) > 0)
+			multiStageAnnotationsSet := metav1.HasAnnotation(pvc.ObjectMeta, AnnCurrentCheckpoint)
+			multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, AnnMultiStageImportDone)
+			if multiStageImport && !multiStageAnnotationsSet && !multiStageAlreadyDone {
+				err := r.setMultistageImportAnnotations(datavolume, pvc)
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+			}
+		}
 	}
 
 	// Finally, we update the status block of the DataVolume resource to reflect the
@@ -394,6 +408,8 @@ func (r *DatavolumeReconciler) deleteMultistageImportAnnotations(pvc *corev1.Per
 			delete(pvcCopy.Annotations, key)
 		}
 	}
+
+	pvcCopy.ObjectMeta.Annotations[AnnMultiStageImportDone] = "true"
 
 	// only update if something has changed
 	if !reflect.DeepEqual(pvc, pvcCopy) {
