@@ -378,9 +378,9 @@ func newMultistageDataVolume(name string, final bool, checkpoints []string) *cdi
 
 	previous := ""
 	dvCheckpoints := make([]cdiv1.DataVolumeCheckpoint, len(checkpoints))
-	for index, checkpoint := range(checkpoints) {
+	for index, checkpoint := range checkpoints {
 		dvCheckpoints[index] = cdiv1.DataVolumeCheckpoint{
-			Current: checkpoint,
+			Current:  checkpoint,
 			Previous: previous,
 		}
 		previous = checkpoint
@@ -390,7 +390,7 @@ func newMultistageDataVolume(name string, final bool, checkpoints []string) *cdi
 	dv := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-                        Namespace: namespace,
+			Namespace: namespace,
 			SelfLink:  fmt.Sprintf("/apis/%s/namespaces/%s/datavolumes/%s", cdiv1.SchemeGroupVersion.String(), namespace, name),
 		},
 		TypeMeta: metav1.TypeMeta{
@@ -399,23 +399,22 @@ func newMultistageDataVolume(name string, final bool, checkpoints []string) *cdi
 		},
 		Status: cdiv1.DataVolumeStatus{},
 		Spec: cdiv1.DataVolumeSpec{
-                        Source: cdiv1.DataVolumeSource{
-                                VDDK: &cdiv1.DataVolumeSourceVDDK{
+			Source: cdiv1.DataVolumeSource{
+				VDDK: &cdiv1.DataVolumeSourceVDDK{
 					BackingFile: "disk.img",
-                                        URL: "http://example.com/data",
-					UUID: "12345",
-					Thumbprint: "aa:bb:cc",
-					SecretRef: "secret",
-                                },
-                        },
+					URL:         "http://example.com/data",
+					UUID:        "12345",
+					Thumbprint:  "aa:bb:cc",
+					SecretRef:   "secret",
+				},
+			},
 			FinalCheckpoint: final,
-			Checkpoints: dvCheckpoints,
-			PVC:    pvc,
+			Checkpoints:     dvCheckpoints,
+			PVC:             pvc,
 		},
 	}
 	return dv
 }
-
 
 func newHTTPDataVolume(name, url string) *cdiv1.DataVolume {
 	httpSource := cdiv1.DataVolumeSource{

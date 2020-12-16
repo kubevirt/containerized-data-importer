@@ -185,17 +185,67 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			vmid, err := uuid.Parse(strings.TrimSpace(id))
 			Expect(err).To(BeNil())
 
+			// Get disk name
+			disk, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
+			Expect(err).To(BeNil())
+			disk = strings.TrimSpace(disk)
+			Expect(err).To(BeNil())
+
 			// Create VDDK login secret
 			stringData := map[string]string{
 				common.KeyAccess: "user",
 				common.KeySecret: "pass",
 			}
-			backingFile := "testdisk.vmdk"
+			backingFile := disk
 			secretRef := "vddksecret"
 			thumbprint := "testprint"
 			s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, secretRef))
 
 			return utils.NewDataVolumeWithVddkImport(dataVolumeName, size, backingFile, s.Name, thumbprint, url, vmid.String())
+		}
+
+		createVddkWarmImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			// Find vcenter-simulator pod
+			pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "vcenter-deployment", "app=vcenter")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pod).ToNot(BeNil())
+
+			// Get test VM UUID
+			id, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
+			Expect(err).To(BeNil())
+			vmid, err := uuid.Parse(strings.TrimSpace(id))
+			Expect(err).To(BeNil())
+
+			// Get snapshot 1 ID
+			previousCheckpoint, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmsnapshot1")
+			Expect(err).To(BeNil())
+			previousCheckpoint = strings.TrimSpace(previousCheckpoint)
+			Expect(err).To(BeNil())
+
+			// Get snapshot 2 ID
+			currentCheckpoint, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmsnapshot2")
+			Expect(err).To(BeNil())
+			currentCheckpoint = strings.TrimSpace(currentCheckpoint)
+			Expect(err).To(BeNil())
+
+			// Get disk name
+			disk, err := RunKubectlCommand(f, "exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
+			Expect(err).To(BeNil())
+			disk = strings.TrimSpace(disk)
+			Expect(err).To(BeNil())
+
+			// Create VDDK login secret
+			stringData := map[string]string{
+				common.KeyAccess: "user",
+				common.KeySecret: "pass",
+			}
+			backingFile := disk
+			secretRef := "vddksecret"
+			thumbprint := "testprint"
+			finalCheckpoint := true
+			s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, secretRef))
+
+			return utils.NewDataVolumeWithVddkWarmImport(dataVolumeName, size, backingFile, s.Name, thumbprint, url, vmid.String(), currentCheckpoint, previousCheckpoint, finalCheckpoint)
 		}
 
 		table.DescribeTable("should", func(args dataVolumeTestArguments) {
@@ -680,6 +730,30 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              vcenterURL,
 				dvFunc:           createVddkDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: false,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-import-vddk Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("[test_id:5078]succeed creating warm import dv from VDDK source", dataVolumeTestArguments{
+				name:             "dv-import-vddk",
+				size:             "1Gi",
+				url:              vcenterURL,
+				dvFunc:           createVddkWarmImportDataVolume,
 				eventReason:      controller.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: false,
