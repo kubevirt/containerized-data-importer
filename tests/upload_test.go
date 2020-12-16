@@ -1022,9 +1022,8 @@ var _ = Describe("Preallocation", func() {
 		Expect(token).ToNot(BeEmpty())
 
 		By("Do upload")
-		Eventually(func() error {
-			return uploadImage(uploadProxyURL, token, http.StatusOK)
-		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+		err = uploadImage(uploadProxyURL, token, http.StatusOK)
+		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(func() string {
 			for {
@@ -1035,7 +1034,20 @@ var _ = Describe("Preallocation", func() {
 				}
 				return log
 			}
-		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring("Added preallocation"))
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(
+			Or(ContainSubstring("Added preallocation"),
+				ContainSubstring("Available space less than requested size")))
+
+		phase = cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+		if err != nil {
+			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			if dverr != nil {
+				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+			}
+		}
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("Uploader should not add preallocation when preallocation=false", func() {

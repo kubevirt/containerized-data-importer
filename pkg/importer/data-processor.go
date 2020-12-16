@@ -267,9 +267,11 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 	// Resize only if we have a resize request, and if the image is on a file system pvc.
 	size, _ := getAvailableSpaceBlockFunc(dp.dataFile)
 	klog.V(3).Infof("Available space in dataFile: %d", size)
+	shouldPreallocate := false
 	if dp.requestImageSize != "" && size < int64(0) {
+		var err error
 		klog.V(3).Infoln("Resizing image")
-		err := ResizeImage(dp.dataFile, dp.requestImageSize, dp.availableSpace)
+		shouldPreallocate, err = ResizeImage(dp.dataFile, dp.requestImageSize, dp.availableSpace)
 		if err != nil {
 			return ProcessingPhaseError, errors.Wrap(err, "Resize of image failed")
 		}
@@ -281,7 +283,7 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 			err = errors.Wrap(err, "Unable to change permissions of target file")
 		}
 	}
-	if dp.preallocation {
+	if dp.preallocation && shouldPreallocate {
 		return ProcessingPhasePreallocate, nil
 	}
 	return ProcessingPhaseComplete, nil
@@ -306,28 +308,31 @@ func (dp *DataProcessor) preallocate() (ProcessingPhase, error) {
 // ResizeImage resizes the images to match the requested size. Sometimes provisioners misbehave and the available space
 // is not the same as the requested space. For those situations we compare the available space to the requested space and
 // use the smallest of the two values.
-func ResizeImage(dataFile, imageSize string, totalTargetSpace int64) error {
+func ResizeImage(dataFile, imageSize string, totalTargetSpace int64) (bool, error) {
 	dataFileURL, _ := url.Parse(dataFile)
 	info, err := qemuOperations.Info(dataFileURL)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if imageSize != "" {
+		shouldPreallocate := true
 		currentImageSizeQuantity := resource.NewScaledQuantity(info.VirtualSize, 0)
 		newImageSizeQuantity := resource.MustParse(imageSize)
 		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(totalTargetSpace, 0), &newImageSizeQuantity)
 		if minSizeQuantity.Cmp(newImageSizeQuantity) != 0 {
 			// Available destination space is smaller than the size we want to resize to
 			klog.Warningf("Available space less than requested size, resizing image to available space %s.\n", minSizeQuantity.String())
+			shouldPreallocate = false
 		}
 		if currentImageSizeQuantity.Cmp(minSizeQuantity) == 0 {
 			klog.V(1).Infof("No need to resize image. Requested size: %s, Image size: %d.\n", imageSize, info.VirtualSize)
-			return nil
+			return false, nil
 		}
 		klog.V(1).Infof("Expanding image size to: %s\n", minSizeQuantity.String())
-		return qemuOperations.Resize(dataFile, minSizeQuantity)
+		err := qemuOperations.Resize(dataFile, minSizeQuantity)
+		return err == nil && shouldPreallocate, err
 	}
-	return errors.New("Image resize called with blank resize")
+	return false, errors.New("Image resize called with blank resize")
 }
 
 func (dp *DataProcessor) calculateTargetSize() int64 {
