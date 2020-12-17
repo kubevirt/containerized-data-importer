@@ -9,6 +9,7 @@ rpm_image(
         "@libnbd//file",
         "@libxcrypt-compat//file",
         "@nbdkit-server//file",
+        "@nbdkit-basic-filters//file",
         "@nbdkit-vddk-plugin//file",
         "@tar//file",
         "@qemu-img//file",

@@ -523,6 +523,14 @@ http_file(
 )
 
 http_file(
+    name = "nbdkit-basic-filters",
+    sha256 = "51ba4e00f0180ea07b4ed46ca2ded198876bfe67cfe533421cafd0978ed2c7bf",
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/n/nbdkit-basic-filters-1.22.3-2.fc33.x86_64.rpm",
+   ],
+)
+
+http_file(
     name = "nbdkit-vddk-plugin",
     sha256 = "cee8f05ab93a9e43aec0d97fcc47997e13d9c277b4c334e77ce5e0b68ac51efc",
     urls = [

@@ -163,6 +163,7 @@ func createNbdKitWrapper(vmware *VMwareClient, diskFileName string) (*NbdKitWrap
 		"--exit-with-parent",
 		"--unix", nbdUnixSocket,
 		"--pidfile", nbdPidFile,
+		"--filter=retry",
 		vddkPluginPath(),
 		"server=" + vmware.url.Host,
 		"user=" + vmware.username,
