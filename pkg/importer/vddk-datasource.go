@@ -311,24 +311,73 @@ func (vmware *VMwareClient) Close() {
 	klog.Info("Logged out of VMware.")
 }
 
-// FindDisk finds a disk object with the given filename, usable by QueryChangedDiskAreas
-func (vmware *VMwareClient) FindDisk(filename string) (*types.VirtualDisk, error) {
-	var movm mo.VirtualMachine
-	err := vmware.vm.Properties(vmware.context, vmware.vm.Reference(), []string{"config.hardware.device"}, &movm)
+// getDiskFileName returns the name of a disk's backing file
+func getDiskFileName(disk *types.VirtualDisk) string {
+	device := disk.GetVirtualDevice()
+	backing := device.Backing.(types.BaseVirtualDeviceFileBackingInfo)
+	info := backing.GetVirtualDeviceFileBackingInfo()
+	return info.FileName
+}
+
+// FindDiskInSnapshot looks through a snapshot's device list for the given backing file name
+func (vmware *VMwareClient) FindDiskInSnapshot(snapshotRef types.ManagedObjectReference, fileName string) *types.VirtualDisk {
+	var snapshot mo.VirtualMachineSnapshot
+	err := vmware.vm.Properties(vmware.context, snapshotRef, []string{"config.hardware.device"}, &snapshot)
+	if err != nil {
+		klog.Errorf("Unable to get snapshot properties: %s", err)
+		return nil
+	}
+
+	for _, device := range snapshot.Config.Hardware.Device {
+		switch disk := device.(type) {
+		case *types.VirtualDisk:
+			name := getDiskFileName(disk)
+			if name == fileName {
+				return disk
+			}
+		}
+	}
+	return nil
+}
+
+// FindDiskInSnapshotTree looks through a VM's snapshot tree for a disk with the given file name
+func (vmware *VMwareClient) FindDiskInSnapshotTree(snapshots []types.VirtualMachineSnapshotTree, fileName string) *types.VirtualDisk {
+	for _, snapshot := range snapshots {
+		if disk := vmware.FindDiskInSnapshot(snapshot.Snapshot, fileName); disk != nil {
+			return disk
+		}
+		return vmware.FindDiskInSnapshotTree(snapshot.ChildSnapshotList, fileName)
+	}
+	return nil
+}
+
+// FindDiskFromName finds a disk object with the given file name, usable by QueryChangedDiskAreas.
+// Looks at the current VM disk as well as any snapshots.
+func (vmware *VMwareClient) FindDiskFromName(fileName string) (*types.VirtualDisk, error) {
+	// Check current VM disk for given backing file path
+	var vm mo.VirtualMachine
+	err := vmware.vm.Properties(vmware.context, vmware.vm.Reference(), []string{"config.hardware.device"}, &vm)
 	if err != nil {
 		return nil, err
 	}
-	for _, device := range movm.Config.Hardware.Device {
+	for _, device := range vm.Config.Hardware.Device {
 		switch disk := device.(type) {
 		case *types.VirtualDisk:
-			device := disk.GetVirtualDevice()
-			backing := device.Backing.(types.BaseVirtualDeviceFileBackingInfo)
-			info := backing.GetVirtualDeviceFileBackingInfo()
-			if info.FileName == filename {
-				klog.Infof("Found target disk: %s", info.FileName)
+			diskName := getDiskFileName(disk)
+			if diskName == fileName {
 				return disk, nil
 			}
 		}
+	}
+
+	var snapshot mo.VirtualMachine
+	err = vmware.vm.Properties(vmware.context, vmware.vm.Reference(), []string{"snapshot"}, &snapshot)
+	if err != nil {
+		klog.Errorf("Unable to list snapshots: %s\n", err)
+		return nil, err
+	}
+	if disk := vmware.FindDiskInSnapshotTree(snapshot.Snapshot.RootSnapshotList, fileName); disk != nil {
+		return disk, nil
 	}
 	return nil, errors.New("could not find target VMware disk")
 }
@@ -652,7 +701,7 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	defer vmware.Close()
 
 	// Find disk object for backingFile disk image path
-	currentDisk, err := vmware.FindDisk(backingFile)
+	backingFileObject, err := vmware.FindDiskFromName(backingFile)
 	if err != nil {
 		klog.Errorf("Could not find VM disk %s: %v", backingFile, err)
 		return nil, err
@@ -682,7 +731,7 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	// then get the list of changed blocks from VMware for a delta copy.
 	var changed *types.DiskChangeInfo
 	if currentSnapshot != nil && previousSnapshot != nil {
-		changedAreas, err := vmware.vm.QueryChangedDiskAreas(vmware.context, previousSnapshot, currentSnapshot, currentDisk, 0)
+		changedAreas, err := vmware.vm.QueryChangedDiskAreas(vmware.context, previousSnapshot, currentSnapshot, backingFileObject, 0)
 		if err != nil {
 			klog.Errorf("Unable to query changed areas: %s", err)
 			return nil, err
@@ -690,15 +739,16 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 		changed = &changedAreas
 	}
 
-	diskFileName := backingFile
-	if currentSnapshot != nil && previousSnapshot == nil {
-		// Cold copy snapshot: set the nbdkit file name to the name of this
-		// disk in the snapshot, like "[iSCSI] vm/vmdisk-000001.vmdk"
-		diskFileName, err = vmware.FindSnapshotDiskName(currentSnapshot, currentDisk.DiskObjectId)
+	diskFileName := backingFile // By default, just set the nbdkit file name to the given backingFile path
+	if currentSnapshot != nil {
+		// When copying from a snapshot, set the nbdkit file name to the name of the disk in the snapshot
+		// that matches the ID of the given backing file, like "[iSCSI] vm/vmdisk-000001.vmdk".
+		diskFileName, err = vmware.FindSnapshotDiskName(currentSnapshot, backingFileObject.DiskObjectId)
 		if err != nil {
 			klog.Errorf("Could not find matching disk in current snapshot: %v", err)
 			return nil, err
 		}
+		klog.Infof("Set disk file name from current snapshot: %s", diskFileName)
 	}
 	nbdkit, err := createNbdKitWrapper(vmware, diskFileName)
 	if err != nil {
