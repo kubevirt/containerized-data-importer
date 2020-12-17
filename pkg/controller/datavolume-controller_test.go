@@ -359,10 +359,10 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 			AnnPodPhase:           string(cdiv1.Succeeded),
 			AnnCurrentPodID:       "12345678",
 		}
-		annotations[AnnCheckpointsCopied + "." + "first"] = "12345"
-		annotations[AnnCheckpointsCopied + "." + "second"] = "123456"
-		annotations[AnnCheckpointsCopied + "." + "previous"] = "1234567"
-		annotations[AnnCheckpointsCopied + "." + "current"] = "12345678"
+		annotations[AnnCheckpointsCopied+"."+"first"] = "12345"
+		annotations[AnnCheckpointsCopied+"."+"second"] = "123456"
+		annotations[AnnCheckpointsCopied+"."+"previous"] = "1234567"
+		annotations[AnnCheckpointsCopied+"."+"current"] = "12345678"
 		if modifyAnnotations != nil {
 			modifyAnnotations(annotations)
 		}
@@ -406,10 +406,10 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 
 		validate(newPvc, newDv)
 	},
-		Entry("should move to 'Paused' if non-final checkpoint", false, nil, func(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume){
+		Entry("should move to 'Paused' if non-final checkpoint", false, nil, func(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) {
 			Expect(dv.Status.Phase).To(Equal(cdiv1.Paused))
 		}),
-		Entry("should move to 'Succeeded' if final checkpoint", true, nil, func(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume){
+		Entry("should move to 'Succeeded' if final checkpoint", true, nil, func(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) {
 			// Extra reconcile to move from final Paused to Succeeded
 			reconciler = createDatavolumeReconciler(dv, pvc)
 			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
@@ -420,7 +420,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 			Expect(newDv.Name).To(Equal("test-dv"))
 			Expect(newDv.Status.Phase).To(Equal(cdiv1.Succeeded))
 		}),
-		Entry("should clear multistage migration annotations after copying the final checkpoint", true, nil, func(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume){
+		Entry("should clear multistage migration annotations after copying the final checkpoint", true, nil, func(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) {
 			_, ok := pvc.GetAnnotations()[AnnCurrentCheckpoint]
 			Expect(ok).To(Equal(false))
 			_, ok = pvc.GetAnnotations()[AnnPreviousCheckpoint]
@@ -429,15 +429,15 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 			Expect(ok).To(Equal(false))
 			_, ok = pvc.GetAnnotations()[AnnCurrentPodID]
 			Expect(ok).To(Equal(false))
-			_, ok = pvc.GetAnnotations()[AnnCheckpointsCopied + ".current"]
+			_, ok = pvc.GetAnnotations()[AnnCheckpointsCopied+".current"]
 			Expect(ok).To(Equal(false))
 		}),
 		Entry("should add a final 'done' annotation for overall multi-stage import", true, nil, func(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) {
 			Expect(pvc.GetAnnotations()[AnnMultiStageImportDone]).To(Equal("true"))
 		}),
-		Entry("should advance exactly one checkpoint after one delta copy", false, func(annotations map[string]string){
-			delete(annotations, AnnCheckpointsCopied + "." + "previous")
-			delete(annotations, AnnCheckpointsCopied + "." + "current")
+		Entry("should advance exactly one checkpoint after one delta copy", false, func(annotations map[string]string) {
+			delete(annotations, AnnCheckpointsCopied+"."+"previous")
+			delete(annotations, AnnCheckpointsCopied+"."+"current")
 			annotations[AnnCurrentCheckpoint] = "previous"
 			annotations[AnnCurrentPodID] = "1234567"
 		}, func(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) {
