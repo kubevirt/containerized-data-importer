@@ -64,6 +64,12 @@ const (
 	AnnCurrentCheckpoint = AnnAPIGroup + "/storage.checkpoint.current"
 	// AnnFinalCheckpoint provides a const to indicate whether the current checkpoint is the last one
 	AnnFinalCheckpoint = AnnAPIGroup + "/storage.checkpoint.final"
+	// AnnCheckpointsCopied is a prefix for recording which checkpoints have already been copied
+	AnnCheckpointsCopied = AnnAPIGroup + "/storage.checkpoint.copied"
+	// AnnCurrentPodID keeps track of the latest pod servicing this PVC
+	AnnCurrentPodID = AnnAPIGroup + "/storage.checkpoint.pod.id"
+	// AnnMultiStageImportDone marks a multi-stage import as totally finished
+	AnnMultiStageImportDone = AnnAPIGroup + "/storage.checkpoint.done"
 
 	// AnnRunningCondition provides a const for the running condition
 	AnnRunningCondition = AnnAPIGroup + "/storage.condition.running"

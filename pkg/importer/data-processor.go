@@ -114,10 +114,17 @@ type DataProcessor struct {
 	availableSpace int64
 	// storage overhead is the amount of overhead of the storage used
 	filesystemOverhead float64
+	// needsDataCleanup decides if the contents of the data directory should be deleted (need to avoid this during delta copy stages in a warm migration)
+	needsDataCleanup bool
 }
 
 // NewDataProcessor create a new instance of a data processor using the passed in data provider.
 func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratchDataDir, requestImageSize string, filesystemOverhead float64) *DataProcessor {
+	needsDataCleanup := true
+	vddkSource, isVddk := dataSource.(*VDDKDataSource)
+	if isVddk {
+		needsDataCleanup = !vddkSource.IsDeltaCopy()
+	}
 	dp := &DataProcessor{
 		currentPhase:       ProcessingPhaseInfo,
 		source:             dataSource,
@@ -126,6 +133,7 @@ func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratch
 		scratchDataDir:     scratchDataDir,
 		requestImageSize:   requestImageSize,
 		filesystemOverhead: filesystemOverhead,
+		needsDataCleanup:   needsDataCleanup,
 	}
 	// Calculate available space before doing anything.
 	dp.availableSpace = dp.calculateTargetSize()
@@ -143,7 +151,7 @@ func (dp *DataProcessor) ProcessData() error {
 		defer CleanDir(dp.scratchDataDir)
 	}
 
-	if size, _ := util.GetAvailableSpace(dp.dataDir); size > int64(0) {
+	if size, _ := util.GetAvailableSpace(dp.dataDir); size > int64(0) && dp.needsDataCleanup {
 		// Clean up data dir before trying to write in case a previous attempt failed and left some stuff behind.
 		if err := CleanDir(dp.dataDir); err != nil {
 			return errors.Wrap(err, "Failure cleaning up target space")

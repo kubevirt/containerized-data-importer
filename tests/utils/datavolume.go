@@ -349,6 +349,39 @@ func NewDataVolumeWithVddkImport(dataVolumeName string, size string, backingFile
 	}
 }
 
+// NewDataVolumeWithVddkWarmImport initializes a DataVolume struct for a multi-stage import from vCenter/ESX snapshots
+func NewDataVolumeWithVddkWarmImport(dataVolumeName string, size string, backingFile string, secretRef string, thumbprint string, httpURL string, uuid string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint bool) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dataVolumeName,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{
+				VDDK: &cdiv1.DataVolumeSourceVDDK{
+					BackingFile: backingFile,
+					SecretRef:   secretRef,
+					Thumbprint:  thumbprint,
+					URL:         httpURL,
+					UUID:        uuid,
+				},
+			},
+			FinalCheckpoint: finalCheckpoint,
+			Checkpoints: []cdiv1.DataVolumeCheckpoint{
+				{Current: previousCheckpoint, Previous: ""},
+				{Current: currentCheckpoint, Previous: previousCheckpoint},
+			},
+			PVC: &k8sv1.PersistentVolumeClaimSpec{
+				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+				Resources: k8sv1.ResourceRequirements{
+					Requests: k8sv1.ResourceList{
+						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
+					},
+				},
+			},
+		},
+	}
+}
+
 // WaitForDataVolumePhase waits for DV's phase to be in a particular phase (Pending, Bound, or Lost)
 func WaitForDataVolumePhase(clientSet *cdiclientset.Clientset, namespace string, phase cdiv1.DataVolumePhase, dataVolumeName string) error {
 	return WaitForDataVolumePhaseWithTimeout(clientSet, namespace, phase, dataVolumeName, dataVolumePhaseTime)

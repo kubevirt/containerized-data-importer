@@ -355,6 +355,10 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		}
 	}
 
+	if anno[AnnCurrentCheckpoint] != "" {
+		anno[AnnCurrentPodID] = string(pod.ObjectMeta.UID)
+	}
+
 	if pod.Status.ContainerStatuses != nil {
 		anno[AnnPodRestarts] = strconv.Itoa(int(pod.Status.ContainerStatuses[0].RestartCount))
 	}
@@ -965,6 +969,18 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.ImporterThumbprint,
 			Value: podEnvVar.thumbprint,
+		},
+		{
+			Name:  common.ImporterCurrentCheckpoint,
+			Value: podEnvVar.currentCheckpoint,
+		},
+		{
+			Name:  common.ImporterPreviousCheckpoint,
+			Value: podEnvVar.previousCheckpoint,
+		},
+		{
+			Name:  common.ImporterFinalCheckpoint,
+			Value: podEnvVar.finalCheckpoint,
 		},
 	}
 	if podEnvVar.secretName != "" {

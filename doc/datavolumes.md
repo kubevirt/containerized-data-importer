@@ -13,6 +13,7 @@ The following statuses are possible.
 * Import/Clone/UploadScheduled: The operation (import/clone/upload) has been scheduled.
 * Import/Clone/UploadInProgress: The operation (import/clone/upload) is in progress.
 * SnapshotForSmartClone/SmartClonePVCInProgress: The Smart-Cloning operation is in progress.
+* Paused: A [multi-stage](#multi-stage-import) import is waiting to transfer a new checkpoint.
 * Succeeded: The operation has succeeded.
 * Failed: The operation has failed.
 * Unknown: Unknown status.
@@ -182,6 +183,38 @@ spec:
 [Get secret example](../manifests/example/endpoint-secret.yaml)
 [Get VDDK ConfigMap example](../manifests/example/vddk-configmap.yaml)
 [Ways to find thumbprint](https://libguestfs.org/nbdkit-vddk-plugin.1.html#THUMBPRINTS)
+
+### Multi-stage Import
+The VDDK source is currently the only type of DataVolume that can perform a multi-stage import. In a multi-stage import, multiple pods are started in succession to copy different parts of the source to an existing base disk image. The VDDK source uses a multi-stage import to perform warm migration: after copying an initial disk image, it queries the VMware host for the blocks that changed in between two snapshots. Each delta is applied to the disk image, and only the final delta copy needs the source VM to be powered off, minimizing downtime.
+
+To create a multi-stage VDDK import, first [enable changed block tracking](https://kb.vmware.com/s/article/1031873) on the source VM. Take an initial snapshot of the VM (snapshot-1), and take another snapshot (snapshot-2) after the VM has run long enough to save more data to disk. Create a DataVolume spec similar to the example below, specifying a list of checkpoints and a finalCheckpoint boolean to indicate if there are no further snapshots to copy. The first importer pod to appear will copy the full disk contents of snapshot-1 to the disk image provided by the PVC, and the second importer pod will quickly copy only the blocks that changed between snapshot-1 and snapshot-2. If finalCheckpoint is set to false, the resulting DataVolume will wait in a "Paused" state until further checkpoints are provided. The DataVolume will only move to "Succeeded" when finalCheckpoint is true and the last checkpoint in the list has been copied. It is not necessary to provide all the checkpoints up-front, because updates are allowed to be applied to these fields (finalChcekpoint and checkpoints).
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: "vddk-multistage-dv"
+spec:
+    source:
+        vddk:
+           backingFile: "[iSCSI_Datastore] vm/vm_1.vmdk" # From latest 'Hard disk'/'Disk File' in vCenter/ESX VM settings
+           url: "https://vcenter.corp.com"
+           uuid: "52260566-b032-36cb-55b1-79bf29e30490"
+           thumbprint: "20:6C:8A:5D:44:40:B3:79:4B:28:EA:76:13:60:90:6E:49:D9:D9:A3" # SSL fingerprint of vCenter/ESX host
+           secretRef: "vddk-credentials"
+        finalCheckpoint: true
+        checkpoints:
+          - current: "snapshot-1"
+            previous: ""
+          - current: "snapshot-2"
+            previous: "snapshot-1"
+        pvc:
+           accessModes:
+             - ReadWriteOnce
+           resources:
+             requests:
+               storage: "32Gi"
+```
 
 ## Block Volume Mode
 You can import, clone and upload a disk image to a raw block persistent volume.

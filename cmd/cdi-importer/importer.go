@@ -63,6 +63,9 @@ func main() {
 	uuid, _ := util.ParseEnvVar(common.ImporterUUID, false)
 	backingFile, _ := util.ParseEnvVar(common.ImporterBackingFile, false)
 	thumbprint, _ := util.ParseEnvVar(common.ImporterThumbprint, false)
+	currentCheckpoint, _ := util.ParseEnvVar(common.ImporterCurrentCheckpoint, false)
+	previousCheckpoint, _ := util.ParseEnvVar(common.ImporterPreviousCheckpoint, false)
+	finalCheckpoint, _ := util.ParseEnvVar(common.ImporterFinalCheckpoint, false)
 
 	//Registry import currently support kubevirt content type only
 	if contentType != string(cdiv1.DataVolumeKubeVirt) && (source == controller.SourceRegistry || source == controller.SourceImageio) {
@@ -150,7 +153,7 @@ func main() {
 				os.Exit(1)
 			}
 		case controller.SourceVDDK:
-			dp, err = importer.NewVDDKDataSource(ep, acc, sec, thumbprint, uuid, backingFile)
+			dp, err = importer.NewVDDKDataSource(ep, acc, sec, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint)
 			if err != nil {
 				klog.Errorf("%+v", err)
 				err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to vddk data source: %+v", err))
