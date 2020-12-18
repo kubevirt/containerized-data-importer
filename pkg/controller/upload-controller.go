@@ -23,7 +23,6 @@ import (
 	"strconv"
 	"time"
 
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
 	"github.com/go-logr/logr"
@@ -363,10 +362,9 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 		return nil, err
 	}
 
-	dv := &cdiv1.DataVolume{}
-	preallocation := false
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, dv); err == nil {
-		preallocation = GetPreallocation(r.client, dv)
+	preallocationRequested := false
+	if preallocation, err := strconv.ParseBool(getValueFromAnnotation(pvc, AnnPreallocationRequested)); err == nil {
+		preallocationRequested = preallocation
 	}
 
 	args := UploadPodArgs{
@@ -378,7 +376,7 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 		ServerCert:         serverCert,
 		ServerKey:          serverKey,
 		ClientCA:           clientCA,
-		Preallocation:      strconv.FormatBool(preallocation),
+		Preallocation:      strconv.FormatBool(preallocationRequested),
 	}
 
 	r.log.V(3).Info("Creating upload pod")

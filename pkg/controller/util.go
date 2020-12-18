@@ -70,6 +70,8 @@ const (
 	AnnCurrentPodID = AnnAPIGroup + "/storage.checkpoint.pod.id"
 	// AnnMultiStageImportDone marks a multi-stage import as totally finished
 	AnnMultiStageImportDone = AnnAPIGroup + "/storage.checkpoint.done"
+	// AnnPreallocationRequested provides a const to indicate whether preallocation should be performed on the PV
+	AnnPreallocationRequested = AnnAPIGroup + "/storage.preallocacation.requested"
 
 	// AnnRunningCondition provides a const for the running condition
 	AnnRunningCondition = AnnAPIGroup + "/storage.condition.running"
