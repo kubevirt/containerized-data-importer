@@ -282,7 +282,8 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 		if dp.requestImageSize != "" {
 			var err error
 			klog.V(3).Infoln("Resizing image")
-			shouldPreallocate, err = ResizeImage(dp.dataFile, dp.requestImageSize, dp.availableSpace)
+			usableSpace := int64((1 - dp.filesystemOverhead) * float64(dp.availableSpace))
+			shouldPreallocate, err = ResizeImage(dp.dataFile, dp.requestImageSize, usableSpace)
 			if err != nil {
 				return ProcessingPhaseError, errors.Wrap(err, "Resize of image failed")
 			}
