@@ -44,6 +44,8 @@ import (
 // May be overridden in tests
 var newVddkDataSource = createVddkDataSource
 var newVddkDataSink = createVddkDataSink
+var newVMwareClient = createVMwareClient
+var newNbdKitWrapper = createNbdKitWrapper
 var vddkPluginPath = getVddkPluginPath
 
 /* Section: nbdkit */
@@ -239,9 +241,22 @@ func createNbdKitWrapper(vmware *VMwareClient, diskFileName string) (*NbdKitWrap
 
 /* Section: VMware API manipulations */
 
+// VMwareConnectionOperations provides a mockable interface for the things needed from VMware client objects.
+type VMwareConnectionOperations interface {
+	Logout(context.Context) error
+}
+
+// VMwareVMOperations provides a mockable interface for the things needed from VMware VM objects.
+type VMwareVMOperations interface {
+	Properties(context.Context, types.ManagedObjectReference, []string, interface{}) error
+	Reference() types.ManagedObjectReference
+	FindSnapshot(context.Context, string) (*types.ManagedObjectReference, error)
+	QueryChangedDiskAreas(context.Context, *types.ManagedObjectReference, *types.ManagedObjectReference, *types.VirtualDisk, int64) (types.DiskChangeInfo, error)
+}
+
 // VMwareClient holds a connection to the VMware API with pre-filled information about one VM
 type VMwareClient struct {
-	conn       *govmomi.Client
+	conn       VMwareConnectionOperations // *govmomi.Client
 	cancel     context.CancelFunc
 	context    context.Context
 	moref      string
@@ -249,11 +264,11 @@ type VMwareClient struct {
 	username   string
 	password   string
 	url        *url.URL
-	vm         *object.VirtualMachine
+	vm         VMwareVMOperations // *object.VirtualMachine
 }
 
-// CreateVMwareClient creates a govmomi handle and finds the VM with the given UUID
-func CreateVMwareClient(endpoint string, accessKey string, secKey string, thumbprint string, uuid string) (*VMwareClient, error) {
+// createVMwareClient creates a govmomi handle and finds the VM with the given UUID
+func createVMwareClient(endpoint string, accessKey string, secKey string, thumbprint string, uuid string) (*VMwareClient, error) {
 	vmwURL, err := url.Parse(endpoint)
 	if err != nil {
 		klog.Errorf("Unable to parse endpoint: %v", endpoint)
@@ -693,7 +708,7 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	}
 
 	// Log in to VMware, and get everything needed up front
-	vmware, err := CreateVMwareClient(endpoint, accessKey, secKey, thumbprint, uuid)
+	vmware, err := newVMwareClient(endpoint, accessKey, secKey, thumbprint, uuid)
 	if err != nil {
 		klog.Errorf("Unable to log in to VMware: %v", err)
 		return nil, err
@@ -750,7 +765,7 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 		}
 		klog.Infof("Set disk file name from current snapshot: %s", diskFileName)
 	}
-	nbdkit, err := createNbdKitWrapper(vmware, diskFileName)
+	nbdkit, err := newNbdKitWrapper(vmware, diskFileName)
 	if err != nil {
 		klog.Errorf("Unable to start nbdkit: %v", err)
 		return nil, err
