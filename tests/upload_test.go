@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -196,7 +197,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 	})
 
-	It("[test_id:4989]Verify validation error message on async upload if virtual size > pvc size", func() {
+	DescribeTable("Verify validation error message on async upload if virtual size > pvc size", func(filename string) {
 		By("Verify PVC annotation says ready")
 		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 		Expect(err).ToNot(HaveOccurred())
@@ -210,9 +211,54 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 		By("Do upload")
 		Eventually(func() error {
-			return uploadFileNameToPath(binaryRequestFunc, utils.UploadFileLargeVirtualDisk, uploadProxyURL, asyncUploadPath, token, http.StatusBadRequest)
+			return uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, asyncUploadPath, token, http.StatusBadRequest)
 		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
-	})
+	},
+		Entry("[test_id:4989]fail given a large virtual size QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
+		Entry("fail given a large physical size QCOW2 file", utils.UploadFileLargePhysicalDiskQcow),
+	)
+
+	DescribeTable("[posneg:negative][test_id:2330]Verify failure on sync upload if virtual size > pvc size", func(filename string) {
+		By("Verify PVC annotation says ready")
+		found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+
+		var token string
+		By("Get an upload token")
+		token, err = utils.RequestUploadToken(f.CdiClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(token).ToNot(BeEmpty())
+
+		By("Do upload")
+		err = uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, syncUploadPath, token, http.StatusOK)
+		Expect(err).To(HaveOccurred())
+
+		uploadPod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
+
+		By("Verify size error in logs")
+		Eventually(func() bool {
+			log, _ := tests.RunKubectlCommand(f, "logs", uploadPod.Name, "-n", uploadPod.Namespace)
+			if strings.Contains(log, "is larger than available size") {
+				return true
+			}
+			if strings.Contains(log, "no space left on device") {
+				return true
+			}
+			if strings.Contains(log, "qemu-img execution failed") {
+				return true
+			}
+			By("Failed to find error messages about a too large image in log:")
+			By(log)
+			return false
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
+	},
+		Entry("fail given a large virtual size RAW XZ file", utils.UploadFileLargeVirtualDiskXz),
+		Entry("fail given a large virtual size QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
+		Entry("fail given a large physical size RAW XZ file", utils.UploadFileLargePhysicalDiskXz),
+		Entry("fail given a large physical size QCOW2 file", utils.UploadFileLargePhysicalDiskQcow),
+	)
 })
 
 var TestFakeError = errors.New("TestFakeError")

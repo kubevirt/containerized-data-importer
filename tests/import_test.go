@@ -50,6 +50,45 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		ns = f.Namespace.Name
 	})
 
+	DescribeTable("[test_id:2329] Should fail to import images that require too much space", func(uploadURL string) {
+		imageURL := fmt.Sprintf(uploadURL, f.CdiInstallNs)
+
+		By(imageURL)
+		dv := utils.NewDataVolumeWithHTTPImport("too-large-import", "500Mi", imageURL)
+		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		importer, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod"))
+
+		By(fmt.Sprintf("logs for pod -n %s %s", importer.Name, importer.Namespace))
+		By("Verify size error in logs")
+		Eventually(func() bool {
+			log, _ := tests.RunKubectlCommand(f, "logs", importer.Name, "-n", importer.Namespace)
+			if strings.Contains(log, "is larger than available size") {
+				return true
+			}
+			if strings.Contains(log, "no space left on device") {
+				return true
+			}
+			if strings.Contains(log, "qemu-img execution failed") {
+				return true
+			}
+			By("Failed to find error messages about a too large image in log:")
+			By(log)
+			return false
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
+	},
+		Entry("fail given a large virtual size RAW XZ file", utils.LargeVirtualDiskXz),
+		Entry("fail given a large virtual size QCOW2 file", utils.LargeVirtualDiskQcow),
+		Entry("fail given a large physical size RAW XZ file", utils.LargePhysicalDiskXz),
+		Entry("fail given a large physical size QCOW2 file", utils.LargePhysicalDiskQcow),
+	)
+
 	It("[test_id:4967]Should not perform CDI operations on PVC without annotations", func() {
 		// Make sure the PVC name is unique, we have no guarantee on order and we are not
 		// deleting the PVC at the end of the test, so if another runs first we will fail.
@@ -163,7 +202,102 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", fu
 		match := tests.PodSpecHasTestNodePlacementValues(f, importer.Spec)
 		Expect(match).To(BeTrue(), fmt.Sprintf("node placement in pod spec\n%v\n differs from node placement values in CDI CR\n%v\n", importer.Spec, cr.Spec.Workloads))
 	})
+})
 
+var _ = Describe("Importer CDI config manipulation tests", func() {
+	var config *cdiv1.CDIConfig
+	var origSpec *cdiv1.CDIConfigSpec
+	var err error
+	f := framework.NewFramework(namespacePrefix)
+
+	BeforeEach(func() {
+		config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		origSpec = config.Spec.DeepCopy()
+	})
+
+	AfterEach(func() {
+		By("Restoring CDIConfig to original state")
+		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			origSpec.DeepCopyInto(config)
+		})
+
+		Eventually(func() bool {
+			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return reflect.DeepEqual(config.Spec, origSpec)
+		}, 30*time.Second, time.Second)
+	})
+
+	DescribeTable("Filesystem overhead is honored with a RAW file", func(expectedSuccess bool, globalOverhead, scOverhead string) {
+		defaultSCName := utils.DefaultStorageClass.GetName()
+		testedFilesystemOverhead := &cdiv1.FilesystemOverhead{}
+		if globalOverhead != "" {
+			testedFilesystemOverhead.Global = cdiv1.Percent(globalOverhead)
+		}
+		if scOverhead != "" {
+			testedFilesystemOverhead.StorageClass = map[string]cdiv1.Percent{defaultSCName: cdiv1.Percent(scOverhead)}
+		}
+		config.Spec.FilesystemOverhead = testedFilesystemOverhead.DeepCopy()
+		By(fmt.Sprintf("Updating CDIConfig filesystem overhead to %v", config.Spec.FilesystemOverhead))
+		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			config.FilesystemOverhead = testedFilesystemOverhead.DeepCopy()
+		})
+		Expect(err).ToNot(HaveOccurred())
+		By(fmt.Sprintf("Waiting for filsystem overhead status to be set to %v", testedFilesystemOverhead))
+		Eventually(func() bool {
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			if scOverhead != "" {
+				return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(scOverhead)
+			}
+			return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(globalOverhead)
+		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig filesystem overhead wasn't set")
+
+		imageURL := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
+
+		By(imageURL)
+		dv := utils.NewDataVolumeWithHTTPImport("too-large-import", "500Mi", imageURL)
+		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		importer, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod"))
+
+		if expectedSuccess {
+			By("Waiting for import to be completed")
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
+			Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+		} else {
+			By(fmt.Sprintf("logs for pod -n %s %s", importer.Name, importer.Namespace))
+			By("Verify size error in logs")
+			Eventually(func() bool {
+				log, _ := tests.RunKubectlCommand(f, "logs", importer.Name, "-n", importer.Namespace)
+				if strings.Contains(log, "is larger than available size") {
+					return true
+				}
+				if strings.Contains(log, "no space left on device") {
+					return true
+				}
+				if strings.Contains(log, "qemu-img execution failed") {
+					return true
+				}
+				By("Failed to find error messages about a too large image in log:")
+				By(log)
+				return false
+			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
+		}
+	},
+		Entry("Succeed with low global overhead", true, "0.1", ""),
+		Entry("[posneg:negative] Fail with high global overhead", false, "0.99", ""),
+		Entry("Succeed with low per-storageclass overhead (despite high global overhead)", true, "0.99", "0.1"),
+		Entry("[posneg:negative] Fail with high per-storageclass overhead (despite low global overhead)", false, "0.1", "0.99"),
+	)
 })
 
 var _ = Describe("[rfe_id:1118][crit:high][vendor:cnv-qe@redhat.com][level:component]Importer Test Suite-prometheus", func() {
