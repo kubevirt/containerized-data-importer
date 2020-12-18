@@ -82,6 +82,10 @@ filegroup(
         "//tests:images/archive.tar",
         "//tests:images/cirros-qcow2.img",
         "//tests:images/cirros.raw",
+	"//tests:images/cirros-large-virtual-size.raw.xz",
+	"//tests:images/cirros-large-virtual-size.qcow2",
+	"//tests:images/cirros-large-physical-size.raw.xz",
+	"//tests:images/cirros-large-physical-size.qcow2",
     ],
     visibility = ["//visibility:public"],
 )
