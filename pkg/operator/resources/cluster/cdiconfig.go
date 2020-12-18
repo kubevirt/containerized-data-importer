@@ -322,6 +322,10 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 												},
 											},
 										},
+										"preallocation": {
+											Description: "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+											Type:        "boolean",
+										},
 									},
 								},
 								"status": {
@@ -399,6 +403,10 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 													Type:        "object",
 												},
 											},
+										},
+										"preallocation": {
+											Description: "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+											Type:        "boolean",
 										},
 									},
 								},

@@ -846,6 +846,10 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 											Description: "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
 											Type:        "boolean",
 										},
+										"preallocation": {
+											Description: "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+											Type:        "boolean",
+										},
 									},
 									Required: []string{
 										"pvc",

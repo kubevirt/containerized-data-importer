@@ -562,6 +562,11 @@ func (in *DataVolumeSpec) DeepCopyInto(out *DataVolumeSpec) {
 		*out = make([]DataVolumeCheckpoint, len(*in))
 		copy(*out, *in)
 	}
+	if in.Preallocation != nil {
+		in, out := &in.Preallocation, &out.Preallocation
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 

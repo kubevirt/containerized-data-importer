@@ -295,7 +295,7 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 			return reconcile.Result{}, r.updateSmartCloneStatusPhase(cdiv1.SnapshotForSmartCloneInProgress, datavolume)
 		}
 		log.Info("Creating PVC for datavolume")
-		newPvc, err := newPersistentVolumeClaim(datavolume)
+		newPvc, err := r.newPersistentVolumeClaim(datavolume)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -1122,7 +1122,7 @@ func buildHTTPClient() *http.Client {
 // It also sets the appropriate OwnerReferences on the resource
 // which allows handleObject to discover the DataVolume resource
 // that 'owns' it.
-func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentVolumeClaim, error) {
+func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentVolumeClaim, error) {
 	labels := map[string]string{
 		"app": "containerized-data-importer",
 	}
@@ -1202,6 +1202,8 @@ func newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentV
 	} else {
 		return nil, errors.Errorf("no source set for datavolume")
 	}
+
+	annotations[AnnPreallocationRequested] = strconv.FormatBool(GetPreallocation(r.client, dataVolume))
 
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{

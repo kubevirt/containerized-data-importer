@@ -255,6 +255,162 @@ var _ = Describe("setConditionFromPod", func() {
 	})
 })
 
+var _ = Describe("GetPreallocation", func() {
+	It("Should return preallocation for DataVolume if specified", func() {
+		client := createClient()
+		dv := createDataVolumeWithPreallocation("test-dv", "test-ns", true)
+		preallocation := GetPreallocation(client, dv)
+		Expect(preallocation).To(BeTrue())
+
+		dv = createDataVolumeWithPreallocation("test-dv", "test-ns", false)
+		preallocation = GetPreallocation(client, dv)
+		Expect(preallocation).To(BeFalse())
+
+		// global: true, data volume overrides to false
+		client = createClient(createCDIConfigWithGlobalPreallocation(true))
+		dv = createDataVolumeWithStorageClassPreallocation("test-dv", "test-ns", "test-class", false)
+		preallocation = GetPreallocation(client, dv)
+		Expect(preallocation).To(BeFalse())
+	})
+
+	It("Should return global preallocation setting if not defined in DV or SC", func() {
+		client := createClient(createCDIConfigWithGlobalPreallocation(true))
+		dv := createDataVolumeWithStorageClass("test-dv", "test-ns", "test-class")
+		preallocation := GetPreallocation(client, dv)
+		Expect(preallocation).To(BeTrue())
+
+		client = createClient(createCDIConfigWithGlobalPreallocation(false))
+		preallocation = GetPreallocation(client, dv)
+		Expect(preallocation).To(BeFalse())
+	})
+
+	It("Should be false when niether DV nor Config defines preallocation", func() {
+		client := createClient(createCDIConfig("test"))
+		dv := createDataVolumeWithStorageClass("test-dv", "test-ns", "test-class")
+		preallocation := GetPreallocation(client, dv)
+		Expect(preallocation).To(BeFalse())
+	})
+})
+
+var _ = Describe("GetDefaultStorageClass", func() {
+	It("Should return the default storage class name", func() {
+		client := createClient(
+			createStorageClass("test-storage-class-1", nil),
+			createStorageClass("test-storage-class-2", map[string]string{
+				AnnDefaultStorageClass: "true",
+			}),
+		)
+		sc, _ := GetDefaultStorageClass(client)
+		Expect(sc.Name).To(Equal("test-storage-class-2"))
+	})
+
+	It("Should return nil if there's not default storage class", func() {
+		client := createClient(
+			createStorageClass("test-storage-class-1", nil),
+			createStorageClass("test-storage-class-2", nil),
+		)
+		sc, _ := GetDefaultStorageClass(client)
+		Expect(sc).To(BeNil())
+	})
+})
+
+var _ = Describe("GetStorageClassNameForDV", func() {
+	It("Should return DV's StorageClass if defined", func() {
+		client := createClient()
+		dv := createDataVolumeWithStorageClass("test-name", "test-ns", "test-storage-class")
+		scName := GetStorageClassNameForDV(client, dv)
+		Expect(scName).To(Equal("test-storage-class"))
+	})
+
+	It("Should return default StorageClass if not specified in DV or VM", func() {
+		client := createClient(
+			createStorageClass("test-storage-class-1", nil),
+			createStorageClass("test-storage-class-2", map[string]string{
+				AnnDefaultStorageClass: "true",
+			}),
+		)
+		dv := createDataVolume("test-name", "test-ns")
+		scName := GetStorageClassNameForDV(client, dv)
+		Expect(scName).To(Equal("test-storage-class-2"))
+	})
+
+	It("Should return empty StorageClass if not defined anywhere", func() {
+		client := createClient(
+			createStorageClass("test-storage-class-1", nil),
+			createStorageClass("test-storage-class-2", nil),
+		)
+		dv := createDataVolume("test-name", "test-ns")
+		scName := GetStorageClassNameForDV(client, dv)
+		Expect(scName).To(Equal(""))
+	})
+})
+
+func addOwnerToDV(dv *cdiv1.DataVolume, ownerName string) {
+	dv.ObjectMeta.OwnerReferences = []metav1.OwnerReference{
+		{
+			APIVersion: "v1",
+			Kind:       "VirtualMachine",
+			Name:       ownerName,
+		},
+	}
+}
+
+func createDataVolumeWithStorageClass(name, ns, storageClassName string) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{},
+			PVC: &corev1.PersistentVolumeClaimSpec{
+				StorageClassName: &storageClassName,
+			},
+		},
+	}
+}
+
+func createDataVolume(name, ns string) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{},
+		},
+	}
+}
+
+func createDataVolumeWithPreallocation(name, ns string, preallocation bool) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source:        cdiv1.DataVolumeSource{},
+			Preallocation: &preallocation,
+		},
+	}
+}
+
+func createDataVolumeWithStorageClassPreallocation(name, ns, storageClassName string, preallocation bool) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source:        cdiv1.DataVolumeSource{},
+			Preallocation: &preallocation,
+			PVC: &corev1.PersistentVolumeClaimSpec{
+				StorageClassName: &storageClassName,
+			},
+		},
+	}
+}
+
 func createBlockPvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {
 	pvcDef := createPvcInStorageClass(name, ns, nil, annotations, labels, v1.ClaimBound)
 	volumeMode := v1.PersistentVolumeBlock
@@ -390,6 +546,25 @@ func createCDIConfigWithStorageClass(name string, storageClass string) *cdiv1.CD
 		},
 		Status: cdiv1.CDIConfigStatus{
 			ScratchSpaceStorageClass: storageClass,
+		},
+	}
+}
+
+func createCDIConfigWithGlobalPreallocation(globalPreallocation bool) *cdiv1.CDIConfig {
+	return &cdiv1.CDIConfig{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CDIConfig",
+			APIVersion: "cdi.kubevirt.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: common.ConfigName,
+			Labels: map[string]string{
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: "",
+			},
+		},
+		Status: cdiv1.CDIConfigStatus{
+			Preallocation: globalPreallocation,
 		},
 	}
 }

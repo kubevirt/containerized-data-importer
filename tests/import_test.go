@@ -790,3 +790,80 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(err).ToNot(HaveOccurred())
 	})
 })
+
+var _ = Describe("Preallocation", func() {
+	f := framework.NewFramework(namespacePrefix)
+
+	var (
+		dataVolume     *cdiv1.DataVolume
+		err            error
+		tinyCoreIsoURL = func() string { return fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs) }
+	)
+
+	AfterEach(func() {
+		By("Delete DV")
+		err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() bool {
+			_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			if k8serrors.IsNotFound(err) {
+				return true
+			}
+			return false
+		}, timeout, pollingInterval).Should(BeTrue())
+	})
+
+	It("Importer should add preallocation when requested", func() {
+		dvName := "import-dv"
+		By(fmt.Sprintf("Creating new datavolume %s", dvName))
+		dv := utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", tinyCoreIsoURL())
+		preallocation := true
+		dv.Spec.Preallocation = &preallocation
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		Eventually(func() string {
+			for {
+				log, err := tests.RunKubectlCommand(f, "logs", "importer-"+dvName, "-n", f.Namespace.Name)
+				if err != nil {
+					time.Sleep(1 * time.Second)
+					continue
+				}
+				return log
+			}
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring("Added preallocation"))
+	})
+
+	It("Importer should not add preallocation when preallocation=false", func() {
+		dvName := "import-dv"
+		By(fmt.Sprintf("Creating new datavolume %s", dvName))
+		dataVolume = utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", tinyCoreIsoURL())
+		preallocation := false
+		dataVolume.Spec.Preallocation = &preallocation
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("verifying pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		Eventually(func() string {
+			for {
+				log, err := tests.RunKubectlCommand(f, "logs", "importer-"+dvName, "-n", f.Namespace.Name)
+				if err != nil {
+					time.Sleep(1 * time.Second)
+					continue
+				}
+				if strings.Contains(log, "Import complete") {
+					return log
+				}
+			}
+		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).ShouldNot(ContainSubstring("Added preallocation"))
+	})
+})

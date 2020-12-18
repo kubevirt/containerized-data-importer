@@ -19,9 +19,10 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strconv"
 	"strings"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
@@ -614,7 +615,7 @@ var _ = Describe("Import test env", func() {
 	const mockUID = "1111-1111-1111-1111"
 
 	It("Should create import env", func() {
-		testEnvVar := &importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, string(cdiv1.DataVolumeKubeVirt), "1G", "", "", "", "", "", "0.055", false, "", "", ""}
+		testEnvVar := &importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, string(cdiv1.DataVolumeKubeVirt), "1G", "", "", "", "", "", "0.055", false, "", "", "", false}
 		Expect(reflect.DeepEqual(makeImportEnv(testEnvVar, mockUID), createImportTestEnv(testEnvVar, mockUID))).To(BeTrue())
 	})
 })
@@ -867,6 +868,10 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 		{
 			Name:  common.ImporterFinalCheckpoint,
 			Value: podEnvVar.finalCheckpoint,
+		},
+		{
+			Name:  common.Preallocation,
+			Value: strconv.FormatBool(podEnvVar.preallocation),
 		},
 	}
 

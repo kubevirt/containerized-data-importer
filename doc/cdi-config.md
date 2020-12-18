@@ -16,6 +16,7 @@ Currently it is used only for holding Upload Proxy URL details.
 | filesystemOverhead      |                       | How much of a Filesystem volume's space should be reserved for overhead related to the Filesystem. |
 |   global                | "0.055"               | The amount to reserve for a Filesystem volume unless a per-storageClass value is chosen. |
 |   storageClass          | nil                   | A value of `local: "0.6"` is understood to mean that the overhead for the local storageClass is 0.6. |
+| preallocation           | false                 | Preallocation setting to use unless a per-dataVolume value is set |
 
 ## Configuration Status Fields
 
@@ -25,4 +26,3 @@ Currently it is used only for holding Upload Proxy URL details.
 | filesystemOverhead      |                       | updated when the spec values are updated, to show the per-storageClass calculated result as well as the per-storageClass one. |
 |   global                | "0.055"               | The calculated overhead to be used for all storageClasses unless a specific value is chosen for this storageClass |
 |   storageClass          |                       | The calculated overhead to be used for every storageClass in the system, taking into account both global and per-storageClass values. |
-

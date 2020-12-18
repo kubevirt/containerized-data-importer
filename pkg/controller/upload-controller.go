@@ -96,6 +96,7 @@ type UploadPodArgs struct {
 	ClientName                      string
 	FilesystemOverhead              string
 	ServerCert, ServerKey, ClientCA []byte
+	Preallocation                   string
 }
 
 // Reconcile the reconcile loop for the CDIConfig object.
@@ -361,6 +362,11 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 		return nil, err
 	}
 
+	preallocationRequested := false
+	if preallocation, err := strconv.ParseBool(getValueFromAnnotation(pvc, AnnPreallocationRequested)); err == nil {
+		preallocationRequested = preallocation
+	}
+
 	args := UploadPodArgs{
 		Name:               podName,
 		PVC:                pvc,
@@ -370,6 +376,7 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *v1.PersistentVolumeClaim, 
 		ServerCert:         serverCert,
 		ServerKey:          serverKey,
 		ClientCA:           clientCA,
+		Preallocation:      strconv.FormatBool(preallocationRequested),
 	}
 
 	r.log.V(3).Info("Creating upload pod")
@@ -690,6 +697,10 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 						{
 							Name:  "CLIENT_NAME",
 							Value: args.ClientName,
+						},
+						{
+							Name:  common.Preallocation,
+							Value: args.Preallocation,
 						},
 					},
 					Args: []string{"-v=" + r.verbose},

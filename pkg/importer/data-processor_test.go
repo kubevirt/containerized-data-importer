@@ -136,7 +136,7 @@ var _ = Describe("Data Processor", func() {
 			infoResponse:     ProcessingPhaseTransferScratch,
 			transferResponse: ProcessingPhaseComplete,
 		}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055)
+		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
 		err := dp.ProcessData()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(2).To(Equal(len(mdp.calledPhases)))
@@ -150,7 +150,7 @@ var _ = Describe("Data Processor", func() {
 			infoResponse:     ProcessingPhaseTransferDataDir,
 			transferResponse: ProcessingPhaseComplete,
 		}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055)
+		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
 		err := dp.ProcessData()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(2).To(Equal(len(mdp.calledPhases)))
@@ -164,7 +164,7 @@ var _ = Describe("Data Processor", func() {
 			infoResponse:     ProcessingPhaseTransferScratch,
 			transferResponse: ProcessingPhaseError,
 		}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055)
+		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
 		err := dp.ProcessData()
 		Expect(err).To(HaveOccurred())
 		Expect(2).To(Equal(len(mdp.calledPhases)))
@@ -178,7 +178,7 @@ var _ = Describe("Data Processor", func() {
 			transferResponse: ProcessingPhaseError,
 			needsScratch:     true,
 		}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055)
+		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
 		err := dp.ProcessData()
 		Expect(err).To(HaveOccurred())
 		Expect(ErrRequiresScratchSpace).To(Equal(err))
@@ -192,7 +192,7 @@ var _ = Describe("Data Processor", func() {
 			infoResponse:     ProcessingPhaseTransferDataFile,
 			transferResponse: ProcessingPhaseComplete,
 		}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055)
+		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
 		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, errors.New("Scratch space required, and none found ")}, nil, nil, nil)
 		replaceQEMUOperations(qemuOperations, func() {
 			err := dp.ProcessData()
@@ -208,7 +208,7 @@ var _ = Describe("Data Processor", func() {
 			infoResponse:     ProcessingPhaseTransferDataFile,
 			transferResponse: ProcessingPhaseError,
 		}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055)
+		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
 		qemuOperations := NewQEMUAllErrors()
 		replaceQEMUOperations(qemuOperations, func() {
 			err := dp.ProcessData()
@@ -223,7 +223,7 @@ var _ = Describe("Data Processor", func() {
 		mdp := &MockDataProvider{
 			infoResponse: ProcessingPhase("invalidphase"),
 		}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055)
+		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
 		err := dp.ProcessData()
 		Expect(err).To(HaveOccurred())
 		Expect(1).To(Equal(len(mdp.calledPhases)))
@@ -242,7 +242,7 @@ var _ = Describe("Data Processor", func() {
 			transferResponse: ProcessingPhaseConvert,
 			url:              url,
 		}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", tmpDir, "1G", 0.055)
+		dp := NewDataProcessor(mdp, "dest", "dataDir", tmpDir, "1G", 0.055, false)
 		dp.availableSpace = int64(1500)
 		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(1500), 0))
 		replaceQEMUOperations(qemuOperations, func() {
@@ -263,7 +263,7 @@ var _ = Describe("Convert", func() {
 		mdp := &MockDataProvider{
 			url: url,
 		}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055)
+		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
 		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, errors.New("Scratch space required, and none found ")}, nil, nil, nil)
 		replaceQEMUOperations(qemuOperations, func() {
 			nextPhase, err := dp.convert(mdp.GetURL())
@@ -278,7 +278,7 @@ var _ = Describe("Convert", func() {
 		mdp := &MockDataProvider{
 			url: url,
 		}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055)
+		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
 		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, errors.New("Scratch space required, and none found ")}, errors.New("Validation failure"), nil, nil)
 		replaceQEMUOperations(qemuOperations, func() {
 			nextPhase, err := dp.convert(mdp.GetURL())
@@ -293,7 +293,7 @@ var _ = Describe("Convert", func() {
 		mdp := &MockDataProvider{
 			url: url,
 		}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055)
+		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
 		qemuOperations := NewFakeQEMUOperations(errors.New("Conversion failure"), nil, fakeInfoOpRetVal{&fakeZeroImageInfo, errors.New("Scratch space required, and none found ")}, nil, nil, nil)
 		replaceQEMUOperations(qemuOperations, func() {
 			nextPhase, err := dp.convert(mdp.GetURL())
@@ -310,7 +310,7 @@ var _ = Describe("Resize", func() {
 		mdp := &MockDataProvider{
 			url: url,
 		}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "", 0.055)
+		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "", 0.055, false)
 		nextPhase, err := dp.resize()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(ProcessingPhaseComplete).To(Equal(nextPhase))
@@ -326,7 +326,7 @@ var _ = Describe("Resize", func() {
 			mdp := &MockDataProvider{
 				url: url,
 			}
-			dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055)
+			dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
 			nextPhase, err := dp.resize()
 			Expect(err).ToNot(HaveOccurred())
 			Expect(ProcessingPhaseComplete).To(Equal(nextPhase))
@@ -341,7 +341,7 @@ var _ = Describe("Resize", func() {
 		mdp := &MockDataProvider{
 			url: url,
 		}
-		dp := NewDataProcessor(mdp, "dest", tmpDir, "scratchDataDir", "1G", 0.055)
+		dp := NewDataProcessor(mdp, "dest", tmpDir, "scratchDataDir", "1G", 0.055, false)
 		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, nil}, nil, nil, nil)
 		replaceQEMUOperations(qemuOperations, func() {
 			nextPhase, err := dp.resize()
@@ -358,7 +358,7 @@ var _ = Describe("Resize", func() {
 		mdp := &MockDataProvider{
 			url: url,
 		}
-		dp := NewDataProcessor(mdp, "dest", tmpDir, "scratchDataDir", "1G", 0.055)
+		dp := NewDataProcessor(mdp, "dest", tmpDir, "scratchDataDir", "1G", 0.055, false)
 		qemuOperations := NewQEMUAllErrors()
 		replaceQEMUOperations(qemuOperations, func() {
 			nextPhase, err := dp.resize()
@@ -372,7 +372,7 @@ var _ = Describe("Resize", func() {
 			return int64(100000), nil
 		}, func() {
 			mdp := &MockDataProvider{}
-			dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "", 0.055)
+			dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "", 0.055, false)
 			Expect(int64(100000)).To(Equal(dp.calculateTargetSize()))
 		})
 	})
@@ -382,7 +382,7 @@ var _ = Describe("Resize", func() {
 			return int64(-1), errors.New("error")
 		}, func() {
 			mdp := &MockDataProvider{}
-			dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "", 0.055)
+			dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "", 0.055, false)
 			// We just log the error if one happens.
 			Expect(int64(-1)).To(Equal(dp.calculateTargetSize()))
 
@@ -392,28 +392,29 @@ var _ = Describe("Resize", func() {
 
 var _ = Describe("ResizeImage", func() {
 	//fakeInfoRet has info.VirtualSize=1024
-	table.DescribeTable("calling ResizeImage", func(qemuOperations image.QEMUOperations, imageSize string, totalSpace int64, wantErr bool) {
+	table.DescribeTable("calling ResizeImage", func(qemuOperations image.QEMUOperations, imageSize string, totalSpace int64, wantErr bool, wantResized bool) {
 		replaceQEMUOperations(qemuOperations, func() {
-			err := ResizeImage("dest", imageSize, totalSpace)
+			resized, err := ResizeImage("dest", imageSize, totalSpace)
 			if !wantErr {
 				Expect(err).ToNot(HaveOccurred())
 			} else {
 				Expect(err).To(HaveOccurred())
 			}
+			Expect(resized).To(Equal(wantResized))
 		})
 	},
-		table.Entry("successfully resize to imageSize when imageSize > info.VirtualSize and < totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(1500), 0)), "1500", int64(2048), false),
-		table.Entry("successfully resize to totalSize when imageSize > info.VirtualSize and > totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(2048), 0)), "2500", int64(2048), false),
-		table.Entry("successfully do nothing when imageSize = info.VirtualSize and > totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(1024), 0)), "1024", int64(1024), false),
-		table.Entry("fail to resize to with blank imageSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(2048), 0)), "", int64(2048), true),
-		table.Entry("fail to resize to with blank imageSize", NewQEMUAllErrors(), "", int64(2048), true),
+		table.Entry("successfully resize to imageSize when imageSize > info.VirtualSize and < totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(1500), 0)), "1500", int64(2048), false, true),
+		table.Entry("successfully resize to totalSize when imageSize > info.VirtualSize and > totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(2048), 0)), "2500", int64(2048), false, false),
+		table.Entry("successfully do nothing when imageSize = info.VirtualSize and > totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(1024), 0)), "1024", int64(1024), false, false),
+		table.Entry("fail to resize to with blank imageSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(2048), 0)), "", int64(2048), true, false),
+		table.Entry("fail to resize to with blank imageSize", NewQEMUAllErrors(), "", int64(2048), true, false),
 	)
 })
 
 var _ = Describe("DataProcessorResume", func() {
 	It("Should fail with an error if the data provider cannot resume", func() {
 		mdp := &MockDataProvider{}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "", 0.055)
+		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "", 0.055, false)
 		err := dp.ProcessDataResume()
 		Expect(err).To(HaveOccurred())
 	})
@@ -422,7 +423,7 @@ var _ = Describe("DataProcessorResume", func() {
 		amdp := &MockAsyncDataProvider{
 			ResumePhase: ProcessingPhaseComplete,
 		}
-		dp := NewDataProcessor(amdp, "dest", "dataDir", "scratchDataDir", "", 0.055)
+		dp := NewDataProcessor(amdp, "dest", "dataDir", "scratchDataDir", "", 0.055, false)
 		err := dp.ProcessDataResume()
 		Expect(err).ToNot(HaveOccurred())
 	})
@@ -441,7 +442,7 @@ func NewFakeQEMUOperations(e2, e3 error, ret4 fakeInfoOpRetVal, e5 error, e6 err
 	return &fakeQEMUOperations{e2, e3, ret4, e5, e6, targetResize}
 }
 
-func (o *fakeQEMUOperations) ConvertToRawStream(*url.URL, string) error {
+func (o *fakeQEMUOperations) ConvertToRawStream(*url.URL, string, bool) error {
 	return o.e2
 }
 
@@ -460,7 +461,7 @@ func (o *fakeQEMUOperations) Info(url *url.URL) (*image.ImgInfo, error) {
 	return o.ret4.imgInfo, o.ret4.e
 }
 
-func (o *fakeQEMUOperations) CreateBlankImage(dest string, size resource.Quantity) error {
+func (o *fakeQEMUOperations) CreateBlankImage(dest string, size resource.Quantity, preallocate bool) error {
 	return o.e6
 }
 

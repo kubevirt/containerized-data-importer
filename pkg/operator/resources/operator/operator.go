@@ -2937,6 +2937,10 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 														},
 													},
 												},
+												"preallocation": {
+													Description: "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+													Type:        "boolean",
+												},
 											},
 										},
 									},

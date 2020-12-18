@@ -51,6 +51,8 @@ const (
 	ProcessingPhaseConvert ProcessingPhase = "Convert"
 	// ProcessingPhaseResize the disk image, this is only needed when the target contains a file system (block device do not need a resize)
 	ProcessingPhaseResize ProcessingPhase = "Resize"
+	// ProcessingPhasePreallocate is the step to preallocate the file after resize
+	ProcessingPhasePreallocate ProcessingPhase = "Preallocate"
 	// ProcessingPhaseComplete is the phase where the entire process completed successfully and we can exit gracefully.
 	ProcessingPhaseComplete ProcessingPhase = "Complete"
 	// ProcessingPhasePause is the phase where we pause processing and end the loop, and expect something to call the process loop again.
@@ -116,15 +118,18 @@ type DataProcessor struct {
 	filesystemOverhead float64
 	// needsDataCleanup decides if the contents of the data directory should be deleted (need to avoid this during delta copy stages in a warm migration)
 	needsDataCleanup bool
+	// preallocation is the flag controlling preallocation setting of qemu-img
+	preallocation bool
 }
 
 // NewDataProcessor create a new instance of a data processor using the passed in data provider.
-func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratchDataDir, requestImageSize string, filesystemOverhead float64) *DataProcessor {
+func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratchDataDir, requestImageSize string, filesystemOverhead float64, preallocation bool) *DataProcessor {
 	needsDataCleanup := true
 	vddkSource, isVddk := dataSource.(*VDDKDataSource)
 	if isVddk {
 		needsDataCleanup = !vddkSource.IsDeltaCopy()
 	}
+
 	dp := &DataProcessor{
 		currentPhase:       ProcessingPhaseInfo,
 		source:             dataSource,
@@ -134,6 +139,7 @@ func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratch
 		requestImageSize:   requestImageSize,
 		filesystemOverhead: filesystemOverhead,
 		needsDataCleanup:   needsDataCleanup,
+		preallocation:      preallocation,
 	}
 	// Calculate available space before doing anything.
 	dp.availableSpace = dp.calculateTargetSize()
@@ -216,6 +222,11 @@ func (dp *DataProcessor) ProcessDataWithPause() error {
 			if err != nil {
 				err = errors.Wrap(err, "Unable to resize disk image to requested size")
 			}
+		case ProcessingPhasePreallocate:
+			dp.currentPhase, err = dp.preallocate()
+			if err != nil {
+				err = errors.Wrap(err, "Unable to preallocate disk image to requested size")
+			}
 		default:
 			return errors.Errorf("Unknown processing phase %s", dp.currentPhase)
 		}
@@ -244,7 +255,7 @@ func (dp *DataProcessor) convert(url *url.URL) (ProcessingPhase, error) {
 		return ProcessingPhaseError, err
 	}
 	klog.V(3).Infoln("Converting to Raw")
-	err = qemuOperations.ConvertToRawStream(url, dp.dataFile)
+	err = qemuOperations.ConvertToRawStream(url, dp.dataFile, dp.preallocation)
 	if err != nil {
 		return ProcessingPhaseError, errors.Wrap(err, "Conversion to Raw failed")
 	}
@@ -256,9 +267,11 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 	// Resize only if we have a resize request, and if the image is on a file system pvc.
 	size, _ := getAvailableSpaceBlockFunc(dp.dataFile)
 	klog.V(3).Infof("Available space in dataFile: %d", size)
+	shouldPreallocate := false
 	if dp.requestImageSize != "" && size < int64(0) {
+		var err error
 		klog.V(3).Infoln("Resizing image")
-		err := ResizeImage(dp.dataFile, dp.requestImageSize, dp.availableSpace)
+		shouldPreallocate, err = ResizeImage(dp.dataFile, dp.requestImageSize, dp.availableSpace)
 		if err != nil {
 			return ProcessingPhaseError, errors.Wrap(err, "Resize of image failed")
 		}
@@ -270,34 +283,56 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 			err = errors.Wrap(err, "Unable to change permissions of target file")
 		}
 	}
+	if dp.preallocation && shouldPreallocate {
+		return ProcessingPhasePreallocate, nil
+	}
+	return ProcessingPhaseComplete, nil
+}
+
+func (dp *DataProcessor) preallocate() (ProcessingPhase, error) {
+	if !dp.preallocation {
+		return ProcessingPhaseComplete, nil
+	}
+
+	klog.V(3).Infoln("Preallocating")
+	// Preallocation is implemented as a copy from file to itself
+	destURL, _ := url.Parse(dp.dataFile)
+	err := qemuOperations.ConvertToRawStream(destURL, dp.dataFile, dp.preallocation)
+	if err != nil {
+		return ProcessingPhaseError, errors.Wrap(err, "Preallocation or resized image failed")
+	}
+
 	return ProcessingPhaseComplete, nil
 }
 
 // ResizeImage resizes the images to match the requested size. Sometimes provisioners misbehave and the available space
 // is not the same as the requested space. For those situations we compare the available space to the requested space and
 // use the smallest of the two values.
-func ResizeImage(dataFile, imageSize string, totalTargetSpace int64) error {
+func ResizeImage(dataFile, imageSize string, totalTargetSpace int64) (bool, error) {
 	dataFileURL, _ := url.Parse(dataFile)
 	info, err := qemuOperations.Info(dataFileURL)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if imageSize != "" {
+		shouldPreallocate := true
 		currentImageSizeQuantity := resource.NewScaledQuantity(info.VirtualSize, 0)
 		newImageSizeQuantity := resource.MustParse(imageSize)
 		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(totalTargetSpace, 0), &newImageSizeQuantity)
 		if minSizeQuantity.Cmp(newImageSizeQuantity) != 0 {
 			// Available destination space is smaller than the size we want to resize to
 			klog.Warningf("Available space less than requested size, resizing image to available space %s.\n", minSizeQuantity.String())
+			shouldPreallocate = false
 		}
 		if currentImageSizeQuantity.Cmp(minSizeQuantity) == 0 {
 			klog.V(1).Infof("No need to resize image. Requested size: %s, Image size: %d.\n", imageSize, info.VirtualSize)
-			return nil
+			return false, nil
 		}
 		klog.V(1).Infof("Expanding image size to: %s\n", minSizeQuantity.String())
-		return qemuOperations.Resize(dataFile, minSizeQuantity)
+		err := qemuOperations.Resize(dataFile, minSizeQuantity)
+		return err == nil && shouldPreallocate, err
 	}
-	return errors.New("Image resize called with blank resize")
+	return false, errors.New("Image resize called with blank resize")
 }
 
 func (dp *DataProcessor) calculateTargetSize() int64 {

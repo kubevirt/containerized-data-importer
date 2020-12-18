@@ -13638,6 +13638,13 @@ func schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref common.ReferenceCallback) co
 							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead"),
 						},
 					},
+					"preallocation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},
@@ -13677,6 +13684,13 @@ func schema_pkg_apis_core_v1beta1_CDIConfigStatus(ref common.ReferenceCallback) 
 						SchemaProps: spec.SchemaProps{
 							Description: "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A percentage value is between 0 and 1",
 							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead"),
+						},
+					},
+					"preallocation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+							Type:        []string{"boolean"},
+							Format:      "",
 						},
 					},
 				},
@@ -14350,6 +14364,13 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref common.ReferenceCallback) c
 					"finalCheckpoint": {
 						SchemaProps: spec.SchemaProps{
 							Description: "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"preallocation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
 							Type:        []string{"boolean"},
 							Format:      "",
 						},

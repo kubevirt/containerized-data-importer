@@ -121,6 +121,7 @@ type importPodEnvVar struct {
 	currentCheckpoint  string
 	previousCheckpoint string
 	finalCheckpoint    string
+	preallocation      bool
 }
 
 // NewImportController creates a new instance of the import controller.
@@ -493,6 +494,9 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.previousCheckpoint = getValueFromAnnotation(pvc, AnnPreviousCheckpoint)
 		podEnvVar.currentCheckpoint = getValueFromAnnotation(pvc, AnnCurrentCheckpoint)
 		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, AnnFinalCheckpoint)
+		if preallocation, err := strconv.ParseBool(getValueFromAnnotation(pvc, AnnPreallocationRequested)); err == nil {
+			podEnvVar.preallocation = preallocation
+		} // else use the default "false"
 	}
 	//get the requested image size.
 	podEnvVar.imageSize, err = getRequestedImageSize(pvc)
@@ -981,6 +985,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.ImporterFinalCheckpoint,
 			Value: podEnvVar.finalCheckpoint,
+		},
+		{
+			Name:  common.Preallocation,
+			Value: strconv.FormatBool(podEnvVar.preallocation),
 		},
 	}
 	if podEnvVar.secretName != "" {
