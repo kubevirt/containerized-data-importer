@@ -527,7 +527,8 @@ http_file(
     sha256 = "51ba4e00f0180ea07b4ed46ca2ded198876bfe67cfe533421cafd0978ed2c7bf",
     urls = [
         "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/n/nbdkit-basic-filters-1.22.3-2.fc33.x86_64.rpm",
-   ],
+        "https://storage.googleapis.com/builddeps/51ba4e00f0180ea07b4ed46ca2ded198876bfe67cfe533421cafd0978ed2c7bf",
+    ],
 )
 
 http_file(
