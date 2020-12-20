@@ -18,6 +18,7 @@ package importer
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -481,23 +482,21 @@ var fixedOptArgs = libnbd.BlockStatusOptargs{
 
 // GetBlockStatus runs libnbd.BlockStatus on a given disk range.
 // Translated from IMS v2v-conversion-host.
-func GetBlockStatus(handle NbdOperations, extent types.DiskChangeExtent) ([]*BlockStatusData, error) {
+func GetBlockStatus(handle NbdOperations, extent types.DiskChangeExtent) []*BlockStatusData {
 	var blocks []*BlockStatusData
 
 	// Callback for libnbd.BlockStatus. Needs to modify blocks list above.
 	updateBlocksCallback := func(metacontext string, offset uint64, extents []uint32, err *int) int {
 		if *err != 0 {
-			klog.Errorf("Block status callback error was: %v", *err)
+			klog.Errorf("Block status callback error at offset %d: error code %d", offset, *err)
 			return *err
 		}
 		if metacontext != "base:allocation" {
-			klog.Info("Not base:allocation, ignoring")
+			klog.Infof("Offset %d not base:allocation, ignoring", offset)
 			return 0
 		}
-		klog.Infof("Block status callback offset: %d", offset)
-		klog.Infof("Block status length of extents: %d", len(extents))
 		if (len(extents) % 2) != 0 {
-			klog.Error("Block status entry unexpected length!")
+			klog.Errorf("Block status entry at offset %d has unexpected length %d!", offset, len(extents))
 			return -1
 		}
 		for i := 0; i < len(extents); i += 2 {
@@ -514,13 +513,10 @@ func GetBlockStatus(handle NbdOperations, extent types.DiskChangeExtent) ([]*Blo
 						Length: lastBlock.Length,
 						Flags:  lastFlags,
 					}
-					klog.Infof("Block status: merging offset %d, length %d, flags 0x%x into previous offset %d, length %d, flags 0x%x", offset, length, flags, lastOffset, lastBlock.Length, lastFlags)
 				} else {
-					klog.Infof("Block status: offset %d, length %d, flags 0x%x", offset, length, flags)
 					blocks = append(blocks, &BlockStatusData{Offset: offset, Length: length, Flags: flags})
 				}
 			} else {
-				klog.Infof("First block: offset %d, length %d, flags 0x%x", offset, length, flags)
 				blocks = append(blocks, &BlockStatusData{Offset: offset, Length: length, Flags: flags})
 			}
 			offset += uint64(length)
@@ -529,12 +525,11 @@ func GetBlockStatus(handle NbdOperations, extent types.DiskChangeExtent) ([]*Blo
 	}
 
 	if extent.Length < 1024*1024 {
-		klog.Info("Size is less than 1M, avoiding block status request.")
 		blocks = append(blocks, &BlockStatusData{
 			Offset: uint64(extent.Start),
 			Length: uint32(extent.Length),
 			Flags:  0})
-		return blocks, nil
+		return blocks
 	}
 
 	lastOffset := extent.Start
@@ -549,58 +544,67 @@ func GetBlockStatus(handle NbdOperations, extent types.DiskChangeExtent) ([]*Blo
 		}
 		err := handle.BlockStatus(length, uint64(lastOffset), updateBlocksCallback, &fixedOptArgs)
 		if err != nil {
-			klog.Errorf("Error getting block status at %d! %v", lastOffset, err)
-			return nil, err
+			klog.Errorf("Error getting block status at offset %d, returning whole block instead. Error was: %v", lastOffset, err)
+			block := &BlockStatusData{
+				Offset: uint64(extent.Start),
+				Length: uint32(extent.Length),
+				Flags:  0,
+			}
+			blocks = []*BlockStatusData{block}
+			return blocks
 		}
 		last := len(blocks) - 1
 		newOffset := blocks[last].Offset + uint64(blocks[last].Length)
 		if uint64(lastOffset) == newOffset {
-			klog.Info("No new block status data")
+			klog.Infof("No new block status data at offset %d", newOffset)
 		}
 		lastOffset = int64(newOffset)
 	}
 
-	return blocks, nil
+	return blocks
 }
 
 // CopyRange takes one data block, checks if it is a hole or filled with zeroes, and copies it to the sink
-func CopyRange(handle NbdOperations, sink VDDKDataSink, block *BlockStatusData) (int, error) {
+func CopyRange(handle NbdOperations, sink VDDKDataSink, block *BlockStatusData, updateProgress func(int)) error {
 	if (block.Flags & libnbd.STATE_HOLE) != 0 {
-		klog.Info("Found a hole, filling destination with zeroes.")
+		klog.Infof("Found a hole at offset %d, filling destination with zeroes.", block.Offset)
 	}
 	if (block.Flags & libnbd.STATE_ZERO) != 0 {
-		klog.Info("Found a zero block, filling destination with zeroes.")
+		klog.Infof("Found a zero block at offset %d, filling destination with zeroes.", block.Offset)
 	}
 
 	if (block.Flags & (libnbd.STATE_ZERO | libnbd.STATE_HOLE)) != 0 {
 		size := block.Offset + uint64(block.Length)
 		err := sink.Ftruncate(int64(size))
-		return int(block.Length), err
+		updateProgress(int(block.Length))
+		return err
 	}
 
-	buffer := make([]byte, block.Length)
+	buffer := bytes.Repeat([]byte{0}, MaxPreadLength)
 	count := uint32(0)
 	for count < block.Length {
-		var length uint32
-		if block.Length-count > MaxPreadLength {
-			length = MaxPreadLength
-		} else {
-			length = block.Length - count
+		if block.Length-count < MaxPreadLength {
+			buffer = bytes.Repeat([]byte{0}, int(block.Length-count))
 		}
+		length := len(buffer)
+
 		offset := block.Offset + uint64(count)
-		klog.Infof("Reading %d-bytes to local %d at file %d", length, count, offset)
-		err := handle.Pread(buffer[count:count+length], offset, nil)
+		err := handle.Pread(buffer, offset, nil)
 		if err != nil {
-			klog.Errorf("Error reading from source: %v", err)
-			return 0, err
+			klog.Errorf("Error reading from source at offset %d: %v", offset, err)
+			return err
 		}
-		count += length
+
+		written, err := sink.Pwrite(buffer, offset)
+		if err != nil {
+			klog.Errorf("Failed to write data block at offset %d to local file: %v", block.Offset, err)
+			return err
+		}
+
+		updateProgress(written)
+		count += uint32(length)
 	}
-	written, err := sink.Pwrite(buffer, uint64(block.Offset))
-	if err != nil {
-		klog.Errorf("Failed to write data block at offset %d to local file: %v", block.Offset, err)
-	}
-	return written, err
+	return nil
 }
 
 /* Section: Destination file operations */
@@ -889,19 +893,13 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 
 	if vs.ChangedBlocks != nil { // Warm migration delta copy
 		for _, extent := range vs.ChangedBlocks.ChangedArea {
-			blocks, err := GetBlockStatus(vs.NbdKit.Handle, extent)
-			if err != nil {
-				klog.Errorf("Unable to get block status for %d bytes at offset %d: %v", extent.Length, extent.Start, err)
-				return ProcessingPhaseError, err // Could probably just copy the whole block here instead
-			}
-
+			blocks := GetBlockStatus(vs.NbdKit.Handle, extent)
 			for _, block := range blocks {
-				written, err := CopyRange(vs.NbdKit.Handle, sink, block)
+				err := CopyRange(vs.NbdKit.Handle, sink, block, updateProgress)
 				if err != nil {
 					klog.Errorf("Unable to copy block at offset %d: %v", block.Offset, err)
 					return ProcessingPhaseError, err
 				}
-				updateProgress(written)
 			}
 		}
 	} else { // Cold migration full copy
@@ -917,19 +915,13 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 				Start:  int64(i),
 			}
 
-			blocks, err := GetBlockStatus(vs.NbdKit.Handle, extent)
-			if err != nil {
-				klog.Errorf("Unable to get block status for %d bytes at offset %d: %v", blocksize, i, err)
-				return ProcessingPhaseError, err // Could probably just copy the whole block here instead
-			}
-
+			blocks := GetBlockStatus(vs.NbdKit.Handle, extent)
 			for _, block := range blocks {
-				written, err := CopyRange(vs.NbdKit.Handle, sink, block)
+				err := CopyRange(vs.NbdKit.Handle, sink, block, updateProgress)
 				if err != nil {
 					klog.Errorf("Unable to copy block at offset %d: %v", block.Offset, err)
 					return ProcessingPhaseError, err
 				}
-				updateProgress(written)
 			}
 		}
 	}
