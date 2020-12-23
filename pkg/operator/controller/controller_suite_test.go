@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/operator"
@@ -43,7 +44,7 @@ var cfg *rest.Config
 var clientset *kubernetes.Clientset
 
 var _ = BeforeSuite(func(done Done) {
-	logf.SetLogger(logf.ZapLoggerTo(GinkgoWriter, true))
+	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	env := &envtest.Environment{}
 
