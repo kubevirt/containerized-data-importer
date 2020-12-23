@@ -36,10 +36,10 @@ go_library(
         "//vendor/k8s.io/client-go/tools/record:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client/config:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/log:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/log/zap:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/manager:go_default_library",
-        "//vendor/sigs.k8s.io/controller-runtime/pkg/runtime/log:go_default_library",
-        "//vendor/sigs.k8s.io/controller-runtime/pkg/runtime/signals:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/manager/signals:go_default_library",
     ],
 )
 
