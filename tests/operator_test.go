@@ -51,7 +51,7 @@ var _ = Describe("Operator tests", func() {
 		Expect(r.Spec.TLS.Termination).To(Equal(routev1.TLSTerminationReencrypt))
 	})
 
-	It("[test_id:4985]should create a prometheus service in cdi namespace", func() {
+	It("[test_id:4351]should create a prometheus service in cdi namespace", func() {
 		promService, err := f.K8sClient.CoreV1().Services(f.CdiInstallNs).Get(context.TODO(), common.PrometheusServiceName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(promService.Spec.Ports[0].Name).To(Equal("metrics"))
@@ -536,10 +536,10 @@ var _ = Describe("[rfe_id:4784][crit:high] CDI Operator deployment + CDI CR dele
 	})
 })
 
-var _ = Describe("Strict Reconciliation tests", func() {
+var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]Strict Reconciliation tests", func() {
 	f := framework.NewFramework("strict-reconciliation-test")
 
-	It("cdi-deployment replicas back to original value on attempt to scale", func() {
+	It("[test_id:5573]cdi-deployment replicas back to original value on attempt to scale", func() {
 		deploymentName := "cdi-deployment"
 		cdiDeployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
@@ -559,7 +559,7 @@ var _ = Describe("Strict Reconciliation tests", func() {
 		}, 5*time.Minute, 1*time.Second).Should(BeTrue())
 	})
 
-	It("Service spec.selector restored on overwrite attempt", func() {
+	It("[test_id:5574]Service spec.selector restored on overwrite attempt", func() {
 		service, err := f.K8sClient.CoreV1().Services(f.CdiInstallNs).Get(context.TODO(), "cdi-api", metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		originalSelectorVal := service.Spec.Selector[common.CDIComponentLabel]
@@ -577,7 +577,7 @@ var _ = Describe("Strict Reconciliation tests", func() {
 		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 	})
 
-	It("ClusterRole verb restored on deletion attempt", func() {
+	It("[test_id:5575]ClusterRole verb restored on deletion attempt", func() {
 		clusterRole, err := f.K8sClient.RbacV1().ClusterRoles().Get(context.TODO(), "cdi.kubevirt.io:config-reader", metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -614,7 +614,7 @@ var _ = Describe("Strict Reconciliation tests", func() {
 		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 	})
 
-	It("ServiceAccount secrets restored on deletion attempt", func() {
+	It("[test_id:5576]ServiceAccount secrets restored on deletion attempt", func() {
 		serviceAccount, err := f.K8sClient.CoreV1().ServiceAccounts(f.CdiInstallNs).Get(context.TODO(), common.ControllerServiceAccountName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -632,7 +632,7 @@ var _ = Describe("Strict Reconciliation tests", func() {
 		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 	})
 
-	It("Certificate restored to ConfigMap on deletion attempt", func() {
+	It("[test_id:5577]Certificate restored to ConfigMap on deletion attempt", func() {
 		configMap, err := f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Get(context.TODO(), "cdi-apiserver-signer-bundle", metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -650,7 +650,7 @@ var _ = Describe("Strict Reconciliation tests", func() {
 		}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 	})
 
-	It("Cant enable featureGate by editing CDIConfig resource", func() {
+	It("[test_id:5578]Cant enable featureGate by editing CDIConfig resource", func() {
 		feature := "nonExistantFeature"
 		cdiConfig, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
