@@ -274,10 +274,6 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 	isBlockDev := size >= int64(0)
 	shouldPreallocate := false
 	if !isBlockDev {
-		// Unlike block devices, a raw image file on a disk doesn't fill up the
-		// file system space as needed (thus we resize it)
-		// And may be bigger than the available space (sparse).
-		// Make sure that we use the biggest bound possible.
 		if dp.requestImageSize != "" {
 			var err error
 			klog.V(3).Infoln("Resizing image")
@@ -286,16 +282,15 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 			if err != nil {
 				return ProcessingPhaseError, errors.Wrap(err, "Resize of image failed")
 			}
-		} else {
-			// A sparse file could still be bigger than the available space.
-			dataFileURL, err := url.Parse(dp.dataFile)
-			if err != nil {
-				return ProcessingPhaseError, err
-			}
-			err = dp.validate(dataFileURL)
-			if err != nil {
-				return ProcessingPhaseError, err
-			}
+		}
+		// Validate that a sparse file will fit even as it fills out.
+		dataFileURL, err := url.Parse(dp.dataFile)
+		if err != nil {
+			return ProcessingPhaseError, err
+		}
+		err = dp.validate(dataFileURL)
+		if err != nil {
+			return ProcessingPhaseError, err
 		}
 	}
 	if dp.dataFile != "" {
