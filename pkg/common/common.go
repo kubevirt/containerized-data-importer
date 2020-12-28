@@ -180,6 +180,9 @@ const (
 
 	// UploadFormAsync is the path to POST CDI uploads as form data in async mode
 	UploadFormAsync = "/v1beta1/upload-form-async"
+
+	//
+	CSICloneCDILabel = "csi-volume-clone"
 )
 
 // ProxyPaths are all supported paths

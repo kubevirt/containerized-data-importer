@@ -349,7 +349,6 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(pvc.GetAnnotations()[AnnCurrentCheckpoint]).To(Equal("oldCurrent"))
 		Expect(pvc.GetAnnotations()[AnnFinalCheckpoint]).To(Equal("true"))
 	})
-
 	DescribeTable("After successful checkpoint copy", func(finalCheckpoint bool, modifyAnnotations func(annotations map[string]string), validate func(pv *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume)) {
 		annotations := map[string]string{
 			AnnPopulatedFor:       "test-dv",
@@ -444,6 +443,43 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 			Expect(pvc.GetAnnotations()[AnnCurrentCheckpoint]).To(Equal("current"))
 		}),
 	)
+	It("Should create a source clone pvc with datasource set to the datavolume source pvc", func() {
+		mockStorageClass := createStorageClass("mockStorageClass", map[string]string{AnnCSICloneCapable: "true"})
+		mockSourcePvc := createPvcInStorageClass("mockSourcePVC", "mockSourcePVCNamespace", &mockStorageClass.Name, map[string]string{}, map[string]string{}, corev1.ClaimBound)
+		dv := newCloneDataVolumeWithPVCNS("mockDv", mockSourcePvc.Namespace)
+		dv.Spec.Source.PVC.Name = mockSourcePvc.Name
+		dv.Spec.PVC.StorageClassName = &mockStorageClass.Name
+		reconciler = createDatavolumeReconciler(dv, mockSourcePvc, mockStorageClass)
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
+		Expect(err).ToNot(HaveOccurred())
+		By("Checking the annotations of the created source clone pvc")
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: fmt.Sprintf("%s-%s", dv.Namespace, dv.Name), Namespace: mockSourcePvc.Namespace}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.GetAnnotations()[AnnCSICloneRequest]).To(Equal("true"))
+		Expect(pvc.GetAnnotations()[AnnCSICloneSource]).To(Equal("true"))
+		Expect(pvc.GetAnnotations()[AnnCSICloneTarget]).To(Equal("false"))
+		By("Checking the phase of the datavolume")
+		dvCheck := &cdiv1.DataVolume{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}, dvCheck)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dvCheck.Status.Phase).To(Equal(cdiv1.CSICloneInProgress))
+	})
+	It("Should set datavolume phase to ClonePVCNameInUse and not create a source clone pvc if it already exists in source namespace", func() {
+		mockStorageClass := createStorageClass("mockStorageClass", map[string]string{AnnCSICloneCapable: "true"})
+		mockSourcePvc := createPvcInStorageClass("mockSourcePVC", "mockSourcePVCNamespace", &mockStorageClass.Name, map[string]string{}, map[string]string{}, corev1.ClaimBound)
+		dv := newCloneDataVolumeWithPVCNS("mockDv", mockSourcePvc.Namespace)
+		dv.Spec.Source.PVC.Name = mockSourcePvc.Name
+		dv.Spec.PVC.StorageClassName = &mockStorageClass.Name
+		mockClashPvc := createPvc(fmt.Sprintf("%s-%s", dv.Namespace, dv.Name), mockSourcePvc.Namespace, map[string]string{}, map[string]string{})
+		reconciler = createDatavolumeReconciler(dv, mockSourcePvc, mockStorageClass, mockClashPvc)
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}})
+		Expect(err).ToNot(HaveOccurred())
+		By("Checking the phase of the datavolume")
+		dvCheck := &cdiv1.DataVolume{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}, dvCheck)
+		Expect(dvCheck.Status.Phase).To(Equal(cdiv1.ClonePVCNameInUse))
+	})
 })
 
 var _ = Describe("Reconcile Datavolume status", func() {

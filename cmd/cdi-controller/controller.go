@@ -151,9 +151,14 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		klog.Errorf("Unable to setup import controller: %v", err)
 		os.Exit(1)
 	}
-
+	
 	if _, err := controller.NewCloneController(mgr, log, clonerImage, pullPolicy, verbose, uploadClientCertGenerator, uploadServerBundleFetcher, getAPIServerPublicKey()); err != nil {
 		klog.Errorf("Unable to setup clone controller: %v", err)
+		os.Exit(1)
+	}
+	
+	if _, err := controller.NewCSICloneController(mgr, log); err != nil {
+		klog.Errorf("Unable to setup csi clone controller: %v", err)
 		os.Exit(1)
 	}
 
@@ -161,6 +166,7 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		klog.Errorf("Unable to setup upload controller: %v", err)
 		os.Exit(1)
 	}
+	
 
 	klog.V(1).Infoln("created cdi controllers")
 

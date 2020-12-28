@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "clone-controller.go",
         "config-controller.go",
+        "csi-clone-controller.go",
         "datavolume-conditions.go",
         "datavolume-controller.go",
         "import-controller.go",
@@ -47,6 +48,7 @@ go_library(
         "//vendor/k8s.io/apimachinery/pkg/util/sets:go_default_library",
         "//vendor/k8s.io/client-go/tools/cache:go_default_library",
         "//vendor/k8s.io/client-go/tools/record:go_default_library",
+        "//vendor/k8s.io/client-go/tools/reference:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
         "//vendor/kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/cache:go_default_library",
@@ -72,6 +74,7 @@ go_test(
         "datavolume-controller_test.go",
         "import-controller_test.go",
         "smart-clone-controller_test.go",
+        "csi-clone-controller_test.go",
         "upload-controller_test.go",
         "util_test.go",
     ],

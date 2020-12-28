@@ -14,6 +14,9 @@ The following statuses are possible.
 * Import/Clone/UploadInProgress: The operation (import/clone/upload) is in progress.
 * SnapshotForSmartClone/SmartClonePVCInProgress: The Smart-Cloning operation is in progress.
 * Paused: A [multi-stage](#multi-stage-import) import is waiting to transfer a new checkpoint.
+* CSICloneInProgress: CSI Volume clone operation is in progress
+* CloneSourcePVLost: Source PVC lost its PV binding during the cloning process.
+* CloneTargetPVCLost: Target PVC lost during the cloning process.
 * Succeeded: The operation has succeeded.
 * Failed: The operation has failed.
 * Unknown: Unknown status.

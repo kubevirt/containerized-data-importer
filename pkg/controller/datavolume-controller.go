@@ -220,6 +220,101 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 	return nil
 }
 
+func (r *DatavolumeReconciler) isCSICloneCapable(dv *cdiv1.DataVolume) (bool, error) {
+	if dv.Spec.Source.PVC == nil {
+		return false, nil
+	}
+	sourcePvcNs := dv.Spec.Source.PVC.Namespace
+	if sourcePvcNs == "" {
+		sourcePvcNs = dv.Namespace
+	}
+	sourcePvc := &corev1.PersistentVolumeClaim{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: sourcePvcNs, Name: dv.Spec.Source.PVC.Name}, sourcePvc); err != nil {
+		if k8serrors.IsNotFound(err) {
+			r.log.V(3).Info("Source PVC is missing", "source namespace", dv.Spec.Source.PVC.Namespace, "source name", dv.Spec.Source.PVC.Name)
+			return false, errors.New("source PVC not found")
+		}
+	}
+
+	sourcePvcStorageClassName := sourcePvc.Spec.StorageClassName
+	targetStorageClass, err := GetStorageClassByName(r.client, dv.Spec.PVC.StorageClassName)
+	if err != nil || targetStorageClass == nil {
+		return false, err
+	}
+
+	if targetStorageClass.Name != *sourcePvcStorageClassName {
+		r.log.V(3).Info("Source PVC and target PVC belong to different storage classes", "source storage class",
+			*sourcePvcStorageClassName, "target storage class", (*targetStorageClass).Name)
+		return false, nil
+	}
+
+	if (dv.Spec.PVC.VolumeMode != nil && *sourcePvc.Spec.VolumeMode != *dv.Spec.PVC.VolumeMode) || *sourcePvc.Spec.VolumeMode != corev1.PersistentVolumeFilesystem {
+		r.log.V(3).Info("Source PVC and target PVC have different volumeModes","source storage class", 
+			*sourcePvcStorageClassName, "target storage class", (*targetStorageClass).Name)
+		return false, nil
+	}
+
+	ann := targetStorageClass.Annotations[AnnCSICloneCapable]
+
+	if s, err := strconv.ParseBool(ann); s && err == nil {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func NewVolumeClonePVC(dv *cdiv1.DataVolume, pvcStorageClassName string, pvcAccessModes []corev1.PersistentVolumeAccessMode, csiClonePvcType CSIClonePVCType) *corev1.PersistentVolumeClaim {
+	annotations := make(map[string]string)
+	for ann, v := range dv.GetAnnotations() {
+		annotations[ann] = v
+	}
+	annotations[AnnCSICloneRequest] = "true"
+	labels := map[string]string{
+		common.CDILabelKey:       common.CDILabelValue,
+		common.CDIComponentLabel: common.CSICloneCDILabel,
+	}
+
+	pvc := corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        dv.Name,
+			Labels:      labels,
+			Annotations: annotations,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(dv, schema.GroupVersionKind{
+					Group:   cdiv1.SchemeGroupVersion.Group,
+					Version: cdiv1.SchemeGroupVersion.Version,
+					Kind:    "DataVolume",
+				}),
+			},
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			StorageClassName: &pvcStorageClassName,
+			AccessModes:      pvcAccessModes,
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: *dv.Spec.PVC.Resources.Requests.Storage(),
+				},
+			},
+		},
+	}
+	if csiClonePvcType == CSICloneSourcePVC {
+		annotations[AnnCSICloneSource] = "true"
+		annotations[AnnCSICloneTarget] = "false"
+		annotations[AnnCSICloneDVNamespace] = dv.Namespace
+		pvc.Namespace = dv.Spec.Source.PVC.Namespace
+		pvc.Name = fmt.Sprintf("%s-%s", dv.Namespace, dv.Name)
+		pvc.Spec.DataSource = &corev1.TypedLocalObjectReference{
+			Name: dv.Spec.Source.PVC.Name,
+			Kind: "PersistentVolumeClaim",
+		}
+	} else if csiClonePvcType == CSICloneTargetPVC {
+		annotations[AnnCSICloneTarget] = "true"
+		annotations[AnnCSICloneSource] = "false"
+		pvc.Namespace = dv.Namespace
+	}
+	return &pvc
+}
+
 // Reconcile the reconcile loop for the data volumes.
 func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("Datavolume", req.NamespacedName)
@@ -269,6 +364,48 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 			r.recorder.Event(datavolume, corev1.EventTypeWarning, ErrResourceMarkedForDeletion, msg)
 			return reconcile.Result{}, errors.Errorf(msg)
 		}
+	}
+
+	// Check if CSIClone is possible
+	if isCSICap, err := r.isCSICloneCapable(datavolume); isCSICap && datavolume.Spec.PVC != nil && err == nil {
+		if !pvcExists {
+			sourcePvcNs := datavolume.Spec.Source.PVC.Namespace
+			if sourcePvcNs == "" {
+				sourcePvcNs = datavolume.Namespace
+			}
+			// Get source pvc
+			sourcePvc := &corev1.PersistentVolumeClaim{}
+			if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: sourcePvcNs, Name: datavolume.Spec.Source.PVC.Name}, sourcePvc); err != nil {
+				if k8serrors.IsNotFound(err) {
+					log.V(3).Info("Source PVC no longer exists")
+					return reconcile.Result{}, r.updateCSICloneDataVolumeStatus(cdiv1.CloneSourcePVCLost, datavolume)
+				}
+				return reconcile.Result{}, err
+			}
+
+			sourceClonerPvc := NewVolumeClonePVC(datavolume, *sourcePvc.Spec.StorageClassName, sourcePvc.Spec.AccessModes, CSICloneSourcePVC)
+
+			pvcClash := &corev1.PersistentVolumeClaim{}
+			if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: sourceClonerPvc.Namespace, Name: sourceClonerPvc.Name}, pvcClash); err != nil && !k8serrors.IsNotFound(err) {
+				return reconcile.Result{}, err
+			}
+
+			pvcControllerRef := metav1.GetControllerOf(sourceClonerPvc)
+			pvcClashControllerRef := metav1.GetControllerOf(pvcClash)
+
+			if pvcClash.Name == sourceClonerPvc.Name && pvcClash.Namespace == sourceClonerPvc.Namespace && !reflect.DeepEqual(pvcControllerRef, pvcClashControllerRef) {
+				return reconcile.Result{}, r.updateCSICloneDataVolumeStatus(cdiv1.ClonePVCNameInUse, datavolume)
+			}
+
+			if err := r.client.Create(context.TODO(), sourceClonerPvc); err != nil {
+				if k8serrors.IsAlreadyExists(err) {
+					return reconcile.Result{}, nil
+				}
+				return reconcile.Result{}, err
+			}
+			return reconcile.Result{}, r.updateCSICloneDataVolumeStatus(cdiv1.CSICloneInProgress, datavolume)
+		}
+		return reconcile.Result{}, nil
 	}
 
 	if !pvcExists {
@@ -327,6 +464,7 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 
 	// Finally, we update the status block of the DataVolume resource to reflect the
 	// current state of the world
+
 	return r.reconcileDataVolumeStatus(datavolume, pvc)
 }
 
@@ -732,6 +870,30 @@ func (r *DatavolumeReconciler) updateSmartCloneStatusPhase(phase cdiv1.DataVolum
 	}
 
 	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, dataVolume.Status.Conditions, &event)
+}
+
+func (r *DatavolumeReconciler) updateCSICloneDataVolumeStatus(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume) error {
+	dvCopy := dataVolume.DeepCopy()
+	event := DataVolumeEvent{}
+	switch phase {
+	case cdiv1.ClonePVCNameInUse:
+		dvCopy.Status.Phase = cdiv1.ClonePVCNameInUse
+		event.eventType = corev1.EventTypeWarning
+		event.reason = string(cdiv1.ClonePVCNameInUse)
+		event.message = fmt.Sprintf("Datavolume unable to create cloning PVC in target namespace using name %s.", dataVolume.Name)
+	case cdiv1.CSICloneInProgress:
+		dvCopy.Status.Phase = cdiv1.CSICloneInProgress
+		event.eventType = corev1.EventTypeNormal
+		event.reason = string(cdiv1.CSICloneInProgress)
+		event.message = "CSI clone in progress. Creating clone PVC"
+	case cdiv1.CloneSourcePVCLost:
+		dvCopy.Status.Phase = cdiv1.CloneSourcePVCLost
+		event.eventType = corev1.EventTypeWarning
+		event.reason = string(cdiv1.CloneSourcePVCLost)
+		event.message = fmt.Sprintf("Source PVC %s no longer exists", dataVolume.Spec.Source.PVC.Name)
+	}
+
+	return r.emitEvent(dataVolume, dvCopy, dataVolume.Status.Phase, dataVolume.Status.Conditions, &event)
 }
 
 func (r *DatavolumeReconciler) updateCloneStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *DataVolumeEvent) {
