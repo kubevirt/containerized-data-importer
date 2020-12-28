@@ -102,7 +102,7 @@ func NewQEMUOperations() QEMUOperations {
 func convertToRaw(src, dest string, preallocate bool) error {
 	args := []string{"convert", "-t", "none", "-p", "-O", "raw", src, dest}
 	if preallocate {
-		klog.V(3).Info("Added preallocation")
+		klog.V(1).Info("Added preallocation")
 		args = append(args, []string{"-o", "preallocation=falloc"}...)
 	}
 	_, err := qemuExecFunction(nil, nil, "qemu-img", args...)
@@ -124,7 +124,7 @@ func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string, prealloca
 
 	args := []string{"convert", "-t", "none", "-p", "-O", "raw", jsonArg, dest}
 	if preallocate {
-		klog.V(3).Info("Added preallocation")
+		klog.V(1).Info("Added preallocation")
 		args = append(args, []string{"-o", "preallocation=falloc"}...)
 	}
 	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", args...)
@@ -243,7 +243,7 @@ func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity, p
 	klog.V(3).Infof("image size is %s", size.String())
 	args := []string{"create", "-f", "raw", dest, convertQuantityToQemuSize(size)}
 	if preallocate {
-		klog.V(3).Infof("Added preallocation")
+		klog.V(1).Infof("Added preallocation")
 		args = append(args, []string{"-o", "preallocation=falloc"}...)
 	}
 	_, err := qemuExecFunction(nil, nil, "qemu-img", args...)
