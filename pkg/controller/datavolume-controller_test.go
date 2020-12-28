@@ -446,6 +446,8 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 	It("Should create a source clone pvc with datasource set to the datavolume source pvc", func() {
 		mockStorageClass := createStorageClass("mockStorageClass", map[string]string{AnnCSICloneCapable: "true"})
 		mockSourcePvc := createPvcInStorageClass("mockSourcePVC", "mockSourcePVCNamespace", &mockStorageClass.Name, map[string]string{}, map[string]string{}, corev1.ClaimBound)
+		mockSourcePvcVolumeMode := corev1.PersistentVolumeFilesystem
+		mockSourcePvc.Spec.VolumeMode = &mockSourcePvcVolumeMode
 		dv := newCloneDataVolumeWithPVCNS("mockDv", mockSourcePvc.Namespace)
 		dv.Spec.Source.PVC.Name = mockSourcePvc.Name
 		dv.Spec.PVC.StorageClassName = &mockStorageClass.Name
@@ -468,6 +470,8 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 	It("Should set datavolume phase to ClonePVCNameInUse and not create a source clone pvc if it already exists in source namespace", func() {
 		mockStorageClass := createStorageClass("mockStorageClass", map[string]string{AnnCSICloneCapable: "true"})
 		mockSourcePvc := createPvcInStorageClass("mockSourcePVC", "mockSourcePVCNamespace", &mockStorageClass.Name, map[string]string{}, map[string]string{}, corev1.ClaimBound)
+		mockSourcePvcVolumeMode := corev1.PersistentVolumeFilesystem
+		mockSourcePvc.Spec.VolumeMode = &mockSourcePvcVolumeMode
 		dv := newCloneDataVolumeWithPVCNS("mockDv", mockSourcePvc.Namespace)
 		dv.Spec.Source.PVC.Name = mockSourcePvc.Name
 		dv.Spec.PVC.StorageClassName = &mockStorageClass.Name

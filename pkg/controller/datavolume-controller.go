@@ -248,12 +248,15 @@ func (r *DatavolumeReconciler) isCSICloneCapable(dv *cdiv1.DataVolume) (bool, er
 		return false, nil
 	}
 
-	if (dv.Spec.PVC.VolumeMode != nil && *sourcePvc.Spec.VolumeMode != *dv.Spec.PVC.VolumeMode) || *sourcePvc.Spec.VolumeMode != corev1.PersistentVolumeFilesystem {
+	if sourcePvc.Spec.VolumeMode == nil {
+		// This is a strange case
+		r.log.V(3).Info("Source PVC and does not have a volumeMode set", "source storage class", *sourcePvcStorageClassName)
+		return false, nil
+	} else if (dv.Spec.PVC.VolumeMode != nil && *sourcePvc.Spec.VolumeMode != *dv.Spec.PVC.VolumeMode) || *sourcePvc.Spec.VolumeMode != corev1.PersistentVolumeFilesystem {
 		r.log.V(3).Info("Source PVC and target PVC have different volumeModes", "source storage class",
 			*sourcePvcStorageClassName, "target storage class", (*targetStorageClass).Name)
 		return false, nil
 	}
-
 	ann := targetStorageClass.Annotations[AnnCSICloneCapable]
 
 	if s, err := strconv.ParseBool(ann); s && err == nil {
