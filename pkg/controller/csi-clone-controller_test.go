@@ -21,7 +21,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
-	// "kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 var (
@@ -108,7 +107,7 @@ var _ = Describe("CSI-clone reconciliation", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: annotations,
 					OwnerReferences: []metav1.OwnerReference{
-						metav1.OwnerReference{
+						{
 							Kind:       controllerKind,
 							Controller: &isController,
 						},

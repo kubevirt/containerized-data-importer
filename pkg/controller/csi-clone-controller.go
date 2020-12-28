@@ -29,15 +29,21 @@ import (
 )
 
 const (
-	AnnCSICloneRequest     = "cdi.kubevirt.io/CSICloneRequest"       // Annotation associating object with CSI Clone
-	AnnCSICloneDVNamespace = "cdi.kubevirt.io/CSICloneDVNamespace"   // Annotation denoting the namespace of the associated datavolume for use by the source PVC
-	AnnCSICloneSource      = "cdi.kubevirt.io/CSICloneSource"        // Annotation to represent the source cloning PVC ("true"/"false")
-	AnnCSICloneTarget      = "cdi.kubevirt.io/CSICloneTarget"        // Annotation to represent the target cloning PVC ("true"/"false")
-	AnnCSICloneCapable     = "cdi.kubevirt.io/CSICloneVolumeCapable" // Annotation for the target storageClass denoting whether the underlying CSI Driver supports CSI Volume Cloning ("true"/"false")
+	// AnnCSICloneRequest associates object with CSI Clone
+	AnnCSICloneRequest = "cdi.kubevirt.io/CSICloneRequest"
+	// AnnCSICloneDVNamespace denotes the namespace of the associated datavolume for use by the source PVC
+	AnnCSICloneDVNamespace = "cdi.kubevirt.io/CSICloneDVNamespace"
+	// AnnCSICloneSource represents the source cloning PVC ("true"/"false")
+	AnnCSICloneSource = "cdi.kubevirt.io/CSICloneSource"
+	// AnnCSICloneTarget represents the target cloning PVC ("true"/"false")
+	AnnCSICloneTarget = "cdi.kubevirt.io/CSICloneTarget"
+	// AnnCSICloneCapable is the annotation for the target storageClass denoting whether the underlying CSI Driver supports CSI Volume Cloning ("true"/"false")
 	// This must be set by a cluster admin on a per storageClass basis
 	// See https://kubernetes-csi.github.io/docs/volume-cloning.html for details
+	AnnCSICloneCapable = "cdi.kubevirt.io/CSICloneVolumeCapable"
 )
 
+// CSIClonePVCType defines possible PVC types to be used in defining PVC for CSI cloning
 type CSIClonePVCType string
 
 // Enum for PVC types used in CSI Cloning
@@ -46,6 +52,7 @@ const (
 	CSICloneTargetPVC CSIClonePVCType = AnnCSICloneTarget
 )
 
+// CSICloneReconciler is the CSI clone reconciler
 type CSICloneReconciler struct {
 	client   client.Client
 	recorder record.EventRecorder
@@ -53,6 +60,7 @@ type CSICloneReconciler struct {
 	log      logr.Logger
 }
 
+// NewCSICloneController creates an instance of the CSICloneReconciler
 func NewCSICloneController(mgr manager.Manager, log logr.Logger) (controller.Controller, error) {
 	reconciler := &CSICloneReconciler{
 		client:   mgr.GetClient(),
@@ -219,11 +227,9 @@ func (r *CSICloneReconciler) reconcileSourcePvc(log logr.Logger, pvc *corev1.Per
 			// Target clone pvc is not valid
 			// Set dv err status CloneSourcePVLost
 			return reconcile.Result{}, r.updateDVStatus(cdiv1.CloneSourcePVLost, dv)
-		} else {
+		} else if err := r.client.Delete(context.TODO(), pvc); err != nil {
 			// Target clone pvc successfully created, delete Source clone pvc
-			if err := r.client.Delete(context.TODO(), pvc); err != nil {
-				return reconcile.Result{}, err
-			}
+			return reconcile.Result{}, err
 		}
 	}
 	return reconcile.Result{}, nil

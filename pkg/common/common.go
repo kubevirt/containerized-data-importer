@@ -181,7 +181,7 @@ const (
 	// UploadFormAsync is the path to POST CDI uploads as form data in async mode
 	UploadFormAsync = "/v1beta1/upload-form-async"
 
-	//
+	// CSICloneCDILabel is the label applied to resources created by the csi clone controller
 	CSICloneCDILabel = "csi-volume-clone"
 )
 

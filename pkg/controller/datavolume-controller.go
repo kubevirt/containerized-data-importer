@@ -249,7 +249,7 @@ func (r *DatavolumeReconciler) isCSICloneCapable(dv *cdiv1.DataVolume) (bool, er
 	}
 
 	if (dv.Spec.PVC.VolumeMode != nil && *sourcePvc.Spec.VolumeMode != *dv.Spec.PVC.VolumeMode) || *sourcePvc.Spec.VolumeMode != corev1.PersistentVolumeFilesystem {
-		r.log.V(3).Info("Source PVC and target PVC have different volumeModes","source storage class", 
+		r.log.V(3).Info("Source PVC and target PVC have different volumeModes", "source storage class",
 			*sourcePvcStorageClassName, "target storage class", (*targetStorageClass).Name)
 		return false, nil
 	}
@@ -263,6 +263,7 @@ func (r *DatavolumeReconciler) isCSICloneCapable(dv *cdiv1.DataVolume) (bool, er
 	return false, nil
 }
 
+// NewVolumeClonePVC creates a PVC object to be used during CSI volume cloning. csiClonePvcType defines whether the PVC object will be a source cloner PVC or the target PVC
 func NewVolumeClonePVC(dv *cdiv1.DataVolume, pvcStorageClassName string, pvcAccessModes []corev1.PersistentVolumeAccessMode, csiClonePvcType CSIClonePVCType) *corev1.PersistentVolumeClaim {
 	annotations := make(map[string]string)
 	for ann, v := range dv.GetAnnotations() {
