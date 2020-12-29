@@ -793,6 +793,9 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 var _ = Describe("Preallocation", func() {
 	f := framework.NewFramework(namespacePrefix)
+	dvName := "import-dv"
+	importerPodName := "importer-" + dvName
+	preAllocAdded := "Added preallocation"
 
 	var (
 		dataVolume     *cdiv1.DataVolume
@@ -815,7 +818,6 @@ var _ = Describe("Preallocation", func() {
 	})
 
 	It("Importer should add preallocation when requested", func() {
-		dvName := "import-dv"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
 		dv := utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", tinyCoreIsoURL())
 		preallocation := true
@@ -828,19 +830,17 @@ var _ = Describe("Preallocation", func() {
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		Eventually(func() string {
-			for {
-				log, err := tests.RunKubectlCommand(f, "logs", "importer-"+dvName, "-n", f.Namespace.Name)
-				if err != nil {
-					time.Sleep(1 * time.Second)
-					continue
-				}
-				return log
+			log, err := tests.RunKubectlCommand(f, "logs", importerPodName, "-n", f.Namespace.Name)
+			if err != nil {
+				return ""
 			}
-		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring("Added preallocation"))
+			return log
+		}, controllerSkipPVCCompleteTimeout, 10*time.Millisecond).Should(ContainSubstring(preAllocAdded))
 	})
 
 	It("Importer should not add preallocation when preallocation=false", func() {
-		dvName := "import-dv"
+		var log string
+
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
 		dataVolume = utils.NewDataVolumeWithHTTPImport(dvName, "100Mi", tinyCoreIsoURL())
 		preallocation := false
@@ -854,16 +854,12 @@ var _ = Describe("Preallocation", func() {
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
 		Eventually(func() string {
-			for {
-				log, err := tests.RunKubectlCommand(f, "logs", "importer-"+dvName, "-n", f.Namespace.Name)
-				if err != nil {
-					time.Sleep(1 * time.Second)
-					continue
-				}
-				if strings.Contains(log, "Import complete") {
-					return log
-				}
+			log, err = tests.RunKubectlCommand(f, "logs", importerPodName, "-n", f.Namespace.Name)
+			if err != nil {
+				return ""
 			}
-		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).ShouldNot(ContainSubstring("Added preallocation"))
+			return log
+		}, controllerSkipPVCCompleteTimeout, 10*time.Millisecond).Should(ContainSubstring("Import complete"))
+		Expect(log).ToNot(ContainSubstring(preAllocAdded))
 	})
 })

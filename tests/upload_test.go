@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -954,6 +953,8 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 var _ = Describe("Preallocation", func() {
 	f := framework.NewFramework(namespacePrefix)
 	dvName := "upload-dv"
+	uploaderPodName := "cdi-upload-" + dvName
+	preAllocAdded := "Added preallocation"
 
 	var (
 		dataVolume *cdiv1.DataVolume
@@ -1026,16 +1027,13 @@ var _ = Describe("Preallocation", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(func() string {
-			for {
-				log, err := tests.RunKubectlCommand(f, "logs", "cdi-upload-"+dvName, "-n", f.Namespace.Name)
-				if err != nil {
-					time.Sleep(1 * time.Second)
-					continue
-				}
-				return log
+			log, err := tests.RunKubectlCommand(f, "logs", uploaderPodName, "-n", f.Namespace.Name)
+			if err != nil {
+				return ""
 			}
-		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(
-			Or(ContainSubstring("Added preallocation"),
+			return log
+		}, controllerSkipPVCCompleteTimeout, 10*time.Millisecond).Should(
+			Or(ContainSubstring(preAllocAdded),
 				ContainSubstring("Available space less than requested size")))
 
 		phase = cdiv1.Succeeded
@@ -1051,6 +1049,8 @@ var _ = Describe("Preallocation", func() {
 	})
 
 	It("Uploader should not add preallocation when preallocation=false", func() {
+		var log string
+
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
 		dv := utils.NewDataVolumeForUpload(dvName, "100Mi")
 		preallocation := false
@@ -1085,16 +1085,12 @@ var _ = Describe("Preallocation", func() {
 		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		Eventually(func() string {
-			for {
-				log, err := tests.RunKubectlCommand(f, "logs", "cdi-upload-"+dvName, "-n", f.Namespace.Name)
-				if err != nil {
-					time.Sleep(1 * time.Second)
-					continue
-				}
-				if strings.Contains(log, "New phase: Complete") {
-					return log
-				}
+			log, err = tests.RunKubectlCommand(f, "logs", uploaderPodName, "-n", f.Namespace.Name)
+			if err != nil {
+				return ""
 			}
-		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).ShouldNot(ContainSubstring("Added preallocation"))
+			return log
+		}, controllerSkipPVCCompleteTimeout, 10*time.Millisecond).Should(ContainSubstring("New phase: Complete"))
+		Expect(log).ToNot(ContainSubstring(preAllocAdded))
 	})
 })
