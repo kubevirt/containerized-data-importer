@@ -937,6 +937,40 @@ func readyStatusByPhase(phase cdiv1.DataVolumePhase) corev1.ConditionStatus {
 	}
 }
 
+var _ = Describe("CSI clone", func() {
+	DescribeTable("CSI clone prerequisite check",
+		func(dataVolumeSourcePVCNs string, targetVolumeMode corev1.PersistentVolumeMode, targetStorageClass *storagev1.StorageClass, sourceStorageClassName string, sourceNs string, sourceVolumeMode corev1.PersistentVolumeMode, expectErr bool, expected bool) {
+			var storageClassName string = "default"
+			var storageClass *storagev1.StorageClass = &storagev1.StorageClass{}
+			if targetStorageClass != nil {
+				storageClassName = targetStorageClass.Name
+				storageClass = targetStorageClass
+			}
+			mockSourcePvc := createPvcInStorageClass("mockSourcePVC", sourceNs, &sourceStorageClassName, map[string]string{}, map[string]string{}, corev1.ClaimBound)
+			mockSourcePvc.Spec.VolumeMode = &sourceVolumeMode
+			dv := newCloneDataVolumeWithPVCNS("mockDv", dataVolumeSourcePVCNs)
+			dv.Spec.Source.PVC.Name = mockSourcePvc.Name
+			dv.Spec.PVC.StorageClassName = &storageClassName
+			dv.Spec.PVC.VolumeMode = &targetVolumeMode
+			reconciler := createDatavolumeReconciler(dv, mockSourcePvc, storageClass)
+			isCap, err := reconciler.isCSICloneCapable(dv)
+			if expectErr {
+				Expect(err).To(HaveOccurred())
+			} else {
+				Expect(err).ToNot(HaveOccurred())
+			}
+			Expect(isCap).To(Equal(expected))
+		},
+		Entry("Source PVC missing", "notSourceNs", nil, nil, "", "sourceNs", nil, true, false),
+		Entry("StorageClass does not exist", "sourceNs", nil, nil, "", "sourceNs", nil, true, false),
+		Entry("StorageClass of source and target do not match", "sourceNs", nil, createStorageClass("storageClass", map[string]string{}), "notStorageClass", "sourceNs", nil, false, false),
+		Entry("VolumeMode of source and target do not match", "sourceNs", corev1.PersistentVolumeBlock, createStorageClass("storageClass", map[string]string{}), "storageClass", "sourceNs", corev1.PersistentVolumeFilesystem, false, false),
+		Entry("StorageClass missing AnnCSICloneCapable annotation", "sourceNs", corev1.PersistentVolumeBlock, createStorageClass("storageClass", map[string]string{}), "storageClass", "sourceNs", corev1.PersistentVolumeBlock, true, false),
+		Entry("StorageClass AnnCSICloneCapable annotation set to false", "sourceNs", corev1.PersistentVolumeBlock, createStorageClass("storageClass", map[string]string{AnnCSICloneCapable: "false"}), "storageClass", "sourceNs", corev1.PersistentVolumeBlock, false, false),
+		Entry("DataVolume passes requirements for CSI clone", "sourceNs", corev1.PersistentVolumeBlock, createStorageClass("storageClass", map[string]string{AnnCSICloneCapable: "true"}), "storageClass", "sourceNs", corev1.PersistentVolumeBlock, false, true),
+	)
+})
+
 var _ = Describe("Smart clone", func() {
 	It("Should not return storage class, if no source pvc provided", func() {
 		dv := newImportDataVolume("test-dv")
