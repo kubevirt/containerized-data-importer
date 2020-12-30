@@ -273,3 +273,8 @@ func CopyDir(source string, dest string) (err error) {
 	}
 	return
 }
+
+// RoundDown returns the number rounded down to the nearest multiple.
+func RoundDown(number, multiple int64) int64 {
+	return number / multiple * multiple
+}
