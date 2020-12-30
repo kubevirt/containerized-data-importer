@@ -244,8 +244,7 @@ var _ = Describe("Data Processor", func() {
 		}
 		dp := NewDataProcessor(mdp, "dest", "dataDir", tmpDir, "1G", 0.055, false)
 		dp.availableSpace = int64(1500)
-		usableSpace := int64((1 - 0.055) * float64(dp.availableSpace))
-		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(usableSpace, 0))
+		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(dp.getUsableSpace(), 0))
 		replaceQEMUOperations(qemuOperations, func() {
 			err = dp.ProcessData()
 			Expect(err).ToNot(HaveOccurred())
