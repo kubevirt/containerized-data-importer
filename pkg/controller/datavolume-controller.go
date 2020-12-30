@@ -291,6 +291,7 @@ func NewVolumeClonePVC(dv *cdiv1.DataVolume, pvcStorageClassName string, pvcAcce
 		Spec: corev1.PersistentVolumeClaimSpec{
 			StorageClassName: &pvcStorageClassName,
 			AccessModes:      pvcAccessModes,
+			VolumeMode:       dv.Spec.PVC.VolumeMode,
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: *dv.Spec.PVC.Resources.Requests.Storage(),
