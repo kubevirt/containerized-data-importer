@@ -278,8 +278,7 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 		if dp.requestImageSize != "" {
 			var err error
 			klog.V(3).Infoln("Resizing image")
-			usableSpace := int64((1 - dp.filesystemOverhead) * float64(dp.availableSpace))
-			shouldPreallocate, err = ResizeImage(dp.dataFile, dp.requestImageSize, usableSpace)
+			shouldPreallocate, err = ResizeImage(dp.dataFile, dp.requestImageSize, dp.getUsableSpace())
 			if err != nil {
 				return ProcessingPhaseError, errors.Wrap(err, "Resize of image failed")
 			}
@@ -392,4 +391,13 @@ func (dp *DataProcessor) calculateTargetSize() int64 {
 // PreallocationApplied returns true if data processing path included preallocation step
 func (dp *DataProcessor) PreallocationApplied() string {
 	return dp.preallocationApplied
+}
+
+func (dp *DataProcessor) getUsableSpace() int64 {
+	blockSize := int64(512)
+	spaceWithOverhead := int64((1 - dp.filesystemOverhead) * float64(dp.availableSpace))
+	// qemu-img will round up, making us use more than the usable space.
+	// This later conflicts with image size validation.
+	qemuImgCorrection := util.RoundDown(spaceWithOverhead, blockSize)
+	return qemuImgCorrection
 }
