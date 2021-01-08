@@ -962,5 +962,8 @@ var _ = Describe("Preallocation", func() {
 
 			return utils.NewDataVolumeWithVddkImport("import-dv", "100Mi", backingFile, s.Name, thumbprint, vcenterURL(), vmid.String())
 		}),
+		Entry("Blank image", true, func() *cdiv1.DataVolume {
+			return utils.NewDataVolumeForBlankRawImage("import-dv", "100Mi")
+		}),
 	)
 })
