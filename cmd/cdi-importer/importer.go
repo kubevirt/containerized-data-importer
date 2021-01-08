@@ -98,14 +98,24 @@ func main() {
 	if source == controller.SourceNone && contentType == string(cdiv1.DataVolumeKubeVirt) {
 		requestImageSizeQuantity := resource.MustParse(imageSize)
 		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(availableDestSpace, 0), &requestImageSizeQuantity)
+		preallocationApplied = strconv.FormatBool(preallocation)
 		if minSizeQuantity.Cmp(requestImageSizeQuantity) != 0 {
 			// Available dest space is smaller than the size we want to create
 			klog.Warningf("Available space less than requested size, creating blank image sized to available space: %s.\n", minSizeQuantity.String())
+			if preallocation {
+				preallocationApplied = "skipped"
+				preallocation = false
+			}
 		}
+
 		err := image.CreateBlankImage(common.ImporterWritePath, minSizeQuantity, preallocation)
 		if err != nil {
 			klog.Errorf("%+v", err)
-			err = util.WriteTerminationMessage(fmt.Sprintf("Unable to create blank image: %+v", err))
+			message := fmt.Sprintf("Unable to create blank image: %+v", err)
+			if preallocationApplied == "skipped" {
+				message += ", " + controller.PreallocationSkipped
+			}
+			err = util.WriteTerminationMessage(message)
 			if err != nil {
 				klog.Errorf("%+v", err)
 			}
