@@ -67,6 +67,7 @@ func main() {
 	previousCheckpoint, _ := util.ParseEnvVar(common.ImporterPreviousCheckpoint, false)
 	finalCheckpoint, _ := util.ParseEnvVar(common.ImporterFinalCheckpoint, false)
 	preallocation, err := strconv.ParseBool(os.Getenv(common.Preallocation))
+	var preallocationApplied string
 
 	//Registry import currently support kubevirt content type only
 	if contentType != string(cdiv1.DataVolumeKubeVirt) && (source == controller.SourceRegistry || source == controller.SourceImageio) {
@@ -185,11 +186,19 @@ func main() {
 			}
 			os.Exit(1)
 		}
+		preallocationApplied = processor.PreallocationApplied()
 	}
-	err = util.WriteTerminationMessage("Import Complete")
+	message := "Import Complete"
+	switch preallocationApplied {
+	case "true":
+		message += ", " + controller.PreallocationApplied
+	case "skipped":
+		message += ", " + controller.PreallocationSkipped
+	}
+	err = util.WriteTerminationMessage(message)
 	if err != nil {
 		klog.Errorf("%+v", err)
 		os.Exit(1)
 	}
-	klog.V(1).Infoln("Import complete")
+	klog.V(1).Infoln(message)
 }

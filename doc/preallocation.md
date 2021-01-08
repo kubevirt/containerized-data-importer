@@ -40,8 +40,7 @@ kind: CDIConfig
 metadata:
   name: config
 spec:
-  preallocation:
-    global: true
+  preallocation: true
 ```
 
 If not specified, the `preallocation` option defaults to false.
