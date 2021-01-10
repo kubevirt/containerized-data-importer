@@ -294,15 +294,13 @@ func GetFilesystemOverhead(client client.Client, pvc *v1.PersistentVolumeClaim) 
 
 	targetStorageClass, err := GetStorageClassByName(client, pvc.Spec.StorageClassName)
 	if err != nil {
-		klog.V(1).Info("Storage class", pvc.Spec.StorageClassName, "not found, trying default storage class")
+		klog.V(3).Info("Storage class", pvc.Spec.StorageClassName, "not found, trying default storage class")
 		targetStorageClass, err = GetStorageClassByName(client, nil)
 		if err != nil {
-			klog.V(1).Info("No default storage class found, continuing with global overhead")
+			klog.V(3).Info("No default storage class found, continuing with global overhead")
 			return cdiConfig.Status.FilesystemOverhead.Global, nil
 		}
 	}
-
-	klog.V(1).Info("target storage class for overhead", targetStorageClass)
 
 	if cdiConfig.Status.FilesystemOverhead == nil {
 		klog.Errorf("CDIConfig filesystemOverhead used before config controller ran reconcile. Hopefully this only happens during unit testing.")
@@ -310,9 +308,11 @@ func GetFilesystemOverhead(client client.Client, pvc *v1.PersistentVolumeClaim) 
 	}
 
 	if targetStorageClass == nil {
-		klog.V(1).Info("Storage class", pvc.Spec.StorageClassName, "not found, continuing with global overhead")
+		klog.V(3).Info("Storage class", pvc.Spec.StorageClassName, "not found, continuing with global overhead")
 		return cdiConfig.Status.FilesystemOverhead.Global, nil
 	}
+
+	klog.V(3).Info("target storage class for overhead", targetStorageClass.GetName())
 
 	perStorageConfig := cdiConfig.Status.FilesystemOverhead.StorageClass
 
