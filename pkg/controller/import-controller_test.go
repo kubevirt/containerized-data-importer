@@ -77,22 +77,22 @@ var _ = Describe("Test PVC annotations status", func() {
 
 	It("Should be interesting if NOT complete, and endpoint and source is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
+		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
 	})
 
 	It("Should NOT be interesting if complete, and endpoint and source is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodSucceeded), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeFalse())
+		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeFalse())
 	})
 
 	It("Should be interesting if NOT complete, and endpoint missing and source is set", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodRunning), AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
+		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
 	})
 
 	It("Should be interesting if NOT complete, and endpoint set and source is missing", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint}, nil)
-		Expect(shouldReconcilePVC(testPvc, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
+		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
 	})
 })
 
