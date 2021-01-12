@@ -160,7 +160,7 @@ var _ = Describe("Http data source", func() {
 		table.Entry("return Error with invalid content type ", cirrosFileName, cdiv1.DataVolumeContentType("invalid"), ProcessingPhaseError, "", cirrosData, true),
 		table.Entry("return Complete with archive content type and archive endpoint ", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseComplete, "", diskimageArchiveData, false),
 		table.Entry("return Error with invalid target path and archive", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseError, "/imaninvalidpath", cirrosData, true),
-		table.Entry("return Process with scratch space and valid qcow file", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseConvert, "", cirrosData, false),
+		table.Entry("return Convert with scratch space and valid qcow file", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseConvert, "", cirrosData, false),
 	)
 
 	It("TransferFile should succeed when writing to valid file, and reading raw gz", func() {

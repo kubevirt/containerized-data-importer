@@ -32,8 +32,7 @@ var newClientFunc = getS3Client
 // S3DataSource is the struct containing the information needed to import from an S3 data source.
 // Sequence of phases:
 // 1. Info -> Transfer
-// 2. Transfer -> Process
-// 3. Process -> Convert
+// 2. Transfer -> Convert
 type S3DataSource struct {
 	// S3 end point
 	ep *url.URL

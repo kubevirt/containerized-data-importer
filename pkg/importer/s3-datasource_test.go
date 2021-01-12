@@ -128,7 +128,7 @@ var _ = Describe("S3 data source", func() {
 		}
 	},
 		table.Entry("return Error with missing scratch space", cirrosFilePath, "/imaninvalidpath", nil, true),
-		table.Entry("return Process with scratch space and valid qcow file", cirrosFilePath, "", cirrosData, false),
+		table.Entry("return Convert with scratch space and valid qcow file", cirrosFilePath, "", cirrosData, false),
 	)
 
 	It("Transfer should fail on reader error", func() {

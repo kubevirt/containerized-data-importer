@@ -48,9 +48,8 @@ const (
 // 1a. Info -> Convert (In Info phase the format readers are configured), if the source Reader image is not archived, and no custom CA is used, and can be converted by QEMU-IMG (RAW/QCOW2)
 // 1b. Info -> TransferArchive if the content type is archive
 // 1c. Info -> Transfer in all other cases.
-// 2a. Transfer -> Process if content type is kube virt
+// 2a. Transfer -> Convert if content type is kube virt
 // 2b. Transfer -> Complete if content type is archive (Transfer is called with the target instead of the scratch space). Non block PVCs only.
-// 3. Process -> Convert
 type HTTPDataSource struct {
 	httpReader io.ReadCloser
 	ctx        context.Context
