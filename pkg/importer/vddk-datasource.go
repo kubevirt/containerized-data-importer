@@ -37,6 +37,7 @@ import (
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
+	"golang.org/x/sys/unix"
 	"k8s.io/klog/v2"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -566,16 +567,20 @@ func GetBlockStatus(handle NbdOperations, extent types.DiskChangeExtent) []*Bloc
 
 // CopyRange takes one data block, checks if it is a hole or filled with zeroes, and copies it to the sink
 func CopyRange(handle NbdOperations, sink VDDKDataSink, block *BlockStatusData, updateProgress func(int)) error {
+	skip := ""
 	if (block.Flags & libnbd.STATE_HOLE) != 0 {
-		klog.Infof("Found a hole at offset %d, filling destination with zeroes.", block.Offset)
+		skip = "hole"
 	}
 	if (block.Flags & libnbd.STATE_ZERO) != 0 {
-		klog.Infof("Found a zero block at offset %d, filling destination with zeroes.", block.Offset)
+		if skip != "" {
+			skip += "/"
+		}
+		skip += "zero block"
 	}
 
 	if (block.Flags & (libnbd.STATE_ZERO | libnbd.STATE_HOLE)) != 0 {
-		size := block.Offset + uint64(block.Length)
-		err := sink.Ftruncate(int64(size))
+		klog.Infof("Found a %d-byte %s at offset %d, filling destination with zeroes.", block.Length, skip, block.Offset)
+		err := sink.ZeroRange(block.Offset, block.Length)
 		updateProgress(int(block.Length))
 		return err
 	}
@@ -611,38 +616,45 @@ func CopyRange(handle NbdOperations, sink VDDKDataSink, block *BlockStatusData, 
 
 // VDDKDataSink provides a mockable interface for saving data from the source.
 type VDDKDataSink interface {
-	Ftruncate(size int64) error
 	Pwrite(buf []byte, offset uint64) (int, error)
 	Write(buf []byte) (int, error)
+	ZeroRange(offset uint64, length uint32) error
 	Close()
 }
 
 // VDDKFileSink writes the source disk data to a local file.
 type VDDKFileSink struct {
-	file   *os.File
-	writer *bufio.Writer
+	file    *os.File
+	writer  *bufio.Writer
+	isBlock bool
 }
 
 func createVddkDataSink(destinationFile string, size uint64) (VDDKDataSink, error) {
-	file, err := os.OpenFile(destinationFile, os.O_CREATE|os.O_WRONLY, 0644)
+	var file *os.File
+	var isBlock bool
+
+	space, err := util.GetAvailableSpaceBlock(destinationFile)
 	if err != nil {
 		return nil, err
 	}
+	if space >= 0 { // Block device
+		file, err = os.OpenFile(destinationFile, os.O_WRONLY, 0644)
+		isBlock = true
+	} else { // Filesystem
+		file, err = os.OpenFile(destinationFile, os.O_CREATE|os.O_WRONLY, 0644)
+		isBlock = false
+	}
+	if err != nil {
+		return nil, err
+	}
+
 	writer := bufio.NewWriter(file)
 	sink := &VDDKFileSink{
-		file:   file,
-		writer: writer,
+		file:    file,
+		writer:  writer,
+		isBlock: isBlock,
 	}
 	return sink, err
-}
-
-// Ftruncate is used to pad the sink with zeroes to the given size.
-func (sink *VDDKFileSink) Ftruncate(size int64) error {
-	err := syscall.Ftruncate(int(sink.file.Fd()), size)
-	if err != nil {
-		klog.Errorf("Unable to ftruncate file: %v", err)
-	}
-	return err
 }
 
 // Pwrite writes the given byte buffer to the sink at the given offset
@@ -666,6 +678,37 @@ func (sink *VDDKFileSink) Write(buf []byte) (int, error) {
 	}
 	err = sink.writer.Flush()
 	return written, err
+}
+
+// ZeroRange fills the destination range with zero bytes
+func (sink *VDDKFileSink) ZeroRange(offset uint64, length uint32) error {
+	var err error
+	if !sink.isBlock { // For files, see if it's possible to punch a hole
+		err := syscall.Fallocate(int(sink.file.Fd()), unix.FALLOC_FL_ZERO_RANGE, int64(offset), int64(length))
+		if err != nil {
+			klog.Errorf("Unable to zero range on destination, falling back to pwrite: %v", err)
+		}
+	} // For block devices, just use pwrite for now. Replace with BLKZEROOUT later if possible.
+
+	if err != nil { // Fall back to regular pwrite
+		count := uint32(0)
+		blocksize := uint32(16 << 20)
+		buffer := bytes.Repeat([]byte{0}, int(blocksize))
+		for count < length {
+			remaining := length - count
+			if remaining < blocksize {
+				buffer = bytes.Repeat([]byte{0}, int(remaining))
+			}
+			written, err := sink.Pwrite(buffer, offset)
+			if err != nil {
+				klog.Errorf("Unable to write %d zeroes at offset %d: %v", length, offset, err)
+				break
+			}
+			count += uint32(written)
+		}
+	}
+
+	return err
 }
 
 // Close closes the file after a transfer is complete.

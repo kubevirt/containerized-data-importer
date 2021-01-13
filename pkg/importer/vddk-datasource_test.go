@@ -353,10 +353,10 @@ type mockVddkDataSink struct {
 	position int
 }
 
-func (sink *mockVddkDataSink) Ftruncate(size int64) error {
-	mockSinkBuffer = bytes.Repeat([]byte{0x00}, int(size))
-	sink.position = 0
-	return nil
+func (sink *mockVddkDataSink) ZeroRange(offset uint64, length uint32) error {
+	buf := bytes.Repeat([]byte{0x00}, int(length))
+	_, err := sink.Pwrite(buf, offset)
+	return err
 }
 
 func (sink *mockVddkDataSink) Pwrite(buf []byte, offset uint64) (int, error) {
