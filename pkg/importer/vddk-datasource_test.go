@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
+	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -56,12 +57,12 @@ var _ = Describe("VDDK data source", func() {
 	It("NewVDDKDataSource should fail when called with an invalid endpoint", func() {
 		newVddkDataSource = createVddkDataSource
 		newVMwareClient = createVMwareClient
-		_, err := NewVDDKDataSource("httpx://-------", "", "", "", "", "", "", "", "")
+		_, err := NewVDDKDataSource("httpx://-------", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("VDDK data source GetURL should pass through NBD socket information", func() {
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "")
+		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 		socket := dp.GetURL()
 		path := socket.String()
@@ -69,7 +70,7 @@ var _ = Describe("VDDK data source", func() {
 	})
 
 	It("VDDK data source should move to transfer data phase after Info", func() {
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "")
+		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 		phase, err := dp.Info()
 		Expect(err).ToNot(HaveOccurred())
@@ -85,7 +86,7 @@ var _ = Describe("VDDK data source", func() {
 			return bytes.Repeat([]byte{0x55}, 512), nil
 		}
 		currentExport = replaceExport
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "")
+		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 		phase, err := dp.Info()
 		Expect(err).ToNot(HaveOccurred())
@@ -97,7 +98,7 @@ var _ = Describe("VDDK data source", func() {
 
 	It("VDDK data source should fail if TransferFile fails", func() {
 		newVddkDataSink = createVddkDataSink
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "")
+		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 		phase, err := dp.Info()
 		Expect(err).ToNot(HaveOccurred())
@@ -108,19 +109,19 @@ var _ = Describe("VDDK data source", func() {
 	})
 
 	It("VDDK data source should know if it is a delta copy", func() {
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "checkpoint-2", "")
+		dp, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "checkpoint-2", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dp.IsDeltaCopy()).To(Equal(true))
 	})
 
 	It("VDDK data source should know if it is not a delta copy", func() {
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "")
+		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dp.IsDeltaCopy()).To(Equal(false))
 	})
 
 	It("VDDK delta copy should return immediately if there are no changed blocks", func() {
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "checkpoint-2", "")
+		dp, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "checkpoint-2", "", v1.PersistentVolumeFilesystem)
 		dp.ChangedBlocks = &types.DiskChangeInfo{
 			StartOffset: 0,
 			Length:      0,
@@ -132,7 +133,7 @@ var _ = Describe("VDDK data source", func() {
 	})
 
 	It("VDDK full copy should successfully copy the same bytes passed in", func() {
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "")
+		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
 		dp.Size = 40 << 20
 		sourceBytes := bytes.Repeat([]byte{0x55}, int(dp.Size))
 		replaceExport := currentExport
@@ -158,7 +159,7 @@ var _ = Describe("VDDK data source", func() {
 	It("VDDK delta copy should sucessfully apply a delta to a base disk image", func() {
 
 		// Copy base disk ("snapshot 1")
-		snap1, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "", "")
+		snap1, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "", "", v1.PersistentVolumeFilesystem)
 		snap1.Size = 40 << 20
 		sourceBytes := bytes.Repeat([]byte{0x55}, int(snap1.Size))
 		replaceExport := currentExport
@@ -181,7 +182,7 @@ var _ = Describe("VDDK data source", func() {
 		Expect(sourceSum).To(Equal(destSum))
 
 		// Write some data to the first snapshot, then copy the delta from difference between the two snapshots
-		snap2, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "checkpoint-2", "")
+		snap2, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "checkpoint-2", "", v1.PersistentVolumeFilesystem)
 		snap2.Size = 40 << 20
 		copy(sourceBytes[1024:2048], bytes.Repeat([]byte{0xAA}, 1024))
 		snap2.ChangedBlocks = &types.DiskChangeInfo{
@@ -224,7 +225,7 @@ var _ = Describe("VDDK data source", func() {
 			return nil
 		}
 
-		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", targetDiskName, "", "", "")
+		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", targetDiskName, "", "", "", v1.PersistentVolumeFilesystem)
 		if expectedSuccess {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(returnedDiskName).To(Equal(targetDiskName))
@@ -290,7 +291,7 @@ var _ = Describe("VDDK data source", func() {
 		}
 
 		// Expect source.ChangedBlocks to equal local changed blocks
-		source, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "snapshot-1", "snapshot-2", "false")
+		source, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "snapshot-1", "snapshot-2", "false", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(changedBlockList.StartOffset).To(Equal(source.ChangedBlocks.StartOffset))
 		Expect(changedBlockList.Length).To(Equal(source.ChangedBlocks.Length))
@@ -324,7 +325,7 @@ func (handle *mockNbdOperations) BlockStatus(length uint64, offset uint64, callb
 	return nil
 }
 
-func createMockVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string) (*VDDKDataSource, error) {
+func createMockVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode) (*VDDKDataSource, error) {
 	socketURL, err := url.Parse(socketPath)
 	if err != nil {
 		return nil, err
@@ -344,6 +345,7 @@ func createMockVddkDataSource(endpoint string, accessKey string, secKey string, 
 		CurrentSnapshot:  currentCheckpoint,
 		PreviousSnapshot: previousCheckpoint,
 		Size:             0,
+		VolumeMode:       volumeMode,
 	}, nil
 }
 
@@ -375,7 +377,7 @@ func (sink *mockVddkDataSink) Write(buf []byte) (int, error) {
 
 func (sink *mockVddkDataSink) Close() {}
 
-func createMockVddkDataSink(destinationFile string, size uint64) (VDDKDataSink, error) {
+func createMockVddkDataSink(destinationFile string, size uint64, volumeMode v1.PersistentVolumeMode) (VDDKDataSink, error) {
 	sink := &mockVddkDataSink{0}
 	return sink, nil
 }
