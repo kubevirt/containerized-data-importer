@@ -115,7 +115,7 @@ func (r *ReconcileCDI) GetAllResources(crObject runtime.Object) ([]runtime.Objec
 
 	resources = append(resources, drs...)
 
-	certs := r.getCertificateDefinitions()
+	certs := r.getCertificateDefinitions(cr)
 	for _, cert := range certs {
 		if cert.SignerSecret != nil {
 			resources = append(resources, cert.SignerSecret)

@@ -20,6 +20,11 @@ var crdTypeMap = map[string]interface{}{
 
 var _ = Describe("Operator resource test", func() {
 	It("Test CRD schemas", func() {
+		// github.com/RHsyseng/operator-utils/pkg/validation does not handle metav1.Duration correctly
+		// because it serializes to json as string not pointer to int64
+		// this is all kind of reduntant with `make generate-verify` which validates the schema
+		Skip("validation library needs to be updated")
+
 		for crdFileName, cdiObjType := range crdTypeMap {
 
 			schema := getSchema()

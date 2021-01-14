@@ -54,7 +54,7 @@ require (
 	k8s.io/kube-aggregator v0.18.6
 	k8s.io/kube-openapi v0.0.0-20200410145947-61e04a5be9a6
 	k8s.io/utils v0.0.0-20200720150651-0bdb4ca86cbc // indirect
-	kubevirt.io/controller-lifecycle-operator-sdk v0.1.1
+	kubevirt.io/controller-lifecycle-operator-sdk v0.1.2
 	kubevirt.io/qe-tools v0.1.6
 	sigs.k8s.io/controller-runtime v0.6.2
 )

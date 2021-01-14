@@ -66,8 +66,9 @@ func (r *ReconcileCDI) checkSanity(cr controllerutil.Object, reqLogger logr.Logg
 }
 
 // sync syncs certificates used by CDU
-func (r *ReconcileCDI) sync() error {
-	return r.certManager.Sync(r.getCertificateDefinitions())
+func (r *ReconcileCDI) sync(cr controllerutil.Object, logger logr.Logger) error {
+	cdi := cr.(*cdiv1.CDI)
+	return r.certManager.Sync(r.getCertificateDefinitions(cdi))
 }
 
 func (r *ReconcileCDI) configMapOwnerDeleted(cm *corev1.ConfigMap) (bool, error) {

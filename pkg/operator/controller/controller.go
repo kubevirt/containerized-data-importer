@@ -21,28 +21,27 @@ import (
 	"fmt"
 	"time"
 
-	"kubevirt.io/containerized-data-importer/pkg/operator"
-	cdicerts "kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
-
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
-	sdkr "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/reconciler"
-
 	"github.com/kelseyhightower/envconfig"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
-	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
-	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
+	cdicerts "kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
+	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
+	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
+	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/callbacks"
+	sdkr "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/reconciler"
 )
 
 const (
@@ -185,8 +184,32 @@ func (r *ReconcileCDI) add(mgr manager.Manager) error {
 	return nil
 }
 
-func (r *ReconcileCDI) getCertificateDefinitions() []cdicerts.CertificateDefinition {
-	return cdicerts.CreateCertificateDefinitions(&cdicerts.FactoryArgs{Namespace: r.namespace})
+func (r *ReconcileCDI) getCertificateDefinitions(cdi *cdiv1.CDI) []cdicerts.CertificateDefinition {
+	args := &cdicerts.FactoryArgs{Namespace: r.namespace}
+
+	if cdi != nil && cdi.Spec.CertConfig != nil {
+		if cdi.Spec.CertConfig.CA != nil {
+			if cdi.Spec.CertConfig.CA.Duration != nil {
+				args.SignerValidity = &cdi.Spec.CertConfig.CA.Duration.Duration
+			}
+
+			if cdi.Spec.CertConfig.CA.RenewBefore != nil {
+				args.SignerRefresh = &cdi.Spec.CertConfig.CA.RenewBefore.Duration
+			}
+		}
+
+		if cdi.Spec.CertConfig.Server != nil {
+			if cdi.Spec.CertConfig.Server.Duration != nil {
+				args.TargetValidity = &cdi.Spec.CertConfig.Server.Duration.Duration
+			}
+
+			if cdi.Spec.CertConfig.Server.RenewBefore != nil {
+				args.TargetRefresh = &cdi.Spec.CertConfig.Server.RenewBefore.Duration
+			}
+		}
+	}
+
+	return cdicerts.CreateCertificateDefinitions(args)
 }
 
 func (r *ReconcileCDI) getConfigMap() (*corev1.ConfigMap, error) {

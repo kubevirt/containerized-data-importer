@@ -103,6 +103,6 @@ func updateControllerConfiguration(_ controllerutil.Object) error {
 	return nil
 }
 
-func syncPerishables() error {
+func syncPerishables(cr controllerutil.Object, logger logr.Logger) error {
 	return nil
 }

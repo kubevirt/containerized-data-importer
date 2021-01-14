@@ -45,7 +45,7 @@ const (
 )
 
 // PerishablesSynchronizer is expected to execute perishable resources (i.e. certificates) synchronization if required
-type PerishablesSynchronizer func() error
+type PerishablesSynchronizer func(cr controllerutil.Object, logger logr.Logger) error
 
 // ControllerConfigUpdater is expected to update controller configuration if required
 type ControllerConfigUpdater func(cr controllerutil.Object) error
@@ -322,7 +322,7 @@ func (r *Reconciler) ReconcileUpdate(logger logr.Logger, cr controllerutil.Objec
 		}
 	}
 
-	if err = r.syncPerishables(); err != nil {
+	if err = r.syncPerishables(cr, logger); err != nil {
 		return reconcile.Result{}, err
 	}
 
