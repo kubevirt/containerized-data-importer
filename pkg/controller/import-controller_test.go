@@ -94,6 +94,20 @@ var _ = Describe("Test PVC annotations status", func() {
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint}, nil)
 		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
 	})
+
+	It("Should NOT be interesting if NOT BOUND, and endpoint and source is set, and honorWaitForFirstConsumerEnabled", func() {
+		testPvc := createPendingPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
+		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: true}, importLog)).To(BeFalse())
+	})
+
+	It("Should be interesting if NOT BOUND, and endpoint and source is set, and honorWaitForFirstConsumerEnabled and isImmediateBindingRequested is requested", func() {
+		testPvc := createPendingPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
+		Expect(shouldReconcilePVC(testPvc, true, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: true}, importLog)).To(BeTrue())
+	})
+	It("Should be interesting if NOT BOUND, and endpoint and source is set, and honorWaitForFirstConsumerEnabled is false and isImmediateBindingRequested is requested", func() {
+		testPvc := createPendingPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
+		Expect(shouldReconcilePVC(testPvc, true, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
+	})
 })
 
 var _ = Describe("ImportConfig Controller reconcile loop", func() {
