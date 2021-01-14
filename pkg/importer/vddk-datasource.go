@@ -38,6 +38,7 @@ import (
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 	"golang.org/x/sys/unix"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -629,21 +630,15 @@ type VDDKFileSink struct {
 	isBlock bool
 }
 
-func createVddkDataSink(destinationFile string, size uint64) (VDDKDataSink, error) {
-	var file *os.File
-	var isBlock bool
+func createVddkDataSink(destinationFile string, size uint64, volumeMode v1.PersistentVolumeMode) (VDDKDataSink, error) {
+	isBlock := (volumeMode == v1.PersistentVolumeBlock)
 
-	space, err := util.GetAvailableSpaceBlock(destinationFile)
-	if err != nil {
-		return nil, err
+	flags := os.O_WRONLY
+	if !isBlock {
+		flags |= os.O_CREATE
 	}
-	if space >= 0 { // Block device
-		file, err = os.OpenFile(destinationFile, os.O_WRONLY, 0644)
-		isBlock = true
-	} else { // Filesystem
-		file, err = os.OpenFile(destinationFile, os.O_CREATE|os.O_WRONLY, 0644)
-		isBlock = false
-	}
+
+	file, err := os.OpenFile(destinationFile, flags, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -682,15 +677,31 @@ func (sink *VDDKFileSink) Write(buf []byte) (int, error) {
 
 // ZeroRange fills the destination range with zero bytes
 func (sink *VDDKFileSink) ZeroRange(offset uint64, length uint32) error {
+	punch := func(offset uint64, length uint32) error {
+		klog.Infof("Punching %d-byte hole at offset %d", length, offset)
+		flags := uint32(unix.FALLOC_FL_PUNCH_HOLE | unix.FALLOC_FL_KEEP_SIZE)
+		return syscall.Fallocate(int(sink.file.Fd()), flags, int64(offset), int64(length))
+	}
+
 	var err error
-	if !sink.isBlock { // For files, see if it's possible to punch a hole
-		err := syscall.Fallocate(int(sink.file.Fd()), unix.FALLOC_FL_ZERO_RANGE, int64(offset), int64(length))
+	if sink.isBlock { // Try to punch a hole in block device destination
+		err = punch(offset, length)
+	} else {
+		info, err := sink.file.Stat()
 		if err != nil {
-			klog.Errorf("Unable to zero range on destination, falling back to pwrite: %v", err)
+			klog.Errorf("Unable to stat destination file: %v", err)
+		} else { // Filesystem
+			if offset+uint64(length) > uint64(info.Size()) { // Truncate only if extending the file
+				err = syscall.Ftruncate(int(sink.file.Fd()), int64(offset+uint64(length)))
+			} else { // Otherwise, try to punch a hole in the file
+				err = punch(offset, length)
+			}
 		}
-	} // For block devices, just use pwrite for now. Replace with BLKZEROOUT later if possible.
+	}
 
 	if err != nil { // Fall back to regular pwrite
+		klog.Errorf("Unable to zero range %d - %d on destination, falling back to pwrite: %v", offset, offset+uint64(length), err)
+		err = nil
 		count := uint32(0)
 		blocksize := uint32(16 << 20)
 		buffer := bytes.Repeat([]byte{0}, int(blocksize))
@@ -727,6 +738,7 @@ type VDDKDataSource struct {
 	CurrentSnapshot  string
 	PreviousSnapshot string
 	Size             uint64
+	VolumeMode       v1.PersistentVolumeMode
 }
 
 func init() {
@@ -743,11 +755,11 @@ func init() {
 }
 
 // NewVDDKDataSource creates a new instance of the vddk data provider.
-func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string) (*VDDKDataSource, error) {
-	return newVddkDataSource(endpoint, accessKey, secKey, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint)
+func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode) (*VDDKDataSource, error) {
+	return newVddkDataSource(endpoint, accessKey, secKey, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint, volumeMode)
 }
 
-func createVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string) (*VDDKDataSource, error) {
+func createVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode) (*VDDKDataSource, error) {
 	klog.Infof("Creating VDDK data source: backingFile [%s], currentCheckpoint [%s], previousCheckpoint [%s], finalCheckpoint [%s]", backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint)
 	if currentCheckpoint == "" && previousCheckpoint != "" {
 		// Not sure what to do with just previous set by itself, return error
@@ -839,6 +851,7 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 		CurrentSnapshot:  currentCheckpoint,
 		PreviousSnapshot: previousCheckpoint,
 		Size:             size,
+		VolumeMode:       volumeMode,
 	}
 	return source, nil
 }
@@ -888,7 +901,7 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		}
 	}
 
-	sink, err := newVddkDataSink(fileName, vs.Size)
+	sink, err := newVddkDataSink(fileName, vs.Size, vs.VolumeMode)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
