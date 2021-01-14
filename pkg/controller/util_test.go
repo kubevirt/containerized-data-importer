@@ -563,7 +563,7 @@ func createCDIConfigWithGlobalPreallocation(globalPreallocation bool) *cdiv1.CDI
 				common.CDIComponentLabel: "",
 			},
 		},
-		Status: cdiv1.CDIConfigStatus{
+		Spec: cdiv1.CDIConfigSpec{
 			Preallocation: globalPreallocation,
 		},
 	}
