@@ -182,6 +182,27 @@ const (
 	UploadFormAsync = "/v1beta1/upload-form-async"
 )
 
+// PreallocationStatus is used to mark result of preallocation in importer and uploader
+type PreallocationStatus string
+
+const (
+	// PreallocationApplied is used to signal that preallocation was performed on the storage
+	PreallocationApplied PreallocationStatus = "true"
+	// PreallocationNotApplied is ued to singal that preallocation was not performed
+	PreallocationNotApplied PreallocationStatus = "false"
+	// PreallocationSkipped is used to signal that preallocation was not performed even though it was requested
+	PreallocationSkipped PreallocationStatus = "skipped"
+)
+
+// PreallocationStatusFromBool converts boolean value to PreallocationStatus
+func PreallocationStatusFromBool(preallocation bool) PreallocationStatus {
+	if preallocation {
+		return PreallocationApplied
+	}
+
+	return PreallocationNotApplied
+}
+
 // ProxyPaths are all supported paths
 var ProxyPaths = append(
 	append(SyncUploadPaths, AsyncUploadPaths...),

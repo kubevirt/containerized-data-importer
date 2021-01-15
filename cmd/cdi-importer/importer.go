@@ -67,7 +67,7 @@ func main() {
 	previousCheckpoint, _ := util.ParseEnvVar(common.ImporterPreviousCheckpoint, false)
 	finalCheckpoint, _ := util.ParseEnvVar(common.ImporterFinalCheckpoint, false)
 	preallocation, err := strconv.ParseBool(os.Getenv(common.Preallocation))
-	var preallocationApplied string
+	var preallocationApplied common.PreallocationStatus
 
 	//Registry import currently support kubevirt content type only
 	if contentType != string(cdiv1.DataVolumeKubeVirt) && (source == controller.SourceRegistry || source == controller.SourceImageio) {
@@ -98,12 +98,12 @@ func main() {
 	if source == controller.SourceNone && contentType == string(cdiv1.DataVolumeKubeVirt) {
 		requestImageSizeQuantity := resource.MustParse(imageSize)
 		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(availableDestSpace, 0), &requestImageSizeQuantity)
-		preallocationApplied = strconv.FormatBool(preallocation)
+		preallocationApplied = common.PreallocationStatusFromBool(preallocation)
 		if minSizeQuantity.Cmp(requestImageSizeQuantity) != 0 {
 			// Available dest space is smaller than the size we want to create
 			klog.Warningf("Available space less than requested size, creating blank image sized to available space: %s.\n", minSizeQuantity.String())
 			if preallocation {
-				preallocationApplied = "skipped"
+				preallocationApplied = common.PreallocationSkipped
 				preallocation = false
 			}
 		}
@@ -112,7 +112,7 @@ func main() {
 		if err != nil {
 			klog.Errorf("%+v", err)
 			message := fmt.Sprintf("Unable to create blank image: %+v", err)
-			if preallocationApplied == "skipped" {
+			if preallocationApplied == common.PreallocationSkipped {
 				message += ", " + controller.PreallocationSkipped
 			}
 			err = util.WriteTerminationMessage(message)
@@ -200,9 +200,9 @@ func main() {
 	}
 	message := "Import Complete"
 	switch preallocationApplied {
-	case "true":
+	case common.PreallocationApplied:
 		message += ", " + controller.PreallocationApplied
-	case "skipped":
+	case common.PreallocationSkipped:
 		message += ", " + controller.PreallocationSkipped
 	}
 	err = util.WriteTerminationMessage(message)
