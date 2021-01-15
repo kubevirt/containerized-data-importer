@@ -72,6 +72,8 @@ type FormatReaders struct {
 	buf            []byte // holds file headers
 	Convert        bool
 	Archived       bool
+	ArchiveXz      bool
+	ArchiveGz      bool
 	progressReader *prometheusutil.ProgressReader
 }
 
@@ -165,6 +167,7 @@ func (fr *FormatReaders) fileFormatSelector(hdr *image.Header) {
 		r, err = fr.gzReader()
 		if err == nil {
 			fr.Archived = true
+			fr.ArchiveGz = true
 		}
 	case "qcow2":
 		r, err = fr.qcow2NopReader(hdr)
@@ -173,6 +176,7 @@ func (fr *FormatReaders) fileFormatSelector(hdr *image.Header) {
 		r, err = fr.xzReader()
 		if err == nil {
 			fr.Archived = true
+			fr.ArchiveXz = true
 		}
 	}
 	if err == nil && r != nil {
