@@ -636,7 +636,7 @@ func GetPreallocation(client client.Client, dataVolume *cdiv1.DataVolume) bool {
 		return defaultPreallocation
 	}
 
-	return cdiconfig.Spec.Preallocation
+	return cdiconfig.Status.Preallocation
 }
 
 // GetStorageClassNameForDV returns storage class to be used for the DV's PVC
