@@ -68,6 +68,8 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 	// Keep a copy of the original for comparison later.
 	currentConfigCopy := config.DeepCopyObject()
 
+	config.Status.Preallocation = config.Spec.Preallocation != nil && *config.Spec.Preallocation
+
 	// ignore whatever is in config spec and set to operator view
 	if err := r.setOperatorParams(config); err != nil {
 		return reconcile.Result{}, err
