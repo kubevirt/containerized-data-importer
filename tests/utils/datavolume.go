@@ -220,7 +220,8 @@ func NewDataVolumeForUpload(dataVolumeName string, size string) *cdiv1.DataVolum
 func NewDataVolumeForBlankRawImage(dataVolumeName, size string) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: dataVolumeName,
+			Name:        dataVolumeName,
+			Annotations: map[string]string{},
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: cdiv1.DataVolumeSource{
