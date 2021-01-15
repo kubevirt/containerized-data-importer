@@ -322,6 +322,14 @@ func NewDataVolumeWithRegistryImport(dataVolumeName string, size string, registr
 	}
 }
 
+// ModifyDataVolumeWithVDDKImportToBlockPV modifies a DataVolume struct (created by NewDataVolumeWithVddkImport) for importing disks from vCenter/ESX to a block PV
+func ModifyDataVolumeWithVDDKImportToBlockPV(dataVolume *cdiv1.DataVolume, storageClassName string) *cdiv1.DataVolume {
+	volumeMode := corev1.PersistentVolumeMode(corev1.PersistentVolumeBlock)
+	dataVolume.Spec.PVC.VolumeMode = &volumeMode
+	dataVolume.Spec.PVC.StorageClassName = &storageClassName
+	return dataVolume
+}
+
 // NewDataVolumeWithVddkImport initializes a DataVolume struct for importing disks from vCenter/ESX
 func NewDataVolumeWithVddkImport(dataVolumeName string, size string, backingFile string, secretRef string, thumbprint string, httpURL string, uuid string) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
