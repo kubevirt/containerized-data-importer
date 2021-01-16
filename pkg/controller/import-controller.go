@@ -170,16 +170,17 @@ func addImportControllerWatches(mgr manager.Manager, importController controller
 }
 
 func shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim,
+	isImmediateBindingRequested bool,
 	featureGates featuregates.FeatureGates,
 	log logr.Logger) (bool, error) {
+	waitForFirstConsumerEnabled, err := isWaitForFirstConsumerEnabled(isImmediateBindingRequested, featureGates)
 
-	honorWaitForFirstConsumer, err := featureGates.HonorWaitForFirstConsumerEnabled()
 	if err != nil {
 		return false, err
 	}
 	return !isPVCComplete(pvc) &&
 			(checkPVC(pvc, AnnEndpoint, log) || checkPVC(pvc, AnnSource, log)) &&
-			shouldHandlePvc(pvc, honorWaitForFirstConsumer, log),
+			shouldHandlePvc(pvc, waitForFirstConsumerEnabled, log),
 		nil
 }
 
@@ -201,7 +202,9 @@ func (r *ImportReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 		}
 		return reconcile.Result{}, err
 	}
-	shouldReconcile, err := shouldReconcilePVC(pvc, r.featureGates, log)
+	_, isImmediateBindingRequested := pvc.Annotations[AnnImmediateBinding]
+
+	shouldReconcile, err := shouldReconcilePVC(pvc, isImmediateBindingRequested, r.featureGates, log)
 	if err != nil {
 		return reconcile.Result{}, err
 	}

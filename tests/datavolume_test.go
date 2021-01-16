@@ -1255,6 +1255,113 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		)
 	})
 
+	Describe("[crit:high] DataVolume - WaitForFirstConsumer", func() {
+		type dataVolumeTestArguments struct {
+			name             string
+			size             string
+			url              string
+			dvFunc           func(string, string, string) *cdiv1.DataVolume
+			errorMessage     string
+			eventReason      string
+			phase            cdiv1.DataVolumePhase
+			repeat           int
+			checkPermissions bool
+			readyCondition   *cdiv1.DataVolumeCondition
+			boundCondition   *cdiv1.DataVolumeCondition
+			runningCondition *cdiv1.DataVolumeCondition
+		}
+
+		createBlankRawDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			return utils.NewDataVolumeForBlankRawImage(dataVolumeName, size)
+		}
+		createHTTPSDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, url)
+			cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+			Expect(err).To(BeNil())
+			dataVolume.Spec.Source.HTTP.CertConfigMap = cm
+			return dataVolume
+		}
+		createUploadDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			return utils.NewDataVolumeForUpload(dataVolumeName, size)
+		}
+
+		createCloneDataVolume := func(dataVolumeName, size, command string) *cdiv1.DataVolume {
+			sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
+			pvcDef := utils.NewPVCDefinition(pvcName, size, nil, nil)
+			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
+
+			By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
+			return utils.NewCloningDataVolume(dataVolumeName, size, sourcePvc)
+		}
+
+		table.DescribeTable("WFFC Feature Gate enabled - ImmediateBinding requested", func(
+			dvName string,
+			url func() string,
+			dvFunc func(string, string, string) *cdiv1.DataVolume,
+			phase cdiv1.DataVolumePhase) {
+			if !utils.IsHostpathProvisioner() {
+				Skip("Not HPP")
+			}
+			size := "1Gi"
+
+			dataVolume := dvFunc(dvName, size, url())
+			dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
+
+			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			// verify PVC was created
+			By("verifying pvc was created and is Bound")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, phase, dataVolume.Name)
+			if err != nil {
+				dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				if dverr != nil {
+					Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
+				}
+			}
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Cleaning up")
+			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(func() bool {
+				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				if k8serrors.IsNotFound(err) {
+					return true
+				}
+				return false
+			}, timeout, pollingInterval).Should(BeTrue())
+		},
+			table.Entry("Import qcow2 scratch space",
+				"dv-immediate-wffc-qcow2-import",
+				func() string { return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs) },
+				createHTTPSDataVolume,
+				cdiv1.Succeeded),
+			table.Entry("Import blank image",
+				"dv-immediate-wffc-blank-import",
+				func() string { return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs) },
+				createBlankRawDataVolume,
+				cdiv1.Succeeded),
+			table.Entry("Upload - positive flow",
+				"dv-immediate-wffc-upload",
+				func() string { return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs) },
+				createUploadDataVolume,
+				cdiv1.UploadReady),
+			table.Entry("Clone - positive flow",
+				"dv-immediate-wffc-clone",
+				func() string { return fillCommand }, // its not URL, but command, but the parameter lines up.
+				createCloneDataVolume,
+				cdiv1.Succeeded),
+		)
+	})
+
 	Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:component][test] CDI Import from HTTP/S3", func() {
 		const (
 			originalImageName = "cirros-qcow2.img"
