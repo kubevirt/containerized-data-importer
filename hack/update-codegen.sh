@@ -71,7 +71,7 @@ openapi-gen --input-dirs k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/api/core/v1
 ${SCRIPT_ROOT}/bin/openapi-spec-generator >${SCRIPT_ROOT}/api/openapi-spec/swagger.json
 
 # the kubevirtci commit hash to vendor from
-kubevirtci_git_hash=bab398432f04e7caffbd6fd0fc5a3384049836f3
+kubevirtci_git_hash=a2a78b78256486317adda21bbd34998e548b8c5a
 
 # remove previous cluster-up dir entirely before vendoring
 rm -rf ${SCRIPT_ROOT}/cluster-up
