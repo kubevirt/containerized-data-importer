@@ -210,6 +210,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			readyCondition   *cdiv1.DataVolumeCondition
 			boundCondition   *cdiv1.DataVolumeCondition
 			runningCondition *cdiv1.DataVolumeCondition
+			skipOpenshift    bool
 		}
 
 		createImageIoDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
@@ -249,6 +250,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}
 
 		table.DescribeTable("should", func(args dataVolumeTestArguments) {
+			if IsOpenshift(f.K8sClient) && args.skipOpenshift {
+				Skip("Test not expected to pass on OpenShift")
+			}
 			// Have to call the function in here, to make sure the BeforeEach in the Framework has run.
 			dataVolume := args.dvFunc(args.name, args.size, args.url())
 			startTime := time.Now()
@@ -414,7 +418,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Status:  v1.ConditionFalse,
 					Message: "Unable to process data: Invalid format qcow for image",
 					Reason:  "Error",
-				}}),
+				},
+				skipOpenshift: true,
+			}),
 			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2554]fail creating import dv: invalid qcow large json", dataVolumeTestArguments{
 				name:         "dv-invalid-qcow-large-json",
 				size:         "1Gi",
