@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
@@ -239,6 +240,16 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		podRestarts := int(pod.Status.ContainerStatuses[0].RestartCount)
 		if podRestarts > pvcAnnPodRestarts {
 			anno[AnnPodRestarts] = strconv.Itoa(podRestarts)
+		}
+
+		if pod.Status.ContainerStatuses[0].State.Terminated != nil &&
+			pod.Status.ContainerStatuses[0].State.Terminated.ExitCode == 0 {
+			if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, PreallocationApplied) {
+				anno[AnnPreallocationApplied] = "true"
+			}
+			if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, PreallocationSkipped) {
+				anno[AnnPreallocationApplied] = "skipped"
+			}
 		}
 	}
 	setConditionFromPodWithPrefix(anno, AnnRunningCondition, pod)
