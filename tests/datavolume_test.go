@@ -368,7 +368,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
-					Message: "Unable to connect to http data source: Get http://i-made-this-up.kube-system/tinyCore.iso: dial tcp: lookup i-made-this-up.kube-system",
+					Message: "Unable to connect to http data source",
 					Reason:  "Error",
 				}}),
 			table.Entry("[rfe_id:1115][crit:high][posneg:negative][test_id:1359]fail creating import dv due to file not found", dataVolumeTestArguments{
