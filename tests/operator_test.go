@@ -3,7 +3,6 @@ package tests_test
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"reflect"
 	"time"
 
@@ -24,7 +23,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/kubernetes"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
@@ -39,7 +37,7 @@ var _ = Describe("ALL Operator tests", func() {
 		f := framework.NewFramework("operator-test")
 
 		It("[test_id:3951]should create a route in OpenShift", func() {
-			if !isOpenshift(f.K8sClient) {
+			if !tests.IsOpenshift(f.K8sClient) {
 				Skip("This test is OpenShift specific")
 			}
 
@@ -75,7 +73,7 @@ var _ = Describe("ALL Operator tests", func() {
 		})
 
 		It("[test_id:3952]add cdi-sa to containerized-data-importer scc", func() {
-			if !isOpenshift(f.K8sClient) {
+			if !tests.IsOpenshift(f.K8sClient) {
 				Skip("This test is OpenShift specific")
 			}
 
@@ -870,33 +868,4 @@ func updateUninstallStrategy(client cdiClientset.Interface, strategy *cdiv1.CDIU
 	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 
 	return result
-}
-
-//IsOpenshift checks if we are on OpenShift platform
-func isOpenshift(client kubernetes.Interface) bool {
-	//OpenShift 3.X check
-	result := client.Discovery().RESTClient().Get().AbsPath("/oapi/v1").Do(context.TODO())
-	var statusCode int
-	result.StatusCode(&statusCode)
-
-	if result.Error() == nil {
-		// It is OpenShift
-		if statusCode == http.StatusOK {
-			return true
-		}
-	} else {
-		// Got 404 so this is not Openshift 3.X, let's check OpenShift 4
-		result = client.Discovery().RESTClient().Get().AbsPath("/apis/route.openshift.io").Do(context.TODO())
-		var statusCode int
-		result.StatusCode(&statusCode)
-
-		if result.Error() == nil {
-			// It is OpenShift
-			if statusCode == http.StatusOK {
-				return true
-			}
-		}
-	}
-
-	return false
 }
