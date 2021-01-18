@@ -104,9 +104,16 @@ func main() {
 			klog.Warningf("Available space less than requested size, creating blank image sized to available space: %s.\n", minSizeQuantity.String())
 		}
 
-		quantityWithFSOverhead := importer.GetUsableSpace(filesystemOverhead, minSizeQuantity.Value())
-		klog.Infof("Space adjusted for filesystem overhead: %d.\n", quantityWithFSOverhead)
-		err := image.CreateBlankImage(common.ImporterWritePath, *resource.NewScaledQuantity(quantityWithFSOverhead, 0), preallocation)
+		var err error
+		if volumeMode == v1.PersistentVolumeFilesystem {
+			quantityWithFSOverhead := importer.GetUsableSpace(filesystemOverhead, minSizeQuantity.Value())
+			klog.Infof("Space adjusted for filesystem overhead: %d.\n", quantityWithFSOverhead)
+			err = image.CreateBlankImage(common.ImporterWritePath, *resource.NewScaledQuantity(quantityWithFSOverhead, 0), preallocation)
+		} else if volumeMode == v1.PersistentVolumeBlock && preallocation {
+			klog.V(1).Info("Preallocating blank block volume")
+			err = image.PreallocateBlankBlock(common.WriteBlockPath, minSizeQuantity)
+		}
+
 		if err != nil {
 			klog.Errorf("%+v", err)
 			message := fmt.Sprintf("Unable to create blank image: %+v", err)
