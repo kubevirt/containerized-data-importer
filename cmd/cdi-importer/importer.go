@@ -108,7 +108,14 @@ func main() {
 			}
 		}
 
-		err := image.CreateBlankImage(common.ImporterWritePath, minSizeQuantity, preallocation)
+		var err error
+		if volumeMode == v1.PersistentVolumeFilesystem {
+			err = image.CreateBlankImage(common.ImporterWritePath, minSizeQuantity, preallocation)
+		} else if volumeMode == v1.PersistentVolumeBlock && preallocation {
+			klog.V(1).Info("Preallocating blank block volume")
+			err = image.PreallocateBlankBlock(common.WriteBlockPath, minSizeQuantity)
+		}
+
 		if err != nil {
 			klog.Errorf("%+v", err)
 			message := fmt.Sprintf("Unable to create blank image: %+v", err)

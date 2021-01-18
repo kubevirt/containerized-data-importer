@@ -277,3 +277,17 @@ func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity, p
 
 	return nil
 }
+
+// PreallocateBlankBlock writes requested amount of zeros to block device mounted at dest
+func PreallocateBlankBlock(dest string, size resource.Quantity) error {
+	klog.V(3).Infof("block volume size is %s", size.String())
+
+	args := []string{"if=/dev/zero", "of=" + dest, "bs=" + convertQuantityToQemuSize(size), "count=1"}
+	_, err := qemuExecFunction(nil, nil, "dd", args...)
+
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("Could not preallocate blank block volume at %s with size %s", dest, size.String()))
+	}
+
+	return nil
+}
