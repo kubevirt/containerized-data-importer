@@ -98,14 +98,15 @@ var _ = Describe("all clone tests", func() {
 			fmt.Fprintf(GinkgoWriter, "INFO: %s\n", sourcePvcDiskGroup)
 			Expect(err).ToNot(HaveOccurred())
 
-			By("verifying pvc content")
-			sourceMD5, err := f.GetMD5(f.Namespace, pvc, diskImagePath, 0)
+			By("Calculating the md5sum of the source data volume")
+			sourceMD5, err := f.RunCommandAndCaptureOutput(utils.PersistentVolumeClaimFromDataVolume(dataVolume), "md5sum "+diskImagePath)
 			Expect(err).ToNot(HaveOccurred())
+			fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", sourceMD5[:32])
 
 			By("Deleting verifier pod")
 			err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 			Expect(err).ToNot(HaveOccurred())
-			completeClone(f, f.Namespace, targetPvc, diskImagePath, sourceMD5, sourcePvcDiskGroup)
+			completeClone(f, f.Namespace, targetPvc, diskImagePath, sourceMD5[:32], sourcePvcDiskGroup)
 		})
 
 		It("[test_id:1355]Should clone data across different namespaces", func() {
