@@ -34,3 +34,14 @@ Here is a description of the flow of the Smart-Cloning:
   * Trigger a (slower) host-assisted clone
 
 *Note: For some CSI driver when restoring from a snapshot, the new PVC size must equal the size of the PVC the snapshot was created from*
+
+### Disabling smart cloning
+If for some reason you don't want to use smart cloning and prefer using a host-assisted copy, you can disable smart cloning by editing the CDI object:
+```bash
+kubectl patch cdi cdi --type merge -p '{"spec":{"cloneStrategyOverride":"copy"}}'
+```
+
+To enable smart cloning again:
+```bash
+kubectl patch cdi cdi --type merge -p '{"spec":{"cloneStrategyOverride":"snapshot"}}'
+```
