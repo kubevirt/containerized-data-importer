@@ -183,7 +183,7 @@ func (f *Framework) AfterEach() {
 			nfsServerPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "nfs-server", "app=nfs-server")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			for i := 1; i <= pvCount; i++ {
-				stdout, stderr, err := f.ExecShellInPod(nfsServerPod.Name, f.CdiInstallNs, fmt.Sprintf("/bin/rm -f /data/nfs/disk%d/*", i))
+				stdout, stderr, err := f.ExecShellInPod(nfsServerPod.Name, f.CdiInstallNs, fmt.Sprintf("/bin/rm -rf /data/nfs/disk%d/*", i))
 				if err != nil {
 					fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: cleaning up nfs disk%d failed: %s, %s\n", i, stdout, stderr)
 				}
