@@ -47,14 +47,15 @@ func CreatePod(clientSet *kubernetes.Clientset, namespace string, podDef *k8sv1.
 
 // DeletePodByName deletes the pod based on the passed in name from the passed in Namespace
 func DeletePodByName(clientSet *kubernetes.Clientset, podName, namespace string, gracePeriod *int64) error {
+	_ = clientSet.CoreV1().Pods(namespace).Delete(context.TODO(), podName, metav1.DeleteOptions{
+		GracePeriodSeconds: gracePeriod,
+	})
 	return wait.PollImmediate(2*time.Second, podDeleteTime, func() (bool, error) {
-		err := clientSet.CoreV1().Pods(namespace).Delete(context.TODO(), podName, metav1.DeleteOptions{
-			GracePeriodSeconds: gracePeriod,
-		})
-		if err != nil && !errors.IsNotFound(err) {
-			return false, nil
+		_, err := clientSet.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
+		if !errors.IsNotFound(err) {
+			return true, nil
 		}
-		return true, nil
+		return false, err
 	})
 }
 
