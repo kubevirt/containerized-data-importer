@@ -31,6 +31,7 @@ import (
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -98,15 +99,6 @@ func closeImage(src types.ImageSource) {
 	}
 }
 
-func copyFile(tarReader *tar.Reader, dstFile *os.File) error {
-	if _, err := io.Copy(dstFile, tarReader); err != nil {
-		klog.Errorf("Error copying file: %v", err)
-		return errors.Wrap(err, "Error retrieving image")
-	}
-
-	return nil
-}
-
 func hasPrefix(path string, pathPrefix string) bool {
 	return strings.HasPrefix(path, pathPrefix) ||
 		strings.HasPrefix(path, "./"+pathPrefix)
@@ -162,15 +154,9 @@ func processLayer(ctx context.Context,
 				return false, errors.Wrap(err, "Error creating output file's directory")
 			}
 
-			dstFile, err := os.Create(filepath.Join(destDir, hdr.Name))
-			if err != nil {
-				klog.Errorf("Error creating output file: %v", err)
-				return false, errors.Wrap(err, "Error creating output file")
-			}
-
-			if err := copyFile(tarReader, dstFile); err != nil {
-				klog.Errorf("Could not copy file to scratch space: %v", err)
-				return false, errors.Wrap(err, "Could not copy file to scratch space")
+			if err := util.StreamDataToFile(tarReader, filepath.Join(destDir, hdr.Name)); err != nil {
+				klog.Errorf("Error copying file: %v", err)
+				return false, errors.Wrap(err, "Error copying file")
 			}
 
 			found = true
