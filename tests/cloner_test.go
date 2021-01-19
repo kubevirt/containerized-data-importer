@@ -103,9 +103,6 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			fmt.Fprintf(GinkgoWriter, "INFO: MD5SUM for source is: %s\n", sourceMD5[:32])
 
-			By("Deleting verifier pod")
-			err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
-			Expect(err).ToNot(HaveOccurred())
 			completeClone(f, f.Namespace, targetPvc, diskImagePath, sourceMD5[:32], sourcePvcDiskGroup)
 		})
 
