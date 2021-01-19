@@ -70,17 +70,5 @@ openapi-gen --input-dirs k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/api/core/v1
 
 ${SCRIPT_ROOT}/bin/openapi-spec-generator >${SCRIPT_ROOT}/api/openapi-spec/swagger.json
 
-# the kubevirtci commit hash to vendor from
-kubevirtci_git_hash=a2a78b78256486317adda21bbd34998e548b8c5a
-
-# remove previous cluster-up dir entirely before vendoring
-rm -rf ${SCRIPT_ROOT}/cluster-up
-
-# download and extract the cluster-up dir from a specific hash in kubevirtci
-curl -L https://github.com/kubevirt/kubevirtci/archive/${kubevirtci_git_hash}/kubevirtci.tar.gz | tar xz kubevirtci-${kubevirtci_git_hash}/cluster-up --strip-component 1
 echo "************* running controller-gen to generate schema yaml ********************"
 controller-gen crd:crdVersions=v1 output:dir=./_out/manifests/schema paths=./pkg/apis/core/...
-
-rm -f "${SCRIPT_ROOT}/cluster-up/cluster/kind-k8s-sriov-1.17.0/csrcreator/certsecret.go"
-
-echo "KUBEVIRTCI_TAG=2010221342-bab3984" >>${SCRIPT_ROOT}/cluster-up/hack/common.sh
