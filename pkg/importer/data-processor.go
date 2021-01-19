@@ -20,13 +20,13 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"strconv"
 
 	"github.com/pkg/errors"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog/v2"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -124,7 +124,7 @@ type DataProcessor struct {
 	// preallocationApplied is used to pass information whether preallocation has been performed, skipped or not attempted
 	// "skipped" is used to indicate that preallocation would have been perfomed but there was not enough space, so the
 	// preallocation whould have failed.
-	preallocationApplied string
+	preallocationApplied common.PreallocationStatus
 }
 
 // NewDataProcessor create a new instance of a data processor using the passed in data provider.
@@ -263,7 +263,7 @@ func (dp *DataProcessor) convert(url *url.URL) (ProcessingPhase, error) {
 	if err != nil {
 		return ProcessingPhaseError, errors.Wrap(err, "Conversion to Raw failed")
 	}
-	dp.preallocationApplied = strconv.FormatBool(dp.preallocation)
+	dp.preallocationApplied = common.PreallocationStatusFromBool(dp.preallocation)
 
 	return ProcessingPhaseResize, nil
 }
@@ -292,7 +292,7 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 		if shouldPreallocate {
 			return ProcessingPhasePreallocate, nil
 		}
-		dp.preallocationApplied = "skipped" // qemu did not preallicate space for a resized file
+		dp.preallocationApplied = common.PreallocationSkipped // qemu did not preallicate space for a resized file
 	}
 	return ProcessingPhaseComplete, nil
 }
@@ -310,7 +310,7 @@ func (dp *DataProcessor) preallocate() (ProcessingPhase, error) {
 	if err != nil {
 		return ProcessingPhaseError, errors.Wrap(err, "Preallocation or resized image failed")
 	}
-	dp.preallocationApplied = "true"
+	dp.preallocationApplied = common.PreallocationApplied
 
 	return ProcessingPhaseComplete, nil
 }
@@ -377,6 +377,6 @@ func (dp *DataProcessor) calculateTargetSize() int64 {
 }
 
 // PreallocationApplied returns true if data processing path included preallocation step
-func (dp *DataProcessor) PreallocationApplied() string {
+func (dp *DataProcessor) PreallocationApplied() common.PreallocationStatus {
 	return dp.preallocationApplied
 }
