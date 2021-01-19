@@ -1047,7 +1047,9 @@ var _ = Describe("Smart clone", func() {
 		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cr)
 		Expect(err).ToNot(HaveOccurred())
 
-		cr.Spec.CloneStrategyOverride = &expectedCloneStrategy
+		cr.Spec.Config = &cdiv1.CDIConfigSpec{
+			CloneStrategyOverride: &expectedCloneStrategy,
+		}
 		err = reconciler.client.Update(context.TODO(), cr)
 		Expect(err).ToNot(HaveOccurred())
 

@@ -38,10 +38,10 @@ Here is a description of the flow of the Smart-Cloning:
 ### Disabling smart cloning
 If for some reason you don't want to use smart cloning and prefer using a host-assisted copy, you can disable smart cloning by editing the CDI object:
 ```bash
-kubectl patch cdi cdi --type merge -p '{"spec":{"cloneStrategyOverride":"copy"}}'
+kubectl patch cdi cdi --type merge -p '{"spec":{"config":{"cloneStrategyOverride":"copy"}}}'
 ```
 
 To enable smart cloning again:
 ```bash
-kubectl patch cdi cdi --type merge -p '{"spec":{"cloneStrategyOverride":"snapshot"}}'
+kubectl patch cdi cdi --type merge -p '{"spec":{"config":{"cloneStrategyOverride":"snapshot"}}}'
 ```

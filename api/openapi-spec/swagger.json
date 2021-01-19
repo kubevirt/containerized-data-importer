@@ -3431,6 +3431,10 @@
     "description": "CDIConfigSpec defines specification for user configuration",
     "type": "object",
     "properties": {
+     "cloneStrategyOverride": {
+      "description": "Clone strategy override: should we use a host-assisted copy even if snapshots are available?",
+      "type": "string"
+     },
      "featureGates": {
       "description": "FeatureGates are a list of specific enabled feature gates",
       "type": "array",
@@ -3529,10 +3533,6 @@
      "certConfig": {
       "description": "certificate configuration",
       "$ref": "#/definitions/v1beta1.CDICertConfig"
-     },
-     "cloneStrategyOverride": {
-      "description": "Clone strategy override: should we use a host-assisted copy even if snapshots are available?",
-      "type": "string"
      },
      "config": {
       "description": "CDIConfig at CDI level",

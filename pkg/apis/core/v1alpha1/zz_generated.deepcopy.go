@@ -179,6 +179,11 @@ func (in *CDIConfigSpec) DeepCopyInto(out *CDIConfigSpec) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.CloneStrategyOverride != nil {
+		in, out := &in.CloneStrategyOverride, &out.CloneStrategyOverride
+		*out = new(CDICloneStrategy)
+		**out = **in
+	}
 	return
 }
 
@@ -271,11 +276,6 @@ func (in *CDISpec) DeepCopyInto(out *CDISpec) {
 	}
 	in.Infra.DeepCopyInto(&out.Infra)
 	in.Workloads.DeepCopyInto(&out.Workloads)
-	if in.CloneStrategyOverride != nil {
-		in, out := &in.CloneStrategyOverride, &out.CloneStrategyOverride
-		*out = new(CDICloneStrategy)
-		**out = **in
-	}
 	if in.Config != nil {
 		in, out := &in.Config, &out.Config
 		*out = new(CDIConfigSpec)

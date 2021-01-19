@@ -13681,6 +13681,13 @@ func schema_pkg_apis_core_v1alpha1_CDIConfigSpec(ref common.ReferenceCallback) c
 							Format:      "",
 						},
 					},
+					"cloneStrategyOverride": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Clone strategy override: should we use a host-assisted copy even if snapshots are available?",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},
@@ -13822,13 +13829,6 @@ func schema_pkg_apis_core_v1alpha1_CDISpec(ref common.ReferenceCallback) common.
 						SchemaProps: spec.SchemaProps{
 							Description: "Restrict on which nodes CDI workload pods will be scheduled",
 							Ref:         ref("kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement"),
-						},
-					},
-					"cloneStrategyOverride": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Clone strategy override: should we use a host-assisted copy even if snapshots are available?",
-							Type:        []string{"string"},
-							Format:      "",
 						},
 					},
 					"config": {

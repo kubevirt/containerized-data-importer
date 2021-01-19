@@ -12,8 +12,10 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -21,9 +23,8 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
-var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests that modify CDI CR", func() {
-	var cdiCr cdiv1.CDI
-	var cdiCrSpec *cdiv1.CDISpec
+var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests that modify CDI Config clone strategy", func() {
+	var origConfigSpec *cdiv1.CDIConfigSpec
 
 	fillData := "123456789012345678901234567890123456789012345678901234567890"
 	testFile := utils.DefaultPvcMountPath + "/source.txt"
@@ -32,34 +33,34 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests th
 	f := framework.NewFramework("dv-func-test")
 
 	BeforeEach(func() {
-		By("Saving CDI CR spec")
-		crList, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
+		By("Saving CDIConfig original spec")
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(crList.Items)).To(Equal(1))
 
-		cdiCrSpec = crList.Items[0].Spec.DeepCopy()
-		cdiCr = crList.Items[0]
+		origConfigSpec = config.Spec.DeepCopy()
 	})
 
 	AfterEach(func() {
-		By("Restoring CDI CR spec to original state")
-		crList, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
+		By("Restoring CDIConfig clone strategy to original state")
+		err := utils.UpdateCDIConfig(f.CrClient, func(configSpec *cdiv1.CDIConfigSpec) {
+			configSpec.CloneStrategyOverride = origConfigSpec.CloneStrategyOverride
+		})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(len(crList.Items)).To(Equal(1))
-
-		newCdiCr := crList.Items[0]
-		newCdiCr.Spec = *cdiCrSpec
-		_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &newCdiCr, metav1.UpdateOptions{})
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() bool {
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return apiequality.Semantic.DeepEqual(config.Spec.CloneStrategyOverride, origConfigSpec.CloneStrategyOverride)
+		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig not properly restored to original value")
 	})
 
 	It("[test_id:5278]Verify DataVolume Smart Cloning gets disabled by tunable", func() {
 		if !f.IsSnapshotStorageClassAvailable() {
 			Skip("Smart Clone is not applicable")
 		}
-		var cloneStrategy cdiv1.CDICloneStrategy = cdiv1.CloneStrategyHostAssisted
-		cdiCr.Spec.CloneStrategyOverride = &cloneStrategy
-		_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &cdiCr, metav1.UpdateOptions{})
+		err := utils.UpdateCDIConfig(f.CrClient, func(configSpec *cdiv1.CDIConfigSpec) {
+			var cloneStrategy cdiv1.CDICloneStrategy = cdiv1.CloneStrategyHostAssisted
+			configSpec.CloneStrategyOverride = &cloneStrategy
+		})
 		Expect(err).ToNot(HaveOccurred())
 
 		dataVolume := createDataVolume("dv-smart-clone-test-1", fillCommandFilesystem, v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)

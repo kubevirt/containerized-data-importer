@@ -188,6 +188,18 @@ func createAlphaV1ConfigCRDSchema() *extv1.CustomResourceValidation {
 							Description: "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
 							Type:        "boolean",
 						},
+						"cloneStrategyOverride": {
+							Type:        "string",
+							Description: "Clone strategy override: should we use a host-assisted copy even if snapshots are available?",
+							Enum: []extv1.JSON{
+								{
+									Raw: []byte(`"copy"`),
+								},
+								{
+									Raw: []byte(`"snapshot"`),
+								},
+							},
+						},
 					},
 				},
 				"status": {

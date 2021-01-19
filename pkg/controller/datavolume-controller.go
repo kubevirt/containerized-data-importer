@@ -655,12 +655,16 @@ func (r *DatavolumeReconciler) getCloneStrategy() (cdiv1.CDICloneStrategy, error
 		return cdiv1.CloneStrategySnapshot, fmt.Errorf("no active CDI")
 	}
 
-	if cr.Spec.CloneStrategyOverride == nil {
+	if cr.Spec.Config == nil {
 		return cdiv1.CloneStrategySnapshot, nil
 	}
 
-	r.log.V(3).Info(fmt.Sprintf("Overriding default clone strategy with %s", *cr.Spec.CloneStrategyOverride))
-	return *cr.Spec.CloneStrategyOverride, nil
+	if cr.Spec.Config.CloneStrategyOverride == nil {
+		return cdiv1.CloneStrategySnapshot, nil
+	}
+
+	r.log.V(3).Info(fmt.Sprintf("Overriding default clone strategy with %s", *cr.Spec.Config.CloneStrategyOverride))
+	return *cr.Spec.Config.CloneStrategyOverride, nil
 }
 
 func newSnapshot(dataVolume *cdiv1.DataVolume, snapshotClassName string) *snapshotv1.VolumeSnapshot {

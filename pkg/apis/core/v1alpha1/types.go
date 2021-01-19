@@ -308,9 +308,6 @@ type CDISpec struct {
 	Infra sdkapi.NodePlacement `json:"infra,omitempty"`
 	// Restrict on which nodes CDI workload pods will be scheduled
 	Workloads sdkapi.NodePlacement `json:"workload,omitempty"`
-	// Clone strategy override: should we use a host-assisted copy even if snapshots are available?
-	// +kubebuilder:validation:Enum="copy";"snapshot"
-	CloneStrategyOverride *CDICloneStrategy `json:"cloneStrategyOverride,omitempty"`
 	// CDIConfig at CDI level
 	Config *CDIConfigSpec `json:"config,omitempty"`
 	// certificate configuration
@@ -427,6 +424,9 @@ type CDIConfigSpec struct {
 	FilesystemOverhead *FilesystemOverhead `json:"filesystemOverhead,omitempty"`
 	// Preallocation controls whether storage for DataVolumes should be allocated in advance.
 	Preallocation *bool `json:"preallocation,omitempty"`
+	// Clone strategy override: should we use a host-assisted copy even if snapshots are available?
+	// +kubebuilder:validation:Enum="copy";"snapshot"
+	CloneStrategyOverride *CDICloneStrategy `json:"cloneStrategyOverride,omitempty"`
 }
 
 //CDIConfigStatus provides the most recently observed status of the CDI Config resource

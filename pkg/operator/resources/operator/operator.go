@@ -1563,18 +1563,6 @@ func createAlphaV1CRDSchema() *extv1.CustomResourceValidation {
 								},
 							},
 						},
-						"cloneStrategyOverride": {
-							Type:        "string",
-							Description: "Clone strategy override: should we use a host-assisted copy even if snapshots are available?",
-							Enum: []extv1.JSON{
-								{
-									Raw: []byte(`"copy"`),
-								},
-								{
-									Raw: []byte(`"snapshot"`),
-								},
-							},
-						},
 						"config": {
 							Description: "CDIConfig at CDI level",
 							Type:        "object",
@@ -1685,6 +1673,18 @@ func createAlphaV1CRDSchema() *extv1.CustomResourceValidation {
 								"preallocation": {
 									Description: "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
 									Type:        "boolean",
+								},
+								"cloneStrategyOverride": {
+									Type:        "string",
+									Description: "Clone strategy override: should we use a host-assisted copy even if snapshots are available?",
+									Enum: []extv1.JSON{
+										{
+											Raw: []byte(`"copy"`),
+										},
+										{
+											Raw: []byte(`"snapshot"`),
+										},
+									},
 								},
 							},
 						},
