@@ -74,7 +74,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			if strings.Contains(log, "no space left on device") {
 				return true
 			}
-			if strings.Contains(log, "qemu-img execution failed") {
+			if strings.Contains(log, "file largest block is bigger than maxblock") {
 				return true
 			}
 			By("Failed to find error messages about a too large image in log:")
@@ -281,9 +281,6 @@ var _ = Describe("Importer CDI config manipulation tests", func() {
 					return true
 				}
 				if strings.Contains(log, "no space left on device") {
-					return true
-				}
-				if strings.Contains(log, "qemu-img execution failed") {
 					return true
 				}
 				By("Failed to find error messages about a too large image in log:")
