@@ -2,6 +2,9 @@
 
 set -e
 
+KUBEVIRT_WITH_ETC_IN_MEMORY=${KUBEVIRT_WITH_ETC_IN_MEMORY:-false}
+KUBEVIRT_WITH_ETC_CAPACITY=${KUBEVIRT_WITH_ETC_CAPACITY:-none}
+
 if [ -z "${KUBEVIRTCI_TAG}" ] && [ -z "${KUBEVIRTCI_GOCLI_CONTAINER}" ]; then
     echo "FATAL: either KUBEVIRTCI_TAG or KUBEVIRTCI_GOCLI_CONTAINER must be set"
     exit 1
@@ -14,7 +17,7 @@ fi
 if [ "${KUBEVIRTCI_RUNTIME}" = "podman" ]; then
     _cli="pack8s"
 else
-    _cli_container="${KUBEVIRTCI_GOCLI_CONTAINER:-kubevirtci/gocli:${KUBEVIRTCI_TAG}}"
+    _cli_container="${KUBEVIRTCI_GOCLI_CONTAINER:-quay.io/kubevirtci/gocli:${KUBEVIRTCI_TAG}}"
     _cli="docker run --privileged --net=host --rm ${USE_TTY} -v /var/run/docker.sock:/var/run/docker.sock"
     # gocli will try to mount /lib/modules to make it accessible to dnsmasq in
     # in case it exists
@@ -56,8 +59,16 @@ function _add_common_params() {
         params=" --nfs-data $RHEL_NFS_DIR $params"
     fi
     if [ -n "${KUBEVIRTCI_PROVISION_CHECK}" ]; then
-        params=" --container-registry= --container-suffix=:latest $params"
+        params=" --container-registry=quay.io --container-suffix=:latest $params"
     fi
+
+    if [ $KUBEVIRT_WITH_ETC_IN_MEMORY == "true" ]; then
+        params=" --run-etcd-on-memory $params"
+        if [ $KUBEVIRT_WITH_ETC_CAPACITY != "none" ]; then
+          params=" --etcd-capacity $KUBEVIRT_WITH_ETC_CAPACITY $params"
+        fi
+    fi
+
     echo $params
 }
 
