@@ -69,9 +69,12 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Set up port forwarding")
-		uploadProxyURL, portForwardCmd, err = startUploadProxyPortForward(f)
-		Expect(err).ToNot(HaveOccurred())
+		uploadProxyURL = findProxyURLCdiConfig(f)
+		if uploadProxyURL == "" {
+			By("Set up port forwarding")
+			uploadProxyURL, portForwardCmd, err = startUploadProxyPortForward(f)
+			Expect(err).ToNot(HaveOccurred())
+		}
 	})
 
 	AfterEach(func() {
@@ -381,6 +384,15 @@ func uploadFileNameToPath(requestFunc uploadFileNameRequestCreator, fileName, po
 	return nil
 }
 
+func findProxyURLCdiConfig(f *framework.Framework) string {
+	config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	if config.Status.UploadProxyURL != nil {
+		return fmt.Sprintf("https://%s", *config.Status.UploadProxyURL)
+	}
+	return ""
+}
+
 var _ = Describe("Block PV upload Test", func() {
 	var (
 		pvc *v1.PersistentVolumeClaim
@@ -405,9 +417,12 @@ var _ = Describe("Block PV upload Test", func() {
 		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadBlockPVCDefinition(f.BlockSCName))
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Set up port forwarding")
-		uploadProxyURL, portForwardCmd, err = startUploadProxyPortForward(f)
-		Expect(err).ToNot(HaveOccurred())
+		uploadProxyURL = findProxyURLCdiConfig(f)
+		if uploadProxyURL == "" {
+			By("Set up port forwarding")
+			uploadProxyURL, portForwardCmd, err = startUploadProxyPortForward(f)
+			Expect(err).ToNot(HaveOccurred())
+		}
 	})
 
 	AfterEach(func() {
@@ -497,9 +512,12 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 			}, timeout, pollingInterval).Should(BeTrue())
 		}
 
-		By("Set up port forwarding")
-		uploadProxyURL, portForwardCmd, err = startUploadProxyPortForward(f)
-		Expect(err).ToNot(HaveOccurred())
+		uploadProxyURL = findProxyURLCdiConfig(f)
+		if uploadProxyURL == "" {
+			By("Set up port forwarding")
+			uploadProxyURL, portForwardCmd, err = startUploadProxyPortForward(f)
+			Expect(err).ToNot(HaveOccurred())
+		}
 	})
 
 	AfterEach(func() {
@@ -688,10 +706,12 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	)
 
 	BeforeEach(func() {
-		By("Set up port forwarding")
-		uploadProxyURL, portForwardCmd, err = startUploadProxyPortForward(f)
-		Expect(err).ToNot(HaveOccurred())
-
+		uploadProxyURL = findProxyURLCdiConfig(f)
+		if uploadProxyURL == "" {
+			By("Set up port forwarding")
+			uploadProxyURL, portForwardCmd, err = startUploadProxyPortForward(f)
+			Expect(err).ToNot(HaveOccurred())
+		}
 	})
 
 	AfterEach(func() {
@@ -962,9 +982,12 @@ var _ = Describe("Preallocation", func() {
 	)
 
 	BeforeEach(func() {
-		By("Set up port forwarding")
-		uploadProxyURL, portForwardCmd, err = startUploadProxyPortForward(f)
-		Expect(err).ToNot(HaveOccurred())
+		uploadProxyURL = findProxyURLCdiConfig(f)
+		if uploadProxyURL == "" {
+			By("Set up port forwarding")
+			uploadProxyURL, portForwardCmd, err = startUploadProxyPortForward(f)
+			Expect(err).ToNot(HaveOccurred())
+		}
 	})
 
 	AfterEach(func() {
