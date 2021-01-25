@@ -29,7 +29,8 @@ const (
 
 // DeleteVerifierPod deletes the verifier pod
 func DeleteVerifierPod(clientSet *kubernetes.Clientset, namespace string) error {
-	return DeletePodByName(clientSet, VerifierPodName, namespace, nil)
+	zero := int64(0)
+	return DeletePodByName(clientSet, VerifierPodName, namespace, &zero)
 }
 
 // CreatePod calls the Kubernetes API to create a Pod
@@ -52,7 +53,7 @@ func DeletePodByName(clientSet *kubernetes.Clientset, podName, namespace string,
 	})
 	return wait.PollImmediate(2*time.Second, podDeleteTime, func() (bool, error) {
 		_, err := clientSet.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
-		if !errors.IsNotFound(err) {
+		if errors.IsNotFound(err) {
 			return true, nil
 		}
 		return false, err
@@ -61,8 +62,8 @@ func DeletePodByName(clientSet *kubernetes.Clientset, podName, namespace string,
 
 // DeletePodNoGrace deletes the passed in Pod from the passed in Namespace
 func DeletePodNoGrace(clientSet *kubernetes.Clientset, pod *k8sv1.Pod, namespace string) error {
-	zero := int64(0)
-	return DeletePodByName(clientSet, pod.Name, namespace, &zero)
+	one := int64(1)
+	return DeletePodByName(clientSet, pod.Name, namespace, &one)
 }
 
 // DeletePod deletes the passed in Pod from the passed in Namespace
