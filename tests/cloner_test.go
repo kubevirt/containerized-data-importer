@@ -92,8 +92,8 @@ var _ = Describe("all clone tests", func() {
 
 			targetPvc, err := utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
-			fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
-			utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
+			fmt.Fprintf(GinkgoWriter, "INFO: wait for target DV phase Succeeded: %s\n", targetPvc.Name)
+			utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, targetDV.Name, 3*90*time.Second)
 			sourcePvcDiskGroup, err := f.GetDiskGroup(f.Namespace, pvc, true)
 			fmt.Fprintf(GinkgoWriter, "INFO: %s\n", sourcePvcDiskGroup)
 			Expect(err).ToNot(HaveOccurred())
