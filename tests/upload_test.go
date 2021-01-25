@@ -1042,8 +1042,9 @@ var _ = Describe("Preallocation", func() {
 		Expect(token).ToNot(BeEmpty())
 
 		By("Do upload")
-		err = uploadImage(uploadProxyURL, token, http.StatusOK)
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			return uploadImage(uploadProxyURL, token, http.StatusOK)
+		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		phase = cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -1129,8 +1130,9 @@ var _ = Describe("Preallocation", func() {
 		Expect(token).ToNot(BeEmpty())
 
 		By("Do upload")
-		err = uploadImage(uploadProxyURL, token, http.StatusOK)
-		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() error {
+			return uploadImage(uploadProxyURL, token, http.StatusOK)
+		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		phase = cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
