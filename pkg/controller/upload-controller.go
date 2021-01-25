@@ -116,13 +116,12 @@ func (r *UploadReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 
 	_, isUpload := pvc.Annotations[AnnUploadRequest]
 	_, isCloneTarget := pvc.Annotations[AnnCloneRequest]
-	_, isImmediateBindingRequested := pvc.Annotations[AnnImmediateBinding]
 
 	if isUpload && isCloneTarget {
 		log.V(1).Info("PVC has both clone and upload annotations")
 		return reconcile.Result{}, errors.New("PVC has both clone and upload annotations")
 	}
-	shouldReconcile, err := r.shouldReconcile(isUpload, isCloneTarget, isImmediateBindingRequested, pvc, log)
+	shouldReconcile, err := r.shouldReconcile(isUpload, isCloneTarget, pvc, log)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -144,7 +143,8 @@ func (r *UploadReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 	return r.reconcilePVC(log, pvc, isCloneTarget)
 }
 
-func (r *UploadReconciler) shouldReconcile(isUpload bool, isCloneTarget bool, isImmediateBindingRequested bool, pvc *v1.PersistentVolumeClaim, log logr.Logger) (bool, error) {
+func (r *UploadReconciler) shouldReconcile(isUpload bool, isCloneTarget bool, pvc *v1.PersistentVolumeClaim, log logr.Logger) (bool, error) {
+	_, isImmediateBindingRequested := pvc.Annotations[AnnImmediateBinding]
 	waitForFirstConsumerEnabled, err := isWaitForFirstConsumerEnabled(isImmediateBindingRequested, r.featureGates)
 	if err != nil {
 		return false, err
