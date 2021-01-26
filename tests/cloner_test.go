@@ -12,6 +12,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -639,6 +640,51 @@ var _ = Describe("all clone tests", func() {
 			By("Deleting verifier pod")
 			err = utils.DeleteVerifierPod(f.K8sClient, targetNs.Name)
 			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should clone disk image across namespaces", func() {
+			if !f.IsBlockVolumeStorageClassAvailable() {
+				Skip("Storage Class for block volume is not available")
+			}
+
+			cirrosURL := fmt.Sprintf(utils.CirrosURL, f.CdiInstallNs)
+			sourceDv := utils.NewDataVolumeWithHTTPImport("source-dv", "500M", cirrosURL)
+			sourceDv.Spec.PVC.StorageClassName = &f.BlockSCName
+			volumeMode := corev1.PersistentVolumeBlock
+			sourceDv.Spec.PVC.VolumeMode = &volumeMode
+			sourceDv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Waiting for import to be completed")
+			utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, sourceDv.Name, 3*90*time.Second)
+			sourcePvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(sourceDv.Namespace).Get(context.TODO(), sourceDv.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			sourceMD5, err := f.GetMD5(f.Namespace, sourcePvc, testBaseDir, 0)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Deleting verifier pod")
+			err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+				framework.NsPrefixLabel: f.NsPrefix,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			f.AddNamespaceToDelete(targetNs)
+
+			targetDV := utils.NewDataVolumeCloneToBlockPV("target-dv", "500M", sourceDv.Namespace, sourceDv.Name, f.BlockSCName)
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
+			Expect(err).ToNot(HaveOccurred())
+
+			targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
+			utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, f.Namespace.Name, v1.ClaimBound, targetPvc.Name)
+
+			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, targetNs.Name, cdiv1.Succeeded, "target-dv", 3*90*time.Second)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(f.VerifyTargetPVCContentMD5(targetNs, targetPvc, testBaseDir, sourceMD5)).To(BeTrue())
 		})
 	})
 

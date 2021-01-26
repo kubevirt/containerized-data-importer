@@ -14,7 +14,7 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-set -euo pipefail
+set -euox pipefail
 
 if [[ -z "$VOLUME_MODE" ]]; then
     echo "VOLUME_MODE missing" 1>&2
@@ -30,7 +30,7 @@ echo "VOLUME_MODE=$VOLUME_MODE"
 echo "MOUNT_POINT=$MOUNT_POINT"
 
 if [ "$VOLUME_MODE" == "block" ]; then
-    UPLOAD_BYTES=$(blockdev --getsize64 $MOUNT_POINT)
+    UPLOAD_BYTES=$(lsblk -n -b -o SIZE $MOUNT_POINT | head -n 1)
     echo "UPLOAD_BYTES=$UPLOAD_BYTES"
 
     /usr/bin/cdi-cloner -v=3 -alsologtostderr -content-type blockdevice-clone -upload-bytes $UPLOAD_BYTES -mount $MOUNT_POINT
