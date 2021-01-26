@@ -279,7 +279,13 @@ var _ = Describe("ALL Operator tests", func() {
 			_ = f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{})
 
 			By("Waiting for CDI CR and infra deployments to be gone now that we are sure there's no CDI CR")
-			Eventually(func() bool { return infraDeploymentGone(f) && crGone(f, cr) }, 15*time.Minute, 2*time.Second).Should(BeTrue())
+			infraGone := false
+			crObjGone := false
+			Eventually(func() bool {
+				infraGone = infraDeploymentGone(f)
+				crObjGone = crGone(f, cr)
+				return infraGone && crObjGone
+			}, 15*time.Minute, 2*time.Second).Should(BeTrue(), "CDI is not gone in time, infraGone: %t, crGone: %t", infraGone, crObjGone)
 		}
 
 		ensureCDI := func() {
@@ -358,7 +364,7 @@ var _ = Describe("ALL Operator tests", func() {
 			for _, newCdiPod := range newCdiPods.Items {
 				By(fmt.Sprintf("Waiting for CDI pod %s to be ready", newCdiPod.Name))
 				err := utils.WaitTimeoutForPodReady(f.K8sClient, newCdiPod.Name, newCdiPod.Namespace, 20*time.Minute)
-				Expect(err).ToNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred(), "Failure waiting for pod %s to be ready, %v", newCdiPod.Name, err)
 			}
 		}
 
