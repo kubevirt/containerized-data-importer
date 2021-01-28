@@ -131,6 +131,10 @@ type importPodEnvVar struct {
 	previousCheckpoint string
 	finalCheckpoint    string
 	preallocation      bool
+	httpProxy          string
+	httpsProxy         string
+	noProxy            string
+	certConfigMapProxy string
 }
 
 // NewImportController creates a new instance of the import controller.
@@ -496,7 +500,10 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		if podEnvVar.secretName == "" {
 			r.log.V(2).Info("no secret will be supplied to endpoint", "endPoint", podEnvVar.ep)
 		}
-		podEnvVar.certConfigMap, err = r.getCertConfigMap(pvc)
+		//get the CDIConfig to extract the proxy configuration to be used to import an image
+		cdiConfig := &cdiv1.CDIConfig{}
+		r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		podEnvVar.certConfigMap, err = r.getCertConfigMap(pvc, cdiConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -516,6 +523,10 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.previousCheckpoint = getValueFromAnnotation(pvc, AnnPreviousCheckpoint)
 		podEnvVar.currentCheckpoint = getValueFromAnnotation(pvc, AnnCurrentCheckpoint)
 		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, AnnFinalCheckpoint)
+		podEnvVar.httpProxy = GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP)
+		podEnvVar.httpsProxy = GetImportProxyConfig(cdiConfig, common.ImportProxyHTTPS)
+		podEnvVar.noProxy = GetImportProxyConfig(cdiConfig, common.ImportProxyNoProxy)
+		podEnvVar.certConfigMapProxy = GetImportProxyConfig(cdiConfig, common.ImportProxyConfigMapName)
 	}
 
 	if preallocation, err := strconv.ParseBool(getValueFromAnnotation(pvc, AnnPreallocationRequested)); err == nil {
@@ -572,7 +583,7 @@ func (r *ImportReconciler) isInsecureTLS(pvc *corev1.PersistentVolumeClaim) (boo
 	return false, nil
 }
 
-func (r *ImportReconciler) getCertConfigMap(pvc *corev1.PersistentVolumeClaim) (string, error) {
+func (r *ImportReconciler) getCertConfigMap(pvc *corev1.PersistentVolumeClaim, config *cdiv1.CDIConfig) (string, error) {
 	value, ok := pvc.Annotations[AnnCertConfigMap]
 	if !ok || value == "" {
 		return "", nil
@@ -928,6 +939,27 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
 	}
 
+	if podEnvVar.certConfigMapProxy != "" {
+		vm := corev1.VolumeMount{
+			Name:      ProxyCertVolName,
+			MountPath: common.ImporterProxyCertDir,
+		}
+
+		vol := corev1.Volume{
+			Name: CertVolName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: podEnvVar.certConfigMapProxy,
+					},
+				},
+			},
+		}
+
+		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
+		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
+	}
+
 	if podEnvVar.contentType == string(cdiv1.DataVolumeKubeVirt) {
 		// Set the fsGroup on the security context to the QemuSubGid
 		if pod.Spec.SecurityContext == nil {
@@ -999,6 +1031,18 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 			Value: podEnvVar.thumbprint,
 		},
 		{
+			Name:  common.ImportProxyHTTP,
+			Value: podEnvVar.httpProxy,
+		},
+		{
+			Name:  common.ImportProxyHTTPS,
+			Value: podEnvVar.httpsProxy,
+		},
+		{
+			Name:  common.ImportProxyNoProxy,
+			Value: podEnvVar.noProxy,
+		},
+		{
 			Name:  common.ImporterCurrentCheckpoint,
 			Value: podEnvVar.currentCheckpoint,
 		},
@@ -1043,6 +1087,12 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		env = append(env, corev1.EnvVar{
 			Name:  common.ImporterCertDirVar,
 			Value: common.ImporterCertDir,
+		})
+	}
+	if podEnvVar.certConfigMapProxy != "" {
+		env = append(env, corev1.EnvVar{
+			Name:  common.ImporterProxyCertDirVar,
+			Value: common.ImporterProxyCertDir,
 		})
 	}
 	return env
