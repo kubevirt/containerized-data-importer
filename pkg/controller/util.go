@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/rsa"
 	"fmt"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"net/url"
 	"strings"
+
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
@@ -26,6 +28,8 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
+
+	ocpconfigv1 "github.com/openshift/api/config/v1"
 )
 
 const (
@@ -103,6 +107,23 @@ const (
 
 	// Default value for preallocation option if not defined in DV or CDIConfig
 	defaultPreallocation = false
+
+	// ProxyCertVolName is the name of the volumecontaining certs
+	ProxyCertVolName = "cdi-proxy-cert-vol"
+	// ClusterWideProxyAPIGroup is the APIGroup for OpenShift Cluster Wide Proxy
+	ClusterWideProxyAPIGroup = "config.openshift.io"
+	// ClusterWideProxyAPIKind is the APIKind for OpenShift Cluster Wide Proxy
+	ClusterWideProxyAPIKind = "Proxy"
+	// ClusterWideProxyAPIVersion is the APIVersion for OpenShift Cluster Wide Proxy
+	ClusterWideProxyAPIVersion = "v1"
+	// ClusterWideProxyName is the OpenShift Cluster Wide Proxy object name. There is only one obj in the cluster.
+	ClusterWideProxyName = "cluster"
+	// ClusterWideProxyConfigMapName is the OpenShift Cluster Wide Proxy ConfigMap name for CA certificates.
+	ClusterWideProxyConfigMapName = "user-ca-bundle"
+	// ClusterWideProxyConfigMapNameSpace is the OpenShift Cluster Wide Proxy ConfigMap namespace for CA certificates.
+	ClusterWideProxyConfigMapNameSpace = "openshift-config"
+	// ClusterWideProxyConfigMapKey is the OpenShift Cluster Wide Proxy ConfigMap key name for CA certificates.
+	ClusterWideProxyConfigMapKey = "ca-bundle.crt"
 )
 
 const (
@@ -676,5 +697,63 @@ func GetStorageClassNameForDV(c client.Client, dv *cdiv1.DataVolume) string {
 	}
 
 	// If everything fails, return blank
+	return ""
+}
+
+// GetClusterWideProxy returns the OpenShift cluster wide proxy object
+func GetClusterWideProxy(r client.Client) (*ocpconfigv1.Proxy, error) {
+	clusterWideProxy := &ocpconfigv1.Proxy{}
+	var err error
+	if err = r.Get(context.TODO(), types.NamespacedName{Name: ClusterWideProxyName}, clusterWideProxy); err == nil {
+		return clusterWideProxy, nil
+	}
+	return nil, err
+}
+
+// IsImportProxyConfigured return true if import proxy configuration was defined or reconcillied.
+func IsImportProxyConfigured(config *cdiv1.CDIConfig) (bool, bool) {
+	hasProxyURL := false
+	for _, t := range []string{common.ImportProxyHTTP, common.ImportProxyHTTPS} {
+		uri := GetImportProxyConfig(config, t)
+		if uri != "" {
+			hasProxyURL = true
+			http, _ := url.Parse(uri)
+			if _, ok := http.User.Password(); ok {
+				return true, true
+			}
+		}
+	}
+	return hasProxyURL, false
+}
+
+// GetImportProxyConfig attempts to import proxy URLs if configured in the CDIConfig.
+func GetImportProxyConfig(config *cdiv1.CDIConfig, field string) string {
+	if config == nil {
+		return ""
+	}
+	if config.Status.ImportProxy == nil {
+		return ""
+	}
+	if field == common.ImportProxyHTTP {
+		if config.Status.ImportProxy.HTTPProxy != nil {
+			return *config.Status.ImportProxy.HTTPProxy
+		}
+	}
+	if field == common.ImportProxyHTTPS {
+		if config.Status.ImportProxy.HTTPSProxy != nil {
+			return *config.Status.ImportProxy.HTTPSProxy
+		}
+	}
+	if field == common.ImportProxyNoProxy {
+		if config.Status.ImportProxy.NoProxy != nil {
+			return *config.Status.ImportProxy.NoProxy
+		}
+	}
+	if field == common.ImportProxyConfigMapName {
+		if config.Status.ImportProxy.TrustedCAProxy != nil {
+			return *config.Status.ImportProxy.TrustedCAProxy
+		}
+	}
+	// If the field is empty, return blank
 	return ""
 }
