@@ -30,6 +30,8 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
+
+	ocpconfigv1 "github.com/openshift/api/config/v1"
 )
 
 var (
@@ -175,6 +177,8 @@ func createClient(objs ...runtime.Object) client.Client {
 	// Register cdi types with the runtime scheme.
 	s := scheme.Scheme
 	cdiv1.AddToScheme(s)
+	// Register other types with the runtime scheme.
+	ocpconfigv1.AddToScheme(s)
 	// Create a fake client to mock API calls.
 	return fake.NewFakeClientWithScheme(s, objs...)
 }
@@ -342,6 +346,39 @@ var _ = Describe("GetStorageClassNameForDV", func() {
 		dv := createDataVolume("test-name", "test-ns")
 		scName := GetStorageClassNameForDV(client, dv)
 		Expect(scName).To(Equal(""))
+	})
+})
+
+var _ = Describe("GetClusterWideProxy", func() {
+	var proxyHTTPURL = "http://user:pswd@www.myproxy.com"
+	var proxyHTTPSURL = "https://user:pswd@www.myproxy.com"
+	var noProxyDomains = ".noproxy.com"
+	var trustedCAName = "user-ca-bundle"
+
+	It("Should return a not empty cluster wide proxy obj", func() {
+		client := createClient(createClusterWideProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAName))
+		proxy, err := GetClusterWideProxy(client)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(proxy).ToNot(BeNil())
+
+		By("should return a proxy https url")
+		Expect(proxyHTTPSURL).To(Equal(proxy.Status.HTTPSProxy))
+
+		By("should return a proxy http url")
+		Expect(proxyHTTPURL).To(Equal(proxy.Status.HTTPProxy))
+
+		By("should return a noProxy list of domains")
+		Expect(noProxyDomains).To(Equal(proxy.Status.NoProxy))
+
+		By("should return a CA ConfigMap name")
+		Expect(trustedCAName).To(Equal(proxy.Spec.TrustedCA.Name))
+	})
+
+	It("Should return a nil cluster wide proxy obj", func() {
+		client := createClient()
+		proxy, err := GetClusterWideProxy(client)
+		Expect(err).To(HaveOccurred())
+		Expect(proxy).To(BeNil())
 	})
 })
 
@@ -739,4 +776,39 @@ func createCDIWithWorkload(name, uid string) *cdiv1.CDI {
 			},
 		},
 	}
+}
+
+func createClusterWideProxy(HTTPProxy string, HTTPSProxy string, noProxy string, trustedCAName string) *ocpconfigv1.Proxy {
+	proxy := &ocpconfigv1.Proxy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ClusterWideProxyName,
+			UID:  types.UID(ClusterWideProxyAPIKind + "-" + ClusterWideProxyName),
+		},
+		Spec: ocpconfigv1.ProxySpec{
+			HTTPProxy:          HTTPProxy,
+			HTTPSProxy:         HTTPSProxy,
+			NoProxy:            noProxy,
+			ReadinessEndpoints: []string{},
+			TrustedCA: ocpconfigv1.ConfigMapNameReference{
+				Name: trustedCAName,
+			},
+		},
+		Status: ocpconfigv1.ProxyStatus{
+			HTTPProxy:  HTTPProxy,
+			HTTPSProxy: HTTPSProxy,
+			NoProxy:    noProxy,
+		},
+	}
+	return proxy
+}
+
+func createClusterWideProxyCAConfigMap(certBytes string) *corev1.ConfigMap {
+	configMap := &v1.ConfigMap{
+		TypeMeta:   metav1.TypeMeta{},
+		ObjectMeta: metav1.ObjectMeta{Name: ClusterWideProxyConfigMapName, Namespace: ClusterWideProxyConfigMapNameSpace},
+		Immutable:  new(bool),
+		Data:       map[string]string{ClusterWideProxyConfigMapKey: string(certBytes)},
+		BinaryData: map[string][]byte{},
+	}
+	return configMap
 }
