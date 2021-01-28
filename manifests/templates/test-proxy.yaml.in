@@ -1,0 +1,64 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cdi-test-proxy
+  namespace: {{ .Namespace }}
+  labels:
+    cdi.kubevirt.io/testing: ""
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: cdi-test-proxy
+  template:
+    metadata:
+      labels:
+        name: cdi-test-proxy
+        cdi.kubevirt.io/testing: ""
+    spec:
+      serviceAccountName: cdi-sa
+      containers:
+      - name: http
+        image: {{ .DockerRepo }}/cdi-func-test-proxy:{{ .DockerTag }}
+        imagePullPolicy: {{ .PullPolicy }}
+        command: ["/app/tools/cdi-func-test-proxy/cdi-func-test-proxy-image.binary"]
+        env:
+        - name: CDI_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        ports:
+        - name: http-no-auth
+          containerPort: 8080
+        - name: http-auth
+          containerPort: 8081
+        - name: https-no-auth
+          containerPort: 443
+        - name: https-auth
+          containerPort: 8443
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cdi-test-proxy
+  namespace: {{ .Namespace }}
+  labels:
+    cdi.kubevirt.io/testing: ""
+spec:
+  selector:
+      name: cdi-test-proxy
+  type: NodePort
+  ports:
+  - name: http-no-auth
+    port: 8080
+    targetPort: 8080
+  - name: http-auth
+    port: 8081
+    targetPort: 8081
+  - name: https-no-auth
+    port: 443
+    targetPort: 443
+  - name: https-auth
+    port: 8443
+    targetPort: 8443

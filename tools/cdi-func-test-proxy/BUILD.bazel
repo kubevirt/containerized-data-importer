@@ -1,0 +1,24 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@io_bazel_rules_docker//go:image.bzl", "go_image")
+
+go_image(
+    name = "cdi-func-test-proxy-image",
+    srcs = ["main.go"],
+    base = "@fedora//image",
+    importpath = "kubevirt.io/containerized-data-importer/tools/cdi-func-test-proxy",
+    visibility = ["//visibility:public"],
+    deps = [],
+)
+
+go_library(
+    name = "go_default_library",
+    srcs = ["main.go"],
+    importpath = "kubevirt.io/containerized-data-importer/tools/cdi-func-test-proxy",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "cdi-func-test-proxy",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)
