@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -213,6 +214,35 @@ func HasFeature(config *cdiv1.CDIConfigSpec, featureGate string) bool {
 	for _, fg := range config.FeatureGates {
 		if fg == featureGate {
 			return true
+		}
+	}
+
+	return false
+}
+
+//IsOpenshift checks if we are on OpenShift platform
+func IsOpenshift(client kubernetes.Interface) bool {
+	//OpenShift 3.X check
+	result := client.Discovery().RESTClient().Get().AbsPath("/oapi/v1").Do(context.TODO())
+	var statusCode int
+	result.StatusCode(&statusCode)
+
+	if result.Error() == nil {
+		// It is OpenShift
+		if statusCode == http.StatusOK {
+			return true
+		}
+	} else {
+		// Got 404 so this is not Openshift 3.X, let's check OpenShift 4
+		result = client.Discovery().RESTClient().Get().AbsPath("/apis/route.openshift.io").Do(context.TODO())
+		var statusCode int
+		result.StatusCode(&statusCode)
+
+		if result.Error() == nil {
+			// It is OpenShift
+			if statusCode == http.StatusOK {
+				return true
+			}
 		}
 	}
 

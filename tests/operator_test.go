@@ -37,7 +37,7 @@ var _ = Describe("ALL Operator tests", func() {
 		f := framework.NewFramework("operator-test")
 
 		It("[test_id:3951]should create a route in OpenShift", func() {
-			if !tests.IsOpenshift(f.K8sClient) {
+			if !utils.IsOpenshift(f.K8sClient) {
 				Skip("This test is OpenShift specific")
 			}
 
@@ -73,7 +73,7 @@ var _ = Describe("ALL Operator tests", func() {
 		})
 
 		It("[test_id:3952]add cdi-sa to containerized-data-importer scc", func() {
-			if !tests.IsOpenshift(f.K8sClient) {
+			if !utils.IsOpenshift(f.K8sClient) {
 				Skip("This test is OpenShift specific")
 			}
 

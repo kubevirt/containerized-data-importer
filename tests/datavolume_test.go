@@ -257,7 +257,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}
 
 		table.DescribeTable("should", func(args dataVolumeTestArguments) {
-			if IsOpenshift(f.K8sClient) && args.skipOpenshift {
+			if utils.IsOpenshift(f.K8sClient) && args.skipOpenshift {
 				Skip("Test not expected to pass on OpenShift")
 			}
 			// Have to call the function in here, to make sure the BeforeEach in the Framework has run.
