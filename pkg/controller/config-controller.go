@@ -521,50 +521,54 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 	})
 
 	// check if routes exist
-	if err = mgr.GetClient().List(context.TODO(), &routev1.RouteList{}); err == nil || isErrCacheNotStarted(err) {
-		err := configController.Watch(&source.Kind{Type: &routev1.Route{}}, &handler.EnqueueRequestsFromMapFunc{
-			ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
-				return []reconcile.Request{{
-					NamespacedName: types.NamespacedName{Name: configName},
-				}}
-			}),
-		}, predicate.Funcs{
-			CreateFunc: func(e event.CreateEvent) bool {
-				return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
-					e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
-			},
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				return "" != getURLFromRoute(e.ObjectNew.(*routev1.Route), uploadProxyServiceName) &&
-					e.ObjectNew.(*routev1.Route).GetNamespace() == cdiNamespace
-			},
-			DeleteFunc: func(e event.DeleteEvent) bool {
-				return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
-					e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
-			},
-		})
-		if err != nil {
-			log.V(1).Info(fmt.Sprintf("Not watching Routes: %s\n", err))
+	err = mgr.GetClient().List(context.TODO(), &routev1.RouteList{})
+	if !meta.IsNoMatchError(err) {
+		if err == nil || isErrCacheNotStarted(err) {
+			err := configController.Watch(&source.Kind{Type: &routev1.Route{}}, &handler.EnqueueRequestsFromMapFunc{
+				ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+					return []reconcile.Request{{
+						NamespacedName: types.NamespacedName{Name: configName},
+					}}
+				}),
+			}, predicate.Funcs{
+				CreateFunc: func(e event.CreateEvent) bool {
+					return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
+						e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
+				},
+				UpdateFunc: func(e event.UpdateEvent) bool {
+					return "" != getURLFromRoute(e.ObjectNew.(*routev1.Route), uploadProxyServiceName) &&
+						e.ObjectNew.(*routev1.Route).GetNamespace() == cdiNamespace
+				},
+				DeleteFunc: func(e event.DeleteEvent) bool {
+					return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
+						e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
+				},
+			})
+			if err != nil {
+				log.V(1).Info(fmt.Sprintf("Not watching Routes: %s\n", err))
+			}
 		}
-	}
-	if err != nil && !meta.IsNoMatchError(err) {
 		log.V(1).Info(fmt.Sprintf("Not watching Routes: %s\n", err))
 	}
 
 	// check if cluster wide proxy CRD exist
-	if err = mgr.GetClient().List(context.TODO(), &ocpconfigv1.ProxyList{}); err == nil || isErrCacheNotStarted(err) {
-		err := configController.Watch(&source.Kind{Type: &ocpconfigv1.Proxy{}}, &handler.EnqueueRequestsFromMapFunc{
-			ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
-				return []reconcile.Request{{
-					NamespacedName: types.NamespacedName{Name: configName},
-				}}
-			}),
-		})
-		if err != nil {
+	err = mgr.GetClient().List(context.TODO(), &ocpconfigv1.ProxyList{})
+	if !meta.IsNoMatchError(err) {
+		if err == nil || isErrCacheNotStarted(err) {
+			err := configController.Watch(&source.Kind{Type: &ocpconfigv1.Proxy{}}, &handler.EnqueueRequestsFromMapFunc{
+				ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+					return []reconcile.Request{{
+						NamespacedName: types.NamespacedName{Name: configName},
+					}}
+				}),
+			})
+			if err != nil {
+				log.V(1).Info(fmt.Sprintf("Not watching cluster wide proxy: %s\n", err))
+			}
+		}
+		if err != nil && !meta.IsNoMatchError(err) {
 			log.V(1).Info(fmt.Sprintf("Not watching cluster wide proxy: %s\n", err))
 		}
-	}
-	if err != nil && !meta.IsNoMatchError(err) {
-		log.V(1).Info(fmt.Sprintf("Not watching cluster wide proxy: %s\n", err))
 	}
 
 	return nil

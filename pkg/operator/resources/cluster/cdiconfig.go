@@ -271,7 +271,7 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 													Type:        "string",
 												},
 												"trustedCAProxy": {
-													Description: "TrustedCAProxy is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle. The TrustedCAProxy field is consumed by the import controller that is resposible for coping it to a config map named trusted-ca-proxy-bundle-cm in the cdi namespace.  Here is an example of the ConfigMap (in yaml): \n apiVersion: v1 kind: ConfigMap metadata:   name: trusted-ca-proxy-bundle-cm   namespace: cdi data:   ca.pem: |     -----BEGIN CERTIFICATE----- \t   ... <base64 encoded cert> ... \t   -----END CERTIFICATE-----",
+													Description: "TrustedCAProxy is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle. The TrustedCAProxy field is consumed by the import controller that is resposible for coping it to a config map named trusted-ca-proxy-bundle-cm in the cdi namespace. Here is an example of the ConfigMap (in yaml): \n apiVersion: v1 kind: ConfigMap metadata:   name: trusted-ca-proxy-bundle-cm   namespace: cdi data:   ca.pem: |     -----BEGIN CERTIFICATE----- \t   ... <base64 encoded cert> ... \t   -----END CERTIFICATE-----",
 													Type:        "string",
 												},
 											},
@@ -375,7 +375,7 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 													Type:        "string",
 												},
 												"trustedCAProxy": {
-													Description: "TrustedCAProxy is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle. The TrustedCAProxy field is consumed by the import controller that is resposible for coping it to a config map named trusted-ca-proxy-bundle-cm in the cdi namespace.  Here is an example of the ConfigMap (in yaml): \n apiVersion: v1 kind: ConfigMap metadata:   name: trusted-ca-proxy-bundle-cm   namespace: cdi data:   ca.pem: |     -----BEGIN CERTIFICATE----- \t   ... <base64 encoded cert> ... \t   -----END CERTIFICATE-----",
+													Description: "TrustedCAProxy is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle. The TrustedCAProxy field is consumed by the import controller that is resposible for coping it to a config map named trusted-ca-proxy-bundle-cm in the cdi namespace. Here is an example of the ConfigMap (in yaml): \n apiVersion: v1 kind: ConfigMap metadata:   name: trusted-ca-proxy-bundle-cm   namespace: cdi data:   ca.pem: |     -----BEGIN CERTIFICATE----- \t   ... <base64 encoded cert> ... \t   -----END CERTIFICATE-----",
 													Type:        "string",
 												},
 											},

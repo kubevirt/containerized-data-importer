@@ -193,9 +193,14 @@ var _ = Describe("Import Proxy tests", func() {
 					}
 					pods, err := f.K8sClient.CoreV1().Pods("cdi").List(context.TODO(), metav1.ListOptions{LabelSelector: fmt.Sprintf("name=%s", proxyServerName)})
 					Expect(err).ToNot(HaveOccurred())
-					log, err := RunKubectlCommand(f, "logs", podName, "-n", f.Namespace.Name)
+
+					if len(pods.Items) == 0 {
+						fmt.Fprintf(GinkgoWriter, "WARN: cloud not find any proxy with name %s\n", proxyServerName)
+						return false
+					}
+
 					proxyPod := pods.Items[0]
-					log, _ = RunKubectlCommand(f, "logs", proxyPod.Name, "-n", "cdi")
+					log, _ := RunKubectlCommand(f, "logs", proxyPod.Name, "-n", "cdi")
 					u, _ := url.Parse(args.url())
 					for _, line := range strings.Split(strings.TrimSuffix(log, "\n"), "\n") {
 						if strings.Contains(line, method) && strings.Contains(line, u.Host) && strings.Contains(line, importerPod.Status.PodIP) {
