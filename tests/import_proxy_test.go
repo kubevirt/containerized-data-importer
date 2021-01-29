@@ -95,7 +95,7 @@ var _ = Describe("Import Proxy tests", func() {
 			expected           func() types.GomegaMatcher
 		}
 
-		FDescribeTable("should", func(args importProxyTestArguments) {
+		DescribeTable("should", func(args importProxyTestArguments) {
 			var proxyHTTPURL string
 			var proxyHTTPSURL string
 			if args.isHTTPS {
@@ -263,7 +263,7 @@ var _ = Describe("Import Proxy tests", func() {
 				noProxyDomains:     "",
 				dvFunc:             createHTTPDataVolume,
 				expected:           BeTrue}),
-			FEntry("succeed creating import dv with a proxied server (http) with basic autentication", importProxyTestArguments{
+			Entry("succeed creating import dv with a proxied server (http) with basic autentication", importProxyTestArguments{
 				name:               "dv-http-import",
 				size:               "1Gi",
 				url:                tinyCoreIsoHTTP,
@@ -273,7 +273,7 @@ var _ = Describe("Import Proxy tests", func() {
 				noProxyDomains:     "",
 				dvFunc:             createHTTPDataVolumeWithAuth,
 				expected:           BeTrue}),
-			FEntry("succeed creating import dv with a proxied server (https) with the target server with tls", importProxyTestArguments{
+			Entry("succeed creating import dv with a proxied server (https) with the target server with tls", importProxyTestArguments{
 				name:               "dv-https-import",
 				size:               "1Gi",
 				url:                tinyCoreIsoHTTPS,
@@ -283,7 +283,7 @@ var _ = Describe("Import Proxy tests", func() {
 				noProxyDomains:     "",
 				dvFunc:             createHTTPSDataVolume,
 				expected:           BeTrue}),
-			FEntry("succeed creating import dv with a proxied server (https) with basic autentication and the target server with tls", importProxyTestArguments{
+			Entry("succeed creating import dv with a proxied server (https) with basic autentication and the target server with tls", importProxyTestArguments{
 				name:               "dv-https-import",
 				size:               "1Gi",
 				url:                tinyCoreIsoHTTPS,
