@@ -123,6 +123,43 @@ func (DataVolumeCondition) SwaggerDoc() map[string]string {
 	}
 }
 
+func (StorageProfile) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "StorageProfile provides a CDI specific recommendation for storage parameters\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion\n+kubebuilder:resource:scope=Cluster",
+	}
+}
+
+func (StorageProfileSpec) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                  "StorageProfileSpec defines specification for StorageProfile",
+		"claimPropertySets": "ClaimPropertySets is a provided set of properties applicable to PVC",
+	}
+}
+
+func (StorageProfileStatus) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                  "StorageProfileStatus provides the most recently observed status of the StorageProfile",
+		"storageClass":      "The StorageClass name for which capabilities are defined",
+		"provisioner":       "The Storage class provisioner plugin name",
+		"claimPropertySets": "ClaimPropertySets computed from the spec and detected in the system",
+	}
+}
+
+func (ClaimPropertySet) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":            "ClaimPropertySet is a set of properties applicable to PVC",
+		"accessModes": "AccessModes contains the desired access modes the volume should have.\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1\n+optional",
+		"volumeMode":  "volumeMode defines what type of volume is required by the claim.\nValue of Filesystem is implied when not included in claim spec.\n+optional",
+	}
+}
+
+func (StorageProfileList) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":      "StorageProfileList provides the needed parameters to request a list of StorageProfile from the system\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
+		"items": "Items provides a list of StorageProfile",
+	}
+}
+
 func (CDI) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":       "CDI is the CDI Operator CRD\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion\n+kubebuilder:resource:shortName=cdi;cdis,scope=Cluster\n+kubebuilder:printcolumn:name=\"Age\",type=\"date\",JSONPath=\".metadata.creationTimestamp\"\n+kubebuilder:printcolumn:name=\"Phase\",type=\"string\",JSONPath=\".status.phase\"",

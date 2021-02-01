@@ -7,6 +7,7 @@ go_library(
         "cdiconfig.go",
         "datavolume.go",
         "interface.go",
+        "storageprofile.go",
     ],
     importpath = "kubevirt.io/containerized-data-importer/pkg/client/informers/externalversions/core/v1beta1",
     visibility = ["//visibility:public"],

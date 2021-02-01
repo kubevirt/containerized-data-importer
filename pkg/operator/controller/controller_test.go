@@ -1630,6 +1630,7 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.ClusterRoleBinding cdi-sa"] = false
 	match[normalCreateSuccess+" *v1.CustomResourceDefinition datavolumes.cdi.kubevirt.io"] = false
 	match[normalCreateSuccess+" *v1.CustomResourceDefinition cdiconfigs.cdi.kubevirt.io"] = false
+	match[normalCreateSuccess+" *v1.CustomResourceDefinition storageprofiles.cdi.kubevirt.io"] = false
 	match[normalCreateSuccess+" *v1.ClusterRole cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.ClusterRoleBinding cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.ClusterRole cdi.kubevirt.io:admin"] = false

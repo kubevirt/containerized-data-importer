@@ -70,6 +70,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1beta1().CDIConfigs().Informer()}, nil
 	case v1beta1.SchemeGroupVersion.WithResource("datavolumes"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1beta1().DataVolumes().Informer()}, nil
+	case v1beta1.SchemeGroupVersion.WithResource("storageprofiles"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1beta1().StorageProfiles().Informer()}, nil
 
 		// Group=upload.cdi.kubevirt.io, Version=v1alpha1
 	case uploadv1alpha1.SchemeGroupVersion.WithResource("uploadtokenrequests"):
