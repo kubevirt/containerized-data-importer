@@ -45,6 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
@@ -165,8 +166,11 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-
-		if err = ValidateCanCloneSourceAndTargetSpec(&source.Spec, &pvc.Spec); err != nil {
+		contentType, err := ValidateCanCloneSourceAndTargetContentType(source, pvc)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		if err = ValidateCanCloneSourceAndTargetSpec(&source.Spec, &pvc.Spec, contentType); err != nil {
 			log.Error(err, "Error validating clone spec, ignoring")
 			return reconcile.Result{}, nil
 		}
@@ -309,8 +313,13 @@ func (r *UploadReconciler) getCloneRequestSourcePVC(targetPvc *corev1.Persistent
 	if targetPvc.Spec.VolumeMode != nil {
 		targetVolumeMode = *targetPvc.Spec.VolumeMode
 	}
-	if sourceVolumeMode != targetVolumeMode {
-		return nil, errors.New("Source and target volume Modes do not match")
+	// Allow different source and target volume modes only on KubeVirt content type
+	contentType, err := ValidateCanCloneSourceAndTargetContentType(sourcePvc, targetPvc)
+	if err != nil {
+		return nil, err
+	}
+	if sourceVolumeMode != targetVolumeMode && contentType != cdiv1.DataVolumeKubeVirt {
+		return nil, errors.New("Source and target volume modes do not match, and content type is not kubevirt")
 	}
 	return sourcePvc, nil
 }

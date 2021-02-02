@@ -16,11 +16,15 @@ go_library(
 
 go_test(
     name = "go_default_test",
-    srcs = ["feature-gates_test.go"],
+    srcs = [
+        "feature-gates_suite_test.go",
+        "feature-gates_test.go",
+    ],
     embed = [":go_default_library"],
     deps = [
         "//pkg/apis/core/v1beta1:go_default_library",
         "//pkg/common:go_default_library",
+        "//tests/reporters:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
