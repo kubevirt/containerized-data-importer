@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
@@ -371,8 +372,11 @@ func (r *CloneReconciler) validateSourceAndTarget(sourcePvc, targetPvc *corev1.P
 	if err := validateCloneToken(r.tokenValidator, sourcePvc, targetPvc); err != nil {
 		return err
 	}
-
-	err := ValidateCanCloneSourceAndTargetSpec(&sourcePvc.Spec, &targetPvc.Spec)
+	contentType, err := ValidateCanCloneSourceAndTargetContentType(sourcePvc, targetPvc)
+	if err != nil {
+		return err
+	}
+	err = ValidateCanCloneSourceAndTargetSpec(&sourcePvc.Spec, &targetPvc.Spec, contentType)
 	if err == nil {
 		// Validation complete, put source PVC bound status in annotation
 		setBoundConditionFromPVC(targetPvc.GetAnnotations(), AnnBoundCondition, sourcePvc)
@@ -484,7 +488,19 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy, clientName str
 		return nil, err
 	}
 
-	pod := MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerKey, clientKey, clientCert, serverCABundle, pvc, podResourceRequirements, workloadNodePlacement)
+	sourcePvc, err := r.getCloneRequestSourcePVC(pvc)
+	if err != nil {
+		return nil, err
+	}
+
+	var sourceVolumeMode corev1.PersistentVolumeMode
+	if sourcePvc.Spec.VolumeMode != nil {
+		sourceVolumeMode = *sourcePvc.Spec.VolumeMode
+	} else {
+		sourceVolumeMode = corev1.PersistentVolumeFilesystem
+	}
+
+	pod := MakeCloneSourcePodSpec(sourceVolumeMode, image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerKey, clientKey, clientCert, serverCABundle, pvc, podResourceRequirements, workloadNodePlacement)
 
 	if err := r.client.Create(context.TODO(), pod); err != nil {
 		return nil, errors.Wrap(err, "source pod API create errored")
@@ -500,7 +516,7 @@ func createCloneSourcePodName(targetPvc *corev1.PersistentVolumeClaim) string {
 }
 
 // MakeCloneSourcePodSpec creates and returns the clone source pod spec based on the target pvc.
-func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerRefAnno string,
+func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerRefAnno string,
 	clientKey, clientCert, serverCACert []byte, targetPvc *corev1.PersistentVolumeClaim, resourceRequirements *corev1.ResourceRequirements,
 	workloadNodePlacement *sdkapi.NodePlacement) *corev1.Pod {
 
@@ -628,16 +644,9 @@ func MakeCloneSourcePodSpec(image, pullPolicy, sourcePvcName, sourcePvcNamespace
 		pod.Spec.Containers[0].Resources = *resourceRequirements
 	}
 
-	var volumeMode corev1.PersistentVolumeMode
 	var addVars []corev1.EnvVar
 
-	if targetPvc.Spec.VolumeMode != nil {
-		volumeMode = *targetPvc.Spec.VolumeMode
-	} else {
-		volumeMode = corev1.PersistentVolumeFilesystem
-	}
-
-	if volumeMode == corev1.PersistentVolumeBlock {
+	if sourceVolumeMode == corev1.PersistentVolumeBlock {
 		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
 		addVars = []corev1.EnvVar{
 			{
@@ -714,27 +723,40 @@ func ParseCloneRequestAnnotation(pvc *corev1.PersistentVolumeClaim) (exists bool
 	return
 }
 
+// ValidateCanCloneSourceAndTargetContentType validates the pvcs passed has the same content type.
+func ValidateCanCloneSourceAndTargetContentType(sourcePvc, targetPvc *corev1.PersistentVolumeClaim) (cdiv1.DataVolumeContentType, error) {
+	sourceContentType := getContentType(sourcePvc)
+	targetContentType := getContentType(targetPvc)
+	if sourceContentType != targetContentType {
+		return "", fmt.Errorf("source contentType (%s) and target contentType (%s) do not match", sourceContentType, targetContentType)
+	}
+	return cdiv1.DataVolumeContentType(sourceContentType), nil
+}
+
 // ValidateCanCloneSourceAndTargetSpec validates the specs passed in are compatible for cloning.
-func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *corev1.PersistentVolumeClaimSpec) error {
+func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *corev1.PersistentVolumeClaimSpec, contentType cdiv1.DataVolumeContentType) error {
 	sourceRequest := sourceSpec.Resources.Requests[corev1.ResourceStorage]
 	targetRequest := targetSpec.Resources.Requests[corev1.ResourceStorage]
 	// Verify that the target PVC size is equal or larger than the source.
 	if sourceRequest.Value() > targetRequest.Value() {
 		return errors.New("target resources requests storage size is smaller than the source")
 	}
-	// Verify that the source and target volume modes are the same.
-	sourceVolumeMode := corev1.PersistentVolumeFilesystem
-	if sourceSpec.VolumeMode != nil && *sourceSpec.VolumeMode == corev1.PersistentVolumeBlock {
-		sourceVolumeMode = corev1.PersistentVolumeBlock
-	}
-	targetVolumeMode := corev1.PersistentVolumeFilesystem
-	if targetSpec.VolumeMode != nil && *targetSpec.VolumeMode == corev1.PersistentVolumeBlock {
-		targetVolumeMode = corev1.PersistentVolumeBlock
-	}
-	if sourceVolumeMode != targetVolumeMode {
-		return fmt.Errorf("source volumeMode (%s) and target volumeMode (%s) do not match",
-			sourceVolumeMode, targetVolumeMode)
+	// Allow different source and target volume modes only on KubeVirt content type
+	sourceVolumeMode := GetVolumeMode(sourceSpec.VolumeMode)
+	targetVolumeMode := GetVolumeMode(targetSpec.VolumeMode)
+	if sourceVolumeMode != targetVolumeMode && contentType != cdiv1.DataVolumeKubeVirt {
+		return fmt.Errorf("source volumeMode (%s) and target volumeMode (%s) do not match, contentType (%s)",
+			sourceVolumeMode, targetVolumeMode, contentType)
 	}
 	// Can clone.
 	return nil
+}
+
+// GetVolumeMode returns the volume mode if set, otherwise defaults to file system mode
+func GetVolumeMode(volumeMode *corev1.PersistentVolumeMode) corev1.PersistentVolumeMode {
+	retVolumeMode := corev1.PersistentVolumeFilesystem
+	if volumeMode != nil && *volumeMode == corev1.PersistentVolumeBlock {
+		retVolumeMode = corev1.PersistentVolumeBlock
+	}
+	return retVolumeMode
 }
