@@ -599,18 +599,18 @@ func NewUploadController(mgr manager.Manager, log logr.Logger, uploadImage, pull
 	return uploadController, nil
 }
 
-func addUploadControllerWatches(mgr manager.Manager, importController controller.Controller) error {
+func addUploadControllerWatches(mgr manager.Manager, uploadController controller.Controller) error {
 	// Setup watches
-	if err := importController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err := uploadController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
-	if err := importController.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
+	if err := uploadController.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
 		OwnerType:    &corev1.PersistentVolumeClaim{},
 		IsController: true,
 	}); err != nil {
 		return err
 	}
-	if err := importController.Watch(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForOwner{
+	if err := uploadController.Watch(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForOwner{
 		OwnerType:    &corev1.PersistentVolumeClaim{},
 		IsController: true,
 	}); err != nil {
