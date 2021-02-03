@@ -669,7 +669,7 @@ var _ = Describe("getCertConfigMap", func() {
 		cdiConfig := &cdiv1.CDIConfig{}
 		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
-		cm, err := reconciler.getCertConfigMap(pvcWithAnno, cdiConfig)
+		cm, err := reconciler.getCertConfigMap(pvcWithAnno)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cm).To(Equal(testConfigMap.Name))
 	})
@@ -680,7 +680,7 @@ var _ = Describe("getCertConfigMap", func() {
 		cdiConfig := &cdiv1.CDIConfig{}
 		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
-		cm, err := reconciler.getCertConfigMap(pvcWithAnno, cdiConfig)
+		cm, err := reconciler.getCertConfigMap(pvcWithAnno)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cm).To(Equal("doesnotexist"))
 	})
@@ -691,7 +691,7 @@ var _ = Describe("getCertConfigMap", func() {
 		cdiConfig := &cdiv1.CDIConfig{}
 		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
-		cm, err := reconciler.getCertConfigMap(pvcNoAnno, cdiConfig)
+		cm, err := reconciler.getCertConfigMap(pvcNoAnno)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cm).To(Equal(""))
 	})

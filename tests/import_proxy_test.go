@@ -81,7 +81,7 @@ var _ = Describe("Import Proxy tests", func() {
 		return fmt.Sprintf("http://%s%s.%s:%s", auth, proxyServerName, f.CdiInstallNs, port)
 	}
 
-	FDescribe("importing from cdi proxied web server", func() {
+	Describe("importing from cdi proxied web server", func() {
 		type importProxyTestArguments struct {
 			name               string
 			size               string
@@ -94,7 +94,7 @@ var _ = Describe("Import Proxy tests", func() {
 			expected           func() types.GomegaMatcher
 		}
 
-		FDescribeTable("should", func(args importProxyTestArguments) {
+		DescribeTable("should", func(args importProxyTestArguments) {
 			var proxyHTTPURL string
 			var proxyHTTPSURL string
 			if args.isHTTPS {
@@ -137,7 +137,7 @@ var _ = Describe("Import Proxy tests", func() {
 
 			cleanClusterWideProxy(f)
 		},
-			FEntry("succeed creating import dv with a proxied server (http)", importProxyTestArguments{
+			Entry("succeed creating import dv with a proxied server (http)", importProxyTestArguments{
 				name:               "dv-http-import",
 				size:               "1Gi",
 				url:                tinyCoreIsoHTTP,
@@ -147,7 +147,7 @@ var _ = Describe("Import Proxy tests", func() {
 				noProxyDomains:     "",
 				dvFunc:             createHTTPDataVolume,
 				expected:           BeTrue}),
-			FEntry("succeed creating import dv with a proxied server (http) with basic autentication", importProxyTestArguments{
+			Entry("succeed creating import dv with a proxied server (http) with basic autentication", importProxyTestArguments{
 				name:               "dv-http-import",
 				size:               "1Gi",
 				url:                tinyCoreIsoHTTP,
@@ -157,7 +157,7 @@ var _ = Describe("Import Proxy tests", func() {
 				noProxyDomains:     "",
 				dvFunc:             createHTTPDataVolumeWithAuth,
 				expected:           BeTrue}),
-			FEntry("succeed creating import dv with a proxied server (https) with the target server with tls", importProxyTestArguments{
+			Entry("succeed creating import dv with a proxied server (https) with the target server with tls", importProxyTestArguments{
 				name:               "dv-https-import",
 				size:               "1Gi",
 				url:                tinyCoreIsoHTTPS,
@@ -167,7 +167,7 @@ var _ = Describe("Import Proxy tests", func() {
 				noProxyDomains:     "",
 				dvFunc:             createHTTPSDataVolume,
 				expected:           BeTrue}),
-			FEntry("succeed creating import dv with a proxied server (https) with basic autentication and the target server with tls", importProxyTestArguments{
+			Entry("succeed creating import dv with a proxied server (https) with basic autentication and the target server with tls", importProxyTestArguments{
 				name:               "dv-https-import",
 				size:               "1Gi",
 				url:                tinyCoreIsoHTTPS,
@@ -177,7 +177,7 @@ var _ = Describe("Import Proxy tests", func() {
 				noProxyDomains:     "",
 				dvFunc:             createHTTPSDataVolumeWithAuth,
 				expected:           BeTrue}),
-			FEntry("succeed creating import dv with a proxied server (https) but bypassing the proxy", importProxyTestArguments{
+			Entry("succeed creating import dv with a proxied server (https) but bypassing the proxy", importProxyTestArguments{
 				name:               "dv-https-import",
 				size:               "1Gi",
 				url:                tinyCoreIsoHTTPS,
@@ -273,7 +273,7 @@ func verifyImporterPodInfoInProxyLogs(f *framework.Framework, dataVolume *cdiv1.
 			if len(importerPod.Status.ContainerStatuses) == 1 && importerPod.Status.ContainerStatuses[0].State.Waiting != nil {
 				Expect(importerPod.Status.ContainerStatuses[0].State.Waiting.Reason).To(Equal("ContainerCreating"))
 			}
-			fmt.Fprintf(GinkgoWriter, "INFO: Analyzing importer pod %s\n", importerPod.Name)
+			fmt.Fprintf(GinkgoWriter, "INFO: analyzing importer pod %s\n", importerPod.Name)
 			//To verifiy if the importer pod request was proxied, we the proxy's logs the method, the url and the importer pod IP.
 			method := "METHOD:GET"
 			if isHTTPS {
@@ -283,7 +283,7 @@ func verifyImporterPodInfoInProxyLogs(f *framework.Framework, dataVolume *cdiv1.
 			proxyPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, proxyServerName, fmt.Sprintf("name=%s", proxyServerName))
 			Expect(err).ToNot(HaveOccurred())
 
-			log, _ := RunKubectlCommand(f, "logs", proxyPod.Name, "-n", "cdi")
+			log, _ := RunKubectlCommand(f, "logs", proxyPod.Name, "-n", f.CdiInstallNs)
 			u, _ := url.Parse(uri)
 			for _, line := range strings.Split(strings.TrimSuffix(log, "\n"), "\n") {
 				if strings.Contains(line, method) && strings.Contains(line, u.Host) && strings.Contains(line, importerPod.Status.PodIP) {

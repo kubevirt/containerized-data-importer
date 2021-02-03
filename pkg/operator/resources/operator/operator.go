@@ -212,7 +212,9 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 				"proxies",
 			},
 			Verbs: []string{
-				"*",
+				"get",
+				"list",
+				"watch",
 			},
 		},
 	}

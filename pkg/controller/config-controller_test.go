@@ -317,9 +317,32 @@ var _ = Describe("Controller ImportProxy reconcile loop", func() {
 	},
 		Entry("successfully get http proxy url", proxyHTTPURL, "", "", "", proxyHTTPURL, common.ImportProxyHTTP),
 		Entry("successfully get https proxy url", "", proxyHTTPSURL, "", "", proxyHTTPSURL, common.ImportProxyHTTPS),
-		Entry("successfully get the list of hostnames and/or CIDRs that proxy proxy should not be used", "", "", noProxyDomains, "", noProxyDomains, common.ImportProxyNoProxy),
+		Entry("successfully get the list of hostnames and/or CIDRs that proxy should not be used", "", "", noProxyDomains, "", noProxyDomains, common.ImportProxyNoProxy),
 		Entry("successfully get ConfiMap CA name", "", "", "", trustedCAProxy, trustedCAProxy, trustedCAProxy),
 	)
+
+	It("Should not change the CDIConfig when updating the ClusterWideProxy if the CDIConfig proxy information already exist", func() {
+		By("\n#################################################")
+		reconciler, cdiConfig := createConfigReconciler()
+		By("updating the CDIConfig with proxy information")
+		cdiConfig.Spec.ImportProxy = createImportProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAProxy)
+		err := reconciler.reconcileImportProxy(cdiConfig, configLog)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("creating cluster wide proxy")
+		proxy := createClusterWideProxy("http", "https", "noproxy", "ca")
+		err = reconciler.uncachedClient.Create(context.TODO(), proxy)
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.reconcileImportProxy(cdiConfig, configLog)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(proxyHTTPURL).To(Equal(*cdiConfig.Status.ImportProxy.HTTPProxy))
+		Expect(proxyHTTPSURL).To(Equal(*cdiConfig.Status.ImportProxy.HTTPSProxy))
+		Expect(noProxyDomains).To(Equal(*cdiConfig.Status.ImportProxy.NoProxy))
+		Expect(trustedCAProxy).To(Equal(*cdiConfig.Status.ImportProxy.TrustedCAProxy))
+	})
 
 	It("Should create a new ConfigMap if ClusterWideProxy contains CA certificates name of an exiting ConfigMap in Openshift namespace", func() {
 		certificate := "ca-test"
@@ -826,4 +849,14 @@ func createConfigMap(name, namespace string) *corev1.ConfigMap {
 		},
 	}
 	return cm
+}
+
+func createImportProxy(http, https, noproxy, ca string) *cdiv1.ImportProxy {
+	p := &cdiv1.ImportProxy{
+		HTTPProxy:      &http,
+		HTTPSProxy:     &https,
+		NoProxy:        &noproxy,
+		TrustedCAProxy: &ca,
+	}
+	return p
 }

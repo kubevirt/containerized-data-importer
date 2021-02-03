@@ -382,6 +382,63 @@ var _ = Describe("GetClusterWideProxy", func() {
 	})
 })
 
+var _ = Describe("GetClusterWideProxy", func() {
+	var proxyHTTPURL = "http://user:pswd@www.myproxy.com"
+	var proxyHTTPSURL = "https://user:pswd@www.myproxy.com"
+	var noProxyDomains = ".noproxy.com"
+	var trustedCAName = "user-ca-bundle"
+
+	It("Should return a not empty cluster wide proxy obj", func() {
+		client := createClient(createClusterWideProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAName))
+		proxy, err := GetClusterWideProxy(client)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(proxy).ToNot(BeNil())
+
+		By("should return a proxy https url")
+		Expect(proxyHTTPSURL).To(Equal(proxy.Status.HTTPSProxy))
+
+		By("should return a proxy http url")
+		Expect(proxyHTTPURL).To(Equal(proxy.Status.HTTPProxy))
+
+		By("should return a noProxy list of domains")
+		Expect(noProxyDomains).To(Equal(proxy.Status.NoProxy))
+
+		By("should return a CA ConfigMap name")
+		Expect(trustedCAName).To(Equal(proxy.Spec.TrustedCA.Name))
+	})
+
+	It("Should return a nil cluster wide proxy obj", func() {
+		client := createClient()
+		proxy, err := GetClusterWideProxy(client)
+		Expect(err).To(HaveOccurred())
+		Expect(proxy).To(BeNil())
+	})
+})
+
+var _ = Describe("GetImportProxyConfig", func() {
+	var proxyHTTPURL = "http://user:pswd@www.myproxy.com"
+	var proxyHTTPSURL = "https://user:pswd@www.myproxy.com"
+	var noProxyDomains = ".noproxy.com"
+	var trustedCAName = "user-ca-bundle"
+
+	It("should return valid proxy information from a CDIConfig with importer proxy configured", func() {
+		cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
+		cdiConfig.Status.ImportProxy = createImportProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAName)
+		Expect(proxyHTTPURL).To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP)))
+		Expect(proxyHTTPSURL).To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyHTTPS)))
+		Expect(noProxyDomains).To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyNoProxy)))
+		Expect(trustedCAName).To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyConfigMapName)))
+	})
+
+	It("should return blank proxy information from a CDIConfig with importer proxy not configured", func() {
+		cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
+		Expect("").To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP)))
+		Expect("").To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyHTTPS)))
+		Expect("").To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyNoProxy)))
+		Expect("").To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyConfigMapName)))
+	})
+})
+
 func addOwnerToDV(dv *cdiv1.DataVolume, ownerName string) {
 	dv.ObjectMeta.OwnerReferences = []metav1.OwnerReference{
 		{

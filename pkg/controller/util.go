@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rsa"
 	"fmt"
-	"net/url"
 	"strings"
 
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
@@ -708,22 +707,6 @@ func GetClusterWideProxy(r client.Client) (*ocpconfigv1.Proxy, error) {
 		return clusterWideProxy, nil
 	}
 	return nil, err
-}
-
-// IsImportProxyConfigured return true if import proxy configuration was defined or reconcillied.
-func IsImportProxyConfigured(config *cdiv1.CDIConfig) (bool, bool) {
-	hasProxyURL := false
-	for _, t := range []string{common.ImportProxyHTTP, common.ImportProxyHTTPS} {
-		uri := GetImportProxyConfig(config, t)
-		if uri != "" {
-			hasProxyURL = true
-			http, _ := url.Parse(uri)
-			if _, ok := http.User.Password(); ok {
-				return true, true
-			}
-		}
-	}
-	return hasProxyURL, false
 }
 
 // GetImportProxyConfig attempts to import proxy URLs if configured in the CDIConfig.

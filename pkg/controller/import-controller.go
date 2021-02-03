@@ -503,7 +503,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		//get the CDIConfig to extract the proxy configuration to be used to import an image
 		cdiConfig := &cdiv1.CDIConfig{}
 		r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
-		podEnvVar.certConfigMap, err = r.getCertConfigMap(pvc, cdiConfig)
+		podEnvVar.certConfigMap, err = r.getCertConfigMap(pvc)
 		if err != nil {
 			return nil, err
 		}
@@ -583,7 +583,7 @@ func (r *ImportReconciler) isInsecureTLS(pvc *corev1.PersistentVolumeClaim) (boo
 	return false, nil
 }
 
-func (r *ImportReconciler) getCertConfigMap(pvc *corev1.PersistentVolumeClaim, config *cdiv1.CDIConfig) (string, error) {
+func (r *ImportReconciler) getCertConfigMap(pvc *corev1.PersistentVolumeClaim) (string, error) {
 	value, ok := pvc.Annotations[AnnCertConfigMap]
 	if !ok || value == "" {
 		return "", nil
@@ -944,20 +944,8 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 			Name:      ProxyCertVolName,
 			MountPath: common.ImporterProxyCertDir,
 		}
-
-		vol := corev1.Volume{
-			Name: CertVolName,
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: podEnvVar.certConfigMapProxy,
-					},
-				},
-			},
-		}
-
 		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
-		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
+		pod.Spec.Volumes = append(pod.Spec.Volumes, createProxyConfigMapVolume(CertVolName, podEnvVar.certConfigMapProxy))
 	}
 
 	if podEnvVar.contentType == string(cdiv1.DataVolumeKubeVirt) {
@@ -970,6 +958,19 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 	}
 	SetPodPvcAnnotations(pod, pvc)
 	return pod
+}
+
+func createProxyConfigMapVolume(certVolName, objRef string) corev1.Volume {
+	return corev1.Volume{
+		Name: CertVolName,
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: objRef,
+				},
+			},
+		},
+	}
 }
 
 // this is being called for pods using PV with filesystem volume mode
