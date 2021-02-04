@@ -90,9 +90,7 @@ func handleTunneling(w http.ResponseWriter, req *http.Request, withAuth bool) {
 func transfer(destination io.WriteCloser, source io.ReadCloser) {
 	defer destination.Close()
 	defer source.Close()
-	if _, err := io.Copy(destination, source); err != nil {
-		logger.Printf("ERROR: transfer, %v\n", err.Error())
-	}
+	io.Copy(destination, source)
 }
 
 func handleHTTP(w http.ResponseWriter, req *http.Request, withAuth bool) {

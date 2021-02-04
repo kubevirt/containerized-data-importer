@@ -13,8 +13,10 @@ import (
 	"github.com/onsi/gomega/types"
 
 	configclient "github.com/openshift/client-go/config/clientset/versioned"
+	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -104,25 +106,25 @@ var _ = Describe("Import Proxy tests", func() {
 			}
 			noProxy := args.noProxyDomains
 
-			By("updating CDIConfig with ImportProxy configuration")
+			By("Updating CDIConfig with ImportProxy configuration")
 			updateCDIConfigImporterProxyConfig(f, proxyHTTPURL, proxyHTTPSURL, noProxy)
 
-			By(fmt.Sprintf("creating new datavolume %s", args.name))
+			By(fmt.Sprintf("Creating new datavolume %s", args.name))
 			dv := args.dvFunc(args.name, args.size, args.url())
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 			Expect(err).ToNot(HaveOccurred())
 
-			By("verifying pvc was created")
+			By("Verifying pvc was created")
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindIfWaitForFirstConsumer(pvc)
 
-			By("verifying a message was printed to indicate a request was done using proxy")
+			By("Verifying a message was printed to indicate a request was done using proxy")
 			verifyImporterPodInfoInProxyLogs(f, dataVolume, args.isHTTPS, args.url(), args.expected)
 
-			By("Waiting for import to be completed")
-			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name, 3*90*time.Second)
-			Expect(err).ToNot(HaveOccurred())
+			By("Waiting for the img import to be completed")
+			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 
 			By("Deleting DataVolume")
 			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, args.name)
@@ -210,8 +212,10 @@ func updateCDIConfigProxy(f *framework.Framework, proxyHTTPURL string, proxyHTTP
 	Expect(err).ToNot(HaveOccurred())
 }
 
+// updateCDIConfigByUpdatingTheClusterWideProxy changes the OpenShift cluster-wide proxy configuration, but we do not want in this test to have the OpenShift API behind the proxy since it might break OpenShift because of proxy hijacking.
+// Then, for testing the importer pod using the proxy configuration from the cluster-wide proxy, we disable the proxy in the cluster-wide proxy obj with noProxy="*", and enable the proxy in the CDIConfig to test the importe pod with proxy configurations.
 func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, proxyHTTPURL string, proxyHTTPSURL string, noProxy string) {
-	By("verifying if OpenShift Cluster Wide Proxy exist")
+	By("Verifying if OpenShift Cluster Wide Proxy exist")
 	ocpClient, err := configclient.NewForConfig(f.RestConfig)
 	Expect(err).ToNot(HaveOccurred())
 	proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
@@ -219,16 +223,16 @@ func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, proxyH
 		Skip("This OpenShift cluster version does not have a Cluster Wide Proxy object")
 	}
 
-	By("updating OpenShift Cluster Wide Proxy with ImportProxy urls")
+	By("Updating OpenShift Cluster Wide Proxy with ImportProxy urls")
 	proxy.Spec.HTTPProxy = proxyHTTPURL
 	proxy.Spec.HTTPSProxy = proxyHTTPSURL
-	// we do not want in this test to have OpenShift behind a proxy, but to test if the importer pod uses the configured proxy, then, we disable proxy for the OpenShift operations
+	// disable proxing the OpenShift API calls
 	proxy.Spec.NoProxy = "*"
 	_, err = ocpClient.ConfigV1().Proxies().Update(context.TODO(), proxy, metav1.UpdateOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
+	By("Wating OpenShift Cluster Wide Proxy reconcile")
 	// the default OpenShift no_proxy configuration only appears in the proxy object after and http(s) url is updated
-	By("wating OpenShift Cluster Wide Proxy reconcile")
 	Eventually(func() bool {
 		cwproxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
@@ -237,70 +241,100 @@ func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, proxyH
 		}
 		return false
 	}, time.Second*60, time.Second).Should(BeTrue())
-
 	proxy, err = ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
-	By("wating CDIConfig reconcile")
+	By("Wating CDIConfig reconcile")
 	Eventually(func() bool {
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		proxyHTTPURL = controller.GetImportProxyConfig(config, common.ImportProxyHTTP)
-		proxyHTTPSURL = controller.GetImportProxyConfig(config, common.ImportProxyHTTPS)
-		if proxyHTTPURL == proxy.Status.HTTPProxy && proxyHTTPSURL == proxy.Status.HTTPSProxy {
-			// since we disabled the proxy in the cluster wide proxy obj with no_domain="*", we need to reconfigure it in the cdiConfig to test the importe pod using the proxy
-			if noProxy != "*" {
-				err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-					config.ImportProxy = &cdiv1.ImportProxy{
-						HTTPProxy:  &proxyHTTPURL,
-						HTTPSProxy: &proxyHTTPSURL,
-						NoProxy:    &noProxy,
-					}
-				})
-				Expect(err).ToNot(HaveOccurred())
-			}
+		http, _ := controller.GetImportProxyConfig(config, common.ImportProxyHTTP)
+		https, _ := controller.GetImportProxyConfig(config, common.ImportProxyHTTPS)
+		if http == proxy.Status.HTTPProxy && https == proxy.Status.HTTPSProxy {
+			// enable proxing the importer pod http or https calls
+			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+				config.ImportProxy = &cdiv1.ImportProxy{
+					HTTPProxy:  &http,
+					HTTPSProxy: &https,
+					NoProxy:    &noProxy,
+				}
+			})
+			Expect(err).ToNot(HaveOccurred())
 			return true
 		}
 		return false
 	}, time.Second*30, time.Second).Should(BeTrue())
 }
 
-// verifyImporterPodInfoInProxyLogs verify if the importer pod IP is in the proxy log
+// verifyImporterPodInfoInProxyLogs verifiy if the importer pod request (method, url and impoter pod IP) appears in the proxy log
 func verifyImporterPodInfoInProxyLogs(f *framework.Framework, dataVolume *cdiv1.DataVolume, isHTTPS bool, uri string, expected func() types.GomegaMatcher) {
 	Eventually(func() bool {
-		importerPod, err := utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
-		if err == nil {
-			if len(importerPod.Status.ContainerStatuses) == 1 && importerPod.Status.ContainerStatuses[0].State.Waiting != nil {
-				Expect(importerPod.Status.ContainerStatuses[0].State.Waiting.Reason).To(Equal("ContainerCreating"))
-			}
-			fmt.Fprintf(GinkgoWriter, "INFO: analyzing importer pod %s\n", importerPod.Name)
-			//To verifiy if the importer pod request was proxied, we the proxy's logs the method, the url and the importer pod IP.
-			method := "METHOD:GET"
-			if isHTTPS {
-				//Since the proxy hijacks the HTTPS conections (i.e., tunneling), the first request uses the method "CONNECT" instead of "GET"
-				method = "METHOD:CONNECT"
-			}
-			proxyPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, proxyServerName, fmt.Sprintf("name=%s", proxyServerName))
-			Expect(err).ToNot(HaveOccurred())
-
-			log, _ := RunKubectlCommand(f, "logs", proxyPod.Name, "-n", f.CdiInstallNs)
-			u, _ := url.Parse(uri)
-			for _, line := range strings.Split(strings.TrimSuffix(log, "\n"), "\n") {
-				if strings.Contains(line, method) && strings.Contains(line, u.Host) && strings.Contains(line, importerPod.Status.PodIP) {
-					fmt.Fprintf(GinkgoWriter, "INFO: Checking proxy POD %s: request was proxied\n", importerPod.Name)
-					return true
-				}
-			}
-			return false
-		}
-		fmt.Fprintf(GinkgoWriter, "INFO: importer pod %s err %v\n", common.ImporterPodName, err)
-		return false
+		importerPod := getImporterPod(f)
+		proxyLog := getProxyLog(f)
+		return wasPodProxied(isHTTPS, uri, importerPod, proxyLog)
 	}, time.Second*60, time.Second).Should(expected())
+}
+
+func getImporterPod(f *framework.Framework) *corev1.Pod {
+	fmt.Fprintf(GinkgoWriter, "INFO: Waiting importer pod to become ready\n")
+	err := waitForPodIP(f, common.ImporterPodName, f.Namespace.Name, utils.PodWaitForTime)
+	importerPod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)
+	Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod"))
+	return importerPod
+}
+
+func waitForPodIP(f *framework.Framework, podName, namespace string, timeout time.Duration) error {
+	return wait.PollImmediate(2*time.Second, timeout, podIP(f, podName, namespace))
+}
+
+func podIP(f *framework.Framework, podName, namespace string) wait.ConditionFunc {
+	return func() (bool, error) {
+		pod, err := utils.FindPodByPrefix(f.K8sClient, namespace, podName, common.CDILabelSelector)
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		fmt.Fprintf(GinkgoWriter, "INFO: Checking POD %s phase: %s\n", podName, string(pod.Status.Phase))
+		if pod.Status.PodIP != "" {
+			return true, nil
+		}
+		return false, nil
+	}
+}
+
+func getProxyLog(f *framework.Framework) string {
+	proxyPod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, proxyServerName, fmt.Sprintf("name=%s", proxyServerName))
+	Expect(err).ToNot(HaveOccurred())
+	fmt.Fprintf(GinkgoWriter, "INFO: Analyzing the proxy pod %s logs\n", proxyPod.Name)
+	log, err := RunKubectlCommand(f, "logs", proxyPod.Name, "-n", f.CdiInstallNs)
+	Expect(err).To(BeNil())
+	return log
+}
+
+func wasPodProxied(isHTTPS bool, uri string, importerPod *corev1.Pod, proxyLog string) bool {
+	//http method substring that will appear in the proxy log
+	method := "METHOD:GET"
+	if isHTTPS {
+		//https method substring that will appear in the proxy log. Since the proxy hijacks the HTTPS conections (i.e., tunneling), the first https request uses the method "CONNECT" instead of "GET"
+		method = "METHOD:CONNECT"
+	}
+	u, _ := url.Parse(uri)
+	for _, line := range strings.Split(strings.TrimSuffix(proxyLog, "\n"), "\n") {
+		if strings.Contains(line, method) && strings.Contains(line, u.Host) && strings.Contains(line, importerPod.Status.PodIP) {
+			fmt.Fprintf(GinkgoWriter, "INFO: Proxy log: %s\n", line)
+			fmt.Fprintf(GinkgoWriter, "INFO: The import POD %s requests were proxied\n", importerPod.Name)
+			return true
+		}
+	}
+	fmt.Fprintf(GinkgoWriter, "INFO: The import POD %s requests were not proxied\n", importerPod.Name)
+	return false
 }
 
 func cleanClusterWideProxy(f *framework.Framework) {
 	if utils.IsOpenshift(f.K8sClient) {
-		By("restoring cluster-wide proxy object to original state")
+		By("Restoring cluster-wide proxy object to original state")
 		ocpClient, err := configclient.NewForConfig(f.RestConfig)
 		Expect(err).ToNot(HaveOccurred())
 		proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
@@ -313,7 +347,7 @@ func cleanClusterWideProxy(f *framework.Framework) {
 		_, err = ocpClient.ConfigV1().Proxies().Update(context.TODO(), proxy, metav1.UpdateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		By("wating OpenShift Cluster Wide Proxy reconcile after the cleanup")
+		By("Wating OpenShift Cluster Wide Proxy reconcile after the cleanup")
 		Eventually(func() bool {
 			proxy, err = ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
