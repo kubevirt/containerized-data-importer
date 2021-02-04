@@ -29,8 +29,9 @@ import (
 )
 
 const (
-	pollingInterval = 2 * time.Second
-	timeout         = 270 * time.Second
+	fastPollingInterval = 20 * time.Millisecond
+	pollingInterval     = 2 * time.Second
+	timeout             = 270 * time.Second
 )
 
 var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", func() {
@@ -1104,7 +1105,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 						uploadPod, _ = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
 					}
 					return sourcePod != nil && uploadPod != nil
-				}, timeout, pollingInterval).Should(BeTrue())
+				}, timeout, fastPollingInterval).Should(BeTrue())
 				verifyAnnotations(sourcePod)
 				verifyAnnotations(uploadPod)
 			}
