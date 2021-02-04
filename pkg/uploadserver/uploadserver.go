@@ -52,7 +52,7 @@ const (
 // UploadServer is the interface to uploadServerApp
 type UploadServer interface {
 	Run() error
-	PreallocationApplied() common.PreallocationStatus
+	PreallocationApplied() bool
 }
 
 type uploadServerApp struct {
@@ -72,7 +72,7 @@ type uploadServerApp struct {
 	uploading            bool
 	processing           bool
 	done                 bool
-	preallocationApplied common.PreallocationStatus
+	preallocationApplied bool
 	doneChan             chan struct{}
 	errChan              chan error
 	mutex                sync.Mutex
@@ -396,7 +396,7 @@ func (app *uploadServerApp) uploadHandler(irc imageReadCloser) http.HandlerFunc 
 	}
 }
 
-func (app *uploadServerApp) PreallocationApplied() common.PreallocationStatus {
+func (app *uploadServerApp) PreallocationApplied() bool {
 	return app.preallocationApplied
 }
 
@@ -410,9 +410,9 @@ func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string,
 	return processor, processor.ProcessDataWithPause()
 }
 
-func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string) (common.PreallocationStatus, error) {
+func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string) (bool, error) {
 	if sourceContentType == common.FilesystemCloneContentType {
-		return "false", filesystemCloneProcessor(stream, dest)
+		return false, filesystemCloneProcessor(stream, dest)
 	}
 
 	// Clone block device to block device or file system
