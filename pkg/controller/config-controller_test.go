@@ -322,18 +322,17 @@ var _ = Describe("Controller ImportProxy reconcile loop", func() {
 	)
 
 	It("Should not change the CDIConfig when updating the ClusterWideProxy if the CDIConfig proxy information already exist", func() {
-		By("\n#################################################")
 		reconciler, cdiConfig := createConfigReconciler()
 		By("updating the CDIConfig with proxy information")
 		cdiConfig.Spec.ImportProxy = createImportProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAProxy)
-		err := reconciler.reconcileImportProxy(cdiConfig, configLog)
+		err := reconciler.reconcileImportProxy(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("creating cluster wide proxy")
 		proxy := createClusterWideProxy("http", "https", "noproxy", "ca")
 		err = reconciler.uncachedClient.Create(context.TODO(), proxy)
 		Expect(err).ToNot(HaveOccurred())
-		err = reconciler.reconcileImportProxy(cdiConfig, configLog)
+		err = reconciler.reconcileImportProxy(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)

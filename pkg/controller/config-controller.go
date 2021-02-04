@@ -77,11 +77,7 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 		return reconcile.Result{}, err
 	}
 
-	if err := r.reconcileUploadProxyURL(config, log); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	if err := r.reconcileImportProxy(config, log); err != nil {
+	if err := r.reconcileUploadProxyURL(config); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -94,6 +90,10 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 	}
 
 	if err := r.reconcileFilesystemOverhead(config); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if err := r.reconcileImportProxy(config); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -131,7 +131,8 @@ func (r *CDIConfigReconciler) setOperatorParams(config *cdiv1.CDIConfig) error {
 	return nil
 }
 
-func (r *CDIConfigReconciler) reconcileUploadProxyURL(config *cdiv1.CDIConfig, log logr.Logger) error {
+func (r *CDIConfigReconciler) reconcileUploadProxyURL(config *cdiv1.CDIConfig) error {
+	log := r.log.WithName("CDIconfig").WithName("UploadProxyReconcile")
 	config.Status.UploadProxyURL = config.Spec.UploadProxyURLOverride
 	// No override, try Ingress
 	if config.Status.UploadProxyURL == nil {
@@ -339,7 +340,8 @@ func (r *CDIConfigReconciler) createCDIConfig() (*cdiv1.CDIConfig, error) {
 	return config, nil
 }
 
-func (r *CDIConfigReconciler) reconcileImportProxy(config *cdiv1.CDIConfig, log logr.Logger) error {
+func (r *CDIConfigReconciler) reconcileImportProxy(config *cdiv1.CDIConfig) error {
+	log := r.log.WithName("CDIconfig").WithName("ImportProxyReconcile")
 	config.Status.ImportProxy = config.Spec.ImportProxy
 
 	// Avoid nil pointers and segfaults for the initial case, where ImportProxy is nil for both the spec and the status.
@@ -350,10 +352,8 @@ func (r *CDIConfigReconciler) reconcileImportProxy(config *cdiv1.CDIConfig, log 
 			NoProxy:        new(string),
 			TrustedCAProxy: new(string),
 		}
-	}
 
-	// Try Openshift cluster wide proxy only if the CDIConfig default config is empty
-	if *config.Status.ImportProxy.HTTPProxy == "" && *config.Status.ImportProxy.HTTPSProxy == "" {
+		// Try Openshift cluster wide proxy only if the CDIConfig default config is empty
 		clusterWideProxy, err := GetClusterWideProxy(r.client)
 		if err != nil {
 			log.V(3).Info(err.Error())
@@ -364,14 +364,14 @@ func (r *CDIConfigReconciler) reconcileImportProxy(config *cdiv1.CDIConfig, log 
 		config.Status.ImportProxy.NoProxy = &clusterWideProxy.Status.NoProxy
 		if clusterWideProxy.Spec.TrustedCA.Name != "" {
 			config.Status.ImportProxy.TrustedCAProxy = &clusterWideProxy.Spec.TrustedCA.Name
-			r.reconcileImportProxyCAConfigMap(config, clusterWideProxy, log)
+			r.reconcileImportProxyCAConfigMap(config, clusterWideProxy)
 		}
 	}
 	return nil
 }
 
 // Create/Update a configmap with the CA certificates in the controllor context with the cluster-wide proxy CA certificates to be used by the importer pod
-func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(config *cdiv1.CDIConfig, proxy *ocpconfigv1.Proxy, log logr.Logger) error {
+func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(config *cdiv1.CDIConfig, proxy *ocpconfigv1.Proxy) error {
 	cmName := proxy.Spec.TrustedCA.Name
 	if cmName == "" {
 		// Using the default cluster-wide proxy CA certificates configmap name
@@ -481,7 +481,7 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 	if err := watchRoutes(mgr, configController, cdiNamespace, configName, uploadProxyServiceName); err != nil {
 		return err
 	}
-	if err := watchRoutes(mgr, configController, cdiNamespace, configName, uploadProxyServiceName); err != nil {
+	if err := watchClusterProxy(mgr, configController, configName); err != nil {
 		return err
 	}
 
