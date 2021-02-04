@@ -655,6 +655,24 @@ var _ = Describe("Import test env", func() {
 	})
 })
 
+var _ = Describe("getSecretName", func() {
+	It("should find a secret", func() {
+		pvcWithAnno := createPvc("testPVCWithAnno", "default", map[string]string{AnnSecret: "mysecret"}, nil)
+		testSecret := createSecret("mysecret", "default", "mysecretkey", "mysecretstring", map[string]string{AnnSecret: "mysecret"})
+		reconciler := createImportReconciler(pvcWithAnno, testSecret)
+		result := reconciler.getSecretName(pvcWithAnno)
+		Expect(result).To(Equal("mysecret"))
+	})
+
+	It("should not find a secret", func() {
+		pvcNoAnno := createPvc("testPVCNoAnno", "default", nil, nil)
+		testSecret := createSecret("mysecret2", "default", "mysecretkey2", "mysecretstring2", map[string]string{AnnSecret: "mysecret2"})
+		reconciler := createImportReconciler(pvcNoAnno, testSecret)
+		result := reconciler.getSecretName(pvcNoAnno)
+		Expect(result).To(Equal(""))
+	})
+})
+
 var _ = Describe("getCertConfigMap", func() {
 	testConfigMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
