@@ -76,37 +76,57 @@ var _ = Describe("Test PVC annotations status", func() {
 	})
 
 	It("Should be interesting if NOT complete, and endpoint and source is set", func() {
+		r := createImportReconciler()
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})
 
 	It("Should NOT be interesting if complete, and endpoint and source is set", func() {
+		r := createImportReconciler()
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodSucceeded), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeFalse())
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeFalse())
 	})
 
 	It("Should be interesting if NOT complete, and endpoint missing and source is set", func() {
+		r := createImportReconciler()
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodRunning), AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})
 
 	It("Should be interesting if NOT complete, and endpoint set and source is missing", func() {
+		r := createImportReconciler()
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint}, nil)
-		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})
 
 	It("Should NOT be interesting if NOT BOUND, and endpoint and source is set, and honorWaitForFirstConsumerEnabled", func() {
+		r := createImportReconciler()
+		r.featureGates = &FakeFeatureGates{honorWaitForFirstConsumerEnabled: true}
 		testPvc := createPendingPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: true}, importLog)).To(BeFalse())
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeFalse())
 	})
 
 	It("Should be interesting if NOT BOUND, and endpoint and source is set, and honorWaitForFirstConsumerEnabled and isImmediateBindingRequested is requested", func() {
-		testPvc := createPendingPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, true, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: true}, importLog)).To(BeTrue())
+		r := createImportReconciler()
+		r.featureGates = &FakeFeatureGates{honorWaitForFirstConsumerEnabled: true}
+		testPvc := createPendingPvc("testPvc1", "default", map[string]string{
+			AnnPodPhase:         string(corev1.PodPending),
+			AnnEndpoint:         testEndPoint,
+			AnnSource:           SourceHTTP,
+			AnnImmediateBinding: "true",
+		}, nil)
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})
 	It("Should be interesting if NOT BOUND, and endpoint and source is set, and honorWaitForFirstConsumerEnabled is false and isImmediateBindingRequested is requested", func() {
-		testPvc := createPendingPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, true, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
+		r := createImportReconciler()
+		r.featureGates = &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}
+		testPvc := createPendingPvc("testPvc1", "default", map[string]string{
+			AnnPodPhase:         string(corev1.PodPending),
+			AnnEndpoint:         testEndPoint,
+			AnnSource:           SourceHTTP,
+			AnnImmediateBinding: "true",
+		}, nil)
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})
 })
 
