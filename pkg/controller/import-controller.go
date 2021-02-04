@@ -523,10 +523,24 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.previousCheckpoint = getValueFromAnnotation(pvc, AnnPreviousCheckpoint)
 		podEnvVar.currentCheckpoint = getValueFromAnnotation(pvc, AnnCurrentCheckpoint)
 		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, AnnFinalCheckpoint)
-		podEnvVar.httpProxy = GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP)
-		podEnvVar.httpsProxy = GetImportProxyConfig(cdiConfig, common.ImportProxyHTTPS)
-		podEnvVar.noProxy = GetImportProxyConfig(cdiConfig, common.ImportProxyNoProxy)
-		podEnvVar.certConfigMapProxy = GetImportProxyConfig(cdiConfig, common.ImportProxyConfigMapName)
+
+		var field string
+		if field, err = GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP); err != nil {
+			r.log.V(3).Info("no proxy http url will be supplied:", err.Error())
+		}
+		podEnvVar.httpProxy = field
+		if field, err = GetImportProxyConfig(cdiConfig, common.ImportProxyHTTPS); err != nil {
+			r.log.V(3).Info("no proxy https url will be supplied:", err.Error())
+		}
+		podEnvVar.httpsProxy = field
+		if field, err = GetImportProxyConfig(cdiConfig, common.ImportProxyNoProxy); err != nil {
+			r.log.V(3).Info("the noProxy field will not be supplied:", err.Error())
+		}
+		podEnvVar.noProxy = field
+		if field, err = GetImportProxyConfig(cdiConfig, common.ImportProxyConfigMapName); err != nil {
+			r.log.V(3).Info("no proxy CA certiticate will be supplied:", err.Error())
+		}
+		podEnvVar.certConfigMapProxy = field
 	}
 
 	if preallocation, err := strconv.ParseBool(getValueFromAnnotation(pvc, AnnPreallocationRequested)); err == nil {

@@ -702,41 +702,42 @@ func GetStorageClassNameForDV(c client.Client, dv *cdiv1.DataVolume) string {
 // GetClusterWideProxy returns the OpenShift cluster wide proxy object
 func GetClusterWideProxy(r client.Client) (*ocpconfigv1.Proxy, error) {
 	clusterWideProxy := &ocpconfigv1.Proxy{}
-	var err error
-	if err = r.Get(context.TODO(), types.NamespacedName{Name: ClusterWideProxyName}, clusterWideProxy); err == nil {
-		return clusterWideProxy, nil
+	if err := r.Get(context.TODO(), types.NamespacedName{Name: ClusterWideProxyName}, clusterWideProxy); err != nil {
+		return nil, err
 	}
-	return nil, err
+	return clusterWideProxy, nil
 }
 
 // GetImportProxyConfig attempts to import proxy URLs if configured in the CDIConfig.
-func GetImportProxyConfig(config *cdiv1.CDIConfig, field string) string {
+func GetImportProxyConfig(config *cdiv1.CDIConfig, field string) (string, error) {
 	if config == nil {
-		return ""
+		return "", errors.Errorf("failed to get field, the CDIConfig is nil\n")
 	}
 	if config.Status.ImportProxy == nil {
-		return ""
+		return "", errors.Errorf("failed to get field, the CDIConfig ImportProxy is nil\n")
 	}
-	if field == common.ImportProxyHTTP {
+
+	switch field {
+	case common.ImportProxyHTTP:
 		if config.Status.ImportProxy.HTTPProxy != nil {
-			return *config.Status.ImportProxy.HTTPProxy
+			return *config.Status.ImportProxy.HTTPProxy, nil
 		}
-	}
-	if field == common.ImportProxyHTTPS {
+	case common.ImportProxyHTTPS:
 		if config.Status.ImportProxy.HTTPSProxy != nil {
-			return *config.Status.ImportProxy.HTTPSProxy
+			return *config.Status.ImportProxy.HTTPSProxy, nil
 		}
-	}
-	if field == common.ImportProxyNoProxy {
+	case common.ImportProxyNoProxy:
 		if config.Status.ImportProxy.NoProxy != nil {
-			return *config.Status.ImportProxy.NoProxy
+			return *config.Status.ImportProxy.NoProxy, nil
 		}
-	}
-	if field == common.ImportProxyConfigMapName {
+	case common.ImportProxyConfigMapName:
 		if config.Status.ImportProxy.TrustedCAProxy != nil {
-			return *config.Status.ImportProxy.TrustedCAProxy
+			return *config.Status.ImportProxy.TrustedCAProxy, nil
 		}
+	default:
+		return "", errors.Errorf("CDIConfig ImportProxy does not have the field: %s\n", field)
 	}
-	// If the field is empty, return blank
-	return ""
+
+	// If everything fails, return blank
+	return "", nil
 }

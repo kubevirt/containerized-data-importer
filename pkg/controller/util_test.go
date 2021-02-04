@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -382,39 +383,6 @@ var _ = Describe("GetClusterWideProxy", func() {
 	})
 })
 
-var _ = Describe("GetClusterWideProxy", func() {
-	var proxyHTTPURL = "http://user:pswd@www.myproxy.com"
-	var proxyHTTPSURL = "https://user:pswd@www.myproxy.com"
-	var noProxyDomains = ".noproxy.com"
-	var trustedCAName = "user-ca-bundle"
-
-	It("Should return a not empty cluster wide proxy obj", func() {
-		client := createClient(createClusterWideProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAName))
-		proxy, err := GetClusterWideProxy(client)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(proxy).ToNot(BeNil())
-
-		By("should return a proxy https url")
-		Expect(proxyHTTPSURL).To(Equal(proxy.Status.HTTPSProxy))
-
-		By("should return a proxy http url")
-		Expect(proxyHTTPURL).To(Equal(proxy.Status.HTTPProxy))
-
-		By("should return a noProxy list of domains")
-		Expect(noProxyDomains).To(Equal(proxy.Status.NoProxy))
-
-		By("should return a CA ConfigMap name")
-		Expect(trustedCAName).To(Equal(proxy.Spec.TrustedCA.Name))
-	})
-
-	It("Should return a nil cluster wide proxy obj", func() {
-		client := createClient()
-		proxy, err := GetClusterWideProxy(client)
-		Expect(err).To(HaveOccurred())
-		Expect(proxy).To(BeNil())
-	})
-})
-
 var _ = Describe("GetImportProxyConfig", func() {
 	var proxyHTTPURL = "http://user:pswd@www.myproxy.com"
 	var proxyHTTPSURL = "https://user:pswd@www.myproxy.com"
@@ -424,18 +392,41 @@ var _ = Describe("GetImportProxyConfig", func() {
 	It("should return valid proxy information from a CDIConfig with importer proxy configured", func() {
 		cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
 		cdiConfig.Status.ImportProxy = createImportProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAName)
-		Expect(proxyHTTPURL).To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP)))
-		Expect(proxyHTTPSURL).To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyHTTPS)))
-		Expect(noProxyDomains).To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyNoProxy)))
-		Expect(trustedCAName).To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyConfigMapName)))
+		field, _ := GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP)
+		Expect(proxyHTTPURL).To(Equal(field))
+		field, _ = GetImportProxyConfig(cdiConfig, common.ImportProxyHTTPS)
+		Expect(proxyHTTPSURL).To(Equal(field))
+		field, _ = GetImportProxyConfig(cdiConfig, common.ImportProxyNoProxy)
+		Expect(noProxyDomains).To(Equal(field))
+		field, _ = GetImportProxyConfig(cdiConfig, common.ImportProxyConfigMapName)
+		Expect(trustedCAName).To(Equal(field))
 	})
 
 	It("should return blank proxy information from a CDIConfig with importer proxy not configured", func() {
 		cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
-		Expect("").To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP)))
-		Expect("").To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyHTTPS)))
-		Expect("").To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyNoProxy)))
-		Expect("").To(Equal(GetImportProxyConfig(cdiConfig, common.ImportProxyConfigMapName)))
+		cdiConfig.Status.ImportProxy = createImportProxy("", "", "", "")
+		field, _ := GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP)
+		Expect("").To(Equal(field))
+		field, _ = GetImportProxyConfig(cdiConfig, common.ImportProxyHTTPS)
+		Expect("").To(Equal(field))
+		field, _ = GetImportProxyConfig(cdiConfig, common.ImportProxyNoProxy)
+		Expect("").To(Equal(field))
+		field, _ = GetImportProxyConfig(cdiConfig, common.ImportProxyConfigMapName)
+		Expect("").To(Equal(field))
+	})
+
+	It("should return error if the requested field does not exist", func() {
+		cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
+		cdiConfig.Status.ImportProxy = createImportProxy("", "", "", "")
+		_, err := GetImportProxyConfig(cdiConfig, "nonExistingField")
+		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("CDIConfig ImportProxy does not have the field: %s\n", "nonExistingField")))
+	})
+
+	It("should return error if the ImportProxy field is nil", func() {
+		cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
+		cdiConfig.Status.ImportProxy = nil
+		_, err := GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP)
+		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("failed to get field, the CDIConfig ImportProxy is nil\n")))
 	})
 })
 
