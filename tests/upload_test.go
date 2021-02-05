@@ -1175,7 +1175,7 @@ var _ = Describe("Preallocation", func() {
 		Expect(token).ToNot(BeEmpty())
 
 		By("Do upload")
-		err = uploadImage(uploadProxyURL, token, http.StatusOK)
+		err = uploader(uploadProxyURL, token, http.StatusOK)
 		Expect(err).ToNot(HaveOccurred())
 
 		phase = cdiv1.Succeeded
