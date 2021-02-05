@@ -394,10 +394,14 @@ func (vmware *VMwareClient) FindDiskFromName(fileName string) (*types.VirtualDis
 		klog.Errorf("Unable to list snapshots: %s\n", err)
 		return nil, err
 	}
-	if disk := vmware.FindDiskInSnapshotTree(snapshot.Snapshot.RootSnapshotList, fileName); disk != nil {
-		return disk, nil
+	if snapshot.Snapshot == nil {
+		klog.Errorf("No snapshots on this virtual machine.")
+	} else {
+		if disk := vmware.FindDiskInSnapshotTree(snapshot.Snapshot.RootSnapshotList, fileName); disk != nil {
+			return disk, nil
+		}
 	}
-	return nil, errors.New("could not find target VMware disk")
+	return nil, fmt.Errorf("disk '%s' is not present in VM hardware config or snapshot list", fileName)
 }
 
 // FindSnapshotDiskName finds the name of the given disk at the time the snapshot was taken

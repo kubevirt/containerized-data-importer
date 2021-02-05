@@ -300,6 +300,26 @@ var _ = Describe("VDDK data source", func() {
 			Expect(extent.Length).To(Equal(source.ChangedBlocks.ChangedArea[index].Length))
 		}
 	})
+
+	It("should not crash when the disk is not found and has no snapshots", func() {
+		newVddkDataSource = createVddkDataSource
+		diskName := "testdisk.vmdk"
+		wrongDiskName := "wrong.vmdk"
+
+		currentVMwareFunctions.Properties = func(ctx context.Context, ref types.ManagedObjectReference, property []string, result interface{}) error {
+			switch out := result.(type) {
+			case *mo.VirtualMachine:
+				if property[0] == "config.hardware.device" {
+					out.Config = createVirtualDiskConfig(wrongDiskName, 12345)
+				}
+			}
+			return nil
+		}
+
+		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "false", v1.PersistentVolumeFilesystem)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(Equal("disk 'testdisk.vmdk' is not present in VM hardware config or snapshot list"))
+	})
 })
 
 type mockNbdOperations struct{}
