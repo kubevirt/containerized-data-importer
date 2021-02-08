@@ -323,7 +323,7 @@ func waitForDataVolumePhase(f *framework.Framework, dvName string, phase cdiv1.D
 			return false
 		}
 		return true
-	}, timeout, pollingInterval).Should(BeTrue())
+	}, timeout, 2*pollingInterval).Should(BeTrue())
 	return err
 }
 
@@ -331,6 +331,9 @@ func cleanClusterWideProxy(ocpClient *configclient.Clientset, clusterWideProxySp
 	Eventually(func() error {
 		proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
+		proxy.Status.HTTPProxy = clusterWideProxySpec.HTTPProxy
+		proxy.Status.HTTPSProxy = clusterWideProxySpec.HTTPSProxy
+		proxy.Status.NoProxy = clusterWideProxySpec.NoProxy
 		_, err = ocpClient.ConfigV1().Proxies().Update(context.TODO(), proxy, metav1.UpdateOptions{})
 		return err
 	}, time.Second*60, time.Second).ShouldNot(HaveOccurred())
