@@ -23,6 +23,8 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+
+	ocpconfigv1 "github.com/openshift/api/config/v1"
 )
 
 const (
@@ -32,11 +34,14 @@ const (
 	httpPortWithAuth = "8081"
 	proxyServerName  = "cdi-test-proxy"
 	fileHostName     = "cdi-file-host"
-	//we use the a large image to "slowdown" the download process to have time to inspect the importer pod
-	cirrosFileName = "cirros-large-virtual-size.qcow2"
+	imgURL           = "tinyCore.iso"
+	imgPort          = ":82" //we used the port with rate limit to be able to inspect the pod before it finishes
 )
 
-var _ = FDescribe("Import Proxy tests", func() {
+var _ = Describe("Import Proxy tests", func() {
+	var dvName string
+	var ocpClient *configclient.Clientset
+	var clusterWideProxySpec *ocpconfigv1.ProxySpec
 	type importProxyTestArguments struct {
 		name          string
 		size          string
@@ -48,9 +53,42 @@ var _ = FDescribe("Import Proxy tests", func() {
 		dvFunc        func(string, string, string) *cdiv1.DataVolume
 		expected      func() types.GomegaMatcher
 	}
+
 	f := framework.NewFramework("import-proxy-func-test")
 
-	FDescribeTable("should", func(args importProxyTestArguments) {
+	BeforeEach(func() {
+		if utils.IsOpenshift(f.K8sClient) {
+			By("Initializing OpenShift client")
+			var err error
+			ocpClient, err = configclient.NewForConfig(f.RestConfig)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Storing the OpenShift Cluster Wide Proxy original configuration")
+			clusterWideProxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			clusterWideProxySpec = clusterWideProxy.Spec.DeepCopy()
+		}
+	})
+
+	AfterEach(func() {
+		By("Deleting DataVolume")
+		err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dvName)
+		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() bool {
+			_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dvName, metav1.GetOptions{})
+			if k8serrors.IsNotFound(err) {
+				return true
+			}
+			return false
+		}, timeout, pollingInterval).Should(BeTrue())
+
+		if utils.IsOpenshift(f.K8sClient) {
+			By("Reverting the cluster wide proxy spec to the original configuration")
+			cleanClusterWideProxy(ocpClient, clusterWideProxySpec)
+		}
+	})
+
+	DescribeTable("should", func(args importProxyTestArguments) {
 		var proxyHTTPURL string
 		var proxyHTTPSURL string
 		if args.isHTTPS {
@@ -59,72 +97,66 @@ var _ = FDescribe("Import Proxy tests", func() {
 			proxyHTTPURL = createProxyURL(args.isHTTPS, args.withBasicAuth, f.CdiInstallNs)
 		}
 		noProxy := args.noProxy
-		imgURL := createCirrosQcowURL(args.isHTTPS, f.CdiInstallNs)
+		imgURL := createImgURL(args.isHTTPS, f.CdiInstallNs)
+		dvName = args.name
 
 		By("Updating CDIConfig with ImportProxy configuration")
-		updateCDIConfigImporterProxyConfig(f, proxyHTTPURL, proxyHTTPSURL, noProxy)
+		if !utils.IsOpenshift(f.K8sClient) {
+			updateCDIConfigProxy(f, proxyHTTPURL, proxyHTTPSURL, noProxy)
+		} else {
+			updateCDIConfigByUpdatingTheClusterWideProxy(f, ocpClient, proxyHTTPURL, proxyHTTPSURL, noProxy)
+		}
 
-		By(fmt.Sprintf("Creating new datavolume %s", args.name))
-		dv := createHTTPDataVolume(f, args.name, args.size, imgURL, args.isHTTPS, args.withBasicAuth)
+		By(fmt.Sprintf("Creating new datavolume %s", dvName))
+		dv := createHTTPDataVolume(f, dvName, args.size, imgURL, args.isHTTPS, args.withBasicAuth)
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verifying pvc was created")
-		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dvName)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindIfWaitForFirstConsumer(pvc)
 
-		By("Verifying a message was printed to indicate a request was done using proxy")
-		verifyImporterPodInfoInProxyLogs(f, dataVolume, imgURL, args.isHTTPS, args.expected)
-
-		By("Waiting for the img import to be completed")
-		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
-
-		By("Deleting DataVolume")
-		err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, args.name)
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
+		// We do not wait the datavolume to suceed in the end of the test because it is a very slow process due to the rate limit.
+		// Having the importer pod in the phase InProgress is enough to verify if the requests were proxied or not.
+		waitForDataVolumePhase(f, dvName, cdiv1.ImportInProgress)
 		Expect(err).ToNot(HaveOccurred())
-		Eventually(func() bool {
-			_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			if k8serrors.IsNotFound(err) {
-				return true
-			}
-			return false
-		}, timeout, pollingInterval).Should(BeTrue())
 
-		cleanClusterWideProxy(f)
+		By("Checking the importer pod information in the proxy log to verify if the requests were proxied")
+		verifyImporterPodInfoInProxyLogs(f, dataVolume, imgURL, args.isHTTPS, args.expected)
 	},
-		FEntry("succeed creating import dv with a proxied server (http)", importProxyTestArguments{
+		Entry("succeed creating import dv with a proxied server (http)", importProxyTestArguments{
 			name:          "dv-import-http-proxy",
-			size:          "2.5Gi",
+			size:          "1Gi",
 			noProxy:       "",
 			isHTTPS:       false,
 			withBasicAuth: false,
 			expected:      BeTrue}),
-		FEntry("succeed creating import dv with a proxied server (http) with basic autentication", importProxyTestArguments{
+		Entry("succeed creating import dv with a proxied server (http) with basic autentication", importProxyTestArguments{
 			name:          "dv-import-http-proxy-auth",
-			size:          "2.5Gi",
+			size:          "1Gi",
 			noProxy:       "",
 			isHTTPS:       false,
 			withBasicAuth: true,
 			expected:      BeTrue}),
-		FEntry("succeed creating import dv with a proxied server (https) with the target server with tls", importProxyTestArguments{
+		Entry("succeed creating import dv with a proxied server (https) with the target server with tls", importProxyTestArguments{
 			name:          "dv-import-https-proxy",
-			size:          "2.5Gi",
+			size:          "1Gi",
 			noProxy:       "",
 			isHTTPS:       true,
 			withBasicAuth: false,
 			expected:      BeTrue}),
-		FEntry("succeed creating import dv with a proxied server (https) with basic autentication and the target server with tls", importProxyTestArguments{
+		Entry("succeed creating import dv with a proxied server (https) with basic autentication and the target server with tls", importProxyTestArguments{
 			name:          "dv-import-https-proxy-auth",
-			size:          "2.5Gi",
+			size:          "1Gi",
 			noProxy:       "",
 			isHTTPS:       true,
 			withBasicAuth: true,
 			expected:      BeTrue}),
-		FEntry("succeed creating import dv with a proxied server (http) but bypassing the proxy", importProxyTestArguments{
+		Entry("succeed creating import dv with a proxied server (http) but bypassing the proxy", importProxyTestArguments{
 			name:          "dv-import-noproxy",
-			size:          "2.5Gi",
+			size:          "1Gi",
 			noProxy:       "*",
 			isHTTPS:       false,
 			withBasicAuth: false,
@@ -142,12 +174,12 @@ func createProxyURL(isHTTPS, withBasicAuth bool, namespace string) string {
 	return fmt.Sprintf("http://%s%s.%s:%s", auth, proxyServerName, namespace, port)
 }
 
-func createCirrosQcowURL(withHTTPS bool, namespace string) string {
+func createImgURL(withHTTPS bool, namespace string) string {
 	protocol := "http"
 	if withHTTPS {
 		protocol = "https"
 	}
-	return fmt.Sprintf("%s://%s.%s/%s", protocol, fileHostName, namespace, cirrosFileName)
+	return fmt.Sprintf("%s://%s.%s%s/%s", protocol, fileHostName, namespace, imgPort, imgURL)
 }
 
 func createHTTPDataVolume(f *framework.Framework, dataVolumeName, size, url string, isHTTPS, withBasicAuth bool) *cdiv1.DataVolume {
@@ -168,14 +200,6 @@ func createHTTPDataVolume(f *framework.Framework, dataVolumeName, size, url stri
 	return dataVolume
 }
 
-func updateCDIConfigImporterProxyConfig(f *framework.Framework, proxyHTTPURL string, proxyHTTPSURL string, noProxy string) {
-	if !utils.IsOpenshift(f.K8sClient) {
-		updateCDIConfigProxy(f, proxyHTTPURL, proxyHTTPSURL, noProxy)
-	} else {
-		updateCDIConfigByUpdatingTheClusterWideProxy(f, proxyHTTPURL, proxyHTTPSURL, noProxy)
-	}
-}
-
 func updateCDIConfigProxy(f *framework.Framework, proxyHTTPURL string, proxyHTTPSURL string, noProxy string) {
 	err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 		config.ImportProxy = &cdiv1.ImportProxy{
@@ -189,10 +213,8 @@ func updateCDIConfigProxy(f *framework.Framework, proxyHTTPURL string, proxyHTTP
 
 // updateCDIConfigByUpdatingTheClusterWideProxy changes the OpenShift cluster-wide proxy configuration, but we do not want in this test to have the OpenShift API behind the proxy since it might break OpenShift because of proxy hijacking.
 // Then, for testing the importer pod using the proxy configuration from the cluster-wide proxy, we disable the proxy in the cluster-wide proxy obj with noProxy="*", and enable the proxy in the CDIConfig to test the importe pod with proxy configurations.
-func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, proxyHTTPURL string, proxyHTTPSURL string, noProxy string) {
+func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, ocpClient *configclient.Clientset, proxyHTTPURL string, proxyHTTPSURL string, noProxy string) {
 	By("Verifying if OpenShift Cluster Wide Proxy exist")
-	ocpClient, err := configclient.NewForConfig(f.RestConfig)
-	Expect(err).ToNot(HaveOccurred())
 	proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
 		Skip("This OpenShift cluster version does not have a Cluster Wide Proxy object")
@@ -206,7 +228,7 @@ func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, proxyH
 	_, err = ocpClient.ConfigV1().Proxies().Update(context.TODO(), proxy, metav1.UpdateOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
-	By("Wating OpenShift Cluster Wide Proxy reconcile")
+	By("Waiting OpenShift Cluster Wide Proxy reconcile")
 	// the default OpenShift no_proxy configuration only appears in the proxy object after and http(s) url is updated
 	Eventually(func() bool {
 		cwproxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
@@ -219,26 +241,30 @@ func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, proxyH
 	proxy, err = ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
-	By("Wating CDIConfig reconcile")
+	By("Waiting CDIConfig reconcile")
 	Eventually(func() bool {
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		http, _ := controller.GetImportProxyConfig(config, common.ImportProxyHTTP)
-		https, _ := controller.GetImportProxyConfig(config, common.ImportProxyHTTPS)
-		if http == proxy.Status.HTTPProxy && https == proxy.Status.HTTPSProxy {
+		cdiHTTP, _ := controller.GetImportProxyConfig(config, common.ImportProxyHTTP)
+		cdiHTTPS, _ := controller.GetImportProxyConfig(config, common.ImportProxyHTTPS)
+		cdiNoProxy, _ := controller.GetImportProxyConfig(config, common.ImportProxyNoProxy)
+		if cdiHTTP == proxyHTTPURL && cdiHTTPS == proxyHTTPSURL {
 			// update the noProxy in the CDIConfig
-			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-				config.ImportProxy = &cdiv1.ImportProxy{
-					HTTPProxy:  &http,
-					HTTPSProxy: &https,
-					NoProxy:    &noProxy,
-				}
-			})
-			Expect(err).ToNot(HaveOccurred())
+			if cdiNoProxy != noProxy {
+				err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+					config.ImportProxy = &cdiv1.ImportProxy{
+						HTTPProxy:  &cdiHTTP,
+						HTTPSProxy: &cdiHTTPS,
+						NoProxy:    &noProxy,
+					}
+				})
+				Expect(err).ToNot(HaveOccurred())
+				return false
+			}
 			return true
 		}
 		return false
-	}, time.Second*30, time.Second).Should(BeTrue())
+	}, time.Second*120, time.Second).Should(BeTrue())
 }
 
 // verifyImporterPodInfoInProxyLogs verifiy if the importer pod request (method, url and impoter pod IP) appears in the proxy log
@@ -260,7 +286,7 @@ func getImporterPodIP(f *framework.Framework) string {
 		fmt.Fprintf(GinkgoWriter, "INFO: Checking POD %s IP: %s\n", pod.Name, pod.Status.PodIP)
 		podIP = pod.Status.PodIP
 		return podIP
-	}, time.Second*60, time.Millisecond*100).Should(Not(BeEmpty()))
+	}, time.Second*60, time.Second).Should(Not(BeEmpty()))
 	return podIP
 }
 
@@ -274,14 +300,9 @@ func getProxyLog(f *framework.Framework) string {
 }
 
 func wasPodProxied(imgURL, podIP, proxyLog string, isHTTPS bool) bool {
-	method := "METHOD:GET"
-	if isHTTPS {
-		//Since the proxy hijacks the HTTPS conections (i.e., tunneling), the first https request uses the method "CONNECT" instead of "GET"
-		method = "METHOD:CONNECT"
-	}
 	u, _ := url.Parse(imgURL)
 	for _, line := range strings.Split(strings.TrimSuffix(proxyLog, "\n"), "\n") {
-		if strings.Contains(line, method) && strings.Contains(line, u.Host) && strings.Contains(line, podIP) {
+		if strings.Contains(line, u.Host) && strings.Contains(line, podIP) {
 			fmt.Fprintf(GinkgoWriter, "INFO: Proxy log: %s\n", line)
 			fmt.Fprintf(GinkgoWriter, "INFO: The import POD requests were proxied\n")
 			return true
@@ -291,29 +312,38 @@ func wasPodProxied(imgURL, podIP, proxyLog string, isHTTPS bool) bool {
 	return false
 }
 
-func cleanClusterWideProxy(f *framework.Framework) {
-	if utils.IsOpenshift(f.K8sClient) {
-		By("Restoring cluster-wide proxy object to original state")
-		ocpClient, err := configclient.NewForConfig(f.RestConfig)
+func waitForDataVolumePhase(f *framework.Framework, dvName string, phase cdiv1.DataVolumePhase) error {
+	var err error
+	Eventually(func() bool {
+		var dataVolume *cdiv1.DataVolume
+		dataVolume, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dvName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
-		if k8serrors.IsNotFound(err) {
-			Skip("This OpenShift cluster version does not have a Cluster Wide Proxy object")
-		}
-		proxy.Spec.HTTPProxy = ""
-		proxy.Spec.HTTPSProxy = ""
-		proxy.Spec.NoProxy = ""
-		_, err = ocpClient.ConfigV1().Proxies().Update(context.TODO(), proxy, metav1.UpdateOptions{})
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Wating OpenShift Cluster Wide Proxy reconcile after the cleanup")
-		Eventually(func() bool {
-			proxy, err = ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			if proxy.Status.HTTPProxy == "" && proxy.Status.HTTPSProxy == "" && proxy.Status.NoProxy == "" {
-				return true
-			}
+		fmt.Fprintf(GinkgoWriter, "INFO: Checking DataVolume %s phase: %s\n", dataVolume.Name, dataVolume.Status.Phase)
+		if err != nil || dataVolume.Status.Phase != phase {
 			return false
-		}, time.Second*60, time.Second).Should(BeTrue())
-	}
+		}
+		return true
+	}, timeout, pollingInterval).Should(BeTrue())
+	return err
+}
+
+func cleanClusterWideProxy(ocpClient *configclient.Clientset, clusterWideProxySpec *ocpconfigv1.ProxySpec) {
+	Eventually(func() error {
+		proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		_, err = ocpClient.ConfigV1().Proxies().Update(context.TODO(), proxy, metav1.UpdateOptions{})
+		return err
+	}, time.Second*60, time.Second).ShouldNot(HaveOccurred())
+
+	By("Waiting OpenShift Cluster Wide Proxy to be reset to original configuration")
+	Eventually(func() bool {
+		proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		if proxy.Status.HTTPProxy == clusterWideProxySpec.HTTPProxy &&
+			proxy.Status.HTTPSProxy == clusterWideProxySpec.HTTPSProxy &&
+			proxy.Status.NoProxy == clusterWideProxySpec.NoProxy {
+			return true
+		}
+		return false
+	}, timeout, pollingInterval).Should(BeTrue())
 }
