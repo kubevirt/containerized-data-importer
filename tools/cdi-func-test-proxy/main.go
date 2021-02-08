@@ -37,6 +37,7 @@ func startServer(port string, basicAuth bool, wg *sync.WaitGroup) {
 	server := &http.Server{
 		Addr: ":" + port,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			appendForwardedForHeader(r)
 			start := time.Now()
 			if r.Method == http.MethodConnect {
 				handleTunneling(w, r, basicAuth)
@@ -58,13 +59,28 @@ func startServer(port string, basicAuth bool, wg *sync.WaitGroup) {
 	}()
 }
 
+// Prepares the X-Forwarded-For header for another forwarding hop by appending the previous sender's
+// IP address to the X-Forwarded-For chain.
+func appendForwardedForHeader(req *http.Request) {
+	// Copied from net/http/httputil/reverseproxy.go:
+	if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
+		// If we aren't the first proxy retain prior
+		// X-Forwarded-For information as a comma+space
+		// separated list and fold multiple headers into one.
+		if prior, ok := req.Header["X-Forwarded-For"]; ok {
+			clientIP = strings.Join(prior, ", ") + ", " + clientIP
+		}
+		req.Header.Set("X-Forwarded-For", clientIP)
+	}
+}
+
 func handleTunneling(w http.ResponseWriter, req *http.Request, withAuth bool) {
 	if withAuth {
 		if !isAuthorized(w, req) {
 			return
 		}
 	}
-	destConn, err := net.DialTimeout("tcp", req.Host, 30*time.Second)
+	destConn, err := net.DialTimeout("tcp", req.Host, 300*time.Second)
 	if err != nil {
 		logger.Printf("ERROR: URL:%s %v\n", req.Host, err.Error())
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
