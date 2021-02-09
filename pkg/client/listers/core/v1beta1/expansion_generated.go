@@ -34,6 +34,10 @@ type DataVolumeListerExpansion interface{}
 // DataVolumeNamespaceLister.
 type DataVolumeNamespaceListerExpansion interface{}
 
+// ObjectTransferListerExpansion allows custom methods to be added to
+// ObjectTransferLister.
+type ObjectTransferListerExpansion interface{}
+
 // StorageProfileListerExpansion allows custom methods to be added to
 // StorageProfileLister.
 type StorageProfileListerExpansion interface{}

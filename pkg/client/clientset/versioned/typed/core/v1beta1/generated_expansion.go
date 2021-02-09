@@ -24,4 +24,6 @@ type CDIConfigExpansion interface{}
 
 type DataVolumeExpansion interface{}
 
+type ObjectTransferExpansion interface{}
+
 type StorageProfileExpansion interface{}

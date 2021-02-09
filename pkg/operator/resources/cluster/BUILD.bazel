@@ -8,6 +8,7 @@ go_library(
         "controller.go",
         "datavolume.go",
         "factory.go",
+        "object-transfer.go",
         "rbac.go",
         "storageprofile.go",
         "uploadproxy.go",

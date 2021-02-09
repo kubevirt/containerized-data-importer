@@ -28,6 +28,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	"kubevirt.io/containerized-data-importer/pkg/controller/transfer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
@@ -159,6 +160,11 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 
 	if _, err := controller.NewUploadController(mgr, log, uploadServerImage, pullPolicy, verbose, uploadServerCertGenerator, uploadClientBundleFetcher); err != nil {
 		klog.Errorf("Unable to setup upload controller: %v", err)
+		os.Exit(1)
+	}
+
+	if _, err := transfer.NewObjectTransferController(mgr, log); err != nil {
+		klog.Errorf("Unable to setup transfer controller: %v", err)
 		os.Exit(1)
 	}
 
