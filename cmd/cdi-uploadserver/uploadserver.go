@@ -90,11 +90,8 @@ func main() {
 	} else {
 		message = "Upload Complete"
 	}
-	switch server.PreallocationApplied() {
-	case "true":
+	if server.PreallocationApplied() {
 		message += ", " + controller.PreallocationApplied
-	case "skipped":
-		message += ", " + controller.PreallocationSkipped
 	}
 	err = util.WriteTerminationMessage(message)
 	if err != nil {

@@ -49,7 +49,7 @@ const (
 // UploadServer is the interface to uploadServerApp
 type UploadServer interface {
 	Run() error
-	PreallocationApplied() string
+	PreallocationApplied() bool
 }
 
 type uploadServerApp struct {
@@ -69,7 +69,7 @@ type uploadServerApp struct {
 	uploading            bool
 	processing           bool
 	done                 bool
-	preallocationApplied string
+	preallocationApplied bool
 	doneChan             chan struct{}
 	errChan              chan error
 	mutex                sync.Mutex
@@ -393,7 +393,7 @@ func (app *uploadServerApp) uploadHandler(irc imageReadCloser) http.HandlerFunc 
 	}
 }
 
-func (app *uploadServerApp) PreallocationApplied() string {
+func (app *uploadServerApp) PreallocationApplied() bool {
 	return app.preallocationApplied
 }
 
@@ -407,9 +407,9 @@ func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string,
 	return processor, processor.ProcessDataWithPause()
 }
 
-func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (string, error) {
+func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (bool, error) {
 	if contentType == common.FilesystemCloneContentType {
-		return "false", filesystemCloneProcessor(stream, common.ImporterVolumePath)
+		return false, filesystemCloneProcessor(stream, common.ImporterVolumePath)
 	}
 
 	uds := importer.NewUploadDataSource(newContentReader(stream, contentType))
