@@ -655,11 +655,7 @@ func (r *DatavolumeReconciler) getCloneStrategy() (cdiv1.CDICloneStrategy, error
 		return cdiv1.CloneStrategySnapshot, fmt.Errorf("no active CDI")
 	}
 
-	if cr.Spec.Config == nil {
-		return cdiv1.CloneStrategySnapshot, nil
-	}
-
-	if cr.Spec.Config.CloneStrategyOverride == nil {
+	if cr.Spec.Config == nil || cr.Spec.Config.CloneStrategyOverride == nil {
 		return cdiv1.CloneStrategySnapshot, nil
 	}
 
