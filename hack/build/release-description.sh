@@ -35,13 +35,13 @@ The source code and selected binaries are available for download at:
 <$RELURL>.
 
 Pre-built CDI containers are published on Docker Hub and can be viewed at:
-<https://hub.docker.com/r/kubevirt/cdi-controller/>
-<https://hub.docker.com/r/kubevirt/cdi-importer/>
-<https://hub.docker.com/r/kubevirt/cdi-cloner/>
-<https://hub.docker.com/r/kubevirt/cdi-uploadproxy/>
-<https://hub.docker.com/r/kubevirt/cdi-apiserver/>
-<https://hub.docker.com/r/kubevirt/cdi-uploadserver/>
-<https://hub.docker.com/r/kubevirt/cdi-operator/>
+<https://quay.io/repository/kubevirt/cdi-controller/>
+<https://quay.io/repository/kubevirt/cdi-importer/>
+<https://quay.io/repository/kubevirt/cdi-cloner/>
+<https://quay.io/repository/kubevirt/cdi-uploadproxy/>
+<https://quay.io/repository/kubevirt/cdi-apiserver/>
+<https://quay.io/repository/kubevirt/cdi-uploadserver/>
+<https://quay.io/repository/kubevirt/cdi-operator/>
 EOF
 }
 

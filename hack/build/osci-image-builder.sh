@@ -23,7 +23,7 @@ BUILDER_SPEC="hack/ci/Dockerfile.ci"
 
 # When building and pushing a new image we do not provide the sha hash
 # because docker assigns that for us.
-UNTAGGED_BUILDER_IMAGE=kubevirt/cdi-osci-builder
+UNTAGGED_BUILDER_IMAGE=quay.io/kubevirt/cdi-osci-builder
 
 # Build the encapsulated compile and test container
 docker build -f ${BUILDER_SPEC} --tag ${UNTAGGED_BUILDER_IMAGE}:${BUILDER_TAG} .

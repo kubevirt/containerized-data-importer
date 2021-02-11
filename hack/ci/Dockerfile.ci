@@ -1,4 +1,4 @@
-FROM docker.io/kubevirt/kubevirt-cdi-bazel-builder:0.0.8 AS builder
+FROM quay.io/kubevirt/kubevirt-cdi-bazel-builder:0.0.10 AS builder
 WORKDIR /go/src/github.com/kubevirt.io/containerized-data-importer
 COPY . .
 
