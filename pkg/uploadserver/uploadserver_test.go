@@ -88,12 +88,12 @@ func newHTTPClient(clientKeyPair *triple.KeyPair, serverCACert *x509.Certificate
 	return client
 }
 
-func saveProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (string, error) {
-	return "false", nil
+func saveProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (bool, error) {
+	return false, nil
 }
 
-func saveProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (string, error) {
-	return "false", fmt.Errorf("Error using datastream")
+func saveProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (bool, error) {
+	return false, fmt.Errorf("Error using datastream")
 }
 
 func withProcessorSuccess(f func()) {
@@ -104,7 +104,7 @@ func withProcessorFailure(f func()) {
 	replaceProcessorFunc(saveProcessorFailure, f)
 }
 
-func replaceProcessorFunc(replacement func(io.ReadCloser, string, string, float64, bool, string) (string, error), f func()) {
+func replaceProcessorFunc(replacement func(io.ReadCloser, string, string, float64, bool, string) (bool, error), f func()) {
 	origProcessorFunc := uploadProcessorFunc
 	uploadProcessorFunc = replacement
 	defer func() {

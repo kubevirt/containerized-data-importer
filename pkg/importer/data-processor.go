@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"strconv"
 
 	"github.com/pkg/errors"
 
@@ -121,10 +120,8 @@ type DataProcessor struct {
 	needsDataCleanup bool
 	// preallocation is the flag controlling preallocation setting of qemu-img
 	preallocation bool
-	// preallocationApplied is used to pass information whether preallocation has been performed, skipped or not attempted
-	// "skipped" is used to indicate that preallocation would have been perfomed but there was not enough space, so the
-	// preallocation whould have failed.
-	preallocationApplied string
+	// preallocationApplied is used to pass information whether preallocation has been performed, or not
+	preallocationApplied bool
 }
 
 // NewDataProcessor create a new instance of a data processor using the passed in data provider.
@@ -264,7 +261,7 @@ func (dp *DataProcessor) convert(url *url.URL) (ProcessingPhase, error) {
 	if err != nil {
 		return ProcessingPhaseError, errors.Wrap(err, "Conversion to Raw failed")
 	}
-	dp.preallocationApplied = strconv.FormatBool(dp.preallocation)
+	dp.preallocationApplied = dp.preallocation
 
 	return ProcessingPhaseResize, nil
 }
@@ -293,7 +290,7 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 		if shouldPreallocate {
 			return ProcessingPhasePreallocate, nil
 		}
-		dp.preallocationApplied = "skipped" // qemu did not preallicate space for a resized file
+		dp.preallocationApplied = false // qemu did not preallocate space for a resized file
 	}
 	return ProcessingPhaseComplete, nil
 }
@@ -311,7 +308,7 @@ func (dp *DataProcessor) preallocate() (ProcessingPhase, error) {
 	if err != nil {
 		return ProcessingPhaseError, errors.Wrap(err, "Preallocation or resized image failed")
 	}
-	dp.preallocationApplied = "true"
+	dp.preallocationApplied = true
 
 	return ProcessingPhaseComplete, nil
 }
@@ -326,14 +323,12 @@ func ResizeImage(dataFile, imageSize string, totalTargetSpace int64) (bool, erro
 		return false, err
 	}
 	if imageSize != "" {
-		shouldPreallocate := true
 		currentImageSizeQuantity := resource.NewScaledQuantity(info.VirtualSize, 0)
 		newImageSizeQuantity := resource.MustParse(imageSize)
 		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(totalTargetSpace, 0), &newImageSizeQuantity)
 		if minSizeQuantity.Cmp(newImageSizeQuantity) != 0 {
 			// Available destination space is smaller than the size we want to resize to
 			klog.Warningf("Available space less than requested size, resizing image to available space %s.\n", minSizeQuantity.String())
-			shouldPreallocate = false
 		}
 		if currentImageSizeQuantity.Cmp(minSizeQuantity) == 0 {
 			klog.V(1).Infof("No need to resize image. Requested size: %s, Image size: %d.\n", imageSize, info.VirtualSize)
@@ -341,7 +336,7 @@ func ResizeImage(dataFile, imageSize string, totalTargetSpace int64) (bool, erro
 		}
 		klog.V(1).Infof("Expanding image size to: %s\n", minSizeQuantity.String())
 		err := qemuOperations.Resize(dataFile, minSizeQuantity)
-		return err == nil && shouldPreallocate, err
+		return err == nil, err
 	}
 	return false, errors.New("Image resize called with blank resize")
 }
@@ -378,6 +373,20 @@ func (dp *DataProcessor) calculateTargetSize() int64 {
 }
 
 // PreallocationApplied returns true if data processing path included preallocation step
-func (dp *DataProcessor) PreallocationApplied() string {
+func (dp *DataProcessor) PreallocationApplied() bool {
 	return dp.preallocationApplied
+}
+
+func (dp *DataProcessor) getUsableSpace() int64 {
+	return GetUsableSpace(dp.filesystemOverhead, dp.availableSpace)
+}
+
+// GetUsableSpace calculates space to use taking file system overhead into account
+func GetUsableSpace(filesystemOverhead float64, availableSpace int64) int64 {
+	blockSize := int64(512)
+	spaceWithOverhead := int64((1 - filesystemOverhead) * float64(availableSpace))
+	// qemu-img will round up, making us use more than the usable space.
+	// This later conflicts with image size validation.
+	qemuImgCorrection := util.RoundDown(spaceWithOverhead, blockSize)
+	return qemuImgCorrection
 }

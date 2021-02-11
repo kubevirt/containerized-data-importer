@@ -95,9 +95,6 @@ const (
 
 	// PreallocationApplied is a string inserted into importer's/uploader's exit message
 	PreallocationApplied = "Preallocation applied"
-
-	// PreallocationSkipped is a string inserted into importer's/uploader's exit message
-	PreallocationSkipped = "Preallocation skipped"
 )
 
 // ImportReconciler members
@@ -373,9 +370,6 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, PreallocationApplied) {
 			anno[AnnPreallocationApplied] = "true"
 		}
-		if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, PreallocationSkipped) {
-			anno[AnnPreallocationApplied] = "skipped"
-		}
 	}
 
 	if anno[AnnCurrentCheckpoint] != "" {
@@ -500,11 +494,6 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		if err != nil {
 			return nil, err
 		}
-		fsOverhead, err := GetFilesystemOverhead(r.client, pvc)
-		if err != nil {
-			return nil, err
-		}
-		podEnvVar.filesystemOverhead = string(fsOverhead)
 		podEnvVar.insecureTLS, err = r.isInsecureTLS(pvc)
 		if err != nil {
 			return nil, err
@@ -517,6 +506,12 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.currentCheckpoint = getValueFromAnnotation(pvc, AnnCurrentCheckpoint)
 		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, AnnFinalCheckpoint)
 	}
+
+	fsOverhead, err := GetFilesystemOverhead(r.client, pvc)
+	if err != nil {
+		return nil, err
+	}
+	podEnvVar.filesystemOverhead = string(fsOverhead)
 
 	if preallocation, err := strconv.ParseBool(getValueFromAnnotation(pvc, AnnPreallocationRequested)); err == nil {
 		podEnvVar.preallocation = preallocation

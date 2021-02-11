@@ -247,9 +247,6 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 			if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, PreallocationApplied) {
 				anno[AnnPreallocationApplied] = "true"
 			}
-			if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, PreallocationSkipped) {
-				anno[AnnPreallocationApplied] = "skipped"
-			}
 		}
 	}
 	setConditionFromPodWithPrefix(anno, AnnRunningCondition, pod)
