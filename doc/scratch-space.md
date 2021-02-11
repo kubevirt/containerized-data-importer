@@ -16,6 +16,5 @@ Operations that require scratch space are:
 |------|-------|
 | Registry imports | In order to import from registry container images, CDI has to first download the image to a scratch space, extract the layers to find the image file, and then pass that image file to QEMU-IMG for conversion to a raw disk |
 | Upload image | Because QEMU-IMG does not accept inputs from stdin yet, we cannot stream the upload directly to QEMU-IMG, so we have to save the upload to a scratch space first and then pass it to QEMU-IMG for conversion |
-| Http imports of archived images | QEMU-IMG does not know how to handle the archive formats CDI supports, so we can't have QEMU-IMG collect the data directly, so we save the image after running it through an unarchive process before passing it to QEMU-IMG |
-| Http imports of authenticated images | CDI currently supports basic authentication of images, it doesn't pass the authentication to QEMU-IMG so we save the file to a scratch space before passing the file to QEMU-IMG |
-| Http imports of custom certificates | QEMU-IMG doesn't handle custom certificates of https endpoints well, so CDI downloads the image to a scratch space first before passing the file to QEMU-IMG |
+| Http imports from unsupported server source for nbdkit | CDI uses ndbkit curl to stream the source content. However, nbdkit curl plugin cannot fetch the source when the server doesn't support accept ranges, or HTTP HEAD requests (for example, S3 servers). For those cases, the scratch space is still required|
+
