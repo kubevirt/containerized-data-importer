@@ -231,29 +231,7 @@ var _ = Describe("Importer CDI config manipulation tests", func() {
 	})
 
 	DescribeTable("Filesystem overhead is honored with a RAW file", func(expectedSuccess bool, globalOverhead, scOverhead string) {
-		defaultSCName := utils.DefaultStorageClass.GetName()
-		testedFilesystemOverhead := &cdiv1.FilesystemOverhead{}
-		if globalOverhead != "" {
-			testedFilesystemOverhead.Global = cdiv1.Percent(globalOverhead)
-		}
-		if scOverhead != "" {
-			testedFilesystemOverhead.StorageClass = map[string]cdiv1.Percent{defaultSCName: cdiv1.Percent(scOverhead)}
-		}
-		config.Spec.FilesystemOverhead = testedFilesystemOverhead.DeepCopy()
-		By(fmt.Sprintf("Updating CDIConfig filesystem overhead to %v", config.Spec.FilesystemOverhead))
-		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-			config.FilesystemOverhead = testedFilesystemOverhead.DeepCopy()
-		})
-		Expect(err).ToNot(HaveOccurred())
-		By(fmt.Sprintf("Waiting for filsystem overhead status to be set to %v", testedFilesystemOverhead))
-		Eventually(func() bool {
-			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			if scOverhead != "" {
-				return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(scOverhead)
-			}
-			return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(globalOverhead)
-		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig filesystem overhead wasn't set")
+		setFilesystemOverhead(f, config, globalOverhead, scOverhead)
 
 		imageURL := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
 
@@ -937,7 +915,16 @@ var _ = Describe("Preallocation", func() {
 		tinyCoreRegistryURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
 		imageioURL          = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
 		vcenterURL          = func() string { return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs) }
+		config              *cdiv1.CDIConfig
+		origSpec            *cdiv1.CDIConfigSpec
 	)
+
+	BeforeEach(func() {
+		config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		origSpec = config.Spec.DeepCopy()
+	})
 
 	AfterEach(func() {
 		By("Delete DV")
@@ -951,6 +938,17 @@ var _ = Describe("Preallocation", func() {
 			}
 			return false
 		}, timeout, pollingInterval).Should(BeTrue())
+
+		By("Restoring CDIConfig to original state")
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			origSpec.DeepCopyInto(config)
+		})
+
+		Eventually(func() bool {
+			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return reflect.DeepEqual(config.Spec, origSpec)
+		}, 30*time.Second, time.Second)
 	})
 
 	It("Importer should add preallocation when requested", func() {
@@ -972,7 +970,7 @@ var _ = Describe("Preallocation", func() {
 
 		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Or(Equal("true"), Equal("skipped")))
+		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Equal("true"))
 	})
 
 	It("Importer should not add preallocation when preallocation=false", func() {
@@ -995,7 +993,7 @@ var _ = Describe("Preallocation", func() {
 
 		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Or(Equal("true"), Equal("skipped")))
+		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Equal("true"))
 	})
 
 	DescribeTable("All import paths should contain Preallocation step", func(shouldPreallocate bool, dvFunc func() *cdiv1.DataVolume) {
@@ -1029,9 +1027,9 @@ var _ = Describe("Preallocation", func() {
 		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
 		if shouldPreallocate {
-			Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Or(Equal("true"), Equal("skipped")))
+			Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Equal("true"))
 		} else {
-			Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Or(Equal("true"), Equal("skipped")))
+			Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Equal("true"))
 		}
 	},
 		Entry("HTTP import (ISO image)", true, func() *cdiv1.DataVolume {
@@ -1104,4 +1102,55 @@ var _ = Describe("Preallocation", func() {
 			return utils.NewDataVolumeForBlankRawImageBlock("import-dv", "100Mi", f.BlockSCName)
 		}),
 	)
+
+	It("Filesystem overhead is honored with blank volume", func() {
+		setFilesystemOverhead(f, config, "0.055", "0.055")
+
+		dv := utils.NewDataVolumeForBlankRawImage("import-dv", "100Mi")
+		preallocation := true
+		dv.Spec.Preallocation = &preallocation
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		By("Verify the pod status is succeeded on the target PVC")
+		found, err := utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+
+		Expect(f.VerifyFSOverhead(f.Namespace, pvc, preallocation)).To(BeTrue())
+
+		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Equal("true"))
+	})
 })
+
+func setFilesystemOverhead(f *framework.Framework, config *cdiv1.CDIConfig, globalOverhead, scOverhead string) {
+	defaultSCName := utils.DefaultStorageClass.GetName()
+	testedFilesystemOverhead := &cdiv1.FilesystemOverhead{}
+	if globalOverhead != "" {
+		testedFilesystemOverhead.Global = cdiv1.Percent(globalOverhead)
+	}
+	if scOverhead != "" {
+		testedFilesystemOverhead.StorageClass = map[string]cdiv1.Percent{defaultSCName: cdiv1.Percent(scOverhead)}
+	}
+	config.Spec.FilesystemOverhead = testedFilesystemOverhead.DeepCopy()
+	By(fmt.Sprintf("Updating CDIConfig filesystem overhead to %v", config.Spec.FilesystemOverhead))
+	err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+		config.FilesystemOverhead = testedFilesystemOverhead.DeepCopy()
+	})
+	Expect(err).ToNot(HaveOccurred())
+	By(fmt.Sprintf("Waiting for filsystem overhead status to be set to %v", testedFilesystemOverhead))
+	Eventually(func() bool {
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		if scOverhead != "" {
+			return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(scOverhead)
+		}
+		return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(globalOverhead)
+	}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig filesystem overhead wasn't set")
+}
