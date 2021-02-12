@@ -120,7 +120,7 @@ var _ = Describe("Import Proxy tests", func() {
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(cdiv1.ImportInProgress)))
 		// We do not wait the datavolume to suceed in the end of the test because it is a very slow process due to the rate limit.
 		// Having the importer pod in the phase InProgress is enough to verify if the requests were proxied or not.
-		waitForDataVolumePhase(f, dvName, cdiv1.ImportInProgress)
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dvName)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Checking the importer pod information in the proxy log to verify if the requests were proxied")
@@ -212,7 +212,7 @@ func updateCDIConfigProxy(f *framework.Framework, proxyHTTPURL string, proxyHTTP
 }
 
 // updateCDIConfigByUpdatingTheClusterWideProxy changes the OpenShift cluster-wide proxy configuration, but we do not want in this test to have the OpenShift API behind the proxy since it might break OpenShift because of proxy hijacking.
-// Then, for testing the importer pod using the proxy configuration from the cluster-wide proxy, we disable the proxy in the cluster-wide proxy obj with noProxy="*", and enable the proxy in the CDIConfig to test the importe pod with proxy configurations.
+// Then, for testing the importer pod using the proxy configuration from the cluster-wide proxy, we disable the proxy in the cluster-wide proxy obj with noProxy="*", and enable the proxy in the CDIConfig to test the importer pod with proxy configurations.
 func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, ocpClient *configclient.Clientset, proxyHTTPURL string, proxyHTTPSURL string, noProxy string) {
 	By("Verifying if OpenShift Cluster Wide Proxy exist")
 	proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
@@ -271,8 +271,7 @@ func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, ocpCli
 func verifyImporterPodInfoInProxyLogs(f *framework.Framework, dataVolume *cdiv1.DataVolume, imgURL string, isHTTPS bool, expected func() types.GomegaMatcher) {
 	podIP := getImporterPodIP(f)
 	Eventually(func() bool {
-		proxyLOG := getProxyLog(f)
-		return wasPodProxied(imgURL, podIP, proxyLOG, isHTTPS)
+		return wasPodProxied(imgURL, podIP, getProxyLog(f), isHTTPS)
 	}, time.Second*60, time.Second).Should(expected())
 }
 
