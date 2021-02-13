@@ -18,7 +18,7 @@ set -e
 script_dir="$(cd "$(dirname "$0")" && pwd -P)"
 source "${script_dir}"/common.sh
 source "${script_dir}"/config.sh
-
+echo "$DOCKER_PREFIX:$DOCKER_TAG"
 BUILDER_SPEC="${BUILD_DIR}/docker/builder"
 
 # When building and pushing a new image we do not provide the sha hash
