@@ -108,6 +108,9 @@ type DataVolumeSourceS3 struct {
 	URL string `json:"url"`
 	//SecretRef provides the secret reference needed to access the S3 source
 	SecretRef string `json:"secretRef,omitempty"`
+	// CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate
+	// +optional
+	CertConfigMap string `json:"certConfigMap,omitempty"`
 }
 
 // DataVolumeSourceRegistry provides the parameters to create a Data Volume from an registry source

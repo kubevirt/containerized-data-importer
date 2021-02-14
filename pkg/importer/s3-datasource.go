@@ -2,15 +2,16 @@ package importer
 
 import (
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"io"
 	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 
 	"github.com/pkg/errors"
 
@@ -49,12 +50,12 @@ type S3DataSource struct {
 }
 
 // NewS3DataSource creates a new instance of the S3DataSource
-func NewS3DataSource(endpoint, accessKey, secKey string) (*S3DataSource, error) {
+func NewS3DataSource(endpoint, accessKey, secKey string, certDir string) (*S3DataSource, error) {
 	ep, err := ParseEndpoint(endpoint)
 	if err != nil {
 		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpoint))
 	}
-	s3Reader, err := createS3Reader(ep, accessKey, secKey)
+	s3Reader, err := createS3Reader(ep, accessKey, secKey, certDir)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +123,7 @@ func (sd *S3DataSource) Close() error {
 	return err
 }
 
-func createS3Reader(ep *url.URL, accessKey, secKey string) (io.ReadCloser, error) {
+func createS3Reader(ep *url.URL, accessKey, secKey string, certDir string) (io.ReadCloser, error) {
 	klog.V(3).Infoln("Using S3 client to get data")
 
 	endpoint := ep.Host
@@ -132,7 +133,7 @@ func createS3Reader(ep *url.URL, accessKey, secKey string) (io.ReadCloser, error
 
 	klog.V(1).Infof("bucket %s", bucket)
 	klog.V(1).Infof("object %s", object)
-	svc, err := newClientFunc(endpoint, accessKey, secKey)
+	svc, err := newClientFunc(endpoint, accessKey, secKey, certDir)
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not build s3 client for %q", ep.Host)
 	}
@@ -149,7 +150,14 @@ func createS3Reader(ep *url.URL, accessKey, secKey string) (io.ReadCloser, error
 	return objectReader, nil
 }
 
-func getS3Client(endpoint, accessKey, secKey string) (S3Client, error) {
+func getS3Client(endpoint, accessKey, secKey string, certDir string) (S3Client, error) {
+	// Adding certs using CustomCABundle will overwrite the SystemCerts, so we opt by creating a custom HTTPClient
+	httpClient, err := createHTTPClient(certDir)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Error creating http client for s3")
+	}
+
 	creds := credentials.NewStaticCredentials(accessKey, secKey, "")
 	region := extractRegion(endpoint)
 	sess, err := session.NewSession(&aws.Config{
@@ -157,6 +165,7 @@ func getS3Client(endpoint, accessKey, secKey string) (S3Client, error) {
 		Endpoint:         aws.String(endpoint),
 		Credentials:      creds,
 		S3ForcePathStyle: aws.Bool(true),
+		HTTPClient:       httpClient,
 	},
 	)
 	if err != nil {

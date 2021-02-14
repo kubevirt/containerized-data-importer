@@ -157,7 +157,7 @@ func main() {
 		case controller.SourceRegistry:
 			dp = importer.NewRegistryDataSource(ep, acc, sec, certDir, insecureTLS)
 		case controller.SourceS3:
-			dp, err = importer.NewS3DataSource(ep, acc, sec)
+			dp, err = importer.NewS3DataSource(ep, acc, sec, certDir)
 			if err != nil {
 				klog.Errorf("%+v", err)
 				err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to s3 data source: %+v", err))

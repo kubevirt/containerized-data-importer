@@ -56,9 +56,10 @@ func (DataVolumeSourceUpload) SwaggerDoc() map[string]string {
 
 func (DataVolumeSourceS3) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":          "DataVolumeSourceS3 provides the parameters to create a Data Volume from an S3 source",
-		"url":       "URL is the url of the S3 source",
-		"secretRef": "SecretRef provides the secret reference needed to access the S3 source",
+		"":              "DataVolumeSourceS3 provides the parameters to create a Data Volume from an S3 source",
+		"url":           "URL is the url of the S3 source",
+		"secretRef":     "SecretRef provides the secret reference needed to access the S3 source",
+		"certConfigMap": "CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate\n+optional",
 	}
 }
 

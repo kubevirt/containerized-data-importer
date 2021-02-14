@@ -1,11 +1,12 @@
 package importer
 
 import (
-	"github.com/aws/aws-sdk-go/service/s3"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
+
+	"github.com/aws/aws-sdk-go/service/s3"
 
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
@@ -37,19 +38,25 @@ var _ = Describe("S3 data source", func() {
 	})
 
 	It("NewS3DataSource should Error, when passed in an invalid endpoint", func() {
-		sd, err = NewS3DataSource("thisisinvalid#$%#ep", "", "")
+		sd, err = NewS3DataSource("thisisinvalid#$%#ep", "", "", "")
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("NewS3DataSource should Error, when failing to create S3 client", func() {
 		newClientFunc = failMockS3Client
-		sd, err = NewS3DataSource("http://amazon.com", "", "")
+		sd, err = NewS3DataSource("http://amazon.com", "", "", "")
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("NewS3DataSource should Error, when failing to get object", func() {
 		newClientFunc = createErrMockS3Client
-		sd, err = NewS3DataSource("http://amazon.com", "", "")
+		sd, err = NewS3DataSource("http://amazon.com", "", "", "")
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("NewS3DataSource should fail when called with an invalid certdir", func() {
+		newClientFunc = getS3Client
+		sd, err = NewS3DataSource("http://amazon.com", "", "", "/invaliddir")
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -59,7 +66,7 @@ var _ = Describe("S3 data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		err = file.Close()
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
+		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
@@ -72,7 +79,7 @@ var _ = Describe("S3 data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(cirrosFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
+		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
@@ -85,7 +92,7 @@ var _ = Describe("S3 data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
+		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
@@ -101,7 +108,7 @@ var _ = Describe("S3 data source", func() {
 		sourceFile, err := os.Open(fileName)
 		Expect(err).NotTo(HaveOccurred())
 
-		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
+		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = sourceFile
@@ -135,7 +142,7 @@ var _ = Describe("S3 data source", func() {
 		sourceFile, err := os.Open(cirrosFilePath)
 		Expect(err).NotTo(HaveOccurred())
 
-		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
+		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = sourceFile
@@ -153,7 +160,7 @@ var _ = Describe("S3 data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
+		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
@@ -169,7 +176,7 @@ var _ = Describe("S3 data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "")
+		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
@@ -182,7 +189,7 @@ var _ = Describe("S3 data source", func() {
 	})
 
 	It("GetS3Client should return a real client", func() {
-		_, err := getS3Client("", "", "")
+		_, err := getS3Client("", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -202,22 +209,24 @@ type MockS3Client struct {
 	endpoint string
 	accKey   string
 	secKey   string
+	certDir  string
 	doErr    bool
 }
 
-func failMockS3Client(endpoint, accKey, secKey string) (S3Client, error) {
+func failMockS3Client(endpoint, accKey, secKey string, certDir string) (S3Client, error) {
 	return nil, errors.New("Failed to create client")
 }
 
-func createMockS3Client(endpoint, accKey, secKey string) (S3Client, error) {
+func createMockS3Client(endpoint, accKey, secKey string, certDir string) (S3Client, error) {
 	return &MockS3Client{
-		accKey: accKey,
-		secKey: secKey,
-		doErr:  false,
+		accKey:  accKey,
+		secKey:  secKey,
+		certDir: certDir,
+		doErr:   false,
 	}, nil
 }
 
-func createErrMockS3Client(endpoint, accKey, secKey string) (S3Client, error) {
+func createErrMockS3Client(endpoint, accKey, secKey string, certDir string) (S3Client, error) {
 	return &MockS3Client{
 		doErr: true,
 	}, nil
