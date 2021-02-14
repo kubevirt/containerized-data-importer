@@ -71,10 +71,7 @@ func validateDataVolumeName(name string) []metav1.StatusCause {
 }
 
 func validateContentTypes(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) (bool, cdiv1.DataVolumeContentType, cdiv1.DataVolumeContentType) {
-	sourceContentType := cdiv1.DataVolumeKubeVirt
-	if contentType, found := sourcePVC.Annotations[controller.AnnContentType]; found {
-		sourceContentType = cdiv1.DataVolumeContentType(contentType)
-	}
+	sourceContentType := cdiv1.DataVolumeContentType(controller.GetContentType(sourcePVC))
 	targetContentType := spec.ContentType
 	if targetContentType == "" {
 		targetContentType = cdiv1.DataVolumeKubeVirt

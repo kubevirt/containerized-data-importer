@@ -790,14 +790,14 @@ var _ = Describe("getInsecureTLS", func() {
 	)
 })
 
-var _ = Describe("getContentType", func() {
+var _ = Describe("GetContentType", func() {
 	pvcNoAnno := createPvc("testPVCNoAnno", "default", nil, nil)
 	pvcArchiveAnno := createPvc("testPVCArchiveAnno", "default", map[string]string{AnnContentType: string(cdiv1.DataVolumeArchive)}, nil)
 	pvcKubevirtAnno := createPvc("testPVCKubevirtAnno", "default", map[string]string{AnnContentType: string(cdiv1.DataVolumeKubeVirt)}, nil)
 	pvcInvalidValue := createPvc("testPVCInvalidValue", "default", map[string]string{AnnContentType: "iaminvalid"}, nil)
 
 	table.DescribeTable("should", func(pvc *corev1.PersistentVolumeClaim, expectedResult cdiv1.DataVolumeContentType) {
-		result := getContentType(pvc)
+		result := GetContentType(pvc)
 		Expect(result).To(BeEquivalentTo(expectedResult))
 	},
 		table.Entry("return kubevirt contenttype if no annotation provided", pvcNoAnno, cdiv1.DataVolumeKubeVirt),
@@ -1062,7 +1062,7 @@ func createImporterTestPod(pvc *corev1.PersistentVolumeClaim, dvname string, scr
 
 	ep, _ := getEndpoint(pvc)
 	source := getSource(pvc)
-	contentType := getContentType(pvc)
+	contentType := GetContentType(pvc)
 	imageSize, _ := getRequestedImageSize(pvc)
 	volumeMode := getVolumeMode(pvc)
 
