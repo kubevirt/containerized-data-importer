@@ -90,6 +90,90 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		Expect(pvc.Name).To(Equal("test-dv"))
 	})
 
+	It("Should set params on a PVC from import DV", func() {
+		volumeBlock := corev1.PersistentVolumeBlock
+		importDataVolume := newImportDataVolume("test-dv")
+		importDataVolume.Spec.PVC.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
+		importDataVolume.Spec.PVC.VolumeMode = &volumeBlock
+
+		reconciler = createDatavolumeReconciler(importDataVolume)
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
+
+		Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
+		Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadWriteOnce))
+	})
+
+	It("Should set params on a PVC from storageProfile when import DV has no accessMode", func() {
+		scName := "testStorageClass"
+
+		importDataVolume := newImportDataVolume("test-dv")
+		importDataVolume.Spec.PVC.StorageClassName = &scName
+		storageClass := createStorageClass(scName, nil) //, map[string]string{AnnDefaultStorageClass: "true"}
+		storageProfile := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, corev1.PersistentVolumeBlock)
+
+		reconciler = createDatavolumeReconciler(storageClass, storageProfile, importDataVolume)
+
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
+
+		Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
+		Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadOnlyMany))
+	})
+
+	It("Should set params on a PVC from correct storageProfile when import DV has no accessMode", func() {
+		scName := "testStorageClass"
+
+		importDataVolume := newImportDataVolume("test-dv")
+		importDataVolume.Spec.PVC.StorageClassName = &scName
+		storageClass := createStorageClass(scName, nil) //, map[string]string{AnnDefaultStorageClass: "true"}
+		storageProfile := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, corev1.PersistentVolumeBlock)
+		defaultStorageClass := createStorageClass("defaultSc", map[string]string{AnnDefaultStorageClass: "true"})
+		defaultStorageProfile := createStorageProfile("defaultSc", []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}, corev1.PersistentVolumeFilesystem)
+
+		reconciler = createDatavolumeReconciler(defaultStorageClass, storageClass, storageProfile, defaultStorageProfile, importDataVolume)
+
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
+
+		Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
+		Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadOnlyMany))
+		Expect(*pvc.Spec.VolumeMode).To(Equal(corev1.PersistentVolumeBlock))
+	})
+
+	It("Should set params on a PVC from default storageProfile when import DV has no storageClass and no accessMode", func() {
+		scName := "testStorageClass"
+		importDataVolume := newImportDataVolume("test-dv")
+		storageClass := createStorageClass(scName, map[string]string{AnnDefaultStorageClass: "true"})
+		storageProfile := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, corev1.PersistentVolumeBlock)
+		anotherStorageProfile := createStorageProfile("anotherSp", []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}, corev1.PersistentVolumeFilesystem)
+
+		reconciler = createDatavolumeReconciler(storageClass, storageProfile, anotherStorageProfile, importDataVolume)
+
+		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+		Expect(err).ToNot(HaveOccurred())
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Name).To(Equal("test-dv"))
+
+		Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
+		Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadOnlyMany))
+		Expect(*pvc.Spec.VolumeMode).To(Equal(corev1.PersistentVolumeBlock))
+	})
+
 	It("Should pass annotation from DV to created a PVC on a DV", func() {
 		dv := newImportDataVolume("test-dv")
 		dv.SetAnnotations(make(map[string]string))
@@ -532,7 +616,11 @@ var _ = Describe("Reconcile Datavolume status", func() {
 				AnnDefaultStorageClass: "true",
 			},
 			storagev1.VolumeBindingWaitForFirstConsumer)
-		reconciler = createDatavolumeReconciler(sc, newImportDataVolume("test-dv"))
+		importDataVolume := newImportDataVolume("test-dv")
+		importDataVolume.Spec.PVC.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
+
+		reconciler = createDatavolumeReconciler(sc, importDataVolume)
+
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 		Expect(err).ToNot(HaveOccurred())
 		dv := &cdiv1.DataVolume{}
@@ -576,6 +664,7 @@ var _ = Describe("Reconcile Datavolume status", func() {
 		scWffc := createStorageClassWithBindingMode(scName, map[string]string{}, storagev1.VolumeBindingWaitForFirstConsumer)
 		importDataVolume := newImportDataVolume("test-dv")
 		importDataVolume.Spec.PVC.StorageClassName = &scName
+		importDataVolume.Spec.PVC.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
 
 		reconciler = createDatavolumeReconciler(scDefault, scWffc, importDataVolume)
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
@@ -1217,6 +1306,25 @@ func createDatavolumeReconciler(objects ...runtime.Object) *DatavolumeReconciler
 		featureGates: featuregates.NewFeatureGates(cl),
 	}
 	return r
+}
+
+func newImportDataVolumeWithPvc(name string, pvc *corev1.PersistentVolumeClaimSpec) *cdiv1.DataVolume {
+	return &cdiv1.DataVolume{
+		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: metav1.NamespaceDefault,
+			UID:       types.UID(metav1.NamespaceDefault + "-" + name),
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{
+					URL: "http://example.com/data",
+				},
+			},
+			PVC: pvc,
+		},
+	}
 }
 
 func newImportDataVolume(name string) *cdiv1.DataVolume {

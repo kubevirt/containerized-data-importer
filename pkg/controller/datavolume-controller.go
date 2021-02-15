@@ -69,6 +69,8 @@ const (
 	ErrResourceDoesntExist = "ErrResourceDoesntExist"
 	// ErrClaimLost provides a const to indicate a claim is lost
 	ErrClaimLost = "ErrClaimLost"
+	// ErrClaimNotValid provides a const to indicate a claim is not valid
+	ErrClaimNotValid = "ErrClaimNotValid"
 	// DataVolumeFailed provides a const to represent DataVolume failed status
 	DataVolumeFailed = "DataVolumeFailed"
 	// ImportScheduled provides a const to indicate import is scheduled
@@ -1222,6 +1224,11 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 
 	annotations[AnnPreallocationRequested] = strconv.FormatBool(GetPreallocation(r.client, dataVolume))
 
+	pvcSpec, err := r.renderPvcSpec(dataVolume)
+	if err != nil {
+		return nil, err
+	}
+
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        dataVolume.Name,
@@ -1236,6 +1243,73 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 				}),
 			},
 		},
-		Spec: *dataVolume.Spec.PVC,
+		Spec: *pvcSpec,
 	}, nil
+}
+
+func (r *DatavolumeReconciler) renderPvcSpec(dv *cdiv1.DataVolume) (*corev1.PersistentVolumeClaimSpec, error) {
+	// right now Spec.PVC is required and tested before, so no need to check if its null here!
+	pvcSpecCopy := dv.Spec.PVC.DeepCopy()
+	storageClass, err := GetStorageClassByName(r.client, dv.Spec.PVC.StorageClassName)
+	if err != nil {
+		return nil, err
+	}
+	if storageClass == nil {
+		// Not even default storageClass on the cluster, cannot apply the defaults
+		return pvcSpecCopy, nil
+	}
+
+	if len(pvcSpecCopy.AccessModes) == 0 {
+		accessMode, err := getAccessMode(r.client, storageClass)
+		if err != nil {
+			r.log.V(1).Info("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name)
+			r.recorder.Eventf(dv, corev1.EventTypeWarning, ErrClaimNotValid,
+				fmt.Sprintf("DataVolume spec is missing accessMode and cannot get access mode from StorageProfile %s", storageClass.Name))
+			return nil, err
+		}
+		pvcSpecCopy.AccessModes = append(pvcSpecCopy.AccessModes, *accessMode)
+	}
+	if pvcSpecCopy.VolumeMode == nil || *pvcSpecCopy.VolumeMode == "" {
+		volumeMode, err := getDefaultVolumeMode(r.client, storageClass)
+		if err != nil {
+			return nil, err
+		}
+		pvcSpecCopy.VolumeMode = volumeMode
+	}
+
+	return pvcSpecCopy, nil
+}
+
+func getDefaultVolumeMode(c client.Client, storageClass *storagev1.StorageClass) (*corev1.PersistentVolumeMode, error) {
+	storageProfile := &cdiv1.StorageProfile{}
+	if err := c.Get(context.TODO(), types.NamespacedName{Name: storageClass.Name}, storageProfile); err != nil {
+		// TODO: should it default to nil and just ignore the error for optional params like volumeMode when not found?
+		// and only return some errors with communication
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if len(storageProfile.Status.ClaimPropertySets) > 0 {
+		volumeMode := storageProfile.Status.ClaimPropertySets[0].VolumeMode
+		return volumeMode, nil
+	}
+
+	// since volumeMode is optional - > gracefully fallback to k8s defaults,
+	return nil, nil
+}
+
+func getAccessMode(c client.Client, storageClass *storagev1.StorageClass) (*corev1.PersistentVolumeAccessMode, error) {
+	storageProfile := &cdiv1.StorageProfile{}
+	if err := c.Get(context.TODO(), types.NamespacedName{Name: storageClass.Name}, storageProfile); err != nil {
+		return nil, errors.Wrap(err, "no accessMode defined on DV, cannot get StorageProfile")
+	}
+	if len(storageProfile.Status.ClaimPropertySets) > 0 &&
+		len(storageProfile.Status.ClaimPropertySets[0].AccessModes) > 0 {
+		accessMode := storageProfile.Status.ClaimPropertySets[0].AccessModes[0]
+		return &accessMode, nil
+	}
+
+	// no accessMode configured on storageProfile
+	return nil, errors.Errorf("no accessMode defined on StorageProfile for %s StorageClass", storageClass.Name)
 }
