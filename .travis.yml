@@ -51,7 +51,7 @@ deploy:
   script: make builder-push && make publish && make openshift-ci-image-push
   skip_cleanup: true
   on:
-    branch: master
+    branch: main
     repo: kubevirt/containerized-data-importer
  # Release versioned images
 - provider: script
