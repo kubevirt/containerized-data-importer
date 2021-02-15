@@ -59,6 +59,7 @@ go_test(
         "//vendor/github.com/onsi/ginkgo/extensions/table:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
         "//vendor/github.com/onsi/gomega/types:go_default_library",
+        "//vendor/github.com/openshift/api/config/v1:go_default_library",
         "//vendor/github.com/openshift/api/route/v1:go_default_library",
         "//vendor/github.com/openshift/client-go/config/clientset/versioned:go_default_library",
         "//vendor/github.com/openshift/client-go/route/clientset/versioned:go_default_library",

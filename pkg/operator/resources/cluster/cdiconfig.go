@@ -259,11 +259,11 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 											Type:        "object",
 											Properties: map[string]extv1.JSONSchemaProps{
 												"HTTPProxy": {
-													Description: "HTTPProxy is the URL http://<username>:<pswd>@<ip>:<port> of the import proxy for HTTP requests.  Empty means unset and will not result in the import pod env var. If username and pswd is given in the URL, the CDIConfig controller will crete a secret trusted-ca-proxy-bundle-crt with both the accessKeyId and secretKey keys. Here is an example of the Secret (in yaml): \n apiVersion: v1 kind: Secret metadata: name: trusted-ca-proxy-bundle-crt labels:   app: containerized-data-importer type: Opaque data:   accessKeyId: \"\"  # <optional: your key or user name, base64 encoded> \t secretKey:    \"\" # <optional: your secret or password, base64 encoded>",
+													Description: "HTTPProxy is the URL http://<username>:<pswd>@<ip>:<port> of the import proxy for HTTP requests.  Empty means unset and will not result in the import pod env var.",
 													Type:        "string",
 												},
 												"HTTPSProxy": {
-													Description: "HTTPSProxy is the URL https://<username>:<pswd>@<ip>:<port> of the import proxy for HTTPS requests.  Empty means unset and will not result in the import pod env var. If username and pswd is given in the URL, the CDIConfig controller will crete a secret trusted-ca-proxy-bundle-crt with both the accessKeyId and secretKey keys.",
+													Description: "HTTPSProxy is the URL https://<username>:<pswd>@<ip>:<port> of the import proxy for HTTPS requests.  Empty means unset and will not result in the import pod env var.",
 													Type:        "string",
 												},
 												"noProxy": {
@@ -363,11 +363,11 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 											Type:        "object",
 											Properties: map[string]extv1.JSONSchemaProps{
 												"HTTPProxy": {
-													Description: "HTTPProxy is the URL http://<username>:<pswd>@<ip>:<port> of the import proxy for HTTP requests.  Empty means unset and will not result in the import pod env var. If username and pswd is given in the URL, the CDIConfig controller will crete a secret trusted-ca-proxy-bundle-crt with both the accessKeyId and secretKey keys. Here is an example of the Secret (in yaml): \n apiVersion: v1 kind: Secret metadata: name: trusted-ca-proxy-bundle-crt labels:   app: containerized-data-importer type: Opaque data:   accessKeyId: \"\"  # <optional: your key or user name, base64 encoded> \t secretKey:    \"\" # <optional: your secret or password, base64 encoded>",
+													Description: "HTTPProxy is the URL http://<username>:<pswd>@<ip>:<port> of the import proxy for HTTP requests.  Empty means unset and will not result in the import pod env var.",
 													Type:        "string",
 												},
 												"HTTPSProxy": {
-													Description: "HTTPSProxy is the URL https://<username>:<pswd>@<ip>:<port> of the import proxy for HTTPS requests.  Empty means unset and will not result in the import pod env var. If username and pswd is given in the URL, the CDIConfig controller will crete a secret trusted-ca-proxy-bundle-crt with both the accessKeyId and secretKey keys.",
+													Description: "HTTPSProxy is the URL https://<username>:<pswd>@<ip>:<port> of the import proxy for HTTPS requests.  Empty means unset and will not result in the import pod env var.",
 													Type:        "string",
 												},
 												"noProxy": {

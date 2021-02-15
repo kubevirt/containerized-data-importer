@@ -436,23 +436,9 @@ type CDIConfigList struct {
 //ImportProxy provides the information on how to configure the importer pod proxy.
 type ImportProxy struct {
 	// HTTPProxy is the URL http://<username>:<pswd>@<ip>:<port> of the import proxy for HTTP requests.  Empty means unset and will not result in the import pod env var.
-	// If username and pswd is given in the URL, the CDIConfig controller will crete a secret trusted-ca-proxy-bundle-crt with both the accessKeyId and secretKey keys.
-	// Here is an example of the Secret (in yaml):
-	//
-	// apiVersion: v1
-	// kind: Secret
-	// metadata:
-	// name: trusted-ca-proxy-bundle-crt
-	// labels:
-	//   app: containerized-data-importer
-	// type: Opaque
-	// data:
-	//   accessKeyId: ""  # <optional: your key or user name, base64 encoded>
-	// 	 secretKey:    "" # <optional: your secret or password, base64 encoded>
 	// +optional
 	HTTPProxy *string `json:"HTTPProxy,omitempty"`
 	// HTTPSProxy is the URL https://<username>:<pswd>@<ip>:<port> of the import proxy for HTTPS requests.  Empty means unset and will not result in the import pod env var.
-	// If username and pswd is given in the URL, the CDIConfig controller will crete a secret trusted-ca-proxy-bundle-crt with both the accessKeyId and secretKey keys.
 	// +optional
 	HTTPSProxy *string `json:"HTTPSProxy,omitempty"`
 	// NoProxy is a comma-separated list of hostnames and/or CIDRs for which the proxy should not be used. Empty means unset and will not result in the import pod env var.
