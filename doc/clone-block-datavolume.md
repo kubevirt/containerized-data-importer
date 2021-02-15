@@ -1,8 +1,9 @@
-# How to clone an image from one block raw PV to another one
-The purpose of this document is to show how to clone an image from an existing raw block PV, to another target block PV.
+# How to clone an image from a PV to a block PV
+The purpose of this document is to show how to clone an image from an existing (file system or block) DV/PVC, to a target block PV.
 
 ## Prerequisites
-- You have a Kubernetes cluster up and running with CDI installed, block source PVC, and at least one available block PersistentVolume to store the cloned disk image.
+- You have a Kubernetes cluster up and running with CDI installed, source DV/PVC, and at least one available block PersistentVolume to store the cloned disk image.
+- When cloning from file system to block, content type must be kubevirt (default) in both source and target, and host-assisted clone is used.
 - Feature-Gate 'BlockVolume' is enabled.
 
 

@@ -45,6 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
@@ -116,13 +117,12 @@ func (r *UploadReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 
 	_, isUpload := pvc.Annotations[AnnUploadRequest]
 	_, isCloneTarget := pvc.Annotations[AnnCloneRequest]
-	_, isImmediateBindingRequested := pvc.Annotations[AnnImmediateBinding]
 
 	if isUpload && isCloneTarget {
 		log.V(1).Info("PVC has both clone and upload annotations")
 		return reconcile.Result{}, errors.New("PVC has both clone and upload annotations")
 	}
-	shouldReconcile, err := r.shouldReconcile(isUpload, isCloneTarget, isImmediateBindingRequested, pvc, log)
+	shouldReconcile, err := r.shouldReconcile(isUpload, isCloneTarget, pvc, log)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -144,7 +144,8 @@ func (r *UploadReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 	return r.reconcilePVC(log, pvc, isCloneTarget)
 }
 
-func (r *UploadReconciler) shouldReconcile(isUpload bool, isCloneTarget bool, isImmediateBindingRequested bool, pvc *v1.PersistentVolumeClaim, log logr.Logger) (bool, error) {
+func (r *UploadReconciler) shouldReconcile(isUpload bool, isCloneTarget bool, pvc *v1.PersistentVolumeClaim, log logr.Logger) (bool, error) {
+	_, isImmediateBindingRequested := pvc.Annotations[AnnImmediateBinding]
 	waitForFirstConsumerEnabled, err := isWaitForFirstConsumerEnabled(isImmediateBindingRequested, r.featureGates)
 	if err != nil {
 		return false, err
@@ -165,8 +166,11 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-
-		if err = ValidateCanCloneSourceAndTargetSpec(&source.Spec, &pvc.Spec); err != nil {
+		contentType, err := ValidateCanCloneSourceAndTargetContentType(source, pvc)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		if err = ValidateCanCloneSourceAndTargetSpec(&source.Spec, &pvc.Spec, contentType); err != nil {
 			log.Error(err, "Error validating clone spec, ignoring")
 			return reconcile.Result{}, nil
 		}
@@ -309,8 +313,13 @@ func (r *UploadReconciler) getCloneRequestSourcePVC(targetPvc *corev1.Persistent
 	if targetPvc.Spec.VolumeMode != nil {
 		targetVolumeMode = *targetPvc.Spec.VolumeMode
 	}
-	if sourceVolumeMode != targetVolumeMode {
-		return nil, errors.New("Source and target volume Modes do not match")
+	// Allow different source and target volume modes only on KubeVirt content type
+	contentType, err := ValidateCanCloneSourceAndTargetContentType(sourcePvc, targetPvc)
+	if err != nil {
+		return nil, err
+	}
+	if sourceVolumeMode != targetVolumeMode && contentType != cdiv1.DataVolumeKubeVirt {
+		return nil, errors.New("Source and target volume modes do not match, and content type is not kubevirt")
 	}
 	return sourcePvc, nil
 }
@@ -590,18 +599,18 @@ func NewUploadController(mgr manager.Manager, log logr.Logger, uploadImage, pull
 	return uploadController, nil
 }
 
-func addUploadControllerWatches(mgr manager.Manager, importController controller.Controller) error {
+func addUploadControllerWatches(mgr manager.Manager, uploadController controller.Controller) error {
 	// Setup watches
-	if err := importController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err := uploadController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
-	if err := importController.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
+	if err := uploadController.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
 		OwnerType:    &corev1.PersistentVolumeClaim{},
 		IsController: true,
 	}); err != nil {
 		return err
 	}
-	if err := importController.Watch(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForOwner{
+	if err := uploadController.Watch(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForOwner{
 		OwnerType:    &corev1.PersistentVolumeClaim{},
 		IsController: true,
 	}); err != nil {

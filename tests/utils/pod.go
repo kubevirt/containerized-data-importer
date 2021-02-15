@@ -52,7 +52,7 @@ func DeletePodByName(clientSet *kubernetes.Clientset, podName, namespace string,
 	})
 	return wait.PollImmediate(2*time.Second, podDeleteTime, func() (bool, error) {
 		_, err := clientSet.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
-		if !errors.IsNotFound(err) {
+		if errors.IsNotFound(err) {
 			return true, nil
 		}
 		return false, err

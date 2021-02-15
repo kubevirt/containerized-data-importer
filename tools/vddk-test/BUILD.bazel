@@ -18,7 +18,6 @@ rpm_image(
     base = ":vcenter-simulator-base-image",
     rpms = [
         "@golang-github-vmware-govmomi//file",
-        "@tar//file",
     ],
     visibility = ["//visibility:public"],
 )

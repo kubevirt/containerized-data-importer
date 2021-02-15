@@ -214,19 +214,9 @@ func updateCDIConfigProxy(f *framework.Framework, proxyHTTPURL string, proxyHTTP
 // updateCDIConfigByUpdatingTheClusterWideProxy changes the OpenShift cluster-wide proxy configuration, but we do not want in this test to have the OpenShift API behind the proxy since it might break OpenShift because of proxy hijacking.
 // Then, for testing the importer pod using the proxy configuration from the cluster-wide proxy, we disable the proxy in the cluster-wide proxy obj with noProxy="*", and enable the proxy in the CDIConfig to test the importer pod with proxy configurations.
 func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, ocpClient *configclient.Clientset, proxyHTTPURL string, proxyHTTPSURL string, noProxy string) {
-	By("Verifying if OpenShift Cluster Wide Proxy exist")
-	proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
-	if k8serrors.IsNotFound(err) {
-		Skip("This OpenShift cluster version does not have a Cluster Wide Proxy object")
-	}
-
 	By("Updating OpenShift Cluster Wide Proxy with ImportProxy urls")
-	proxy.Spec.HTTPProxy = proxyHTTPURL
-	proxy.Spec.HTTPSProxy = proxyHTTPSURL
-	// disable proxing the OpenShift API calls
-	proxy.Spec.NoProxy = "*"
-	_, err = ocpClient.ConfigV1().Proxies().Update(context.TODO(), proxy, metav1.UpdateOptions{})
-	Expect(err).ToNot(HaveOccurred())
+	// we set NoProxy as "*" to disable proxing the OpenShift API calls
+	updateClusterWideProxyObj(ocpClient, proxyHTTPURL, proxyHTTPSURL, "*")
 
 	By("Waiting OpenShift Cluster Wide Proxy reconcile")
 	// the default OpenShift no_proxy configuration only appears in the proxy object after and http(s) url is updated
@@ -238,8 +228,6 @@ func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, ocpCli
 		}
 		return false
 	}, time.Second*60, time.Second).Should(BeTrue())
-	proxy, err = ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
-	Expect(err).ToNot(HaveOccurred())
 
 	By("Waiting CDIConfig reconcile")
 	Eventually(func() bool {
@@ -265,6 +253,19 @@ func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, ocpCli
 		}
 		return false
 	}, time.Second*120, time.Second).Should(BeTrue())
+}
+
+func updateClusterWideProxyObj(ocpClient *configclient.Clientset, HTTPProxy, HTTPSProxy, NoProxy string) {
+	proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
+	if k8serrors.IsNotFound(err) {
+		Skip("This OpenShift cluster version does not have a Cluster Wide Proxy object")
+	}
+	Expect(err).ToNot(HaveOccurred())
+	proxy.Spec.HTTPProxy = HTTPProxy
+	proxy.Spec.HTTPSProxy = HTTPSProxy
+	proxy.Spec.NoProxy = NoProxy
+	_, err = ocpClient.ConfigV1().Proxies().Update(context.TODO(), proxy, metav1.UpdateOptions{})
+	Expect(err).ToNot(HaveOccurred())
 }
 
 // verifyImporterPodInfoInProxyLogs verifiy if the importer pod request (method, url and impoter pod IP) appears in the proxy log
@@ -311,32 +312,8 @@ func wasPodProxied(imgURL, podIP, proxyLog string, isHTTPS bool) bool {
 	return false
 }
 
-func waitForDataVolumePhase(f *framework.Framework, dvName string, phase cdiv1.DataVolumePhase) error {
-	var err error
-	Eventually(func() bool {
-		var dataVolume *cdiv1.DataVolume
-		dataVolume, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dvName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		fmt.Fprintf(GinkgoWriter, "INFO: Checking DataVolume %s phase: %s\n", dataVolume.Name, dataVolume.Status.Phase)
-		if err != nil || dataVolume.Status.Phase != phase {
-			return false
-		}
-		return true
-	}, timeout, 2*pollingInterval).Should(BeTrue())
-	return err
-}
-
 func cleanClusterWideProxy(ocpClient *configclient.Clientset, clusterWideProxySpec *ocpconfigv1.ProxySpec) {
-	Eventually(func() error {
-		proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		proxy.Status.HTTPProxy = clusterWideProxySpec.HTTPProxy
-		proxy.Status.HTTPSProxy = clusterWideProxySpec.HTTPSProxy
-		proxy.Status.NoProxy = clusterWideProxySpec.NoProxy
-		_, err = ocpClient.ConfigV1().Proxies().Update(context.TODO(), proxy, metav1.UpdateOptions{})
-		return err
-	}, time.Second*60, time.Second).ShouldNot(HaveOccurred())
-
+	updateClusterWideProxyObj(ocpClient, clusterWideProxySpec.HTTPProxy, clusterWideProxySpec.HTTPSProxy, clusterWideProxySpec.NoProxy)
 	By("Waiting OpenShift Cluster Wide Proxy to be reset to original configuration")
 	Eventually(func() bool {
 		proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), controller.ClusterWideProxyName, metav1.GetOptions{})

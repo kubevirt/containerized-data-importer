@@ -70,6 +70,18 @@ func validateDataVolumeName(name string) []metav1.StatusCause {
 	return causes
 }
 
+func validateContentTypes(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) (bool, cdiv1.DataVolumeContentType, cdiv1.DataVolumeContentType) {
+	sourceContentType := cdiv1.DataVolumeKubeVirt
+	if contentType, found := sourcePVC.Annotations[controller.AnnContentType]; found {
+		sourceContentType = cdiv1.DataVolumeContentType(contentType)
+	}
+	targetContentType := spec.ContentType
+	if targetContentType == "" {
+		targetContentType = cdiv1.DataVolumeKubeVirt
+	}
+	return sourceContentType == targetContentType, sourceContentType, targetContentType
+}
+
 func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.AdmissionRequest, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec) []metav1.StatusCause {
 	var causes []metav1.StatusCause
 	var url string
@@ -199,7 +211,16 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 					return causes
 				}
 			}
-			err = controller.ValidateCanCloneSourceAndTargetSpec(&sourcePVC.Spec, spec.PVC)
+			valid, sourceContentType, targetContentType := validateContentTypes(sourcePVC, spec)
+			if !valid {
+				causes = append(causes, metav1.StatusCause{
+					Type:    metav1.CauseTypeFieldValueInvalid,
+					Message: fmt.Sprintf("Source contentType (%s) and target contentType (%s) do not match", sourceContentType, targetContentType),
+					Field:   field.Child("PVC").String(),
+				})
+				return causes
+			}
+			err = controller.ValidateCanCloneSourceAndTargetSpec(&sourcePVC.Spec, spec.PVC, targetContentType)
 			if err != nil {
 				causes = append(causes, metav1.StatusCause{
 					Type:    metav1.CauseTypeFieldValueInvalid,

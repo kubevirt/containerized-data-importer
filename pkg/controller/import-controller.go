@@ -90,6 +90,9 @@ const (
 	// creatingScratch provides a const to indicate scratch is being created.
 	creatingScratch = "CreatingScratchSpace"
 
+	// awaitingVddk provides a const to indicate the PVC is waiting for a VDDK image
+	awaitingVddk = "AwaitingVDDK"
+
 	// ImportTargetInUse is reason for event created when an import pvc is in use
 	ImportTargetInUse = "ImportTargetInUse"
 
@@ -182,11 +185,10 @@ func addImportControllerWatches(mgr manager.Manager, importController controller
 	return nil
 }
 
-func shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim,
-	isImmediateBindingRequested bool,
-	featureGates featuregates.FeatureGates,
+func (r *ImportReconciler) shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim,
 	log logr.Logger) (bool, error) {
-	waitForFirstConsumerEnabled, err := isWaitForFirstConsumerEnabled(isImmediateBindingRequested, featureGates)
+	_, isImmediateBindingRequested := pvc.Annotations[AnnImmediateBinding]
+	waitForFirstConsumerEnabled, err := isWaitForFirstConsumerEnabled(isImmediateBindingRequested, r.featureGates)
 
 	if err != nil {
 		return false, err
@@ -215,9 +217,8 @@ func (r *ImportReconciler) Reconcile(req reconcile.Request) (reconcile.Result, e
 		}
 		return reconcile.Result{}, err
 	}
-	_, isImmediateBindingRequested := pvc.Annotations[AnnImmediateBinding]
 
-	shouldReconcile, err := shouldReconcilePVC(pvc, isImmediateBindingRequested, r.featureGates, log)
+	shouldReconcile, err := r.shouldReconcilePVC(pvc, log)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -461,6 +462,13 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		r.log.V(1).Info("Pod requires VDDK sidecar for VMware transfer")
 		vddkImageName, err = r.getVddkImageName()
 		if err != nil {
+			anno := pvc.GetAnnotations()
+			anno[AnnBoundCondition] = "false"
+			anno[AnnBoundConditionMessage] = fmt.Sprintf("waiting for %s configmap for VDDK image", common.VddkConfigMap)
+			anno[AnnBoundConditionReason] = awaitingVddk
+			if updateErr := r.updatePVC(pvc, r.log); updateErr != nil {
+				return updateErr
+			}
 			return err
 		}
 	}

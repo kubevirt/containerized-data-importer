@@ -42,7 +42,8 @@ jobs:
     - curl -d "repo=github.com/kubevirt/containerized-data-importer" https://goreportcard.com/checks
 
 before_deploy:
-- docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
+- docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
+- DOCKER_PREFIX=quay.io/kubevirt
 
 deploy:
   # Release :latest images

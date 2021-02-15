@@ -29,8 +29,10 @@ import (
 )
 
 const (
-	pollingInterval = 2 * time.Second
-	timeout         = 270 * time.Second
+	fastPollingInterval = 20 * time.Millisecond
+	pollingInterval     = 2 * time.Second
+	timeout             = 270 * time.Second
+	shortTimeout        = 30 * time.Second
 )
 
 var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", func() {
@@ -314,7 +316,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				if args.checkPermissions {
 					// Verify the created disk image has the right permissions.
 					By("Verifying permissions are 660")
-					Expect(f.VerifyPermissions(f.Namespace, pvc)).To(BeTrue(), "Permissions on disk image are not 660")
+					Eventually(func() bool {
+						result, _ := f.VerifyPermissions(f.Namespace, pvc)
+						return result
+					}, shortTimeout, pollingInterval).Should(BeTrue(), "Permissions on disk image are not 660")
 					err := utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 					Expect(err).ToNot(HaveOccurred())
 				}
@@ -1111,7 +1116,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 						uploadPod, _ = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
 					}
 					return sourcePod != nil && uploadPod != nil
-				}, timeout, pollingInterval).Should(BeTrue())
+				}, timeout, fastPollingInterval).Should(BeTrue())
 				verifyAnnotations(sourcePod)
 				verifyAnnotations(uploadPod)
 			}

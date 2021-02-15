@@ -298,10 +298,9 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(sourcePod.GetLabels()[CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
 	})
 
-	It("Should update the cloneof when complete", func() {
-		testPvc := createPvc("testPvc1", "default", map[string]string{
-			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient"}, nil)
-		reconciler = createCloneReconciler(testPvc, createPvc("source", "default", map[string]string{}, nil))
+	DescribeTable("Should update the cloneof when complete,", func(createSourcePvcFunc func() *corev1.PersistentVolumeClaim, createTargetPvcFunc func() *corev1.PersistentVolumeClaim) {
+		testPvc := createTargetPvcFunc()
+		reconciler = createCloneReconciler(testPvc, createSourcePvcFunc())
 		By("Setting up the match token")
 		reconciler.tokenValidator.(*FakeValidator).match = "foobaz"
 		reconciler.tokenValidator.(*FakeValidator).Name = "source"
@@ -353,64 +352,48 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeFalse())
-	})
+	},
+		Entry("filesystem mode",
+			func() *corev1.PersistentVolumeClaim {
+				return createPvc("source", "default", map[string]string{}, nil)
+			},
+			func() *corev1.PersistentVolumeClaim {
+				return createPvc("testPvc1", "default", map[string]string{
+					AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient"}, nil)
+			},
+		),
+		Entry("block mode",
+			func() *corev1.PersistentVolumeClaim {
+				return createBlockPvc("source", "default", map[string]string{}, nil)
+			},
+			func() *corev1.PersistentVolumeClaim {
+				return createBlockPvc("testPvc1", "default", map[string]string{
+					AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient"}, nil)
+			},
+		),
+		Entry("block -> filesystem",
+			func() *corev1.PersistentVolumeClaim {
+				return createBlockPvc("source", "default", map[string]string{}, nil)
+			},
+			func() *corev1.PersistentVolumeClaim {
+				return createPvc("testPvc1", "default", map[string]string{
+					AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient"}, nil)
+			},
+		),
+		Entry("filesystem -> block",
+			func() *corev1.PersistentVolumeClaim {
+				return createPvc("source", "default", map[string]string{}, nil)
+			},
+			func() *corev1.PersistentVolumeClaim {
+				return createBlockPvc("testPvc1", "default", map[string]string{
+					AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient"}, nil)
+			},
+		),
+	)
 
-	It("Should update the cloneof when complete, block mode", func() {
-		testPvc := createBlockPvc("testPvc1", "default", map[string]string{
-			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient"}, nil)
-		reconciler = createCloneReconciler(testPvc, createBlockPvc("source", "default", map[string]string{}, nil))
-		By("Setting up the match token")
-		reconciler.tokenValidator.(*FakeValidator).match = "foobaz"
-		reconciler.tokenValidator.(*FakeValidator).Name = "source"
-		reconciler.tokenValidator.(*FakeValidator).Namespace = "default"
-		reconciler.tokenValidator.(*FakeValidator).Params["targetNamespace"] = "default"
-		reconciler.tokenValidator.(*FakeValidator).Params["targetName"] = "testPvc1"
-		By("Verifying no source pod exists")
-		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
-		Expect(sourcePod).To(BeNil())
-		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
-		Expect(err).ToNot(HaveOccurred())
-		By("Verifying the PVC now has a source pod name")
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(testPvc.Annotations[AnnCloneSourcePod]).To(Equal("default-testPvc1-source-pod"))
-		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
-		Expect(err).ToNot(HaveOccurred())
-		By("Verifying source pod exists")
-		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(sourcePod.GetLabels()[CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
-		By("Verifying the PVC now has a finalizer")
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
-		By("Updating the PVC to completed")
-		testPvc.Annotations = map[string]string{
-			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod", AnnPodPhase: string(corev1.PodSucceeded)}
-		err = reconciler.client.Update(context.TODO(), testPvc)
-		Expect(err).ToNot(HaveOccurred())
-		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
-		Expect(err).ToNot(HaveOccurred())
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(testPvc.GetAnnotations()[AnnCloneOf]).To(Equal("true"))
-		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(sourcePod).ToNot(BeNil())
-		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
-		Expect(err).ToNot(HaveOccurred())
-		By("Checking error event recorded")
-		event := <-reconciler.recorder.(*record.FakeRecorder).Events
-		Expect(event).To(ContainSubstring(cloneComplete))
-		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(sourcePod).To(BeNil())
-	})
-
-	It("Should error when source and target volume modes do not match (fs->block)", func() {
-		testPvc := createBlockPvc("testPvc1", "default", map[string]string{
-			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod"}, nil)
-		reconciler = createCloneReconciler(testPvc, createPvc("source", "default", map[string]string{}, nil))
+	DescribeTable("Should error when", func(createSourcePvcFunc func() *corev1.PersistentVolumeClaim, createTargetPvcFunc func() *corev1.PersistentVolumeClaim, expectedError string) {
+		testPvc := createTargetPvcFunc()
+		reconciler = createCloneReconciler(testPvc, createSourcePvcFunc())
 		By("Setting up the match token")
 		reconciler.tokenValidator.(*FakeValidator).match = "foobaz"
 		reconciler.tokenValidator.(*FakeValidator).Name = "source"
@@ -422,27 +405,49 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(sourcePod).To(BeNil())
 		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("source volumeMode (Filesystem) and target volumeMode (Block) do not match"))
-	})
-
-	It("Should error when source and target volume modes do not match (block->fs)", func() {
-		testPvc := createPvc("testPvc1", "default", map[string]string{
-			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod"}, nil)
-		reconciler = createCloneReconciler(testPvc, createBlockPvc("source", "default", map[string]string{}, nil))
-		By("Setting up the match token")
-		reconciler.tokenValidator.(*FakeValidator).match = "foobaz"
-		reconciler.tokenValidator.(*FakeValidator).Name = "source"
-		reconciler.tokenValidator.(*FakeValidator).Namespace = "default"
-		reconciler.tokenValidator.(*FakeValidator).Params["targetNamespace"] = "default"
-		reconciler.tokenValidator.(*FakeValidator).Params["targetName"] = "testPvc1"
-		By("Verifying no source pod exists")
-		sourcePod, err := reconciler.findCloneSourcePod(testPvc)
-		Expect(sourcePod).To(BeNil())
-		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("source volumeMode (Block) and target volumeMode (Filesystem) do not match"))
-	})
-
+		Expect(err.Error()).To(ContainSubstring(expectedError))
+	},
+		Entry("source and target content type do not match (kubevirt->archive)",
+			func() *corev1.PersistentVolumeClaim {
+				return createPvc("source", "default", map[string]string{}, nil)
+			},
+			func() *corev1.PersistentVolumeClaim {
+				return createBlockPvc("testPvc1", "default", map[string]string{
+					AnnContentType: "archive", AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod"}, nil)
+			},
+			"source contentType (kubevirt) and target contentType (archive) do not match",
+		),
+		Entry("source and target content type do not match (archive->kubevirt)",
+			func() *corev1.PersistentVolumeClaim {
+				return createPvc("source", "default", map[string]string{AnnContentType: "archive"}, nil)
+			},
+			func() *corev1.PersistentVolumeClaim {
+				return createBlockPvc("testPvc1", "default", map[string]string{
+					AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod"}, nil)
+			},
+			"source contentType (archive) and target contentType (kubevirt) do not match",
+		),
+		Entry("content type is not kubevirt, and source and target volume modes do not match (fs->block)",
+			func() *corev1.PersistentVolumeClaim {
+				return createPvc("source", "default", map[string]string{AnnContentType: "archive"}, nil)
+			},
+			func() *corev1.PersistentVolumeClaim {
+				return createBlockPvc("testPvc1", "default", map[string]string{
+					AnnContentType: "archive", AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod"}, nil)
+			},
+			"source volumeMode (Filesystem) and target volumeMode (Block) do not match",
+		),
+		Entry("content type is not kubevirt, and source and target volume modes do not match (block->fs)",
+			func() *corev1.PersistentVolumeClaim {
+				return createBlockPvc("source", "default", map[string]string{AnnContentType: "archive"}, nil)
+			},
+			func() *corev1.PersistentVolumeClaim {
+				return createPvc("testPvc1", "default", map[string]string{
+					AnnContentType: "archive", AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod"}, nil)
+			},
+			"source volumeMode (Block) and target volumeMode (Filesystem) do not match",
+		),
+	)
 })
 
 var _ = Describe("ParseCloneRequestAnnotation", func() {

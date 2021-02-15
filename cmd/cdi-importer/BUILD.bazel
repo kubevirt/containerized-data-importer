@@ -14,7 +14,6 @@ rpm_image(
         "@nbdkit-curl-plugin//file",
         "@nbdkit-xz-filter//file",
         "@nbdkit-gzip-filter//file",
-        "@tar//file",
         "@qemu-img//file",
         "@qemu-block-curl//file",
         "@xen-libs//file",

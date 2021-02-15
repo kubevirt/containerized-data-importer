@@ -76,37 +76,57 @@ var _ = Describe("Test PVC annotations status", func() {
 	})
 
 	It("Should be interesting if NOT complete, and endpoint and source is set", func() {
+		r := createImportReconciler()
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})
 
 	It("Should NOT be interesting if complete, and endpoint and source is set", func() {
+		r := createImportReconciler()
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodSucceeded), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeFalse())
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeFalse())
 	})
 
 	It("Should be interesting if NOT complete, and endpoint missing and source is set", func() {
+		r := createImportReconciler()
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodRunning), AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})
 
 	It("Should be interesting if NOT complete, and endpoint set and source is missing", func() {
+		r := createImportReconciler()
 		testPvc := createPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint}, nil)
-		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})
 
 	It("Should NOT be interesting if NOT BOUND, and endpoint and source is set, and honorWaitForFirstConsumerEnabled", func() {
+		r := createImportReconciler()
+		r.featureGates = &FakeFeatureGates{honorWaitForFirstConsumerEnabled: true}
 		testPvc := createPendingPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, false, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: true}, importLog)).To(BeFalse())
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeFalse())
 	})
 
 	It("Should be interesting if NOT BOUND, and endpoint and source is set, and honorWaitForFirstConsumerEnabled and isImmediateBindingRequested is requested", func() {
-		testPvc := createPendingPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, true, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: true}, importLog)).To(BeTrue())
+		r := createImportReconciler()
+		r.featureGates = &FakeFeatureGates{honorWaitForFirstConsumerEnabled: true}
+		testPvc := createPendingPvc("testPvc1", "default", map[string]string{
+			AnnPodPhase:         string(corev1.PodPending),
+			AnnEndpoint:         testEndPoint,
+			AnnSource:           SourceHTTP,
+			AnnImmediateBinding: "true",
+		}, nil)
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})
 	It("Should be interesting if NOT BOUND, and endpoint and source is set, and honorWaitForFirstConsumerEnabled is false and isImmediateBindingRequested is requested", func() {
-		testPvc := createPendingPvc("testPvc1", "default", map[string]string{AnnPodPhase: string(corev1.PodPending), AnnEndpoint: testEndPoint, AnnSource: SourceHTTP}, nil)
-		Expect(shouldReconcilePVC(testPvc, true, &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}, importLog)).To(BeTrue())
+		r := createImportReconciler()
+		r.featureGates = &FakeFeatureGates{honorWaitForFirstConsumerEnabled: false}
+		testPvc := createPendingPvc("testPvc1", "default", map[string]string{
+			AnnPodPhase:         string(corev1.PodPending),
+			AnnEndpoint:         testEndPoint,
+			AnnSource:           SourceHTTP,
+			AnnImmediateBinding: "true",
+		}, nil)
+		Expect(r.shouldReconcilePVC(testPvc, importLog)).To(BeTrue())
 	})
 })
 
@@ -568,6 +588,51 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()[AnnRunningCondition]).To(Equal("false"))
 		Expect(resPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal("I went poof"))
 		Expect(resPvc.GetAnnotations()[AnnRunningConditionReason]).To(Equal("Explosion"))
+	})
+
+	It("Should mark PVC as waiting for VDDK configmap, if not already present", func() {
+		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "testpod", AnnSource: SourceVDDK}, nil, corev1.ClaimPending)
+		reconciler = createImportReconciler(pvc)
+		err := reconciler.createImporterPod(pvc)
+		By("Checking importer pod creation returned an error")
+		Expect(err).To(HaveOccurred())
+		By("Checking pvc annotations have been updated")
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resPvc.GetAnnotations()[AnnBoundCondition]).To(Equal("false"))
+		Expect(resPvc.GetAnnotations()[AnnBoundConditionMessage]).To(Equal("waiting for v2v-vmware configmap for VDDK image"))
+		Expect(resPvc.GetAnnotations()[AnnBoundConditionReason]).To(Equal(awaitingVddk))
+
+		By("Checking again after creating configmap")
+		configmap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      common.VddkConfigMap,
+				Namespace: "cdi",
+			},
+			Data: map[string]string{
+				common.VddkConfigDataKey: "test",
+			},
+		}
+		reconciler.client.Create(context.TODO(), configmap)
+		err = reconciler.createImporterPod(pvc)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("Should not mark PVC as waiting for VDDK configmap, if already present", func() {
+		configmap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      common.VddkConfigMap,
+				Namespace: "cdi",
+			},
+			Data: map[string]string{
+				common.VddkConfigDataKey: "test",
+			},
+		}
+		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "testpod", AnnSource: SourceVDDK}, nil, corev1.ClaimBound)
+		reconciler = createImportReconciler(configmap, pvc)
+		err := reconciler.createImporterPod(pvc)
+		Expect(err).ToNot(HaveOccurred())
 	})
 })
 

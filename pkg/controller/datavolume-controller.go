@@ -575,6 +575,14 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 		return "", errors.New("source PVC not found")
 	}
 
+	sourceVolumeMode := GetVolumeMode(pvc.Spec.VolumeMode)
+	targetVolumeMode := GetVolumeMode(dataVolume.Spec.PVC.VolumeMode)
+	if sourceVolumeMode != targetVolumeMode {
+		r.log.V(3).Info("Source PVC and target PVC have different volume modes, falling back to host assisted clone", "source volume mode",
+			sourceVolumeMode, "target volume mode", targetVolumeMode)
+		return "", errors.New("Source PVC and target PVC have different volume modes, falling back to host assisted clone")
+	}
+
 	targetPvcStorageClassName := dataVolume.Spec.PVC.StorageClassName
 	targetStorageClass, err := GetStorageClassByName(r.client, targetPvcStorageClassName)
 	if err != nil {

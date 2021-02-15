@@ -763,8 +763,10 @@ var _ = Describe("ALL Operator tests", func() {
 						naa := s.Annotations["auth.openshift.io/certificate-not-after"]
 						t2, err := time.Parse(time.RFC3339, naa)
 						Expect(err).ToNot(HaveOccurred())
-						Expect(t2.Sub(t) >= time.Minute*20).To(BeTrue())
-						Expect((t2.Sub(t) - (time.Minute * 20)) <= time.Second).To(BeTrue())
+						Expect(t2.Sub(t)).To(BeNumerically(">=", time.Minute*20),
+							fmt.Sprintf("Not-Before (%s) should be 20 minutes before Not-After (%s)", nba, naa))
+						Expect(t2.Sub(t)-(time.Minute*20)).To(BeNumerically("<=", time.Second),
+							fmt.Sprintf("Not-Before (%s) should be 20 minutes before Not-After (%s) with 1 second toleration", nba, naa))
 					}
 
 					for _, s := range serverSecrets {
@@ -774,8 +776,10 @@ var _ = Describe("ALL Operator tests", func() {
 						naa := s.Annotations["auth.openshift.io/certificate-not-after"]
 						t2, err := time.Parse(time.RFC3339, naa)
 						Expect(err).ToNot(HaveOccurred())
-						Expect(t2.Sub(t) >= time.Minute*5).To(BeTrue())
-						Expect((t2.Sub(t) - (time.Minute * 5)) <= time.Second).To(BeTrue())
+						Expect(t2.Sub(t)).To(BeNumerically(">=", time.Minute*5),
+							fmt.Sprintf("Not-Before (%s) should be 5 minutes before Not-After (%s)", nba, naa))
+						Expect(t2.Sub(t)-(time.Minute*5)).To(BeNumerically("<=", time.Second),
+							fmt.Sprintf("Not-Before (%s) should be 5 minutes before Not-After (%s) with 1 second toleration", nba, naa))
 					}
 
 					return true
