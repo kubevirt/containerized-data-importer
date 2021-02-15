@@ -1168,6 +1168,9 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 		if dataVolume.Spec.Source.S3.SecretRef != "" {
 			annotations[AnnSecret] = dataVolume.Spec.Source.S3.SecretRef
 		}
+		if dataVolume.Spec.Source.S3.CertConfigMap != "" {
+			annotations[AnnCertConfigMap] = dataVolume.Spec.Source.S3.CertConfigMap
+		}
 	} else if dataVolume.Spec.Source.Registry != nil {
 		annotations[AnnSource] = SourceRegistry
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.Registry.URL

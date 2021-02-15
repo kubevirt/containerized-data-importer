@@ -157,6 +157,10 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 															Description: "SecretRef provides the secret reference needed to access the S3 source",
 															Type:        "string",
 														},
+														"certConfigMap": {
+															Description: "CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate",
+															Type:        "string",
+														},
 													},
 													Required: []string{
 														"url",
@@ -597,6 +601,10 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 														},
 														"secretRef": {
 															Description: "SecretRef provides the secret reference needed to access the S3 source",
+															Type:        "string",
+														},
+														"certConfigMap": {
+															Description: "CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate",
 															Type:        "string",
 														},
 													},

@@ -14318,6 +14318,13 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceS3(ref common.ReferenceCallbac
 							Format:      "",
 						},
 					},
+					"certConfigMap": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"url"},
 			},
