@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/go-logr/logr"
+	ocpconfigv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
@@ -13,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -75,7 +77,7 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 		return reconcile.Result{}, err
 	}
 
-	if err := r.reconcileUploadProxyURL(config, log); err != nil {
+	if err := r.reconcileUploadProxyURL(config); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -88,6 +90,10 @@ func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result
 	}
 
 	if err := r.reconcileFilesystemOverhead(config); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if err := r.reconcileImportProxy(config); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -125,7 +131,8 @@ func (r *CDIConfigReconciler) setOperatorParams(config *cdiv1.CDIConfig) error {
 	return nil
 }
 
-func (r *CDIConfigReconciler) reconcileUploadProxyURL(config *cdiv1.CDIConfig, log logr.Logger) error {
+func (r *CDIConfigReconciler) reconcileUploadProxyURL(config *cdiv1.CDIConfig) error {
+	log := r.log.WithName("CDIconfig").WithName("UploadProxyReconcile")
 	config.Status.UploadProxyURL = config.Spec.UploadProxyURLOverride
 	// No override, try Ingress
 	if config.Status.UploadProxyURL == nil {
@@ -333,6 +340,74 @@ func (r *CDIConfigReconciler) createCDIConfig() (*cdiv1.CDIConfig, error) {
 	return config, nil
 }
 
+func (r *CDIConfigReconciler) reconcileImportProxy(config *cdiv1.CDIConfig) error {
+	log := r.log.WithName("CDIconfig").WithName("ImportProxyReconcile")
+	config.Status.ImportProxy = config.Spec.ImportProxy
+
+	// Avoid nil pointers and segfaults for the initial case, where ImportProxy is nil for both the spec and the status.
+	if config.Status.ImportProxy == nil {
+		config.Status.ImportProxy = &cdiv1.ImportProxy{
+			HTTPProxy:      new(string),
+			HTTPSProxy:     new(string),
+			NoProxy:        new(string),
+			TrustedCAProxy: new(string),
+		}
+
+		// Try Openshift cluster wide proxy only if the CDIConfig default config is empty
+		clusterWideProxy, err := GetClusterWideProxy(r.client)
+		if err != nil {
+			log.V(3).Info(err.Error())
+			return nil
+		}
+		config.Status.ImportProxy.HTTPProxy = &clusterWideProxy.Status.HTTPProxy
+		config.Status.ImportProxy.HTTPSProxy = &clusterWideProxy.Status.HTTPSProxy
+		config.Status.ImportProxy.NoProxy = &clusterWideProxy.Status.NoProxy
+		if clusterWideProxy.Spec.TrustedCA.Name != "" {
+			config.Status.ImportProxy.TrustedCAProxy = &clusterWideProxy.Spec.TrustedCA.Name
+			r.reconcileImportProxyCAConfigMap(config, clusterWideProxy)
+		}
+	}
+	return nil
+}
+
+// Create/Update a configmap with the CA certificates in the controllor context with the cluster-wide proxy CA certificates to be used by the importer pod
+func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(config *cdiv1.CDIConfig, proxy *ocpconfigv1.Proxy) error {
+	cmName := proxy.Spec.TrustedCA.Name
+	if cmName == "" {
+		// Using the default cluster-wide proxy CA certificates configmap name
+		cmName = ClusterWideProxyConfigMapName
+	}
+	clusterWideProxyConfigMap := &v1.ConfigMap{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: cmName, Namespace: ClusterWideProxyConfigMapNameSpace}, clusterWideProxyConfigMap); err == nil {
+		// Copy the cluster-wide proxy CA certificates to the importer pod proxy CA certificates configMap
+		if certBytes, ok := clusterWideProxyConfigMap.Data[ClusterWideProxyConfigMapKey]; ok {
+			configMap := &v1.ConfigMap{}
+			if err := r.client.Get(context.TODO(), types.NamespacedName{Name: common.ImportProxyConfigMapName, Namespace: r.cdiNamespace}, configMap); errors.IsNotFound(err) {
+				if err := r.client.Create(context.TODO(), r.createProxyConfigMap(certBytes)); err != nil {
+					return err
+				}
+				return nil
+			}
+			if configMap != nil {
+				configMap.Data[common.ImportProxyConfigMapKey] = certBytes
+				if err := r.client.Update(context.TODO(), configMap); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (r *CDIConfigReconciler) createProxyConfigMap(certBytes string) *v1.ConfigMap {
+	return &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      common.ImportProxyConfigMapName,
+			Namespace: r.cdiNamespace},
+		Data: map[string]string{common.ImportProxyConfigMapKey: certBytes},
+	}
+}
+
 // Init initializes a CDIConfig object.
 func (r *CDIConfigReconciler) Init() error {
 	_, err := r.createCDIConfig()
@@ -364,7 +439,7 @@ func NewConfigController(mgr manager.Manager, log logr.Logger, uploadProxyServic
 	if err != nil {
 		return nil, err
 	}
-	if err := addConfigControllerWatches(mgr, configController, reconciler.cdiNamespace, configName, uploadProxyServiceName); err != nil {
+	if err := addConfigControllerWatches(mgr, configController, reconciler.cdiNamespace, configName, uploadProxyServiceName, log); err != nil {
 		return nil, err
 	}
 	if err := reconciler.Init(); err != nil {
@@ -375,7 +450,7 @@ func NewConfigController(mgr manager.Manager, log logr.Logger, uploadProxyServic
 }
 
 // addConfigControllerWatches sets up the watches used by the config controller.
-func addConfigControllerWatches(mgr manager.Manager, configController controller.Controller, cdiNamespace, configName, uploadProxyServiceName string) error {
+func addConfigControllerWatches(mgr manager.Manager, configController controller.Controller, cdiNamespace, configName, uploadProxyServiceName string, log logr.Logger) error {
 	// Add schemes.
 	if err := cdiv1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
@@ -386,11 +461,34 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 	if err := extensionsv1beta1.AddToScheme(mgr.GetScheme()); err != nil {
 		return err
 	}
-	if err := routev1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := routev1.Install(mgr.GetScheme()); err != nil {
+		return err
+	}
+	if err := ocpconfigv1.Install(mgr.GetScheme()); err != nil {
 		return err
 	}
 
 	// Setup watches
+	if err := watchCDIConfig(configController, configName); err != nil {
+		return err
+	}
+	if err := watchStorageClass(configController, configName); err != nil {
+		return err
+	}
+	if err := watchIngress(configController, cdiNamespace, configName, uploadProxyServiceName); err != nil {
+		return err
+	}
+	if err := watchRoutes(mgr, configController, cdiNamespace, configName, uploadProxyServiceName); err != nil {
+		return err
+	}
+	if err := watchClusterProxy(mgr, configController, configName); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func watchCDIConfig(configController controller.Controller, configName string) error {
 	if err := configController.Watch(&source.Kind{Type: &cdiv1.CDIConfig{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
@@ -401,20 +499,22 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 			}}
 		}),
 	})
-	if err != nil {
-		return err
-	}
-	err = configController.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, &handler.EnqueueRequestsFromMapFunc{
+	return err
+}
+
+func watchStorageClass(configController controller.Controller, configName string) error {
+	err := configController.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, &handler.EnqueueRequestsFromMapFunc{
 		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: configName},
 			}}
 		}),
 	})
-	if err != nil {
-		return err
-	}
-	err = configController.Watch(&source.Kind{Type: &extensionsv1beta1.Ingress{}}, &handler.EnqueueRequestsFromMapFunc{
+	return err
+}
+
+func watchIngress(configController controller.Controller, cdiNamespace, configName, uploadProxyServiceName string) error {
+	err := configController.Watch(&source.Kind{Type: &extensionsv1beta1.Ingress{}}, &handler.EnqueueRequestsFromMapFunc{
 		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: configName},
@@ -434,38 +534,57 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 				e.Object.(*extensionsv1beta1.Ingress).GetNamespace() == cdiNamespace
 		},
 	})
+	return err
+}
 
-	// check if routes exist
-	err = mgr.GetClient().List(context.TODO(), &routev1.RouteList{})
-	if meta.IsNoMatchError(err) {
-		return nil
-	}
-
-	if err != nil && !isErrCacheNotStarted(err) {
+// we only watch the route obj if they exist, i.e., if it is an OpenShift cluster
+func watchRoutes(mgr manager.Manager, configController controller.Controller, cdiNamespace, configName, uploadProxyServiceName string) error {
+	err := mgr.GetClient().List(context.TODO(), &routev1.RouteList{})
+	if !meta.IsNoMatchError(err) {
+		if err == nil || isErrCacheNotStarted(err) {
+			err := configController.Watch(&source.Kind{Type: &routev1.Route{}}, &handler.EnqueueRequestsFromMapFunc{
+				ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+					return []reconcile.Request{{
+						NamespacedName: types.NamespacedName{Name: configName},
+					}}
+				}),
+			}, predicate.Funcs{
+				CreateFunc: func(e event.CreateEvent) bool {
+					return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
+						e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
+				},
+				UpdateFunc: func(e event.UpdateEvent) bool {
+					return "" != getURLFromRoute(e.ObjectNew.(*routev1.Route), uploadProxyServiceName) &&
+						e.ObjectNew.(*routev1.Route).GetNamespace() == cdiNamespace
+				},
+				DeleteFunc: func(e event.DeleteEvent) bool {
+					return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
+						e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
+				},
+			})
+			return err
+		}
 		return err
 	}
+	return nil
+}
 
-	err = configController.Watch(&source.Kind{Type: &routev1.Route{}}, &handler.EnqueueRequestsFromMapFunc{
-		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
-			return []reconcile.Request{{
-				NamespacedName: types.NamespacedName{Name: configName},
-			}}
-		}),
-	}, predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
-				e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			return "" != getURLFromRoute(e.ObjectNew.(*routev1.Route), uploadProxyServiceName) &&
-				e.ObjectNew.(*routev1.Route).GetNamespace() == cdiNamespace
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
-				e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
-		},
-	})
-
+// we only watch the cluster-wide proxy obj if they exist, i.e., if it is an OpenShift cluster
+func watchClusterProxy(mgr manager.Manager, configController controller.Controller, configName string) error {
+	err := mgr.GetClient().List(context.TODO(), &ocpconfigv1.ProxyList{})
+	if !meta.IsNoMatchError(err) {
+		if err == nil || isErrCacheNotStarted(err) {
+			err := configController.Watch(&source.Kind{Type: &ocpconfigv1.Proxy{}}, &handler.EnqueueRequestsFromMapFunc{
+				ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+					return []reconcile.Request{{
+						NamespacedName: types.NamespacedName{Name: configName},
+					}}
+				}),
+			})
+			return err
+		}
+		return err
+	}
 	return nil
 }
 

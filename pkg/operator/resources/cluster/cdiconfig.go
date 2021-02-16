@@ -254,6 +254,28 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 											Description: "Override the URL used when uploading to a DataVolume",
 											Type:        "string",
 										},
+										"importProxy": {
+											Description: "ImportProxy contains importer pod proxy configuration.",
+											Type:        "object",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"HTTPProxy": {
+													Description: "HTTPProxy is the URL http://<username>:<pswd>@<ip>:<port> of the import proxy for HTTP requests.  Empty means unset and will not result in the import pod env var.",
+													Type:        "string",
+												},
+												"HTTPSProxy": {
+													Description: "HTTPSProxy is the URL https://<username>:<pswd>@<ip>:<port> of the import proxy for HTTPS requests.  Empty means unset and will not result in the import pod env var.",
+													Type:        "string",
+												},
+												"noProxy": {
+													Description: "NoProxy is a comma-separated list of hostnames and/or CIDRs for which the proxy should not be used. Empty means unset and will not result in the import pod env var.",
+													Type:        "string",
+												},
+												"trustedCAProxy": {
+													Description: "TrustedCAProxy is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle. The TrustedCAProxy field is consumed by the import controller that is resposible for coping it to a config map named trusted-ca-proxy-bundle-cm in the cdi namespace. Here is an example of the ConfigMap (in yaml): \n apiVersion: v1 kind: ConfigMap metadata:   name: trusted-ca-proxy-bundle-cm   namespace: cdi data:   ca.pem: |     -----BEGIN CERTIFICATE----- \t   ... <base64 encoded cert> ... \t   -----END CERTIFICATE-----",
+													Type:        "string",
+												},
+											},
+										},
 										"scratchSpaceStorageClass": {
 											Description: "Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space",
 											Type:        "string",
@@ -335,6 +357,28 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 										"uploadProxyURL": {
 											Description: "The calculated upload proxy URL",
 											Type:        "string",
+										},
+										"importProxy": {
+											Description: "ImportProxy contains importer pod proxy configuration.",
+											Type:        "object",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"HTTPProxy": {
+													Description: "HTTPProxy is the URL http://<username>:<pswd>@<ip>:<port> of the import proxy for HTTP requests.  Empty means unset and will not result in the import pod env var.",
+													Type:        "string",
+												},
+												"HTTPSProxy": {
+													Description: "HTTPSProxy is the URL https://<username>:<pswd>@<ip>:<port> of the import proxy for HTTPS requests.  Empty means unset and will not result in the import pod env var.",
+													Type:        "string",
+												},
+												"noProxy": {
+													Description: "NoProxy is a comma-separated list of hostnames and/or CIDRs for which the proxy should not be used. Empty means unset and will not result in the import pod env var.",
+													Type:        "string",
+												},
+												"trustedCAProxy": {
+													Description: "TrustedCAProxy is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle. The TrustedCAProxy field is consumed by the import controller that is resposible for coping it to a config map named trusted-ca-proxy-bundle-cm in the cdi namespace. Here is an example of the ConfigMap (in yaml): \n apiVersion: v1 kind: ConfigMap metadata:   name: trusted-ca-proxy-bundle-cm   namespace: cdi data:   ca.pem: |     -----BEGIN CERTIFICATE----- \t   ... <base64 encoded cert> ... \t   -----END CERTIFICATE-----",
+													Type:        "string",
+												},
+											},
 										},
 										"scratchSpaceStorageClass": {
 											Description: "The calculated storage class to be used for scratch space",

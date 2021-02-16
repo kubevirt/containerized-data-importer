@@ -643,6 +643,8 @@ var _ = Describe("Create Importer Pod", func() {
 		reconciler := createImportReconciler(pvc)
 		podEnvVar := &importPodEnvVar{
 			ep:                 "",
+			httpProxy:          "",
+			httpsProxy:         "",
 			secretName:         "",
 			source:             "",
 			contentType:        "",
@@ -694,7 +696,26 @@ var _ = Describe("Import test env", func() {
 	const mockUID = "1111-1111-1111-1111"
 
 	It("Should create import env", func() {
-		testEnvVar := &importPodEnvVar{"myendpoint", "mysecret", SourceHTTP, string(cdiv1.DataVolumeKubeVirt), "1G", "", "", "", "", "", "0.055", false, "", "", "", false}
+		testEnvVar := &importPodEnvVar{
+			ep:                 "myendpoint",
+			httpProxy:          "httpproxy",
+			httpsProxy:         "httpsproxy",
+			noProxy:            "httpproxy",
+			secretName:         "",
+			source:             SourceHTTP,
+			contentType:        string(cdiv1.DataVolumeKubeVirt),
+			imageSize:          "1G",
+			certConfigMap:      "",
+			diskID:             "",
+			uuid:               "",
+			backingFile:        "",
+			thumbprint:         "",
+			filesystemOverhead: "0.055",
+			insecureTLS:        false,
+			currentCheckpoint:  "",
+			previousCheckpoint: "",
+			finalCheckpoint:    "",
+			preallocation:      false}
 		Expect(reflect.DeepEqual(makeImportEnv(testEnvVar, mockUID), createImportTestEnv(testEnvVar, mockUID))).To(BeTrue())
 	})
 })
@@ -728,6 +749,9 @@ var _ = Describe("getCertConfigMap", func() {
 	It("should find the configmap if PVC has one defined, and it exists", func() {
 		pvcWithAnno := createPvc("testPVCWithAnno", "default", map[string]string{AnnCertConfigMap: "configMapName"}, nil)
 		reconciler := createImportReconciler(pvcWithAnno, testConfigMap)
+		cdiConfig := &cdiv1.CDIConfig{}
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
 		cm, err := reconciler.getCertConfigMap(pvcWithAnno)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cm).To(Equal(testConfigMap.Name))
@@ -736,6 +760,9 @@ var _ = Describe("getCertConfigMap", func() {
 	It("should return the configmap name if PVC has one defined, but doesn't exist", func() {
 		pvcWithAnno := createPvc("testPVCWithAnno", "default", map[string]string{AnnCertConfigMap: "doesnotexist"}, nil)
 		reconciler := createImportReconciler(pvcWithAnno)
+		cdiConfig := &cdiv1.CDIConfig{}
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
 		cm, err := reconciler.getCertConfigMap(pvcWithAnno)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cm).To(Equal("doesnotexist"))
@@ -744,6 +771,9 @@ var _ = Describe("getCertConfigMap", func() {
 	It("should return blank if the pvc has no annotation", func() {
 		pvcNoAnno := createPvc("testPVC", "default", nil, nil)
 		reconciler := createImportReconciler(pvcNoAnno)
+		cdiConfig := &cdiv1.CDIConfig{}
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
 		cm, err := reconciler.getCertConfigMap(pvcNoAnno)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cm).To(Equal(""))
@@ -935,6 +965,18 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 		{
 			Name:  common.ImporterThumbprint,
 			Value: podEnvVar.thumbprint,
+		},
+		{
+			Name:  common.ImportProxyHTTP,
+			Value: podEnvVar.httpProxy,
+		},
+		{
+			Name:  common.ImportProxyHTTPS,
+			Value: podEnvVar.httpsProxy,
+		},
+		{
+			Name:  common.ImportProxyNoProxy,
+			Value: podEnvVar.noProxy,
 		},
 		{
 			Name:  common.ImporterCurrentCheckpoint,

@@ -313,6 +313,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSpec":           schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeStatus":         schema_pkg_apis_core_v1beta1_DataVolumeStatus(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead":       schema_pkg_apis_core_v1beta1_FilesystemOverhead(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.ImportProxy":              schema_pkg_apis_core_v1beta1_ImportProxy(ref),
 		"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement":                schema_controller_lifecycle_operator_sdk_pkg_sdk_api_NodePlacement(ref),
 	}
 }
@@ -13634,6 +13635,12 @@ func schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref common.ReferenceCallback) co
 							Format:      "",
 						},
 					},
+					"importProxy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ImportProxy contains importer pod proxy configuration.",
+							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.ImportProxy"),
+						},
+					},
 					"scratchSpaceStorageClass": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space",
@@ -13678,7 +13685,7 @@ func schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref common.ReferenceCallback) co
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.ResourceRequirements", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead"},
+			"k8s.io/api/core/v1.ResourceRequirements", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.ImportProxy"},
 	}
 }
 
@@ -13694,6 +13701,12 @@ func schema_pkg_apis_core_v1beta1_CDIConfigStatus(ref common.ReferenceCallback) 
 							Description: "The calculated upload proxy URL",
 							Type:        []string{"string"},
 							Format:      "",
+						},
+					},
+					"importProxy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ImportProxy contains importer pod proxy configuration.",
+							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.ImportProxy"),
 						},
 					},
 					"scratchSpaceStorageClass": {
@@ -13726,7 +13739,7 @@ func schema_pkg_apis_core_v1beta1_CDIConfigStatus(ref common.ReferenceCallback) 
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.ResourceRequirements", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead"},
+			"k8s.io/api/core/v1.ResourceRequirements", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.ImportProxy"},
 	}
 }
 
@@ -14527,6 +14540,47 @@ func schema_pkg_apis_core_v1beta1_FilesystemOverhead(ref common.ReferenceCallbac
 									},
 								},
 							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_ImportProxy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ImportProxy provides the information on how to configure the importer pod proxy.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"HTTPProxy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "HTTPProxy is the URL http://<username>:<pswd>@<ip>:<port> of the import proxy for HTTP requests.  Empty means unset and will not result in the import pod env var.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"HTTPSProxy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "HTTPSProxy is the URL https://<username>:<pswd>@<ip>:<port> of the import proxy for HTTPS requests.  Empty means unset and will not result in the import pod env var.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"noProxy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "NoProxy is a comma-separated list of hostnames and/or CIDRs for which the proxy should not be used. Empty means unset and will not result in the import pod env var.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"trustedCAProxy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "TrustedCAProxy is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle. The TrustedCAProxy field is consumed by the import controller that is resposible for coping it to a config map named trusted-ca-proxy-bundle-cm in the cdi namespace. Here is an example of the ConfigMap (in yaml):\n\napiVersion: v1 kind: ConfigMap metadata:\n  name: trusted-ca-proxy-bundle-cm\n  namespace: cdi\ndata:\n  ca.pem: |\n    -----BEGIN CERTIFICATE-----\n\t   ... <base64 encoded cert> ...\n\t   -----END CERTIFICATE-----",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 				},

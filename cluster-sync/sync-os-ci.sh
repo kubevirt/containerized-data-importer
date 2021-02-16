@@ -95,6 +95,7 @@ configure_storage
 _kubectl apply -f "./_out/manifests/bad-webserver.yaml"
 _kubectl apply -f "./_out/manifests/file-host.yaml"
 _kubectl apply -f "./_out/manifests/registry-host.yaml"
+_kubectl apply -f "./_out/manifests/test-proxy.yaml"
 # Imageio test service:
 _kubectl apply -f "./_out/manifests/imageio.yaml"
 # vCenter (VDDK) test service:

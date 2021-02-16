@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	ocpconfigv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
@@ -280,6 +281,85 @@ var _ = Describe("Controller storage class reconcile loop", func() {
 		err := reconciler.reconcileStorageClass(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal("test-default-sc"))
+	})
+})
+
+var _ = Describe("Controller ImportProxy reconcile loop", func() {
+	It("Should set ImportProxy to nil if no proxy configuration for import proxy exists", func() {
+		reconciler, cdiConfig := createConfigReconciler()
+		err := reconciler.reconcileRoute(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.ImportProxy).To(BeNil())
+	})
+
+	var proxyHTTPURL = "http://user:pswd@www.myproxy.com"
+	var proxyHTTPSURL = "https://user:pswd@www.myproxy.com"
+	var noProxyDomains = ".myproxy.com,.noproxy.com"
+	var trustedCAProxy = "user-ca-bundle"
+
+	DescribeTable("Should set ImportProxy correctly if ClusterWideProxy with correct URLs exists", func(proxyHTTPURL string, proxyHTTPSURL string, noProxyDomains string, trustedCAName string, expect string, endpType string) {
+		reconciler, cdiConfig := createConfigReconciler(createClusterWideProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAProxy))
+		_, err := reconciler.Reconcile(reconcile.Request{})
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		switch endpType {
+		case common.ImportProxyHTTP:
+			Expect(*cdiConfig.Status.ImportProxy.HTTPProxy).To(Equal(expect))
+		case common.ImportProxyHTTPS:
+			Expect(*cdiConfig.Status.ImportProxy.HTTPSProxy).To(Equal(expect))
+		case common.ImportProxyNoProxy:
+			Expect(*cdiConfig.Status.ImportProxy.NoProxy).To(Equal(expect))
+		case common.ImportProxyConfigMapName:
+			Expect(*cdiConfig.Status.ImportProxy.TrustedCAProxy).To(Equal(expect))
+		default:
+		}
+	},
+		Entry("successfully get http proxy url", proxyHTTPURL, "", "", "", proxyHTTPURL, common.ImportProxyHTTP),
+		Entry("successfully get https proxy url", "", proxyHTTPSURL, "", "", proxyHTTPSURL, common.ImportProxyHTTPS),
+		Entry("successfully get the list of hostnames and/or CIDRs that proxy should not be used", "", "", noProxyDomains, "", noProxyDomains, common.ImportProxyNoProxy),
+		Entry("successfully get ConfiMap CA name", "", "", "", trustedCAProxy, trustedCAProxy, trustedCAProxy),
+	)
+
+	It("Should not change the CDIConfig when updating the ClusterWideProxy if the CDIConfig proxy information already exist", func() {
+		reconciler, cdiConfig := createConfigReconciler()
+		By("updating the CDIConfig with proxy information")
+		cdiConfig.Spec.ImportProxy = createImportProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAProxy)
+		err := reconciler.reconcileImportProxy(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("creating cluster wide proxy")
+		proxy := createClusterWideProxy("http", "https", "noproxy", "ca")
+		err = reconciler.uncachedClient.Create(context.TODO(), proxy)
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.reconcileImportProxy(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(proxyHTTPURL).To(Equal(*cdiConfig.Status.ImportProxy.HTTPProxy))
+		Expect(proxyHTTPSURL).To(Equal(*cdiConfig.Status.ImportProxy.HTTPSProxy))
+		Expect(noProxyDomains).To(Equal(*cdiConfig.Status.ImportProxy.NoProxy))
+		Expect(trustedCAProxy).To(Equal(*cdiConfig.Status.ImportProxy.TrustedCAProxy))
+	})
+
+	It("Should create a new ConfigMap if ClusterWideProxy contains CA certificates name of an exiting ConfigMap in Openshift namespace", func() {
+		certificate := "ca-test"
+		reconciler, cdiConfig := createConfigReconciler(createClusterWideProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, ClusterWideProxyConfigMapName),
+			createClusterWideProxyCAConfigMap(certificate))
+		_, err := reconciler.Reconcile(reconcile.Request{})
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		test := &corev1.ConfigMap{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: ClusterWideProxyConfigMapName, Namespace: ClusterWideProxyConfigMapNameSpace}, test)
+
+		configMap := &corev1.ConfigMap{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ImportProxyConfigMapName, Namespace: reconciler.cdiNamespace}, configMap)
+		Expect(err).ToNot(HaveOccurred())
+		cmCert, _ := configMap.Data[common.ImportProxyConfigMapKey]
+		Expect(string(cmCert)).To(Equal(certificate))
 	})
 })
 
@@ -654,6 +734,7 @@ func createConfigReconciler(objects ...runtime.Object) (*CDIConfigReconciler, *c
 	extensionsv1beta1.AddToScheme(s)
 	routev1.AddToScheme(s)
 	storagev1.AddToScheme(s)
+	ocpconfigv1.AddToScheme(s)
 
 	cdi := &cdiv1.CDI{
 		ObjectMeta: metav1.ObjectMeta{
@@ -767,4 +848,14 @@ func createConfigMap(name, namespace string) *corev1.ConfigMap {
 		},
 	}
 	return cm
+}
+
+func createImportProxy(http, https, noproxy, ca string) *cdiv1.ImportProxy {
+	p := &cdiv1.ImportProxy{
+		HTTPProxy:      &http,
+		HTTPSProxy:     &https,
+		NoProxy:        &noproxy,
+		TrustedCAProxy: &ca,
+	}
+	return p
 }

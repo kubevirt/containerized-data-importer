@@ -131,6 +131,10 @@ type importPodEnvVar struct {
 	previousCheckpoint string
 	finalCheckpoint    string
 	preallocation      bool
+	httpProxy          string
+	httpsProxy         string
+	noProxy            string
+	certConfigMapProxy string
 }
 
 // NewImportController creates a new instance of the import controller.
@@ -498,6 +502,9 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		if podEnvVar.secretName == "" {
 			r.log.V(2).Info("no secret will be supplied to endpoint", "endPoint", podEnvVar.ep)
 		}
+		//get the CDIConfig to extract the proxy configuration to be used to import an image
+		cdiConfig := &cdiv1.CDIConfig{}
+		r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
 		podEnvVar.certConfigMap, err = r.getCertConfigMap(pvc)
 		if err != nil {
 			return nil, err
@@ -513,6 +520,24 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.previousCheckpoint = getValueFromAnnotation(pvc, AnnPreviousCheckpoint)
 		podEnvVar.currentCheckpoint = getValueFromAnnotation(pvc, AnnCurrentCheckpoint)
 		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, AnnFinalCheckpoint)
+
+		var field string
+		if field, err = GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP); err != nil {
+			r.log.V(3).Info("no proxy http url will be supplied:", err.Error())
+		}
+		podEnvVar.httpProxy = field
+		if field, err = GetImportProxyConfig(cdiConfig, common.ImportProxyHTTPS); err != nil {
+			r.log.V(3).Info("no proxy https url will be supplied:", err.Error())
+		}
+		podEnvVar.httpsProxy = field
+		if field, err = GetImportProxyConfig(cdiConfig, common.ImportProxyNoProxy); err != nil {
+			r.log.V(3).Info("the noProxy field will not be supplied:", err.Error())
+		}
+		podEnvVar.noProxy = field
+		if field, err = GetImportProxyConfig(cdiConfig, common.ImportProxyConfigMapName); err != nil {
+			r.log.V(3).Info("no proxy CA certiticate will be supplied:", err.Error())
+		}
+		podEnvVar.certConfigMapProxy = field
 	}
 
 	fsOverhead, err := GetFilesystemOverhead(r.client, pvc)
@@ -931,6 +956,15 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
 	}
 
+	if podEnvVar.certConfigMapProxy != "" {
+		vm := corev1.VolumeMount{
+			Name:      ProxyCertVolName,
+			MountPath: common.ImporterProxyCertDir,
+		}
+		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
+		pod.Spec.Volumes = append(pod.Spec.Volumes, createProxyConfigMapVolume(CertVolName, podEnvVar.certConfigMapProxy))
+	}
+
 	if podEnvVar.contentType == string(cdiv1.DataVolumeKubeVirt) {
 		// Set the fsGroup on the security context to the QemuSubGid
 		if pod.Spec.SecurityContext == nil {
@@ -941,6 +975,19 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 	}
 	SetPodPvcAnnotations(pod, pvc)
 	return pod
+}
+
+func createProxyConfigMapVolume(certVolName, objRef string) corev1.Volume {
+	return corev1.Volume{
+		Name: CertVolName,
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: objRef,
+				},
+			},
+		},
+	}
 }
 
 // this is being called for pods using PV with filesystem volume mode
@@ -1002,6 +1049,18 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 			Value: podEnvVar.thumbprint,
 		},
 		{
+			Name:  common.ImportProxyHTTP,
+			Value: podEnvVar.httpProxy,
+		},
+		{
+			Name:  common.ImportProxyHTTPS,
+			Value: podEnvVar.httpsProxy,
+		},
+		{
+			Name:  common.ImportProxyNoProxy,
+			Value: podEnvVar.noProxy,
+		},
+		{
 			Name:  common.ImporterCurrentCheckpoint,
 			Value: podEnvVar.currentCheckpoint,
 		},
@@ -1046,6 +1105,12 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		env = append(env, corev1.EnvVar{
 			Name:  common.ImporterCertDirVar,
 			Value: common.ImporterCertDir,
+		})
+	}
+	if podEnvVar.certConfigMapProxy != "" {
+		env = append(env, corev1.EnvVar{
+			Name:  common.ImporterProxyCertDirVar,
+			Value: common.ImporterProxyCertDir,
 		})
 	}
 	return env
