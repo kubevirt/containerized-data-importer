@@ -3,24 +3,21 @@ package image
 import (
 	"bufio"
 	"fmt"
-	"github.com/pkg/errors"
+	"strings"
+
 	"io"
-	"k8s.io/klog/v2"
-	"kubevirt.io/containerized-data-importer/pkg/system"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
+
+	"github.com/pkg/errors"
+	"k8s.io/klog/v2"
 )
 
 const (
 	nbdVddkLibraryPath    = "/opt/vmware-vix-disklib-distrib/lib64"
 	startupTimeoutSeconds = 15
-)
-
-var (
-	nbdkitExecFunction = system.ExecWithLimits
 )
 
 type nbdkitOperations struct {
