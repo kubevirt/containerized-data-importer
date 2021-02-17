@@ -72,7 +72,7 @@ const (
 	// AnnMultiStageImportDone marks a multi-stage import as totally finished
 	AnnMultiStageImportDone = AnnAPIGroup + "/storage.checkpoint.done"
 	// AnnPreallocationRequested provides a const to indicate whether preallocation should be performed on the PV
-	AnnPreallocationRequested = AnnAPIGroup + "/storage.preallocacation.requested"
+	AnnPreallocationRequested = AnnAPIGroup + "/storage.preallocation.requested"
 
 	// AnnRunningCondition provides a const for the running condition
 	AnnRunningCondition = AnnAPIGroup + "/storage.condition.running"
