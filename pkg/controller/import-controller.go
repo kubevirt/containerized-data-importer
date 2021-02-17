@@ -490,7 +490,7 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim) (*importPodEnvVar, error) {
 	podEnvVar := &importPodEnvVar{}
 	podEnvVar.source = getSource(pvc)
-	podEnvVar.contentType = getContentType(pvc)
+	podEnvVar.contentType = GetContentType(pvc)
 
 	var err error
 	if podEnvVar.source != SourceNone {
@@ -640,7 +640,7 @@ func (r *ImportReconciler) getSecretName(pvc *corev1.PersistentVolumeClaim) stri
 
 func (r *ImportReconciler) requiresScratchSpace(pvc *corev1.PersistentVolumeClaim) bool {
 	scratchRequired := false
-	contentType := getContentType(pvc)
+	contentType := GetContentType(pvc)
 	// All archive requires scratch space.
 	if contentType == "archive" {
 		scratchRequired = true
@@ -730,11 +730,11 @@ func getSource(pvc *corev1.PersistentVolumeClaim) string {
 	return source
 }
 
-// returns the source string which determines the type of source. If no source or invalid source found, default to http
-func getContentType(pvc *corev1.PersistentVolumeClaim) string {
+// GetContentType returns the content type of the source image. If invalid or not set, default to kubevirt
+func GetContentType(pvc *corev1.PersistentVolumeClaim) string {
 	contentType, found := pvc.Annotations[AnnContentType]
 	if !found {
-		contentType = ""
+		return string(cdiv1.DataVolumeKubeVirt)
 	}
 	switch contentType {
 	case
