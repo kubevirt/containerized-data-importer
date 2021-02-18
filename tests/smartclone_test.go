@@ -96,11 +96,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		dataVolume := createDataVolume("dv-smart-clone-test-1", fillCommandFilesystem, v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)
 		verifyEvent(controller.SnapshotForSmartCloneInProgress, dataVolume.Namespace, f)
 		verifyEvent(controller.SmartClonePVCInProgress, dataVolume.Namespace, f)
-		// Verify PVC's content
-		verifyPVC(dataVolume, f, testFile, fillData)
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		verifyEvent(controller.CloneSucceeded, dataVolume.Namespace, f)
+		// Verify PVC's content
+		verifyPVC(dataVolume, f, testFile, fillData)
 	})
 
 	It("[rfe_id:1106][test_id:3495][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - volumeMode block - Positive flow", func() {
@@ -110,11 +110,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		dataVolume := createDataVolume("dv-smart-clone-test-1", fillCommandBlock, v1.PersistentVolumeBlock, f.SnapshotSCName, f)
 		verifyEvent(controller.SnapshotForSmartCloneInProgress, dataVolume.Namespace, f)
 		verifyEvent(controller.SmartClonePVCInProgress, dataVolume.Namespace, f)
-		// Verify PVC's content
-		verifyPVC(dataVolume, f, utils.DefaultPvcMountPath, fillData)
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		verifyEvent(controller.CloneSucceeded, dataVolume.Namespace, f)
+		// Verify PVC's content
+		verifyPVC(dataVolume, f, utils.DefaultPvcMountPath, fillData)
 	})
 
 	It("[test_id:4987]Verify DataVolume Smart Cloning - volumeMode filesystem - Waits for source to be available", func() {
@@ -147,11 +147,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 
 		verifyEvent(controller.SnapshotForSmartCloneInProgress, dataVolume.Namespace, f)
 		verifyEvent(controller.SmartClonePVCInProgress, dataVolume.Namespace, f)
-		// Verify PVC's content
-		verifyPVC(dataVolume, f, testFile, fillData)
 		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		verifyEvent(controller.CloneSucceeded, dataVolume.Namespace, f)
+		// Verify PVC's content
+		verifyPVC(dataVolume, f, testFile, fillData)
 	})
 
 	It("[rfe_id:1106][test_id:3496][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - Check regular clone works", func() {
