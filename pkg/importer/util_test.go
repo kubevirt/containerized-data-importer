@@ -120,3 +120,11 @@ var _ = Describe("Clean dir", func() {
 		Expect(0).To(Equal(len(dir)))
 	})
 })
+
+// For use in transfer cancellation unit tests, currently VDDK/ImageIO
+var mockTerminationChannel chan os.Signal
+
+func createMockTerminationChannel() <-chan os.Signal {
+	mockTerminationChannel = make(chan os.Signal, 1)
+	return mockTerminationChannel
+}
