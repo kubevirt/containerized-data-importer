@@ -52,6 +52,8 @@ type DataVolumeSpec struct {
 	Checkpoints []DataVolumeCheckpoint `json:"checkpoints,omitempty"`
 	// FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.
 	FinalCheckpoint bool `json:"finalCheckpoint,omitempty"`
+	// Preallocation controls whether storage for DataVolumes should be allocated in advance.
+	Preallocation *bool `json:"preallocation,omitempty"`
 }
 
 // DataVolumeCheckpoint defines a stage in a warm migration.
