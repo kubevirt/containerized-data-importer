@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"errors"
 	"net/url"
+	"os"
 	"os/exec"
 
 	libnbd "github.com/mrnold/go-libnbd"
@@ -46,6 +47,7 @@ var _ = Describe("VDDK data source", func() {
 		newVddkDataSink = createMockVddkDataSink
 		newVMwareClient = createMockVMwareClient
 		newNbdKitWrapper = createMockNbdKitWrapper
+		newTerminationChannel = createMockTerminationChannel
 		currentExport = defaultMockNbdExport()
 		currentVMwareFunctions = defaultMockVMwareFunctions()
 	})
@@ -319,6 +321,25 @@ var _ = Describe("VDDK data source", func() {
 		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "false", v1.PersistentVolumeFilesystem)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("disk 'testdisk.vmdk' is not present in VM hardware config or snapshot list"))
+	})
+
+	It("should cancel transfer on SIGTERM", func() {
+		newVddkDataSource = createVddkDataSource
+		diskName := "testdisk.vmdk"
+
+		currentVMwareFunctions.Properties = func(ctx context.Context, ref types.ManagedObjectReference, property []string, result interface{}) error {
+			switch out := result.(type) {
+			case *mo.VirtualMachine:
+				if property[0] == "config.hardware.device" {
+					out.Config = createVirtualDiskConfig(diskName, 12345)
+				}
+			}
+			return nil
+		}
+		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "snapshot-1", "snapshot-2", "false", v1.PersistentVolumeFilesystem)
+		Expect(err).ToNot(HaveOccurred())
+		mockTerminationChannel <- os.Interrupt
+		Expect(err).ToNot(HaveOccurred())
 	})
 })
 
