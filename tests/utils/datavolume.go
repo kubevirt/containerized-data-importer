@@ -39,6 +39,14 @@ const (
 	HTTPSTinyCoreQcow2URL = "https://cdi-file-host.%s/tinyCore.qcow2"
 	// TinyCoreQcow2URLRateLimit provides a test url for the tineyCore qcow2 image via rate-limiting proxy
 	TinyCoreQcow2URLRateLimit = "http://cdi-file-host.%s:82/tinyCore.qcow2"
+	// HTTPSTinyCoreVmdkURL provides a test url for the tineyCore qcow2 image
+	HTTPSTinyCoreVmdkURL = "https://cdi-file-host.%s/tinyCore.vmdk"
+	// HTTPSTinyCoreVdiURL provides a test url for the tineyCore qcow2 image
+	HTTPSTinyCoreVdiURL = "https://cdi-file-host.%s/tinyCore.vdi"
+	// HTTPSTinyCoreVhdURL provides a test url for the tineyCore qcow2 image
+	HTTPSTinyCoreVhdURL = "https://cdi-file-host.%s/tinyCore.vhd"
+	// HTTPSTinyCoreVhdxURL provides a test url for the tineyCore qcow2 image
+	HTTPSTinyCoreVhdxURL = "https://cdi-file-host.%s/tinyCore.vhdx"
 	// InvalidQcowImagesURL provides a test url for invalid qcow images
 	InvalidQcowImagesURL = "http://cdi-file-host.%s/invalid_qcow_images/"
 	// LargeVirtualDiskQcow provides a test url for a cirros image with a large virtual size, in qcow2 format

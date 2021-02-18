@@ -54,6 +54,18 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	httpsTinyCoreQcow2URL := func() string {
 		return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs)
 	}
+	httpsTinyCoreVmdkURL := func() string {
+		return fmt.Sprintf(utils.HTTPSTinyCoreVmdkURL, f.CdiInstallNs)
+	}
+	httpsTinyCoreVdiURL := func() string {
+		return fmt.Sprintf(utils.HTTPSTinyCoreVdiURL, f.CdiInstallNs)
+	}
+	httpsTinyCoreVhdURL := func() string {
+		return fmt.Sprintf(utils.HTTPSTinyCoreVhdURL, f.CdiInstallNs)
+	}
+	httpsTinyCoreVhdxURL := func() string {
+		return fmt.Sprintf(utils.HTTPSTinyCoreVhdxURL, f.CdiInstallNs)
+	}
 	tinyCoreQcow2URL := func() string {
 		return fmt.Sprintf(utils.TinyCoreQcow2URL+".gz", f.CdiInstallNs)
 	}
@@ -564,6 +576,102 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:    cdiv1.DataVolumeBound,
 					Status:  v1.ConditionTrue,
 					Message: "PVC dv-https-import-qcow2 Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("succeed creating import dv with given valid vmdk url (https)", dataVolumeTestArguments{
+				name:             "dv-https-import-vmdk",
+				size:             "1Gi",
+				url:              httpsTinyCoreVmdkURL,
+				dvFunc:           createHTTPSDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-https-import-vmdk Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("succeed creating import dv with given valid vdi url (https)", dataVolumeTestArguments{
+				name:             "dv-https-import-vdi",
+				size:             "1Gi",
+				url:              httpsTinyCoreVdiURL,
+				dvFunc:           createHTTPSDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-https-import-vdi Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("succeed creating import dv with given valid vhd url (https)", dataVolumeTestArguments{
+				name:             "dv-https-import-vhd",
+				size:             "1Gi",
+				url:              httpsTinyCoreVhdURL,
+				dvFunc:           createHTTPSDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-https-import-vhd Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("succeed creating import dv with given valid vhdx url (https)", dataVolumeTestArguments{
+				name:             "dv-https-import-vhdx",
+				size:             "1Gi",
+				url:              httpsTinyCoreVhdxURL,
+				dvFunc:           createHTTPSDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-https-import-vhdx Bound",
 					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{

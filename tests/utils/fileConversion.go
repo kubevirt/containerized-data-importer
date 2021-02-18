@@ -20,6 +20,10 @@ var formatTable = map[string]func(string, string) (string, error){
 	image.ExtXz:    toXz,
 	image.ExtTar:   toTar,
 	image.ExtQcow2: toQcow2,
+	image.ExtVmdk:  toVmdk,
+	image.ExtVdi:   toVdi,
+	image.ExtVhd:   toVhd,
+	image.ExtVhdx:  toVhdx,
 	"":             toNoop,
 }
 
@@ -134,6 +138,50 @@ func toQcow2(srcfile, tgtDir string) (string, error) {
 	base := strings.TrimSuffix(filepath.Base(srcfile), ".iso")
 	tgt := filepath.Join(tgtDir, base+image.ExtQcow2)
 	args := []string{"convert", "-f", "raw", "-O", "qcow2", srcfile, tgt}
+
+	if err := doCmdAndVerifyFile(tgt, "qemu-img", args...); err != nil {
+		return "", err
+	}
+	return tgt, nil
+}
+
+func toVmdk(srcfile, tgtDir string) (string, error) {
+	base := strings.TrimSuffix(filepath.Base(srcfile), ".iso")
+	tgt := filepath.Join(tgtDir, base+image.ExtVmdk)
+	args := []string{"convert", "-f", "raw", "-O", "vmdk", srcfile, tgt}
+
+	if err := doCmdAndVerifyFile(tgt, "qemu-img", args...); err != nil {
+		return "", err
+	}
+	return tgt, nil
+}
+
+func toVdi(srcfile, tgtDir string) (string, error) {
+	base := strings.TrimSuffix(filepath.Base(srcfile), ".iso")
+	tgt := filepath.Join(tgtDir, base+image.ExtVdi)
+	args := []string{"convert", "-f", "raw", "-O", "vdi", srcfile, tgt}
+
+	if err := doCmdAndVerifyFile(tgt, "qemu-img", args...); err != nil {
+		return "", err
+	}
+	return tgt, nil
+}
+
+func toVhd(srcfile, tgtDir string) (string, error) {
+	base := strings.TrimSuffix(filepath.Base(srcfile), ".iso")
+	tgt := filepath.Join(tgtDir, base+image.ExtVhd)
+	args := []string{"convert", "-f", "raw", "-O", "vpc", srcfile, tgt}
+
+	if err := doCmdAndVerifyFile(tgt, "qemu-img", args...); err != nil {
+		return "", err
+	}
+	return tgt, nil
+}
+
+func toVhdx(srcfile, tgtDir string) (string, error) {
+	base := strings.TrimSuffix(filepath.Base(srcfile), ".iso")
+	tgt := filepath.Join(tgtDir, base+image.ExtVhdx)
+	args := []string{"convert", "-f", "raw", "-O", "vhdx", srcfile, tgt}
 
 	if err := doCmdAndVerifyFile(tgt, "qemu-img", args...); err != nil {
 		return "", err
