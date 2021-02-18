@@ -253,7 +253,15 @@ func (app *uploadServerApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *uploadServerApp) healthzHandler(w http.ResponseWriter, r *http.Request) {
-	io.WriteString(w, "OK")
+	// Is the upload server alive?
+	uploadURL := fmt.Sprintf("https://localhost:%d/v1beta1/upload", app.bindPort)
+	_, err := http.Get(uploadURL)
+	if common.ErrConnectionRefused(err) {
+		w.WriteHeader(http.StatusInternalServerError)
+		io.WriteString(w, fmt.Sprintf("%s", err))
+	} else {
+		io.WriteString(w, "OK")
+	}
 }
 
 func (app *uploadServerApp) validateShouldHandleRequest(w http.ResponseWriter, r *http.Request) bool {
