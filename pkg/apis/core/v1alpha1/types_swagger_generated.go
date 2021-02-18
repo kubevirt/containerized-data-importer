@@ -16,6 +16,7 @@ func (DataVolumeSpec) SwaggerDoc() map[string]string {
 		"contentType":     "DataVolumeContentType options: \"kubevirt\", \"archive\"\n+kubebuilder:validation:Enum=\"kubevirt\";\"archive\"",
 		"checkpoints":     "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
 		"finalCheckpoint": "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
+		"preallocation":   "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
 	}
 }
 
