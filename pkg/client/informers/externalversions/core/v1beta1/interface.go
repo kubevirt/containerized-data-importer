@@ -30,6 +30,8 @@ type Interface interface {
 	CDIConfigs() CDIConfigInformer
 	// DataVolumes returns a DataVolumeInformer.
 	DataVolumes() DataVolumeInformer
+	// StorageProfiles returns a StorageProfileInformer.
+	StorageProfiles() StorageProfileInformer
 }
 
 type version struct {
@@ -56,4 +58,9 @@ func (v *version) CDIConfigs() CDIConfigInformer {
 // DataVolumes returns a DataVolumeInformer.
 func (v *version) DataVolumes() DataVolumeInformer {
 	return &dataVolumeInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// StorageProfiles returns a StorageProfileInformer.
+func (v *version) StorageProfiles() StorageProfileInformer {
+	return &storageProfileInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

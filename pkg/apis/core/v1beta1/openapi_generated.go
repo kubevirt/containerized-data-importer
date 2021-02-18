@@ -297,6 +297,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.CDISpec":                  schema_pkg_apis_core_v1beta1_CDISpec(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.CDIStatus":                schema_pkg_apis_core_v1beta1_CDIStatus(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.CertConfig":               schema_pkg_apis_core_v1beta1_CertConfig(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.ClaimPropertySet":         schema_pkg_apis_core_v1beta1_ClaimPropertySet(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolume":               schema_pkg_apis_core_v1beta1_DataVolume(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeBlankImage":     schema_pkg_apis_core_v1beta1_DataVolumeBlankImage(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeCheckpoint":     schema_pkg_apis_core_v1beta1_DataVolumeCheckpoint(ref),
@@ -314,6 +315,10 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeStatus":         schema_pkg_apis_core_v1beta1_DataVolumeStatus(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.FilesystemOverhead":       schema_pkg_apis_core_v1beta1_FilesystemOverhead(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.ImportProxy":              schema_pkg_apis_core_v1beta1_ImportProxy(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.StorageProfile":           schema_pkg_apis_core_v1beta1_StorageProfile(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.StorageProfileList":       schema_pkg_apis_core_v1beta1_StorageProfileList(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.StorageProfileSpec":       schema_pkg_apis_core_v1beta1_StorageProfileSpec(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.StorageProfileStatus":     schema_pkg_apis_core_v1beta1_StorageProfileStatus(ref),
 		"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement":                schema_controller_lifecycle_operator_sdk_pkg_sdk_api_NodePlacement(ref),
 	}
 }
@@ -13933,6 +13938,40 @@ func schema_pkg_apis_core_v1beta1_CertConfig(ref common.ReferenceCallback) commo
 	}
 }
 
+func schema_pkg_apis_core_v1beta1_ClaimPropertySet(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ClaimPropertySet is a set of properties applicable to PVC",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"accessModes": {
+						SchemaProps: spec.SchemaProps{
+							Description: "AccessModes contains the desired access modes the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"volumeMode": {
+						SchemaProps: spec.SchemaProps{
+							Description: "volumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func schema_pkg_apis_core_v1beta1_DataVolume(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -14586,6 +14625,169 @@ func schema_pkg_apis_core_v1beta1_ImportProxy(ref common.ReferenceCallback) comm
 				},
 			},
 		},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_StorageProfile(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "StorageProfile provides a CDI specific recommendation for storage parameters",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.StorageProfileSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.StorageProfileStatus"),
+						},
+					},
+				},
+				Required: []string{"spec"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.StorageProfileSpec", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.StorageProfileStatus"},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_StorageProfileList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "StorageProfileList provides the needed parameters to request a list of StorageProfile from the system",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Items provides a list of StorageProfile",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.StorageProfile"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.StorageProfile"},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_StorageProfileSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "StorageProfileSpec defines specification for StorageProfile",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"claimPropertySets": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ClaimPropertySets is a provided set of properties applicable to PVC",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.ClaimPropertySet"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.ClaimPropertySet"},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_StorageProfileStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "StorageProfileStatus provides the most recently observed status of the StorageProfile",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"storageClass": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The StorageClass name for which capabilities are defined",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"provisioner": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The Storage class provisioner plugin name",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"claimPropertySets": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ClaimPropertySets computed from the spec and detected in the system",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.ClaimPropertySet"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.ClaimPropertySet"},
 	}
 }
 

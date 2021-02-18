@@ -256,6 +256,58 @@ const (
 // DataVolumeCloneSourceSubresource is the subresource checked for permission to clone
 const DataVolumeCloneSourceSubresource = "source"
 
+//StorageProfile provides a CDI specific recommendation for storage parameters
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:storageversion
+// +kubebuilder:resource:scope=Cluster
+type StorageProfile struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   StorageProfileSpec   `json:"spec"`
+	Status StorageProfileStatus `json:"status,omitempty"`
+}
+
+//StorageProfileSpec defines specification for StorageProfile
+type StorageProfileSpec struct {
+	// ClaimPropertySets is a provided set of properties applicable to PVC
+	ClaimPropertySets []ClaimPropertySet `json:"claimPropertySets,omitempty"`
+}
+
+//StorageProfileStatus provides the most recently observed status of the StorageProfile
+type StorageProfileStatus struct {
+	// The StorageClass name for which capabilities are defined
+	StorageClass *string `json:"storageClass,omitempty"`
+	// The Storage class provisioner plugin name
+	Provisioner *string `json:"provisioner,omitempty"`
+	// ClaimPropertySets computed from the spec and detected in the system
+	ClaimPropertySets []ClaimPropertySet `json:"claimPropertySets,omitempty"`
+}
+
+// ClaimPropertySet is a set of properties applicable to PVC
+type ClaimPropertySet struct {
+	// AccessModes contains the desired access modes the volume should have.
+	// More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1
+	// +optional
+	AccessModes []corev1.PersistentVolumeAccessMode `json:"accessModes,omitempty" protobuf:"bytes,1,rep,name=accessModes,casttype=PersistentVolumeAccessMode"`
+	// volumeMode defines what type of volume is required by the claim.
+	// Value of Filesystem is implied when not included in claim spec.
+	// +optional
+	VolumeMode *corev1.PersistentVolumeMode `json:"volumeMode,omitempty" protobuf:"bytes,6,opt,name=volumeMode,casttype=PersistentVolumeMode"`
+}
+
+//StorageProfileList provides the needed parameters to request a list of StorageProfile from the system
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type StorageProfileList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	// Items provides a list of StorageProfile
+	Items []StorageProfile `json:"items"`
+}
+
 // this has to be here otherwise informer-gen doesn't recognize it
 // see https://github.com/kubernetes/code-generator/issues/59
 // +genclient:nonNamespaced

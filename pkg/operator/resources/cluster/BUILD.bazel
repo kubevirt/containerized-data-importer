@@ -9,6 +9,7 @@ go_library(
         "datavolume.go",
         "factory.go",
         "rbac.go",
+        "storageprofile.go",
         "uploadproxy.go",
     ],
     importpath = "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster",

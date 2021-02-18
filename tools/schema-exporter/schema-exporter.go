@@ -45,6 +45,7 @@ func main() {
 	crds = append(crds, cdioperator.NewCdiCrd())
 	crds = append(crds, cluster.NewCdiConfigCrd())
 	crds = append(crds, cluster.NewDataVolumeCrd())
+	crds = append(crds, cluster.NewStorageProfileCrd())
 
 	for _, crd := range crds {
 		crdPath := filepath.Join(*exportPath, crd.GetObjectMeta().GetName())
