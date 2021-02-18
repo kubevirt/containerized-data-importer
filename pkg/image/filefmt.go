@@ -49,14 +49,26 @@ var knownHeaders = Headers{
 	"vmdk": Header{
 		Format:      "vmdk",
 		magicNumber: []byte{0x4B, 0x44, 0x4D, 0x56},
-		SizeOff: 0,
-		SizeLen: 0,
+		SizeOff:     0,
+		SizeLen:     0,
 	},
 	"vdi": Header{
 		Format:      "vdi",
 		magicNumber: []byte{0x3C, 0x3C, 0x3C, 0x20},
-		SizeOff: 0,
-		SizeLen: 0,
+		SizeOff:     0,
+		SizeLen:     0,
+	},
+	"vhd": Header{
+		Format:      "vhd",
+		magicNumber: []byte{0x63, 0x6F, 0x6E, 0x6E, 0x65, 0x63, 0x74, 0x69, 0x78},
+		SizeOff:     0,
+		SizeLen:     0,
+	},
+	"vhdx": Header{
+		Format:      "vhdx",
+		magicNumber: []byte{0x76, 0x68, 0x64, 0x78, 0x66, 0x69, 0x6C, 0x65},
+		SizeOff:     0,
+		SizeLen:     0,
 	},
 }
 

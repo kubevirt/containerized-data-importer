@@ -195,7 +195,7 @@ func (o *qemuOperations) Info(url *url.URL) (*ImgInfo, error) {
 
 func isSupportedFormat(value string) bool {
 	switch value {
-	case "raw", "qcow2", "vmdk", "vdi":
+	case "raw", "qcow2", "vmdk", "vdi", "vpc", "vhdx":
 		return true
 	default:
 		return false
