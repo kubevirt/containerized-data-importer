@@ -310,8 +310,9 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(foundEndPoint).To(BeTrue())
 		By("Verifying the fsGroup of the pod is the qemu user")
 		Expect(*pod.Spec.SecurityContext.FSGroup).To(Equal(int64(107)))
-		By("Verifying the pod is annotated with network")
+		By("Verifying the pod is annotated correctly")
 		Expect(pod.GetAnnotations()[AnnPodNetwork]).To(Equal("net1"))
+		Expect(pod.GetAnnotations()[AnnPodSidecarInjection]).To(Equal(AnnPodSidecarInjectionDefault))
 	})
 
 	It("Should not pass non-approved PVC annotation to created POD", func() {

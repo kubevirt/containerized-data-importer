@@ -132,6 +132,8 @@ const (
 	AnnPodMultusDefaultNetwork = "v1.multus-cni.io/default-network"
 	// AnnPodSidecarInjection is used for enabling/disabling Pod istio/AspenMesh sidecar injection
 	AnnPodSidecarInjection = "sidecar.istio.io/inject"
+	// AnnPodSidecarInjectionDefault is the default value passed for AnnPodSidecarInjection
+	AnnPodSidecarInjectionDefault = "false"
 )
 
 func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string, log logr.Logger) bool {
@@ -646,9 +648,16 @@ func IsPopulated(pvc *v1.PersistentVolumeClaim, c client.Client) (bool, error) {
 
 // SetPodPvcAnnotations applies PVC annotations on the pod
 func SetPodPvcAnnotations(pod *v1.Pod, pvc *v1.PersistentVolumeClaim) {
-	allowedAnnotations := []string{AnnPodNetwork, AnnPodSidecarInjection, AnnPodMultusDefaultNetwork}
-	for _, ann := range allowedAnnotations {
-		if val, ok := pvc.Annotations[ann]; ok {
+	allowedAnnotations := map[string]string{
+		AnnPodNetwork:              "",
+		AnnPodSidecarInjection:     AnnPodSidecarInjectionDefault,
+		AnnPodMultusDefaultNetwork: ""}
+	for ann, def := range allowedAnnotations {
+		val, ok := pvc.Annotations[ann]
+		if !ok && def != "" {
+			val = def
+		}
+		if val != "" {
 			klog.V(1).Info("Applying PVC annotation on the pod", ann, val)
 			if pod.Annotations == nil {
 				pod.Annotations = map[string]string{}
