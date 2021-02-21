@@ -6,9 +6,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
@@ -23,7 +21,7 @@ func (h *dataVolumeTransferHandler) ReconcilePending(ot *cdiv1.ObjectTransfer) (
 	dv := &cdiv1.DataVolume{}
 	dvExists, err := h.reconciler.getSourceResource(ot, dv)
 	if err != nil {
-		return 0, h.reconciler.setConditionError(ot, err)
+		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}
 
 	if !dvExists {
@@ -44,9 +42,9 @@ func (h *dataVolumeTransferHandler) ReconcilePending(ot *cdiv1.ObjectTransfer) (
 		return 0, nil
 	}
 
-	pods, err := cdicontroller.GetPodsUsingPVCs(h.reconciler.client, dv.Namespace, sets.NewString(cdicontroller.GetDataVolumeClaimName(dv)), false)
+	pods, err := cdicontroller.GetPodsUsingPVCs(h.reconciler.Client, dv.Namespace, sets.NewString(cdicontroller.GetDataVolumeClaimName(dv)), false)
 	if err != nil {
-		return 0, h.reconciler.setConditionError(ot, err)
+		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}
 
 	if len(pods) > 0 {
@@ -66,10 +64,6 @@ func (h *dataVolumeTransferHandler) ReconcilePending(ot *cdiv1.ObjectTransfer) (
 	return 0, h.reconciler.pendingHelper(ot, dv2, data)
 }
 
-func (h *dataVolumeTransferHandler) CancelPending(ot *cdiv1.ObjectTransfer) error {
-	return h.reconciler.cancelHelper(ot, &cdiv1.DataVolume{})
-}
-
 func (h *dataVolumeTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (time.Duration, error) {
 	dv := &cdiv1.DataVolume{}
 	dvExists, err := h.reconciler.getSourceResource(ot, dv)
@@ -83,19 +77,16 @@ func (h *dataVolumeTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (
 
 	pvcTransferName := fmt.Sprintf("pvc-transfer-%s", ot.UID)
 
-	pvcTransfer, pvcTransferExists := &cdiv1.ObjectTransfer{}, true
-	if err := h.reconciler.client.Get(context.TODO(), types.NamespacedName{Name: pvcTransferName}, pvcTransfer); err != nil {
-		if !errors.IsNotFound(err) {
-			return 0, h.reconciler.setConditionError(ot, err)
-		}
-
-		pvcTransferExists = false
+	pvcTransfer := &cdiv1.ObjectTransfer{}
+	pvcTransferExists, err := h.reconciler.getResource("", pvcTransferName, pvcTransfer)
+	if err != nil {
+		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}
 
 	target := &cdiv1.DataVolume{}
 	targetExists, err := h.reconciler.getTargetResource(ot, target)
 	if err != nil {
-		return 0, h.reconciler.setConditionError(ot, err)
+		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}
 
 	pvcName := ot.Status.Data["pvcName"]
@@ -121,11 +112,11 @@ func (h *dataVolumeTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (
 			},
 		}
 
-		if err := h.reconciler.client.Create(context.TODO(), pvcTransfer); err != nil {
-			return 0, h.reconciler.setConditionError(ot, err)
+		if err := h.reconciler.Client.Create(context.TODO(), pvcTransfer); err != nil {
+			return 0, h.reconciler.setCompleteConditionError(ot, err)
 		}
 
-		return 0, nil
+		pvcTransferExists = true
 	}
 
 	if pvcTransferExists && pvcTransfer.Status.Phase != cdiv1.ObjectTransferComplete {
@@ -139,7 +130,7 @@ func (h *dataVolumeTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvcExists, err := h.reconciler.getTargetResource(pvcTransfer, pvc)
 	if err != nil {
-		return 0, h.reconciler.setConditionError(ot, err)
+		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}
 
 	if !pvcExists {
@@ -151,16 +142,14 @@ func (h *dataVolumeTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (
 	}
 
 	if err := h.addPopulatedAnnotation(ot, pvc); err != nil {
-		return 0, h.reconciler.setConditionError(ot, err)
+		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}
 
 	if !targetExists {
 		target = &cdiv1.DataVolume{}
 		if err := h.reconciler.createObjectTransferTarget(ot, target, nil); err != nil {
-			return 0, h.reconciler.setConditionError(ot, err)
+			return 0, h.reconciler.setCompleteConditionError(ot, err)
 		}
-
-		return 0, nil
 	}
 
 	if target.Status.Phase != cdiv1.Succeeded {
@@ -171,9 +160,9 @@ func (h *dataVolumeTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (
 		return 0, nil
 	}
 
-	if pvcTransferExists {
-		if err := h.reconciler.client.Delete(context.TODO(), pvcTransfer); err != nil {
-			return 0, h.reconciler.setConditionError(ot, err)
+	if pvcTransferExists && pvcTransfer.DeletionTimestamp == nil {
+		if err := h.reconciler.Client.Delete(context.TODO(), pvcTransfer); err != nil {
+			return 0, h.reconciler.setCompleteConditionError(ot, err)
 		}
 	}
 
@@ -190,7 +179,7 @@ func (h *dataVolumeTransferHandler) deleteDataVolume(ot *cdiv1.ObjectTransfer, d
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvcExists, err := h.reconciler.getResource(dv.Namespace, cdicontroller.GetDataVolumeClaimName(dv), pvc)
 	if err != nil {
-		return 0, h.reconciler.setConditionError(ot, err)
+		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}
 
 	if !pvcExists {
@@ -215,15 +204,15 @@ func (h *dataVolumeTransferHandler) deleteDataVolume(ot *cdiv1.ObjectTransfer, d
 		os := pvc.OwnerReferences
 		pvc.OwnerReferences = append(os[0:idx], os[idx+1:len(os)]...)
 		if err := h.reconciler.updateResource(ot, pvc); err != nil {
-			return 0, h.reconciler.setConditionError(ot, err)
+			return 0, h.reconciler.setCompleteConditionError(ot, err)
 		}
 	}
 
-	if err := h.reconciler.client.Delete(context.TODO(), dv); err != nil {
-		return 0, h.reconciler.setConditionError(ot, err)
+	if err := h.reconciler.Client.Delete(context.TODO(), dv); err != nil {
+		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}
 
-	return 0, nil
+	return 0, h.reconciler.setCompleteConditionRunning(ot)
 }
 
 func (h *dataVolumeTransferHandler) addPopulatedAnnotation(ot *cdiv1.ObjectTransfer, pvc *corev1.PersistentVolumeClaim) error {

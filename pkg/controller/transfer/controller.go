@@ -25,6 +25,7 @@ import (
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,7 +52,6 @@ const (
 
 type transferHandler interface {
 	ReconcilePending(*cdiv1.ObjectTransfer) (time.Duration, error)
-	CancelPending(*cdiv1.ObjectTransfer) error
 	ReconcileRunning(*cdiv1.ObjectTransfer) (time.Duration, error)
 }
 
@@ -61,10 +61,10 @@ type objectTransferHandler struct {
 
 // ObjectTransferReconciler members
 type ObjectTransferReconciler struct {
-	client   client.Client
-	recorder record.EventRecorder
-	scheme   *runtime.Scheme
-	log      logr.Logger
+	Client   client.Client
+	Recorder record.EventRecorder
+	Scheme   *runtime.Scheme
+	Log      logr.Logger
 }
 
 func getTransferTargetName(ot *cdiv1.ObjectTransfer) string {
@@ -88,10 +88,10 @@ func NewObjectTransferController(mgr manager.Manager, log logr.Logger) (controll
 	name := "transfer-controller"
 	client := mgr.GetClient()
 	reconciler := &ObjectTransferReconciler{
-		client:   client,
-		scheme:   mgr.GetScheme(),
-		log:      log.WithName(name),
-		recorder: mgr.GetEventRecorderFor(name),
+		Client:   client,
+		Scheme:   mgr.GetScheme(),
+		Log:      log.WithName(name),
+		Recorder: mgr.GetEventRecorderFor(name),
 	}
 
 	ctrl, err := controller.New(name, mgr, controller.Options{
@@ -109,7 +109,7 @@ func NewObjectTransferController(mgr manager.Manager, log logr.Logger) (controll
 }
 
 func (r *ObjectTransferReconciler) logger(ot *cdiv1.ObjectTransfer) logr.Logger {
-	return r.log.WithValues(
+	return r.Log.WithValues(
 		"namespace", ot.Namespace,
 		"name", ot.Name,
 		"kind", ot.Spec.Source.Kind,
@@ -122,7 +122,7 @@ func (r *ObjectTransferReconciler) logger(ot *cdiv1.ObjectTransfer) logr.Logger 
 // Reconcile the reconcile loop for the data volumes.
 func (r *ObjectTransferReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
 	ot := &cdiv1.ObjectTransfer{}
-	if err := r.client.Get(context.TODO(), req.NamespacedName, ot); err != nil {
+	if err := r.Client.Get(context.TODO(), req.NamespacedName, ot); err != nil {
 		if errors.IsNotFound(err) {
 			return reconcile.Result{}, nil
 		}
@@ -143,10 +143,6 @@ func (r *ObjectTransferReconciler) Reconcile(req reconcile.Request) (reconcile.R
 		}
 
 		if ot.DeletionTimestamp != nil {
-			if err = handler.CancelPending(ot); err != nil {
-				return reconcile.Result{}, err
-			}
-
 			return r.reconcileCleanup(ot)
 		}
 
@@ -220,7 +216,7 @@ func (r *ObjectTransferReconciler) getHandler(ot *cdiv1.ObjectTransfer) (transfe
 }
 
 func (r *ObjectTransferReconciler) getResource(ns, name string, obj runtime.Object) (bool, error) {
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: ns, Name: name}, obj); err != nil {
+	if err := r.Client.Get(context.TODO(), types.NamespacedName{Namespace: ns, Name: name}, obj); err != nil {
 		if errors.IsNotFound(err) {
 			return false, nil
 		}
@@ -235,7 +231,7 @@ func (r *ObjectTransferReconciler) updateResource(ot *cdiv1.ObjectTransfer, obj 
 	log := r.logger(ot)
 
 	log.V(3).Info("Updating resource", obj)
-	if err := r.client.Update(context.TODO(), obj); err != nil {
+	if err := r.Client.Update(context.TODO(), obj); err != nil {
 		log.Error(err, "Update error")
 		return err
 	}
@@ -247,7 +243,7 @@ func (r *ObjectTransferReconciler) updateResourceStatus(ot *cdiv1.ObjectTransfer
 	log := r.logger(ot)
 
 	log.V(3).Info("Updating resource status", obj)
-	if err := r.client.Status().Update(context.TODO(), obj); err != nil {
+	if err := r.Client.Status().Update(context.TODO(), obj); err != nil {
 		log.Error(err, "Update status error")
 		return err
 	}
@@ -278,17 +274,27 @@ func (r *ObjectTransferReconciler) setAndUpdateCompleteCondition(ot *cdiv1.Objec
 	return r.setAndUpdateCondition(ot, cdiv1.ObjectTransferConditionComplete, status, message, reason)
 }
 
-func (r *ObjectTransferReconciler) setConditionError(ot *cdiv1.ObjectTransfer, lastError error) error {
+func (r *ObjectTransferReconciler) setCompleteConditionError(ot *cdiv1.ObjectTransfer, lastError error) error {
 	if err := r.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "Error", lastError.Error()); err != nil {
 		return err
 	}
+
 	return lastError
+}
+
+func (r *ObjectTransferReconciler) setCompleteConditionRunning(ot *cdiv1.ObjectTransfer) error {
+	return r.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "Running", "")
 }
 
 func (r *ObjectTransferReconciler) setAndUpdateCondition(ot *cdiv1.ObjectTransfer, t cdiv1.ObjectTransferConditionType, status corev1.ConditionStatus, message, reason string) error {
 	r.logger(ot).V(3).Info("Updating condition", t, "status", status, "message", message, "reason", reason)
 
-	if r.setCondition(ot, t, status, message, reason) {
+	ot2 := &cdiv1.ObjectTransfer{}
+	if _, err := r.getResource("", ot.Name, ot2); err != nil {
+		return err
+	}
+
+	if r.setCondition(ot, t, status, message, reason) || !apiequality.Semantic.DeepEqual(ot.Status, ot2.Status) {
 		return r.updateResourceStatus(ot, ot)
 	}
 
@@ -362,13 +368,13 @@ func (r *ObjectTransferReconciler) createObjectTransferTarget(ot *cdiv1.ObjectTr
 		mutateFn(obj)
 	}
 
-	return r.client.Create(context.TODO(), obj)
+	return r.Client.Create(context.TODO(), obj)
 }
 
 func (r *ObjectTransferReconciler) pendingHelper(ot *cdiv1.ObjectTransfer, obj runtime.Object, data map[string]string) error {
 	metaObj, err := meta.Accessor(obj)
 	if err != nil {
-		return r.setConditionError(ot, err)
+		return r.setCompleteConditionError(ot, err)
 	}
 
 	v, ok := metaObj.GetAnnotations()[AnnObjectTransferName]
@@ -386,7 +392,7 @@ func (r *ObjectTransferReconciler) pendingHelper(ot *cdiv1.ObjectTransfer, obj r
 		}
 		metaObj.GetAnnotations()[AnnObjectTransferName] = ot.Name
 		if err := r.updateResource(ot, obj); err != nil {
-			return r.setConditionError(ot, err)
+			return r.setCompleteConditionError(ot, err)
 		}
 
 		if err := r.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "Pending", ""); err != nil {
@@ -396,7 +402,7 @@ func (r *ObjectTransferReconciler) pendingHelper(ot *cdiv1.ObjectTransfer, obj r
 
 	bs, err := json.Marshal(obj)
 	if err != nil {
-		return r.setConditionError(ot, err)
+		return r.setCompleteConditionError(ot, err)
 	}
 
 	source := string(bs)
@@ -409,32 +415,8 @@ func (r *ObjectTransferReconciler) pendingHelper(ot *cdiv1.ObjectTransfer, obj r
 	}
 
 	ot.Status.Phase = cdiv1.ObjectTransferRunning
-	if err := r.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "Running", ""); err != nil {
+	if err := r.setCompleteConditionRunning(ot); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func (r *ObjectTransferReconciler) cancelHelper(ot *cdiv1.ObjectTransfer, obj runtime.Object) error {
-	exists, err := r.getSourceResource(ot, obj)
-	if err != nil {
-		return r.setConditionError(ot, err)
-	}
-
-	if !exists {
-		return nil
-	}
-
-	metaObj, err := meta.Accessor(obj)
-	if err != nil {
-		return r.setConditionError(ot, err)
-	}
-
-	v := metaObj.GetAnnotations()[AnnObjectTransferName]
-	if v == ot.Name {
-		delete(metaObj.GetAnnotations(), AnnObjectTransferName)
-		return r.updateResource(ot, obj)
 	}
 
 	return nil
