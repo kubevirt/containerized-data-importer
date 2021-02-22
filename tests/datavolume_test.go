@@ -584,102 +584,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
-			table.Entry("succeed creating import dv with given valid vmdk url (https)", dataVolumeTestArguments{
-				name:             "dv-https-import-vmdk",
-				size:             "1Gi",
-				url:              httpsTinyCoreVmdkURL,
-				dvFunc:           createHTTPSDataVolume,
-				eventReason:      controller.ImportSucceeded,
-				phase:            cdiv1.Succeeded,
-				checkPermissions: true,
-				readyCondition: &cdiv1.DataVolumeCondition{
-					Type:   cdiv1.DataVolumeReady,
-					Status: v1.ConditionTrue,
-				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-https-import-vmdk Bound",
-					Reason:  "Bound",
-				},
-				runningCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeRunning,
-					Status:  v1.ConditionFalse,
-					Message: "Import Complete",
-					Reason:  "Completed",
-				}}),
-			table.Entry("succeed creating import dv with given valid vdi url (https)", dataVolumeTestArguments{
-				name:             "dv-https-import-vdi",
-				size:             "1Gi",
-				url:              httpsTinyCoreVdiURL,
-				dvFunc:           createHTTPSDataVolume,
-				eventReason:      controller.ImportSucceeded,
-				phase:            cdiv1.Succeeded,
-				checkPermissions: true,
-				readyCondition: &cdiv1.DataVolumeCondition{
-					Type:   cdiv1.DataVolumeReady,
-					Status: v1.ConditionTrue,
-				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-https-import-vdi Bound",
-					Reason:  "Bound",
-				},
-				runningCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeRunning,
-					Status:  v1.ConditionFalse,
-					Message: "Import Complete",
-					Reason:  "Completed",
-				}}),
-			table.Entry("succeed creating import dv with given valid vhd url (https)", dataVolumeTestArguments{
-				name:             "dv-https-import-vhd",
-				size:             "1Gi",
-				url:              httpsTinyCoreVhdURL,
-				dvFunc:           createHTTPSDataVolume,
-				eventReason:      controller.ImportSucceeded,
-				phase:            cdiv1.Succeeded,
-				checkPermissions: true,
-				readyCondition: &cdiv1.DataVolumeCondition{
-					Type:   cdiv1.DataVolumeReady,
-					Status: v1.ConditionTrue,
-				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-https-import-vhd Bound",
-					Reason:  "Bound",
-				},
-				runningCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeRunning,
-					Status:  v1.ConditionFalse,
-					Message: "Import Complete",
-					Reason:  "Completed",
-				}}),
-			table.Entry("succeed creating import dv with given valid vhdx url (https)", dataVolumeTestArguments{
-				name:             "dv-https-import-vhdx",
-				size:             "1Gi",
-				url:              httpsTinyCoreVhdxURL,
-				dvFunc:           createHTTPSDataVolume,
-				eventReason:      controller.ImportSucceeded,
-				phase:            cdiv1.Succeeded,
-				checkPermissions: true,
-				readyCondition: &cdiv1.DataVolumeCondition{
-					Type:   cdiv1.DataVolumeReady,
-					Status: v1.ConditionTrue,
-				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-https-import-vhdx Bound",
-					Reason:  "Bound",
-				},
-				runningCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeRunning,
-					Status:  v1.ConditionFalse,
-					Message: "Import Complete",
-					Reason:  "Completed",
-				}}),
 			table.Entry("[rfe_id:1111][crit:high][test_id:1361]succeed creating blank image dv", dataVolumeTestArguments{
 				name:             "blank-image-dv",
 				size:             "1Gi",
@@ -1019,6 +923,27 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[test_id:3936]succeed warm import from VDDK to block volume", "warm-import-vddk", "", nil, "dv-vddk-warm-import-test", controller.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
+
+	table.DescribeTable("Succeed HTTPS import in various formats", func(url func() string) {
+		By(fmt.Sprintf("Importing from %s", url()))
+		dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url())
+		cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+		Expect(err).To(BeNil())
+		dataVolume.Spec.Source.HTTP.CertConfigMap = cm
+
+		By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+	},
+		table.Entry("when importing in the VMDK format", httpsTinyCoreVmdkURL),
+		table.Entry("When importing in the VDI format", httpsTinyCoreVdiURL),
+		table.Entry("when importing in the VHD format", httpsTinyCoreVhdURL),
+		table.Entry("when importing in the VHDX format", httpsTinyCoreVhdxURL),
+	)
 
 	Describe("[rfe_id:1115][crit:high][posneg:negative]Delete resources of DataVolume with an invalid URL (POD in retry loop)", func() {
 		Context("using invalid import URL for DataVolume", func() {
