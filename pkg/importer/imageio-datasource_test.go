@@ -235,6 +235,8 @@ var _ = Describe("Imageio cancel", func() {
 		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)
 		it.SetTransferUrl(ts.URL)
 		it.SetId("123")
+		diskAvailable = true
+		diskCreateError = nil
 
 		_, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
 		Expect(err).ToNot(HaveOccurred())
