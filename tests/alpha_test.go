@@ -64,12 +64,11 @@ var _ = Describe("Alpha API tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("[test_id:4947]should not", func() {
-			By("create a upload DataVolume")
+		It("[test_id:4947]should", func() {
+			By("create a upload DataVolume without accessMode")
 			out, err := tests.RunKubectlCommand(f, "create", "-f", "manifests/dvAlphaMissingAccessModes.yaml", "-n", f.Namespace.Name)
 			fmt.Fprintf(GinkgoWriter, "INFO: Output from kubectl: %s\n", out)
-			Expect(out).Should(ContainSubstring("at least 1 access mode is required"))
-			Expect(err).To(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		Context("with deletion blocked", func() {

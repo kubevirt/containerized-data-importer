@@ -273,7 +273,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			table.Entry("[test_id:1765]fail with invalid source PVC", "manifests/dvInvalidSourcePVC.yaml", true, "spec.source.pvc.name in body is required", "spec.source.pvc.name: Required value", "missing required field \"name\" in io.kubevirt.cdi.v1beta1.DataVolume.spec.source.pvc"),
 			table.Entry("[test_id:1766][posneg:positive]succeed with valid source http", "manifests/datavolume.yaml", false, ""),
 			table.Entry("[test_id:1767]fail with missing PVC spec", "manifests/dvMissingPVCSpec.yaml", true, "Missing Data volume PVC", "missing required field \"pvc\" in io.kubevirt.cdi.v1beta1.DataVolume.spec", "invalid: spec.pvc: Required value"),
-			table.Entry("[test_id:3920]fail with missing PVC accessModes", "manifests/dvMissingPVCAccessModes.yaml", true, "spec.pvc.accessModes in body is required", "spec.pvc.accessModes: Required value", "Required value: at least 1 access mode is required"),
+			table.Entry("[test_id:3920][posneg:positive]succeed with missing PVC accessModes", "manifests/dvMissingPVCAccessModes.yaml", false, ""),
 			table.Entry("[test_id:1768]fail with missing resources spec", "manifests/dvMissingResourceSpec.yaml", true, "spec.pvc.resources in body is required", "spec.pvc.resources: Required value", "admission webhook \"datavolume-validate.cdi.kubevirt.io\" denied the request:  PVC size is missing"),
 			table.Entry("[test_id:3921]fail with missing PVC size", "manifests/dvMissingPVCSize.yaml", true, "PVC size is missing", "spec.pvc.resources.requests in body must be of type object"),
 			table.Entry("[test_id:1769]fail with 0 size PVC", "manifests/dv0SizePVC.yaml", true, "PVC size can't be equal or less than zero"),
