@@ -54,6 +54,7 @@ func createDynamicAPIServerResources(args *FactoryArgs) []runtime.Object {
 		createDataVolumeValidatingWebhook(args.Namespace, args.Client, args.Logger),
 		createDataVolumeMutatingWebhook(args.Namespace, args.Client, args.Logger),
 		createCDIValidatingWebhook(args.Namespace, args.Client, args.Logger),
+		createObjectTransferValidatingWebhook(args.Namespace, args.Client, args.Logger),
 	}
 }
 
@@ -103,6 +104,7 @@ func getAPIServerClusterPolicyRules() []rbacv1.PolicyRule {
 			},
 			Verbs: []string{
 				"list",
+				"get",
 			},
 		},
 		{
@@ -269,6 +271,78 @@ func createCDIValidatingWebhook(namespace string, c client.Client, l logr.Logger
 							cdicorev1alpha1.SchemeGroupVersion.Version,
 						},
 						Resources: []string{"cdis"},
+						Scope:     &allScopes,
+					},
+				}},
+				ClientConfig: admissionregistrationv1beta1.WebhookClientConfig{
+					Service: &admissionregistrationv1beta1.ServiceReference{
+						Namespace: namespace,
+						Name:      apiServerServiceName,
+						Path:      &path,
+						Port:      &defaultServicePort,
+					},
+				},
+				SideEffects:       &sideEffect,
+				FailurePolicy:     &failurePolicy,
+				MatchPolicy:       &exactPolicy,
+				NamespaceSelector: &metav1.LabelSelector{},
+				TimeoutSeconds:    &defaultTimeoutSeconds,
+				AdmissionReviewVersions: []string{
+					"v1beta1",
+				},
+				ObjectSelector: &metav1.LabelSelector{},
+			},
+		},
+	}
+
+	if c == nil {
+		return whc
+	}
+
+	bundle := getAPIServerCABundle(namespace, c, l)
+	if bundle != nil {
+		for i := range whc.Webhooks {
+			whc.Webhooks[i].ClientConfig.CABundle = bundle
+			whc.Webhooks[i].FailurePolicy = &failurePolicy
+		}
+	}
+
+	return whc
+}
+
+func createObjectTransferValidatingWebhook(namespace string, c client.Client, l logr.Logger) *admissionregistrationv1beta1.ValidatingWebhookConfiguration {
+	path := "/objecttransfer-validate"
+	sideEffect := admissionregistrationv1beta1.SideEffectClassNone
+	defaultServicePort := int32(443)
+	allScopes := admissionregistrationv1beta1.AllScopes
+	exactPolicy := admissionregistrationv1beta1.Exact
+	failurePolicy := admissionregistrationv1beta1.Fail
+	defaultTimeoutSeconds := int32(30)
+	whc := &admissionregistrationv1beta1.ValidatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "admissionregistration.k8s.io/v1beta1",
+			Kind:       "ValidatingWebhookConfiguration",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "objecttransfer-api-validate",
+			Labels: map[string]string{
+				utils.CDILabel: apiServerServiceName,
+			},
+		},
+		Webhooks: []admissionregistrationv1beta1.ValidatingWebhook{
+			{
+				Name: "objecttransfer-validate.cdi.kubevirt.io",
+				Rules: []admissionregistrationv1beta1.RuleWithOperations{{
+					Operations: []admissionregistrationv1beta1.OperationType{
+						admissionregistrationv1beta1.Create,
+						admissionregistrationv1beta1.Update,
+					},
+					Rule: admissionregistrationv1beta1.Rule{
+						APIGroups: []string{cdicorev1.SchemeGroupVersion.Group},
+						APIVersions: []string{
+							cdicorev1.SchemeGroupVersion.Version,
+						},
+						Resources: []string{"objecttransfers"},
 						Scope:     &allScopes,
 					},
 				}},

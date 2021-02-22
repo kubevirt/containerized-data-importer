@@ -65,6 +65,8 @@ const (
 
 	cdiValidatePath = "/cdi-validate"
 
+	objectTransferValidatePath = "/objecttransfer-validate"
+
 	healthzPath = "/healthz"
 )
 
@@ -169,6 +171,11 @@ func NewCdiAPIServer(bindAddress string,
 	err = app.createCDIValidatingWebhook()
 	if err != nil {
 		return nil, errors.Errorf("failed to create CDI validating webhook: %s", err)
+	}
+
+	err = app.createObjectTransferValidatingWebhook()
+	if err != nil {
+		return nil, errors.Errorf("failed to create ObjectTransfer validating webhook: %s", err)
 	}
 
 	return app, nil
@@ -483,5 +490,10 @@ func (app *cdiAPIApp) createDataVolumeMutatingWebhook() error {
 
 func (app *cdiAPIApp) createCDIValidatingWebhook() error {
 	app.container.ServeMux.Handle(cdiValidatePath, webhooks.NewCDIValidatingWebhook(app.cdiClient))
+	return nil
+}
+
+func (app *cdiAPIApp) createObjectTransferValidatingWebhook() error {
+	app.container.ServeMux.Handle(objectTransferValidatePath, webhooks.NewObjectTransferValidatingWebhook(app.client, app.cdiClient))
 	return nil
 }

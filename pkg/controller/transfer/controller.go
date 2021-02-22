@@ -357,8 +357,9 @@ func (r *ObjectTransferReconciler) createObjectTransferTarget(ot *cdiv1.ObjectTr
 	metaObj.SetSelfLink("")
 	metaObj.SetCreationTimestamp(metav1.Time{})
 	metaObj.SetDeletionTimestamp(nil)
+	metaObj.SetManagedFields(nil)
 
-	if ot.Spec.Target.Namespace != nil && *ot.Spec.Target.Namespace != ot.Spec.Source.Name {
+	if ot.Spec.Target.Namespace != nil && *ot.Spec.Target.Namespace != ot.Spec.Source.Namespace {
 		metaObj.SetOwnerReferences(nil)
 	}
 
