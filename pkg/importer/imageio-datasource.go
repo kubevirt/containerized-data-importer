@@ -73,6 +73,21 @@ func NewImageioDataSource(endpoint string, accessKey string, secKey string, cert
 	// We know this is a counting reader, so no need to check.
 	countingReader := imageioReader.(*util.CountingReader)
 	go imageioSource.pollProgress(countingReader, 10*time.Minute, time.Second)
+
+	terminationChannel := newTerminationChannel()
+	go func() {
+		<-terminationChannel
+		klog.Infof("Caught termination signal, closing ImageIO.")
+		err := cancelTransfer(conn, it)
+		if err != nil {
+			klog.Errorf("Error cancelling transfer: %v", err)
+		}
+		err = imageioSource.Close()
+		if err != nil {
+			klog.Errorf("Error closing source: %v", err)
+		}
+	}()
+
 	return imageioSource, nil
 }
 
@@ -189,10 +204,12 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 	// Use the create client from http source.
 	client, err := createHTTPClient(certDir)
 	if err != nil {
+		cancelTransfer(conn, it)
 		return nil, uint64(0), it, conn, err
 	}
 	transferURL, available := it.TransferUrl()
 	if !available {
+		cancelTransfer(conn, it)
 		return nil, uint64(0), it, conn, errors.New("Error transfer url not available")
 	}
 
@@ -201,9 +218,11 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 
 	resp, err := client.Do(req)
 	if err != nil {
+		cancelTransfer(conn, it)
 		return nil, uint64(0), it, conn, errors.Wrap(err, "Sending request failed")
 	}
 	if resp.StatusCode != http.StatusOK {
+		cancelTransfer(conn, it)
 		return nil, uint64(0), it, conn, errors.Errorf("bad status: %s", resp.Status)
 	}
 
@@ -216,6 +235,15 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 		Current: 0,
 	}
 	return countingReader, total, it, conn, nil
+}
+
+// cancelTransfer makes sure the disk is unlocked before shutting down importer
+func cancelTransfer(conn ConnectionInterface, it *ovirtsdk4.ImageTransfer) error {
+	var err error
+	if conn != nil && it != nil {
+		_, err = conn.SystemService().ImageTransfersService().ImageTransferService(it.MustId()).Cancel().Send()
+	}
+	return err
 }
 
 func getTransfer(conn ConnectionInterface, diskID string) (*ovirtsdk4.ImageTransfer, uint64, error) {
@@ -366,7 +394,17 @@ type ImageTransfersServiceInterface interface {
 
 // ImageTransferServiceInterface defines service methods
 type ImageTransferServiceInterface interface {
+	Cancel() ImageTransferServiceCancelRequestInterface
 	Finalize() ImageTransferServiceFinalizeRequestInterface
+}
+
+// ImageTransferServiceCancelRequestInterface defines service methods
+type ImageTransferServiceCancelRequestInterface interface {
+	Send() (ImageTransferServiceCancelResponseInterface, error)
+}
+
+// ImageTransferServiceCancelResponseInterface defines service methods
+type ImageTransferServiceCancelResponseInterface interface {
 }
 
 // ImageTransferServiceFinalizeRequestInterface defines service methods
@@ -449,6 +487,16 @@ type ImageTransfersServiceAddResponse struct {
 	srv *ovirtsdk4.ImageTransfersServiceAddResponse
 }
 
+// ImageTransferServiceCancelRequest wraps cancel request
+type ImageTransferServiceCancelRequest struct {
+	srv *ovirtsdk4.ImageTransferServiceCancelRequest
+}
+
+// ImageTransferServiceCancelResponse wraps cancel response
+type ImageTransferServiceCancelResponse struct {
+	srv *ovirtsdk4.ImageTransferServiceCancelResponse
+}
+
 // ImageTransferServiceFinalizeRequest warps finalize request
 type ImageTransferServiceFinalizeRequest struct {
 	srv *ovirtsdk4.ImageTransferServiceFinalizeRequest
@@ -490,6 +538,14 @@ func (service *ImageTransfersServiceAddResponse) ImageTransfer() (*ovirtsdk4.Ima
 func (service *ImageTransfersServiceResponse) Send() (ImageTransfersServiceAddResponseInterface, error) {
 	resp, err := service.srv.Send()
 	return &ImageTransfersServiceAddResponse{
+		srv: resp,
+	}, err
+}
+
+// Send returns transfer cancel response
+func (service *ImageTransferServiceCancelRequest) Send() (ImageTransferServiceCancelResponseInterface, error) {
+	resp, err := service.srv.Send()
+	return &ImageTransferServiceCancelResponse{
 		srv: resp,
 	}, err
 }
@@ -542,6 +598,13 @@ func (service *SystemService) ImageTransfersService() ImageTransfersServiceInter
 func (service *ImageTransfersService) ImageTransferService(id string) ImageTransferServiceInterface {
 	return &ImageTransferService{
 		srv: service.srv.ImageTransferService(id),
+	}
+}
+
+// Cancel returns image service
+func (service *ImageTransferService) Cancel() ImageTransferServiceCancelRequestInterface {
+	return &ImageTransferServiceCancelRequest{
+		srv: service.srv.Cancel(),
 	}
 }
 
