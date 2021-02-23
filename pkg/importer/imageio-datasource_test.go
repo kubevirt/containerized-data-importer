@@ -34,12 +34,14 @@ var _ = Describe("Imageio reader", func() {
 
 	BeforeEach(func() {
 		newOvirtClientFunc = createMockOvirtClient
+		newTerminationChannel = createMockTerminationChannel
 		tempDir = createCert()
 		ts = createTestServer(imageDir)
 		disk.SetTotalSize(1024)
 		disk.SetId("123")
 		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)
 		it.SetTransferUrl(ts.URL + "/" + cirrosFileName)
+		it.SetId("123")
 		diskCreateError = nil
 		diskAvailable = true
 	})
@@ -77,12 +79,14 @@ var _ = Describe("Imageio data source", func() {
 
 	BeforeEach(func() {
 		newOvirtClientFunc = createMockOvirtClient
+		newTerminationChannel = createMockTerminationChannel
 		tempDir = createCert()
 		ts = createTestServer(imageDir)
 		disk.SetTotalSize(1024)
 		disk.SetId("123")
 		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)
 		it.SetTransferUrl(ts.URL)
+		it.SetId("123")
 		diskAvailable = true
 		diskCreateError = nil
 	})
@@ -220,6 +224,27 @@ var _ = Describe("Imageio pollprogress", func() {
 	})
 })
 
+var _ = Describe("Imageio cancel", func() {
+	It("should cancel transfer on SIGTERM", func() {
+		newOvirtClientFunc = createMockOvirtClient
+		newTerminationChannel = createMockTerminationChannel
+		tempDir := createCert()
+		ts := createTestServer(imageDir)
+		disk.SetTotalSize(1024)
+		disk.SetId("123")
+		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)
+		it.SetTransferUrl(ts.URL)
+		it.SetId("123")
+		diskAvailable = true
+		diskCreateError = nil
+
+		_, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
+		Expect(err).ToNot(HaveOccurred())
+		mockTerminationChannel <- os.Interrupt
+		Expect(err).ToNot(HaveOccurred())
+	})
+})
+
 // MockOvirtClient is a mock minio client
 type MockOvirtClient struct {
 	ep     string
@@ -232,12 +257,20 @@ type MockAddService struct {
 	client *MockOvirtClient
 }
 
+type MockCancelService struct {
+	client *MockOvirtClient
+}
+
 type MockFinalizeService struct {
 	client *MockOvirtClient
 }
 
 type MockImageTransfersServiceAddResponse struct {
 	srv *ovirtsdk4.ImageTransfersServiceAddResponse
+}
+
+type MockImageTransferServiceCancelResponse struct {
+	srv *ovirtsdk4.ImageTransferServiceCancelResponse
 }
 
 type MockImageTransferServiceFinalizeResponse struct {
@@ -272,6 +305,12 @@ func (conn *MockOvirtClient) ImageTransferService(string) ImageTransferServiceIn
 	return conn
 }
 
+func (conn *MockOvirtClient) Cancel() ImageTransferServiceCancelRequestInterface {
+	return &MockCancelService{
+		client: conn,
+	}
+}
+
 func (conn *MockOvirtClient) Finalize() ImageTransferServiceFinalizeRequestInterface {
 	return &MockFinalizeService{
 		client: conn,
@@ -289,6 +328,10 @@ func (conn *MockAddService) ImageTransfer(imageTransfer *ovirtsdk4.ImageTransfer
 
 func (conn *MockAddService) Send() (ImageTransfersServiceAddResponseInterface, error) {
 	return &MockImageTransfersServiceAddResponse{srv: nil}, nil
+}
+
+func (conn *MockCancelService) Send() (ImageTransferServiceCancelResponseInterface, error) {
+	return &MockImageTransferServiceCancelResponse{srv: nil}, nil
 }
 
 func (conn *MockFinalizeService) Send() (ImageTransferServiceFinalizeResponseInterface, error) {

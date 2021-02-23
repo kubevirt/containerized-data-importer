@@ -4,7 +4,9 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
@@ -43,3 +45,13 @@ func CleanDir(dest string) error {
 	}
 	return nil
 }
+
+// GetTerminationChannel returns a channel that listens for SIGTERM
+func GetTerminationChannel() <-chan os.Signal {
+	terminationChannel := make(chan os.Signal, 1)
+	signal.Notify(terminationChannel, os.Interrupt, syscall.SIGTERM)
+	return terminationChannel
+}
+
+// newTerminationChannel should be overriden for unit tests
+var newTerminationChannel = GetTerminationChannel
