@@ -363,7 +363,8 @@ func (f *Framework) NewPodWithPVC(podName, cmd string, pvc *k8sv1.PersistentVolu
 			},
 		},
 		Spec: k8sv1.PodSpec{
-			TerminationGracePeriodSeconds: &[]int64{0}[0],
+			// this may be causing an issue
+			TerminationGracePeriodSeconds: &[]int64{10}[0],
 			RestartPolicy:                 k8sv1.RestartPolicyNever,
 			Containers: []k8sv1.Container{
 				{
