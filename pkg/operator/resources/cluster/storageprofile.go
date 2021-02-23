@@ -49,10 +49,9 @@ func createStorageProfileCRD() *extv1.CustomResourceDefinition {
 			},
 			Versions: []extv1.CustomResourceDefinitionVersion{
 				{
-					Name:         "v1beta1",
-					Served:       true,
-					Storage:      true,
-					Subresources: &extv1.CustomResourceSubresources{},
+					Name:    "v1beta1",
+					Served:  true,
+					Storage: true,
 					Schema: &extv1.CustomResourceValidation{
 						OpenAPIV3Schema: &extv1.JSONSchemaProps{
 							Description: "StorageProfile provides a CDI specific recommendation for storage parameters",

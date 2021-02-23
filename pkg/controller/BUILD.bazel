@@ -10,6 +10,7 @@ go_library(
         "import-controller.go",
         "runtime-util.go",
         "smart-clone-controller.go",
+        "storageprofile-controller.go",
         "upload-controller.go",
         "util.go",
     ],
