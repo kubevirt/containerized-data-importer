@@ -42,7 +42,9 @@ import (
 )
 
 const (
-	tempFile = "tmpimage"
+	tempFile     = "tmpimage"
+	nbdkitPid    = "/var/run/nbdkit.pid"
+	nbdkitSocket = "/var/run/nbdkit.sock"
 )
 
 // HTTPDataSource is the data provider for http(s) endpoints.
@@ -72,8 +74,10 @@ type HTTPDataSource struct {
 	// the content length reported by the http server.
 	contentLength uint64
 
-	n *image.Nbdkit
+	n image.NbdkitOperation
 }
+
+var createNbdkitCurl = image.NewNbdkitCurl
 
 // NewHTTPDataSource creates a new instance of the http data provider.
 func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType cdiv1.DataVolumeContentType) (*HTTPDataSource, error) {
@@ -101,6 +105,7 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		brokenForQemuImg: brokenForQemuImg,
 		contentLength:    contentLength,
 	}
+	httpSource.n = createNbdkitCurl(nbdkitPid, certDir, nbdkitSocket)
 	// We know this is a counting reader, so no need to check.
 	countingReader := httpReader.(*util.CountingReader)
 	go httpSource.pollProgress(countingReader, 10*time.Minute, time.Second)
@@ -126,7 +131,8 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 		// We can pass straight to conversion from the endpoint
 		return ProcessingPhaseConvert, nil
 	}
-	hs.n = image.NewNbdkitCurl("/var/run/nbdkit.pid", hs.customCA)
+	hs.url, _ = url.Parse(fmt.Sprintf("nbd:unix:%s", nbdkitSocket))
+
 	if hs.readers.ArchiveGz {
 		hs.n.AddFilter(image.NbdkitGzipFilter)
 		klog.V(2).Infof("Added nbdkit gzip filter")
@@ -135,7 +141,10 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 		hs.n.AddFilter(image.NbdkitXzFilter)
 		klog.V(2).Infof("Added nbdkit xz filter")
 	}
-	qemuOperations = image.NewNbdkitOperations(hs.GetNbdkit())
+
+	if err := hs.n.StartNbdkit(hs.endpoint.String()); err != nil {
+		return ProcessingPhaseError, err
+	}
 	return ProcessingPhaseConvert, nil
 }
 
@@ -178,11 +187,6 @@ func (hs *HTTPDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 // GetURL returns the URI that the data processor can use when converting the data.
 func (hs *HTTPDataSource) GetURL() *url.URL {
 	return hs.url
-}
-
-// GetNbdkit returns the nbdkit instance of the importer
-func (hs *HTTPDataSource) GetNbdkit() *image.Nbdkit {
-	return hs.n
 }
 
 // Close all readers.

@@ -24,8 +24,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -41,6 +39,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -49,175 +48,38 @@ var newVddkDataSource = createVddkDataSource
 var newVddkDataSink = createVddkDataSink
 var newVMwareClient = createVMwareClient
 var newNbdKitWrapper = createNbdKitWrapper
-var vddkPluginPath = getVddkPluginPath
 
 /* Section: nbdkit */
 
 const (
-	mockPlugin            = "/opt/testing/libvddk-test-plugin.so"
-	nbdUnixSocket         = "/var/run/nbd.sock"
-	nbdPidFile            = "/var/run/nbd.pid"
-	nbdLibraryPath        = "/opt/vmware-vix-disklib-distrib/lib64"
-	startupTimeoutSeconds = 15
+	nbdUnixSocket = "/var/run/nbd.sock"
+	nbdPidFile    = "/var/run/nbd.pid"
 )
 
 // NbdKitWrapper keeps track of one nbdkit process
 type NbdKitWrapper struct {
-	Command *exec.Cmd
-	Socket  *url.URL
-	Handle  NbdOperations
-}
-
-// getVddkPluginPath checks for the existence of a fake VDDK plugin for tests
-func getVddkPluginPath() string {
-	_, err := os.Stat(mockPlugin)
-	if !os.IsNotExist(err) {
-		return mockPlugin
-	}
-	return "vddk"
-}
-
-// waitForNbd waits for nbdkit to start by watching for the existence of the given PID file.
-func waitForNbd(pidfile string) error {
-	nbdCheck := make(chan bool, 1)
-	go func() {
-		klog.Infoln("Waiting for nbdkit PID.")
-		for {
-			select {
-			case <-nbdCheck:
-				return
-			case <-time.After(500 * time.Millisecond):
-				_, err := os.Stat(pidfile)
-				if err != nil {
-					if !os.IsNotExist(err) {
-						klog.Warningf("Error checking for nbdkit PID: %v", err)
-					}
-				} else {
-					nbdCheck <- true
-					return
-				}
-			}
-		}
-	}()
-
-	select {
-	case <-nbdCheck:
-		klog.Infoln("nbdkit ready.")
-		return nil
-	case <-time.After(startupTimeoutSeconds * time.Second):
-		nbdCheck <- true
-		return errors.New("timed out waiting for nbdkit to be ready")
-	}
-}
-
-// validatePlugins tests VDDK and any other plugins before starting nbdkit for real
-func validatePlugins() error {
-	walker := func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
-		klog.Infof("%s: %d %s", path, info.Size(), info.Mode())
-		return nil
-	}
-
-	klog.Infof("Checking nbdkit plugin directory tree:")
-	err := filepath.Walk("/usr/lib64/nbdkit", walker)
-	if err != nil {
-		klog.Warningf("Unable to get nbdkit plugin directory tree: %v", err)
-	}
-
-	klog.Infof("Checking VDDK library directory tree:")
-	err = filepath.Walk("/opt/vmware-vix-disklib-distrib", walker)
-	if err != nil {
-		klog.Warningf("Unable to get VDDK library directory tree: %v", err)
-	}
-
-	args := []string{
-		"--dump-plugin",
-		vddkPluginPath(),
-	}
-	nbdkit := exec.Command("nbdkit", args...)
-	env := os.Environ()
-	env = append(env, "LD_LIBRARY_PATH="+nbdLibraryPath)
-	nbdkit.Env = env
-	out, err := nbdkit.CombinedOutput()
-	if out != nil {
-		klog.Infof("Output from nbdkit --dump-plugin %s: %s", vddkPluginPath(), out)
-	}
-	if err != nil {
-		return err
-	}
-
-	return nil
+	n      image.NbdkitOperation
+	Socket *url.URL
+	Handle NbdOperations
 }
 
 // createNbdKitWrapper starts nbdkit and returns a process handle for further management
 func createNbdKitWrapper(vmware *VMwareClient, diskFileName string) (*NbdKitWrapper, error) {
-	err := validatePlugins()
+	n, err := image.NewNbdkitVddk(nbdPidFile, nbdUnixSocket, vmware.url.Host, vmware.username, vmware.password, vmware.thumbprint, vmware.moref)
 	if err != nil {
 		klog.Errorf("Error validating nbdkit plugins: %v", err)
 		return nil, err
 	}
-
-	args := []string{
-		"--foreground",
-		"--readonly",
-		"--exit-with-parent",
-		"--unix", nbdUnixSocket,
-		"--pidfile", nbdPidFile,
-		"--filter=retry",
-		vddkPluginPath(),
-		"server=" + vmware.url.Host,
-		"user=" + vmware.username,
-		"password=" + vmware.password,
-		"thumbprint=" + vmware.thumbprint,
-		"vm=moref=" + vmware.moref,
-		"file=" + diskFileName,
-		"libdir=" + nbdLibraryPath,
-	}
-
-	nbdkit := exec.Command("nbdkit", args...)
-	env := os.Environ()
-	env = append(env, "LD_LIBRARY_PATH="+nbdLibraryPath)
-	nbdkit.Env = env
-
-	stdout, err := nbdkit.StdoutPipe()
-	if err != nil {
-		klog.Errorf("Error constructing stdout pipe: %v", err)
-		return nil, err
-	}
-	nbdkit.Stderr = nbdkit.Stdout
-	output := bufio.NewReader(stdout)
-	go func() {
-		for {
-			line, err := output.ReadString('\n')
-			if err != nil {
-				break
-			}
-			klog.Infof("Log line from nbdkit: %s", line)
-		}
-		klog.Infof("Stopped watching nbdkit log.")
-	}()
-
-	err = nbdkit.Start()
+	err = n.StartNbdkit(diskFileName)
 	if err != nil {
 		klog.Errorf("Unable to start nbdkit: %v", err)
-		return nil, err
-	}
-
-	err = waitForNbd(nbdPidFile)
-	if err != nil {
-		klog.Errorf("Failed waiting for nbdkit to start up: %v", err)
 		return nil, err
 	}
 
 	handle, err := libnbd.Create()
 	if err != nil {
 		klog.Errorf("Unable to create libnbd handle: %v", err)
-		nbdkit.Process.Kill()
+		n.KillNbdkit()
 		return nil, err
 	}
 
@@ -230,14 +92,14 @@ func createNbdKitWrapper(vmware *VMwareClient, diskFileName string) (*NbdKitWrap
 	err = handle.ConnectUri("nbd+unix://?socket=" + nbdUnixSocket)
 	if err != nil {
 		klog.Errorf("Unable to connect to socket %s: %v", socket, err)
-		nbdkit.Process.Kill()
+		n.KillNbdkit()
 		return nil, err
 	}
 
 	source := &NbdKitWrapper{
-		Command: nbdkit,
-		Socket:  socket,
-		Handle:  handle,
+		n:      n,
+		Socket: socket,
+		Handle: handle,
 	}
 	return source, nil
 }
@@ -879,10 +741,7 @@ func (vs *VDDKDataSource) Info() (ProcessingPhase, error) {
 // Close closes any readers or other open resources.
 func (vs *VDDKDataSource) Close() error {
 	vs.NbdKit.Handle.Close()
-	if vs.NbdKit.Command.Process != nil {
-		return vs.NbdKit.Command.Process.Signal(os.Interrupt)
-	}
-	return nil
+	return vs.NbdKit.n.KillNbdkit()
 }
 
 // GetURL returns the url that the data processor can use when converting the data.
