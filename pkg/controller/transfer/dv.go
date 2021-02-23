@@ -202,10 +202,20 @@ func (h *dataVolumeTransferHandler) deleteDataVolume(ot *cdiv1.ObjectTransfer, d
 
 	if idx >= 0 {
 		os := pvc.OwnerReferences
-		pvc.OwnerReferences = append(os[0:idx], os[idx+1:len(os)]...)
+		pvc.OwnerReferences = append(os[0:idx], os[idx+1:]...)
+	}
+
+	_, ok := pvc.Annotations[cdicontroller.AnnPopulatedFor]
+	if ok {
+		delete(pvc.Annotations, cdicontroller.AnnPopulatedFor)
+	}
+
+	if idx >= 0 || ok {
 		if err := h.reconciler.updateResource(ot, pvc); err != nil {
 			return 0, h.reconciler.setCompleteConditionError(ot, err)
 		}
+
+		return time.Second, h.reconciler.setCompleteConditionRunning(ot)
 	}
 
 	if err := h.reconciler.Client.Delete(context.TODO(), dv); err != nil {

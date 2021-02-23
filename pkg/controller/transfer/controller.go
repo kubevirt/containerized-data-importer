@@ -230,7 +230,7 @@ func (r *ObjectTransferReconciler) getResource(ns, name string, obj runtime.Obje
 func (r *ObjectTransferReconciler) updateResource(ot *cdiv1.ObjectTransfer, obj runtime.Object) error {
 	log := r.logger(ot)
 
-	log.V(3).Info("Updating resource", obj)
+	log.V(1).Info("Updating resource", "obj", obj)
 	if err := r.Client.Update(context.TODO(), obj); err != nil {
 		log.Error(err, "Update error")
 		return err
@@ -242,7 +242,7 @@ func (r *ObjectTransferReconciler) updateResource(ot *cdiv1.ObjectTransfer, obj 
 func (r *ObjectTransferReconciler) updateResourceStatus(ot *cdiv1.ObjectTransfer, obj runtime.Object) error {
 	log := r.logger(ot)
 
-	log.V(3).Info("Updating resource status", obj)
+	log.V(1).Info("Updating resource status", "obj", obj)
 	if err := r.Client.Status().Update(context.TODO(), obj); err != nil {
 		log.Error(err, "Update status error")
 		return err
@@ -287,7 +287,7 @@ func (r *ObjectTransferReconciler) setCompleteConditionRunning(ot *cdiv1.ObjectT
 }
 
 func (r *ObjectTransferReconciler) setAndUpdateCondition(ot *cdiv1.ObjectTransfer, t cdiv1.ObjectTransferConditionType, status corev1.ConditionStatus, message, reason string) error {
-	r.logger(ot).V(3).Info("Updating condition", t, "status", status, "message", message, "reason", reason)
+	r.logger(ot).V(1).Info("Updating condition", "type", t, "status", status, "message", message, "reason", reason)
 
 	ot2 := &cdiv1.ObjectTransfer{}
 	if _, err := r.getResource("", ot.Name, ot2); err != nil {

@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
@@ -184,7 +185,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			checkCompleteFalse(xfer, "Running", "")
 		})
 
-		It("Should update PV reclaim and delete pvc", func() {
+		It("Should update PV reclaim", func() {
 			xfer := pvcTransferRunning()
 			xfer.Status.Data["pvReclaim"] = "Delete"
 			pv := sourcePV()
@@ -206,12 +207,34 @@ var _ = Describe("PVC Transfer Tests", func() {
 			checkCompleteFalse(xfer, "Running", "")
 		})
 
-		It("Should update PV reclaim and delete pvc", func() {
+		It("Should delete source pvc", func() {
 			xfer := pvcTransferRunning()
 			xfer.Status.Data["pvReclaim"] = "Delete"
 			pv := sourcePV()
 			pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
-			pvc := &corev1.PersistentVolumeClaim{}
+			pvc := createBoundPVC()
+
+			r := createReconciler(xfer, pv, pvc)
+			_, err := r.Reconcile(rr(xfer.Name))
+			Expect(err).ToNot(HaveOccurred())
+
+			err = getResource(r.Client, "", xfer.Name, xfer)
+			Expect(err).ToNot(HaveOccurred())
+			err = getResource(r.Client, "", pv.Name, pv)
+			Expect(err).ToNot(HaveOccurred())
+			err = getResource(r.Client, pvc.Namespace, pvc.Name, pvc)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.IsNotFound(err)).To(BeTrue())
+
+			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferRunning))
+			checkCompleteFalse(xfer, "Running", "")
+		})
+
+		It("Should update claimref", func() {
+			xfer := pvcTransferRunning()
+			xfer.Status.Data["pvReclaim"] = "Delete"
+			pv := sourcePV()
+			pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
 
 			r := createReconciler(xfer, pv)
 			_, err := r.Reconcile(rr(xfer.Name))
@@ -221,11 +244,29 @@ var _ = Describe("PVC Transfer Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			err = getResource(r.Client, "", pv.Name, pv)
 			Expect(err).ToNot(HaveOccurred())
+
+			Expect(pv.Spec.ClaimRef).To(BeNil())
+			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferRunning))
+			checkCompleteFalse(xfer, "Running", "")
+		})
+
+		It("Should create target", func() {
+			xfer := pvcTransferRunning()
+			xfer.Status.Data["pvReclaim"] = "Delete"
+			pv := sourcePV()
+			pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
+			pv.Spec.ClaimRef = nil
+			pvc := &corev1.PersistentVolumeClaim{}
+
+			r := createReconciler(xfer, pv)
+			_, err := r.Reconcile(rr(xfer.Name))
+			Expect(err).ToNot(HaveOccurred())
+
+			err = getResource(r.Client, "", xfer.Name, xfer)
+			Expect(err).ToNot(HaveOccurred())
 			err = getResource(r.Client, "target-ns", "target-pvc", pvc)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(pv.Spec.ClaimRef).To(BeNil())
-			Expect(pv.Spec.PersistentVolumeReclaimPolicy).To(Equal(corev1.PersistentVolumeReclaimRetain))
 			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferRunning))
 			checkCompleteFalse(xfer, "Waiting for target to be bound", "")
 		})
@@ -253,7 +294,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			checkCompleteFalse(xfer, "PV bound to wrong PVC", "")
 		})
 
-		It("Should complete transfer", func() {
+		It("Should update PV retain", func() {
 			xfer := pvcTransferRunning()
 			xfer.Status.Data["pvReclaim"] = "Delete"
 			pv := sourcePV()
@@ -275,6 +316,29 @@ var _ = Describe("PVC Transfer Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(pv.Spec.PersistentVolumeReclaimPolicy).To(Equal(corev1.PersistentVolumeReclaimDelete))
+			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferRunning))
+			checkCompleteFalse(xfer, "Running", "")
+		})
+
+		It("Should complete transfer", func() {
+			xfer := pvcTransferRunning()
+			xfer.Status.Data["pvReclaim"] = "Delete"
+			pv := sourcePV()
+			pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimDelete
+			pv.Spec.ClaimRef.Namespace = "target-ns"
+			pv.Spec.ClaimRef.Name = "target-pvc"
+			pvc := createBoundPVC()
+			pvc.Namespace = "target-ns"
+			pvc.Name = "target-pvc"
+			pvc.Spec.VolumeName = pv.Name
+
+			r := createReconciler(xfer, pv, pvc)
+			_, err := r.Reconcile(rr(xfer.Name))
+			Expect(err).ToNot(HaveOccurred())
+
+			err = getResource(r.Client, "", xfer.Name, xfer)
+			Expect(err).ToNot(HaveOccurred())
+
 			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferComplete))
 			checkCompleteTrue(xfer)
 		})

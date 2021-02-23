@@ -88,20 +88,28 @@ func (h *pvcTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (time.Du
 		return 0, nil
 	}
 
-	if pv.Spec.PersistentVolumeReclaimPolicy != corev1.PersistentVolumeReclaimRetain {
-		pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
-		if err := h.reconciler.updateResource(ot, pv); err != nil {
-			return 0, h.reconciler.setCompleteConditionError(ot, err)
-		}
-	}
-
 	source := &corev1.PersistentVolumeClaim{}
 	sourceExists, err := h.reconciler.getSourceResource(ot, source)
 	if err != nil {
 		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}
 
+	target := &corev1.PersistentVolumeClaim{}
+	targetExists, err := h.reconciler.getTargetResource(ot, target)
+	if err != nil {
+		return 0, h.reconciler.setCompleteConditionError(ot, err)
+	}
+
 	if sourceExists {
+		if pv.Spec.PersistentVolumeReclaimPolicy != corev1.PersistentVolumeReclaimRetain {
+			pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
+			if err := h.reconciler.updateResource(ot, pv); err != nil {
+				return 0, h.reconciler.setCompleteConditionError(ot, err)
+			}
+
+			return 0, h.reconciler.setCompleteConditionRunning(ot)
+		}
+
 		if source.DeletionTimestamp == nil {
 			if err := h.reconciler.Client.Delete(context.TODO(), source); err != nil {
 				return 0, h.reconciler.setCompleteConditionError(ot, err)
@@ -111,23 +119,14 @@ func (h *pvcTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (time.Du
 		return 0, h.reconciler.setCompleteConditionRunning(ot)
 	}
 
-	target := &corev1.PersistentVolumeClaim{}
-	targetExists, err := h.reconciler.getTargetResource(ot, target)
-	if err != nil {
-		return 0, h.reconciler.setCompleteConditionError(ot, err)
-	}
-
-	pv = &corev1.PersistentVolume{}
-	if err := h.reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: pvName}, pv); err != nil {
-		return 0, h.reconciler.setCompleteConditionError(ot, err)
-	}
-
 	if !targetExists {
 		if pv.Spec.ClaimRef != nil {
 			pv.Spec.ClaimRef = nil
 			if err := h.reconciler.updateResource(ot, pv); err != nil {
 				return 0, h.reconciler.setCompleteConditionError(ot, err)
 			}
+
+			return 0, h.reconciler.setCompleteConditionRunning(ot)
 		}
 
 		target = &corev1.PersistentVolumeClaim{}
@@ -144,11 +143,6 @@ func (h *pvcTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (time.Du
 		return 0, nil
 	}
 
-	pv = &corev1.PersistentVolume{}
-	if err := h.reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: pvName}, pv); err != nil {
-		return 0, h.reconciler.setCompleteConditionError(ot, err)
-	}
-
 	if pv.Spec.ClaimRef.Namespace != target.Namespace || pv.Spec.ClaimRef.Name != target.Name {
 		if err := h.reconciler.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "PV bound to wrong PVC", ""); err != nil {
 			return 0, err
@@ -163,6 +157,8 @@ func (h *pvcTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (time.Du
 		if err := h.reconciler.updateResource(ot, pv); err != nil {
 			return 0, h.reconciler.setCompleteConditionError(ot, err)
 		}
+
+		return 0, h.reconciler.setCompleteConditionRunning(ot)
 	}
 
 	ot.Status.Phase = cdiv1.ObjectTransferComplete
