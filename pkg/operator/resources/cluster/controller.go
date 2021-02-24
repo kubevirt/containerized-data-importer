@@ -57,6 +57,7 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"",
 			},
 			Resources: []string{
+				"persistentvolumes",
 				"persistentvolumeclaims",
 				"volumesnapshots",
 			},

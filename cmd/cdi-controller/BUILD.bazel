@@ -11,6 +11,7 @@ go_library(
     deps = [
         "//pkg/common:go_default_library",
         "//pkg/controller:go_default_library",
+        "//pkg/controller/transfer:go_default_library",
         "//pkg/operator:go_default_library",
         "//pkg/util:go_default_library",
         "//pkg/util/cert/fetcher:go_default_library",

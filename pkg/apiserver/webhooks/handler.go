@@ -67,6 +67,11 @@ func NewCDIValidatingWebhook(client cdiclient.Interface) http.Handler {
 	return newAdmissionHandler(&cdiValidatingWebhook{client: client})
 }
 
+// NewObjectTransferValidatingWebhook creates a new ObjectTransfer validating webhook
+func NewObjectTransferValidatingWebhook(k8sClient kubernetes.Interface, cdiClient cdiclient.Interface) http.Handler {
+	return newAdmissionHandler(&objectTransferValidatingWebhook{k8sClient: k8sClient, cdiClient: cdiClient})
+}
+
 func newCloneTokenGenerator(key *rsa.PrivateKey) token.Generator {
 	return token.NewGenerator(common.CloneTokenIssuer, key, 5*time.Minute)
 }

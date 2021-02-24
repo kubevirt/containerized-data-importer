@@ -572,7 +572,8 @@ func createScratchNameFromPvc(pvc *v1.PersistentVolumeClaim) string {
 	return naming.GetResourceName(pvc.Name, common.ScratchNameSuffix)
 }
 
-func getPodsUsingPVCs(c client.Client, namespace string, names sets.String, allowReadOnly bool) ([]v1.Pod, error) {
+// GetPodsUsingPVCs returns Pods currently using PVCs
+func GetPodsUsingPVCs(c client.Client, namespace string, names sets.String, allowReadOnly bool) ([]v1.Pod, error) {
 	pl := &v1.PodList{}
 	// hopefully using cached client here
 	err := c.List(context.TODO(), pl, &client.ListOptions{Namespace: namespace})

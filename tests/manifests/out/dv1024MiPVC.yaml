@@ -1,0 +1,14 @@
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: test-dv
+spec:
+  source:
+      http:
+         url: "http://cdi-file-host.cdi:82/tinyCore.qcow2"
+  pvc:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 1024Mi

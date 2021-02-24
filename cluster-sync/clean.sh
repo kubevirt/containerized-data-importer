@@ -20,6 +20,13 @@ set +e
 _kubectl patch cdi cdi --type=json -p '[{ "op": "remove", "path": "/metadata/finalizers" }]'
 set -e
 
+_kubectl get ot --all-namespaces -o=custom-columns=NAME:.metadata.name,NAMESPACE:.metadata.namespace,FINALIZERS:.metadata.finalizers --no-headers | grep objectTransfer | while read p; do
+    arr=($p)
+    name="${arr[0]}"
+    namespace="${arr[1]}"
+    _kubectl patch ot $name -n $namespace --type=json -p '[{ "op": "remove", "path": "/metadata/finalizers" }]'
+done
+
 if [ -f "${OPERATOR_CR_MANIFEST}" ]; then
 	echo "Cleaning CR object ..."
     if _kubectl get crd cdis.cdi.kubevirt.io ; then
@@ -68,7 +75,7 @@ if [ "${CDI_CLEAN}" == "all" ] && [ -n "$(_kubectl get ns | grep "cdi ")" ]; the
 
     start_time=0
     sample=10
-    timeout=120 
+    timeout=120
     echo "Waiting for cdi namespace to disappear ..."
     while [ -n "$(_kubectl get ns | grep "$NAMESPACE ")" ]; do
         sleep $sample

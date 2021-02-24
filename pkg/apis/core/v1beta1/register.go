@@ -42,6 +42,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&CDIList{},
 		&StorageProfile{},
 		&StorageProfileList{},
+		&ObjectTransfer{},
+		&ObjectTransferList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

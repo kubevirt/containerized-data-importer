@@ -171,6 +171,16 @@ func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) boo
 	return ok && dvName == dv.Name
 }
 
+// GetDataVolumeClaimName returns the PVC name associated with the DV
+func GetDataVolumeClaimName(dv *cdiv1.DataVolume) string {
+	pvcName, ok := dv.Annotations[AnnPrePopulated]
+	if ok {
+		return pvcName
+	}
+
+	return dv.Name
+}
+
 // NewDatavolumeController creates a new instance of the datavolume controller.
 func NewDatavolumeController(mgr manager.Manager, extClientSet extclientset.Interface, log logr.Logger) (controller.Controller, error) {
 	client := mgr.GetClient()
@@ -490,7 +500,7 @@ func (r *DatavolumeReconciler) isSourcePVCPopulated(dv *cdiv1.DataVolume) (bool,
 }
 
 func (r *DatavolumeReconciler) sourceInUse(dv *cdiv1.DataVolume) (bool, error) {
-	pods, err := getPodsUsingPVCs(r.client, dv.Spec.Source.PVC.Namespace, sets.NewString(dv.Spec.Source.PVC.Name), false)
+	pods, err := GetPodsUsingPVCs(r.client, dv.Spec.Source.PVC.Namespace, sets.NewString(dv.Spec.Source.PVC.Name), false)
 	if err != nil {
 		return false, err
 	}

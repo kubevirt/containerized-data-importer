@@ -1631,6 +1631,7 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.CustomResourceDefinition datavolumes.cdi.kubevirt.io"] = false
 	match[normalCreateSuccess+" *v1.CustomResourceDefinition cdiconfigs.cdi.kubevirt.io"] = false
 	match[normalCreateSuccess+" *v1.CustomResourceDefinition storageprofiles.cdi.kubevirt.io"] = false
+	match[normalCreateSuccess+" *v1.CustomResourceDefinition objecttransfers.cdi.kubevirt.io"] = false
 	match[normalCreateSuccess+" *v1.ClusterRole cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.ClusterRoleBinding cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.ClusterRole cdi.kubevirt.io:admin"] = false
@@ -1658,6 +1659,7 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1beta1.ValidatingWebhookConfiguration cdi-api-datavolume-validate"] = false
 	match[normalCreateSuccess+" *v1beta1.MutatingWebhookConfiguration cdi-api-datavolume-mutate"] = false
 	match[normalCreateSuccess+" *v1beta1.ValidatingWebhookConfiguration cdi-api-validate"] = false
+	match[normalCreateSuccess+" *v1beta1.ValidatingWebhookConfiguration objecttransfer-api-validate"] = false
 	match[normalCreateSuccess+" *v1.Secret cdi-apiserver-signer"] = false
 	match[normalCreateSuccess+" *v1.ConfigMap cdi-apiserver-signer-bundle"] = false
 	match[normalCreateSuccess+" *v1.Secret cdi-apiserver-server-cert"] = false
