@@ -3,6 +3,7 @@ package tests_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,7 +12,9 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -214,6 +217,15 @@ var _ = Describe("ObjectTransfer tests", func() {
 	})
 
 	Describe("DataVolume tests", func() {
+		AfterEach(func() {
+			otl, err := f.CdiClient.CdiV1beta1().ObjectTransfers().List(context.TODO(), metav1.ListOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			for _, ot := range otl.Items {
+				deleteTransfer(ot.Name)
+			}
+		})
+
 		It("should transfer to target and back again", func() {
 			dataVolume := createDV(f.Namespace.Name, "source-dv")
 
@@ -223,7 +235,7 @@ var _ = Describe("ObjectTransfer tests", func() {
 			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
 				framework.NsPrefixLabel: f.NsPrefix,
 			})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			f.AddNamespaceToDelete(targetNs)
 
 			ot := &cdiv1.ObjectTransfer{
@@ -274,68 +286,148 @@ var _ = Describe("ObjectTransfer tests", func() {
 			Expect(sourceMD5).To(Equal(targetHash))
 			Expect(uid).To(Equal(pvUID(f.Namespace.Name, dataVolume.Name)))
 		})
-	})
 
-	It("should do concurrent transfers", func() {
-		var sourceNamespaces []string
-		var wg sync.WaitGroup
-		n := 5
+		It("should do concurrent transfers", func() {
+			var sourceNamespaces []string
+			var wg sync.WaitGroup
+			n := 5
 
-		for i := 0; i < n; i++ {
-			ns, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+			for i := 0; i < n; i++ {
+				ns, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+					framework.NsPrefixLabel: f.NsPrefix,
+				})
+				Expect(err).NotTo(HaveOccurred())
+				f.AddNamespaceToDelete(ns)
+				sourceNamespaces = append(sourceNamespaces, ns.Name)
+
+				wg.Add(1)
+				go func(ns string) {
+					defer GinkgoRecover()
+					defer wg.Done()
+					createDV(ns, "source-dv")
+				}(ns.Name)
+			}
+
+			wg.Wait()
+
+			for i := 0; i < n; i++ {
+				ns, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+					framework.NsPrefixLabel: f.NsPrefix,
+				})
+				Expect(err).NotTo(HaveOccurred())
+				f.AddNamespaceToDelete(ns)
+
+				wg.Add(1)
+				go func(sourceNs, targetNs string) {
+					defer GinkgoRecover()
+					defer wg.Done()
+					uid := pvUID(sourceNs, "source-dv")
+
+					ot := &cdiv1.ObjectTransfer{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "ot-to-" + targetNs,
+						},
+						Spec: cdiv1.ObjectTransferSpec{
+							Source: cdiv1.TransferSource{
+								Kind:      "DataVolume",
+								Namespace: sourceNs,
+								Name:      "source-dv",
+							},
+							Target: cdiv1.TransferTarget{
+								Namespace: &targetNs,
+							},
+						},
+					}
+
+					defer deleteTransfer(ot.Name)
+					ot = doTransfer(ot)
+
+					Expect(uid).To(Equal(pvUID(targetNs, "source-dv")))
+
+				}(sourceNamespaces[i], ns.Name)
+			}
+
+			wg.Wait()
+		})
+
+		It("should handle quota failure", func() {
+			sq := int64(100 * 1024 * 1024)
+			bq := int64(1024 * 1024 * 1024)
+			dataVolume := createDV(f.Namespace.Name, "source-dv")
+
+			uid := pvUID(dataVolume.Namespace, dataVolume.Name)
+
+			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
 				framework.NsPrefixLabel: f.NsPrefix,
 			})
-			Expect(err).NotTo(HaveOccurred())
-			f.AddNamespaceToDelete(ns)
-			sourceNamespaces = append(sourceNamespaces, ns.Name)
+			Expect(err).ToNot(HaveOccurred())
+			f.AddNamespaceToDelete(targetNs)
 
-			wg.Add(1)
-			go func(ns string) {
-				defer GinkgoRecover()
-				defer wg.Done()
-				createDV(ns, "source-dv")
-			}(ns.Name)
-		}
-
-		wg.Wait()
-
-		for i := 0; i < n; i++ {
-			ns, err := f.CreateNamespace(f.NsPrefix, map[string]string{
-				framework.NsPrefixLabel: f.NsPrefix,
-			})
-			Expect(err).NotTo(HaveOccurred())
-			f.AddNamespaceToDelete(ns)
-
-			wg.Add(1)
-			go func(sourceNs, targetNs string) {
-				defer GinkgoRecover()
-				defer wg.Done()
-				uid := pvUID(sourceNs, "source-dv")
-
-				ot := &cdiv1.ObjectTransfer{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "ot-to-" + targetNs,
+			rq := &corev1.ResourceQuota{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "quota",
+				},
+				Spec: corev1.ResourceQuotaSpec{
+					Hard: corev1.ResourceList{
+						corev1.ResourceRequestsStorage: *resource.NewQuantity(sq, resource.DecimalSI),
 					},
-					Spec: cdiv1.ObjectTransferSpec{
-						Source: cdiv1.TransferSource{
-							Kind:      "DataVolume",
-							Namespace: sourceNs,
-							Name:      "source-dv",
-						},
-						Target: cdiv1.TransferTarget{
-							Namespace: &targetNs,
-						},
+				},
+			}
+
+			rq, err = f.K8sClient.CoreV1().ResourceQuotas(targetNs.Name).Create(context.TODO(), rq, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			ot := &cdiv1.ObjectTransfer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "ot-" + f.Namespace.Name,
+				},
+				Spec: cdiv1.ObjectTransferSpec{
+					Source: cdiv1.TransferSource{
+						Kind:      "DataVolume",
+						Namespace: f.Namespace.Name,
+						Name:      "source-dv",
 					},
+					Target: cdiv1.TransferTarget{
+						Namespace: &targetNs.Name,
+					},
+				},
+			}
+
+			defer deleteTransfer(ot.Name)
+
+			ot, err = f.CdiClient.CdiV1beta1().ObjectTransfers().Create(context.TODO(), ot, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				transferName := "pvc-transfer-" + string(ot.UID)
+				ot2, err := f.CdiClient.CdiV1beta1().ObjectTransfers().Get(context.TODO(), transferName, metav1.GetOptions{})
+				if errors.IsNotFound(err) {
+					return false
 				}
+				Expect(err).ToNot(HaveOccurred())
+				for _, c := range ot2.Status.Conditions {
+					if c.Type != cdiv1.ObjectTransferConditionComplete {
+						continue
+					}
+					return strings.Contains(c.Reason, "exceeded quota")
+				}
+				return false
+			}, 2*time.Minute, 2*time.Second).Should(BeTrue())
 
-				defer deleteTransfer(ot.Name)
-				ot = doTransfer(ot)
+			rq, err = f.K8sClient.CoreV1().ResourceQuotas(targetNs.Name).Get(context.TODO(), rq.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
 
-				Expect(uid).To(Equal(pvUID(targetNs, "source-dv")))
+			rq.Spec.Hard[corev1.ResourceRequestsStorage] = *resource.NewQuantity(bq, resource.DecimalSI)
+			rq, err = f.K8sClient.CoreV1().ResourceQuotas(targetNs.Name).Update(context.TODO(), rq, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred())
 
-			}(sourceNamespaces[i], ns.Name)
-		}
+			Eventually(func() bool {
+				ot2, err := f.CdiClient.CdiV1beta1().ObjectTransfers().Get(context.TODO(), ot.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				return ot2.Status.Phase == cdiv1.ObjectTransferComplete
+			}, 5*time.Minute, 2*time.Second).Should(BeTrue())
 
-		wg.Wait()
+			Expect(uid).To(Equal(pvUID(targetNs.Name, "source-dv")))
+		})
 	})
 })
