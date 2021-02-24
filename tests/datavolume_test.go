@@ -1003,6 +1003,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		verifyAnnotations := func(pod *v1.Pod) {
 			By("verifying passed annotation")
 			Expect(pod.Annotations[controller.AnnPodNetwork]).To(Equal("net1"))
+			Expect(pod.Annotations[controller.AnnPodSidecarInjection]).To(Equal(controller.AnnPodSidecarInjectionDefault))
 			By("verifying non-passed annotation")
 			Expect(pod.Annotations["annot1"]).ToNot(Equal("value1"))
 		}
