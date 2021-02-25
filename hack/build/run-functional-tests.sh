@@ -14,7 +14,7 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-set -euo pipefail
+set -eo pipefail
 
 readonly MAX_CDI_WAIT_RETRY=30
 readonly CDI_WAIT_TIME=10
@@ -22,6 +22,7 @@ readonly CDI_WAIT_TIME=10
 script_dir="$(cd "$(dirname "$0")" && pwd -P)"
 source hack/build/config.sh
 source hack/build/common.sh
+source cluster-up/hack/common.sh
 
 KUBEVIRTCI_CONFIG_PATH="$(
     cd "$(dirname "$BASH_SOURCE[0]")/../../"
