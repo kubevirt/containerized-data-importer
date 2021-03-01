@@ -59,6 +59,7 @@ RUN \
     go get -u golang.org/x/lint/golint && \
     go get github.com/rmohr/go-swagger-utils/swagger-doc && \
     go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.3.0 && \
+    go get github.com/securego/gosec/v2/cmd/gosec@0ce48a5 && \
     rm -rf "${GOPATH}/pkg" && \
     (curl -L -O "https://github.com/kubernetes-sigs/kubebuilder/releases/download/v${KUBEBUILDER_VERSION}/kubebuilder_${KUBEBUILDER_VERSION}_linux_${ARCH}.tar.gz" && \
      tar -zxvf kubebuilder_${KUBEBUILDER_VERSION}_linux_${ARCH}.tar.gz && \
