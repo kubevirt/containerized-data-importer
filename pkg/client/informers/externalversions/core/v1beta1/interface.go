@@ -69,5 +69,5 @@ func (v *version) ObjectTransfers() ObjectTransferInformer {
 
 // StorageProfiles returns a StorageProfileInformer.
 func (v *version) StorageProfiles() StorageProfileInformer {
-	return &storageProfileInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+	return &storageProfileInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
