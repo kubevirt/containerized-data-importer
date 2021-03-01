@@ -113,7 +113,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 
 		importDataVolume := newImportDataVolume("test-dv")
 		importDataVolume.Spec.PVC.StorageClassName = &scName
-		storageClass := createStorageClass(scName, nil) //, map[string]string{AnnDefaultStorageClass: "true"}
+		storageClass := createStorageClass(scName, nil)
 		storageProfile := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, corev1.PersistentVolumeBlock)
 
 		reconciler = createDatavolumeReconciler(storageClass, storageProfile, importDataVolume)
@@ -134,7 +134,7 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 
 		importDataVolume := newImportDataVolume("test-dv")
 		importDataVolume.Spec.PVC.StorageClassName = &scName
-		storageClass := createStorageClass(scName, nil) //, map[string]string{AnnDefaultStorageClass: "true"}
+		storageClass := createStorageClass(scName, nil)
 		storageProfile := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, corev1.PersistentVolumeBlock)
 		defaultStorageClass := createStorageClass("defaultSc", map[string]string{AnnDefaultStorageClass: "true"})
 		defaultStorageProfile := createStorageProfile("defaultSc", []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}, corev1.PersistentVolumeFilesystem)

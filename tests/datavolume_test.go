@@ -3,7 +3,9 @@ package tests
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/types"
 	"regexp"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 	"time"
 
@@ -1116,6 +1118,138 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				verifyAnnotations(sourcePod)
 				verifyAnnotations(uploadPod)
 			}
+		})
+	})
+
+	Describe("Create a PVC using data from StorageProfile", func() {
+		createDataVolume := func(f *framework.Framework, storageClassName string) *cdiv1.DataVolume {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs))
+			dataVolume.Spec.PVC.AccessModes = nil
+			dataVolume.Spec.PVC.VolumeMode = nil
+			dataVolume.Spec.PVC.StorageClassName = &storageClassName
+			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+			return dv
+		}
+		getStorageProfileSpec := func(client client.Client, storageClassName string) *cdiv1.StorageProfileSpec {
+			storageProfile := &cdiv1.StorageProfile{}
+			err := client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, storageProfile)
+			Expect(err).ToNot(HaveOccurred())
+			originalProfileSpec := storageProfile.Spec.DeepCopy()
+			return originalProfileSpec
+		}
+
+		updateStorageProfileSpec := func(client client.Client, name string, spec cdiv1.StorageProfileSpec) {
+			storageProfile := &cdiv1.StorageProfile{}
+			err := client.Get(context.TODO(), types.NamespacedName{Name: name}, storageProfile)
+			Expect(err).ToNot(HaveOccurred())
+			storageProfile.Spec = spec
+			err = client.Update(context.TODO(), storageProfile)
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		configureStorageProfile := func(client client.Client,
+			storageClassName string,
+			accessModes []v1.PersistentVolumeAccessMode,
+			volumeMode v1.PersistentVolumeMode) *cdiv1.StorageProfileSpec {
+
+			originalProfileSpec := getStorageProfileSpec(client, storageClassName)
+			propertySet := cdiv1.ClaimPropertySet{AccessModes: accessModes, VolumeMode: &volumeMode}
+			updateStorageProfileSpec(client,
+				storageClassName,
+				cdiv1.StorageProfileSpec{ClaimPropertySets: []cdiv1.ClaimPropertySet{propertySet}})
+
+			Eventually(func() cdiv1.ClaimPropertySet {
+				profile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), storageClassName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				if len(profile.Status.ClaimPropertySets) > 0 {
+					return profile.Status.ClaimPropertySets[0]
+				}
+				return cdiv1.ClaimPropertySet{}
+			}, time.Second*30, time.Second).Should(Equal(propertySet))
+
+			return originalProfileSpec
+		}
+
+		It("succeeds creating a PVC from DV without accessModes", func() {
+			defaultScName := utils.DefaultStorageClass.GetName()
+
+			By(fmt.Sprintf("configure storage profile %s", defaultScName))
+			originalProfileSpec := configureStorageProfile(f.CrClient,
+				defaultScName,
+				[]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+				v1.PersistentVolumeFilesystem)
+
+			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
+			dataVolume := createDataVolume(f, defaultScName)
+
+			By("verifying pvc created with correct accessModes")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
+
+			By("Restore the profile")
+			updateStorageProfileSpec(f.CrClient, defaultScName, *originalProfileSpec)
+		})
+
+		It("fails creating a PVC from DV without accessModes, no profile", func() {
+			// assumes local is available and has no volumeMode
+			defaultScName := "local"
+			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
+			dataVolume := createDataVolume(f, defaultScName)
+
+			By("verifying pvc not created")
+			_, err := utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+			By(fmt.Sprint("verifying event occurred"))
+			Eventually(func() bool {
+				// Only find DV events, we know the PVC gets the same events
+				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+				if err == nil {
+					fmt.Fprintf(GinkgoWriter, "%s", events)
+					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "DataVolume spec is missing accessMode and cannot get access mode from StorageProfile")
+				}
+				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+				return false
+			}, timeout, pollingInterval).Should(BeTrue())
+		})
+
+		It("DV recovers when user adds accessModes, no profile", func() {
+			// assumes local is available and has no volumeMode
+			defaultScName := "local"
+			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
+			dataVolume := createDataVolume(f, defaultScName)
+
+			By("verifying pvc not created")
+			_, err := utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+			By(fmt.Sprint("verifying event occurred"))
+			Eventually(func() bool {
+				// Only find DV events, we know the PVC gets the same events
+				events, err := RunKubectlCommand(f, "get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+				if err == nil {
+					fmt.Fprintf(GinkgoWriter, "%s", events)
+					return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "DataVolume spec is missing accessMode and cannot get access mode from StorageProfile")
+				}
+				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+				return false
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			By(fmt.Sprintf("configure storage profile %s", defaultScName))
+			originalProfileSpec := configureStorageProfile(f.CrClient,
+				defaultScName,
+				[]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+				v1.PersistentVolumeFilesystem)
+
+			By("verifying pvc created with correct accessModes")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
+
+			By("Restore the profile")
+			updateStorageProfileSpec(f.CrClient, defaultScName, *originalProfileSpec)
 		})
 	})
 
