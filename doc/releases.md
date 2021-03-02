@@ -43,7 +43,17 @@ When creating a new release branch, follow the below process.  This assumes that
 
 1. Push the new branch and tag to the main kubevirt repo.  (If you have cloned the main repo directly, use `origin` for <`upstream`>)
 
-    `$ git push v#.#.#`
+    `$ git push <upstream> release-v#.#.#`
+
+1. Push the tag to the main kubevirt repo.
+
+    `$ git push <upstream> v#.#.#`
+
+1. Generate release description. Set `PREREF` and `RELREF` shell variables to previous and current release tag, respectively.
+
+    `$ export RELREF=v#.#.#`
+    `$ export PREREF=v#.#.#`
+    `$ make release-description`
 
 CI will be triggered when a tag matching `v#.#.#(-alpha.#)` is pushed.  The automation will handle release artifact testing, building, and publishing.
 
