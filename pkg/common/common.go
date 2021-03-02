@@ -178,12 +178,6 @@ const (
 	// UploadContentTypeHeader is the header upload clients may use to set the content type explicitly
 	UploadContentTypeHeader = "x-cdi-content-type"
 
-	// FilesystemCloneContentType is the content type when cloning a filesystem
-	FilesystemCloneContentType = "filesystem-clone"
-
-	// BlockdeviceClone is the content type when cloning a block device
-	BlockdeviceClone = "blockdevice-clone"
-
 	// UploadPathSync is the path to POST CDI uploads
 	UploadPathSync = "/v1beta1/upload"
 

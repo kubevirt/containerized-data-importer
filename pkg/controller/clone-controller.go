@@ -584,6 +584,10 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 							Name:  common.OwnerUID,
 							Value: ownerID,
 						},
+						{
+							Name:  "VOLUME_MODE",
+							Value: string(sourceVolumeMode),
+						},
 					},
 					Ports: []corev1.ContainerPort{
 						{
@@ -650,10 +654,6 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
 		addVars = []corev1.EnvVar{
 			{
-				Name:  "VOLUME_MODE",
-				Value: "block",
-			},
-			{
 				Name:  "MOUNT_POINT",
 				Value: common.WriteBlockPath,
 			},
@@ -666,10 +666,6 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 			},
 		}
 		addVars = []corev1.EnvVar{
-			{
-				Name:  "VOLUME_MODE",
-				Value: "filesystem",
-			},
 			{
 				Name:  "MOUNT_POINT",
 				Value: common.ClonerMountPath,

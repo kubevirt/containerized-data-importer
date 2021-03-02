@@ -13,6 +13,7 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -21,7 +22,6 @@ import (
 )
 
 var (
-	contentType string
 	mountPoint  string
 	uploadBytes uint64
 )
@@ -48,7 +48,6 @@ func (er *execReader) Close() error {
 }
 
 func init() {
-	flag.StringVar(&contentType, "content-type", "", "filesystem-clone|blockdevice-clone")
 	flag.StringVar(&mountPoint, "mount", "", "pvc mount point")
 	flag.Uint64Var(&uploadBytes, "upload-bytes", 0, "approx number of bytes in input")
 	klog.InitFlags(nil)
@@ -129,14 +128,6 @@ func pipeToSnappy(reader io.ReadCloser) io.ReadCloser {
 	return pr
 }
 
-func validateContentType() {
-	switch contentType {
-	case "filesystem-clone", "blockdevice-clone":
-	default:
-		klog.Fatalf("Invalid content-type %q", contentType)
-	}
-}
-
 func validateMount() {
 	if mountPoint == "" {
 		klog.Fatalf("Invalid mount %q", mountPoint)
@@ -162,21 +153,21 @@ func newTarReader() (io.ReadCloser, error) {
 	return &execReader{cmd: cmd, stdout: stdout, stderr: ioutil.NopCloser(&stderr)}, nil
 }
 
-func getInputStream() (rc io.ReadCloser) {
+func getInputStream(volumeMode string) (rc io.ReadCloser) {
 	var err error
-	switch contentType {
-	case "filesystem-clone":
+	switch corev1.PersistentVolumeMode(volumeMode) {
+	case corev1.PersistentVolumeFilesystem:
 		rc, err = newTarReader()
 		if err != nil {
 			klog.Fatalf("Error creating tar reader for %q: %+v", mountPoint, err)
 		}
-	case "blockdevice-clone":
+	case corev1.PersistentVolumeBlock:
 		rc, err = os.Open(mountPoint)
 		if err != nil {
 			klog.Fatalf("Error opening block device %q: %+v", mountPoint, err)
 		}
 	default:
-		klog.Fatalf("Invalid content-type %q", contentType)
+		klog.Fatalf("Invalid volume mode %q", volumeMode)
 	}
 	return
 }
@@ -185,11 +176,9 @@ func main() {
 	flag.Parse()
 	defer klog.Flush()
 
-	klog.Infof("content-type is %q\n", contentType)
 	klog.Infof("mount is %q\n", mountPoint)
 	klog.Infof("upload-bytes is %d", uploadBytes)
 
-	validateContentType()
 	validateMount()
 
 	ownerUID := getEnvVarOrDie(common.OwnerUID)
@@ -198,22 +187,18 @@ func main() {
 	clientCert := []byte(getEnvVarOrDie("CLIENT_CERT"))
 	serverCert := []byte(getEnvVarOrDie("SERVER_CA_CERT"))
 
+	volumeMode := getEnvVarOrDie("VOLUME_MODE")
 	url := getEnvVarOrDie("UPLOAD_URL")
 
 	klog.V(1).Infoln("Starting cloner target")
 
-	reader := pipeToSnappy(createProgressReader(getInputStream(), ownerUID, uploadBytes))
+	reader := pipeToSnappy(createProgressReader(getInputStream(volumeMode), ownerUID, uploadBytes))
 
 	startPrometheus()
 
 	client := createHTTPClient(clientKey, clientCert, serverCert)
 
 	req, _ := http.NewRequest("POST", url, reader)
-
-	if contentType != "" {
-		req.Header.Set("x-cdi-content-type", contentType)
-		klog.Infof("Set header to %s", contentType)
-	}
 
 	response, err := client.Do(req)
 	if err != nil {

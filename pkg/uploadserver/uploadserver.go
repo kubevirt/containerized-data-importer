@@ -21,6 +21,7 @@ package uploadserver
 
 import (
 	"archive/tar"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -40,6 +41,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -319,16 +321,12 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 			return
 		}
 
-		cdiContentType := r.Header.Get(common.UploadContentTypeHeader)
-
-		klog.Infof("Content type header is %q\n", cdiContentType)
-
 		readCloser, err := irc(r)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 		}
 
-		processor, err := uploadProcessorFuncAsync(readCloser, app.destination, app.imageSize, app.filesystemOverhead, app.preallocation, cdiContentType)
+		processor, err := uploadProcessorFuncAsync(readCloser, app.destination, app.imageSize, app.filesystemOverhead, app.preallocation)
 
 		app.mutex.Lock()
 
@@ -374,16 +372,12 @@ func (app *uploadServerApp) uploadHandler(irc imageReadCloser) http.HandlerFunc 
 			return
 		}
 
-		cdiContentType := r.Header.Get(common.UploadContentTypeHeader)
-
-		klog.Infof("Content type header is %q\n", cdiContentType)
-
 		readCloser, err := irc(r)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 		}
 
-		app.preallocationApplied, err = uploadProcessorFunc(readCloser, app.destination, app.imageSize, app.filesystemOverhead, app.preallocation, cdiContentType)
+		app.preallocationApplied, err = uploadProcessorFunc(readCloser, app.destination, app.imageSize, app.filesystemOverhead, app.preallocation)
 
 		app.mutex.Lock()
 		defer app.mutex.Unlock()
@@ -408,33 +402,52 @@ func (app *uploadServerApp) PreallocationApplied() bool {
 	return app.preallocationApplied
 }
 
-func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string) (*importer.DataProcessor, error) {
-	if sourceContentType == common.FilesystemCloneContentType {
-		return nil, fmt.Errorf("async filesystem clone not supported")
+func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool) (*importer.DataProcessor, error) {
+	isTar, reader, err := matchFormat(stream, "tar")
+	if err != nil {
+		return nil, err
+	}
+	if isTar {
+		return nil, fmt.Errorf("async tar clone not supported")
 	}
 
-	uds := importer.NewAsyncUploadDataSource(newContentReader(stream, sourceContentType))
+	uds := importer.NewAsyncUploadDataSource(reader)
 	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
 	return processor, processor.ProcessDataWithPause()
 }
 
-func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string) (bool, error) {
-	if sourceContentType == common.FilesystemCloneContentType {
-		return false, filesystemCloneProcessor(stream, dest)
+func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool) (bool, error) {
+	isTar, reader, err := matchFormat(stream, "tar")
+	if err != nil {
+		return false, err
+	}
+	if isTar {
+		return false, tarCloneProcessor(reader, dest)
 	}
 
 	// Clone block device to block device or file system
-	uds := importer.NewUploadDataSource(newContentReader(stream, sourceContentType))
+	uds := importer.NewUploadDataSource(reader)
 	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
-	err := processor.ProcessData()
+	err = processor.ProcessData()
 	return processor.PreallocationApplied(), err
 }
 
-// Clone file system to block device or file system
-func filesystemCloneProcessor(stream io.ReadCloser, dest string) error {
+func matchFormat(stream io.ReadCloser, format string) (bool, io.ReadCloser, error) {
+	snappyReadCloser := ioutil.NopCloser(snappy.NewReader(stream))
+	header := make([]byte, image.MaxExpectedHdrSize)
+	_, err := io.ReadFull(snappyReadCloser, header)
+	if err != nil {
+		return false, nil, err
+	}
+	reader := io.MultiReader(bytes.NewReader(header), snappyReadCloser)
+	return image.CopyKnownHdrs()[format].Match(header), ioutil.NopCloser(reader), nil
+}
+
+// Clone from tar to block device or file system
+func tarCloneProcessor(stream io.ReadCloser, dest string) error {
 	// Clone to block device
 	if dest == common.WriteBlockPath {
-		if err := untarToBlockdev(newSnappyReadCloser(stream), dest); err != nil {
+		if err := untarToBlockdev(stream, dest); err != nil {
 			return errors.Wrapf(err, "error unarchiving to %s", dest)
 		}
 		return nil
@@ -445,7 +458,7 @@ func filesystemCloneProcessor(stream io.ReadCloser, dest string) error {
 	if err := importer.CleanDir(destDir); err != nil {
 		return errors.Wrapf(err, "error removing contents of %s", destDir)
 	}
-	if err := util.UnArchiveTar(newSnappyReadCloser(stream), destDir); err != nil {
+	if err := util.UnArchiveTar(stream, destDir); err != nil {
 		return errors.Wrapf(err, "error unarchiving to %s", destDir)
 	}
 	return nil
@@ -478,16 +491,4 @@ func untarToBlockdev(stream io.Reader, dest string) error {
 			return nil
 		}
 	}
-}
-
-func newContentReader(stream io.ReadCloser, contentType string) io.ReadCloser {
-	if contentType == common.BlockdeviceClone {
-		return newSnappyReadCloser(stream)
-	}
-
-	return stream
-}
-
-func newSnappyReadCloser(stream io.ReadCloser) io.ReadCloser {
-	return ioutil.NopCloser(snappy.NewReader(stream))
 }

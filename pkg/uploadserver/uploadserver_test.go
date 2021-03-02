@@ -88,11 +88,11 @@ func newHTTPClient(clientKeyPair *triple.KeyPair, serverCACert *x509.Certificate
 	return client
 }
 
-func saveProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (bool, error) {
+func saveProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool) (bool, error) {
 	return false, nil
 }
 
-func saveProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (bool, error) {
+func saveProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool) (bool, error) {
 	return false, fmt.Errorf("Error using datastream")
 }
 
@@ -104,7 +104,7 @@ func withProcessorFailure(f func()) {
 	replaceProcessorFunc(saveProcessorFailure, f)
 }
 
-func replaceProcessorFunc(replacement func(io.ReadCloser, string, string, float64, bool, string) (bool, error), f func()) {
+func replaceProcessorFunc(replacement func(io.ReadCloser, string, string, float64, bool) (bool, error), f func()) {
 	origProcessorFunc := uploadProcessorFunc
 	uploadProcessorFunc = replacement
 	defer func() {
@@ -151,11 +151,11 @@ func (amd *AsyncMockDataSource) GetResumePhase() importer.ProcessingPhase {
 	return importer.ProcessingPhaseComplete
 }
 
-func saveAsyncProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (*importer.DataProcessor, error) {
+func saveAsyncProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool) (*importer.DataProcessor, error) {
 	return importer.NewDataProcessor(&AsyncMockDataSource{}, "", "", "", "", 0.055, false), nil
 }
 
-func saveAsyncProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (*importer.DataProcessor, error) {
+func saveAsyncProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool) (*importer.DataProcessor, error) {
 	return importer.NewDataProcessor(&AsyncMockDataSource{}, "", "", "", "", 0.055, false), fmt.Errorf("Error using datastream")
 }
 
@@ -388,8 +388,6 @@ func newFormRequest(path string) *http.Request {
 
 	req, err := http.NewRequest("POST", path, &b)
 	Expect(err).ToNot(HaveOccurred())
-
-	req.Header.Set("Content-Type", w.FormDataContentType())
 
 	return req
 }
