@@ -1,4 +1,4 @@
-## Manual Design
+# Manual Design
 
 The below diagram illustrates the short term goal of this project.  For our current
 work we will not be focused on automation, implying that executing each step of

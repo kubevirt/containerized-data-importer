@@ -61,7 +61,7 @@ build-functest:
 test: test-unit test-functional test-lint
 
 test-unit: WHAT = ./pkg/... ./cmd/...
-test-unit:
+test-unit: manifests
 	${DO_BAZ} "./hack/build/run-unit-tests.sh ${WHAT}"
 
 test-functional:  WHAT = ./tests/...
