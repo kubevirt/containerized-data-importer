@@ -126,6 +126,9 @@ bazel-cdi-generate:
 bazel-build:
 	${DO_BAZ} "./hack/build/bazel-build.sh"
 
+gosec:
+	${DO_BAZ} "GOSEC=${GOSEC} ./hack/build/gosec.sh"
+
 bazel-build-images:	bazel-cdi-generate bazel-build
 	${DO_BAZ} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} ./hack/build/bazel-build-images.sh"
 
