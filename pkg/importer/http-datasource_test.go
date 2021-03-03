@@ -20,6 +20,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
@@ -45,6 +46,7 @@ var _ = Describe("Http data source", func() {
 	)
 
 	BeforeEach(func() {
+		createNbdkitCurl = image.NewMockNbdkitCurl
 		By("[BeforeEach] Creating test server")
 		ts = createTestServer(imageDir)
 		dp = nil

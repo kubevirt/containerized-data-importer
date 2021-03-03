@@ -7,7 +7,6 @@ import (
 	"errors"
 	"net/url"
 	"os"
-	"os/exec"
 
 	libnbd "github.com/mrnold/go-libnbd"
 	. "github.com/onsi/ginkgo"
@@ -16,6 +15,7 @@ import (
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 	v1 "k8s.io/api/core/v1"
+	"kubevirt.io/containerized-data-importer/pkg/image"
 )
 
 const (
@@ -375,9 +375,9 @@ func createMockVddkDataSource(endpoint string, accessKey string, secKey string, 
 	handle := &mockNbdOperations{}
 
 	nbdkit := &NbdKitWrapper{
-		Command: nil,
-		Socket:  socketURL,
-		Handle:  handle,
+		n:      &image.Nbdkit{},
+		Socket: socketURL,
+		Handle: handle,
 	}
 
 	return &VDDKDataSource{
@@ -493,9 +493,9 @@ func createMockVMwareClient(endpoint string, accessKey string, secKey string, th
 func createMockNbdKitWrapper(vmware *VMwareClient, diskFileName string) (*NbdKitWrapper, error) {
 	u, _ := url.Parse("http://vcenter.test")
 	return &NbdKitWrapper{
-		Command: &exec.Cmd{},
-		Socket:  u,
-		Handle:  &mockNbdOperations{},
+		n:      &image.Nbdkit{},
+		Socket: u,
+		Handle: &mockNbdOperations{},
 	}, nil
 }
 

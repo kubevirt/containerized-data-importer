@@ -26,7 +26,6 @@ go_test(
     name = "go_default_test",
     srcs = [
         "filefmt_test.go",
-        "nbdkit_test.go",
         "qemu_suite_test.go",
         "qemu_test.go",
     ],
