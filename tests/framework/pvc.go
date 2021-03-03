@@ -240,6 +240,41 @@ func (f *Framework) VerifySparse(namespace *k8sv1.Namespace, pvc *k8sv1.Persiste
 	return info.VirtualSize >= info.ActualSize, nil
 }
 
+// VerifyFSOverhead checks whether virtual size is smaller than actual size. That means FS Overhead has been accounted for.
+// NOTE: this assertion is only valid when preallocation is used.
+func (f *Framework) VerifyFSOverhead(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, preallocation bool) (bool, error) {
+	var executorPod *k8sv1.Pod
+	var err error
+
+	if !preallocation {
+		return false, fmt.Errorf("VerifyFSOverhead is only valid when preallocation is used")
+	}
+
+	executorPod, err = f.CreateVerifierPodWithPVC(namespace.Name, pvc)
+	if !apierrs.IsAlreadyExists(err) {
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	}
+	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+	cmd := fmt.Sprintf("qemu-img info %s/disk.img --output=json", utils.DefaultPvcMountPath)
+	output, stderr, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
+
+	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
+		return false, err
+	}
+	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: qemu-img info output %s\n", output)
+	var info image.ImgInfo
+	err = json.Unmarshal([]byte(output), &info)
+	if err != nil {
+		klog.Errorf("Invalid JSON:\n%s\n", string(output))
+		return false, nil
+	}
+	requestedSize := pvc.Spec.Resources.Requests[k8sv1.ResourceStorage]
+	return info.VirtualSize <= info.ActualSize && info.VirtualSize < requestedSize.Value(), nil
+}
+
 // VerifyPermissions returns the group of a disk image.
 func (f *Framework) VerifyPermissions(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
 	var executorPod *k8sv1.Pod
