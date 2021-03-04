@@ -7,9 +7,6 @@ github.com/Microsoft/go-winio/pkg/guid
 github.com/PuerkitoBio/purell
 # github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578
 github.com/PuerkitoBio/urlesc
-# github.com/RHsyseng/operator-utils v0.0.0-20190906175225-942a3f9c85a9
-## explicit
-github.com/RHsyseng/operator-utils/pkg/validation
 # github.com/appscode/jsonpatch v0.0.0-20190108182946-7c0e3b262f30
 ## explicit
 github.com/appscode/jsonpatch
