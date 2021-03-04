@@ -20,7 +20,9 @@ The following statuses are possible.
 * Failed: The operation has failed.
 * Unknown: Unknown status.
 
-## HTTP/S3/Registry source
+## Source 
+
+### HTTP/S3/Registry source
 DataVolumes are an abstraction on top of the annotations one can put on PVCs to trigger CDI. As such DVs have the notion of a 'source' that allows one to specify the source of the data. To import data from an external source, the source has to be either 'http' ,'S3' or 'registry'. If your source requires authentication, you can also pass in a `secretRef` to a Kubernetes [Secret](../manifest/example/endpoint-secret.yaml) containing the authentication information.  TLS certificates for https/registry sources may be specified in a [ConfigMap](../manifests/example/cert-configmap.yaml) and referenced by `certConfigMap`.  `secretRef` and `certConfigMap` must be in the same namespace as the DataVolume.
 
 ```yaml
@@ -51,7 +53,7 @@ Alternatively, if your certificate is stored in a local file, you can create the
 kubectl create configmap import-certs --from-file=ca.pem
 ```
 
-### Content-type
+#### Content-type
 You can specify the content type of the source image. The following content-type is valid:
 * kubevirt (Virtual disk image, the default if missing)
 * archive (Tar archive)
@@ -77,7 +79,7 @@ spec:
         storage: "64Mi"
 ```
 
-## PVC source
+### PVC source
 You can also use a PVC as an input source for a DV which will cause a clone to happen of the original PVC. You set the 'source' to be PVC, and specify the name and namespace of the PVC you want to have cloned. Be sure to specify the right amount of space to allocate for the new DV or the clone can't complete.
 
 ```yaml
@@ -99,7 +101,7 @@ spec:
 ```
 [Get example](../manifests/example/clone-datavolume.yaml)
 
-## Upload Data Volumes
+### Upload Data Volumes
 You can upload a virtual disk image directly into a data volume as well, just like with PVCs. The steps to follow are identical as [upload for PVC](upload.md) except that the yaml for a Data Volume is slightly different.
 ```yaml
 apiVersion: cdi.kubevirt.io/v1beta1
@@ -117,7 +119,7 @@ spec:
         storage: 1Gi
 ```
 
-## Blank Data Volume
+### Blank Data Volume
 You can create a blank virtual disk image in a Data Volume as well, with the following yaml:
 ```yaml
 apiVersion: cdi.kubevirt.io/v1beta1
@@ -135,7 +137,7 @@ spec:
         storage: 1Gi
 ```
 
-## Image IO Data Volume
+### Image IO Data Volume
 Image IO sources are sources from oVirt imageio endpoints. In order to use these endpoints you will need an oVirt installation with imageIO enabled. You will then be able to import disk images from oVirt into KubeVirt. The diskId can be obtained from the oVirt webadmin UI or REST api.
 ```yaml
 apiVersion: cdi.kubevirt.io/v1beta1
@@ -159,7 +161,7 @@ spec:
 [Get secret example](../manifests/example/endpoint-secret.yaml)
 [Get certificate example](../manifests/example/cert-configmap.yaml)
 
-## VDDK Data Volume
+### VDDK Data Volume
 VDDK sources come from VMware vCenter or ESX endpoints. You will need a secret containing administrative credentials for the API provided by the VMware endpoint, as well as a special sidecar image containing the non-redistributable VDDK library folder. Instructions for creating a VDDK image can be found [here](https://docs.openshift.com/container-platform/4.3/cnv/cnv_virtual_machines/cnv_importing_vms/cnv-importing-vmware-vm.html#cnv-creating-vddk-image_cnv-importing-vmware-vm), with the addendum that the ConfigMap should exist in the current CDI namespace and not 'openshift-cnv'.
 
 ```yaml
@@ -175,12 +177,12 @@ spec:
            uuid: "52260566-b032-36cb-55b1-79bf29e30490"
            thumbprint: "20:6C:8A:5D:44:40:B3:79:4B:28:EA:76:13:60:90:6E:49:D9:D9:A3" # SSL fingerprint of vCenter/ESX host
            secretRef: "vddk-credentials"
-        pvc:
-           accessModes:
-             - ReadWriteOnce
-           resources:
-             requests:
-               storage: "32Gi"
+    pvc:
+       accessModes:
+         - ReadWriteOnce
+       resources:
+         requests:
+           storage: "32Gi"
 ```
 [Get secret example](../manifests/example/endpoint-secret.yaml)
 [Get VDDK ConfigMap example](../manifests/example/vddk-configmap.yaml)
@@ -210,15 +212,72 @@ spec:
             previous: ""
           - current: "snapshot-2"
             previous: "snapshot-1"
-        pvc:
-           accessModes:
-             - ReadWriteOnce
-           resources:
-             requests:
-               storage: "32Gi"
+    pvc:
+       accessModes:
+         - ReadWriteOnce
+       resources:
+         requests:
+           storage: "32Gi"
+```
+## Target Storage/PVC
+
+There are two ways to request a storage - by using either the `pvc` or the `storage` section in the DataVolume resource yaml.
+Both result in CDI creating a PVC resource, but there are some differences in how they work.
+
+### PVC
+The `pvc` type specifies the PersistentVolumeClaim resource that will be created by the CDI. 
+All the parameters of pvc have the semantics of PersistentVolumeClaim parameters, 
+e.g when the volumeMode is not specified the kubernetes default Filesystem is used. The example shows 
+  that a PVC with at least 1Gi of storage and ReadWriteOnce accessMode will be created. 
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: blank-dv-with-pvc
+spec:
+  source:
+    blank: {}
+  pvc:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 1Gi
+```
+### Storage
+The `storage` type is similar to `pvc` but allows for some additional logic to be applied. 
+It was introduced in order to implement detection and automation of storage parameters.
+
+That kind
+of automation changes the way default values are computed e.g. when the volumeMode is not specified the CDI will search for
+  a default value in StorageProfile, and only if it is not found the PVC with empty volumeMode will be created. 
+  Check the [storage profile](storageprofile.md) documentation for more details about the `storage` and `StorageProfile`.
+
+Example shows a request for a PVC with at least 1Gi of storage and ReadWriteOnce accessMode using `storage` section of DataVolume. 
+  The only difference is that the `storage` being used instead of `pvc`.  
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: blank-dv-with-storage
+spec:
+  source:
+    blank: {}
+  storage:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 1Gi
 ```
 
-## Block Volume Mode
+`Storage` can request specific size the same way as `pvc`. When requesting a storage with the fileSystem volumeMode CDI 
+takes into account the file system overhead and requests PVC big enough to fit an image and file system metadata. 
+This logic is only applied for the DataVolume.spec.storage. 
+
+### Block Volume Mode
 You can import, clone and upload a disk image to a raw block persistent volume.
 This is done by assigning the value 'Block' to the PVC volumeMode field in the DataVolume yaml.
 The following is an example to import disk image to a raw block volume:
