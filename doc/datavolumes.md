@@ -9,6 +9,8 @@ Why is this an improvement over simply looking at the state annotation created a
 The following statuses are possible.
 * 'Blank': No status available.
 * Pending: The operation is pending, but has not been scheduled yet.
+* WaitForFirstConsumer: The PVC associated with the operation is Pending, and the storage has
+  a WaitForFirstConsumer binding mode. PVC [waits for a consumer](waitforfirstconsumer-storage-handling.md) Pod.
 * PVCBound: The PVC associated with the operation has been bound.
 * Import/Clone/UploadScheduled: The operation (import/clone/upload) has been scheduled.
 * Import/Clone/UploadInProgress: The operation (import/clone/upload) is in progress.
