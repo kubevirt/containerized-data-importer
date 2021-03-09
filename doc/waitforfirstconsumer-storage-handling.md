@@ -25,7 +25,12 @@ to detect a DV phase and handle the initial scheduling which causes the PVC to c
 
 **NOTE:** The workload should not attempt to use the contents of the DV until CDI has finished the transfer. 
 
-## Config
+## Force immidiate binding
+
+Add the annotation: `cdi.kubevirt.io/storage.bind.immediate.requested` to DataVolume to force scheduling of a CDI worker pod
+and immediately bind the PVC. This is useful for use cases that do not require binding to a particular node (like uploading a golden image to the cluster).      
+
+## Configuration - Opt in
 
 To be fully compatible with any external tools that may already use CDI, this new feature has to be enabled by 
 the feature gate: `HonorWaitForFirstConsumer`. It is available in the `CDIConfig` custom resource (see [cdi-config doc](cdi-config.md)).
