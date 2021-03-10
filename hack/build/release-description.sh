@@ -34,7 +34,7 @@ downloads() {
 The source code and selected binaries are available for download at:
 <$RELURL>.
 
-Pre-built CDI containers are published on Docker Hub and can be viewed at:
+Pre-built CDI containers are published on Quay.io and can be viewed at:
 <https://quay.io/repository/kubevirt/cdi-controller/>
 <https://quay.io/repository/kubevirt/cdi-importer/>
 <https://quay.io/repository/kubevirt/cdi-cloner/>
