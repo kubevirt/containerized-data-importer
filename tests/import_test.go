@@ -933,5 +933,12 @@ var _ = Describe("Preallocation", func() {
 		Entry("Blank image", true, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeForBlankRawImage("import-dv", "100Mi")
 		}),
+		Entry("Blank block DataVolume", true, func() *cdiv1.DataVolume {
+			if !f.IsBlockVolumeStorageClassAvailable() {
+				Skip("Storage Class for block volume is not available")
+			}
+
+			return utils.NewDataVolumeForBlankRawImageBlock("import-dv", "100Mi", f.BlockSCName)
+		}),
 	)
 })
