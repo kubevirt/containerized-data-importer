@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"errors"
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -177,11 +176,8 @@ func NewStorageProfileController(mgr manager.Manager, log logr.Logger) (controll
 	if err := addStorageProfileControllerWatches(mgr, storageProfileController, log); err != nil {
 		return nil, err
 	}
-	if err := reconciler.Init(); err != nil {
-		log.Error(err, "Unable to initalize StorageProfile objects")
-	}
 
-	log.Info("Initialized StorageProfile objects")
+	log.Info("Initialized StorageProfile controller")
 	return storageProfileController, nil
 }
 
@@ -200,23 +196,5 @@ func addStorageProfileControllerWatches(mgr manager.Manager, c controller.Contro
 	if err := c.Watch(&source.Kind{Type: &cdiv1.StorageProfile{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
-	return nil
-}
-
-// Init initializes all StorageProfile objects
-func (r *StorageProfileReconciler) Init() error {
-	return r.reconcileStorageProfiles()
-}
-
-func (r *StorageProfileReconciler) reconcileStorageProfiles() error {
-	storageClasses := &storagev1.StorageClassList{}
-	if err := r.uncachedClient.List(context.TODO(), storageClasses); err != nil {
-		return errors.New("unable to retrieve storage classes")
-	}
-
-	for _, storageClass := range storageClasses.Items {
-		r.reconcileStorageProfile(&storageClass)
-	}
-
 	return nil
 }

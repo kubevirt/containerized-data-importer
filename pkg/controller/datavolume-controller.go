@@ -1248,7 +1248,9 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 }
 
 func (r *DatavolumeReconciler) renderPvcSpec(dv *cdiv1.DataVolume) (*corev1.PersistentVolumeClaimSpec, error) {
-	// right now Spec.PVC is required and tested before, so no need to check if its null here!
+	if dv.Spec.PVC == nil {
+		return nil, errors.Errorf("datavolume.pvc field is required")
+	}
 	pvcSpecCopy := dv.Spec.PVC.DeepCopy()
 	storageClass, err := GetStorageClassByName(r.client, dv.Spec.PVC.StorageClassName)
 	if err != nil {
@@ -1284,12 +1286,7 @@ func getDefaultVolumeMode(c client.Client, storageClass *storagev1.StorageClass)
 	storageProfile := &cdiv1.StorageProfile{}
 	err := c.Get(context.TODO(), types.NamespacedName{Name: storageClass.Name}, storageProfile)
 	if err != nil {
-		// TODO: should it default to nil and just ignore the error for optional params like volumeMode when not found?
-		// and only return some errors with communication
-		if k8serrors.IsNotFound(err) {
-			return nil, nil
-		}
-		return nil, err
+		return nil, errors.Wrap(err, "no accessMode defined on DV, cannot get StorageProfile")
 	}
 	if len(storageProfile.Status.ClaimPropertySets) > 0 {
 		volumeMode := storageProfile.Status.ClaimPropertySets[0].VolumeMode

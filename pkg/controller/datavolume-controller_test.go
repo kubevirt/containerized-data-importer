@@ -616,8 +616,11 @@ var _ = Describe("Reconcile Datavolume status", func() {
 				AnnDefaultStorageClass: "true",
 			},
 			storagev1.VolumeBindingWaitForFirstConsumer)
-		importDataVolume := newImportDataVolume("test-dv")
-		importDataVolume.Spec.PVC.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
+		volumeMode := corev1.PersistentVolumeFilesystem
+		importDataVolume := newImportDataVolumeWithPvc("test-dv", &corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			VolumeMode:  &volumeMode,
+		})
 
 		reconciler = createDatavolumeReconciler(sc, importDataVolume)
 
@@ -662,9 +665,12 @@ var _ = Describe("Reconcile Datavolume status", func() {
 			AnnDefaultStorageClass: "true",
 		})
 		scWffc := createStorageClassWithBindingMode(scName, map[string]string{}, storagev1.VolumeBindingWaitForFirstConsumer)
-		importDataVolume := newImportDataVolume("test-dv")
-		importDataVolume.Spec.PVC.StorageClassName = &scName
-		importDataVolume.Spec.PVC.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
+		volumeMode := corev1.PersistentVolumeFilesystem
+		importDataVolume := newImportDataVolumeWithPvc("test-dv", &corev1.PersistentVolumeClaimSpec{
+			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			VolumeMode:       &volumeMode,
+			StorageClassName: &scName,
+		})
 
 		reconciler = createDatavolumeReconciler(scDefault, scWffc, importDataVolume)
 		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
