@@ -60,7 +60,7 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 					Served:       true,
 					Storage:      false,
 					Subresources: &extv1.CustomResourceSubresources{},
-					Schema:       createDataVolumeCRDSchema(),
+					Schema:       createAlphaV1DataVolumeCRDSchema(),
 					AdditionalPrinterColumns: []extv1.CustomResourceColumnDefinition{
 						{
 							Name:        "Phase",
@@ -92,7 +92,7 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 					Served:       true,
 					Storage:      true,
 					Subresources: &extv1.CustomResourceSubresources{},
-					Schema:       createDataVolumeCRDSchema(),
+					Schema:       createBetaV1DataVolumeCRDSchema(),
 					AdditionalPrinterColumns: []extv1.CustomResourceColumnDefinition{
 						{
 							Name:        "Phase",
@@ -128,7 +128,12 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 	}
 }
 
-func createDataVolumeCRDSchema() *extv1.CustomResourceValidation {
+func createBetaV1DataVolumeCRDSchema() *extv1.CustomResourceValidation {
+	// BetaV1 might diverge here from AlphaV1
+	return createAlphaV1DataVolumeCRDSchema()
+}
+
+func createAlphaV1DataVolumeCRDSchema() *extv1.CustomResourceValidation {
 	return &extv1.CustomResourceValidation{
 		OpenAPIV3Schema: &extv1.JSONSchemaProps{
 			Description: "DataVolume is an abstraction on top of PersistentVolumeClaims to allow easy population of those PersistentVolumeClaims with relation to VirtualMachines",

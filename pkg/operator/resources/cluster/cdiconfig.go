@@ -36,13 +36,13 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 					Name:    "v1alpha1",
 					Served:  true,
 					Storage: false,
-					Schema:  createCDIConfigCRDSchema(),
+					Schema:  createAlphaV1ConfigCRDSchema(),
 				},
 				{
 					Name:    "v1beta1",
 					Served:  true,
 					Storage: true,
-					Schema:  createCDIConfigCRDSchema(),
+					Schema:  createBetaV1ConfigCRDSchema(),
 				},
 			},
 			Conversion: &extv1.CustomResourceConversion{
@@ -53,7 +53,12 @@ func createCDIConfigCRD() *extv1.CustomResourceDefinition {
 	}
 }
 
-func createCDIConfigCRDSchema() *extv1.CustomResourceValidation {
+func createBetaV1ConfigCRDSchema() *extv1.CustomResourceValidation {
+	// BetaV1 might diverge here from AlphaV1
+	return createAlphaV1ConfigCRDSchema()
+}
+
+func createAlphaV1ConfigCRDSchema() *extv1.CustomResourceValidation {
 	return &extv1.CustomResourceValidation{
 		OpenAPIV3Schema: &extv1.JSONSchemaProps{
 			Description: "CDIConfig provides a user configuration for CDI",

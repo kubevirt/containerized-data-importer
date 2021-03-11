@@ -305,7 +305,7 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 					Name:    "v1alpha1",
 					Served:  true,
 					Storage: false,
-					Schema:  createCRDSchema(),
+					Schema:  createAlphaV1CRDSchema(),
 					AdditionalPrinterColumns: []extv1.CustomResourceColumnDefinition{
 						{Name: "Age", Type: "date", JSONPath: ".metadata.creationTimestamp"},
 						{Name: "Phase", Type: "string", JSONPath: ".status.phase"},
@@ -316,7 +316,7 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 					Name:    "v1beta1",
 					Served:  true,
 					Storage: true,
-					Schema:  createCRDSchema(),
+					Schema:  createBetaV1CRDSchema(),
 					AdditionalPrinterColumns: []extv1.CustomResourceColumnDefinition{
 						{Name: "Age", Type: "date", JSONPath: ".metadata.creationTimestamp"},
 						{Name: "Phase", Type: "string", JSONPath: ".status.phase"},
@@ -338,7 +338,12 @@ func createCDIListCRD() *extv1.CustomResourceDefinition {
 	}
 }
 
-func createCRDSchema() *extv1.CustomResourceValidation {
+func createBetaV1CRDSchema() *extv1.CustomResourceValidation {
+	// BetaV1 might diverge here from AlphaV1
+	return createAlphaV1CRDSchema()
+}
+
+func createAlphaV1CRDSchema() *extv1.CustomResourceValidation {
 	return &extv1.CustomResourceValidation{
 		OpenAPIV3Schema: &extv1.JSONSchemaProps{
 			Type:        "object",
