@@ -223,6 +223,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(sourcePod.GetLabels()[CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
 		By("Verifying source pod annotations passed from pvc")
 		Expect(sourcePod.GetAnnotations()[AnnPodNetwork]).To(Equal("net1"))
+		Expect(sourcePod.GetAnnotations()[AnnPodSidecarInjection]).To(Equal(AnnPodSidecarInjectionDefault))
 		Expect(sourcePod.Spec.Affinity).ToNot(BeNil())
 		Expect(sourcePod.Spec.Affinity.PodAffinity).ToNot(BeNil())
 		l := len(sourcePod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution)
