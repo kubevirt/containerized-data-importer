@@ -29,7 +29,7 @@ spec:
       containers:
       - name: imageiotest
         # Docker file: https://github.com/machacekondra/imageiotest
-        image: machacekondra/imageiotest
+        image: quay.io/kubevirt/imageiotest:v0.0.1
         imagePullPolicy: {{ .PullPolicy }}
         ports:
         - containerPort: 12345
