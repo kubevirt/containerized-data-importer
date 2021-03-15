@@ -291,12 +291,14 @@ func createVMwareClient(endpoint string, accessKey string, secKey string, thumbp
 	conn, err := govmomi.NewClient(ctx, vmwURL, true)
 	if err != nil {
 		klog.Errorf("Unable to connect to vCenter: %v", err)
+		cancel()
 		return nil, err
 	}
 
 	moref, vm, err := FindVM(ctx, conn, uuid)
 	if err != nil {
 		klog.Errorf("Unable to find MORef for VM with UUID %s!", uuid)
+		cancel()
 		return nil, err
 	}
 
@@ -853,6 +855,14 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 		Size:             size,
 		VolumeMode:       volumeMode,
 	}
+
+	terminationChannel := newTerminationChannel()
+	go func() {
+		<-terminationChannel
+		klog.Infof("Caught termination signal, closing nbdkit.")
+		source.Close()
+	}()
+
 	return source, nil
 }
 
@@ -865,7 +875,10 @@ func (vs *VDDKDataSource) Info() (ProcessingPhase, error) {
 // Close closes any readers or other open resources.
 func (vs *VDDKDataSource) Close() error {
 	vs.NbdKit.Handle.Close()
-	return vs.NbdKit.Command.Process.Kill()
+	if vs.NbdKit.Command.Process != nil {
+		return vs.NbdKit.Command.Process.Signal(os.Interrupt)
+	}
+	return nil
 }
 
 // GetURL returns the url that the data processor can use when converting the data.
