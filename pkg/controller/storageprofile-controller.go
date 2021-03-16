@@ -46,13 +46,19 @@ func (r *StorageProfileReconciler) Reconcile(req reconcile.Request) (reconcile.R
 
 func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.StorageClass) (reconcile.Result, error) {
 	log := r.log.WithValues("StorageProfile", sc.Name)
+	var prevStorageProfile runtime.Object
 
-	storageProfile, err := r.createStorageProfile(sc)
+	storageProfile, err := r.getStorageProfile(sc)
 	if err != nil {
-		log.Error(err, "Unable to create StorageProfile")
-		return reconcile.Result{}, err
+		if k8serrors.IsNotFound(err) {
+			storageProfile, err = r.createEmptyStorageProfile(sc)
+		} else {
+			log.Error(err, "Unable to create StorageProfile")
+			return reconcile.Result{}, err
+		}
+	} else {
+		prevStorageProfile = storageProfile.DeepCopyObject()
 	}
-	currentStorageProfile := storageProfile.DeepCopyObject()
 
 	storageProfile.Status.StorageClass = &sc.Name
 	storageProfile.Status.Provisioner = &sc.Provisioner
@@ -73,7 +79,11 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 		storageProfile.Status.ClaimPropertySets = []cdiv1.ClaimPropertySet{*claimPropertySet}
 	}
 
-	if !reflect.DeepEqual(currentStorageProfile, storageProfile) {
+	if prevStorageProfile == nil {
+		if err := r.client.Create(context.TODO(), storageProfile); err != nil {
+			return reconcile.Result{}, err
+		}
+	} else if !reflect.DeepEqual(prevStorageProfile, storageProfile) {
 		// Updates have happened, update StorageProfile.
 		log.Info("Updating StorageProfile", "StorageProfile.Name", storageProfile.Name, "storageProfile", storageProfile)
 		if err := r.client.Update(context.TODO(), storageProfile); err != nil {
@@ -108,27 +118,18 @@ func (r *StorageProfileReconciler) reconcileAccessModes(sc *storagev1.StorageCla
 	}
 }
 
-func (r *StorageProfileReconciler) createStorageProfile(sc *storagev1.StorageClass) (*cdiv1.StorageProfile, error) {
+func (r *StorageProfileReconciler) getStorageProfile(sc *storagev1.StorageClass) (*cdiv1.StorageProfile, error) {
 	storageProfile := &cdiv1.StorageProfile{}
 	if err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: sc.Name}, storageProfile); err != nil {
-		if k8serrors.IsNotFound(err) {
-			storageProfile := MakeEmptyStorageProfileSpec(sc.Name)
-			if err := operator.SetOwnerRuntime(r.uncachedClient, storageProfile); err != nil {
-				return nil, err
-			}
-			if err := r.client.Create(context.TODO(), storageProfile); err != nil {
-				if k8serrors.IsAlreadyExists(err) {
-					storageProfile := &cdiv1.StorageProfile{}
-					if err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: sc.Name}, storageProfile); err == nil {
-						return storageProfile, nil
-					}
-					return nil, err
-				}
-				return nil, err
-			}
-		} else {
-			return nil, err
-		}
+		return nil, err
+	}
+	return storageProfile, nil
+}
+
+func (r *StorageProfileReconciler) createEmptyStorageProfile(sc *storagev1.StorageClass) (*cdiv1.StorageProfile, error) {
+	storageProfile := MakeEmptyStorageProfileSpec(sc.Name)
+	if err := operator.SetOwnerRuntime(r.uncachedClient, storageProfile); err != nil {
+		return nil, err
 	}
 	return storageProfile, nil
 }
