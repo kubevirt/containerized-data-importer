@@ -78,6 +78,7 @@ done
 if [ $retry_counter -eq $MAX_CDI_WAIT_RETRY ]; then
     echo "Not all CDI pods became ready"
     ./cluster-up/kubectl.sh get pods -n $CDI_NAMESPACE
+    ./cluster-up/kubectl.sh describe pods -n $CDI_NAMESPACE
     exit 1
 fi
 
