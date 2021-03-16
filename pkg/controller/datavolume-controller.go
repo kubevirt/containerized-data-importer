@@ -1256,8 +1256,15 @@ func (r *DatavolumeReconciler) renderPvcSpec(dv *cdiv1.DataVolume) (*corev1.Pers
 	if err != nil {
 		return nil, err
 	}
+
 	if storageClass == nil {
-		// Not even default storageClass on the cluster, cannot apply the defaults
+		// Not even default storageClass on the cluster, cannot apply the defaults, verify spec is ok
+		if len(pvcSpecCopy.AccessModes) == 0 {
+			r.log.V(1).Info("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name)
+			r.recorder.Eventf(dv, corev1.EventTypeWarning, ErrClaimNotValid, "DataVolume spec is missing accessMode and no storageClass to choose profile")
+			return nil, errors.Errorf("DataVolume spec is missing accessMode")
+		}
+
 		return pvcSpecCopy, nil
 	}
 
@@ -1266,7 +1273,7 @@ func (r *DatavolumeReconciler) renderPvcSpec(dv *cdiv1.DataVolume) (*corev1.Pers
 		if err != nil {
 			r.log.V(1).Info("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name)
 			r.recorder.Eventf(dv, corev1.EventTypeWarning, ErrClaimNotValid,
-				fmt.Sprintf("DataVolume spec is missing accessMode and cannot get access mode from StorageProfile %s", storageClass.Name))
+				fmt.Sprintf("DataVolume spec is missing accessMode and cannot get access mode from StorageProfile %s", getName(storageClass)))
 			return nil, err
 		}
 		pvcSpecCopy.AccessModes = append(pvcSpecCopy.AccessModes, *accessMode)
@@ -1282,11 +1289,23 @@ func (r *DatavolumeReconciler) renderPvcSpec(dv *cdiv1.DataVolume) (*corev1.Pers
 	return pvcSpecCopy, nil
 }
 
+func getName(storageClass *storagev1.StorageClass) string {
+	if storageClass != nil {
+		return storageClass.Name
+	}
+	return ""
+}
+
 func getDefaultVolumeMode(c client.Client, storageClass *storagev1.StorageClass) (*corev1.PersistentVolumeMode, error) {
+	if storageClass == nil {
+		// fallback to k8s defaults
+		return nil, nil
+	}
+
 	storageProfile := &cdiv1.StorageProfile{}
 	err := c.Get(context.TODO(), types.NamespacedName{Name: storageClass.Name}, storageProfile)
 	if err != nil {
-		return nil, errors.Wrap(err, "no accessMode defined on DV, cannot get StorageProfile")
+		return nil, errors.Wrap(err, "cannot get StorageProfile")
 	}
 	if len(storageProfile.Status.ClaimPropertySets) > 0 {
 		volumeMode := storageProfile.Status.ClaimPropertySets[0].VolumeMode
@@ -1298,6 +1317,10 @@ func getDefaultVolumeMode(c client.Client, storageClass *storagev1.StorageClass)
 }
 
 func getDefaultAccessMode(c client.Client, storageClass *storagev1.StorageClass) (*corev1.PersistentVolumeAccessMode, error) {
+	if storageClass == nil {
+		return nil, errors.Errorf("no accessMode defined on DV, no StorageProfile ")
+	}
+
 	storageProfile := &cdiv1.StorageProfile{}
 	err := c.Get(context.TODO(), types.NamespacedName{Name: storageClass.Name}, storageProfile)
 	if err != nil {

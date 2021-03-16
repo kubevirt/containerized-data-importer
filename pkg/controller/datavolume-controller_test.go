@@ -110,9 +110,9 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 
 	It("Should set params on a PVC from storageProfile when import DV has no accessMode", func() {
 		scName := "testStorageClass"
-
-		importDataVolume := newImportDataVolume("test-dv")
-		importDataVolume.Spec.PVC.StorageClassName = &scName
+		importDataVolume := newImportDataVolumeWithPvc("test-dv", &corev1.PersistentVolumeClaimSpec{
+			StorageClassName: &scName,
+		})
 		storageClass := createStorageClass(scName, nil)
 		storageProfile := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, corev1.PersistentVolumeBlock)
 
@@ -131,9 +131,10 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 
 	It("Should set params on a PVC from correct storageProfile when import DV has no accessMode", func() {
 		scName := "testStorageClass"
+		importDataVolume := newImportDataVolumeWithPvc("test-dv", &corev1.PersistentVolumeClaimSpec{
+			StorageClassName: &scName,
+		})
 
-		importDataVolume := newImportDataVolume("test-dv")
-		importDataVolume.Spec.PVC.StorageClassName = &scName
 		storageClass := createStorageClass(scName, nil)
 		storageProfile := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, corev1.PersistentVolumeBlock)
 		defaultStorageClass := createStorageClass("defaultSc", map[string]string{AnnDefaultStorageClass: "true"})
@@ -155,7 +156,8 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 
 	It("Should set params on a PVC from default storageProfile when import DV has no storageClass and no accessMode", func() {
 		scName := "testStorageClass"
-		importDataVolume := newImportDataVolume("test-dv")
+		importDataVolume := newImportDataVolumeWithPvc("test-dv", &corev1.PersistentVolumeClaimSpec{})
+
 		storageClass := createStorageClass(scName, map[string]string{AnnDefaultStorageClass: "true"})
 		storageProfile := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, corev1.PersistentVolumeBlock)
 		anotherStorageProfile := createStorageProfile("anotherSp", []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}, corev1.PersistentVolumeFilesystem)
@@ -1347,7 +1349,9 @@ func newImportDataVolume(name string) *cdiv1.DataVolume {
 					URL: "http://example.com/data",
 				},
 			},
-			PVC: &corev1.PersistentVolumeClaimSpec{},
+			PVC: &corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			},
 		},
 	}
 }
@@ -1366,7 +1370,9 @@ func newS3ImportDataVolume(name string) *cdiv1.DataVolume {
 					URL: "http://example.com/data",
 				},
 			},
-			PVC: &corev1.PersistentVolumeClaimSpec{},
+			PVC: &corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			},
 		},
 	}
 }
@@ -1392,7 +1398,9 @@ func newCloneDataVolumeWithPVCNS(name string, pvcNamespace string) *cdiv1.DataVo
 					Namespace: pvcNamespace,
 				},
 			},
-			PVC: &corev1.PersistentVolumeClaimSpec{},
+			PVC: &corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			},
 		},
 	}
 }
@@ -1408,7 +1416,9 @@ func newUploadDataVolume(name string) *cdiv1.DataVolume {
 			Source: cdiv1.DataVolumeSource{
 				Upload: &cdiv1.DataVolumeSourceUpload{},
 			},
-			PVC: &corev1.PersistentVolumeClaimSpec{},
+			PVC: &corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			},
 		},
 	}
 }
@@ -1424,7 +1434,9 @@ func newBlankImageDataVolume(name string) *cdiv1.DataVolume {
 			Source: cdiv1.DataVolumeSource{
 				Blank: &cdiv1.DataVolumeBlankImage{},
 			},
-			PVC: &corev1.PersistentVolumeClaimSpec{},
+			PVC: &corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			},
 		},
 	}
 }
