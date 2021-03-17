@@ -13,7 +13,10 @@ fi
 function configure_storage() {
   #Make sure local is not default
   _kubectl patch storageclass local -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
-  if [[ $KUBEVIRT_STORAGE == "ceph" ]] ; then
+  if [[ $KUBEVIRT_STORAGE == "rook-ceph-default" ]] ; then
+    echo "Using builtin rook/ceph provisioner"
+  # ceph will be deprecated once changes to test lanes merged
+  elif [[ $KUBEVIRT_STORAGE == "ceph" ]] ; then
     echo "Installing ceph storage"
     configure_ceph
   elif [[ $KUBEVIRT_STORAGE == "hpp" ]] ; then
