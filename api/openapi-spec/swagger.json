@@ -3892,6 +3892,10 @@
       "description": "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
       "type": "boolean"
      },
+     "pod": {
+      "description": "Pod is the Pod specification for Importer or Uploader pod",
+      "$ref": "#/definitions/v1beta1.PodSpec"
+     },
      "preallocation": {
       "description": "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
       "type": "boolean"
@@ -3965,6 +3969,15 @@
      },
      "trustedCAProxy": {
       "description": "TrustedCAProxy is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle. The TrustedCAProxy field is consumed by the import controller that is resposible for coping it to a config map named trusted-ca-proxy-bundle-cm in the cdi namespace. Here is an example of the ConfigMap (in yaml):\n\napiVersion: v1 kind: ConfigMap metadata:\n  name: trusted-ca-proxy-bundle-cm\n  namespace: cdi\ndata:\n  ca.pem: |\n    -----BEGIN CERTIFICATE-----\n\t   ... \u003cbase64 encoded cert\u003e ...\n\t   -----END CERTIFICATE-----",
+      "type": "string"
+     }
+    }
+   },
+   "v1beta1.PodSpec": {
+    "description": "PodSpec represents Pod specification for importer/uploader pod",
+    "type": "object",
+    "properties": {
+     "priorityClassName": {
       "type": "string"
      }
     }

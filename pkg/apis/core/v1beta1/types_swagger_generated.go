@@ -13,6 +13,7 @@ func (DataVolumeSpec) SwaggerDoc() map[string]string {
 		"":                "DataVolumeSpec defines the DataVolume type specification",
 		"source":          "Source is the src of the data for the requested DataVolume",
 		"pvc":             "PVC is the PVC specification",
+		"pod":             "Pod is the Pod specification for Importer or Uploader pod",
 		"contentType":     "DataVolumeContentType options: \"kubevirt\", \"archive\"\n+kubebuilder:validation:Enum=\"kubevirt\";\"archive\"",
 		"checkpoints":     "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
 		"finalCheckpoint": "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
@@ -31,6 +32,12 @@ func (DataVolumeCheckpoint) SwaggerDoc() map[string]string {
 func (DataVolumeSource) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"": "DataVolumeSource represents the source for our Data Volume, this can be HTTP, Imageio, S3, Registry or an existing PVC",
+	}
+}
+
+func (PodSpec) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "PodSpec represents Pod specification for importer/uploader pod",
 	}
 }
 
