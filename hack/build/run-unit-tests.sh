@@ -22,6 +22,7 @@ source hack/build/common.sh
 # parsetTestOpts sets 'pkgs' and test_args
 parseTestOpts "${@}"
 export GO111MODULE=off
+export KUBEBUILDER_CONTROLPLANE_START_TIMEOUT=120s
 test_command="env OPERATOR_DIR=${CDI_DIR} go test -v -coverprofile=.coverprofile -test.timeout 180m ${pkgs} ${test_args:+-args $test_args}"
 echo "${test_command}"
 ${test_command}
