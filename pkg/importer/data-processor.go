@@ -288,6 +288,12 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 		if err != nil {
 			return ProcessingPhaseError, err
 		}
+		if dp.preallocation {
+			if shouldPreallocate {
+				return ProcessingPhasePreallocate, nil
+			}
+			dp.preallocationApplied = false // qemu did not preallocate space for a resized file
+		}
 	}
 	if dp.dataFile != "" {
 		// Change permissions to 0660
@@ -296,12 +302,7 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 			err = errors.Wrap(err, "Unable to change permissions of target file")
 		}
 	}
-	if dp.preallocation {
-		if shouldPreallocate {
-			return ProcessingPhasePreallocate, nil
-		}
-		dp.preallocationApplied = false // qemu did not preallocate space for a resized file
-	}
+
 	return ProcessingPhaseComplete, nil
 }
 

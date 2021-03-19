@@ -23,6 +23,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -78,7 +79,13 @@ var (
 		},
 		[]string{"ownerUID"},
 	)
-	ownerUID string
+	ownerUID             string
+	preallocationMethods = [][]string{
+		{"-o", "preallocation=falloc"},
+		{"-o", "preallocation=full"},
+		{"-S", "0"},
+	}
+	maxPreallocationMethods = len(preallocationMethods)
 )
 
 func init() {
@@ -101,11 +108,14 @@ func NewQEMUOperations() QEMUOperations {
 
 func convertToRaw(src, dest string, preallocate bool) error {
 	args := []string{"convert", "-t", "none", "-p", "-O", "raw", src, dest}
+	var err error
 	if preallocate {
-		klog.V(1).Info("Added preallocation")
-		args = append(args, []string{"-o", "preallocation=falloc"}...)
+		err = addPreallocation(preallocate, args, func(args []string) ([]byte, error) {
+			return qemuExecFunction(nil, reportProgress, "qemu-img", args...)
+		})
+	} else {
+		_, err = qemuExecFunction(nil, reportProgress, "qemu-img", args...)
 	}
-	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", args...)
 	if err != nil {
 		os.Remove(dest)
 		return errors.Wrap(err, "could not convert image to raw")
@@ -122,12 +132,15 @@ func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string, prealloca
 
 	jsonArg := fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", url.Scheme, url, networkTimeoutSecs)
 
+	var err error
 	args := []string{"convert", "-t", "none", "-p", "-O", "raw", jsonArg, dest}
 	if preallocate {
-		klog.V(1).Info("Added preallocation")
-		args = append(args, []string{"-o", "preallocation=falloc"}...)
+		err = addPreallocation(preallocate, args, func(args []string) ([]byte, error) {
+			return qemuExecFunction(nil, reportProgress, "qemu-img", args...)
+		})
+	} else {
+		_, err = qemuExecFunction(nil, reportProgress, "qemu-img", args...)
 	}
-	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", args...)
 	if err != nil {
 		// TODO: Determine what to do here, the conversion failed, and we need to clean up the mess, but we could be writing to a block device
 		os.Remove(dest)
@@ -294,4 +307,24 @@ func PreallocateBlankBlock(dest string, size resource.Quantity) error {
 	}
 
 	return nil
+}
+
+func addPreallocation(preallocate bool, args []string, fn func(args []string) ([]byte, error)) error {
+	var err error
+	preallocationMethod := 0
+	for retry := true; retry; retry = err != nil && preallocationMethod < maxPreallocationMethods {
+		var argsToTry []string
+		var output []byte
+		if preallocate {
+			klog.V(1).Info("Added preallocation")
+			argsToTry = append(args, preallocationMethods[preallocationMethod]...)
+		}
+		output, err = fn(argsToTry)
+		if err != nil && strings.Contains(string(output), "Unsupported preallocation mode") {
+			preallocationMethod++
+			klog.V(1).Infof("Unsupported preallocation mode. Retrying with %s", preallocationMethods[preallocationMethod])
+		}
+	}
+
+	return err
 }
