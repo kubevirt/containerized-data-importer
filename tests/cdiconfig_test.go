@@ -41,6 +41,7 @@ var _ = Describe("CDI storage class config tests", func() {
 	var (
 		f                   = framework.NewFramework("cdiconfig-test")
 		defaultSc, secondSc *storagev1.StorageClass
+		origSpec            *cdiv1.CDIConfigSpec
 	)
 
 	BeforeEach(func() {
@@ -55,36 +56,55 @@ var _ = Describe("CDI storage class config tests", func() {
 				}
 			}
 		}
-	})
 
-	AfterEach(func() {
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		origSpec = config.Spec.DeepCopy()
+
 		By("Unsetting storage class override if set.")
-		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 			config.ScratchSpaceStorageClass = nil
 		})
 		Expect(err).ToNot(HaveOccurred())
+
+		By("Waiting for default SC to be the default scratch space storage class")
+		Eventually(func() string {
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return config.Status.ScratchSpaceStorageClass
+		}, time.Second*30, time.Second).Should(Equal(defaultSc.Name))
+	})
+
+	AfterEach(func() {
 		if secondSc != nil {
 			By("Unmarking default " + secondSc.Name)
 			err := SetStorageClassDefault(f, secondSc.Name, false)
 			Expect(err).ToNot(HaveOccurred())
-			Eventually(func() string {
-				config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				return config.Status.ScratchSpaceStorageClass
-			}, time.Second*30, time.Second).Should(Equal(""))
 			secondSc = nil
 		}
 		if defaultSc != nil {
 			By("Restoring default to " + defaultSc.Name)
 			err := SetStorageClassDefault(f, defaultSc.Name, true)
 			Expect(err).ToNot(HaveOccurred())
-			Eventually(func() string {
-				config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				return config.Status.ScratchSpaceStorageClass
-			}, time.Second*30, time.Second).Should(Equal(defaultSc.Name))
 			defaultSc = nil
 		}
+
+		By("Restoring CDIConfig to original state")
+		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			origSpec.DeepCopyInto(config)
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() bool {
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return apiequality.Semantic.DeepEqual(config.Spec, *origSpec)
+		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig not properly restored to original value")
+
+		Eventually(func() bool {
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return !apiequality.Semantic.DeepEqual(config.Status, cdiv1.CDIConfigStatus{})
+		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig status not restored by config controller")
 	})
 
 	It("[test_id:3962]should have the default storage class as its scratchSpaceStorageClass", func() {
