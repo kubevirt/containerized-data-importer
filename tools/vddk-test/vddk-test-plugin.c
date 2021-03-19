@@ -20,16 +20,25 @@
 
 #define THREAD_MODEL NBDKIT_THREAD_MODEL_SERIALIZE_ALL_REQUESTS
 
+#define EXPECTED_ARG_COUNT 7
+int arg_count = 0;
+
 void fakevddk_close(void *handle) {
     close(*((int *) handle));
 }
 
 int fakevddk_config(const char *key, const char *value) {
+    arg_count++;
     return 0;
 }
 
 int fakevddk_config_complete(void) {
-    return 0;
+    if (arg_count == EXPECTED_ARG_COUNT) {
+        return 0;
+    } else {
+        nbdkit_error("Expected %d arguments to fake VDDK test plugin, but got %d!\n", EXPECTED_ARG_COUNT, arg_count);
+        return -1;
+    }
 }
 
 void *fakevddk_open(int readonly) {

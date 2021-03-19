@@ -188,8 +188,20 @@ func (n *Nbdkit) StartNbdkit(source string) error {
 		argsNbdkit = append(argsNbdkit, a)
 	}
 	// append nbdkit plugin arguments
-	argsNbdkit = append(argsNbdkit, string(n.plugin), strings.Join(n.pluginArgs, " "), n.getSourceArg(source))
-	klog.V(3).Infof("Start nbdkit with: %v", argsNbdkit)
+	argsNbdkit = append(argsNbdkit, string(n.plugin))
+	argsNbdkit = append(argsNbdkit, n.pluginArgs...)
+	argsNbdkit = append(argsNbdkit, n.getSourceArg(source))
+
+	quotedArgs := make([]string, len(argsNbdkit))
+	for index, value := range argsNbdkit {
+		if strings.HasPrefix(value, "password=") {
+			quotedArgs[index] = "'password=*****'"
+		} else {
+			quotedArgs[index] = "'" + value + "'"
+		}
+	}
+	klog.V(3).Infof("Start nbdkit with: %v", quotedArgs)
+
 	n.c = exec.Command("nbdkit", argsNbdkit...)
 	var stdout io.ReadCloser
 	stdout, err = n.c.StdoutPipe()
