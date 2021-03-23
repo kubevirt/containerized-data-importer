@@ -345,6 +345,63 @@ var _ = Describe("Create blank image", func() {
 	})
 })
 
+var _ = Describe("Try different preallocation modes", func() {
+	It("Should try falloc first", func() {
+		calledCount := 0
+		err := addPreallocation([]string{}, func(args []string) ([]byte, error) {
+			Expect(args).To(Equal([]string{"-o", "preallocation=falloc"}))
+			calledCount++
+			return []byte{}, nil
+		})
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(calledCount).To(Equal(1))
+	})
+
+	It("Should try full if falloc fails", func() {
+		calledCount := 0
+		err := addPreallocation([]string{}, func(args []string) ([]byte, error) {
+			if args[1] == "preallocation=falloc" {
+				calledCount++
+				return []byte("Unsupported preallocation mode"), fmt.Errorf("No, no, no")
+			}
+			Expect(args).To(Equal([]string{"-o", "preallocation=full"}))
+			calledCount++
+			return []byte{}, nil
+		})
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(calledCount).To(Equal(2))
+	})
+
+	It("Should try -S0 if full fails", func() {
+		calledCount := 0
+		err := addPreallocation([]string{}, func(args []string) ([]byte, error) {
+			if calledCount < 2 {
+				calledCount++
+				return []byte("Unsupported preallocation mode"), fmt.Errorf("No, no, no")
+			}
+			Expect(args).To(Equal([]string{"-S", "0"}))
+			calledCount++
+			return []byte{}, nil
+		})
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(calledCount).To(Equal(3))
+	})
+
+	It("Should fail if output is different than 'Unsupported preallocation'", func() {
+		calledCount := 0
+		err := addPreallocation([]string{}, func(args []string) ([]byte, error) {
+			calledCount++
+			return []byte("General Protection Fault"), fmt.Errorf("No, no, no")
+		})
+
+		Expect(err).To(HaveOccurred())
+		Expect(calledCount).To(Equal(1))
+	})
+})
+
 func mockExecFunction(output, errString string, expectedLimits *system.ProcessLimitValues, checkArgs ...string) execFunctionType {
 	return func(limits *system.ProcessLimitValues, f func(string), cmd string, args ...string) (bytes []byte, err error) {
 		Expect(reflect.DeepEqual(expectedLimits, limits)).To(BeTrue())
