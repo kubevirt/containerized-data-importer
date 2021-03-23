@@ -37,7 +37,7 @@ func (r *StorageProfileReconciler) Reconcile(req reconcile.Request) (reconcile.R
 	log.Info("reconciling StorageProfile")
 
 	storageClass := &storagev1.StorageClass{}
-	if err := r.uncachedClient.Get(context.TODO(), req.NamespacedName, storageClass); err != nil {
+	if err := r.client.Get(context.TODO(), req.NamespacedName, storageClass); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -120,7 +120,7 @@ func (r *StorageProfileReconciler) reconcileAccessModes(sc *storagev1.StorageCla
 
 func (r *StorageProfileReconciler) getStorageProfile(sc *storagev1.StorageClass) (*cdiv1.StorageProfile, error) {
 	storageProfile := &cdiv1.StorageProfile{}
-	if err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: sc.Name}, storageProfile); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: sc.Name}, storageProfile); err != nil {
 		return nil, err
 	}
 	return storageProfile, nil
