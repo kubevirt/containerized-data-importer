@@ -22,6 +22,7 @@ go_library(
         "//pkg/operator:go_default_library",
         "//pkg/operator/resources/cert:go_default_library",
         "//pkg/operator/resources/cluster:go_default_library",
+        "//pkg/operator/resources/generate/install:go_default_library",
         "//pkg/operator/resources/namespaced:go_default_library",
         "//pkg/util:go_default_library",
         "//vendor/github.com/go-logr/logr:go_default_library",
