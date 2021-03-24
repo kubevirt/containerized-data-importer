@@ -40,20 +40,12 @@ load(
     "@io_bazel_rules_docker//container:container.bzl",
     "container_bundle",
     "container_image",
+    "container_push",
 )
 
 container_bundle(
-    name = "build-images",
+    name = "test-container-images",
     images = {
-        # cmd images
-        "$(container_prefix)/cdi-operator:$(container_tag)": "//cmd/cdi-operator:cdi-operator-image",
-        "$(container_prefix)/cdi-controller:$(container_tag)": "//cmd/cdi-controller:cdi-controller-image",
-        "$(container_prefix)/cdi-apiserver:$(container_tag)": "//cmd/cdi-apiserver:cdi-apiserver-image",
-        "$(container_prefix)/cdi-cloner:$(container_tag)": "//cmd/cdi-cloner:cdi-cloner-image",
-        "$(container_prefix)/cdi-importer:$(container_tag)": "//cmd/cdi-importer:cdi-importer-image",
-        "$(container_prefix)/cdi-uploadproxy:$(container_tag)": "//cmd/cdi-uploadproxy:cdi-uploadproxy-image",
-        "$(container_prefix)/cdi-uploadserver:$(container_tag)": "//cmd/cdi-uploadserver:cdi-uploadserver-image",
-        # test images
         "$(container_prefix)/cdi-func-test-bad-webserver:$(container_tag)": "//tools/cdi-func-test-bad-webserver:cdi-func-test-bad-webserver-image",
         "$(container_prefix)/cdi-func-test-file-host-init:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-init-image",
         "$(container_prefix)/cdi-func-test-file-host-http:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-http-image",
@@ -71,8 +63,71 @@ container_bundle(
 load("@io_bazel_rules_docker//contrib:push-all.bzl", "docker_push")
 
 docker_push(
-    name = "push-images",
-    bundle = ":build-images",
+    name = "push-test-images",
+    bundle = ":test-container-images",
+)
+
+container_push(
+    name = "push-cdi-operator",
+    format = "Docker",
+    image = "//cmd/cdi-operator:cdi-operator-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-operator",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-cdi-controller",
+    format = "Docker",
+    image = "//cmd/cdi-controller:cdi-controller-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-controller",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-cdi-apiserver",
+    format = "Docker",
+    image = "//cmd/cdi-apiserver:cdi-apiserver-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-apiserver",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-cdi-cloner",
+    format = "Docker",
+    image = "//cmd/cdi-cloner:cdi-cloner-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-cloner",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-cdi-importer",
+    format = "Docker",
+    image = "//cmd/cdi-importer:cdi-importer-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-importer",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-cdi-uploadproxy",
+    format = "Docker",
+    image = "//cmd/cdi-uploadproxy:cdi-uploadproxy-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-uploadproxy",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-cdi-uploadserver",
+    format = "Docker",
+    image = "//cmd/cdi-uploadserver:cdi-uploadserver-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-uploadserver",
+    tag = "$(container_tag)",
 )
 
 filegroup(
