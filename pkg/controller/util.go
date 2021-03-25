@@ -532,6 +532,9 @@ func setConditionFromPodWithPrefix(anno map[string]string, prefix string, pod *v
 			} else if pod.Status.ContainerStatuses[0].State.Terminated != nil {
 				anno[prefix+".message"] = pod.Status.ContainerStatuses[0].State.Terminated.Message
 				anno[prefix+".reason"] = pod.Status.ContainerStatuses[0].State.Terminated.Reason
+				if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, common.PreallocationApplied) {
+					anno[AnnPreallocationApplied] = "true"
+				}
 			}
 		}
 	}

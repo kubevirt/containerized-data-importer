@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
-	"strings"
 	"time"
 
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
@@ -369,9 +368,6 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	if pod.Status.ContainerStatuses != nil &&
 		pod.Status.ContainerStatuses[0].State.Terminated != nil &&
 		pod.Status.ContainerStatuses[0].State.Terminated.ExitCode == 0 {
-		if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, common.PreallocationApplied) {
-			anno[AnnPreallocationApplied] = "true"
-		}
 	}
 
 	if anno[AnnCurrentCheckpoint] != "" {

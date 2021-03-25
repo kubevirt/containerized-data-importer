@@ -537,6 +537,8 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 		ownerID = string(pvcOwner.UID)
 	}
 
+	preallocationRequested, _ := targetPvc.Annotations[AnnPreallocationRequested]
+
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cloneSourcePodName,
@@ -592,6 +594,10 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 						{
 							Name:  common.OwnerUID,
 							Value: ownerID,
+						},
+						{
+							Name:  common.Preallocation,
+							Value: preallocationRequested,
 						},
 					},
 					Ports: []corev1.ContainerPort{

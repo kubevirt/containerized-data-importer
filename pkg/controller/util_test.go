@@ -258,6 +258,25 @@ var _ = Describe("setConditionFromPod", func() {
 		Expect(result[AnnRunningConditionMessage]).To(Equal("container is waiting"))
 		Expect(result[AnnRunningConditionReason]).To(Equal("Pending"))
 	})
+
+	It("Should set preallocation status", func() {
+		result := make(map[string]string)
+		testPod := createImporterTestPod(createPvc("test", metav1.NamespaceDefault, nil, nil), "test", nil)
+		testPod.Status = v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{
+							Message: "container completed, " + common.PreallocationApplied,
+							Reason:  "Completed",
+						},
+					},
+				},
+			},
+		}
+		setConditionFromPodWithPrefix(result, AnnRunningCondition, testPod)
+		Expect(result[AnnPreallocationApplied]).To(Equal("true"))
+	})
 })
 
 var _ = Describe("GetPreallocation", func() {
