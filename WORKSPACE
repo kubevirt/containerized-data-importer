@@ -304,10 +304,7 @@ http_file(
 http_file(
     name = "basesystem",
     sha256 = "f4efaa5bc8382246d8230ece8bacebd3c29eb9fd52b509b1e6575e643953851b",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/b/basesystem-11-10.fc33.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/f4efaa5bc8382246d8230ece8bacebd3c29eb9fd52b509b1e6575e643953851b",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/f4efaa5bc8382246d8230ece8bacebd3c29eb9fd52b509b1e6575e643953851b"],
 )
 
 http_file(
