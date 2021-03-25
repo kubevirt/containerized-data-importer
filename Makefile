@@ -37,6 +37,7 @@ all: manifests bazel-build-images
 
 clean:
 	${DO_BAZ} "./hack/build/build-go.sh clean; rm -rf bin/* _out/* manifests/generated/* .coverprofile release-announcement"
+	${DO_BAZ} bazel clean --expunge
 
 update-codegen:
 	${DO_BAZ} "./hack/update-codegen.sh"
