@@ -1047,6 +1047,27 @@ var _ = Describe("Preallocation", func() {
 		Entry("HTTP import (archive content)", false, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithArchiveContent("import-dv", "100Mi", tinyCoreTarURL())
 		}),
+		Entry("HTTP Import (TAR image, block DataVolume)", true, func() *cdiv1.DataVolume {
+			if !f.IsBlockVolumeStorageClassAvailable() {
+				Skip("Storage Class for block volume is not available")
+			}
+
+			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", tinyCoreTarURL(), f.BlockSCName)
+		}),
+		Entry("HTTP Import (ISO image, block DataVolume)", true, func() *cdiv1.DataVolume {
+			if !f.IsBlockVolumeStorageClassAvailable() {
+				Skip("Storage Class for block volume is not available")
+			}
+
+			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", tinyCoreIsoURL(), f.BlockSCName)
+		}),
+		Entry("HTTP Import (QCOW2 image, block DataVolume)", true, func() *cdiv1.DataVolume {
+			if !f.IsBlockVolumeStorageClassAvailable() {
+				Skip("Storage Class for block volume is not available")
+			}
+
+			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", tinyCoreQcow2URL(), f.BlockSCName)
+		}),
 		Entry("ImageIO import", true, func() *cdiv1.DataVolume {
 			cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 			Expect(err).To(BeNil())
