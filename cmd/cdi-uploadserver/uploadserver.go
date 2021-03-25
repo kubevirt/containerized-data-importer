@@ -27,7 +27,6 @@ import (
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/uploadserver"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -91,7 +90,7 @@ func main() {
 		message = "Upload Complete"
 	}
 	if server.PreallocationApplied() {
-		message += ", " + controller.PreallocationApplied
+		message += ", " + common.PreallocationApplied
 	}
 	err = util.WriteTerminationMessage(message)
 	if err != nil {

@@ -248,7 +248,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 
 		if pod.Status.ContainerStatuses[0].State.Terminated != nil &&
 			pod.Status.ContainerStatuses[0].State.Terminated.ExitCode == 0 {
-			if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, PreallocationApplied) {
+			if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, common.PreallocationApplied) {
 				anno[AnnPreallocationApplied] = "true"
 			}
 		}
