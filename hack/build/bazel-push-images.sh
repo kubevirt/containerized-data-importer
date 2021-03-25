@@ -22,21 +22,20 @@ set -e
 source hack/build/common.sh
 source hack/build/config.sh
 
-docker_tag=$DOCKER_TAG
-docker_prefix=$DOCKER_PREFIX
 if [ -n "$DOCKER_CA_CERT_FILE" ] ; then
     /usr/bin/update-ca-trust
 fi 
 
 PUSH_TARGETS=(${PUSH_TARGETS:-$CONTROLLER_IMAGE_NAME $IMPORTER_IMAGE_NAME $CLONER_IMAGE_NAME $APISERVER_IMAGE_NAME $UPLOADPROXY_IMAGE_NAME $UPLOADSERVER_IMAGE_NAME $OPERATOR_IMAGE_NAME})
 
-echo "docker_prefix: $docker_prefix, docker_tag: $docker_tag"
+echo "docker_prefix: $DOCKER_PREFIX, docker_tag: $DOCKER_TAG"
 for target in ${PUSH_TARGETS[@]}; do
+    echo "Pushing: $target"
     bazel run \
         --verbose_failures \
         --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64_cgo \
-        --define container_prefix=${docker_prefix} \
-        --define container_tag=${tag} \
+        --define container_prefix=${DOCKER_PREFIX} \
+        --define container_tag=${DOCKER_TAG} \
         --host_force_python=PY3 \
         //:push-${target}
 done
@@ -44,7 +43,7 @@ done
 bazel run \
     --verbose_failures \
     --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64_cgo \
-    --define container_prefix=${docker_prefix} \
-    --define container_tag=${tag} \
+    --define container_prefix=${DOCKER_PREFIX} \
+    --define container_tag=${DOCKER_TAG} \
     --host_force_python=PY3 \
     //:push-test-images
