@@ -85,7 +85,6 @@ var (
 		{"-o", "preallocation=full"},
 		{"-S", "0"},
 	}
-	maxPreallocationMethods = len(preallocationMethods)
 )
 
 func init() {
@@ -110,7 +109,7 @@ func convertToRaw(src, dest string, preallocate bool) error {
 	args := []string{"convert", "-t", "none", "-p", "-O", "raw", src, dest}
 	var err error
 	if preallocate {
-		err = addPreallocation(preallocate, args, func(args []string) ([]byte, error) {
+		err = addPreallocation(args, func(args []string) ([]byte, error) {
 			return qemuExecFunction(nil, reportProgress, "qemu-img", args...)
 		})
 	} else {
@@ -135,7 +134,7 @@ func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string, prealloca
 	var err error
 	args := []string{"convert", "-t", "none", "-p", "-O", "raw", jsonArg, dest}
 	if preallocate {
-		err = addPreallocation(preallocate, args, func(args []string) ([]byte, error) {
+		err = addPreallocation(args, func(args []string) ([]byte, error) {
 			return qemuExecFunction(nil, reportProgress, "qemu-img", args...)
 		})
 	} else {
@@ -309,20 +308,19 @@ func PreallocateBlankBlock(dest string, size resource.Quantity) error {
 	return nil
 }
 
-func addPreallocation(preallocate bool, args []string, fn func(args []string) ([]byte, error)) error {
+func addPreallocation(args []string, qemuFn func(args []string) ([]byte, error)) error {
 	var err error
-	preallocationMethod := 0
-	for retry := true; retry; retry = err != nil && preallocationMethod < maxPreallocationMethods {
-		var argsToTry []string
+	for _, preallocationMethod := range preallocationMethods {
 		var output []byte
-		if preallocate {
-			klog.V(1).Info("Added preallocation")
-			argsToTry = append(args, preallocationMethods[preallocationMethod]...)
-		}
-		output, err = fn(argsToTry)
+
+		klog.V(1).Infof("Adding preallocation method: %v", preallocationMethod)
+		argsToTry := append(args, preallocationMethod...)
+
+		output, err = qemuFn(argsToTry)
 		if err != nil && strings.Contains(string(output), "Unsupported preallocation mode") {
-			preallocationMethod++
-			klog.V(1).Infof("Unsupported preallocation mode. Retrying with %s", preallocationMethods[preallocationMethod])
+			klog.V(1).Infof("Unsupported preallocation mode. Retrying")
+		} else {
+			break
 		}
 	}
 
