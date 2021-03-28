@@ -367,10 +367,7 @@ http_file(
 http_file(
     name = "libgcc",
     sha256 = "14a7ad9770c7d20998dd7e57e9d98666da9e2abd61bbf529a3c54cb2af67d567",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/x86_64/Packages/l/libgcc-10.2.1-9.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/14a7ad9770c7d20998dd7e57e9d98666da9e2abd61bbf529a3c54cb2af67d567",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/14a7ad9770c7d20998dd7e57e9d98666da9e2abd61bbf529a3c54cb2af67d567"],
 )
 
 http_file(
@@ -490,10 +487,7 @@ http_file(
 http_file(
     name = "nbdkit-curl-plugin",
     sha256 = "53412db6df5e098d2439d456a309e567af75b721178a9f7a5c10fa192ecf5d43",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/n/nbdkit-curl-plugin-1.22.3-2.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/53412db6df5e098d2439d456a309e567af75b721178a9f7a5c10fa192ecf5d43",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/53412db6df5e098d2439d456a309e567af75b721178a9f7a5c10fa192ecf5d43"],
 )
 
 http_file(
@@ -508,10 +502,7 @@ http_file(
 http_file(
     name = "libxcrypt",
     sha256 = "a4b3e2d0a10721c22d86fe8517b057fb600addd2a6b9f77f64d5c8b57def627f",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/l/libxcrypt-4.4.17-1.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/a4b3e2d0a10721c22d86fe8517b057fb600addd2a6b9f77f64d5c8b57def627f",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/a4b3e2d0a10721c22d86fe8517b057fb600addd2a6b9f77f64d5c8b57def627f"],
 )
 
 http_file(
