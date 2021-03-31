@@ -566,7 +566,7 @@ var _ = Describe("Modifying CDIConfig spec tests", func() {
 			Expect(err).To(HaveOccurred())
 		}
 
-		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		config, _ := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		if success {
 			By(fmt.Sprintf("CDI Config spec %v", config.Spec.FilesystemOverhead.StorageClass))
 			By(fmt.Sprintf("CDI Config status %v", config.Status.FilesystemOverhead.StorageClass))
@@ -623,6 +623,7 @@ func SetStorageClassDefault(f *framework.Framework, scName string, isDefault boo
 	ann[controller.AnnDefaultStorageClass] = strconv.FormatBool(isDefault)
 	sc.SetAnnotations(ann)
 	_, err = f.K8sClient.StorageV1().StorageClasses().Update(context.TODO(), sc, metav1.UpdateOptions{})
+	Expect(err).ToNot(HaveOccurred())
 	Eventually(func() string {
 		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
