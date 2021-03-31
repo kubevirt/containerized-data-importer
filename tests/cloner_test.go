@@ -84,6 +84,7 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
 
 			// Create targetPvc in new NS.
 			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvc)
@@ -788,6 +789,7 @@ var _ = Describe("all clone tests", func() {
 			err := f.UpdateCdiConfigResourceLimits(int64(2), int64(1024*1024*1024), int64(2), int64(1*1024*1024*1024))
 			Expect(err).NotTo(HaveOccurred())
 			err = f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
+			Expect(err).NotTo(HaveOccurred())
 			smartApplicable := f.IsSnapshotStorageClassAvailable()
 			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
 			if err == nil {
@@ -1199,6 +1201,7 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 
 	By("Verify the clone status is success on the target datavolume")
 	err = utils.WaitForDataVolumePhase(f.CdiClient, targetNs.Name, cdiv1.Succeeded, targetPvc.Name)
+	Expect(err).ToNot(HaveOccurred())
 
 	By("Verify the content")
 	Expect(f.VerifyTargetPVCContentMD5(targetNs, targetPvc, filePath, expectedMD5)).To(BeTrue())
