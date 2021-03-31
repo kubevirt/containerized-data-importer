@@ -228,19 +228,13 @@ http_file(
 http_file(
     name = "tar",
     sha256 = "871dc18514b9b64bcff6c4c61fd4c1a9f4c1e46cddd6f6934b4ee93662541aca",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/t/tar-1.32-6.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/871dc18514b9b64bcff6c4c61fd4c1a9f4c1e46cddd6f6934b4ee93662541aca",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/871dc18514b9b64bcff6c4c61fd4c1a9f4c1e46cddd6f6934b4ee93662541aca"],
 )
 
 http_file(
     name = "ostree-libs",
     sha256 = "2523f8915b724a14312cd4103faa0e6a213b6dab18a89c7bec6e3c70b0acc66d",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/x86_64/Packages/o/ostree-libs-2020.8-1.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/2523f8915b724a14312cd4103faa0e6a213b6dab18a89c7bec6e3c70b0acc66d",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/2523f8915b724a14312cd4103faa0e6a213b6dab18a89c7bec6e3c70b0acc66d"],
 )
 
 http_file(
