@@ -244,8 +244,7 @@ var _ = Describe("Data Processor", func() {
 		}
 		dp := NewDataProcessor(mdp, "dest", "dataDir", tmpDir, "1G", 0.055, false)
 		dp.availableSpace = int64(1500)
-		usableSpace := int64((1 - 0.055) * float64(dp.availableSpace))
-		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(usableSpace, 0))
+		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(1500), 0))
 		replaceQEMUOperations(qemuOperations, func() {
 			err = dp.ProcessData()
 			Expect(err).ToNot(HaveOccurred())
@@ -312,12 +311,9 @@ var _ = Describe("Resize", func() {
 			url: url,
 		}
 		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "", 0.055, false)
-		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, nil}, nil, nil, nil)
-		replaceQEMUOperations(qemuOperations, func() {
-			nextPhase, err := dp.resize()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(ProcessingPhaseComplete).To(Equal(nextPhase))
-		})
+		nextPhase, err := dp.resize()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ProcessingPhaseComplete).To(Equal(nextPhase))
 	})
 
 	It("Should not resize and return complete, when requestedSize is valid, but datadir doesn't exist (block device)", func() {
@@ -331,12 +327,9 @@ var _ = Describe("Resize", func() {
 				url: url,
 			}
 			dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
-			qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, nil}, nil, nil, nil)
-			replaceQEMUOperations(qemuOperations, func() {
-				nextPhase, err := dp.resize()
-				Expect(err).ToNot(HaveOccurred())
-				Expect(ProcessingPhaseComplete).To(Equal(nextPhase))
-			})
+			nextPhase, err := dp.resize()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(ProcessingPhaseComplete).To(Equal(nextPhase))
 		})
 	})
 

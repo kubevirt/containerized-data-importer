@@ -267,27 +267,16 @@ func (dp *DataProcessor) convert(url *url.URL) (ProcessingPhase, error) {
 }
 
 func (dp *DataProcessor) resize() (ProcessingPhase, error) {
+	// Resize only if we have a resize request, and if the image is on a file system pvc.
 	size, _ := getAvailableSpaceBlockFunc(dp.dataFile)
 	klog.V(3).Infof("Available space in dataFile: %d", size)
-	isBlockDev := size >= int64(0)
 	shouldPreallocate := false
-	if !isBlockDev {
-		if dp.requestImageSize != "" {
-			var err error
-			klog.V(3).Infoln("Resizing image")
-			shouldPreallocate, err = ResizeImage(dp.dataFile, dp.requestImageSize, dp.getUsableSpace())
-			if err != nil {
-				return ProcessingPhaseError, errors.Wrap(err, "Resize of image failed")
-			}
-		}
-		// Validate that a sparse file will fit even as it fills out.
-		dataFileURL, err := url.Parse(dp.dataFile)
+	if dp.requestImageSize != "" && size < int64(0) {
+		var err error
+		klog.V(3).Infoln("Resizing image")
+		shouldPreallocate, err = ResizeImage(dp.dataFile, dp.requestImageSize, dp.getUsableSpace())
 		if err != nil {
-			return ProcessingPhaseError, err
-		}
-		err = dp.validate(dataFileURL)
-		if err != nil {
-			return ProcessingPhaseError, err
+			return ProcessingPhaseError, errors.Wrap(err, "Resize of image failed")
 		}
 		if dp.preallocation {
 			if shouldPreallocate {

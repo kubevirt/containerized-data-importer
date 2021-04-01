@@ -41,14 +41,6 @@ const (
 	TinyCoreQcow2URLRateLimit = "http://cdi-file-host.%s:82/tinyCore.qcow2"
 	// InvalidQcowImagesURL provides a test url for invalid qcow images
 	InvalidQcowImagesURL = "http://cdi-file-host.%s/invalid_qcow_images/"
-	// LargeVirtualDiskQcow provides a test url for a cirros image with a large virtual size, in qcow2 format
-	LargeVirtualDiskQcow = "http://cdi-file-host.%s/cirros-large-virtual-size.qcow2"
-	// LargeVirtualDiskXz provides a test url for a cirros image with a large virtual size, in RAW format, XZ-compressed
-	LargeVirtualDiskXz = "http://cdi-file-host.%s/cirros-large-virtual-size.raw.xz"
-	// LargePhysicalDiskQcow provides a test url for a cirros image with a large physical size, in qcow2 format
-	LargePhysicalDiskQcow = "http://cdi-file-host.%s/cirros-large-physical-size.qcow2"
-	// LargePhysicalDiskXz provides a test url for a cirros image with a large physical size, in RAW format, XZ-compressed
-	LargePhysicalDiskXz = "http://cdi-file-host.%s/cirros-large-physical-size.raw.xz"
 	// TarArchiveURL provides a test url for a tar achive file
 	TarArchiveURL = "http://cdi-file-host.%s/archive.tar"
 	// CirrosURL provides the standard cirros image qcow image
