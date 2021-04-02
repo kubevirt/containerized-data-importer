@@ -23,7 +23,7 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-var _ = Describe("ObjectTransfer tests", func() {
+var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
 	const (
 		imagePath = "/pvc/disk.img"
 	)
@@ -123,7 +123,7 @@ var _ = Describe("ObjectTransfer tests", func() {
 			}
 		})
 
-		DescribeTable("should reject not target name/namespace", func(s cdiv1.ObjectTransferSpec, errString string) {
+		DescribeTable("[posneg:negative][test_id:5834]should reject not target name/namespace", func(s cdiv1.ObjectTransferSpec, errString string) {
 			ot = &cdiv1.ObjectTransfer{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "ot",
@@ -154,7 +154,7 @@ var _ = Describe("ObjectTransfer tests", func() {
 			}, "Unsupported kind \"VolumeSnapshot\""),
 		)
 
-		It("should not allow spec update", func() {
+		It("[posneg:negative][test_id:5836]should not allow spec update", func() {
 			ot = &cdiv1.ObjectTransfer{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "ot-" + f.Namespace.Name,
@@ -188,7 +188,7 @@ var _ = Describe("ObjectTransfer tests", func() {
 			}, 1*time.Minute, 2*time.Second).Should(BeTrue())
 		})
 
-		It("should not allow if target exists", func() {
+		It("[posneg:negative][test_id:5719]should not allow if target exists", func() {
 			dataVolume := createDV(f.Namespace.Name, "source-dv")
 
 			for _, k := range []string{"DataVolume", "PersistentVolumeClaim"} {
@@ -226,7 +226,7 @@ var _ = Describe("ObjectTransfer tests", func() {
 			}
 		})
 
-		It("should transfer to target and back again", func() {
+		It("[test_id:5694]should transfer to target and back again", func() {
 			dataVolume := createDV(f.Namespace.Name, "source-dv")
 
 			sourceMD5 := getHash(f.Namespace, dataVolume.Name)
@@ -287,7 +287,7 @@ var _ = Describe("ObjectTransfer tests", func() {
 			Expect(uid).To(Equal(pvUID(f.Namespace.Name, dataVolume.Name)))
 		})
 
-		It("should do concurrent transfers", func() {
+		It("[test_id:5695]should do concurrent transfers", func() {
 			var sourceNamespaces []string
 			var wg sync.WaitGroup
 			n := 5
@@ -350,7 +350,7 @@ var _ = Describe("ObjectTransfer tests", func() {
 			wg.Wait()
 		})
 
-		It("should handle quota failure", func() {
+		It("[posneg:negative][test_id:5734]should handle quota failure", func() {
 			sq := int64(100 * 1024 * 1024)
 			bq := int64(1024 * 1024 * 1024)
 			dataVolume := createDV(f.Namespace.Name, "source-dv")
