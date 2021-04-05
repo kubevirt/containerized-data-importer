@@ -136,10 +136,7 @@ http_file(
 http_file(
     name = "nginx",
     sha256 = "e98ab45cb7f616ac99d5dde14d318c0374c060816b02a0d6360a1ac6e6f0c5c4",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/n/nginx-1.18.0-3.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/e98ab45cb7f616ac99d5dde14d318c0374c060816b02a0d6360a1ac6e6f0c5c4",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/e98ab45cb7f616ac99d5dde14d318c0374c060816b02a0d6360a1ac6e6f0c5c4"],
 )
 
 http_file(
@@ -166,10 +163,7 @@ http_file(
 http_file(
     name = "gperftools-lib",
     sha256 = "4013a64942bbb4644f433e38ff3a2cb0db19978d5aff44461efb42b4edfd0993",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/g/gperftools-libs-2.8-3.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/4013a64942bbb4644f433e38ff3a2cb0db19978d5aff44461efb42b4edfd0993",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/4013a64942bbb4644f433e38ff3a2cb0db19978d5aff44461efb42b4edfd0993"],
 )
 
 http_file(
@@ -244,10 +238,7 @@ http_file(
 http_file(
     name = "device-mapper",
     sha256 = "3d0f1d848a92a8401ca6c8778f9a9a329af8a8420ae14a5c8c99ccbcbd97ebb7",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/d/device-mapper-1.02.173-1.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/3d0f1d848a92a8401ca6c8778f9a9a329af8a8420ae14a5c8c99ccbcbd97ebb7",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/3d0f1d848a92a8401ca6c8778f9a9a329af8a8420ae14a5c8c99ccbcbd97ebb7"],
 )
 
 http_file(
