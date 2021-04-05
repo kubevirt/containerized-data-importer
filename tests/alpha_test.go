@@ -35,6 +35,7 @@ var _ = Describe("Alpha API tests", func() {
 
 			By("waiting for DataVolume to be ready")
 			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.UploadReady, "upload")
+			Expect(err).ToNot(HaveOccurred())
 
 			By("create a upload token")
 			out, err = tests.RunKubectlCommand(f, "create", "-f", "manifests/tokenAlpha.yaml", "-n", f.Namespace.Name)
