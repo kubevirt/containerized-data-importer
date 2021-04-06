@@ -382,1174 +382,12 @@ func createAlphaV1CRDSchema() *extv1.CustomResourceValidation {
 						"infra": {
 							Description: "Rules on which nodes CDI infrastructure pods will be scheduled",
 							Type:        "object",
-							Properties: map[string]extv1.JSONSchemaProps{
-								"affinity": {
-									Description: "affinity enables pod affinity/anti-affinity placement expanding the types of constraints that can be expressed with nodeSelector. affinity is going to be applied to the relevant kind of pods in parallel with nodeSelector See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity",
-									Type:        "object",
-									Properties: map[string]extv1.JSONSchemaProps{
-										"nodeAffinity": {
-											Description: "Describes node affinity scheduling rules for the pod.",
-											Type:        "object",
-											Properties: map[string]extv1.JSONSchemaProps{
-												"preferredDuringSchedulingIgnoredDuringExecution": {
-													Description: "The scheduler will prefer to schedule pods to nodes that satisfy the affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding \"weight\" to the sum if the node matches the corresponding matchExpressions; the node(s) with the highest sum are the most preferred.",
-													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "An empty preferred scheduling term matches all objects with implicit weight 0 (i.e. it's a no-op). A null preferred scheduling term matches no objects (i.e. is also a no-op).",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"preference": {
-																	Description: "A node selector term, associated with the corresponding weight.",
-																	Type:        "object",
-																	Properties: map[string]extv1.JSONSchemaProps{
-																		"matchExpressions": {
-																			Description: "A list of node selector requirements by node's labels.",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																					Type:        "object",
-																					Properties: map[string]extv1.JSONSchemaProps{
-																						"key": {
-																							Description: "The label key that the selector applies to.",
-																							Type:        "string",
-																						},
-																						"operator": {
-																							Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
-																							Type:        "string",
-																						},
-																						"values": {
-																							Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
-																							Type:        "array",
-																							Items: &extv1.JSONSchemaPropsOrArray{
-																								Schema: &extv1.JSONSchemaProps{
-																									Type: "string",
-																								},
-																							},
-																						},
-																					},
-																					Required: []string{
-																						"key",
-																						"operator",
-																					},
-																				},
-																			},
-																		},
-																		"matchFields": {
-																			Description: "A list of node selector requirements by node's fields.",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																					Type:        "object",
-																					Properties: map[string]extv1.JSONSchemaProps{
-																						"key": {
-																							Description: "The label key that the selector applies to.",
-																							Type:        "string",
-																						},
-																						"operator": {
-																							Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
-																							Type:        "string",
-																						},
-																						"values": {
-																							Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
-																							Type:        "array",
-																							Items: &extv1.JSONSchemaPropsOrArray{
-																								Schema: &extv1.JSONSchemaProps{
-																									Type: "string",
-																								},
-																							},
-																						},
-																					},
-																					Required: []string{
-																						"key",
-																						"operator",
-																					},
-																				},
-																			},
-																		},
-																	},
-																},
-																"weight": {
-																	Description: "Weight associated with matching the corresponding nodeSelectorTerm, in the range 1-100.",
-																	Format:      "int32",
-																	Type:        "integer",
-																},
-															},
-															Required: []string{
-																"preference",
-																"weight",
-															},
-														},
-													},
-												},
-												"requiredDuringSchedulingIgnoredDuringExecution": {
-													Description: "If the affinity requirements specified by this field are not met at scheduling time, the pod will not be scheduled onto the node. If the affinity requirements specified by this field cease to be met at some point during pod execution (e.g. due to an update), the system may or may not try to eventually evict the pod from its node.",
-													Type:        "object",
-													Properties: map[string]extv1.JSONSchemaProps{
-														"nodeSelectorTerms": {
-															Description: "Required. A list of node selector terms. The terms are ORed.",
-															Type:        "array",
-															Items: &extv1.JSONSchemaPropsOrArray{
-																Schema: &extv1.JSONSchemaProps{
-																	Description: "A null or empty node selector term matches no objects. The requirements of them are ANDed. The TopologySelectorTerm type implements a subset of the NodeSelectorTerm.",
-																	Type:        "object",
-																	Properties: map[string]extv1.JSONSchemaProps{
-																		"matchExpressions": {
-																			Description: "A list of node selector requirements by node's labels.",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																					Type:        "object",
-																					Properties: map[string]extv1.JSONSchemaProps{
-																						"key": {
-																							Description: "The label key that the selector applies to.",
-																							Type:        "string",
-																						},
-																						"operator": {
-																							Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
-																							Type:        "string",
-																						},
-																						"values": {
-																							Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
-																							Type:        "array",
-																							Items: &extv1.JSONSchemaPropsOrArray{
-																								Schema: &extv1.JSONSchemaProps{
-																									Type: "string",
-																								},
-																							},
-																						},
-																					},
-																					Required: []string{
-																						"key",
-																						"operator",
-																					},
-																				},
-																			},
-																		},
-																		"matchFields": {
-																			Description: "A list of node selector requirements by node's fields.",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																					Type:        "object",
-																					Properties: map[string]extv1.JSONSchemaProps{
-																						"key": {
-																							Description: "The label key that the selector applies to.",
-																							Type:        "string",
-																						},
-																						"operator": {
-																							Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
-																							Type:        "string",
-																						},
-																						"values": {
-																							Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
-																							Type:        "array",
-																							Items: &extv1.JSONSchemaPropsOrArray{
-																								Schema: &extv1.JSONSchemaProps{
-																									Type: "string",
-																								},
-																							},
-																						},
-																					},
-																					Required: []string{
-																						"key",
-																						"operator",
-																					},
-																				},
-																			},
-																		},
-																	},
-																},
-															},
-														},
-													},
-													Required: []string{
-														"nodeSelectorTerms",
-													},
-												},
-											},
-										},
-										"podAffinity": {
-											Description: "Describes pod affinity scheduling rules (e.g. co-locate this pod in the same node, zone, etc. as some other pod(s)).",
-											Type:        "object",
-											Properties: map[string]extv1.JSONSchemaProps{
-												"preferredDuringSchedulingIgnoredDuringExecution": {
-													Description: "The scheduler will prefer to schedule pods to nodes that satisfy the affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding \"weight\" to the sum if the node has pods which matches the corresponding podAffinityTerm; the node(s) with the highest sum are the most preferred.",
-													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "The weights of all of the matched WeightedPodAffinityTerm fields are added per-node to find the most preferred node(s)",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"podAffinityTerm": {
-																	Description: "Required. A pod affinity term, associated with the corresponding weight.",
-																	Type:        "object",
-																	Properties: map[string]extv1.JSONSchemaProps{
-																		"labelSelector": {
-																			Description: "A label query over a set of resources, in this case pods.",
-																			Type:        "object",
-																			Properties: map[string]extv1.JSONSchemaProps{
-																				"matchExpressions": {
-																					Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
-																					Type:        "array",
-																					Items: &extv1.JSONSchemaPropsOrArray{
-																						Schema: &extv1.JSONSchemaProps{
-																							Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																							Type:        "object",
-																							Properties: map[string]extv1.JSONSchemaProps{
-																								"key": {
-																									Description: "key is the label key that the selector applies to.",
-																									Type:        "string",
-																								},
-																								"operator": {
-																									Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
-																									Type:        "string",
-																								},
-																								"values": {
-																									Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
-																									Type:        "array",
-																									Items: &extv1.JSONSchemaPropsOrArray{
-																										Schema: &extv1.JSONSchemaProps{
-																											Type: "string",
-																										},
-																									},
-																								},
-																							},
-																							Required: []string{
-																								"key",
-																								"operator",
-																							},
-																						},
-																					},
-																				},
-																				"matchLabels": {
-																					Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-																					Type:        "object",
-																					AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-																						Schema: &extv1.JSONSchemaProps{
-																							Type: "string",
-																						},
-																					},
-																				},
-																			},
-																		},
-																		"namespaces": {
-																			Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Type: "string",
-																				},
-																			},
-																		},
-																		"topologyKey": {
-																			Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
-																			Type:        "string",
-																		},
-																	},
-																	Required: []string{
-																		"topologyKey",
-																	},
-																},
-																"weight": {
-																	Description: "weight associated with matching the corresponding podAffinityTerm, in the range 1-100.",
-																	Type:        "integer",
-																	Format:      "int32",
-																},
-															},
-															Required: []string{
-																"podAffinityTerm",
-																"weight",
-															},
-														},
-													},
-												},
-												"requiredDuringSchedulingIgnoredDuringExecution": {
-													Description: "If the affinity requirements specified by this field are not met at scheduling time, the pod will not be scheduled onto the node. If the affinity requirements specified by this field cease to be met at some point during pod execution (e.g. due to a pod label update), the system may or may not try to eventually evict the pod from its node. When there are multiple elements, the lists of nodes corresponding to each podAffinityTerm are intersected, i.e. all terms must be satisfied.",
-													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "Defines a set of pods (namely those matching the labelSelector relative to the given namespace(s)) that this pod should be co-located (affinity) or not co-located (anti-affinity) with, where co-located is defined as running on a node whose value of the label with key <topologyKey> matches that of any node on which a pod of the set of pods is running",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"labelSelector": {
-																	Description: "A label query over a set of resources, in this case pods.",
-																	Type:        "object",
-																	Properties: map[string]extv1.JSONSchemaProps{
-																		"matchExpressions": {
-																			Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																					Type:        "object",
-																					Properties: map[string]extv1.JSONSchemaProps{
-																						"key": {
-																							Description: "key is the label key that the selector applies to.",
-																							Type:        "string",
-																						},
-																						"operator": {
-																							Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
-																							Type:        "string",
-																						},
-																						"values": {
-																							Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
-																							Type:        "array",
-																							Items: &extv1.JSONSchemaPropsOrArray{
-																								Schema: &extv1.JSONSchemaProps{
-																									Type: "string",
-																								},
-																							},
-																						},
-																					},
-																					Required: []string{
-																						"key",
-																						"operator",
-																					},
-																				},
-																			},
-																		},
-																		"matchLabels": {
-																			Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-																			Type:        "object",
-																			AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-																				Schema: &extv1.JSONSchemaProps{
-																					Type: "string",
-																				},
-																			},
-																		},
-																	},
-																},
-																"namespaces": {
-																	Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
-																	Type:        "array",
-																	Items: &extv1.JSONSchemaPropsOrArray{
-																		Schema: &extv1.JSONSchemaProps{
-																			Type: "string",
-																		},
-																	},
-																},
-																"topologyKey": {
-																	Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
-																	Type:        "string",
-																},
-															},
-															Required: []string{
-																"topologyKey",
-															},
-														},
-													},
-												},
-											},
-										},
-										"podAntiAffinity": {
-											Description: "Describes pod anti-affinity scheduling rules (e.g. avoid putting this pod in the same node, zone, etc. as some other pod(s)).",
-											Type:        "object",
-											Properties: map[string]extv1.JSONSchemaProps{
-												"preferredDuringSchedulingIgnoredDuringExecution": {
-													Description: "The scheduler will prefer to schedule pods to nodes that satisfy the anti-affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling anti-affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding \"weight\" to the sum if the node has pods which matches the corresponding podAffinityTerm; the node(s) with the highest sum are the most preferred.",
-													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "The weights of all of the matched WeightedPodAffinityTerm fields are added per-node to find the most preferred node(s)",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"podAffinityTerm": {
-																	Description: "Required. A pod affinity term, associated with the corresponding weight.",
-																	Type:        "object",
-																	Properties: map[string]extv1.JSONSchemaProps{
-																		"labelSelector": {
-																			Description: "A label query over a set of resources, in this case pods.",
-																			Type:        "object",
-																			Properties: map[string]extv1.JSONSchemaProps{
-																				"matchExpressions": {
-																					Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
-																					Type:        "array",
-																					Items: &extv1.JSONSchemaPropsOrArray{
-																						Schema: &extv1.JSONSchemaProps{
-																							Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																							Type:        "object",
-																							Properties: map[string]extv1.JSONSchemaProps{
-																								"key": {
-																									Description: "key is the label key that the selector applies to.",
-																									Type:        "string",
-																								},
-																								"operator": {
-																									Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
-																									Type:        "string",
-																								},
-																								"values": {
-																									Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
-																									Type:        "array",
-																									Items: &extv1.JSONSchemaPropsOrArray{
-																										Schema: &extv1.JSONSchemaProps{
-																											Type: "string",
-																										},
-																									},
-																								},
-																							},
-																							Required: []string{
-																								"key",
-																								"operator",
-																							},
-																						},
-																					},
-																				},
-																				"matchLabels": {
-																					Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-																					Type:        "object",
-																					AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-																						Schema: &extv1.JSONSchemaProps{
-																							Type: "string",
-																						},
-																					},
-																				},
-																			},
-																		},
-																		"namespaces": {
-																			Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Type: "string",
-																				},
-																			},
-																		},
-																		"topologyKey": {
-																			Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
-																			Type:        "string",
-																		},
-																	},
-																	Required: []string{
-																		"topologyKey",
-																	},
-																},
-																"weight": {
-																	Description: "weight associated with matching the corresponding podAffinityTerm, in the range 1-100.",
-																	Type:        "integer",
-																	Format:      "int32",
-																},
-															},
-															Required: []string{
-																"podAffinityTerm",
-																"weight",
-															},
-														},
-													},
-												},
-												"requiredDuringSchedulingIgnoredDuringExecution": {
-													Description: "If the anti-affinity requirements specified by this field are not met at scheduling time, the pod will not be scheduled onto the node. If the anti-affinity requirements specified by this field cease to be met at some point during pod execution (e.g. due to a pod label update), the system may or may not try to eventually evict the pod from its node. When there are multiple elements, the lists of nodes corresponding to each podAffinityTerm are intersected, i.e. all terms must be satisfied.",
-													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "Defines a set of pods (namely those matching the labelSelector relative to the given namespace(s)) that this pod should be co-located (affinity) or not co-located (anti-affinity) with, where co-located is defined as running on a node whose value of the label with key <topologyKey> matches that of any node on which a pod of the set of pods is running",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"labelSelector": {
-																	Description: "A label query over a set of resources, in this case pods.",
-																	Type:        "object",
-																	Properties: map[string]extv1.JSONSchemaProps{
-																		"matchExpressions": {
-																			Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																					Type:        "object",
-																					Properties: map[string]extv1.JSONSchemaProps{
-																						"key": {
-																							Description: "key is the label key that the selector applies to.",
-																							Type:        "string",
-																						},
-																						"operator": {
-																							Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
-																							Type:        "string",
-																						},
-																						"values": {
-																							Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
-																							Type:        "array",
-																							Items: &extv1.JSONSchemaPropsOrArray{
-																								Schema: &extv1.JSONSchemaProps{
-																									Type: "string",
-																								},
-																							},
-																						},
-																					},
-																					Required: []string{
-																						"key",
-																						"operator",
-																					},
-																				},
-																			},
-																		},
-																		"matchLabels": {
-																			Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-																			Type:        "object",
-																			AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-																				Schema: &extv1.JSONSchemaProps{
-																					Type: "string",
-																				},
-																			},
-																		},
-																	},
-																},
-																"namespaces": {
-																	Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
-																	Type:        "array",
-																	Items: &extv1.JSONSchemaPropsOrArray{
-																		Schema: &extv1.JSONSchemaProps{
-																			Type: "string",
-																		},
-																	},
-																},
-																"topologyKey": {
-																	Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
-																	Type:        "string",
-																},
-															},
-															Required: []string{
-																"topologyKey",
-															},
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-								"nodeSelector": {
-									Description: "nodeSelector is the node selector applied to the relevant kind of pods It specifies a map of key-value pairs: for the pod to be eligible to run on a node, the node must have each of the indicated key-value pairs as labels (it can have additional labels as well). See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector",
-									Type:        "object",
-									AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-										Schema: &extv1.JSONSchemaProps{
-											Type: "string",
-										},
-									},
-								},
-								"tolerations": {
-									Description: "tolerations is a list of tolerations applied to the relevant kind of pods See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info. These are additional tolerations other than default ones.",
-									Type:        "array",
-									Items: &extv1.JSONSchemaPropsOrArray{
-										Schema: &extv1.JSONSchemaProps{
-											Description: "The pod this Toleration is attached to tolerates any taint that matches the triple <key,value,effect> using the matching operator <operator>.",
-											Type:        "object",
-											Properties: map[string]extv1.JSONSchemaProps{
-												"effect": {
-													Description: "Effect indicates the taint effect to match. Empty means match all taint effects. When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.",
-													Type:        "string",
-												},
-												"key": {
-													Description: "Key is the taint key that the toleration applies to. Empty means match all taint keys. If the key is empty, operator must be Exists; this combination means to match all values and all keys.",
-													Type:        "string",
-												},
-												"operator": {
-													Description: "Operator represents a key's relationship to the value. Valid operators are Exists and Equal. Defaults to Equal. Exists is equivalent to wildcard for value, so that a pod can tolerate all taints of a particular category.",
-													Type:        "string",
-												},
-												"tolerationSeconds": {
-													Description: "TolerationSeconds represents the period of time the toleration (which must be of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default, it is not set, which means tolerate the taint forever (do not evict). Zero and negative values will be treated as 0 (evict immediately) by the system.",
-													Type:        "integer",
-													Format:      "int64",
-												},
-												"value": {
-													Description: "Value is the taint value the toleration matches to. If the operator is Exists, the value should be empty, otherwise just a regular string.",
-													Type:        "string",
-												},
-											},
-										},
-									},
-								},
-							},
+							Properties:  createAffinitySchema(),
 						},
 						"workload": {
 							Description: "Restrict on which nodes CDI workload pods will be scheduled",
 							Type:        "object",
-							Properties: map[string]extv1.JSONSchemaProps{
-								"affinity": {
-									Description: "affinity enables pod affinity/anti-affinity placement expanding the types of constraints that can be expressed with nodeSelector. affinity is going to be applied to the relevant kind of pods in parallel with nodeSelector See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity",
-									Type:        "object",
-									Properties: map[string]extv1.JSONSchemaProps{
-										"nodeAffinity": {
-											Description: "Describes node affinity scheduling rules for the pod.",
-											Type:        "object",
-											Properties: map[string]extv1.JSONSchemaProps{
-												"preferredDuringSchedulingIgnoredDuringExecution": {
-													Description: "The scheduler will prefer to schedule pods to nodes that satisfy the affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding \"weight\" to the sum if the node matches the corresponding matchExpressions; the node(s) with the highest sum are the most preferred.",
-													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "An empty preferred scheduling term matches all objects with implicit weight 0 (i.e. it's a no-op). A null preferred scheduling term matches no objects (i.e. is also a no-op).",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"preference": {
-																	Description: "A node selector term, associated with the corresponding weight.",
-																	Type:        "object",
-																	Properties: map[string]extv1.JSONSchemaProps{
-																		"matchExpressions": {
-																			Description: "A list of node selector requirements by node's labels.",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																					Type:        "object",
-																					Properties: map[string]extv1.JSONSchemaProps{
-																						"key": {
-																							Description: "The label key that the selector applies to.",
-																							Type:        "string",
-																						},
-																						"operator": {
-																							Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
-																							Type:        "string",
-																						},
-																						"values": {
-																							Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
-																							Type:        "array",
-																							Items: &extv1.JSONSchemaPropsOrArray{
-																								Schema: &extv1.JSONSchemaProps{
-																									Type: "string",
-																								},
-																							},
-																						},
-																					},
-																					Required: []string{
-																						"key",
-																						"operator",
-																					},
-																				},
-																			},
-																		},
-																		"matchFields": {
-																			Description: "A list of node selector requirements by node's fields.",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																					Type:        "object",
-																					Properties: map[string]extv1.JSONSchemaProps{
-																						"key": {
-																							Description: "The label key that the selector applies to.",
-																							Type:        "string",
-																						},
-																						"operator": {
-																							Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
-																							Type:        "string",
-																						},
-																						"values": {
-																							Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
-																							Type:        "array",
-																							Items: &extv1.JSONSchemaPropsOrArray{
-																								Schema: &extv1.JSONSchemaProps{
-																									Type: "string",
-																								},
-																							},
-																						},
-																					},
-																					Required: []string{
-																						"key",
-																						"operator",
-																					},
-																				},
-																			},
-																		},
-																	},
-																},
-																"weight": {
-																	Description: "Weight associated with matching the corresponding nodeSelectorTerm, in the range 1-100.",
-																	Format:      "int32",
-																	Type:        "integer",
-																},
-															},
-															Required: []string{
-																"preference",
-																"weight",
-															},
-														},
-													},
-												},
-												"requiredDuringSchedulingIgnoredDuringExecution": {
-													Description: "If the affinity requirements specified by this field are not met at scheduling time, the pod will not be scheduled onto the node. If the affinity requirements specified by this field cease to be met at some point during pod execution (e.g. due to an update), the system may or may not try to eventually evict the pod from its node.",
-													Type:        "object",
-													Properties: map[string]extv1.JSONSchemaProps{
-														"nodeSelectorTerms": {
-															Description: "Required. A list of node selector terms. The terms are ORed.",
-															Type:        "array",
-															Items: &extv1.JSONSchemaPropsOrArray{
-																Schema: &extv1.JSONSchemaProps{
-																	Description: "A null or empty node selector term matches no objects. The requirements of them are ANDed. The TopologySelectorTerm type implements a subset of the NodeSelectorTerm.",
-																	Type:        "object",
-																	Properties: map[string]extv1.JSONSchemaProps{
-																		"matchExpressions": {
-																			Description: "A list of node selector requirements by node's labels.",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																					Type:        "object",
-																					Properties: map[string]extv1.JSONSchemaProps{
-																						"key": {
-																							Description: "The label key that the selector applies to.",
-																							Type:        "string",
-																						},
-																						"operator": {
-																							Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
-																							Type:        "string",
-																						},
-																						"values": {
-																							Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
-																							Type:        "array",
-																							Items: &extv1.JSONSchemaPropsOrArray{
-																								Schema: &extv1.JSONSchemaProps{
-																									Type: "string",
-																								},
-																							},
-																						},
-																					},
-																					Required: []string{
-																						"key",
-																						"operator",
-																					},
-																				},
-																			},
-																		},
-																		"matchFields": {
-																			Description: "A list of node selector requirements by node's fields.",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																					Type:        "object",
-																					Properties: map[string]extv1.JSONSchemaProps{
-																						"key": {
-																							Description: "The label key that the selector applies to.",
-																							Type:        "string",
-																						},
-																						"operator": {
-																							Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
-																							Type:        "string",
-																						},
-																						"values": {
-																							Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
-																							Type:        "array",
-																							Items: &extv1.JSONSchemaPropsOrArray{
-																								Schema: &extv1.JSONSchemaProps{
-																									Type: "string",
-																								},
-																							},
-																						},
-																					},
-																					Required: []string{
-																						"key",
-																						"operator",
-																					},
-																				},
-																			},
-																		},
-																	},
-																},
-															},
-														},
-													},
-													Required: []string{
-														"nodeSelectorTerms",
-													},
-												},
-											},
-										},
-										"podAffinity": {
-											Description: "Describes pod affinity scheduling rules (e.g. co-locate this pod in the same node, zone, etc. as some other pod(s)).",
-											Type:        "object",
-											Properties: map[string]extv1.JSONSchemaProps{
-												"preferredDuringSchedulingIgnoredDuringExecution": {
-													Description: "The scheduler will prefer to schedule pods to nodes that satisfy the affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding \"weight\" to the sum if the node has pods which matches the corresponding podAffinityTerm; the node(s) with the highest sum are the most preferred.",
-													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "The weights of all of the matched WeightedPodAffinityTerm fields are added per-node to find the most preferred node(s)",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"podAffinityTerm": {
-																	Description: "Required. A pod affinity term, associated with the corresponding weight.",
-																	Type:        "object",
-																	Properties: map[string]extv1.JSONSchemaProps{
-																		"labelSelector": {
-																			Description: "A label query over a set of resources, in this case pods.",
-																			Type:        "object",
-																			Properties: map[string]extv1.JSONSchemaProps{
-																				"matchExpressions": {
-																					Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
-																					Type:        "array",
-																					Items: &extv1.JSONSchemaPropsOrArray{
-																						Schema: &extv1.JSONSchemaProps{
-																							Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																							Type:        "object",
-																							Properties: map[string]extv1.JSONSchemaProps{
-																								"key": {
-																									Description: "key is the label key that the selector applies to.",
-																									Type:        "string",
-																								},
-																								"operator": {
-																									Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
-																									Type:        "string",
-																								},
-																								"values": {
-																									Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
-																									Type:        "array",
-																									Items: &extv1.JSONSchemaPropsOrArray{
-																										Schema: &extv1.JSONSchemaProps{
-																											Type: "string",
-																										},
-																									},
-																								},
-																							},
-																							Required: []string{
-																								"key",
-																								"operator",
-																							},
-																						},
-																					},
-																				},
-																				"matchLabels": {
-																					Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-																					Type:        "object",
-																					AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-																						Schema: &extv1.JSONSchemaProps{
-																							Type: "string",
-																						},
-																					},
-																				},
-																			},
-																		},
-																		"namespaces": {
-																			Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Type: "string",
-																				},
-																			},
-																		},
-																		"topologyKey": {
-																			Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
-																			Type:        "string",
-																		},
-																	},
-																	Required: []string{
-																		"topologyKey",
-																	},
-																},
-																"weight": {
-																	Description: "weight associated with matching the corresponding podAffinityTerm, in the range 1-100.",
-																	Type:        "integer",
-																	Format:      "int32",
-																},
-															},
-															Required: []string{
-																"podAffinityTerm",
-																"weight",
-															},
-														},
-													},
-												},
-												"requiredDuringSchedulingIgnoredDuringExecution": {
-													Description: "If the affinity requirements specified by this field are not met at scheduling time, the pod will not be scheduled onto the node. If the affinity requirements specified by this field cease to be met at some point during pod execution (e.g. due to a pod label update), the system may or may not try to eventually evict the pod from its node. When there are multiple elements, the lists of nodes corresponding to each podAffinityTerm are intersected, i.e. all terms must be satisfied.",
-													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "Defines a set of pods (namely those matching the labelSelector relative to the given namespace(s)) that this pod should be co-located (affinity) or not co-located (anti-affinity) with, where co-located is defined as running on a node whose value of the label with key <topologyKey> matches that of any node on which a pod of the set of pods is running",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"labelSelector": {
-																	Description: "A label query over a set of resources, in this case pods.",
-																	Type:        "object",
-																	Properties: map[string]extv1.JSONSchemaProps{
-																		"matchExpressions": {
-																			Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																					Type:        "object",
-																					Properties: map[string]extv1.JSONSchemaProps{
-																						"key": {
-																							Description: "key is the label key that the selector applies to.",
-																							Type:        "string",
-																						},
-																						"operator": {
-																							Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
-																							Type:        "string",
-																						},
-																						"values": {
-																							Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
-																							Type:        "array",
-																							Items: &extv1.JSONSchemaPropsOrArray{
-																								Schema: &extv1.JSONSchemaProps{
-																									Type: "string",
-																								},
-																							},
-																						},
-																					},
-																					Required: []string{
-																						"key",
-																						"operator",
-																					},
-																				},
-																			},
-																		},
-																		"matchLabels": {
-																			Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-																			Type:        "object",
-																			AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-																				Schema: &extv1.JSONSchemaProps{
-																					Type: "string",
-																				},
-																			},
-																		},
-																	},
-																},
-																"namespaces": {
-																	Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
-																	Type:        "array",
-																	Items: &extv1.JSONSchemaPropsOrArray{
-																		Schema: &extv1.JSONSchemaProps{
-																			Type: "string",
-																		},
-																	},
-																},
-																"topologyKey": {
-																	Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
-																	Type:        "string",
-																},
-															},
-															Required: []string{
-																"topologyKey",
-															},
-														},
-													},
-												},
-											},
-										},
-										"podAntiAffinity": {
-											Description: "Describes pod anti-affinity scheduling rules (e.g. avoid putting this pod in the same node, zone, etc. as some other pod(s)).",
-											Type:        "object",
-											Properties: map[string]extv1.JSONSchemaProps{
-												"preferredDuringSchedulingIgnoredDuringExecution": {
-													Description: "The scheduler will prefer to schedule pods to nodes that satisfy the anti-affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling anti-affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding \"weight\" to the sum if the node has pods which matches the corresponding podAffinityTerm; the node(s) with the highest sum are the most preferred.",
-													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "The weights of all of the matched WeightedPodAffinityTerm fields are added per-node to find the most preferred node(s)",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"podAffinityTerm": {
-																	Description: "Required. A pod affinity term, associated with the corresponding weight.",
-																	Type:        "object",
-																	Properties: map[string]extv1.JSONSchemaProps{
-																		"labelSelector": {
-																			Description: "A label query over a set of resources, in this case pods.",
-																			Type:        "object",
-																			Properties: map[string]extv1.JSONSchemaProps{
-																				"matchExpressions": {
-																					Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
-																					Type:        "array",
-																					Items: &extv1.JSONSchemaPropsOrArray{
-																						Schema: &extv1.JSONSchemaProps{
-																							Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																							Type:        "object",
-																							Properties: map[string]extv1.JSONSchemaProps{
-																								"key": {
-																									Description: "key is the label key that the selector applies to.",
-																									Type:        "string",
-																								},
-																								"operator": {
-																									Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
-																									Type:        "string",
-																								},
-																								"values": {
-																									Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
-																									Type:        "array",
-																									Items: &extv1.JSONSchemaPropsOrArray{
-																										Schema: &extv1.JSONSchemaProps{
-																											Type: "string",
-																										},
-																									},
-																								},
-																							},
-																							Required: []string{
-																								"key",
-																								"operator",
-																							},
-																						},
-																					},
-																				},
-																				"matchLabels": {
-																					Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-																					Type:        "object",
-																					AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-																						Schema: &extv1.JSONSchemaProps{
-																							Type: "string",
-																						},
-																					},
-																				},
-																			},
-																		},
-																		"namespaces": {
-																			Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Type: "string",
-																				},
-																			},
-																		},
-																		"topologyKey": {
-																			Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
-																			Type:        "string",
-																		},
-																	},
-																	Required: []string{
-																		"topologyKey",
-																	},
-																},
-																"weight": {
-																	Description: "weight associated with matching the corresponding podAffinityTerm, in the range 1-100.",
-																	Type:        "integer",
-																	Format:      "int32",
-																},
-															},
-															Required: []string{
-																"podAffinityTerm",
-																"weight",
-															},
-														},
-													},
-												},
-												"requiredDuringSchedulingIgnoredDuringExecution": {
-													Description: "If the anti-affinity requirements specified by this field are not met at scheduling time, the pod will not be scheduled onto the node. If the anti-affinity requirements specified by this field cease to be met at some point during pod execution (e.g. due to a pod label update), the system may or may not try to eventually evict the pod from its node. When there are multiple elements, the lists of nodes corresponding to each podAffinityTerm are intersected, i.e. all terms must be satisfied.",
-													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "Defines a set of pods (namely those matching the labelSelector relative to the given namespace(s)) that this pod should be co-located (affinity) or not co-located (anti-affinity) with, where co-located is defined as running on a node whose value of the label with key <topologyKey> matches that of any node on which a pod of the set of pods is running",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"labelSelector": {
-																	Description: "A label query over a set of resources, in this case pods.",
-																	Type:        "object",
-																	Properties: map[string]extv1.JSONSchemaProps{
-																		"matchExpressions": {
-																			Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																					Type:        "object",
-																					Properties: map[string]extv1.JSONSchemaProps{
-																						"key": {
-																							Description: "key is the label key that the selector applies to.",
-																							Type:        "string",
-																						},
-																						"operator": {
-																							Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
-																							Type:        "string",
-																						},
-																						"values": {
-																							Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
-																							Type:        "array",
-																							Items: &extv1.JSONSchemaPropsOrArray{
-																								Schema: &extv1.JSONSchemaProps{
-																									Type: "string",
-																								},
-																							},
-																						},
-																					},
-																					Required: []string{
-																						"key",
-																						"operator",
-																					},
-																				},
-																			},
-																		},
-																		"matchLabels": {
-																			Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-																			Type:        "object",
-																			AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-																				Schema: &extv1.JSONSchemaProps{
-																					Type: "string",
-																				},
-																			},
-																		},
-																	},
-																},
-																"namespaces": {
-																	Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
-																	Type:        "array",
-																	Items: &extv1.JSONSchemaPropsOrArray{
-																		Schema: &extv1.JSONSchemaProps{
-																			Type: "string",
-																		},
-																	},
-																},
-																"topologyKey": {
-																	Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
-																	Type:        "string",
-																},
-															},
-															Required: []string{
-																"topologyKey",
-															},
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-								"nodeSelector": {
-									Description: "nodeSelector is the node selector applied to the relevant kind of pods It specifies a map of key-value pairs: for the pod to be eligible to run on a node, the node must have each of the indicated key-value pairs as labels (it can have additional labels as well). See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector",
-									Type:        "object",
-									AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-										Schema: &extv1.JSONSchemaProps{
-											Type: "string",
-										},
-									},
-								},
-								"tolerations": {
-									Description: "tolerations is a list of tolerations applied to the relevant kind of pods See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info. These are additional tolerations other than default ones.",
-									Type:        "array",
-									Items: &extv1.JSONSchemaPropsOrArray{
-										Schema: &extv1.JSONSchemaProps{
-											Description: "The pod this Toleration is attached to tolerates any taint that matches the triple <key,value,effect> using the matching operator <operator>.",
-											Type:        "object",
-											Properties: map[string]extv1.JSONSchemaProps{
-												"effect": {
-													Description: "Effect indicates the taint effect to match. Empty means match all taint effects. When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.",
-													Type:        "string",
-												},
-												"key": {
-													Description: "Key is the taint key that the toleration applies to. Empty means match all taint keys. If the key is empty, operator must be Exists; this combination means to match all values and all keys.",
-													Type:        "string",
-												},
-												"operator": {
-													Description: "Operator represents a key's relationship to the value. Valid operators are Exists and Equal. Defaults to Equal. Exists is equivalent to wildcard for value, so that a pod can tolerate all taints of a particular category.",
-													Type:        "string",
-												},
-												"tolerationSeconds": {
-													Description: "TolerationSeconds represents the period of time the toleration (which must be of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default, it is not set, which means tolerate the taint forever (do not evict). Zero and negative values will be treated as 0 (evict immediately) by the system.",
-													Type:        "integer",
-													Format:      "int64",
-												},
-												"value": {
-													Description: "Value is the taint value the toleration matches to. If the operator is Exists, the value should be empty, otherwise just a regular string.",
-													Type:        "string",
-												},
-											},
-										},
-									},
-								},
-							},
+							Properties:  createAffinitySchema(),
 						},
 						"uninstallStrategy": {
 							Type:        "string",
@@ -1578,115 +416,7 @@ func createAlphaV1CRDSchema() *extv1.CustomResourceValidation {
 						"config": {
 							Description: "CDIConfig at CDI level",
 							Type:        "object",
-							Properties: map[string]extv1.JSONSchemaProps{
-								"featureGates": {
-									Description: "FeatureGates are a list of specific enabled feature gates",
-									Items: &extv1.JSONSchemaPropsOrArray{
-										Schema: &extv1.JSONSchemaProps{
-											Type: "string",
-										},
-									},
-									Type: "array",
-								},
-								"uploadProxyURLOverride": {
-									Description: "Override the URL used when uploading to a DataVolume",
-									Type:        "string",
-								},
-								"importProxy": {
-									Description: "ImportProxy contains importer pod proxy configuration.",
-									Type:        "object",
-									Properties: map[string]extv1.JSONSchemaProps{
-										"HTTPProxy": {
-											Description: "HTTPProxy is the URL http://<username>:<pswd>@<ip>:<port> of the import proxy for HTTP requests.  Empty means unset and will not result in the import pod env var.",
-											Type:        "string",
-										},
-										"HTTPSProxy": {
-											Description: "HTTPSProxy is the URL https://<username>:<pswd>@<ip>:<port> of the import proxy for HTTPS requests.  Empty means unset and will not result in the import pod env var.",
-											Type:        "string",
-										},
-										"noProxy": {
-											Description: "NoProxy is a comma-separated list of hostnames and/or CIDRs for which the proxy should not be used. Empty means unset and will not result in the import pod env var.",
-											Type:        "string",
-										},
-										"trustedCAProxy": {
-											Description: "TrustedCAProxy is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle. The TrustedCAProxy field is consumed by the import controller that is resposible for coping it to a config map named trusted-ca-proxy-bundle-cm in the cdi namespace. Here is an example of the ConfigMap (in yaml): \n apiVersion: v1 kind: ConfigMap metadata:   name: trusted-ca-proxy-bundle-cm   namespace: cdi data:   ca.pem: |     -----BEGIN CERTIFICATE----- \t   ... <base64 encoded cert> ... \t   -----END CERTIFICATE-----",
-											Type:        "string",
-										},
-									},
-								},
-								"scratchSpaceStorageClass": {
-									Description: "Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space",
-									Type:        "string",
-								},
-								"podResourceRequirements": {
-									Description: "ResourceRequirements describes the compute resource requirements.",
-									Type:        "object",
-									Properties: map[string]extv1.JSONSchemaProps{
-										"limits": {
-											Description: "Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
-											Type:        "object",
-											AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-												Schema: &extv1.JSONSchemaProps{
-													AnyOf: []extv1.JSONSchemaProps{
-														{
-															Type: "integer",
-														},
-														{
-															Type: "string",
-														},
-													},
-													Pattern:      "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
-													XIntOrString: true,
-												},
-											},
-										},
-										"requests": {
-											Description: "Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
-											Type:        "object",
-											AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-												Schema: &extv1.JSONSchemaProps{
-													AnyOf: []extv1.JSONSchemaProps{
-														{
-															Type: "integer",
-														},
-														{
-															Type: "string",
-														},
-													},
-													Pattern:      "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
-													XIntOrString: true,
-												},
-											},
-										},
-									},
-								},
-								"filesystemOverhead": {
-									Description: "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
-									Type:        "object",
-									Properties: map[string]extv1.JSONSchemaProps{
-										"global": {
-											Description: "Global is how much space of a Filesystem volume should be reserved for overhead. This value is used unless overridden by a more specific value (per storageClass)",
-											Type:        "string",
-											Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
-										},
-										"storageClass": {
-											AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-												Schema: &extv1.JSONSchemaProps{
-													Type:        "string",
-													Pattern:     `^(0(?:\.\d{1,3})?|1)$`,
-													Description: "Percent is a string that can only be a value between [0,1) (Note: we actually rely on reconcile to reject invalid values)",
-												},
-											},
-											Description: "StorageClass specifies how much space of a Filesystem volume should be reserved for safety. The keys are the storageClass and the values are the overhead. This value overrides the global value",
-											Type:        "object",
-										},
-									},
-								},
-								"preallocation": {
-									Description: "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
-									Type:        "boolean",
-								},
-							},
+							Properties:  cluster.CreateConfigPropertiesSchema(),
 						},
 						"certConfig": {
 							Type:        "object",
@@ -1730,6 +460,591 @@ func createAlphaV1CRDSchema() *extv1.CustomResourceValidation {
 			},
 			Required: []string{
 				"spec",
+			},
+		},
+	}
+}
+
+func createAffinitySchema() map[string]extv1.JSONSchemaProps {
+	return map[string]extv1.JSONSchemaProps{
+		"affinity": {
+			Description: "affinity enables pod affinity/anti-affinity placement expanding the types of constraints that can be expressed with nodeSelector. affinity is going to be applied to the relevant kind of pods in parallel with nodeSelector See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity",
+			Type:        "object",
+			Properties: map[string]extv1.JSONSchemaProps{
+				"nodeAffinity": {
+					Description: "Describes node affinity scheduling rules for the pod.",
+					Type:        "object",
+					Properties: map[string]extv1.JSONSchemaProps{
+						"preferredDuringSchedulingIgnoredDuringExecution": {
+							Description: "The scheduler will prefer to schedule pods to nodes that satisfy the affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding \"weight\" to the sum if the node matches the corresponding matchExpressions; the node(s) with the highest sum are the most preferred.",
+							Type:        "array",
+							Items: &extv1.JSONSchemaPropsOrArray{
+								Schema: &extv1.JSONSchemaProps{
+									Description: "An empty preferred scheduling term matches all objects with implicit weight 0 (i.e. it's a no-op). A null preferred scheduling term matches no objects (i.e. is also a no-op).",
+									Type:        "object",
+									Properties: map[string]extv1.JSONSchemaProps{
+										"preference": {
+											Description: "A node selector term, associated with the corresponding weight.",
+											Type:        "object",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"matchExpressions": {
+													Description: "A list of node selector requirements by node's labels.",
+													Type:        "array",
+													Items: &extv1.JSONSchemaPropsOrArray{
+														Schema: &extv1.JSONSchemaProps{
+															Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+															Type:        "object",
+															Properties: map[string]extv1.JSONSchemaProps{
+																"key": {
+																	Description: "The label key that the selector applies to.",
+																	Type:        "string",
+																},
+																"operator": {
+																	Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+																	Type:        "string",
+																},
+																"values": {
+																	Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
+																	Type:        "array",
+																	Items: &extv1.JSONSchemaPropsOrArray{
+																		Schema: &extv1.JSONSchemaProps{
+																			Type: "string",
+																		},
+																	},
+																},
+															},
+															Required: []string{
+																"key",
+																"operator",
+															},
+														},
+													},
+												},
+												"matchFields": {
+													Description: "A list of node selector requirements by node's fields.",
+													Type:        "array",
+													Items: &extv1.JSONSchemaPropsOrArray{
+														Schema: &extv1.JSONSchemaProps{
+															Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+															Type:        "object",
+															Properties: map[string]extv1.JSONSchemaProps{
+																"key": {
+																	Description: "The label key that the selector applies to.",
+																	Type:        "string",
+																},
+																"operator": {
+																	Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+																	Type:        "string",
+																},
+																"values": {
+																	Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
+																	Type:        "array",
+																	Items: &extv1.JSONSchemaPropsOrArray{
+																		Schema: &extv1.JSONSchemaProps{
+																			Type: "string",
+																		},
+																	},
+																},
+															},
+															Required: []string{
+																"key",
+																"operator",
+															},
+														},
+													},
+												},
+											},
+										},
+										"weight": {
+											Description: "Weight associated with matching the corresponding nodeSelectorTerm, in the range 1-100.",
+											Format:      "int32",
+											Type:        "integer",
+										},
+									},
+									Required: []string{
+										"preference",
+										"weight",
+									},
+								},
+							},
+						},
+						"requiredDuringSchedulingIgnoredDuringExecution": {
+							Description: "If the affinity requirements specified by this field are not met at scheduling time, the pod will not be scheduled onto the node. If the affinity requirements specified by this field cease to be met at some point during pod execution (e.g. due to an update), the system may or may not try to eventually evict the pod from its node.",
+							Type:        "object",
+							Properties: map[string]extv1.JSONSchemaProps{
+								"nodeSelectorTerms": {
+									Description: "Required. A list of node selector terms. The terms are ORed.",
+									Type:        "array",
+									Items: &extv1.JSONSchemaPropsOrArray{
+										Schema: &extv1.JSONSchemaProps{
+											Description: "A null or empty node selector term matches no objects. The requirements of them are ANDed. The TopologySelectorTerm type implements a subset of the NodeSelectorTerm.",
+											Type:        "object",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"matchExpressions": {
+													Description: "A list of node selector requirements by node's labels.",
+													Type:        "array",
+													Items: &extv1.JSONSchemaPropsOrArray{
+														Schema: &extv1.JSONSchemaProps{
+															Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+															Type:        "object",
+															Properties: map[string]extv1.JSONSchemaProps{
+																"key": {
+																	Description: "The label key that the selector applies to.",
+																	Type:        "string",
+																},
+																"operator": {
+																	Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+																	Type:        "string",
+																},
+																"values": {
+																	Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
+																	Type:        "array",
+																	Items: &extv1.JSONSchemaPropsOrArray{
+																		Schema: &extv1.JSONSchemaProps{
+																			Type: "string",
+																		},
+																	},
+																},
+															},
+															Required: []string{
+																"key",
+																"operator",
+															},
+														},
+													},
+												},
+												"matchFields": {
+													Description: "A list of node selector requirements by node's fields.",
+													Type:        "array",
+													Items: &extv1.JSONSchemaPropsOrArray{
+														Schema: &extv1.JSONSchemaProps{
+															Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+															Type:        "object",
+															Properties: map[string]extv1.JSONSchemaProps{
+																"key": {
+																	Description: "The label key that the selector applies to.",
+																	Type:        "string",
+																},
+																"operator": {
+																	Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+																	Type:        "string",
+																},
+																"values": {
+																	Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
+																	Type:        "array",
+																	Items: &extv1.JSONSchemaPropsOrArray{
+																		Schema: &extv1.JSONSchemaProps{
+																			Type: "string",
+																		},
+																	},
+																},
+															},
+															Required: []string{
+																"key",
+																"operator",
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+							Required: []string{
+								"nodeSelectorTerms",
+							},
+						},
+					},
+				},
+				"podAffinity": {
+					Description: "Describes pod affinity scheduling rules (e.g. co-locate this pod in the same node, zone, etc. as some other pod(s)).",
+					Type:        "object",
+					Properties: map[string]extv1.JSONSchemaProps{
+						"preferredDuringSchedulingIgnoredDuringExecution": {
+							Description: "The scheduler will prefer to schedule pods to nodes that satisfy the affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding \"weight\" to the sum if the node has pods which matches the corresponding podAffinityTerm; the node(s) with the highest sum are the most preferred.",
+							Type:        "array",
+							Items: &extv1.JSONSchemaPropsOrArray{
+								Schema: &extv1.JSONSchemaProps{
+									Description: "The weights of all of the matched WeightedPodAffinityTerm fields are added per-node to find the most preferred node(s)",
+									Type:        "object",
+									Properties: map[string]extv1.JSONSchemaProps{
+										"podAffinityTerm": {
+											Description: "Required. A pod affinity term, associated with the corresponding weight.",
+											Type:        "object",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"labelSelector": {
+													Description: "A label query over a set of resources, in this case pods.",
+													Type:        "object",
+													Properties: map[string]extv1.JSONSchemaProps{
+														"matchExpressions": {
+															Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+															Type:        "array",
+															Items: &extv1.JSONSchemaPropsOrArray{
+																Schema: &extv1.JSONSchemaProps{
+																	Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+																	Type:        "object",
+																	Properties: map[string]extv1.JSONSchemaProps{
+																		"key": {
+																			Description: "key is the label key that the selector applies to.",
+																			Type:        "string",
+																		},
+																		"operator": {
+																			Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
+																			Type:        "string",
+																		},
+																		"values": {
+																			Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
+																			Type:        "array",
+																			Items: &extv1.JSONSchemaPropsOrArray{
+																				Schema: &extv1.JSONSchemaProps{
+																					Type: "string",
+																				},
+																			},
+																		},
+																	},
+																	Required: []string{
+																		"key",
+																		"operator",
+																	},
+																},
+															},
+														},
+														"matchLabels": {
+															Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+															Type:        "object",
+															AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+																Schema: &extv1.JSONSchemaProps{
+																	Type: "string",
+																},
+															},
+														},
+													},
+												},
+												"namespaces": {
+													Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
+													Type:        "array",
+													Items: &extv1.JSONSchemaPropsOrArray{
+														Schema: &extv1.JSONSchemaProps{
+															Type: "string",
+														},
+													},
+												},
+												"topologyKey": {
+													Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
+													Type:        "string",
+												},
+											},
+											Required: []string{
+												"topologyKey",
+											},
+										},
+										"weight": {
+											Description: "weight associated with matching the corresponding podAffinityTerm, in the range 1-100.",
+											Type:        "integer",
+											Format:      "int32",
+										},
+									},
+									Required: []string{
+										"podAffinityTerm",
+										"weight",
+									},
+								},
+							},
+						},
+						"requiredDuringSchedulingIgnoredDuringExecution": {
+							Description: "If the affinity requirements specified by this field are not met at scheduling time, the pod will not be scheduled onto the node. If the affinity requirements specified by this field cease to be met at some point during pod execution (e.g. due to a pod label update), the system may or may not try to eventually evict the pod from its node. When there are multiple elements, the lists of nodes corresponding to each podAffinityTerm are intersected, i.e. all terms must be satisfied.",
+							Type:        "array",
+							Items: &extv1.JSONSchemaPropsOrArray{
+								Schema: &extv1.JSONSchemaProps{
+									Description: "Defines a set of pods (namely those matching the labelSelector relative to the given namespace(s)) that this pod should be co-located (affinity) or not co-located (anti-affinity) with, where co-located is defined as running on a node whose value of the label with key <topologyKey> matches that of any node on which a pod of the set of pods is running",
+									Type:        "object",
+									Properties: map[string]extv1.JSONSchemaProps{
+										"labelSelector": {
+											Description: "A label query over a set of resources, in this case pods.",
+											Type:        "object",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"matchExpressions": {
+													Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+													Type:        "array",
+													Items: &extv1.JSONSchemaPropsOrArray{
+														Schema: &extv1.JSONSchemaProps{
+															Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+															Type:        "object",
+															Properties: map[string]extv1.JSONSchemaProps{
+																"key": {
+																	Description: "key is the label key that the selector applies to.",
+																	Type:        "string",
+																},
+																"operator": {
+																	Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
+																	Type:        "string",
+																},
+																"values": {
+																	Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
+																	Type:        "array",
+																	Items: &extv1.JSONSchemaPropsOrArray{
+																		Schema: &extv1.JSONSchemaProps{
+																			Type: "string",
+																		},
+																	},
+																},
+															},
+															Required: []string{
+																"key",
+																"operator",
+															},
+														},
+													},
+												},
+												"matchLabels": {
+													Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+													Type:        "object",
+													AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+														Schema: &extv1.JSONSchemaProps{
+															Type: "string",
+														},
+													},
+												},
+											},
+										},
+										"namespaces": {
+											Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
+											Type:        "array",
+											Items: &extv1.JSONSchemaPropsOrArray{
+												Schema: &extv1.JSONSchemaProps{
+													Type: "string",
+												},
+											},
+										},
+										"topologyKey": {
+											Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
+											Type:        "string",
+										},
+									},
+									Required: []string{
+										"topologyKey",
+									},
+								},
+							},
+						},
+					},
+				},
+				"podAntiAffinity": {
+					Description: "Describes pod anti-affinity scheduling rules (e.g. avoid putting this pod in the same node, zone, etc. as some other pod(s)).",
+					Type:        "object",
+					Properties: map[string]extv1.JSONSchemaProps{
+						"preferredDuringSchedulingIgnoredDuringExecution": {
+							Description: "The scheduler will prefer to schedule pods to nodes that satisfy the anti-affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling anti-affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding \"weight\" to the sum if the node has pods which matches the corresponding podAffinityTerm; the node(s) with the highest sum are the most preferred.",
+							Type:        "array",
+							Items: &extv1.JSONSchemaPropsOrArray{
+								Schema: &extv1.JSONSchemaProps{
+									Description: "The weights of all of the matched WeightedPodAffinityTerm fields are added per-node to find the most preferred node(s)",
+									Type:        "object",
+									Properties: map[string]extv1.JSONSchemaProps{
+										"podAffinityTerm": {
+											Description: "Required. A pod affinity term, associated with the corresponding weight.",
+											Type:        "object",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"labelSelector": {
+													Description: "A label query over a set of resources, in this case pods.",
+													Type:        "object",
+													Properties: map[string]extv1.JSONSchemaProps{
+														"matchExpressions": {
+															Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+															Type:        "array",
+															Items: &extv1.JSONSchemaPropsOrArray{
+																Schema: &extv1.JSONSchemaProps{
+																	Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+																	Type:        "object",
+																	Properties: map[string]extv1.JSONSchemaProps{
+																		"key": {
+																			Description: "key is the label key that the selector applies to.",
+																			Type:        "string",
+																		},
+																		"operator": {
+																			Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
+																			Type:        "string",
+																		},
+																		"values": {
+																			Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
+																			Type:        "array",
+																			Items: &extv1.JSONSchemaPropsOrArray{
+																				Schema: &extv1.JSONSchemaProps{
+																					Type: "string",
+																				},
+																			},
+																		},
+																	},
+																	Required: []string{
+																		"key",
+																		"operator",
+																	},
+																},
+															},
+														},
+														"matchLabels": {
+															Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+															Type:        "object",
+															AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+																Schema: &extv1.JSONSchemaProps{
+																	Type: "string",
+																},
+															},
+														},
+													},
+												},
+												"namespaces": {
+													Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
+													Type:        "array",
+													Items: &extv1.JSONSchemaPropsOrArray{
+														Schema: &extv1.JSONSchemaProps{
+															Type: "string",
+														},
+													},
+												},
+												"topologyKey": {
+													Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
+													Type:        "string",
+												},
+											},
+											Required: []string{
+												"topologyKey",
+											},
+										},
+										"weight": {
+											Description: "weight associated with matching the corresponding podAffinityTerm, in the range 1-100.",
+											Type:        "integer",
+											Format:      "int32",
+										},
+									},
+									Required: []string{
+										"podAffinityTerm",
+										"weight",
+									},
+								},
+							},
+						},
+						"requiredDuringSchedulingIgnoredDuringExecution": {
+							Description: "If the anti-affinity requirements specified by this field are not met at scheduling time, the pod will not be scheduled onto the node. If the anti-affinity requirements specified by this field cease to be met at some point during pod execution (e.g. due to a pod label update), the system may or may not try to eventually evict the pod from its node. When there are multiple elements, the lists of nodes corresponding to each podAffinityTerm are intersected, i.e. all terms must be satisfied.",
+							Type:        "array",
+							Items: &extv1.JSONSchemaPropsOrArray{
+								Schema: &extv1.JSONSchemaProps{
+									Description: "Defines a set of pods (namely those matching the labelSelector relative to the given namespace(s)) that this pod should be co-located (affinity) or not co-located (anti-affinity) with, where co-located is defined as running on a node whose value of the label with key <topologyKey> matches that of any node on which a pod of the set of pods is running",
+									Type:        "object",
+									Properties: map[string]extv1.JSONSchemaProps{
+										"labelSelector": {
+											Description: "A label query over a set of resources, in this case pods.",
+											Type:        "object",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"matchExpressions": {
+													Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+													Type:        "array",
+													Items: &extv1.JSONSchemaPropsOrArray{
+														Schema: &extv1.JSONSchemaProps{
+															Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+															Type:        "object",
+															Properties: map[string]extv1.JSONSchemaProps{
+																"key": {
+																	Description: "key is the label key that the selector applies to.",
+																	Type:        "string",
+																},
+																"operator": {
+																	Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
+																	Type:        "string",
+																},
+																"values": {
+																	Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
+																	Type:        "array",
+																	Items: &extv1.JSONSchemaPropsOrArray{
+																		Schema: &extv1.JSONSchemaProps{
+																			Type: "string",
+																		},
+																	},
+																},
+															},
+															Required: []string{
+																"key",
+																"operator",
+															},
+														},
+													},
+												},
+												"matchLabels": {
+													Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+													Type:        "object",
+													AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+														Schema: &extv1.JSONSchemaProps{
+															Type: "string",
+														},
+													},
+												},
+											},
+										},
+										"namespaces": {
+											Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
+											Type:        "array",
+											Items: &extv1.JSONSchemaPropsOrArray{
+												Schema: &extv1.JSONSchemaProps{
+													Type: "string",
+												},
+											},
+										},
+										"topologyKey": {
+											Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
+											Type:        "string",
+										},
+									},
+									Required: []string{
+										"topologyKey",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		"nodeSelector": {
+			Description: "nodeSelector is the node selector applied to the relevant kind of pods It specifies a map of key-value pairs: for the pod to be eligible to run on a node, the node must have each of the indicated key-value pairs as labels (it can have additional labels as well). See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector",
+			Type:        "object",
+			AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+				Schema: &extv1.JSONSchemaProps{
+					Type: "string",
+				},
+			},
+		},
+		"tolerations": {
+			Description: "tolerations is a list of tolerations applied to the relevant kind of pods See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/ for more info. These are additional tolerations other than default ones.",
+			Type:        "array",
+			Items: &extv1.JSONSchemaPropsOrArray{
+				Schema: &extv1.JSONSchemaProps{
+					Description: "The pod this Toleration is attached to tolerates any taint that matches the triple <key,value,effect> using the matching operator <operator>.",
+					Type:        "object",
+					Properties: map[string]extv1.JSONSchemaProps{
+						"effect": {
+							Description: "Effect indicates the taint effect to match. Empty means match all taint effects. When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.",
+							Type:        "string",
+						},
+						"key": {
+							Description: "Key is the taint key that the toleration applies to. Empty means match all taint keys. If the key is empty, operator must be Exists; this combination means to match all values and all keys.",
+							Type:        "string",
+						},
+						"operator": {
+							Description: "Operator represents a key's relationship to the value. Valid operators are Exists and Equal. Defaults to Equal. Exists is equivalent to wildcard for value, so that a pod can tolerate all taints of a particular category.",
+							Type:        "string",
+						},
+						"tolerationSeconds": {
+							Description: "TolerationSeconds represents the period of time the toleration (which must be of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default, it is not set, which means tolerate the taint forever (do not evict). Zero and negative values will be treated as 0 (evict immediately) by the system.",
+							Type:        "integer",
+							Format:      "int64",
+						},
+						"value": {
+							Description: "Value is the taint value the toleration matches to. If the operator is Exists, the value should be empty, otherwise just a regular string.",
+							Type:        "string",
+						},
+					},
+				},
 			},
 		},
 	}
