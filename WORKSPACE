@@ -505,10 +505,7 @@ http_file(
 http_file(
     name = "golang-github-vmware-govmomi",
     sha256 = "8c58134cdcec8a993c7da827abb4e9ab78d974038d984ff1fee39963d92736c5",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/g/golang-github-vmware-govmomi-0.23.1-1.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/8c58134cdcec8a993c7da827abb4e9ab78d974038d984ff1fee39963d92736c5",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/8c58134cdcec8a993c7da827abb4e9ab78d974038d984ff1fee39963d92736c5"],
 )
 
 http_file(
