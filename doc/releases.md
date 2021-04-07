@@ -3,11 +3,11 @@
 * [Overview](#overview)
 * [Version Scheme](#version-scheme)
 * [Releasing a New Version](#releasing-a-new-version)
-    * [Verifying the Release](#verifying-the-release)
-    * [Travis CI](#travis-ci)
-### Overview
+    * [Promoting the Release](#promoting-the-release)
+    * [PROW CI](#prow-ci)
+# Overview
 
-### Version Scheme
+## Version Scheme
 
 CDI adheres to the [semantic version definitions](https://semver.org/) format of vMAJOR.MINOR.PATCH.  These are defined as follows:
 
@@ -17,7 +17,7 @@ CDI adheres to the [semantic version definitions](https://semver.org/) format of
 
 - Patch - mid-Sprint release for fixing blocker bugs. In the case that a bug is blocking CDI consumers' workflow, a fix may be released as soon as it is merged.  A Patch should be limited expressly to the bug fix and not include anything unrelated.
 
-### Releasing a New Version
+## Releasing a New Version
 
 Release branches are used to isolate a stable version of CDI.  Git tags are used within these release branches to track incrementing of Minor and Patch versions.  When a Major version is incremented, a new stable branch should be created corresponding to the release.
 
@@ -31,23 +31,23 @@ When creating a new release branch, follow the below process.  This assumes that
 
     `$ git fetch <upstream>`
 
-1. Checkout the release branch locally
+1. Checkout and create the release branch locally
 
-    `$ git checkout release-v#.#`
+    `$ git checkout -b release-v#.#`
 
-    e.g. `$ git checkout release-v1.1`
+    e.g. `$ git checkout -b release-v1.1`
 
 1. Create an annotated tag corresponding to the version
 
     `$ git tag -a -m "v#.#.#" v#.#.#`
 
-1. Push the new branch and tag to the main kubevirt repo.  (If you have cloned the main repo directly, use `origin` for <`upstream`>)
+    e.g. `$ git tag -a -m "v1.1.0" v1.1.0`
 
-    `$ git push <upstream> release-v#.#.#`
+1. Push the new branch and tag to the main cdi repo at the same time.  (If you have cloned the main repo directly, use `origin` for <`upstream`>)
 
-1. Push the tag to the main kubevirt repo.
+    `$ git push <upstream> release-v#.# v#.#.#`
 
-    `$ git push <upstream> v#.#.#`
+    e.g. `$git push upstream release-v1.1 v1.1.0`
 
 1. Generate release description. Set `PREREF` and `RELREF` shell variables to previous and current release tag, respectively.
 
@@ -55,22 +55,24 @@ When creating a new release branch, follow the below process.  This assumes that
     `$ export PREREF=v#.#.#`
     `$ make release-description`
 
-CI will be triggered when a tag matching `v#.#.#(-alpha.#)` is pushed.  The automation will handle release artifact testing, building, and publishing.
+CI will be triggered when a tag matching `v#.#.#` is pushed *AND* the commit changed. So you cannot simply make a new tag and push it, this will not trigger the CI. The automation will handle release artifact testing, building, and publishing.
 
 Following the release, `make release-description` should be executed to generate a github release description template.  The `Notable Changes` section should be filled in manually, briefly listing major changes that the new release includes.  Copy/Paste this template into the corresponding github release.
 
-#### Verifying the Release
+## Promoting the release
+The CI will create the release as a 'pre-release' and as such it will not show up as the latest release in Github. In order to promote it to a regular release go to [CDI Github](https://github.com/kubevirt/containerized-data-importer) and click on releases on the right hand side. This will list all the releases including the new pre-release. Click edit on the pre-release (if you have permission to do so). This will open up the release editor. You can put the release description in the test area field, and uncheck the 'This is a pre-release' checkbox. Click Update release to promote to a regular release.
 
-##### Images
+## Images
 
--  Check hub.docker.com/r/kubevirt repository for the newly tagged images. If you do not see the tags corresponding to the version, check the travis build log for errors.
+Ensure that the new images are available in quay.io/repository/kubevirt/container-name?tab=tags and that the version you specified in the tag is available
 
-   [CDI-Controller](https://hub.docker.com/r/kubevirt/cdi-controller/tags/)
+* [CDI controller](https://quay.io/repository/kubevirt/cdi-controller?tab=tags)
+* [CDI importer](https://quay.io/repository/kubevirt/cdi-importer?tab=tags)
+* [CDI clones](https://quay.io/repository/kubevirt/cdi-cloner?tab=tags)
+* [CDI upload proxy](https://quay.io/repository/kubevirt/cdi-uploadproxy?tab=tags)
+* [CDI api server](https://quay.io/repository/kubevirt/cdi-apiserver?tab=tags)
+* [CDI upload server](https://quay.io/repository/kubevirt/cdi-uploadserver?tab=tags)
+* [CDI operator](https://quay.io/repository/kubevirt/cdi-operator?tab=tags)
+## PROW CI
 
-   [CDI-Importer](https://hub.docker.com/r/kubevirt/cdi-importer/)
-
-   [CDI-Cloner](https://hub.docker.com/r/kubevirt/cdi-cloner/)
-
-##### Travis CI
-
-Track the CI job for the pushed tag.  Navigate to the [CDI Travis dashboard](https://travis-ci.org/kubevirt/containerized-data-importer/branches) and select the left most colored box (either Green, Yellow, or Red) for the branch corresponding to the version 
+Track the CI job for the pushed tag.  Navigate to the [CDI PROW postsubmit dashboard](https://prow.apps.ovirt.org/?repo=kubevirt%2Fcontainerized-data-importer&type=postsubmit) and you can select the releases from there.
