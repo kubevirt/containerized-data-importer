@@ -33,15 +33,16 @@ and immediately bind the PVC. This is useful for use cases that do not require b
 ## Configuration - Opt in
 
 To be fully compatible with any external tools that may already use CDI, this new feature has to be enabled by 
-the feature gate: `HonorWaitForFirstConsumer`. It is available in the `CDIConfig` custom resource (see [cdi-config doc](cdi-config.md)).
+the feature gate: `HonorWaitForFirstConsumer`. It is available in the `CDI` custom resource, under spec.config (see [cdi-config doc](cdi-config.md)).
 
-A Snippet below shows CDIConfig with `HonorWaitForFirstConsumer` enabled.
+A Snippet below shows CDI resource with `HonorWaitForFirstConsumer` enabled.
 ```
 apiVersion: cdi.kubevirt.io/v1beta1
-kind: CDIConfig
+kind: CDI
 [...]
 spec:
-  featureGates:
-  - HonorWaitForFirstConsumer
+  config:
+    featureGates:
+    - HonorWaitForFirstConsumer
 [...]
 ```
