@@ -138,7 +138,11 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 	if hs.brokenForQemuImg {
 		return ProcessingPhaseTransferScratch, nil
 	}
-	if !hs.readers.Archived && hs.customCA == "" && hs.readers.Convert {
+	if hs.customCA != "" {
+		klog.V(1).Infof("Custom CA requested, using scratch space")
+		return ProcessingPhaseTransferScratch, nil
+	}
+	if !hs.readers.Archived && hs.readers.Convert {
 		// We can pass straight to conversion from the endpoint
 		return ProcessingPhaseConvert, nil
 	}

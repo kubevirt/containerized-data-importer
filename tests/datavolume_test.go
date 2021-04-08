@@ -223,6 +223,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			return dataVolume
 		}
 
+		createHTTPSDataVolumeWeirdCertFilename := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, url)
+			cm, err := utils.CreateCertConfigMapWeirdFilename(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+			Expect(err).To(BeNil())
+			dataVolume.Spec.Source.HTTP.CertConfigMap = cm
+			return dataVolume
+		}
+
 		createCloneDataVolume := func(dataVolumeName, size, command string) *cdiv1.DataVolume {
 			sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
 			pvcDef := utils.NewPVCDefinition(pvcName, size, nil, nil)
@@ -463,6 +471,30 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				size:             "1Gi",
 				url:              httpsTinyCoreQcow2URL,
 				dvFunc:           createHTTPSDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-https-import-qcow2 Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			table.Entry("succeed creating import dv with custom https cert that has a weird filename", dataVolumeTestArguments{
+				name:             "dv-https-import-qcow2",
+				size:             "1Gi",
+				url:              httpsTinyCoreQcow2URL,
+				dvFunc:           createHTTPSDataVolumeWeirdCertFilename,
 				eventReason:      controller.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
