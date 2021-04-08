@@ -652,11 +652,16 @@ func (r *ImportReconciler) requiresScratchSpace(pvc *corev1.PersistentVolumeClai
 			scratchRequired = true
 		}
 	}
-	value, ok := pvc.Annotations[AnnRequiresScratch]
-	if ok {
+	if value, ok := pvc.Annotations[AnnRequiresScratch]; ok {
 		boolVal, _ := strconv.ParseBool(value)
 		scratchRequired = scratchRequired || boolVal
 	}
+
+	if value, ok := pvc.Annotations[AnnPreallocationRequested]; ok {
+		boolVal, _ := strconv.ParseBool(value)
+		scratchRequired = scratchRequired || boolVal
+	}
+
 	return scratchRequired
 }
 

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 
 	"github.com/pkg/errors"
 
@@ -59,6 +60,8 @@ const (
 	ProcessingPhasePause ProcessingPhase = "Pause"
 	// ProcessingPhaseError is the phase in which we encountered an error and need to exit ungracefully.
 	ProcessingPhaseError ProcessingPhase = "Error"
+
+	preallocationTempFile string = "preallocation-temp.bin"
 )
 
 // ValidationSizeError is an error indication size validation failure.
@@ -313,14 +316,26 @@ func (dp *DataProcessor) preallocate() (ProcessingPhase, error) {
 	}
 
 	klog.V(3).Infoln("Preallocating")
-	// Preallocation is implemented as a copy from file to itself
-	destURL, _ := url.Parse(dp.dataFile)
+	if err := CleanDir(dp.scratchDataDir); err != nil {
+		return ProcessingPhaseError, errors.Wrap(err, "Failure cleaning up temporary scratch space")
+	}
+
+	tempFileName := filepath.Join(dp.scratchDataDir, preallocationTempFile)
+	if err := util.CopyFile(dp.dataFile, tempFileName); err != nil {
+		return ProcessingPhaseError, errors.Wrap(err, "Copying image data to scratch space failed")
+	}
+
+	destURL, _ := url.Parse(tempFileName)
 	err := qemuOperations.ConvertToRawStream(destURL, dp.dataFile, dp.preallocation)
 	if err != nil {
-		return ProcessingPhaseError, errors.Wrap(err, "Preallocation or resized image failed")
+		return ProcessingPhaseError, errors.Wrap(err, "Preallocation of resized image failed")
 	}
-	dp.preallocationApplied = true
 
+	if err := CleanDir(dp.scratchDataDir); err != nil {
+		return ProcessingPhaseError, errors.Wrap(err, "Failure cleaning up temporary scratch space")
+	}
+
+	dp.preallocationApplied = true
 	return ProcessingPhaseComplete, nil
 }
 
