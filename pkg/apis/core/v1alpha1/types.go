@@ -45,6 +45,8 @@ type DataVolumeSpec struct {
 	Source DataVolumeSource `json:"source"`
 	//PVC is the PVC specification
 	PVC *corev1.PersistentVolumeClaimSpec `json:"pvc"`
+	//Pod is the Pod specification for Importer or Uploader pod
+	Pod PodSpec `json:"pod,omitempty"`
 	//DataVolumeContentType options: "kubevirt", "archive"
 	// +kubebuilder:validation:Enum="kubevirt";"archive"
 	ContentType DataVolumeContentType `json:"contentType,omitempty"`
@@ -483,4 +485,9 @@ type ImportProxy struct {
 	// 	   -----END CERTIFICATE-----
 	// +optional
 	TrustedCAProxy *string `json:"trustedCAProxy,omitempty"`
+}
+
+// PodSpec represents Pod specification for importer/uploader pod
+type PodSpec struct {
+	PriorityClassName string `json:"priorityClassName,omitempty" protobuf:"bytes,24,opt,name=priorityClassName"`
 }

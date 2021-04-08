@@ -13,6 +13,7 @@ func (DataVolumeSpec) SwaggerDoc() map[string]string {
 		"":                "DataVolumeSpec defines the DataVolume type specification",
 		"source":          "Source is the src of the data for the requested DataVolume",
 		"pvc":             "PVC is the PVC specification",
+		"pod":             "Pod is the Pod specification for Importer or Uploader pod",
 		"contentType":     "DataVolumeContentType options: \"kubevirt\", \"archive\"\n+kubebuilder:validation:Enum=\"kubevirt\";\"archive\"",
 		"checkpoints":     "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
 		"finalCheckpoint": "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
@@ -225,5 +226,11 @@ func (ImportProxy) SwaggerDoc() map[string]string {
 		"HTTPSProxy":     "HTTPSProxy is the URL https://<username>:<pswd>@<ip>:<port> of the import proxy for HTTPS requests.  Empty means unset and will not result in the import pod env var.\n+optional",
 		"noProxy":        "NoProxy is a comma-separated list of hostnames and/or CIDRs for which the proxy should not be used. Empty means unset and will not result in the import pod env var.\n+optional",
 		"trustedCAProxy": "TrustedCAProxy is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle.\nThe TrustedCAProxy field is consumed by the import controller that is resposible for coping it to a config map named trusted-ca-proxy-bundle-cm in the cdi namespace.\nHere is an example of the ConfigMap (in yaml):\n\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: trusted-ca-proxy-bundle-cm\n  namespace: cdi\ndata:\n  ca.pem: |",
+	}
+}
+
+func (PodSpec) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "PodSpec represents Pod specification for importer/uploader pod",
 	}
 }

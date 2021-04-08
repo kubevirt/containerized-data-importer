@@ -89,7 +89,7 @@ type DataVolumeSource struct {
 	VDDK     *DataVolumeSourceVDDK     `json:"vddk,omitempty"`
 }
 
-// PodSpec represents Pod specification for importer/uploader pod 
+// PodSpec represents Pod specification for importer/uploader pod
 type PodSpec struct {
 	PriorityClassName string `json:"priorityClassName,omitempty" protobuf:"bytes,24,opt,name=priorityClassName"`
 }
