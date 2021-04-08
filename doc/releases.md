@@ -31,7 +31,7 @@ When creating a new release branch, follow the below process.  This assumes that
 
     `$ git fetch <upstream>`
 
-1. Checkout and create the release branch locally
+1. Create and checkout the release branch locally
 
     `$ git checkout -b release-v#.#`
 
@@ -68,7 +68,7 @@ Ensure that the new images are available in quay.io/repository/kubevirt/containe
 
 * [CDI controller](https://quay.io/repository/kubevirt/cdi-controller?tab=tags)
 * [CDI importer](https://quay.io/repository/kubevirt/cdi-importer?tab=tags)
-* [CDI clones](https://quay.io/repository/kubevirt/cdi-cloner?tab=tags)
+* [CDI cloner](https://quay.io/repository/kubevirt/cdi-cloner?tab=tags)
 * [CDI upload proxy](https://quay.io/repository/kubevirt/cdi-uploadproxy?tab=tags)
 * [CDI api server](https://quay.io/repository/kubevirt/cdi-apiserver?tab=tags)
 * [CDI upload server](https://quay.io/repository/kubevirt/cdi-uploadserver?tab=tags)
