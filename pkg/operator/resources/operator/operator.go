@@ -490,68 +490,12 @@ func createAffinitySchema() map[string]extv1.JSONSchemaProps {
 												"matchExpressions": {
 													Description: "A list of node selector requirements by node's labels.",
 													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"key": {
-																	Description: "The label key that the selector applies to.",
-																	Type:        "string",
-																},
-																"operator": {
-																	Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
-																	Type:        "string",
-																},
-																"values": {
-																	Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
-																	Type:        "array",
-																	Items: &extv1.JSONSchemaPropsOrArray{
-																		Schema: &extv1.JSONSchemaProps{
-																			Type: "string",
-																		},
-																	},
-																},
-															},
-															Required: []string{
-																"key",
-																"operator",
-															},
-														},
-													},
+													Items:       createNodeSelectorSchema(),
 												},
 												"matchFields": {
 													Description: "A list of node selector requirements by node's fields.",
 													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"key": {
-																	Description: "The label key that the selector applies to.",
-																	Type:        "string",
-																},
-																"operator": {
-																	Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
-																	Type:        "string",
-																},
-																"values": {
-																	Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
-																	Type:        "array",
-																	Items: &extv1.JSONSchemaPropsOrArray{
-																		Schema: &extv1.JSONSchemaProps{
-																			Type: "string",
-																		},
-																	},
-																},
-															},
-															Required: []string{
-																"key",
-																"operator",
-															},
-														},
-													},
+													Items:       createNodeSelectorSchema(),
 												},
 											},
 										},
@@ -583,68 +527,12 @@ func createAffinitySchema() map[string]extv1.JSONSchemaProps {
 												"matchExpressions": {
 													Description: "A list of node selector requirements by node's labels.",
 													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"key": {
-																	Description: "The label key that the selector applies to.",
-																	Type:        "string",
-																},
-																"operator": {
-																	Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
-																	Type:        "string",
-																},
-																"values": {
-																	Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
-																	Type:        "array",
-																	Items: &extv1.JSONSchemaPropsOrArray{
-																		Schema: &extv1.JSONSchemaProps{
-																			Type: "string",
-																		},
-																	},
-																},
-															},
-															Required: []string{
-																"key",
-																"operator",
-															},
-														},
-													},
+													Items:       createNodeSelectorSchema(),
 												},
 												"matchFields": {
 													Description: "A list of node selector requirements by node's fields.",
 													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"key": {
-																	Description: "The label key that the selector applies to.",
-																	Type:        "string",
-																},
-																"operator": {
-																	Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
-																	Type:        "string",
-																},
-																"values": {
-																	Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
-																	Type:        "array",
-																	Items: &extv1.JSONSchemaPropsOrArray{
-																		Schema: &extv1.JSONSchemaProps{
-																			Type: "string",
-																		},
-																	},
-																},
-															},
-															Required: []string{
-																"key",
-																"operator",
-															},
-														},
-													},
+													Items:       createNodeSelectorSchema(),
 												},
 											},
 										},
@@ -672,69 +560,7 @@ func createAffinitySchema() map[string]extv1.JSONSchemaProps {
 										"podAffinityTerm": {
 											Description: "Required. A pod affinity term, associated with the corresponding weight.",
 											Type:        "object",
-											Properties: map[string]extv1.JSONSchemaProps{
-												"labelSelector": {
-													Description: "A label query over a set of resources, in this case pods.",
-													Type:        "object",
-													Properties: map[string]extv1.JSONSchemaProps{
-														"matchExpressions": {
-															Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
-															Type:        "array",
-															Items: &extv1.JSONSchemaPropsOrArray{
-																Schema: &extv1.JSONSchemaProps{
-																	Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																	Type:        "object",
-																	Properties: map[string]extv1.JSONSchemaProps{
-																		"key": {
-																			Description: "key is the label key that the selector applies to.",
-																			Type:        "string",
-																		},
-																		"operator": {
-																			Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
-																			Type:        "string",
-																		},
-																		"values": {
-																			Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Type: "string",
-																				},
-																			},
-																		},
-																	},
-																	Required: []string{
-																		"key",
-																		"operator",
-																	},
-																},
-															},
-														},
-														"matchLabels": {
-															Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-															Type:        "object",
-															AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-																Schema: &extv1.JSONSchemaProps{
-																	Type: "string",
-																},
-															},
-														},
-													},
-												},
-												"namespaces": {
-													Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
-													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Type: "string",
-														},
-													},
-												},
-												"topologyKey": {
-													Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
-													Type:        "string",
-												},
-											},
+											Properties:  createPodSelectorSchema(),
 											Required: []string{
 												"topologyKey",
 											},
@@ -759,69 +585,7 @@ func createAffinitySchema() map[string]extv1.JSONSchemaProps {
 								Schema: &extv1.JSONSchemaProps{
 									Description: "Defines a set of pods (namely those matching the labelSelector relative to the given namespace(s)) that this pod should be co-located (affinity) or not co-located (anti-affinity) with, where co-located is defined as running on a node whose value of the label with key <topologyKey> matches that of any node on which a pod of the set of pods is running",
 									Type:        "object",
-									Properties: map[string]extv1.JSONSchemaProps{
-										"labelSelector": {
-											Description: "A label query over a set of resources, in this case pods.",
-											Type:        "object",
-											Properties: map[string]extv1.JSONSchemaProps{
-												"matchExpressions": {
-													Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
-													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"key": {
-																	Description: "key is the label key that the selector applies to.",
-																	Type:        "string",
-																},
-																"operator": {
-																	Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
-																	Type:        "string",
-																},
-																"values": {
-																	Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
-																	Type:        "array",
-																	Items: &extv1.JSONSchemaPropsOrArray{
-																		Schema: &extv1.JSONSchemaProps{
-																			Type: "string",
-																		},
-																	},
-																},
-															},
-															Required: []string{
-																"key",
-																"operator",
-															},
-														},
-													},
-												},
-												"matchLabels": {
-													Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-													Type:        "object",
-													AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-														Schema: &extv1.JSONSchemaProps{
-															Type: "string",
-														},
-													},
-												},
-											},
-										},
-										"namespaces": {
-											Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
-											Type:        "array",
-											Items: &extv1.JSONSchemaPropsOrArray{
-												Schema: &extv1.JSONSchemaProps{
-													Type: "string",
-												},
-											},
-										},
-										"topologyKey": {
-											Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
-											Type:        "string",
-										},
-									},
+									Properties:  createPodSelectorSchema(),
 									Required: []string{
 										"topologyKey",
 									},
@@ -845,69 +609,7 @@ func createAffinitySchema() map[string]extv1.JSONSchemaProps {
 										"podAffinityTerm": {
 											Description: "Required. A pod affinity term, associated with the corresponding weight.",
 											Type:        "object",
-											Properties: map[string]extv1.JSONSchemaProps{
-												"labelSelector": {
-													Description: "A label query over a set of resources, in this case pods.",
-													Type:        "object",
-													Properties: map[string]extv1.JSONSchemaProps{
-														"matchExpressions": {
-															Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
-															Type:        "array",
-															Items: &extv1.JSONSchemaPropsOrArray{
-																Schema: &extv1.JSONSchemaProps{
-																	Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-																	Type:        "object",
-																	Properties: map[string]extv1.JSONSchemaProps{
-																		"key": {
-																			Description: "key is the label key that the selector applies to.",
-																			Type:        "string",
-																		},
-																		"operator": {
-																			Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
-																			Type:        "string",
-																		},
-																		"values": {
-																			Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
-																			Type:        "array",
-																			Items: &extv1.JSONSchemaPropsOrArray{
-																				Schema: &extv1.JSONSchemaProps{
-																					Type: "string",
-																				},
-																			},
-																		},
-																	},
-																	Required: []string{
-																		"key",
-																		"operator",
-																	},
-																},
-															},
-														},
-														"matchLabels": {
-															Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-															Type:        "object",
-															AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-																Schema: &extv1.JSONSchemaProps{
-																	Type: "string",
-																},
-															},
-														},
-													},
-												},
-												"namespaces": {
-													Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
-													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Type: "string",
-														},
-													},
-												},
-												"topologyKey": {
-													Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
-													Type:        "string",
-												},
-											},
+											Properties:  createPodSelectorSchema(),
 											Required: []string{
 												"topologyKey",
 											},
@@ -932,69 +634,7 @@ func createAffinitySchema() map[string]extv1.JSONSchemaProps {
 								Schema: &extv1.JSONSchemaProps{
 									Description: "Defines a set of pods (namely those matching the labelSelector relative to the given namespace(s)) that this pod should be co-located (affinity) or not co-located (anti-affinity) with, where co-located is defined as running on a node whose value of the label with key <topologyKey> matches that of any node on which a pod of the set of pods is running",
 									Type:        "object",
-									Properties: map[string]extv1.JSONSchemaProps{
-										"labelSelector": {
-											Description: "A label query over a set of resources, in this case pods.",
-											Type:        "object",
-											Properties: map[string]extv1.JSONSchemaProps{
-												"matchExpressions": {
-													Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
-													Type:        "array",
-													Items: &extv1.JSONSchemaPropsOrArray{
-														Schema: &extv1.JSONSchemaProps{
-															Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
-															Type:        "object",
-															Properties: map[string]extv1.JSONSchemaProps{
-																"key": {
-																	Description: "key is the label key that the selector applies to.",
-																	Type:        "string",
-																},
-																"operator": {
-																	Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
-																	Type:        "string",
-																},
-																"values": {
-																	Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
-																	Type:        "array",
-																	Items: &extv1.JSONSchemaPropsOrArray{
-																		Schema: &extv1.JSONSchemaProps{
-																			Type: "string",
-																		},
-																	},
-																},
-															},
-															Required: []string{
-																"key",
-																"operator",
-															},
-														},
-													},
-												},
-												"matchLabels": {
-													Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
-													Type:        "object",
-													AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
-														Schema: &extv1.JSONSchemaProps{
-															Type: "string",
-														},
-													},
-												},
-											},
-										},
-										"namespaces": {
-											Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
-											Type:        "array",
-											Items: &extv1.JSONSchemaPropsOrArray{
-												Schema: &extv1.JSONSchemaProps{
-													Type: "string",
-												},
-											},
-										},
-										"topologyKey": {
-											Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
-											Type:        "string",
-										},
-									},
+									Properties:  createPodSelectorSchema(),
 									Required: []string{
 										"topologyKey",
 									},
@@ -1045,6 +685,104 @@ func createAffinitySchema() map[string]extv1.JSONSchemaProps {
 						},
 					},
 				},
+			},
+		},
+	}
+}
+
+func createPodSelectorSchema() map[string]extv1.JSONSchemaProps {
+	return map[string]extv1.JSONSchemaProps{
+		"labelSelector": {
+			Description: "A label query over a set of resources, in this case pods.",
+			Type:        "object",
+			Properties: map[string]extv1.JSONSchemaProps{
+				"matchExpressions": {
+					Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+					Type:        "array",
+					Items: &extv1.JSONSchemaPropsOrArray{
+						Schema: &extv1.JSONSchemaProps{
+							Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+							Type:        "object",
+							Properties: map[string]extv1.JSONSchemaProps{
+								"key": {
+									Description: "key is the label key that the selector applies to.",
+									Type:        "string",
+								},
+								"operator": {
+									Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
+									Type:        "string",
+								},
+								"values": {
+									Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
+									Type:        "array",
+									Items: &extv1.JSONSchemaPropsOrArray{
+										Schema: &extv1.JSONSchemaProps{
+											Type: "string",
+										},
+									},
+								},
+							},
+							Required: []string{
+								"key",
+								"operator",
+							},
+						},
+					},
+				},
+				"matchLabels": {
+					Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+					Type:        "object",
+					AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+						Schema: &extv1.JSONSchemaProps{
+							Type: "string",
+						},
+					},
+				},
+			},
+		},
+		"namespaces": {
+			Description: "namespaces specifies which namespaces the labelSelector applies to (matches against); null or empty list means \"this pod's namespace\"",
+			Type:        "array",
+			Items: &extv1.JSONSchemaPropsOrArray{
+				Schema: &extv1.JSONSchemaProps{
+					Type: "string",
+				},
+			},
+		},
+		"topologyKey": {
+			Description: "This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.",
+			Type:        "string",
+		},
+	}
+}
+
+func createNodeSelectorSchema() *extv1.JSONSchemaPropsOrArray {
+	return &extv1.JSONSchemaPropsOrArray{
+		Schema: &extv1.JSONSchemaProps{
+			Description: "A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+			Type:        "object",
+			Properties: map[string]extv1.JSONSchemaProps{
+				"key": {
+					Description: "The label key that the selector applies to.",
+					Type:        "string",
+				},
+				"operator": {
+					Description: "Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.",
+					Type:        "string",
+				},
+				"values": {
+					Description: "An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.",
+					Type:        "array",
+					Items: &extv1.JSONSchemaPropsOrArray{
+						Schema: &extv1.JSONSchemaProps{
+							Type: "string",
+						},
+					},
+				},
+			},
+			Required: []string{
+				"key",
+				"operator",
 			},
 		},
 	}
