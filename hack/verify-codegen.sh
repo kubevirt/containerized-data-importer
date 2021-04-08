@@ -56,3 +56,4 @@ chmod +x ./bin/yq
 ./bin/yq compare _out/manifests/schema/cdi.kubevirt.io_cdis.yaml _out/manifests/code_schema/cdis.cdi.kubevirt.io spec || (echo "CDI crd schema does not match" && exit 1)
 ./bin/yq compare _out/manifests/schema/cdi.kubevirt.io_datavolumes.yaml _out/manifests/code_schema/datavolumes.cdi.kubevirt.io spec || (echo "Datavolume crd schema does not match" && exit 1)
 ./bin/yq compare _out/manifests/schema/cdi.kubevirt.io_objecttransfers.yaml _out/manifests/code_schema/objecttransfers.cdi.kubevirt.io spec || (echo "ObjectTransfer crd schema does not match" && exit 1)
+./bin/yq compare _out/manifests/schema/cdi.kubevirt.io_storageprofiles.yaml _out/manifests/code_schema/storageprofiles.cdi.kubevirt.io spec || (echo "StorageProfile crd schema does not match" && exit 1)

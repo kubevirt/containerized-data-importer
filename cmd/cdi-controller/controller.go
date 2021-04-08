@@ -142,6 +142,12 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 		klog.Errorf("Unable to setup config controller: %v", err)
 		os.Exit(1)
 	}
+
+	if _, err := controller.NewStorageProfileController(mgr, log); err != nil {
+		klog.Errorf("Unable to setup storage profiles controller: %v", err)
+		os.Exit(1)
+	}
+
 	// TODO: Current DV controller had threadiness 3, should we do the same here, defaults to one thread.
 	if _, err := controller.NewDatavolumeController(mgr, extClient, log); err != nil {
 		klog.Errorf("Unable to setup datavolume controller: %v", err)

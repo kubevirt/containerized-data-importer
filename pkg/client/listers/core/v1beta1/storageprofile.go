@@ -29,8 +29,8 @@ import (
 type StorageProfileLister interface {
 	// List lists all StorageProfiles in the indexer.
 	List(selector labels.Selector) (ret []*v1beta1.StorageProfile, err error)
-	// StorageProfiles returns an object that can list and get StorageProfiles.
-	StorageProfiles(namespace string) StorageProfileNamespaceLister
+	// Get retrieves the StorageProfile from the index for a given name.
+	Get(name string) (*v1beta1.StorageProfile, error)
 	StorageProfileListerExpansion
 }
 
@@ -52,38 +52,9 @@ func (s *storageProfileLister) List(selector labels.Selector) (ret []*v1beta1.St
 	return ret, err
 }
 
-// StorageProfiles returns an object that can list and get StorageProfiles.
-func (s *storageProfileLister) StorageProfiles(namespace string) StorageProfileNamespaceLister {
-	return storageProfileNamespaceLister{indexer: s.indexer, namespace: namespace}
-}
-
-// StorageProfileNamespaceLister helps list and get StorageProfiles.
-type StorageProfileNamespaceLister interface {
-	// List lists all StorageProfiles in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1beta1.StorageProfile, err error)
-	// Get retrieves the StorageProfile from the indexer for a given namespace and name.
-	Get(name string) (*v1beta1.StorageProfile, error)
-	StorageProfileNamespaceListerExpansion
-}
-
-// storageProfileNamespaceLister implements the StorageProfileNamespaceLister
-// interface.
-type storageProfileNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all StorageProfiles in the indexer for a given namespace.
-func (s storageProfileNamespaceLister) List(selector labels.Selector) (ret []*v1beta1.StorageProfile, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.StorageProfile))
-	})
-	return ret, err
-}
-
-// Get retrieves the StorageProfile from the indexer for a given namespace and name.
-func (s storageProfileNamespaceLister) Get(name string) (*v1beta1.StorageProfile, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
+// Get retrieves the StorageProfile from the index for a given name.
+func (s *storageProfileLister) Get(name string) (*v1beta1.StorageProfile, error) {
+	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {
 		return nil, err
 	}
