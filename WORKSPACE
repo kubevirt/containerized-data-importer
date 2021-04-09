@@ -187,10 +187,7 @@ http_file(
 http_file(
     name = "nginx-filesystem",
     sha256 = "ff48d81762bb83eb5ed5aed829a50515af3b706ec6c7b8645ac1f3ac034eefe0",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/n/nginx-filesystem-1.18.0-3.fc33.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/ff48d81762bb83eb5ed5aed829a50515af3b706ec6c7b8645ac1f3ac034eefe0",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/ff48d81762bb83eb5ed5aed829a50515af3b706ec6c7b8645ac1f3ac034eefe0"],
 )
 
 http_file(
@@ -325,10 +322,7 @@ http_file(
 http_file(
     name = "filesystem",
     sha256 = "2d9ed3be09813ff727751a6db3a839e49630257df9ab5a21204335f4ca49fecc",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/f/filesystem-3.14-3.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/2d9ed3be09813ff727751a6db3a839e49630257df9ab5a21204335f4ca49fecc",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/2d9ed3be09813ff727751a6db3a839e49630257df9ab5a21204335f4ca49fecc"],
 )
 
 http_file(
@@ -358,10 +352,7 @@ http_file(
 http_file(
     name = "libselinux",
     sha256 = "898d9c9911a8e9b6933d3a7e52350f0dbb92e24ba9b00959cfaf451cec43661a",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/l/libselinux-3.1-2.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/898d9c9911a8e9b6933d3a7e52350f0dbb92e24ba9b00959cfaf451cec43661a",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/898d9c9911a8e9b6933d3a7e52350f0dbb92e24ba9b00959cfaf451cec43661a"],
 )
 
 http_file(
@@ -415,10 +406,7 @@ http_file(
 http_file(
     name = "iscsi-initiator-utils-iscsiuio",
     sha256 = "9b3d8a210752006a15181de2ea860166040f65e5ce307d439e5abbea8be2655b",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/i/iscsi-initiator-utils-iscsiuio-6.2.1.1-0.gitac87641.fc33.2.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/9b3d8a210752006a15181de2ea860166040f65e5ce307d439e5abbea8be2655b",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/9b3d8a210752006a15181de2ea860166040f65e5ce307d439e5abbea8be2655b"],
 )
 
 http_file(
