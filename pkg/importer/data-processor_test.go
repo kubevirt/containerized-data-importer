@@ -398,22 +398,21 @@ var _ = Describe("Resize", func() {
 
 var _ = Describe("ResizeImage", func() {
 	//fakeInfoRet has info.VirtualSize=1024
-	table.DescribeTable("calling ResizeImage", func(qemuOperations image.QEMUOperations, imageSize string, totalSpace int64, wantErr bool, wantResized bool) {
+	table.DescribeTable("calling ResizeImage", func(qemuOperations image.QEMUOperations, imageSize string, totalSpace int64, wantErr bool) {
 		replaceQEMUOperations(qemuOperations, func() {
-			resized, err := ResizeImage("dest", imageSize, totalSpace)
+			err := ResizeImage("dest", imageSize, totalSpace, false)
 			if !wantErr {
 				Expect(err).ToNot(HaveOccurred())
 			} else {
 				Expect(err).To(HaveOccurred())
 			}
-			Expect(resized).To(Equal(wantResized))
 		})
 	},
-		table.Entry("successfully resize to imageSize when imageSize > info.VirtualSize and < totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(1500), 0)), "1500", int64(2048), false, true),
-		table.Entry("successfully resize to totalSize when imageSize > info.VirtualSize and > totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(2048), 0)), "2500", int64(2048), false, true),
-		table.Entry("successfully do nothing when imageSize = info.VirtualSize and > totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(1024), 0)), "1024", int64(1024), false, false),
-		table.Entry("fail to resize to with blank imageSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(2048), 0)), "", int64(2048), true, false),
-		table.Entry("fail to resize to with blank imageSize", NewQEMUAllErrors(), "", int64(2048), true, false),
+		table.Entry("successfully resize to imageSize when imageSize > info.VirtualSize and < totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(1500), 0)), "1500", int64(2048), false),
+		table.Entry("successfully resize to totalSize when imageSize > info.VirtualSize and > totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(2048), 0)), "2500", int64(2048), false),
+		table.Entry("successfully do nothing when imageSize = info.VirtualSize and > totalSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(1024), 0)), "1024", int64(1024), false),
+		table.Entry("fail to resize to with blank imageSize", NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(int64(2048), 0)), "", int64(2048), true),
+		table.Entry("fail to resize to with blank imageSize", NewQEMUAllErrors(), "", int64(2048), true),
 	)
 })
 
@@ -456,7 +455,7 @@ func (o *fakeQEMUOperations) Validate(*url.URL, int64, float64) error {
 	return o.e5
 }
 
-func (o *fakeQEMUOperations) Resize(dest string, size resource.Quantity) error {
+func (o *fakeQEMUOperations) Resize(dest string, size resource.Quantity, preallocate bool) error {
 	if o.resizeQuantity != nil {
 		Expect(o.resizeQuantity.Cmp(size)).To(Equal(0))
 	}
