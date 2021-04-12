@@ -1,6 +1,7 @@
 package importer
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/md5"
@@ -341,6 +342,39 @@ var _ = Describe("VDDK data source", func() {
 		mockTerminationChannel <- os.Interrupt
 		Expect(err).ToNot(HaveOccurred())
 	})
+})
+
+var _ = Describe("VDDK log watcher", func() {
+	DescribeTable("should set VDDK connection information from nbdkit log stream, ", func(messages []string, results []string) {
+		vddkVersion = "not set"
+		vddkHost = "not set"
+		logbuffer := new(bytes.Buffer)
+		logreader := bufio.NewReader(logbuffer)
+		watcher := createNbdKitLogWatcher()
+		for _, message := range messages {
+			logbuffer.WriteString(message + "\n")
+		}
+		watcher.Start(logreader)
+		watcher.Stop()
+		Expect(vddkVersion).To(Equal(results[0]))
+		Expect(vddkHost).To(Equal(results[1]))
+	},
+		Entry("with no data", []string{}, []string{"not set", "not set"}),
+		Entry("with good version string", []string{"nbdkit: debug: VMware VixDiskLib (7.0.0) Release build-15832853"}, []string{"7.0.0", "not set"}),
+		Entry("with alternate good version string", []string{"nbdkit: debug: VMware VixDiskLib (7.0) Release build-15832853"}, []string{"7.0", "not set"}),
+		Entry("with bad version string", []string{"nbdkit: debug: VMware VixDiskLib 7.0 Release build-15832853"}, []string{"not set", "not set"}),
+		Entry("with good host string", []string{"nbdkit: vddk[1]: debug: DISKLIB-LINK  : Opened 'vpxa-nfcssl://[iSCSI_Datastore] test/test.vmdk@esx15.test.lan:902' (0xa): custom, 50331648 sectors / 24 GB."}, []string{"not set", "esx15.test.lan"}),
+		Entry("with alternate good host string", []string{"nbdkit: vddk[1]: debug: DISKLIB-LINK  : Opened 'http://disk@esx:1234' (0xa): custom, 50331648 sectors / 24 GB."}, []string{"not set", "esx"}),
+		Entry("with bad host string", []string{"nbdkit: vddk[1]: debug: DISKLIB-LINK  : Opened 'vpxa-nfcssl://esx' (0xa): custom, 50331648 sectors / 24 GB."}, []string{"not set", "not set"}),
+		Entry("with good version and host strings", []string{
+			"nbdkit: debug: VMware VixDiskLib (7.0.0) Release build-15832853",
+			"nbdkit: vddk[1]: debug: DISKLIB-LINK  : Opened 'vpxa-nfcssl://disk@esx:1234' (0xa): custom, 50331648 sectors / 24 GB."},
+			[]string{"7.0.0", "esx"}),
+		Entry("with bad version and host strings", []string{
+			"nbdkit: debug: VMware VixDiskLib ",
+			"nbdkit: vddk[1]: debug: DISKLIB-LINK  : Opened '"},
+			[]string{"not set", "not set"}),
+	)
 })
 
 type mockNbdOperations struct{}
