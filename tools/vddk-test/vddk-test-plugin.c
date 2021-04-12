@@ -33,6 +33,7 @@ int fakevddk_config(const char *key, const char *value) {
 }
 
 int fakevddk_config_complete(void) {
+    nbdkit_debug("VMware VixDiskLib (1.2.3) Release build-12345");
     if (arg_count == EXPECTED_ARG_COUNT) {
         return 0;
     } else {
@@ -48,6 +49,7 @@ void *fakevddk_open(int readonly) {
         nbdkit_error("Failed to open /opt/testing/nbdtest.img: %m");
         return NULL;
     }
+    nbdkit_debug("DISKLIB-LINK  : Opened 'vpxa-nfcssl://[iSCSI_Datastore] test/test.vmdk@esx.test:902' (0xa): custom, 50331648 sectors / 24 GB.");
     return (void *) &fd;
 }
 

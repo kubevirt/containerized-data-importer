@@ -709,6 +709,30 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
+			table.Entry("[test_id:5079]succeed getting VDDK connection information", dataVolumeTestArguments{
+				name:             "dv-import-vddk",
+				size:             "1Gi",
+				url:              vcenterURL,
+				dvFunc:           createVddkDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: false,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-import-vddk Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete; VDDK: {\"Version\":\"1.2.3\",\"Host\":\"esx.test\"}",
+					Reason:  "Completed",
+				}}),
 		)
 
 		It("[test_id:4961]should handle a pre populated PVC", func() {
