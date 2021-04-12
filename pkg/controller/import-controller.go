@@ -2,9 +2,11 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"reflect"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -94,6 +96,10 @@ const (
 
 	// ImportTargetInUse is reason for event created when an import pvc is in use
 	ImportTargetInUse = "ImportTargetInUse"
+)
+
+var (
+	vddkInfoMatch = regexp.MustCompile(`((.*; )|^)VDDK: (?P<info>{.*})`)
 )
 
 // ImportReconciler members
@@ -302,6 +308,9 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 	} else {
 		if pvc.DeletionTimestamp != nil {
 			log.V(1).Info("PVC being terminated, delete pods", "pod.Name", pod.Name)
+			if getSource(pvc) == SourceVDDK {
+				r.saveVddkAnnotations(pvc, pod, log)
+			}
 			if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
 				return reconcile.Result{}, err
 			}
@@ -418,11 +427,40 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			r.recorder.Event(pvc, corev1.EventTypeNormal, ImportSucceededPVC, "Import Successful")
 			log.V(1).Info("Completed successfully, deleting POD", "pod.Name", pod.Name)
 		}
+		if getSource(pvc) == SourceVDDK {
+			r.saveVddkAnnotations(pvc, pod, log)
+		}
 		if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (r *ImportReconciler) saveVddkAnnotations(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, log logr.Logger) {
+	terminationMessage := pod.Status.ContainerStatuses[0].State.Terminated.Message
+	log.V(1).Info("Saving VDDK annotations from pod status message: ", "message", terminationMessage)
+
+	var terminationInfo string
+	matches := vddkInfoMatch.FindAllStringSubmatch(terminationMessage, -1)
+	for index, matchName := range vddkInfoMatch.SubexpNames() {
+		if matchName == "info" && len(matches) > 0 {
+			terminationInfo = matches[0][index]
+			break
+		}
+	}
+
+	var vddkInfo util.VddkInfo
+	err := json.Unmarshal([]byte(terminationInfo), &vddkInfo)
+	if err == nil {
+		if vddkInfo.Host != "" {
+			pvc.Annotations[AnnVddkHostConnection] = vddkInfo.Host
+		}
+		if vddkInfo.Version != "" {
+			pvc.Annotations[AnnVddkVersion] = vddkInfo.Version
+		}
+		r.updatePVC(pvc, log)
+	}
 }
 
 func (r *ImportReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
