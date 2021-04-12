@@ -1492,6 +1492,15 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		addAnnotation(dataVolumeCopy, annCloneType, "network")
 	}
 
+	if getSource(pvc) == SourceVDDK {
+		if vddkHost := pvc.Annotations[AnnVddkHostConnection]; vddkHost != "" {
+			addAnnotation(dataVolumeCopy, AnnVddkHostConnection, vddkHost)
+		}
+		if vddkVersion := pvc.Annotations[AnnVddkVersion]; vddkVersion != "" {
+			addAnnotation(dataVolumeCopy, AnnVddkVersion, vddkVersion)
+		}
+	}
+
 	currentCond := make([]cdiv1.DataVolumeCondition, len(dataVolumeCopy.Status.Conditions))
 	copy(currentCond, dataVolumeCopy.Status.Conditions)
 	r.updateConditions(dataVolumeCopy, pvc)
