@@ -69,6 +69,8 @@ const (
 	ErrResourceDoesntExist = "ErrResourceDoesntExist"
 	// ErrClaimLost provides a const to indicate a claim is lost
 	ErrClaimLost = "ErrClaimLost"
+	// ErrClaimNotValid provides a const to indicate a claim is not valid
+	ErrClaimNotValid = "ErrClaimNotValid"
 	// DataVolumeFailed provides a const to represent DataVolume failed status
 	DataVolumeFailed = "DataVolumeFailed"
 	// ImportScheduled provides a const to indicate import is scheduled
@@ -517,7 +519,7 @@ func (r *DatavolumeReconciler) sourceInUse(dv *cdiv1.DataVolume) (bool, error) {
 
 func (r *DatavolumeReconciler) getStorageClassBindingMode(dataVolume *cdiv1.DataVolume) (*storagev1.VolumeBindingMode, error) {
 	// Handle unspecified storage class name, fallback to default storage class
-	storageClass, err := GetStorageClassByName(r.client, dataVolume.Spec.PVC.StorageClassName)
+	storageClass, err := GetStorageClassByName(r.client, getStorageClass(dataVolume))
 	if err != nil {
 		return nil, err
 	}
@@ -529,6 +531,24 @@ func (r *DatavolumeReconciler) getStorageClassBindingMode(dataVolume *cdiv1.Data
 	// no storage class, then the assumption is immediate binding
 	volumeBindingImmediate := storagev1.VolumeBindingImmediate
 	return &volumeBindingImmediate, nil
+}
+
+func getStorageClass(dataVolume *cdiv1.DataVolume) *string {
+	if dataVolume.Spec.PVC != nil {
+		return dataVolume.Spec.PVC.StorageClassName
+	} else if dataVolume.Spec.Storage != nil {
+		return dataVolume.Spec.Storage.StorageClassName
+	}
+	return nil
+}
+
+func getStorageVolumeMode(dataVolume *cdiv1.DataVolume) *corev1.PersistentVolumeMode {
+	if dataVolume.Spec.PVC != nil {
+		return dataVolume.Spec.PVC.VolumeMode
+	} else if dataVolume.Spec.Storage != nil {
+		return dataVolume.Spec.Storage.VolumeMode
+	}
+	return nil
 }
 
 func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, pvcUID types.UID) (reconcile.Result, error) {
@@ -586,14 +606,14 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	}
 
 	sourceVolumeMode := GetVolumeMode(pvc.Spec.VolumeMode)
-	targetVolumeMode := GetVolumeMode(dataVolume.Spec.PVC.VolumeMode)
+	targetVolumeMode := GetVolumeMode(getStorageVolumeMode(dataVolume))
 	if sourceVolumeMode != targetVolumeMode {
 		r.log.V(3).Info("Source PVC and target PVC have different volume modes, falling back to host assisted clone", "source volume mode",
 			sourceVolumeMode, "target volume mode", targetVolumeMode)
 		return "", errors.New("Source PVC and target PVC have different volume modes, falling back to host assisted clone")
 	}
 
-	targetPvcStorageClassName := dataVolume.Spec.PVC.StorageClassName
+	targetPvcStorageClassName := getStorageClass(dataVolume)
 	targetStorageClass, err := GetStorageClassByName(r.client, targetPvcStorageClassName)
 	if err != nil {
 		return "", err
@@ -1140,13 +1160,6 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 	labels := map[string]string{
 		"app": "containerized-data-importer",
 	}
-
-	if dataVolume.Spec.PVC == nil {
-		// TODO remove this requirement and dynamically generate
-		// PVC spec if not present on DataVolume
-		return nil, errors.Errorf("datavolume.pvc field is required")
-	}
-
 	annotations := make(map[string]string)
 
 	for k, v := range dataVolume.ObjectMeta.Annotations {
@@ -1224,6 +1237,11 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 	}
 	annotations[AnnPreallocationRequested] = strconv.FormatBool(GetPreallocation(r.client, dataVolume))
 
+	pvcSpec, err := r.renderPvcSpec(dataVolume)
+	if err != nil {
+		return nil, err
+	}
+
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        dataVolume.Name,
@@ -1238,6 +1256,124 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 				}),
 			},
 		},
-		Spec: *dataVolume.Spec.PVC,
+		Spec: *pvcSpec,
 	}, nil
+}
+
+func (r *DatavolumeReconciler) renderPvcSpec(dv *cdiv1.DataVolume) (*corev1.PersistentVolumeClaimSpec, error) {
+	if dv.Spec.PVC != nil {
+		return dv.Spec.PVC, nil
+	}
+
+	if dv.Spec.Storage != nil {
+		return r.pvcFromStorage(dv)
+	}
+
+	return nil, errors.Errorf("datavolume one of {pvc, storage} field is required")
+}
+
+func (r *DatavolumeReconciler) pvcFromStorage(dv *cdiv1.DataVolume) (*corev1.PersistentVolumeClaimSpec, error) {
+	storage := dv.Spec.Storage
+	pvcSpec := copyStorageAsPvc(r.log, storage)
+
+	storageClass, err := GetStorageClassByName(r.client, storage.StorageClassName)
+	if err != nil {
+		return nil, err
+	}
+
+	if storageClass == nil {
+		// Not even default storageClass on the cluster, cannot apply the defaults, verify spec is ok
+		if len(pvcSpec.AccessModes) == 0 {
+			r.log.V(1).Info("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name)
+			r.recorder.Eventf(dv, corev1.EventTypeWarning, ErrClaimNotValid, "DataVolume.storage spec is missing accessMode and no storageClass to choose profile")
+			return nil, errors.Errorf("DataVolume spec is missing accessMode")
+		}
+
+		return pvcSpec, nil
+	}
+
+	// given storageClass we can apply defaults if needed
+	if len(pvcSpec.AccessModes) == 0 {
+		accessMode, err := getDefaultAccessMode(r.client, storageClass)
+		if err != nil {
+			r.log.V(1).Info("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name)
+			r.recorder.Eventf(dv, corev1.EventTypeWarning, ErrClaimNotValid,
+				fmt.Sprintf("DataVolume.storage spec is missing accessMode and cannot get access mode from StorageProfile %s", getName(storageClass)))
+			return nil, err
+		}
+		pvcSpec.AccessModes = append(pvcSpec.AccessModes, *accessMode)
+	}
+	if pvcSpec.VolumeMode == nil || *pvcSpec.VolumeMode == "" {
+		volumeMode, err := getDefaultVolumeMode(r.client, storageClass)
+		if err != nil {
+			return nil, err
+		}
+		pvcSpec.VolumeMode = volumeMode
+	}
+
+	return pvcSpec, nil
+}
+
+func copyStorageAsPvc(log logr.Logger, storage *cdiv1.StorageSpec) *corev1.PersistentVolumeClaimSpec {
+	input := storage.DeepCopy()
+	log.V(1).Info("Cannot set accessMode for new pvc", "storage", storage)
+	pvcSpec := &corev1.PersistentVolumeClaimSpec{
+		AccessModes:      input.AccessModes,
+		Selector:         input.Selector,
+		Resources:        input.Resources,
+		VolumeName:       input.VolumeName,
+		StorageClassName: input.StorageClassName,
+		VolumeMode:       input.VolumeMode,
+		DataSource:       input.DataSource,
+	}
+
+	return pvcSpec
+}
+
+func getName(storageClass *storagev1.StorageClass) string {
+	if storageClass != nil {
+		return storageClass.Name
+	}
+	return ""
+}
+
+func getDefaultVolumeMode(c client.Client, storageClass *storagev1.StorageClass) (*corev1.PersistentVolumeMode, error) {
+	if storageClass == nil {
+		// fallback to k8s defaults
+		return nil, nil
+	}
+
+	storageProfile := &cdiv1.StorageProfile{}
+	err := c.Get(context.TODO(), types.NamespacedName{Name: storageClass.Name}, storageProfile)
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot get StorageProfile")
+	}
+	if len(storageProfile.Status.ClaimPropertySets) > 0 {
+		volumeMode := storageProfile.Status.ClaimPropertySets[0].VolumeMode
+		return volumeMode, nil
+	}
+
+	// since volumeMode is optional - > gracefully fallback to k8s defaults,
+	return nil, nil
+}
+
+func getDefaultAccessMode(c client.Client, storageClass *storagev1.StorageClass) (*corev1.PersistentVolumeAccessMode, error) {
+	if storageClass == nil {
+		return nil, errors.Errorf("no accessMode defined on DV, no StorageProfile ")
+	}
+
+	storageProfile := &cdiv1.StorageProfile{}
+	err := c.Get(context.TODO(), types.NamespacedName{Name: storageClass.Name}, storageProfile)
+	if err != nil {
+		return nil, errors.Wrap(err, "no accessMode defined on DV, cannot get StorageProfile")
+	}
+
+	if len(storageProfile.Status.ClaimPropertySets) > 0 &&
+		len(storageProfile.Status.ClaimPropertySets[0].AccessModes) > 0 {
+		accessMode := storageProfile.Status.ClaimPropertySets[0].AccessModes[0]
+		return &accessMode, nil
+	}
+
+	// no accessMode configured on storageProfile
+	return nil, errors.Errorf("no accessMode defined on StorageProfile for %s StorageClass", storageClass.Name)
 }

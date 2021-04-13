@@ -682,6 +682,22 @@ func createStorageClass(name string, annotations map[string]string) *storagev1.S
 	}
 }
 
+func createStorageProfile(name string, accessModes []v1.PersistentVolumeAccessMode, volumeMode v1.PersistentVolumeMode) *cdiv1.StorageProfile {
+	return &cdiv1.StorageProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Status: cdiv1.StorageProfileStatus{
+			StorageClass: &name,
+			ClaimPropertySets: []cdiv1.ClaimPropertySet{
+				{
+					AccessModes: accessModes,
+					VolumeMode:  &volumeMode,
+				}},
+		},
+	}
+}
+
 func createStorageClassWithBindingMode(name string, annotations map[string]string, bindingMode storagev1.VolumeBindingMode) *storagev1.StorageClass {
 	return &storagev1.StorageClass{
 		VolumeBindingMode: &bindingMode,

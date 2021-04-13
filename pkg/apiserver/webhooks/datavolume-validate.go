@@ -229,7 +229,9 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 		}
 	}
 
-	if spec.PVC == nil {
+	// TODO: webhook
+
+	if spec.PVC == nil && spec.Storage == nil {
 		causes = append(causes, metav1.StatusCause{
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: fmt.Sprintf("Missing Data volume PVC"),
@@ -237,49 +239,70 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 		})
 		return causes
 	}
-	if pvcSize, ok := spec.PVC.Resources.Requests["storage"]; ok {
-		if pvcSize.IsZero() || pvcSize.Value() < 0 {
+	if spec.PVC != nil {
+		if pvcSize, ok := spec.PVC.Resources.Requests["storage"]; ok {
+			if pvcSize.IsZero() || pvcSize.Value() < 0 {
+				causes = append(causes, metav1.StatusCause{
+					Type:    metav1.CauseTypeFieldValueInvalid,
+					Message: fmt.Sprintf("PVC size can't be equal or less than zero"),
+					Field:   field.Child("PVC", "resources", "requests", "size").String(),
+				})
+				return causes
+			}
+		} else {
 			causes = append(causes, metav1.StatusCause{
 				Type:    metav1.CauseTypeFieldValueInvalid,
-				Message: fmt.Sprintf("PVC size can't be equal or less than zero"),
+				Message: fmt.Sprintf("PVC size is missing"),
 				Field:   field.Child("PVC", "resources", "requests", "size").String(),
 			})
 			return causes
 		}
-	} else {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("PVC size is missing"),
-			Field:   field.Child("PVC", "resources", "requests", "size").String(),
-		})
-		return causes
-	}
 
-	accessModes := spec.PVC.AccessModes
-	if len(accessModes) == 0 {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Required value: at least 1 access mode is required"),
-			Field:   field.Child("PVC", "accessModes").String(),
-		})
-		return causes
-	}
-	if len(accessModes) > 1 {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("PVC multiple accessModes"),
-			Field:   field.Child("PVC", "accessModes").String(),
-		})
-		return causes
-	}
-	// We know we have one access mode
-	if accessModes[0] != v1.ReadWriteOnce && accessModes[0] != v1.ReadOnlyMany && accessModes[0] != v1.ReadWriteMany {
-		causes = append(causes, metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueInvalid,
-			Message: fmt.Sprintf("Unsupported value: \"%s\": supported values: \"ReadOnlyMany\", \"ReadWriteMany\", \"ReadWriteOnce\"", string(accessModes[0])),
-			Field:   field.Child("PVC", "accessModes").String(),
-		})
-		return causes
+		accessModes := spec.PVC.AccessModes
+		if len(accessModes) == 0 {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("Required value: at least 1 access mode is required"),
+				Field:   field.Child("PVC", "accessModes").String(),
+			})
+			return causes
+		}
+		if len(accessModes) > 1 {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("PVC multiple accessModes"),
+				Field:   field.Child("PVC", "accessModes").String(),
+			})
+			return causes
+		}
+		// We know we have one access mode
+		if accessModes[0] != v1.ReadWriteOnce && accessModes[0] != v1.ReadOnlyMany && accessModes[0] != v1.ReadWriteMany {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("Unsupported value: \"%s\": supported values: \"ReadOnlyMany\", \"ReadWriteMany\", \"ReadWriteOnce\"", string(accessModes[0])),
+				Field:   field.Child("PVC", "accessModes").String(),
+			})
+			return causes
+		}
+	} else if spec.Storage != nil {
+		if pvcSize, ok := spec.Storage.Resources.Requests["storage"]; ok {
+			if pvcSize.IsZero() || pvcSize.Value() < 0 {
+				causes = append(causes, metav1.StatusCause{
+					Type:    metav1.CauseTypeFieldValueInvalid,
+					Message: fmt.Sprintf("Storage size can't be equal or less than zero"),
+					Field:   field.Child("Storage", "resources", "requests", "size").String(),
+				})
+				return causes
+			}
+		} else {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("Storage size is missing"),
+				Field:   field.Child("Storage", "resources", "requests", "size").String(),
+			})
+			return causes
+		}
+		// TODO: check accessMode...
 	}
 	return causes
 }
