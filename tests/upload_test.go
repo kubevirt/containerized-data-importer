@@ -1019,6 +1019,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 var _ = Describe("Preallocation", func() {
 	f := framework.NewFramework(namespacePrefix)
 	dvName := "upload-dv"
+	md5PrefixSize := int64(100000)
 
 	var (
 		dataVolume     *cdiv1.DataVolume
@@ -1098,7 +1099,12 @@ var _ = Describe("Preallocation", func() {
 
 		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Or(Equal("true"), Equal("skipped")))
+		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Equal("true"))
+
+		By("Verify content")
+		md5, err := f.GetMD5(f.Namespace, pvc, "/pvc/disk.img", md5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(md5).To(Equal(utils.UploadFileMD5100kbytes))
 	})
 
 	It("Uploader should not add preallocation when preallocation=false", func() {
@@ -1143,6 +1149,11 @@ var _ = Describe("Preallocation", func() {
 		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Equal("true"))
+
+		By("Verify content")
+		md5, err := f.GetMD5(f.Namespace, pvc, "/pvc/disk.img", md5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(md5).To(Equal(utils.UploadFileMD5100kbytes))
 	})
 
 	DescribeTable("Each upload path include preallocation/conversion", func(uploader uploadFunc) {
@@ -1185,7 +1196,12 @@ var _ = Describe("Preallocation", func() {
 
 		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Or(Equal("true"), Equal("skipped")))
+		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Equal("true"))
+
+		By("Verify content")
+		md5, err := f.GetMD5(f.Namespace, pvc, "/pvc/disk.img", md5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(md5).To(Equal(utils.UploadFileMD5100kbytes))
 	},
 		Entry("sync", uploadImage),
 		Entry("async", uploadImageAsync),

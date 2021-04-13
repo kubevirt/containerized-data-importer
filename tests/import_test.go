@@ -596,7 +596,7 @@ var _ = Describe("Namespace with quota", func() {
 		}, CompletionTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
 
 		By("Verify content")
-		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", "d41d8cd98f00b204e9800998ecf8427e", utils.UploadFileSize)
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", utils.TinyCoreBlockMD5, utils.UploadFileSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
 		By("Verifying permissions are 660")
@@ -673,7 +673,7 @@ var _ = Describe("Namespace with quota", func() {
 		}, CompletionTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
 
 		By("Verify content")
-		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", "d41d8cd98f00b204e9800998ecf8427e", utils.UploadFileSize)
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", utils.TinyCoreBlockMD5, utils.UploadFileSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
 		By("Verifying permissions are 660")
@@ -709,7 +709,7 @@ var _ = Describe("Namespace with quota", func() {
 		}, CompletionTimeout, assertionPollInterval).Should(BeEquivalentTo(v1.PodSucceeded))
 
 		By("Verify content")
-		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", "d41d8cd98f00b204e9800998ecf8427e", utils.UploadFileSize)
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", utils.TinyCoreBlockMD5, utils.UploadFileSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(same).To(BeTrue())
 		By("Verifying permissions are 660")
@@ -938,6 +938,7 @@ var _ = Describe("Preallocation", func() {
 		tinyCoreTarURL      = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
 		tinyCoreRegistryURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
 		imageioURL          = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
+		md5PrefixSize       = int64(100000)
 	)
 
 	AfterEach(func() {
@@ -973,7 +974,12 @@ var _ = Describe("Preallocation", func() {
 
 		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Or(Equal("true"), Equal("skipped")))
+		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Equal("true"))
+
+		By("Verify content")
+		md5, err := f.GetMD5(f.Namespace, pvc, "/pvc/disk.img", md5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(md5).To(Equal(utils.TinyCoreMD5))
 	})
 
 	It("Importer should not add preallocation when preallocation=false", func() {
@@ -996,10 +1002,15 @@ var _ = Describe("Preallocation", func() {
 
 		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Or(Equal("true"), Equal("skipped")))
+		Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Equal("true"))
+
+		By("Verify content")
+		md5, err := f.GetMD5(f.Namespace, pvc, "/pvc/disk.img", md5PrefixSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(md5).To(Equal(utils.TinyCoreMD5))
 	})
 
-	DescribeTable("All import paths should contain Preallocation step", func(shouldPreallocate bool, dvFunc func() *cdiv1.DataVolume) {
+	DescribeTable("All import paths should contain Preallocation step", func(shouldPreallocate bool, expectedMD5, path string, dvFunc func() *cdiv1.DataVolume) {
 		dv := dvFunc()
 		By(fmt.Sprintf("Creating new datavolume %s", dv.Name))
 		preallocation := true
@@ -1030,45 +1041,50 @@ var _ = Describe("Preallocation", func() {
 		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
 		if shouldPreallocate {
-			Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Or(Equal("true"), Equal("skipped")))
+			Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).Should(Equal("true"))
+
+			By("Verify content")
+			md5, err := f.GetMD5(f.Namespace, pvc, path, md5PrefixSize)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(md5).To(Equal(expectedMD5))
 		} else {
-			Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Or(Equal("true"), Equal("skipped")))
+			Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Equal("true"))
 		}
 	},
-		Entry("HTTP import (ISO image)", true, func() *cdiv1.DataVolume {
+		Entry("HTTP import (ISO image)", true, utils.TinyCoreMD5, "/pvc/disk.img", func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithHTTPImport("import-dv", "100Mi", tinyCoreIsoURL())
 		}),
-		Entry("HTTP import (QCOW2 image)", true, func() *cdiv1.DataVolume {
+		Entry("HTTP import (QCOW2 image)", true, utils.TinyCoreMD5, "/pvc/disk.img", func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithHTTPImport("import-dv", "100Mi", tinyCoreQcow2URL())
 		}),
-		Entry("HTTP import (TAR image)", true, func() *cdiv1.DataVolume {
+		Entry("HTTP import (TAR image)", true, utils.TinyCoreTarMD5, "/pvc/disk.img", func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithHTTPImport("import-dv", "100Mi", tinyCoreTarURL())
 		}),
-		Entry("HTTP import (archive content)", false, func() *cdiv1.DataVolume {
+		Entry("HTTP import (archive content)", false, "", "", func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithArchiveContent("import-dv", "100Mi", tinyCoreTarURL())
 		}),
-		Entry("HTTP Import (TAR image, block DataVolume)", true, func() *cdiv1.DataVolume {
+		Entry("HTTP Import (TAR image, block DataVolume)", true, utils.TinyCoreBlockMD5, "/pvc/disk.img", func() *cdiv1.DataVolume {
 			if !f.IsBlockVolumeStorageClassAvailable() {
 				Skip("Storage Class for block volume is not available")
 			}
 
 			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", tinyCoreTarURL(), f.BlockSCName)
 		}),
-		Entry("HTTP Import (ISO image, block DataVolume)", true, func() *cdiv1.DataVolume {
+		Entry("HTTP Import (ISO image, block DataVolume)", true, utils.TinyCoreBlockMD5, "/pvc/disk.img", func() *cdiv1.DataVolume {
 			if !f.IsBlockVolumeStorageClassAvailable() {
 				Skip("Storage Class for block volume is not available")
 			}
 
 			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", tinyCoreIsoURL(), f.BlockSCName)
 		}),
-		Entry("HTTP Import (QCOW2 image, block DataVolume)", true, func() *cdiv1.DataVolume {
+		Entry("HTTP Import (QCOW2 image, block DataVolume)", true, utils.TinyCoreBlockMD5, "/pvc/disk.img", func() *cdiv1.DataVolume {
 			if !f.IsBlockVolumeStorageClassAvailable() {
 				Skip("Storage Class for block volume is not available")
 			}
 
 			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", tinyCoreQcow2URL(), f.BlockSCName)
 		}),
-		Entry("ImageIO import", true, func() *cdiv1.DataVolume {
+		Entry("ImageIO import", true, utils.ImageioMD5, "/pvc/disk.img", func() *cdiv1.DataVolume {
 			cm, err := utils.CopyImageIOCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 			Expect(err).To(BeNil())
 			stringData := map[string]string{
@@ -1078,17 +1094,17 @@ var _ = Describe("Preallocation", func() {
 			s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, "mysecret"))
 			return utils.NewDataVolumeWithImageioImport("import-dv", "100Mi", imageioURL(), s.Name, cm, "123")
 		}),
-		Entry("Registry import", true, func() *cdiv1.DataVolume {
+		Entry("Registry import", true, utils.TinyCoreMD5, "/pvc/disk.img", func() *cdiv1.DataVolume {
 			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", tinyCoreRegistryURL())
 			cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 			Expect(err).To(BeNil())
 			dataVolume.Spec.Source.Registry.CertConfigMap = cm
 			return dataVolume
 		}),
-		Entry("Blank image", true, func() *cdiv1.DataVolume {
+		Entry("Blank image", true, utils.BlankMD5, "/pvc/disk.img", func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeForBlankRawImage("import-dv", "100Mi")
 		}),
-		Entry("Blank block DataVolume", true, func() *cdiv1.DataVolume {
+		Entry("Blank block DataVolume", true, utils.BlankMD5, "/pvc", func() *cdiv1.DataVolume {
 			if !f.IsBlockVolumeStorageClassAvailable() {
 				Skip("Storage Class for block volume is not available")
 			}
