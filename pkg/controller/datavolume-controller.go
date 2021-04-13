@@ -1367,6 +1367,15 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 			return reconcile.Result{}, err
 		}
 
+		if getSource(pvc) == SourceVDDK {
+			if vddkHost := pvc.Annotations[AnnVddkHostConnection]; vddkHost != "" {
+				addAnnotation(dataVolumeCopy, AnnVddkHostConnection, vddkHost)
+			}
+			if vddkVersion := pvc.Annotations[AnnVddkVersion]; vddkVersion != "" {
+				addAnnotation(dataVolumeCopy, AnnVddkVersion, vddkVersion)
+			}
+		}
+
 		// the following check is for a case where the request is to create a blank disk for a block device.
 		// in that case, we do not create a pod as there is no need to create a blank image.
 		// instead, we just mark the DV phase as 'Succeeded' so any consumer will be able to use it.
@@ -1490,15 +1499,6 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 	if dataVolumeCopy.Spec.Source.PVC != nil {
 		// XXX should probably be is status
 		addAnnotation(dataVolumeCopy, annCloneType, "network")
-	}
-
-	if getSource(pvc) == SourceVDDK {
-		if vddkHost := pvc.Annotations[AnnVddkHostConnection]; vddkHost != "" {
-			addAnnotation(dataVolumeCopy, AnnVddkHostConnection, vddkHost)
-		}
-		if vddkVersion := pvc.Annotations[AnnVddkVersion]; vddkVersion != "" {
-			addAnnotation(dataVolumeCopy, AnnVddkVersion, vddkVersion)
-		}
 	}
 
 	currentCond := make([]cdiv1.DataVolumeCondition, len(dataVolumeCopy.Status.Conditions))
