@@ -95,7 +95,7 @@ var _ = Describe("VDDK data source", func() {
 		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
 		phase, err = dp.TransferFile("")
 		Expect(err).ToNot(HaveOccurred())
-		Expect(phase).To(Equal(ProcessingPhasePreallocate))
+		Expect(phase).To(Equal(ProcessingPhaseResize))
 	})
 
 	It("VDDK data source should fail if TransferFile fails", func() {
@@ -151,7 +151,7 @@ var _ = Describe("VDDK data source", func() {
 
 		phase, err := dp.TransferFile(".")
 		Expect(err).ToNot(HaveOccurred())
-		Expect(phase).To(Equal(ProcessingPhasePreallocate))
+		Expect(phase).To(Equal(ProcessingPhaseResize))
 
 		sourceSum := md5.Sum(sourceBytes)
 		destSum := md5.Sum(mockSinkBuffer)
@@ -177,7 +177,7 @@ var _ = Describe("VDDK data source", func() {
 
 		phase, err := snap1.TransferFile(".")
 		Expect(err).ToNot(HaveOccurred())
-		Expect(phase).To(Equal(ProcessingPhasePreallocate))
+		Expect(phase).To(Equal(ProcessingPhaseResize))
 
 		sourceSum := md5.Sum(sourceBytes)
 		destSum := md5.Sum(mockSinkBuffer)
@@ -199,7 +199,7 @@ var _ = Describe("VDDK data source", func() {
 
 		phase, err = snap2.TransferFile(".")
 		Expect(err).ToNot(HaveOccurred())
-		Expect(phase).To(Equal(ProcessingPhasePreallocate))
+		Expect(phase).To(Equal(ProcessingPhaseResize))
 
 		deltaSum := md5.Sum(mockSinkBuffer)
 		Expect(changedSourceSum).To(Equal(deltaSum))

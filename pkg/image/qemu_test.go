@@ -174,7 +174,7 @@ var _ = Describe("Convert to Raw", func() {
 	})
 
 	It("should add preallocation if requested", func() {
-		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "none", "-p", "-O", "raw", "/somefile/somewhere", "dest", "-o", "preallocation=falloc"), func() {
+		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-o", "preallocation=falloc", "-t", "none", "-p", "-O", "raw", "/somefile/somewhere", "dest"), func() {
 			ep, err := url.Parse("/somefile/somewhere")
 			Expect(err).NotTo(HaveOccurred())
 			err = ConvertToRawStream(ep, "dest", true)
@@ -199,7 +199,7 @@ var _ = Describe("Resize", func() {
 		size := convertQuantityToQemuSize(quantity)
 		replaceExecFunction(mockExecFunction("", "", nil, "resize", "-f", "raw", "image", size), func() {
 			o := NewQEMUOperations()
-			err = o.Resize("image", quantity)
+			err = o.Resize("image", quantity, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -210,7 +210,7 @@ var _ = Describe("Resize", func() {
 		size := convertQuantityToQemuSize(quantity)
 		replaceExecFunction(mockExecFunction("", "exit 1", nil, "resize", "-f", "raw", "image", size), func() {
 			o := NewQEMUOperations()
-			err = o.Resize("image", quantity)
+			err = o.Resize("image", quantity, false)
 			Expect(err).To(HaveOccurred())
 			Expect(strings.Contains(err.Error(), "Error resizing image image")).To(BeTrue())
 		})
@@ -348,8 +348,8 @@ var _ = Describe("Create blank image", func() {
 var _ = Describe("Try different preallocation modes", func() {
 	It("Should try falloc first", func() {
 		calledCount := 0
-		err := addPreallocation([]string{}, func(args []string) ([]byte, error) {
-			Expect(args).To(Equal([]string{"-o", "preallocation=falloc"}))
+		err := addPreallocation([]string{"command"}, convertPreallocationMethods, func(args []string) ([]byte, error) {
+			Expect(args).To(Equal([]string{"command", "-o", "preallocation=falloc"}))
 			calledCount++
 			return []byte{}, nil
 		})
@@ -360,12 +360,12 @@ var _ = Describe("Try different preallocation modes", func() {
 
 	It("Should try full if falloc fails", func() {
 		calledCount := 0
-		err := addPreallocation([]string{}, func(args []string) ([]byte, error) {
-			if args[1] == "preallocation=falloc" {
+		err := addPreallocation([]string{"command"}, convertPreallocationMethods, func(args []string) ([]byte, error) {
+			if args[2] == "preallocation=falloc" {
 				calledCount++
 				return []byte("Unsupported preallocation mode"), fmt.Errorf("No, no, no")
 			}
-			Expect(args).To(Equal([]string{"-o", "preallocation=full"}))
+			Expect(args).To(Equal([]string{"command", "-o", "preallocation=full"}))
 			calledCount++
 			return []byte{}, nil
 		})
@@ -376,12 +376,12 @@ var _ = Describe("Try different preallocation modes", func() {
 
 	It("Should try -S0 if full fails", func() {
 		calledCount := 0
-		err := addPreallocation([]string{}, func(args []string) ([]byte, error) {
+		err := addPreallocation([]string{"command"}, convertPreallocationMethods, func(args []string) ([]byte, error) {
 			if calledCount < 2 {
 				calledCount++
 				return []byte("Unsupported preallocation mode"), fmt.Errorf("No, no, no")
 			}
-			Expect(args).To(Equal([]string{"-S", "0"}))
+			Expect(args).To(Equal([]string{"command", "-S", "0"}))
 			calledCount++
 			return []byte{}, nil
 		})
@@ -392,7 +392,7 @@ var _ = Describe("Try different preallocation modes", func() {
 
 	It("Should fail if output is different than 'Unsupported preallocation'", func() {
 		calledCount := 0
-		err := addPreallocation([]string{}, func(args []string) ([]byte, error) {
+		err := addPreallocation([]string{"command"}, convertPreallocationMethods, func(args []string) ([]byte, error) {
 			calledCount++
 			return []byte("General Protection Fault"), fmt.Errorf("No, no, no")
 		})
