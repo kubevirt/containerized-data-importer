@@ -482,14 +482,9 @@ func createAlphaV1DataVolumeCRDSchema() *extv1.CustomResourceValidation {
 							Description: "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
 							Type:        "boolean",
 						},
-						"pod": {
-							Description: "Pod is the Pod specification for Importer or Uploader pod",
-							Type:        "object",
-							Properties: map[string]extv1.JSONSchemaProps{
-								"priorityClassName": {
-									Type: "string",
-								},
-							},
+						"priorityClassName": {
+							Description: "PriorityClassName for Importer, Cloner and Uploader pod",
+							Type:        "string",
 						},
 						"preallocation": {
 							Description: "Preallocation controls whether storage for DataVolumes should be allocated in advance.",

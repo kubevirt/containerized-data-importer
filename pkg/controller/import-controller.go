@@ -471,9 +471,9 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 	if err != nil {
 		return err
 	}
-
+	anno := pvc.GetAnnotations()
 	// all checks passed, let's create the importer pod!
-	pod, err := createImporterPod(r.log, r.client, r.image, r.verbose, r.pullPolicy, podEnvVar, pvc, scratchPvcName, vddkImageName)
+	pod, err := createImporterPod(r.log, r.client, r.image, r.verbose, r.pullPolicy, podEnvVar, pvc, scratchPvcName, vddkImageName, anno[AnnPriorityClassName])
 
 	if err != nil {
 		return err
@@ -782,7 +782,7 @@ func createImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 // createImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret
 // name, and pvc. A nil secret means the endpoint credentials are not passed to the
 // importer pod.
-func createImporterPod(log logr.Logger, client client.Client, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, vddkImageName *string) (*corev1.Pod, error) {
+func createImporterPod(log logr.Logger, client client.Client, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, vddkImageName *string, priorityClassName string) (*corev1.Pod, error) {
 	podResourceRequirements, err := GetDefaultPodResourceRequirements(client)
 	if err != nil {
 		return nil, err
@@ -793,7 +793,7 @@ func createImporterPod(log logr.Logger, client client.Client, image, verbose, pu
 		return nil, err
 	}
 
-	pod := makeImporterPodSpec(pvc.Namespace, image, verbose, pullPolicy, podEnvVar, pvc, scratchPvcName, podResourceRequirements, workloadNodePlacement, vddkImageName)
+	pod := makeImporterPodSpec(pvc.Namespace, image, verbose, pullPolicy, podEnvVar, pvc, scratchPvcName, podResourceRequirements, workloadNodePlacement, vddkImageName, priorityClassName)
 
 	if err := client.Create(context.TODO(), pod); err != nil {
 		return nil, err
@@ -803,7 +803,7 @@ func createImporterPod(log logr.Logger, client client.Client, image, verbose, pu
 }
 
 // makeImporterPodSpec creates and return the importer pod spec based on the passed-in endpoint, secret and pvc.
-func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, podResourceRequirements *corev1.ResourceRequirements, workloadNodePlacement *sdkapi.NodePlacement, vddkImageName *string) *corev1.Pod {
+func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, podResourceRequirements *corev1.ResourceRequirements, workloadNodePlacement *sdkapi.NodePlacement, vddkImageName *string, priorityClassName string) *corev1.Pod {
 	// importer pod name contains the pvc name
 	podName, _ := pvc.Annotations[AnnImportPod]
 
@@ -877,11 +877,12 @@ func makeImporterPodSpec(namespace, image, verbose, pullPolicy string, podEnvVar
 					},
 				},
 			},
-			RestartPolicy: corev1.RestartPolicyOnFailure,
-			Volumes:       volumes,
-			NodeSelector:  workloadNodePlacement.NodeSelector,
-			Tolerations:   workloadNodePlacement.Tolerations,
-			Affinity:      workloadNodePlacement.Affinity,
+			RestartPolicy:     corev1.RestartPolicyOnFailure,
+			Volumes:           volumes,
+			NodeSelector:      workloadNodePlacement.NodeSelector,
+			Tolerations:       workloadNodePlacement.Tolerations,
+			Affinity:          workloadNodePlacement.Affinity,
+			PriorityClassName: priorityClassName,
 		},
 	}
 

@@ -1219,7 +1219,9 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 	} else {
 		return nil, errors.Errorf("no source set for datavolume")
 	}
-
+	if dataVolume.Spec.PriorityClassName != "" {
+		annotations[AnnPriorityClassName] = dataVolume.Spec.PriorityClassName
+	}
 	annotations[AnnPreallocationRequested] = strconv.FormatBool(GetPreallocation(r.client, dataVolume))
 
 	return &corev1.PersistentVolumeClaim{

@@ -320,7 +320,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.ObjectTransferList":       schema_pkg_apis_core_v1beta1_ObjectTransferList(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.ObjectTransferSpec":       schema_pkg_apis_core_v1beta1_ObjectTransferSpec(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.ObjectTransferStatus":     schema_pkg_apis_core_v1beta1_ObjectTransferStatus(ref),
-		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.PodSpec":                  schema_pkg_apis_core_v1beta1_PodSpec(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.StorageProfile":           schema_pkg_apis_core_v1beta1_StorageProfile(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.StorageProfileList":       schema_pkg_apis_core_v1beta1_StorageProfileList(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.StorageProfileSpec":       schema_pkg_apis_core_v1beta1_StorageProfileSpec(ref),
@@ -14470,10 +14469,11 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref common.ReferenceCallback) c
 							Ref:         ref("k8s.io/api/core/v1.PersistentVolumeClaimSpec"),
 						},
 					},
-					"pod": {
+					"priorityClassName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Pod is the Pod specification for Importer or Uploader pod",
-							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.PodSpec"),
+							Description: "PriorityClassName for Importer, Cloner and Uploader pod",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"contentType": {
@@ -14515,7 +14515,7 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref common.ReferenceCallback) c
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.PersistentVolumeClaimSpec", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeCheckpoint", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSource", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.PodSpec"},
+			"k8s.io/api/core/v1.PersistentVolumeClaimSpec", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeCheckpoint", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSource"},
 	}
 }
 
@@ -14863,25 +14863,6 @@ func schema_pkg_apis_core_v1beta1_ObjectTransferStatus(ref common.ReferenceCallb
 		},
 		Dependencies: []string{
 			"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.ObjectTransferCondition"},
-	}
-}
-
-func schema_pkg_apis_core_v1beta1_PodSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "PodSpec represents Pod specification for importer/uploader pod",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"priorityClassName": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-				},
-			},
-		},
 	}
 }
 

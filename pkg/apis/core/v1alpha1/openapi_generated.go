@@ -314,7 +314,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.DataVolumeStatus":         schema_pkg_apis_core_v1alpha1_DataVolumeStatus(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.FilesystemOverhead":       schema_pkg_apis_core_v1alpha1_FilesystemOverhead(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.ImportProxy":              schema_pkg_apis_core_v1alpha1_ImportProxy(ref),
-		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.PodSpec":                  schema_pkg_apis_core_v1alpha1_PodSpec(ref),
 		"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api.NodePlacement":                 schema_controller_lifecycle_operator_sdk_pkg_sdk_api_NodePlacement(ref),
 	}
 }
@@ -14424,10 +14423,11 @@ func schema_pkg_apis_core_v1alpha1_DataVolumeSpec(ref common.ReferenceCallback) 
 							Ref:         ref("k8s.io/api/core/v1.PersistentVolumeClaimSpec"),
 						},
 					},
-					"pod": {
+					"priorityClassName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Pod is the Pod specification for Importer or Uploader pod",
-							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.PodSpec"),
+							Description: "PriorityClassName for Importer, Cloner and Uploader pod",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"contentType": {
@@ -14469,7 +14469,7 @@ func schema_pkg_apis_core_v1alpha1_DataVolumeSpec(ref common.ReferenceCallback) 
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.PersistentVolumeClaimSpec", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.DataVolumeCheckpoint", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.DataVolumeSource", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.PodSpec"},
+			"k8s.io/api/core/v1.PersistentVolumeClaimSpec", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.DataVolumeCheckpoint", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1.DataVolumeSource"},
 	}
 }
 
@@ -14588,25 +14588,6 @@ func schema_pkg_apis_core_v1alpha1_ImportProxy(ref common.ReferenceCallback) com
 							Description: "TrustedCAProxy is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle. The TrustedCAProxy field is consumed by the import controller that is resposible for coping it to a config map named trusted-ca-proxy-bundle-cm in the cdi namespace. Here is an example of the ConfigMap (in yaml):\n\napiVersion: v1 kind: ConfigMap metadata:\n  name: trusted-ca-proxy-bundle-cm\n  namespace: cdi\ndata:\n  ca.pem: |\n    -----BEGIN CERTIFICATE-----\n\t   ... <base64 encoded cert> ...\n\t   -----END CERTIFICATE-----",
 							Type:        []string{"string"},
 							Format:      "",
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_core_v1alpha1_PodSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "PodSpec represents Pod specification for importer/uploader pod",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"priorityClassName": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
 						},
 					},
 				},

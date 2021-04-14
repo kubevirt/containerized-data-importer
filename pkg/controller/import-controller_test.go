@@ -655,7 +655,7 @@ var _ = Describe("Create Importer Pod", func() {
 			filesystemOverhead: "0.055",
 			insecureTLS:        false,
 		}
-		pod, err := createImporterPod(reconciler.log, reconciler.client, testImage, "5", testPullPolicy, podEnvVar, pvc, scratchPvcName, nil)
+		pod, err := createImporterPod(reconciler.log, reconciler.client, testImage, "5", testPullPolicy, podEnvVar, pvc, scratchPvcName, nil, pvc.Annotations[AnnPriorityClassName])
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying PVC owns pod")
 		Expect(len(pod.GetOwnerReferences())).To(Equal(1))
@@ -685,11 +685,12 @@ var _ = Describe("Create Importer Pod", func() {
 		Expect(pod.Spec.Containers[0].Image).To(Equal(testImage))
 		Expect(pod.Spec.Containers[0].ImagePullPolicy).To(BeEquivalentTo(testPullPolicy))
 		Expect(pod.Spec.Containers[0].Args[0]).To(Equal("-v=5"))
+		Expect(pod.Spec.PriorityClassName).To(Equal(pvc.Annotations[AnnPriorityClassName]))
 	},
-		table.Entry("should create pod with file system volume mode", createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnImportPod: "podName"}, nil), nil),
-		table.Entry("should create pod with block volume mode", createBlockPvc("testBlockPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnImportPod: "podName"}, nil), nil),
-		table.Entry("should create pod with file system volume mode and scratchspace", createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnImportPod: "podName"}, nil), &scratchPvcName),
-		table.Entry("should create pod with block volume mode and scratchspace", createBlockPvc("testBlockPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnImportPod: "podName"}, nil), &scratchPvcName),
+		table.Entry("should create pod with file system volume mode", createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnImportPod: "podName", AnnPriorityClassName: "p0"}, nil), nil),
+		table.Entry("should create pod with block volume mode", createBlockPvc("testBlockPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnImportPod: "podName", AnnPriorityClassName: "p0"}, nil), nil),
+		table.Entry("should create pod with file system volume mode and scratchspace", createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnImportPod: "podName", AnnPriorityClassName: "p0"}, nil), &scratchPvcName),
+		table.Entry("should create pod with block volume mode and scratchspace", createBlockPvc("testBlockPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnPodPhase: string(corev1.PodPending), AnnImportPod: "podName", AnnPriorityClassName: "p0"}, nil), &scratchPvcName),
 	)
 })
 

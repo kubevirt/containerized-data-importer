@@ -61,6 +61,8 @@ const (
 	AnnPopulatedFor = AnnAPIGroup + "/storage.populatedFor"
 	// AnnPrePopulated is a PVC annotation telling the datavolume controller that the PVC is already populated
 	AnnPrePopulated = AnnAPIGroup + "/storage.prePopulated"
+	// AnnPriorityClassName is PVC annotation to indicate the priority class name for importer, cloner and uploader pod
+	AnnPriorityClassName = AnnAPIGroup + "/storage.pod.priorityclassname"
 
 	// AnnPreviousCheckpoint provides a const to indicate the previous snapshot for a multistage import
 	AnnPreviousCheckpoint = AnnAPIGroup + "/storage.checkpoint.previous"

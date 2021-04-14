@@ -27,7 +27,7 @@ if [ -n "$DOCKER_CA_CERT_FILE" ] ; then
 fi 
 
 PUSH_TARGETS=(${PUSH_TARGETS:-$CONTROLLER_IMAGE_NAME $IMPORTER_IMAGE_NAME $CLONER_IMAGE_NAME $APISERVER_IMAGE_NAME $UPLOADPROXY_IMAGE_NAME $UPLOADSERVER_IMAGE_NAME $OPERATOR_IMAGE_NAME})
-
+echo "HERE"
 echo "docker_prefix: $DOCKER_PREFIX, docker_tag: $DOCKER_TAG"
 for target in ${PUSH_TARGETS[@]}; do
     echo "Pushing: $target"
@@ -39,7 +39,7 @@ for target in ${PUSH_TARGETS[@]}; do
         --host_force_python=PY3 \
         //:push-${target}
 done
-
+echo "HERE1"
 bazel run \
     --verbose_failures \
     --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64_cgo \
@@ -47,3 +47,4 @@ bazel run \
     --define container_tag=${DOCKER_TAG} \
     --host_force_python=PY3 \
     //:push-test-images
+echo "HERE2"
