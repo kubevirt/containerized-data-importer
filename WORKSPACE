@@ -154,10 +154,7 @@ http_file(
 http_file(
     name = "capstone",
     sha256 = "1ee04e337c7ba1d8f3d17510b4b86d5a2090f31244a4d9cef3f6f5eb83ec93a9",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/c/capstone-4.0.2-3.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/1ee04e337c7ba1d8f3d17510b4b86d5a2090f31244a4d9cef3f6f5eb83ec93a9",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/1ee04e337c7ba1d8f3d17510b4b86d5a2090f31244a4d9cef3f6f5eb83ec93a9"],
 )
 
 http_file(
