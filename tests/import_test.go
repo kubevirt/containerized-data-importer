@@ -977,6 +977,10 @@ var _ = Describe("Preallocation", func() {
 		md5, err := f.GetMD5(f.Namespace, pvc, "/pvc/disk.img", md5PrefixSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.TinyCoreMD5))
+
+		ok, err := f.VerifyImagePreallocated(f.Namespace, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeTrue())
 	})
 
 	It("Importer should not add preallocation when preallocation=false", func() {
@@ -1005,6 +1009,11 @@ var _ = Describe("Preallocation", func() {
 		md5, err := f.GetMD5(f.Namespace, pvc, "/pvc/disk.img", md5PrefixSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.TinyCoreMD5))
+
+		By("Verify preallocated size")
+		ok, err := f.VerifyImagePreallocated(f.Namespace, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeFalse())
 	})
 
 	DescribeTable("All import paths should contain Preallocation step", func(shouldPreallocate bool, expectedMD5, path string, dvFunc func() *cdiv1.DataVolume) {
@@ -1044,6 +1053,13 @@ var _ = Describe("Preallocation", func() {
 			md5, err := f.GetMD5(f.Namespace, pvc, path, md5PrefixSize)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(md5).To(Equal(expectedMD5))
+
+			if !f.IsBlockVolumeStorageClassAvailable() {
+				// Block volumes can't be read with qemu-img
+				ok, err := f.VerifyImagePreallocated(f.Namespace, pvc)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ok).To(BeTrue())
+			}
 		} else {
 			Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Equal("true"))
 		}
@@ -1168,6 +1184,10 @@ var _ = Describe("Preallocation", func() {
 		md5, err := f.GetMD5(f.Namespace, pvc, "/pvc/disk.img", md5PrefixSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.BlankMD5))
+
+		ok, err := f.VerifyImagePreallocated(f.Namespace, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeTrue())
 	})
 })
 
