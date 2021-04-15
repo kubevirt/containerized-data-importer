@@ -92,16 +92,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	invalidQcowLargeMemoryURL := func() string {
 		return InvalidQcowImagesURL() + "invalid-qcow-large-memory.img"
 	}
-	// An image with a backing file - should be rejected when converted to raw
-	invalidQcowBackingFileURL := func() string {
-		return InvalidQcowImagesURL() + "invalid-qcow-backing-file.img"
-	}
 
 	errorInvalidQcowLargeMemory := func() string {
 		return `Unable to process data: qemu-img: Could not open 'json: {"file.driver": "http", "file.url": "` + invalidQcowLargeMemoryURL() + `", "file.timeout": 3600}': L1 size too big`
-	}
-	errorInvalidQcowBackingFile := func() string {
-		return `Unable to process data: qemu-img: Could not open 'json: {"file.driver": "http", "file.url": "` + invalidQcowBackingFileURL() + `", "file.timeout": 3600}': L1 size too big`
 	}
 
 	createRegistryImportDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
@@ -468,30 +461,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:    cdiv1.DataVolumeBound,
 					Status:  v1.ConditionTrue,
 					Message: "PVC dv-invalid-qcow-large-memory Bound",
-					Reason:  "Bound",
-				},
-				runningCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeRunning,
-					Status:  v1.ConditionFalse,
-					Message: "L1 size too big",
-					Reason:  "Error",
-				}}),
-			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2139]fail creating import dv: invalid qcow backing file", dataVolumeTestArguments{
-				name:             "dv-invalid-qcow-backing-file",
-				size:             "1Gi",
-				url:              invalidQcowBackingFileURL,
-				dvFunc:           utils.NewDataVolumeWithHTTPImport,
-				errorMessageFunc: errorInvalidQcowBackingFile,
-				eventReason:      "Error",
-				phase:            cdiv1.ImportInProgress,
-				readyCondition: &cdiv1.DataVolumeCondition{
-					Type:   cdiv1.DataVolumeReady,
-					Status: v1.ConditionFalse,
-				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-invalid-qcow-backing-file Bound",
 					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{

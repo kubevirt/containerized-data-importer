@@ -99,7 +99,6 @@ exports_files(
         "images/cirros-large-virtual-size.qcow2",
         "images/cirros-large-physical-size.raw.xz",
         "images/cirros-large-physical-size.qcow2",
-        "images/invalid_qcow_images/invalid-qcow-backing-file.img",
         "images/invalid_qcow_images/invalid-qcow-large-json.img",
         "images/invalid_qcow_images/invalid-qcow-large-memory.img",
         "images/invalid_qcow_images/invalid-qcow-large-size.img",
