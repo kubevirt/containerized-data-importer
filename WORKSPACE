@@ -367,10 +367,7 @@ http_file(
 http_file(
     name = "ncurses-lib",
     sha256 = "6aa5ec2a16eb602969378982f1d7983acb2fad63198042235224a9e3ebe27e06",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/n/ncurses-libs-6.2-3.20200222.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/6aa5ec2a16eb602969378982f1d7983acb2fad63198042235224a9e3ebe27e06",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/6aa5ec2a16eb602969378982f1d7983acb2fad63198042235224a9e3ebe27e06"],
 )
 
 http_file(
@@ -430,10 +427,7 @@ http_file(
 http_file(
     name = "nbdkit-vddk-plugin",
     sha256 = "cee8f05ab93a9e43aec0d97fcc47997e13d9c277b4c334e77ce5e0b68ac51efc",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/n/nbdkit-vddk-plugin-1.22.3-2.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/cee8f05ab93a9e43aec0d97fcc47997e13d9c277b4c334e77ce5e0b68ac51efc",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/cee8f05ab93a9e43aec0d97fcc47997e13d9c277b4c334e77ce5e0b68ac51efc"],
 )
 
 http_file(
@@ -460,10 +454,7 @@ http_file(
 http_file(
     name = "libxcrypt-compat",
     sha256 = "51d74854365a393393b4457e3d92ba103c08671b4c881a8a1d9fcb8a54a4a737",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/l/libxcrypt-compat-4.4.17-1.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/51d74854365a393393b4457e3d92ba103c08671b4c881a8a1d9fcb8a54a4a737",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/51d74854365a393393b4457e3d92ba103c08671b4c881a8a1d9fcb8a54a4a737"],
 )
 
 http_file(
@@ -481,10 +472,7 @@ http_file(
 http_file(
     name = "whois-nls",
     sha256 = "6b5c7c46f0a177bf9c8b89ae3eb251a5e7315424c326cc62871b004bcaed414d",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/w/whois-nls-5.5.7-1.fc33.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/6b5c7c46f0a177bf9c8b89ae3eb251a5e7315424c326cc62871b004bcaed414d",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/6b5c7c46f0a177bf9c8b89ae3eb251a5e7315424c326cc62871b004bcaed414d"],
 )
 
 http_file(
@@ -496,10 +484,7 @@ http_file(
 http_file(
     name = "libnbd",
     sha256 = "a63602bb9ebc13f31543332164c64e9c5342089e7431fa35b393f0692b6acb97",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/l/libnbd-1.4.1-2.fc33.1.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/a63602bb9ebc13f31543332164c64e9c5342089e7431fa35b393f0692b6acb97",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/a63602bb9ebc13f31543332164c64e9c5342089e7431fa35b393f0692b6acb97"],
 )
 
 http_file(
