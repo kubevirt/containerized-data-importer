@@ -57,6 +57,19 @@ const (
 	ImageioURL = "https://imageio.%s:12346/ovirt-engine/api"
 	// VcenterURL provides URL of vCenter/ESX simulator
 	VcenterURL = "https://vcenter.%s:8989/sdk"
+
+	// TinyCoreMD5 is the MD5 hash of first 100k bytes of tinyCore image
+	TinyCoreMD5 = "3710416a680523c7d07538cb1026c60c"
+	// TinyCoreTarMD5 is the MD5 hash of first 100k bytes of tinyCore tar image
+	TinyCoreTarMD5 = "aec1a39d753b4b7cc81ee02bc625a342"
+	// TinyCoreBlockMD5 is the MD5 hash of first 100k bytes of tinyCore image on block device
+	TinyCoreBlockMD5 = "d41d8cd98f00b204e9800998ecf8427e"
+	// ImageioMD5 is the MD5 hash of first 100k bytes of imageio image
+	ImageioMD5 = "91150be031835ccfac458744da57d4f6"
+	// VcenterMD5 is the MD5 hash of first 100k bytes of Vcenter image
+	VcenterMD5 = "91150be031835ccfac458744da57d4f6"
+	// BlankMD5 is the MD5 hash of first 100k bytes of blank image
+	BlankMD5 = "0019d23bef56a136a1891211d7007f6f"
 )
 
 // CreateDataVolumeFromDefinition is used by tests to create a testable Data Volume

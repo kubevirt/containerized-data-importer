@@ -174,7 +174,7 @@ var _ = Describe("Convert to Raw", func() {
 	})
 
 	It("should add preallocation if requested", func() {
-		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "none", "-p", "-O", "raw", "/somefile/somewhere", "dest", "-o", "preallocation=falloc"), func() {
+		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-o", "preallocation=falloc", "-t", "none", "-p", "-O", "raw", "/somefile/somewhere", "dest"), func() {
 			ep, err := url.Parse("/somefile/somewhere")
 			Expect(err).NotTo(HaveOccurred())
 			err = ConvertToRawStream(ep, "dest", true)
@@ -199,7 +199,7 @@ var _ = Describe("Resize", func() {
 		size := convertQuantityToQemuSize(quantity)
 		replaceExecFunction(mockExecFunction("", "", nil, "resize", "-f", "raw", "image", size), func() {
 			o := NewQEMUOperations()
-			err = o.Resize("image", quantity)
+			err = o.Resize("image", quantity, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -210,7 +210,7 @@ var _ = Describe("Resize", func() {
 		size := convertQuantityToQemuSize(quantity)
 		replaceExecFunction(mockExecFunction("", "exit 1", nil, "resize", "-f", "raw", "image", size), func() {
 			o := NewQEMUOperations()
-			err = o.Resize("image", quantity)
+			err = o.Resize("image", quantity, false)
 			Expect(err).To(HaveOccurred())
 			Expect(strings.Contains(err.Error(), "Error resizing image image")).To(BeTrue())
 		})

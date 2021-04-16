@@ -104,8 +104,7 @@ var _ = Describe("Transport Tests", func() {
 			case controller.SourceHTTP, controller.SourceRegistry:
 				if file != targetFile {
 					By("Verify content")
-					// Size: 18874368 // md5sum after conversion: d41d8cd98f00b204e9800998ecf8427e
-					same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", "d41d8cd98f00b204e9800998ecf8427e", 18874368)
+					same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", utils.TinyCoreBlockMD5, 18874368)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(same).To(BeTrue())
 				}
