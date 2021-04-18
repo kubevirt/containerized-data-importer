@@ -152,7 +152,6 @@ filegroup(
         "//tests:images/invalid_qcow_images/invalid-qcow-backing-file.img",
         "//tests:images/invalid_qcow_images/invalid-qcow-large-json.img",
         "//tests:images/invalid_qcow_images/invalid-qcow-large-memory.img",
-        "//tests:images/invalid_qcow_images/invalid-qcow-large-size.img",
     ],
     visibility = ["//visibility:public"],
 )
