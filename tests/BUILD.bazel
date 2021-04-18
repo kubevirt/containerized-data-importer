@@ -96,6 +96,5 @@ exports_files(
         "images/invalid_qcow_images/invalid-qcow-backing-file.img",
         "images/invalid_qcow_images/invalid-qcow-large-json.img",
         "images/invalid_qcow_images/invalid-qcow-large-memory.img",
-        "images/invalid_qcow_images/invalid-qcow-large-size.img",
     ],
 )
