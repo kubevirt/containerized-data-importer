@@ -143,8 +143,8 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", fu
 	f := framework.NewFramework(namespacePrefix)
 
 	// An image that fails import
-	invalidQcowLargeSize := func() string {
-		return fmt.Sprintf(utils.InvalidQcowImagesURL+"invalid-qcow-large-size.img", f.CdiInstallNs)
+	imageTooLargeSize := func() string {
+		return fmt.Sprintf(utils.LargeVirtualDiskXz, f.CdiInstallNs)
 	}
 
 	BeforeEach(func() {
@@ -187,7 +187,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", fu
 			return reflect.DeepEqual(cr.Spec, realCR.Spec)
 		}, 30*time.Second, time.Second)
 
-		dv := utils.NewDataVolumeWithHTTPImport("node-placement-test", "100Mi", invalidQcowLargeSize())
+		dv := utils.NewDataVolumeWithHTTPImport("node-placement-test", "100Mi", imageTooLargeSize())
 		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 
