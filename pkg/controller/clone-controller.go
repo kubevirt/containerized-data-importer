@@ -751,11 +751,9 @@ func ValidateCanCloneSourceAndTargetContentType(sourcePvc, targetPvc *corev1.Per
 
 // ValidateCanCloneSourceAndTargetSpec validates the specs passed in are compatible for cloning.
 func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *corev1.PersistentVolumeClaimSpec, contentType cdiv1.DataVolumeContentType) error {
-	sourceRequest := sourceSpec.Resources.Requests[corev1.ResourceStorage]
-	targetRequest := targetSpec.Resources.Requests[corev1.ResourceStorage]
-	// Verify that the target PVC size is equal or larger than the source.
-	if sourceRequest.Value() > targetRequest.Value() {
-		return errors.New("target resources requests storage size is smaller than the source")
+	err := ValidateCloneSize(sourceSpec.Resources, targetSpec.Resources)
+	if err != nil {
+		return err
 	}
 	// Allow different source and target volume modes only on KubeVirt content type
 	sourceVolumeMode := GetVolumeMode(sourceSpec.VolumeMode)
@@ -765,6 +763,17 @@ func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *corev1.Persiste
 			sourceVolumeMode, targetVolumeMode, contentType)
 	}
 	// Can clone.
+	return nil
+}
+
+// ValidateCloneSize validates the clone size requirements
+func ValidateCloneSize(sourceResources corev1.ResourceRequirements, targetResources corev1.ResourceRequirements) error {
+	sourceRequest := sourceResources.Requests[corev1.ResourceStorage]
+	targetRequest := targetResources.Requests[corev1.ResourceStorage]
+	// Verify that the target PVC size is equal or larger than the source.
+	if sourceRequest.Value() > targetRequest.Value() {
+		return errors.New("target resources requests storage size is smaller than the source")
+	}
 	return nil
 }
 
