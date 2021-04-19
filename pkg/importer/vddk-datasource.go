@@ -154,11 +154,9 @@ func (watcher NbdKitLogWatcherVddk) watchNbdLog() {
 	// Fetch ESX host from "Opened 'vpxa-nfcssl://[iSCSI_Datastore] test/test.vmdk@esx12.test.local:902' (0xa): custom, 50331648 sectors / 24 GB."
 	hostMatch := regexp.MustCompile(`Opened '.*@(?P<host>.*):.*' \(0x`)
 
-	for {
-		line, err := watcher.output.ReadString('\n')
-		if err != nil {
-			break
-		}
+	scanner := bufio.NewScanner(watcher.output)
+	for scanner.Scan() {
+		line := scanner.Text()
 
 		if strings.HasPrefix(line, "nbdkit: debug: VMware VixDiskLib") {
 			matches := versionMatch.FindAllStringSubmatch(line, -1)
@@ -182,6 +180,10 @@ func (watcher NbdKitLogWatcherVddk) watchNbdLog() {
 
 		logRing.Value = line
 		logRing = logRing.Next()
+	}
+
+	if err := scanner.Err(); err != nil {
+		klog.Errorf("Error watching nbdkit log: %v", err)
 	}
 
 	klog.Infof("Stopped watching nbdkit log. Last lines follow:")
