@@ -68,6 +68,7 @@ func main() {
 	finalCheckpoint, _ := util.ParseEnvVar(common.ImporterFinalCheckpoint, false)
 	preallocation, err := strconv.ParseBool(os.Getenv(common.Preallocation))
 	var preallocationApplied bool
+	var dp importer.DataSourceInterface
 
 	//Registry import currently support kubevirt content type only
 	if contentType != string(cdiv1.DataVolumeKubeVirt) && (source == controller.SourceRegistry || source == controller.SourceImageio) {
@@ -132,7 +133,6 @@ func main() {
 		os.Exit(1)
 	} else {
 		klog.V(1).Infoln("begin import process")
-		var dp importer.DataSourceInterface
 		switch source {
 		case controller.SourceHTTP:
 			dp, err = importer.NewHTTPDataSource(ep, acc, sec, certDir, cdiv1.DataVolumeContentType(contentType))
@@ -190,12 +190,14 @@ func main() {
 		if err != nil {
 			klog.Errorf("%+v", err)
 			if err == importer.ErrRequiresScratchSpace {
+				dp.Close()
 				os.Exit(common.ScratchSpaceNeededExitCode)
 			}
 			err = util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %+v", err))
 			if err != nil {
 				klog.Errorf("%+v", err)
 			}
+			dp.Close()
 			os.Exit(1)
 		}
 		preallocationApplied = processor.PreallocationApplied()
@@ -207,6 +209,9 @@ func main() {
 	err = util.WriteTerminationMessage(message)
 	if err != nil {
 		klog.Errorf("%+v", err)
+		if dp != nil {
+			dp.Close()
+		}
 		os.Exit(1)
 	}
 	klog.V(1).Infoln(message)

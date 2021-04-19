@@ -149,6 +149,12 @@ func (is *ImageioDataSource) Close() error {
 		if itID, ok := is.imageTransfer.Id(); ok {
 			transfersService := is.connection.SystemService().ImageTransfersService()
 			_, err = transfersService.ImageTransferService(itID).Finalize().Send()
+			if err != nil {
+				_, cancelErr := transfersService.ImageTransferService(itID).Cancel().Send()
+				if cancelErr != nil {
+					klog.Errorf("Unable to finalize or cancel transfer! Disk may remain locked until inactivity timeout.\n%v\n%v", err, cancelErr)
+				}
+			}
 		}
 	}
 	if is.connection != nil {
@@ -241,7 +247,9 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 func cancelTransfer(conn ConnectionInterface, it *ovirtsdk4.ImageTransfer) error {
 	var err error
 	if conn != nil && it != nil {
-		_, err = conn.SystemService().ImageTransfersService().ImageTransferService(it.MustId()).Cancel().Send()
+		if itID, ok := it.Id(); ok {
+			_, err = conn.SystemService().ImageTransfersService().ImageTransferService(itID).Cancel().Send()
+		}
 	}
 	return err
 }

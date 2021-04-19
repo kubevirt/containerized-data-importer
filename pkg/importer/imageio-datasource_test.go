@@ -225,11 +225,17 @@ var _ = Describe("Imageio pollprogress", func() {
 })
 
 var _ = Describe("Imageio cancel", func() {
-	It("should cancel transfer on SIGTERM", func() {
+	var (
+		ts      *httptest.Server
+		tempDir string
+		err     error
+	)
+
+	BeforeEach(func() {
 		newOvirtClientFunc = createMockOvirtClient
 		newTerminationChannel = createMockTerminationChannel
-		tempDir := createCert()
-		ts := createTestServer(imageDir)
+		tempDir = createCert()
+		ts = createTestServer(imageDir)
 		disk.SetTotalSize(1024)
 		disk.SetId("123")
 		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)
@@ -237,11 +243,37 @@ var _ = Describe("Imageio cancel", func() {
 		it.SetId("123")
 		diskAvailable = true
 		diskCreateError = nil
+	})
 
-		_, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
+	AfterEach(func() {
+		newOvirtClientFunc = getOvirtClient
+		if tempDir != "" {
+			os.RemoveAll(tempDir)
+		}
+		ts.Close()
+	})
+
+	It("should cancel transfer on SIGTERM", func() {
+		_, err = NewImageioDataSource(ts.URL, "", "", tempDir, "")
 		Expect(err).ToNot(HaveOccurred())
 		mockTerminationChannel <- os.Interrupt
 		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("should cancel transfer when finalize fails", func() {
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
+		Expect(err).ToNot(HaveOccurred())
+		cancelled := false
+		mockFinalizeHook = func() error {
+			return errors.New("Failing finalize")
+		}
+		mockCancelHook = func() error {
+			cancelled = true
+			return nil
+		}
+		err = dp.Close()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cancelled).To(Equal(true))
 	})
 })
 
@@ -306,6 +338,9 @@ func (conn *MockOvirtClient) ImageTransferService(string) ImageTransferServiceIn
 }
 
 func (conn *MockOvirtClient) Cancel() ImageTransferServiceCancelRequestInterface {
+	if mockCancelHook != nil {
+		mockCancelHook()
+	}
 	return &MockCancelService{
 		client: conn,
 	}
@@ -331,11 +366,19 @@ func (conn *MockAddService) Send() (ImageTransfersServiceAddResponseInterface, e
 }
 
 func (conn *MockCancelService) Send() (ImageTransferServiceCancelResponseInterface, error) {
-	return &MockImageTransferServiceCancelResponse{srv: nil}, nil
+	var err error
+	if mockCancelHook != nil {
+		err = mockCancelHook()
+	}
+	return &MockImageTransferServiceCancelResponse{srv: nil}, err
 }
 
 func (conn *MockFinalizeService) Send() (ImageTransferServiceFinalizeResponseInterface, error) {
-	return &MockImageTransferServiceFinalizeResponse{srv: nil}, nil
+	var err error
+	if mockFinalizeHook != nil {
+		err = mockFinalizeHook()
+	}
+	return &MockImageTransferServiceFinalizeResponse{srv: nil}, err
 }
 
 func (conn *MockImageTransfersServiceAddResponse) ImageTransfer() (*ovirtsdk4.ImageTransfer, bool) {
@@ -349,6 +392,9 @@ func (conn *MockOvirtClient) SystemService() SystemServiceInteface {
 func (conn *MockOvirtClient) Close() error {
 	return nil
 }
+
+var mockCancelHook func() error
+var mockFinalizeHook func() error
 
 func failMockOvirtClient(ep string, accessKey string, secKey string) (ConnectionInterface, error) {
 	return nil, errors.New("Failed to create client")
