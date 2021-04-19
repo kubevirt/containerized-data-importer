@@ -309,7 +309,9 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 		if pvc.DeletionTimestamp != nil {
 			log.V(1).Info("PVC being terminated, delete pods", "pod.Name", pod.Name)
 			if getSource(pvc) == SourceVDDK {
-				r.saveVddkAnnotations(pvc, pod, log)
+				if err := r.saveVddkAnnotations(pvc, pod, log); err != nil {
+					return reconcile.Result{}, err
+				}
 			}
 			if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
 				return reconcile.Result{}, err
@@ -428,7 +430,9 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			log.V(1).Info("Completed successfully, deleting POD", "pod.Name", pod.Name)
 		}
 		if getSource(pvc) == SourceVDDK {
-			r.saveVddkAnnotations(pvc, pod, log)
+			if err := r.saveVddkAnnotations(pvc, pod, log); err != nil {
+				return err
+			}
 		}
 		if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
 			return err
@@ -437,7 +441,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	return nil
 }
 
-func (r *ImportReconciler) saveVddkAnnotations(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, log logr.Logger) {
+func (r *ImportReconciler) saveVddkAnnotations(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, log logr.Logger) error {
 	terminationMessage := pod.Status.ContainerStatuses[0].State.Terminated.Message
 	log.V(1).Info("Saving VDDK annotations from pod status message: ", "message", terminationMessage)
 
@@ -459,8 +463,10 @@ func (r *ImportReconciler) saveVddkAnnotations(pvc *corev1.PersistentVolumeClaim
 		if vddkInfo.Version != "" {
 			pvc.Annotations[AnnVddkVersion] = vddkInfo.Version
 		}
-		r.updatePVC(pvc, log)
+		return r.updatePVC(pvc, log)
 	}
+
+	return nil
 }
 
 func (r *ImportReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
