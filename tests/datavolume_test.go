@@ -78,11 +78,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	vcenterURL := func() string {
 		return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
 	}
-
-	// An image that causes qemu-img info to output half a million lines of JSON
-	invalidQcowLargeJSONURL := func() string {
-		return InvalidQcowImagesURL() + "invalid-qcow-large-json.img"
-	}
 	// An image that causes qemu-img info to allocate large amounts of RAM
 	invalidQcowLargeMemoryURL := func() string {
 		return InvalidQcowImagesURL() + "invalid-qcow-large-memory.img"
@@ -389,30 +384,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
 					Message: "Unable to connect to http data source: expected status code 200, got 404. Status: 404 Not Found",
-					Reason:  "Error",
-				}}),
-			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2554]fail creating import dv: invalid qcow large json", dataVolumeTestArguments{
-				name:         "dv-invalid-qcow-large-json",
-				size:         "1Gi",
-				url:          invalidQcowLargeJSONURL,
-				dvFunc:       utils.NewDataVolumeWithHTTPImport,
-				errorMessage: "Unable to process data: qemu-img: curl: The requested URL returned error: 416 Requested Range Not Satisfiable",
-				eventReason:  "Error",
-				phase:        cdiv1.ImportInProgress,
-				readyCondition: &cdiv1.DataVolumeCondition{
-					Type:   cdiv1.DataVolumeReady,
-					Status: v1.ConditionFalse,
-				},
-				boundCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC dv-invalid-qcow-large-json Bound",
-					Reason:  "Bound",
-				},
-				runningCondition: &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeRunning,
-					Status:  v1.ConditionFalse,
-					Message: "Unable to process data: qemu-img: curl: The requested URL returned error: 416 Requested Range Not Satisfiable",
 					Reason:  "Error",
 				}}),
 			table.Entry("[rfe_id:1120][crit:high][posneg:negative][test_id:2253]fail creating import dv: invalid qcow large memory", dataVolumeTestArguments{

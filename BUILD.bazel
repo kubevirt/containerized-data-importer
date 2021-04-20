@@ -149,7 +149,6 @@ filegroup(
 filegroup(
     name = "test-invalid-images",
     srcs = [
-        "//tests:images/invalid_qcow_images/invalid-qcow-large-json.img",
         "//tests:images/invalid_qcow_images/invalid-qcow-large-memory.img",
     ],
     visibility = ["//visibility:public"],
