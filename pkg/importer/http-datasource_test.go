@@ -106,7 +106,7 @@ var _ = Describe("Http data source", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(expectedPhase).To(Equal(newPhase))
 			if newPhase == ProcessingPhaseConvert {
-				expectURL, err := url.Parse(image)
+				expectURL, err := url.Parse("nbd:unix:/var/run/nbdkit.sock")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(expectURL).To(Equal(dp.GetURL()))
 			}

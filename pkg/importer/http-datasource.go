@@ -116,23 +116,11 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 	var err error
 	hs.readers, err = NewFormatReaders(hs.httpReader, hs.contentLength)
-	if hs.contentType == cdiv1.DataVolumeArchive {
-		return ProcessingPhaseTransferDataDir, nil
-	}
 	if err != nil {
 		klog.Errorf("Error creating readers: %v", err)
 		return ProcessingPhaseError, err
 	}
-	if hs.brokenForQemuImg {
-		return ProcessingPhaseTransferScratch, nil
-	}
-	hs.url = hs.endpoint
-	if !hs.readers.Archived && hs.customCA == "" && hs.readers.Convert {
-		// We can pass straight to conversion from the endpoint
-		return ProcessingPhaseConvert, nil
-	}
 	hs.url, _ = url.Parse(fmt.Sprintf("nbd:unix:%s", nbdkitSocket))
-
 	if hs.readers.ArchiveGz {
 		hs.n.AddFilter(image.NbdkitGzipFilter)
 		klog.V(2).Infof("Added nbdkit gzip filter")
@@ -141,9 +129,18 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 		hs.n.AddFilter(image.NbdkitXzFilter)
 		klog.V(2).Infof("Added nbdkit xz filter")
 	}
-
-	if err := hs.n.StartNbdkit(hs.endpoint.String()); err != nil {
+	if err = hs.n.StartNbdkit(hs.endpoint.String()); err != nil {
 		return ProcessingPhaseError, err
+	}
+	if hs.contentType == cdiv1.DataVolumeArchive {
+		return ProcessingPhaseTransferDataDir, nil
+	}
+	if hs.brokenForQemuImg {
+		return ProcessingPhaseTransferScratch, nil
+	}
+	if !hs.readers.Archived && hs.customCA == "" && hs.readers.Convert {
+		// We can pass straight to conversion from the endpoint
+		return ProcessingPhaseConvert, nil
 	}
 	return ProcessingPhaseConvert, nil
 }
