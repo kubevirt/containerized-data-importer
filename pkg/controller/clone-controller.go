@@ -522,7 +522,6 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 
 	var ownerID string
 	cloneSourcePodName, _ := targetPvc.Annotations[AnnCloneSourcePod]
-	priorityClassName, _ := targetPvc.Annotations[AnnPriorityClassName]
 	url := GetUploadServerURL(targetPvc.Namespace, targetPvc.Name, common.UploadPathSync)
 	pvcOwner := metav1.GetControllerOf(targetPvc)
 	if pvcOwner != nil && pvcOwner.Kind == "DataVolume" {
@@ -610,7 +609,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 			NodeSelector:      workloadNodePlacement.NodeSelector,
 			Tolerations:       workloadNodePlacement.Tolerations,
 			Affinity:          workloadNodePlacement.Affinity,
-			PriorityClassName: priorityClassName,
+			PriorityClassName: getPriorityClass(targetPvc),
 		},
 	}
 

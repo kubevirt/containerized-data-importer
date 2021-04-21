@@ -753,3 +753,8 @@ func GetImportProxyConfig(config *cdiv1.CDIConfig, field string) (string, error)
 	// If everything fails, return blank
 	return "", nil
 }
+
+func getPriorityClass(pvc *v1.PersistentVolumeClaim) string {
+	anno := pvc.GetAnnotations()
+	return anno[AnnPriorityClassName]
+}

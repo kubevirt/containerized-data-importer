@@ -664,7 +664,6 @@ func createUploadServiceNameFromPvcName(pvc string) string {
 func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequirements *v1.ResourceRequirements, workloadNodePlacement *sdkapi.NodePlacement) *v1.Pod {
 	requestImageSize, _ := getRequestedImageSize(args.PVC)
 	serviceName := naming.GetServiceNameFromResourceName(args.Name)
-	priorityClassName, _ := args.PVC.Annotations[AnnPriorityClassName]
 	fsGroup := common.QemuSubGid
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -753,7 +752,7 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			NodeSelector:      workloadNodePlacement.NodeSelector,
 			Tolerations:       workloadNodePlacement.Tolerations,
 			Affinity:          workloadNodePlacement.Affinity,
-			PriorityClassName: priorityClassName,
+			PriorityClassName: getPriorityClass(args.PVC),
 		},
 	}
 

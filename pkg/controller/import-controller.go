@@ -471,9 +471,8 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 	if err != nil {
 		return err
 	}
-	anno := pvc.GetAnnotations()
 	// all checks passed, let's create the importer pod!
-	pod, err := createImporterPod(r.log, r.client, r.image, r.verbose, r.pullPolicy, podEnvVar, pvc, scratchPvcName, vddkImageName, anno[AnnPriorityClassName])
+	pod, err := createImporterPod(r.log, r.client, r.image, r.verbose, r.pullPolicy, podEnvVar, pvc, scratchPvcName, vddkImageName, getPriorityClass(pvc))
 
 	if err != nil {
 		return err
