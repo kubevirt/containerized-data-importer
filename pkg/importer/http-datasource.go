@@ -120,7 +120,7 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 		klog.Errorf("Error creating readers: %v", err)
 		return ProcessingPhaseError, err
 	}
-	hs.url, _ = url.Parse(fmt.Sprintf("nbd:unix:%s", nbdkitSocket))
+	hs.url, _ = url.Parse(fmt.Sprintf("nbd+unix:///?socket=%s", nbdkitSocket))
 	if hs.readers.ArchiveGz {
 		hs.n.AddFilter(image.NbdkitGzipFilter)
 		klog.V(2).Infof("Added nbdkit gzip filter")

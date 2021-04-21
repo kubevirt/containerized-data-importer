@@ -128,7 +128,7 @@ func convertToRaw(src, dest string, preallocate bool) error {
 }
 
 func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string, preallocate bool) error {
-	if len(url.Scheme) == 0 || url.Scheme == "nbd" {
+	if len(url.Scheme) == 0 || url.Scheme == "nbd+unix" {
 		// File, instead of URL
 		return convertToRaw(url.String(), dest, preallocate)
 	}
@@ -206,7 +206,7 @@ func (o *qemuOperations) Info(url *url.URL) (*ImgInfo, error) {
 	var source string
 
 	switch {
-	case url.Scheme == "nbd":
+	case url.Scheme == "nbd+unix":
 		source = url.String()
 	case len(url.Scheme) > 0:
 		// Image is a URL, make sure the timeout is long enough.
