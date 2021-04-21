@@ -90,6 +90,7 @@ func CreateCertConfigMapWeirdFilename(client kubernetes.Interface, destNamespace
 
 	for _, value := range srcCm.Data {
 		certBytes = value
+		break
 	}
 	destName := srcName + "-" + strings.ToLower(util.RandAlphaNum(8))
 	dst := &v1.ConfigMap{
