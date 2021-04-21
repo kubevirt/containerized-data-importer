@@ -304,5 +304,14 @@ func CreateConfigPropertiesSchema() map[string]extv1.JSONSchemaProps {
 			Description: "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
 			Type:        "boolean",
 		},
+		"insecureRegistries": {
+			Description: "InsecureRegistries is a list of TLS disabled registries",
+			Items: &extv1.JSONSchemaPropsOrArray{
+				Schema: &extv1.JSONSchemaProps{
+					Type: "string",
+				},
+			},
+			Type: "array",
+		},
 	}
 }
