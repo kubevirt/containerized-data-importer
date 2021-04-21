@@ -509,7 +509,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		if err != nil {
 			return nil, err
 		}
-		podEnvVar.insecureTLS, err = r.isInsecureTLS(pvc)
+		podEnvVar.insecureTLS, err = r.isInsecureTLS(pvc, cdiConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -558,9 +558,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 	return podEnvVar, nil
 }
 
-func (r *ImportReconciler) isInsecureTLS(pvc *corev1.PersistentVolumeClaim) (bool, error) {
-	var configMapName string
-
+func (r *ImportReconciler) isInsecureTLS(pvc *corev1.PersistentVolumeClaim, cdiConfig *cdiv1.CDIConfig) (bool, error) {
 	value, ok := pvc.Annotations[AnnEndpoint]
 	if !ok || value == "" {
 		return false, nil
@@ -571,13 +569,19 @@ func (r *ImportReconciler) isInsecureTLS(pvc *corev1.PersistentVolumeClaim) (boo
 		return false, err
 	}
 
-	switch url.Scheme {
-	case "docker":
-		configMapName = common.InsecureRegistryConfigMap
-	default:
+	if url.Scheme != "docker" {
 		return false, nil
 	}
 
+	for _, value := range cdiConfig.Spec.InsecureRegistries {
+		r.log.V(1).Info("Checking host against value", "host", url.Host, "value", value)
+		if value == url.Host {
+			return true, nil
+		}
+	}
+
+	// ConfigMap is obsoleted and supported only for upgrade. It won't be refered anymore by future releases.
+	configMapName := common.InsecureRegistryConfigMap
 	r.log.V(1).Info("Checking configmap for host", "configMapName", configMapName, "host URL", url.Host)
 
 	cm := &corev1.ConfigMap{}
@@ -589,9 +593,8 @@ func (r *ImportReconciler) isInsecureTLS(pvc *corev1.PersistentVolumeClaim) (boo
 		return false, err
 	}
 
-	for key, value := range cm.Data {
-		r.log.V(1).Info("Checking host against key, value pair", "host", url.Host, "Key", key, "Value", value)
-
+	for _, value := range cm.Data {
+		r.log.V(1).Info("Checking host against value", "host", url.Host, "value", value)
 		if value == url.Host {
 			return true, nil
 		}

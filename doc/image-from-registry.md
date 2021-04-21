@@ -121,9 +121,8 @@ spec:
 
 To disable TLS security for a registry:
 
-Add the registry to the `cdi-insecure-registries` `ConfigMap` in the `cdi` namespace.
+Add the registry to CDIConfig insecureRegistries in the `cdi` namespace.
 
 ```bash
-kubectl patch configmap cdi-insecure-registries -n cdi \
-  --type merge -p '{"data":{"mykey": "my-private-registry-host:5000"}}'
+kubectl patch cdi cdi --patch '{"spec": {"config": {"insecureRegistries": ["my-private-registry-host:5000"]}}}' --type merge
 ```

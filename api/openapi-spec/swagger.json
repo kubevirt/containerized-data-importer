@@ -3446,6 +3446,13 @@
       "description": "ImportProxy contains importer pod proxy configuration.",
       "$ref": "#/definitions/v1beta1.ImportProxy"
      },
+     "insecureRegistries": {
+      "description": "InsecureRegistries is a list of TLS disabled registries",
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
      "podResourceRequirements": {
       "description": "ResourceRequirements describes the compute resource requirements.",
       "$ref": "#/definitions/v1.ResourceRequirements"
