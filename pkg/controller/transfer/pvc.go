@@ -13,6 +13,12 @@ import (
 	cdicontroller "kubevirt.io/containerized-data-importer/pkg/controller"
 )
 
+const (
+	pvcCloneFinalizer = "provisioner.storage.kubernetes.io/cloning-protection"
+
+	pvcSnapshotFinalizer = "snapshot.storage.kubernetes.io/pvc-as-source-protection"
+)
+
 type pvcTransferHandler struct {
 	objectTransferHandler
 }
@@ -41,6 +47,31 @@ func (h *pvcTransferHandler) ReconcilePending(ot *cdiv1.ObjectTransfer) (time.Du
 		return 0, nil
 	}
 
+	for _, f := range []string{pvcCloneFinalizer, pvcSnapshotFinalizer} {
+		if cdicontroller.HasFinalizer(pvc, f) {
+			if err := h.reconciler.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "PVC has finalizer: "+f, ""); err != nil {
+				return 0, err
+			}
+
+			return 0, nil
+		}
+	}
+
+	pv := &corev1.PersistentVolume{}
+	if err := h.reconciler.Client.Get(context.TODO(), types.NamespacedName{Name: pvc.Spec.VolumeName}, pv); err != nil {
+		return 0, h.reconciler.setCompleteConditionError(ot, err)
+	}
+
+	if pv.Spec.ClaimRef == nil ||
+		pv.Spec.ClaimRef.Namespace != pvc.Namespace ||
+		pv.Spec.ClaimRef.Name != pvc.Name {
+		if err := h.reconciler.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "PV not bound", ""); err != nil {
+			return 0, err
+		}
+
+		return 0, nil
+	}
+
 	pods, err := cdicontroller.GetPodsUsingPVCs(h.reconciler.Client, pvc.Namespace, sets.NewString(pvc.Name), false)
 	if err != nil {
 		return 0, h.reconciler.setCompleteConditionError(ot, err)
@@ -57,7 +88,7 @@ func (h *pvcTransferHandler) ReconcilePending(ot *cdiv1.ObjectTransfer) (time.Du
 	pvc2 := pvc.DeepCopy()
 	pvc2.Status = corev1.PersistentVolumeClaimStatus{}
 	data := map[string]string{
-		"pvName": pvc.Spec.VolumeName,
+		"pvName": pv.Name,
 	}
 
 	return 0, h.reconciler.pendingHelper(ot, pvc2, data)
@@ -94,12 +125,6 @@ func (h *pvcTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (time.Du
 		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}
 
-	target := &corev1.PersistentVolumeClaim{}
-	targetExists, err := h.reconciler.getTargetResource(ot, target)
-	if err != nil {
-		return 0, h.reconciler.setCompleteConditionError(ot, err)
-	}
-
 	if sourceExists {
 		if pv.Spec.PersistentVolumeReclaimPolicy != corev1.PersistentVolumeReclaimRetain {
 			pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
@@ -119,20 +144,28 @@ func (h *pvcTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (time.Du
 		return 0, h.reconciler.setCompleteConditionRunning(ot)
 	}
 
-	if !targetExists {
-		if pv.Spec.ClaimRef != nil {
-			pv.Spec.ClaimRef = nil
-			if err := h.reconciler.updateResource(ot, pv); err != nil {
-				return 0, h.reconciler.setCompleteConditionError(ot, err)
-			}
-
-			return 0, h.reconciler.setCompleteConditionRunning(ot)
+	if pv.Spec.ClaimRef != nil &&
+		pv.Spec.ClaimRef.Namespace != getTransferTargetNamespace(ot) &&
+		pv.Spec.ClaimRef.Name != getTransferTargetName(ot) {
+		pv.Spec.ClaimRef = nil
+		if err := h.reconciler.updateResource(ot, pv); err != nil {
+			return 0, h.reconciler.setCompleteConditionError(ot, err)
 		}
+	}
 
+	target := &corev1.PersistentVolumeClaim{}
+	targetExists, err := h.reconciler.getTargetResource(ot, target)
+	if err != nil {
+		return 0, h.reconciler.setCompleteConditionError(ot, err)
+	}
+
+	if !targetExists {
 		target = &corev1.PersistentVolumeClaim{}
 		if err := h.reconciler.createObjectTransferTarget(ot, target, nil); err != nil {
 			return 0, h.reconciler.setCompleteConditionError(ot, err)
 		}
+
+		return 0, h.reconciler.setCompleteConditionRunning(ot)
 	}
 
 	if target.Status.Phase != corev1.ClaimBound {

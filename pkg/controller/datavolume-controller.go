@@ -18,10 +18,10 @@ package controller
 
 import (
 	"context"
+	"crypto/rsa"
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -29,7 +29,7 @@ import (
 	"strings"
 	"time"
 
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
@@ -45,6 +45,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -56,9 +57,9 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/token"
 )
-
-const controllerAgentName = "datavolume-controller"
 
 const (
 	// SuccessSynced provides a const to represent a Synced status
@@ -149,6 +150,16 @@ const (
 	MessageUploadFailed = "Upload into %s failed"
 	// MessageUploadSucceeded provides a const to form upload has succeeded message
 	MessageUploadSucceeded = "Successfully uploaded into %s"
+
+	annOwnedByDataVolume = "cdi.kubevirt.io/ownedByDataVolume"
+
+	annOwnerUID = "cdi.kubevirt.io/ownerUID"
+
+	crossNamespaceFinalizer = "cdi.kubevirt.io/dataVolumeFinalizer"
+
+	annReadyForTransfer = "cdi.kubevirt.io/readyForTransfer"
+
+	annCloneType = "cdi.kubevirt.io/cloneType"
 )
 
 var httpClient *http.Client
@@ -162,12 +173,39 @@ type DataVolumeEvent struct {
 
 // DatavolumeReconciler members
 type DatavolumeReconciler struct {
-	client       client.Client
-	extClientSet extclientset.Interface
-	recorder     record.EventRecorder
-	scheme       *runtime.Scheme
-	log          logr.Logger
-	featureGates featuregates.FeatureGates
+	client         client.Client
+	extClientSet   extclientset.Interface
+	recorder       record.EventRecorder
+	scheme         *runtime.Scheme
+	log            logr.Logger
+	featureGates   featuregates.FeatureGates
+	image          string
+	pullPolicy     string
+	tokenValidator token.Validator
+}
+
+func hasAnnOwnedByDataVolume(obj metav1.Object) bool {
+	_, ok := obj.GetAnnotations()[annOwnedByDataVolume]
+	return ok
+}
+
+func getAnnOwnedByDataVolume(obj metav1.Object) (string, string, error) {
+	val := obj.GetAnnotations()[annOwnedByDataVolume]
+	return cache.SplitMetaNamespaceKey(val)
+}
+
+func setAnnOwnedByDataVolume(dest, obj metav1.Object) error {
+	key, err := cache.MetaNamespaceKeyFunc(obj)
+	if err != nil {
+		return err
+	}
+
+	if dest.GetAnnotations() == nil {
+		dest.SetAnnotations(make(map[string]string))
+	}
+	dest.GetAnnotations()[annOwnedByDataVolume] = key
+
+	return nil
 }
 
 func pvcIsPopulated(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) bool {
@@ -186,15 +224,24 @@ func GetDataVolumeClaimName(dv *cdiv1.DataVolume) string {
 }
 
 // NewDatavolumeController creates a new instance of the datavolume controller.
-func NewDatavolumeController(mgr manager.Manager, extClientSet extclientset.Interface, log logr.Logger) (controller.Controller, error) {
+func NewDatavolumeController(
+	mgr manager.Manager,
+	extClientSet extclientset.Interface,
+	log logr.Logger,
+	image, pullPolicy string,
+	apiServerKey *rsa.PublicKey,
+) (controller.Controller, error) {
 	client := mgr.GetClient()
 	reconciler := &DatavolumeReconciler{
-		client:       client,
-		scheme:       mgr.GetScheme(),
-		extClientSet: extClientSet,
-		log:          log.WithName("datavolume-controller"),
-		recorder:     mgr.GetEventRecorderFor("datavolume-controller"),
-		featureGates: featuregates.NewFeatureGates(client),
+		client:         client,
+		scheme:         mgr.GetScheme(),
+		extClientSet:   extClientSet,
+		log:            log.WithName("datavolume-controller"),
+		recorder:       mgr.GetEventRecorderFor("datavolume-controller"),
+		featureGates:   featuregates.NewFeatureGates(client),
+		image:          image,
+		pullPolicy:     pullPolicy,
+		tokenValidator: newCloneTokenValidator(apiServerKey),
 	}
 	datavolumeController, err := controller.New("datavolume-controller", mgr, controller.Options{
 		Reconciler: reconciler,
@@ -230,6 +277,29 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 	}); err != nil {
 		return err
 	}
+	for _, k := range []runtime.Object{&corev1.PersistentVolumeClaim{}, &corev1.Pod{}, &cdiv1.ObjectTransfer{}} {
+		if err := datavolumeController.Watch(&source.Kind{Type: k}, &handler.EnqueueRequestsFromMapFunc{
+			ToRequests: handler.ToRequestsFunc(func(mapObj handler.MapObject) []reconcile.Request {
+				if hasAnnOwnedByDataVolume(mapObj.Meta) {
+					namespace, name, err := getAnnOwnedByDataVolume(mapObj.Meta)
+					if err != nil {
+						return nil
+					}
+					return []reconcile.Request{
+						{
+							NamespacedName: types.NamespacedName{
+								Namespace: namespace,
+								Name:      name,
+							},
+						},
+					}
+				}
+				return nil
+			}),
+		}); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -247,8 +317,13 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 		return reconcile.Result{}, err
 	}
 
+	transferName := fmt.Sprintf("cdi-tmp-%s", datavolume.UID)
+
 	if datavolume.DeletionTimestamp != nil {
-		log.Info("Datavolume marked for deletion, skipping")
+		log.Info("Datavolume marked for deletion, cleaning up")
+		if err := r.cleanupTransfer(log, datavolume, transferName); err != nil {
+			return reconcile.Result{}, err
+		}
 		return reconcile.Result{}, nil
 	}
 
@@ -289,29 +364,108 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	if !pvcExists {
 
-		cloneStrategy, err := r.getCloneStrategy()
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-		snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
-		if err == nil && cloneStrategy == cdiv1.CloneStrategySnapshot {
-			r.log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class", "snapshotClassName", snapshotClassName)
-			if requeue, err := r.sourceInUse(datavolume); requeue || err != nil {
-				return reconcile.Result{Requeue: requeue}, err
-			}
-			if populated, err := r.isSourcePVCPopulated(datavolume); !populated || err != nil {
-				return reconcile.Result{Requeue: !populated}, err
-			}
-			newSnapshot := newSnapshot(datavolume, snapshotClassName)
-			if err := r.client.Create(context.TODO(), newSnapshot); err != nil {
-				if k8serrors.IsAlreadyExists(err) {
+	cloneStrategy, err := r.getCloneStrategy()
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	bindingMode, err := r.getStorageClassBindingMode(pvcSpec.StorageClassName)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
+	doSmartClone := err == nil &&
+		cloneStrategy == cdiv1.CloneStrategySnapshot &&
+		(!isCrossNamespaceClone(datavolume) || *bindingMode == storagev1.VolumeBindingImmediate)
+
+	if !pvcExists {
+		if doSmartClone {
+			pvcName := datavolume.Name
+			if isCrossNamespaceClone(datavolume) {
+				pvcName = transferName
+				initialized, err := r.initTransfer(datavolume, pvcName)
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+
+				// get get reconciled again v soon
+				if !initialized {
+					return reconcile.Result{},
+						r.updateSmartCloneStatusPhase(cdiv1.CloneScheduled, datavolume, nil)
+				}
+
+				tmpPVC := &corev1.PersistentVolumeClaim{}
+				nn := types.NamespacedName{Namespace: datavolume.Spec.Source.PVC.Namespace, Name: pvcName}
+				if err := r.client.Get(context.TODO(), nn, tmpPVC); err != nil {
+					if !k8serrors.IsNotFound(err) {
+						return reconcile.Result{}, err
+					}
+				} else if tmpPVC.Annotations[AnnCloneOf] == "true" {
+					done, err := r.expand(log, datavolume, tmpPVC)
+					if err != nil {
+						return reconcile.Result{}, err
+					}
+					if !done {
+						// XXX should maybe have expansion phase
+						return reconcile.Result{}, nil
+					}
+
+					// trigger transfer and next reconcile should have pvcExists == true
+					tmpPVC.Annotations[annReadyForTransfer] = "true"
+					tmpPVC.Annotations[AnnPopulatedFor] = datavolume.Name
+					if err := r.client.Update(context.TODO(), tmpPVC); err != nil {
+						return reconcile.Result{}, err
+					}
+
+					// XXX should maybe have transfer phase
+					return reconcile.Result{}, nil
+				} else {
 					return reconcile.Result{}, nil
 				}
+			}
+
+			r.log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class",
+				"snapshotClassName", snapshotClassName)
+
+			newSnapshot := newSnapshot(datavolume, pvcName, snapshotClassName)
+			if err := setAnnOwnedByDataVolume(newSnapshot, datavolume); err != nil {
 				return reconcile.Result{}, err
 			}
-			return reconcile.Result{}, r.updateSmartCloneStatusPhase(cdiv1.SnapshotForSmartCloneInProgress, datavolume)
+
+			nn, err := client.ObjectKeyFromObject(newSnapshot)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+
+			if err := r.client.Get(context.TODO(), nn, newSnapshot.DeepCopy()); err != nil {
+				if !k8serrors.IsNotFound(err) {
+					return reconcile.Result{}, err
+				}
+
+				inUse, err := r.sourceInUse(datavolume)
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+				populated, err := r.isSourcePVCPopulated(datavolume)
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+				if inUse || !populated {
+					return reconcile.Result{Requeue: true},
+						r.updateSmartCloneStatusPhase(cdiv1.CloneScheduled, datavolume, nil)
+				}
+
+				if err := r.client.Create(context.TODO(), newSnapshot); err != nil {
+					if !k8serrors.IsAlreadyExists(err) {
+						return reconcile.Result{}, err
+					}
+				}
+			}
+
+			return reconcile.Result{},
+				r.updateSmartCloneStatusPhase(cdiv1.SnapshotForSmartCloneInProgress, datavolume, nil)
 		}
 		log.Info("Creating PVC for datavolume")
 		newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec)
@@ -342,6 +496,35 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 				}
 			}
 		}
+	}
+
+	if doSmartClone {
+		if isCrossNamespaceClone(datavolume) && datavolume.Status.Phase == cdiv1.Succeeded {
+			if err := r.cleanupTransfer(log, datavolume, transferName); err != nil {
+				return reconcile.Result{}, err
+			}
+
+			// done, done
+			return reconcile.Result{}, nil
+		}
+
+		if pvc.Annotations[AnnCloneOf] != "true" {
+			// XXX hmmm
+			return reconcile.Result{}, nil
+		}
+
+		// expand for non-namespace case
+		done, err := r.expand(log, datavolume, pvc)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		if !done {
+			// XXX should maybe have expansion phase
+			return reconcile.Result{}, nil
+		}
+
+		// done
+		return reconcile.Result{}, r.updateSmartCloneStatusPhase(cdiv1.Succeeded, datavolume, pvc)
 	}
 
 	// Finally, we update the status block of the DataVolume resource to reflect the
@@ -524,6 +707,278 @@ func (r *DatavolumeReconciler) sourceInUse(dv *cdiv1.DataVolume) (bool, error) {
 	return len(pods) > 0, nil
 }
 
+func (r *DatavolumeReconciler) initTransfer(dv *cdiv1.DataVolume, name string) (bool, error) {
+	initialized := true
+
+	if !HasFinalizer(dv, crossNamespaceFinalizer) {
+		AddFinalizer(dv, crossNamespaceFinalizer)
+		if err := r.client.Update(context.TODO(), dv); dv != nil {
+			return false, err
+		}
+
+		initialized = false
+	}
+
+	ot := &cdiv1.ObjectTransfer{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: name}, ot); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return false, err
+		}
+
+		if err := validateCloneTokenDV(r.tokenValidator, dv); err != nil {
+			return false, err
+		}
+
+		ot = &cdiv1.ObjectTransfer{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+			},
+			Spec: cdiv1.ObjectTransferSpec{
+				Source: cdiv1.TransferSource{
+					Kind:      "PersistentVolumeClaim",
+					Namespace: dv.Spec.Source.PVC.Namespace,
+					Name:      name,
+					RequiredAnnotations: map[string]string{
+						annReadyForTransfer: "true",
+					},
+				},
+				Target: cdiv1.TransferTarget{
+					Namespace: &dv.Namespace,
+					Name:      &dv.Name,
+				},
+			},
+		}
+
+		if err := setAnnOwnedByDataVolume(ot, dv); err != nil {
+			return false, err
+		}
+
+		if err := r.client.Create(context.TODO(), ot); err != nil {
+			return false, err
+		}
+
+		initialized = false
+	}
+
+	return initialized, nil
+}
+
+func (r *DatavolumeReconciler) cleanupTransfer(log logr.Logger, dv *cdiv1.DataVolume, name string) error {
+	if !HasFinalizer(dv, crossNamespaceFinalizer) {
+		return nil
+	}
+
+	log.Info("Doing cleanup")
+
+	if dv.DeletionTimestamp != nil && dv.Status.Phase != cdiv1.Succeeded {
+		// delete all potential PVCs that may not have owner refs
+		namespaces := []string{dv.Namespace}
+		names := []string{dv.Name}
+		if dv.Spec.Source.PVC != nil &&
+			dv.Spec.Source.PVC.Namespace != "" &&
+			dv.Spec.Source.PVC.Namespace != dv.Namespace {
+			namespaces = append(namespaces, dv.Spec.Source.PVC.Namespace)
+			names = append(names, name)
+		}
+
+		for i := range namespaces {
+			pvc := &corev1.PersistentVolumeClaim{}
+			nn := types.NamespacedName{Namespace: namespaces[i], Name: names[i]}
+			if err := r.client.Get(context.TODO(), nn, pvc); err != nil {
+				if !k8serrors.IsNotFound(err) {
+					return err
+				}
+			} else {
+				pod := &corev1.Pod{}
+				nn := types.NamespacedName{Namespace: namespaces[i], Name: expansionPodName(pvc)}
+				if err := r.client.Get(context.TODO(), nn, pod); err != nil {
+					if !k8serrors.IsNotFound(err) {
+						return err
+					}
+				} else {
+					if err := r.client.Delete(context.TODO(), pod); err != nil {
+						if !k8serrors.IsNotFound(err) {
+							return err
+						}
+					}
+				}
+
+				if err := r.client.Delete(context.TODO(), pvc); err != nil {
+					if !k8serrors.IsNotFound(err) {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	ot := &cdiv1.ObjectTransfer{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: name}, ot); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else {
+		if err := r.client.Delete(context.TODO(), ot); err != nil {
+			if !k8serrors.IsNotFound(err) {
+				return err
+			}
+		}
+	}
+
+	RemoveFinalizer(dv, crossNamespaceFinalizer)
+	if err := r.client.Update(context.TODO(), dv); dv != nil {
+		return err
+	}
+
+	return nil
+}
+
+func expansionPodName(pvc *corev1.PersistentVolumeClaim) string {
+	return "cdi-expand-" + string(pvc.UID)
+}
+
+func (r *DatavolumeReconciler) expand(log logr.Logger, dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	requestedSize, hasRequested := dv.Spec.PVC.Resources.Requests[corev1.ResourceStorage]
+	currentSize, hasCurrent := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+	actualSize, hasActual := pvc.Status.Capacity[corev1.ResourceStorage]
+	if !hasRequested || !hasCurrent || !hasActual {
+		return false, fmt.Errorf("sizes missing")
+	}
+
+	expansionRequired := actualSize.Cmp(requestedSize) < 0
+
+	log.V(3).Info("Expand sizes", "req", requestedSize, "cur", currentSize, "act", actualSize, "exp", expansionRequired)
+
+	if expansionRequired && requestedSize.Cmp(currentSize) != 0 {
+		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = requestedSize
+		if err := r.client.Update(context.TODO(), pvc); err != nil {
+			return false, err
+		}
+
+		return false, nil
+	}
+
+	podName := expansionPodName(pvc)
+	podExists := true
+	pod := &corev1.Pod{}
+	nn := types.NamespacedName{Namespace: pvc.Namespace, Name: podName}
+	if err := r.client.Get(context.TODO(), nn, pod); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return false, err
+		}
+
+		podExists = false
+	}
+
+	if !expansionRequired && !podExists {
+		// finally done
+		return true, nil
+	}
+
+	hasPendingResizeCondition := false
+	for _, cond := range pvc.Status.Conditions {
+		if cond.Type == corev1.PersistentVolumeClaimFileSystemResizePending {
+			hasPendingResizeCondition = true
+			break
+		}
+	}
+
+	if !podExists && !hasPendingResizeCondition {
+		// wait for resize condition
+		return false, nil
+	}
+
+	if !podExists {
+		resourceRequirements, err := GetDefaultPodResourceRequirements(r.client)
+		if err != nil {
+			return false, err
+		}
+
+		workloadNodePlacement, err := GetWorkloadNodePlacement(r.client)
+		if err != nil {
+			return false, err
+		}
+
+		pod = &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      podName,
+				Namespace: pvc.Namespace,
+				Annotations: map[string]string{
+					AnnCreatedBy: "yes",
+				},
+				Labels: map[string]string{
+					common.CDILabelKey:       common.CDILabelValue,
+					common.CDIComponentLabel: "cdi-expander",
+				},
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name:            "dummy",
+						Image:           r.image,
+						ImagePullPolicy: corev1.PullPolicy(r.pullPolicy),
+						Command:         []string{"/bin/bash"},
+						Args:            []string{"-c", "echo", "'hello cdi'"},
+					},
+				},
+				RestartPolicy: corev1.RestartPolicyOnFailure,
+				Volumes: []corev1.Volume{
+					{
+						Name: DataVolName,
+						VolumeSource: corev1.VolumeSource{
+							PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+								ClaimName: pvc.Name,
+							},
+						},
+					},
+				},
+				NodeSelector: workloadNodePlacement.NodeSelector,
+				Tolerations:  workloadNodePlacement.Tolerations,
+				Affinity:     workloadNodePlacement.Affinity,
+			},
+		}
+
+		if pvc.Spec.VolumeMode != nil && *pvc.Spec.VolumeMode == corev1.PersistentVolumeBlock {
+			pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
+		} else {
+			pod.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
+				{
+					Name:      DataVolName,
+					MountPath: common.ClonerMountPath,
+				},
+			}
+		}
+
+		if resourceRequirements != nil {
+			pod.Spec.Containers[0].Resources = *resourceRequirements
+		}
+
+		if err := setAnnOwnedByDataVolume(pod, dv); err != nil {
+			return false, err
+		}
+
+		if err := r.client.Create(context.TODO(), pod); err != nil {
+			if !k8serrors.IsAlreadyExists(err) {
+				return false, err
+			}
+		}
+	}
+
+	if pod.Status.Phase == corev1.PodSucceeded {
+		if err := r.client.Delete(context.TODO(), pod); err != nil {
+			if k8serrors.IsNotFound(err) {
+				return true, err
+			}
+
+			return false, err
+		}
+
+		return false, nil
+	}
+
+	return false, nil
+}
+
 func (r *DatavolumeReconciler) getStorageClassBindingMode(storageClassName *string) (*storagev1.VolumeBindingMode, error) {
 	// Handle unspecified storage class name, fallback to default storage class
 	storageClass, err := GetStorageClassByName(r.client, storageClassName)
@@ -555,6 +1010,16 @@ func getStorageVolumeMode(c client.Client, dataVolume *cdiv1.DataVolume, storage
 	}
 
 	return nil, errors.Errorf("no target storage defined")
+}
+
+func (r *DatavolumeReconciler) getStorageAllowsExpansion(dataVolume *cdiv1.DataVolume) (bool, error) {
+	// Handle unspecified storage class name, fallback to default storage class
+	storageClass, err := GetStorageClassByName(r.client, dataVolume.Spec.PVC.StorageClassName)
+	if err != nil {
+		return false, err
+	}
+
+	return storageClass.AllowVolumeExpansion != nil && *storageClass.AllowVolumeExpansion, nil
 }
 
 func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, pvcUID types.UID) (reconcile.Result, error) {
@@ -631,13 +1096,6 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 		return "", errors.New("source PVC and target PVC belong to different storage classes")
 	}
 
-	// Compare source and target namespaces
-	if pvc.Namespace != dataVolume.Namespace {
-		r.log.V(3).Info("Source PVC and target PVC belong to different namespaces", "source namespace",
-			pvc.Namespace, "target namespace", dataVolume.Namespace)
-		return "", errors.New("source PVC and target PVC belong to different namespaces")
-	}
-
 	sourceVolumeMode := resolveVolumeMode(pvc.Spec.VolumeMode)
 	targetSpecVolumeMode, err := getStorageVolumeMode(r.client, dataVolume, targetStorageClass)
 	if err != nil {
@@ -655,6 +1113,13 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *sourcePvcStorageClassName}, srcStorageClass); err != nil {
 		r.log.V(3).Info("Unable to retrieve storage class, falling back to host assisted clone", "storage class", *sourcePvcStorageClassName)
 		return "", errors.New("unable to retrieve storage class, falling back to host assisted clone")
+	}
+
+	srcCapacity, hasSrcCapacity := pvc.Status.Capacity[corev1.ResourceStorage]
+	targetRequest, hasTargetRequest := dataVolume.Spec.PVC.Resources.Requests[corev1.ResourceStorage]
+	allowExpansion := srcStorageClass.AllowVolumeExpansion != nil && *srcStorageClass.AllowVolumeExpansion
+	if !hasSrcCapacity || !hasTargetRequest || (srcCapacity.Cmp(targetRequest) < 0 && !allowExpansion) {
+		return "", errors.New("source/target sizes not compatible")
 	}
 
 	// List the snapshot classes
@@ -694,7 +1159,7 @@ func (r *DatavolumeReconciler) getCloneStrategy() (cdiv1.CDICloneStrategy, error
 	return *cr.Spec.CloneStrategyOverride, nil
 }
 
-func newSnapshot(dataVolume *cdiv1.DataVolume, snapshotClassName string) *snapshotv1.VolumeSnapshot {
+func newSnapshot(dataVolume *cdiv1.DataVolume, snapshotName, snapshotClassName string) *snapshotv1.VolumeSnapshot {
 	annotations := make(map[string]string)
 	annotations[AnnSmartCloneRequest] = "true"
 	className := snapshotClassName
@@ -702,19 +1167,16 @@ func newSnapshot(dataVolume *cdiv1.DataVolume, snapshotClassName string) *snapsh
 		common.CDILabelKey:       common.CDILabelValue,
 		common.CDIComponentLabel: common.SmartClonerCDILabel,
 	}
+	snapshotNamespace := dataVolume.Namespace
+	if dataVolume.Spec.Source.PVC.Namespace != "" {
+		snapshotNamespace = dataVolume.Spec.Source.PVC.Namespace
+	}
 	snapshot := &snapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        dataVolume.Name,
-			Namespace:   dataVolume.Namespace,
+			Name:        snapshotName,
+			Namespace:   snapshotNamespace,
 			Labels:      labels,
 			Annotations: annotations,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(dataVolume, schema.GroupVersionKind{
-					Group:   cdiv1.SchemeGroupVersion.Group,
-					Version: cdiv1.SchemeGroupVersion.Version,
-					Kind:    "DataVolume",
-				}),
-			},
 		},
 		Spec: snapshotv1.VolumeSnapshotSpec{
 			Source: snapshotv1.VolumeSnapshotSource{
@@ -722,6 +1184,15 @@ func newSnapshot(dataVolume *cdiv1.DataVolume, snapshotClassName string) *snapsh
 			},
 			VolumeSnapshotClassName: &className,
 		},
+	}
+	if dataVolume.Namespace == snapshotNamespace {
+		snapshot.OwnerReferences = []metav1.OwnerReference{
+			*metav1.NewControllerRef(dataVolume, schema.GroupVersionKind{
+				Group:   cdiv1.SchemeGroupVersion.Group,
+				Version: cdiv1.SchemeGroupVersion.Version,
+				Kind:    "DataVolume",
+			}),
+		}
 	}
 	return snapshot
 }
@@ -766,19 +1237,33 @@ func (r *DatavolumeReconciler) updateImportStatusPhase(pvc *corev1.PersistentVol
 	}
 }
 
-func (r *DatavolumeReconciler) updateSmartCloneStatusPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume) error {
+func (r *DatavolumeReconciler) updateSmartCloneStatusPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
 	var dataVolumeCopy = dataVolume.DeepCopy()
 	var event DataVolumeEvent
 
 	curPhase := dataVolumeCopy.Status.Phase
 
 	switch phase {
+	case cdiv1.CloneScheduled:
+		dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
+		event.eventType = corev1.EventTypeNormal
+		event.reason = CloneScheduled
+		event.message = fmt.Sprintf(MessageCloneScheduled, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, dataVolume.Namespace, dataVolume.Name)
 	case cdiv1.SnapshotForSmartCloneInProgress:
 		dataVolumeCopy.Status.Phase = cdiv1.SnapshotForSmartCloneInProgress
 		event.eventType = corev1.EventTypeNormal
 		event.reason = SnapshotForSmartCloneInProgress
 		event.message = fmt.Sprintf(MessageSmartCloneInProgress, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name)
+	case cdiv1.Succeeded:
+		dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+		event.eventType = corev1.EventTypeNormal
+		event.reason = CloneSucceeded
+		event.message = fmt.Sprintf(MessageCloneSucceeded, dataVolume.Spec.Source.PVC.Namespace, dataVolume.Spec.Source.PVC.Name, dataVolume.Namespace, dataVolume.Name)
 	}
+
+	r.updateConditions(dataVolumeCopy, pvc)
+	// XXX should probably be is status
+	addAnnotation(dataVolumeCopy, annCloneType, "snapshot")
 
 	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, dataVolume.Status.Conditions, &event)
 }
@@ -813,6 +1298,9 @@ func (r *DatavolumeReconciler) updateCloneStatusPhase(pvc *corev1.PersistentVolu
 		}
 
 	}
+
+	// XXX should probably be is status
+	addAnnotation(dataVolumeCopy, annCloneType, "network")
 }
 
 func (r *DatavolumeReconciler) updateUploadStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *DataVolumeEvent) {
@@ -863,7 +1351,7 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		// the following check is for a case where the request is to create a blank disk for a block device.
 		// in that case, we do not create a pod as there is no need to create a blank image.
 		// instead, we just mark the DV phase as 'Succeeded' so any consumer will be able to use it.
-		phase, _ := pvc.Annotations[AnnPodPhase]
+		phase := pvc.Annotations[AnnPodPhase]
 		if phase == string(cdiv1.Succeeded) {
 			updateImport := true
 			_, ok := pvc.Annotations[AnnCloneRequest]
@@ -996,7 +1484,7 @@ func (r *DatavolumeReconciler) updateConditions(dataVolume *cdiv1.DataVolume, pv
 	if pvc != nil {
 		anno = pvc.Annotations
 	} else {
-		anno = make(map[string]string, 0)
+		anno = make(map[string]string)
 	}
 
 	readyStatus := corev1.ConditionUnknown
@@ -1247,22 +1735,32 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 	}
 	annotations[AnnPreallocationRequested] = strconv.FormatBool(GetPreallocation(r.client, dataVolume))
 
-	return &corev1.PersistentVolumeClaim{
+	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        dataVolume.Name,
 			Namespace:   dataVolume.Namespace,
+			Name:        dataVolume.Name,
 			Labels:      labels,
 			Annotations: annotations,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(dataVolume, schema.GroupVersionKind{
-					Group:   cdiv1.SchemeGroupVersion.Group,
-					Version: cdiv1.SchemeGroupVersion.Version,
-					Kind:    "DataVolume",
-				}),
-			},
 		},
 		Spec: *targetPvcSpec,
-	}, nil
+	}
+
+	if pvc.Namespace == dataVolume.Namespace {
+		pvc.OwnerReferences = []metav1.OwnerReference{
+			*metav1.NewControllerRef(dataVolume, schema.GroupVersionKind{
+				Group:   cdiv1.SchemeGroupVersion.Group,
+				Version: cdiv1.SchemeGroupVersion.Version,
+				Kind:    "DataVolume",
+			}),
+		}
+	} else {
+		if err := setAnnOwnedByDataVolume(pvc, dataVolume); err != nil {
+			return nil, err
+		}
+		pvc.Annotations[annOwnerUID] = string(dataVolume.UID)
+	}
+
+	return pvc, nil
 }
 
 // RenderPvcSpec creates a new PVC Spec based on either the dv.spec.pvc or dv.spec.storage section

@@ -7,10 +7,12 @@ import (
 	"strings"
 
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/token"
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -137,6 +139,14 @@ const (
 	// AnnPodSidecarInjectionDefault is the default value passed for AnnPodSidecarInjection
 	AnnPodSidecarInjectionDefault = "false"
 )
+
+func isCrossNamespaceClone(dv *cdiv1.DataVolume) bool {
+	if dv.Spec.Source.PVC == nil {
+		return false
+	}
+
+	return dv.Spec.Source.PVC.Namespace != "" && dv.Spec.Source.PVC.Namespace != dv.Namespace
+}
 
 func checkPVC(pvc *v1.PersistentVolumeClaim, annotation string, log logr.Logger) bool {
 	// check if we have proper annotation
@@ -746,4 +756,92 @@ func GetImportProxyConfig(config *cdiv1.CDIConfig, field string) (string, error)
 func getPriorityClass(pvc *v1.PersistentVolumeClaim) string {
 	anno := pvc.GetAnnotations()
 	return anno[AnnPriorityClassName]
+}
+
+func AddFinalizer(obj metav1.Object, name string) {
+	if HasFinalizer(obj, name) {
+		return
+	}
+
+	obj.SetFinalizers(append(obj.GetFinalizers(), name))
+}
+
+func RemoveFinalizer(obj metav1.Object, name string) {
+	if !HasFinalizer(obj, name) {
+		return
+	}
+
+	var finalizers []string
+	for _, f := range obj.GetFinalizers() {
+		if f != name {
+			finalizers = append(finalizers, f)
+		}
+	}
+
+	obj.SetFinalizers(finalizers)
+}
+
+func HasFinalizer(object metav1.Object, value string) bool {
+	for _, f := range object.GetFinalizers() {
+		if f == value {
+			return true
+		}
+	}
+	return false
+}
+
+func validateCloneTokenPVC(validator token.Validator, source, target *corev1.PersistentVolumeClaim) error {
+	if source.Namespace == target.Namespace {
+		return nil
+	}
+
+	tok, ok := target.Annotations[AnnCloneToken]
+	if !ok {
+		return errors.New("clone token missing")
+	}
+
+	tokenData, err := validator.Validate(tok)
+	if err != nil {
+		return errors.Wrap(err, "error verifying token")
+	}
+
+	return validateTokenData(tokenData, source.Namespace, source.Name, target.Namespace, target.Name)
+}
+
+func validateCloneTokenDV(validator token.Validator, dv *cdiv1.DataVolume) error {
+	if dv.Spec.Source.PVC == nil || dv.Spec.Source.PVC.Namespace == "" || dv.Spec.Source.PVC.Namespace == dv.Namespace {
+		return nil
+	}
+
+	tok, ok := dv.Annotations[AnnCloneToken]
+	if !ok {
+		return errors.New("clone token missing")
+	}
+
+	tokenData, err := validator.Validate(tok)
+	if err != nil {
+		return errors.Wrap(err, "error verifying token")
+	}
+
+	return validateTokenData(tokenData, dv.Spec.Source.PVC.Namespace, dv.Spec.Source.PVC.Name, dv.Namespace, dv.Name)
+}
+
+func validateTokenData(tokenData *token.Payload, srcNamespace, srcName, targetNamespace, targetName string) error {
+	if tokenData.Operation != token.OperationClone ||
+		tokenData.Name != srcName ||
+		tokenData.Namespace != srcNamespace ||
+		tokenData.Resource.Resource != "persistentvolumeclaims" ||
+		tokenData.Params["targetNamespace"] != targetNamespace ||
+		tokenData.Params["targetName"] != targetName {
+		return errors.New("invalid token")
+	}
+
+	return nil
+}
+
+func addAnnotation(obj metav1.Object, key, value string) {
+	if obj.GetAnnotations() == nil {
+		obj.SetAnnotations(make(map[string]string))
+	}
+	obj.GetAnnotations()[key] = value
 }

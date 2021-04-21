@@ -15149,6 +15149,20 @@ func schema_pkg_apis_core_v1beta1_TransferSource(ref common.ReferenceCallback) c
 							Format: "",
 						},
 					},
+					"requiredAnnotations": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
 				},
 				Required: []string{"kind", "namespace", "name"},
 			},

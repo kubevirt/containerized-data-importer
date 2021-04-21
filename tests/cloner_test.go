@@ -12,6 +12,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -898,6 +899,12 @@ var _ = Describe("all clone tests", func() {
 			targetDV := utils.NewDataVolumeForImageCloning("target-dv", "500M", sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
+
+			cloneType := utils.GetCloneType(f.CdiClient, dataVolume)
+			if cloneType != "network" {
+				Skip("only valid for network clone")
+			}
+
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			By("Verify Quota was exceeded in logs")
@@ -928,6 +935,12 @@ var _ = Describe("all clone tests", func() {
 			targetDV := utils.NewDataVolumeForImageCloning("target-dv", "500M", sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
+
+			cloneType := utils.GetCloneType(f.CdiClient, dataVolume)
+			if cloneType != "network" {
+				Skip("only valid for network clone")
+			}
+
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			By("Verify Quota was exceeded in logs")
@@ -972,6 +985,14 @@ var _ = Describe("all clone tests", func() {
 			targetDvName := "target-dv"
 			doFileBasedCloneTest(f, pvcDef, targetNs, targetDvName)
 
+			dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(context.TODO(), targetDvName, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			cloneType := utils.GetCloneType(f.CdiClient, dv)
+			if cloneType != "network" {
+				Skip("only valid for network clone")
+			}
+
 			By("Verify retry annotation on PVC")
 			targetPvc, err := utils.WaitForPVC(f.K8sClient, targetNs.Name, targetDvName)
 			Expect(err).ToNot(HaveOccurred())
@@ -981,8 +1002,6 @@ var _ = Describe("all clone tests", func() {
 			Expect(restartsValue).To(Equal("0"))
 
 			By("Verify the number of retries on the datavolume")
-			dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(context.TODO(), targetDvName, metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred())
 			Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
 		})
 
@@ -1001,6 +1020,11 @@ var _ = Describe("all clone tests", func() {
 			targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvcDef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
+
+			cloneType := utils.GetCloneType(f.CdiClient, dataVolume)
+			if cloneType != "network" {
+				Skip("only valid for network clone")
+			}
 
 			targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
@@ -1267,13 +1291,26 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 	dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 	Expect(err).ToNot(HaveOccurred())
 
-	targetPvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-	Expect(err).ToNot(HaveOccurred())
-	f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+	var targetPvc *corev1.PersistentVolumeClaim
+	cloneType := utils.GetCloneType(f.CdiClient, dataVolume)
 
-	verifyEvent(controller.CloneSourceInUse, targetNs.Name, f)
-	err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
-	Expect(err).ToNot(HaveOccurred())
+	if cloneType == "network" {
+		targetPvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+		verifyEvent(controller.CloneSourceInUse, targetNs.Name, f)
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+	} else {
+		verifyEvent(controller.SmartCloneSourceInUse, targetNs.Name, f)
+		err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		targetPvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+	}
 
 	fmt.Fprintf(GinkgoWriter, "INFO: wait for PVC claim phase: %s\n", targetPvc.Name)
 	utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, targetNs.Name, v1.ClaimBound, targetPvc.Name)

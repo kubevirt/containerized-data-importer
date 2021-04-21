@@ -75,11 +75,46 @@ var _ = Describe("PVC Transfer Tests", func() {
 			checkCompleteFalse(xfer, "PVC not bound", "")
 		})
 
+		It("Should handle PVC with finalizer", func() {
+			f := "snapshot.storage.kubernetes.io/pvc-as-source-protection"
+			xfer := pvcTransfer(cdiv1.ObjectTransferPending)
+			pvc := createBoundPVC()
+			pvc.Finalizers = append(pvc.Finalizers, f)
+
+			r := createReconciler(xfer, pvc)
+			_, err := r.Reconcile(rr(xfer.Name))
+			Expect(err).ToNot(HaveOccurred())
+
+			err = getResource(r.Client, "", xfer.Name, xfer)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferPending))
+			checkCompleteFalse(xfer, "PVC has finalizer: "+f, "")
+		})
+
+		It("Should handle PV not bound", func() {
+			xfer := pvcTransfer(cdiv1.ObjectTransferPending)
+			pvc := createBoundPVC()
+			pv := sourcePV()
+			pv.Spec.ClaimRef = nil
+
+			r := createReconciler(xfer, pvc, pv)
+			_, err := r.Reconcile(rr(xfer.Name))
+			Expect(err).ToNot(HaveOccurred())
+
+			err = getResource(r.Client, "", xfer.Name, xfer)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferPending))
+			checkCompleteFalse(xfer, "PV not bound", "")
+		})
+
 		It("Should handle pod using PVC", func() {
 			xfer := pvcTransfer(cdiv1.ObjectTransferPending)
 			pvc := createBoundPVC()
+			pv := sourcePV()
 
-			r := createReconciler(xfer, pvc, createPod(pvc.Name))
+			r := createReconciler(xfer, pvc, pv, createPod(pvc.Name))
 			_, err := r.Reconcile(rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
@@ -97,7 +132,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 				"cdi.kubevirt.io/objectTransferName": "baz",
 			}
 
-			r := createReconciler(xfer, pvc)
+			r := createReconciler(xfer, sourcePV(), pvc)
 			_, err := r.Reconcile(rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
@@ -129,7 +164,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 		It("Should become running", func() {
 			xfer := pvcTransfer(cdiv1.ObjectTransferPending)
 
-			r := createReconciler(xfer, createBoundPVC())
+			r := createReconciler(xfer, sourcePV(), createBoundPVC())
 			_, err := r.Reconcile(rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
@@ -265,6 +300,27 @@ var _ = Describe("PVC Transfer Tests", func() {
 			err = getResource(r.Client, "", xfer.Name, xfer)
 			Expect(err).ToNot(HaveOccurred())
 			err = getResource(r.Client, "target-ns", "target-pvc", pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferRunning))
+			checkCompleteFalse(xfer, "Running", "")
+		})
+
+		It("Should wait for target to be bound", func() {
+			xfer := pvcTransferRunning()
+			xfer.Status.Data["pvReclaim"] = "Delete"
+			pv := sourcePV()
+			pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
+			pv.Spec.ClaimRef = nil
+			pvc := createUnboundPVC()
+			pvc.Namespace = "target-ns"
+			pvc.Name = "target-pvc"
+
+			r := createReconciler(xfer, pv, pvc)
+			_, err := r.Reconcile(rr(xfer.Name))
+			Expect(err).ToNot(HaveOccurred())
+
+			err = getResource(r.Client, "", xfer.Name, xfer)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferRunning))
