@@ -21,7 +21,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -672,47 +671,6 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()[AnnVddkVersion]).To(Equal("1.0.0"))
 	})
 
-	It("Should copy VDDK connection information to annotations on PVC marked for removal", func() {
-		annotations := map[string]string{
-			AnnEndpoint: testEndPoint,
-			AnnPodPhase: string(corev1.PodRunning),
-			AnnSource:   SourceVDDK,
-		}
-		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, annotations, nil, corev1.ClaimBound)
-		deletionTime := metav1.NewTime(time.Now())
-		pvc.ObjectMeta.DeletionTimestamp = &deletionTime
-		scratchPvcName := &corev1.PersistentVolumeClaim{}
-		scratchPvcName.Name = "testPvc1-scratch"
-		pod := createImporterTestPod(pvc, "testPvc1", scratchPvcName)
-		pod.Status = corev1.PodStatus{
-			Phase: corev1.PodRunning,
-			ContainerStatuses: []corev1.ContainerStatus{
-				{
-					LastTerminationState: corev1.ContainerState{
-						Terminated: &corev1.ContainerStateTerminated{
-							ExitCode: 0,
-							Message:  "",
-						},
-					},
-					State: v1.ContainerState{
-						Terminated: &corev1.ContainerStateTerminated{
-							ExitCode: 0,
-							Message:  `VDDK: {"Version": "1.0.0", "Host": "esx15.test.lan"}`,
-							Reason:   "Cancelled",
-						},
-					},
-				},
-			},
-		}
-		reconciler = createImportReconciler(pvc, pod)
-		_, err := reconciler.reconcilePvc(pvc, reconciler.log)
-		Expect(err).ToNot(HaveOccurred())
-		resPvc := &corev1.PersistentVolumeClaim{}
-		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(resPvc.GetAnnotations()[AnnVddkHostConnection]).To(Equal("esx15.test.lan"))
-		Expect(resPvc.GetAnnotations()[AnnVddkVersion]).To(Equal("1.0.0"))
-	})
 })
 
 var _ = Describe("Create Importer Pod", func() {

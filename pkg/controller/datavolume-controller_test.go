@@ -577,10 +577,12 @@ var _ = Describe("All DataVolume Tests", func() {
 				AnnVddkHostConnection: "esx1.test",
 				AnnVddkVersion:        "1.3.4",
 				AnnSource:             SourceVDDK,
+				AnnPopulatedFor:       "test-dv",
 			}
-			pvc := createPvc("test-pvc", metav1.NamespaceDefault, annotations, nil)
+			pvc := createPvc("test-dv", metav1.NamespaceDefault, annotations, nil)
+
 			reconciler = createDatavolumeReconciler(dv, pvc)
-			_, err := reconciler.reconcileDataVolumeStatus(dv, pvc)
+			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			newDv := &cdiv1.DataVolume{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, newDv)
