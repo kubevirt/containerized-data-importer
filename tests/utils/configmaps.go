@@ -2,7 +2,6 @@ package utils
 
 import (
 	"context"
-	"net/url"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -10,7 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -79,49 +77,4 @@ func CopyConfigMap(client kubernetes.Interface, srcNamespace, srcName, destNames
 	}
 
 	return destName, nil
-}
-
-const insecureRegistryKey = "test-registry"
-
-// SetInsecureRegistry sets the configmap entry to mark the registry as okay to be insecure
-func SetInsecureRegistry(client kubernetes.Interface, cdiNamespace, registryURL string) error {
-	cm, err := client.CoreV1().ConfigMaps(cdiNamespace).Get(context.TODO(), common.InsecureRegistryConfigMap, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-
-	if cm.Data == nil {
-		cm.Data = map[string]string{}
-	}
-
-	parsedURL, err := url.Parse(registryURL)
-	if err != nil {
-		return err
-	}
-
-	cm.Data[insecureRegistryKey] = parsedURL.Host
-
-	_, err = client.CoreV1().ConfigMaps(cdiNamespace).Update(context.TODO(), cm, metav1.UpdateOptions{})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// ClearInsecureRegistry undoes whatever SetInsecureRegistry does
-func ClearInsecureRegistry(client kubernetes.Interface, cdiNamespace string) error {
-	cm, err := client.CoreV1().ConfigMaps(cdiNamespace).Get(context.TODO(), common.InsecureRegistryConfigMap, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-
-	delete(cm.Data, insecureRegistryKey)
-
-	_, err = client.CoreV1().ConfigMaps(cdiNamespace).Update(context.TODO(), cm, metav1.UpdateOptions{})
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
