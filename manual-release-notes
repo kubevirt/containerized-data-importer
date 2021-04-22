@@ -1,0 +1,1 @@
+Enhancement: Add insecure registries to CDIConfig, but keep supporting original ConfigMap for upgrade
