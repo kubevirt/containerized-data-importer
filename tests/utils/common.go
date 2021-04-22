@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"time"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -168,7 +169,7 @@ func EnableFeatureGate(c client.Client, feature string) (*bool, error) {
 	var previousValue = false
 
 	if err := UpdateCDIConfig(c, func(config *cdiv1.CDIConfigSpec) {
-		if HasFeature(config, feature) {
+		if hasString(config.FeatureGates, feature) {
 			previousValue = true
 			return
 		}
@@ -186,7 +187,7 @@ func DisableFeatureGate(c client.Client, featureGate string) (*bool, error) {
 	var previousValue = false
 
 	if err := UpdateCDIConfig(c, func(config *cdiv1.CDIConfigSpec) {
-		if !HasFeature(config, featureGate) {
+		if !hasString(config.FeatureGates, featureGate) {
 			return
 		}
 
@@ -199,20 +200,63 @@ func DisableFeatureGate(c client.Client, featureGate string) (*bool, error) {
 	return &previousValue, nil
 }
 
-func removeString(featureGates []string, featureGate string) []string {
+// AddInsecureRegistry adds the registry to CDIConfig InsecureRegistries to mark it as allowed to be insecure
+func AddInsecureRegistry(c client.Client, registryURL string) error {
+	parsedURL, err := url.Parse(registryURL)
+	if err != nil {
+		return err
+	}
+	err = UpdateCDIConfig(c, func(config *cdiv1.CDIConfigSpec) {
+		if hasString(config.InsecureRegistries, parsedURL.Host) {
+			return
+		}
+		config.InsecureRegistries = append(config.InsecureRegistries, parsedURL.Host)
+	})
+	return err
+}
+
+// RemoveInsecureRegistry removed the registry from CDIConfig InsecureRegistries so it is not allowed to be insecure
+func RemoveInsecureRegistry(c client.Client, registryURL string) error {
+	parsedURL, err := url.Parse(registryURL)
+	if err != nil {
+		return err
+	}
+	err = UpdateCDIConfig(c, func(config *cdiv1.CDIConfigSpec) {
+		if !hasString(config.InsecureRegistries, parsedURL.Host) {
+			return
+		}
+		config.InsecureRegistries = removeString(config.InsecureRegistries, parsedURL.Host)
+	})
+	return err
+}
+
+// HasInsecureRegistry checks if registry appears in CDIConfig InsecureRegistries so it is allowed to be insecure
+func HasInsecureRegistry(c client.Client, registryURL string) (bool, error) {
+	parsedURL, err := url.Parse(registryURL)
+	if err != nil {
+		return false, err
+	}
+	cfg := &cdiv1.CDIConfig{}
+	err = c.Get(context.TODO(), types.NamespacedName{Name: "config"}, cfg)
+	if err != nil {
+		return false, err
+	}
+	return hasString(cfg.Spec.InsecureRegistries, parsedURL.Host), nil
+}
+
+func removeString(strings []string, str string) []string {
 	var output []string
-	for _, fg := range featureGates {
-		if fg != featureGate {
-			output = append(output, fg)
+	for _, s := range strings {
+		if s != str {
+			output = append(output, s)
 		}
 	}
 	return output
 }
 
-// HasFeature - helper to check if specified FeatureGate is in the CDIConfig
-func HasFeature(config *cdiv1.CDIConfigSpec, featureGate string) bool {
-	for _, fg := range config.FeatureGates {
-		if fg == featureGate {
+func hasString(strings []string, str string) bool {
+	for _, s := range strings {
+		if s == str {
 			return true
 		}
 	}

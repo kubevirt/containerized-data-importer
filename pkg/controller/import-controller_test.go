@@ -782,42 +782,33 @@ var _ = Describe("getCertConfigMap", func() {
 })
 
 var _ = Describe("getInsecureTLS", func() {
-	configMapName := "cdi-insecure-registries"
 	host := "myregistry"
 	endpointNoPort := "docker://" + host
 	hostWithPort := host + ":5000"
 	endpointWithPort := "docker://" + hostWithPort
 
-	table.DescribeTable("should", func(endpoint string, configMapExists bool, insecureHost string, isInsecure bool) {
-		var reconciler *ImportReconciler
+	table.DescribeTable("should", func(endpoint string, insecureHost string, isInsecure bool) {
 		pvc := createPvc("testPVC", "default", map[string]string{AnnEndpoint: endpoint}, nil)
-		if configMapExists {
-			cm := &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      configMapName,
-					Namespace: "cdi",
-				},
-			}
+		reconciler := createImportReconciler(pvc)
 
-			if insecureHost != "" {
-				cm.Data = map[string]string{
-					"test-registry": insecureHost,
-				}
-			}
-			reconciler = createImportReconciler(pvc, cm)
-		} else {
-			reconciler = createImportReconciler(pvc)
+		cdiConfig := &cdiv1.CDIConfig{}
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		if insecureHost != "" {
+			cdiConfig.Spec.InsecureRegistries = []string{insecureHost}
 		}
-		result, err := reconciler.isInsecureTLS(pvc)
+
+		result, err := reconciler.isInsecureTLS(pvc, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(result).To(Equal(isInsecure))
 	},
-		table.Entry("return true on endpoint with no port, and cdi configmap exists, and host defined", endpointNoPort, true, host, true),
-		table.Entry("return true on endpoint with port, and cdi configmap exists, and host with port", endpointWithPort, true, hostWithPort, true),
-		table.Entry("return false on endpoint with no port, and cdi configmap exists, and host with port", endpointNoPort, true, hostWithPort, false),
-		table.Entry("return false on endpoint with port, and cdi configmap exists, and host defined", endpointWithPort, true, host, false),
-		table.Entry("return false on endpoint with no port, and no cdi configmap exists, and blank host", endpointNoPort, false, "", false),
-		table.Entry("return false on blank endpoint, and cdi configmap exists, and host defined", "", true, host, false),
+		table.Entry("return true on endpoint with no port, and host defined", endpointNoPort, host, true),
+		table.Entry("return true on endpoint with port, and host with port", endpointWithPort, hostWithPort, true),
+		table.Entry("return false on endpoint with no port, and host with port", endpointNoPort, hostWithPort, false),
+		table.Entry("return false on endpoint with port, and host defined", endpointWithPort, host, false),
+		table.Entry("return false on endpoint with no port, and blank host", endpointNoPort, "", false),
+		table.Entry("return false on blank endpoint, and host defined", "", host, false),
 	)
 })
 

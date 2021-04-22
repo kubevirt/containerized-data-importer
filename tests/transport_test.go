@@ -77,9 +77,14 @@ var _ = Describe("Transport Tests", func() {
 		}
 
 		if insecureRegistry {
-			err = utils.SetInsecureRegistry(f.K8sClient, f.CdiInstallNs, ep())
+			err = utils.AddInsecureRegistry(f.CrClient, ep())
 			Expect(err).To(BeNil())
-			defer utils.ClearInsecureRegistry(f.K8sClient, f.CdiInstallNs)
+
+			hasInsecReg, err := utils.HasInsecureRegistry(f.CrClient, ep())
+			Expect(err).ToNot(HaveOccurred())
+			Expect(hasInsecReg).To(BeTrue())
+
+			defer utils.RemoveInsecureRegistry(f.CrClient, ep())
 		}
 
 		By(fmt.Sprintf("Creating PVC with endpoint annotation %q", pvcAnn[controller.AnnEndpoint]))
