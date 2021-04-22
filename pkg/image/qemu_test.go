@@ -152,27 +152,6 @@ var _ = Describe("Convert to Raw", func() {
 		})
 	})
 
-	It("should stream valid url to destination", func() {
-		ep, err := url.Parse("http://someurl/somewhere")
-		Expect(err).NotTo(HaveOccurred())
-		jsonArg := fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", ep.Scheme, ep, networkTimeoutSecs)
-		replaceExecFunction(mockExecFunction("", "", nil, "convert", "-p", "-O", "raw", jsonArg, "dest"), func() {
-			err = ConvertToRawStream(ep, "dest", false)
-			Expect(err).NotTo(HaveOccurred())
-		})
-	})
-
-	It("should return conversion error if exec function returns error for url", func() {
-		ep, err := url.Parse("http://someurl/somewhere")
-		Expect(err).NotTo(HaveOccurred())
-		jsonArg := fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", ep.Scheme, ep, networkTimeoutSecs)
-		replaceExecFunction(mockExecFunction("", "exit 1", nil, "convert", "-p", "-O", "raw", jsonArg, "dest"), func() {
-			err := ConvertToRawStream(ep, "dest", false)
-			Expect(err).To(HaveOccurred())
-			Expect(strings.Contains(err.Error(), "could not stream/convert image to raw")).To(BeTrue())
-		})
-	})
-
 	It("should add preallocation if requested", func() {
 		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-o", "preallocation=falloc", "-t", "none", "-p", "-O", "raw", "/somefile/somewhere", "dest"), func() {
 			ep, err := url.Parse("/somefile/somewhere")
@@ -219,8 +198,6 @@ var _ = Describe("Resize", func() {
 
 var _ = Describe("Validate", func() {
 	imageName, _ := url.Parse("myimage.qcow2")
-	httpImage, _ := url.Parse("http://someurl/somewhere")
-	jsonArg := fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", httpImage.Scheme, httpImage, networkTimeoutSecs)
 
 	table.DescribeTable("Validate should", func(execfunc execFunctionType, errString string, image *url.URL, overhead float64) {
 		replaceExecFunction(execfunc, func() {
@@ -238,7 +215,6 @@ var _ = Describe("Validate", func() {
 		})
 	},
 		table.Entry("should return success", mockExecFunction(goodValidateJSON, "", expectedLimits, "info", "--output=json", imageName.String()), "", imageName, 0.0),
-		table.Entry("should return success for http url", mockExecFunction(goodValidateJSON, "", expectedLimits, "info", "--output=json", jsonArg), "", httpImage, 0.0),
 		table.Entry("should return error", mockExecFunction("explosion", "exit 1", expectedLimits), "explosion, exit 1", imageName, 0.0),
 		table.Entry("should return error on bad json", mockExecFunction(badValidateJSON, "", expectedLimits), "unexpected end of JSON input", imageName, 0.0),
 		table.Entry("should return error on bad format", mockExecFunction(badFormatValidateJSON, "", expectedLimits), fmt.Sprintf("Invalid format raw2 for image %s", imageName), imageName, 0.0),

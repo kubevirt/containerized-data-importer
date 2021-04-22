@@ -128,29 +128,10 @@ func convertToRaw(src, dest string, preallocate bool) error {
 }
 
 func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string, preallocate bool) error {
-	if len(url.Scheme) == 0 || url.Scheme == "nbd+unix" {
-		// File, instead of URL
-		return convertToRaw(url.String(), dest, preallocate)
+	if len(url.Scheme) > 0 && url.Scheme != "nbd+unix" {
+		return fmt.Errorf("Not valid schema %s", url.Scheme)
 	}
-
-	jsonArg := fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", url.Scheme, url, networkTimeoutSecs)
-
-	var err error
-	args := []string{"convert", "-t", "none", "-p", "-O", "raw", jsonArg, dest}
-	if preallocate {
-		err = addPreallocation(args, convertPreallocationMethods, func(args []string) ([]byte, error) {
-			return qemuExecFunction(nil, reportProgress, "qemu-img", args...)
-		})
-	} else {
-		_, err = qemuExecFunction(nil, reportProgress, "qemu-img", args...)
-	}
-	if err != nil {
-		// TODO: Determine what to do here, the conversion failed, and we need to clean up the mess, but we could be writing to a block device
-		os.Remove(dest)
-		return errors.Wrap(err, "could not stream/convert image to raw")
-	}
-
-	return nil
+	return convertToRaw(url.String(), dest, preallocate)
 }
 
 // convertQuantityToQemuSize translates a quantity string into a Qemu compatible string.
@@ -201,20 +182,10 @@ func Info(url *url.URL) (*ImgInfo, error) {
 }
 
 func (o *qemuOperations) Info(url *url.URL) (*ImgInfo, error) {
-	var output []byte
-	var err error
-	var source string
-
-	switch {
-	case url.Scheme == "nbd+unix":
-		source = url.String()
-	case len(url.Scheme) > 0:
-		// Image is a URL, make sure the timeout is long enough.
-		source = fmt.Sprintf("json: {\"file.driver\": \"%s\", \"file.url\": \"%s\", \"file.timeout\": %d}", url.Scheme, url, networkTimeoutSecs)
-	default:
-		source = url.String()
+	if len(url.Scheme) > 0 && url.Scheme != "nbd+unix" {
+		return nil, fmt.Errorf("Not valid schema %s", url.Scheme)
 	}
-	output, err = qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", source)
+	output, err := qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", url.String())
 	if err != nil {
 		return nil, errors.Errorf("%s, %s", output, err.Error())
 	}

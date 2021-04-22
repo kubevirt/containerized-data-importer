@@ -125,15 +125,6 @@ http_file(
 )
 
 http_file(
-    name = "qemu-block-curl",
-    sha256 = "0160d7f1ac0e364f618ecdd598e86550c780c4b2ab26fbe728a84ebd560013f8",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/q/qemu-block-curl-5.1.0-5.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/0160d7f1ac0e364f618ecdd598e86550c780c4b2ab26fbe728a84ebd560013f8",
-    ],
-)
-
-http_file(
     name = "nginx",
     sha256 = "e98ab45cb7f616ac99d5dde14d318c0374c060816b02a0d6360a1ac6e6f0c5c4",
     urls = ["https://storage.googleapis.com/builddeps/e98ab45cb7f616ac99d5dde14d318c0374c060816b02a0d6360a1ac6e6f0c5c4"],
