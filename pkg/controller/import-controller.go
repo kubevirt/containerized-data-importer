@@ -308,11 +308,6 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 	} else {
 		if pvc.DeletionTimestamp != nil {
 			log.V(1).Info("PVC being terminated, delete pods", "pod.Name", pod.Name)
-			if getSource(pvc) == SourceVDDK {
-				if err := r.saveVddkAnnotations(pvc, pod, log); err != nil {
-					return reconcile.Result{}, err
-				}
-			}
 			if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
 				return reconcile.Result{}, err
 			}
@@ -380,6 +375,12 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		pod.Status.ContainerStatuses[0].State.Terminated != nil &&
 		pod.Status.ContainerStatuses[0].State.Terminated.ExitCode == 0 {
 	}
+	if pod.Status.ContainerStatuses != nil &&
+		pod.Status.ContainerStatuses[0].State.Terminated != nil {
+		if getSource(pvc) == SourceVDDK {
+			r.saveVddkAnnotations(pvc, pod, log)
+		}
+	}
 
 	if anno[AnnCurrentCheckpoint] != "" {
 		anno[AnnCurrentPodID] = string(pod.ObjectMeta.UID)
@@ -429,11 +430,6 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			r.recorder.Event(pvc, corev1.EventTypeNormal, ImportSucceededPVC, "Import Successful")
 			log.V(1).Info("Completed successfully, deleting POD", "pod.Name", pod.Name)
 		}
-		if getSource(pvc) == SourceVDDK {
-			if err := r.saveVddkAnnotations(pvc, pod, log); err != nil {
-				return err
-			}
-		}
 		if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
 			return err
 		}
@@ -441,7 +437,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	return nil
 }
 
-func (r *ImportReconciler) saveVddkAnnotations(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, log logr.Logger) error {
+func (r *ImportReconciler) saveVddkAnnotations(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, log logr.Logger) {
 	terminationMessage := pod.Status.ContainerStatuses[0].State.Terminated.Message
 	log.V(1).Info("Saving VDDK annotations from pod status message: ", "message", terminationMessage)
 
@@ -463,10 +459,7 @@ func (r *ImportReconciler) saveVddkAnnotations(pvc *corev1.PersistentVolumeClaim
 		if vddkInfo.Version != "" {
 			pvc.Annotations[AnnVddkVersion] = vddkInfo.Version
 		}
-		return r.updatePVC(pvc, log)
 	}
-
-	return nil
 }
 
 func (r *ImportReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
