@@ -289,9 +289,9 @@ func (n *Nbdkit) KillNbdkit() error {
 	}
 	if n.c.Process != nil {
 		err = n.c.Process.Signal(os.Interrupt)
-	}
-	if err != nil {
-		err = n.c.Process.Kill()
+		if err != nil {
+			err = n.c.Process.Kill()
+		}
 	}
 	if n.LogWatcher != nil {
 		n.LogWatcher.Stop()
