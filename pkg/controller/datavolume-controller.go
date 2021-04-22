@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -37,6 +38,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -1323,6 +1325,15 @@ func (r *DatavolumeReconciler) pvcFromStorage(dv *cdiv1.DataVolume) (*corev1.Per
 		pvcSpec.VolumeMode = volumeMode
 	}
 
+	requestedVolumeSize, err := volumeSize(r.client, storage)
+	if err != nil {
+		return nil, err
+	}
+	if pvcSpec.Resources.Requests == nil {
+		pvcSpec.Resources.Requests = corev1.ResourceList{}
+	}
+	pvcSpec.Resources.Requests[corev1.ResourceStorage] = *requestedVolumeSize
+
 	return pvcSpec, nil
 }
 
@@ -1340,6 +1351,28 @@ func copyStorageAsPvc(log logr.Logger, storage *cdiv1.StorageSpec) *corev1.Persi
 	}
 
 	return pvcSpec
+}
+
+func volumeSize(c client.Client, storage *cdiv1.StorageSpec) (*resource.Quantity, error) {
+	// resources.requests[storage] - just copy it to pvc,
+	requestedSize, found := storage.Resources.Requests[corev1.ResourceStorage]
+	if !found {
+		return nil, errors.Errorf("Datavolume Spec is not valid - missing storage size")
+	}
+
+	// disk or image size, inflate it with overhead
+	if resolveVolumeMode(storage.VolumeMode) == corev1.PersistentVolumeFilesystem {
+		fsOverhead, err := GetFilesystemOverheadForStorageClass(c, storage.StorageClassName)
+		if err != nil {
+			return nil, err
+		}
+		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
+		requiredSpace := GetRequiredSpace(fsOverheadFloat, requestedSize.Value())
+
+		return resource.NewScaledQuantity(requiredSpace, 0), nil
+	}
+
+	return &requestedSize, nil
 }
 
 func getName(storageClass *storagev1.StorageClass) string {
@@ -1388,4 +1421,15 @@ func getDefaultAccessModes(c client.Client, storageClass *storagev1.StorageClass
 
 	// no accessMode configured on storageProfile
 	return nil, errors.Errorf("no accessMode defined on StorageProfile for %s StorageClass", storageClass.Name)
+}
+
+// GetRequiredSpace calculates space required taking file system overhead into account
+func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
+	blockSize := int64(512)
+	// count overhead as a percentage of the whole/new size
+	spaceWithOverhead := int64(float64(requestedSpace) / (1 - filesystemOverhead))
+	// qemu-img will round up, making us use more than the usable space.
+	// This later conflicts with image size validation.
+	qemuImgCorrection := util.RoundUp(spaceWithOverhead, blockSize)
+	return qemuImgCorrection
 }

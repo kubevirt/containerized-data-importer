@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -277,4 +278,10 @@ func CopyDir(source string, dest string) (err error) {
 // RoundDown returns the number rounded down to the nearest multiple.
 func RoundDown(number, multiple int64) int64 {
 	return number / multiple * multiple
+}
+
+// RoundUp returns the number rounded up to the nearest multiple.
+func RoundUp(number, multiple int64) int64 {
+	partitions := math.Ceil(float64(number) / float64(multiple))
+	return int64(partitions) * multiple
 }

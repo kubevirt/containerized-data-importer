@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -133,6 +134,11 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
 		importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
 			StorageClassName: &scName,
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("1G"),
+				},
+			},
 		}
 		storageClass := createStorageClass(scName, nil)
 		storageProfile := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, corev1.PersistentVolumeBlock)
@@ -155,6 +161,11 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
 		importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
 			StorageClassName: &scName,
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("1G"),
+				},
+			},
 		}
 		storageClass := createStorageClass(scName, nil)
 		storageProfile := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, corev1.PersistentVolumeBlock)
@@ -178,7 +189,13 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 	It("Should set params on a PVC from default storageProfile when import DV has no storageClass and no accessMode", func() {
 		scName := "testStorageClass"
 		importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
-		importDataVolume.Spec.Storage = &cdiv1.StorageSpec{}
+		importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("1G"),
+				},
+			},
+		}
 
 		storageClass := createStorageClass(scName, map[string]string{AnnDefaultStorageClass: "true"})
 		storageProfile := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, corev1.PersistentVolumeBlock)

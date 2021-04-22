@@ -212,8 +212,12 @@ func getRequestedImageSize(pvc *v1.PersistentVolumeClaim) (string, error) {
 
 // returns the volumeMode which determines if the PVC is block PVC or not.
 func getVolumeMode(pvc *v1.PersistentVolumeClaim) v1.PersistentVolumeMode {
-	if pvc.Spec.VolumeMode != nil {
-		return *pvc.Spec.VolumeMode
+	return resolveVolumeMode(pvc.Spec.VolumeMode)
+}
+
+func resolveVolumeMode(volumeMode *v1.PersistentVolumeMode) v1.PersistentVolumeMode {
+	if volumeMode != nil {
+		return *volumeMode
 	}
 	return v1.PersistentVolumeFilesystem
 }
@@ -321,6 +325,11 @@ func GetFilesystemOverhead(client client.Client, pvc *v1.PersistentVolumeClaim) 
 		return "0", nil
 	}
 
+	return GetFilesystemOverheadForStorageClass(client, pvc.Spec.StorageClassName)
+}
+
+// GetFilesystemOverheadForStorageClass determines the filesystem overhead defined in CDIConfig for the storageClass.
+func GetFilesystemOverheadForStorageClass(client client.Client, storageClassName *string) (cdiv1.Percent, error) {
 	cdiConfig := &cdiv1.CDIConfig{}
 	if err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
 		if k8serrors.IsNotFound(err) {
@@ -331,9 +340,9 @@ func GetFilesystemOverhead(client client.Client, pvc *v1.PersistentVolumeClaim) 
 		return "0", err
 	}
 
-	targetStorageClass, err := GetStorageClassByName(client, pvc.Spec.StorageClassName)
+	targetStorageClass, err := GetStorageClassByName(client, storageClassName)
 	if err != nil {
-		klog.V(3).Info("Storage class", pvc.Spec.StorageClassName, "not found, trying default storage class")
+		klog.V(3).Info("Storage class", storageClassName, "not found, trying default storage class")
 		targetStorageClass, err = GetStorageClassByName(client, nil)
 		if err != nil {
 			klog.V(3).Info("No default storage class found, continuing with global overhead")
@@ -347,7 +356,7 @@ func GetFilesystemOverhead(client client.Client, pvc *v1.PersistentVolumeClaim) 
 	}
 
 	if targetStorageClass == nil {
-		klog.V(3).Info("Storage class", pvc.Spec.StorageClassName, "not found, continuing with global overhead")
+		klog.V(3).Info("Storage class", storageClassName, "not found, continuing with global overhead")
 		return cdiConfig.Status.FilesystemOverhead.Global, nil
 	}
 
