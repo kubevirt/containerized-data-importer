@@ -1298,9 +1298,6 @@ func (r *DatavolumeReconciler) updateCloneStatusPhase(pvc *corev1.PersistentVolu
 		}
 
 	}
-
-	// XXX should probably be is status
-	addAnnotation(dataVolumeCopy, annCloneType, "network")
 }
 
 func (r *DatavolumeReconciler) updateUploadStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *DataVolumeEvent) {
@@ -1466,6 +1463,11 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		if err != nil {
 			return result, err
 		}
+	}
+
+	if dataVolumeCopy.Spec.Source.PVC != nil {
+		// XXX should probably be is status
+		addAnnotation(dataVolumeCopy, annCloneType, "network")
 	}
 
 	currentCond := make([]cdiv1.DataVolumeCondition, len(dataVolumeCopy.Status.Conditions))

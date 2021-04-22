@@ -351,6 +351,9 @@ var _ = Describe("all clone tests", func() {
 		AfterEach(func() {
 			dvs := []*cdiv1.DataVolume{sourceDv, targetDv1, targetDv2, targetDv3}
 			for _, dv := range dvs {
+				if dv != nil && dv.Status.Phase == cdiv1.Succeeded {
+					validateCloneType(f, dv)
+				}
 				cleanDv(f, dv)
 			}
 		})
@@ -471,6 +474,9 @@ var _ = Describe("all clone tests", func() {
 				By("Cleaning up target DV")
 				err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, targetDv.Name)
 				Expect(err).ToNot(HaveOccurred())
+				if targetDv.Status.Phase == cdiv1.Succeeded {
+					validateCloneType(f, targetDv)
+				}
 			}
 		})
 
@@ -572,6 +578,9 @@ var _ = Describe("all clone tests", func() {
 			dvs := []*cdiv1.DataVolume{sourceDv, targetDv1, targetDv2, targetDv3}
 			for _, dv := range dvs {
 				cleanDv(f, dv)
+				if dv != nil && dv.Status.Phase == cdiv1.Succeeded {
+					validateCloneType(f, dv)
+				}
 			}
 		})
 
@@ -726,6 +735,8 @@ var _ = Describe("all clone tests", func() {
 			By("Deleting verifier pod")
 			err = utils.DeleteVerifierPod(f.K8sClient, targetNs.Name)
 			Expect(err).ToNot(HaveOccurred())
+
+			validateCloneType(f, dataVolume)
 		})
 	})
 
@@ -1080,18 +1091,24 @@ var _ = Describe("all clone tests", func() {
 
 			doFileBasedCloneTest(f, pvcDef, targetNs, targetDvName)
 
-			By("Verify retry annotation on PVC")
-			targetPvc, err := utils.WaitForPVC(f.K8sClient, targetNs.Name, targetDvName)
-			Expect(err).ToNot(HaveOccurred())
-			restartsValue, status, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodRestarts)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(status).To(BeTrue())
-			Expect(restartsValue).To(Equal("0"))
-
-			By("Verify the number of retries on the datavolume")
 			dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(context.TODO(), targetDvName, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
+
+			cloneType := utils.GetCloneType(f.CdiClient, dv)
+			if cloneType == "network" {
+				By("Verify retry annotation on PVC")
+				targetPvc, err := utils.WaitForPVC(f.K8sClient, targetNs.Name, targetDvName)
+				Expect(err).ToNot(HaveOccurred())
+				restartsValue, status, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodRestarts)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(status).To(BeTrue())
+				Expect(restartsValue).To(Equal("0"))
+
+				By("Verify the number of retries on the datavolume")
+				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(context.TODO(), targetDvName, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
+			}
 		})
 
 		It("[test_id:4277] Clone datavolume with long name", func() {
@@ -1113,18 +1130,24 @@ var _ = Describe("all clone tests", func() {
 
 			doFileBasedCloneTest(f, pvcDef, targetNs, targetDvName)
 
-			By("Verify retry annotation on PVC")
-			targetPvc, err := utils.WaitForPVC(f.K8sClient, targetNs.Name, targetDvName)
-			Expect(err).ToNot(HaveOccurred())
-			restartsValue, status, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodRestarts)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(status).To(BeTrue())
-			Expect(restartsValue).To(Equal("0"))
-
-			By("Verify the number of retries on the datavolume")
 			dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(context.TODO(), targetDvName, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
+
+			cloneType := utils.GetCloneType(f.CdiClient, dv)
+			if cloneType == "network" {
+				By("Verify retry annotation on PVC")
+				targetPvc, err := utils.WaitForPVC(f.K8sClient, targetNs.Name, targetDvName)
+				Expect(err).ToNot(HaveOccurred())
+				restartsValue, status, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodRestarts)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(status).To(BeTrue())
+				Expect(restartsValue).To(Equal("0"))
+
+				By("Verify the number of retries on the datavolume")
+				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(context.TODO(), targetDvName, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
+			}
 		})
 
 		It("[test_id:4278] Clone datavolume with long name including special character '.'", func() {
@@ -1146,20 +1169,25 @@ var _ = Describe("all clone tests", func() {
 
 			doFileBasedCloneTest(f, pvcDef, targetNs, targetDvName)
 
-			By("Verify retry annotation on PVC")
-			targetPvc, err := utils.WaitForPVC(f.K8sClient, targetNs.Name, targetDvName)
-			Expect(err).ToNot(HaveOccurred())
-			restartsValue, status, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodRestarts)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(status).To(BeTrue())
-			Expect(restartsValue).To(Equal("0"))
-
-			By("Verify the number of retries on the datavolume")
 			dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(context.TODO(), targetDvName, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
-		})
 
+			cloneType := utils.GetCloneType(f.CdiClient, dv)
+			if cloneType == "network" {
+				By("Verify retry annotation on PVC")
+				targetPvc, err := utils.WaitForPVC(f.K8sClient, targetNs.Name, targetDvName)
+				Expect(err).ToNot(HaveOccurred())
+				restartsValue, status, err := utils.WaitForPVCAnnotation(f.K8sClient, targetNs.Name, targetPvc, controller.AnnPodRestarts)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(status).To(BeTrue())
+				Expect(restartsValue).To(Equal("0"))
+
+				By("Verify the number of retries on the datavolume")
+				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(context.TODO(), targetDvName, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(dv.Status.RestartCount).To(BeNumerically("==", 0))
+			}
+		})
 	})
 
 	var _ = Describe("Preallocation", func() {
@@ -1347,6 +1375,11 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 	By("Deleting verifier pod")
 	err = utils.DeleteVerifierPod(f.K8sClient, targetNs.Name)
 	Expect(err).ToNot(HaveOccurred())
+
+	dv, err := f.CdiClient.CdiV1beta1().DataVolumes(targetNs.Name).Get(context.TODO(), targetPvc.Name, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+
+	validateCloneType(f, dv)
 }
 
 func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string) {
@@ -1388,4 +1421,39 @@ func cleanDv(f *framework.Framework, dv *cdiv1.DataVolume) {
 		err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
 	}
+}
+
+func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
+	if dv.Spec.Source.PVC == nil {
+		return
+	}
+
+	cloneType := "network"
+
+	if f.IsSnapshotStorageClassAvailable() {
+		sourceNamespace := dv.Namespace
+		if dv.Spec.Source.PVC.Namespace != "" {
+			sourceNamespace = dv.Spec.Source.PVC.Namespace
+		}
+
+		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		allowsExpansion := sc.AllowVolumeExpansion != nil && *sc.AllowVolumeExpansion
+
+		sourcePVC, err := f.K8sClient.CoreV1().PersistentVolumeClaims(sourceNamespace).Get(context.TODO(), dv.Spec.Source.PVC.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		targetPVC, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		if sourcePVC.Spec.StorageClassName != nil &&
+			targetPVC.Spec.StorageClassName != nil &&
+			*sourcePVC.Spec.StorageClassName == *targetPVC.Spec.StorageClassName &&
+			*sourcePVC.Spec.StorageClassName == f.SnapshotSCName &&
+			(allowsExpansion || sourcePVC.Status.Capacity.Storage().Cmp(*targetPVC.Status.Capacity.Storage()) == 0) {
+			cloneType = "snapshot"
+		}
+	}
+
+	Expect(utils.GetCloneType(f.CdiClient, dv)).To(Equal(cloneType))
 }

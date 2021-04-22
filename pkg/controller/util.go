@@ -766,6 +766,7 @@ func AddFinalizer(obj metav1.Object, name string) {
 	obj.SetFinalizers(append(obj.GetFinalizers(), name))
 }
 
+// RemoveFinalizer removes a finalizer from a resource
 func RemoveFinalizer(obj metav1.Object, name string) {
 	if !HasFinalizer(obj, name) {
 		return
@@ -781,6 +782,7 @@ func RemoveFinalizer(obj metav1.Object, name string) {
 	obj.SetFinalizers(finalizers)
 }
 
+// HasFinalizer returns true if a resource has a specific finalizer
 func HasFinalizer(object metav1.Object, value string) bool {
 	for _, f := range object.GetFinalizers() {
 		if f == value {
