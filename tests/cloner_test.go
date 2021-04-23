@@ -10,10 +10,11 @@ import (
 	"time"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
-	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
@@ -60,21 +61,15 @@ var _ = Describe("all clone tests", func() {
 			}
 		})
 
-		It("[test_id:1354]Should clone data within same namespace", func() {
-			smartApplicable := f.IsSnapshotStorageClassAvailable()
-			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
-			if err == nil {
-				value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
-				if smartApplicable && ok && strings.Compare(value, "true") == 0 {
-					Skip("Cannot test host assisted cloning for within namespace when all pvcs are smart clone capable.")
-				}
-			}
-
+		DescribeTable("[test_id:1354]Should clone data within same namespace", func(targetSize string) {
 			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
-			doFileBasedCloneTest(f, pvcDef, f.Namespace, "target-dv")
-		})
+			doFileBasedCloneTest(f, pvcDef, f.Namespace, "target-dv", targetSize)
+		},
+			Entry("with same target size", "1G"),
+			Entry("with larger target", "2G"),
+		)
 
 		It("[test_id:4953]Should clone imported data within same namespace and preserve fsGroup", func() {
 			diskImagePath := filepath.Join(testBaseDir, testFile)
@@ -111,7 +106,7 @@ var _ = Describe("all clone tests", func() {
 			completeClone(f, f.Namespace, targetPvc, diskImagePath, sourceMD5, sourcePvcDiskGroup)
 		})
 
-		It("[test_id:1355]Should clone data across different namespaces", func() {
+		DescribeTable("[test_id:1355]Should clone data across different namespaces", func(targetSize string) {
 			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
@@ -120,8 +115,11 @@ var _ = Describe("all clone tests", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 			f.AddNamespaceToDelete(targetNs)
-			doFileBasedCloneTest(f, pvcDef, targetNs, "target-dv")
-		})
+			doFileBasedCloneTest(f, pvcDef, targetNs, "target-dv", targetSize)
+		},
+			Entry("with same target size", "1G"),
+			Entry("with bigger target size", "2G"),
+		)
 
 		It("[test_id:4954]Should clone data across different namespaces when source initially in use", func() {
 			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
@@ -150,7 +148,7 @@ var _ = Describe("all clone tests", func() {
 			}
 			nodeMap := make(map[string]bool)
 			for _, node := range nodeList.Items {
-				if ok, _ := nodeMap[node.Name]; !ok {
+				if ok := nodeMap[node.Name]; !ok {
 					nodeMap[node.Name] = true
 				}
 			}
@@ -700,13 +698,15 @@ var _ = Describe("all clone tests", func() {
 	var _ = Describe("Block PV Cloner Test", func() {
 		f := framework.NewFramework(namespacePrefix)
 
-		It("[test_id:4955]Should clone data across namespaces", func() {
+		DescribeTable("[test_id:4955]Should clone data across namespaces", func(targetSize string) {
 			if !f.IsBlockVolumeStorageClassAvailable() {
 				Skip("Storage Class for block volume is not available")
 			}
-			pvcDef := utils.NewBlockPVCDefinition(sourcePVCName, "500M", nil, nil, f.BlockSCName)
+			sourceSize := "500M"
+			ss := resource.MustParse(sourceSize)
+			pvcDef := utils.NewBlockPVCDefinition(sourcePVCName, sourceSize, nil, nil, f.BlockSCName)
 			sourcePvc := f.CreateAndPopulateSourcePVC(pvcDef, "fill-source-block-pod", blockFillCommand)
-			sourceMD5, err := f.GetMD5(f.Namespace, sourcePvc, testBaseDir, 0)
+			sourceMD5, err := f.GetMD5(f.Namespace, sourcePvc, testBaseDir, ss.Value())
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Deleting verifier pod")
@@ -719,7 +719,7 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).NotTo(HaveOccurred())
 			f.AddNamespaceToDelete(targetNs)
 
-			targetDV := utils.NewDataVolumeCloneToBlockPV("target-dv", "500M", sourcePvc.Namespace, sourcePvc.Name, f.BlockSCName)
+			targetDV := utils.NewDataVolumeCloneToBlockPV("target-dv", targetSize, sourcePvc.Namespace, sourcePvc.Name, f.BlockSCName)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -731,13 +731,22 @@ var _ = Describe("all clone tests", func() {
 
 			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, targetNs.Name, cdiv1.Succeeded, "target-dv", 3*90*time.Second)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(f.VerifyTargetPVCContentMD5(targetNs, targetPvc, testBaseDir, sourceMD5)).To(BeTrue())
+			Expect(f.VerifyTargetPVCContentMD5(targetNs, targetPvc, testBaseDir, sourceMD5, ss.Value())).To(BeTrue())
 			By("Deleting verifier pod")
 			err = utils.DeleteVerifierPod(f.K8sClient, targetNs.Name)
 			Expect(err).ToNot(HaveOccurred())
 
 			validateCloneType(f, dataVolume)
-		})
+
+			targetPvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(targetPvc.Namespace).Get(context.TODO(), targetPvc.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			es := resource.MustParse(targetSize)
+			Expect(es.Cmp(*targetPvc.Status.Capacity.Storage()) <= 0).To(BeTrue())
+		},
+			Entry("with same target size", "500M"),
+			Entry("with bigger target", "1G"),
+		)
 	})
 
 	var _ = Describe("Namespace with quota", func() {
@@ -823,7 +832,7 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			By("Verify Quota was exceeded in logs")
-			matchString := fmt.Sprintf("\\\"cdi-upload-target-dv\\\" is forbidden: exceeded quota: test-quota, requested")
+			matchString := "\\\"cdi-upload-target-dv\\\" is forbidden: exceeded quota: test-quota, requested"
 			Eventually(func() string {
 				log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 				Expect(err).NotTo(HaveOccurred())
@@ -857,7 +866,7 @@ var _ = Describe("all clone tests", func() {
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			By("Verify Quota was exceeded in logs")
-			matchString := fmt.Sprintf("\\\"cdi-upload-target-dv\\\" is forbidden: exceeded quota: test-quota, requested")
+			matchString := "\\\"cdi-upload-target-dv\\\" is forbidden: exceeded quota: test-quota, requested"
 			Eventually(func() string {
 				log, err := RunKubectlCommand(f, "logs", f.ControllerPod.Name, "-n", f.CdiInstallNs)
 				Expect(err).NotTo(HaveOccurred())
@@ -1285,9 +1294,12 @@ var _ = Describe("all clone tests", func() {
 	})
 })
 
-func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClaim, targetNs *v1.Namespace, targetDv string) {
+func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClaim, targetNs *v1.Namespace, targetDv string, targetSize ...string) {
+	if len(targetSize) == 0 {
+		targetSize = []string{"1G"}
+	}
 	// Create targetPvc in new NS.
-	targetDV := utils.NewCloningDataVolume(targetDv, "1G", srcPVCDef)
+	targetDV := utils.NewCloningDataVolume(targetDv, targetSize[0], srcPVCDef)
 	dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -1302,6 +1314,12 @@ func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolume
 	Expect(err).ToNot(HaveOccurred())
 
 	completeClone(f, targetNs, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum, sourcePvcDiskGroup)
+
+	targetPvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(targetPvc.Namespace).Get(context.TODO(), targetPvc.Name, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+
+	es := resource.MustParse(targetSize[0])
+	Expect(es.Cmp(*targetPvc.Status.Capacity.Storage()) <= 0).To(BeTrue())
 }
 
 func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClaim, targetNs *v1.Namespace, targetDv string) {
@@ -1319,7 +1337,7 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 	dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 	Expect(err).ToNot(HaveOccurred())
 
-	var targetPvc *corev1.PersistentVolumeClaim
+	var targetPvc *v1.PersistentVolumeClaim
 	cloneType := utils.GetCloneType(f.CdiClient, dataVolume)
 
 	if cloneType == "network" {
