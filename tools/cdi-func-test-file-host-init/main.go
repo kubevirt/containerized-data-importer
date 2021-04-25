@@ -45,6 +45,10 @@ func main() {
 		[]string{".gz"},
 		[]string{".xz"},
 		[]string{".qcow2"},
+		[]string{".vmdk"},
+		[]string{".vdi"},
+		[]string{".vhd"},
+		[]string{".vhdx"},
 		[]string{".qcow2", ".gz"},
 		[]string{".qcow2", ".xz"},
 	}

@@ -15,11 +15,15 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/image"
 )
 
-var formatTable = map[string]func(string, string) (string, error){
+var formatTable = map[string]func(string, string, string) (string, error){
 	image.ExtGz:    toGz,
 	image.ExtXz:    toXz,
 	image.ExtTar:   toTar,
-	image.ExtQcow2: toQcow2,
+	image.ExtQcow2: convertUsingQemuImg,
+	image.ExtVmdk:  convertUsingQemuImg,
+	image.ExtVdi:   convertUsingQemuImg,
+	image.ExtVhd:   convertUsingQemuImg,
+	image.ExtVhdx:  convertUsingQemuImg,
 	"":             toNoop,
 }
 
@@ -30,13 +34,13 @@ var formatTable = map[string]func(string, string) (string, error){
 //		(error)  Errors that occur during formatting
 func FormatTestData(srcFile, tgtDir string, targetFormats ...string) (string, error) {
 	var err error
-	for _, tf := range targetFormats {
-		f, ok := formatTable[tf]
+	for _, extension := range targetFormats {
+		f, ok := formatTable[extension]
 		if !ok {
-			return "", errors.Errorf("format extension %q not recognized", tf)
+			return "", errors.Errorf("format extension %q not recognized", extension)
 		}
 		// invoke conversion func
-		srcFile, err = f(srcFile, tgtDir)
+		srcFile, err = f(srcFile, tgtDir, extension)
 		if err != nil {
 			return "", errors.Wrap(err, "could not format test data")
 		}
@@ -44,7 +48,7 @@ func FormatTestData(srcFile, tgtDir string, targetFormats ...string) (string, er
 	return srcFile, nil
 }
 
-func toTar(src, tgtDir string) (string, error) {
+func toTar(src, tgtDir, ext string) (string, error) {
 	return ArchiveFiles(src, tgtDir, src)
 }
 
@@ -87,7 +91,7 @@ func ArchiveFiles(targetFile, tgtDir string, sourceFilesNames ...string) (string
 	return tgtPath, nil
 }
 
-func toGz(src, tgtDir string) (string, error) {
+func toGz(src, tgtDir, ext string) (string, error) {
 	tgtFile, tgtPath, _ := createTargetFile(src, tgtDir, image.ExtGz)
 	defer tgtFile.Close()
 
@@ -107,7 +111,7 @@ func toGz(src, tgtDir string) (string, error) {
 	return tgtPath, nil
 }
 
-func toXz(src, tgtDir string) (string, error) {
+func toXz(src, tgtDir, ext string) (string, error) {
 	tgtFile, tgtPath, _ := createTargetFile(src, tgtDir, image.ExtXz)
 	defer tgtFile.Close()
 
@@ -130,10 +134,10 @@ func toXz(src, tgtDir string) (string, error) {
 	return tgtPath, nil
 }
 
-func toQcow2(srcfile, tgtDir string) (string, error) {
+func convertUsingQemuImg(srcfile, tgtDir, ext string) (string, error) {
 	base := strings.TrimSuffix(filepath.Base(srcfile), ".iso")
-	tgt := filepath.Join(tgtDir, base+image.ExtQcow2)
-	args := []string{"convert", "-f", "raw", "-O", "qcow2", srcfile, tgt}
+	tgt := filepath.Join(tgtDir, base+ext)
+	args := []string{"convert", "-f", "raw", "-O", extToQemuFormat(ext), srcfile, tgt}
 
 	if err := doCmdAndVerifyFile(tgt, "qemu-img", args...); err != nil {
 		return "", err
@@ -141,7 +145,15 @@ func toQcow2(srcfile, tgtDir string) (string, error) {
 	return tgt, nil
 }
 
-func toNoop(src, tgtDir string) (string, error) {
+func extToQemuFormat(targetFormat string) string {
+	if targetFormat == ".vhd" {
+		return "vpc"
+	}
+	// trim prefix "."
+	return targetFormat[1:]
+}
+
+func toNoop(src, tgtDir, ext string) (string, error) {
 	return copyIfNotPresent(src, tgtDir)
 }
 

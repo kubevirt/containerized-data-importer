@@ -54,6 +54,18 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	httpsTinyCoreQcow2URL := func() string {
 		return fmt.Sprintf(utils.HTTPSTinyCoreQcow2URL, f.CdiInstallNs)
 	}
+	httpsTinyCoreVmdkURL := func() string {
+		return fmt.Sprintf(utils.HTTPSTinyCoreVmdkURL, f.CdiInstallNs)
+	}
+	httpsTinyCoreVdiURL := func() string {
+		return fmt.Sprintf(utils.HTTPSTinyCoreVdiURL, f.CdiInstallNs)
+	}
+	httpsTinyCoreVhdURL := func() string {
+		return fmt.Sprintf(utils.HTTPSTinyCoreVhdURL, f.CdiInstallNs)
+	}
+	httpsTinyCoreVhdxURL := func() string {
+		return fmt.Sprintf(utils.HTTPSTinyCoreVhdxURL, f.CdiInstallNs)
+	}
 	tinyCoreQcow2URL := func() string {
 		return fmt.Sprintf(utils.TinyCoreQcow2URL+".gz", f.CdiInstallNs)
 	}
@@ -821,6 +833,27 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			table.Entry("[test_id:3936]succeed warm import from VDDK to block volume", "warm-import-vddk", "", nil, "dv-vddk-warm-import-test", controller.ImportSucceeded, cdiv1.Succeeded),
 		)
 	})
+
+	table.DescribeTable("Succeed HTTPS import in various formats", func(url func() string) {
+		By(fmt.Sprintf("Importing from %s", url()))
+		dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url())
+		cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+		Expect(err).To(BeNil())
+		dataVolume.Spec.Source.HTTP.CertConfigMap = cm
+
+		By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+		err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+	},
+		table.Entry("when importing in the VMDK format", httpsTinyCoreVmdkURL),
+		table.Entry("When importing in the VDI format", httpsTinyCoreVdiURL),
+		table.Entry("when importing in the VHD format", httpsTinyCoreVhdURL),
+		table.Entry("when importing in the VHDX format", httpsTinyCoreVhdxURL),
+	)
 
 	Describe("[rfe_id:1115][crit:high][posneg:negative]Delete resources of DataVolume with an invalid URL (POD in retry loop)", func() {
 		Context("using invalid import URL for DataVolume", func() {
