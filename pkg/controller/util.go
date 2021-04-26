@@ -758,6 +758,7 @@ func getPriorityClass(pvc *v1.PersistentVolumeClaim) string {
 	return anno[AnnPriorityClassName]
 }
 
+// AddFinalizer adds a finalizer to a resource
 func AddFinalizer(obj metav1.Object, name string) {
 	if HasFinalizer(obj, name) {
 		return

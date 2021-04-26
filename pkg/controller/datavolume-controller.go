@@ -150,6 +150,14 @@ const (
 	MessageUploadFailed = "Upload into %s failed"
 	// MessageUploadSucceeded provides a const to form upload has succeeded message
 	MessageUploadSucceeded = "Successfully uploaded into %s"
+	// ExpansionInProgress is const representing target PVC expansion
+	ExpansionInProgress = "ExpansionInProgress"
+	// MessageExpansionInProgress is a const for reporting target expansion
+	MessageExpansionInProgress = "Expanding PersistentVolumeClaim for DataVolume %s/%s"
+	// NamespaceTransferInProgress is const representing target PVC transfer
+	NamespaceTransferInProgress = "NamespaceTransferInProgress"
+	// MessageNamespaceTransferInProgress is a const for reporting target transfer
+	MessageNamespaceTransferInProgress = "Transferring PersistentVolumeClaim for DataVolume %s/%s"
 
 	annOwnedByDataVolume = "cdi.kubevirt.io/ownedByDataVolume"
 
@@ -408,8 +416,8 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 						return reconcile.Result{}, err
 					}
 					if !done {
-						// XXX should maybe have expansion phase
-						return reconcile.Result{}, nil
+						return reconcile.Result{},
+							r.updateSmartCloneStatusPhase(cdiv1.ExpansionInProgress, datavolume, nil)
 					}
 
 					// trigger transfer and next reconcile should have pvcExists == true
@@ -419,8 +427,8 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 						return reconcile.Result{}, err
 					}
 
-					// XXX should maybe have transfer phase
-					return reconcile.Result{}, nil
+					return reconcile.Result{},
+						r.updateSmartCloneStatusPhase(cdiv1.NamespaceTransferInProgress, datavolume, nil)
 				} else {
 					return reconcile.Result{}, nil
 				}
@@ -458,14 +466,18 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 				}
 
 				if err := r.client.Create(context.TODO(), newSnapshot); err != nil {
-					if !k8serrors.IsAlreadyExists(err) {
-						return reconcile.Result{}, err
+					if k8serrors.IsAlreadyExists(err) {
+						return reconcile.Result{}, nil
 					}
+
+					return reconcile.Result{}, nil
 				}
+
+				return reconcile.Result{},
+					r.updateSmartCloneStatusPhase(cdiv1.SnapshotForSmartCloneInProgress, datavolume, nil)
 			}
 
-			return reconcile.Result{},
-				r.updateSmartCloneStatusPhase(cdiv1.SnapshotForSmartCloneInProgress, datavolume, nil)
+			return reconcile.Result{}, nil
 		}
 		log.Info("Creating PVC for datavolume")
 		newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec)
@@ -519,8 +531,8 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 			return reconcile.Result{}, err
 		}
 		if !done {
-			// XXX should maybe have expansion phase
-			return reconcile.Result{}, nil
+			return reconcile.Result{},
+				r.updateSmartCloneStatusPhase(cdiv1.ExpansionInProgress, datavolume, pvc)
 		}
 
 		// done
@@ -889,78 +901,10 @@ func (r *DatavolumeReconciler) expand(log logr.Logger, dv *cdiv1.DataVolume, pvc
 	}
 
 	if !podExists {
-		resourceRequirements, err := GetDefaultPodResourceRequirements(r.client)
+		var err error
+		pod, err = r.createExpansionPod(pvc, dv, podName)
 		if err != nil {
 			return false, err
-		}
-
-		workloadNodePlacement, err := GetWorkloadNodePlacement(r.client)
-		if err != nil {
-			return false, err
-		}
-
-		pod = &corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      podName,
-				Namespace: pvc.Namespace,
-				Annotations: map[string]string{
-					AnnCreatedBy: "yes",
-				},
-				Labels: map[string]string{
-					common.CDILabelKey:       common.CDILabelValue,
-					common.CDIComponentLabel: "cdi-expander",
-				},
-			},
-			Spec: corev1.PodSpec{
-				Containers: []corev1.Container{
-					{
-						Name:            "dummy",
-						Image:           r.image,
-						ImagePullPolicy: corev1.PullPolicy(r.pullPolicy),
-						Command:         []string{"/bin/bash"},
-						Args:            []string{"-c", "echo", "'hello cdi'"},
-					},
-				},
-				RestartPolicy: corev1.RestartPolicyOnFailure,
-				Volumes: []corev1.Volume{
-					{
-						Name: DataVolName,
-						VolumeSource: corev1.VolumeSource{
-							PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-								ClaimName: pvc.Name,
-							},
-						},
-					},
-				},
-				NodeSelector: workloadNodePlacement.NodeSelector,
-				Tolerations:  workloadNodePlacement.Tolerations,
-				Affinity:     workloadNodePlacement.Affinity,
-			},
-		}
-
-		if pvc.Spec.VolumeMode != nil && *pvc.Spec.VolumeMode == corev1.PersistentVolumeBlock {
-			pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
-		} else {
-			pod.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
-				{
-					Name:      DataVolName,
-					MountPath: common.ClonerMountPath,
-				},
-			}
-		}
-
-		if resourceRequirements != nil {
-			pod.Spec.Containers[0].Resources = *resourceRequirements
-		}
-
-		if err := setAnnOwnedByDataVolume(pod, dv); err != nil {
-			return false, err
-		}
-
-		if err := r.client.Create(context.TODO(), pod); err != nil {
-			if !k8serrors.IsAlreadyExists(err) {
-				return false, err
-			}
 		}
 	}
 
@@ -977,6 +921,84 @@ func (r *DatavolumeReconciler) expand(log logr.Logger, dv *cdiv1.DataVolume, pvc
 	}
 
 	return false, nil
+}
+
+func (r *DatavolumeReconciler) createExpansionPod(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume, podName string) (*corev1.Pod, error) {
+	resourceRequirements, err := GetDefaultPodResourceRequirements(r.client)
+	if err != nil {
+		return nil, err
+	}
+
+	workloadNodePlacement, err := GetWorkloadNodePlacement(r.client)
+	if err != nil {
+		return nil, err
+	}
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: pvc.Namespace,
+			Annotations: map[string]string{
+				AnnCreatedBy: "yes",
+			},
+			Labels: map[string]string{
+				common.CDILabelKey:       common.CDILabelValue,
+				common.CDIComponentLabel: "cdi-expander",
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:            "dummy",
+					Image:           r.image,
+					ImagePullPolicy: corev1.PullPolicy(r.pullPolicy),
+					Command:         []string{"/bin/bash"},
+					Args:            []string{"-c", "echo", "'hello cdi'"},
+				},
+			},
+			RestartPolicy: corev1.RestartPolicyOnFailure,
+			Volumes: []corev1.Volume{
+				{
+					Name: DataVolName,
+					VolumeSource: corev1.VolumeSource{
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvc.Name,
+						},
+					},
+				},
+			},
+			NodeSelector: workloadNodePlacement.NodeSelector,
+			Tolerations:  workloadNodePlacement.Tolerations,
+			Affinity:     workloadNodePlacement.Affinity,
+		},
+	}
+
+	if pvc.Spec.VolumeMode != nil && *pvc.Spec.VolumeMode == corev1.PersistentVolumeBlock {
+		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()
+	} else {
+		pod.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{
+			{
+				Name:      DataVolName,
+				MountPath: common.ClonerMountPath,
+			},
+		}
+	}
+
+	if resourceRequirements != nil {
+		pod.Spec.Containers[0].Resources = *resourceRequirements
+	}
+
+	if err := setAnnOwnedByDataVolume(pod, dv); err != nil {
+		return nil, err
+	}
+
+	if err := r.client.Create(context.TODO(), pod); err != nil {
+		if !k8serrors.IsAlreadyExists(err) {
+			return nil, err
+		}
+	}
+
+	return pod, nil
 }
 
 func (r *DatavolumeReconciler) getStorageClassBindingMode(storageClassName *string) (*storagev1.VolumeBindingMode, error) {
@@ -1010,16 +1032,6 @@ func getStorageVolumeMode(c client.Client, dataVolume *cdiv1.DataVolume, storage
 	}
 
 	return nil, errors.Errorf("no target storage defined")
-}
-
-func (r *DatavolumeReconciler) getStorageAllowsExpansion(dataVolume *cdiv1.DataVolume) (bool, error) {
-	// Handle unspecified storage class name, fallback to default storage class
-	storageClass, err := GetStorageClassByName(r.client, dataVolume.Spec.PVC.StorageClassName)
-	if err != nil {
-		return false, err
-	}
-
-	return storageClass.AllowVolumeExpansion != nil && *storageClass.AllowVolumeExpansion, nil
 }
 
 func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, pvcUID types.UID) (reconcile.Result, error) {
@@ -1254,6 +1266,16 @@ func (r *DatavolumeReconciler) updateSmartCloneStatusPhase(phase cdiv1.DataVolum
 		event.eventType = corev1.EventTypeNormal
 		event.reason = SnapshotForSmartCloneInProgress
 		event.message = fmt.Sprintf(MessageSmartCloneInProgress, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name)
+	case cdiv1.ExpansionInProgress:
+		dataVolumeCopy.Status.Phase = cdiv1.ExpansionInProgress
+		event.eventType = corev1.EventTypeNormal
+		event.reason = ExpansionInProgress
+		event.message = fmt.Sprintf(MessageExpansionInProgress, dataVolumeCopy.Namespace, dataVolumeCopy.Name)
+	case cdiv1.NamespaceTransferInProgress:
+		dataVolumeCopy.Status.Phase = cdiv1.NamespaceTransferInProgress
+		event.eventType = corev1.EventTypeNormal
+		event.reason = NamespaceTransferInProgress
+		event.message = fmt.Sprintf(MessageNamespaceTransferInProgress, dataVolumeCopy.Namespace, dataVolumeCopy.Name)
 	case cdiv1.Succeeded:
 		dataVolumeCopy.Status.Phase = cdiv1.Succeeded
 		event.eventType = corev1.EventTypeNormal
@@ -1262,7 +1284,7 @@ func (r *DatavolumeReconciler) updateSmartCloneStatusPhase(phase cdiv1.DataVolum
 	}
 
 	r.updateConditions(dataVolumeCopy, pvc)
-	// XXX should probably be is status
+
 	addAnnotation(dataVolumeCopy, annCloneType, "snapshot")
 
 	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, dataVolume.Status.Conditions, &event)
