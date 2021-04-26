@@ -115,6 +115,15 @@ func NewCloningDataVolume(dataVolumeName, size string, sourcePvc *k8sv1.Persiste
 
 // NewDataVolumeWithHTTPImport initializes a DataVolume struct with HTTP annotations
 func NewDataVolumeWithHTTPImport(dataVolumeName string, size string, httpURL string) *cdiv1.DataVolume {
+	claimSpec := &k8sv1.PersistentVolumeClaimSpec{
+		AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+		Resources: k8sv1.ResourceRequirements{
+			Requests: k8sv1.ResourceList{
+				k8sv1.ResourceStorage: resource.MustParse(size),
+			},
+		},
+	}
+
 	return &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        dataVolumeName,
@@ -126,14 +135,34 @@ func NewDataVolumeWithHTTPImport(dataVolumeName string, size string, httpURL str
 					URL: httpURL,
 				},
 			},
-			PVC: &k8sv1.PersistentVolumeClaimSpec{
-				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
-				Resources: k8sv1.ResourceRequirements{
-					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceName(k8sv1.ResourceStorage): resource.MustParse(size),
-					},
+			PVC: claimSpec,
+		},
+	}
+}
+
+// NewDataVolumeWithHTTPImportAndStorageSpec initializes a DataVolume struct with HTTP annotations
+func NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName string, size string, httpURL string) *cdiv1.DataVolume {
+	storageSpec := &cdiv1.StorageSpec{
+		AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+		Resources: k8sv1.ResourceRequirements{
+			Requests: k8sv1.ResourceList{
+				k8sv1.ResourceStorage: resource.MustParse(size),
+			},
+		},
+	}
+
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        dataVolumeName,
+			Annotations: map[string]string{},
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			Source: cdiv1.DataVolumeSource{
+				HTTP: &cdiv1.DataVolumeSourceHTTP{
+					URL: httpURL,
 				},
 			},
+			Storage: storageSpec,
 		},
 	}
 }

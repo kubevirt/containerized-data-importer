@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
+	"reflect"
 	"regexp"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
@@ -1066,23 +1067,55 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	})
 
 	Describe("Create a PVC using data from StorageProfile", func() {
-		createDataVolume := func(f *framework.Framework, storageClassName string) *cdiv1.DataVolume {
-			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs))
-			dataVolume.Spec.PVC = nil
-			dataVolume.Spec.Storage = &cdiv1.StorageSpec{
-				AccessModes:      nil,
-				VolumeMode:       nil,
-				StorageClassName: &storageClassName,
-				Resources: v1.ResourceRequirements{
-					Requests: v1.ResourceList{
-						v1.ResourceStorage: resource.MustParse("1Gi"),
-					},
-				},
-			}
+		var (
+			config   *cdiv1.CDIConfig
+			origSpec *cdiv1.CDIConfigSpec
+			err      error
+		)
+
+		fillData := "123456789012345678901234567890123456789012345678901234567890"
+		testFile := utils.DefaultPvcMountPath + "/source.txt"
+		fillCommand := "echo \"" + fillData + "\" >> " + testFile
+
+		createDataVolumeForImport := func(f *framework.Framework, storageClassName string) *cdiv1.DataVolume {
+			dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
+				dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs))
+
+			dataVolume.Spec.Storage.AccessModes = nil
+			dataVolume.Spec.Storage.VolumeMode = nil
+			dataVolume.Spec.Storage.StorageClassName = &storageClassName
+
 			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 			return dv
 		}
+
+		createDataVolumeForUpload := func(f *framework.Framework, storageSpec cdiv1.StorageSpec) *cdiv1.DataVolume {
+			dataVolume := utils.NewDataVolumeForUpload(dataVolumeName, "1Mi")
+			dataVolume.Spec.PVC = nil
+			dataVolume.Spec.Storage = &storageSpec
+
+			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+			return dv
+		}
+
+		createCloneDataVolume := func(dataVolumeName string, storageSpec cdiv1.StorageSpec, command string) *cdiv1.DataVolume {
+			sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
+			pvcDef := utils.NewPVCDefinition(pvcName, "10Mi", nil, nil)
+			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
+
+			By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
+			dataVolume := utils.NewCloningDataVolume(dataVolumeName, "10Mi", sourcePvc)
+			dataVolume.Spec.PVC = nil
+			dataVolume.Spec.Storage = &storageSpec
+			dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
+
+			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+			return dv
+		}
+
 		getStorageProfileSpec := func(client client.Client, storageClassName string) *cdiv1.StorageProfileSpec {
 			storageProfile := &cdiv1.StorageProfile{}
 			err := client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, storageProfile)
@@ -1123,6 +1156,25 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			return originalProfileSpec
 		}
 
+		BeforeEach(func() {
+			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			origSpec = config.Spec.DeepCopy()
+		})
+
+		AfterEach(func() {
+			By("Restoring CDIConfig to original state")
+			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+				origSpec.DeepCopyInto(config)
+			})
+
+			Eventually(func() bool {
+				config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				return reflect.DeepEqual(config.Spec, origSpec)
+			}, 30*time.Second, time.Second)
+		})
+
 		It("[test_id:5911]succeeds creating a PVC from DV without accessModes", func() {
 			defaultScName := utils.DefaultStorageClass.GetName()
 
@@ -1133,7 +1185,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				v1.PersistentVolumeFilesystem)
 
 			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
-			dataVolume := createDataVolume(f, defaultScName)
+			dataVolume := createDataVolumeForImport(f, defaultScName)
 
 			By("verifying pvc created with correct accessModes")
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
@@ -1148,7 +1200,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			// assumes local is available and has no volumeMode
 			defaultScName := "local"
 			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
-			dataVolume := createDataVolume(f, defaultScName)
+			dataVolume := createDataVolumeForImport(f, defaultScName)
 
 			By("verifying pvc not created")
 			_, err := utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
@@ -1171,7 +1223,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			// assumes local is available and has no volumeMode
 			defaultScName := "local"
 			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
-			dataVolume := createDataVolume(f, defaultScName)
+			dataVolume := createDataVolumeForImport(f, defaultScName)
 
 			By("verifying pvc not created")
 			_, err := utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
@@ -1202,6 +1254,117 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Restore the profile")
 			updateStorageProfileSpec(f.CrClient, defaultScName, *originalProfileSpec)
+		})
+
+		It("Upload pvc should have size corrected on filesystem volume", func() {
+			defaultScName := utils.DefaultStorageClass.GetName()
+			SetFilesystemOverhead(f, "0.50", "0.50")
+			requestedSize := resource.MustParse("100Mi")
+			// given 50 percent overhead, expected size is 2x requestedSize
+			expectedSize := resource.MustParse("200Mi")
+
+			By("creating datavolume for upload")
+			volumeMode := v1.PersistentVolumeFilesystem
+			dataVolume := createDataVolumeForUpload(f, cdiv1.StorageSpec{
+				AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+				VolumeMode:       &volumeMode,
+				StorageClassName: &defaultScName,
+				Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						v1.ResourceStorage: requestedSize,
+					},
+				},
+			})
+
+			By("verifying pvc created with correct accessModes")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(expectedSize.Value()))
+			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
+		})
+
+		It("Upload pvc should not have size corrected on block volume", func() {
+			defaultScName := utils.DefaultStorageClass.GetName()
+			SetFilesystemOverhead(f, "0.50", "0.50")
+			requestedSize := resource.MustParse("100Mi")
+			// volumeMode Block, so no overhead applied
+			expectedSize := resource.MustParse("100Mi")
+
+			By("creating datavolume for upload")
+			volumeMode := v1.PersistentVolumeBlock
+
+			dataVolume := createDataVolumeForUpload(f, cdiv1.StorageSpec{
+				AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+				VolumeMode:       &volumeMode,
+				StorageClassName: &defaultScName,
+				Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						v1.ResourceStorage: requestedSize,
+					},
+				},
+			})
+
+			By("verifying pvc created with correct accessModes")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(expectedSize.Value()))
+			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
+		})
+
+		It("Clone pod should not have size corrected on block", func() {
+			defaultScName := utils.DefaultStorageClass.GetName()
+			SetFilesystemOverhead(f, "0.50", "0.50")
+			requestedSize := resource.MustParse("100Mi")
+			// volumeMode Block, so no overhead applied
+			expectedSize := resource.MustParse("100Mi")
+
+			By("creating datavolume for upload")
+			volumeMode := v1.PersistentVolumeBlock
+			dataVolume := createCloneDataVolume(dataVolumeName,
+				cdiv1.StorageSpec{
+					AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+					VolumeMode:       &volumeMode,
+					StorageClassName: &defaultScName,
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{
+							v1.ResourceStorage: requestedSize,
+						},
+					},
+				}, fillCommand)
+
+			By("verifying pvc created with correct size")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(expectedSize.Value()))
+			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
+		})
+
+		It("Clone pod should have size corrected on filesystem", func() {
+			defaultScName := utils.DefaultStorageClass.GetName()
+			SetFilesystemOverhead(f, "0.50", "0.50")
+			requestedSize := resource.MustParse("100Mi")
+			// given 50 percent overhead, expected size is 2x requestedSize
+			expectedSize := resource.MustParse("200Mi")
+
+			By("creating datavolume for upload")
+			volumeMode := v1.PersistentVolumeFilesystem
+			dataVolume := createCloneDataVolume(dataVolumeName,
+				cdiv1.StorageSpec{
+					AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+					VolumeMode:       &volumeMode,
+					StorageClassName: &defaultScName,
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{
+							v1.ResourceStorage: requestedSize,
+						},
+					},
+				}, fillCommand)
+
+			By("verifying pvc created with correct size")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(expectedSize.Value()))
+			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
 		})
 	})
 
@@ -1872,4 +2035,30 @@ func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions
 		}
 	}
 	return nil
+}
+
+func SetFilesystemOverhead(f *framework.Framework, globalOverhead, scOverhead string) {
+	defaultSCName := utils.DefaultStorageClass.GetName()
+	testedFilesystemOverhead := &cdiv1.FilesystemOverhead{}
+	if globalOverhead != "" {
+		testedFilesystemOverhead.Global = cdiv1.Percent(globalOverhead)
+	}
+	if scOverhead != "" {
+		testedFilesystemOverhead.StorageClass = map[string]cdiv1.Percent{defaultSCName: cdiv1.Percent(scOverhead)}
+	}
+
+	By(fmt.Sprintf("Updating CDIConfig filesystem overhead to %v", testedFilesystemOverhead))
+	err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+		config.FilesystemOverhead = testedFilesystemOverhead.DeepCopy()
+	})
+	Expect(err).ToNot(HaveOccurred())
+	By(fmt.Sprintf("Waiting for filsystem overhead status to be set to %v", testedFilesystemOverhead))
+	Eventually(func() bool {
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		if scOverhead != "" {
+			return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(scOverhead)
+		}
+		return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(globalOverhead)
+	}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig filesystem overhead wasn't set")
 }
