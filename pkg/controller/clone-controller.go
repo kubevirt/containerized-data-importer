@@ -288,11 +288,12 @@ func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.Pe
 
 	log.V(3).Info("Pod phase for PVC", "PVC phase", pvc.Annotations[AnnPodPhase])
 
-	if podSucceededFromPVC(pvc) && pvc.Annotations[AnnCloneOf] != "true" {
+	if podSucceededFromPVC(pvc) && pvc.Annotations[AnnCloneOf] != "true" && sourcePodFinished(sourcePod) {
 		log.V(1).Info("Adding CloneOf annotation to PVC")
 		pvc.Annotations[AnnCloneOf] = "true"
 		r.recorder.Event(pvc, corev1.EventTypeNormal, CloneSucceededPVC, cloneComplete)
 	}
+
 	if sourcePod != nil && sourcePod.Status.ContainerStatuses != nil {
 		// update pvc annotation tracking pod restarts only if the source pod restart count is greater
 		// see the same in upload-controller
@@ -308,6 +309,14 @@ func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.Pe
 		return r.updatePVC(pvc)
 	}
 	return nil
+}
+
+func sourcePodFinished(sourcePod *corev1.Pod) bool {
+	if sourcePod == nil {
+		return true
+	}
+
+	return sourcePod.Status.Phase == corev1.PodSucceeded || sourcePod.Status.Phase == corev1.PodFailed
 }
 
 func (r *CloneReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim) error {

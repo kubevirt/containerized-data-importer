@@ -332,6 +332,14 @@ var _ = Describe("Clone controller reconcile loop", func() {
 			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod", AnnPodPhase: string(corev1.PodSucceeded)}
 		err = reconciler.client.Update(context.TODO(), testPvc)
 		Expect(err).ToNot(HaveOccurred())
+
+		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
+		Expect(err).ToNot(HaveOccurred())
+		sourcePod.Status.Phase = corev1.PodSucceeded
+		err = reconciler.client.Update(context.TODO(), sourcePod)
+		Expect(err).ToNot(HaveOccurred())
+		sourcePod, err = reconciler.findCloneSourcePod(testPvc)
+
 		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
