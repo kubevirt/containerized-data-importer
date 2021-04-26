@@ -698,31 +698,6 @@ func GetPreallocation(client client.Client, dataVolume *cdiv1.DataVolume) bool {
 	return cdiconfig.Status.Preallocation
 }
 
-// GetStorageClassNameForDV returns storage class to be used for the DV's PVC
-func GetStorageClassNameForDV(c client.Client, dv *cdiv1.DataVolume) string {
-	// If DV has a SC, return it
-	if dv != nil && dv.Spec.PVC != nil && dv.Spec.PVC.StorageClassName != nil && *dv.Spec.PVC.StorageClassName != "" {
-		return *dv.Spec.PVC.StorageClassName
-	}
-
-	// If DV's PVC has a SC, return it
-	pvc := &v1.PersistentVolumeClaim{}
-	// TODO change when PVC's name is different from DV's name
-	err := c.Get(context.TODO(), types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}, pvc)
-	if err == nil && pvc.Spec.StorageClassName != nil {
-		return *pvc.Spec.StorageClassName
-	}
-
-	// If there is a default SC, return it
-	sc, _ := GetDefaultStorageClass(c)
-	if sc != nil {
-		return sc.Name
-	}
-
-	// If everything fails, return blank
-	return ""
-}
-
 // GetClusterWideProxy returns the OpenShift cluster wide proxy object
 func GetClusterWideProxy(r client.Client) (*ocpconfigv1.Proxy, error) {
 	clusterWideProxy := &ocpconfigv1.Proxy{}

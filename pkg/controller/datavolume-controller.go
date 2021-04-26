@@ -285,12 +285,17 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 		}
 	}
 
+	pvcSpec, err := r.renderPvcSpec(datavolume)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 	if !pvcExists {
+
 		cloneStrategy, err := r.getCloneStrategy()
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-		snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume)
+		snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
 		if err == nil && cloneStrategy == cdiv1.CloneStrategySnapshot {
 			r.log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class", "snapshotClassName", snapshotClassName)
 			if requeue, err := r.sourceInUse(datavolume); requeue || err != nil {
@@ -309,7 +314,7 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 			return reconcile.Result{}, r.updateSmartCloneStatusPhase(cdiv1.SnapshotForSmartCloneInProgress, datavolume)
 		}
 		log.Info("Creating PVC for datavolume")
-		newPvc, err := r.newPersistentVolumeClaim(datavolume)
+		newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -519,9 +524,9 @@ func (r *DatavolumeReconciler) sourceInUse(dv *cdiv1.DataVolume) (bool, error) {
 	return len(pods) > 0, nil
 }
 
-func (r *DatavolumeReconciler) getStorageClassBindingMode(dataVolume *cdiv1.DataVolume) (*storagev1.VolumeBindingMode, error) {
+func (r *DatavolumeReconciler) getStorageClassBindingMode(storageClassName *string) (*storagev1.VolumeBindingMode, error) {
 	// Handle unspecified storage class name, fallback to default storage class
-	storageClass, err := GetStorageClassByName(r.client, getStorageClass(dataVolume))
+	storageClass, err := GetStorageClassByName(r.client, storageClassName)
 	if err != nil {
 		return nil, err
 	}
@@ -533,15 +538,6 @@ func (r *DatavolumeReconciler) getStorageClassBindingMode(dataVolume *cdiv1.Data
 	// no storage class, then the assumption is immediate binding
 	volumeBindingImmediate := storagev1.VolumeBindingImmediate
 	return &volumeBindingImmediate, nil
-}
-
-func getStorageClass(dataVolume *cdiv1.DataVolume) *string {
-	if dataVolume.Spec.PVC != nil {
-		return dataVolume.Spec.PVC.StorageClassName
-	} else if dataVolume.Spec.Storage != nil {
-		return dataVolume.Spec.Storage.StorageClassName
-	}
-	return nil
 }
 
 func getStorageVolumeMode(c client.Client, dataVolume *cdiv1.DataVolume, storageClass *storagev1.StorageClass) (*corev1.PersistentVolumeMode, error) {
@@ -588,10 +584,11 @@ func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVol
 	return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
 }
 
-func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.DataVolume) (string, error) {
+func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.DataVolume, targetStorageSpec *corev1.PersistentVolumeClaimSpec) (string, error) {
 	// TODO: Figure out if this belongs somewhere else, seems like something for the smart clone controller.
 	// Check if clone is requested
-	if dataVolume.Spec.Source.PVC == nil {
+	sourcePvcSpec := dataVolume.Spec.Source.PVC
+	if sourcePvcSpec == nil {
 		return "", errors.New("no source PVC provided")
 	}
 
@@ -602,20 +599,20 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	}
 
 	// Find source PVC
-	sourcePvcNs := dataVolume.Spec.Source.PVC.Namespace
+	sourcePvcNs := sourcePvcSpec.Namespace
 	if sourcePvcNs == "" {
 		sourcePvcNs = dataVolume.Namespace
 	}
 
 	pvc := &corev1.PersistentVolumeClaim{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: sourcePvcNs, Name: dataVolume.Spec.Source.PVC.Name}, pvc); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: sourcePvcNs, Name: sourcePvcSpec.Name}, pvc); err != nil {
 		if k8serrors.IsNotFound(err) {
-			r.log.V(3).Info("Source PVC is missing", "source namespace", dataVolume.Spec.Source.PVC.Namespace, "source name", dataVolume.Spec.Source.PVC.Name)
+			r.log.V(3).Info("Source PVC is missing", "source namespace", sourcePvcSpec.Namespace, "source name", sourcePvcSpec.Name)
 		}
 		return "", errors.New("source PVC not found")
 	}
 
-	targetPvcStorageClassName := getStorageClass(dataVolume)
+	targetPvcStorageClassName := targetStorageSpec.StorageClassName
 	targetStorageClass, err := GetStorageClassByName(r.client, targetPvcStorageClassName)
 	if err != nil {
 		return "", err
@@ -854,16 +851,15 @@ func (r *DatavolumeReconciler) updateUploadStatusPhase(pvc *corev1.PersistentVol
 func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
 	dataVolumeCopy := dataVolume.DeepCopy()
 	var event DataVolumeEvent
-
-	storageClassBindingMode, err := r.getStorageClassBindingMode(dataVolume)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
 	result := reconcile.Result{}
 
 	curPhase := dataVolumeCopy.Status.Phase
 	if pvc != nil {
+		storageClassBindingMode, err := r.getStorageClassBindingMode(pvc.Spec.StorageClassName)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
 		// the following check is for a case where the request is to create a blank disk for a block device.
 		// in that case, we do not create a pod as there is no need to create a blank image.
 		// instead, we just mark the DV phase as 'Succeeded' so any consumer will be able to use it.
@@ -1170,7 +1166,7 @@ func buildHTTPClient() *http.Client {
 // It also sets the appropriate OwnerReferences on the resource
 // which allows handleObject to discover the DataVolume resource
 // that 'owns' it.
-func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentVolumeClaim, error) {
+func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, targetPvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
 	labels := map[string]string{
 		"app": "containerized-data-importer",
 	}
@@ -1251,11 +1247,6 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 	}
 	annotations[AnnPreallocationRequested] = strconv.FormatBool(GetPreallocation(r.client, dataVolume))
 
-	pvcSpec, err := r.renderPvcSpec(dataVolume)
-	if err != nil {
-		return nil, err
-	}
-
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        dataVolume.Name,
@@ -1270,7 +1261,7 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 				}),
 			},
 		},
-		Spec: *pvcSpec,
+		Spec: *targetPvcSpec,
 	}, nil
 }
 
