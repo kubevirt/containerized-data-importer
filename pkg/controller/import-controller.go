@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
-	"strings"
 	"time"
 
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
@@ -95,9 +94,6 @@ const (
 
 	// ImportTargetInUse is reason for event created when an import pvc is in use
 	ImportTargetInUse = "ImportTargetInUse"
-
-	// PreallocationApplied is a string inserted into importer's/uploader's exit message
-	PreallocationApplied = "Preallocation applied"
 )
 
 // ImportReconciler members
@@ -372,9 +368,6 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	if pod.Status.ContainerStatuses != nil &&
 		pod.Status.ContainerStatuses[0].State.Terminated != nil &&
 		pod.Status.ContainerStatuses[0].State.Terminated.ExitCode == 0 {
-		if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, PreallocationApplied) {
-			anno[AnnPreallocationApplied] = "true"
-		}
 	}
 
 	if anno[AnnCurrentCheckpoint] != "" {

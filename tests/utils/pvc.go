@@ -16,6 +16,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 )
 
 const (
@@ -255,4 +257,47 @@ func WaitPVCDeletedByUID(clientSet *kubernetes.Clientset, pvcSpec *k8sv1.Persist
 		return result, nil
 	})
 	return result, err
+}
+
+func getCdiCR(clientSet *cdiClientset.Clientset) (*cdiv1.CDI, error) {
+	crList, err := clientSet.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	if len(crList.Items) != 1 {
+		return nil, fmt.Errorf("There should be a single Cdi, %d items found", len(crList.Items))
+	}
+	return &crList.Items[0], nil
+}
+
+func waitForCDI(clientSet *cdiClientset.Clientset, condition func(cr *cdiv1.CDI) (bool, error)) error {
+	err := wait.PollImmediate(pvcPollInterval, pvcCreateTime, func() (bool, error) {
+		var err error
+		cr, err := getCdiCR(clientSet)
+		if err != nil {
+			if apierrs.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return condition(cr)
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// WaitForCDICrCloneStrategy waits for a CDI CR Clone strategy
+func WaitForCDICrCloneStrategy(clientSet *cdiClientset.Clientset, cloneStrategy cdiv1.CDICloneStrategy) error {
+	return waitForCDI(clientSet, func(cr *cdiv1.CDI) (bool, error) {
+		return cr.Spec.CloneStrategyOverride != nil && cloneStrategy == *cr.Spec.CloneStrategyOverride, nil
+	})
+}
+
+// WaitForCDICrCloneStrategyNil waits for a CDI CR strategy to be nil
+func WaitForCDICrCloneStrategyNil(clientSet *cdiClientset.Clientset) error {
+	return waitForCDI(clientSet, func(cr *cdiv1.CDI) (bool, error) {
+		return cr.Spec.CloneStrategyOverride == nil, nil
+	})
 }

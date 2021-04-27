@@ -1137,6 +1137,100 @@ var _ = Describe("all clone tests", func() {
 		})
 
 	})
+
+	var _ = Describe("Preallocation", func() {
+		f := framework.NewFramework(namespacePrefix)
+
+		var sourcePvc *v1.PersistentVolumeClaim
+		var targetPvc *v1.PersistentVolumeClaim
+		var cdiCr cdiv1.CDI
+		var cdiCrSpec *cdiv1.CDISpec
+
+		BeforeEach(func() {
+			By("[BeforeEach] Saving CDI CR spec")
+			crList, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(len(crList.Items)).To(Equal(1))
+
+			cdiCrSpec = crList.Items[0].Spec.DeepCopy()
+			cdiCr = crList.Items[0]
+
+			By("[BeforeEach] Forcing Host Assisted cloning")
+			var cloneStrategy cdiv1.CDICloneStrategy = cdiv1.CloneStrategyHostAssisted
+			cdiCr.Spec.CloneStrategyOverride = &cloneStrategy
+			_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &cdiCr, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			err = utils.WaitForCDICrCloneStrategy(f.CdiClient, cloneStrategy)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			if sourcePvc != nil {
+				By("[AfterEach] Clean up source PVC")
+				err := f.DeletePVC(sourcePvc)
+				Expect(err).ToNot(HaveOccurred())
+			}
+			if targetPvc != nil {
+				By("[AfterEach] Clean up target PVC")
+				err := f.DeletePVC(targetPvc)
+				Expect(err).ToNot(HaveOccurred())
+			}
+
+			By("[AfterEach] Restoring CDI CR spec to original state")
+			crList, err := f.CdiClient.CdiV1beta1().CDIs().List(context.TODO(), metav1.ListOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(len(crList.Items)).To(Equal(1))
+
+			newCdiCr := crList.Items[0]
+			newCdiCr.Spec = *cdiCrSpec
+			_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &newCdiCr, metav1.UpdateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			if cdiCrSpec.CloneStrategyOverride == nil {
+				err = utils.WaitForCDICrCloneStrategyNil(f.CdiClient)
+			} else {
+				err = utils.WaitForCDICrCloneStrategy(f.CdiClient, *cdiCrSpec.CloneStrategyOverride)
+			}
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should preallocate data on target PVC", func() {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+			sourcePvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+
+			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", sourcePvc)
+			preallocation := true
+			targetDV.Spec.Preallocation = &preallocation
+			targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
+
+			targetPvc, err = utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			annValue, preallocationAnnotationFound, err := utils.WaitForPVCAnnotation(f.K8sClient, targetDataVolume.Namespace, targetPvc, controller.AnnPreallocationRequested)
+			if err != nil {
+				PrintControllerLog(f)
+			}
+			Expect(err).ToNot(HaveOccurred())
+			Expect(preallocationAnnotationFound).To(BeTrue())
+			Expect(annValue).To(Equal("true"))
+
+			fmt.Fprintf(GinkgoWriter, "INFO: wait for target DV phase Succeeded: %s\n", targetPvc.Name)
+
+			annValue, preallocationAnnotationFound, err = utils.WaitForPVCAnnotation(f.K8sClient, targetDataVolume.Namespace, targetPvc, controller.AnnPreallocationApplied)
+			if err != nil {
+				PrintControllerLog(f)
+			}
+			Expect(err).ToNot(HaveOccurred())
+			Expect(preallocationAnnotationFound).To(BeTrue())
+			Expect(annValue).To(Equal("true"))
+		})
+	})
 })
 
 func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClaim, targetNs *v1.Namespace, targetDv string) {

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 
 	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
@@ -143,8 +144,13 @@ func validateMount() {
 	}
 }
 
-func newTarReader() (io.ReadCloser, error) {
-	cmd := exec.Command("/usr/bin/tar", "Scv", ".")
+func newTarReader(preallocation bool) (io.ReadCloser, error) {
+	args := "cv"
+	if !preallocation {
+		// -S is used to handle sparse files. It can only be used when preallocation is not requested
+		args = "S" + args
+	}
+	cmd := exec.Command("/usr/bin/tar", args, ".")
 	cmd.Dir = mountPoint
 
 	stdout, err := cmd.StdoutPipe()
@@ -162,11 +168,11 @@ func newTarReader() (io.ReadCloser, error) {
 	return &execReader{cmd: cmd, stdout: stdout, stderr: ioutil.NopCloser(&stderr)}, nil
 }
 
-func getInputStream() (rc io.ReadCloser) {
+func getInputStream(preallocation bool) (rc io.ReadCloser) {
 	var err error
 	switch contentType {
 	case "filesystem-clone":
-		rc, err = newTarReader()
+		rc, err = newTarReader(preallocation)
 		if err != nil {
 			klog.Fatalf("Error creating tar reader for %q: %+v", mountPoint, err)
 		}
@@ -199,10 +205,14 @@ func main() {
 	serverCert := []byte(getEnvVarOrDie("SERVER_CA_CERT"))
 
 	url := getEnvVarOrDie("UPLOAD_URL")
+	preallocation, err := strconv.ParseBool(getEnvVarOrDie(common.Preallocation)) // False is default in case of error
+	if err != nil {
+		klog.V(3).Infof("Preallocation variable (%s) not set, defaulting to 'false'", common.Preallocation)
+	}
 
 	klog.V(1).Infoln("Starting cloner target")
 
-	reader := pipeToSnappy(createProgressReader(getInputStream(), ownerUID, uploadBytes))
+	reader := pipeToSnappy(createProgressReader(getInputStream(preallocation), ownerUID, uploadBytes))
 
 	startPrometheus()
 
@@ -233,7 +243,11 @@ func main() {
 	klog.V(1).Infof("Response body:\n%s", buf.String())
 
 	klog.V(1).Infoln("clone complete")
-	err = util.WriteTerminationMessage("Clone Complete")
+	message := "Clone Complete"
+	if preallocation {
+		message += ", " + common.PreallocationApplied
+	}
+	err = util.WriteTerminationMessage(message)
 	if err != nil {
 		klog.Errorf("%+v", err)
 		os.Exit(1)

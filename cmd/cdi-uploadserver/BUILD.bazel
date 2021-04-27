@@ -21,7 +21,6 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/common:go_default_library",
-        "//pkg/controller:go_default_library",
         "//pkg/uploadserver:go_default_library",
         "//pkg/util:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",

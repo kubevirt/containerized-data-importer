@@ -204,7 +204,7 @@ func main() {
 	}
 	message := "Import Complete"
 	if preallocationApplied {
-		message += ", " + controller.PreallocationApplied
+		message += ", " + common.PreallocationApplied
 	}
 	err = util.WriteTerminationMessage(message)
 	if err != nil {
