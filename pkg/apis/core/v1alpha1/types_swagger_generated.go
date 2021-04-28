@@ -10,13 +10,14 @@ func (DataVolume) SwaggerDoc() map[string]string {
 
 func (DataVolumeSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                "DataVolumeSpec defines the DataVolume type specification",
-		"source":          "Source is the src of the data for the requested DataVolume",
-		"pvc":             "PVC is the PVC specification",
-		"contentType":     "DataVolumeContentType options: \"kubevirt\", \"archive\"\n+kubebuilder:validation:Enum=\"kubevirt\";\"archive\"",
-		"checkpoints":     "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
-		"finalCheckpoint": "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
-		"preallocation":   "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+		"":                  "DataVolumeSpec defines the DataVolume type specification",
+		"source":            "Source is the src of the data for the requested DataVolume",
+		"pvc":               "PVC is the PVC specification",
+		"priorityClassName": "PriorityClassName for Importer, Cloner and Uploader pod",
+		"contentType":       "DataVolumeContentType options: \"kubevirt\", \"archive\"\n+kubebuilder:validation:Enum=\"kubevirt\";\"archive\"",
+		"checkpoints":       "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
+		"finalCheckpoint":   "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
+		"preallocation":     "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
 	}
 }
 

@@ -3903,6 +3903,10 @@
       "description": "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
       "type": "boolean"
      },
+     "priorityClassName": {
+      "description": "PriorityClassName for Importer, Cloner and Uploader pod",
+      "type": "string"
+     },
      "pvc": {
       "description": "PVC is the PVC specification",
       "$ref": "#/definitions/v1.PersistentVolumeClaimSpec"

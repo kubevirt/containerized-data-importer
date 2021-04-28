@@ -1583,6 +1583,120 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 		})
 	})
+
+	Describe("Priority class on datavolume should transfer to  pods", func() {
+		verifyPodAnnotations := func(pod *v1.Pod) {
+			By("verifying priority class")
+			Expect(pod.Spec.PriorityClassName).To(Equal("system-cluster-critical"))
+		}
+
+		It("Importer pod should have priority class specified on datavolume", func() {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs))
+			By(fmt.Sprintf("creating new datavolume %s with priority class", dataVolume.Name))
+			dataVolume.Spec.PriorityClassName = "system-cluster-critical"
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying pvc was created")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+
+			By("verifying the Datavolume is not complete yet")
+			foundDv, err := f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			if foundDv.Status.Phase != cdiv1.Succeeded {
+				By("find importer pod")
+				var sourcePod *v1.Pod
+				Eventually(func() bool {
+					sourcePod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
+					return err == nil
+				}, timeout, pollingInterval).Should(BeTrue())
+				verifyPodAnnotations(sourcePod)
+			}
+		})
+
+		It("Uploader pod should have priority class specified on datavolume", func() {
+			dataVolume := utils.NewDataVolumeForUpload(dataVolumeName, "1Gi")
+			By(fmt.Sprintf("creating new datavolume %s with priority class\"", dataVolume.Name))
+			dataVolume.Spec.PriorityClassName = "system-cluster-critical"
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying pvc was created")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+
+			By("verifying the Datavolume is not complete yet")
+			foundDv, err := f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			if foundDv.Status.Phase != cdiv1.Succeeded {
+				By("find uploader pod")
+				var sourcePod *v1.Pod
+				Eventually(func() bool {
+					sourcePod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
+					return err == nil
+				}, timeout, pollingInterval).Should(BeTrue())
+				verifyPodAnnotations(sourcePod)
+			}
+		})
+
+		FIt("Cloner pod should have priority class specified on datavolume", func() {
+			smartApplicable := f.IsSnapshotStorageClassAvailable()
+			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
+			if err == nil {
+				value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
+				if smartApplicable && ok && strings.Compare(value, "true") == 0 {
+					Skip("Cannot test if annotations are present when all pvcs are smart clone capable.")
+				}
+			}
+
+			sourceDv := utils.NewDataVolumeWithHTTPImport("source-dv", "1Gi", tinyCoreQcow2URL())
+			Expect(sourceDv).ToNot(BeNil())
+			By(fmt.Sprintf("creating new source dv %s with priority class", sourceDv.Name))
+			sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying pvc was created")
+			pvc, err := utils.WaitForPVC(f.K8sClient, sourceDv.Namespace, sourceDv.Name)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+
+			dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", pvc)
+			Expect(dataVolume).ToNot(BeNil())
+
+			By(fmt.Sprintf("creating new datavolume %s with priority class", dataVolume.Name))
+			dataVolume.Spec.PriorityClassName = "system-cluster-critical"
+			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying pvc was created")
+			pvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+
+			By("verifying the Datavolume is not complete yet")
+			foundDv, err := f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			if foundDv.Status.Phase != cdiv1.Succeeded {
+				By("find source and target pod")
+				var sourcePod *v1.Pod
+				var uploadPod *v1.Pod
+				Eventually(func() bool {
+					if sourcePod == nil {
+						sourcePod, _ = utils.FindPodBysuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
+					}
+					if uploadPod == nil {
+						uploadPod, _ = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
+					}
+					return sourcePod != nil && uploadPod != nil
+				}, timeout, fastPollingInterval).Should(BeTrue())
+				verifyPodAnnotations(sourcePod)
+				verifyPodAnnotations(uploadPod)
+			}
+		})
+	})
 })
 
 func verifyConditions(actualConditions []cdiv1.DataVolumeCondition, startTime time.Time, testConditions ...*cdiv1.DataVolumeCondition) bool {

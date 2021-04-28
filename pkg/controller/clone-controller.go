@@ -621,9 +621,10 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 					},
 				},
 			},
-			NodeSelector: workloadNodePlacement.NodeSelector,
-			Tolerations:  workloadNodePlacement.Tolerations,
-			Affinity:     workloadNodePlacement.Affinity,
+			NodeSelector:      workloadNodePlacement.NodeSelector,
+			Tolerations:       workloadNodePlacement.Tolerations,
+			Affinity:          workloadNodePlacement.Affinity,
+			PriorityClassName: getPriorityClass(targetPvc),
 		},
 	}
 

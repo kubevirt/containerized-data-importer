@@ -14483,6 +14483,13 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref common.ReferenceCallback) c
 							Ref:         ref("k8s.io/api/core/v1.PersistentVolumeClaimSpec"),
 						},
 					},
+					"priorityClassName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PriorityClassName for Importer, Cloner and Uploader pod",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"contentType": {
 						SchemaProps: spec.SchemaProps{
 							Description: "DataVolumeContentType options: \"kubevirt\", \"archive\"",

@@ -242,7 +242,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 	})
 
 	It("Should return nil and create a pod and service when a clone pvc", func() {
-		testPvc := createPvc("testPvc1", "default", map[string]string{AnnCloneRequest: "default/testPvc2", AnnUploadPod: createUploadResourceName("testPvc1")}, nil)
+		testPvc := createPvc("testPvc1", "default", map[string]string{AnnCloneRequest: "default/testPvc2", AnnUploadPod: createUploadResourceName("testPvc1"), AnnPriorityClassName: "p0"}, nil)
 		testPvcSource := createPvc("testPvc2", "default", map[string]string{}, nil)
 		reconciler := createUploadReconciler(testPvc, testPvcSource)
 		By("Verifying the pod and service do not exist")
@@ -261,6 +261,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadPod)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uploadPod.Name).To(Equal(createUploadResourceName(testPvc.Name)))
+		Expect(uploadPod.Spec.PriorityClassName).To(Equal("p0"))
 
 		uploadService = &corev1.Service{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)

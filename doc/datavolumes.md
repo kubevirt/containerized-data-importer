@@ -259,6 +259,21 @@ The running and ready conditions are mutually exclusive, if running is true, the
 ## Annotations
 Specific [DV annotations](datavolume-annotations.md) are passed to the transfer pods to control their behavior.
 
+## Priority Class
+You can specify priority class name on the Data Volume Object. The corresponding pod created for the data volume will be assigned the priority class on the data volume. Following is an example of specifying the priority class on Data Volume 
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: "example-priority-class-dv"
+spec:
+  priorityClassName: kubevirt
+  source:
+   ....
+  pvc:
+    ...
+```
+
 ## Kubevirt integration
 [Kubevirt](https://github.com/kubevirt/kubevirt) is an extension to Kubernetes that allows one to run Virtual Machines(VM) on the same infra structure as the containers managed by Kubernetes. CDI provides a mechanism to get a disk image into a PVC in order for Kubevirt to consume it. The following steps have to be taken in order for Kubevirt to consume a CDI provided disk image.
 1. Create a PVC with an annotation to for instance import from an external URL.
