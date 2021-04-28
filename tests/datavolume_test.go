@@ -1642,7 +1642,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 		})
 
-		FIt("Cloner pod should have priority class specified on datavolume", func() {
+		It("Cloner pod should have priority class specified on datavolume", func() {
 			smartApplicable := f.IsSnapshotStorageClassAvailable()
 			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
 			if err == nil {
