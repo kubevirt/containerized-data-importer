@@ -756,8 +756,8 @@ func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *corev1.Persiste
 		return err
 	}
 	// Allow different source and target volume modes only on KubeVirt content type
-	sourceVolumeMode := GetVolumeMode(sourceSpec.VolumeMode)
-	targetVolumeMode := GetVolumeMode(targetSpec.VolumeMode)
+	sourceVolumeMode := resolveVolumeMode(sourceSpec.VolumeMode)
+	targetVolumeMode := resolveVolumeMode(targetSpec.VolumeMode)
 	if sourceVolumeMode != targetVolumeMode && contentType != cdiv1.DataVolumeKubeVirt {
 		return fmt.Errorf("source volumeMode (%s) and target volumeMode (%s) do not match, contentType (%s)",
 			sourceVolumeMode, targetVolumeMode, contentType)
@@ -775,13 +775,4 @@ func ValidateCloneSize(sourceResources corev1.ResourceRequirements, targetResour
 		return errors.New("target resources requests storage size is smaller than the source")
 	}
 	return nil
-}
-
-// GetVolumeMode returns the volume mode if set, otherwise defaults to file system mode
-func GetVolumeMode(volumeMode *corev1.PersistentVolumeMode) corev1.PersistentVolumeMode {
-	retVolumeMode := corev1.PersistentVolumeFilesystem
-	if volumeMode != nil && *volumeMode == corev1.PersistentVolumeBlock {
-		retVolumeMode = corev1.PersistentVolumeBlock
-	}
-	return retVolumeMode
 }

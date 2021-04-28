@@ -210,16 +210,18 @@ func getRequestedImageSize(pvc *v1.PersistentVolumeClaim) (string, error) {
 	return pvcSize.String(), nil
 }
 
-// returns the volumeMode which determines if the PVC is block PVC or not.
+// returns the volumeMode from PVC handling default empty value
 func getVolumeMode(pvc *v1.PersistentVolumeClaim) v1.PersistentVolumeMode {
 	return resolveVolumeMode(pvc.Spec.VolumeMode)
 }
 
+// resolveVolumeMode returns the volume mode if set, otherwise defaults to file system mode
 func resolveVolumeMode(volumeMode *v1.PersistentVolumeMode) v1.PersistentVolumeMode {
-	if volumeMode != nil {
-		return *volumeMode
+	retVolumeMode := v1.PersistentVolumeFilesystem
+	if volumeMode != nil && *volumeMode == v1.PersistentVolumeBlock {
+		retVolumeMode = v1.PersistentVolumeBlock
 	}
-	return v1.PersistentVolumeFilesystem
+	return retVolumeMode
 }
 
 // checks if particular label exists in pvc
