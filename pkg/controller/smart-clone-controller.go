@@ -214,8 +214,11 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snap
 		log.Error(err, "error updating datavolume with success")
 		return reconcile.Result{}, err
 	}
-
-	newPvc := newPvcFromSnapshot(snapshot, datavolume)
+	targetPvcSpec, err := RenderPvcSpec(r.client, r.recorder, r.log, datavolume)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	newPvc := newPvcFromSnapshot(snapshot, targetPvcSpec)
 	if newPvc == nil {
 		return reconcile.Result{}, errors.New("error creating new pvc from snapshot object, snapshot has no owner")
 	}
@@ -270,7 +273,7 @@ func (r *SmartCloneReconciler) emitEvent(dataVolume *cdiv1.DataVolume, dataVolum
 	return nil
 }
 
-func newPvcFromSnapshot(snapshot *snapshotv1.VolumeSnapshot, dataVolume *cdiv1.DataVolume) *corev1.PersistentVolumeClaim {
+func newPvcFromSnapshot(snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *corev1.PersistentVolumeClaimSpec) *corev1.PersistentVolumeClaim {
 	labels := map[string]string{
 		"cdi-controller":         snapshot.Name,
 		common.CDILabelKey:       common.CDILabelValue,
@@ -301,11 +304,11 @@ func newPvcFromSnapshot(snapshot *snapshotv1.VolumeSnapshot, dataVolume *cdiv1.D
 				Kind:     "VolumeSnapshot",
 				APIGroup: &snapshotv1.SchemeGroupVersion.Group,
 			},
-			VolumeMode:       dataVolume.Spec.PVC.VolumeMode,
-			AccessModes:      dataVolume.Spec.PVC.AccessModes,
-			StorageClassName: dataVolume.Spec.PVC.StorageClassName,
+			VolumeMode:       targetPvcSpec.VolumeMode,
+			AccessModes:      targetPvcSpec.AccessModes,
+			StorageClassName: targetPvcSpec.StorageClassName,
 			Resources: corev1.ResourceRequirements{
-				Requests: dataVolume.Spec.PVC.Resources.Requests,
+				Requests: targetPvcSpec.Resources.Requests,
 			},
 		},
 	}

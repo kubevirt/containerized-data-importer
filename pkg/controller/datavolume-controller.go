@@ -285,7 +285,7 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 		}
 	}
 
-	pvcSpec, err := r.renderPvcSpec(datavolume)
+	pvcSpec, err := RenderPvcSpec(r.client, r.recorder, r.log, datavolume)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -1265,23 +1265,24 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 	}, nil
 }
 
-func (r *DatavolumeReconciler) renderPvcSpec(dv *cdiv1.DataVolume) (*corev1.PersistentVolumeClaimSpec, error) {
+// RenderPvcSpec creates a new PVC Spec based on either the dv.spec.pvc or dv.spec.storage section
+func RenderPvcSpec(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume) (*corev1.PersistentVolumeClaimSpec, error) {
 	if dv.Spec.PVC != nil {
 		return dv.Spec.PVC, nil
 	}
 
 	if dv.Spec.Storage != nil {
-		return r.pvcFromStorage(dv)
+		return pvcFromStorage(client, recorder, log, dv)
 	}
 
 	return nil, errors.Errorf("datavolume one of {pvc, storage} field is required")
 }
 
-func (r *DatavolumeReconciler) pvcFromStorage(dv *cdiv1.DataVolume) (*corev1.PersistentVolumeClaimSpec, error) {
+func pvcFromStorage(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume) (*corev1.PersistentVolumeClaimSpec, error) {
 	storage := dv.Spec.Storage
-	pvcSpec := copyStorageAsPvc(r.log, storage)
+	pvcSpec := copyStorageAsPvc(log, storage)
 
-	storageClass, err := GetStorageClassByName(r.client, storage.StorageClassName)
+	storageClass, err := GetStorageClassByName(client, storage.StorageClassName)
 	if err != nil {
 		return nil, err
 	}
@@ -1289,8 +1290,8 @@ func (r *DatavolumeReconciler) pvcFromStorage(dv *cdiv1.DataVolume) (*corev1.Per
 	if storageClass == nil {
 		// Not even default storageClass on the cluster, cannot apply the defaults, verify spec is ok
 		if len(pvcSpec.AccessModes) == 0 {
-			r.log.V(1).Info("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name)
-			r.recorder.Eventf(dv, corev1.EventTypeWarning, ErrClaimNotValid, "DataVolume.storage spec is missing accessMode and no storageClass to choose profile")
+			log.V(1).Info("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name)
+			recorder.Eventf(dv, corev1.EventTypeWarning, ErrClaimNotValid, "DataVolume.storage spec is missing accessMode and no storageClass to choose profile")
 			return nil, errors.Errorf("DataVolume spec is missing accessMode")
 		}
 
@@ -1299,24 +1300,24 @@ func (r *DatavolumeReconciler) pvcFromStorage(dv *cdiv1.DataVolume) (*corev1.Per
 
 	// given storageClass we can apply defaults if needed
 	if len(pvcSpec.AccessModes) == 0 {
-		accessModes, err := getDefaultAccessModes(r.client, storageClass)
+		accessModes, err := getDefaultAccessModes(client, storageClass)
 		if err != nil {
-			r.log.V(1).Info("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name)
-			r.recorder.Eventf(dv, corev1.EventTypeWarning, ErrClaimNotValid,
+			log.V(1).Info("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name)
+			recorder.Eventf(dv, corev1.EventTypeWarning, ErrClaimNotValid,
 				fmt.Sprintf("DataVolume.storage spec is missing accessMode and cannot get access mode from StorageProfile %s", getName(storageClass)))
 			return nil, err
 		}
 		pvcSpec.AccessModes = append(pvcSpec.AccessModes, accessModes...)
 	}
 	if pvcSpec.VolumeMode == nil || *pvcSpec.VolumeMode == "" {
-		volumeMode, err := getDefaultVolumeMode(r.client, storageClass)
+		volumeMode, err := getDefaultVolumeMode(client, storageClass)
 		if err != nil {
 			return nil, err
 		}
 		pvcSpec.VolumeMode = volumeMode
 	}
 
-	requestedVolumeSize, err := volumeSize(r.client, storage)
+	requestedVolumeSize, err := volumeSize(client, storage)
 	if err != nil {
 		return nil, err
 	}
