@@ -454,6 +454,145 @@ func createAlphaV1DataVolumeCRDSchema() *extv1.CustomResourceValidation {
 								},
 							},
 						},
+						"storage": {
+							Description: "Storage is the requested storage specification",
+							Type:        "object",
+							Properties: map[string]extv1.JSONSchemaProps{
+								"resources": {
+									Description: "Resources represents the minimum resources the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources",
+									Type:        "object",
+									Properties: map[string]extv1.JSONSchemaProps{
+										"limits": {
+											Description: "Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
+											Type:        "object",
+											AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+												Schema: &extv1.JSONSchemaProps{
+													AnyOf: []extv1.JSONSchemaProps{
+														{
+															Type: "integer",
+														},
+														{
+															Type: "string",
+														},
+													},
+													Pattern:      "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+													XIntOrString: true,
+												},
+											},
+										},
+										"requests": {
+											Description: "Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
+											Type:        "object",
+											AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+												Schema: &extv1.JSONSchemaProps{
+													AnyOf: []extv1.JSONSchemaProps{
+														{
+															Type: "integer",
+														},
+														{
+															Type: "string",
+														},
+													},
+													Pattern:      "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+													XIntOrString: true,
+												},
+											},
+										},
+									},
+								},
+								"storageClassName": {
+									Description: "Name of the StorageClass required by the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1",
+									Type:        "string",
+								},
+								"accessModes": {
+									Description: "AccessModes contains the desired access modes the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1",
+									Type:        "array",
+									Items: &extv1.JSONSchemaPropsOrArray{
+										Schema: &extv1.JSONSchemaProps{
+											Type: "string",
+										},
+									},
+								},
+								"dataSource": {
+									Description: "This field can be used to specify either: * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot - Beta) * An existing PVC (PersistentVolumeClaim) * An existing custom resource/object that implements data population (Alpha) In order to use VolumeSnapshot object types, the appropriate feature gate must be enabled (VolumeSnapshotDataSource or AnyVolumeDataSource) If the provisioner or an external controller can support the specified data source, it will create a new volume based on the contents of the specified data source. If the specified data source is not supported, the volume will not be created and the failure will be reported as an event. In the future, we plan to support more data source types and the behavior of the provisioner may change.",
+									Properties: map[string]extv1.JSONSchemaProps{
+										"apiGroup": {
+											Description: "APIGroup is the group for the resource being referenced. If APIGroup is not specified, the specified Kind must be in the core API group. For any other third-party types, APIGroup is required.",
+											Type:        "string",
+										},
+										"kind": {
+											Description: "Kind is the type of resource being referenced",
+											Type:        "string",
+										},
+										"name": {
+											Description: "Name is the name of resource being referenced",
+											Type:        "string",
+										},
+									},
+									Type: "object",
+									Required: []string{
+										"kind",
+										"name",
+									},
+								},
+								"selector": {
+									Description: "A label query over volumes to consider for binding.",
+									Properties: map[string]extv1.JSONSchemaProps{
+										"matchExpressions": {
+											Description: "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+											Items: &extv1.JSONSchemaPropsOrArray{
+												Schema: &extv1.JSONSchemaProps{
+													Description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+													Properties: map[string]extv1.JSONSchemaProps{
+														"key": {
+															Description: "key is the label key that the selector applies to.",
+															Type:        "string",
+														},
+														"operator": {
+															Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
+															Type:        "string",
+														},
+														"values": {
+															Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
+															Type:        "array",
+															Items: &extv1.JSONSchemaPropsOrArray{
+																Schema: &extv1.JSONSchemaProps{
+																	Type: "string",
+																},
+															},
+														},
+													},
+													Required: []string{
+														"key",
+														"operator",
+													},
+													Type: "object",
+												},
+											},
+											Type: "array",
+										},
+										"matchLabels": {
+											Description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+											AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+												Schema: &extv1.JSONSchemaProps{
+													Type: "string",
+												},
+											},
+											Type: "object",
+										},
+									},
+									Type: "object",
+								},
+								"volumeMode": {
+									Description: "volumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.",
+									Type:        "string",
+								},
+								"volumeName": {
+									Description: "VolumeName is the binding reference to the PersistentVolume backing this claim.",
+									Type:        "string",
+								},
+							},
+						},
 						"checkpoints": {
 							Items: &extv1.JSONSchemaPropsOrArray{
 								Schema: &extv1.JSONSchemaProps{
@@ -492,7 +631,6 @@ func createAlphaV1DataVolumeCRDSchema() *extv1.CustomResourceValidation {
 						},
 					},
 					Required: []string{
-						"pvc",
 						"source",
 					},
 				},

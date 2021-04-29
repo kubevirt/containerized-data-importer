@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -37,6 +38,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	extclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -69,6 +71,8 @@ const (
 	ErrResourceDoesntExist = "ErrResourceDoesntExist"
 	// ErrClaimLost provides a const to indicate a claim is lost
 	ErrClaimLost = "ErrClaimLost"
+	// ErrClaimNotValid provides a const to indicate a claim is not valid
+	ErrClaimNotValid = "ErrClaimNotValid"
 	// DataVolumeFailed provides a const to represent DataVolume failed status
 	DataVolumeFailed = "DataVolumeFailed"
 	// ImportScheduled provides a const to indicate import is scheduled
@@ -281,12 +285,17 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 		}
 	}
 
+	pvcSpec, err := RenderPvcSpec(r.client, r.recorder, r.log, datavolume)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 	if !pvcExists {
+
 		cloneStrategy, err := r.getCloneStrategy()
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-		snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume)
+		snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
 		if err == nil && cloneStrategy == cdiv1.CloneStrategySnapshot {
 			r.log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class", "snapshotClassName", snapshotClassName)
 			if requeue, err := r.sourceInUse(datavolume); requeue || err != nil {
@@ -305,7 +314,7 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 			return reconcile.Result{}, r.updateSmartCloneStatusPhase(cdiv1.SnapshotForSmartCloneInProgress, datavolume)
 		}
 		log.Info("Creating PVC for datavolume")
-		newPvc, err := r.newPersistentVolumeClaim(datavolume)
+		newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -515,9 +524,9 @@ func (r *DatavolumeReconciler) sourceInUse(dv *cdiv1.DataVolume) (bool, error) {
 	return len(pods) > 0, nil
 }
 
-func (r *DatavolumeReconciler) getStorageClassBindingMode(dataVolume *cdiv1.DataVolume) (*storagev1.VolumeBindingMode, error) {
+func (r *DatavolumeReconciler) getStorageClassBindingMode(storageClassName *string) (*storagev1.VolumeBindingMode, error) {
 	// Handle unspecified storage class name, fallback to default storage class
-	storageClass, err := GetStorageClassByName(r.client, dataVolume.Spec.PVC.StorageClassName)
+	storageClass, err := GetStorageClassByName(r.client, storageClassName)
 	if err != nil {
 		return nil, err
 	}
@@ -529,6 +538,23 @@ func (r *DatavolumeReconciler) getStorageClassBindingMode(dataVolume *cdiv1.Data
 	// no storage class, then the assumption is immediate binding
 	volumeBindingImmediate := storagev1.VolumeBindingImmediate
 	return &volumeBindingImmediate, nil
+}
+
+func getStorageVolumeMode(c client.Client, dataVolume *cdiv1.DataVolume, storageClass *storagev1.StorageClass) (*corev1.PersistentVolumeMode, error) {
+	if dataVolume.Spec.PVC != nil {
+		return dataVolume.Spec.PVC.VolumeMode, nil
+	} else if dataVolume.Spec.Storage != nil {
+		if dataVolume.Spec.Storage.VolumeMode != nil {
+			return dataVolume.Spec.Storage.VolumeMode, nil
+		}
+		volumeMode, err := getDefaultVolumeMode(c, storageClass)
+		if err != nil {
+			return nil, err
+		}
+		return volumeMode, nil
+	}
+
+	return nil, errors.Errorf("no target storage defined")
 }
 
 func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, pvcUID types.UID) (reconcile.Result, error) {
@@ -558,10 +584,11 @@ func (r *DatavolumeReconciler) reconcileProgressUpdate(datavolume *cdiv1.DataVol
 	return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
 }
 
-func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.DataVolume) (string, error) {
+func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.DataVolume, targetStorageSpec *corev1.PersistentVolumeClaimSpec) (string, error) {
 	// TODO: Figure out if this belongs somewhere else, seems like something for the smart clone controller.
 	// Check if clone is requested
-	if dataVolume.Spec.Source.PVC == nil {
+	sourcePvcSpec := dataVolume.Spec.Source.PVC
+	if sourcePvcSpec == nil {
 		return "", errors.New("no source PVC provided")
 	}
 
@@ -572,28 +599,20 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	}
 
 	// Find source PVC
-	sourcePvcNs := dataVolume.Spec.Source.PVC.Namespace
+	sourcePvcNs := sourcePvcSpec.Namespace
 	if sourcePvcNs == "" {
 		sourcePvcNs = dataVolume.Namespace
 	}
 
 	pvc := &corev1.PersistentVolumeClaim{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: sourcePvcNs, Name: dataVolume.Spec.Source.PVC.Name}, pvc); err != nil {
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: sourcePvcNs, Name: sourcePvcSpec.Name}, pvc); err != nil {
 		if k8serrors.IsNotFound(err) {
-			r.log.V(3).Info("Source PVC is missing", "source namespace", dataVolume.Spec.Source.PVC.Namespace, "source name", dataVolume.Spec.Source.PVC.Name)
+			r.log.V(3).Info("Source PVC is missing", "source namespace", sourcePvcSpec.Namespace, "source name", sourcePvcSpec.Name)
 		}
 		return "", errors.New("source PVC not found")
 	}
 
-	sourceVolumeMode := GetVolumeMode(pvc.Spec.VolumeMode)
-	targetVolumeMode := GetVolumeMode(dataVolume.Spec.PVC.VolumeMode)
-	if sourceVolumeMode != targetVolumeMode {
-		r.log.V(3).Info("Source PVC and target PVC have different volume modes, falling back to host assisted clone", "source volume mode",
-			sourceVolumeMode, "target volume mode", targetVolumeMode)
-		return "", errors.New("Source PVC and target PVC have different volume modes, falling back to host assisted clone")
-	}
-
-	targetPvcStorageClassName := dataVolume.Spec.PVC.StorageClassName
+	targetPvcStorageClassName := targetStorageSpec.StorageClassName
 	targetStorageClass, err := GetStorageClassByName(r.client, targetPvcStorageClassName)
 	if err != nil {
 		return "", err
@@ -617,6 +636,18 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 		r.log.V(3).Info("Source PVC and target PVC belong to different namespaces", "source namespace",
 			pvc.Namespace, "target namespace", dataVolume.Namespace)
 		return "", errors.New("source PVC and target PVC belong to different namespaces")
+	}
+
+	sourceVolumeMode := resolveVolumeMode(pvc.Spec.VolumeMode)
+	targetSpecVolumeMode, err := getStorageVolumeMode(r.client, dataVolume, targetStorageClass)
+	if err != nil {
+		return "", err
+	}
+	targetVolumeMode := resolveVolumeMode(targetSpecVolumeMode)
+	if sourceVolumeMode != targetVolumeMode {
+		r.log.V(3).Info("Source PVC and target PVC have different volume modes, falling back to host assisted clone", "source volume mode",
+			sourceVolumeMode, "target volume mode", targetVolumeMode)
+		return "", errors.New("Source PVC and target PVC have different volume modes, falling back to host assisted clone")
 	}
 
 	// Fetch the source storage class
@@ -820,16 +851,15 @@ func (r *DatavolumeReconciler) updateUploadStatusPhase(pvc *corev1.PersistentVol
 func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
 	dataVolumeCopy := dataVolume.DeepCopy()
 	var event DataVolumeEvent
-
-	storageClassBindingMode, err := r.getStorageClassBindingMode(dataVolume)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
 	result := reconcile.Result{}
 
 	curPhase := dataVolumeCopy.Status.Phase
 	if pvc != nil {
+		storageClassBindingMode, err := r.getStorageClassBindingMode(pvc.Spec.StorageClassName)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
 		// the following check is for a case where the request is to create a blank disk for a block device.
 		// in that case, we do not create a pod as there is no need to create a blank image.
 		// instead, we just mark the DV phase as 'Succeeded' so any consumer will be able to use it.
@@ -1136,17 +1166,10 @@ func buildHTTPClient() *http.Client {
 // It also sets the appropriate OwnerReferences on the resource
 // which allows handleObject to discover the DataVolume resource
 // that 'owns' it.
-func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume) (*corev1.PersistentVolumeClaim, error) {
+func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, targetPvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
 	labels := map[string]string{
 		"app": "containerized-data-importer",
 	}
-
-	if dataVolume.Spec.PVC == nil {
-		// TODO remove this requirement and dynamically generate
-		// PVC spec if not present on DataVolume
-		return nil, errors.Errorf("datavolume.pvc field is required")
-	}
-
 	annotations := make(map[string]string)
 
 	for k, v := range dataVolume.ObjectMeta.Annotations {
@@ -1238,6 +1261,167 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 				}),
 			},
 		},
-		Spec: *dataVolume.Spec.PVC,
+		Spec: *targetPvcSpec,
 	}, nil
+}
+
+// RenderPvcSpec creates a new PVC Spec based on either the dv.spec.pvc or dv.spec.storage section
+func RenderPvcSpec(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume) (*corev1.PersistentVolumeClaimSpec, error) {
+	if dv.Spec.PVC != nil {
+		return dv.Spec.PVC, nil
+	}
+
+	if dv.Spec.Storage != nil {
+		return pvcFromStorage(client, recorder, log, dv)
+	}
+
+	return nil, errors.Errorf("datavolume one of {pvc, storage} field is required")
+}
+
+func pvcFromStorage(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume) (*corev1.PersistentVolumeClaimSpec, error) {
+	storage := dv.Spec.Storage
+	pvcSpec := copyStorageAsPvc(log, storage)
+
+	storageClass, err := GetStorageClassByName(client, storage.StorageClassName)
+	if err != nil {
+		return nil, err
+	}
+
+	if storageClass == nil {
+		// Not even default storageClass on the cluster, cannot apply the defaults, verify spec is ok
+		if len(pvcSpec.AccessModes) == 0 {
+			log.V(1).Info("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name)
+			recorder.Eventf(dv, corev1.EventTypeWarning, ErrClaimNotValid, "DataVolume.storage spec is missing accessMode and no storageClass to choose profile")
+			return nil, errors.Errorf("DataVolume spec is missing accessMode")
+		}
+
+		return pvcSpec, nil
+	}
+
+	// given storageClass we can apply defaults if needed
+	if len(pvcSpec.AccessModes) == 0 {
+		accessModes, err := getDefaultAccessModes(client, storageClass)
+		if err != nil {
+			log.V(1).Info("Cannot set accessMode for new pvc", "namespace", dv.Namespace, "name", dv.Name)
+			recorder.Eventf(dv, corev1.EventTypeWarning, ErrClaimNotValid,
+				fmt.Sprintf("DataVolume.storage spec is missing accessMode and cannot get access mode from StorageProfile %s", getName(storageClass)))
+			return nil, err
+		}
+		pvcSpec.AccessModes = append(pvcSpec.AccessModes, accessModes...)
+	}
+	if pvcSpec.VolumeMode == nil || *pvcSpec.VolumeMode == "" {
+		volumeMode, err := getDefaultVolumeMode(client, storageClass)
+		if err != nil {
+			return nil, err
+		}
+		pvcSpec.VolumeMode = volumeMode
+	}
+
+	requestedVolumeSize, err := volumeSize(client, storage)
+	if err != nil {
+		return nil, err
+	}
+	if pvcSpec.Resources.Requests == nil {
+		pvcSpec.Resources.Requests = corev1.ResourceList{}
+	}
+	pvcSpec.Resources.Requests[corev1.ResourceStorage] = *requestedVolumeSize
+
+	return pvcSpec, nil
+}
+
+func copyStorageAsPvc(log logr.Logger, storage *cdiv1.StorageSpec) *corev1.PersistentVolumeClaimSpec {
+	input := storage.DeepCopy()
+	log.V(1).Info("Cannot set accessMode for new pvc", "storage", storage)
+	pvcSpec := &corev1.PersistentVolumeClaimSpec{
+		AccessModes:      input.AccessModes,
+		Selector:         input.Selector,
+		Resources:        input.Resources,
+		VolumeName:       input.VolumeName,
+		StorageClassName: input.StorageClassName,
+		VolumeMode:       input.VolumeMode,
+		DataSource:       input.DataSource,
+	}
+
+	return pvcSpec
+}
+
+func volumeSize(c client.Client, storage *cdiv1.StorageSpec) (*resource.Quantity, error) {
+	// resources.requests[storage] - just copy it to pvc,
+	requestedSize, found := storage.Resources.Requests[corev1.ResourceStorage]
+	if !found {
+		return nil, errors.Errorf("Datavolume Spec is not valid - missing storage size")
+	}
+
+	// disk or image size, inflate it with overhead
+	if resolveVolumeMode(storage.VolumeMode) == corev1.PersistentVolumeFilesystem {
+		fsOverhead, err := GetFilesystemOverheadForStorageClass(c, storage.StorageClassName)
+		if err != nil {
+			return nil, err
+		}
+		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
+		requiredSpace := GetRequiredSpace(fsOverheadFloat, requestedSize.Value())
+
+		return resource.NewScaledQuantity(requiredSpace, 0), nil
+	}
+
+	return &requestedSize, nil
+}
+
+func getName(storageClass *storagev1.StorageClass) string {
+	if storageClass != nil {
+		return storageClass.Name
+	}
+	return ""
+}
+
+func getDefaultVolumeMode(c client.Client, storageClass *storagev1.StorageClass) (*corev1.PersistentVolumeMode, error) {
+	if storageClass == nil {
+		// fallback to k8s defaults
+		return nil, nil
+	}
+
+	storageProfile := &cdiv1.StorageProfile{}
+	err := c.Get(context.TODO(), types.NamespacedName{Name: storageClass.Name}, storageProfile)
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot get StorageProfile")
+	}
+	if len(storageProfile.Status.ClaimPropertySets) > 0 {
+		volumeMode := storageProfile.Status.ClaimPropertySets[0].VolumeMode
+		return volumeMode, nil
+	}
+
+	// since volumeMode is optional - > gracefully fallback to k8s defaults,
+	return nil, nil
+}
+
+func getDefaultAccessModes(c client.Client, storageClass *storagev1.StorageClass) ([]corev1.PersistentVolumeAccessMode, error) {
+	if storageClass == nil {
+		return nil, errors.Errorf("no accessMode defined on DV, no StorageProfile ")
+	}
+
+	storageProfile := &cdiv1.StorageProfile{}
+	err := c.Get(context.TODO(), types.NamespacedName{Name: storageClass.Name}, storageProfile)
+	if err != nil {
+		return nil, errors.Wrap(err, "no accessMode defined on DV, cannot get StorageProfile")
+	}
+
+	if len(storageProfile.Status.ClaimPropertySets) > 0 &&
+		len(storageProfile.Status.ClaimPropertySets[0].AccessModes) > 0 {
+		accessModes := storageProfile.Status.ClaimPropertySets[0].AccessModes
+		return accessModes, nil
+	}
+
+	// no accessMode configured on storageProfile
+	return nil, errors.Errorf("no accessMode defined on StorageProfile for %s StorageClass", storageClass.Name)
+}
+
+// GetRequiredSpace calculates space required taking file system overhead into account
+func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
+	blockSize := int64(512)
+	// count overhead as a percentage of the whole/new size
+	spaceWithOverhead := int64(float64(requestedSpace) / (1 - filesystemOverhead))
+	// qemu-img will round up, making us use more than the usable space.
+	// This later conflicts with image size validation.
+	qemuImgCorrection := util.RoundUp(spaceWithOverhead, blockSize)
+	return qemuImgCorrection
 }

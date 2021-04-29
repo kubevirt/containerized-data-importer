@@ -42,6 +42,19 @@ var _ = Describe("Util", func() {
 		table.Entry("Round down 510 to nearest multiple of 2", int64(510), int64(2), int64(510)),
 	)
 
+	table.DescribeTable("Round up", func(input, multiple, expectedResult int64) {
+		result := RoundUp(input, multiple)
+		Expect(result).To(Equal(expectedResult))
+	},
+		table.Entry("Round up 513 to nearest multiple of 512", int64(513), int64(512), int64(1024)),
+		table.Entry("Round up 512 to nearest multiple of 512", int64(512), int64(512), int64(512)),
+		table.Entry("Round up 510 to nearest multiple of 512", int64(510), int64(512), int64(512)),
+		table.Entry("Round up 0 to nearest multiple of 512", int64(0), int64(512), int64(0)),
+		table.Entry("Round up 513 to nearest multiple of 2", int64(513), int64(2), int64(514)),
+		table.Entry("Round up 512 to nearest multiple of 2", int64(512), int64(2), int64(512)),
+		table.Entry("Round up 510 to nearest multiple of 2", int64(510), int64(2), int64(510)),
+	)
+
 	table.DescribeTable("Find Namespace", func(inputFile, expectedResult string) {
 		result := getNamespace(inputFile)
 		Expect(result).To(Equal(expectedResult))

@@ -751,15 +751,13 @@ func ValidateCanCloneSourceAndTargetContentType(sourcePvc, targetPvc *corev1.Per
 
 // ValidateCanCloneSourceAndTargetSpec validates the specs passed in are compatible for cloning.
 func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *corev1.PersistentVolumeClaimSpec, contentType cdiv1.DataVolumeContentType) error {
-	sourceRequest := sourceSpec.Resources.Requests[corev1.ResourceStorage]
-	targetRequest := targetSpec.Resources.Requests[corev1.ResourceStorage]
-	// Verify that the target PVC size is equal or larger than the source.
-	if sourceRequest.Value() > targetRequest.Value() {
-		return errors.New("target resources requests storage size is smaller than the source")
+	err := ValidateCloneSize(sourceSpec.Resources, targetSpec.Resources)
+	if err != nil {
+		return err
 	}
 	// Allow different source and target volume modes only on KubeVirt content type
-	sourceVolumeMode := GetVolumeMode(sourceSpec.VolumeMode)
-	targetVolumeMode := GetVolumeMode(targetSpec.VolumeMode)
+	sourceVolumeMode := resolveVolumeMode(sourceSpec.VolumeMode)
+	targetVolumeMode := resolveVolumeMode(targetSpec.VolumeMode)
 	if sourceVolumeMode != targetVolumeMode && contentType != cdiv1.DataVolumeKubeVirt {
 		return fmt.Errorf("source volumeMode (%s) and target volumeMode (%s) do not match, contentType (%s)",
 			sourceVolumeMode, targetVolumeMode, contentType)
@@ -768,11 +766,13 @@ func ValidateCanCloneSourceAndTargetSpec(sourceSpec, targetSpec *corev1.Persiste
 	return nil
 }
 
-// GetVolumeMode returns the volume mode if set, otherwise defaults to file system mode
-func GetVolumeMode(volumeMode *corev1.PersistentVolumeMode) corev1.PersistentVolumeMode {
-	retVolumeMode := corev1.PersistentVolumeFilesystem
-	if volumeMode != nil && *volumeMode == corev1.PersistentVolumeBlock {
-		retVolumeMode = corev1.PersistentVolumeBlock
+// ValidateCloneSize validates the clone size requirements
+func ValidateCloneSize(sourceResources corev1.ResourceRequirements, targetResources corev1.ResourceRequirements) error {
+	sourceRequest := sourceResources.Requests[corev1.ResourceStorage]
+	targetRequest := targetResources.Requests[corev1.ResourceStorage]
+	// Verify that the target PVC size is equal or larger than the source.
+	if sourceRequest.Value() > targetRequest.Value() {
+		return errors.New("target resources requests storage size is smaller than the source")
 	}
-	return retVolumeMode
+	return nil
 }

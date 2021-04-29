@@ -690,30 +690,10 @@ var _ = Describe("CDIConfig manipulation upload tests", func() {
 	})
 
 	DescribeTable("Async upload with filesystem overhead", func(expectedStatus int, globalOverhead, scOverhead string) {
-		defaultSCName := utils.DefaultStorageClass.GetName()
-		testedFilesystemOverhead := &cdiv1.FilesystemOverhead{}
-		if globalOverhead != "" {
-			testedFilesystemOverhead.Global = cdiv1.Percent(globalOverhead)
-		}
-		if scOverhead != "" {
-			testedFilesystemOverhead.StorageClass = map[string]cdiv1.Percent{defaultSCName: cdiv1.Percent(scOverhead)}
-		}
-		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-			config.FilesystemOverhead = testedFilesystemOverhead.DeepCopy()
-		})
-		Expect(err).ToNot(HaveOccurred())
-		By(fmt.Sprintf("Waiting for filsystem overhead status to be set to %v", testedFilesystemOverhead))
-		Eventually(func() bool {
-			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			if scOverhead != "" {
-				return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(scOverhead)
-			}
-			return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(globalOverhead)
-		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig filesystem overhead wasn't set")
+		tests.SetFilesystemOverhead(f, globalOverhead, scOverhead)
 
 		By("Creating PVC with upload target annotation")
-		pvc, err = f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
+		pvc, err := f.CreateBoundPVCFromDefinition(utils.UploadPVCDefinition())
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify PVC annotation says ready")

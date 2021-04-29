@@ -210,12 +210,18 @@ func getRequestedImageSize(pvc *v1.PersistentVolumeClaim) (string, error) {
 	return pvcSize.String(), nil
 }
 
-// returns the volumeMode which determines if the PVC is block PVC or not.
+// returns the volumeMode from PVC handling default empty value
 func getVolumeMode(pvc *v1.PersistentVolumeClaim) v1.PersistentVolumeMode {
-	if pvc.Spec.VolumeMode != nil {
-		return *pvc.Spec.VolumeMode
+	return resolveVolumeMode(pvc.Spec.VolumeMode)
+}
+
+// resolveVolumeMode returns the volume mode if set, otherwise defaults to file system mode
+func resolveVolumeMode(volumeMode *v1.PersistentVolumeMode) v1.PersistentVolumeMode {
+	retVolumeMode := v1.PersistentVolumeFilesystem
+	if volumeMode != nil && *volumeMode == v1.PersistentVolumeBlock {
+		retVolumeMode = v1.PersistentVolumeBlock
 	}
-	return v1.PersistentVolumeFilesystem
+	return retVolumeMode
 }
 
 // checks if particular label exists in pvc
@@ -321,6 +327,11 @@ func GetFilesystemOverhead(client client.Client, pvc *v1.PersistentVolumeClaim) 
 		return "0", nil
 	}
 
+	return GetFilesystemOverheadForStorageClass(client, pvc.Spec.StorageClassName)
+}
+
+// GetFilesystemOverheadForStorageClass determines the filesystem overhead defined in CDIConfig for the storageClass.
+func GetFilesystemOverheadForStorageClass(client client.Client, storageClassName *string) (cdiv1.Percent, error) {
 	cdiConfig := &cdiv1.CDIConfig{}
 	if err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
 		if k8serrors.IsNotFound(err) {
@@ -331,9 +342,9 @@ func GetFilesystemOverhead(client client.Client, pvc *v1.PersistentVolumeClaim) 
 		return "0", err
 	}
 
-	targetStorageClass, err := GetStorageClassByName(client, pvc.Spec.StorageClassName)
+	targetStorageClass, err := GetStorageClassByName(client, storageClassName)
 	if err != nil {
-		klog.V(3).Info("Storage class", pvc.Spec.StorageClassName, "not found, trying default storage class")
+		klog.V(3).Info("Storage class", storageClassName, "not found, trying default storage class")
 		targetStorageClass, err = GetStorageClassByName(client, nil)
 		if err != nil {
 			klog.V(3).Info("No default storage class found, continuing with global overhead")
@@ -347,7 +358,7 @@ func GetFilesystemOverhead(client client.Client, pvc *v1.PersistentVolumeClaim) 
 	}
 
 	if targetStorageClass == nil {
-		klog.V(3).Info("Storage class", pvc.Spec.StorageClassName, "not found, continuing with global overhead")
+		klog.V(3).Info("Storage class", storageClassName, "not found, continuing with global overhead")
 		return cdiConfig.Status.FilesystemOverhead.Global, nil
 	}
 
@@ -687,31 +698,6 @@ func GetPreallocation(client client.Client, dataVolume *cdiv1.DataVolume) bool {
 	}
 
 	return cdiconfig.Status.Preallocation
-}
-
-// GetStorageClassNameForDV returns storage class to be used for the DV's PVC
-func GetStorageClassNameForDV(c client.Client, dv *cdiv1.DataVolume) string {
-	// If DV has a SC, return it
-	if dv != nil && dv.Spec.PVC != nil && dv.Spec.PVC.StorageClassName != nil && *dv.Spec.PVC.StorageClassName != "" {
-		return *dv.Spec.PVC.StorageClassName
-	}
-
-	// If DV's PVC has a SC, return it
-	pvc := &v1.PersistentVolumeClaim{}
-	// TODO change when PVC's name is different from DV's name
-	err := c.Get(context.TODO(), types.NamespacedName{Name: dv.Name, Namespace: dv.Namespace}, pvc)
-	if err == nil && pvc.Spec.StorageClassName != nil {
-		return *pvc.Spec.StorageClassName
-	}
-
-	// If there is a default SC, return it
-	sc, _ := GetDefaultStorageClass(c)
-	if sc != nil {
-		return sc.Name
-	}
-
-	// If everything fails, return blank
-	return ""
 }
 
 // GetClusterWideProxy returns the OpenShift cluster wide proxy object

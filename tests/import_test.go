@@ -205,10 +205,14 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", fu
 })
 
 var _ = Describe("Importer CDI config manipulation tests", func() {
-	var config *cdiv1.CDIConfig
-	var origSpec *cdiv1.CDIConfigSpec
-	var err error
 	f := framework.NewFramework(namespacePrefix)
+
+	var (
+		config         *cdiv1.CDIConfig
+		origSpec       *cdiv1.CDIConfigSpec
+		err            error
+		tinyCoreIsoURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
+	)
 
 	BeforeEach(func() {
 		config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
@@ -230,13 +234,21 @@ var _ = Describe("Importer CDI config manipulation tests", func() {
 		}, 30*time.Second, time.Second)
 	})
 
-	DescribeTable("Filesystem overhead is honored with a RAW file", func(expectedSuccess bool, globalOverhead, scOverhead string) {
-		setFilesystemOverhead(f, config, globalOverhead, scOverhead)
+	dvWithPvcSpec := func() *cdiv1.DataVolume {
+		return utils.NewDataVolumeWithHTTPImport("too-large-import", "50Mi", tinyCoreIsoURL())
+	}
+	dvWithStorageSpec := func() *cdiv1.DataVolume {
+		return utils.NewDataVolumeWithHTTPImportAndStorageSpec("too-large-import", "50Mi", tinyCoreIsoURL())
+	}
+	// value of .80 means 80% of filesystem is reserved for metadata,
+	// given 100Mi PVC, 80Mi is reserved, 20Mi available for image, we test using 50Mi PVC and around 20Mi image
+	highFsOverhead := "0.80"
 
-		imageURL := fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs)
+	DescribeTable("Filesystem overhead is honored with a RAW file", func(dvFunc func() *cdiv1.DataVolume, expectedSuccess bool, globalOverhead, scOverhead string) {
+		tests.SetFilesystemOverhead(f, globalOverhead, scOverhead)
 
-		By(imageURL)
-		dv := utils.NewDataVolumeWithHTTPImport("too-large-import", "500Mi", imageURL)
+		dv := dvFunc()
+		By(dv.Name)
 		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -268,10 +280,11 @@ var _ = Describe("Importer CDI config manipulation tests", func() {
 			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
 		}
 	},
-		Entry("Succeed with low global overhead", true, "0.1", ""),
-		Entry("[posneg:negative] Fail with high global overhead", false, "0.99", ""),
-		Entry("Succeed with low per-storageclass overhead (despite high global overhead)", true, "0.99", "0.1"),
-		Entry("[posneg:negative] Fail with high per-storageclass overhead (despite low global overhead)", false, "0.1", "0.99"),
+		Entry("Succeed with low global overhead", dvWithPvcSpec, true, "0.1", ""),
+		Entry("[posneg:negative] Fail with high global overhead", dvWithPvcSpec, false, highFsOverhead, ""),
+		Entry("Succeed with high global overhead when using spec.storage", dvWithStorageSpec, true, highFsOverhead, ""),
+		Entry("Succeed with low per-storageclass overhead (despite high global overhead)", dvWithPvcSpec, true, highFsOverhead, "0.1"),
+		Entry("[posneg:negative] Fail with high per-storageclass overhead (despite low global overhead)", dvWithPvcSpec, false, "0.1", highFsOverhead),
 	)
 })
 
@@ -1157,7 +1170,7 @@ var _ = Describe("Preallocation", func() {
 	)
 
 	It("Filesystem overhead is honored with blank volume", func() {
-		setFilesystemOverhead(f, config, "0.055", "0.055")
+		tests.SetFilesystemOverhead(f, "0.055", "0.055")
 
 		dv := utils.NewDataVolumeForBlankRawImage("import-dv", "100Mi")
 		preallocation := true
@@ -1190,29 +1203,3 @@ var _ = Describe("Preallocation", func() {
 		Expect(ok).To(BeTrue())
 	})
 })
-
-func setFilesystemOverhead(f *framework.Framework, config *cdiv1.CDIConfig, globalOverhead, scOverhead string) {
-	defaultSCName := utils.DefaultStorageClass.GetName()
-	testedFilesystemOverhead := &cdiv1.FilesystemOverhead{}
-	if globalOverhead != "" {
-		testedFilesystemOverhead.Global = cdiv1.Percent(globalOverhead)
-	}
-	if scOverhead != "" {
-		testedFilesystemOverhead.StorageClass = map[string]cdiv1.Percent{defaultSCName: cdiv1.Percent(scOverhead)}
-	}
-	config.Spec.FilesystemOverhead = testedFilesystemOverhead.DeepCopy()
-	By(fmt.Sprintf("Updating CDIConfig filesystem overhead to %v", config.Spec.FilesystemOverhead))
-	err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-		config.FilesystemOverhead = testedFilesystemOverhead.DeepCopy()
-	})
-	Expect(err).ToNot(HaveOccurred())
-	By(fmt.Sprintf("Waiting for filsystem overhead status to be set to %v", testedFilesystemOverhead))
-	Eventually(func() bool {
-		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		if scOverhead != "" {
-			return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(scOverhead)
-		}
-		return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(globalOverhead)
-	}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig filesystem overhead wasn't set")
-}

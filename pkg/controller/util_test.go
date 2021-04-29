@@ -338,37 +338,6 @@ var _ = Describe("GetDefaultStorageClass", func() {
 	})
 })
 
-var _ = Describe("GetStorageClassNameForDV", func() {
-	It("Should return DV's StorageClass if defined", func() {
-		client := createClient()
-		dv := createDataVolumeWithStorageClass("test-name", "test-ns", "test-storage-class")
-		scName := GetStorageClassNameForDV(client, dv)
-		Expect(scName).To(Equal("test-storage-class"))
-	})
-
-	It("Should return default StorageClass if not specified in DV or VM", func() {
-		client := createClient(
-			createStorageClass("test-storage-class-1", nil),
-			createStorageClass("test-storage-class-2", map[string]string{
-				AnnDefaultStorageClass: "true",
-			}),
-		)
-		dv := createDataVolume("test-name", "test-ns")
-		scName := GetStorageClassNameForDV(client, dv)
-		Expect(scName).To(Equal("test-storage-class-2"))
-	})
-
-	It("Should return empty StorageClass if not defined anywhere", func() {
-		client := createClient(
-			createStorageClass("test-storage-class-1", nil),
-			createStorageClass("test-storage-class-2", nil),
-		)
-		dv := createDataVolume("test-name", "test-ns")
-		scName := GetStorageClassNameForDV(client, dv)
-		Expect(scName).To(Equal(""))
-	})
-})
-
 var _ = Describe("GetClusterWideProxy", func() {
 	var proxyHTTPURL = "http://user:pswd@www.myproxy.com"
 	var proxyHTTPSURL = "https://user:pswd@www.myproxy.com"
@@ -678,6 +647,22 @@ func createStorageClass(name string, annotations map[string]string) *storagev1.S
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Annotations: annotations,
+		},
+	}
+}
+
+func createStorageProfile(name string, accessModes []v1.PersistentVolumeAccessMode, volumeMode v1.PersistentVolumeMode) *cdiv1.StorageProfile {
+	return &cdiv1.StorageProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Status: cdiv1.StorageProfileStatus{
+			StorageClass: &name,
+			ClaimPropertySets: []cdiv1.ClaimPropertySet{
+				{
+					AccessModes: accessModes,
+					VolumeMode:  &volumeMode,
+				}},
 		},
 	}
 }
