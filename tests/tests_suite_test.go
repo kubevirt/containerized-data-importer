@@ -75,25 +75,25 @@ func BuildTestSuite() {
 		// clients
 		kcs, err := framework.ClientsInstance.GetKubeClient()
 		if err != nil {
-			ginkgo.Fail("ERROR, unable to create K8SClient")
+			ginkgo.Fail(fmt.Sprintf("ERROR, unable to create K8SClient: %v", err))
 		}
 		framework.ClientsInstance.K8sClient = kcs
 
 		cs, err := framework.ClientsInstance.GetCdiClient()
 		if err != nil {
-			ginkgo.Fail("ERROR, unable to create CdiClient")
+			ginkgo.Fail(fmt.Sprintf("ERROR, unable to create CdiClient: %v", err))
 		}
 		framework.ClientsInstance.CdiClient = cs
 
 		extcs, err := framework.ClientsInstance.GetExtClient()
 		if err != nil {
-			ginkgo.Fail("ERROR, unable to create CsiClient")
+			ginkgo.Fail(fmt.Sprintf("ERROR, unable to create CsiClient: %v", err))
 		}
 		framework.ClientsInstance.ExtClient = extcs
 
 		crClient, err := framework.ClientsInstance.GetCrClient()
 		if err != nil {
-			ginkgo.Fail("ERROR, unable to create CrClient")
+			ginkgo.Fail(fmt.Sprintf("ERROR, unable to create CrClient: %v", err))
 		}
 		framework.ClientsInstance.CrClient = crClient
 
