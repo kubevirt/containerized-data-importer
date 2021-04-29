@@ -411,7 +411,7 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 						return reconcile.Result{}, err
 					}
 				} else if tmpPVC.Annotations[AnnCloneOf] == "true" {
-					done, err := r.expand(log, datavolume, tmpPVC)
+					done, err := r.expand(log, datavolume, tmpPVC, pvcSpec)
 					if err != nil {
 						return reconcile.Result{}, err
 					}
@@ -521,12 +521,11 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 		}
 
 		if pvc.Annotations[AnnCloneOf] != "true" {
-			// XXX hmmm
 			return reconcile.Result{}, nil
 		}
 
 		// expand for non-namespace case
-		done, err := r.expand(log, datavolume, pvc)
+		done, err := r.expand(log, datavolume, pvc, pvcSpec)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -849,8 +848,9 @@ func expansionPodName(pvc *corev1.PersistentVolumeClaim) string {
 	return "cdi-expand-" + string(pvc.UID)
 }
 
-func (r *DatavolumeReconciler) expand(log logr.Logger, dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (bool, error) {
-	requestedSize, hasRequested := dv.Spec.PVC.Resources.Requests[corev1.ResourceStorage]
+func (r *DatavolumeReconciler) expand(log logr.Logger, dv *cdiv1.DataVolume,
+	pvc *corev1.PersistentVolumeClaim, targetSpec *corev1.PersistentVolumeClaimSpec) (bool, error) {
+	requestedSize, hasRequested := targetSpec.Resources.Requests[corev1.ResourceStorage]
 	currentSize, hasCurrent := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 	actualSize, hasActual := pvc.Status.Capacity[corev1.ResourceStorage]
 	if !hasRequested || !hasCurrent || !hasActual {
@@ -1128,7 +1128,7 @@ func (r *DatavolumeReconciler) getSnapshotClassForSmartClone(dataVolume *cdiv1.D
 	}
 
 	srcCapacity, hasSrcCapacity := pvc.Status.Capacity[corev1.ResourceStorage]
-	targetRequest, hasTargetRequest := dataVolume.Spec.PVC.Resources.Requests[corev1.ResourceStorage]
+	targetRequest, hasTargetRequest := targetStorageSpec.Resources.Requests[corev1.ResourceStorage]
 	allowExpansion := srcStorageClass.AllowVolumeExpansion != nil && *srcStorageClass.AllowVolumeExpansion
 	if !hasSrcCapacity || !hasTargetRequest || (srcCapacity.Cmp(targetRequest) < 0 && !allowExpansion) {
 		return "", errors.New("source/target sizes not compatible")

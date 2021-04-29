@@ -53,6 +53,9 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
 					if k8serrors.IsNotFound(err) {
 						return true
 					}
+					if k8serrors.IsConflict(err) {
+						return false
+					}
 					Expect(err).ToNot(HaveOccurred())
 				}
 			}
@@ -254,7 +257,6 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
 				},
 			}
 
-			fmt.Fprintf(GinkgoWriter, "TRANSFER 1\n")
 			defer deleteTransfer(ot.Name)
 			ot = doTransfer(ot)
 
@@ -284,7 +286,6 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
 				},
 			}
 
-			fmt.Fprintf(GinkgoWriter, "TRANSFER 2\n")
 			defer deleteTransfer(ot.Name)
 			ot = doTransfer(ot)
 

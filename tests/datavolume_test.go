@@ -3,33 +3,30 @@ package tests
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/types"
 	"reflect"
 	"regexp"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 	"time"
 
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
-
-	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
-	"github.com/onsi/ginkgo/extensions/table"
-
+	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
-
-	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
 const (
@@ -1346,7 +1343,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			// given 50 percent overhead, expected size is 2x requestedSize
 			expectedSize := resource.MustParse("200Mi")
 
-			By("creating datavolume for upload")
+			By("creating clone dataVolume")
 			volumeMode := v1.PersistentVolumeFilesystem
 			dataVolume := createCloneDataVolume(dataVolumeName,
 				cdiv1.StorageSpec{
@@ -1361,10 +1358,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				}, fillCommand)
 
 			By("verifying pvc created with correct size")
-			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(expectedSize.Value()))
-			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
+			// eventually because pvc will have to be resized if smart clone
+			Eventually(func() bool {
+				pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
+				return pvc.Spec.Resources.Requests.Storage().Cmp(expectedSize) == 0
+			}, 1*time.Minute, 2*time.Second).Should(BeTrue())
 		})
 	})
 
