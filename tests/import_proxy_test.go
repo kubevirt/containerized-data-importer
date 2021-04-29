@@ -76,10 +76,7 @@ var _ = Describe("Import Proxy tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Eventually(func() bool {
 			_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dvName, metav1.GetOptions{})
-			if k8serrors.IsNotFound(err) {
-				return true
-			}
-			return false
+			return k8serrors.IsNotFound(err)
 		}, timeout, pollingInterval).Should(BeTrue())
 
 		if utils.IsOpenshift(f.K8sClient) {
@@ -215,8 +212,7 @@ func updateCDIConfigProxy(f *framework.Framework, proxyHTTPURL string, proxyHTTP
 // Then, for testing the importer pod using the proxy configuration from the cluster-wide proxy, we disable the proxy in the cluster-wide proxy obj with noProxy="*", and enable the proxy in the CDIConfig to test the importer pod with proxy configurations.
 func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, ocpClient *configclient.Clientset, proxyHTTPURL string, proxyHTTPSURL string, noProxy string) {
 	By("Updating OpenShift Cluster Wide Proxy with ImportProxy urls")
-	// we set NoProxy as "*" to disable proxing the OpenShift API calls
-	updateClusterWideProxyObj(ocpClient, proxyHTTPURL, proxyHTTPSURL, "*")
+	updateClusterWideProxyObj(ocpClient, proxyHTTPURL, proxyHTTPSURL, noProxy)
 
 	By("Waiting OpenShift Cluster Wide Proxy reconcile")
 	// the default OpenShift no_proxy configuration only appears in the proxy object after and http(s) url is updated
@@ -236,22 +232,8 @@ func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, ocpCli
 		cdiHTTP, _ := controller.GetImportProxyConfig(config, common.ImportProxyHTTP)
 		cdiHTTPS, _ := controller.GetImportProxyConfig(config, common.ImportProxyHTTPS)
 		cdiNoProxy, _ := controller.GetImportProxyConfig(config, common.ImportProxyNoProxy)
-		if cdiHTTP == proxyHTTPURL && cdiHTTPS == proxyHTTPSURL {
-			// update the noProxy in the CDIConfig
-			if cdiNoProxy != noProxy {
-				err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-					config.ImportProxy = &cdiv1.ImportProxy{
-						HTTPProxy:  &cdiHTTP,
-						HTTPSProxy: &cdiHTTPS,
-						NoProxy:    &noProxy,
-					}
-				})
-				Expect(err).ToNot(HaveOccurred())
-				return false
-			}
-			return true
-		}
-		return false
+		fmt.Fprintf(GinkgoWriter, "INFO: cdiHTTP: %s, proxyHTTPURL: %s, cdiHTTPS: %s, proxyHTTPSURL: %s, cdiNoProxy: %s\n", cdiHTTP, proxyHTTPURL, cdiHTTPS, proxyHTTPSURL, cdiNoProxy)
+		return cdiHTTP == proxyHTTPURL && cdiHTTPS == proxyHTTPSURL
 	}, time.Second*120, time.Second).Should(BeTrue())
 }
 
