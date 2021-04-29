@@ -161,15 +161,11 @@ func (f *Framework) VerifyTargetPVCContentMD5(namespace *k8sv1.Namespace, pvc *k
 
 // GetMD5 returns the MD5 of a file on a PVC
 func (f *Framework) GetMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, fileName string, numBytes int64) (string, error) {
-	var executorPod *k8sv1.Pod
-	var err error
-
-	executorPod, err = f.CreateVerifierPodWithPVC(namespace.Name, pvc)
-	if !apierrs.IsAlreadyExists(err) {
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	executorPod, err := f.startVerifierPod(namespace, pvc)
+	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: could not start verifier pod: [%s]\n", err)
+		return "", err
 	}
-	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	cmd := "md5sum " + fileName
 	if numBytes > 0 {
@@ -187,55 +183,38 @@ func (f *Framework) GetMD5(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolu
 	return output[:32], nil
 }
 
-// VerifyBlankDisk checks a blank disk on a file mode PVC by validating that the disk.img file is sparse.
-func (f *Framework) VerifyBlankDisk(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
-	var executorPod *k8sv1.Pod
-	var err error
-
-	executorPod, err = f.CreateVerifierPodWithPVC(namespace.Name, pvc)
-	if !apierrs.IsAlreadyExists(err) {
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+func (f *Framework) verifyInPod(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, cmd string, verifyFn func(output, stderr string) (bool, error)) (bool, error) {
+	executorPod, err := f.startVerifierPod(namespace, pvc)
+	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: could not start verifier pod: [%s]\n", err)
+		return false, err
 	}
-	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-	cmd := fmt.Sprintf("tr -d '\\000' <%s/disk.img | grep -q -m 1 ^ || echo \"All zeros\"", utils.DefaultPvcMountPath)
 
 	output, stderr, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
-
 	if err != nil {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 		return false, err
 	}
-	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: empty file check %s\n", output)
-	return strings.Compare("All zeros", string(output)) == 0, nil
+
+	return verifyFn(output, stderr)
+}
+
+// VerifyBlankDisk checks a blank disk on a file mode PVC by validating that the disk.img file is sparse.
+func (f *Framework) VerifyBlankDisk(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
+	cmd := fmt.Sprintf("tr -d '\\000' <%s/disk.img | grep -q -m 1 ^ || echo \"All zeros\"", utils.DefaultPvcMountPath)
+
+	return f.verifyInPod(namespace, pvc, cmd, func(output, stderr string) (bool, error) {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: empty file check %s\n", output)
+		return strings.Compare("All zeros", string(output)) == 0, nil
+	})
 }
 
 // VerifySparse checks a disk image being sparse after creation/resize.
 func (f *Framework) VerifySparse(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
-	var executorPod *k8sv1.Pod
-	var err error
-
-	executorPod, err = f.CreateVerifierPodWithPVC(namespace.Name, pvc)
-	if !apierrs.IsAlreadyExists(err) {
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	}
-	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-	cmd := fmt.Sprintf("qemu-img info %s/disk.img --output=json", utils.DefaultPvcMountPath)
-
-	output, stderr, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
-
-	if err != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
-		return false, err
-	}
-	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: qemu-img info output %s\n", output)
 	var info image.ImgInfo
-	err = json.Unmarshal([]byte(output), &info)
+	err := f.GetImageInfo(namespace, pvc, &info)
 	if err != nil {
-		klog.Errorf("Invalid JSON:\n%s\n", string(output))
+		return false, err
 	}
 	return info.VirtualSize >= info.ActualSize, nil
 }
@@ -243,73 +222,49 @@ func (f *Framework) VerifySparse(namespace *k8sv1.Namespace, pvc *k8sv1.Persiste
 // VerifyFSOverhead checks whether virtual size is smaller than actual size. That means FS Overhead has been accounted for.
 // NOTE: this assertion is only valid when preallocation is used.
 func (f *Framework) VerifyFSOverhead(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, preallocation bool) (bool, error) {
-	var executorPod *k8sv1.Pod
-	var err error
-
 	if !preallocation {
 		return false, fmt.Errorf("VerifyFSOverhead is only valid when preallocation is used")
 	}
 
-	executorPod, err = f.CreateVerifierPodWithPVC(namespace.Name, pvc)
-	if !apierrs.IsAlreadyExists(err) {
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	}
-	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-	cmd := fmt.Sprintf("qemu-img info %s/disk.img --output=json", utils.DefaultPvcMountPath)
-	output, stderr, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
-
+	var info image.ImgInfo
+	err := f.GetImageInfo(namespace, pvc, &info)
 	if err != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 		return false, err
 	}
-	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: qemu-img info output %s\n", output)
-	var info image.ImgInfo
-	err = json.Unmarshal([]byte(output), &info)
-	if err != nil {
-		klog.Errorf("Invalid JSON:\n%s\n", string(output))
-		return false, nil
-	}
+
 	requestedSize := pvc.Spec.Resources.Requests[k8sv1.ResourceStorage]
 	return info.VirtualSize <= info.ActualSize && info.VirtualSize < requestedSize.Value(), nil
 }
 
-// VerifyPermissions returns the group of a disk image.
-func (f *Framework) VerifyPermissions(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
-	var executorPod *k8sv1.Pod
-	var err error
-
-	executorPod, err = f.CreateVerifierPodWithPVC(namespace.Name, pvc)
-	if !apierrs.IsAlreadyExists(err) {
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	}
-	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-	cmd := fmt.Sprintf("x=$(ls -ln %s/disk.img); y=($x); echo ${y[0]}", utils.DefaultPvcMountPath)
-
-	output, stderr, err := f.ExecShellInPod(executorPod.Name, namespace.Name, cmd)
+// VerifyImagePreallocated checks that image's virtual size is roughly equal to actual size
+func (f *Framework) VerifyImagePreallocated(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
+	var info image.ImgInfo
+	err := f.GetImageInfo(namespace, pvc, &info)
 	if err != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
 		return false, err
 	}
-	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: permissions of disk.img: %s\n", output)
 
-	return strings.Compare(output, "-rw-rw----.") == 0, nil
+	return info.ActualSize >= info.VirtualSize, nil
+}
+
+// VerifyPermissions returns the group of a disk image.
+func (f *Framework) VerifyPermissions(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (bool, error) {
+	cmd := fmt.Sprintf("x=$(ls -ln %s/disk.img); y=($x); echo ${y[0]}", utils.DefaultPvcMountPath)
+
+	return f.verifyInPod(namespace, pvc, cmd, func(output, stderr string) (bool, error) {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: permissions of disk.img: %s\n", output)
+
+		return strings.Compare(output, "-rw-rw----.") == 0, nil
+	})
 }
 
 // GetDiskGroup returns the group of a disk image.
 func (f *Framework) GetDiskGroup(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, deletePod bool) (string, error) {
-	var executorPod *k8sv1.Pod
-	var err error
-
-	executorPod, err = f.CreateVerifierPodWithPVC(namespace.Name, pvc)
-	if !apierrs.IsAlreadyExists(err) {
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	executorPod, err := f.startVerifierPod(namespace, pvc)
+	if err != nil {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: could not start verifier pod: [%s]\n", err)
+		return "", err
 	}
-	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	cmd := fmt.Sprintf("ls -ln %s/disk.img", utils.DefaultPvcMountPath)
 
@@ -346,22 +301,12 @@ func (f *Framework) GetDiskGroup(namespace *k8sv1.Namespace, pvc *k8sv1.Persiste
 
 // VerifyTargetPVCArchiveContent provides a function to check if the number of files extracted from an archive matches the passed in value
 func (f *Framework) VerifyTargetPVCArchiveContent(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, count string) (bool, error) {
-	var executorPod *k8sv1.Pod
-	var err error
+	cmd := "ls " + utils.DefaultPvcMountPath + " | wc -l"
 
-	executorPod, err = f.CreateVerifierPodWithPVC(namespace.Name, pvc)
-	if !apierrs.IsAlreadyExists(err) {
-		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	}
-	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	output, stderr, err := f.ExecShellInPod(executorPod.Name, namespace.Name, "ls "+utils.DefaultPvcMountPath+" | wc -l")
-	if err != nil {
-		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: stderr: [%s]\n", stderr)
-		return false, err
-	}
-	fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: file count found %s\n", string(output))
-	return strings.Compare(count, output) == 0, nil
+	return f.verifyInPod(namespace, pvc, cmd, func(output, stderr string) (bool, error) {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: file count found %s\n", string(output))
+		return strings.Compare(count, output) == 0, nil
+	})
 }
 
 // RunCommandAndCaptureOutput runs a command on a pod that has the passed in PVC mounted and captures the output.
@@ -491,4 +436,36 @@ func addVolumeMounts(pvc *k8sv1.PersistentVolumeClaim, volumeName string) []k8sv
 		},
 	}
 	return volumeMounts
+}
+
+// GetImageInfo returns qemu-img information about given image
+func (f *Framework) GetImageInfo(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, info *image.ImgInfo) error {
+	cmd := fmt.Sprintf("qemu-img info %s/disk.img --output=json", utils.DefaultPvcMountPath)
+
+	_, err := f.verifyInPod(namespace, pvc, cmd, func(output, stderr string) (bool, error) {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: qemu-img info output %s\n", output)
+
+		err := json.Unmarshal([]byte(output), info)
+		if err != nil {
+			klog.Errorf("Invalid JSON:\n%s\n", string(output))
+			return false, err
+		}
+
+		return true, nil
+	})
+
+	return err
+}
+
+func (f *Framework) startVerifierPod(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim) (*k8sv1.Pod, error) {
+	var executorPod *k8sv1.Pod
+	var err error
+
+	executorPod, err = f.CreateVerifierPodWithPVC(namespace.Name, pvc)
+	if err != nil && !apierrs.IsAlreadyExists(err) {
+		return executorPod, err
+	}
+	err = utils.WaitTimeoutForPodReady(f.K8sClient, executorPod.Name, namespace.Name, utils.PodWaitForTime)
+
+	return executorPod, err
 }

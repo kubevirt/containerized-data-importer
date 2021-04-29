@@ -1105,6 +1105,10 @@ var _ = Describe("Preallocation", func() {
 		md5, err := f.GetMD5(f.Namespace, pvc, "/pvc/disk.img", md5PrefixSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.UploadFileMD5100kbytes))
+
+		ok, err := f.VerifyImagePreallocated(f.Namespace, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeTrue())
 	})
 
 	It("Uploader should not add preallocation when preallocation=false", func() {
@@ -1154,6 +1158,10 @@ var _ = Describe("Preallocation", func() {
 		md5, err := f.GetMD5(f.Namespace, pvc, "/pvc/disk.img", md5PrefixSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.UploadFileMD5100kbytes))
+
+		ok, err := f.VerifyImagePreallocated(f.Namespace, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeFalse())
 	})
 
 	DescribeTable("Each upload path include preallocation/conversion", func(uploader uploadFunc) {
@@ -1202,6 +1210,10 @@ var _ = Describe("Preallocation", func() {
 		md5, err := f.GetMD5(f.Namespace, pvc, "/pvc/disk.img", md5PrefixSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.UploadFileMD5100kbytes))
+
+		ok, err := f.VerifyImagePreallocated(f.Namespace, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeTrue())
 	},
 		Entry("sync", uploadImage),
 		Entry("async", uploadImageAsync),
