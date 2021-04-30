@@ -558,14 +558,11 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 
 func (r *DatavolumeReconciler) getVddkAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (bool, error) {
 	var dataVolumeCopy = dataVolume.DeepCopy()
-	if dataVolumeCopy.Annotations == nil {
-		dataVolumeCopy.Annotations = make(map[string]string)
-	}
 	if vddkHost := pvc.Annotations[AnnVddkHostConnection]; vddkHost != "" {
-		dataVolumeCopy.Annotations[AnnVddkHostConnection] = vddkHost
+		addAnnotation(dataVolumeCopy, AnnVddkHostConnection, vddkHost)
 	}
 	if vddkVersion := pvc.Annotations[AnnVddkVersion]; vddkVersion != "" {
-		dataVolumeCopy.Annotations[AnnVddkVersion] = vddkVersion
+		addAnnotation(dataVolumeCopy, AnnVddkVersion, vddkVersion)
 	}
 
 	// only update if something has changed
@@ -1397,15 +1394,6 @@ func (r *DatavolumeReconciler) reconcileDataVolumeStatus(dataVolume *cdiv1.DataV
 		storageClassBindingMode, err := r.getStorageClassBindingMode(pvc.Spec.StorageClassName)
 		if err != nil {
 			return reconcile.Result{}, err
-		}
-
-		if getSource(pvc) == SourceVDDK {
-			if vddkHost := pvc.Annotations[AnnVddkHostConnection]; vddkHost != "" {
-				addAnnotation(dataVolumeCopy, AnnVddkHostConnection, vddkHost)
-			}
-			if vddkVersion := pvc.Annotations[AnnVddkVersion]; vddkVersion != "" {
-				addAnnotation(dataVolumeCopy, AnnVddkVersion, vddkVersion)
-			}
 		}
 
 		// the following check is for a case where the request is to create a blank disk for a block device.

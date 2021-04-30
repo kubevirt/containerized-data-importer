@@ -223,12 +223,13 @@ func (n *Nbdkit) StartNbdkit(source string) error {
 		n.LogWatcher.Start(output)
 	} else {
 		go func() {
-			for {
-				line, err := output.ReadString('\n')
-				if err != nil {
-					break
-				}
+			scanner := bufio.NewScanner(output)
+			for scanner.Scan() {
+				line := scanner.Text()
 				klog.Infof("Log line from nbdkit: %s", line)
+			}
+			if err := scanner.Err(); err != nil {
+				klog.Errorf("Error watching nbdkit log: %v", err)
 			}
 			klog.Infof("Stopped watching nbdkit log.")
 		}()
