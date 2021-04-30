@@ -393,12 +393,12 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 			pvcName := datavolume.Name
 			if isCrossNamespaceClone(datavolume) {
 				pvcName = transferName
-				initialized, err := r.initTransfer(datavolume, pvcName)
+				initialized, err := r.initTransfer(log, datavolume, pvcName)
 				if err != nil {
 					return reconcile.Result{}, err
 				}
 
-				// get get reconciled again v soon
+				// get reconciled again v soon
 				if !initialized {
 					return reconcile.Result{},
 						r.updateSmartCloneStatusPhase(cdiv1.CloneScheduled, datavolume, nil)
@@ -718,8 +718,10 @@ func (r *DatavolumeReconciler) sourceInUse(dv *cdiv1.DataVolume) (bool, error) {
 	return len(pods) > 0, nil
 }
 
-func (r *DatavolumeReconciler) initTransfer(dv *cdiv1.DataVolume, name string) (bool, error) {
+func (r *DatavolumeReconciler) initTransfer(log logr.Logger, dv *cdiv1.DataVolume, name string) (bool, error) {
 	initialized := true
+
+	log.Info("Initializing transfer")
 
 	if !HasFinalizer(dv, crossNamespaceFinalizer) {
 		AddFinalizer(dv, crossNamespaceFinalizer)
