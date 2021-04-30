@@ -378,6 +378,14 @@ func (r *ObjectTransferReconciler) pendingHelper(ot *cdiv1.ObjectTransfer, obj r
 		return r.setCompleteConditionError(ot, err)
 	}
 
+	if !r.hasRequiredAnnotations(ot, metaObj) {
+		if err := r.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "Required annotation missing", ""); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
 	v, ok := metaObj.GetAnnotations()[AnnObjectTransferName]
 	if ok && v != ot.Name {
 		if err := r.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "Source in use by another transfer", v); err != nil {
@@ -421,4 +429,14 @@ func (r *ObjectTransferReconciler) pendingHelper(ot *cdiv1.ObjectTransfer, obj r
 	}
 
 	return nil
+}
+
+func (r *ObjectTransferReconciler) hasRequiredAnnotations(ot *cdiv1.ObjectTransfer, obj metav1.Object) bool {
+	for rk, rv := range ot.Spec.Source.RequiredAnnotations {
+		if v, ok := obj.GetAnnotations()[rk]; !ok || v != rv {
+			return false
+		}
+	}
+
+	return true
 }

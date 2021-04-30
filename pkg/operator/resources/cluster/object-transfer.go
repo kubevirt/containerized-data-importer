@@ -82,6 +82,14 @@ func createObjectTransferCRD() *extv1.CustomResourceDefinition {
 												"namespace": {
 													Type: "string",
 												},
+												"requiredAnnotations": {
+													AdditionalProperties: &extv1.JSONSchemaPropsOrBool{
+														Schema: &extv1.JSONSchemaProps{
+															Type: "string",
+														},
+													},
+													Type: "object",
+												},
 											},
 											Required: []string{
 												"kind",

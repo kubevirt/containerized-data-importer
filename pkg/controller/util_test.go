@@ -500,7 +500,7 @@ func createPendingPvc(name, ns string, annotations, labels map[string]string) *v
 }
 
 func createPvcInStorageClass(name, ns string, storageClassName *string, annotations, labels map[string]string, phase v1.PersistentVolumeClaimPhase) *v1.PersistentVolumeClaim {
-	return &v1.PersistentVolumeClaim{
+	pvc := &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Namespace:   ns,
@@ -521,6 +521,8 @@ func createPvcInStorageClass(name, ns string, storageClassName *string, annotati
 			Phase: phase,
 		},
 	}
+	pvc.Status.Capacity = pvc.Spec.Resources.Requests.DeepCopy()
+	return pvc
 }
 
 func createScratchPvc(pvc *v1.PersistentVolumeClaim, pod *v1.Pod, storageClassName string) *v1.PersistentVolumeClaim {

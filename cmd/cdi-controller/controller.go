@@ -149,7 +149,7 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 	}
 
 	// TODO: Current DV controller had threadiness 3, should we do the same here, defaults to one thread.
-	if _, err := controller.NewDatavolumeController(mgr, extClient, log); err != nil {
+	if _, err := controller.NewDatavolumeController(mgr, extClient, log, clonerImage, pullPolicy, getAPIServerPublicKey()); err != nil {
 		klog.Errorf("Unable to setup datavolume controller: %v", err)
 		os.Exit(1)
 	}

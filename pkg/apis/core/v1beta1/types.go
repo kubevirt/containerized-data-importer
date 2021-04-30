@@ -271,6 +271,12 @@ const (
 	// SmartClonePVCInProgress represents a data volume with a current phase of SmartClonePVCInProgress
 	SmartClonePVCInProgress DataVolumePhase = "SmartClonePVCInProgress"
 
+	// ExpansionInProgress is the state when a PVC is expanded
+	ExpansionInProgress DataVolumePhase = "ExpansionInProgress"
+
+	// NamespaceTransferInProgress is the state when a PVC is transferred
+	NamespaceTransferInProgress DataVolumePhase = "NamespaceTransferInProgress"
+
 	// UploadScheduled represents a data volume with a current phase of UploadScheduled
 	UploadScheduled DataVolumePhase = "UploadScheduled"
 

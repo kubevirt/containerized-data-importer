@@ -146,7 +146,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(testPvc.Annotations[AnnCloneSourcePod]).To(Equal("default-testPvc1-source-pod"))
-		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
+		Expect(HasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 	})
 
 	DescribeTable("Should NOT create new source pod if source PVC is in use", func(podFunc func(*corev1.PersistentVolumeClaim) *corev1.Pod) {
@@ -326,7 +326,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		By("Verifying the PVC now has a finalizer")
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
+		Expect(HasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeTrue())
 		By("Updating the PVC to completed")
 		testPvc.Annotations = map[string]string{
 			AnnCloneRequest: "default/source", AnnPodReady: "true", AnnCloneToken: "foobaz", AnnUploadClientName: "uploadclient", AnnCloneSourcePod: "default-testPvc1-source-pod", AnnPodPhase: string(corev1.PodSucceeded)}
@@ -360,7 +360,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		testPvc = &corev1.PersistentVolumeClaim{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, testPvc)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(reconciler.hasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeFalse())
+		Expect(HasFinalizer(testPvc, cloneSourcePodFinalizer)).To(BeFalse())
 	},
 		Entry("filesystem mode",
 			func() *corev1.PersistentVolumeClaim {
@@ -646,7 +646,7 @@ var _ = Describe("TokenValidation", func() {
 				},
 			},
 		}
-		err = validateCloneToken(v, source, target)
+		err = validateCloneTokenPVC(v, source, target)
 		if expectedSuccess {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(reflect.DeepEqual(p, goodTokenData())).To(BeTrue())

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/onsi/gomega"
+
 	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -510,4 +512,19 @@ func PersistentVolumeClaimFromDataVolume(datavolume *cdiv1.DataVolume) *corev1.P
 		},
 		Spec: *datavolume.Spec.PVC,
 	}
+}
+
+// GetCloneType returnc the CDI clone type
+func GetCloneType(clientSet *cdiclientset.Clientset, dataVolume *cdiv1.DataVolume) string {
+	var cloneType string
+	gomega.Eventually(func() bool {
+		dv, err := clientSet.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+		val, ok := dv.Annotations["cdi.kubevirt.io/cloneType"]
+		if ok {
+			cloneType = val
+		}
+		return ok
+	}, 90*time.Second, 2*time.Second).Should(gomega.BeTrue())
+	return cloneType
 }

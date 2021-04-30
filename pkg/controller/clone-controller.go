@@ -184,8 +184,8 @@ func (r *CloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, er
 			"checkPVC(AnnCloneRequest)", checkPVC(pvc, AnnCloneRequest, log),
 			"NOT has annotation(AnnCloneOf)", !metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf),
 			"isBound", isBound(pvc, log),
-			"has finalizer?", r.hasFinalizer(pvc, cloneSourcePodFinalizer))
-		if r.hasFinalizer(pvc, cloneSourcePodFinalizer) {
+			"has finalizer?", HasFinalizer(pvc, cloneSourcePodFinalizer))
+		if HasFinalizer(pvc, cloneSourcePodFinalizer) {
 			// Clone completed, remove source pod and finalizer.
 			if err := r.cleanup(pvc, log); err != nil {
 				return reconcile.Result{}, err
@@ -214,7 +214,7 @@ func (r *CloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, er
 		pvc.Annotations[AnnCloneSourcePod] = createCloneSourcePodName(pvc)
 
 		// add finalizer before creating clone source pod
-		pvc = r.addFinalizer(pvc, cloneSourcePodFinalizer)
+		AddFinalizer(pvc, cloneSourcePodFinalizer)
 
 		if err := r.updatePVC(pvc); err != nil {
 			return reconcile.Result{}, err
@@ -378,7 +378,7 @@ func (r *CloneReconciler) findCloneSourcePod(pvc *corev1.PersistentVolumeClaim) 
 }
 
 func (r *CloneReconciler) validateSourceAndTarget(sourcePvc, targetPvc *corev1.PersistentVolumeClaim) error {
-	if err := validateCloneToken(r.tokenValidator, sourcePvc, targetPvc); err != nil {
+	if err := validateCloneTokenPVC(r.tokenValidator, sourcePvc, targetPvc); err != nil {
 		return err
 	}
 	contentType, err := ValidateCanCloneSourceAndTargetContentType(sourcePvc, targetPvc)
@@ -392,40 +392,6 @@ func (r *CloneReconciler) validateSourceAndTarget(sourcePvc, targetPvc *corev1.P
 		return nil
 	}
 	return err
-}
-
-func (r *CloneReconciler) addFinalizer(pvc *corev1.PersistentVolumeClaim, name string) *corev1.PersistentVolumeClaim {
-	if r.hasFinalizer(pvc, name) {
-		return pvc
-	}
-
-	pvc.Finalizers = append(pvc.Finalizers, name)
-	return pvc
-}
-
-func (r *CloneReconciler) removeFinalizer(pvc *corev1.PersistentVolumeClaim, name string) *corev1.PersistentVolumeClaim {
-	if !r.hasFinalizer(pvc, name) {
-		return pvc
-	}
-
-	var finalizers []string
-	for _, f := range pvc.Finalizers {
-		if f != name {
-			finalizers = append(finalizers, f)
-		}
-	}
-
-	pvc.Finalizers = finalizers
-	return pvc
-}
-
-func (r *CloneReconciler) hasFinalizer(object metav1.Object, value string) bool {
-	for _, f := range object.GetFinalizers() {
-		if f == value {
-			return true
-		}
-	}
-	return false
 }
 
 // returns the CloneRequest string which contains the pvc name (and namespace) from which we want to clone the image.
@@ -462,7 +428,9 @@ func (r *CloneReconciler) cleanup(pvc *corev1.PersistentVolumeClaim, log logr.Lo
 		}
 	}
 
-	return r.updatePVC(r.removeFinalizer(pvc, cloneSourcePodFinalizer))
+	RemoveFinalizer(pvc, cloneSourcePodFinalizer)
+
+	return r.updatePVC(pvc)
 }
 
 // CreateCloneSourcePod creates our cloning src pod which will be used for out of band cloning to read the contents of the src PVC
@@ -530,11 +498,16 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 	workloadNodePlacement *sdkapi.NodePlacement) *corev1.Pod {
 
 	var ownerID string
-	cloneSourcePodName, _ := targetPvc.Annotations[AnnCloneSourcePod]
+	cloneSourcePodName := targetPvc.Annotations[AnnCloneSourcePod]
 	url := GetUploadServerURL(targetPvc.Namespace, targetPvc.Name, common.UploadPathSync)
 	pvcOwner := metav1.GetControllerOf(targetPvc)
 	if pvcOwner != nil && pvcOwner.Kind == "DataVolume" {
 		ownerID = string(pvcOwner.UID)
+	} else {
+		ouid, ok := targetPvc.Annotations[annOwnerUID]
+		if ok {
+			ownerID = ouid
+		}
 	}
 
 	preallocationRequested, _ := targetPvc.Annotations[AnnPreallocationRequested]
@@ -696,29 +669,6 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, addVars...)
 	SetPodPvcAnnotations(pod, targetPvc)
 	return pod
-}
-
-func validateCloneToken(validator token.Validator, source, target *corev1.PersistentVolumeClaim) error {
-	tok, ok := target.Annotations[AnnCloneToken]
-	if !ok {
-		return errors.New("clone token missing")
-	}
-
-	tokenData, err := validator.Validate(tok)
-	if err != nil {
-		return errors.Wrap(err, "error verifying token")
-	}
-
-	if tokenData.Operation != token.OperationClone ||
-		tokenData.Name != source.Name ||
-		tokenData.Namespace != source.Namespace ||
-		tokenData.Resource.Resource != "persistentvolumeclaims" ||
-		tokenData.Params["targetNamespace"] != target.Namespace ||
-		tokenData.Params["targetName"] != target.Name {
-		return errors.New("invalid token")
-	}
-
-	return nil
 }
 
 // ParseCloneRequestAnnotation parses the clone request annotation

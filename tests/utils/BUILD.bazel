@@ -28,6 +28,7 @@ go_library(
         "//pkg/util:go_default_library",
         "//pkg/util/naming:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",
+        "//vendor/github.com/onsi/gomega:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/github.com/ulikunitz/xz:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
