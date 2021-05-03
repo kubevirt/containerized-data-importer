@@ -1,6 +1,6 @@
 # Local Storage Placement for VM Disks
 
-This document describes a special handling of PVCs which have StoragaClass with `volumeBindingMode` set to `WaitForFirstConsumer`.  
+This document describes a special handling of PVCs which have StorageClass with `volumeBindingMode` set to `WaitForFirstConsumer`.  
 
 ## Introduction
 
@@ -25,7 +25,7 @@ to detect a DV phase and handle the initial scheduling which causes the PVC to c
 
 **NOTE:** The workload should not attempt to use the contents of the DV until CDI has finished the transfer. 
 
-## Force immidiate binding
+## Force immediate binding
 
 Add the annotation: `cdi.kubevirt.io/storage.bind.immediate.requested` to DataVolume to force scheduling of a CDI worker pod
 and immediately bind the PVC. This is useful for use cases that do not require binding to a particular node (like uploading a golden image to the cluster).      
