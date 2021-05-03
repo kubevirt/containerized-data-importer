@@ -213,6 +213,8 @@ type DataVolumeStatus struct {
 	// RestartCount is the number of times the pod populating the DataVolume has restarted
 	RestartCount int32                 `json:"restartCount,omitempty"`
 	Conditions   []DataVolumeCondition `json:"conditions,omitempty" optional:"true"`
+	// TransferMetrics provides fine-grained performance and progress counters for data sources that support it
+	TransferMetrics DataVolumeTransferMetrics `json:"transferMetrics,omitempty"`
 }
 
 //DataVolumeList provides the needed parameters to do request a list of Data Volumes from the system
@@ -240,6 +242,11 @@ type DataVolumePhase string
 
 // DataVolumeProgress is the current progress of the DataVolume transfer operation. Value between 0 and 100 inclusive, N/A if not available
 type DataVolumeProgress string
+
+// DataVolumeTransferMetrics
+type DataVolumeTransferMetrics struct {
+	TotalBytesSaved int64 `json:"totalBytesSaved,omitempty" description:"shows the number of bytes that have been copied from the source and successfully saved to the destination storage"`
+}
 
 // DataVolumeConditionType is the string representation of known condition types
 type DataVolumeConditionType string

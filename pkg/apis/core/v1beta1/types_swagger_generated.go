@@ -119,9 +119,10 @@ func (DataVolumeSourceVDDK) SwaggerDoc() map[string]string {
 
 func (DataVolumeStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":             "DataVolumeStatus contains the current status of the DataVolume",
-		"phase":        "Phase is the current phase of the data volume",
-		"restartCount": "RestartCount is the number of times the pod populating the DataVolume has restarted",
+		"":                "DataVolumeStatus contains the current status of the DataVolume",
+		"phase":           "Phase is the current phase of the data volume",
+		"restartCount":    "RestartCount is the number of times the pod populating the DataVolume has restarted",
+		"transferMetrics": "TransferMetrics provides fine-grained performance and progress counters for data sources that support it",
 	}
 }
 
@@ -135,6 +136,12 @@ func (DataVolumeList) SwaggerDoc() map[string]string {
 func (DataVolumeCondition) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"": "DataVolumeCondition represents the state of a data volume condition.",
+	}
+}
+
+func (DataVolumeTransferMetrics) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DataVolumeTransferMetrics",
 	}
 }
 

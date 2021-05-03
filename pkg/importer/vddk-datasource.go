@@ -609,6 +609,14 @@ type VDDKDataSource struct {
 	VolumeMode       v1.PersistentVolumeMode
 }
 
+var totalBytesSaved = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "import_total_bytes_saved",
+		Help: "Total number of bytes successfully saved from the source to the destination storage",
+	},
+	[]string{"ownerUID"},
+)
+
 func init() {
 	if err := prometheus.Register(progress); err != nil {
 		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
@@ -619,6 +627,14 @@ func init() {
 			klog.Errorf("Unable to create prometheus progress counter")
 		}
 	}
+	if err := prometheus.Register(totalBytesSaved); err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			totalBytesSaved = are.ExistingCollector.(*prometheus.CounterVec)
+		} else {
+			klog.Errorf("Unable to create prometheus counter for total bytes saved: %v", err)
+		}
+	}
+
 	ownerUID, _ = util.ParseEnvVar(common.OwnerUID, false)
 }
 
@@ -820,6 +836,11 @@ func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		err = progress.WithLabelValues(ownerUID).Write(metric)
 		if err == nil && v > 0 && v > *metric.Counter.Value {
 			progress.WithLabelValues(ownerUID).Add(v - *metric.Counter.Value)
+		}
+		v = float64(currentProgressBytes)
+		totalBytesSaved.WithLabelValues(ownerUID).Write(metric)
+		if err == nil && v > 0 && v > *metric.Counter.Value {
+			totalBytesSaved.WithLabelValues(ownerUID).Add(v - *metric.Counter.Value)
 		}
 	}
 

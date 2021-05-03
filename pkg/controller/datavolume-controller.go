@@ -1610,6 +1610,7 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 	httpClient := buildHTTPClient()
 	// Example value: import_progress{ownerUID="b856691e-1038-11e9-a5ab-525500d15501"} 13.45
 	var importRegExp = regexp.MustCompile("progress\\{ownerUID\\=\"" + string(dataVolumeCopy.UID) + "\"\\} (\\d{1,3}\\.?\\d*)")
+	var transferBytesSavedRegExp = regexp.MustCompile("total_bytes_saved\\{ownerUID\\=\"" + string(dataVolumeCopy.UID) + "\"\\} (.*)")
 
 	port, err := getPodMetricsPort(pod)
 	if err == nil && pod.Status.PodIP != "" {
@@ -1628,13 +1629,21 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 		}
 
 		match := importRegExp.FindStringSubmatch(string(body))
+		if match != nil {
+			if f, err := strconv.ParseFloat(match[1], 64); err == nil {
+				dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress(fmt.Sprintf("%.2f%%", f))
+			}
+		}
+
+		match = transferBytesSavedRegExp.FindStringSubmatch(string(body))
 		if match == nil {
 			// No match
 			return nil
 		}
 		if f, err := strconv.ParseFloat(match[1], 64); err == nil {
-			dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress(fmt.Sprintf("%.2f%%", f))
+			dataVolumeCopy.Status.TransferMetrics.TotalBytesSaved = int64(f)
 		}
+
 		return nil
 	}
 	return err

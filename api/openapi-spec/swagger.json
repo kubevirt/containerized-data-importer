@@ -3941,6 +3941,20 @@
       "description": "RestartCount is the number of times the pod populating the DataVolume has restarted",
       "type": "integer",
       "format": "int32"
+     },
+     "transferMetrics": {
+      "description": "TransferMetrics provides fine-grained performance and progress counters for data sources that support it",
+      "$ref": "#/definitions/v1beta1.DataVolumeTransferMetrics"
+     }
+    }
+   },
+   "v1beta1.DataVolumeTransferMetrics": {
+    "description": "DataVolumeTransferMetrics",
+    "type": "object",
+    "properties": {
+     "totalBytesSaved": {
+      "type": "integer",
+      "format": "int64"
      }
     }
    },

@@ -1236,6 +1236,24 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dv.Status.Progress).To(BeEquivalentTo("2.3%"))
 		})
+
+		It("Should update total bytes saved transfer metrics", func() {
+			dv.SetUID("b856691e-1038-11e9-a5ab-525500d15501")
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte(fmt.Sprintf("import_total_bytes_saved{ownerUID=\"%v\"} 1234567", dv.GetUID())))
+				w.WriteHeader(200)
+			}))
+			defer ts.Close()
+			ep, err := url.Parse(ts.URL)
+			Expect(err).ToNot(HaveOccurred())
+			port, err := strconv.Atoi(ep.Port())
+			Expect(err).ToNot(HaveOccurred())
+			pod.Spec.Containers[0].Ports[0].ContainerPort = int32(port)
+			pod.Status.PodIP = ep.Hostname()
+			err = updateProgressUsingPod(dv, pod)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.TransferMetrics.TotalBytesSaved).To(BeEquivalentTo(1234567))
+		})
 	})
 })
 

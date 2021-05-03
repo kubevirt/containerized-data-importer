@@ -687,6 +687,16 @@ func createAlphaV1DataVolumeCRDSchema() *extv1.CustomResourceValidation {
 							},
 							Type: "array",
 						},
+						"transferMetrics": {
+							Type: "object",
+							Properties: map[string]extv1.JSONSchemaProps{
+								"totalBytesSaved": {
+									Description: "Total bytes saved",
+									Type:        "integer",
+									Format:      "int64",
+								},
+							},
+						},
 					},
 				},
 			},
