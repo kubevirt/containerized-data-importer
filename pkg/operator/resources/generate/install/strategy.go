@@ -29,6 +29,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
 
+// Strategy structure for CDI
 type Strategy struct {
 	serviceAccounts                 []*corev1.ServiceAccount
 	clusterRoles                    []*rbacv1.ClusterRole
@@ -48,35 +49,43 @@ type Strategy struct {
 	cdi                             []*cdiv1.CDI
 }
 
+// ServiceAccounts returns list of Service Accounts
 func (ins *Strategy) ServiceAccounts() []*corev1.ServiceAccount {
 	return ins.serviceAccounts
 }
 
+// ClusterRoles returns list of Cluster Roles
 func (ins *Strategy) ClusterRoles() []*rbacv1.ClusterRole {
 	return ins.clusterRoles
 }
 
+// ClusterRoleBindings returns list of Cluster Roles Bindings
 func (ins *Strategy) ClusterRoleBindings() []*rbacv1.ClusterRoleBinding {
 	return ins.clusterRoleBindings
 }
 
+// Roles returns list of Roles
 func (ins *Strategy) Roles() []*rbacv1.Role {
 	return ins.roles
 }
 
+// RoleBindings returns list of Roles Bindings
 func (ins *Strategy) RoleBindings() []*rbacv1.RoleBinding {
 	return ins.roleBindings
 }
 
+// Services returns list of Services
 func (ins *Strategy) Services() []*corev1.Service {
 	return ins.services
 }
 
+// Deployments returns list of Deployments
 func (ins *Strategy) Deployments() []*appsv1.Deployment {
 	return ins.deployments
 }
 
-func (ins *Strategy) ApiDeployments() []*appsv1.Deployment {
+// APIDeployments returns list of API Deployments
+func (ins *Strategy) APIDeployments() []*appsv1.Deployment {
 	var deployments []*appsv1.Deployment
 
 	for _, deployment := range ins.deployments {
@@ -89,6 +98,7 @@ func (ins *Strategy) ApiDeployments() []*appsv1.Deployment {
 	return deployments
 }
 
+// ControllerDeployments returns list of Controller Deployments
 func (ins *Strategy) ControllerDeployments() []*appsv1.Deployment {
 	var deployments []*appsv1.Deployment
 
@@ -103,41 +113,49 @@ func (ins *Strategy) ControllerDeployments() []*appsv1.Deployment {
 	return deployments
 }
 
+// DaemonSets returns list of Daemon Sets
 func (ins *Strategy) DaemonSets() []*appsv1.DaemonSet {
 	return ins.daemonSets
 }
 
+// ValidatingWebhookConfigurations returns list of Validating Webhook Configurations
 func (ins *Strategy) ValidatingWebhookConfigurations() []*admissionregistrationv1beta1.ValidatingWebhookConfiguration {
 	return ins.validatingWebhookConfigurations
 }
 
+// MutatingWebhookConfigurations returns list of Mutating Webhook Configurations
 func (ins *Strategy) MutatingWebhookConfigurations() []*admissionregistrationv1beta1.MutatingWebhookConfiguration {
 	return ins.mutatingWebhookConfigurations
 }
 
+// APIServices returns list of API Services
 func (ins *Strategy) APIServices() []*v1beta12.APIService {
 	return ins.apiServices
 }
 
+// CertificateSecrets returns list of Certificate Secrets
 func (ins *Strategy) CertificateSecrets() []*corev1.Secret {
 	return ins.certificateSecrets
 }
 
+// SCCs returns list of Security Context COnstraints
 func (ins *Strategy) SCCs() []*secv1.SecurityContextConstraints {
 	return ins.sccs
 }
 
+// ConfigMaps returns list of Config Maps
 func (ins *Strategy) ConfigMaps() []*corev1.ConfigMap {
 	return ins.configMaps
 }
 
+// CRDs returns list of Custom Resource Deployments
 func (ins *Strategy) CRDs() []*v1.CustomResourceDefinition {
 	return ins.crds
 }
 
-func NewInstallStrategyConfigMap(objects []runtime.Object, reqLogger logr.Logger, namespace string) (*corev1.ConfigMap, error) {
+func newInstallStrategyConfigMap(objects []runtime.Object, reqLogger logr.Logger, namespace string) (*corev1.ConfigMap, error) {
 
-	strategy, err := GenerateCurrentInstallStrategy(objects, reqLogger)
+	strategy, err := generateCurrentInstallStrategy(objects, reqLogger)
 	if err != nil {
 		return nil, err
 	}
@@ -154,8 +172,9 @@ func NewInstallStrategyConfigMap(objects []runtime.Object, reqLogger logr.Logger
 	return configMap, nil
 }
 
+// DumpInstallStrategyToConfigMap Dumps Install Strategy of CDI to a Config Map
 func DumpInstallStrategyToConfigMap(clientset client.Client, objects []runtime.Object, reqLogger logr.Logger, namespace string) error {
-	configMap, err := NewInstallStrategyConfigMap(objects, reqLogger, namespace)
+	configMap, err := newInstallStrategyConfigMap(objects, reqLogger, namespace)
 	if err != nil {
 		return err
 	}
@@ -181,55 +200,55 @@ func dumpInstallStrategyToBytes(strategy *Strategy) []byte {
 	writer := bufio.NewWriter(&b)
 
 	for _, entry := range strategy.serviceAccounts {
-		MarshallObject(entry, writer)
+		marshallObject(entry, writer)
 	}
 	for _, entry := range strategy.clusterRoles {
-		MarshallObject(entry, writer)
+		marshallObject(entry, writer)
 	}
 	for _, entry := range strategy.clusterRoleBindings {
-		MarshallObject(entry, writer)
+		marshallObject(entry, writer)
 	}
 	for _, entry := range strategy.roles {
-		MarshallObject(entry, writer)
+		marshallObject(entry, writer)
 	}
 	for _, entry := range strategy.roleBindings {
-		MarshallObject(entry, writer)
+		marshallObject(entry, writer)
 	}
 	for _, entry := range strategy.crds {
-		MarshallObject(entry, writer)
+		marshallObject(entry, writer)
 	}
 	for _, entry := range strategy.services {
-		MarshallObject(entry, writer)
+		marshallObject(entry, writer)
 	}
 	for _, entry := range strategy.certificateSecrets {
-		MarshallObject(entry, writer)
+		marshallObject(entry, writer)
 	}
 	for _, entry := range strategy.validatingWebhookConfigurations {
-		MarshallObject(entry, writer)
+		marshallObject(entry, writer)
 	}
 	for _, entry := range strategy.mutatingWebhookConfigurations {
-		MarshallObject(entry, writer)
+		marshallObject(entry, writer)
 	}
 	for _, entry := range strategy.apiServices {
-		MarshallObject(entry, writer)
+		marshallObject(entry, writer)
 	}
 	for _, entry := range strategy.deployments {
-		MarshallObject(entry, writer)
+		marshallObject(entry, writer)
 	}
 	for _, entry := range strategy.daemonSets {
-		MarshallObject(entry, writer)
+		marshallObject(entry, writer)
 	}
 	for _, entry := range strategy.sccs {
-		MarshallObject(entry, writer)
+		marshallObject(entry, writer)
 	}
 	for _, entry := range strategy.configMaps {
-		MarshallObject(entry, writer)
+		marshallObject(entry, writer)
 	}
 	writer.Flush()
 	return b.Bytes()
 }
 
-func GenerateCurrentInstallStrategy(resources []runtime.Object, reqLogger logr.Logger) (*Strategy, error) {
+func generateCurrentInstallStrategy(resources []runtime.Object, reqLogger logr.Logger) (*Strategy, error) {
 
 	strategy := &Strategy{}
 
@@ -268,7 +287,7 @@ func GenerateCurrentInstallStrategy(resources []runtime.Object, reqLogger logr.L
 	return strategy, nil
 }
 
-func MarshallObject(obj interface{}, writer io.Writer) error {
+func marshallObject(obj interface{}, writer io.Writer) error {
 	jsonBytes, err := json.Marshal(obj)
 	if err != nil {
 		return err
