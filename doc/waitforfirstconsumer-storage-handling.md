@@ -1,8 +1,8 @@
 # Local Storage Placement for VM Disks
 
-This document describes a special handling of PVCs which have StoragaClass with `volumeBindingMode` set to `WaitForFirstConsumer`.  
+This document describes a special handling of PVCs which have StorageClass with `volumeBindingMode` set to `WaitForFirstConsumer`.  
 
-## Introduction
+## Problem description
 
 Local Storage PVs are bound to a specific node. With the binding mode of `WaitForFirstConsumer`  
 the binding and the provisioning is delayed until a Pod using the PVC is created. That way the Pod's scheduling constraints
@@ -13,7 +13,7 @@ on the node where worker Pod is scheduled. Worker Pod might have different const
 scheduled on a different node than the PVC it becomes unusable. The problem might be even bigger when a VM has more than one PVC 
 managed by CDI.
 
-## Handling the WaitForFirstConsumer mode
+## Solution: WaitForFirstConsumer mode for DataVolumes
 
 The CDI has a special handling for DataVolumes (DV) that use storage with `WaitForFirstConsumer` mode. 
 
@@ -25,10 +25,13 @@ to detect a DV phase and handle the initial scheduling which causes the PVC to c
 
 **NOTE:** The workload should not attempt to use the contents of the DV until CDI has finished the transfer. 
 
-## Force immidiate binding
+## Forcing immediate binding
 
-Add the annotation: `cdi.kubevirt.io/storage.bind.immediate.requested` to DataVolume to force scheduling of a CDI worker pod
-and immediately bind the PVC. This is useful for use cases that do not require binding to a particular node (like uploading a golden image to the cluster).      
+Sometimes you will still want a datavolume to be bound immediately. This can be done by adding the annotation:    
+`cdi.kubevirt.io/storage.bind.immediate.requested`.    
+This will force the scheduling of a CDI worker pod and immediately bind the PVC.
+
+This is useful for use cases that do not require binding to a particular node (like uploading a golden image to the cluster).      
 
 ## Configuration - Opt in
 
