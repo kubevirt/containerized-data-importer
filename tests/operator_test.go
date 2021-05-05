@@ -455,8 +455,17 @@ var _ = Describe("ALL Operator tests", func() {
 			}
 
 			ensureCDI := func(cr *cdiv1.CDI) {
+				//FIXME: Add Update() test as well
+				By("Dry-run creating CDI (CR and deployment)")
+				_, err := f.CdiClient.CdiV1beta1().CDIs().Create(context.TODO(), cr, metav1.CreateOptions{DryRun: []string{metav1.DryRunAll}})
+				Expect(err).ToNot(HaveOccurred())
+
 				By("Re-creating CDI (CR and deployment)")
-				_, err := f.CdiClient.CdiV1beta1().CDIs().Create(context.TODO(), cr, metav1.CreateOptions{})
+				_, err = f.CdiClient.CdiV1beta1().CDIs().Create(context.TODO(), cr, metav1.CreateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Dry-run creating CDI operator")
+				_, err = f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Create(context.TODO(), restoreCdiOperatorDeployment, metav1.CreateOptions{DryRun: []string{metav1.DryRunAll}})
 				Expect(err).ToNot(HaveOccurred())
 
 				By("Recreating CDI operator")
@@ -514,8 +523,30 @@ var _ = Describe("ALL Operator tests", func() {
 			It("[test_id:4782] Should install CDI infrastructure pods with node placement", func() {
 				By("Creating modified CDI CR, with infra nodePlacement")
 				localSpec := restoreCdiCr.Spec.DeepCopy()
-				localSpec.Infra = tests.TestNodePlacementValues(f)
+				localSpec.Infra = tests.TestNodePlacementValues(f, corev1.NodeSelectorOpIn) // Legal operator
+				tempCdiCr := &cdiv1.CDI{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "cdi",
+					},
+					Spec: *localSpec,
+				}
 
+				ensureCDI(tempCdiCr)
+
+				By("Testing all infra deployments have the chosen node placement")
+				for _, deploymentName := range []string{"cdi-apiserver", "cdi-deployment", "cdi-uploadproxy"} {
+					deployment, err := f.K8sClient.AppsV1().Deployments(f.CdiInstallNs).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+
+					match := tests.PodSpecHasTestNodePlacementValues(f, deployment.Spec.Template.Spec)
+					Expect(match).To(BeTrue(), fmt.Sprintf("node placement in pod spec\n%v\n differs from node placement values in CDI CR\n%v\n", deployment.Spec.Template.Spec, localSpec.Infra))
+				}
+			})
+
+			FIt("Should fail installing CDI infrastructure pods with incorrcet node placement", func() {
+				By("Creating modified CDI CR, with infra nodePlacement")
+				localSpec := restoreCdiCr.Spec.DeepCopy()
+				localSpec.Infra = tests.TestNodePlacementValues(f, "BadOp") // Illegal operator
 				tempCdiCr := &cdiv1.CDI{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "cdi",

@@ -124,7 +124,7 @@ func GetKubeVersion(f *framework.Framework) string {
 
 // TestNodePlacementValues returns a pre-defined set of node placement values for testing purposes.
 // The values chosen are valid, but the pod will likely not be schedulable.
-func TestNodePlacementValues(f *framework.Framework) sdkapi.NodePlacement {
+func TestNodePlacementValues(f *framework.Framework, operator v1.NodeSelectorOperator) sdkapi.NodePlacement {
 	nodes, _ := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	affinityTestValue = &v1.Affinity{
 		NodeAffinity: &v1.NodeAffinity{
@@ -132,7 +132,7 @@ func TestNodePlacementValues(f *framework.Framework) sdkapi.NodePlacement {
 				NodeSelectorTerms: []v1.NodeSelectorTerm{
 					{
 						MatchExpressions: []v1.NodeSelectorRequirement{
-							{Key: "kubernetes.io/hostname", Operator: v1.NodeSelectorOpIn, Values: []string{nodes.Items[0].Name}},
+							{Key: "kubernetes.io/hostname", Operator: operator, Values: []string{nodes.Items[0].Name}},
 						},
 					},
 				},

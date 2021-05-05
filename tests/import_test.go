@@ -177,7 +177,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", fu
 	})
 
 	It("[test_id:4783] Should create import pod with node placement", func() {
-		cr.Spec.Workloads = tests.TestNodePlacementValues(f)
+		cr.Spec.Workloads = tests.TestNodePlacementValues(f, v1.NodeSelectorOpIn)
 		_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cr, metav1.UpdateOptions{})
 
 		By("Waiting for CDI CR update to take effect")
