@@ -782,7 +782,7 @@ var _ = Describe("Controller", func() {
 				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
 					deploymentOrig, ok := toModify.(*appsv1.Deployment)
 					if !ok {
-						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+						return toModify, toModify, generrors.New("wrong type")
 					}
 					deployment := deploymentOrig.DeepCopy()
 					deployment.Annotations["fake.anno.1"] = "fakeannotation1"
@@ -815,17 +815,13 @@ var _ = Describe("Controller", func() {
 						}
 					}
 
-					if len(desiredDep.Annotations) > len(postDep.Annotations) {
-						return false
-					}
-
-					return true
+					return len(desiredDep.Annotations) <= len(postDep.Annotations)
 				}),
 			Entry("verify - deployment updated on upgrade - labels changed",
 				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
 					deploymentOrig, ok := toModify.(*appsv1.Deployment)
 					if !ok {
-						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+						return toModify, toModify, generrors.New("wrong type")
 					}
 					deployment := deploymentOrig.DeepCopy()
 					deployment.Labels["fake.label.1"] = "fakelabel1"
@@ -856,17 +852,13 @@ var _ = Describe("Controller", func() {
 						}
 					}
 
-					if len(desiredDep.Labels) > len(postDep.Labels) {
-						return false
-					}
-
-					return true
+					return len(desiredDep.Labels) <= len(postDep.Labels)
 				}),
 			Entry("verify - deployment updated on upgrade - deployment spec changed - modify container",
 				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
 					deploymentOrig, ok := toModify.(*appsv1.Deployment)
 					if !ok {
-						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+						return toModify, toModify, generrors.New("wrong type")
 					}
 					deployment := deploymentOrig.DeepCopy()
 
@@ -909,17 +901,13 @@ var _ = Describe("Controller", func() {
 						}
 					}
 
-					if len(desiredDep.Spec.Template.Spec.Containers[0].Env) != len(postDep.Spec.Template.Spec.Containers[0].Env) {
-						return false
-					}
-
-					return true
+					return len(desiredDep.Spec.Template.Spec.Containers[0].Env) == len(postDep.Spec.Template.Spec.Containers[0].Env)
 				}),
 			Entry("verify - deployment updated on upgrade - deployment spec changed - add new container",
 				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
 					deploymentOrig, ok := toModify.(*appsv1.Deployment)
 					if !ok {
-						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+						return toModify, toModify, generrors.New("wrong type")
 					}
 					deployment := deploymentOrig.DeepCopy()
 
@@ -963,17 +951,13 @@ var _ = Describe("Controller", func() {
 						}
 					}
 
-					if len(desiredDep.Spec.Template.Spec.Containers) > len(postDep.Spec.Template.Spec.Containers) {
-						return false
-					}
-
-					return true
+					return len(desiredDep.Spec.Template.Spec.Containers) <= len(postDep.Spec.Template.Spec.Containers)
 				}),
 			Entry("verify - deployment updated on upgrade - deployment spec changed - remove existing container",
 				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
 					deploymentOrig, ok := toModify.(*appsv1.Deployment)
 					if !ok {
-						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+						return toModify, toModify, generrors.New("wrong type")
 					}
 					deployment := deploymentOrig.DeepCopy()
 
@@ -1012,7 +996,7 @@ var _ = Describe("Controller", func() {
 				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
 					serviceOrig, ok := toModify.(*corev1.Service)
 					if !ok {
-						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+						return toModify, toModify, generrors.New("wrong type")
 					}
 					service := serviceOrig.DeepCopy()
 					service.Annotations["fake.anno.1"] = "fakeannotation1"
@@ -1043,17 +1027,14 @@ var _ = Describe("Controller", func() {
 						}
 					}
 
-					if len(desired.Annotations) > len(post.Annotations) {
-						return false
-					}
-					return true
+					return len(desired.Annotations) <= len(post.Annotations)
 				}),
 
 			Entry("verify - services updated on upgrade - label changed",
 				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
 					serviceOrig, ok := toModify.(*corev1.Service)
 					if !ok {
-						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+						return toModify, toModify, generrors.New("wrong type")
 					}
 					service := serviceOrig.DeepCopy()
 					service.Labels["fake.label.1"] = "fakelabel1"
@@ -1084,18 +1065,14 @@ var _ = Describe("Controller", func() {
 						}
 					}
 
-					if len(desired.Labels) > len(post.Labels) {
-						return false
-					}
-
-					return true
+					return len(desired.Labels) <= len(post.Labels)
 				}),
 
 			Entry("verify - services updated on upgrade - service port changed",
 				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
 					serviceOrig, ok := toModify.(*corev1.Service)
 					if !ok {
-						return toModify, toModify, generrors.New(fmt.Sprint("wrong type"))
+						return toModify, toModify, generrors.New("wrong type")
 					}
 					service := serviceOrig.DeepCopy()
 					service.Spec.Ports = []corev1.ServicePort{
@@ -1129,11 +1106,7 @@ var _ = Describe("Controller", func() {
 						}
 					}
 
-					if len(desired.Spec.Ports) != len(post.Spec.Ports) {
-						return false
-					}
-
-					return true
+					return len(desired.Spec.Ports) == len(post.Spec.Ports)
 				}),
 			//CRD update
 			// - update CRD label

@@ -2,12 +2,10 @@ package tests_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
-
-	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -20,7 +18,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
@@ -30,6 +27,8 @@ import (
 	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 )
 
 var _ = Describe("ALL Operator tests", func() {
@@ -153,10 +152,7 @@ var _ = Describe("ALL Operator tests", func() {
 					Expect(err).ToNot(HaveOccurred(), "failed getting CDI pods")
 
 					By(fmt.Sprintf("number of cdi pods: %d\n new number of cdi pods: %d\n", len(cdiPods.Items), len(newCdiPods.Items)))
-					if len(cdiPods.Items) != len(newCdiPods.Items) {
-						return false
-					}
-					return true
+					return len(cdiPods.Items) == len(newCdiPods.Items)
 				}, 5*time.Minute, 2*time.Second).Should(BeTrue())
 
 				for _, newCdiPod := range newCdiPods.Items {
@@ -235,7 +231,7 @@ var _ = Describe("ALL Operator tests", func() {
 					for _, cdiTestPod := range cdiTestPods.Items {
 						By(fmt.Sprintf("CDI test pod: %s", cdiTestPod.Name))
 						_, err := f.K8sClient.CoreV1().Pods(cdiTestPod.Namespace).Get(context.TODO(), cdiTestPod.Name, metav1.GetOptions{})
-						if !k8serrors.IsNotFound(err) {
+						if !errors.IsNotFound(err) {
 							return false
 						}
 					}
@@ -325,10 +321,7 @@ var _ = Describe("ALL Operator tests", func() {
 					cdi, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
 					Expect(cdi.Status.Phase).ShouldNot(Equal(sdkapi.PhaseError))
-					if conditions.IsStatusConditionTrue(cdi.Status.Conditions, conditions.ConditionAvailable) {
-						return true
-					}
-					return false
+					return conditions.IsStatusConditionTrue(cdi.Status.Conditions, conditions.ConditionAvailable)
 				}, 10*time.Minute, 2*time.Second).Should(BeTrue())
 
 				By("Verifying CDI apiserver, deployment, uploadproxy exist, before continuing")
@@ -337,7 +330,7 @@ var _ = Describe("ALL Operator tests", func() {
 				By("Verifying CDI config object exists, before continuing")
 				Eventually(func() bool {
 					_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-					if k8serrors.IsNotFound(err) {
+					if errors.IsNotFound(err) {
 						return false
 					}
 					Expect(err).ToNot(HaveOccurred(), "Unable to read CDI Config, %v, expect more failures", err)
@@ -350,10 +343,7 @@ var _ = Describe("ALL Operator tests", func() {
 					Expect(err).ToNot(HaveOccurred(), "failed getting CDI pods")
 
 					By(fmt.Sprintf("number of cdi pods: %d\n new number of cdi pods: %d\n", len(cdiPods.Items), len(newCdiPods.Items)))
-					if len(cdiPods.Items) != len(newCdiPods.Items) {
-						return false
-					}
-					return true
+					return len(cdiPods.Items) == len(newCdiPods.Items)
 				}, 5*time.Minute, 2*time.Second).Should(BeTrue())
 
 				for _, newCdiPod := range newCdiPods.Items {
@@ -469,7 +459,7 @@ var _ = Describe("ALL Operator tests", func() {
 				By("Verifying CDI config object exists, before continuing")
 				Eventually(func() bool {
 					_, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-					if k8serrors.IsNotFound(err) {
+					if errors.IsNotFound(err) {
 						return false
 					}
 					Expect(err).ToNot(HaveOccurred(), "Unable to read CDI Config, %v, expect more failures", err)
@@ -714,6 +704,20 @@ var _ = Describe("ALL Operator tests", func() {
 				return result
 			}
 
+			validateCertConfig := func(obj metav1.Object, lifetime, refresh string) {
+				cca, ok := obj.GetAnnotations()["operator.cdi.kubevirt.io/certConfig"]
+				Expect(ok).To(BeTrue())
+				certConfig := make(map[string]interface{})
+				err := json.Unmarshal([]byte(cca), &certConfig)
+				Expect(err).ToNot(HaveOccurred())
+				l, ok := certConfig["lifetime"]
+				Expect(ok).To(BeTrue())
+				Expect(l.(string)).To(Equal(lifetime))
+				r, ok := certConfig["refresh"]
+				Expect(ok).To(BeTrue())
+				Expect(r.(string)).To(Equal(refresh))
+			}
+
 			It("should allow update", func() {
 				caSecretNames := []string{"cdi-apiserver-signer", "cdi-uploadproxy-signer"}
 				serverSecretNames := []string{"cdi-apiserver-server-cert", "cdi-uploadproxy-server-cert"}
@@ -726,7 +730,7 @@ var _ = Describe("ALL Operator tests", func() {
 					cr.Spec.CertConfig = &cdiv1.CDICertConfig{
 						CA: &cdiv1.CertConfig{
 							Duration:    &metav1.Duration{Duration: time.Minute * 20},
-							RenewBefore: &metav1.Duration{Duration: time.Minute * 10},
+							RenewBefore: &metav1.Duration{Duration: time.Minute * 5},
 						},
 						Server: &cdiv1.CertConfig{
 							Duration:    &metav1.Duration{Duration: time.Minute * 5},
@@ -771,6 +775,8 @@ var _ = Describe("ALL Operator tests", func() {
 							fmt.Fprintf(GinkgoWriter, "Not-Before (%s) should be 20 minutes before Not-After (%s) with 1 second toleration\n", nba, naa)
 							return false
 						}
+						// 20m - 5m = 15m
+						validateCertConfig(&s, "20m0s", "15m0s")
 					}
 
 					for _, s := range serverSecrets {
@@ -788,6 +794,8 @@ var _ = Describe("ALL Operator tests", func() {
 							fmt.Fprintf(GinkgoWriter, "Not-Before (%s) should be 5 minutes before Not-After (%s) with 1 second toleration\n", nba, naa)
 							return false
 						}
+						// 5m - 2m = 3m
+						validateCertConfig(&s, "5m0s", "3m0s")
 					}
 
 					return true
@@ -843,10 +851,7 @@ func infraDeploymentGone(f *framework.Framework) bool {
 
 func crGone(f *framework.Framework, cr *cdiv1.CDI) bool {
 	_, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
-	if !errors.IsNotFound(err) {
-		return false
-	}
-	return true
+	return errors.IsNotFound(err)
 }
 
 func cdiOperatorDeploymentGone(f *framework.Framework) bool {

@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	notAfter  = "auth.openshift.io/certificate-not-after"
-	notBefore = "auth.openshift.io/certificate-not-before"
+	annNotAfter  = "auth.openshift.io/certificate-not-after"
+	annNotBefore = "auth.openshift.io/certificate-not-before"
 )
 
 var _ = Describe("Cert rotation tests", func() {
@@ -88,7 +88,7 @@ var _ = Describe("Cert rotation tests", func() {
 			updatedSecret, err := f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Get(context.TODO(), secretName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
-			return updatedSecret.Annotations[notAfter] != oldSecret.Annotations[notAfter] &&
+			return updatedSecret.Annotations[annNotAfter] != oldSecret.Annotations[annNotAfter] &&
 				string(updatedSecret.Data["tls.cert"]) != string(oldSecret.Data["tls.crt"]) &&
 				string(updatedSecret.Data["tls.key"]) != string(oldSecret.Data["tls.key"])
 
@@ -121,17 +121,17 @@ func rotateCert(f *framework.Framework, secretName string) {
 	secret, err := f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Get(context.TODO(), secretName, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 
-	nb, ok := secret.Annotations[notBefore]
+	nb, ok := secret.Annotations[annNotBefore]
 	Expect(ok).To(BeTrue())
 
 	notBefore, err := time.Parse(time.RFC3339, nb)
 	Expect(err).ToNot(HaveOccurred())
-	Expect(time.Now().Sub(notBefore).Seconds() > 0).To(BeTrue())
+	Expect(time.Since(notBefore).Seconds() > 0).To(BeTrue())
 
 	newSecret := secret.DeepCopy()
-	newSecret.Annotations[notAfter] = notBefore.Add(time.Second).Format(time.RFC3339)
+	newSecret.Annotations[annNotAfter] = notBefore.Add(time.Second).Format(time.RFC3339)
 
-	newSecret, err = f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Update(context.TODO(), newSecret, metav1.UpdateOptions{})
+	_, err = f.K8sClient.CoreV1().Secrets(f.CdiInstallNs).Update(context.TODO(), newSecret, metav1.UpdateOptions{})
 	Expect(err).ToNot(HaveOccurred())
 }
 
