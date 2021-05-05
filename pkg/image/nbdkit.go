@@ -99,7 +99,7 @@ func NewNbdkitCurl(nbdkitPidFile, certDir, socket string) NbdkitOperation {
 }
 
 // NewNbdkitVddk creates a new Nbdkit instance with the vddk plugin
-func NewNbdkitVddk(nbdkitPidFile, socket, server, username, password, thumbprint, moref string, watcher NbdkitLogWatcher) (NbdkitOperation, error) {
+func NewNbdkitVddk(nbdkitPidFile, socket, server, username, password, thumbprint, moref string) (NbdkitOperation, error) {
 
 	pluginArgs := []string{
 		"libdir=" + nbdVddkLibraryPath,
@@ -128,7 +128,6 @@ func NewNbdkitVddk(nbdkitPidFile, socket, server, username, password, thumbprint
 		plugin:     p,
 		pluginArgs: pluginArgs,
 		Socket:     socket,
-		LogWatcher: watcher,
 	}
 
 	n.AddEnvVariable("LD_LIBRARY_PATH=" + nbdVddkLibraryPath)
@@ -222,17 +221,7 @@ func (n *Nbdkit) StartNbdkit(source string) error {
 	if n.LogWatcher != nil {
 		n.LogWatcher.Start(output)
 	} else {
-		go func() {
-			scanner := bufio.NewScanner(output)
-			for scanner.Scan() {
-				line := scanner.Text()
-				klog.Infof("Log line from nbdkit: %s", line)
-			}
-			if err := scanner.Err(); err != nil {
-				klog.Errorf("Error watching nbdkit log: %v", err)
-			}
-			klog.Infof("Stopped watching nbdkit log.")
-		}()
+		go watchNbdLog(output)
 	}
 
 	err = n.c.Start()
@@ -247,6 +236,19 @@ func (n *Nbdkit) StartNbdkit(source string) error {
 		return err
 	}
 	return nil
+}
+
+// Default nbdkit log watcher, just logs lines as nbdkit prints them.
+func watchNbdLog(output *bufio.Reader) {
+	scanner := bufio.NewScanner(output)
+	for scanner.Scan() {
+		line := scanner.Text()
+		klog.Infof("Log line from nbdkit: %s", line)
+	}
+	if err := scanner.Err(); err != nil {
+		klog.Errorf("Error watching nbdkit log: %v", err)
+	}
+	klog.Infof("Stopped watching nbdkit log.")
 }
 
 // waitForNbd waits for nbdkit to start by watching for the existence of the given PID file.

@@ -81,12 +81,13 @@ type NbdKitLogWatcherVddk struct {
 
 // createNbdKitWrapper starts nbdkit and returns a process handle for further management
 func createNbdKitWrapper(vmware *VMwareClient, diskFileName string) (*NbdKitWrapper, error) {
-	watcher := newNbdKitLogWatcher()
-	n, err := image.NewNbdkitVddk(nbdPidFile, nbdUnixSocket, vmware.url.Host, vmware.username, vmware.password, vmware.thumbprint, vmware.moref, watcher)
+	n, err := image.NewNbdkitVddk(nbdPidFile, nbdUnixSocket, vmware.url.Host, vmware.username, vmware.password, vmware.thumbprint, vmware.moref)
 	if err != nil {
 		klog.Errorf("Error validating nbdkit plugins: %v", err)
 		return nil, err
 	}
+	watcher := newNbdKitLogWatcher()
+	n.(*image.Nbdkit).LogWatcher = watcher
 	err = n.StartNbdkit(diskFileName)
 	if err != nil {
 		klog.Errorf("Unable to start nbdkit: %v", err)
@@ -159,22 +160,14 @@ func (watcher NbdKitLogWatcherVddk) watchNbdLog() {
 		line := scanner.Text()
 
 		if strings.HasPrefix(line, "nbdkit: debug: VMware VixDiskLib") {
-			matches := versionMatch.FindAllStringSubmatch(line, -1)
-			for index, matchName := range versionMatch.SubexpNames() {
-				if matchName == "version" && len(matches) > 0 {
-					vddkVersion = matches[0][index]
-					klog.Infof("VDDK version in-use: %s", vddkVersion)
-					break
-				}
+			if version, found := findMatch(versionMatch, line, "version"); found {
+				klog.Infof("VDDK version in-use: %s", version)
+				vddkVersion = version
 			}
 		} else if strings.HasPrefix(line, "nbdkit: vddk[1]: debug: DISKLIB-LINK  : Opened ") {
-			matches := hostMatch.FindAllStringSubmatch(line, -1)
-			for index, matchName := range hostMatch.SubexpNames() {
-				if matchName == "host" && len(matches) > 0 {
-					vddkHost = matches[0][index]
-					klog.Infof("VDDK connected to host: %s", vddkHost)
-					break
-				}
+			if host, found := findMatch(hostMatch, line, "host"); found {
+				klog.Infof("VDDK connected to host: %s", vddkHost)
+				vddkHost = host
 			}
 		}
 
@@ -187,19 +180,35 @@ func (watcher NbdKitLogWatcherVddk) watchNbdLog() {
 	}
 
 	klog.Infof("Stopped watching nbdkit log. Last lines follow:")
-	logRing.Do(func(ringEntry interface{}) {
-		line, ok := ringEntry.(string)
-		if ok {
-			if strings.Contains(line, "vddk: config key=password") {
-				// Do not log passwords
-				return
-			}
-			klog.Infof("Log line from nbdkit: %s", line)
-		}
-	})
+	logRing.Do(dumpLogs)
 	klog.Infof("End of nbdkit log.")
 
 	watcher.stopChannel <- struct{}{}
+}
+
+// Find the first match of the given regex in the given line, if it matches the given group name.
+func findMatch(regex *regexp.Regexp, line string, name string) (string, bool) {
+	matches := regex.FindAllStringSubmatch(line, -1)
+	for index, matchName := range regex.SubexpNames() {
+		if matchName == name && len(matches) > 0 {
+			return matches[0][index], true
+		}
+	}
+	return "", false
+}
+
+// Record log lines from the nbdkit log ring buffer, hiding passwords.
+func dumpLogs(ringEntry interface{}) {
+	var ok bool
+	var line string
+	if line, ok = ringEntry.(string); !ok {
+		return
+	}
+	if strings.Contains(line, "vddk: config key=password") {
+		// Do not log passwords
+		return
+	}
+	klog.Infof("Log line from nbdkit: %s", line)
 }
 
 /* Section: VMware API manipulations */
