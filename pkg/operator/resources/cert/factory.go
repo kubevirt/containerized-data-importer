@@ -31,11 +31,13 @@ const day = 24 * time.Hour
 type FactoryArgs struct {
 	Namespace string
 
-	SignerValidity *time.Duration
-	SignerRefresh  *time.Duration
+	SignerDuration *time.Duration
+	// Duration to subtract from cert NotAfter value
+	SignerRenewBefore *time.Duration
 
-	TargetValidity *time.Duration
-	TargetRefresh  *time.Duration
+	TargetDuration *time.Duration
+	// Duration to subtract from cert NotAfter value
+	TargetRenewBefore *time.Duration
 }
 
 // CertificateConfig contains cert configuration data
@@ -86,20 +88,22 @@ func CreateCertificateDefinitions(args *FactoryArgs) []CertificateDefinition {
 		}
 
 		if def.Configurable {
-			if args.SignerValidity != nil {
-				def.SignerConfig.Lifetime = *args.SignerValidity
+			if args.SignerDuration != nil {
+				def.SignerConfig.Lifetime = *args.SignerDuration
 			}
 
-			if args.SignerRefresh != nil {
-				def.SignerConfig.Refresh = *args.SignerRefresh
+			if args.SignerRenewBefore != nil {
+				// convert to time from cert NotBefore
+				def.SignerConfig.Refresh = def.SignerConfig.Lifetime - *args.SignerRenewBefore
 			}
 
-			if args.TargetValidity != nil {
-				def.TargetConfig.Lifetime = *args.TargetValidity
+			if args.TargetDuration != nil {
+				def.TargetConfig.Lifetime = *args.TargetDuration
 			}
 
-			if args.TargetRefresh != nil {
-				def.TargetConfig.Refresh = *args.TargetRefresh
+			if args.TargetRenewBefore != nil {
+				// convert to time from cert NotBefore
+				def.TargetConfig.Refresh = def.TargetConfig.Lifetime - *args.TargetRenewBefore
 			}
 		}
 	}
