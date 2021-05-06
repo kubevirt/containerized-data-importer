@@ -190,21 +190,21 @@ func (r *ReconcileCDI) getCertificateDefinitions(cdi *cdiv1.CDI) []cdicerts.Cert
 	if cdi != nil && cdi.Spec.CertConfig != nil {
 		if cdi.Spec.CertConfig.CA != nil {
 			if cdi.Spec.CertConfig.CA.Duration != nil {
-				args.SignerValidity = &cdi.Spec.CertConfig.CA.Duration.Duration
+				args.SignerDuration = &cdi.Spec.CertConfig.CA.Duration.Duration
 			}
 
 			if cdi.Spec.CertConfig.CA.RenewBefore != nil {
-				args.SignerRefresh = &cdi.Spec.CertConfig.CA.RenewBefore.Duration
+				args.SignerRenewBefore = &cdi.Spec.CertConfig.CA.RenewBefore.Duration
 			}
 		}
 
 		if cdi.Spec.CertConfig.Server != nil {
 			if cdi.Spec.CertConfig.Server.Duration != nil {
-				args.TargetValidity = &cdi.Spec.CertConfig.Server.Duration.Duration
+				args.TargetDuration = &cdi.Spec.CertConfig.Server.Duration.Duration
 			}
 
 			if cdi.Spec.CertConfig.Server.RenewBefore != nil {
-				args.TargetRefresh = &cdi.Spec.CertConfig.Server.RenewBefore.Duration
+				args.TargetRenewBefore = &cdi.Spec.CertConfig.Server.RenewBefore.Duration
 			}
 		}
 	}

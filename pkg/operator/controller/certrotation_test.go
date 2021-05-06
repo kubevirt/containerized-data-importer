@@ -172,11 +172,11 @@ var _ = Describe("Cert rotation tests", func() {
 			n := time.Now()
 
 			args := &cert.FactoryArgs{
-				Namespace:      namespace,
-				SignerValidity: pt(50 * time.Hour),
-				SignerRefresh:  pt(25 * time.Hour),
-				TargetValidity: pt(26 * time.Hour),
-				TargetRefresh:  pt(13 * time.Hour),
+				Namespace:         namespace,
+				SignerDuration:    pt(50 * time.Hour),
+				SignerRenewBefore: pt(25 * time.Hour),
+				TargetDuration:    pt(26 * time.Hour),
+				TargetRenewBefore: pt(13 * time.Hour),
 			}
 
 			certs = cert.CreateCertificateDefinitions(args)
