@@ -19,7 +19,11 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
+
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/generate/install"
 
 	"github.com/kelseyhightower/envconfig"
 	corev1 "k8s.io/api/core/v1"
@@ -56,8 +60,9 @@ const (
 	createResourceFailed  = "CreateResourceFailed"
 	createResourceSuccess = "CreateResourceSuccess"
 
-	deleteResourceFailed  = "DeleteResourceFailed"
-	deleteResourceSuccess = "DeleteResourceSuccess"
+	deleteResourceFailed   = "DeleteResourceFailed"
+	deleteResourceSuccess  = "DeleteResourceSuccess"
+	dumpInstallStrategyKey = "DUMP_INSTALL_STRATEGY"
 )
 
 var log = logf.Log.WithName("cdi-operator")
@@ -82,6 +87,15 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 		Client:    restClient,
 		Logger:    log,
 	}
+	dumpInstallStrategy := false
+	if value, ok := os.LookupEnv(dumpInstallStrategyKey); ok {
+		ret, err := strconv.ParseBool(value)
+		if err != nil {
+			return nil, err
+		}
+		dumpInstallStrategy = ret
+		log.Info("Dump Install Strategy", "VARS", ret)
+	}
 
 	err := envconfig.Process("", &namespacedArgs)
 	if err != nil {
@@ -104,13 +118,14 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 	recorder := mgr.GetEventRecorderFor("operator-controller")
 
 	r := &ReconcileCDI{
-		client:         restClient,
-		uncachedClient: uncachedClient,
-		scheme:         scheme,
-		recorder:       recorder,
-		namespace:      namespace,
-		clusterArgs:    clusterArgs,
-		namespacedArgs: &namespacedArgs,
+		client:              restClient,
+		uncachedClient:      uncachedClient,
+		scheme:              scheme,
+		recorder:            recorder,
+		namespace:           namespace,
+		clusterArgs:         clusterArgs,
+		namespacedArgs:      &namespacedArgs,
+		dumpInstallStrategy: dumpInstallStrategy,
 	}
 	callbackDispatcher := callbacks.NewCallbackDispatcher(log, restClient, uncachedClient, scheme, namespace)
 	r.reconciler = sdkr.NewReconciler(r, log, restClient, callbackDispatcher, scheme, createVersionLabel, updateVersionLabel, lastAppliedConfigAnnotation, certPollInterval, finalizerName, recorder)
@@ -139,8 +154,9 @@ type ReconcileCDI struct {
 	clusterArgs    *cdicluster.FactoryArgs
 	namespacedArgs *cdinamespaced.FactoryArgs
 
-	certManager CertManager
-	reconciler  *sdkr.Reconciler
+	certManager         CertManager
+	reconciler          *sdkr.Reconciler
+	dumpInstallStrategy bool
 }
 
 // SetController sets the controller dependency
@@ -158,6 +174,27 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 	operatorVersion := r.namespacedArgs.OperatorVersion
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling CDI")
+	if r.dumpInstallStrategy {
+		reqLogger.Info("Dumping Install Strategy")
+		cr := &cdiv1.CDI{}
+		var crKey client.ObjectKey
+		crKey = client.ObjectKey{Namespace: "", Name: request.NamespacedName.Name}
+		err := r.client.Get(context.TODO(), crKey, cr)
+		if err != nil {
+			reqLogger.Error(err, "Failed to get CDI object")
+			return reconcile.Result{}, err
+		}
+		objects, err := r.GetAllResources(cr)
+		if err != nil {
+			reqLogger.Error(err, "Failed to get all CDI object")
+			return reconcile.Result{}, err
+		}
+		err = install.DumpInstallStrategyToConfigMap(r.client, objects, reqLogger, r.namespace)
+		if err != nil {
+			reqLogger.Error(err, "Failed to dump CDI object in configmap")
+			return reconcile.Result{}, err
+		}
+	}
 	return r.reconciler.Reconcile(request, operatorVersion, reqLogger)
 }
 
