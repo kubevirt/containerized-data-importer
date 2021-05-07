@@ -55,7 +55,8 @@ var _ = Describe("IsWaitForFirstConsumerBeforePopulating on Alpha1", func() {
 		},
 		Entry("PVC Pending, dv is in WFFC phase", corev1.ClaimPending, cdiv1.WaitForFirstConsumer, true),
 		Entry("PVC Pending, dv is NOT in WFFC phase", corev1.ClaimPending, cdiv1.Pending, false),
-		Entry("PVC Bound, phase does not matter", corev1.ClaimBound, cdiv1.PhaseUnset, false),
+		Entry("PVC Bound, dv is still in WFFC phase", corev1.ClaimBound, cdiv1.WaitForFirstConsumer, true),
+		Entry("PVC Bound, dv is NOT in WFFC phase", corev1.ClaimBound, cdiv1.PhaseUnset, false),
 	)
 
 	It("Should return false if source has no ownerRef", func() {
