@@ -166,10 +166,7 @@ http_file(
 http_file(
     name = "nginx-mimetypes",
     sha256 = "e860501275c9073f199354766d9ccd99afc0b97fff8acae8e8184d4f02799d38",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/n/nginx-mimetypes-2.1.49-2.fc33.noarch.rpm",
-        "https://storage.googleapis.com/builddeps/e860501275c9073f199354766d9ccd99afc0b97fff8acae8e8184d4f02799d38",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/e860501275c9073f199354766d9ccd99afc0b97fff8acae8e8184d4f02799d38"],
 )
 
 http_file(
