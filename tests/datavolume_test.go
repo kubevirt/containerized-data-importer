@@ -682,7 +682,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
-					Message: "Import Complete",
+					Message: "Import Complete; VDDK: {\"Version\":\"1.2.3\",\"Host\":\"esx.test\"}",
 					Reason:  "Completed",
 				}}),
 			table.Entry("[test_id:5078]succeed creating warm import dv from VDDK source", dataVolumeTestArguments{
@@ -706,7 +706,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				runningCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeRunning,
 					Status:  v1.ConditionFalse,
-					Message: "Import Complete",
+					Message: "Import Complete; VDDK: {\"Version\":\"1.2.3\",\"Host\":\"esx.test\"}",
 					Reason:  "Completed",
 				}}),
 		)

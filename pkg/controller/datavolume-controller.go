@@ -495,6 +495,19 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 		}
 		pvc = newPvc
 	} else {
+		if getSource(pvc) == SourceVDDK {
+			changed, err := r.getVddkAnnotations(datavolume, pvc)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			if changed {
+				err = r.client.Get(context.TODO(), req.NamespacedName, datavolume)
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+			}
+		}
+
 		if pvc.Status.Phase == corev1.ClaimBound {
 			// If a PVC already exists with no multi-stage annotations, check if it
 			// needs them set (if not already finished with an import).
@@ -541,6 +554,22 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 	// Finally, we update the status block of the DataVolume resource to reflect the
 	// current state of the world
 	return r.reconcileDataVolumeStatus(datavolume, pvc)
+}
+
+func (r *DatavolumeReconciler) getVddkAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (bool, error) {
+	var dataVolumeCopy = dataVolume.DeepCopy()
+	if vddkHost := pvc.Annotations[AnnVddkHostConnection]; vddkHost != "" {
+		addAnnotation(dataVolumeCopy, AnnVddkHostConnection, vddkHost)
+	}
+	if vddkVersion := pvc.Annotations[AnnVddkVersion]; vddkVersion != "" {
+		addAnnotation(dataVolumeCopy, AnnVddkVersion, vddkVersion)
+	}
+
+	// only update if something has changed
+	if !reflect.DeepEqual(dataVolume, dataVolumeCopy) {
+		return true, r.client.Update(context.TODO(), dataVolumeCopy)
+	}
+	return false, nil
 }
 
 // Set the PVC annotations related to multi-stage imports so that they point to the next checkpoint to copy.

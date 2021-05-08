@@ -105,6 +105,11 @@ const (
 	// AnnImmediateBinding provides a const to indicate whether immediate binding should be performed on the PV (overrides global config)
 	AnnImmediateBinding = AnnAPIGroup + "/storage.bind.immediate.requested"
 
+	// AnnVddkVersion shows the last VDDK library version used by a DV's importer pod
+	AnnVddkVersion = AnnAPIGroup + "/storage.pod.vddk.version"
+	// AnnVddkHostConnection shows the last ESX host that serviced a DV's importer pod
+	AnnVddkHostConnection = AnnAPIGroup + "/storage.pod.vddk.host"
+
 	// PodRunningReason is const that defines the pod was started as a reason
 	podRunningReason = "Pod is running"
 
