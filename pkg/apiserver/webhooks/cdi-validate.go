@@ -48,14 +48,24 @@ func (wh *cdiValidatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admi
 		return toAdmissionResponseError(fmt.Errorf("unexpected resource: %s", ar.Request.Resource.Resource))
 	}
 
-	if ar.Request.Operation != admissionv1beta1.Delete {
-		klog.V(3).Infof("Got unexpected operation type %s", ar.Request.Operation)
-		return allowedAdmissionResponse()
-	}
-
 	cdi, err := wh.getResource(ar)
 	if err != nil {
 		return toAdmissionResponseError(err)
+	}
+
+	// Affinity needs specific validation, as it's not validated by the unmarshaller.
+	// Validation is similar to what's done internally in "k8s.io/kubernetes/pkg/apis/core/validation".
+	// apiserver is not allowed to create any resources (e.g. pods), so dry-run creation is not a possible solution.
+	if ar.Request.Operation == admissionv1beta1.Create || ar.Request.Operation == admissionv1beta1.Update {
+		if err := validateAffinity(cdi.Spec.Infra.Affinity); err != nil {
+			return toAdmissionResponseError(err)
+		}
+		return allowedAdmissionResponse()
+	}
+
+	if ar.Request.Operation != admissionv1beta1.Delete {
+		klog.V(3).Infof("Got unexpected operation type %s", ar.Request.Operation)
+		return allowedAdmissionResponse()
 	}
 
 	switch cdi.Status.Phase {
@@ -80,7 +90,13 @@ func (wh *cdiValidatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admi
 func (wh *cdiValidatingWebhook) getResource(ar admissionv1beta1.AdmissionReview) (*cdiv1.CDI, error) {
 	var cdi *cdiv1.CDI
 
-	if len(ar.Request.OldObject.Raw) > 0 {
+	if len(ar.Request.Object.Raw) > 0 {
+		cdi = &cdiv1.CDI{}
+		err := json.Unmarshal(ar.Request.Object.Raw, cdi)
+		if err != nil {
+			return nil, err
+		}
+	} else if len(ar.Request.OldObject.Raw) > 0 {
 		cdi = &cdiv1.CDI{}
 		err := json.Unmarshal(ar.Request.OldObject.Raw, cdi)
 		if err != nil {

@@ -244,7 +244,7 @@ func createCDIValidatingWebhook(namespace string, c client.Client, l logr.Logger
 	defaultServicePort := int32(443)
 	allScopes := admissionregistrationv1beta1.AllScopes
 	exactPolicy := admissionregistrationv1beta1.Exact
-	failurePolicy := admissionregistrationv1beta1.Fail
+	failurePolicy := admissionregistrationv1beta1.Ignore //FIXME: should be Fail
 	defaultTimeoutSeconds := int32(30)
 	whc := &admissionregistrationv1beta1.ValidatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{
@@ -262,6 +262,8 @@ func createCDIValidatingWebhook(namespace string, c client.Client, l logr.Logger
 				Name: "cdi-validate.cdi.kubevirt.io",
 				Rules: []admissionregistrationv1beta1.RuleWithOperations{{
 					Operations: []admissionregistrationv1beta1.OperationType{
+						admissionregistrationv1beta1.Create,
+						admissionregistrationv1beta1.Update,
 						admissionregistrationv1beta1.Delete,
 					},
 					Rule: admissionregistrationv1beta1.Rule{
