@@ -135,6 +135,29 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			Expect(f.GetDiskGroup(f.Namespace, pvc, false)).To(Equal("107"))
 		}
 	})
+
+	It("Import registry disk into PVC barely big enough", func() {
+		imageURL := fmt.Sprintf(utils.LargePhysicalDiskQcow, f.CdiInstallNs)
+
+		By(imageURL)
+		dv := utils.NewDataVolumeWithHTTPImport("large-import", "2.25Gi", imageURL)
+		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		By("Verify the pod status is succeeded on the target PVC")
+		found, err := utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(found).To(BeTrue())
+
+		By("Verify the image contents")
+		same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", utils.LargeDiskQcowMD5, utils.UploadFileSize)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(same).To(BeTrue())
+	})
 })
 
 var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", func() {
