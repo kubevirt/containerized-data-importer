@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"reflect"
 	"strings"
 	"time"
 
@@ -39,18 +40,21 @@ const (
 )
 
 var _ = Describe("Import Proxy tests", func() {
-	var dvName string
-	var ocpClient *configclient.Clientset
-	var clusterWideProxySpec *ocpconfigv1.ProxySpec
+	var (
+		dvName               string
+		ocpClient            *configclient.Clientset
+		clusterWideProxySpec *ocpconfigv1.ProxySpec
+		config               *cdiv1.CDIConfig
+		origSpec             *cdiv1.CDIConfigSpec
+		err                  error
+	)
+
 	type importProxyTestArguments struct {
 		name          string
 		size          string
-		url           func(bool) string
-		proxyURL      func(bool, bool) string
 		noProxy       string
 		isHTTPS       bool
 		withBasicAuth bool
-		dvFunc        func(string, string, string) *cdiv1.DataVolume
 		expected      func() types.GomegaMatcher
 	}
 
@@ -68,6 +72,10 @@ var _ = Describe("Import Proxy tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			clusterWideProxySpec = clusterWideProxy.Spec.DeepCopy()
 		}
+		By("Saving original CDIConfig")
+		config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		origSpec = config.Spec.DeepCopy()
 	})
 
 	AfterEach(func() {
@@ -83,6 +91,17 @@ var _ = Describe("Import Proxy tests", func() {
 			By("Reverting the cluster wide proxy spec to the original configuration")
 			cleanClusterWideProxy(ocpClient, clusterWideProxySpec)
 		}
+
+		By("Restoring CDIConfig to original state")
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			origSpec.DeepCopyInto(config)
+		})
+
+		Eventually(func() bool {
+			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return reflect.DeepEqual(config.Spec, origSpec)
+		}, 30*time.Second, time.Second)
 	})
 
 	DescribeTable("should", func(args importProxyTestArguments) {
