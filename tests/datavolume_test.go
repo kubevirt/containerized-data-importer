@@ -1185,6 +1185,26 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			return originalProfileSpec
 		}
 
+		findStorageProfileWithoutAccessModes := func(client client.Client) string {
+			storageProfiles := &cdiv1.StorageProfileList{}
+			err := client.List(context.TODO(), storageProfiles)
+			Expect(err).ToNot(HaveOccurred())
+			for _, storageProfile := range storageProfiles.Items {
+				if len(storageProfile.Status.ClaimPropertySets) == 0 {
+					// No access modes set.
+					return *storageProfile.Status.StorageClass
+				}
+				for _, properties := range storageProfile.Status.ClaimPropertySets {
+					if len(properties.AccessModes) == 0 {
+						// No access modes set.
+						return *storageProfile.Status.StorageClass
+					}
+				}
+			}
+			Skip("No storage profiles without access mode found")
+			return ""
+		}
+
 		BeforeEach(func() {
 			config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
@@ -1227,7 +1247,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		It("[test_id:5912]fails creating a PVC from DV without accessModes, no profile", func() {
 			// assumes local is available and has no volumeMode
-			defaultScName := "local"
+			defaultScName := findStorageProfileWithoutAccessModes(f.CrClient)
 			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
 			dataVolume := createDataVolumeForImport(f, defaultScName)
 
@@ -1250,7 +1270,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		It("[test_id:5913]DV recovers when user adds accessModes, no profile", func() {
 			// assumes local is available and has no volumeMode
-			defaultScName := "local"
+			defaultScName := findStorageProfileWithoutAccessModes(f.CrClient)
 			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
 			dataVolume := createDataVolumeForImport(f, defaultScName)
 
