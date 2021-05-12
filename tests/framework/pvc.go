@@ -140,7 +140,7 @@ func (f *Framework) CreateAndPopulateSourcePVC(pvcDef *k8sv1.PersistentVolumeCla
 
 	err = f.WaitTimeoutForPodStatus(pod.Name, k8sv1.PodSucceeded, utils.PodWaitForTime)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	err = f.K8sClient.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
+	err = f.DeletePod(pod)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	return sourcePvc
 }
