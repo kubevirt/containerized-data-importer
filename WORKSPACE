@@ -181,10 +181,7 @@ http_file(
 http_file(
     name = "containers-common",
     sha256 = "26f573cf377eff79893b17a7e3f2ade9984820bcd1776db5fc24bb8b70587349",
-    urls = [
-        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/c/containers-common-1.2.0-3.fc33.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/26f573cf377eff79893b17a7e3f2ade9984820bcd1776db5fc24bb8b70587349",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/26f573cf377eff79893b17a7e3f2ade9984820bcd1776db5fc24bb8b70587349"],
 )
 
 http_file(
