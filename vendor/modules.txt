@@ -392,7 +392,7 @@ github.com/rs/cors
 github.com/sirupsen/logrus
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
-# github.com/ulikunitz/xz v0.5.7
+# github.com/ulikunitz/xz v0.5.10
 ## explicit
 github.com/ulikunitz/xz
 github.com/ulikunitz/xz/internal/hash
