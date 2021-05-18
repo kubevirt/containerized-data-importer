@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"net/http"
 
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -36,6 +37,12 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/operator/controller"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+
+
+	"kubevirt.io/containerized-data-importer/pkg/apiserver/webhooks" //FIXME
+	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	"k8s.io/client-go/tools/clientcmd"
+
 )
 
 var log = logf.Log.WithName("cmd")
@@ -118,6 +125,22 @@ func main() {
 	}
 
 	log.Info("Starting the Manager.")
+
+	// ========= POC TEST, change to tls, move to controller
+	cfg, err = clientcmd.BuildConfigFromFlags("", "")
+	if err != nil {
+		log.Error(err, "")
+		os.Exit(1)
+	}
+	cdiClient := cdiclient.NewForConfigOrDie(cfg)
+
+	http.Handle("/cdi-validate", webhooks.NewCDIValidatingWebhook(cdiClient))
+
+	go func() {
+		//err = server.ListenAndServe()
+		err = http.ListenAndServe(":8443", nil)
+	}()
+	// ==========
 
 	// Start the Manager
 	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {

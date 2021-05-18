@@ -32,6 +32,13 @@ import (
 	cluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	sdkopenapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/resources/openapi"
+
+	"fmt"
+	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
+	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdicorev1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	cdiuploadv1 "kubevirt.io/containerized-data-importer/pkg/apis/upload/v1beta1"
 )
 
 const (
@@ -39,6 +46,8 @@ const (
 	roleName           = "cdi-operator"
 	clusterRoleName    = roleName + "-cluster"
 	prometheusLabel    = common.PrometheusLabel
+
+	apiServerServiceName = "cdi-api" //"cdi-operator-api"
 )
 
 func getClusterPolicyRules() []rbacv1.PolicyRule {
@@ -260,6 +269,10 @@ func createDeployment(args *FactoryArgs) []runtime.Object {
 			args.NamespacedArgs.Verbosity,
 			args.NamespacedArgs.PullPolicy),
 		createOperatorLeaderElectionConfigMap(args.NamespacedArgs.Namespace),
+
+		//		createAPIService("v1beta1", args.NamespacedArgs.Namespace),
+		//		createAPIService("v1alpha1", args.NamespacedArgs.Namespace),
+		createCDIValidatingWebhook(args.NamespacedArgs.Namespace),
 	}
 }
 
@@ -1078,4 +1091,114 @@ _The CDI Operator does not support updates yet._
 			},
 		},
 	}, nil
+}
+
+func createCDIValidatingWebhook(namespace string /*, c client.Client, l logr.Logger*/) *admissionregistrationv1beta1.ValidatingWebhookConfiguration {
+	path := "/cdi-validate"
+	sideEffect := admissionregistrationv1beta1.SideEffectClassNone
+	defaultServicePort := int32(443)
+	allScopes := admissionregistrationv1beta1.AllScopes
+	exactPolicy := admissionregistrationv1beta1.Exact
+	failurePolicy := admissionregistrationv1beta1.Ignore //FIXME: should be Fail
+	defaultTimeoutSeconds := int32(30)
+	whc := &admissionregistrationv1beta1.ValidatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "admissionregistration.k8s.io/v1beta1",
+			Kind:       "ValidatingWebhookConfiguration",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cdi-api-validate",
+			Labels: map[string]string{
+				utils.CDILabel: apiServerServiceName, //FIXME?
+			},
+		},
+		Webhooks: []admissionregistrationv1beta1.ValidatingWebhook{
+			{
+				Name: "cdi-validate.cdi.kubevirt.io", //FIXME?
+				Rules: []admissionregistrationv1beta1.RuleWithOperations{{
+					Operations: []admissionregistrationv1beta1.OperationType{
+						admissionregistrationv1beta1.Create,
+						admissionregistrationv1beta1.Update,
+						admissionregistrationv1beta1.Delete,
+					},
+					Rule: admissionregistrationv1beta1.Rule{
+						APIGroups: []string{cdicorev1.SchemeGroupVersion.Group},
+						APIVersions: []string{
+							cdicorev1.SchemeGroupVersion.Version,
+							cdicorev1alpha1.SchemeGroupVersion.Version,
+						},
+						Resources: []string{"cdis"},
+						Scope:     &allScopes,
+					},
+				}},
+				ClientConfig: admissionregistrationv1beta1.WebhookClientConfig{
+					Service: &admissionregistrationv1beta1.ServiceReference{
+						Namespace: namespace,
+						Name:      apiServerServiceName,
+						Path:      &path,
+						Port:      &defaultServicePort,
+					},
+				},
+				SideEffects:       &sideEffect,
+				FailurePolicy:     &failurePolicy,
+				MatchPolicy:       &exactPolicy,
+				NamespaceSelector: &metav1.LabelSelector{},
+				TimeoutSeconds:    &defaultTimeoutSeconds,
+				AdmissionReviewVersions: []string{
+					"v1beta1",
+				},
+				ObjectSelector: &metav1.LabelSelector{},
+			},
+		},
+	}
+	/*
+		if c == nil {
+			return whc
+		}
+
+		bundle := getAPIServerCABundle(namespace, c, l)
+		if bundle != nil {
+			for i := range whc.Webhooks {
+				whc.Webhooks[i].ClientConfig.CABundle = bundle
+				whc.Webhooks[i].FailurePolicy = &failurePolicy
+			}
+		}
+	*/
+	return whc
+}
+
+func createAPIService(version, namespace string /*, c client.Client, l logr.Logger*/) *apiregistrationv1beta1.APIService {
+	apiService := &apiregistrationv1beta1.APIService{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apiregistration.k8s.io/v1beta1",
+			Kind:       "APIService",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("%s.%s", version, cdiuploadv1.SchemeGroupVersion.Group),
+			Labels: map[string]string{
+				utils.CDILabel: apiServerServiceName,
+			},
+		},
+		Spec: apiregistrationv1beta1.APIServiceSpec{
+			Service: &apiregistrationv1beta1.ServiceReference{
+				Namespace: namespace,
+				Name:      apiServerServiceName,
+			},
+			Group:                cdiuploadv1.SchemeGroupVersion.Group,
+			Version:              version,
+			GroupPriorityMinimum: 1000,
+			VersionPriority:      15,
+		},
+	}
+	/*
+		if c == nil {
+			return apiService
+		}
+
+		bundle := getAPIServerCABundle(namespace, c, l)
+		if bundle != nil {
+			apiService.Spec.CABundle = bundle
+		}
+	*/
+	return apiService
 }

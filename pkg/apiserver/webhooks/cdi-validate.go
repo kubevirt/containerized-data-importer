@@ -41,7 +41,7 @@ type cdiValidatingWebhook struct {
 }
 
 func (wh *cdiValidatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admissionv1beta1.AdmissionResponse {
-	klog.V(3).Infof("Got AdmissionReview %+v", ar)
+	klog.V(1).Infof("XXXXXXXX Got AdmissionReview %+v", ar)
 
 	if ar.Request.Resource.Group != cdiv1.CDIGroupVersionKind.Group || ar.Request.Resource.Resource != "cdis" {
 		klog.V(3).Infof("Got unexpected resource type %s", ar.Request.Resource.Resource)

@@ -167,12 +167,12 @@ func NewCdiAPIServer(bindAddress string,
 	if err != nil {
 		return nil, errors.Errorf("failed to create DataVolume mutating webhook: %s", err)
 	}
-
+/*
 	err = app.createCDIValidatingWebhook()
 	if err != nil {
 		return nil, errors.Errorf("failed to create CDI validating webhook: %s", err)
 	}
-
+*/
 	err = app.createObjectTransferValidatingWebhook()
 	if err != nil {
 		return nil, errors.Errorf("failed to create ObjectTransfer validating webhook: %s", err)

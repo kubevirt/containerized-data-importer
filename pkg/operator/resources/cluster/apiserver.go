@@ -53,7 +53,7 @@ func createDynamicAPIServerResources(args *FactoryArgs) []runtime.Object {
 		createAPIService("v1alpha1", args.Namespace, args.Client, args.Logger),
 		createDataVolumeValidatingWebhook(args.Namespace, args.Client, args.Logger),
 		createDataVolumeMutatingWebhook(args.Namespace, args.Client, args.Logger),
-		createCDIValidatingWebhook(args.Namespace, args.Client, args.Logger),
+//		createCDIValidatingWebhook(args.Namespace, args.Client, args.Logger),
 		createObjectTransferValidatingWebhook(args.Namespace, args.Client, args.Logger),
 	}
 }
@@ -254,12 +254,12 @@ func createCDIValidatingWebhook(namespace string, c client.Client, l logr.Logger
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cdi-api-validate",
 			Labels: map[string]string{
-				utils.CDILabel: apiServerServiceName,
+				utils.CDILabel: apiServerServiceName, //FIXME?
 			},
 		},
 		Webhooks: []admissionregistrationv1beta1.ValidatingWebhook{
 			{
-				Name: "cdi-validate.cdi.kubevirt.io",
+				Name: "cdi-validate.cdi.kubevirt.io", //FIXME?
 				Rules: []admissionregistrationv1beta1.RuleWithOperations{{
 					Operations: []admissionregistrationv1beta1.OperationType{
 						admissionregistrationv1beta1.Create,
