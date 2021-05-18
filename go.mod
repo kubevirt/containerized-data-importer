@@ -33,7 +33,7 @@ require (
 	github.com/prometheus/client_golang v1.1.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/rs/cors v1.7.0
-	github.com/ulikunitz/xz v0.5.7
+	github.com/ulikunitz/xz v0.5.10
 	github.com/vmware/govmomi v0.23.1
 	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
 	golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f
