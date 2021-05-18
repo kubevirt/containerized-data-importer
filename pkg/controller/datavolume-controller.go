@@ -1839,7 +1839,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 		pvcSpec.VolumeMode = volumeMode
 	}
 
-	requestedVolumeSize, err := volumeSize(client, storage)
+	requestedVolumeSize, err := volumeSize(client, storage, pvcSpec.VolumeMode)
 	if err != nil {
 		return nil, err
 	}
@@ -1867,7 +1867,7 @@ func copyStorageAsPvc(log logr.Logger, storage *cdiv1.StorageSpec) *corev1.Persi
 	return pvcSpec
 }
 
-func volumeSize(c client.Client, storage *cdiv1.StorageSpec) (*resource.Quantity, error) {
+func volumeSize(c client.Client, storage *cdiv1.StorageSpec, volumeMode *corev1.PersistentVolumeMode) (*resource.Quantity, error) {
 	// resources.requests[storage] - just copy it to pvc,
 	requestedSize, found := storage.Resources.Requests[corev1.ResourceStorage]
 	if !found {
@@ -1875,7 +1875,7 @@ func volumeSize(c client.Client, storage *cdiv1.StorageSpec) (*resource.Quantity
 	}
 
 	// disk or image size, inflate it with overhead
-	if resolveVolumeMode(storage.VolumeMode) == corev1.PersistentVolumeFilesystem {
+	if resolveVolumeMode(volumeMode) == corev1.PersistentVolumeFilesystem {
 		fsOverhead, err := GetFilesystemOverheadForStorageClass(c, storage.StorageClassName)
 		if err != nil {
 			return nil, err
