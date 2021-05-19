@@ -139,7 +139,7 @@ var _ = Describe("all clone tests", func() {
 			cloneOfAnnoExistenceTest(f, f.Namespace.Name)
 		})
 
-		It("[posneg:negative][test_id:3617]Should clone across nodes when multiple local volumes exist,", func() {
+		It("[posneg:negative][test_id:3617]Should clone across nodes when multiple local filesystem volumes exist,", func() {
 			// Get nodes, need at least 2
 			nodeList, err := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
@@ -160,8 +160,8 @@ var _ = Describe("all clone tests", func() {
 			// Verify we have PVs to at least 2 nodes.
 			pvNodeNames := make(map[string]int)
 			for _, pv := range pvList.Items {
-				if pv.Spec.NodeAffinity == nil || pv.Spec.NodeAffinity.Required == nil || len(pv.Spec.NodeAffinity.Required.NodeSelectorTerms) == 0 {
-					// Not a local volume PV
+				if pv.Spec.NodeAffinity == nil || pv.Spec.NodeAffinity.Required == nil || len(pv.Spec.NodeAffinity.Required.NodeSelectorTerms) == 0 || (pv.Spec.VolumeMode != nil && *pv.Spec.VolumeMode == v1.PersistentVolumeBlock) {
+					// Not a local volume filesystem PV
 					continue
 				}
 				pvNode := pv.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0].Values[0]
@@ -175,7 +175,7 @@ var _ = Describe("all clone tests", func() {
 				}
 			}
 			if len(pvNodeNames) < 2 {
-				Skip("Need PVs on at least 2 nodes to test")
+				Skip("Need filesystem PVs on at least 2 nodes to test")
 			}
 
 			// Find the source and target PVs so we can label them.
