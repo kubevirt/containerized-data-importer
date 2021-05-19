@@ -434,6 +434,10 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 				}
 			}
 
+			if datavolume.Status.Phase == cdiv1.NamespaceTransferInProgress {
+				return reconcile.Result{}, nil
+			}
+
 			r.log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class",
 				"snapshotClassName", snapshotClassName)
 
@@ -470,7 +474,7 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 						return reconcile.Result{}, nil
 					}
 
-					return reconcile.Result{}, nil
+					return reconcile.Result{}, err
 				}
 
 				return reconcile.Result{},
