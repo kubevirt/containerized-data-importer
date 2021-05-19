@@ -80,8 +80,6 @@ const (
 	VcenterMD5 = "91150be031835ccfac458744da57d4f6"
 	// BlankMD5 is the MD5 hash of first 100k bytes of blank image
 	BlankMD5 = "0019d23bef56a136a1891211d7007f6f"
-	// LargeDiskQcowMD5 is the MD5 hash of first 100k bytes of large qcow image
-	LargeDiskQcowMD5 = "d41d8cd98f00b204e9800998ecf8427e"
 )
 
 // CreateDataVolumeFromDefinition is used by tests to create a testable Data Volume
