@@ -186,6 +186,14 @@ var _ = Describe("All DataVolume Tests", func() {
 		})
 
 		It("Should set params on a PVC from default storageProfile when import DV has no storageClass and no accessMode", func() {
+			cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
+			cdiConfig.Status = cdiv1.CDIConfigStatus{
+				ScratchSpaceStorageClass: testStorageClass,
+				FilesystemOverhead: &cdiv1.FilesystemOverhead{
+					Global: cdiv1.Percent("0.5"),
+				},
+			}
+
 			scName := "testStorageClass"
 			importDataVolume := newImportDataVolumeWithPvc("test-dv", nil)
 			importDataVolume.Spec.Storage = &cdiv1.StorageSpec{
@@ -200,7 +208,12 @@ var _ = Describe("All DataVolume Tests", func() {
 			storageProfile := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, corev1.PersistentVolumeBlock)
 			anotherStorageProfile := createStorageProfile("anotherSp", []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}, corev1.PersistentVolumeFilesystem)
 
-			reconciler = createDatavolumeReconciler(storageClass, storageProfile, anotherStorageProfile, importDataVolume)
+			reconciler = createDatavolumeReconcilerWithoutConfig(
+				storageClass,
+				storageProfile,
+				anotherStorageProfile,
+				importDataVolume,
+				cdiConfig)
 
 			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
@@ -212,6 +225,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(len(pvc.Spec.AccessModes)).To(BeNumerically("==", 1))
 			Expect(pvc.Spec.AccessModes[0]).To(Equal(corev1.ReadOnlyMany))
 			Expect(*pvc.Spec.VolumeMode).To(Equal(corev1.PersistentVolumeBlock))
+			expectedSize := resource.MustParse("1G")
+			Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(expectedSize.Value()))
 		})
 
 		It("Should pass annotation from DV to created a PVC on a DV", func() {
@@ -1296,6 +1311,20 @@ func readyStatusByPhase(phase cdiv1.DataVolumePhase) corev1.ConditionStatus {
 }
 
 func createDatavolumeReconciler(objects ...runtime.Object) *DatavolumeReconciler {
+	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
+	cdiConfig.Status = cdiv1.CDIConfigStatus{
+		ScratchSpaceStorageClass: testStorageClass,
+	}
+	cdiConfig.Spec.FeatureGates = []string{featuregates.HonorWaitForFirstConsumer}
+
+	objs := []runtime.Object{}
+	objs = append(objs, objects...)
+	objs = append(objs, cdiConfig)
+
+	return createDatavolumeReconcilerWithoutConfig(objs...)
+}
+
+func createDatavolumeReconcilerWithoutConfig(objects ...runtime.Object) *DatavolumeReconciler {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)
 
@@ -1306,12 +1335,6 @@ func createDatavolumeReconciler(objects ...runtime.Object) *DatavolumeReconciler
 
 	objs = append(objs, MakeEmptyCDICR())
 
-	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
-	cdiConfig.Status = cdiv1.CDIConfigStatus{
-		ScratchSpaceStorageClass: testStorageClass,
-	}
-	cdiConfig.Spec.FeatureGates = []string{featuregates.HonorWaitForFirstConsumer}
-	objs = append(objs, cdiConfig)
 	extfakeclientset := extfake.NewSimpleClientset()
 
 	// Create a fake client to mock API calls.
