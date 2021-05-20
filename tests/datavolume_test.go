@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
@@ -1059,39 +1060,57 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindIfWaitForFirstConsumer(pvc)
 
-			dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", pvc)
-			Expect(dataVolume).ToNot(BeNil())
+			By("Trying to create cloned DV a couple of times until we catch the elusive pods")
+			var sourcePod *v1.Pod
+			var uploadPod *v1.Pod
+			Eventually(func() bool {
+				dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", pvc)
+				Expect(dataVolume).ToNot(BeNil())
 
-			By(fmt.Sprintf("creating new datavolume %s with annotations", dataVolume.Name))
-			dataVolume.Annotations[controller.AnnPodNetwork] = "net1"
-			dataVolume.Annotations["annot1"] = "value1"
-			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
-			Expect(err).ToNot(HaveOccurred())
+				By(fmt.Sprintf("creating new datavolume %s with annotations", dataVolume.Name))
+				dataVolume.Annotations[controller.AnnPodNetwork] = "net1"
+				dataVolume.Annotations["annot1"] = "value1"
+				dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+				Expect(err).ToNot(HaveOccurred())
 
-			By("verifying pvc was created")
-			pvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
-			f.ForceBindIfWaitForFirstConsumer(pvc)
+				By("verifying pvc was created")
+				pvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindIfWaitForFirstConsumer(pvc)
 
-			By("verifying the Datavolume is not complete yet")
-			foundDv, err := f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			if foundDv.Status.Phase != cdiv1.Succeeded {
-				By("find source and target pod")
-				var sourcePod *v1.Pod
-				var uploadPod *v1.Pod
-				Eventually(func() bool {
-					if sourcePod == nil {
-						sourcePod, _ = utils.FindPodBysuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
+				By("Trying to catch the pods...")
+				err = wait.PollImmediate(fastPollingInterval, 10*time.Second, func() (bool, error) {
+					sourcePod, err = utils.FindPodBysuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
+					if err != nil {
+						return false, err
 					}
-					if uploadPod == nil {
-						uploadPod, _ = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
+					uploadPod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
+					if err != nil {
+						return false, err
 					}
-					return sourcePod != nil && uploadPod != nil
-				}, timeout, fastPollingInterval).Should(BeTrue())
-				verifyAnnotations(sourcePod)
-				verifyAnnotations(uploadPod)
-			}
+					return true, nil
+				})
+
+				if err != nil {
+					By("Failed to find pods - cleaning up so we can try again")
+					err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+					Eventually(func() bool {
+						_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+						if k8serrors.IsNotFound(err) {
+							return true
+						}
+						return false
+					}, timeout, pollingInterval).Should(BeTrue())
+
+					return false
+				}
+
+				return true
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			By("Found pods! checking annotations")
+			verifyAnnotations(sourcePod)
+			verifyAnnotations(uploadPod)
 		})
 	})
 
