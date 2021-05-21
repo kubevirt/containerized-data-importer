@@ -885,11 +885,15 @@ func expansionPodName(pvc *corev1.PersistentVolumeClaim) string {
 
 func (r *DatavolumeReconciler) expand(log logr.Logger, dv *cdiv1.DataVolume,
 	pvc *corev1.PersistentVolumeClaim, targetSpec *corev1.PersistentVolumeClaimSpec) (bool, error) {
+	if pvc.Status.Phase != corev1.ClaimBound {
+		return false, fmt.Errorf("cannot expand volume in %q phase", pvc.Status.Phase)
+	}
+
 	requestedSize, hasRequested := targetSpec.Resources.Requests[corev1.ResourceStorage]
 	currentSize, hasCurrent := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 	actualSize, hasActual := pvc.Status.Capacity[corev1.ResourceStorage]
 	if !hasRequested || !hasCurrent || !hasActual {
-		return false, fmt.Errorf("sizes missing")
+		return false, fmt.Errorf("PVC sizes missing")
 	}
 
 	expansionRequired := actualSize.Cmp(requestedSize) < 0
