@@ -144,19 +144,21 @@ func (h *pvcTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (time.Du
 		return 0, h.reconciler.setCompleteConditionRunning(ot)
 	}
 
-	target := &corev1.PersistentVolumeClaim{}
-	targetExists, err := h.reconciler.getTargetResource(ot, target)
-	if err != nil {
-		return 0, h.reconciler.setCompleteConditionError(ot, err)
-	}
-
-	if !targetExists && pv.Spec.ClaimRef != nil {
+	if pv.Spec.ClaimRef != nil &&
+		(pv.Spec.ClaimRef.Namespace != getTransferTargetNamespace(ot) ||
+			pv.Spec.ClaimRef.Name != getTransferTargetName(ot)) {
 		pv.Spec.ClaimRef = nil
 		if err := h.reconciler.updateResource(ot, pv); err != nil {
 			return 0, h.reconciler.setCompleteConditionError(ot, err)
 		}
 
-		return 0, h.reconciler.setCompleteConditionRunning(ot)
+		return time.Second, h.reconciler.setCompleteConditionRunning(ot)
+	}
+
+	target := &corev1.PersistentVolumeClaim{}
+	targetExists, err := h.reconciler.getTargetResource(ot, target)
+	if err != nil {
+		return 0, h.reconciler.setCompleteConditionError(ot, err)
 	}
 
 	if !targetExists {
