@@ -68,6 +68,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1beta1().CDIs().Informer()}, nil
 	case v1beta1.SchemeGroupVersion.WithResource("cdiconfigs"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1beta1().CDIConfigs().Informer()}, nil
+	case v1beta1.SchemeGroupVersion.WithResource("datasources"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1beta1().DataSources().Informer()}, nil
 	case v1beta1.SchemeGroupVersion.WithResource("datavolumes"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Cdi().V1beta1().DataVolumes().Informer()}, nil
 	case v1beta1.SchemeGroupVersion.WithResource("objecttransfers"):

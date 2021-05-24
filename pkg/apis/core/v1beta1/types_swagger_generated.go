@@ -175,6 +175,44 @@ func (StorageProfileList) SwaggerDoc() map[string]string {
 	}
 }
 
+func (DataSource) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DataSource references an import/clone source for a DataVolume\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion",
+	}
+}
+
+func (DataSourceSpec) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":       "DataSourceSpec defines specification for DataSource",
+		"source": "Source is the source of the data referenced by the DataSource",
+	}
+}
+
+func (DataSourceSource) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DataSourceSource represents the source for our DataSource",
+	}
+}
+
+func (DataSourceStatus) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DataSourceStatus provides the most recently observed status of the DataSource",
+	}
+}
+
+func (DataSourceCondition) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DataSourceCondition represents the state of a data source condition",
+	}
+}
+
+func (DataSourceList) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":      "DataSourceList provides the needed parameters to do request a list of Data Sources from the system\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
+		"items": "Items provides a list of DataSources",
+	}
+}
+
 func (CDI) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":       "CDI is the CDI Operator CRD\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion\n+kubebuilder:resource:shortName=cdi;cdis,scope=Cluster\n+kubebuilder:printcolumn:name=\"Age\",type=\"date\",JSONPath=\".metadata.creationTimestamp\"\n+kubebuilder:printcolumn:name=\"Phase\",type=\"string\",JSONPath=\".status.phase\"",

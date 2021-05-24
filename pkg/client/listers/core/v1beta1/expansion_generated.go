@@ -26,6 +26,14 @@ type CDIListerExpansion interface{}
 // CDIConfigLister.
 type CDIConfigListerExpansion interface{}
 
+// DataSourceListerExpansion allows custom methods to be added to
+// DataSourceLister.
+type DataSourceListerExpansion interface{}
+
+// DataSourceNamespaceListerExpansion allows custom methods to be added to
+// DataSourceNamespaceLister.
+type DataSourceNamespaceListerExpansion interface{}
+
 // DataVolumeListerExpansion allows custom methods to be added to
 // DataVolumeLister.
 type DataVolumeListerExpansion interface{}

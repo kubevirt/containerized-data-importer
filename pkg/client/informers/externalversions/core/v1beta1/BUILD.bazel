@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "cdi.go",
         "cdiconfig.go",
+        "datasource.go",
         "datavolume.go",
         "interface.go",
         "objecttransfer.go",

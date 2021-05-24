@@ -42,6 +42,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&CDIList{},
 		&StorageProfile{},
 		&StorageProfileList{},
+		&DataSource{},
+		&DataSourceList{},
 		&ObjectTransfer{},
 		&ObjectTransferList{},
 	)

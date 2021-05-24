@@ -351,6 +351,58 @@ type StorageProfileList struct {
 	Items []StorageProfile `json:"items"`
 }
 
+// DataSource references an import/clone source for a DataVolume
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:storageversion
+type DataSource struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   DataSourceSpec   `json:"spec"`
+	Status DataSourceStatus `json:"status,omitempty"`
+}
+
+// DataSourceSpec defines specification for DataSource
+type DataSourceSpec struct {
+	// Source is the source of the data referenced by the DataSource
+	Source DataSourceSource `json:"source"`
+}
+
+// DataSourceSource represents the source for our DataSource
+type DataSourceSource struct {
+	PVC *DataSourceSourcePVC `json:"pvc"`
+}
+
+// DataSourceSourcePVC provides the parameters to refer a Data Volume from an existing PVC
+type DataSourceSourcePVC = DataVolumeSourcePVC
+
+// DataSourceStatus provides the most recently observed status of the DataSource
+type DataSourceStatus struct {
+	Conditions []DataSourceCondition `json:"conditions,omitempty" optional:"true"`
+}
+
+// DataSourceCondition represents the state of a data source condition
+// FIXME: needs LastTransitionTime/LastHeartbeatTime/Reason/Message like DataVolumeCondition?
+type DataSourceCondition struct {
+	Type   DataSourceConditionType `json:"type" description:"type of condition ie. Ready|Bound|Running."`
+	Status corev1.ConditionStatus  `json:"status" description:"status of the condition, one of True, False, Unknown"`
+}
+
+// DataSourceConditionType is the string representation of known condition types
+type DataSourceConditionType string
+
+// DataSourceList provides the needed parameters to do request a list of Data Sources from the system
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type DataSourceList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	// Items provides a list of DataSources
+	Items []DataSource `json:"items"`
+}
+
 // this has to be here otherwise informer-gen doesn't recognize it
 // see https://github.com/kubernetes/code-generator/issues/59
 // +genclient:nonNamespaced

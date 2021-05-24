@@ -28,6 +28,8 @@ type Interface interface {
 	CDIs() CDIInformer
 	// CDIConfigs returns a CDIConfigInformer.
 	CDIConfigs() CDIConfigInformer
+	// DataSources returns a DataSourceInformer.
+	DataSources() DataSourceInformer
 	// DataVolumes returns a DataVolumeInformer.
 	DataVolumes() DataVolumeInformer
 	// ObjectTransfers returns a ObjectTransferInformer.
@@ -55,6 +57,11 @@ func (v *version) CDIs() CDIInformer {
 // CDIConfigs returns a CDIConfigInformer.
 func (v *version) CDIConfigs() CDIConfigInformer {
 	return &cDIConfigInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// DataSources returns a DataSourceInformer.
+func (v *version) DataSources() DataSourceInformer {
+	return &dataSourceInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // DataVolumes returns a DataVolumeInformer.

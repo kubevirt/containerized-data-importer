@@ -28,6 +28,7 @@ type CdiV1beta1Interface interface {
 	RESTClient() rest.Interface
 	CDIsGetter
 	CDIConfigsGetter
+	DataSourcesGetter
 	DataVolumesGetter
 	ObjectTransfersGetter
 	StorageProfilesGetter
@@ -44,6 +45,10 @@ func (c *CdiV1beta1Client) CDIs() CDIInterface {
 
 func (c *CdiV1beta1Client) CDIConfigs() CDIConfigInterface {
 	return newCDIConfigs(c)
+}
+
+func (c *CdiV1beta1Client) DataSources(namespace string) DataSourceInterface {
+	return newDataSources(c, namespace)
 }
 
 func (c *CdiV1beta1Client) DataVolumes(namespace string) DataVolumeInterface {
