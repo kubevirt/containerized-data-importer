@@ -29,8 +29,7 @@ import (
 
 	"github.com/appscode/jsonpatch"
 
-	"k8s.io/api/admission/v1beta1"
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
@@ -44,7 +43,7 @@ import (
 
 // Admitter is the interface implemented by admission webhooks
 type Admitter interface {
-	Admit(v1beta1.AdmissionReview) *v1beta1.AdmissionResponse
+	Admit(admissionv1.AdmissionReview) *admissionv1.AdmissionResponse
 }
 
 type admissionHandler struct {
@@ -98,10 +97,15 @@ func (h *admissionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	klog.V(2).Info(fmt.Sprintf("handling request: %s", body))
 
 	// The AdmissionReview that was sent to the webhook
-	requestedAdmissionReview := v1beta1.AdmissionReview{}
+	requestedAdmissionReview := admissionv1.AdmissionReview{}
 
 	// The AdmissionReview that will be returned
-	responseAdmissionReview := v1beta1.AdmissionReview{}
+	responseAdmissionReview := admissionv1.AdmissionReview{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: admissionv1.SchemeGroupVersion.String(),
+			Kind:       "AdmissionReview",
+		},
+	}
 
 	deserializer := codecs.UniversalDeserializer()
 	if _, _, err := deserializer.Decode(body, nil, &requestedAdmissionReview); err != nil {
@@ -121,6 +125,11 @@ func (h *admissionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		responseAdmissionReview.Response.UID = requestedAdmissionReview.Request.UID
 	}
 
+	// Match request's APIVersion for backwards compatibility with v1beta1
+	if requestedAdmissionReview.APIVersion != "" {
+		responseAdmissionReview.APIVersion = requestedAdmissionReview.APIVersion
+	}
+
 	klog.V(2).Info(fmt.Sprintf("sending response: %v", responseAdmissionReview.Response))
 
 	respBytes, err := json.Marshal(responseAdmissionReview)
@@ -132,13 +141,13 @@ func (h *admissionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func toRejectedAdmissionResponse(causes []metav1.StatusCause) *v1beta1.AdmissionResponse {
+func toRejectedAdmissionResponse(causes []metav1.StatusCause) *admissionv1.AdmissionResponse {
 	globalMessage := ""
 	for _, cause := range causes {
 		globalMessage = fmt.Sprintf("%s %s", globalMessage, cause.Message)
 	}
 
-	return &v1beta1.AdmissionResponse{
+	return &admissionv1.AdmissionResponse{
 		Result: &metav1.Status{
 			Message: globalMessage,
 			Code:    http.StatusUnprocessableEntity,
@@ -149,8 +158,8 @@ func toRejectedAdmissionResponse(causes []metav1.StatusCause) *v1beta1.Admission
 	}
 }
 
-func toAdmissionResponseError(err error) *v1beta1.AdmissionResponse {
-	return &v1beta1.AdmissionResponse{
+func toAdmissionResponseError(err error) *admissionv1.AdmissionResponse {
+	return &admissionv1.AdmissionResponse{
 		Result: &metav1.Status{
 			Message: err.Error(),
 			Code:    http.StatusBadRequest,
@@ -158,13 +167,13 @@ func toAdmissionResponseError(err error) *v1beta1.AdmissionResponse {
 	}
 }
 
-func allowedAdmissionResponse() *admissionv1beta1.AdmissionResponse {
-	return &admissionv1beta1.AdmissionResponse{
+func allowedAdmissionResponse() *admissionv1.AdmissionResponse {
+	return &admissionv1.AdmissionResponse{
 		Allowed: true,
 	}
 }
 
-func validateDataVolumeResource(ar v1beta1.AdmissionReview) error {
+func validateDataVolumeResource(ar admissionv1.AdmissionReview) error {
 	resources := []metav1.GroupVersionResource{
 		{
 			Group:    cdiv1.SchemeGroupVersion.Group,
@@ -187,8 +196,8 @@ func validateDataVolumeResource(ar v1beta1.AdmissionReview) error {
 	return fmt.Errorf("expect resource to be '%s'", resources[0].Resource)
 }
 
-func toPatchResponse(original, current interface{}) *admissionv1beta1.AdmissionResponse {
-	patchType := admissionv1beta1.PatchTypeJSONPatch
+func toPatchResponse(original, current interface{}) *admissionv1.AdmissionResponse {
+	patchType := admissionv1.PatchTypeJSONPatch
 
 	ob, err := json.Marshal(original)
 	if err != nil {
@@ -212,7 +221,7 @@ func toPatchResponse(original, current interface{}) *admissionv1beta1.AdmissionR
 
 	klog.V(3).Infof("sending patches\n%s", pb)
 
-	return &admissionv1beta1.AdmissionResponse{
+	return &admissionv1.AdmissionResponse{
 		Allowed:   true,
 		Patch:     pb,
 		PatchType: &patchType,
