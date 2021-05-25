@@ -318,6 +318,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceHTTP":     schema_pkg_apis_core_v1beta1_DataVolumeSourceHTTP(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceImageIO":  schema_pkg_apis_core_v1beta1_DataVolumeSourceImageIO(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourcePVC":      schema_pkg_apis_core_v1beta1_DataVolumeSourcePVC(ref),
+		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceRef":      schema_pkg_apis_core_v1beta1_DataVolumeSourceRef(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceRegistry": schema_pkg_apis_core_v1beta1_DataVolumeSourceRegistry(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceS3":       schema_pkg_apis_core_v1beta1_DataVolumeSourceS3(ref),
 		"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceUpload":   schema_pkg_apis_core_v1beta1_DataVolumeSourceUpload(ref),
@@ -15348,6 +15349,41 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourcePVC(ref common.ReferenceCallba
 	}
 }
 
+func schema_pkg_apis_core_v1beta1_DataVolumeSourceRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "DataVolumeSourceRef defines an indirect reference to the source of data for the DataVolume",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The kind of the source reference, currently only DataSource is supported",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"namespace": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The namespace of the source reference",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The name of the source reference",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"kind", "namespace", "name"},
+			},
+		},
+	}
+}
+
 func schema_pkg_apis_core_v1beta1_DataVolumeSourceRegistry(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -15493,6 +15529,12 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref common.ReferenceCallback) c
 							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSource"),
 						},
 					},
+					"sourceRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SourceRef is an indirect reference to the source of data for the requested DataVolume",
+							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceRef"),
+						},
+					},
 					"pvc": {
 						SchemaProps: spec.SchemaProps{
 							Description: "PVC is the PVC specification",
@@ -15552,7 +15594,7 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref common.ReferenceCallback) c
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.PersistentVolumeClaimSpec", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeCheckpoint", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSource", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.StorageSpec"},
+			"k8s.io/api/core/v1.PersistentVolumeClaimSpec", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeCheckpoint", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSource", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourceRef", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.StorageSpec"},
 	}
 }
 

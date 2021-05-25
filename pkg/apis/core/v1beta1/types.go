@@ -44,6 +44,8 @@ type DataVolume struct {
 type DataVolumeSpec struct {
 	//Source is the src of the data for the requested DataVolume
 	Source DataVolumeSource `json:"source"`
+	//SourceRef is an indirect reference to the source of data for the requested DataVolume
+	SourceRef DataVolumeSourceRef `json:"sourceRef,omitempty"`
 	//PVC is the PVC specification
 	PVC *corev1.PersistentVolumeClaimSpec `json:"pvc,omitempty"`
 	// Storage is the requested storage specification
@@ -193,6 +195,24 @@ type DataVolumeSourceVDDK struct {
 	// SecretRef provides a reference to a secret containing the username and password needed to access the vCenter or ESXi host
 	SecretRef string `json:"secretRef,omitempty"`
 }
+
+// DataVolumeSourceRef defines an indirect reference to the source of data for the DataVolume
+type DataVolumeSourceRef struct {
+	// The kind of the source reference, currently only DataSource is supported
+	Kind DataVolumeSourceRefKind `json:"kind"`
+	// The namespace of the source reference
+	Namespace string `json:"namespace"`
+	// The name of the source reference
+	Name string `json:"name"`
+}
+
+// DataVolumeSourceRefKind represents the kinds of DataVolumeSourceRef
+type DataVolumeSourceRefKind string
+
+const (
+	// DataVolumeDataSource is DataSource source reference for DataVolume
+	DataVolumeDataSource DataVolumeSourceRefKind = "DataSource"
+)
 
 // DataVolumeStatus contains the current status of the DataVolume
 type DataVolumeStatus struct {

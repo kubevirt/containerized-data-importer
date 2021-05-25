@@ -75,7 +75,7 @@ func createDataSourceCRD() *extv1.CustomResourceDefinition {
 									Type:        "object",
 									Properties: map[string]extv1.JSONSchemaProps{
 										"source": {
-											Description: "Source is the source of the data for the requested DataVolume",
+											Description: "Source is the src of the data for the requested DataVolume",
 											Type:        "object",
 											Properties: map[string]extv1.JSONSchemaProps{
 												"pvc": {

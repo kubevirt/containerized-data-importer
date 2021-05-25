@@ -12,6 +12,7 @@ func (DataVolumeSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                  "DataVolumeSpec defines the DataVolume type specification",
 		"source":            "Source is the src of the data for the requested DataVolume",
+		"sourceRef":         "SourceRef is an indirect reference to the source of data for the requested DataVolume",
 		"pvc":               "PVC is the PVC specification",
 		"storage":           "Storage is the requested storage specification",
 		"priorityClassName": "PriorityClassName for Importer, Cloner and Uploader pod",
@@ -114,6 +115,15 @@ func (DataVolumeSourceVDDK) SwaggerDoc() map[string]string {
 		"backingFile": "BackingFile is the path to the virtual hard disk to migrate from vCenter/ESXi",
 		"thumbprint":  "Thumbprint is the certificate thumbprint of the vCenter or ESXi host",
 		"secretRef":   "SecretRef provides a reference to a secret containing the username and password needed to access the vCenter or ESXi host",
+	}
+}
+
+func (DataVolumeSourceRef) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":          "DataVolumeSourceRef defines an indirect reference to the source of data for the DataVolume",
+		"kind":      "The kind of the source reference, currently only DataSource is supported",
+		"namespace": "The namespace of the source reference",
+		"name":      "The name of the source reference",
 	}
 }
 
