@@ -30,7 +30,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/appscode/jsonpatch"
-	"k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	authorization "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -46,7 +46,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 		key, _ := rsa.GenerateKey(rand.Reader, 2048)
 
 		It("should reject review without request", func() {
-			ar := &v1beta1.AdmissionReview{}
+			ar := &admissionv1.AdmissionReview{}
 
 			resp := mutateDVs(key, ar, true)
 			Expect(resp.Allowed).To(BeFalse())
@@ -57,8 +57,8 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			dataVolume := newHTTPDataVolume("testDV", "http://www.example.com")
 			dvBytes, _ := json.Marshal(&dataVolume)
 
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
 					Resource: metav1.GroupVersionResource{
 						Group:    cdicorev1.SchemeGroupVersion.Group,
 						Version:  cdicorev1.SchemeGroupVersion.Version,
@@ -85,9 +85,9 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			dataVolume.Annotations["foo"] = "bar"
 			dvBytesUpdated, _ := json.Marshal(&dataVolume)
 
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Operation: v1beta1.Update,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdicorev1.SchemeGroupVersion.Group,
 						Version:  cdicorev1.SchemeGroupVersion.Version,
@@ -111,8 +111,8 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			dataVolume := newPVCDataVolume("testDV", "testNamespace", "test")
 			dvBytes, _ := json.Marshal(&dataVolume)
 
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
 					Resource: metav1.GroupVersionResource{
 						Group:    cdicorev1.SchemeGroupVersion.Group,
 						Version:  cdicorev1.SchemeGroupVersion.Version,
@@ -133,8 +133,8 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			dataVolume := newPVCDataVolume("testDV", srcNamespace, "test")
 			dvBytes, _ := json.Marshal(&dataVolume)
 
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
 					Resource: metav1.GroupVersionResource{
 						Group:    cdicorev1.SchemeGroupVersion.Group,
 						Version:  cdicorev1.SchemeGroupVersion.Version,
@@ -165,7 +165,7 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 	})
 })
 
-func mutateDVs(key *rsa.PrivateKey, ar *v1beta1.AdmissionReview, isAuthorized bool) *v1beta1.AdmissionResponse {
+func mutateDVs(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthorized bool) *admissionv1.AdmissionResponse {
 	client := fakeclient.NewSimpleClientset()
 	client.PrependReactor("create", "subjectaccessreviews", func(action k8stesting.Action) (bool, runtime.Object, error) {
 		if action.GetResource().Resource != "subjectaccessreviews" {

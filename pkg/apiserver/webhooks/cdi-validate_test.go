@@ -27,8 +27,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	"k8s.io/api/admission/v1beta1"
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -43,7 +42,7 @@ var (
 
 var _ = Describe("CDI Delete Webhook", func() {
 	Context("with CDI admission review", func() {
-		DescribeTable("should accept with no DataVolumes present", func(strategy *cdiv1.CDIUninstallStrategy, op admissionv1beta1.Operation) {
+		DescribeTable("should accept with no DataVolumes present", func(strategy *cdiv1.CDIUninstallStrategy, op admissionv1.Operation) {
 			cdi := &cdiv1.CDI{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "cdi",
@@ -60,8 +59,8 @@ var _ = Describe("CDI Delete Webhook", func() {
 
 			bytes, _ := json.Marshal(cdi)
 
-			ar := &admissionv1beta1.AdmissionReview{
-				Request: &admissionv1beta1.AdmissionRequest{
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
 					Operation: op,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
@@ -76,15 +75,15 @@ var _ = Describe("CDI Delete Webhook", func() {
 
 			resp := validateCDIs(ar)
 			Expect(resp.Allowed).To(BeTrue())
-		}, Entry("BLOCK DELETE", &block, admissionv1beta1.Delete),
-			Entry("BLOCK UPDATE", &block, admissionv1beta1.Update),
-			Entry("NO BLOCK DELETE", &noBlock, admissionv1beta1.Delete),
-			Entry("NO BLOCK UPDATE", &noBlock, admissionv1beta1.Update),
-			Entry("EMPTY DELETE", nil, admissionv1beta1.Delete),
-			Entry("EMPTY UPDATE", nil, admissionv1beta1.Update),
+		}, Entry("BLOCK DELETE", &block, admissionv1.Delete),
+			Entry("BLOCK UPDATE", &block, admissionv1.Update),
+			Entry("NO BLOCK DELETE", &noBlock, admissionv1.Delete),
+			Entry("NO BLOCK UPDATE", &noBlock, admissionv1.Update),
+			Entry("EMPTY DELETE", nil, admissionv1.Delete),
+			Entry("EMPTY UPDATE", nil, admissionv1.Update),
 		)
 
-		DescribeTable("should accept with DataVolumes present", func(strategy *cdiv1.CDIUninstallStrategy, op admissionv1beta1.Operation) {
+		DescribeTable("should accept with DataVolumes present", func(strategy *cdiv1.CDIUninstallStrategy, op admissionv1.Operation) {
 			cdi := &cdiv1.CDI{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "cdi",
@@ -101,8 +100,8 @@ var _ = Describe("CDI Delete Webhook", func() {
 
 			bytes, _ := json.Marshal(cdi)
 
-			ar := &admissionv1beta1.AdmissionReview{
-				Request: &admissionv1beta1.AdmissionRequest{
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
 					Operation: op,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
@@ -117,11 +116,11 @@ var _ = Describe("CDI Delete Webhook", func() {
 
 			resp := validateCDIs(ar, newDataVolumeWithName("foo"))
 			Expect(resp.Allowed).To(BeTrue())
-		}, Entry("BLOCK UPDATE", &block, admissionv1beta1.Update),
-			Entry("NO BLOCK DELETE", &noBlock, admissionv1beta1.Delete),
-			Entry("NO BLOCK UPDATE", &noBlock, admissionv1beta1.Update),
-			Entry("EMPTY DELETE", nil, admissionv1beta1.Delete),
-			Entry("EMPTY UPDATE", nil, admissionv1beta1.Update),
+		}, Entry("BLOCK UPDATE", &block, admissionv1.Update),
+			Entry("NO BLOCK DELETE", &noBlock, admissionv1.Delete),
+			Entry("NO BLOCK UPDATE", &noBlock, admissionv1.Update),
+			Entry("EMPTY DELETE", nil, admissionv1.Delete),
+			Entry("EMPTY UPDATE", nil, admissionv1.Update),
 		)
 
 		It("should reject with DataVolumes present", func() {
@@ -141,9 +140,9 @@ var _ = Describe("CDI Delete Webhook", func() {
 
 			bytes, _ := json.Marshal(cdi)
 
-			ar := &admissionv1beta1.AdmissionReview{
-				Request: &admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Delete,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Delete,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -175,9 +174,9 @@ var _ = Describe("CDI Delete Webhook", func() {
 				},
 			}
 
-			ar := &admissionv1beta1.AdmissionReview{
-				Request: &admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Delete,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Delete,
 					Name:      cdi.Name,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
@@ -209,9 +208,9 @@ var _ = Describe("CDI Delete Webhook", func() {
 
 			bytes, _ := json.Marshal(cdi)
 
-			ar := &admissionv1beta1.AdmissionReview{
-				Request: &admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Delete,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Delete,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -230,9 +229,9 @@ var _ = Describe("CDI Delete Webhook", func() {
 		It("should reject weird resource", func() {
 			bytes, _ := json.Marshal(newDataVolumeWithName("foo"))
 
-			ar := &admissionv1beta1.AdmissionReview{
-				Request: &admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Delete,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Delete,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -259,7 +258,7 @@ func newDataVolumeWithName(name string) *cdiv1.DataVolume {
 	}
 }
 
-func validateCDIs(ar *admissionv1beta1.AdmissionReview, cdiObjects ...runtime.Object) *v1beta1.AdmissionResponse {
+func validateCDIs(ar *admissionv1.AdmissionReview, cdiObjects ...runtime.Object) *admissionv1.AdmissionResponse {
 	client := cdiclient.NewSimpleClientset(cdiObjects...)
 	wh := NewCDIValidatingWebhook(client)
 	return serve(ar, wh)

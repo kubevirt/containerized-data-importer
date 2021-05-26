@@ -22,12 +22,12 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
@@ -56,9 +56,9 @@ func (r *ReconcileCDI) GetDependantResourcesListObjects() []runtime.Object {
 		&rbacv1.RoleBindingList{},
 		&rbacv1.RoleList{},
 		&corev1.ServiceAccountList{},
-		&apiregistrationv1beta1.APIServiceList{},
-		&admissionregistrationv1beta1.ValidatingWebhookConfigurationList{},
-		&admissionregistrationv1beta1.MutatingWebhookConfigurationList{},
+		&apiregistrationv1.APIServiceList{},
+		&admissionregistrationv1.ValidatingWebhookConfigurationList{},
+		&admissionregistrationv1.MutatingWebhookConfigurationList{},
 	}
 }
 

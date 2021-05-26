@@ -45,7 +45,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
-	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	realClient "sigs.k8s.io/controller-runtime/pkg/client"
 	fakeClient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -96,7 +96,7 @@ var (
 func init() {
 	cdiv1.AddToScheme(scheme.Scheme)
 	extv1.AddToScheme(scheme.Scheme)
-	apiregistrationv1beta1.AddToScheme(scheme.Scheme)
+	apiregistrationv1.AddToScheme(scheme.Scheme)
 	secv1.Install(scheme.Scheme)
 	routev1.Install(scheme.Scheme)
 }
@@ -1200,7 +1200,7 @@ var _ = Describe("Controller", func() {
 				func() (runtime.Object, error) {
 					crd := &extv1.CustomResourceDefinition{
 						TypeMeta: metav1.TypeMeta{
-							APIVersion: "apiextensions.k8s.io/v1beta1",
+							APIVersion: "apiextensions.k8s.io/v1",
 							Kind:       "CustomResourceDefinition",
 						},
 						ObjectMeta: metav1.ObjectMeta{
@@ -1627,12 +1627,12 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.RoleBinding cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.Role cdi-uploadproxy"] = false
 	match[normalCreateSuccess+" *v1.Deployment cdi-uploadproxy"] = false
-	match[normalCreateSuccess+" *v1beta1.APIService v1beta1.upload.cdi.kubevirt.io"] = false
-	match[normalCreateSuccess+" *v1beta1.APIService v1alpha1.upload.cdi.kubevirt.io"] = false
-	match[normalCreateSuccess+" *v1beta1.ValidatingWebhookConfiguration cdi-api-datavolume-validate"] = false
-	match[normalCreateSuccess+" *v1beta1.MutatingWebhookConfiguration cdi-api-datavolume-mutate"] = false
-	match[normalCreateSuccess+" *v1beta1.ValidatingWebhookConfiguration cdi-api-validate"] = false
-	match[normalCreateSuccess+" *v1beta1.ValidatingWebhookConfiguration objecttransfer-api-validate"] = false
+	match[normalCreateSuccess+" *v1.APIService v1beta1.upload.cdi.kubevirt.io"] = false
+	match[normalCreateSuccess+" *v1.APIService v1alpha1.upload.cdi.kubevirt.io"] = false
+	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration cdi-api-datavolume-validate"] = false
+	match[normalCreateSuccess+" *v1.MutatingWebhookConfiguration cdi-api-datavolume-mutate"] = false
+	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration cdi-api-validate"] = false
+	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration objecttransfer-api-validate"] = false
 	match[normalCreateSuccess+" *v1.Secret cdi-apiserver-signer"] = false
 	match[normalCreateSuccess+" *v1.ConfigMap cdi-apiserver-signer-bundle"] = false
 	match[normalCreateSuccess+" *v1.Secret cdi-apiserver-server-cert"] = false
