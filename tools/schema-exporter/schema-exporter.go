@@ -47,6 +47,7 @@ func main() {
 	crds = append(crds, cluster.NewDataVolumeCrd())
 	crds = append(crds, cluster.NewStorageProfileCrd())
 	crds = append(crds, cluster.NewDataSourceCrd())
+	crds = append(crds, cluster.NewDataImportCronCrd())
 	crds = append(crds, cluster.NewObjectTransferCrd())
 
 	for _, crd := range crds {

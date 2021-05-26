@@ -44,6 +44,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&StorageProfileList{},
 		&DataSource{},
 		&DataSourceList{},
+		&DataImportCron{},
+		&DataImportCronList{},
 		&ObjectTransfer{},
 		&ObjectTransferList{},
 	)

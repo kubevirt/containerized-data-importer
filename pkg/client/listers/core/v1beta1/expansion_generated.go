@@ -26,6 +26,14 @@ type CDIListerExpansion interface{}
 // CDIConfigLister.
 type CDIConfigListerExpansion interface{}
 
+// DataImportCronListerExpansion allows custom methods to be added to
+// DataImportCronLister.
+type DataImportCronListerExpansion interface{}
+
+// DataImportCronNamespaceListerExpansion allows custom methods to be added to
+// DataImportCronNamespaceLister.
+type DataImportCronNamespaceListerExpansion interface{}
+
 // DataSourceListerExpansion allows custom methods to be added to
 // DataSourceLister.
 type DataSourceListerExpansion interface{}

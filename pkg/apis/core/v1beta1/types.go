@@ -395,7 +395,7 @@ type DataSourceSource struct {
 	PVC *DataSourceSourcePVC `json:"pvc"`
 }
 
-// DataSourceSourcePVC provides the parameters to refer a Data Volume from an existing PVC
+// DataSourceSourcePVC provides the parameters to refer an existing PVC
 type DataSourceSourcePVC = DataVolumeSourcePVC
 
 // DataSourceStatus provides the most recently observed status of the DataSource
@@ -404,9 +404,9 @@ type DataSourceStatus struct {
 }
 
 // DataSourceCondition represents the state of a data source condition
-// FIXME: needs LastTransitionTime/LastHeartbeatTime/Reason/Message like DataVolumeCondition?
+// FIXME: needs LastTransitionTime/LastHeartbeatTime/Reason/Message?
 type DataSourceCondition struct {
-	Type   DataSourceConditionType `json:"type" description:"type of condition ie. Ready|Bound|Running."`
+	Type   DataSourceConditionType `json:"type" description:"type of condition ie. Ready"`
 	Status corev1.ConditionStatus  `json:"status" description:"status of the condition, one of True, False, Unknown"`
 }
 
@@ -421,6 +421,71 @@ type DataSourceList struct {
 
 	// Items provides a list of DataSources
 	Items []DataSource `json:"items"`
+}
+
+// DataImportCron defines a cron job for recurring polling/importing disk images as PVCs into a golden image namespace
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:storageversion
+type DataImportCron struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   DataImportCronSpec   `json:"spec"`
+	Status DataImportCronStatus `json:"status,omitempty"`
+}
+
+// DataImportCronSpec defines specification for DataImportCron
+type DataImportCronSpec struct {
+	// Source specifies where to poll disk images from
+	Source DataImportCronSource `json:"source"`
+	// Schedule specifies in cron format when and how often to look for new imports
+	Schedule string `json:"schedule"`
+	// GarbageCollectOutdated specifies whether old PVCs should be cleaned up after a new PVC is imported
+	GarbageCollectOutdated bool `json:"garbageCollectOutdated"`
+	// ManagedDataSource specifies the name of the corresponding DataSource this cron will manage
+	ManagedDataSource string `json:"managedDataSource"`
+}
+
+// DataImportCronSource defines where to poll and import disk images from
+type DataImportCronSource struct {
+	Registry *DataImportCronSourceRegistry `json:"registry"`
+}
+
+// DataImportCronSourceRegistry provides the parameters to refer a registry source
+type DataImportCronSourceRegistry = DataVolumeSourceRegistry
+
+// DataImportCronStatus provides the most recently observed status of the DataImportCron
+type DataImportCronStatus struct {
+	// LastImportedPVC is the name of the last imported PVC
+	LastImportedPVC string `json:"lastImportedPVC,omitempty"`
+	// LastExecutionTimestamp is the time of the last polling
+	LastExecutionTimestamp string `json:"lastExecutionTimestamp,omitempty"`
+	// LastImport is the time of the last import
+	LastImport string                    `json:"lastImport,omitempty"`
+	Conditions []DataImportCronCondition `json:"conditions,omitempty" optional:"true"`
+}
+
+// DataImportCronCondition represents the state of a data import cron condition
+// FIXME: needs LastTransitionTime/LastHeartbeatTime/Reason?
+type DataImportCronCondition struct {
+	Type    DataImportCronConditionType `json:"type" description:"type of condition ie. Progressing, UpToDate"`
+	Status  corev1.ConditionStatus      `json:"status" description:"status of the condition, one of True, False, Unknown"`
+	Message string                      `json:"message,omitempty" description:"human-readable message indicating details about last transition"`
+}
+
+// DataImportCronConditionType is the string representation of known condition types
+type DataImportCronConditionType string
+
+// DataImportCronList provides the needed parameters to do request a list of DataImportCrons from the system
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type DataImportCronList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	// Items provides a list of DataImportCrons
+	Items []DataImportCron `json:"items"`
 }
 
 // this has to be here otherwise informer-gen doesn't recognize it

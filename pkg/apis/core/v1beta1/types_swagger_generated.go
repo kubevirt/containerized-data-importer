@@ -223,6 +223,50 @@ func (DataSourceList) SwaggerDoc() map[string]string {
 	}
 }
 
+func (DataImportCron) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DataImportCron defines a cron job for recurring polling/importing disk images as PVCs into a golden image namespace\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion",
+	}
+}
+
+func (DataImportCronSpec) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                       "DataImportCronSpec defines specification for DataImportCron",
+		"source":                 "Source specifies where to poll disk images from",
+		"schedule":               "Schedule specifies in cron format when and how often to look for new imports",
+		"garbageCollectOutdated": "GarbageCollectOutdated specifies whether old PVCs should be cleaned up after a new PVC is imported",
+		"managedDataSource":      "ManagedDataSource specifies the name of the corresponding DataSource this cron will manage",
+	}
+}
+
+func (DataImportCronSource) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DataImportCronSource defines where to poll and import disk images from",
+	}
+}
+
+func (DataImportCronStatus) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                       "DataImportCronStatus provides the most recently observed status of the DataImportCron",
+		"lastImportedPVC":        "LastImportedPVC is the name of the last imported PVC",
+		"lastExecutionTimestamp": "LastExecutionTimestamp is the time of the last polling",
+		"lastImport":             "LastImport is the time of the last import",
+	}
+}
+
+func (DataImportCronCondition) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "DataImportCronCondition represents the state of a data import cron condition",
+	}
+}
+
+func (DataImportCronList) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":      "DataImportCronList provides the needed parameters to do request a list of DataImportCrons from the system\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object",
+		"items": "Items provides a list of DataImportCrons",
+	}
+}
+
 func (CDI) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":       "CDI is the CDI Operator CRD\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion\n+kubebuilder:resource:shortName=cdi;cdis,scope=Cluster\n+kubebuilder:printcolumn:name=\"Age\",type=\"date\",JSONPath=\".metadata.creationTimestamp\"\n+kubebuilder:printcolumn:name=\"Phase\",type=\"string\",JSONPath=\".status.phase\"",

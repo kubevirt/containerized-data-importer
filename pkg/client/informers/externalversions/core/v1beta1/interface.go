@@ -28,6 +28,8 @@ type Interface interface {
 	CDIs() CDIInformer
 	// CDIConfigs returns a CDIConfigInformer.
 	CDIConfigs() CDIConfigInformer
+	// DataImportCrons returns a DataImportCronInformer.
+	DataImportCrons() DataImportCronInformer
 	// DataSources returns a DataSourceInformer.
 	DataSources() DataSourceInformer
 	// DataVolumes returns a DataVolumeInformer.
@@ -57,6 +59,11 @@ func (v *version) CDIs() CDIInformer {
 // CDIConfigs returns a CDIConfigInformer.
 func (v *version) CDIConfigs() CDIConfigInformer {
 	return &cDIConfigInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// DataImportCrons returns a DataImportCronInformer.
+func (v *version) DataImportCrons() DataImportCronInformer {
+	return &dataImportCronInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // DataSources returns a DataSourceInformer.
