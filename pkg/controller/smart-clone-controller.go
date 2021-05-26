@@ -253,6 +253,10 @@ func (r *SmartCloneReconciler) deleteSnapshot(log logr.Logger, namespace, name s
 		return err
 	}
 
+	if snapshotToDelete.DeletionTimestamp != nil {
+		return nil
+	}
+
 	if err := r.client.Delete(context.TODO(), snapshotToDelete); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			log.Error(err, "error deleting snapshot for smart-clone")
@@ -326,7 +330,6 @@ func newPvcFromSnapshot(snapshot *snapshotv1.VolumeSnapshot, targetPvcSpec *core
 			},
 			Annotations: map[string]string{
 				AnnSmartCloneRequest:       "true",
-				AnnCloneOf:                 "true",
 				AnnRunningCondition:        string(corev1.ConditionFalse),
 				AnnRunningConditionMessage: cloneComplete,
 				AnnRunningConditionReason:  "Completed",

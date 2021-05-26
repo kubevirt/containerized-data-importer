@@ -13,9 +13,11 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -1398,6 +1400,20 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 	Expect(err).ToNot(HaveOccurred())
 
 	validateCloneType(f, dv)
+
+	if utils.GetCloneType(f.CdiClient, dv) == "snapshot" {
+		sns := dv.Spec.Source.PVC.Namespace
+		if sns == "" {
+			sns = dv.Namespace
+		}
+
+		snapshots := &snapshotv1.VolumeSnapshotList{}
+		err = f.CrClient.List(context.TODO(), snapshots, &client.ListOptions{Namespace: sns})
+		Expect(err).ToNot(HaveOccurred())
+		for _, s := range snapshots.Items {
+			Expect(s.DeletionTimestamp).ToNot(BeNil())
+		}
+	}
 }
 
 func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string) {
