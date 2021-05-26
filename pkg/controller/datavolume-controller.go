@@ -434,6 +434,10 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 				}
 			}
 
+			if datavolume.Status.Phase == cdiv1.NamespaceTransferInProgress {
+				return reconcile.Result{}, nil
+			}
+
 			r.log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class",
 				"snapshotClassName", snapshotClassName)
 
@@ -470,7 +474,7 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 						return reconcile.Result{}, nil
 					}
 
-					return reconcile.Result{}, nil
+					return reconcile.Result{}, err
 				}
 
 				return reconcile.Result{},
@@ -850,11 +854,15 @@ func expansionPodName(pvc *corev1.PersistentVolumeClaim) string {
 
 func (r *DatavolumeReconciler) expand(log logr.Logger, dv *cdiv1.DataVolume,
 	pvc *corev1.PersistentVolumeClaim, targetSpec *corev1.PersistentVolumeClaimSpec) (bool, error) {
+	if pvc.Status.Phase != corev1.ClaimBound {
+		return false, fmt.Errorf("cannot expand volume in %q phase", pvc.Status.Phase)
+	}
+
 	requestedSize, hasRequested := targetSpec.Resources.Requests[corev1.ResourceStorage]
 	currentSize, hasCurrent := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 	actualSize, hasActual := pvc.Status.Capacity[corev1.ResourceStorage]
 	if !hasRequested || !hasCurrent || !hasActual {
-		return false, fmt.Errorf("sizes missing")
+		return false, fmt.Errorf("PVC sizes missing")
 	}
 
 	expansionRequired := actualSize.Cmp(requestedSize) < 0

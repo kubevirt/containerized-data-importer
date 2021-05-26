@@ -379,6 +379,36 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(dv.Status.Phase).To(Equal(cdiv1.SnapshotForSmartCloneInProgress))
 		})
 
+		It("Should should do nothing when smart clone with namespace transfer and not target found", func() {
+			dv := newCloneDataVolume("test-dv")
+			scName := "testsc"
+			sc := createStorageClassWithProvisioner(scName, map[string]string{
+				AnnDefaultStorageClass: "true",
+			}, "csi-plugin")
+			dv.Spec.PVC.StorageClassName = &scName
+			pvc := createPvcInStorageClass("test", "test", &scName, nil, nil, corev1.ClaimBound)
+			dv.Finalizers = append(dv.Finalizers, "cdi.kubevirt.io/dataVolumeFinalizer")
+			dv.Spec.Source.PVC.Namespace = pvc.Namespace
+			dv.Spec.Source.PVC.Name = pvc.Name
+			dv.Status.Phase = cdiv1.NamespaceTransferInProgress
+			ot := &cdiv1.ObjectTransfer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: fmt.Sprintf("cdi-tmp-%s", dv.UID),
+				},
+			}
+			expectedSnapshotClass := "snap-class"
+			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
+			reconciler := createDatavolumeReconciler(sc, dv, pvc, snapClass, ot)
+			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			By("Verifying that phase is still NamespaceTransferInProgress")
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(cdiv1.NamespaceTransferInProgress))
+		})
+
 		DescribeTable("Should NOT create a snapshot if source PVC mounted", func(podFunc func(*cdiv1.DataVolume) *corev1.Pod) {
 			dv := newCloneDataVolume("test-dv")
 			scName := "testsc"
@@ -1429,6 +1459,7 @@ func newCloneDataVolumeWithPVCNS(name string, pvcNamespace string) *cdiv1.DataVo
 			Annotations: map[string]string{
 				AnnCloneToken: "foobar",
 			},
+			UID: types.UID("uid"),
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: cdiv1.DataVolumeSource{

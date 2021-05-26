@@ -327,7 +327,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			checkCompleteFalse(xfer, "Waiting for target to be bound", "")
 		})
 
-		It("Should error if PV gets bound to something else", func() {
+		It("Should set claimRef to nil if PV gets bound to something else", func() {
 			xfer := pvcTransferRunning()
 			xfer.Status.Data["pvReclaim"] = "Delete"
 			pv := sourcePV()
@@ -341,13 +341,17 @@ var _ = Describe("PVC Transfer Tests", func() {
 
 			r := createReconciler(xfer, pv, pvc)
 			_, err := r.Reconcile(rr(xfer.Name))
-			Expect(err).To(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
+
+			err = getResource(r.Client, "", pv.Name, pv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pv.Spec.ClaimRef).To(BeNil())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferRunning))
-			checkCompleteFalse(xfer, "PV bound to wrong PVC", "")
+			checkCompleteFalse(xfer, "Running", "")
 		})
 
 		It("Should update PV retain", func() {
