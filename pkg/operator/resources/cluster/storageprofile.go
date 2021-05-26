@@ -90,8 +90,12 @@ func createStorageProfileCRD() *extv1.CustomResourceDefinition {
 																},
 															},
 														},
+														"cloneStrategy": {
+															Description: "CloneStrategy defines the preferred method for performing a CDI clone",
+															Type:        "string",
+														},
 														"volumeMode": {
-															Description: "volumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.",
+															Description: "VolumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.",
 															Type:        "string",
 														},
 													},
@@ -129,8 +133,12 @@ func createStorageProfileCRD() *extv1.CustomResourceDefinition {
 																},
 															},
 														},
+														"cloneStrategy": {
+															Description: "CloneStrategy defines the preferred method for performing a CDI clone",
+															Type:        "string",
+														},
 														"volumeMode": {
-															Description: "volumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.",
+															Description: "VolumeMode defines what type of volume is required by the claim. Value of Filesystem is implied when not included in claim spec.",
 															Type:        "string",
 														},
 													},

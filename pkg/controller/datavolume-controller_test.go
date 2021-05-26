@@ -364,11 +364,13 @@ var _ = Describe("All DataVolume Tests", func() {
 			sc := createStorageClassWithProvisioner(scName, map[string]string{
 				AnnDefaultStorageClass: "true",
 			}, "csi-plugin")
+			sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, corev1.PersistentVolumeBlock)
+
 			dv.Spec.PVC.StorageClassName = &scName
 			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			expectedSnapshotClass := "snap-class"
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
-			reconciler := createDatavolumeReconciler(sc, dv, pvc, snapClass)
+			reconciler := createDatavolumeReconciler(sc, sp, dv, pvc, snapClass)
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
@@ -385,6 +387,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			sc := createStorageClassWithProvisioner(scName, map[string]string{
 				AnnDefaultStorageClass: "true",
 			}, "csi-plugin")
+			sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, corev1.PersistentVolumeBlock)
+
 			dv.Spec.PVC.StorageClassName = &scName
 			pvc := createPvcInStorageClass("test", "test", &scName, nil, nil, corev1.ClaimBound)
 			dv.Finalizers = append(dv.Finalizers, "cdi.kubevirt.io/dataVolumeFinalizer")
@@ -398,7 +402,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 			expectedSnapshotClass := "snap-class"
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
-			reconciler := createDatavolumeReconciler(sc, dv, pvc, snapClass, ot)
+			reconciler := createDatavolumeReconciler(sc, sp, dv, pvc, snapClass, ot)
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
@@ -415,11 +419,13 @@ var _ = Describe("All DataVolume Tests", func() {
 			sc := createStorageClassWithProvisioner(scName, map[string]string{
 				AnnDefaultStorageClass: "true",
 			}, "csi-plugin")
+			sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, corev1.PersistentVolumeBlock)
+
 			dv.Spec.PVC.StorageClassName = &scName
 			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
 			expectedSnapshotClass := "snap-class"
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
-			reconciler := createDatavolumeReconciler(sc, dv, pvc, snapClass, podFunc(dv))
+			reconciler := createDatavolumeReconciler(sc, sp, dv, pvc, snapClass, podFunc(dv))
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
@@ -898,7 +904,15 @@ var _ = Describe("All DataVolume Tests", func() {
 		})
 
 		DescribeTable("DV phase", func(testDv runtime.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann, expectedEvent string, extraAnnotations ...string) {
-			reconciler = createDatavolumeReconciler(testDv)
+			scName := "testpvc"
+
+			// this pvc is only used by the "clone" DV
+			srcPvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			sc := createStorageClassWithProvisioner(scName, map[string]string{AnnDefaultStorageClass: "true"}, "csi-plugin")
+			storageProfile := createStorageProfile(scName, nil, corev1.PersistentVolumeBlock)
+
+			reconciler = createDatavolumeReconciler(testDv, srcPvc, sc, storageProfile)
+
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			dv := &cdiv1.DataVolume{}
@@ -1142,17 +1156,8 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(snapclass).To(Equal(expectedSnapshotClass))
 		})
 
-		It("Clone strategy should default to snapshot", func() {
-			dv := newImportDataVolume("test-dv")
-			reconciler := createDatavolumeReconciler(dv)
-			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			cloneStrategy, err := reconciler.getCloneStrategy()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(cloneStrategy).To(Equal(cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)))
-		})
-
-		DescribeTable("Setting clone strategy affects the output of getCloneStrategy", func(expectedCloneStrategy cdiv1.CDICloneStrategy) {
-			dv := newImportDataVolume("test-dv")
+		DescribeTable("Setting clone strategy affects the output of getGlobalCloneStrategyOverride", func(expectedCloneStrategy cdiv1.CDICloneStrategy) {
+			dv := newCloneDataVolume("test-dv")
 			reconciler := createDatavolumeReconciler(dv)
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 
@@ -1164,16 +1169,77 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Update(context.TODO(), cr)
 			Expect(err).ToNot(HaveOccurred())
 
-			cloneStrategy, err := reconciler.getCloneStrategy()
+			cloneStrategy, err := getGlobalCloneStrategyOverride(reconciler)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cloneStrategy).To(Equal(expectedCloneStrategy))
+			Expect(*cloneStrategy).To(Equal(expectedCloneStrategy))
 		},
-			Entry("snapshot", cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
-			Entry("copy", cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
+			Entry("copy", cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
+			Entry("snapshot", cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
 		)
 
 	})
 
+	var _ = Describe("Clone strategy", func() {
+		var (
+			hostAssited = cdiv1.CloneStrategyHostAssisted
+			snapshot    = cdiv1.CloneStrategySnapshot
+			csiClone    = cdiv1.CloneStrategyCsiClone
+		)
+
+		getStrategy := func(strategyName *string) *cdiv1.CDICloneStrategy {
+			if strategyName != nil {
+				strategy := cdiv1.CDICloneStrategy(*strategyName)
+				return &strategy
+			}
+
+			return nil
+		}
+
+		DescribeTable("Setting clone strategy affects the output of getCloneStrategy",
+			func(override, preferredCloneStrategy *string, expectedCloneStrategy cdiv1.CDICloneStrategy) {
+				dv := newCloneDataVolume("test-dv")
+				scName := "testsc"
+				pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+				sc := createStorageClassWithProvisioner(scName, map[string]string{
+					AnnDefaultStorageClass: "true",
+				}, "csi-plugin")
+
+				storageProfile := createStorageProfileWithCloneStrategy(scName,
+					[]corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany},
+					corev1.PersistentVolumeBlock,
+					getStrategy(preferredCloneStrategy))
+
+				reconciler := createDatavolumeReconciler(dv, pvc, storageProfile, sc)
+				reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+
+				cr := &cdiv1.CDI{}
+				err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cr)
+				Expect(err).ToNot(HaveOccurred())
+
+				cr.Spec.CloneStrategyOverride = getStrategy(override)
+				err = reconciler.client.Update(context.TODO(), cr)
+				Expect(err).ToNot(HaveOccurred())
+
+				cloneStrategy, err := reconciler.getCloneStrategy(dv)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(*cloneStrategy).To(Equal(expectedCloneStrategy))
+			},
+			Entry("override hostAssisted /host", &hostAssited, &hostAssited, cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
+			Entry("override hostAssisted /snapshot", &hostAssited, &snapshot, cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
+			Entry("override hostAssisted /csiClone", &hostAssited, &csiClone, cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
+			Entry("override hostAssisted /nil", &hostAssited, nil, cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
+
+			Entry("override snapshot /host", &snapshot, &hostAssited, cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
+			Entry("override snapshot /snapshot", &snapshot, &snapshot, cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
+			Entry("override snapshot /csiClone", &snapshot, &csiClone, cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
+			Entry("override snapshot /nil", &snapshot, nil, cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
+
+			Entry("preferred snapshot", nil, &snapshot, cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
+			Entry("preferred hostassisted", nil, &hostAssited, cdiv1.CDICloneStrategy(cdiv1.CloneStrategyHostAssisted)),
+			Entry("preferred csiClone", nil, &csiClone, cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone)),
+			Entry("should default to snapshot", nil, nil, cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)),
+		)
+	})
 	var _ = Describe("Get Pod from PVC", func() {
 		var (
 			reconciler *DatavolumeReconciler
@@ -1396,7 +1462,15 @@ func createDatavolumeReconcilerWithoutConfig(objects ...runtime.Object) *Datavol
 	}
 	return r
 }
-
+func newPvc(name string) *corev1.PersistentVolumeClaim {
+	return &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: metav1.NamespaceDefault,
+			UID:       types.UID(metav1.NamespaceDefault + "-" + name),
+		},
+	}
+}
 func newImportDataVolumeWithPvc(name string, pvc *corev1.PersistentVolumeClaimSpec) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
 		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
