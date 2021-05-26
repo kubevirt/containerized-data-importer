@@ -14,10 +14,9 @@ import (
 
 	"github.com/ghodss/yaml"
 	secv1 "github.com/openshift/api/security/v1"
-	"k8s.io/api/admissionregistration/v1beta1"
-	v1beta12 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
-	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -40,9 +39,9 @@ type Strategy struct {
 	services                        []*corev1.Service
 	deployments                     []*appsv1.Deployment
 	daemonSets                      []*appsv1.DaemonSet
-	validatingWebhookConfigurations []*v1beta1.ValidatingWebhookConfiguration
-	mutatingWebhookConfigurations   []*v1beta1.MutatingWebhookConfiguration
-	apiServices                     []*v1beta12.APIService
+	validatingWebhookConfigurations []*admissionregistrationv1.ValidatingWebhookConfiguration
+	mutatingWebhookConfigurations   []*admissionregistrationv1.MutatingWebhookConfiguration
+	apiServices                     []*apiregistrationv1.APIService
 	certificateSecrets              []*corev1.Secret
 	sccs                            []*secv1.SecurityContextConstraints
 	configMaps                      []*corev1.ConfigMap
@@ -119,17 +118,17 @@ func (ins *Strategy) DaemonSets() []*appsv1.DaemonSet {
 }
 
 // ValidatingWebhookConfigurations returns list of Validating Webhook Configurations
-func (ins *Strategy) ValidatingWebhookConfigurations() []*admissionregistrationv1beta1.ValidatingWebhookConfiguration {
+func (ins *Strategy) ValidatingWebhookConfigurations() []*admissionregistrationv1.ValidatingWebhookConfiguration {
 	return ins.validatingWebhookConfigurations
 }
 
 // MutatingWebhookConfigurations returns list of Mutating Webhook Configurations
-func (ins *Strategy) MutatingWebhookConfigurations() []*admissionregistrationv1beta1.MutatingWebhookConfiguration {
+func (ins *Strategy) MutatingWebhookConfigurations() []*admissionregistrationv1.MutatingWebhookConfiguration {
 	return ins.mutatingWebhookConfigurations
 }
 
 // APIServices returns list of API Services
-func (ins *Strategy) APIServices() []*v1beta12.APIService {
+func (ins *Strategy) APIServices() []*apiregistrationv1.APIService {
 	return ins.apiServices
 }
 
@@ -274,11 +273,11 @@ func generateCurrentInstallStrategy(resources []runtime.Object, reqLogger logr.L
 		case "ConfigMap":
 			strategy.configMaps = append(strategy.configMaps, desiredRuntimeObj.(*corev1.ConfigMap))
 		case "APIService":
-			strategy.apiServices = append(strategy.apiServices, desiredRuntimeObj.(*v1beta12.APIService))
+			strategy.apiServices = append(strategy.apiServices, desiredRuntimeObj.(*apiregistrationv1.APIService))
 		case "ValidatingWebhookConfiguration":
-			strategy.validatingWebhookConfigurations = append(strategy.validatingWebhookConfigurations, desiredRuntimeObj.(*v1beta1.ValidatingWebhookConfiguration))
+			strategy.validatingWebhookConfigurations = append(strategy.validatingWebhookConfigurations, desiredRuntimeObj.(*admissionregistrationv1.ValidatingWebhookConfiguration))
 		case "MutatingWebhookConfiguration":
-			strategy.mutatingWebhookConfigurations = append(strategy.mutatingWebhookConfigurations, desiredRuntimeObj.(*v1beta1.MutatingWebhookConfiguration))
+			strategy.mutatingWebhookConfigurations = append(strategy.mutatingWebhookConfigurations, desiredRuntimeObj.(*admissionregistrationv1.MutatingWebhookConfiguration))
 		default:
 			reqLogger.Info("Object not added to install strategy ", "kind", kind)
 		}

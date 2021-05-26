@@ -26,7 +26,7 @@ import (
 	"net/url"
 	"reflect"
 
-	"k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -79,7 +79,7 @@ func validateContentTypes(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataV
 	return sourceContentType == targetContentType, sourceContentType, targetContentType
 }
 
-func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.AdmissionRequest, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec) []metav1.StatusCause {
+func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admissionv1.AdmissionRequest, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec) []metav1.StatusCause {
 	var causes []metav1.StatusCause
 	var url string
 	var sourceType string
@@ -264,7 +264,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *v1beta1.A
 			return causes
 		}
 
-		if request.Operation == v1beta1.Create {
+		if request.Operation == admissionv1.Create {
 			sourcePVC, err := wh.client.CoreV1().PersistentVolumeClaims(spec.Source.PVC.Namespace).Get(context.TODO(), spec.Source.PVC.Name, metav1.GetOptions{})
 			if err != nil {
 				if k8serrors.IsNotFound(err) {
@@ -329,7 +329,7 @@ func validateStorageSize(resources v1.ResourceRequirements, field *k8sfield.Path
 	return nil, true
 }
 
-func (wh *dataVolumeValidatingWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 	if err := validateDataVolumeResource(ar); err != nil {
 		return toAdmissionResponseError(err)
 	}
@@ -342,7 +342,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta
 		return toAdmissionResponseError(err)
 	}
 
-	if ar.Request.Operation == v1beta1.Update {
+	if ar.Request.Operation == admissionv1.Update {
 		oldDV := cdiv1.DataVolume{}
 		err = json.Unmarshal(ar.Request.OldObject.Raw, &oldDV)
 		if err != nil {
@@ -382,7 +382,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta
 		return toRejectedAdmissionResponse(causes)
 	}
 
-	if ar.Request.Operation == v1beta1.Create {
+	if ar.Request.Operation == admissionv1.Create {
 		pvc, err := wh.client.CoreV1().PersistentVolumeClaims(dv.GetNamespace()).Get(context.TODO(), dv.GetName(), metav1.GetOptions{})
 		if err != nil {
 			if !k8serrors.IsNotFound(err) {
@@ -417,7 +417,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar v1beta1.AdmissionReview) *v1beta
 		return toRejectedAdmissionResponse(causes)
 	}
 
-	reviewResponse := v1beta1.AdmissionResponse{}
+	reviewResponse := admissionv1.AdmissionResponse{}
 	reviewResponse.Allowed = true
 	return &reviewResponse
 }

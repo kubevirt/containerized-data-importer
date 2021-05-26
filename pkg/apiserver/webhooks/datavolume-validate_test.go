@@ -30,7 +30,7 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -197,9 +197,9 @@ var _ = Describe("Validating Webhook", func() {
 			oldDataVolume.Spec.Source.PVC.Namespace = "oldNamespace"
 			oldBytes, _ := json.Marshal(oldDataVolume)
 
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Operation: v1beta1.Update,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -226,9 +226,9 @@ var _ = Describe("Validating Webhook", func() {
 			oldDataVolume.Annotations = map[string]string{"foo": "bar"}
 			oldBytes, _ := json.Marshal(oldDataVolume)
 
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Operation: v1beta1.Update,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -260,9 +260,9 @@ var _ = Describe("Validating Webhook", func() {
 				*resource.NewQuantity(pvcSizeDefault+1, resource.BinarySI)
 			oldBytes, _ := json.Marshal(oldDataVolume)
 
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Operation: v1beta1.Update,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -294,9 +294,9 @@ var _ = Describe("Validating Webhook", func() {
 				*resource.NewQuantity(pvcSizeDefault, resource.DecimalSI)
 			oldBytes, _ := json.Marshal(oldDataVolume)
 
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Operation: v1beta1.Update,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -325,9 +325,9 @@ var _ = Describe("Validating Webhook", func() {
 			}
 			newBytes, _ := json.Marshal(&newDV)
 
-			ar := &v1beta1.AdmissionReview{
-				Request: &v1beta1.AdmissionRequest{
-					Operation: v1beta1.Update,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -503,14 +503,14 @@ func newPVCSpec(sizeValue int64) *corev1.PersistentVolumeClaimSpec {
 	return pvc
 }
 
-func validateDataVolumeCreate(dv *cdiv1.DataVolume, objects ...runtime.Object) *v1beta1.AdmissionResponse {
+func validateDataVolumeCreate(dv *cdiv1.DataVolume, objects ...runtime.Object) *admissionv1.AdmissionResponse {
 	client := fakeclient.NewSimpleClientset(objects...)
 	wh := NewDataVolumeValidatingWebhook(client)
 
 	dvBytes, _ := json.Marshal(dv)
-	ar := &v1beta1.AdmissionReview{
-		Request: &v1beta1.AdmissionRequest{
-			Operation: v1beta1.Create,
+	ar := &admissionv1.AdmissionReview{
+		Request: &admissionv1.AdmissionRequest{
+			Operation: admissionv1.Create,
 			Resource: metav1.GroupVersionResource{
 				Group:    cdiv1.SchemeGroupVersion.Group,
 				Version:  cdiv1.SchemeGroupVersion.Version,
@@ -525,13 +525,13 @@ func validateDataVolumeCreate(dv *cdiv1.DataVolume, objects ...runtime.Object) *
 	return serve(ar, wh)
 }
 
-func validateAdmissionReview(ar *v1beta1.AdmissionReview, objects ...runtime.Object) *v1beta1.AdmissionResponse {
+func validateAdmissionReview(ar *admissionv1.AdmissionReview, objects ...runtime.Object) *admissionv1.AdmissionResponse {
 	client := fakeclient.NewSimpleClientset(objects...)
 	wh := NewDataVolumeValidatingWebhook(client)
 	return serve(ar, wh)
 }
 
-func serve(ar *v1beta1.AdmissionReview, handler http.Handler) *v1beta1.AdmissionResponse {
+func serve(ar *admissionv1.AdmissionReview, handler http.Handler) *admissionv1.AdmissionResponse {
 	reqBytes, _ := json.Marshal(ar)
 	req, err := http.NewRequest("POST", "/foobar", bytes.NewReader(reqBytes))
 	Expect(err).ToNot(HaveOccurred())
@@ -541,7 +541,7 @@ func serve(ar *v1beta1.AdmissionReview, handler http.Handler) *v1beta1.Admission
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	var response v1beta1.AdmissionReview
+	var response admissionv1.AdmissionReview
 	err = json.NewDecoder(rr.Body).Decode(&response)
 	Expect(err).ToNot(HaveOccurred())
 
