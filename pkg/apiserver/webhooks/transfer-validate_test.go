@@ -26,8 +26,7 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/api/admission/v1beta1"
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -40,9 +39,9 @@ import (
 var _ = Describe("ObjectTransfer webhook", func() {
 	Describe("CREATE/UPDATE tests", func() {
 		It("should reject invalid resource name", func() {
-			ar := &admissionv1beta1.AdmissionReview{
-				Request: &admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Create,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -57,9 +56,9 @@ var _ = Describe("ObjectTransfer webhook", func() {
 		})
 
 		It("should allow unsupported operation", func() {
-			ar := &admissionv1beta1.AdmissionReview{
-				Request: &admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Delete,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Delete,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -90,9 +89,9 @@ var _ = Describe("ObjectTransfer webhook", func() {
 
 			bytes, _ := json.Marshal(ot)
 
-			ar := &admissionv1beta1.AdmissionReview{
-				Request: &admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Create,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -128,9 +127,9 @@ var _ = Describe("ObjectTransfer webhook", func() {
 
 			bytes, _ := json.Marshal(ot)
 
-			ar := &admissionv1beta1.AdmissionReview{
-				Request: &admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Create,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -166,9 +165,9 @@ var _ = Describe("ObjectTransfer webhook", func() {
 
 			bytes, _ := json.Marshal(ot)
 
-			ar := &admissionv1beta1.AdmissionReview{
-				Request: &admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Create,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -217,9 +216,9 @@ var _ = Describe("ObjectTransfer webhook", func() {
 
 			bytes, _ := json.Marshal(ot)
 
-			ar := &admissionv1beta1.AdmissionReview{
-				Request: &admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Create,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -260,9 +259,9 @@ var _ = Describe("ObjectTransfer webhook", func() {
 			bytes, _ := json.Marshal(ot)
 			bytes2, _ := json.Marshal(ot2)
 
-			ar := &admissionv1beta1.AdmissionReview{
-				Request: &admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Update,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -305,9 +304,9 @@ var _ = Describe("ObjectTransfer webhook", func() {
 			bytes, _ := json.Marshal(ot)
 			bytes2, _ := json.Marshal(ot2)
 
-			ar := &admissionv1beta1.AdmissionReview{
-				Request: &admissionv1beta1.AdmissionRequest{
-					Operation: admissionv1beta1.Update,
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
 					Resource: metav1.GroupVersionResource{
 						Group:    cdiv1.SchemeGroupVersion.Group,
 						Version:  cdiv1.SchemeGroupVersion.Version,
@@ -328,7 +327,7 @@ var _ = Describe("ObjectTransfer webhook", func() {
 	})
 })
 
-func validateObjectTransfers(ar *admissionv1beta1.AdmissionReview, k8sObjects, cdiObjects []runtime.Object) *v1beta1.AdmissionResponse {
+func validateObjectTransfers(ar *admissionv1.AdmissionReview, k8sObjects, cdiObjects []runtime.Object) *admissionv1.AdmissionResponse {
 	k8sClient := k8sclient.NewSimpleClientset(k8sObjects...)
 	cdiClient := cdiclient.NewSimpleClientset(cdiObjects...)
 	wh := NewObjectTransferValidatingWebhook(k8sClient, cdiClient)

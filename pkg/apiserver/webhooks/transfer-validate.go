@@ -24,7 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,7 +40,7 @@ type objectTransferValidatingWebhook struct {
 	cdiClient cdiclient.Interface
 }
 
-func (wh *objectTransferValidatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admissionv1beta1.AdmissionResponse {
+func (wh *objectTransferValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 	klog.V(3).Infof("Got AdmissionReview %+v", ar)
 
 	if ar.Request.Resource.Group != cdiv1.CDIGroupVersionKind.Group || ar.Request.Resource.Resource != "objecttransfers" {
@@ -49,8 +49,8 @@ func (wh *objectTransferValidatingWebhook) Admit(ar admissionv1beta1.AdmissionRe
 	}
 
 	switch ar.Request.Operation {
-	case admissionv1beta1.Create:
-	case admissionv1beta1.Update:
+	case admissionv1.Create:
+	case admissionv1.Update:
 	default:
 		klog.V(3).Infof("Got unexpected operation type %s", ar.Request.Operation)
 		return allowedAdmissionResponse()
@@ -61,7 +61,7 @@ func (wh *objectTransferValidatingWebhook) Admit(ar admissionv1beta1.AdmissionRe
 		return toAdmissionResponseError(err)
 	}
 
-	if ar.Request.Operation == admissionv1beta1.Update {
+	if ar.Request.Operation == admissionv1.Update {
 		oldObj := &cdiv1.ObjectTransfer{}
 		if err := json.Unmarshal(ar.Request.OldObject.Raw, oldObj); err != nil {
 			return toAdmissionResponseError(err)

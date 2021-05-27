@@ -23,7 +23,7 @@ import (
 	"context"
 	"encoding/json"
 
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	authv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
@@ -58,7 +58,7 @@ func (p *sarProxy) Create(sar *authv1.SubjectAccessReview) (*authv1.SubjectAcces
 	return p.client.AuthorizationV1().SubjectAccessReviews().Create(context.TODO(), sar, metav1.CreateOptions{})
 }
 
-func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admissionv1beta1.AdmissionResponse {
+func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 	var dataVolume, oldDataVolume cdiv1.DataVolume
 
 	klog.V(3).Infof("Got AdmissionReview %+v", ar)
@@ -91,7 +91,7 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) 
 		sourceNamespace = targetNamespace
 	}
 
-	if ar.Request.Operation == admissionv1beta1.Update {
+	if ar.Request.Operation == admissionv1.Update {
 		if err := json.Unmarshal(ar.Request.OldObject.Raw, &oldDataVolume); err != nil {
 			return toAdmissionResponseError(err)
 		}

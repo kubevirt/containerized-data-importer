@@ -26,7 +26,7 @@ import (
 
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 
@@ -40,7 +40,7 @@ type cdiValidatingWebhook struct {
 	client cdiclient.Interface
 }
 
-func (wh *cdiValidatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admissionv1beta1.AdmissionResponse {
+func (wh *cdiValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 	klog.V(3).Infof("Got AdmissionReview %+v", ar)
 
 	if ar.Request.Resource.Group != cdiv1.CDIGroupVersionKind.Group || ar.Request.Resource.Resource != "cdis" {
@@ -48,7 +48,7 @@ func (wh *cdiValidatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admi
 		return toAdmissionResponseError(fmt.Errorf("unexpected resource: %s", ar.Request.Resource.Resource))
 	}
 
-	if ar.Request.Operation != admissionv1beta1.Delete {
+	if ar.Request.Operation != admissionv1.Delete {
 		klog.V(3).Infof("Got unexpected operation type %s", ar.Request.Operation)
 		return allowedAdmissionResponse()
 	}
@@ -77,7 +77,7 @@ func (wh *cdiValidatingWebhook) Admit(ar admissionv1beta1.AdmissionReview) *admi
 	return allowedAdmissionResponse()
 }
 
-func (wh *cdiValidatingWebhook) getResource(ar admissionv1beta1.AdmissionReview) (*cdiv1.CDI, error) {
+func (wh *cdiValidatingWebhook) getResource(ar admissionv1.AdmissionReview) (*cdiv1.CDI, error) {
 	var cdi *cdiv1.CDI
 
 	if len(ar.Request.OldObject.Raw) > 0 {
