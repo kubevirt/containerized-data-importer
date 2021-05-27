@@ -727,7 +727,7 @@ func (r *DatavolumeReconciler) initTransfer(dv *cdiv1.DataVolume, name string) (
 
 	if !HasFinalizer(dv, crossNamespaceFinalizer) {
 		AddFinalizer(dv, crossNamespaceFinalizer)
-		if err := r.client.Update(context.TODO(), dv); dv != nil {
+		if err := r.client.Update(context.TODO(), dv); err != nil {
 			return false, err
 		}
 
