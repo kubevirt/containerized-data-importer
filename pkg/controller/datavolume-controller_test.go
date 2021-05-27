@@ -379,7 +379,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(dv.Status.Phase).To(Equal(cdiv1.SnapshotForSmartCloneInProgress))
 		})
 
-		It("Should should do nothing when smart clone with namespace transfer and not target found", func() {
+		It("Should do nothing when smart clone with namespace transfer and not target found", func() {
 			dv := newCloneDataVolume("test-dv")
 			scName := "testsc"
 			sc := createStorageClassWithProvisioner(scName, map[string]string{
