@@ -2639,6 +2639,15 @@ spec:
                   blank:
                     description: DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC
                     type: object
+                  gcs:
+                    description: DataVolumeSourceGCS provides the parameters to create a Data Volume from a GCS source
+                    properties:
+                      url:
+                        description: URL is the url of the GCS source
+                        type: string
+                    required:
+                    - url
+                    type: object
                   http:
                     description: DataVolumeSourceHTTP can be either an http or https endpoint, with an optional basic auth user name and password, and an optional configmap containing additional CAs
                     properties:
@@ -3026,6 +3035,15 @@ spec:
                 properties:
                   blank:
                     description: DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC
+                    type: object
+                  gcs:
+                    description: DataVolumeSourceGCS provides the parameters to create a Data Volume from a GCS source
+                    properties:
+                      url:
+                        description: URL is the url of the GCS source
+                        type: string
+                    required:
+                    - url
                     type: object
                   http:
                     description: DataVolumeSourceHTTP can be either an http or https endpoint, with an optional basic auth user name and password, and an optional configmap containing additional CAs

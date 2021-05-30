@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["main.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/golang/protobuf/protoc-gen-go",
+    importpath = "github.com/golang/protobuf/protoc-gen-go",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//vendor/github.com/golang/protobuf/internal/gengogrpc:go_default_library",
+        "//vendor/google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo:go_default_library",
+        "//vendor/google.golang.org/protobuf/compiler/protogen:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "protoc-gen-go",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)

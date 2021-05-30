@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["trace.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/cloud.google.com/go/internal/trace",
+    importpath = "cloud.google.com/go/internal/trace",
+    visibility = ["//vendor/cloud.google.com/go:__subpackages__"],
+    deps = [
+        "//vendor/go.opencensus.io/trace:go_default_library",
+        "//vendor/google.golang.org/api/googleapi:go_default_library",
+        "//vendor/google.golang.org/genproto/googleapis/rpc/code:go_default_library",
+        "//vendor/google.golang.org/grpc/status:go_default_library",
+    ],
+)

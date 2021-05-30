@@ -73,6 +73,27 @@ gazelle_dependencies()
 
 #buildifier_dependencies()
 
+go_repository(
+    name = "org_golang_google_grpc",
+    importpath = "google.golang.org/grpc",
+    sum = "h1:2dTRdpdFEEhJYQD8EMLB61nnrzSCTbG38PhqdhvOltg=",
+    version = "v1.26.0",
+)
+
+go_repository(
+    name = "org_golang_x_net",
+    importpath = "golang.org/x/net",
+    sum = "h1:IX6qOQeG5uLjB/hjjwjedwfjND0hgjPMMyO1RoIXQNI=",
+    version = "v0.0.0-20201021035429-f5854403a974",
+)
+
+go_repository(
+    name = "org_golang_x_text",
+    importpath = "golang.org/x/text",
+    sum = "h1:cokOdA+Jmi5PJGXLlLllQSgYigAEfHXJAERHVMaCc2k=",
+    version = "v0.3.3",
+)
+
 # bazel docker rules
 http_archive(
     name = "io_bazel_rules_docker",

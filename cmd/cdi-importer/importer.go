@@ -144,6 +144,16 @@ func main() {
 				}
 				os.Exit(1)
 			}
+		case controller.SourceGCS:
+			dp, err = importer.NewGCSDataSource(ep)
+			if err != nil {
+				klog.Errorf("%+v", err)
+				err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to gcs data source: %+v", err))
+				if err != nil {
+					klog.Errorf("%+v", err)
+				}
+				os.Exit(1)
+			}
 		case controller.SourceImageio:
 			dp, err = importer.NewImageioDataSource(ep, acc, sec, certDir, diskID)
 			if err != nil {

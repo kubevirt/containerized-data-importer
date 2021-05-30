@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["grpc.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/golang/protobuf/internal/gengogrpc",
+    importpath = "github.com/golang/protobuf/internal/gengogrpc",
+    visibility = ["//vendor/github.com/golang/protobuf:__subpackages__"],
+    deps = [
+        "//vendor/google.golang.org/protobuf/compiler/protogen:go_default_library",
+        "//vendor/google.golang.org/protobuf/types/descriptorpb:go_default_library",
+    ],
+)

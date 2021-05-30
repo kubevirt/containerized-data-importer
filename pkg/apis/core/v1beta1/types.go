@@ -112,9 +112,10 @@ const (
 	DataVolumeArchive DataVolumeContentType = "archive"
 )
 
-// DataVolumeSource represents the source for our Data Volume, this can be HTTP, Imageio, S3, Registry or an existing PVC
+// DataVolumeSource represents the source for our Data Volume, this can be GCS, HTTP, Imageio, S3, Registry or an existing PVC
 type DataVolumeSource struct {
 	HTTP     *DataVolumeSourceHTTP     `json:"http,omitempty"`
+	GCS      *DataVolumeSourceGCS      `json:"gcs,omitempty"`
 	S3       *DataVolumeSourceS3       `json:"s3,omitempty"`
 	Registry *DataVolumeSourceRegistry `json:"registry,omitempty"`
 	PVC      *DataVolumeSourcePVC      `json:"pvc,omitempty"`
@@ -137,6 +138,12 @@ type DataVolumeBlankImage struct{}
 
 // DataVolumeSourceUpload provides the parameters to create a Data Volume by uploading the source
 type DataVolumeSourceUpload struct {
+}
+
+// DataVolumeSourceGCS provides the parameters to create a Data Volume from a GCS source
+type DataVolumeSourceGCS struct {
+	// URL is the url of the GCS source
+	URL string `json:"url"`
 }
 
 // DataVolumeSourceS3 provides the parameters to create a Data Volume from an S3 source

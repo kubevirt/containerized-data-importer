@@ -45,7 +45,7 @@ func (DataVolumeCheckpoint) SwaggerDoc() map[string]string {
 
 func (DataVolumeSource) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "DataVolumeSource represents the source for our Data Volume, this can be HTTP, Imageio, S3, Registry or an existing PVC",
+		"": "DataVolumeSource represents the source for our Data Volume, this can be HTTP, GCS, Imageio, S3, Registry or an existing PVC",
 	}
 }
 
@@ -66,6 +66,13 @@ func (DataVolumeBlankImage) SwaggerDoc() map[string]string {
 func (DataVolumeSourceUpload) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"": "DataVolumeSourceUpload provides the parameters to create a Data Volume by uploading the source",
+	}
+}
+
+func (DataVolumeSourceGCS) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":    "DataVolumeSourceGCS provides the parameters to create a Data Volume from a GCS source",
+		"url": "URL is the url of the GCS source",
 	}
 }
 

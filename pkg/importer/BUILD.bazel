@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "data-processor.go",
         "format-readers.go",
+        "gcs-datasource.go",
         "http-datasource.go",
         "imageio-datasource.go",
         "registry-datasource.go",
@@ -22,6 +23,7 @@ go_library(
         "//pkg/image:go_default_library",
         "//pkg/util:go_default_library",
         "//pkg/util/prometheus:go_default_library",
+        "//vendor/cloud.google.com/go/storage:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/aws:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/aws/credentials:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/aws/session:go_default_library",

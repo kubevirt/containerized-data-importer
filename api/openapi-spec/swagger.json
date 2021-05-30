@@ -3805,11 +3805,14 @@
     }
    },
    "v1beta1.DataVolumeSource": {
-    "description": "DataVolumeSource represents the source for our Data Volume, this can be HTTP, Imageio, S3, Registry or an existing PVC",
+    "description": "DataVolumeSource represents the source for our Data Volume, this can be GCS, HTTP, Imageio, S3, Registry or an existing PVC",
     "type": "object",
     "properties": {
      "blank": {
       "$ref": "#/definitions/v1beta1.DataVolumeBlankImage"
+     },
+     "gcs": {
+      "$ref": "#/definitions/v1beta1.DataVolumeSourceGCS"
      },
      "http": {
       "$ref": "#/definitions/v1beta1.DataVolumeSourceHTTP"
@@ -3831,6 +3834,20 @@
      },
      "vddk": {
       "$ref": "#/definitions/v1beta1.DataVolumeSourceVDDK"
+     }
+    }
+   },
+   "v1beta1.DataVolumeSourceGCS": {
+    "description": "DataVolumeSourceGCS provides the parameters to create a Data Volume from a GCS source",
+    "type": "object",
+    "required": [
+     "url"
+    ],
+    "properties": {
+     "url": {
+      "description": "URL is the url of the GCS source",
+      "type": "string",
+      "default": ""
      }
     }
    },

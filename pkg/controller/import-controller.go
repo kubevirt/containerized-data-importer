@@ -38,6 +38,8 @@ const (
 
 	// SourceHTTP is the source type HTTP, if unspecified or invalid, it defaults to SourceHTTP
 	SourceHTTP = "http"
+	// SourceGCS is the source type Google Cloud Storage (GCS)
+	SourceGCS = "gcs"
 	// SourceS3 is the source type S3
 	SourceS3 = "s3"
 	// SourceGlance is the source type of glance
@@ -705,6 +707,7 @@ func getSource(pvc *corev1.PersistentVolumeClaim) string {
 	switch source {
 	case
 		SourceHTTP,
+		SourceGCS,
 		SourceS3,
 		SourceGlance,
 		SourceNone,
