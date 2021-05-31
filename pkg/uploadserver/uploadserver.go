@@ -415,7 +415,7 @@ func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string,
 
 	uds := importer.NewAsyncUploadDataSource(newContentReader(stream, sourceContentType))
 	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation)
-	return processor, processor.ProcessDataWithPause()
+	return processor, nil
 }
 
 func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string) (bool, error) {
