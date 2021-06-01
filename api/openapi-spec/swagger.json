@@ -3909,12 +3909,11 @@
     "type": "object",
     "required": [
      "kind",
-     "namespace",
      "name"
     ],
     "properties": {
      "kind": {
-      "description": "The kind of the source reference, currently only DataSource is supported",
+      "description": "The kind of the source reference, currently only \"DataSource\" is supported",
       "type": "string"
      },
      "name": {
@@ -3922,7 +3921,7 @@
       "type": "string"
      },
      "namespace": {
-      "description": "The namespace of the source reference",
+      "description": "The namespace of the source reference, defaults to the DataVolume namespace",
       "type": "string"
      }
     }

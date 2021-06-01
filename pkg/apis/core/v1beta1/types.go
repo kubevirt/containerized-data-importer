@@ -198,20 +198,18 @@ type DataVolumeSourceVDDK struct {
 
 // DataVolumeSourceRef defines an indirect reference to the source of data for the DataVolume
 type DataVolumeSourceRef struct {
-	// The kind of the source reference, currently only DataSource is supported
-	Kind DataVolumeSourceRefKind `json:"kind"`
-	// The namespace of the source reference
-	Namespace string `json:"namespace"`
+	// The kind of the source reference, currently only "DataSource" is supported
+	Kind string `json:"kind"`
+	// The namespace of the source reference, defaults to the DataVolume namespace
+	// +optional
+	Namespace *string `json:"namespace,omitempty"`
 	// The name of the source reference
 	Name string `json:"name"`
 }
 
-// DataVolumeSourceRefKind represents the kinds of DataVolumeSourceRef
-type DataVolumeSourceRefKind string
-
 const (
 	// DataVolumeDataSource is DataSource source reference for DataVolume
-	DataVolumeDataSource DataVolumeSourceRefKind = "DataSource"
+	DataVolumeDataSource = "DataSource"
 )
 
 // DataVolumeStatus contains the current status of the DataVolume
@@ -392,11 +390,9 @@ type DataSourceSpec struct {
 
 // DataSourceSource represents the source for our DataSource
 type DataSourceSource struct {
-	PVC *DataSourceSourcePVC `json:"pvc"`
+	// +optional
+	PVC *DataVolumeSourcePVC `json:"pvc,omitempty"`
 }
-
-// DataSourceSourcePVC provides the parameters to refer an existing PVC
-type DataSourceSourcePVC = DataVolumeSourcePVC
 
 // DataSourceStatus provides the most recently observed status of the DataSource
 type DataSourceStatus struct {
@@ -442,29 +438,35 @@ type DataImportCronSpec struct {
 	Source DataImportCronSource `json:"source"`
 	// Schedule specifies in cron format when and how often to look for new imports
 	Schedule string `json:"schedule"`
-	// GarbageCollectOutdated specifies whether old PVCs should be cleaned up after a new PVC is imported
-	GarbageCollectOutdated bool `json:"garbageCollectOutdated"`
+	// GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported
+	// Options are currently "Never" and "Outdated", defaults to "Never"
+	// +optional
+	GarbageCollect *string `json:"garbageCollect,omitempty"`
 	// ManagedDataSource specifies the name of the corresponding DataSource this cron will manage
 	ManagedDataSource string `json:"managedDataSource"`
 }
 
+const (
+	// DataImportCronGarbageCollectNever specifies that garbage collection is disabled
+	DataImportCronGarbageCollectNever = "Never"
+	// DataImportCronGarbageCollectOutdated specifies that old PVCs should be cleaned up after a new PVC is imported
+	DataImportCronGarbageCollectOutdated = "Outdated"
+)
+
 // DataImportCronSource defines where to poll and import disk images from
 type DataImportCronSource struct {
-	Registry *DataImportCronSourceRegistry `json:"registry"`
+	Registry *DataVolumeSourceRegistry `json:"registry"`
 }
-
-// DataImportCronSourceRegistry provides the parameters to refer a registry source
-type DataImportCronSourceRegistry = DataVolumeSourceRegistry
 
 // DataImportCronStatus provides the most recently observed status of the DataImportCron
 type DataImportCronStatus struct {
-	// LastImportedPVC is the name of the last imported PVC
-	LastImportedPVC string `json:"lastImportedPVC,omitempty"`
+	// LastImportedPVC is the last imported PVC
+	LastImportedPVC *DataVolumeSourcePVC `json:"lastImportedPVC,omitempty"`
 	// LastExecutionTimestamp is the time of the last polling
-	LastExecutionTimestamp string `json:"lastExecutionTimestamp,omitempty"`
-	// LastImport is the time of the last import
-	LastImport string                    `json:"lastImport,omitempty"`
-	Conditions []DataImportCronCondition `json:"conditions,omitempty" optional:"true"`
+	LastExecutionTimestamp *metav1.Time `json:"lastExecutionTimestamp,omitempty"`
+	// LastImportTimestamp is the time of the last import
+	LastImportTimestamp *metav1.Time              `json:"lastImportTimestamp,omitempty"`
+	Conditions          []DataImportCronCondition `json:"conditions,omitempty" optional:"true"`
 }
 
 // DataImportCronCondition represents the state of a data import cron condition

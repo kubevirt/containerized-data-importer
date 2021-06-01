@@ -14974,10 +14974,10 @@ func schema_pkg_apis_core_v1beta1_DataImportCronSpec(ref common.ReferenceCallbac
 							Format:      "",
 						},
 					},
-					"garbageCollectOutdated": {
+					"garbageCollect": {
 						SchemaProps: spec.SchemaProps{
-							Description: "GarbageCollectOutdated specifies whether old PVCs should be cleaned up after a new PVC is imported",
-							Type:        []string{"boolean"},
+							Description: "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported Options are currently \"Never\" and \"Outdated\", defaults to \"Never\"",
+							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
@@ -14989,7 +14989,7 @@ func schema_pkg_apis_core_v1beta1_DataImportCronSpec(ref common.ReferenceCallbac
 						},
 					},
 				},
-				Required: []string{"source", "schedule", "garbageCollectOutdated", "managedDataSource"},
+				Required: []string{"source", "schedule", "managedDataSource"},
 			},
 		},
 		Dependencies: []string{
@@ -15006,23 +15006,20 @@ func schema_pkg_apis_core_v1beta1_DataImportCronStatus(ref common.ReferenceCallb
 				Properties: map[string]spec.Schema{
 					"lastImportedPVC": {
 						SchemaProps: spec.SchemaProps{
-							Description: "LastImportedPVC is the name of the last imported PVC",
-							Type:        []string{"string"},
-							Format:      "",
+							Description: "LastImportedPVC is the last imported PVC",
+							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourcePVC"),
 						},
 					},
 					"lastExecutionTimestamp": {
 						SchemaProps: spec.SchemaProps{
 							Description: "LastExecutionTimestamp is the time of the last polling",
-							Type:        []string{"string"},
-							Format:      "",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
-					"lastImport": {
+					"lastImportTimestamp": {
 						SchemaProps: spec.SchemaProps{
-							Description: "LastImport is the time of the last import",
-							Type:        []string{"string"},
-							Format:      "",
+							Description: "LastImportTimestamp is the time of the last import",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
 					"conditions": {
@@ -15041,7 +15038,7 @@ func schema_pkg_apis_core_v1beta1_DataImportCronStatus(ref common.ReferenceCallb
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataImportCronCondition"},
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataImportCronCondition", "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSourcePVC"},
 	}
 }
 
@@ -15177,7 +15174,6 @@ func schema_pkg_apis_core_v1beta1_DataSourceSource(ref common.ReferenceCallback)
 						},
 					},
 				},
-				Required: []string{"pvc"},
 			},
 		},
 		Dependencies: []string{
@@ -15601,14 +15597,14 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceRef(ref common.ReferenceCallba
 				Properties: map[string]spec.Schema{
 					"kind": {
 						SchemaProps: spec.SchemaProps{
-							Description: "The kind of the source reference, currently only DataSource is supported",
+							Description: "The kind of the source reference, currently only \"DataSource\" is supported",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"namespace": {
 						SchemaProps: spec.SchemaProps{
-							Description: "The namespace of the source reference",
+							Description: "The namespace of the source reference, defaults to the DataVolume namespace",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -15621,7 +15617,7 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceRef(ref common.ReferenceCallba
 						},
 					},
 				},
-				Required: []string{"kind", "namespace", "name"},
+				Required: []string{"kind", "name"},
 			},
 		},
 	}

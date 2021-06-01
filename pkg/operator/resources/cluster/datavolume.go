@@ -136,11 +136,11 @@ func createBetaV1DataVolumeCRDSchema() *extv1.CustomResourceValidation {
 		Type:        "object",
 		Properties: map[string]extv1.JSONSchemaProps{
 			"kind": {
-				Description: "The kind of the source reference, currently only DataSource is supported",
+				Description: "The kind of the source reference, currently only \"DataSource\" is supported",
 				Type:        "string",
 			},
 			"namespace": {
-				Description: "The namespace of the source reference",
+				Description: "The namespace of the source reference, defaults to the DataVolume namespace",
 				Type:        "string",
 			},
 			"name": {
@@ -151,7 +151,6 @@ func createBetaV1DataVolumeCRDSchema() *extv1.CustomResourceValidation {
 		Required: []string{
 			"kind",
 			"name",
-			"namespace",
 		},
 	}
 	return schema

@@ -121,8 +121,8 @@ func (DataVolumeSourceVDDK) SwaggerDoc() map[string]string {
 func (DataVolumeSourceRef) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":          "DataVolumeSourceRef defines an indirect reference to the source of data for the DataVolume",
-		"kind":      "The kind of the source reference, currently only DataSource is supported",
-		"namespace": "The namespace of the source reference",
+		"kind":      "The kind of the source reference, currently only \"DataSource\" is supported",
+		"namespace": "The namespace of the source reference, defaults to the DataVolume namespace\n+optional",
 		"name":      "The name of the source reference",
 	}
 }
@@ -200,7 +200,8 @@ func (DataSourceSpec) SwaggerDoc() map[string]string {
 
 func (DataSourceSource) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "DataSourceSource represents the source for our DataSource",
+		"":    "DataSourceSource represents the source for our DataSource",
+		"pvc": "+optional",
 	}
 }
 
@@ -231,11 +232,11 @@ func (DataImportCron) SwaggerDoc() map[string]string {
 
 func (DataImportCronSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                       "DataImportCronSpec defines specification for DataImportCron",
-		"source":                 "Source specifies where to poll disk images from",
-		"schedule":               "Schedule specifies in cron format when and how often to look for new imports",
-		"garbageCollectOutdated": "GarbageCollectOutdated specifies whether old PVCs should be cleaned up after a new PVC is imported",
-		"managedDataSource":      "ManagedDataSource specifies the name of the corresponding DataSource this cron will manage",
+		"":                  "DataImportCronSpec defines specification for DataImportCron",
+		"source":            "Source specifies where to poll disk images from",
+		"schedule":          "Schedule specifies in cron format when and how often to look for new imports",
+		"garbageCollect":    "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported\nOptions are currently \"Never\" and \"Outdated\", defaults to \"Never\"\n+optional",
+		"managedDataSource": "ManagedDataSource specifies the name of the corresponding DataSource this cron will manage",
 	}
 }
 
@@ -248,9 +249,9 @@ func (DataImportCronSource) SwaggerDoc() map[string]string {
 func (DataImportCronStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                       "DataImportCronStatus provides the most recently observed status of the DataImportCron",
-		"lastImportedPVC":        "LastImportedPVC is the name of the last imported PVC",
+		"lastImportedPVC":        "LastImportedPVC is the last imported PVC",
 		"lastExecutionTimestamp": "LastExecutionTimestamp is the time of the last polling",
-		"lastImport":             "LastImport is the time of the last import",
+		"lastImportTimestamp":    "LastImportTimestamp is the time of the last import",
 	}
 }
 

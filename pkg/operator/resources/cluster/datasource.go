@@ -226,9 +226,9 @@ func createDataImportCronCRD() *extv1.CustomResourceDefinition {
 											Description: "Schedule specifies in cron format when and how often to look for new imports",
 											Type:        "string",
 										},
-										"garbageCollectOutdated": {
-											Description: "GarbageCollectOutdated specifies whether old PVCs should be cleaned up after a new PVC is imported",
-											Type:        "boolean",
+										"garbageCollect": {
+											Description: "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported",
+											Type:        "string",
 										},
 										"managedDataSource": {
 											Description: "ManagedDataSource specifies the name of the corresponding DataSource this cron will manage",
@@ -241,16 +241,32 @@ func createDataImportCronCRD() *extv1.CustomResourceDefinition {
 									Description: "DataImportCronStatus provides the most recently observed status of the DataImportCron",
 									Properties: map[string]extv1.JSONSchemaProps{
 										"lastImportedPVC": {
-											Description: "LastImportedPVC is the name of the last imported PVC",
-											Type:        "string",
+											Description: "LastImportedPVC is the last imported PVC",
+											Type:        "object",
+											Properties: map[string]extv1.JSONSchemaProps{
+												"namespace": {
+													Description: "The namespace of the last imported PVC",
+													Type:        "string",
+												},
+												"name": {
+													Description: "The name of the last imported PVC",
+													Type:        "string",
+												},
+											},
+											Required: []string{
+												"name",
+												"namespace",
+											},
 										},
 										"lastExecutionTimestamp": {
 											Description: "LastExecutionTimestamp is the time of the last polling",
 											Type:        "string",
+											Format:      "date-time",
 										},
-										"lastImport": {
-											Description: "LastImport is the time of the last import",
+										"lastImportTimestamp": {
+											Description: "LastImportTimestamp is the time of the last import",
 											Type:        "string",
+											Format:      "date-time",
 										},
 										"conditions": {
 											Items: &extv1.JSONSchemaPropsOrArray{
