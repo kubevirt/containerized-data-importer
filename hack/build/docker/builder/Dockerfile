@@ -9,7 +9,6 @@ RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
 	mv /etc/yum.repos.d/*.repo /etc/yum.repos.d/old  && \
 	mv /tmp/fedora_ci.dnf.repo /etc/yum.repos.d/fedora.repo && \
 	microdnf update -y && microdnf install -y \
-	bazel \
 	cpio \
 	diffutils \
 	git \
@@ -30,22 +29,21 @@ RUN sed -i 's/proxy = None//gI' /tmp/fedora_ci.dnf.repo && \
 	libnbd-devel \
 	nbdkit-devel \
 	unzip \
-	java-1.8.0-openjdk \
+	java-11-openjdk-devel \
 	btrfs-progs-devel \
 	device-mapper-devel \
 	&& microdnf clean all && \
 	mv /etc/yum.repos.d/old/* /etc/yum.repos.d/ && \
 	rmdir /etc/yum.repos.d/old
 
-RUN pip3 install j2cli && pip3 install operator-courier && \
-    curl -sL https://services.gradle.org/distributions/gradle-4.3.1-bin.zip -o gradle-4.3.1-bin.zip && \
+RUN pip3 install --upgrade j2cli operator-courier==2.1.11 && \
+    curl -sL https://services.gradle.org/distributions/gradle-6.6-bin.zip -o gradle-6.6-bin.zip && \
     mkdir /opt/gradle && \
-    unzip -d /opt/gradle gradle-4.3.1-bin.zip && \
-    ln -s /opt/gradle/gradle-4.3.1/bin/gradle /usr/local/bin/gradle && \
-    rm gradle-4.3.1-bin.zip
+    unzip -d /opt/gradle gradle-6.6-bin.zip && \
+    ln -s /opt/gradle/gradle-6.6/bin/gradle /usr/local/bin/gradle && \
+    rm gradle-6.6-bin.zip
 
-ENV GIMME_GO_VERSION=1.14.6 GOPATH="/go" KUBEBUILDER_VERSION="2.3.1" ARCH="amd64" GO111MODULE="on"
-ENV BAZEL_PYTHON=/usr/bin/python3
+ENV GIMME_GO_VERSION=1.14.6 GOPATH="/go" KUBEBUILDER_VERSION="2.3.2" ARCH="amd64" GO111MODULE="on"
 
 RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
 
@@ -66,6 +64,9 @@ RUN \
      mv kubebuilder_${KUBEBUILDER_VERSION}_linux_${ARCH} /usr/local/kubebuilder && \
      rm kubebuilder_${KUBEBUILDER_VERSION}_linux_${ARCH}.tar.gz )
 
+ENV BAZEL_VERSION 3.7.2
+
+RUN curl -L -o /usr/bin/bazel https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-x86_64 && chmod u+x /usr/bin/bazel
 
 ADD entrypoint.sh /entrypoint.sh
 ADD entrypoint-bazel.sh /entrypoint-bazel.sh

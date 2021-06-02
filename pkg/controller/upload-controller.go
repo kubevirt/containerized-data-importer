@@ -101,7 +101,7 @@ type UploadPodArgs struct {
 }
 
 // Reconcile the reconcile loop for the CDIConfig object.
-func (r *UploadReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
+func (r *UploadReconciler) Reconcile(_ context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("PVC", req.NamespacedName)
 	log.V(1).Info("reconciling Upload PVCs")
 

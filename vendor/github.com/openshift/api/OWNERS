@@ -1,7 +1,6 @@
 reviewers:
   - adambkaplan
   - abhinavdahiya
-approvers:
   - smarterclayton
   - deads2k
   - derekwaynecarr
@@ -13,3 +12,16 @@ approvers:
   - soltysh
   - sttts
   - bparees
+approvers:
+  - bparees
+  - deads2k
+  - derekwaynecarr
+  - eparis
+  - jwforres
+  - knobunc
+  - mfojtik
+  - sjenning
+  - smarterclayton
+  - soltysh
+  - spadgett
+  - sttts

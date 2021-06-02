@@ -26,8 +26,10 @@ import (
 )
 
 // UploadTokenRequestLister helps list UploadTokenRequests.
+// All objects returned here must be treated as read-only.
 type UploadTokenRequestLister interface {
 	// List lists all UploadTokenRequests in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.UploadTokenRequest, err error)
 	// UploadTokenRequests returns an object that can list and get UploadTokenRequests.
 	UploadTokenRequests(namespace string) UploadTokenRequestNamespaceLister
@@ -58,10 +60,13 @@ func (s *uploadTokenRequestLister) UploadTokenRequests(namespace string) UploadT
 }
 
 // UploadTokenRequestNamespaceLister helps list and get UploadTokenRequests.
+// All objects returned here must be treated as read-only.
 type UploadTokenRequestNamespaceLister interface {
 	// List lists all UploadTokenRequests in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.UploadTokenRequest, err error)
 	// Get retrieves the UploadTokenRequest from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.UploadTokenRequest, error)
 	UploadTokenRequestNamespaceListerExpansion
 }

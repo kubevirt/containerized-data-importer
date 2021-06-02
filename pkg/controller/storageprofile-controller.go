@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"reflect"
+
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -13,7 +15,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
-	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -32,7 +33,7 @@ type StorageProfileReconciler struct {
 }
 
 // Reconcile the reconcile.Reconciler implementation for the StorageProfileReconciler object.
-func (r *StorageProfileReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
+func (r *StorageProfileReconciler) Reconcile(_ context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("StorageProfile", req.NamespacedName)
 	log.Info("reconciling StorageProfile")
 

@@ -51,7 +51,6 @@ go_test(
         "//pkg/util/cert:go_default_library",
         "//pkg/util/cert/triple:go_default_library",
         "//tests/reporters:go_default_library",
-        "//vendor/github.com/appscode/jsonpatch:go_default_library",
         "//vendor/github.com/emicklei/go-restful:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",
         "//vendor/github.com/onsi/ginkgo/extensions/table:go_default_library",

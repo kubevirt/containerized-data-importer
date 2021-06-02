@@ -463,7 +463,7 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 				var err error
 				openapispec, err = openapi.LoadOpenAPISpec(allWebServices, cdiuploadv1.GetOpenAPIDefinitions)
 				if err != nil {
-					panic(fmt.Errorf("Failed to build swagger: %s", err))
+					panic(fmt.Errorf("failed to build swagger: %s", err))
 				}
 			})
 			response.WriteAsJson(openapispec)

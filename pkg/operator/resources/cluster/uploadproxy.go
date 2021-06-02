@@ -18,16 +18,16 @@ package cluster
 
 import (
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
 	uploadProxyResourceName = "cdi-uploadproxy"
 )
 
-func createUploadProxyResources(args *FactoryArgs) []runtime.Object {
-	return []runtime.Object{
+func createUploadProxyResources(args *FactoryArgs) []client.Object {
+	return []client.Object{
 		createUploadProxyClusterRole(),
 		createUploadProxyClusterRoleBinding(args.Namespace),
 	}

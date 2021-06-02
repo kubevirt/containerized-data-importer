@@ -50,8 +50,8 @@ container_image(
 filegroup(
     name = "entrypoint-script",
     srcs = [
-        ":entrypoint.sh",
         ":create_lvm.sh",
+        ":entrypoint.sh",
     ],
 )
 

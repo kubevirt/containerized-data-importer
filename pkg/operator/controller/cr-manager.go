@@ -20,7 +20,7 @@ import (
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -29,25 +29,24 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 )
 
 // Status provides CDI status sub-resource
-func (r *ReconcileCDI) Status(cr runtime.Object) *sdkapi.Status {
+func (r *ReconcileCDI) Status(cr client.Object) *sdkapi.Status {
 	return &cr.(*cdiv1.CDI).Status.Status
 }
 
 // Create creates new CDI resource
-func (r *ReconcileCDI) Create() controllerutil.Object {
+func (r *ReconcileCDI) Create() client.Object {
 	return &cdiv1.CDI{}
 }
 
 // GetDependantResourcesListObjects provides slice of List resources corresponding to CDI-dependant resource types
-func (r *ReconcileCDI) GetDependantResourcesListObjects() []runtime.Object {
-	return []runtime.Object{
+func (r *ReconcileCDI) GetDependantResourcesListObjects() []client.ObjectList {
+	return []client.ObjectList{
 		&extv1.CustomResourceDefinitionList{},
 		&rbacv1.ClusterRoleBindingList{},
 		&rbacv1.ClusterRoleList{},
@@ -63,7 +62,7 @@ func (r *ReconcileCDI) GetDependantResourcesListObjects() []runtime.Object {
 }
 
 // IsCreating checks whether operator config is missing (which means it is create-type reconciliation)
-func (r *ReconcileCDI) IsCreating(_ controllerutil.Object) (bool, error) {
+func (r *ReconcileCDI) IsCreating(_ client.Object) (bool, error) {
 	configMap, err := r.getConfigMap()
 	if err != nil {
 		return true, nil
@@ -85,9 +84,9 @@ func (r *ReconcileCDI) getNamespacedArgs(cr *cdiv1.CDI) *cdinamespaced.FactoryAr
 }
 
 // GetAllResources provides slice of resources CDI depends on
-func (r *ReconcileCDI) GetAllResources(crObject runtime.Object) ([]runtime.Object, error) {
+func (r *ReconcileCDI) GetAllResources(crObject client.Object) ([]client.Object, error) {
 	cr := crObject.(*cdiv1.CDI)
-	var resources []runtime.Object
+	var resources []client.Object
 
 	if sdk.DeployClusterResources() {
 		crs, err := cdicluster.CreateAllStaticResources(r.clusterArgs)

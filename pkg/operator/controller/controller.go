@@ -170,15 +170,14 @@ func (r *ReconcileCDI) SetController(controller controller.Controller) {
 // Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
-func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+func (r *ReconcileCDI) Reconcile(_ context.Context, request reconcile.Request) (reconcile.Result, error) {
 	operatorVersion := r.namespacedArgs.OperatorVersion
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling CDI")
 	if r.dumpInstallStrategy {
 		reqLogger.Info("Dumping Install Strategy")
 		cr := &cdiv1.CDI{}
-		var crKey client.ObjectKey
-		crKey = client.ObjectKey{Namespace: "", Name: request.NamespacedName.Name}
+		crKey := client.ObjectKey{Namespace: "", Name: request.NamespacedName.Name}
 		err := r.client.Get(context.TODO(), crKey, cr)
 		if err != nil {
 			reqLogger.Error(err, "Failed to get CDI object")
@@ -189,7 +188,11 @@ func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, e
 			reqLogger.Error(err, "Failed to get all CDI object")
 			return reconcile.Result{}, err
 		}
-		err = install.DumpInstallStrategyToConfigMap(r.client, objects, reqLogger, r.namespace)
+		var runtimeObjects []runtime.Object
+		for _, obj := range objects {
+			runtimeObjects = append(runtimeObjects, obj)
+		}
+		err = install.DumpInstallStrategyToConfigMap(r.client, runtimeObjects, reqLogger, r.namespace)
 		if err != nil {
 			reqLogger.Error(err, "Failed to dump CDI object in configmap")
 			return reconcile.Result{}, err
@@ -264,7 +267,7 @@ func (r *ReconcileCDI) getConfigMap() (*corev1.ConfigMap, error) {
 }
 
 // createOperatorConfig creates operator config map
-func (r *ReconcileCDI) createOperatorConfig(cr controllerutil.Object) error {
+func (r *ReconcileCDI) createOperatorConfig(cr client.Object) error {
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      operator.ConfigMapName,

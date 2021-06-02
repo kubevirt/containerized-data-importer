@@ -69,9 +69,9 @@ func addSmartCloneControllerWatches(mgr manager.Manager, smartCloneController co
 		return err
 	}
 
-	if err := smartCloneController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}}, &handler.EnqueueRequestsFromMapFunc{
-		ToRequests: handler.ToRequestsFunc(func(mapObj handler.MapObject) []reconcile.Request {
-			pvc := mapObj.Object.(*corev1.PersistentVolumeClaim)
+	if err := smartCloneController.Watch(&source.Kind{Type: &corev1.PersistentVolumeClaim{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			pvc := obj.(*corev1.PersistentVolumeClaim)
 			if hasAnnOwnedByDataVolume(pvc) && shouldReconcilePvc(pvc) {
 				return []reconcile.Request{
 					{
@@ -83,8 +83,8 @@ func addSmartCloneControllerWatches(mgr manager.Manager, smartCloneController co
 				}
 			}
 			return nil
-		}),
-	}); err != nil {
+		},
+	)); err != nil {
 		return err
 	}
 
@@ -98,9 +98,9 @@ func addSmartCloneControllerWatches(mgr manager.Manager, smartCloneController co
 		return err
 	}
 
-	if err := smartCloneController.Watch(&source.Kind{Type: &snapshotv1.VolumeSnapshot{}}, &handler.EnqueueRequestsFromMapFunc{
-		ToRequests: handler.ToRequestsFunc(func(mapObj handler.MapObject) []reconcile.Request {
-			snapshot := mapObj.Object.(*snapshotv1.VolumeSnapshot)
+	if err := smartCloneController.Watch(&source.Kind{Type: &snapshotv1.VolumeSnapshot{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			snapshot := obj.(*snapshotv1.VolumeSnapshot)
 			if hasAnnOwnedByDataVolume(snapshot) && shouldReconcileSnapshot(snapshot) {
 				return []reconcile.Request{
 					{
@@ -112,8 +112,8 @@ func addSmartCloneControllerWatches(mgr manager.Manager, smartCloneController co
 				}
 			}
 			return nil
-		}),
-	}); err != nil {
+		},
+	)); err != nil {
 		return err
 	}
 
@@ -131,7 +131,7 @@ func shouldReconcilePvc(pvc *corev1.PersistentVolumeClaim) bool {
 }
 
 // Reconcile the reconcile loop for smart cloning.
-func (r *SmartCloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
+func (r *SmartCloneReconciler) Reconcile(_ context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("VolumeSnapshot/PersistentVolumeClaim", req.NamespacedName)
 	log.Info("reconciling smart clone")
 	pvc := &corev1.PersistentVolumeClaim{}

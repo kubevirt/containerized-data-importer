@@ -100,7 +100,7 @@ func getRequiredEnvVar(name string) string {
 	return val
 }
 
-func start(cfg *rest.Config, stopCh <-chan struct{}) {
+func start(ctx context.Context, cfg *rest.Config) {
 	klog.Info("Starting CDI controller components")
 
 	namespace := util.GetNamespace()
@@ -176,12 +176,12 @@ func start(cfg *rest.Config, stopCh <-chan struct{}) {
 
 	klog.V(1).Infoln("created cdi controllers")
 
-	go crdInformerFactory.Start(stopCh)
+	go crdInformerFactory.Start(ctx.Done())
 
 	// Add Crd informer, so we can start the smart clone controller if we detect the CSI CRDs being installed.
 	addCrdInformerEventHandlers(crdInformer, extClient, mgr, log)
 
-	if err := mgr.Start(stopCh); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		klog.Errorf("Error running manager: %v", err)
 		os.Exit(1)
 	}
@@ -201,10 +201,10 @@ func main() {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
 	}
 
-	stopCh := signals.SetupSignalHandler()
+	ctx := signals.SetupSignalHandler()
 
 	err = startLeaderElection(context.TODO(), cfg, func() {
-		start(cfg, stopCh)
+		start(ctx, cfg)
 	})
 
 	if err != nil {
@@ -215,7 +215,7 @@ func main() {
 		klog.Fatalf("Error creating ready file: %+v", err)
 	}
 
-	<-stopCh
+	<-ctx.Done()
 
 	deleteReadyFile()
 

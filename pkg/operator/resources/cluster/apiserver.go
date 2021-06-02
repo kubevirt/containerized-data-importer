@@ -25,7 +25,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -40,15 +39,15 @@ const (
 	apiServerServiceName  = "cdi-api"
 )
 
-func createStaticAPIServerResources(args *FactoryArgs) []runtime.Object {
-	return []runtime.Object{
+func createStaticAPIServerResources(args *FactoryArgs) []client.Object {
+	return []client.Object{
 		createAPIServerClusterRole(),
 		createAPIServerClusterRoleBinding(args.Namespace),
 	}
 }
 
-func createDynamicAPIServerResources(args *FactoryArgs) []runtime.Object {
-	return []runtime.Object{
+func createDynamicAPIServerResources(args *FactoryArgs) []client.Object {
+	return []client.Object{
 		createAPIService("v1beta1", args.Namespace, args.Client, args.Logger),
 		createAPIService("v1alpha1", args.Namespace, args.Client, args.Logger),
 		createDataVolumeValidatingWebhook(args.Namespace, args.Client, args.Logger),
