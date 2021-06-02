@@ -5,5 +5,5 @@ go_library(
     srcs = ["types.go"],
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/pkg/compression/internal",
     importpath = "github.com/containers/image/v5/pkg/compression/internal",
-    visibility = ["//visibility:public"],
+    visibility = ["//vendor/github.com/containers/image/v5/pkg/compression:__subpackages__"],
 )

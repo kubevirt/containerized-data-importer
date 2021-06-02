@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"strings"
-	"sync"
 	"time"
 
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
@@ -53,12 +52,6 @@ const (
 )
 
 var (
-	testUploadServerCASecret     *corev1.Secret
-	testUploadServerCASecretOnce sync.Once
-
-	testUploadServerClientCASecret     *corev1.Secret
-	testUploadServerClientCASecretOnce sync.Once
-
 	uploadLog = logf.Log.WithName("upload-controller-test")
 )
 
@@ -66,7 +59,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 
 	It("Should return nil and not create a pod, if pvc can not be found", func() {
 		reconciler := createUploadReconciler()
-		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		podList := &corev1.PodList{}
 		err = reconciler.client.List(context.TODO(), podList, &client.ListOptions{})
@@ -76,7 +69,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 
 	It("Should return nil and not create a pod, if neither upload nor clone annotations exist", func() {
 		reconciler := createUploadReconciler(createPvc("testPvc1", "default", map[string]string{}, nil))
-		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		podList := &corev1.PodList{}
 		err = reconciler.client.List(context.TODO(), podList, &client.ListOptions{})
@@ -88,7 +81,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		pvc := createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: ""}, nil)
 		pod := podUsingPVC(pvc, false)
 		reconciler := createUploadReconciler(pvc, pod)
-		result, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(result.Requeue).To(BeTrue())
 		podList := &corev1.PodList{}
@@ -108,7 +101,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 
 	It("Should return error and not create a pod if both upload and clone annotations exist", func() {
 		reconciler := createUploadReconciler(createPvc("testPvc1", "default", map[string]string{AnnUploadRequest: "", AnnCloneRequest: ""}, nil))
-		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("PVC has both clone and upload annotations"))
 		podList := &corev1.PodList{}
@@ -134,7 +127,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uploadService.Name).To(Equal(createUploadResourceName(testPvc.Name)))
 
-		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying the pod and service no longer exist")
 		podList := &corev1.PodList{}
@@ -166,7 +159,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uploadService.Name).To(Equal(createUploadResourceName(testPvc.Name)))
 
-		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying the pod and service no longer exist")
 		podList := &corev1.PodList{}
@@ -200,7 +193,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uploadService.Name).To(Equal(createUploadResourceName(testPvc.Name)))
 
-		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying the pod and service no longer exist")
 		podList := &corev1.PodList{}
@@ -223,7 +216,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		sourcePvc.Spec.VolumeMode = &vm
 		reconciler := createUploadReconciler(testPvc, sourcePvc)
 
-		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("source contentType (archive) and target contentType (kubevirt) do not match"))
 	})
@@ -236,7 +229,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		sourcePvc.Spec.VolumeMode = &vm
 		reconciler := createUploadReconciler(testPvc, sourcePvc)
 
-		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("Source and target volume modes do not match, and content type is not kubevirt"))
 	})
@@ -254,7 +247,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
 		Expect(err).To(HaveOccurred())
 
-		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying the pod and service now exist")
 		uploadPod = &corev1.Pod{}

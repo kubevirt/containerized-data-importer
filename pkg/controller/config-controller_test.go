@@ -57,18 +57,18 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 	It("Should not update if no changes happened", func() {
 		reconciler, cdiConfig := createConfigReconciler(createConfigMap(operator.ConfigMapName, testNamespace))
 		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
-		_, err = reconciler.Reconcile(reconcile.Request{})
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		// CDIConfig generated, now reconcile again without changes.
-		_, err = reconciler.Reconcile(reconcile.Request{})
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	DescribeTable("Should set proxyURL to override if no ingress or route exists", func(authority bool) {
 		reconciler, cdiConfig := createConfigReconciler(createConfigMap(operator.ConfigMapName, testNamespace))
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		override := "www.override-something.org.tt.test"
@@ -82,7 +82,7 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 		}
 		err = reconciler.client.Update(context.TODO(), cdi)
 		Expect(err).ToNot(HaveOccurred())
-		_, err = reconciler.Reconcile(reconcile.Request{})
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
@@ -102,7 +102,7 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 				*createIngress("test-ingress", "test-ns", testServiceName, testURL),
 			),
 		)
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		override := "www.override-something.org.tt.test"
@@ -116,7 +116,7 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 		}
 		err = reconciler.client.Update(context.TODO(), cdi)
 		Expect(err).ToNot(HaveOccurred())
-		_, err = reconciler.Reconcile(reconcile.Request{})
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
@@ -299,7 +299,7 @@ var _ = Describe("Controller ImportProxy reconcile loop", func() {
 
 	DescribeTable("Should set ImportProxy correctly if ClusterWideProxy with correct URLs exists", func(proxyHTTPURL string, proxyHTTPSURL string, noProxyDomains string, trustedCAName string, expect string, endpType string) {
 		reconciler, cdiConfig := createConfigReconciler(createClusterWideProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAProxy))
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
@@ -347,7 +347,7 @@ var _ = Describe("Controller ImportProxy reconcile loop", func() {
 		certificate := "ca-test"
 		reconciler, cdiConfig := createConfigReconciler(createClusterWideProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, ClusterWideProxyConfigMapName),
 			createClusterWideProxyCAConfigMap(certificate))
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())

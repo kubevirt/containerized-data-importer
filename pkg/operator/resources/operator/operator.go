@@ -21,13 +21,13 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	csvv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
@@ -144,8 +144,8 @@ func createClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
 	return utils.ResourcesBuiler.CreateOperatorClusterRoleBinding(serviceAccountName, clusterRoleName, serviceAccountName, namespace)
 }
 
-func createClusterRBAC(args *FactoryArgs) []runtime.Object {
-	return []runtime.Object{
+func createClusterRBAC(args *FactoryArgs) []client.Object {
+	return []client.Object{
 		createClusterRole(),
 		createClusterRoleBinding(args.NamespacedArgs.Namespace),
 	}
@@ -237,16 +237,16 @@ func createNamespacedRoleBinding(namespace string) *rbacv1.RoleBinding {
 	return roleBinding
 }
 
-func createNamespacedRBAC(args *FactoryArgs) []runtime.Object {
-	return []runtime.Object{
+func createNamespacedRBAC(args *FactoryArgs) []client.Object {
+	return []client.Object{
 		createServiceAccount(args.NamespacedArgs.Namespace),
 		createNamespacedRole(args.NamespacedArgs.Namespace),
 		createNamespacedRoleBinding(args.NamespacedArgs.Namespace),
 	}
 }
 
-func createDeployment(args *FactoryArgs) []runtime.Object {
-	return []runtime.Object{
+func createDeployment(args *FactoryArgs) []client.Object {
+	return []client.Object{
 		createOperatorDeployment(args.NamespacedArgs.OperatorVersion,
 			args.NamespacedArgs.Namespace,
 			args.NamespacedArgs.DeployClusterResources,
@@ -280,8 +280,8 @@ func createOperatorLeaderElectionConfigMap(namespace string) *corev1.ConfigMap {
 
 }
 
-func createCRD(args *FactoryArgs) []runtime.Object {
-	return []runtime.Object{
+func createCRD(args *FactoryArgs) []client.Object {
+	return []client.Object{
 		createCDIListCRD(),
 	}
 }

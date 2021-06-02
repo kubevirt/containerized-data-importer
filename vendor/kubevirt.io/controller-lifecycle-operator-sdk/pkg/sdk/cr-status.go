@@ -5,6 +5,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 )
 
@@ -42,7 +44,7 @@ func ConditionsChanged(originalValues, newValues map[v1.ConditionType]corev1.Con
 // ApplicationAvailable: true
 // Progressing: false
 // Degraded: false
-func MarkCrHealthyMessage(cr runtime.Object, crStatus *api.Status, reason, message string, recorder record.EventRecorder) {
+func MarkCrHealthyMessage(cr client.Object, crStatus *api.Status, reason, message string, recorder record.EventRecorder) {
 	v1.SetStatusCondition(&crStatus.Conditions, v1.Condition{
 		Type:    v1.ConditionAvailable,
 		Status:  corev1.ConditionTrue,
@@ -65,7 +67,7 @@ func MarkCrHealthyMessage(cr runtime.Object, crStatus *api.Status, reason, messa
 // ApplicationAvailable: true
 // Progressing: true
 // Degraded: true
-func MarkCrUpgradeHealingDegraded(cr runtime.Object, crStatus *api.Status, reason, message string, recorder record.EventRecorder) {
+func MarkCrUpgradeHealingDegraded(cr client.Object, crStatus *api.Status, reason, message string, recorder record.EventRecorder) {
 	v1.SetStatusCondition(&crStatus.Conditions, v1.Condition{
 		Type:   v1.ConditionAvailable,
 		Status: corev1.ConditionTrue,
@@ -88,7 +90,7 @@ func MarkCrUpgradeHealingDegraded(cr runtime.Object, crStatus *api.Status, reaso
 // ApplicationAvailable: false
 // Progressing: false
 // Degraded: true
-func MarkCrFailed(cr runtime.Object, crStatus *api.Status, reason, message string, recorder record.EventRecorder) {
+func MarkCrFailed(cr client.Object, crStatus *api.Status, reason, message string, recorder record.EventRecorder) {
 	v1.SetStatusCondition(&crStatus.Conditions, v1.Condition{
 		Type:   v1.ConditionAvailable,
 		Status: corev1.ConditionFalse,
@@ -111,7 +113,7 @@ func MarkCrFailed(cr runtime.Object, crStatus *api.Status, reason, message strin
 // ApplicationAvailable: false
 // Progressing: true
 // Degraded: true
-func MarkCrFailedHealing(cr runtime.Object, crStatus *api.Status, reason, message string, recorder record.EventRecorder) {
+func MarkCrFailedHealing(cr client.Object, crStatus *api.Status, reason, message string, recorder record.EventRecorder) {
 	v1.SetStatusCondition(&crStatus.Conditions, v1.Condition{
 		Type:   v1.ConditionAvailable,
 		Status: corev1.ConditionFalse,

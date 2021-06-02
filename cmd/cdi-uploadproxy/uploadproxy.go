@@ -95,7 +95,7 @@ func main() {
 		klog.Fatalf("UploadProxy failed to initialize: %v\n", errors.WithStack(err))
 	}
 
-	go certWatcher.Start(signals.SetupSignalHandler())
+	go certWatcher.Start(signals.SetupSignalHandler().Done())
 
 	err = uploadProxy.Start()
 	if err != nil {

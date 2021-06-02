@@ -95,9 +95,9 @@ func main() {
 
 	cdiClient := cdiclient.NewForConfigOrDie(cfg)
 
-	ch := signals.SetupSignalHandler()
+	ctx := signals.SetupSignalHandler()
 
-	authConfigWatcher := apiserver.NewAuthConfigWatcher(client, ch)
+	authConfigWatcher := apiserver.NewAuthConfigWatcher(ctx, client)
 
 	authorizor, err := apiserver.NewAuthorizorFromConfig(cfg, authConfigWatcher)
 	if err != nil {
@@ -121,9 +121,9 @@ func main() {
 		klog.Fatalf("Upload api failed to initialize: %v\n", errors.WithStack(err))
 	}
 
-	go certWatcher.Start(ch)
+	go certWatcher.Start(ctx.Done())
 
-	err = uploadApp.Start(ch)
+	err = uploadApp.Start(ctx.Done())
 	if err != nil {
 		klog.Fatalf("TLS server failed: %v\n", errors.WithStack(err))
 	}

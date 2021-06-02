@@ -32,7 +32,6 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
-	"github.com/appscode/jsonpatch"
 	restful "github.com/emicklei/go-restful"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -97,14 +96,6 @@ func checkActions(expected []core.Action, actual []core.Action) {
 	Expect(len(expected)).To(Equal(len(actual)))
 }
 
-func printJSONDiff(objA, objB interface{}) string {
-	aBytes, _ := json.Marshal(objA)
-	bBytes, _ := json.Marshal(objB)
-	patches, _ := jsonpatch.CreatePatch(aBytes, bBytes)
-	pBytes, _ := json.Marshal(patches)
-	return string(pBytes)
-}
-
 func checkAction(expected, actual core.Action) {
 	Expect(expected.Matches(actual.GetVerb(), actual.GetResource().Resource)).To(BeTrue())
 	Expect(actual.GetSubresource()).To(Equal(expected.GetSubresource()))
@@ -113,12 +104,6 @@ func checkAction(expected, actual core.Action) {
 	switch a := actual.(type) {
 	case core.CreateAction:
 		e, _ := expected.(core.CreateAction)
-		expObject := e.GetObject()
-		object := a.GetObject()
-
-		Expect(reflect.DeepEqual(expObject, object)).To(BeTrue())
-	case core.UpdateAction:
-		e, _ := expected.(core.UpdateAction)
 		expObject := e.GetObject()
 		object := a.GetObject()
 

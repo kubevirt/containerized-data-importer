@@ -19,12 +19,12 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	cdicluster "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	cdioperator "kubevirt.io/containerized-data-importer/pkg/operator/resources/operator"
 	"kubevirt.io/containerized-data-importer/tools/util"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type templateData struct {
@@ -140,7 +140,7 @@ func generateFromFile(templFile string) {
 	}
 }
 
-type resourceGetter func(string) ([]runtime.Object, error)
+type resourceGetter func(string) ([]client.Object, error)
 
 var resourceGetterMap = map[string]resourceGetter{
 	"cluster":    getClusterResources,
@@ -167,7 +167,7 @@ func generateFromCode(resourceType, resourceGroup string) {
 	}
 }
 
-func getOperatorResources(resourceGroup string) ([]runtime.Object, error) {
+func getOperatorResources(resourceGroup string) ([]client.Object, error) {
 	args := &cdioperator.FactoryArgs{
 		NamespacedArgs: cdinamespaced.FactoryArgs{
 			Verbosity:              *verbosity,
@@ -188,7 +188,7 @@ func getOperatorResources(resourceGroup string) ([]runtime.Object, error) {
 	return cdioperator.CreateOperatorResourceGroup(resourceGroup, args)
 }
 
-func getClusterResources(codeGroup string) ([]runtime.Object, error) {
+func getClusterResources(codeGroup string) ([]client.Object, error) {
 	args := &cdicluster.FactoryArgs{
 		Namespace: *namespace,
 	}
@@ -196,7 +196,7 @@ func getClusterResources(codeGroup string) ([]runtime.Object, error) {
 	return cdicluster.CreateStaticResourceGroup(codeGroup, args)
 }
 
-func getNamespacedResources(codeGroup string) ([]runtime.Object, error) {
+func getNamespacedResources(codeGroup string) ([]client.Object, error) {
 	args := &cdinamespaced.FactoryArgs{
 		Verbosity:         *verbosity,
 		OperatorVersion:   *operatorVersion,

@@ -19,13 +19,13 @@ package cluster
 import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
-func createAggregateClusterRoles(args *FactoryArgs) []runtime.Object {
-	return []runtime.Object{
+func createAggregateClusterRoles(args *FactoryArgs) []client.Object {
+	return []client.Object{
 		utils.ResourcesBuiler.CreateAggregateClusterRole("cdi.kubevirt.io:admin", "admin", getAdminPolicyRules()),
 		utils.ResourcesBuiler.CreateAggregateClusterRole("cdi.kubevirt.io:edit", "edit", getEditPolicyRules()),
 		utils.ResourcesBuiler.CreateAggregateClusterRole("cdi.kubevirt.io:view", "view", getViewPolicyRules()),

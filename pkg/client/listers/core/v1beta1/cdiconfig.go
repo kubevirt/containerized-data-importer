@@ -26,10 +26,13 @@ import (
 )
 
 // CDIConfigLister helps list CDIConfigs.
+// All objects returned here must be treated as read-only.
 type CDIConfigLister interface {
 	// List lists all CDIConfigs in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1beta1.CDIConfig, err error)
 	// Get retrieves the CDIConfig from the index for a given name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1beta1.CDIConfig, error)
 	CDIConfigListerExpansion
 }

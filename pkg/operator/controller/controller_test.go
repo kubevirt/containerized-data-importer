@@ -47,7 +47,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	realClient "sigs.k8s.io/controller-runtime/pkg/client"
 	fakeClient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -101,11 +100,11 @@ func init() {
 	routev1.Install(scheme.Scheme)
 }
 
-type modifyResource func(toModify runtime.Object) (runtime.Object, runtime.Object, error)
-type isModifySubject func(resource runtime.Object) bool
-type isUpgraded func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool
+type modifyResource func(toModify client.Object) (client.Object, client.Object, error)
+type isModifySubject func(resource client.Object) bool
+type isUpgraded func(postUpgradeObj client.Object, deisredObj client.Object) bool
 
-type createUnusedObject func() (runtime.Object, error)
+type createUnusedObject func() (client.Object, error)
 
 var _ = Describe("Controller", func() {
 	Describe("controller runtime bootstrap test", func() {
@@ -143,7 +142,7 @@ var _ = Describe("Controller", func() {
 		})
 	})
 
-	DescribeTable("check can create types", func(obj runtime.Object) {
+	DescribeTable("check can create types", func(obj client.Object) {
 		client := createClient(obj)
 
 		_, err := getObject(client, obj)
@@ -474,7 +473,7 @@ var _ = Describe("Controller", func() {
 				err := args.client.Create(context.TODO(), newInstance)
 				Expect(err).ToNot(HaveOccurred())
 
-				result, err := args.reconciler.Reconcile(reconcileRequest(newInstance.Name))
+				result, err := args.reconciler.Reconcile(context.TODO(), reconcileRequest(newInstance.Name))
 				Expect(err).ToNot(HaveOccurred())
 				Expect(result.Requeue).To(BeFalse())
 
@@ -779,7 +778,7 @@ var _ = Describe("Controller", func() {
 		},
 			//Deployment update
 			Entry("verify - deployment updated on upgrade - annotation changed",
-				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+				func(toModify client.Object) (client.Object, client.Object, error) { //Modify
 					deploymentOrig, ok := toModify.(*appsv1.Deployment)
 					if !ok {
 						return toModify, toModify, generrors.New("wrong type")
@@ -790,12 +789,12 @@ var _ = Describe("Controller", func() {
 					deployment.Annotations["fake.anno.3"] = "fakeannotation3"
 					return toModify, deployment, nil
 				},
-				func(resource runtime.Object) bool { //find resource for test
+				func(resource client.Object) bool { //find resource for test
 					//return true if object is the one we want to test
 					_, ok := resource.(*appsv1.Deployment)
 					return ok
 				},
-				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
 					//return true if postUpgrade has teh same fields as desired
 					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
 					if !ok {
@@ -818,7 +817,7 @@ var _ = Describe("Controller", func() {
 					return len(desiredDep.Annotations) <= len(postDep.Annotations)
 				}),
 			Entry("verify - deployment updated on upgrade - labels changed",
-				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+				func(toModify client.Object) (client.Object, client.Object, error) { //Modify
 					deploymentOrig, ok := toModify.(*appsv1.Deployment)
 					if !ok {
 						return toModify, toModify, generrors.New("wrong type")
@@ -829,12 +828,12 @@ var _ = Describe("Controller", func() {
 					deployment.Labels["fake.label.3"] = "fakelabel3"
 					return toModify, deployment, nil
 				},
-				func(resource runtime.Object) bool { //find resource for test
+				func(resource client.Object) bool { //find resource for test
 					//return true if object is the one we want to test
 					_, ok := resource.(*appsv1.Deployment)
 					return ok
 				},
-				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
 					//return true if postUpgrade has teh same fields as desired
 					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
 					if !ok {
@@ -855,7 +854,7 @@ var _ = Describe("Controller", func() {
 					return len(desiredDep.Labels) <= len(postDep.Labels)
 				}),
 			Entry("verify - deployment updated on upgrade - deployment spec changed - modify container",
-				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+				func(toModify client.Object) (client.Object, client.Object, error) { //Modify
 					deploymentOrig, ok := toModify.(*appsv1.Deployment)
 					if !ok {
 						return toModify, toModify, generrors.New("wrong type")
@@ -872,7 +871,7 @@ var _ = Describe("Controller", func() {
 
 					return toModify, deployment, nil
 				},
-				func(resource runtime.Object) bool { //find resource for test
+				func(resource client.Object) bool { //find resource for test
 					//search for cdi-deployment - to test ENV virables change
 					deployment, ok := resource.(*appsv1.Deployment)
 					if !ok {
@@ -883,7 +882,7 @@ var _ = Describe("Controller", func() {
 					}
 					return false
 				},
-				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
 					//return true if postUpgrade has teh same fields as desired
 					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
 					if !ok {
@@ -904,7 +903,7 @@ var _ = Describe("Controller", func() {
 					return len(desiredDep.Spec.Template.Spec.Containers[0].Env) == len(postDep.Spec.Template.Spec.Containers[0].Env)
 				}),
 			Entry("verify - deployment updated on upgrade - deployment spec changed - add new container",
-				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+				func(toModify client.Object) (client.Object, client.Object, error) { //Modify
 					deploymentOrig, ok := toModify.(*appsv1.Deployment)
 					if !ok {
 						return toModify, toModify, generrors.New("wrong type")
@@ -922,7 +921,7 @@ var _ = Describe("Controller", func() {
 
 					return toModify, deployment, nil
 				},
-				func(resource runtime.Object) bool { //find resource for test
+				func(resource client.Object) bool { //find resource for test
 					//search for cdi-deployment - to test container change
 					deployment, ok := resource.(*appsv1.Deployment)
 					if !ok {
@@ -933,7 +932,7 @@ var _ = Describe("Controller", func() {
 					}
 					return false
 				},
-				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
 					//return true if postUpgrade has teh same fields as desired
 					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
 					if !ok {
@@ -954,7 +953,7 @@ var _ = Describe("Controller", func() {
 					return len(desiredDep.Spec.Template.Spec.Containers) <= len(postDep.Spec.Template.Spec.Containers)
 				}),
 			Entry("verify - deployment updated on upgrade - deployment spec changed - remove existing container",
-				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+				func(toModify client.Object) (client.Object, client.Object, error) { //Modify
 					deploymentOrig, ok := toModify.(*appsv1.Deployment)
 					if !ok {
 						return toModify, toModify, generrors.New("wrong type")
@@ -965,7 +964,7 @@ var _ = Describe("Controller", func() {
 
 					return toModify, deployment, nil
 				},
-				func(resource runtime.Object) bool { //find resource for test
+				func(resource client.Object) bool { //find resource for test
 					//search for cdi-deployment - to test container change
 					deployment, ok := resource.(*appsv1.Deployment)
 					if !ok {
@@ -976,7 +975,7 @@ var _ = Describe("Controller", func() {
 					}
 					return false
 				},
-				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
 					//return true if postUpgrade has teh same fields as desired
 					postDep, ok := postUpgradeObj.(*appsv1.Deployment)
 					if !ok {
@@ -993,7 +992,7 @@ var _ = Describe("Controller", func() {
 
 			//Services update
 			Entry("verify - services updated on upgrade - annotation changed",
-				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+				func(toModify client.Object) (client.Object, client.Object, error) { //Modify
 					serviceOrig, ok := toModify.(*corev1.Service)
 					if !ok {
 						return toModify, toModify, generrors.New("wrong type")
@@ -1004,12 +1003,12 @@ var _ = Describe("Controller", func() {
 					service.Annotations["fake.anno.3"] = "fakeannotation3"
 					return toModify, service, nil
 				},
-				func(resource runtime.Object) bool { //find resource for test
+				func(resource client.Object) bool { //find resource for test
 					//return true if object is the one we want to test
 					_, ok := resource.(*corev1.Service)
 					return ok
 				},
-				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
 					//return true if postUpgrade has teh same fields as desired
 					post, ok := postUpgradeObj.(*corev1.Service)
 					if !ok {
@@ -1031,7 +1030,7 @@ var _ = Describe("Controller", func() {
 				}),
 
 			Entry("verify - services updated on upgrade - label changed",
-				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+				func(toModify client.Object) (client.Object, client.Object, error) { //Modify
 					serviceOrig, ok := toModify.(*corev1.Service)
 					if !ok {
 						return toModify, toModify, generrors.New("wrong type")
@@ -1042,12 +1041,12 @@ var _ = Describe("Controller", func() {
 					service.Labels["fake.label.3"] = "fakelabel3"
 					return toModify, service, nil
 				},
-				func(resource runtime.Object) bool { //find resource for test
+				func(resource client.Object) bool { //find resource for test
 					//return true if object is the one we want to test
 					_, ok := resource.(*corev1.Service)
 					return ok
 				},
-				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
 					//return true if postUpgrade has the same fields as desired
 					post, ok := postUpgradeObj.(*corev1.Service)
 					if !ok {
@@ -1069,7 +1068,7 @@ var _ = Describe("Controller", func() {
 				}),
 
 			Entry("verify - services updated on upgrade - service port changed",
-				func(toModify runtime.Object) (runtime.Object, runtime.Object, error) { //Modify
+				func(toModify client.Object) (client.Object, client.Object, error) { //Modify
 					serviceOrig, ok := toModify.(*corev1.Service)
 					if !ok {
 						return toModify, toModify, generrors.New("wrong type")
@@ -1083,12 +1082,12 @@ var _ = Describe("Controller", func() {
 					}
 					return toModify, service, nil
 				},
-				func(resource runtime.Object) bool { //find resource for test
+				func(resource client.Object) bool { //find resource for test
 					//return true if object is the one we want to test
 					_, ok := resource.(*corev1.Service)
 					return ok
 				},
-				func(postUpgradeObj runtime.Object, deisredObj runtime.Object) bool { //check resource was upgraded
+				func(postUpgradeObj client.Object, deisredObj client.Object) bool { //check resource was upgraded
 					//return true if postUpgrade has teh same fields as desired
 					post, ok := postUpgradeObj.(*corev1.Service)
 					if !ok {
@@ -1181,23 +1180,23 @@ var _ = Describe("Controller", func() {
 		},
 
 			Entry("verify - unused deployment deleted",
-				func() (runtime.Object, error) {
+				func() (client.Object, error) {
 					deployment := utils.CreateDeployment("fake-cdi-deployment", "app", "containerized-data-importer", "fake-sa", int32(1), &sdkapi.NodePlacement{})
 					return deployment, nil
 				}),
 			Entry("verify - unused service deleted",
-				func() (runtime.Object, error) {
+				func() (client.Object, error) {
 					service := utils.ResourcesBuiler.CreateService("fake-cdi-service", "fake-service", "fake", nil)
 					return service, nil
 				}),
 			Entry("verify - unused sa deleted",
-				func() (runtime.Object, error) {
+				func() (client.Object, error) {
 					sa := utils.ResourcesBuiler.CreateServiceAccount("fake-cdi-sa")
 					return sa, nil
 				}),
 
 			Entry("verify - unused crd deleted",
-				func() (runtime.Object, error) {
+				func() (client.Object, error) {
 					crd := &extv1.CustomResourceDefinition{
 						TypeMeta: metav1.TypeMeta{
 							APIVersion: "apiextensions.k8s.io/v1",
@@ -1249,23 +1248,23 @@ var _ = Describe("Controller", func() {
 				}),
 
 			Entry("verify - unused role deleted",
-				func() (runtime.Object, error) {
+				func() (client.Object, error) {
 					role := utils.ResourcesBuiler.CreateRole("fake-role", nil)
 					return role, nil
 				}),
 
 			Entry("verify - unused role binding deleted",
-				func() (runtime.Object, error) {
+				func() (client.Object, error) {
 					role := utils.ResourcesBuiler.CreateRoleBinding("fake-role", "fake-role", "fake-role", "fake-role")
 					return role, nil
 				}),
 			Entry("verify - unused cluster role deleted",
-				func() (runtime.Object, error) {
+				func() (client.Object, error) {
 					role := utils.ResourcesBuiler.CreateClusterRole("fake-cluster-role", nil)
 					return role, nil
 				}),
 			Entry("verify - unused cluster role binding deleted",
-				func() (runtime.Object, error) {
+				func() (client.Object, error) {
 					role := utils.ResourcesBuiler.CreateClusterRoleBinding("fake-cluster-role", "fake-cluster-role", "fake-cluster-role", "fake-cluster-role")
 					return role, nil
 				}),
@@ -1274,14 +1273,14 @@ var _ = Describe("Controller", func() {
 	})
 })
 
-func getModifiedResource(reconciler *ReconcileCDI, modify modifyResource, tomodify isModifySubject) (runtime.Object, runtime.Object, error) {
+func getModifiedResource(reconciler *ReconcileCDI, modify modifyResource, tomodify isModifySubject) (client.Object, client.Object, error) {
 	resources, err := getAllResources(reconciler)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	//find the resource to modify
-	var orig runtime.Object
+	var orig client.Object
 	for _, resource := range resources {
 		r, err := getObject(reconciler.client, resource)
 		Expect(err).ToNot(HaveOccurred())
@@ -1312,7 +1311,7 @@ func (o *pullOverride) Check(d *appsv1.Deployment) {
 	Expect(pp).Should(Equal(o.value))
 }
 
-func getCDI(client realClient.Client, cdi *cdiv1.CDI) (*cdiv1.CDI, error) {
+func getCDI(client client.Client, cdi *cdiv1.CDI) (*cdiv1.CDI, error) {
 	result, err := getObject(client, cdi)
 	if err != nil {
 		return nil, err
@@ -1320,7 +1319,7 @@ func getCDI(client realClient.Client, cdi *cdiv1.CDI) (*cdiv1.CDI, error) {
 	return result.(*cdiv1.CDI), nil
 }
 
-func getSCC(client realClient.Client, scc *secv1.SecurityContextConstraints) (*secv1.SecurityContextConstraints, error) {
+func getSCC(client client.Client, scc *secv1.SecurityContextConstraints) (*secv1.SecurityContextConstraints, error) {
 	result, err := getObject(client, scc)
 	if err != nil {
 		return nil, err
@@ -1386,7 +1385,7 @@ func setDeploymentsDegraded(args *args) {
 	doReconcile(args)
 }
 
-func getDeployment(client realClient.Client, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
+func getDeployment(client client.Client, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
 	result, err := getObject(client, deployment)
 	if err != nil {
 		return nil, err
@@ -1394,22 +1393,22 @@ func getDeployment(client realClient.Client, deployment *appsv1.Deployment) (*ap
 	return result.(*appsv1.Deployment), nil
 }
 
-func getObject(client realClient.Client, obj runtime.Object) (runtime.Object, error) {
+func getObject(c client.Client, obj client.Object) (client.Object, error) {
 	metaObj := obj.(metav1.Object)
-	key := realClient.ObjectKey{Namespace: metaObj.GetNamespace(), Name: metaObj.GetName()}
+	key := client.ObjectKey{Namespace: metaObj.GetNamespace(), Name: metaObj.GetName()}
 
 	typ := reflect.ValueOf(obj).Elem().Type()
-	result := reflect.New(typ).Interface().(runtime.Object)
+	result := reflect.New(typ).Interface().(client.Object)
 
-	if err := client.Get(context.TODO(), key, result); err != nil {
+	if err := c.Get(context.TODO(), key, result); err != nil {
 		return nil, err
 	}
 
 	return result, nil
 }
 
-func getAllResources(reconciler *ReconcileCDI) ([]runtime.Object, error) {
-	var result []runtime.Object
+func getAllResources(reconciler *ReconcileCDI) ([]client.Object, error) {
+	var result []client.Object
 	crs, err := clusterResources.CreateAllStaticResources(reconciler.clusterArgs)
 	if err != nil {
 		return nil, err
@@ -1463,7 +1462,7 @@ func createArgs() *args {
 }
 
 func doReconcile(args *args) {
-	result, err := args.reconciler.Reconcile(reconcileRequest(args.cdi.Name))
+	result, err := args.reconciler.Reconcile(context.TODO(), reconcileRequest(args.cdi.Name))
 	Expect(err).ToNot(HaveOccurred())
 	Expect(result.Requeue).To(BeFalse())
 
@@ -1472,7 +1471,7 @@ func doReconcile(args *args) {
 }
 
 func doReconcileError(args *args) {
-	result, err := args.reconciler.Reconcile(reconcileRequest(args.cdi.Name))
+	result, err := args.reconciler.Reconcile(context.TODO(), reconcileRequest(args.cdi.Name))
 	Expect(err).To(HaveOccurred())
 	Expect(result.Requeue).To(BeFalse())
 
@@ -1481,7 +1480,7 @@ func doReconcileError(args *args) {
 }
 
 func doReconcileRequeue(args *args) {
-	result, err := args.reconciler.Reconcile(reconcileRequest(args.cdi.Name))
+	result, err := args.reconciler.Reconcile(context.TODO(), reconcileRequest(args.cdi.Name))
 	Expect(err).ToNot(HaveOccurred())
 	Expect(result.Requeue || result.RequeueAfter > 0).To(BeTrue())
 
@@ -1489,21 +1488,25 @@ func doReconcileRequeue(args *args) {
 	Expect(err).ToNot(HaveOccurred())
 }
 
-func createClient(objs ...runtime.Object) realClient.Client {
-	return fakeClient.NewFakeClientWithScheme(scheme.Scheme, objs...)
+func createClient(objs ...client.Object) client.Client {
+	var runtimeObjs []runtime.Object
+	for _, obj := range objs {
+		runtimeObjs = append(runtimeObjs, obj)
+	}
+	return fakeClient.NewFakeClientWithScheme(scheme.Scheme, runtimeObjs...)
 }
 
 func createCDI(name, uid string) *cdiv1.CDI {
 	return &cdiv1.CDI{ObjectMeta: metav1.ObjectMeta{Name: name, UID: types.UID(uid)}}
 }
 
-func createReconcilerWithVersion(client realClient.Client, version string) *ReconcileCDI {
+func createReconcilerWithVersion(client client.Client, version string) *ReconcileCDI {
 	r := createReconciler(client)
 	r.namespacedArgs.OperatorVersion = version
 	return r
 }
 
-func createReconciler(client realClient.Client) *ReconcileCDI {
+func createReconciler(client client.Client) *ReconcileCDI {
 	namespace := "cdi"
 	clusterArgs := &clusterResources.FactoryArgs{
 		Namespace: namespace,

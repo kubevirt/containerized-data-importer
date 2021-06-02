@@ -71,20 +71,20 @@ container_image(
 container_image(
     name = "cdi-func-test-file-host-http-image",
     base = ":cdi-func-test-file-host-http-base-image",
+    cmd = "mkdir -p /usr/share/nginx/html/images/priv",
     directory = "/",
     entrypoint = ["nginx"],
-    tars = [":nginx-conf-tar"],
+    env = {
+        "container": "",
+        "docker": "",
+    },
     ports = [
         "80",
         "81",
         "82",
         "83",
     ],
-    cmd = "mkdir -p /usr/share/nginx/html/images/priv",
-    env = {
-        "container": "",
-        "docker": "",
-    },
+    tars = [":nginx-conf-tar"],
     visibility = ["//visibility:public"],
 )
 

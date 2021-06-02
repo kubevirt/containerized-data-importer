@@ -143,25 +143,25 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 
 	It("Should return success if a PVC with no annotations is passed, due to it being ignored", func() {
 		reconciler = createImportReconciler(createPvc("testPvc1", "default", map[string]string{}, nil))
-		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("Should return success if no PVC can be found, due to it not existing", func() {
 		reconciler = createImportReconciler()
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("Should return success if no PVC can be found due to not existing in passed namespace", func() {
 		reconciler = createImportReconciler(createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint}, nil))
-		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "invalid"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "invalid"}})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("Should succeed and be marked complete, if creating a block PVC with source none", func() {
 		reconciler = createImportReconciler(createBlockPvc("testPvc1", "block", map[string]string{AnnSource: SourceNone}, nil))
-		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "block"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "block"}})
 		Expect(err).ToNot(HaveOccurred())
 		resultPvc := &corev1.PersistentVolumeClaim{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "block"}, resultPvc)
@@ -174,7 +174,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		orgPvc.TypeMeta.APIVersion = "v1"
 		orgPvc.TypeMeta.Kind = "PersistentVolumeClaim"
 		reconciler = createImportReconciler(orgPvc)
-		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		resPvc := &corev1.PersistentVolumeClaim{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: orgPvc.Namespace, Name: orgPvc.Name}, resPvc)
@@ -186,7 +186,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint}, nil)
 		pvc.Status.Phase = v1.ClaimBound
 		reconciler = createImportReconciler(pvc)
-		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		resultPvc := &corev1.PersistentVolumeClaim{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resultPvc)
@@ -199,7 +199,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		pvc.Status.Phase = v1.ClaimBound
 		pod := podUsingPVC(pvc, false)
 		reconciler := createImportReconciler(pvc, pod)
-		result, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(result.Requeue).To(BeTrue())
 		podList := &corev1.PodList{}
@@ -224,7 +224,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		podFinishedUsingPvc := podUsingPVC(pvc, false)
 		podFinishedUsingPvc.Status.Phase = v1.PodFailed
 		reconciler := createImportReconciler(pvc, podFinishedUsingPvc)
-		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
@@ -280,7 +280,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(placement.NodeSelector).To(Equal(dummyNodeSelector))
 		Expect(placement.Tolerations).To(Equal(dummyTolerations))
 
-		_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
@@ -295,7 +295,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1", AnnPodNetwork: "net1"}, nil)
 		pvc.Status.Phase = v1.ClaimBound
 		reconciler = createImportReconciler(pvc)
-		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
@@ -319,7 +319,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1", "annot1": "value1"}, nil)
 		pvc.Status.Phase = v1.ClaimBound
 		reconciler = createImportReconciler(pvc)
-		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
@@ -340,7 +340,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		pvc := createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "importer-testPvc1", AnnContentType: string(cdiv1.DataVolumeArchive)}, nil)
 		pvc.Status.Phase = v1.ClaimBound
 		reconciler = createImportReconciler(pvc)
-		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).ToNot(HaveOccurred())
 		pod := &corev1.Pod{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
@@ -369,7 +369,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 			},
 		}
 		reconciler = createImportReconciler(createPvc("testPvc1", "default", map[string]string{AnnEndpoint: testEndPoint}, nil), pod)
-		_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("Pod is not owned by PVC"))
 	})

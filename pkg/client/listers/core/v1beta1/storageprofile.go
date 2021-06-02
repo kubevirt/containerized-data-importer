@@ -26,10 +26,13 @@ import (
 )
 
 // StorageProfileLister helps list StorageProfiles.
+// All objects returned here must be treated as read-only.
 type StorageProfileLister interface {
 	// List lists all StorageProfiles in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1beta1.StorageProfile, err error)
 	// Get retrieves the StorageProfile from the index for a given name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1beta1.StorageProfile, error)
 	StorageProfileListerExpansion
 }

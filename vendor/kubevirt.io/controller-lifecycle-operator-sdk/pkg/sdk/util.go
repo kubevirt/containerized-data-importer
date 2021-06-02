@@ -22,17 +22,17 @@ import (
 	"reflect"
 	"strings"
 
-	v1 "k8s.io/api/core/v1"
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
-
 	jsondiff "github.com/appscode/jsonpatch"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/jsonmergepatch"
 	"k8s.io/apimachinery/pkg/util/mergepatch"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const statusKey = "status"
@@ -60,8 +60,8 @@ func MergeLabelsAndAnnotations(src, dest metav1.Object) {
 	}
 }
 
-func MergeObject(desiredObj, currentObj runtime.Object, lastAppliedConfigAnnotation string) (runtime.Object, error) {
-	desiredObj = desiredObj.DeepCopyObject()
+func MergeObject(desiredObj, currentObj client.Object, lastAppliedConfigAnnotation string) (client.Object, error) {
+	desiredObj = desiredObj.DeepCopyObject().(client.Object)
 	desiredMetaObj := desiredObj.(metav1.Object)
 	currentMetaObj := currentObj.(metav1.Object)
 
@@ -107,7 +107,7 @@ func MergeObject(desiredObj, currentObj runtime.Object, lastAppliedConfigAnnotat
 	return result, nil
 }
 
-func StripStatusFromObject(obj runtime.Object) (runtime.Object, error) {
+func StripStatusFromObject(obj client.Object) (client.Object, error) {
 	modified, err := json.Marshal(obj)
 	if err != nil {
 		return nil, err
@@ -163,9 +163,9 @@ func CheckDeploymentReady(deployment *appsv1.Deployment) bool {
 	return true
 }
 
-func NewDefaultInstance(obj runtime.Object) runtime.Object {
+func NewDefaultInstance(obj client.Object) client.Object {
 	typ := reflect.ValueOf(obj).Elem().Type()
-	return reflect.New(typ).Interface().(runtime.Object)
+	return reflect.New(typ).Interface().(client.Object)
 }
 
 func ContainsStringValue(values []string, value string) bool {
@@ -177,7 +177,7 @@ func ContainsStringValue(values []string, value string) bool {
 	return false
 }
 
-func IsMutable(obj runtime.Object) bool {
+func IsMutable(obj client.Object) bool {
 	switch obj.(type) {
 	case *v1.ConfigMap, *v1.Secret:
 		return true

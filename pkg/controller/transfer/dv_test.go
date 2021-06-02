@@ -17,6 +17,7 @@ limitations under the License.
 package transfer_test
 
 import (
+	"context"
 	"encoding/json"
 
 	. "github.com/onsi/ginkgo"
@@ -36,7 +37,7 @@ var _ = Describe("DataVolume Transfer Tests", func() {
 			xfer := dvTransfer(cdiv1.ObjectTransferPending)
 
 			r := createReconciler(xfer)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -50,7 +51,7 @@ var _ = Describe("DataVolume Transfer Tests", func() {
 			xfer := dvTransfer(cdiv1.ObjectTransferPending)
 
 			r := createReconciler(xfer, createUnpopulatedDV())
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -67,7 +68,7 @@ var _ = Describe("DataVolume Transfer Tests", func() {
 			pvc.Name = dv.Name
 
 			r := createReconciler(xfer, dv, pvc, createPod(pvc.Name))
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -81,7 +82,7 @@ var _ = Describe("DataVolume Transfer Tests", func() {
 			xfer := dvTransfer(cdiv1.ObjectTransferPending)
 
 			r := createReconciler(xfer, createPopulatedDV())
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -97,7 +98,7 @@ var _ = Describe("DataVolume Transfer Tests", func() {
 			dv := createPopulatedDV()
 
 			r := createReconciler(xfer, dv)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -121,7 +122,7 @@ var _ = Describe("DataVolume Transfer Tests", func() {
 			}
 
 			r := createReconciler(xfer, dv, pvc)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -142,7 +143,7 @@ var _ = Describe("DataVolume Transfer Tests", func() {
 			pvcTransfer := &cdiv1.ObjectTransfer{}
 
 			r := createReconciler(xfer)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -164,7 +165,7 @@ var _ = Describe("DataVolume Transfer Tests", func() {
 			pvcTransfer := internalPVCTransfer(xfer)
 
 			r := createReconciler(xfer, pvcTransfer)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -183,7 +184,7 @@ var _ = Describe("DataVolume Transfer Tests", func() {
 			dv := &cdiv1.DataVolume{}
 
 			r := createReconciler(xfer, pvcTransfer, pvc)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -212,7 +213,7 @@ var _ = Describe("DataVolume Transfer Tests", func() {
 			dv.Namespace = "target-ns"
 
 			r := createReconciler(xfer, pvcTransfer, pvc, dv)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)

@@ -58,7 +58,7 @@ func isErrCacheNotStarted(err error) bool {
 }
 
 // Reconcile the reconcile loop for the CDIConfig object.
-func (r *CDIConfigReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
+func (r *CDIConfigReconciler) Reconcile(_ context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("CDIConfig", req.NamespacedName)
 	log.Info("reconciling CDIConfig")
 
@@ -492,48 +492,46 @@ func watchCDIConfig(configController controller.Controller, configName string) e
 	if err := configController.Watch(&source.Kind{Type: &cdiv1.CDIConfig{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
-	err := configController.Watch(&source.Kind{Type: &cdiv1.CDI{}}, &handler.EnqueueRequestsFromMapFunc{
-		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+	return configController.Watch(&source.Kind{Type: &cdiv1.CDI{}}, handler.EnqueueRequestsFromMapFunc(
+		func(client.Object) []reconcile.Request {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: configName},
 			}}
-		}),
-	})
-	return err
+		},
+	))
 }
 
 func watchStorageClass(configController controller.Controller, configName string) error {
-	err := configController.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, &handler.EnqueueRequestsFromMapFunc{
-		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+	return configController.Watch(&source.Kind{Type: &storagev1.StorageClass{}}, handler.EnqueueRequestsFromMapFunc(
+		func(client.Object) []reconcile.Request {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: configName},
 			}}
-		}),
-	})
-	return err
+		},
+	))
 }
 
 func watchIngress(configController controller.Controller, cdiNamespace, configName, uploadProxyServiceName string) error {
-	err := configController.Watch(&source.Kind{Type: &extensionsv1beta1.Ingress{}}, &handler.EnqueueRequestsFromMapFunc{
-		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+	err := configController.Watch(&source.Kind{Type: &extensionsv1beta1.Ingress{}}, handler.EnqueueRequestsFromMapFunc(
+		func(client.Object) []reconcile.Request {
 			return []reconcile.Request{{
 				NamespacedName: types.NamespacedName{Name: configName},
 			}}
 		}),
-	}, predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			return "" != getURLFromIngress(e.Object.(*extensionsv1beta1.Ingress), uploadProxyServiceName) &&
-				e.Object.(*extensionsv1beta1.Ingress).GetNamespace() == cdiNamespace
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			return "" != getURLFromIngress(e.ObjectNew.(*extensionsv1beta1.Ingress), uploadProxyServiceName) &&
-				e.ObjectNew.(*extensionsv1beta1.Ingress).GetNamespace() == cdiNamespace
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return "" != getURLFromIngress(e.Object.(*extensionsv1beta1.Ingress), uploadProxyServiceName) &&
-				e.Object.(*extensionsv1beta1.Ingress).GetNamespace() == cdiNamespace
-		},
-	})
+		predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool {
+				return "" != getURLFromIngress(e.Object.(*extensionsv1beta1.Ingress), uploadProxyServiceName) &&
+					e.Object.(*extensionsv1beta1.Ingress).GetNamespace() == cdiNamespace
+			},
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				return "" != getURLFromIngress(e.ObjectNew.(*extensionsv1beta1.Ingress), uploadProxyServiceName) &&
+					e.ObjectNew.(*extensionsv1beta1.Ingress).GetNamespace() == cdiNamespace
+			},
+			DeleteFunc: func(e event.DeleteEvent) bool {
+				return "" != getURLFromIngress(e.Object.(*extensionsv1beta1.Ingress), uploadProxyServiceName) &&
+					e.Object.(*extensionsv1beta1.Ingress).GetNamespace() == cdiNamespace
+			},
+		})
 	return err
 }
 
@@ -542,26 +540,26 @@ func watchRoutes(mgr manager.Manager, configController controller.Controller, cd
 	err := mgr.GetClient().List(context.TODO(), &routev1.RouteList{})
 	if !meta.IsNoMatchError(err) {
 		if err == nil || isErrCacheNotStarted(err) {
-			err := configController.Watch(&source.Kind{Type: &routev1.Route{}}, &handler.EnqueueRequestsFromMapFunc{
-				ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+			err := configController.Watch(&source.Kind{Type: &routev1.Route{}}, handler.EnqueueRequestsFromMapFunc(
+				func(client.Object) []reconcile.Request {
 					return []reconcile.Request{{
 						NamespacedName: types.NamespacedName{Name: configName},
 					}}
 				}),
-			}, predicate.Funcs{
-				CreateFunc: func(e event.CreateEvent) bool {
-					return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
-						e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
-				},
-				UpdateFunc: func(e event.UpdateEvent) bool {
-					return "" != getURLFromRoute(e.ObjectNew.(*routev1.Route), uploadProxyServiceName) &&
-						e.ObjectNew.(*routev1.Route).GetNamespace() == cdiNamespace
-				},
-				DeleteFunc: func(e event.DeleteEvent) bool {
-					return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
-						e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
-				},
-			})
+				predicate.Funcs{
+					CreateFunc: func(e event.CreateEvent) bool {
+						return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
+							e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
+					},
+					UpdateFunc: func(e event.UpdateEvent) bool {
+						return "" != getURLFromRoute(e.ObjectNew.(*routev1.Route), uploadProxyServiceName) &&
+							e.ObjectNew.(*routev1.Route).GetNamespace() == cdiNamespace
+					},
+					DeleteFunc: func(e event.DeleteEvent) bool {
+						return "" != getURLFromRoute(e.Object.(*routev1.Route), uploadProxyServiceName) &&
+							e.Object.(*routev1.Route).GetNamespace() == cdiNamespace
+					},
+				})
 			return err
 		}
 		return err
@@ -574,14 +572,13 @@ func watchClusterProxy(mgr manager.Manager, configController controller.Controll
 	err := mgr.GetClient().List(context.TODO(), &ocpconfigv1.ProxyList{})
 	if !meta.IsNoMatchError(err) {
 		if err == nil || isErrCacheNotStarted(err) {
-			err := configController.Watch(&source.Kind{Type: &ocpconfigv1.Proxy{}}, &handler.EnqueueRequestsFromMapFunc{
-				ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+			return configController.Watch(&source.Kind{Type: &ocpconfigv1.Proxy{}}, handler.EnqueueRequestsFromMapFunc(
+				func(client.Object) []reconcile.Request {
 					return []reconcile.Request{{
 						NamespacedName: types.NamespacedName{Name: configName},
 					}}
-				}),
-			})
-			return err
+				},
+			))
 		}
 		return err
 	}

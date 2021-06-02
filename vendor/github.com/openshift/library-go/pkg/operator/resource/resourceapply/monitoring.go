@@ -6,7 +6,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/imdario/mergo"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -76,6 +76,9 @@ func ApplyServiceMonitor(client dynamic.Interface, recorder events.Recorder, ser
 		recorder.Eventf("ServiceMonitorCreated", "Created ServiceMonitor.monitoring.coreos.com/v1 because it was missing")
 		return true, nil
 	}
+	if err != nil {
+		return false, err
+	}
 
 	existingCopy := existing.DeepCopy()
 
@@ -88,7 +91,7 @@ func ApplyServiceMonitor(client dynamic.Interface, recorder events.Recorder, ser
 		return false, nil
 	}
 
-	if klog.V(4) {
+	if klog.V(4).Enabled() {
 		klog.Infof("ServiceMonitor %q changes: %v", namespace+"/"+required.GetName(), JSONPatchNoError(existing, existingCopy))
 	}
 
