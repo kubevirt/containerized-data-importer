@@ -224,15 +224,16 @@ var _ = Describe("updateBoundCondition", func() {
 	})
 
 	It("should be pending if PVC pending, if scratch PVC is not bound, message should be combined", func() {
+		reason := "not bound"
 		conditions := make([]cdiv1.DataVolumeCondition, 0)
-		pvc := createPvc("test", corev1.NamespaceDefault, map[string]string{AnnBoundCondition: "false", AnnBoundConditionReason: "not bound", AnnBoundConditionMessage: "scratch PVC not bound"}, nil)
+		pvc := createPvc("test", corev1.NamespaceDefault, map[string]string{AnnBoundCondition: "false", AnnBoundConditionReason: reason, AnnBoundConditionMessage: "scratch PVC not bound"}, nil)
 		pvc.Status.Phase = corev1.ClaimPending
 		conditions = updateBoundCondition(conditions, pvc)
 		Expect(len(conditions)).To(Equal(2))
 		condition := findConditionByType(cdiv1.DataVolumeBound, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeBound))
 		Expect(condition.Message).To(Equal("target PVC test Pending and scratch PVC not bound"))
-		Expect(condition.Reason).To(Equal(pvcPending))
+		Expect(condition.Reason).To(Equal(reason))
 		Expect(condition.Status).To(Equal(corev1.ConditionFalse))
 		condition = findConditionByType(cdiv1.DataVolumeReady, conditions)
 		Expect(condition.Type).To(Equal(cdiv1.DataVolumeReady))
