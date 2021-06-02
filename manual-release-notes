@@ -1,0 +1,12 @@
+v1.34.1:
+
+TestFix: Fix cluster proxy part of proxy test (#1772)
+BugFix: Restore compatibility in specifying custom CAs by using Go client
+TestFix: Fix noaccess mode storage profile test
+BugFix: fix custom cert rotation params
+CVE: Update github.com/ulikunitz/xz for CVE-2021-29482
+BugFix: Fix Compute fs overhead only for fs volumeMode
+BugFix: fix synchronization between smart clone and datavolume controller
+Enhancement: Stop using deprecated admissionregistration, apiregistration v1beta1
+BugFix:  An error in the logic that updates DV, it would ignore errors
+
