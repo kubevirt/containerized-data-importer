@@ -192,6 +192,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		return utils.NewDataVolumeWithVddkWarmImport(dataVolumeName, size, backingFile, s.Name, thumbprint, url, vmid.String(), currentCheckpoint, previousCheckpoint, finalCheckpoint)
 	}
 
+	createVddkWithoutConfigMap := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+		_, err := RunKubectlCommand(f, "delete", "configmap", "-n", f.CdiInstallNs, common.VddkConfigMap)
+		Expect(err).ToNot(HaveOccurred())
+
+		return createVddkDataVolume(dataVolumeName, size, url)
+	}
+
 	AfterEach(func() {
 		if sourcePvc != nil {
 			By("[AfterEach] Clean up target PVC")
@@ -765,6 +772,28 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Status:  v1.ConditionFalse,
 					Message: "Import Complete; VDDK: {\"Version\":\"1.2.3\",\"Host\":\"esx.test\"}",
 					Reason:  "Completed",
+				}}),
+			table.Entry("[test_id:5079]fail with \"AwaitingVDDK\" reason when VDDK credentials config map is not present", dataVolumeTestArguments{
+				name:             "dv-awaiting-vddk",
+				size:             "1Gi",
+				url:              vcenterURL,
+				dvFunc:           createVddkWithoutConfigMap,
+				eventReason:      common.AwaitingVDDK,
+				phase:            cdiv1.ImportScheduled,
+				checkPermissions: false,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionFalse,
+					Message: fmt.Sprintf("waiting for %s configmap for VDDK image", common.VddkConfigMap),
+					Reason:  common.AwaitingVDDK,
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeRunning,
+					Status: v1.ConditionFalse,
 				}}),
 		)
 
