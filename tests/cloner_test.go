@@ -64,13 +64,13 @@ var _ = Describe("all clone tests", func() {
 		})
 
 		DescribeTable("[test_id:1354]Should clone data within same namespace", func(targetSize string) {
-			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 			doFileBasedCloneTest(f, pvcDef, f.Namespace, "target-dv", targetSize)
 		},
-			Entry("with same target size", "1G"),
-			Entry("with larger target", "2G"),
+			Entry("with same target size", "1Gi"),
+			Entry("with larger target", "2Gi"),
 		)
 
 		It("[test_id:4953]Should clone imported data within same namespace and preserve fsGroup", func() {
@@ -109,7 +109,7 @@ var _ = Describe("all clone tests", func() {
 		})
 
 		DescribeTable("[test_id:1355]Should clone data across different namespaces", func(targetSize string) {
-			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
@@ -119,12 +119,12 @@ var _ = Describe("all clone tests", func() {
 			f.AddNamespaceToDelete(targetNs)
 			doFileBasedCloneTest(f, pvcDef, targetNs, "target-dv", targetSize)
 		},
-			Entry("with same target size", "1G"),
-			Entry("with bigger target size", "2G"),
+			Entry("with same target size", "1Gi"),
+			Entry("with bigger target size", "2Gi"),
 		)
 
 		It("[test_id:4954]Should clone data across different namespaces when source initially in use", func() {
-			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
@@ -136,7 +136,7 @@ var _ = Describe("all clone tests", func() {
 		})
 
 		It("[test_id:1356]Should not clone anything when CloneOf annotation exists", func() {
-			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 			cloneOfAnnoExistenceTest(f, f.Namespace.Name)
 		})
@@ -224,14 +224,14 @@ var _ = Describe("all clone tests", func() {
 			// Source and target PVs have been annotated, now create PVCs with label selectors.
 			sourceSelector := make(map[string]string)
 			sourceSelector["source-pv"] = "yes"
-			sourcePVCDef := utils.NewPVCDefinitionWithSelector(sourcePVCName, "1G", storageClassName, sourceSelector, nil, nil)
+			sourcePVCDef := utils.NewPVCDefinitionWithSelector(sourcePVCName, "1Gi", storageClassName, sourceSelector, nil, nil)
 			sourcePVCDef.Namespace = f.Namespace.Name
 			sourcePVC := f.CreateAndPopulateSourcePVC(sourcePVCDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 			sourcePVC, err = f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), sourcePVC.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(sourcePVC.Spec.VolumeName).To(Equal(sourcePV.Name))
 
-			targetDV := utils.NewCloningDataVolume("target-dv", "1G", sourcePVCDef)
+			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", sourcePVCDef)
 			targetDV.Spec.PVC.StorageClassName = &storageClassName
 			targetLabelSelector := metav1.LabelSelector{
 				MatchLabels: map[string]string{
@@ -747,7 +747,7 @@ var _ = Describe("all clone tests", func() {
 			Expect(es.Cmp(*targetPvc.Status.Capacity.Storage()) <= 0).To(BeTrue())
 		},
 			Entry("with same target size", "500M"),
-			Entry("with bigger target", "1G"),
+			Entry("with bigger target", "1Gi"),
 		)
 	})
 
@@ -802,7 +802,7 @@ var _ = Describe("all clone tests", func() {
 				}
 			}
 
-			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 			doFileBasedCloneTest(f, pvcDef, f.Namespace, "target-dv")
@@ -823,12 +823,12 @@ var _ = Describe("all clone tests", func() {
 			}
 
 			By("Populating source PVC")
-			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 			// Create targetPvc in new NS.
 			By("Creating new DV")
-			targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvcDef)
+			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvcDef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -857,12 +857,12 @@ var _ = Describe("all clone tests", func() {
 			}
 
 			By("Populating source PVC")
-			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 			// Create targetPvc in new NS.
 			By("Creating new DV")
-			targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvcDef)
+			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvcDef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -898,7 +898,7 @@ var _ = Describe("all clone tests", func() {
 				}
 			}
 
-			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 			doFileBasedCloneTest(f, pvcDef, f.Namespace, "target-dv")
@@ -996,7 +996,7 @@ var _ = Describe("all clone tests", func() {
 		})
 
 		It("[test_id:3999] Create a data volume and then clone it and verify retry count", func() {
-			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
@@ -1029,7 +1029,7 @@ var _ = Describe("all clone tests", func() {
 
 		It("[test_id:4000] Create a data volume and then clone it while killing the container and verify retry count", func() {
 			By("Prepare source PVC")
-			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 
@@ -1039,7 +1039,7 @@ var _ = Describe("all clone tests", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 			f.AddNamespaceToDelete(targetNs)
-			targetDV := utils.NewCloningDataVolume("target-dv", "1G", pvcDef)
+			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvcDef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -1090,7 +1090,7 @@ var _ = Describe("all clone tests", func() {
 			shortDvName := "import-long-name-dv"
 
 			By(fmt.Sprintf("Create PVC %s", shortDvName))
-			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 			targetDvName := shortDvName
@@ -1129,7 +1129,7 @@ var _ = Describe("all clone tests", func() {
 				"123456789-123456789-123456789-1234567890"
 
 			By(fmt.Sprintf("Create PVC %s", dvName160Characters))
-			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 			targetDvName := dvName160Characters
@@ -1168,7 +1168,7 @@ var _ = Describe("all clone tests", func() {
 				"123456789-123456789-123456789-1234567890"
 
 			By(fmt.Sprintf("Create PVC %s", dvName160Characters))
-			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1G", nil, nil)
+			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 			targetDvName := dvName160Characters
@@ -1298,7 +1298,7 @@ var _ = Describe("all clone tests", func() {
 
 func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClaim, targetNs *v1.Namespace, targetDv string, targetSize ...string) {
 	if len(targetSize) == 0 {
-		targetSize = []string{"1G"}
+		targetSize = []string{"1Gi"}
 	}
 	// Create targetPvc in new NS.
 	targetDV := utils.NewCloningDataVolume(targetDv, targetSize[0], srcPVCDef)
@@ -1335,7 +1335,7 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 	}, 90*time.Second, 2*time.Second).Should(BeTrue())
 
 	// Create targetPvc in new NS.
-	targetDV := utils.NewCloningDataVolume(targetDv, "1G", srcPVCDef)
+	targetDV := utils.NewCloningDataVolume(targetDv, "1Gi", srcPVCDef)
 	dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -1421,7 +1421,7 @@ func cloneOfAnnoExistenceTest(f *framework.Framework, targetNamespaceName string
 	By(fmt.Sprintf("Creating target pvc: %s/target-pvc", targetNamespaceName))
 	targetPvc, err := utils.CreatePVCFromDefinition(f.K8sClient, targetNamespaceName, utils.NewPVCDefinition(
 		"target-pvc",
-		"1G",
+		"1Gi",
 		map[string]string{
 			controller.AnnCloneRequest: f.Namespace.Name + "/" + sourcePVCName,
 			controller.AnnCloneOf:      "true",
