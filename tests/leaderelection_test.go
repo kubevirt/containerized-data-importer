@@ -179,6 +179,7 @@ func getLeaderAndNewDeployment(f *framework.Framework) (string, *appsv1.Deployme
 	leaderPodName := pods.Items[0].Name
 
 	log := getLog(f, leaderPodName)
+	fmt.Fprintf(GinkgoWriter, "Log: %s", log)
 	Expect(checkLogForRegEx(logIsLeaderRegex, log)).To(BeTrue())
 
 	newDeployment := deployments.Items[0].DeepCopy()
