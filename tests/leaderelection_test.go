@@ -81,7 +81,11 @@ var _ = Describe("[rfe_id:1250][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 		By("Confirm pod did not become leader")
 		log := getLog(f, newPodName)
-		Expect(checkLogForRegEx(logIsLeaderRegex, log)).To(BeFalse())
+		logMatched := checkLogForRegEx(logIsLeaderRegex, log)
+		if logMatched {
+			fmt.Fprintf(GinkgoWriter, "Log: %s", log)
+		}
+		Expect(logMatched).To(BeFalse())
 	})
 })
 
@@ -179,8 +183,11 @@ func getLeaderAndNewDeployment(f *framework.Framework) (string, *appsv1.Deployme
 	leaderPodName := pods.Items[0].Name
 
 	log := getLog(f, leaderPodName)
-	fmt.Fprintf(GinkgoWriter, "Log: %s", log)
-	Expect(checkLogForRegEx(logIsLeaderRegex, log)).To(BeTrue())
+	logMatched := checkLogForRegEx(logIsLeaderRegex, log)
+	if !logMatched {
+		fmt.Fprintf(GinkgoWriter, "Log: %s", log)
+	}
+	Expect(logMatched).To(BeTrue())
 
 	newDeployment := deployments.Items[0].DeepCopy()
 	newDeployment.ObjectMeta = metav1.ObjectMeta{Name: newDeploymentName}
@@ -256,7 +263,7 @@ func getPods(f *framework.Framework) *v1.PodList {
 }
 
 func getLog(f *framework.Framework, name string) string {
-	log, err := tests.RunKubectlCommand(f, "logs", name, "-n", f.CdiInstallNs)
+	log, err := tests.RunKubectlCommand(f, "logs", "--since=0", name, "-n", f.CdiInstallNs)
 	Expect(err).ToNot(HaveOccurred())
 	return log
 }
