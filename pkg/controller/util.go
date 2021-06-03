@@ -554,10 +554,10 @@ func setConditionFromPodWithPrefix(anno map[string]string, prefix string, pod *v
 		} else {
 			anno[AnnRunningCondition] = "false"
 			if pod.Status.ContainerStatuses[0].State.Waiting != nil && pod.Status.ContainerStatuses[0].State.Waiting.Reason != "CrashLoopBackOff" {
-				anno[prefix+".message"] = pod.Status.ContainerStatuses[0].State.Waiting.Message
+				anno[prefix+".message"] = simplifyKnownMessage(pod.Status.ContainerStatuses[0].State.Waiting.Message)
 				anno[prefix+".reason"] = pod.Status.ContainerStatuses[0].State.Waiting.Reason
 			} else if pod.Status.ContainerStatuses[0].State.Terminated != nil {
-				anno[prefix+".message"] = pod.Status.ContainerStatuses[0].State.Terminated.Message
+				anno[prefix+".message"] = simplifyKnownMessage(pod.Status.ContainerStatuses[0].State.Terminated.Message)
 				anno[prefix+".reason"] = pod.Status.ContainerStatuses[0].State.Terminated.Reason
 				if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, common.PreallocationApplied) {
 					anno[AnnPreallocationApplied] = "true"
@@ -565,6 +565,16 @@ func setConditionFromPodWithPrefix(anno map[string]string, prefix string, pod *v
 			}
 		}
 	}
+}
+
+func simplifyKnownMessage(msg string) string {
+	if strings.Contains(msg, "is larger than available size") ||
+		strings.Contains(msg, "no space left on device") ||
+		strings.Contains(msg, "file largest block is bigger than maxblock") {
+		return "DataVolume too small to contain image"
+	}
+
+	return msg
 }
 
 func setBoundConditionFromPVC(anno map[string]string, prefix string, pvc *v1.PersistentVolumeClaim) {
