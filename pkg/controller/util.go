@@ -553,7 +553,7 @@ func setConditionFromPodWithPrefix(anno map[string]string, prefix string, pod *v
 			anno[prefix+".reason"] = podRunningReason
 		} else {
 			anno[AnnRunningCondition] = "false"
-			if pod.Status.ContainerStatuses[0].State.Waiting != nil {
+			if pod.Status.ContainerStatuses[0].State.Waiting != nil && pod.Status.ContainerStatuses[0].State.Waiting.Reason != "CrashLoopBackOff" {
 				anno[prefix+".message"] = pod.Status.ContainerStatuses[0].State.Waiting.Message
 				anno[prefix+".reason"] = pod.Status.ContainerStatuses[0].State.Waiting.Reason
 			} else if pod.Status.ContainerStatuses[0].State.Terminated != nil {
