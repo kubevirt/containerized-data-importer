@@ -64,24 +64,30 @@ var _ = Describe("[rfe_id:1250][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		cleanupTest(f, newDeployment)
 	})
 
-	It("[test_id:1365]Should only ever be one controller as leader", func() {
-		Expect(leaderPodName).ShouldNot(BeEmpty())
+	Context("[Destructive]", func() {
+		It("[test_id:1365]Should only ever be one controller as leader", func() {
+			Expect(leaderPodName).ShouldNot(BeEmpty())
 
-		newPodName := locateNewPod(f, leaderPodName)
-		Expect(newPodName).ShouldNot(BeEmpty())
+			newPodName := locateNewPod(f, leaderPodName)
+			Expect(newPodName).ShouldNot(BeEmpty())
 
-		By("Check that new pod is attempting to become leader")
-		Eventually(func() bool {
+			By("Check that new pod is attempting to become leader")
+			Eventually(func() bool {
+				log := getLog(f, newPodName)
+				return checkLogForRegEx(logCheckLeaderRegEx, log)
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			// have to prove new pod won't become leader in period longer than lease duration
+			time.Sleep(20 * time.Second)
+
+			By("Confirm pod did not become leader")
 			log := getLog(f, newPodName)
-			return checkLogForRegEx(logCheckLeaderRegEx, log)
-		}, timeout, pollingInterval).Should(BeTrue())
-
-		// have to prove new pod won't become leader in period longer than lease duration
-		time.Sleep(20 * time.Second)
-
-		By("Confirm pod did not become leader")
-		log := getLog(f, newPodName)
-		Expect(checkLogForRegEx(logIsLeaderRegex, log)).To(BeFalse())
+			logMatched := checkLogForRegEx(logIsLeaderRegex, log)
+			if logMatched {
+				fmt.Fprintf(GinkgoWriter, "Log: %s", log)
+			}
+			Expect(logMatched).To(BeFalse())
+		})
 	})
 })
 
@@ -100,69 +106,70 @@ var _ = Describe("[rfe_id:1250][crit:high][test_id:1889][vendor:cnv-qe@redhat.co
 		cleanupTest(f, newDeployment)
 	})
 
-	It("Should not not interrupt an import while switching leaders", func() {
-		Expect(leaderPodName).ShouldNot(BeEmpty())
-		var importer *v1.Pod
+	Context("[Destructive]", func() {
+		It("Should not not interrupt an import while switching leaders", func() {
+			Expect(leaderPodName).ShouldNot(BeEmpty())
+			var importer *v1.Pod
 
-		newPodName := locateNewPod(f, leaderPodName)
-		Expect(newPodName).ShouldNot(BeEmpty())
+			newPodName := locateNewPod(f, leaderPodName)
+			Expect(newPodName).ShouldNot(BeEmpty())
 
-		By("Starting slow import, we can monitor if it gets interrupted during leader changes")
-		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPRateLimitPort)
-		pvcAnn := map[string]string{
-			controller.AnnEndpoint: httpEp + "/tinyCore.iso",
-			controller.AnnSecret:   "",
-		}
-
-		pvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, utils.NewPVCDefinition("import-e2e", "40Mi", pvcAnn, nil))
-		Expect(err).NotTo(HaveOccurred())
-		f.ForceBindIfWaitForFirstConsumer(pvc)
-
-		Eventually(func() bool {
-			importer, err = utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)
-			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", f.Namespace.Name+"/"+common.ImporterPodName))
-			return importer.Status.Phase == v1.PodRunning || importer.Status.Phase == v1.PodSucceeded
-		}, timeout, pollingInterval).Should(BeTrue())
-
-		Eventually(func() bool {
-			log, err := tests.RunKubectlCommand(f, "logs", importer.Name, "-n", f.Namespace.Name)
-			Expect(err).NotTo(HaveOccurred())
-			return checkLogForRegEx(logImporterStarting, log)
-		}, timeout, pollingInterval).Should(BeTrue())
-
-		// The import is starting, and the transfer is about to happen. Now kill the leader
-		By("Killing leader, we should have a new leader elected")
-		err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).Delete(context.TODO(), leaderPodName, metav1.DeleteOptions{})
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to kill leader: %v", err))
-
-		By("Verifying that the original leader pod is gone.")
-		Eventually(func() bool {
-			_, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).Get(context.TODO(), leaderPodName, metav1.GetOptions{})
-			return err != nil && k8serrors.IsNotFound(err)
-		}, timeout, pollingInterval).Should(BeTrue())
-
-		Eventually(func() bool {
-			newDeploymentPodName := locateNewPod(f, newPodName)
-			newDeploymentLog := ""
-			if newDeploymentPodName != "" {
-				newDeploymentLog = getLog(f, newDeploymentPodName)
+			By("Starting slow import, we can monitor if it gets interrupted during leader changes")
+			httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPRateLimitPort)
+			pvcAnn := map[string]string{
+				controller.AnnEndpoint: httpEp + "/tinyCore.iso",
+				controller.AnnSecret:   "",
 			}
-			log := getLog(f, newPodName)
-			fmt.Fprintf(GinkgoWriter, "INFO: Lookin for: %s\n", logIsLeaderRegex)
-			fmt.Fprintf(GinkgoWriter, "INFO: In new deployment pod log: %s\n", log)
-			if newDeploymentLog != "" {
-				fmt.Fprintf(GinkgoWriter, "INFO: In original leader pod log: %s\n", newDeploymentLog)
-			}
-			return checkLogForRegEx(logIsLeaderRegex, log) || checkLogForRegEx(logIsLeaderRegex, newDeploymentLog)
-		}, timeout, pollingInterval).Should(BeTrue())
 
-		By("Verifying imported pod has progressed without issue")
-		Eventually(func() bool {
-			log, err := tests.RunKubectlCommand(f, "logs", importer.Name, "-n", f.Namespace.Name)
+			pvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, utils.NewPVCDefinition("import-e2e", "40Mi", pvcAnn, nil))
 			Expect(err).NotTo(HaveOccurred())
-			return checkLogForRegEx(logImporterCompleted, log)
-		}, timeout, pollingInterval).Should(BeTrue())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
 
+			Eventually(func() bool {
+				importer, err = utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)
+				Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod %q", f.Namespace.Name+"/"+common.ImporterPodName))
+				return importer.Status.Phase == v1.PodRunning || importer.Status.Phase == v1.PodSucceeded
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			Eventually(func() bool {
+				log, err := tests.RunKubectlCommand(f, "logs", importer.Name, "-n", f.Namespace.Name)
+				Expect(err).NotTo(HaveOccurred())
+				return checkLogForRegEx(logImporterStarting, log)
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			// The import is starting, and the transfer is about to happen. Now kill the leader
+			By("Killing leader, we should have a new leader elected")
+			err = f.K8sClient.CoreV1().Pods(f.CdiInstallNs).Delete(context.TODO(), leaderPodName, metav1.DeleteOptions{})
+			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to kill leader: %v", err))
+
+			By("Verifying that the original leader pod is gone.")
+			Eventually(func() bool {
+				_, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).Get(context.TODO(), leaderPodName, metav1.GetOptions{})
+				return err != nil && k8serrors.IsNotFound(err)
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			Eventually(func() bool {
+				newDeploymentPodName := locateNewPod(f, newPodName)
+				newDeploymentLog := ""
+				if newDeploymentPodName != "" {
+					newDeploymentLog = getLog(f, newDeploymentPodName)
+				}
+				log := getLog(f, newPodName)
+				fmt.Fprintf(GinkgoWriter, "INFO: Lookin for: %s\n", logIsLeaderRegex)
+				fmt.Fprintf(GinkgoWriter, "INFO: In new deployment pod log: %s\n", log)
+				if newDeploymentLog != "" {
+					fmt.Fprintf(GinkgoWriter, "INFO: In original leader pod log: %s\n", newDeploymentLog)
+				}
+				return checkLogForRegEx(logIsLeaderRegex, log) || checkLogForRegEx(logIsLeaderRegex, newDeploymentLog)
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			By("Verifying imported pod has progressed without issue")
+			Eventually(func() bool {
+				log, err := tests.RunKubectlCommand(f, "logs", importer.Name, "-n", f.Namespace.Name)
+				Expect(err).NotTo(HaveOccurred())
+				return checkLogForRegEx(logImporterCompleted, log)
+			}, timeout, pollingInterval).Should(BeTrue())
+		})
 	})
 })
 
@@ -179,7 +186,11 @@ func getLeaderAndNewDeployment(f *framework.Framework) (string, *appsv1.Deployme
 	leaderPodName := pods.Items[0].Name
 
 	log := getLog(f, leaderPodName)
-	Expect(checkLogForRegEx(logIsLeaderRegex, log)).To(BeTrue())
+	logMatched := checkLogForRegEx(logIsLeaderRegex, log)
+	if !logMatched {
+		fmt.Fprintf(GinkgoWriter, "Log: %s", log)
+	}
+	Expect(logMatched).To(BeTrue())
 
 	newDeployment := deployments.Items[0].DeepCopy()
 	newDeployment.ObjectMeta = metav1.ObjectMeta{Name: newDeploymentName}
@@ -255,7 +266,7 @@ func getPods(f *framework.Framework) *v1.PodList {
 }
 
 func getLog(f *framework.Framework, name string) string {
-	log, err := tests.RunKubectlCommand(f, "logs", name, "-n", f.CdiInstallNs)
+	log, err := tests.RunKubectlCommand(f, "logs", "--since=0", name, "-n", f.CdiInstallNs)
 	Expect(err).ToNot(HaveOccurred())
 	return log
 }
