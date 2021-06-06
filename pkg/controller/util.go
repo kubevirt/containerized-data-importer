@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rsa"
 	"fmt"
+	"strconv"
 	"strings"
 
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
@@ -547,6 +548,11 @@ func podSucceededFromPVC(pvc *v1.PersistentVolumeClaim) bool {
 
 func setAnnotationsFromPodWithPrefix(anno map[string]string, prefix string, pod *v1.Pod) {
 	if pod.Status.ContainerStatuses != nil {
+		annPodRestarts, _ := strconv.Atoi(anno[AnnPodRestarts])
+		podRestarts := int(pod.Status.ContainerStatuses[0].RestartCount)
+		if podRestarts >= annPodRestarts {
+			anno[AnnPodRestarts] = strconv.Itoa(podRestarts)
+		}
 		if pod.Status.ContainerStatuses[0].State.Running != nil {
 			anno[prefix] = "true"
 			anno[prefix+".message"] = ""

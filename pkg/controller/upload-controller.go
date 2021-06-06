@@ -236,15 +236,6 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 	anno[AnnPodPhase] = string(podPhase)
 	anno[AnnPodReady] = strconv.FormatBool(isPodReady(pod))
 
-	if pod.Status.ContainerStatuses != nil {
-		// update pvc annotation tracking pod restarts only if the source pod restart count is greater
-		// see the same in clone-controller
-		pvcAnnPodRestarts, _ := strconv.Atoi(anno[AnnPodRestarts])
-		podRestarts := int(pod.Status.ContainerStatuses[0].RestartCount)
-		if podRestarts > pvcAnnPodRestarts {
-			anno[AnnPodRestarts] = strconv.Itoa(podRestarts)
-		}
-	}
 	setAnnotationsFromPodWithPrefix(anno, AnnRunningCondition, pod)
 
 	if !reflect.DeepEqual(pvc, pvcCopy) {

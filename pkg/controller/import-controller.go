@@ -379,10 +379,6 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		anno[AnnCurrentPodID] = string(pod.ObjectMeta.UID)
 	}
 
-	if pod.Status.ContainerStatuses != nil {
-		anno[AnnPodRestarts] = strconv.Itoa(int(pod.Status.ContainerStatuses[0].RestartCount))
-	}
-
 	anno[AnnImportPod] = string(pod.Name)
 	if !scratchExitCode {
 		// No scratch exit code, update the phase based on the pod. If we do have scratch exit code we don't want to update the
