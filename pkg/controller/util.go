@@ -3,7 +3,9 @@ package controller
 import (
 	"context"
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -27,6 +29,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdiv1utils "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1/utils"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
@@ -144,6 +147,10 @@ const (
 	AnnPodSidecarInjection = "sidecar.istio.io/inject"
 	// AnnPodSidecarInjectionDefault is the default value passed for AnnPodSidecarInjection
 	AnnPodSidecarInjectionDefault = "false"
+)
+
+var (
+	vddkInfoMatch = regexp.MustCompile(`((.*; )|^)VDDK: (?P<info>{.*})`)
 )
 
 func isCrossNamespaceClone(dv *cdiv1.DataVolume) bool {
@@ -555,6 +562,7 @@ func setAnnotationsFromPodWithPrefix(anno map[string]string, prefix string, pod 
 	if podRestarts >= annPodRestarts {
 		anno[AnnPodRestarts] = strconv.Itoa(podRestarts)
 	}
+	setVddkAnnotations(anno, pod)
 	if pod.Status.ContainerStatuses[0].State.Running != nil {
 		anno[prefix] = "true"
 		anno[prefix+".message"] = ""
@@ -582,6 +590,34 @@ func simplifyKnownMessage(msg string) string {
 	}
 
 	return msg
+}
+
+func setVddkAnnotations(anno map[string]string, pod *corev1.Pod) {
+	if pod.Status.ContainerStatuses[0].State.Terminated == nil {
+		return
+	}
+	terminationMessage := pod.Status.ContainerStatuses[0].State.Terminated.Message
+	klog.V(1).Info("Saving VDDK annotations from pod status message: ", "message", terminationMessage)
+
+	var terminationInfo string
+	matches := vddkInfoMatch.FindAllStringSubmatch(terminationMessage, -1)
+	for index, matchName := range vddkInfoMatch.SubexpNames() {
+		if matchName == "info" && len(matches) > 0 {
+			terminationInfo = matches[0][index]
+			break
+		}
+	}
+
+	var vddkInfo util.VddkInfo
+	err := json.Unmarshal([]byte(terminationInfo), &vddkInfo)
+	if err == nil {
+		if vddkInfo.Host != "" {
+			anno[AnnVddkHostConnection] = vddkInfo.Host
+		}
+		if vddkInfo.Version != "" {
+			anno[AnnVddkVersion] = vddkInfo.Version
+		}
+	}
 }
 
 func setBoundConditionFromPVC(anno map[string]string, prefix string, pvc *v1.PersistentVolumeClaim) {
