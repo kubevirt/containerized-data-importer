@@ -610,13 +610,14 @@ func setVddkAnnotations(anno map[string]string, pod *corev1.Pod) {
 
 	var vddkInfo util.VddkInfo
 	err := json.Unmarshal([]byte(terminationInfo), &vddkInfo)
-	if err == nil {
-		if vddkInfo.Host != "" {
-			anno[AnnVddkHostConnection] = vddkInfo.Host
-		}
-		if vddkInfo.Version != "" {
-			anno[AnnVddkVersion] = vddkInfo.Version
-		}
+	if err != nil {
+		return
+	}
+	if vddkInfo.Host != "" {
+		anno[AnnVddkHostConnection] = vddkInfo.Host
+	}
+	if vddkInfo.Version != "" {
+		anno[AnnVddkVersion] = vddkInfo.Version
 	}
 }
 
