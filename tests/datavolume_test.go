@@ -694,6 +694,30 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
+			table.Entry("[rfe_id:4334][test_id:6433]succeed creating import dv with given valid registry url and DV barely big enough", dataVolumeTestArguments{
+				name:             "dv-import-registry",
+				size:             "22Mi", // The image has 18M
+				url:              tinyCoreIsoRegistryURL,
+				dvFunc:           createRegistryImportDataVolume,
+				eventReason:      controller.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-import-registry Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
 			table.Entry("[test_id:5077]succeed creating import dv from VDDK source", dataVolumeTestArguments{
 				name:             "dv-import-vddk",
 				size:             "1Gi",
