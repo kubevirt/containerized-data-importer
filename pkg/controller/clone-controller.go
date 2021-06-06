@@ -294,9 +294,7 @@ func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.Pe
 		r.recorder.Event(pvc, corev1.EventTypeNormal, CloneSucceededPVC, cloneComplete)
 	}
 
-	if sourcePod != nil {
-		setAnnotationsFromPodWithPrefix(pvc.Annotations, AnnSourceRunningCondition, sourcePod)
-	}
+	setAnnotationsFromPodWithPrefix(pvc.Annotations, AnnSourceRunningCondition, sourcePod)
 
 	if !reflect.DeepEqual(currentPvcCopy, pvc) {
 		return r.updatePVC(pvc)
