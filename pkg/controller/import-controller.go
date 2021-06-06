@@ -369,10 +369,6 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		}
 	}
 	if pod.Status.ContainerStatuses != nil &&
-		pod.Status.ContainerStatuses[0].State.Terminated != nil &&
-		pod.Status.ContainerStatuses[0].State.Terminated.ExitCode == 0 {
-	}
-	if pod.Status.ContainerStatuses != nil &&
 		pod.Status.ContainerStatuses[0].State.Terminated != nil {
 		if getSource(pvc) == SourceVDDK {
 			r.saveVddkAnnotations(pvc, pod, log)

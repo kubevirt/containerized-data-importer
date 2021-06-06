@@ -244,10 +244,6 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		if podRestarts > pvcAnnPodRestarts {
 			anno[AnnPodRestarts] = strconv.Itoa(podRestarts)
 		}
-
-		if pod.Status.ContainerStatuses[0].State.Terminated != nil &&
-			pod.Status.ContainerStatuses[0].State.Terminated.ExitCode == 0 {
-		}
 	}
 	setConditionFromPodWithPrefix(anno, AnnRunningCondition, pod)
 
