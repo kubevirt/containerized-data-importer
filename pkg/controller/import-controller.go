@@ -353,7 +353,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 
 	log.V(1).Info("Updating PVC from pod")
 	anno := pvc.GetAnnotations()
-	setConditionFromPodWithPrefix(anno, AnnRunningCondition, pod)
+	setAnnotationsFromPodWithPrefix(anno, AnnRunningCondition, pod)
 
 	scratchExitCode := false
 	if pod.Status.ContainerStatuses != nil &&

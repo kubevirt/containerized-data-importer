@@ -545,7 +545,7 @@ func podSucceededFromPVC(pvc *v1.PersistentVolumeClaim) bool {
 	return (podPhaseFromPVC(pvc) == v1.PodSucceeded)
 }
 
-func setConditionFromPodWithPrefix(anno map[string]string, prefix string, pod *v1.Pod) {
+func setAnnotationsFromPodWithPrefix(anno map[string]string, prefix string, pod *v1.Pod) {
 	if pod.Status.ContainerStatuses != nil {
 		if pod.Status.ContainerStatuses[0].State.Running != nil {
 			anno[prefix] = "true"

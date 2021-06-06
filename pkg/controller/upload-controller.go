@@ -245,7 +245,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 			anno[AnnPodRestarts] = strconv.Itoa(podRestarts)
 		}
 	}
-	setConditionFromPodWithPrefix(anno, AnnRunningCondition, pod)
+	setAnnotationsFromPodWithPrefix(anno, AnnRunningCondition, pod)
 
 	if !reflect.DeepEqual(pvc, pvcCopy) {
 		if err := r.updatePVC(pvcCopy); err != nil {

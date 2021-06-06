@@ -302,7 +302,7 @@ func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.Pe
 		if podRestarts > annPodRestarts {
 			pvc.Annotations[AnnPodRestarts] = strconv.Itoa(podRestarts)
 		}
-		setConditionFromPodWithPrefix(pvc.Annotations, AnnSourceRunningCondition, sourcePod)
+		setAnnotationsFromPodWithPrefix(pvc.Annotations, AnnSourceRunningCondition, sourcePod)
 	}
 
 	if !reflect.DeepEqual(currentPvcCopy, pvc) {
