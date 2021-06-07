@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -86,6 +87,8 @@ type Clients struct {
 	CrClient crclient.Client
 	// RestConfig provides a pointer to our REST client config.
 	RestConfig *rest.Config
+	// DynamicClient performs generic operations on arbitrary k8s API objects.
+	DynamicClient dynamic.Interface
 }
 
 // Framework supports common operations used by functional/e2e tests. It holds the k8s and cdi clients,
@@ -242,6 +245,19 @@ func DeleteNS(c *kubernetes.Clientset, ns string) error {
 		return err
 	}
 	return nil
+}
+
+// GetDynamicClient gets an instance of a dynamic client that performs generic operations on arbitrary k8s API objects.
+func (c *Clients) GetDynamicClient() (dynamic.Interface, error) {
+	cfg, err := clientcmd.BuildConfigFromFlags(c.Master, c.KubeConfig)
+	if err != nil {
+		return nil, err
+	}
+	dyn, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return dyn, nil
 }
 
 // GetCdiClient gets an instance of a kubernetes client that includes all the CDI extensions.

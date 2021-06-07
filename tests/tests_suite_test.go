@@ -97,6 +97,12 @@ func BuildTestSuite() {
 		}
 		framework.ClientsInstance.CrClient = crClient
 
+		dyn, err := framework.ClientsInstance.GetDynamicClient()
+		if err != nil {
+			ginkgo.Fail(fmt.Sprintf("ERROR, unable to create DynamicClient: %v", err))
+		}
+		framework.ClientsInstance.DynamicClient = dyn
+
 		utils.CacheTestsData(framework.ClientsInstance.K8sClient, framework.ClientsInstance.CdiInstallNs)
 	})
 
