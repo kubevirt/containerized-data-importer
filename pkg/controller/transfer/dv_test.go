@@ -272,7 +272,7 @@ func dvTransferRunning() *cdiv1.ObjectTransfer {
 	dv := createPopulatedDV()
 	dv.Kind = "DataVolume"
 	dv.APIVersion = "cdi.kubevirt.io/v1beta1"
-	dv.ResourceVersion = "1"
+	dv.ResourceVersion = "1000"
 	dv.Annotations = map[string]string{
 		"cdi.kubevirt.io/objectTransferName": "dvTransfer",
 	}

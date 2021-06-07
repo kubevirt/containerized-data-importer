@@ -341,7 +341,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			pvc.Spec.VolumeName = pv.Name
 
 			r := createReconciler(xfer, pv, pvc)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", pv.Name, pv)
@@ -473,7 +473,7 @@ func pvcTransferRunning() *cdiv1.ObjectTransfer {
 	pvc := createBoundPVC()
 	pvc.Kind = "PersistentVolumeClaim"
 	pvc.APIVersion = "v1"
-	pvc.ResourceVersion = "1"
+	pvc.ResourceVersion = "1000"
 	pvc.Annotations = map[string]string{
 		"cdi.kubevirt.io/objectTransferName": "pvcTransfer",
 	}

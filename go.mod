@@ -47,7 +47,7 @@ require (
 	k8s.io/klog/v2 v2.4.0
 	k8s.io/kube-aggregator v0.20.2
 	k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
-	kubevirt.io/controller-lifecycle-operator-sdk v0.1.2
+	kubevirt.io/controller-lifecycle-operator-sdk v0.2.0
 	kubevirt.io/qe-tools v0.1.6
 	sigs.k8s.io/controller-runtime v0.8.3
 )
@@ -82,8 +82,6 @@ replace (
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.2
 	k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.20.2
 	k8s.io/sample-controller => k8s.io/sample-controller v0.20.2
-
-	kubevirt.io/controller-lifecycle-operator-sdk => github.com/mhenriks/controller-lifecycle-operator-sdk v0.0.7-0.20210510212224-8000b4b2e0af
 
 	sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v1.0.0
 	vbom.ml/util => github.com/fvbommel/util v0.0.0-20180919145318-efcd4e0f9787
