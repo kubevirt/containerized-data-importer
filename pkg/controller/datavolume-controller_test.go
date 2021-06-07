@@ -400,7 +400,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
 			reconciler := createDatavolumeReconciler(sc, dv, pvc, snapClass, ot)
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			By("Verifying that phase is still NamespaceTransferInProgress")
 			dv = &cdiv1.DataVolume{}

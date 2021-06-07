@@ -999,7 +999,7 @@ k8s.io/utils/buffer
 k8s.io/utils/integer
 k8s.io/utils/pointer
 k8s.io/utils/trace
-# kubevirt.io/controller-lifecycle-operator-sdk v0.1.2 => github.com/mhenriks/controller-lifecycle-operator-sdk v0.0.7-0.20210510212224-8000b4b2e0af
+# kubevirt.io/controller-lifecycle-operator-sdk v0.2.0
 ## explicit
 kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk
 kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api
@@ -1086,6 +1086,5 @@ sigs.k8s.io/yaml
 # k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.2
 # k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.20.2
 # k8s.io/sample-controller => k8s.io/sample-controller v0.20.2
-# kubevirt.io/controller-lifecycle-operator-sdk => github.com/mhenriks/controller-lifecycle-operator-sdk v0.0.7-0.20210510212224-8000b4b2e0af
 # sigs.k8s.io/structured-merge-diff => sigs.k8s.io/structured-merge-diff v1.0.0
 # vbom.ml/util => github.com/fvbommel/util v0.0.0-20180919145318-efcd4e0f9787
