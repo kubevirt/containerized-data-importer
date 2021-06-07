@@ -103,17 +103,17 @@ func newCertManager(client kubernetes.Interface, installNamespace string, additi
 	}
 }
 
-func (cm *certManager) Start(stopCh <-chan struct{}) error {
-	cm.informers.Start(stopCh)
+func (cm *certManager) Start(ctx context.Context) error {
+	cm.informers.Start(ctx.Done())
 
 	for _, ns := range cm.namespaces {
 		secretInformer := cm.informers.InformersFor(ns).Core().V1().Secrets().Informer()
-		go secretInformer.Run(stopCh)
+		go secretInformer.Run(ctx.Done())
 
 		configMapInformer := cm.informers.InformersFor(ns).Core().V1().ConfigMaps().Informer()
-		go configMapInformer.Run(stopCh)
+		go configMapInformer.Run(ctx.Done())
 
-		if !toolscache.WaitForCacheSync(stopCh, secretInformer.HasSynced, configMapInformer.HasSynced) {
+		if !toolscache.WaitForCacheSync(ctx.Done(), secretInformer.HasSynced, configMapInformer.HasSynced) {
 			return fmt.Errorf("could not sync informer cache")
 		}
 

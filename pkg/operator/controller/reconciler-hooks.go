@@ -12,7 +12,6 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -33,7 +32,7 @@ func (r *ReconcileCDI) watch() error {
 }
 
 // preCreate creates the operator config map
-func (r *ReconcileCDI) preCreate(cr controllerutil.Object) error {
+func (r *ReconcileCDI) preCreate(cr client.Object) error {
 	// claim the configmap
 	if err := r.createOperatorConfig(cr); err != nil {
 		return err
@@ -42,7 +41,7 @@ func (r *ReconcileCDI) preCreate(cr controllerutil.Object) error {
 }
 
 // checkSanity verifies whether config map exists and is in proper relation with the cr
-func (r *ReconcileCDI) checkSanity(cr controllerutil.Object, reqLogger logr.Logger) (*reconcile.Result, error) {
+func (r *ReconcileCDI) checkSanity(cr client.Object, reqLogger logr.Logger) (*reconcile.Result, error) {
 	configMap, err := r.getConfigMap()
 	if err != nil {
 		return &reconcile.Result{}, err
@@ -66,7 +65,7 @@ func (r *ReconcileCDI) checkSanity(cr controllerutil.Object, reqLogger logr.Logg
 }
 
 // sync syncs certificates used by CDU
-func (r *ReconcileCDI) sync(cr controllerutil.Object, logger logr.Logger) error {
+func (r *ReconcileCDI) sync(cr client.Object, logger logr.Logger) error {
 	cdi := cr.(*cdiv1.CDI)
 	return r.certManager.Sync(r.getCertificateDefinitions(cdi))
 }

@@ -2,7 +2,6 @@ package resourceapply
 
 import (
 	"fmt"
-
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
@@ -11,6 +10,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/events"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -29,6 +29,8 @@ var (
 func init() {
 	utilruntime.Must(api.InstallKube(genericScheme))
 	utilruntime.Must(apiextensionsv1beta1.AddToScheme(genericScheme))
+	utilruntime.Must(apiextensionsv1.AddToScheme(genericScheme))
+
 }
 
 type AssetFunc func(name string) ([]byte, error)
@@ -154,6 +156,16 @@ func ApplyDirectly(clients *ClientHolder, recorder events.Recorder, manifests As
 				result.Error = fmt.Errorf("missing apiExtensionsClient")
 			}
 			result.Result, result.Changed, result.Error = ApplyCustomResourceDefinitionV1(clients.apiExtensionsClient.ApiextensionsV1(), recorder, t)
+		case *storagev1.StorageClass:
+			if clients.kubeClient == nil {
+				result.Error = fmt.Errorf("missing kubeClient")
+			}
+			result.Result, result.Changed, result.Error = ApplyStorageClass(clients.kubeClient.StorageV1(), recorder, t)
+		case *storagev1.CSIDriver:
+			if clients.kubeClient == nil {
+				result.Error = fmt.Errorf("missing kubeClient")
+			}
+			result.Result, result.Changed, result.Error = ApplyCSIDriver(clients.kubeClient.StorageV1(), recorder, t)
 		default:
 			result.Error = fmt.Errorf("unhandled type %T", requiredObj)
 		}

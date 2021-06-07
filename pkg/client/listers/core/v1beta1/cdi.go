@@ -26,10 +26,13 @@ import (
 )
 
 // CDILister helps list CDIs.
+// All objects returned here must be treated as read-only.
 type CDILister interface {
 	// List lists all CDIs in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1beta1.CDI, err error)
 	// Get retrieves the CDI from the index for a given name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1beta1.CDI, error)
 	CDIListerExpansion
 }

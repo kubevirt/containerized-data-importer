@@ -38,22 +38,22 @@ type IgnoreWithMeta struct {
 
 // Create implements Predicate
 func (p *IgnoreWithMeta) Create(e event.CreateEvent) bool {
-	return p.check(e.Meta)
+	return p.check(e.Object)
 }
 
 // Delete implements Predicate
 func (p *IgnoreWithMeta) Delete(e event.DeleteEvent) bool {
-	return p.check(e.Meta)
+	return p.check(e.Object)
 }
 
 // Update implements Predicate
 func (p *IgnoreWithMeta) Update(e event.UpdateEvent) bool {
-	return p.check(e.MetaNew)
+	return p.check(e.ObjectNew)
 }
 
 // Generic implements Predicate
 func (p *IgnoreWithMeta) Generic(e event.GenericEvent) bool {
-	return p.check(e.Meta)
+	return p.check(e.Object)
 }
 
 func (p *IgnoreWithMeta) check(o metav1.Object) bool {

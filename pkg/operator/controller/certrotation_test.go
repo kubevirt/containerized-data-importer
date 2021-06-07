@@ -17,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
-	cdicerts "kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
 )
 
 const testCertData = "test"
@@ -27,7 +26,7 @@ type fakeCertManager struct {
 	namespace string
 }
 
-func (tcm *fakeCertManager) Sync(certs []cdicerts.CertificateDefinition) error {
+func (tcm *fakeCertManager) Sync(certs []cert.CertificateDefinition) error {
 	cm := &corev1.ConfigMap{}
 	key := client.ObjectKey{Namespace: tcm.namespace, Name: "cdi-uploadproxy-signer-bundle"}
 	err := tcm.client.Get(context.TODO(), key, cm)
@@ -128,8 +127,8 @@ var _ = Describe("Cert rotation tests", func() {
 			client := fake.NewSimpleClientset()
 			cm := newCertManagerForTest(client, namespace)
 
-			ch := make(chan struct{})
-			cm.(*certManager).Start(ch)
+			ctx, cancel := context.WithCancel(context.Background())
+			cm.(*certManager).Start(ctx)
 
 			checkCerts(client, namespace, false)
 
@@ -145,15 +144,16 @@ var _ = Describe("Cert rotation tests", func() {
 
 			checkCerts(client, namespace, true)
 
-			close(ch)
+			cancel()
 		})
 
 		It("should update certs", func() {
 			client := fake.NewSimpleClientset()
 			cm := newCertManagerForTest(client, namespace)
 
-			ch := make(chan struct{})
-			cm.(*certManager).Start(ch)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			cm.(*certManager).Start(ctx)
 
 			certs := cert.CreateCertificateDefinitions(&cert.FactoryArgs{Namespace: namespace})
 			err := cm.Sync(certs)

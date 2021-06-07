@@ -93,7 +93,7 @@ var _ = Describe("All smart clone tests", func() {
 
 		It("should return nil if no pvc or snapshot can be found", func() {
 			reconciler := createSmartCloneReconciler()
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 		})
 	})

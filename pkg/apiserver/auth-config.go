@@ -20,6 +20,7 @@
 package apiserver
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/json"
 	"sync"
@@ -78,7 +79,7 @@ func (ac *AuthConfig) ValidateName(name string) bool {
 }
 
 // NewAuthConfigWatcher crates a new authConfigWatcher
-func NewAuthConfigWatcher(client kubernetes.Interface, stopCh <-chan struct{}) AuthConfigWatcher {
+func NewAuthConfigWatcher(ctx context.Context, client kubernetes.Interface) AuthConfigWatcher {
 	informerFactory := informers.NewFilteredSharedInformerFactory(client,
 		common.DefaultResyncPeriod,
 		metav1.NamespaceSystem,
@@ -108,10 +109,10 @@ func NewAuthConfigWatcher(client kubernetes.Interface, stopCh <-chan struct{}) A
 		},
 	})
 
-	go informerFactory.Start(stopCh)
+	go informerFactory.Start(ctx.Done())
 
 	klog.V(3).Infoln("Waiting for cache sync")
-	cache.WaitForCacheSync(stopCh, configMapInformer.HasSynced)
+	cache.WaitForCacheSync(ctx.Done(), configMapInformer.HasSynced)
 	klog.V(3).Infoln("Cache sync complete")
 
 	return acw

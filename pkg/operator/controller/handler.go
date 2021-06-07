@@ -28,8 +28,8 @@ import (
 )
 
 func enqueueCDI(c client.Client) handler.EventHandler {
-	return &handler.EnqueueRequestsFromMapFunc{
-		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
+	return handler.EnqueueRequestsFromMapFunc(
+		func(_ client.Object) []reconcile.Request {
 			var rrs []reconcile.Request
 			cdiList := &cdiv1.CDIList{}
 
@@ -46,6 +46,6 @@ func enqueueCDI(c client.Client) handler.EventHandler {
 			}
 
 			return rrs
-		}),
-	}
+		},
+	)
 }

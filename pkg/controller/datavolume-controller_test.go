@@ -70,7 +70,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 		It("Should do nothing and return nil when no DV exists", func() {
 			reconciler = createDatavolumeReconciler()
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			pvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
@@ -82,7 +82,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 		It("Should create a PVC on a valid import DV", func() {
 			reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			pvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
@@ -97,7 +97,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume.Spec.PVC.VolumeMode = &volumeBlock
 
 			reconciler = createDatavolumeReconciler(importDataVolume)
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			pvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
@@ -117,7 +117,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 
 			reconciler = createDatavolumeReconciler(importDataVolume)
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			pvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
@@ -144,7 +144,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 			reconciler = createDatavolumeReconciler(storageClass, storageProfile, importDataVolume)
 
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			pvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
@@ -173,7 +173,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 			reconciler = createDatavolumeReconciler(defaultStorageClass, storageClass, storageProfile, defaultStorageProfile, importDataVolume)
 
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			pvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
@@ -215,7 +215,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				importDataVolume,
 				cdiConfig)
 
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			pvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
@@ -238,7 +238,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.GetAnnotations()[AnnPodNetwork] = "data-network"
 			dv.GetAnnotations()[AnnPodSidecarInjection] = "false"
 			reconciler = createDatavolumeReconciler(dv)
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			pvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
@@ -260,7 +260,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.GetAnnotations()["test-ann-2"] = "test-value-2"
 			dv.GetAnnotations()[AnnSource] = "invalid phase should not copy"
 			reconciler = createDatavolumeReconciler(dv)
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			pvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
@@ -275,7 +275,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 		It("Should follow the phase of the created PVC", func() {
 			reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			pvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
@@ -291,7 +291,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Update(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 
-			_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 
 			dv = &cdiv1.DataVolume{}
@@ -302,7 +302,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 		It("Should follow the restarts of the PVC", func() {
 			reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			pvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
@@ -318,7 +318,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Update(context.TODO(), pvc)
 			Expect(err).ToNot(HaveOccurred())
 
-			_, err = reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 
 			dv = &cdiv1.DataVolume{}
@@ -329,7 +329,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 		It("Should error if a PVC with same name already exists that is not owned by us", func() {
 			reconciler = createDatavolumeReconciler(createPvc("test-dv", metav1.NamespaceDefault, map[string]string{}, nil), newImportDataVolume("test-dv"))
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).To(HaveOccurred())
 			By("Checking error event recorded")
 			event := <-reconciler.recorder.(*record.FakeRecorder).Events
@@ -342,7 +342,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc.Status.Phase = corev1.ClaimBound
 			dv := newImportDataVolume("test-dv")
 			reconciler = createDatavolumeReconciler(pvc, dv)
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
@@ -370,7 +370,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
 			reconciler := createDatavolumeReconciler(sc, dv, pvc, snapClass)
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			By("Verifying that phase is now snapshot in progress")
 			dv = &cdiv1.DataVolume{}
@@ -400,7 +400,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
 			reconciler := createDatavolumeReconciler(sc, dv, pvc, snapClass, ot)
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			By("Verifying that phase is still NamespaceTransferInProgress")
 			dv = &cdiv1.DataVolume{}
@@ -421,7 +421,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
 			reconciler := createDatavolumeReconciler(sc, dv, pvc, snapClass, podFunc(dv))
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			result, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(result.Requeue).To(BeTrue())
 			By("Checking events recorded")
@@ -452,7 +452,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 
 			reconciler = createDatavolumeReconciler(dv)
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			pvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
@@ -479,7 +479,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.Spec.FinalCheckpoint = true
 
 			reconciler = createDatavolumeReconciler(dv, pvc)
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).ToNot(HaveOccurred())
@@ -510,7 +510,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.Spec.FinalCheckpoint = false
 
 			reconciler = createDatavolumeReconciler(dv, pvc)
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).ToNot(HaveOccurred())
@@ -562,7 +562,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			dv.Spec.FinalCheckpoint = finalCheckpoint
 
 			reconciler = createDatavolumeReconciler(dv, pvc)
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 
 			newPvc := &corev1.PersistentVolumeClaim{}
@@ -583,7 +583,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Entry("should move to 'Succeeded' if final checkpoint", true, nil, func(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) {
 				// Extra reconcile to move from final Paused to Succeeded
 				reconciler = createDatavolumeReconciler(dv, pvc)
-				_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+				_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 				Expect(err).ToNot(HaveOccurred())
 				newDv := &cdiv1.DataVolume{}
 				err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, newDv)
@@ -627,7 +627,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc := createPvc("test-dv", metav1.NamespaceDefault, annotations, nil)
 
 			reconciler = createDatavolumeReconciler(dv, pvc)
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			newDv := &cdiv1.DataVolume{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, newDv)
@@ -644,7 +644,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 		DescribeTable("if no pvc exists", func(current, expected cdiv1.DataVolumePhase) {
 			reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			dv := &cdiv1.DataVolume{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
@@ -682,7 +682,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 		It("Should switch to pending if PVC phase is pending", func() {
 			reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			dv := &cdiv1.DataVolume{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
@@ -724,7 +724,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				},
 				storagev1.VolumeBindingWaitForFirstConsumer)
 			reconciler = createDatavolumeReconciler(sc, newImportDataVolume("test-dv"))
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			dv := &cdiv1.DataVolume{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
@@ -769,7 +769,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			importDataVolume.Spec.PVC.StorageClassName = &scName
 
 			reconciler = createDatavolumeReconciler(scDefault, scWffc, importDataVolume)
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			dv := &cdiv1.DataVolume{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
@@ -806,7 +806,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 		It("Should switch to succeeded if PVC phase is pending, but pod phase is succeeded", func() {
 			reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			dv := &cdiv1.DataVolume{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
@@ -852,7 +852,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 		It("Should switch to paused if pod phase is succeeded but a checkpoint is set", func() {
 			reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			dv := &cdiv1.DataVolume{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
@@ -899,7 +899,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 		DescribeTable("DV phase", func(testDv runtime.Object, current, expected cdiv1.DataVolumePhase, pvcPhase corev1.PersistentVolumeClaimPhase, podPhase corev1.PodPhase, ann, expectedEvent string, extraAnnotations ...string) {
 			reconciler = createDatavolumeReconciler(testDv)
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			dv := &cdiv1.DataVolume{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
@@ -1187,7 +1187,7 @@ var _ = Describe("All DataVolume Tests", func() {
 		)
 		BeforeEach(func() {
 			reconciler = createDatavolumeReconciler(newImportDataVolume("test-dv"))
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			pvc = &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)

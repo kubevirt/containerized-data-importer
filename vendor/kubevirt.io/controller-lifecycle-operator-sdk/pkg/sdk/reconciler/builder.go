@@ -3,14 +3,11 @@ package reconciler
 import (
 	"time"
 
-	"k8s.io/client-go/tools/record"
-
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -87,7 +84,7 @@ func (r *Reconciler) WithPreCreateHook(preCreate PreCreateHook) *Reconciler {
 	return r
 }
 
-func preCreate(_ controllerutil.Object) error {
+func preCreate(_ client.Object) error {
 	return nil
 }
 
@@ -95,14 +92,14 @@ func watch() error {
 	return nil
 }
 
-func checkSanity(_ controllerutil.Object, _ logr.Logger) (*reconcile.Result, error) {
+func checkSanity(_ client.Object, _ logr.Logger) (*reconcile.Result, error) {
 	return nil, nil
 }
 
-func updateControllerConfiguration(_ controllerutil.Object) error {
+func updateControllerConfiguration(_ client.Object) error {
 	return nil
 }
 
-func syncPerishables(cr controllerutil.Object, logger logr.Logger) error {
+func syncPerishables(cr client.Object, logger logr.Logger) error {
 	return nil
 }

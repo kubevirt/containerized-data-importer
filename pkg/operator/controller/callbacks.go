@@ -142,7 +142,7 @@ func reconcileCreateSCC(args *callbacks.ReconcileCallbackArgs) error {
 }
 
 func deleteWorkerResources(l logr.Logger, c client.Client) error {
-	listTypes := []runtime.Object{&corev1.PodList{}, &corev1.ServiceList{}}
+	listTypes := []client.ObjectList{&corev1.PodList{}, &corev1.ServiceList{}}
 
 	for _, lt := range listTypes {
 		ls, err := labels.Parse(fmt.Sprintf("cdi.kubevirt.io in (%s, %s, %s)",
@@ -164,7 +164,7 @@ func deleteWorkerResources(l logr.Logger, c client.Client) error {
 		iv := sv.FieldByName("Items")
 
 		for i := 0; i < iv.Len(); i++ {
-			obj := iv.Index(i).Addr().Interface().(runtime.Object)
+			obj := iv.Index(i).Addr().Interface().(client.Object)
 			l.Info("Deleting", "type", reflect.TypeOf(obj), "obj", obj)
 			if err := c.Delete(context.TODO(), obj); err != nil {
 				l.Error(err, "Error deleting a resource")

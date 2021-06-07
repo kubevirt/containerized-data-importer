@@ -17,6 +17,7 @@ limitations under the License.
 package transfer_test
 
 import (
+	"context"
 	"encoding/json"
 
 	. "github.com/onsi/ginkgo"
@@ -36,7 +37,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			xfer := pvcTransfer(cdiv1.ObjectTransferEmpty)
 
 			r := createReconciler(xfer)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -51,7 +52,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			xfer := pvcTransfer(cdiv1.ObjectTransferPending)
 
 			r := createReconciler(xfer)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -65,7 +66,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			xfer := pvcTransfer(cdiv1.ObjectTransferPending)
 
 			r := createReconciler(xfer, createUnboundPVC())
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -82,7 +83,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			pvc.Finalizers = append(pvc.Finalizers, f)
 
 			r := createReconciler(xfer, pvc)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -99,7 +100,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			pv.Spec.ClaimRef = nil
 
 			r := createReconciler(xfer, pvc, pv)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -115,7 +116,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			pv := sourcePV()
 
 			r := createReconciler(xfer, pvc, pv, createPod(pvc.Name))
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -133,7 +134,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			}
 
 			r := createReconciler(xfer, sourcePV(), pvc)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -152,7 +153,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			xfer.DeletionTimestamp = &t
 
 			r := createReconciler(xfer)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -165,7 +166,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			xfer := pvcTransfer(cdiv1.ObjectTransferPending)
 
 			r := createReconciler(xfer, sourcePV(), createBoundPVC())
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -181,7 +182,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			delete(xfer.Status.Data, "pvName")
 
 			r := createReconciler(xfer, createBoundPVC())
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -195,7 +196,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			xfer := pvcTransferRunning()
 
 			r := createReconciler(xfer)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).To(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -209,7 +210,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			xfer := pvcTransferRunning()
 
 			r := createReconciler(xfer, sourcePV())
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -227,7 +228,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			pvc := createBoundPVC()
 
 			r := createReconciler(xfer, pv, pvc)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 			err = getResource(r.Client, "", xfer.Name, xfer)
 			Expect(err).ToNot(HaveOccurred())
@@ -250,7 +251,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			pvc := createBoundPVC()
 
 			r := createReconciler(xfer, pv, pvc)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -272,7 +273,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
 
 			r := createReconciler(xfer, pv)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -294,7 +295,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			pvc := &corev1.PersistentVolumeClaim{}
 
 			r := createReconciler(xfer, pv)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -317,7 +318,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			pvc.Name = "target-pvc"
 
 			r := createReconciler(xfer, pv, pvc)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -340,7 +341,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			pvc.Spec.VolumeName = pv.Name
 
 			r := createReconciler(xfer, pv, pvc)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", pv.Name, pv)
@@ -367,7 +368,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			pvc.Spec.VolumeName = pv.Name
 
 			r := createReconciler(xfer, pv, pvc)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -393,7 +394,7 @@ var _ = Describe("PVC Transfer Tests", func() {
 			pvc.Spec.VolumeName = pv.Name
 
 			r := createReconciler(xfer, pv, pvc)
-			_, err := r.Reconcile(rr(xfer.Name))
+			_, err := r.Reconcile(context.TODO(), rr(xfer.Name))
 			Expect(err).ToNot(HaveOccurred())
 
 			err = getResource(r.Client, "", xfer.Name, xfer)
@@ -472,7 +473,7 @@ func pvcTransferRunning() *cdiv1.ObjectTransfer {
 	pvc := createBoundPVC()
 	pvc.Kind = "PersistentVolumeClaim"
 	pvc.APIVersion = "v1"
-	pvc.ResourceVersion = "1"
+	pvc.ResourceVersion = "1000"
 	pvc.Annotations = map[string]string{
 		"cdi.kubevirt.io/objectTransferName": "pvcTransfer",
 	}

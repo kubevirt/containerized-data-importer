@@ -285,11 +285,11 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 	}); err != nil {
 		return err
 	}
-	for _, k := range []runtime.Object{&corev1.PersistentVolumeClaim{}, &corev1.Pod{}, &cdiv1.ObjectTransfer{}} {
-		if err := datavolumeController.Watch(&source.Kind{Type: k}, &handler.EnqueueRequestsFromMapFunc{
-			ToRequests: handler.ToRequestsFunc(func(mapObj handler.MapObject) []reconcile.Request {
-				if hasAnnOwnedByDataVolume(mapObj.Meta) {
-					namespace, name, err := getAnnOwnedByDataVolume(mapObj.Meta)
+	for _, k := range []client.Object{&corev1.PersistentVolumeClaim{}, &corev1.Pod{}, &cdiv1.ObjectTransfer{}} {
+		if err := datavolumeController.Watch(&source.Kind{Type: k}, handler.EnqueueRequestsFromMapFunc(
+			func(obj client.Object) []reconcile.Request {
+				if hasAnnOwnedByDataVolume(obj) {
+					namespace, name, err := getAnnOwnedByDataVolume(obj)
 					if err != nil {
 						return nil
 					}
@@ -304,7 +304,7 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 				}
 				return nil
 			}),
-		}); err != nil {
+		); err != nil {
 			return err
 		}
 	}
@@ -313,7 +313,7 @@ func addDatavolumeControllerWatches(mgr manager.Manager, datavolumeController co
 }
 
 // Reconcile the reconcile loop for the data volumes.
-func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
+func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("Datavolume", req.NamespacedName)
 
 	// Get the Datavolume.
@@ -446,11 +446,7 @@ func (r *DatavolumeReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 				return reconcile.Result{}, err
 			}
 
-			nn, err := client.ObjectKeyFromObject(newSnapshot)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-
+			nn := client.ObjectKeyFromObject(newSnapshot)
 			if err := r.client.Get(context.TODO(), nn, newSnapshot.DeepCopy()); err != nil {
 				if !k8serrors.IsNotFound(err) {
 					return reconcile.Result{}, err

@@ -1,15 +1,14 @@
 module github.com/openshift/api
 
-go 1.13
+go 1.15
 
 require (
 	github.com/gogo/protobuf v1.3.1
-	github.com/openshift/build-machinery-go v0.0.0-20200424080330-082bf86082cc
+	github.com/openshift/build-machinery-go v0.0.0-20200917070002-f171684f77ab
 	github.com/spf13/pflag v1.0.5
-	golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553 // indirect
-	golang.org/x/tools v0.0.0-20200115044656-831fdb1e1868
-	k8s.io/api v0.18.3
-	k8s.io/apimachinery v0.18.3
-	k8s.io/code-generator v0.18.3
-	k8s.io/klog v1.0.0
+	golang.org/x/tools v0.0.0-20200616133436-c1934b75d054
+	k8s.io/api v0.20.0
+	k8s.io/apimachinery v0.20.0
+	k8s.io/code-generator v0.20.0
+	k8s.io/klog/v2 v2.4.0
 )
