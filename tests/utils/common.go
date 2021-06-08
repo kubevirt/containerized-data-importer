@@ -78,7 +78,7 @@ func getDefaultStorageClass(client *kubernetes.Clientset) *storagev1.StorageClas
 
 func isDefaultStorageClassCSI(client *kubernetes.Clientset) bool {
 	if DefaultStorageClass != nil {
-		_, err := client.StorageV1beta1().CSIDrivers().Get(context.TODO(), DefaultStorageClass.Provisioner, metav1.GetOptions{})
+		_, err := client.StorageV1().CSIDrivers().Get(context.TODO(), DefaultStorageClass.Provisioner, metav1.GetOptions{})
 		if err != nil {
 			return false
 		}

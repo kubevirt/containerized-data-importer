@@ -101,7 +101,7 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 		},
 		{
 			APIGroups: []string{
-				"extensions",
+				"networking.k8s.io",
 			},
 			Resources: []string{
 				"ingresses",
