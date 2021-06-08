@@ -397,107 +397,11 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 
 	if !pvcExists {
 		if doSmartClone {
-			pvcName := datavolume.Name
-			if isCrossNamespaceClone(datavolume) {
-				pvcName = transferName
-				initialized, err := r.initTransfer(log, datavolume, pvcName)
-				if err != nil {
-					return reconcile.Result{}, err
-				}
-
-				// get reconciled again v soon
-				if !initialized {
-					return reconcile.Result{},
-						r.updateSmartCloneStatusPhase(cdiv1.CloneScheduled, datavolume, nil)
-				}
-
-				tmpPVC := &corev1.PersistentVolumeClaim{}
-				nn := types.NamespacedName{Namespace: datavolume.Spec.Source.PVC.Namespace, Name: pvcName}
-				if err := r.client.Get(context.TODO(), nn, tmpPVC); err != nil {
-					if !k8serrors.IsNotFound(err) {
-						return reconcile.Result{}, err
-					}
-				} else if tmpPVC.Annotations[AnnCloneOf] == "true" {
-					done, err := r.expand(log, datavolume, tmpPVC, pvcSpec)
-					if err != nil {
-						return reconcile.Result{}, err
-					}
-					if !done {
-						return reconcile.Result{},
-							r.updateSmartCloneStatusPhase(cdiv1.ExpansionInProgress, datavolume, nil)
-					}
-
-					// trigger transfer and next reconcile should have pvcExists == true
-					tmpPVC.Annotations[annReadyForTransfer] = "true"
-					tmpPVC.Annotations[AnnPopulatedFor] = datavolume.Name
-					if err := r.client.Update(context.TODO(), tmpPVC); err != nil {
-						return reconcile.Result{}, err
-					}
-
-					return reconcile.Result{},
-						r.updateSmartCloneStatusPhase(cdiv1.NamespaceTransferInProgress, datavolume, nil)
-				} else {
-					return reconcile.Result{}, nil
-				}
-			}
-
-			if datavolume.Status.Phase == cdiv1.NamespaceTransferInProgress {
-				return reconcile.Result{}, nil
-			}
-
-			r.log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class",
-				"snapshotClassName", snapshotClassName)
-
-			newSnapshot := newSnapshot(datavolume, pvcName, snapshotClassName)
-			if err := setAnnOwnedByDataVolume(newSnapshot, datavolume); err != nil {
-				return reconcile.Result{}, err
-			}
-
-			nn := client.ObjectKeyFromObject(newSnapshot)
-			if err := r.client.Get(context.TODO(), nn, newSnapshot.DeepCopy()); err != nil {
-				if !k8serrors.IsNotFound(err) {
-					return reconcile.Result{}, err
-				}
-
-				inUse, err := r.sourceInUse(datavolume)
-				if err != nil {
-					return reconcile.Result{}, err
-				}
-				populated, err := r.isSourcePVCPopulated(datavolume)
-				if err != nil {
-					return reconcile.Result{}, err
-				}
-				if inUse || !populated {
-					return reconcile.Result{Requeue: true},
-						r.updateSmartCloneStatusPhase(cdiv1.CloneScheduled, datavolume, nil)
-				}
-
-				if err := r.client.Create(context.TODO(), newSnapshot); err != nil {
-					if k8serrors.IsAlreadyExists(err) {
-						return reconcile.Result{}, nil
-					}
-
-					return reconcile.Result{}, err
-				}
-
-				return reconcile.Result{},
-					r.updateSmartCloneStatusPhase(cdiv1.SnapshotForSmartCloneInProgress, datavolume, nil)
-			}
-
-			return reconcile.Result{}, nil
+			return r.reconcileSmartClonePvc(log, datavolume, pvcSpec, transferName, snapshotClassName)
 		}
-		log.Info("Creating PVC for datavolume")
-		newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec)
+
+		newPvc, err := r.createPvcForDatavolume(log, datavolume, pvcSpec)
 		if err != nil {
-			return reconcile.Result{}, err
-		}
-		checkpoint := r.getNextCheckpoint(datavolume, newPvc)
-		if checkpoint != nil { // Initialize new warm import annotations before creating PVC
-			newPvc.ObjectMeta.Annotations[AnnCurrentCheckpoint] = checkpoint.Current
-			newPvc.ObjectMeta.Annotations[AnnPreviousCheckpoint] = checkpoint.Previous
-			newPvc.ObjectMeta.Annotations[AnnFinalCheckpoint] = strconv.FormatBool(checkpoint.IsFinal)
-		}
-		if err := r.client.Create(context.TODO(), newPvc); err != nil {
 			return reconcile.Result{}, err
 		}
 		pvc = newPvc
@@ -515,52 +419,158 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 			}
 		}
 
-		if pvc.Status.Phase == corev1.ClaimBound {
-			// If a PVC already exists with no multi-stage annotations, check if it
-			// needs them set (if not already finished with an import).
-			multiStageImport := (len(datavolume.Spec.Checkpoints) > 0)
-			multiStageAnnotationsSet := metav1.HasAnnotation(pvc.ObjectMeta, AnnCurrentCheckpoint)
-			multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, AnnMultiStageImportDone)
-			if multiStageImport && !multiStageAnnotationsSet && !multiStageAlreadyDone {
-				err := r.setMultistageImportAnnotations(datavolume, pvc)
-				if err != nil {
-					return reconcile.Result{}, err
-				}
-			}
+		err = r.maybeSetMultiStageAnnotation(pvc, datavolume)
+		if err != nil {
+			return reconcile.Result{}, err
 		}
 	}
 
 	if doSmartClone {
-		if isCrossNamespaceClone(datavolume) && datavolume.Status.Phase == cdiv1.Succeeded {
-			if err := r.cleanupTransfer(log, datavolume, transferName); err != nil {
-				return reconcile.Result{}, err
-			}
-
-			// done, done
-			return reconcile.Result{}, nil
-		}
-
-		if pvc.Annotations[AnnCloneOf] != "true" {
-			return reconcile.Result{}, nil
-		}
-
-		// expand for non-namespace case
-		done, err := r.expand(log, datavolume, pvc, pvcSpec)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-		if !done {
-			return reconcile.Result{},
-				r.updateSmartCloneStatusPhase(cdiv1.ExpansionInProgress, datavolume, pvc)
-		}
-
-		// done
-		return reconcile.Result{}, r.updateSmartCloneStatusPhase(cdiv1.Succeeded, datavolume, pvc)
+		return r.reconcileSmartCloneForExistingPvc(log, datavolume, pvc, pvcSpec, transferName)
 	}
 
 	// Finally, we update the status block of the DataVolume resource to reflect the
 	// current state of the world
 	return r.reconcileDataVolumeStatus(datavolume, pvc)
+}
+
+func (r *DatavolumeReconciler) createPvcForDatavolume(log logr.Logger, datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaim, error) {
+	log.Info("Creating PVC for datavolume")
+	newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec)
+	if err != nil {
+		return nil, err
+	}
+
+	checkpoint := r.getNextCheckpoint(datavolume, newPvc)
+	if checkpoint != nil { // Initialize new warm import annotations before creating PVC
+		newPvc.ObjectMeta.Annotations[AnnCurrentCheckpoint] = checkpoint.Current
+		newPvc.ObjectMeta.Annotations[AnnPreviousCheckpoint] = checkpoint.Previous
+		newPvc.ObjectMeta.Annotations[AnnFinalCheckpoint] = strconv.FormatBool(checkpoint.IsFinal)
+	}
+	if err := r.client.Create(context.TODO(), newPvc); err != nil {
+		return nil, err
+	}
+
+	return newPvc, nil
+}
+
+func (r *DatavolumeReconciler) reconcileSmartClonePvc(log logr.Logger, datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec, transferName string, snapshotClassName string) (reconcile.Result, error) {
+	pvcName := datavolume.Name
+	if isCrossNamespaceClone(datavolume) {
+		pvcName = transferName
+		initialized, err := r.initTransfer(log, datavolume, pvcName)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
+		// get reconciled again v soon
+		if !initialized {
+			return reconcile.Result{},
+				r.updateSmartCloneStatusPhase(cdiv1.CloneScheduled, datavolume, nil)
+		}
+
+		tmpPVC := &corev1.PersistentVolumeClaim{}
+		nn := types.NamespacedName{Namespace: datavolume.Spec.Source.PVC.Namespace, Name: pvcName}
+		if err := r.client.Get(context.TODO(), nn, tmpPVC); err != nil {
+			if !k8serrors.IsNotFound(err) {
+				return reconcile.Result{}, err
+			}
+		} else if tmpPVC.Annotations[AnnCloneOf] == "true" {
+			done, err := r.expand(log, datavolume, tmpPVC, pvcSpec)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			if !done {
+				return reconcile.Result{},
+					r.updateSmartCloneStatusPhase(cdiv1.ExpansionInProgress, datavolume, nil)
+			}
+
+			// trigger transfer and next reconcile should have pvcExists == true
+			tmpPVC.Annotations[annReadyForTransfer] = "true"
+			tmpPVC.Annotations[AnnPopulatedFor] = datavolume.Name
+			if err := r.client.Update(context.TODO(), tmpPVC); err != nil {
+				return reconcile.Result{}, err
+			}
+
+			return reconcile.Result{},
+				r.updateSmartCloneStatusPhase(cdiv1.NamespaceTransferInProgress, datavolume, nil)
+		} else {
+			return reconcile.Result{}, nil
+		}
+	}
+
+	if datavolume.Status.Phase == cdiv1.NamespaceTransferInProgress {
+		return reconcile.Result{}, nil
+	}
+
+	r.log.V(3).Info("Smart-Clone via Snapshot is available with Volume Snapshot Class",
+		"snapshotClassName", snapshotClassName)
+
+	newSnapshot := newSnapshot(datavolume, pvcName, snapshotClassName)
+	if err := setAnnOwnedByDataVolume(newSnapshot, datavolume); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	nn := client.ObjectKeyFromObject(newSnapshot)
+	if err := r.client.Get(context.TODO(), nn, newSnapshot.DeepCopy()); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return reconcile.Result{}, err
+		}
+
+		inUse, err := r.sourceInUse(datavolume)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		populated, err := r.isSourcePVCPopulated(datavolume)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		if inUse || !populated {
+			return reconcile.Result{Requeue: true},
+				r.updateSmartCloneStatusPhase(cdiv1.CloneScheduled, datavolume, nil)
+		}
+
+		if err := r.client.Create(context.TODO(), newSnapshot); err != nil {
+			if k8serrors.IsAlreadyExists(err) {
+				return reconcile.Result{}, nil
+			}
+
+			return reconcile.Result{}, err
+		}
+
+		return reconcile.Result{},
+			r.updateSmartCloneStatusPhase(cdiv1.SnapshotForSmartCloneInProgress, datavolume, nil)
+	}
+
+	return reconcile.Result{}, nil
+}
+
+func (r *DatavolumeReconciler) reconcileSmartCloneForExistingPvc(log logr.Logger, datavolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, pvcSpec *corev1.PersistentVolumeClaimSpec, transferName string) (reconcile.Result, error) {
+	if isCrossNamespaceClone(datavolume) && datavolume.Status.Phase == cdiv1.Succeeded {
+		if err := r.cleanupTransfer(log, datavolume, transferName); err != nil {
+			return reconcile.Result{}, err
+		}
+
+		// done, done
+		return reconcile.Result{}, nil
+	}
+
+	if pvc.Annotations[AnnCloneOf] != "true" {
+		return reconcile.Result{}, nil
+	}
+
+	// expand for non-namespace case
+	done, err := r.expand(log, datavolume, pvc, pvcSpec)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	if !done {
+		return reconcile.Result{},
+			r.updateSmartCloneStatusPhase(cdiv1.ExpansionInProgress, datavolume, pvc)
+	}
+
+	// done
+	return reconcile.Result{}, r.updateSmartCloneStatusPhase(cdiv1.Succeeded, datavolume, pvc)
 }
 
 func (r *DatavolumeReconciler) getVddkAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) (bool, error) {
@@ -577,6 +587,25 @@ func (r *DatavolumeReconciler) getVddkAnnotations(dataVolume *cdiv1.DataVolume, 
 		return true, r.client.Update(context.TODO(), dataVolumeCopy)
 	}
 	return false, nil
+}
+
+// Sets the annotation if pvc needs it, and does not have it yet
+func (r *DatavolumeReconciler) maybeSetMultiStageAnnotation(pvc *corev1.PersistentVolumeClaim, datavolume *cdiv1.DataVolume) error {
+	if pvc.Status.Phase == corev1.ClaimBound {
+		// If a PVC already exists with no multi-stage annotations, check if it
+		// needs them set (if not already finished with an import).
+		multiStageImport := (len(datavolume.Spec.Checkpoints) > 0)
+		multiStageAnnotationsSet := metav1.HasAnnotation(pvc.ObjectMeta, AnnCurrentCheckpoint)
+		multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, AnnMultiStageImportDone)
+		if multiStageImport && !multiStageAnnotationsSet && !multiStageAlreadyDone {
+			err := r.setMultistageImportAnnotations(datavolume, pvc)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // Set the PVC annotations related to multi-stage imports so that they point to the next checkpoint to copy.
