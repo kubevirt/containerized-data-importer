@@ -43,9 +43,11 @@ type DataVolume struct {
 // DataVolumeSpec defines the DataVolume type specification
 type DataVolumeSpec struct {
 	//Source is the src of the data for the requested DataVolume
-	Source DataVolumeSource `json:"source"`
+	// +optional
+	Source *DataVolumeSource `json:"source,omitempty"`
 	//SourceRef is an indirect reference to the source of data for the requested DataVolume
-	SourceRef DataVolumeSourceRef `json:"sourceRef,omitempty"`
+	// +optional
+	SourceRef *DataVolumeSourceRef `json:"sourceRef,omitempty"`
 	//PVC is the PVC specification
 	PVC *corev1.PersistentVolumeClaimSpec `json:"pvc,omitempty"`
 	// Storage is the requested storage specification
@@ -441,16 +443,19 @@ type DataImportCronSpec struct {
 	// GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported
 	// Options are currently "Never" and "Outdated", defaults to "Never"
 	// +optional
-	GarbageCollect *string `json:"garbageCollect,omitempty"`
+	GarbageCollect *DataImportCronGarbageCollect `json:"garbageCollect,omitempty"`
 	// ManagedDataSource specifies the name of the corresponding DataSource this cron will manage
 	ManagedDataSource string `json:"managedDataSource"`
 }
 
+// DataImportCronGarbageCollect represents the DataImportCron garbage collection mode
+type DataImportCronGarbageCollect string
+
 const (
 	// DataImportCronGarbageCollectNever specifies that garbage collection is disabled
-	DataImportCronGarbageCollectNever = "Never"
+	DataImportCronGarbageCollectNever DataImportCronGarbageCollect = "Never"
 	// DataImportCronGarbageCollectOutdated specifies that old PVCs should be cleaned up after a new PVC is imported
-	DataImportCronGarbageCollectOutdated = "Outdated"
+	DataImportCronGarbageCollectOutdated DataImportCronGarbageCollect = "Outdated"
 )
 
 // DataImportCronSource defines where to poll and import disk images from

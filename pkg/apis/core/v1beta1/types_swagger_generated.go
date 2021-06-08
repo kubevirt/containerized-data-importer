@@ -11,8 +11,8 @@ func (DataVolume) SwaggerDoc() map[string]string {
 func (DataVolumeSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":                  "DataVolumeSpec defines the DataVolume type specification",
-		"source":            "Source is the src of the data for the requested DataVolume",
-		"sourceRef":         "SourceRef is an indirect reference to the source of data for the requested DataVolume",
+		"source":            "Source is the src of the data for the requested DataVolume\n+optional",
+		"sourceRef":         "SourceRef is an indirect reference to the source of data for the requested DataVolume\n+optional",
 		"pvc":               "PVC is the PVC specification",
 		"storage":           "Storage is the requested storage specification",
 		"priorityClassName": "PriorityClassName for Importer, Cloner and Uploader pod",

@@ -15829,7 +15829,6 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref common.ReferenceCallback) c
 						},
 					},
 				},
-				Required: []string{"source"},
 			},
 		},
 		Dependencies: []string{

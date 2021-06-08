@@ -4003,9 +4003,6 @@
    "v1beta1.DataVolumeSpec": {
     "description": "DataVolumeSpec defines the DataVolume type specification",
     "type": "object",
-    "required": [
-     "source"
-    ],
     "properties": {
      "checkpoints": {
       "description": "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",

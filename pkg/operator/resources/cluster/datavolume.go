@@ -153,6 +153,11 @@ func createBetaV1DataVolumeCRDSchema() *extv1.CustomResourceValidation {
 			"name",
 		},
 	}
+	// cannot assign to struct field schema.OpenAPIV3Schema.Properties["spec"].Required in map
+	spec := schema.OpenAPIV3Schema.Properties["spec"]
+	spec.Required = nil
+	schema.OpenAPIV3Schema.Properties["spec"] = spec
+
 	return schema
 }
 
