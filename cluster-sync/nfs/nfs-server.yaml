@@ -29,7 +29,7 @@ spec:
         cdi.kubevirt.io/testing: ""
     spec:
       containers:
-      - image: itsthenetwork/nfs-server-alpine:12
+      - image: quay.io/awels/nfs-server-alpine:12
         imagePullPolicy: IfNotPresent
         name: nfs-server
         env:
