@@ -153,7 +153,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 	}
 
 	numberOfSources := 0
-	s := reflect.ValueOf(&spec.Source).Elem()
+	s := reflect.ValueOf(spec.Source).Elem()
 	for i := 0; i < s.NumField(); i++ {
 		if !reflect.ValueOf(s.Field(i).Interface()).IsNil() {
 			numberOfSources++

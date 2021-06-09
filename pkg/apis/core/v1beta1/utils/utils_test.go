@@ -114,7 +114,7 @@ func newCloneDataVolume(name string, pvcNamespace string) *cdiv1.DataVolume {
 			},
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				PVC: &cdiv1.DataVolumeSourcePVC{
 					Name:      "test",
 					Namespace: pvcNamespace,
