@@ -337,7 +337,6 @@ func GetDefaultStorageClass(client client.Client) (*storagev1.StorageClass, erro
 
 // GetFilesystemOverhead determines the filesystem overhead defined in CDIConfig for this PVC's volumeMode and storageClass.
 func GetFilesystemOverhead(client client.Client, pvc *v1.PersistentVolumeClaim) (cdiv1.Percent, error) {
-	klog.V(1).Info("GetFilesystemOverhead with PVC", pvc)
 	if getVolumeMode(pvc) != v1.PersistentVolumeFilesystem {
 		return "0", nil
 	}
