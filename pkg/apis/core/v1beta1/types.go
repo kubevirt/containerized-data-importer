@@ -402,10 +402,13 @@ type DataSourceStatus struct {
 }
 
 // DataSourceCondition represents the state of a data source condition
-// FIXME: needs LastTransitionTime/LastHeartbeatTime/Reason/Message?
 type DataSourceCondition struct {
-	Type   DataSourceConditionType `json:"type" description:"type of condition ie. Ready"`
-	Status corev1.ConditionStatus  `json:"status" description:"status of the condition, one of True, False, Unknown"`
+	Type               DataSourceConditionType `json:"type" description:"type of condition ie. Ready"`
+	Status             corev1.ConditionStatus  `json:"status" description:"status of the condition, one of True, False, Unknown"`
+	LastTransitionTime metav1.Time             `json:"lastTransitionTime,omitempty"`
+	LastHeartbeatTime  metav1.Time             `json:"lastHeartbeatTime,omitempty"`
+	Reason             string                  `json:"reason,omitempty" description:"reason for the condition's last transition"`
+	Message            string                  `json:"message,omitempty" description:"human-readable message indicating details about last transition"`
 }
 
 // DataSourceConditionType is the string representation of known condition types
@@ -440,11 +443,12 @@ type DataImportCronSpec struct {
 	Source DataImportCronSource `json:"source"`
 	// Schedule specifies in cron format when and how often to look for new imports
 	Schedule string `json:"schedule"`
-	// GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported
-	// Options are currently "Never" and "Outdated", defaults to "Never"
+	// GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported.
+	// Options are currently "Never" and "Outdated", defaults to "Never".
 	// +optional
 	GarbageCollect *DataImportCronGarbageCollect `json:"garbageCollect,omitempty"`
-	// ManagedDataSource specifies the name of the corresponding DataSource this cron will manage
+	// ManagedDataSource specifies the name of the corresponding DataSource this cron will manage.
+	// DataSource has to be in the same namespace.
 	ManagedDataSource string `json:"managedDataSource"`
 }
 
@@ -475,11 +479,13 @@ type DataImportCronStatus struct {
 }
 
 // DataImportCronCondition represents the state of a data import cron condition
-// FIXME: needs LastTransitionTime/LastHeartbeatTime/Reason?
 type DataImportCronCondition struct {
-	Type    DataImportCronConditionType `json:"type" description:"type of condition ie. Progressing, UpToDate"`
-	Status  corev1.ConditionStatus      `json:"status" description:"status of the condition, one of True, False, Unknown"`
-	Message string                      `json:"message,omitempty" description:"human-readable message indicating details about last transition"`
+	Type               DataImportCronConditionType `json:"type" description:"type of condition ie. Progressing, UpToDate"`
+	Status             corev1.ConditionStatus      `json:"status" description:"status of the condition, one of True, False, Unknown"`
+	LastTransitionTime metav1.Time                 `json:"lastTransitionTime,omitempty"`
+	LastHeartbeatTime  metav1.Time                 `json:"lastHeartbeatTime,omitempty"`
+	Reason             string                      `json:"reason,omitempty" description:"reason for the condition's last transition"`
+	Message            string                      `json:"message,omitempty" description:"human-readable message indicating details about last transition"`
 }
 
 // DataImportCronConditionType is the string representation of known condition types

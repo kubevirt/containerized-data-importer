@@ -14860,7 +14860,7 @@ func schema_pkg_apis_core_v1beta1_DataImportCronCondition(ref common.ReferenceCa
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "DataImportCronCondition represents the state of a data import cron condition FIXME: needs LastTransitionTime/LastHeartbeatTime/Reason?",
+				Description: "DataImportCronCondition represents the state of a data import cron condition",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"type": {
@@ -14877,6 +14877,24 @@ func schema_pkg_apis_core_v1beta1_DataImportCronCondition(ref common.ReferenceCa
 							Format:  "",
 						},
 					},
+					"lastTransitionTime": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"lastHeartbeatTime": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 					"message": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
@@ -14887,6 +14905,8 @@ func schema_pkg_apis_core_v1beta1_DataImportCronCondition(ref common.ReferenceCa
 				Required: []string{"type", "status"},
 			},
 		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 	}
 }
 
@@ -14985,14 +15005,14 @@ func schema_pkg_apis_core_v1beta1_DataImportCronSpec(ref common.ReferenceCallbac
 					},
 					"garbageCollect": {
 						SchemaProps: spec.SchemaProps{
-							Description: "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported Options are currently \"Never\" and \"Outdated\", defaults to \"Never\"",
+							Description: "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported. Options are currently \"Never\" and \"Outdated\", defaults to \"Never\".",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"managedDataSource": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ManagedDataSource specifies the name of the corresponding DataSource this cron will manage",
+							Description: "ManagedDataSource specifies the name of the corresponding DataSource this cron will manage. DataSource has to be in the same namespace.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -15105,7 +15125,7 @@ func schema_pkg_apis_core_v1beta1_DataSourceCondition(ref common.ReferenceCallba
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "DataSourceCondition represents the state of a data source condition FIXME: needs LastTransitionTime/LastHeartbeatTime/Reason/Message?",
+				Description: "DataSourceCondition represents the state of a data source condition",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"type": {
@@ -15122,10 +15142,36 @@ func schema_pkg_apis_core_v1beta1_DataSourceCondition(ref common.ReferenceCallba
 							Format:  "",
 						},
 					},
+					"lastTransitionTime": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"lastHeartbeatTime": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 				},
 				Required: []string{"type", "status"},
 			},
 		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 	}
 }
 
