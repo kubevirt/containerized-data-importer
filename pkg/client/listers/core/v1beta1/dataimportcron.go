@@ -26,8 +26,10 @@ import (
 )
 
 // DataImportCronLister helps list DataImportCrons.
+// All objects returned here must be treated as read-only.
 type DataImportCronLister interface {
 	// List lists all DataImportCrons in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1beta1.DataImportCron, err error)
 	// DataImportCrons returns an object that can list and get DataImportCrons.
 	DataImportCrons(namespace string) DataImportCronNamespaceLister
@@ -58,10 +60,13 @@ func (s *dataImportCronLister) DataImportCrons(namespace string) DataImportCronN
 }
 
 // DataImportCronNamespaceLister helps list and get DataImportCrons.
+// All objects returned here must be treated as read-only.
 type DataImportCronNamespaceLister interface {
 	// List lists all DataImportCrons in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1beta1.DataImportCron, err error)
 	// Get retrieves the DataImportCron from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1beta1.DataImportCron, error)
 	DataImportCronNamespaceListerExpansion
 }

@@ -14831,17 +14831,20 @@ func schema_pkg_apis_core_v1beta1_DataImportCron(ref common.ReferenceCallback) c
 					},
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
 						},
 					},
 					"spec": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataImportCronSpec"),
+							Default: map[string]interface{}{},
+							Ref:     ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataImportCronSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataImportCronStatus"),
+							Default: map[string]interface{}{},
+							Ref:     ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataImportCronStatus"),
 						},
 					},
 				},
@@ -14862,14 +14865,16 @@ func schema_pkg_apis_core_v1beta1_DataImportCronCondition(ref common.ReferenceCa
 				Properties: map[string]spec.Schema{
 					"type": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
 						},
 					},
 					"message": {
@@ -14908,7 +14913,8 @@ func schema_pkg_apis_core_v1beta1_DataImportCronList(ref common.ReferenceCallbac
 					},
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
 						},
 					},
 					"items": {
@@ -14918,7 +14924,8 @@ func schema_pkg_apis_core_v1beta1_DataImportCronList(ref common.ReferenceCallbac
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataImportCron"),
+										Default: map[string]interface{}{},
+										Ref:     ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataImportCron"),
 									},
 								},
 							},
@@ -14964,12 +14971,14 @@ func schema_pkg_apis_core_v1beta1_DataImportCronSpec(ref common.ReferenceCallbac
 					"source": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Source specifies where to poll disk images from",
+							Default:     map[string]interface{}{},
 							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataImportCronSource"),
 						},
 					},
 					"schedule": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Schedule specifies in cron format when and how often to look for new imports",
+							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -14984,6 +14993,7 @@ func schema_pkg_apis_core_v1beta1_DataImportCronSpec(ref common.ReferenceCallbac
 					"managedDataSource": {
 						SchemaProps: spec.SchemaProps{
 							Description: "ManagedDataSource specifies the name of the corresponding DataSource this cron will manage",
+							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -15028,7 +15038,8 @@ func schema_pkg_apis_core_v1beta1_DataImportCronStatus(ref common.ReferenceCallb
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataImportCronCondition"),
+										Default: map[string]interface{}{},
+										Ref:     ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataImportCronCondition"),
 									},
 								},
 							},
@@ -15065,17 +15076,20 @@ func schema_pkg_apis_core_v1beta1_DataSource(ref common.ReferenceCallback) commo
 					},
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
 						},
 					},
 					"spec": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataSourceSpec"),
+							Default: map[string]interface{}{},
+							Ref:     ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataSourceSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataSourceStatus"),
+							Default: map[string]interface{}{},
+							Ref:     ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataSourceStatus"),
 						},
 					},
 				},
@@ -15096,14 +15110,16 @@ func schema_pkg_apis_core_v1beta1_DataSourceCondition(ref common.ReferenceCallba
 				Properties: map[string]spec.Schema{
 					"type": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
 						},
 					},
 				},
@@ -15136,7 +15152,8 @@ func schema_pkg_apis_core_v1beta1_DataSourceList(ref common.ReferenceCallback) c
 					},
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
 						},
 					},
 					"items": {
@@ -15146,7 +15163,8 @@ func schema_pkg_apis_core_v1beta1_DataSourceList(ref common.ReferenceCallback) c
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataSource"),
+										Default: map[string]interface{}{},
+										Ref:     ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataSource"),
 									},
 								},
 							},
@@ -15191,6 +15209,7 @@ func schema_pkg_apis_core_v1beta1_DataSourceSpec(ref common.ReferenceCallback) c
 					"source": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Source is the source of the data referenced by the DataSource",
+							Default:     map[string]interface{}{},
 							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataSourceSource"),
 						},
 					},
@@ -15216,7 +15235,8 @@ func schema_pkg_apis_core_v1beta1_DataSourceStatus(ref common.ReferenceCallback)
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataSourceCondition"),
+										Default: map[string]interface{}{},
+										Ref:     ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataSourceCondition"),
 									},
 								},
 							},
@@ -15598,6 +15618,7 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceRef(ref common.ReferenceCallba
 					"kind": {
 						SchemaProps: spec.SchemaProps{
 							Description: "The kind of the source reference, currently only \"DataSource\" is supported",
+							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -15612,6 +15633,7 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceRef(ref common.ReferenceCallba
 					"name": {
 						SchemaProps: spec.SchemaProps{
 							Description: "The name of the source reference",
+							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -15764,7 +15786,6 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref common.ReferenceCallback) c
 					"source": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Source is the src of the data for the requested DataVolume",
-							Default:     map[string]interface{}{},
 							Ref:         ref("kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1.DataVolumeSource"),
 						},
 					},

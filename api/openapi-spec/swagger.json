@@ -3914,11 +3914,13 @@
     "properties": {
      "kind": {
       "description": "The kind of the source reference, currently only \"DataSource\" is supported",
-      "type": "string"
+      "type": "string",
+      "default": ""
      },
      "name": {
       "description": "The name of the source reference",
-      "type": "string"
+      "type": "string",
+      "default": ""
      },
      "namespace": {
       "description": "The namespace of the source reference, defaults to the DataVolume namespace",
@@ -4034,7 +4036,6 @@
      },
      "source": {
       "description": "Source is the src of the data for the requested DataVolume",
-      "default": {},
       "$ref": "#/definitions/v1beta1.DataVolumeSource"
      },
      "sourceRef": {
