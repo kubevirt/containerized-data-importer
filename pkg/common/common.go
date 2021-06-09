@@ -201,6 +201,9 @@ const (
 
 	// PreallocationApplied is a string inserted into importer's/uploader's exit message
 	PreallocationApplied = "Preallocation applied"
+
+	// CSICloneCDILabel is the label applied to resources created by the csi clone controller
+	CSICloneCDILabel = "csi-volume-clone"
 )
 
 // ProxyPaths are all supported paths

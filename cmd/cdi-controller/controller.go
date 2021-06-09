@@ -50,7 +50,7 @@ var (
 	pullPolicy             string
 	verbose                string
 	log                    = logf.Log.WithName("controller")
-	controllerEnvs		   ControllerEnvs
+	controllerEnvs         ControllerEnvs
 )
 
 // ControllerEnvs contains environment variables read for setting custom cert paths
@@ -136,14 +136,14 @@ func start(ctx context.Context, cfg *rest.Config) {
 	crdInformerFactory := crdinformers.NewSharedInformerFactory(extClient, common.DefaultResyncPeriod)
 	crdInformer := crdInformerFactory.Apiextensions().V1().CustomResourceDefinitions().Informer()
 
-	uploadClientCAFetcher := &fetcher.FileCertFetcher{KeyFileName: controllerEnvs.UploadClientKeyFile,CertFileName: controllerEnvs.UploadClientCertFile}
+	uploadClientCAFetcher := &fetcher.FileCertFetcher{KeyFileName: controllerEnvs.UploadClientKeyFile, CertFileName: controllerEnvs.UploadClientCertFile}
 	uploadClientBundleFetcher := &fetcher.ConfigMapCertBundleFetcher{
 		Name:   controllerEnvs.UploadClientCaBundleConfigMap,
 		Client: client.CoreV1().ConfigMaps(namespace),
 	}
 	uploadClientCertGenerator := &generator.FetchCertGenerator{Fetcher: uploadClientCAFetcher}
 
-	uploadServerCAFetcher := &fetcher.FileCertFetcher{KeyFileName: controllerEnvs.UploadServerKeyFile,CertFileName: controllerEnvs.UploadServerCertFile}
+	uploadServerCAFetcher := &fetcher.FileCertFetcher{KeyFileName: controllerEnvs.UploadServerKeyFile, CertFileName: controllerEnvs.UploadServerCertFile}
 	uploadServerBundleFetcher := &fetcher.ConfigMapCertBundleFetcher{
 		Name:   controllerEnvs.UploadServerCaBundleConfigMap,
 		Client: client.CoreV1().ConfigMaps(namespace),
@@ -173,6 +173,11 @@ func start(ctx context.Context, cfg *rest.Config) {
 
 	if _, err := controller.NewCloneController(mgr, log, clonerImage, pullPolicy, verbose, uploadClientCertGenerator, uploadServerBundleFetcher, getAPIServerPublicKey()); err != nil {
 		klog.Errorf("Unable to setup clone controller: %v", err)
+		os.Exit(1)
+	}
+
+	if _, err := controller.NewCSICloneController(mgr, log); err != nil {
+		klog.Errorf("Unable to setup csi clone controller: %v", err)
 		os.Exit(1)
 	}
 

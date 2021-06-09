@@ -183,7 +183,10 @@ func (r *SmartCloneReconciler) reconcilePvc(log logr.Logger, pvc *corev1.Persist
 }
 
 func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snapshotv1.VolumeSnapshot) (reconcile.Result, error) {
-	log.WithValues("snapshot.Name", snapshot.Name).WithValues("snapshot.Namespace", snapshot.Namespace).Info("Reconciling snapshot")
+	log.WithValues("snapshot.Name", snapshot.Name).
+		WithValues("snapshot.Namespace", snapshot.Namespace).
+		Info("Reconciling snapshot")
+
 	dataVolume, err := r.getDataVolume(snapshot)
 	if err != nil {
 		return reconcile.Result{}, err

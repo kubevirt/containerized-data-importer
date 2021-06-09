@@ -37,6 +37,9 @@ KUBE_MASTER_URL=${KUBE_MASTER_URL:-""}
 CDI_NAMESPACE=${CDI_NAMESPACE:-cdi}
 SNAPSHOT_SC=${SNAPSHOT_SC:-rook-ceph-block}
 BLOCK_SC=${BLOCK_SC:-rook-ceph-block}
+# we might want to introduce another storage class and configure Storage Profile correctly
+# so on one SC we can test CSI clone and on the other the smartclone
+CSICLONE_SC=${CSICLONE_SC:-rook-ceph-block}
 
 if [ -z "${KUBECTL+x}" ]; then
     kubevirtci_kubectl="${BASE_PATH}/${KUBEVIRT_PROVIDER}/.kubectl"
@@ -61,8 +64,9 @@ arg_oc="${KUBECTL:+-oc-path=$KUBECTL}"
 arg_gocli="${GOCLI:+-gocli-path=$GOCLI}"
 arg_sc_snap="${SNAPSHOT_SC:+-snapshot-sc=$SNAPSHOT_SC}"
 arg_sc_block="${BLOCK_SC:+-block-sc=$BLOCK_SC}"
+arg_sc_csi="${CSICLONE_SC:+-csiclone-sc=$CSICLONE_SC}"
 
-test_args="${test_args} -ginkgo.v ${arg_master} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc} ${arg_gocli} ${arg_sc_snap} ${arg_sc_block}"
+test_args="${test_args} -ginkgo.v ${arg_master} ${arg_namespace} ${arg_kubeconfig} ${arg_kubectl} ${arg_oc} ${arg_gocli} ${arg_sc_snap} ${arg_sc_block} ${arg_sc_csi}"
 
 echo 'Wait until all CDI Pods are ready'
 retry_counter=0

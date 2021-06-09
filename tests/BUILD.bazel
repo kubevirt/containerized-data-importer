@@ -26,6 +26,7 @@ go_test(
         "cdiconfig_test.go",
         "certrotation_test.go",
         "cloner_test.go",
+        "csiclone_test.go",
         "datavolume_test.go",
         "explain_test.go",
         "import_proxy_test.go",

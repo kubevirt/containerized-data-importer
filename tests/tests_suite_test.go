@@ -31,6 +31,7 @@ var (
 	goCLIPath      = flag.String("gocli-path", "cli.sh", "The path to cli script")
 	snapshotSCName = flag.String("snapshot-sc", "", "The Storage Class supporting snapshots")
 	blockSCName    = flag.String("block-sc", "", "The Storage Class supporting block mode volumes")
+	csiCloneSCName = flag.String("csiclone-sc", "", "The Storage Class supporting CSI Volume Cloning")
 )
 
 func TestTests(t *testing.T) {
@@ -55,6 +56,7 @@ func BuildTestSuite() {
 		framework.ClientsInstance.GoCLIPath = *goCLIPath
 		framework.ClientsInstance.SnapshotSCName = *snapshotSCName
 		framework.ClientsInstance.BlockSCName = *blockSCName
+		framework.ClientsInstance.CsiCloneSCName = *csiCloneSCName
 
 		fmt.Fprintf(ginkgo.GinkgoWriter, "Kubectl path: %s\n", framework.ClientsInstance.KubectlPath)
 		fmt.Fprintf(ginkgo.GinkgoWriter, "OC path: %s\n", framework.ClientsInstance.OcPath)
@@ -64,6 +66,7 @@ func BuildTestSuite() {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "GO CLI path: %s\n", framework.ClientsInstance.GoCLIPath)
 		fmt.Fprintf(ginkgo.GinkgoWriter, "Snapshot SC: %s\n", framework.ClientsInstance.SnapshotSCName)
 		fmt.Fprintf(ginkgo.GinkgoWriter, "Block SC: %s\n", framework.ClientsInstance.BlockSCName)
+		fmt.Fprintf(ginkgo.GinkgoWriter, "CSI Volume Cloning SC: %s\n", framework.ClientsInstance.CsiCloneSCName)
 
 		restConfig, err := framework.ClientsInstance.LoadConfig()
 		if err != nil {
