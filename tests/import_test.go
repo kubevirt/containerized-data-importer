@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"os/exec"
 	"reflect"
 	"regexp"
@@ -21,7 +22,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -134,6 +138,84 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			By("Checking that disk image group is qemu")
 			Expect(f.GetDiskGroup(f.Namespace, pvc, false)).To(Equal("107"))
 		}
+	})
+})
+
+var _ = Describe("[Istio] Namespace sidecar injection", func() {
+	var (
+		f = framework.NewFramework(namespacePrefix)
+
+		// Istio sidecar injection prevents access to external resources, so we cannot use internal urls (http://cdi-file-host) for the test
+		tinyCoreIsoExternalURL = "http://tinycorelinux.net/12.x/x86/release/TinyCore-current.iso"
+	)
+
+	BeforeEach(func() {
+		value := os.Getenv("KUBEVIRT_DEPLOY_ISTIO")
+		if value != "true" {
+			Skip("No Istio enabled, skipping.")
+		}
+
+		By("Enable istio sidecar injection in namespace")
+		labelPatch := `[{"op":"add","path":"/metadata/labels/istio-injection","value":"enabled" }]`
+		_, err := f.K8sClient.CoreV1().Namespaces().Patch(context.TODO(), f.Namespace.Name, types.JSONPatchType, []byte(labelPatch), metav1.PatchOptions{})
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("Create istio sidecar")
+		sidecarRes := schema.GroupVersionResource{Group: "networking.istio.io", Version: "v1beta1", Resource: "sidecars"}
+		registryOnlySidecar := generateRegistryOnlySidecar()
+		_, err = f.DynamicClient.Resource(sidecarRes).Namespace(f.Namespace.Name).Create(context.TODO(), registryOnlySidecar, metav1.CreateOptions{})
+		Expect(err).ShouldNot(HaveOccurred())
+	})
+
+	It("[test_id:6498] Should fail to import with namespace sidecar injection enabled, and sidecar.istio.io/inject set to true", func() {
+		dataVolume := utils.NewDataVolumeWithHTTPImport("istio-sidecar-injection-test", "100Mi", tinyCoreIsoExternalURL)
+		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
+		// We set the Immediate Binding annotation to true, to eliminate creation of the consumer pod, which will also fail due to the Istio sidecar.
+		dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
+		dataVolume.Annotations[controller.AnnPodSidecarInjection] = "true"
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		var importer *v1.Pod
+		By("Find importer pod")
+		Eventually(func() bool {
+			importer, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
+			return err == nil
+		}, timeout, pollingInterval).Should(BeTrue())
+
+		By("Verify HTTP request error in importer log")
+		Eventually(func() bool {
+			log, _ := tests.RunKubectlCommand(f, "logs", importer.Name, "-n", importer.Namespace)
+			if strings.Contains(log, "HTTP request errored") {
+				return true
+			}
+			if strings.Contains(log, "502 Bad Gateway") {
+				return true
+			}
+			return false
+		}, time.Minute, pollingInterval).Should(BeTrue())
+	})
+
+	It("[test_id:6492] Should successfully import with namespace sidecar injection enabled and default sidecar.istio.io/inject", func() {
+		dataVolume := utils.NewDataVolumeWithHTTPImport("istio-sidecar-injection-test", "100Mi", tinyCoreIsoExternalURL)
+		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
+		dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify pvc was created")
+		_, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Find importer pod")
+		Eventually(func() bool {
+			_, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
+			return err == nil
+		}, timeout, pollingInterval).Should(BeTrue())
+
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f.CdiClient, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 	})
 })
 
@@ -1203,3 +1285,20 @@ var _ = Describe("Preallocation", func() {
 		Expect(ok).To(BeTrue())
 	})
 })
+
+func generateRegistryOnlySidecar() *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "networking.istio.io/v1beta1",
+			"kind":       "Sidecar",
+			"metadata": map[string]interface{}{
+				"name": "registry-only-sidecar",
+			},
+			"spec": map[string]interface{}{
+				"outboundTrafficPolicy": map[string]interface{}{
+					"mode": "REGISTRY_ONLY",
+				},
+			},
+		},
+	}
+}
