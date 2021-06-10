@@ -26,7 +26,7 @@ import (
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
-	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
+	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -57,18 +57,18 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 	It("Should not update if no changes happened", func() {
 		reconciler, cdiConfig := createConfigReconciler(createConfigMap(operator.ConfigMapName, testNamespace))
 		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
-		_, err = reconciler.Reconcile(reconcile.Request{})
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		// CDIConfig generated, now reconcile again without changes.
-		_, err = reconciler.Reconcile(reconcile.Request{})
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	DescribeTable("Should set proxyURL to override if no ingress or route exists", func(authority bool) {
 		reconciler, cdiConfig := createConfigReconciler(createConfigMap(operator.ConfigMapName, testNamespace))
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		override := "www.override-something.org.tt.test"
@@ -82,7 +82,7 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 		}
 		err = reconciler.client.Update(context.TODO(), cdi)
 		Expect(err).ToNot(HaveOccurred())
-		_, err = reconciler.Reconcile(reconcile.Request{})
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
@@ -102,7 +102,7 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 				*createIngress("test-ingress", "test-ns", testServiceName, testURL),
 			),
 		)
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		override := "www.override-something.org.tt.test"
@@ -116,7 +116,7 @@ var _ = Describe("CDIConfig Controller reconcile loop", func() {
 		}
 		err = reconciler.client.Update(context.TODO(), cdi)
 		Expect(err).ToNot(HaveOccurred())
-		_, err = reconciler.Reconcile(reconcile.Request{})
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
@@ -299,7 +299,7 @@ var _ = Describe("Controller ImportProxy reconcile loop", func() {
 
 	DescribeTable("Should set ImportProxy correctly if ClusterWideProxy with correct URLs exists", func(proxyHTTPURL string, proxyHTTPSURL string, noProxyDomains string, trustedCAName string, expect string, endpType string) {
 		reconciler, cdiConfig := createConfigReconciler(createClusterWideProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, trustedCAProxy))
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
@@ -347,7 +347,7 @@ var _ = Describe("Controller ImportProxy reconcile loop", func() {
 		certificate := "ca-test"
 		reconciler, cdiConfig := createConfigReconciler(createClusterWideProxy(proxyHTTPURL, proxyHTTPSURL, noProxyDomains, ClusterWideProxyConfigMapName),
 			createClusterWideProxyCAConfigMap(certificate))
-		_, err := reconciler.Reconcile(reconcile.Request{})
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
 		Expect(err).ToNot(HaveOccurred())
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: reconciler.configName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
@@ -408,19 +408,19 @@ var _ = Describe("Controller create CDI config", func() {
 var _ = Describe("getUrlFromIngress", func() {
 	//TODO: Once we get newer version of client-go, we need to switch to networking ingress.
 	It("Should return the url if backend service matches", func() {
-		ingress := &extensionsv1beta1.Ingress{
+		ingress := &networkingv1.Ingress{
 			TypeMeta: metav1.TypeMeta{
-				APIVersion: "extensions/v1beta1",
+				APIVersion: "networking/v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
 				Namespace: "test",
 			},
-			Spec: extensionsv1beta1.IngressSpec{
-				Backend: &extensionsv1beta1.IngressBackend{
-					ServiceName: testServiceName,
+			Spec: networkingv1.IngressSpec{
+				DefaultBackend: &networkingv1.IngressBackend{
+					Service: &networkingv1.IngressServiceBackend{Name: testServiceName},
 				},
-				Rules: []extensionsv1beta1.IngressRule{
+				Rules: []networkingv1.IngressRule{
 					{Host: testURL},
 				},
 			},
@@ -430,19 +430,19 @@ var _ = Describe("getUrlFromIngress", func() {
 	})
 
 	It("Should return blank if backend service does not match", func() {
-		ingress := &extensionsv1beta1.Ingress{
+		ingress := &networkingv1.Ingress{
 			TypeMeta: metav1.TypeMeta{
-				APIVersion: "extensions/v1beta1",
+				APIVersion: "networking/v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
 				Namespace: "test",
 			},
-			Spec: extensionsv1beta1.IngressSpec{
-				Backend: &extensionsv1beta1.IngressBackend{
-					ServiceName: testServiceName,
+			Spec: networkingv1.IngressSpec{
+				DefaultBackend: &networkingv1.IngressBackend{
+					Service: &networkingv1.IngressServiceBackend{Name: testServiceName},
 				},
-				Rules: []extensionsv1beta1.IngressRule{
+				Rules: []networkingv1.IngressRule{
 					{Host: testURL},
 				},
 			},
@@ -452,23 +452,23 @@ var _ = Describe("getUrlFromIngress", func() {
 	})
 
 	It("Should return the url if first rule backend service matches", func() {
-		ingress := &extensionsv1beta1.Ingress{
+		ingress := &networkingv1.Ingress{
 			TypeMeta: metav1.TypeMeta{
-				APIVersion: "extensions/v1beta1",
+				APIVersion: "networking/v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
 				Namespace: "test",
 			},
-			Spec: extensionsv1beta1.IngressSpec{
-				Rules: []extensionsv1beta1.IngressRule{
+			Spec: networkingv1.IngressSpec{
+				Rules: []networkingv1.IngressRule{
 					{
-						IngressRuleValue: extensionsv1beta1.IngressRuleValue{
-							HTTP: &extensionsv1beta1.HTTPIngressRuleValue{
-								Paths: []extensionsv1beta1.HTTPIngressPath{
+						IngressRuleValue: networkingv1.IngressRuleValue{
+							HTTP: &networkingv1.HTTPIngressRuleValue{
+								Paths: []networkingv1.HTTPIngressPath{
 									{
-										Backend: extensionsv1beta1.IngressBackend{
-											ServiceName: testServiceName,
+										Backend: networkingv1.IngressBackend{
+											Service: &networkingv1.IngressServiceBackend{Name: testServiceName},
 										},
 									},
 								},
@@ -484,38 +484,38 @@ var _ = Describe("getUrlFromIngress", func() {
 	})
 
 	It("Should return the url if any rule backend servicename matches", func() {
-		ingress := &extensionsv1beta1.Ingress{
+		ingress := &networkingv1.Ingress{
 			TypeMeta: metav1.TypeMeta{
-				APIVersion: "extensions/v1beta1",
+				APIVersion: "networking/v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
 				Namespace: "test",
 			},
-			Spec: extensionsv1beta1.IngressSpec{
-				Rules: []extensionsv1beta1.IngressRule{
+			Spec: networkingv1.IngressSpec{
+				Rules: []networkingv1.IngressRule{
 					{
-						IngressRuleValue: extensionsv1beta1.IngressRuleValue{
-							HTTP: &extensionsv1beta1.HTTPIngressRuleValue{
-								Paths: []extensionsv1beta1.HTTPIngressPath{
+						IngressRuleValue: networkingv1.IngressRuleValue{
+							HTTP: &networkingv1.HTTPIngressRuleValue{
+								Paths: []networkingv1.HTTPIngressPath{
 									{
-										Backend: extensionsv1beta1.IngressBackend{
-											ServiceName: "service1",
+										Backend: networkingv1.IngressBackend{
+											Service: &networkingv1.IngressServiceBackend{Name: "service1"},
 										},
 									},
 									{
-										Backend: extensionsv1beta1.IngressBackend{
-											ServiceName: "service2",
+										Backend: networkingv1.IngressBackend{
+											Service: &networkingv1.IngressServiceBackend{Name: "service2"},
 										},
 									},
 									{
-										Backend: extensionsv1beta1.IngressBackend{
-											ServiceName: testServiceName,
+										Backend: networkingv1.IngressBackend{
+											Service: &networkingv1.IngressServiceBackend{Name: testServiceName},
 										},
 									},
 									{
-										Backend: extensionsv1beta1.IngressBackend{
-											ServiceName: "service4",
+										Backend: networkingv1.IngressBackend{
+											Service: &networkingv1.IngressServiceBackend{Name: "service4"},
 										},
 									},
 								},
@@ -531,18 +531,18 @@ var _ = Describe("getUrlFromIngress", func() {
 	})
 
 	It("Should return blank if no http rule exists", func() {
-		ingress := &extensionsv1beta1.Ingress{
+		ingress := &networkingv1.Ingress{
 			TypeMeta: metav1.TypeMeta{
-				APIVersion: "extensions/v1beta1",
+				APIVersion: "networking/v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
 				Namespace: "test",
 			},
-			Spec: extensionsv1beta1.IngressSpec{
-				Rules: []extensionsv1beta1.IngressRule{
+			Spec: networkingv1.IngressSpec{
+				Rules: []networkingv1.IngressRule{
 					{
-						IngressRuleValue: extensionsv1beta1.IngressRuleValue{},
+						IngressRuleValue: networkingv1.IngressRuleValue{},
 					},
 				},
 			},
@@ -731,7 +731,7 @@ func createConfigReconciler(objects ...runtime.Object) (*CDIConfigReconciler, *c
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
 	cdiv1.AddToScheme(s)
-	extensionsv1beta1.AddToScheme(s)
+	networkingv1.AddToScheme(s)
 	routev1.AddToScheme(s)
 	storagev1.AddToScheme(s)
 	ocpconfigv1.AddToScheme(s)
@@ -802,28 +802,28 @@ func createRoute(name, ns, service string) *routev1.Route {
 	}
 }
 
-func createIngressList(ingresses ...extensionsv1beta1.Ingress) *extensionsv1beta1.IngressList {
-	list := &extensionsv1beta1.IngressList{
-		Items: []extensionsv1beta1.Ingress{},
+func createIngressList(ingresses ...networkingv1.Ingress) *networkingv1.IngressList {
+	list := &networkingv1.IngressList{
+		Items: []networkingv1.Ingress{},
 	}
 	list.Items = append(list.Items, ingresses...)
 	return list
 }
 
-func createIngress(name, ns, service, url string) *extensionsv1beta1.Ingress {
-	return &extensionsv1beta1.Ingress{
+func createIngress(name, ns, service, url string) *networkingv1.Ingress {
+	return &networkingv1.Ingress{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "extensions/v1beta1",
+			APIVersion: "networking/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: ns,
 		},
-		Spec: extensionsv1beta1.IngressSpec{
-			Backend: &extensionsv1beta1.IngressBackend{
-				ServiceName: service,
+		Spec: networkingv1.IngressSpec{
+			DefaultBackend: &networkingv1.IngressBackend{
+				Service: &networkingv1.IngressServiceBackend{Name: service},
 			},
-			Rules: []extensionsv1beta1.IngressRule{
+			Rules: []networkingv1.IngressRule{
 				{Host: url},
 			},
 		},

@@ -39,7 +39,7 @@ container_image(
         "-alsologtostderr",
     ],
     files = [":cdi-apiserver"],
-    visibility = ["//visibility:public"],
     user = "1001",
+    visibility = ["//visibility:public"],
     workdir = "/home/cdi-apiserver",
 )

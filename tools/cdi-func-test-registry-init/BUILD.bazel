@@ -109,20 +109,20 @@ container_image(
     base = "@registry//image",
     directory = "/",
     entrypoint = ["/start-registry.sh"],
+    ports = ["443"],
     tars = [
         ":registry-script-tar",
         "registry-config-tar",
     ],
-    ports = ["443"],
     visibility = ["//visibility:public"],
 )
 
 filegroup(
     name = "registry-config",
     srcs = [
-        ":registry-config.yml",
-        ":registry-auth-config.yml",
         ":htpasswd",
+        ":registry-auth-config.yml",
+        ":registry-config.yml",
     ],
 )
 

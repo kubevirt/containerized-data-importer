@@ -112,7 +112,8 @@ func NewFakeCertWatcher() CertWatcher {
 
 var _ = Describe("Auth config tests", func() {
 	It("New CDI API server", func() {
-		ch := make(chan struct{})
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		kubeobjects := []runtime.Object{}
 		kubeobjects = append(kubeobjects, getAPIServerConfigMap())
 
@@ -120,7 +121,7 @@ var _ = Describe("Auth config tests", func() {
 		aggregatorClient := aggregatorapifake.NewSimpleClientset()
 		cdiClient := cdiclientfake.NewSimpleClientset()
 		authorizer := &testAuthorizer{}
-		authConfigWatcher := NewAuthConfigWatcher(client, ch)
+		authConfigWatcher := NewAuthConfigWatcher(ctx, client)
 
 		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, authConfigWatcher, nil)
 		Expect(err).ToNot(HaveOccurred())
@@ -138,7 +139,8 @@ var _ = Describe("Auth config tests", func() {
 	})
 
 	It("Auth config update", func() {
-		ch := make(chan struct{})
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		cm := getAPIServerConfigMap()
 		kubeobjects := []runtime.Object{}
 		kubeobjects = append(kubeobjects, cm)
@@ -147,7 +149,7 @@ var _ = Describe("Auth config tests", func() {
 		aggregatorClient := aggregatorapifake.NewSimpleClientset()
 		cdiClient := cdiclientfake.NewSimpleClientset()
 		authorizer := &testAuthorizer{}
-		acw := NewAuthConfigWatcher(client, ch).(*authConfigWatcher)
+		acw := NewAuthConfigWatcher(ctx, client).(*authConfigWatcher)
 
 		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, nil)
 		Expect(err).ToNot(HaveOccurred())
@@ -163,13 +165,14 @@ var _ = Describe("Auth config tests", func() {
 
 		// behavior of this changed in 16.4 used to wait then check so now explicitly waiting
 		time.Sleep(100 * time.Millisecond)
-		cache.WaitForCacheSync(ch, acw.informer.HasSynced)
+		cache.WaitForCacheSync(ctx.Done(), acw.informer.HasSynced)
 
 		verifyAuthConfig(cm, app.authConfigWatcher.GetAuthConfig())
 	})
 
 	It("Get TLS config", func() {
-		ch := make(chan struct{})
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		cm := getAPIServerConfigMap()
 		kubeobjects := []runtime.Object{}
 		kubeobjects = append(kubeobjects, cm)
@@ -178,7 +181,7 @@ var _ = Describe("Auth config tests", func() {
 		aggregatorClient := aggregatorapifake.NewSimpleClientset()
 		cdiClient := cdiclientfake.NewSimpleClientset()
 		authorizer := &testAuthorizer{}
-		acw := NewAuthConfigWatcher(client, ch).(*authConfigWatcher)
+		acw := NewAuthConfigWatcher(ctx, client).(*authConfigWatcher)
 		certWatcher := NewFakeCertWatcher()
 
 		server, err := NewCdiAPIServer("0.0.0.0", 0, client, aggregatorClient, cdiClient, authorizer, acw, certWatcher)
@@ -195,12 +198,13 @@ var _ = Describe("Auth config tests", func() {
 	})
 
 	DescribeTable("Validate client CN", func(f func() *corev1.ConfigMap, name string, allowed bool) {
-		ch := make(chan struct{})
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		kubeobjects := []runtime.Object{}
 		kubeobjects = append(kubeobjects, f())
 
 		client := k8sfake.NewSimpleClientset(kubeobjects...)
-		authConfigWatcher := NewAuthConfigWatcher(client, ch)
+		authConfigWatcher := NewAuthConfigWatcher(ctx, client)
 
 		result := authConfigWatcher.GetAuthConfig().ValidateName(name)
 		Expect(result).To(Equal(allowed))

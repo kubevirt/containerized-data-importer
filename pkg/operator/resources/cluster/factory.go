@@ -34,7 +34,7 @@ type FactoryArgs struct {
 	Logger    logr.Logger
 }
 
-type factoryFunc func(*FactoryArgs) []runtime.Object
+type factoryFunc func(*FactoryArgs) []client.Object
 
 type factoryFuncMap map[string]factoryFunc
 
@@ -50,8 +50,8 @@ var dynamicFactoryFunctions = factoryFuncMap{
 	"apiserver-registrations": createDynamicAPIServerResources,
 }
 
-func createCRDResources(args *FactoryArgs) []runtime.Object {
-	return []runtime.Object{
+func createCRDResources(args *FactoryArgs) []client.Object {
+	return []client.Object{
 		createDataVolumeCRD(),
 		createCDIConfigCRD(),
 		createStorageProfileCRD(),
@@ -60,27 +60,27 @@ func createCRDResources(args *FactoryArgs) []runtime.Object {
 }
 
 // CreateAllStaticResources creates all static cluster-wide resources
-func CreateAllStaticResources(args *FactoryArgs) ([]runtime.Object, error) {
+func CreateAllStaticResources(args *FactoryArgs) ([]client.Object, error) {
 	return createAllResources(staticFactoryFunctions, args)
 }
 
 // CreateStaticResourceGroup creates all static cluster resources for a specific group/component
-func CreateStaticResourceGroup(group string, args *FactoryArgs) ([]runtime.Object, error) {
+func CreateStaticResourceGroup(group string, args *FactoryArgs) ([]client.Object, error) {
 	return createResourceGroup(staticFactoryFunctions, group, args)
 }
 
 // CreateAllDynamicResources creates all dynamic cluster-wide resources
-func CreateAllDynamicResources(args *FactoryArgs) ([]runtime.Object, error) {
+func CreateAllDynamicResources(args *FactoryArgs) ([]client.Object, error) {
 	return createAllResources(dynamicFactoryFunctions, args)
 }
 
 // CreateDynamicResourceGroup creates all dynamic cluster resources for a specific group/component
-func CreateDynamicResourceGroup(group string, args *FactoryArgs) ([]runtime.Object, error) {
+func CreateDynamicResourceGroup(group string, args *FactoryArgs) ([]client.Object, error) {
 	return createResourceGroup(dynamicFactoryFunctions, group, args)
 }
 
-func createAllResources(funcMap factoryFuncMap, args *FactoryArgs) ([]runtime.Object, error) {
-	var resources []runtime.Object
+func createAllResources(funcMap factoryFuncMap, args *FactoryArgs) ([]client.Object, error) {
+	var resources []client.Object
 	for group := range funcMap {
 		rs, err := createResourceGroup(funcMap, group, args)
 		if err != nil {
@@ -91,13 +91,15 @@ func createAllResources(funcMap factoryFuncMap, args *FactoryArgs) ([]runtime.Ob
 	return resources, nil
 }
 
-func createResourceGroup(funcMap factoryFuncMap, group string, args *FactoryArgs) ([]runtime.Object, error) {
+func createResourceGroup(funcMap factoryFuncMap, group string, args *FactoryArgs) ([]client.Object, error) {
 	f, ok := funcMap[group]
 	if !ok {
 		return nil, fmt.Errorf("group %s does not exist", group)
 	}
 	resources := f(args)
-	utils.ValidateGVKs(resources)
+	for _, r := range resources {
+		utils.ValidateGVKs([]runtime.Object{r})
+	}
 	return resources, nil
 }
 

@@ -20,15 +20,14 @@ import (
 	"context"
 	"reflect"
 
-	"k8s.io/client-go/tools/record"
-
-	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
-
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 )
 
 const (
@@ -71,8 +70,8 @@ type ReconcileCallbackArgs struct {
 	Resource  interface{}
 
 	State         ReconcileState
-	DesiredObject runtime.Object
-	CurrentObject runtime.Object
+	DesiredObject client.Object
+	CurrentObject client.Object
 }
 
 // CallbackDispatcher manages and executes resource callbacks
@@ -106,14 +105,14 @@ func NewCallbackDispatcher(log logr.Logger, client, uncachedClient client.Client
 }
 
 // AddCallback registers a callback for given object type
-func (cd *CallbackDispatcher) AddCallback(obj runtime.Object, cb ReconcileCallback) {
+func (cd *CallbackDispatcher) AddCallback(obj client.Object, cb ReconcileCallback) {
 	t := reflect.TypeOf(obj)
 	cbs := cd.callbacks[t]
 	cd.callbacks[t] = append(cbs, cb)
 }
 
 // InvokeCallbacks executes callbacks for desired/current object type
-func (cd *CallbackDispatcher) InvokeCallbacks(l logr.Logger, cr interface{}, s ReconcileState, desiredObj, currentObj runtime.Object, recorder record.EventRecorder) error {
+func (cd *CallbackDispatcher) InvokeCallbacks(l logr.Logger, cr interface{}, s ReconcileState, desiredObj, currentObj client.Object, recorder record.EventRecorder) error {
 	var t reflect.Type
 
 	if desiredObj != nil {

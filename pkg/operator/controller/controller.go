@@ -154,7 +154,7 @@ func (r *ReconcileCDI) SetController(controller controller.Controller) {
 // Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
-func (r *ReconcileCDI) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+func (r *ReconcileCDI) Reconcile(_ context.Context, request reconcile.Request) (reconcile.Result, error) {
 	operatorVersion := r.namespacedArgs.OperatorVersion
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling CDI")
@@ -227,7 +227,7 @@ func (r *ReconcileCDI) getConfigMap() (*corev1.ConfigMap, error) {
 }
 
 // createOperatorConfig creates operator config map
-func (r *ReconcileCDI) createOperatorConfig(cr controllerutil.Object) error {
+func (r *ReconcileCDI) createOperatorConfig(cr client.Object) error {
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      operator.ConfigMapName,

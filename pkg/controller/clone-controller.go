@@ -132,9 +132,9 @@ func addCloneControllerWatches(mgr manager.Manager, cloneController controller.C
 	}); err != nil {
 		return err
 	}
-	if err := cloneController.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestsFromMapFunc{
-		ToRequests: handler.ToRequestsFunc(func(obj handler.MapObject) []reconcile.Request {
-			target, ok := obj.Meta.GetAnnotations()[AnnOwnerRef]
+	if err := cloneController.Watch(&source.Kind{Type: &corev1.Pod{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			target, ok := obj.GetAnnotations()[AnnOwnerRef]
 			if !ok {
 				return nil
 			}
@@ -150,8 +150,8 @@ func addCloneControllerWatches(mgr manager.Manager, cloneController controller.C
 					},
 				},
 			}
-		}),
-	}); err != nil {
+		},
+	)); err != nil {
 		return err
 	}
 	return nil
@@ -168,7 +168,7 @@ func (r *CloneReconciler) shouldReconcile(pvc *corev1.PersistentVolumeClaim, log
 }
 
 // Reconcile the reconcile loop for host assisted clone pvc.
-func (r *CloneReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
+func (r *CloneReconciler) Reconcile(_ context.Context, req reconcile.Request) (reconcile.Result, error) {
 	// Get the PVC.
 	pvc := &corev1.PersistentVolumeClaim{}
 	if err := r.client.Get(context.TODO(), req.NamespacedName, pvc); err != nil {

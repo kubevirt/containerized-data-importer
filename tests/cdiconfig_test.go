@@ -13,11 +13,10 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	route1client "github.com/openshift/client-go/route/clientset/versioned"
-	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
+	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/clientcmd"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
@@ -323,7 +322,7 @@ var _ = Describe("CDI ingress config tests", func() {
 	var (
 		f          = framework.NewFramework("cdiconfig-test")
 		routeStart = func() string { return fmt.Sprintf("%s-%s.", routeName, f.CdiInstallNs) }
-		ingress    *extensionsv1beta1.Ingress
+		ingress    *networkingv1.Ingress
 	)
 
 	BeforeEach(func() {
@@ -366,7 +365,7 @@ var _ = Describe("CDI ingress config tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		if ingress != nil {
 			By("Cleaning up ingress")
-			err := f.K8sClient.ExtensionsV1beta1().Ingresses(ingress.Namespace).Delete(context.TODO(), ingress.Name, metav1.DeleteOptions{})
+			err := f.K8sClient.NetworkingV1().Ingresses(ingress.Namespace).Delete(context.TODO(), ingress.Name, metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(func() string {
 				config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
@@ -382,7 +381,7 @@ var _ = Describe("CDI ingress config tests", func() {
 	It("[test_id:3960]Should set uploadProxyURL if override is not defined", func() {
 		// TODO, don't hard code "cdi-uploadproxy", read it from container env of cdi-deployment deployment.
 		ingress = createIngress("test-ingress", f.CdiInstallNs, "cdi-uploadproxy", ingressUrl)
-		_, err := f.K8sClient.ExtensionsV1beta1().Ingresses(f.CdiInstallNs).Create(context.TODO(), ingress, metav1.CreateOptions{})
+		_, err := f.K8sClient.NetworkingV1().Ingresses(f.CdiInstallNs).Create(context.TODO(), ingress, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		By("Expecting uploadproxy url to be " + ingressUrl)
 		Eventually(func() string {
@@ -403,7 +402,7 @@ var _ = Describe("CDI ingress config tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		// TODO, don't hard code "cdi-uploadproxy", read it from container env of cdi-deployment deployment.
 		ingress = createIngress("test-ingress", f.CdiInstallNs, "cdi-uploadproxy", ingressUrl)
-		_, err = f.K8sClient.ExtensionsV1beta1().Ingresses(f.CdiInstallNs).Create(context.TODO(), ingress, metav1.CreateOptions{})
+		_, err = f.K8sClient.NetworkingV1().Ingresses(f.CdiInstallNs).Create(context.TODO(), ingress, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		By("Expecting uploadproxy url to be " + override)
 		Eventually(func() string {
@@ -587,24 +586,20 @@ var _ = Describe("Modifying CDIConfig spec tests", func() {
 
 })
 
-func createIngress(name, ns, service, hostUrl string) *extensionsv1beta1.Ingress {
-	return &extensionsv1beta1.Ingress{
+func createIngress(name, ns, service, hostUrl string) *networkingv1.Ingress {
+	return &networkingv1.Ingress{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "extensions/v1beta1",
+			APIVersion: "networking/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: ns,
 		},
-		Spec: extensionsv1beta1.IngressSpec{
-			Backend: &extensionsv1beta1.IngressBackend{
-				ServiceName: service,
-				ServicePort: intstr.IntOrString{
-					Type:   intstr.Int,
-					IntVal: 443,
-				},
+		Spec: networkingv1.IngressSpec{
+			DefaultBackend: &networkingv1.IngressBackend{
+				Service: &networkingv1.IngressServiceBackend{Name: service, Port: networkingv1.ServiceBackendPort{Number: 443}},
 			},
-			Rules: []extensionsv1beta1.IngressRule{
+			Rules: []networkingv1.IngressRule{
 				{Host: hostUrl},
 			},
 		},

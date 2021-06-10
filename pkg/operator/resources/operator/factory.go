@@ -22,6 +22,7 @@ import (
 	csvv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	utils "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/resources"
@@ -33,11 +34,11 @@ type FactoryArgs struct {
 	Image          string
 }
 
-type factoryFunc func(*FactoryArgs) []runtime.Object
+type factoryFunc func(*FactoryArgs) []client.Object
 
 func aggregateFactoryFunc(funcs ...factoryFunc) factoryFunc {
-	return func(args *FactoryArgs) []runtime.Object {
-		var result []runtime.Object
+	return func(args *FactoryArgs) []client.Object {
+		var result []client.Object
 		for _, f := range funcs {
 			result = append(result, f(args)...)
 		}
@@ -74,8 +75,8 @@ type ClusterServiceVersionData struct {
 }
 
 // CreateAllOperatorResources creates all cluster-wide resources
-func CreateAllOperatorResources(args *FactoryArgs) ([]runtime.Object, error) {
-	var resources []runtime.Object
+func CreateAllOperatorResources(args *FactoryArgs) ([]client.Object, error) {
+	var resources []client.Object
 	for group := range operatorFactoryFunctions {
 		rs, err := CreateOperatorResourceGroup(group, args)
 		if err != nil {
@@ -87,13 +88,15 @@ func CreateAllOperatorResources(args *FactoryArgs) ([]runtime.Object, error) {
 }
 
 // CreateOperatorResourceGroup creates all cluster resources fr a specific group/component
-func CreateOperatorResourceGroup(group string, args *FactoryArgs) ([]runtime.Object, error) {
+func CreateOperatorResourceGroup(group string, args *FactoryArgs) ([]client.Object, error) {
 	f, ok := operatorFactoryFunctions[group]
 	if !ok {
 		return nil, fmt.Errorf("group %s does not exist", group)
 	}
 	resources := f(args)
-	utils.ValidateGVKs(resources)
+	for _, r := range resources {
+		utils.ValidateGVKs([]runtime.Object{r})
+	}
 	return resources, nil
 }
 

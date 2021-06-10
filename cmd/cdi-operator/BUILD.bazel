@@ -42,7 +42,7 @@ container_image(
         ":cdi-operator",
         "//tools/csv-generator",
     ],
-    visibility = ["//visibility:public"],
     user = "1001",
+    visibility = ["//visibility:public"],
     workdir = "/home/cdi-operator",
 )

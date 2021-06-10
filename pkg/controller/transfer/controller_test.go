@@ -24,7 +24,7 @@ func rr(name string) reconcile.Request {
 	return reconcile.Request{NamespacedName: types.NamespacedName{Name: name}}
 }
 
-func getResource(c client.Client, ns, name string, obj runtime.Object) error {
+func getResource(c client.Client, ns, name string, obj client.Object) error {
 	p := reflect.ValueOf(obj).Elem()
 	p.Set(reflect.Zero(p.Type()))
 	return c.Get(context.TODO(), types.NamespacedName{Namespace: ns, Name: name}, obj)
@@ -52,15 +52,16 @@ func checkCompleteTrue(ot *cdiv1.ObjectTransfer) {
 	Expect(cond.LastTransitionTime.Unix()).ToNot(BeZero())
 }
 
-func createReconciler(objects ...runtime.Object) *transfer.ObjectTransferReconciler {
-	objs := []runtime.Object{}
-	objs = append(objs, objects...)
-
+func createReconciler(objects ...client.Object) *transfer.ObjectTransferReconciler {
 	s := scheme.Scheme
 	corev1.AddToScheme(s)
 	cdiv1.AddToScheme(s)
 
-	cl := fake.NewFakeClientWithScheme(s, objs...)
+	var runtimeObjects []runtime.Object
+	for _, obj := range objects {
+		runtimeObjects = append(runtimeObjects, obj)
+	}
+	cl := fake.NewFakeClientWithScheme(s, runtimeObjects...)
 
 	return &transfer.ObjectTransferReconciler{
 		Client:   cl,

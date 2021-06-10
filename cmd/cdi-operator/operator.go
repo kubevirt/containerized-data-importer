@@ -66,10 +66,11 @@ func main() {
 	}
 
 	managerOpts := manager.Options{
-		Namespace:               namespace,
-		LeaderElection:          true,
-		LeaderElectionNamespace: namespace,
-		LeaderElectionID:        "cdi-operator-leader-election-helper",
+		Namespace:                  namespace,
+		LeaderElection:             true,
+		LeaderElectionNamespace:    namespace,
+		LeaderElectionID:           "cdi-operator-leader-election-helper",
+		LeaderElectionResourceLock: "configmaps",
 	}
 
 	// Create a new Manager to provide shared dependencies and start components

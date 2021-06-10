@@ -7,7 +7,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -23,9 +22,9 @@ func indexKeyFunc(namespace, name string) string {
 	return fmt.Sprintf("%s/%s", namespace, name)
 }
 
-func indexAndWatch(mgr manager.Manager, ctrl controller.Controller, obj runtime.Object, field string) error {
+func indexAndWatch(mgr manager.Manager, ctrl controller.Controller, obj client.Object, field string) error {
 	// setup index for the type
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.ObjectTransfer{}, field, func(obj runtime.Object) []string {
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.ObjectTransfer{}, field, func(obj client.Object) []string {
 		var result []string
 		ot := obj.(*cdiv1.ObjectTransfer)
 
@@ -41,12 +40,12 @@ func indexAndWatch(mgr manager.Manager, ctrl controller.Controller, obj runtime.
 		return err
 	}
 
-	if err := ctrl.Watch(&source.Kind{Type: obj}, &handler.EnqueueRequestsFromMapFunc{
-		ToRequests: handler.ToRequestsFunc(func(mapObj handler.MapObject) []reconcile.Request {
-			value := indexKeyFunc(mapObj.Meta.GetNamespace(), mapObj.Meta.GetName())
+	if err := ctrl.Watch(&source.Kind{Type: obj}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			value := indexKeyFunc(obj.GetNamespace(), obj.GetName())
 			return indexLookup(mgr.GetClient(), field, value)
-		}),
-	}); err != nil {
+		},
+	)); err != nil {
 		return err
 	}
 
@@ -75,41 +74,41 @@ func indexLookup(c client.Client, field, value string) []reconcile.Request {
 }
 
 func watchObjectTransfers(ctrl controller.Controller) error {
-	return ctrl.Watch(&source.Kind{Type: &cdiv1.ObjectTransfer{}}, &handler.EnqueueRequestsFromMapFunc{
-		ToRequests: handler.ToRequestsFunc(func(mapObj handler.MapObject) []reconcile.Request {
-			obj := mapObj.Object.(*cdiv1.ObjectTransfer)
+	return ctrl.Watch(&source.Kind{Type: &cdiv1.ObjectTransfer{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			ot := obj.(*cdiv1.ObjectTransfer)
 			result := []reconcile.Request{
 				{
 					NamespacedName: types.NamespacedName{
-						Name: obj.Name,
+						Name: ot.Name,
 					},
 				},
 			}
 
-			if obj.Spec.ParentName != nil {
+			if ot.Spec.ParentName != nil {
 				result = append(result, reconcile.Request{
 					NamespacedName: types.NamespacedName{
-						Name: *obj.Spec.ParentName,
+						Name: *ot.Spec.ParentName,
 					},
 				})
 			}
 
 			return result
-		}),
-	})
+		},
+	))
 }
 
 func watchPVs(mgr manager.Manager, ctrl controller.Controller) error {
-	return ctrl.Watch(&source.Kind{Type: &corev1.PersistentVolume{}}, &handler.EnqueueRequestsFromMapFunc{
-		ToRequests: handler.ToRequestsFunc(func(mapObj handler.MapObject) []reconcile.Request {
-			pv := mapObj.Object.(*corev1.PersistentVolume)
+	return ctrl.Watch(&source.Kind{Type: &corev1.PersistentVolume{}}, handler.EnqueueRequestsFromMapFunc(
+		func(obj client.Object) []reconcile.Request {
+			pv := obj.(*corev1.PersistentVolume)
 			if pv.Spec.ClaimRef == nil {
 				return nil
 			}
 			value := indexKeyFunc(pv.Spec.ClaimRef.Namespace, pv.Spec.ClaimRef.Name)
 			return indexLookup(mgr.GetClient(), "persistentvolumeclaim", value)
-		}),
-	})
+		},
+	))
 }
 
 func addObjectTransferControllerWatches(mgr manager.Manager, ctrl controller.Controller) error {

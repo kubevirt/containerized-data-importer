@@ -20,9 +20,9 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
@@ -31,8 +31,8 @@ const (
 	uploadProxyResourceName = "cdi-uploadproxy"
 )
 
-func createUploadProxyResources(args *FactoryArgs) []runtime.Object {
-	return []runtime.Object{
+func createUploadProxyResources(args *FactoryArgs) []client.Object {
+	return []client.Object{
 		createUploadProxyServiceAccount(),
 		createUploadProxyService(),
 		createUploadProxyRoleBinding(),

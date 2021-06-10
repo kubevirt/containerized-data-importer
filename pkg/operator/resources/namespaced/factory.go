@@ -19,9 +19,9 @@ package namespaced
 import (
 	"fmt"
 
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
-
 	"k8s.io/apimachinery/pkg/runtime"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	utils "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/resources"
 )
@@ -42,7 +42,7 @@ type FactoryArgs struct {
 	InfraNodePlacement     *sdkapi.NodePlacement
 }
 
-type factoryFunc func(*FactoryArgs) []runtime.Object
+type factoryFunc func(*FactoryArgs) []client.Object
 
 type namespaceHaver interface {
 	SetNamespace(string)
@@ -56,8 +56,8 @@ var factoryFunctions = map[string]factoryFunc{
 }
 
 // CreateAllResources creates all namespaced resources
-func CreateAllResources(args *FactoryArgs) ([]runtime.Object, error) {
-	var resources []runtime.Object
+func CreateAllResources(args *FactoryArgs) ([]client.Object, error) {
+	var resources []client.Object
 	for group := range factoryFunctions {
 		rs, err := CreateResourceGroup(group, args)
 		if err != nil {
@@ -69,20 +69,20 @@ func CreateAllResources(args *FactoryArgs) ([]runtime.Object, error) {
 }
 
 // CreateResourceGroup creates namespaced resources for a specific group/component
-func CreateResourceGroup(group string, args *FactoryArgs) ([]runtime.Object, error) {
+func CreateResourceGroup(group string, args *FactoryArgs) ([]client.Object, error) {
 	f, ok := factoryFunctions[group]
 	if !ok {
 		return nil, fmt.Errorf("group %s does not exist", group)
 	}
 	resources := f(args)
-	utils.ValidateGVKs(resources)
 	for _, resource := range resources {
+		utils.ValidateGVKs([]runtime.Object{resource})
 		assignNamspaceIfMissing(resource, args.Namespace)
 	}
 	return resources, nil
 }
 
-func assignNamspaceIfMissing(resource runtime.Object, namespace string) {
+func assignNamspaceIfMissing(resource client.Object, namespace string) {
 	obj, ok := resource.(namespaceHaver)
 	if !ok {
 		return

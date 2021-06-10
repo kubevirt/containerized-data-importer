@@ -120,7 +120,7 @@ func (r *ObjectTransferReconciler) logger(ot *cdiv1.ObjectTransfer) logr.Logger 
 }
 
 // Reconcile the reconcile loop for the data volumes.
-func (r *ObjectTransferReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
+func (r *ObjectTransferReconciler) Reconcile(_ context.Context, req reconcile.Request) (reconcile.Result, error) {
 	ot := &cdiv1.ObjectTransfer{}
 	if err := r.Client.Get(context.TODO(), req.NamespacedName, ot); err != nil {
 		if errors.IsNotFound(err) {
@@ -215,7 +215,7 @@ func (r *ObjectTransferReconciler) getHandler(ot *cdiv1.ObjectTransfer) (transfe
 	return nil, fmt.Errorf("invalid kind %q", ot.Spec.Source.Kind)
 }
 
-func (r *ObjectTransferReconciler) getResource(ns, name string, obj runtime.Object) (bool, error) {
+func (r *ObjectTransferReconciler) getResource(ns, name string, obj client.Object) (bool, error) {
 	if err := r.Client.Get(context.TODO(), types.NamespacedName{Namespace: ns, Name: name}, obj); err != nil {
 		if errors.IsNotFound(err) {
 			return false, nil
@@ -227,7 +227,7 @@ func (r *ObjectTransferReconciler) getResource(ns, name string, obj runtime.Obje
 	return true, nil
 }
 
-func (r *ObjectTransferReconciler) updateResource(ot *cdiv1.ObjectTransfer, obj runtime.Object) error {
+func (r *ObjectTransferReconciler) updateResource(ot *cdiv1.ObjectTransfer, obj client.Object) error {
 	log := r.logger(ot)
 
 	log.V(1).Info("Updating resource", "obj", obj)
@@ -239,7 +239,7 @@ func (r *ObjectTransferReconciler) updateResource(ot *cdiv1.ObjectTransfer, obj 
 	return nil
 }
 
-func (r *ObjectTransferReconciler) updateResourceStatus(ot *cdiv1.ObjectTransfer, obj runtime.Object) error {
+func (r *ObjectTransferReconciler) updateResourceStatus(ot *cdiv1.ObjectTransfer, obj client.Object) error {
 	log := r.logger(ot)
 
 	log.V(1).Info("Updating resource status", "obj", obj)
@@ -251,11 +251,11 @@ func (r *ObjectTransferReconciler) updateResourceStatus(ot *cdiv1.ObjectTransfer
 	return nil
 }
 
-func (r *ObjectTransferReconciler) getSourceResource(ot *cdiv1.ObjectTransfer, obj runtime.Object) (bool, error) {
+func (r *ObjectTransferReconciler) getSourceResource(ot *cdiv1.ObjectTransfer, obj client.Object) (bool, error) {
 	return r.getResource(ot.Spec.Source.Namespace, ot.Spec.Source.Name, obj)
 }
 
-func (r *ObjectTransferReconciler) getTargetResource(ot *cdiv1.ObjectTransfer, obj runtime.Object) (bool, error) {
+func (r *ObjectTransferReconciler) getTargetResource(ot *cdiv1.ObjectTransfer, obj client.Object) (bool, error) {
 	return r.getResource(getTransferTargetNamespace(ot), getTransferTargetName(ot), obj)
 }
 
@@ -333,7 +333,7 @@ func (r *ObjectTransferReconciler) setCondition(ot *cdiv1.ObjectTransfer, t cdiv
 	return updated
 }
 
-func (r *ObjectTransferReconciler) createObjectTransferTarget(ot *cdiv1.ObjectTransfer, obj runtime.Object, mutateFn func(runtime.Object)) error {
+func (r *ObjectTransferReconciler) createObjectTransferTarget(ot *cdiv1.ObjectTransfer, obj client.Object, mutateFn func(client.Object)) error {
 	s, ok := ot.Status.Data["source"]
 	if !ok {
 		return fmt.Errorf("source spec missing")
@@ -372,7 +372,7 @@ func (r *ObjectTransferReconciler) createObjectTransferTarget(ot *cdiv1.ObjectTr
 	return r.Client.Create(context.TODO(), obj)
 }
 
-func (r *ObjectTransferReconciler) pendingHelper(ot *cdiv1.ObjectTransfer, obj runtime.Object, data map[string]string) error {
+func (r *ObjectTransferReconciler) pendingHelper(ot *cdiv1.ObjectTransfer, obj client.Object, data map[string]string) error {
 	metaObj, err := meta.Accessor(obj)
 	if err != nil {
 		return r.setCompleteConditionError(ot, err)
