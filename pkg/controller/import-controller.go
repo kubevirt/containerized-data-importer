@@ -1069,6 +1069,8 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		},
 	}
 	if podEnvVar.secretName != "" {
+		ignoreNonexistentKey := true
+
 		env = append(env, corev1.EnvVar{
 			Name: common.ImporterAccessKeyID,
 			ValueFrom: &corev1.EnvVarSource{
@@ -1077,6 +1079,7 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 						Name: podEnvVar.secretName,
 					},
 					Key: common.KeyAccess,
+					Optional: &ignoreNonexistentKey,
 				},
 			},
 		}, corev1.EnvVar{
@@ -1087,6 +1090,18 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 						Name: podEnvVar.secretName,
 					},
 					Key: common.KeySecret,
+					Optional: &ignoreNonexistentKey,
+				},
+			},
+		}, corev1.EnvVar{
+			Name: common.ImporterServiceAccountKey,
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: podEnvVar.secretName,
+					},
+					Key: common.KeyServiceAccount,
+					Optional: &ignoreNonexistentKey,
 				},
 			},
 		})

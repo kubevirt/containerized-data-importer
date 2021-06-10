@@ -71,8 +71,9 @@ func (DataVolumeSourceUpload) SwaggerDoc() map[string]string {
 
 func (DataVolumeSourceGCS) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":    "DataVolumeSourceGCS provides the parameters to create a Data Volume from a GCS source",
-		"url": "URL is the url of the GCS source",
+		"":          "DataVolumeSourceGCS provides the parameters to create a Data Volume from a GCS source",
+		"url":       "URL is the url of the GCS source",
+		"secretRef": "SecretRef provides the secret reference needed to access the GCS source",
 	}
 }
 

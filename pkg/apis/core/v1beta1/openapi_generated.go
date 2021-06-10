@@ -15501,7 +15501,7 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSource(ref common.ReferenceCallback)
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "DataVolumeSource represents the source for our Data Volume, this can be GCS, HTTP, Imageio, S3, Registry or an existing PVC",
+				Description: "DataVolumeSource represents the source for our Data Volume, this can be HTTP, GCS, Imageio, S3, Registry or an existing PVC",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"http": {
@@ -15568,6 +15568,13 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceGCS(ref common.ReferenceCallba
 						SchemaProps: spec.SchemaProps{
 							Description: "URL is the url of the GCS source",
 							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"secretRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SecretRef provides the secret reference needed to access the GCS source",
 							Type:        []string{"string"},
 							Format:      "",
 						},

@@ -112,7 +112,7 @@ const (
 	DataVolumeArchive DataVolumeContentType = "archive"
 )
 
-// DataVolumeSource represents the source for our Data Volume, this can be GCS, HTTP, Imageio, S3, Registry or an existing PVC
+// DataVolumeSource represents the source for our Data Volume, this can be HTTP, GCS, Imageio, S3, Registry or an existing PVC
 type DataVolumeSource struct {
 	HTTP     *DataVolumeSourceHTTP     `json:"http,omitempty"`
 	GCS      *DataVolumeSourceGCS      `json:"gcs,omitempty"`
@@ -144,6 +144,8 @@ type DataVolumeSourceUpload struct {
 type DataVolumeSourceGCS struct {
 	// URL is the url of the GCS source
 	URL string `json:"url"`
+	//SecretRef provides the secret reference needed to access the GCS source
+	SecretRef string `json:"secretRef,omitempty"`
 }
 
 // DataVolumeSourceS3 provides the parameters to create a Data Volume from an S3 source

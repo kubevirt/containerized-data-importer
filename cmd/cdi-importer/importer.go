@@ -53,6 +53,7 @@ func main() {
 	ep, _ := util.ParseEnvVar(common.ImporterEndpoint, false)
 	acc, _ := util.ParseEnvVar(common.ImporterAccessKeyID, false)
 	sec, _ := util.ParseEnvVar(common.ImporterSecretKey, false)
+	saKey, _ := util.ParseEnvVar(common.ImporterServiceAccountKey, false)
 	source, _ := util.ParseEnvVar(common.ImporterSource, false)
 	contentType, _ := util.ParseEnvVar(common.ImporterContentType, false)
 	imageSize, _ := util.ParseEnvVar(common.ImporterImageSize, false)
@@ -145,7 +146,7 @@ func main() {
 				os.Exit(1)
 			}
 		case controller.SourceGCS:
-			dp, err = importer.NewGCSDataSource(ep)
+			dp, err = importer.NewGCSDataSource(ep, saKey)
 			if err != nil {
 				klog.Errorf("%+v", err)
 				err = util.WriteTerminationMessage(fmt.Sprintf("Unable to connect to gcs data source: %+v", err))

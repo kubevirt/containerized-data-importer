@@ -199,7 +199,7 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 			url = spec.Source.HTTP.URL
 			sourceType = field.Child("source", "HTTP", "url").String()
 		} else if spec.Source.GCS != nil {
-		    url = spec.Source.GCS.URL
+			url = spec.Source.GCS.URL
 			sourceType = field.Child("source", "GCS", "url").String()
 		} else if spec.Source.S3 != nil {
 			url = spec.Source.S3.URL

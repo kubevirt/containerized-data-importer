@@ -2642,6 +2642,9 @@ spec:
                   gcs:
                     description: DataVolumeSourceGCS provides the parameters to create a Data Volume from a GCS source
                     properties:
+                      secretRef:
+                        description: SecretRef provides the secret reference needed to access the GCS source
+                        type: string
                       url:
                         description: URL is the url of the GCS source
                         type: string
@@ -3039,6 +3042,9 @@ spec:
                   gcs:
                     description: DataVolumeSourceGCS provides the parameters to create a Data Volume from a GCS source
                     properties:
+                      secretRef:
+                        description: SecretRef provides the secret reference needed to access the GCS source
+                        type: string
                       url:
                         description: URL is the url of the GCS source
                         type: string

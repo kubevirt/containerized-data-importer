@@ -72,6 +72,8 @@ const (
 	ImporterAccessKeyID = "IMPORTER_ACCESS_KEY_ID"
 	// ImporterSecretKey provides a constant to capture our env variable "IMPORTER_SECRET_KEY"
 	ImporterSecretKey = "IMPORTER_SECRET_KEY"
+	// ImporterServiceAccountKey provides a constant to capture our env variable "IMPORTER_SERVICE_ACCOUNT_KEY"
+	ImporterServiceAccountKey = "IMPORTER_SERVICE_ACCOUNT_KEY"
 	// ImporterImageSize provides a constant to capture our env variable "IMPORTER_IMAGE_SIZE"
 	ImporterImageSize = "IMPORTER_IMAGE_SIZE"
 	// ImporterCertDirVar provides a constant to capture our env variable "IMPORTER_CERT_DIR"
@@ -148,6 +150,8 @@ const (
 	KeyAccess = "accessKeyId"
 	// KeySecret provides a constant to the secretKey label using in controller pkg and transport_test.go
 	KeySecret = "secretKey"
+	// KeyServiceAccount provides a constant to the credentials.json label using in controller pkg
+	KeyServiceAccount = "credentials.json"
 
 	// DefaultResyncPeriod sets a 10 minute resync period, used in the controller pkg and the controller cmd executable
 	DefaultResyncPeriod = 10 * time.Minute

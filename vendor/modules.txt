@@ -571,6 +571,7 @@ golang.org/x/xerrors/internal
 # gomodules.xyz/jsonpatch/v2 v2.1.0
 gomodules.xyz/jsonpatch/v2
 # google.golang.org/api v0.20.0
+## explicit
 google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport
 google.golang.org/api/internal

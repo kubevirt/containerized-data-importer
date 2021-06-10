@@ -1987,6 +1987,9 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 	} else if dataVolume.Spec.Source.GCS != nil {
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.GCS.URL
 		annotations[AnnSource] = SourceGCS
+		if dataVolume.Spec.Source.GCS.SecretRef != "" {
+			annotations[AnnSecret] = dataVolume.Spec.Source.GCS.SecretRef
+		}
 	} else if dataVolume.Spec.Source.S3 != nil {
 		annotations[AnnEndpoint] = dataVolume.Spec.Source.S3.URL
 		annotations[AnnSource] = SourceS3

@@ -3805,7 +3805,7 @@
     }
    },
    "v1beta1.DataVolumeSource": {
-    "description": "DataVolumeSource represents the source for our Data Volume, this can be GCS, HTTP, Imageio, S3, Registry or an existing PVC",
+    "description": "DataVolumeSource represents the source for our Data Volume, this can be HTTP, GCS, Imageio, S3, Registry or an existing PVC",
     "type": "object",
     "properties": {
      "blank": {
@@ -3844,6 +3844,10 @@
      "url"
     ],
     "properties": {
+     "secretRef": {
+      "description": "SecretRef provides the secret reference needed to access the GCS source",
+      "type": "string"
+     },
      "url": {
       "description": "URL is the url of the GCS source",
       "type": "string",

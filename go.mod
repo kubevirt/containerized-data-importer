@@ -36,6 +36,7 @@ require (
 	github.com/ulikunitz/xz v0.5.10
 	github.com/vmware/govmomi v0.23.1
 	golang.org/x/sys v0.0.0-20201112073958-5cba982894dd
+	google.golang.org/api v0.20.0
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/square/go-jose.v2 v2.3.1
 	k8s.io/api v0.20.2

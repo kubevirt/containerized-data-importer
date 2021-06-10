@@ -139,6 +139,8 @@ type DataVolumeSourceUpload struct {
 type DataVolumeSourceGCS struct {
 	// URL is the url of the GCS source
 	URL string `json:"url"`
+	//SecretRef provides the secret reference needed to access the GCS source
+	SecretRef string `json:"secretRef,omitempty"`
 }
 
 // DataVolumeSourceS3 provides the parameters to create a Data Volume from an S3 source

@@ -8,6 +8,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/pkg/errors"
+	"google.golang.org/api/option"
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -24,14 +25,19 @@ type GCSDataSource struct {
 	url *url.URL
 }
 
-func NewGCSDataSource(endpoint string) (*GCSDataSource, error) {
+func NewGCSDataSource(endpoint string, saKey string) (*GCSDataSource, error) {
 	ep, err := ParseEndpoint(endpoint)
 	if err != nil {
 		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpoint))
 	}
 
+	var client *storage.Client
 	ctx := context.Background()
-	client, err := storage.NewClient(ctx)
+	if len(saKey) > 0 {
+		client, err = storage.NewClient(ctx, option.WithCredentialsJSON([]byte(saKey)))
+	} else {
+		client, err = storage.NewClient(ctx)
+	}
 	if err != nil {
 		return nil, errors.Wrapf(err, fmt.Sprintf("unable to create GCS client: %v", err))
 	}

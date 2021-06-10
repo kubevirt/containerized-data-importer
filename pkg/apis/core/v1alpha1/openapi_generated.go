@@ -15017,6 +15017,13 @@ func schema_pkg_apis_core_v1alpha1_DataVolumeSourceGCS(ref common.ReferenceCallb
 							Format:      "",
 						},
 					},
+					"secretRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SecretRef provides the secret reference needed to access the GCS source",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"url"},
 			},
