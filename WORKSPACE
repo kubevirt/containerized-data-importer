@@ -1,7 +1,6 @@
 register_toolchains("//:python_toolchain")
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
-
 load(
     "@bazel_tools//tools/build_defs/repo:http.bzl",
     "http_archive",
@@ -102,7 +101,6 @@ container_repositories()
 load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
 
 container_deps()
-
 
 # override rules_docker issue with this dependency
 # rules_docker 0.16 uses 0.1.4, bit since there the checksum changed, which is very weird, going with 0.1.4.1 to
