@@ -60,7 +60,7 @@ func newAuthorizor() *authorizor {
 var _ = Describe("Authorizer test", func() {
 	It("Reject unauthenticated user", func() {
 		client := k8sfake.NewSimpleClientset()
-		authClient := client.AuthorizationV1beta1()
+		authClient := client.AuthorizationV1()
 
 		app := newAuthorizor()
 		app.subjectAccessReview = authClient.SubjectAccessReviews()
@@ -74,7 +74,7 @@ var _ = Describe("Authorizer test", func() {
 	It("Reject unauthorized user", func() {
 		fakecert, fakecert2 := &x509.Certificate{}, &x509.Certificate{}
 		client := k8sfake.NewSimpleClientset()
-		authClient := client.AuthorizationV1beta1()
+		authClient := client.AuthorizationV1()
 
 		app := newAuthorizor()
 		app.subjectAccessReview = authClient.SubjectAccessReviews()
