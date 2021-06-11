@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/kelseyhightower/envconfig"
 	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -24,34 +25,28 @@ const (
 	// Default address api listens on.
 	defaultHost = "0.0.0.0"
 
-	defaultServerCertDir  = "/var/run/certs/cdi-uploadproxy-server-cert/"
-	defaultServerCertFile = defaultServerCertDir + "tls.crt"
-	defaultServerKeyFile  = defaultServerCertDir + "tls.key"
-	defaultUploadClientKeyFile = "/var/run/certs/cdi-uploadserver-client-cert/tls.key"
-	defaultUploadClientCertFile = "/var/run/certs/cdi-uploadserver-client-cert/tls.crt"
-	defaultUploadServerCABundleConfigMap = "cdi-uploadserver-signer-bundle"
 )
 
 var (
-	configPath string
-	masterURL  string
-	verbose    string
-	serverCertFile string
-	serverKeyFile string
-	uploadClientKeyFile string
-	uploadClientCertFile string
-	uploadServerCABundleConfigMap string
+	configPath      string
+	masterURL       string
+	verbose         string
+	uploadProxyEnvs UploadProxyEnvs
 )
+
+// UploadProxyEnvs contains environment variables read for setting custom cert paths
+type UploadProxyEnvs struct {
+	ServerCertFile                string `default:"/var/run/certs/cdi-uploadproxy-server-cert/tls.crt" split_words:"true"`
+	ServerKeyFile                 string `default:"/var/run/certs/cdi-uploadproxy-server-cert/tls.key" split_words:"true"`
+	UploadClientKeyFile           string `default:"/var/run/certs/cdi-uploadserver-client-cert/tls.key" split_words:"true"`
+	UploadClientCertFile          string `default:"/var/run/certs/cdi-uploadserver-client-cert/tls.crt" split_words:"true"`
+	UploadServerCABundleConfigMap string `default:"cdi-uploadserver-signer-bundle" split_words:"true"`
+}
 
 func init() {
 	// flags
 	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG")
 	flag.StringVar(&masterURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
-	flag.StringVar(&serverCertFile, "server-cert-file", defaultServerCertFile, "(Optional) Upload Proxy Server Certificate ")
-	flag.StringVar(&serverKeyFile, "server-key-file", defaultServerKeyFile, "(Optional) Upload Proxy Server private key for the certificate")
-	flag.StringVar(&uploadClientKeyFile, "client-cert-file", defaultUploadClientKeyFile, "(Optional) Upload Proxy Client Certificate ")
-	flag.StringVar(&uploadClientCertFile, "client-key-file", defaultUploadClientCertFile, "(Optional) Upload Proxy Client private key for the certificate")
-	flag.StringVar(&uploadServerCABundleConfigMap, "uploadserver-ca-config-map", defaultUploadServerCABundleConfigMap, "(Optional) Name of Config Map containing CA Bundle for Upload Server")
 	klog.InitFlags(nil)
 	flag.Parse()
 
@@ -74,6 +69,11 @@ func main() {
 
 	namespace := util.GetNamespace()
 
+	err := envconfig.Process("", &uploadProxyEnvs)
+	if err != nil {
+		klog.Fatalf("Unable to get environment variables: %v\n", errors.WithStack(err))
+	}
+
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, configPath)
 	if err != nil {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
@@ -86,14 +86,14 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Unable to get apiserver public key %v\n", errors.WithStack(err))
 	}
-	certWatcher, err := certwatcher.New(serverCertFile, serverKeyFile)
+	certWatcher, err := certwatcher.New(uploadProxyEnvs.ServerCertFile, uploadProxyEnvs.ServerKeyFile)
 	if err != nil {
 		klog.Fatalf("Unable to create certwatcher: %v\n", errors.WithStack(err))
 	}
 
-	clientCertFetcher := &certfetcher.FileCertFetcher{KeyFileName: uploadClientKeyFile, CertFileName: uploadClientCertFile}
+	clientCertFetcher := &certfetcher.FileCertFetcher{KeyFileName: uploadProxyEnvs.UploadClientKeyFile, CertFileName: uploadProxyEnvs.UploadClientCertFile}
 	serverCAFetcher := &certfetcher.ConfigMapCertBundleFetcher{
-		Name:   uploadServerCABundleConfigMap,
+		Name:   uploadProxyEnvs.UploadServerCABundleConfigMap,
 		Client: client.CoreV1().ConfigMaps(namespace),
 	}
 
