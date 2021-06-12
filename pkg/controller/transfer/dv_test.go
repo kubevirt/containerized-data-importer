@@ -171,7 +171,7 @@ var _ = Describe("DataVolume Transfer Tests", func() {
 			err = getResource(r.Client, "", xfer.Name, xfer)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferRunning))
+			Expect(xfer.Status.Phase).To(Equal(cdiv1.ObjectTransferError))
 			checkCompleteFalse(xfer, "Transferred PVC does not exist", "")
 		})
 
