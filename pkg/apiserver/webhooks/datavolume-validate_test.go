@@ -382,7 +382,7 @@ func newMultistageDataVolume(name string, final bool, checkpoints []string) *cdi
 		},
 		Status: cdiv1.DataVolumeStatus{},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				VDDK: &cdiv1.DataVolumeSourceVDDK{
 					BackingFile: "disk.img",
 					URL:         "http://example.com/data",
@@ -477,7 +477,7 @@ func newDataVolume(name string, source cdiv1.DataVolumeSource, pvc *corev1.Persi
 		},
 		Status: cdiv1.DataVolumeStatus{},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: source,
+			Source: &source,
 			PVC:    pvc,
 		},
 	}

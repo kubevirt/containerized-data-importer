@@ -132,7 +132,7 @@ func NewDataVolumeWithHTTPImport(dataVolumeName string, size string, httpURL str
 			Annotations: map[string]string{},
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				HTTP: &cdiv1.DataVolumeSourceHTTP{
 					URL: httpURL,
 				},
@@ -159,7 +159,7 @@ func NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName string, size strin
 			Annotations: map[string]string{},
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				HTTP: &cdiv1.DataVolumeSourceHTTP{
 					URL: httpURL,
 				},
@@ -176,7 +176,7 @@ func NewDataVolumeWithImageioImport(dataVolumeName string, size string, httpURL 
 			Name: dataVolumeName,
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				Imageio: &cdiv1.DataVolumeSourceImageIO{
 					URL:           httpURL,
 					SecretRef:     secret,
@@ -204,7 +204,7 @@ func NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName string, size string, ht
 			Name: dataVolumeName,
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				HTTP: &cdiv1.DataVolumeSourceHTTP{
 					URL: httpURL,
 				},
@@ -232,7 +232,7 @@ func NewDataVolumeCloneToBlockPV(dataVolumeName string, size string, srcNamespac
 			Name: dataVolumeName,
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				PVC: &cdiv1.DataVolumeSourcePVC{
 					Name:      srcName,
 					Namespace: srcNamespace,
@@ -261,7 +261,7 @@ func NewDataVolumeForUpload(dataVolumeName string, size string) *cdiv1.DataVolum
 			Annotations: map[string]string{},
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				Upload: &cdiv1.DataVolumeSourceUpload{},
 			},
 			PVC: &k8sv1.PersistentVolumeClaimSpec{
@@ -284,7 +284,7 @@ func NewDataVolumeForBlankRawImage(dataVolumeName, size string) *cdiv1.DataVolum
 			Annotations: map[string]string{},
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				Blank: &cdiv1.DataVolumeBlankImage{},
 			},
 			PVC: &k8sv1.PersistentVolumeClaimSpec{
@@ -307,7 +307,7 @@ func NewDataVolumeForBlankRawImageBlock(dataVolumeName, size string, storageClas
 			Name: dataVolumeName,
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				Blank: &cdiv1.DataVolumeBlankImage{},
 			},
 			PVC: &k8sv1.PersistentVolumeClaimSpec{
@@ -333,7 +333,7 @@ func NewDataVolumeForImageCloning(dataVolumeName, size, namespace, pvcName strin
 			Annotations: map[string]string{},
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				PVC: &cdiv1.DataVolumeSourcePVC{
 					Namespace: namespace,
 					Name:      pvcName,
@@ -365,7 +365,7 @@ func NewDataVolumeWithRegistryImport(dataVolumeName string, size string, registr
 			Name: dataVolumeName,
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				Registry: &cdiv1.DataVolumeSourceRegistry{
 					URL: registryURL,
 				},
@@ -397,7 +397,7 @@ func NewDataVolumeWithVddkImport(dataVolumeName string, size string, backingFile
 			Name: dataVolumeName,
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				VDDK: &cdiv1.DataVolumeSourceVDDK{
 					BackingFile: backingFile,
 					SecretRef:   secretRef,
@@ -425,7 +425,7 @@ func NewDataVolumeWithVddkWarmImport(dataVolumeName string, size string, backing
 			Name: dataVolumeName,
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				VDDK: &cdiv1.DataVolumeSourceVDDK{
 					BackingFile: backingFile,
 					SecretRef:   secretRef,
@@ -478,7 +478,7 @@ func NewDataVolumeWithArchiveContent(dataVolumeName string, size string, httpURL
 			Name: dataVolumeName,
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				HTTP: &cdiv1.DataVolumeSourceHTTP{
 					URL: httpURL,
 				},

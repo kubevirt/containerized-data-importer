@@ -1412,7 +1412,7 @@ func newImportDataVolumeWithPvc(name string, pvc *corev1.PersistentVolumeClaimSp
 			UID:       types.UID(metav1.NamespaceDefault + "-" + name),
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				HTTP: &cdiv1.DataVolumeSourceHTTP{
 					URL: "http://example.com/data",
 				},
@@ -1431,7 +1431,7 @@ func newImportDataVolume(name string) *cdiv1.DataVolume {
 			UID:       types.UID(metav1.NamespaceDefault + "-" + name),
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				HTTP: &cdiv1.DataVolumeSourceHTTP{
 					URL: "http://example.com/data",
 				},
@@ -1453,7 +1453,7 @@ func newS3ImportDataVolume(name string) *cdiv1.DataVolume {
 			UID:       types.UID(metav1.NamespaceDefault + "-" + name),
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				S3: &cdiv1.DataVolumeSourceS3{
 					URL: "http://example.com/data",
 				},
@@ -1482,7 +1482,7 @@ func newCloneDataVolumeWithPVCNS(name string, pvcNamespace string) *cdiv1.DataVo
 			UID: types.UID("uid"),
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				PVC: &cdiv1.DataVolumeSourcePVC{
 					Name:      "test",
 					Namespace: pvcNamespace,
@@ -1509,7 +1509,7 @@ func newUploadDataVolume(name string) *cdiv1.DataVolume {
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				Upload: &cdiv1.DataVolumeSourceUpload{},
 			},
 			PVC: &corev1.PersistentVolumeClaimSpec{
@@ -1528,7 +1528,7 @@ func newBlankImageDataVolume(name string) *cdiv1.DataVolume {
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{
+			Source: &cdiv1.DataVolumeSource{
 				Blank: &cdiv1.DataVolumeBlankImage{},
 			},
 			PVC: &corev1.PersistentVolumeClaimSpec{

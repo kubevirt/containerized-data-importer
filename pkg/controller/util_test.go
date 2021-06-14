@@ -435,7 +435,7 @@ func createDataVolumeWithStorageClass(name, ns, storageClassName string) *cdiv1.
 			Namespace: ns,
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{},
+			Source: &cdiv1.DataVolumeSource{},
 			PVC: &corev1.PersistentVolumeClaimSpec{
 				StorageClassName: &storageClassName,
 			},
@@ -450,7 +450,7 @@ func createDataVolume(name, ns string) *cdiv1.DataVolume {
 			Namespace: ns,
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: cdiv1.DataVolumeSource{},
+			Source: &cdiv1.DataVolumeSource{},
 		},
 	}
 }
@@ -462,7 +462,7 @@ func createDataVolumeWithPreallocation(name, ns string, preallocation bool) *cdi
 			Namespace: ns,
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source:        cdiv1.DataVolumeSource{},
+			Source:        &cdiv1.DataVolumeSource{},
 			Preallocation: &preallocation,
 		},
 	}
@@ -475,7 +475,7 @@ func createDataVolumeWithStorageClassPreallocation(name, ns, storageClassName st
 			Namespace: ns,
 		},
 		Spec: cdiv1.DataVolumeSpec{
-			Source:        cdiv1.DataVolumeSource{},
+			Source:        &cdiv1.DataVolumeSource{},
 			Preallocation: &preallocation,
 			PVC: &corev1.PersistentVolumeClaimSpec{
 				StorageClassName: &storageClassName,

@@ -129,8 +129,36 @@ func createDataVolumeCRD() *extv1.CustomResourceDefinition {
 }
 
 func createBetaV1DataVolumeCRDSchema() *extv1.CustomResourceValidation {
-	// BetaV1 might diverge here from AlphaV1
-	return createAlphaV1DataVolumeCRDSchema()
+	// BetaV1 diverges here from AlphaV1
+	schema := createAlphaV1DataVolumeCRDSchema()
+	schema.OpenAPIV3Schema.Properties["spec"].Properties["sourceRef"] = extv1.JSONSchemaProps{
+		Description: "SourceRef is an indirect reference to the source of data for the requested DataVolume",
+		Type:        "object",
+		Properties: map[string]extv1.JSONSchemaProps{
+			"kind": {
+				Description: "The kind of the source reference, currently only \"DataSource\" is supported",
+				Type:        "string",
+			},
+			"namespace": {
+				Description: "The namespace of the source reference, defaults to the DataVolume namespace",
+				Type:        "string",
+			},
+			"name": {
+				Description: "The name of the source reference",
+				Type:        "string",
+			},
+		},
+		Required: []string{
+			"kind",
+			"name",
+		},
+	}
+	// cannot assign to struct field schema.OpenAPIV3Schema.Properties["spec"].Required in map
+	spec := schema.OpenAPIV3Schema.Properties["spec"]
+	spec.Required = nil
+	schema.OpenAPIV3Schema.Properties["spec"] = spec
+
+	return schema
 }
 
 func createAlphaV1DataVolumeCRDSchema() *extv1.CustomResourceValidation {
