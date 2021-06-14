@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/kelseyhightower/envconfig"
 	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -24,16 +25,23 @@ const (
 	// Default address api listens on.
 	defaultHost = "0.0.0.0"
 
-	serverCertDir  = "/var/run/certs/cdi-uploadproxy-server-cert/"
-	serverCertFile = serverCertDir + "tls.crt"
-	serverKeyFile  = serverCertDir + "tls.key"
 )
 
 var (
-	configPath string
-	masterURL  string
-	verbose    string
+	configPath      string
+	masterURL       string
+	verbose         string
+	uploadProxyEnvs UploadProxyEnvs
 )
+
+// UploadProxyEnvs contains environment variables read for setting custom cert paths
+type UploadProxyEnvs struct {
+	ServerCertFile                string `default:"/var/run/certs/cdi-uploadproxy-server-cert/tls.crt" split_words:"true"`
+	ServerKeyFile                 string `default:"/var/run/certs/cdi-uploadproxy-server-cert/tls.key" split_words:"true"`
+	UploadClientKeyFile           string `default:"/var/run/certs/cdi-uploadserver-client-cert/tls.key" split_words:"true"`
+	UploadClientCertFile          string `default:"/var/run/certs/cdi-uploadserver-client-cert/tls.crt" split_words:"true"`
+	UploadServerCABundleConfigMap string `default:"cdi-uploadserver-signer-bundle" split_words:"true"`
+}
 
 func init() {
 	// flags
@@ -61,6 +69,11 @@ func main() {
 
 	namespace := util.GetNamespace()
 
+	err := envconfig.Process("", &uploadProxyEnvs)
+	if err != nil {
+		klog.Fatalf("Unable to get environment variables: %v\n", errors.WithStack(err))
+	}
+
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, configPath)
 	if err != nil {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
@@ -73,14 +86,14 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Unable to get apiserver public key %v\n", errors.WithStack(err))
 	}
-	certWatcher, err := certwatcher.New(serverCertFile, serverKeyFile)
+	certWatcher, err := certwatcher.New(uploadProxyEnvs.ServerCertFile, uploadProxyEnvs.ServerKeyFile)
 	if err != nil {
 		klog.Fatalf("Unable to create certwatcher: %v\n", errors.WithStack(err))
 	}
 
-	clientCertFetcher := &certfetcher.FileCertFetcher{Name: "cdi-uploadserver-client-cert"}
+	clientCertFetcher := &certfetcher.FileCertFetcher{KeyFileName: uploadProxyEnvs.UploadClientKeyFile, CertFileName: uploadProxyEnvs.UploadClientCertFile}
 	serverCAFetcher := &certfetcher.ConfigMapCertBundleFetcher{
-		Name:   "cdi-uploadserver-signer-bundle",
+		Name:   uploadProxyEnvs.UploadServerCABundleConfigMap,
 		Client: client.CoreV1().ConfigMaps(namespace),
 	}
 

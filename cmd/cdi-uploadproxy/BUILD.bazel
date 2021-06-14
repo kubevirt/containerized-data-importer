@@ -10,6 +10,7 @@ go_library(
         "//pkg/util:go_default_library",
         "//pkg/util/cert/fetcher:go_default_library",
         "//pkg/util/cert/watcher:go_default_library",
+        "//vendor/github.com/kelseyhightower/envconfig:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes:go_default_library",
         "//vendor/k8s.io/client-go/tools/clientcmd:go_default_library",

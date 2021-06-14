@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"path"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
@@ -22,17 +20,18 @@ type CertFetcher interface {
 
 // FileCertFetcher reads certs from files
 type FileCertFetcher struct {
-	Name string
+	KeyFileName  string
+	CertFileName string
 }
 
 // KeyBytes returns key bytes
 func (f *FileCertFetcher) KeyBytes() ([]byte, error) {
-	return ioutil.ReadFile(path.Join(baseCertPath, f.Name, "tls.key"))
+	return ioutil.ReadFile(f.KeyFileName)
 }
 
 // CertBytes returns cert bytes
 func (f *FileCertFetcher) CertBytes() ([]byte, error) {
-	return ioutil.ReadFile(path.Join(baseCertPath, f.Name, "tls.crt"))
+	return ioutil.ReadFile(f.CertFileName)
 }
 
 // MemCertFetcher reads certs from files

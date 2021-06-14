@@ -22,6 +22,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/kelseyhightower/envconfig"
 	"os"
 
 	"github.com/pkg/errors"
@@ -44,16 +45,20 @@ const (
 	// Default address api listens on.
 	defaultHost = "0.0.0.0"
 
-	certDir  = "/var/run/certs/cdi-apiserver-server-cert/"
-	certFile = certDir + "tls.crt"
-	keyFile  = certDir + "tls.key"
 )
 
 var (
 	configPath string
 	masterURL  string
 	verbose    string
+    apiServerArgs APIServerEnvs
 )
+
+// APIServerEnvs contains environment variables read for setting custom cert paths
+type APIServerEnvs struct {
+	CertFile string `default:"/var/run/certs/cdi-apiserver-server-cert/tls.crt" split_words:"true"`
+	KeyFile  string `default:"/var/run/certs/cdi-apiserver-server-cert/tls.key" split_words:"true"`
+}
 
 func init() {
 	// flags
@@ -81,6 +86,11 @@ func main() {
 
 	verflag.PrintAndExitIfRequested()
 
+	err := envconfig.Process("", &apiServerArgs)
+	if err != nil {
+		klog.Fatalf("Unable to get environment variables: %v\n", errors.WithStack(err))
+	}
+
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, configPath)
 	if err != nil {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
@@ -104,7 +114,7 @@ func main() {
 		klog.Fatalf("Unable to create authorizor: %v\n", errors.WithStack(err))
 	}
 
-	certWatcher, err := certwatcher.New(certFile, keyFile)
+	certWatcher, err := certwatcher.New(apiServerArgs.CertFile, apiServerArgs.KeyFile)
 	if err != nil {
 		klog.Fatalf("Unable to create certwatcher: %v\n", errors.WithStack(err))
 	}

@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/go-logr/logr"
+	"github.com/kelseyhightower/envconfig"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/pkg/errors"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -49,7 +50,18 @@ var (
 	pullPolicy             string
 	verbose                string
 	log                    = logf.Log.WithName("controller")
+	controllerEnvs		   ControllerEnvs
 )
+
+// ControllerEnvs contains environment variables read for setting custom cert paths
+type ControllerEnvs struct {
+	UploadServerKeyFile           string `default:"/var/run/certs/cdi-uploadserver-signer/tls.key" split_words:"true"`
+	UploadServerCertFile          string `default:"/var/run/certs/cdi-uploadserver-signer/tls.crt" split_words:"true"`
+	UploadClientKeyFile           string `default:"/var/run/certs/cdi-uploadserver-client-signer/tls.key" split_words:"true"`
+	UploadClientCertFile          string `default:"/var/run/certs/cdi-uploadserver-client-signer/tls.crt" split_words:"true"`
+	UploadServerCaBundleConfigMap string `default:"cdi-uploadserver-signer-bundle" split_words:"true"`
+	UploadClientCaBundleConfigMap string `default:"cdi-uploadserver-client-signer-bundle" split_words:"true"`
+}
 
 // The importer and cloner images are obtained here along with the supported flags. IMPORTER_IMAGE, CLONER_IMAGE, and UPLOADSERVICE_IMAGE
 // are required by the controller and will cause it to fail if not defined.
@@ -124,16 +136,16 @@ func start(ctx context.Context, cfg *rest.Config) {
 	crdInformerFactory := crdinformers.NewSharedInformerFactory(extClient, common.DefaultResyncPeriod)
 	crdInformer := crdInformerFactory.Apiextensions().V1().CustomResourceDefinitions().Informer()
 
-	uploadClientCAFetcher := &fetcher.FileCertFetcher{Name: "cdi-uploadserver-client-signer"}
+	uploadClientCAFetcher := &fetcher.FileCertFetcher{KeyFileName: controllerEnvs.UploadClientKeyFile,CertFileName: controllerEnvs.UploadClientCertFile}
 	uploadClientBundleFetcher := &fetcher.ConfigMapCertBundleFetcher{
-		Name:   "cdi-uploadserver-client-signer-bundle",
+		Name:   controllerEnvs.UploadClientCaBundleConfigMap,
 		Client: client.CoreV1().ConfigMaps(namespace),
 	}
 	uploadClientCertGenerator := &generator.FetchCertGenerator{Fetcher: uploadClientCAFetcher}
 
-	uploadServerCAFetcher := &fetcher.FileCertFetcher{Name: "cdi-uploadserver-signer"}
+	uploadServerCAFetcher := &fetcher.FileCertFetcher{KeyFileName: controllerEnvs.UploadServerKeyFile,CertFileName: controllerEnvs.UploadServerCertFile}
 	uploadServerBundleFetcher := &fetcher.ConfigMapCertBundleFetcher{
-		Name:   "cdi-uploadserver-signer-bundle",
+		Name:   controllerEnvs.UploadServerCaBundleConfigMap,
 		Client: client.CoreV1().ConfigMaps(namespace),
 	}
 	uploadServerCertGenerator := &generator.FetchCertGenerator{Fetcher: uploadServerCAFetcher}
@@ -193,6 +205,11 @@ func main() {
 	if i, err := strconv.Atoi(verbose); err == nil && i > 1 {
 		debug = true
 	}
+	err := envconfig.Process("", &controllerEnvs)
+	if err != nil {
+		klog.Fatalf("Unable to get environment variables: %v\n", errors.WithStack(err))
+	}
+
 	logf.SetLogger(zap.New(zap.UseDevMode(debug)))
 	logf.Log.WithName("main").Info("Verbosity level", "verbose", verbose, "debug", debug)
 
