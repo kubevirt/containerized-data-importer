@@ -80,33 +80,54 @@ func FindPodByPrefix(clientSet *kubernetes.Clientset, namespace, prefix, labelSe
 	return findPodByCompFunc(clientSet, namespace, prefix, labelSelector, strings.HasPrefix)
 }
 
+// FindPodByPrefixOnce finds once (no polling) the first pod which has the passed in prefix. Returns error if multiple pods with the same prefix are found.
+func FindPodByPrefixOnce(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string) (*k8sv1.Pod, error) {
+	var result k8sv1.Pod
+	foundPod, err := findPodByCompFuncOnce(clientSet, namespace, prefix, labelSelector, strings.HasPrefix, &result)
+	if foundPod {
+		return &result, err
+	}
+	if err == nil {
+		return nil, fmt.Errorf("Unable to find pod containing %s", prefix)
+	}
+	return nil, err
+}
+
 func findPodByCompFunc(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string, compFunc func(string, string) bool) (*k8sv1.Pod, error) {
 	var result k8sv1.Pod
 	var foundPod bool
 	err := wait.PollImmediate(2*time.Second, podCreateTime, func() (bool, error) {
-		podList, err := clientSet.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: labelSelector,
-		})
-		if err == nil {
-			for _, pod := range podList.Items {
-				if compFunc(pod.Name, prefix) {
-					if !foundPod {
-						foundPod = true
-						result = pod
-					} else {
-						fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: First pod name %s in namespace %s\n", result.Name, result.Namespace)
-						fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Second pod name %s in namespace %s\n", pod.Name, pod.Namespace)
-						return true, fmt.Errorf("Multiple pods starting with prefix %q in namespace %q", prefix, namespace)
-					}
-				}
-			}
-		}
-		return foundPod, nil
+		var err error
+		foundPod, err = findPodByCompFuncOnce(clientSet, namespace, prefix, labelSelector, compFunc, &result)
+		return foundPod, err
 	})
 	if !foundPod {
 		return nil, fmt.Errorf("Unable to find pod containing %s", prefix)
 	}
 	return &result, err
+}
+
+func findPodByCompFuncOnce(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string, compFunc func(string, string) bool, result *k8sv1.Pod) (bool, error) {
+	var foundPod bool
+	podList, err := clientSet.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return false, err
+	}
+	for _, pod := range podList.Items {
+		if compFunc(pod.Name, prefix) {
+			if !foundPod {
+				foundPod = true
+				*result = pod
+			} else {
+				fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: First pod name %s in namespace %s\n", result.Name, result.Namespace)
+				fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Second pod name %s in namespace %s\n", pod.Name, pod.Namespace)
+				return true, fmt.Errorf("Multiple pods starting with prefix %q in namespace %q", prefix, namespace)
+			}
+		}
+	}
+	return foundPod, nil
 }
 
 // WaitTimeoutForPodReady waits for the given pod to be created and ready

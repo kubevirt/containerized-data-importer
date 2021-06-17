@@ -179,7 +179,7 @@ func (r *CloneReconciler) Reconcile(_ context.Context, req reconcile.Request) (r
 	}
 	log := r.log.WithValues("PVC", req.NamespacedName)
 	log.V(1).Info("reconciling Clone PVCs")
-	if pvc.DeletionTimestamp != nil || !r.shouldReconcile(pvc, log) {
+	if pvc.DeletionTimestamp != nil || (!r.shouldReconcile(pvc, log) && !isPodRetainAfterCompletion(pvc)) {
 		log.V(1).Info("Should not reconcile this PVC",
 			"checkPVC(AnnCloneRequest)", checkPVC(pvc, AnnCloneRequest, log),
 			"NOT has annotation(AnnCloneOf)", !metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf),

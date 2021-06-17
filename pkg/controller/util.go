@@ -65,6 +65,8 @@ const (
 	AnnPrePopulated = AnnAPIGroup + "/storage.prePopulated"
 	// AnnPriorityClassName is PVC annotation to indicate the priority class name for importer, cloner and uploader pod
 	AnnPriorityClassName = AnnAPIGroup + "/storage.pod.priorityclassname"
+	// AnnPodRetainAfterCompletion is PVC annotation for retaining transfer pods after completion)
+	AnnPodRetainAfterCompletion = AnnAPIGroup + "/storage.pod.retainAfterCompletion"
 
 	// AnnPreviousCheckpoint provides a const to indicate the previous snapshot for a multistage import
 	AnnPreviousCheckpoint = AnnAPIGroup + "/storage.checkpoint.previous"
@@ -760,6 +762,11 @@ func GetImportProxyConfig(config *cdiv1.CDIConfig, field string) (string, error)
 func getPriorityClass(pvc *v1.PersistentVolumeClaim) string {
 	anno := pvc.GetAnnotations()
 	return anno[AnnPriorityClassName]
+}
+
+func isPodRetainAfterCompletion(pvc *corev1.PersistentVolumeClaim) bool {
+	retain, exists := pvc.ObjectMeta.Annotations[AnnPodRetainAfterCompletion]
+	return exists && retain == "true"
 }
 
 // AddFinalizer adds a finalizer to a resource

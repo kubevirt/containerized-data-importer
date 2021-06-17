@@ -192,7 +192,7 @@ func (r *ImportReconciler) shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim,
 	if err != nil {
 		return false, err
 	}
-	return !isPVCComplete(pvc) &&
+	return (!isPVCComplete(pvc) || isPodRetainAfterCompletion(pvc)) &&
 			(checkPVC(pvc, AnnEndpoint, log) || checkPVC(pvc, AnnSource, log)) &&
 			shouldHandlePvc(pvc, waitForFirstConsumerEnabled, log),
 		nil
@@ -430,8 +430,10 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			r.recorder.Event(pvc, corev1.EventTypeNormal, ImportSucceededPVC, "Import Successful")
 			log.V(1).Info("Completed successfully, deleting POD", "pod.Name", pod.Name)
 		}
-		if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
-			return err
+		if !isPodRetainAfterCompletion(pvc) {
+			if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
+				return err
+			}
 		}
 	}
 	return nil
