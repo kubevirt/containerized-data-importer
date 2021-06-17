@@ -972,7 +972,22 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 		By("Retry Upload")
 		Eventually(func() error {
-			return uploadFileNameToPath(binaryRequestFunc, utils.UploadFile, uploadProxyURL, syncUploadPath, token, http.StatusOK)
+			err := uploadFileNameToPath(binaryRequestFunc, utils.UploadFile, uploadProxyURL, syncUploadPath, token, http.StatusOK)
+			if err != nil && strings.Contains(err.Error(), "reset") {
+				By("Connection reset / WORKAROUND: port-forwarder needs to be restarted")
+				By("Stop port forwarding")
+				if portForwardCmd != nil {
+					err = portForwardCmd.Process.Kill()
+					Expect(err).ToNot(HaveOccurred())
+					portForwardCmd.Wait()
+					portForwardCmd = nil
+					By("Set up port forwarding")
+					uploadProxyURL, portForwardCmd, err = startUploadProxyPortForward(f)
+					Expect(err).ToNot(HaveOccurred())
+				}
+
+			}
+			return err
 		}, timeout, pollingInterval).Should(BeNil(), "uploadFileNameToPath should return nil, even if not ready")
 
 		phase = cdiv1.Succeeded
