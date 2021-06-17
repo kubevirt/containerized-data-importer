@@ -240,7 +240,8 @@ func (n *Nbdkit) StartNbdkit(source string) error {
 	return nil
 }
 
-// Default nbdkit log watcher, just logs lines as nbdkit prints them.
+// Default nbdkit log watcher, logs lines as nbdkit prints them,
+// and appends them to the nbdkit log file.
 func watchNbdLog(output *bufio.Reader) {
 	f, err := os.Create(common.NbdkitLogPath)
 	if err != nil {
