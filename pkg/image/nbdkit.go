@@ -13,6 +13,8 @@ import (
 
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
+
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 const (
@@ -240,7 +242,7 @@ func (n *Nbdkit) StartNbdkit(source string) error {
 
 // Default nbdkit log watcher, just logs lines as nbdkit prints them.
 func watchNbdLog(output *bufio.Reader) {
-	f, err := os.Create("/tmp/nbdkit.log")
+	f, err := os.Create(common.NbdkitLogPath)
 	if err != nil {
 		klog.Errorf("Error writing nbdkit log to file: %v", err)
 	}
