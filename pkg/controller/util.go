@@ -563,19 +563,20 @@ func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, prefix
 		anno[AnnPodRestarts] = strconv.Itoa(podRestarts)
 	}
 	setVddkAnnotations(anno, pod)
-	if pod.Status.ContainerStatuses[0].State.Running != nil {
+	containerState := pod.Status.ContainerStatuses[0].State
+	if containerState.Running != nil {
 		anno[prefix] = "true"
 		anno[prefix+".message"] = ""
 		anno[prefix+".reason"] = podRunningReason
 	} else {
 		anno[AnnRunningCondition] = "false"
-		if pod.Status.ContainerStatuses[0].State.Waiting != nil && pod.Status.ContainerStatuses[0].State.Waiting.Reason != "CrashLoopBackOff" {
-			anno[prefix+".message"] = simplifyKnownMessage(pod.Status.ContainerStatuses[0].State.Waiting.Message)
-			anno[prefix+".reason"] = pod.Status.ContainerStatuses[0].State.Waiting.Reason
-		} else if pod.Status.ContainerStatuses[0].State.Terminated != nil {
-			anno[prefix+".message"] = simplifyKnownMessage(pod.Status.ContainerStatuses[0].State.Terminated.Message)
-			anno[prefix+".reason"] = pod.Status.ContainerStatuses[0].State.Terminated.Reason
-			if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, common.PreallocationApplied) {
+		if containerState.Waiting != nil && containerState.Waiting.Reason != "CrashLoopBackOff" {
+			anno[prefix+".message"] = simplifyKnownMessage(containerState.Waiting.Message)
+			anno[prefix+".reason"] = containerState.Waiting.Reason
+		} else if containerState.Terminated != nil {
+			anno[prefix+".message"] = simplifyKnownMessage(containerState.Terminated.Message)
+			anno[prefix+".reason"] = containerState.Terminated.Reason
+			if strings.Contains(containerState.Terminated.Message, common.PreallocationApplied) {
 				anno[AnnPreallocationApplied] = "true"
 			}
 		}
