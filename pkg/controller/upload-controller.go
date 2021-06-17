@@ -236,7 +236,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 	anno[AnnPodPhase] = string(podPhase)
 	anno[AnnPodReady] = strconv.FormatBool(isPodReady(pod))
 
-	setAnnotationsFromPodWithPrefix(anno, AnnRunningCondition, pod)
+	setAnnotationsFromPodWithPrefix(anno, pod, AnnRunningCondition)
 
 	if !reflect.DeepEqual(pvc, pvcCopy) {
 		if err := r.updatePVC(pvcCopy); err != nil {
