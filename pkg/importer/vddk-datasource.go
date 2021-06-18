@@ -147,6 +147,7 @@ func createVMwareClient(endpoint string, accessKey string, secKey string, thumbp
 	ctx, cancel := context.WithCancel(context.Background())
 	conn, err := govmomi.NewClient(ctx, vmwURL, true)
 	if err != nil {
+		klog.Errorf("Unable to connect to vCenter: %v", err)
 		cancel()
 		return nil, err
 	}
