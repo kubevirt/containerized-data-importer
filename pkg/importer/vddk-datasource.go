@@ -247,13 +247,8 @@ func createVMwareClient(endpoint string, accessKey string, secKey string, thumbp
 		return nil, err
 	}
 
-	// Construct VMware SDK URL and get MOref
-	sdkURL := vmwURL.Scheme + "://" + accessKey + ":" + secKey + "@" + vmwURL.Host + "/sdk"
-	vmwURL, err = url.Parse(sdkURL)
-	if err != nil {
-		klog.Errorf("Unable to create VMware URL: %v", err)
-		return nil, err
-	}
+	vmwURL.User = url.UserPassword(accessKey, secKey)
+	vmwURL.Path = "sdk"
 
 	// Log in to vCenter
 	ctx, cancel := context.WithCancel(context.Background())

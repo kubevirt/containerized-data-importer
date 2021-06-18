@@ -64,6 +64,16 @@ var _ = Describe("VDDK data source", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
+	It("NewVDDKDataSource should not fail on credentials with special characters", func() {
+		newVddkDataSource = createVddkDataSource
+		newVMwareClient = createVMwareClient
+		_, err := NewVDDKDataSource("http://--------", "test#user@vsphere.local", "Test#password", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("no such host"))
+		Expect(err.Error()).ToNot(ContainSubstring("Test#password"))
+		Expect(err.Error()).ToNot(ContainSubstring(url.PathEscape("Test#password")))
+	})
+
 	It("VDDK data source GetURL should pass through NBD socket information", func() {
 		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
