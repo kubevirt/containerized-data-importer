@@ -140,25 +140,13 @@ func createVMwareClient(endpoint string, accessKey string, secKey string, thumbp
 		return nil, err
 	}
 
-	// Construct VMware SDK URL and get MOref
-	sdkURL := vmwURL.Scheme + "://" + url.PathEscape(accessKey) + ":" + url.PathEscape(secKey) + "@" + vmwURL.Host + "/sdk"
-	redacted := vmwURL.Scheme + "://" + url.PathEscape(accessKey) + ":" + "*****" + "@" + vmwURL.Host + "/sdk"
-	vmwURL, err = url.Parse(sdkURL)
-	if err != nil {
-		return nil, errors.New("unable to create VMware URL from: " + redacted)
-	}
+	vmwURL.User = url.UserPassword(accessKey, secKey)
+	vmwURL.Path = "sdk"
 
 	// Log in to vCenter
 	ctx, cancel := context.WithCancel(context.Background())
 	conn, err := govmomi.NewClient(ctx, vmwURL, true)
 	if err != nil {
-		if secKey != "" {
-			wrap := url.PathEscape(accessKey) + ":%s@"
-			target := fmt.Sprintf(wrap, url.PathEscape(secKey))
-			redacted = fmt.Sprintf(wrap, "*****")
-			redacted = strings.ReplaceAll(err.Error(), target, redacted)
-			err = errors.New("unable to connect to vCenter: " + redacted)
-		}
 		cancel()
 		return nil, err
 	}
