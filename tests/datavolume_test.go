@@ -2122,64 +2122,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 	})
 
-	Describe("Delete scratch PVC during import", func() {
-		var dataVolume *cdiv1.DataVolume
-
-		AfterEach(func() {
-			if dataVolume != nil {
-				By("[AfterEach] Clean up DV")
-				err := utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
-				Expect(err).ToNot(HaveOccurred())
-				dataVolume = nil
-			}
-		})
-
-		It("Should create a new scratch PVC when PVC is deleted during import", func() {
-			// The test tries to catch issues in handling a deleted scratch PVC during import. There were at least
-			// two problems found and both required a very specific timing between scratch delete and controller actions.
-			// When quickly retrying to delete a scratch a few times the probability of catching the problem is increased.
-			// If there are no problems the test always PASSES
-			// In case of bugs in controller it should fail most of the time .
-			dvName := "import-bug"
-			By(fmt.Sprintf("Creating new datavolume %s", dvName))
-			dv := createRegistryImportDataVolume(dvName, "500Mi", tinyCoreIsoRegistryURL())
-			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
-			Expect(err).ToNot(HaveOccurred())
-			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
-
-			By("Waiting for DV's PVC")
-			_, err = utils.WaitForPVC(f.K8sClient, f.Namespace.Name, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
-			By("Wait for DV in ImportScheduled")
-			err = utils.WaitForDataVolumePhase(f.CdiClient, f.Namespace.Name, cdiv1.ImportInProgress, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
-
-			scratchPvcName := naming.GetResourceName(dataVolume.Name, common.ScratchNameSuffix)
-			By("Trying to delete scratch PVC " + scratchPvcName)
-
-			deleteCounter := 0
-			// The number of retries was chosen empirically. Retrying 5 times is enough to catch the problem.
-			retries := 5
-			Eventually(func() int {
-				err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Delete(context.TODO(), scratchPvcName, metav1.DeleteOptions{})
-				if err == nil {
-					deleteCounter++
-					By(fmt.Sprintf("Deleted scratch PVC %s %v", scratchPvcName, deleteCounter))
-				}
-				return deleteCounter
-			}, 270*time.Second, 100*time.Millisecond).Should(BeNumerically(">=", retries))
-
-			By("Wait for PVC to be recreated")
-			scratchPvc, err := utils.WaitForPVC(f.K8sClient, f.Namespace.Name, scratchPvcName)
-			Expect(err).ToNot(HaveOccurred())
-			By(fmt.Sprintf("Recreated PVC %v (id: %v)", scratchPvc.Name, scratchPvc.GetUID()))
-
-			By("Wait for DV to succeed")
-			err = utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, dataVolume.Name, 10*time.Minute)
-			Expect(err).ToNot(HaveOccurred())
-		})
-	})
-
 	Describe("Priority class on datavolume should transfer to  pods", func() {
 		verifyPodAnnotations := func(pod *v1.Pod) {
 			By("verifying priority class")
