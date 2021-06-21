@@ -108,6 +108,42 @@ var _ = Describe("all clone tests", func() {
 			completeClone(f, f.Namespace, targetPvc, diskImagePath, sourceMD5, sourcePvcDiskGroup)
 		})
 
+		It("[test_id:YYYY]Should clone imported data and retain transfer pods after completion", func() {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+			By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvc)
+			targetDV.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+			By(fmt.Sprintf("Create new target datavolume %s", targetDV.Name))
+			targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
+
+			By("Wait for clone to be completed")
+			_, err = utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			By("Wait for target datavolume phase Succeeded")
+			utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)
+
+			By("Sleep for a while")
+			time.Sleep(time.Second * 3)
+			By("Find importer pod after completion")
+			_, err = utils.FindPodByPrefixOnce(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
+			Expect(err).ToNot(HaveOccurred())
+			By("Find cloner source pod after completion")
+			_, err = utils.FindPodBySuffixOnce(f.K8sClient, targetDataVolume.Namespace, common.ClonerSourcePodNameSuffix, common.CDILabelSelector)
+			Expect(err).ToNot(HaveOccurred())
+			By("Find upload pod after completion")
+			_, err = utils.FindPodByPrefixOnce(f.K8sClient, targetDataVolume.Namespace, "cdi-upload-", common.CDILabelSelector)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
 		DescribeTable("[test_id:1355]Should clone data across different namespaces", func(targetSize string) {
 			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name

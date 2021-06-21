@@ -70,14 +70,27 @@ func DeletePod(clientSet *kubernetes.Clientset, pod *k8sv1.Pod, namespace string
 	return DeletePodByName(clientSet, pod.Name, namespace, nil)
 }
 
-// FindPodBysuffix finds the first pod which has the passed in postfix. Returns error if multiple pods with the same prefix are found.
-func FindPodBysuffix(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string) (*k8sv1.Pod, error) {
-	return findPodByCompFunc(clientSet, namespace, prefix, labelSelector, strings.HasSuffix)
+// FindPodBySuffix finds the first pod which has the passed in suffix. Returns error if multiple pods with the same suffix are found.
+func FindPodBySuffix(clientSet *kubernetes.Clientset, namespace, suffix, labelSelector string) (*k8sv1.Pod, error) {
+	return findPodByCompFunc(clientSet, namespace, suffix, labelSelector, strings.HasSuffix)
 }
 
 // FindPodByPrefix finds the first pod which has the passed in prefix. Returns error if multiple pods with the same prefix are found.
 func FindPodByPrefix(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string) (*k8sv1.Pod, error) {
 	return findPodByCompFunc(clientSet, namespace, prefix, labelSelector, strings.HasPrefix)
+}
+
+// FindPodBySuffixOnce finds once (no polling) the first pod which has the passed in suffix. Returns error if multiple pods with the same suffix are found.
+func FindPodBySuffixOnce(clientSet *kubernetes.Clientset, namespace, suffix, labelSelector string) (*k8sv1.Pod, error) {
+	var result k8sv1.Pod
+	foundPod, err := findPodByCompFuncOnce(clientSet, namespace, suffix, labelSelector, strings.HasSuffix, &result)
+	if foundPod {
+		return &result, err
+	}
+	if err == nil {
+		return nil, fmt.Errorf("Unable to find pod containing %s", suffix)
+	}
+	return nil, err
 }
 
 // FindPodByPrefixOnce finds once (no polling) the first pod which has the passed in prefix. Returns error if multiple pods with the same prefix are found.

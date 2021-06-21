@@ -1104,7 +1104,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 				By("Trying to catch the pods...")
 				err = wait.PollImmediate(fastPollingInterval, 10*time.Second, func() (bool, error) {
-					sourcePod, err = utils.FindPodBysuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
+					sourcePod, err = utils.FindPodBySuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
 					if err != nil {
 						return false, err
 					}
@@ -2281,7 +2281,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				var uploadPod *v1.Pod
 				Eventually(func() bool {
 					if sourcePod == nil {
-						sourcePod, _ = utils.FindPodBysuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
+						sourcePod, _ = utils.FindPodBySuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
 					}
 					if uploadPod == nil {
 						uploadPod, _ = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)

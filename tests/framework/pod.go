@@ -38,7 +38,7 @@ func (f *Framework) FindPodByPrefix(prefix string) (*k8sv1.Pod, error) {
 	return utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, prefix, common.CDILabelSelector)
 }
 
-// FindPodBySuffix is a wrapper around utils.FindPodByPostFix
-func (f *Framework) FindPodBySuffix(prefix string) (*k8sv1.Pod, error) {
-	return utils.FindPodBysuffix(f.K8sClient, f.Namespace.Name, prefix, common.CDILabelSelector)
+// FindPodBySuffix is a wrapper around utils.FindPodBySuffix
+func (f *Framework) FindPodBySuffix(suffix string) (*k8sv1.Pod, error) {
+	return utils.FindPodBySuffix(f.K8sClient, f.Namespace.Name, suffix, common.CDILabelSelector)
 }
