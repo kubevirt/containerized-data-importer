@@ -764,9 +764,8 @@ func getPriorityClass(pvc *v1.PersistentVolumeClaim) string {
 	return anno[AnnPriorityClassName]
 }
 
-func isPodRetainAfterCompletion(pvc *corev1.PersistentVolumeClaim) bool {
-	retain, exists := pvc.ObjectMeta.Annotations[AnnPodRetainAfterCompletion]
-	return exists && retain == "true"
+func shouldDeletePod(pvc *corev1.PersistentVolumeClaim) bool {
+	return pvc.GetAnnotations()[AnnPodRetainAfterCompletion] != "true" || pvc.DeletionTimestamp != nil
 }
 
 // AddFinalizer adds a finalizer to a resource

@@ -156,12 +156,10 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		err = utils.WaitForDataVolumePhase(f.CdiClient, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
 
-		By("Sleep for a while")
-		time.Sleep(time.Second * 3)
-
 		By("Find importer pod after completion")
-		_, err = utils.FindPodByPrefixOnce(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
+		importer, err := utils.FindPodByPrefixOnce(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
 		Expect(err).ToNot(HaveOccurred())
+		Expect(importer.DeletionTimestamp).To(BeNil())
 	})
 })
 

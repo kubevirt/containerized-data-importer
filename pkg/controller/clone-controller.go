@@ -179,14 +179,14 @@ func (r *CloneReconciler) Reconcile(_ context.Context, req reconcile.Request) (r
 	}
 	log := r.log.WithValues("PVC", req.NamespacedName)
 	log.V(1).Info("reconciling Clone PVCs")
-	if pvc.DeletionTimestamp != nil || (!r.shouldReconcile(pvc, log) && !isPodRetainAfterCompletion(pvc)) {
+	if pvc.DeletionTimestamp != nil || !r.shouldReconcile(pvc, log) {
 		log.V(1).Info("Should not reconcile this PVC",
 			"checkPVC(AnnCloneRequest)", checkPVC(pvc, AnnCloneRequest, log),
 			"NOT has annotation(AnnCloneOf)", !metav1.HasAnnotation(pvc.ObjectMeta, AnnCloneOf),
 			"isBound", isBound(pvc, log),
 			"has finalizer?", HasFinalizer(pvc, cloneSourcePodFinalizer))
-		if HasFinalizer(pvc, cloneSourcePodFinalizer) {
-			// Clone completed, remove source pod and finalizer.
+		if HasFinalizer(pvc, cloneSourcePodFinalizer) || pvc.DeletionTimestamp != nil {
+			// Clone completed, remove source pod and/or finalizer
 			if err := r.cleanup(pvc, log); err != nil {
 				return reconcile.Result{}, err
 			}
@@ -420,10 +420,12 @@ func (r *CloneReconciler) cleanup(pvc *corev1.PersistentVolumeClaim, log logr.Lo
 			log.V(3).Info("Clone succeeded, waiting for source pod to stop running", "pod.Namespace", pod.Namespace, "pod.Name", pod.Name)
 			return nil
 		}
-
-		if err = r.client.Delete(context.TODO(), pod); err != nil {
-			if !k8serrors.IsNotFound(err) {
-				return errors.Wrap(err, "error deleting clone source pod")
+		if shouldDeletePod(pvc) {
+			log.V(3).Info("Deleting pod", "pod.Name", pod.Name)
+			if err = r.client.Delete(context.TODO(), pod); err != nil {
+				if !k8serrors.IsNotFound(err) {
+					return errors.Wrap(err, "error deleting clone source pod")
+				}
 			}
 		}
 	}
