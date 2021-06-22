@@ -119,30 +119,34 @@ func (h *dataVolumeTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (
 		pvcTransferExists = true
 	}
 
-	if pvcTransferExists && pvcTransfer.Status.Phase != cdiv1.ObjectTransferComplete {
-		if err := h.reconciler.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "PVC transfer in progress", ""); err != nil {
-			return 0, err
+	if pvcTransferExists {
+		if pvcTransfer.Status.Phase != cdiv1.ObjectTransferComplete {
+			ot.Status.Phase = cdiv1.ObjectTransferRunning
+			if err := h.reconciler.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "PVC transfer in progress", ""); err != nil {
+				return 0, err
+			}
+
+			return 0, nil
 		}
 
-		return 0, nil
-	}
-
-	pvc := &corev1.PersistentVolumeClaim{}
-	pvcExists, err := h.reconciler.getTargetResource(pvcTransfer, pvc)
-	if err != nil {
-		return 0, h.reconciler.setCompleteConditionError(ot, err)
-	}
-
-	if !pvcExists {
-		if err := h.reconciler.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "Transferred PVC does not exist", ""); err != nil {
-			return 0, err
+		pvc := &corev1.PersistentVolumeClaim{}
+		pvcExists, err := h.reconciler.getTargetResource(pvcTransfer, pvc)
+		if err != nil {
+			return 0, h.reconciler.setCompleteConditionError(ot, err)
 		}
 
-		return 0, nil
-	}
+		if !pvcExists {
+			ot.Status.Phase = cdiv1.ObjectTransferError
+			if err := h.reconciler.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "Transferred PVC does not exist", ""); err != nil {
+				return 0, err
+			}
 
-	if err := h.addPopulatedAnnotation(ot, pvc); err != nil {
-		return 0, h.reconciler.setCompleteConditionError(ot, err)
+			return 0, nil
+		}
+
+		if err := h.addPopulatedAnnotation(ot, pvc); err != nil {
+			return 0, h.reconciler.setCompleteConditionError(ot, err)
+		}
 	}
 
 	if !targetExists {
@@ -153,6 +157,7 @@ func (h *dataVolumeTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (
 	}
 
 	if target.Status.Phase != cdiv1.Succeeded {
+		ot.Status.Phase = cdiv1.ObjectTransferRunning
 		if err := h.reconciler.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "Waiting for target DataVolume", ""); err != nil {
 			return 0, err
 		}

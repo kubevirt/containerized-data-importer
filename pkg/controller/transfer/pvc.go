@@ -8,12 +8,15 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdicontroller "kubevirt.io/containerized-data-importer/pkg/controller"
 )
 
 const (
+	annBindCompleted = "pv.kubernetes.io/bind-completed"
+
 	pvcCloneFinalizer = "provisioner.storage.kubernetes.io/cloning-protection"
 
 	pvcSnapshotFinalizer = "snapshot.storage.kubernetes.io/pvc-as-source-protection"
@@ -97,6 +100,7 @@ func (h *pvcTransferHandler) ReconcilePending(ot *cdiv1.ObjectTransfer) (time.Du
 func (h *pvcTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (time.Duration, error) {
 	pvName, ok := ot.Status.Data["pvName"]
 	if !ok {
+		ot.Status.Phase = cdiv1.ObjectTransferError
 		if err := h.reconciler.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "PV name missing", ""); err != nil {
 			return 0, err
 		}
@@ -144,15 +148,27 @@ func (h *pvcTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (time.Du
 		return 0, h.reconciler.setCompleteConditionRunning(ot)
 	}
 
-	if pv.Spec.ClaimRef != nil &&
-		(pv.Spec.ClaimRef.Namespace != getTransferTargetNamespace(ot) ||
-			pv.Spec.ClaimRef.Name != getTransferTargetName(ot)) {
-		pv.Spec.ClaimRef = nil
+	if pv.Spec.ClaimRef == nil ||
+		(pv.Spec.ClaimRef.Namespace == ot.Spec.Source.Namespace && pv.Spec.ClaimRef.Name == ot.Spec.Source.Name) {
+		pv.Spec.ClaimRef = &corev1.ObjectReference{
+			Namespace: getTransferTargetNamespace(ot),
+			Name:      getTransferTargetName(ot),
+		}
+
 		if err := h.reconciler.updateResource(ot, pv); err != nil {
 			return 0, h.reconciler.setCompleteConditionError(ot, err)
 		}
+	}
 
-		return time.Second, h.reconciler.setCompleteConditionRunning(ot)
+	if pv.Spec.ClaimRef.Namespace != getTransferTargetNamespace(ot) ||
+		pv.Spec.ClaimRef.Name != getTransferTargetName(ot) {
+		ot.Status.Phase = cdiv1.ObjectTransferError
+		if err := h.reconciler.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "PV bound to wrong PVC", ""); err != nil {
+			return 0, err
+		}
+
+		// TODO what to do here
+		return 0, fmt.Errorf("PV bound to wrong PVC")
 	}
 
 	target := &corev1.PersistentVolumeClaim{}
@@ -163,7 +179,9 @@ func (h *pvcTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (time.Du
 
 	if !targetExists {
 		target = &corev1.PersistentVolumeClaim{}
-		if err := h.reconciler.createObjectTransferTarget(ot, target, nil); err != nil {
+		if err := h.reconciler.createObjectTransferTarget(ot, target, func(o client.Object) {
+			delete(o.GetAnnotations(), annBindCompleted)
+		}); err != nil {
 			return 0, h.reconciler.setCompleteConditionError(ot, err)
 		}
 
@@ -171,20 +189,12 @@ func (h *pvcTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (time.Du
 	}
 
 	if target.Status.Phase != corev1.ClaimBound {
+		ot.Status.Phase = cdiv1.ObjectTransferRunning
 		if err := h.reconciler.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "Waiting for target to be bound", ""); err != nil {
 			return 0, err
 		}
 
 		return 0, nil
-	}
-
-	if pv.Spec.ClaimRef.Namespace != target.Namespace || pv.Spec.ClaimRef.Name != target.Name {
-		if err := h.reconciler.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "PV bound to wrong PVC", ""); err != nil {
-			return 0, err
-		}
-
-		// TODO what to do here
-		return 0, fmt.Errorf("PV bound to wrong PVC")
 	}
 
 	if pv.Spec.PersistentVolumeReclaimPolicy != corev1.PersistentVolumeReclaimPolicy(reclaim) {

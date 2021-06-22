@@ -860,11 +860,14 @@ func (r *DatavolumeReconciler) cleanupTransfer(log logr.Logger, dv *cdiv1.DataVo
 			return err
 		}
 	} else {
-		if err := r.client.Delete(context.TODO(), ot); err != nil {
-			if !k8serrors.IsNotFound(err) {
-				return err
+		if ot.DeletionTimestamp == nil {
+			if err := r.client.Delete(context.TODO(), ot); err != nil {
+				if !k8serrors.IsNotFound(err) {
+					return err
+				}
 			}
 		}
+		return fmt.Errorf("waiting for ObjectTransfer %s to delete", name)
 	}
 
 	RemoveFinalizer(dv, crossNamespaceFinalizer)
