@@ -174,6 +174,8 @@ const (
 	VddkConfigMap = "v2v-vmware"
 	// VddkConfigDataKey is the name of the ConfigMap key of the VDDK image reference
 	VddkConfigDataKey = "vddk-init-image"
+	// AwaitingVDDK is a Pending condition reason that indicates the PVC is waiting for a VDDK image
+	AwaitingVDDK = "AwaitingVDDK"
 
 	// UploadContentTypeHeader is the header upload clients may use to set the content type explicitly
 	UploadContentTypeHeader = "x-cdi-content-type"

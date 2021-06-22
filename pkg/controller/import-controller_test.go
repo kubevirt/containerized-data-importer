@@ -603,7 +603,7 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resPvc.GetAnnotations()[AnnBoundCondition]).To(Equal("false"))
 		Expect(resPvc.GetAnnotations()[AnnBoundConditionMessage]).To(Equal("waiting for v2v-vmware configmap for VDDK image"))
-		Expect(resPvc.GetAnnotations()[AnnBoundConditionReason]).To(Equal(awaitingVddk))
+		Expect(resPvc.GetAnnotations()[AnnBoundConditionReason]).To(Equal(common.AwaitingVDDK))
 
 		By("Checking again after creating configmap")
 		configmap := &corev1.ConfigMap{

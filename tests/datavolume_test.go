@@ -262,7 +262,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			return utils.NewDataVolumeForUpload(dataVolumeName, size)
 		}
 
-		table.DescribeTable("should", func(args dataVolumeTestArguments) {
+		testDataVolume := func(args dataVolumeTestArguments) {
 			// Have to call the function in here, to make sure the BeforeEach in the Framework has run.
 			dataVolume := args.dvFunc(args.name, args.size, args.url())
 			startTime := time.Now()
@@ -335,7 +335,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					return false
 				}, timeout, pollingInterval).Should(BeTrue())
 			}
-		},
+		}
+
+		table.DescribeTable("should", testDataVolume,
 			table.Entry("[rfe_id:1115][crit:high][test_id:1357]succeed creating import dv with given valid url", dataVolumeTestArguments{
 				name:             "dv-http-import",
 				size:             "1Gi",
@@ -765,6 +767,47 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Status:  v1.ConditionFalse,
 					Message: "Import Complete; VDDK: {\"Version\":\"1.2.3\",\"Host\":\"esx.test\"}",
 					Reason:  "Completed",
+				}}),
+		)
+
+		// Similar to previous table, but with additional cleanup steps
+		table.DescribeTable("should", func(args dataVolumeTestArguments) {
+			configMap, err := RunKubectlCommand(f, "get", "configmap", "-o", "yaml", "-n", f.CdiInstallNs, common.VddkConfigMap)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = RunKubectlCommand(f, "delete", "configmap", "-n", f.CdiInstallNs, common.VddkConfigMap)
+			Expect(err).ToNot(HaveOccurred())
+
+			defer func() {
+				command := CreateKubectlCommand(f, "create", "-n", f.CdiInstallNs, "-f", "-")
+				command.Stdin = strings.NewReader(configMap)
+				err := command.Run()
+				Expect(err).ToNot(HaveOccurred())
+			}()
+
+			testDataVolume(args)
+		},
+			table.Entry("[test_id:5079]should fail with \"AwaitingVDDK\" reason when VDDK credentials config map is not present", dataVolumeTestArguments{
+				name:             "dv-awaiting-vddk",
+				size:             "1Gi",
+				url:              vcenterURL,
+				dvFunc:           createVddkDataVolume,
+				eventReason:      common.AwaitingVDDK,
+				phase:            cdiv1.ImportScheduled,
+				checkPermissions: false,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionFalse,
+					Message: fmt.Sprintf("waiting for %s configmap for VDDK image", common.VddkConfigMap),
+					Reason:  common.AwaitingVDDK,
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeRunning,
+					Status: v1.ConditionFalse,
 				}}),
 		)
 
