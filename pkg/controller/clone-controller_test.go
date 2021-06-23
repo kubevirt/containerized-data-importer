@@ -659,7 +659,7 @@ func createCloneReconciler(objects ...runtime.Object) *CloneReconciler {
 	objs = append(objs, MakeEmptyCDICR())
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
-		DefaultPodResourceRequirements: createDefaultPodResourceRequirements(int64(0), int64(0), int64(0), int64(0)),
+		DefaultPodResourceRequirements: createDefaultPodResourceRequirements("", "", "", ""),
 	}
 	objs = append(objs, cdiConfig)
 
