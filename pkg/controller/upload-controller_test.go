@@ -512,7 +512,7 @@ func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
 	// Append empty CDIConfig object that normally is created by the reconcile loop
 	cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{
-		DefaultPodResourceRequirements: createDefaultPodResourceRequirements(int64(0), int64(0), int64(0), int64(0)),
+		DefaultPodResourceRequirements: createDefaultPodResourceRequirements("", "", "", ""),
 	}
 	cdiConfig.Spec.FeatureGates = []string{featuregates.HonorWaitForFirstConsumer}
 

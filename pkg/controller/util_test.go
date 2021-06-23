@@ -783,14 +783,34 @@ func createVolumeSnapshotCrd() *extv1.CustomResourceDefinition {
 	}
 }
 
-func createDefaultPodResourceRequirements(limitCPUValue int64, limitMemoryValue int64, requestCPUValue int64, requestMemoryValue int64) *corev1.ResourceRequirements {
+func createDefaultPodResourceRequirements(limitCPUValue string, limitMemoryValue string, requestCPUValue string, requestMemoryValue string) *corev1.ResourceRequirements {
+	if limitCPUValue == "" {
+		limitCPUValue = defaultCPULimit
+	}
+	cpuLimit, err := resource.ParseQuantity(limitCPUValue)
+	Expect(err).ToNot(HaveOccurred())
+	if limitMemoryValue == "" {
+		limitMemoryValue = defaultMemLimit
+	}
+	memLimit, err := resource.ParseQuantity(limitMemoryValue)
+	Expect(err).ToNot(HaveOccurred())
+	if requestCPUValue == "" {
+		requestCPUValue = defaultCPURequest
+	}
+	cpuRequest, err := resource.ParseQuantity(requestCPUValue)
+	Expect(err).ToNot(HaveOccurred())
+	if requestMemoryValue == "" {
+		requestMemoryValue = defaultMemRequest
+	}
+	memRequest, err := resource.ParseQuantity(requestMemoryValue)
+	Expect(err).ToNot(HaveOccurred())
 	return &corev1.ResourceRequirements{
 		Limits: map[corev1.ResourceName]resource.Quantity{
-			corev1.ResourceCPU:    *resource.NewQuantity(limitCPUValue, resource.DecimalSI),
-			corev1.ResourceMemory: *resource.NewQuantity(limitMemoryValue, resource.DecimalSI)},
+			corev1.ResourceCPU:    cpuLimit,
+			corev1.ResourceMemory: memLimit},
 		Requests: map[corev1.ResourceName]resource.Quantity{
-			corev1.ResourceCPU:    *resource.NewQuantity(requestCPUValue, resource.DecimalSI),
-			corev1.ResourceMemory: *resource.NewQuantity(requestMemoryValue, resource.DecimalSI)},
+			corev1.ResourceCPU:    cpuRequest,
+			corev1.ResourceMemory: memRequest},
 	}
 }
 
