@@ -48,6 +48,7 @@ var _ = Describe("Alpha API tests", func() {
 			pvcDef := utils.NewPVCDefinition("source-pvc", "1G", nil, nil)
 			source, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Create(context.TODO(), pvcDef, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(source)
 
 			By("create target namespace")
 			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{

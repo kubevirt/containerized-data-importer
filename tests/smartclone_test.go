@@ -198,6 +198,7 @@ func createAndPopulateSourcePVC(dataVolumeName string, volumeMode v1.PersistentV
 	}
 	pvc, err := f.CreatePVCFromDefinition(pvcDef)
 	Expect(err).ToNot(HaveOccurred())
+	f.ForceBindIfWaitForFirstConsumer(pvc)
 	return pvc
 }
 
