@@ -109,7 +109,7 @@ var _ = Describe("Transport Tests", func() {
 			case controller.SourceHTTP, controller.SourceRegistry:
 				if file != targetFile {
 					By("Verify content")
-					same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", utils.TinyCoreBlockMD5, 18874368)
+					same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, "/pvc", utils.TinyCoreBlockMD5, utils.UploadFileSize)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(same).To(BeTrue())
 				}

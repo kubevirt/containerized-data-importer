@@ -170,7 +170,7 @@ func verifyPVC(dataVolume *cdiv1.DataVolume, f *framework.Framework, testPath st
 	Expect(err).ToNot(HaveOccurred())
 
 	By(fmt.Sprint("Verifying target PVC content"))
-	Expect(f.VerifyTargetPVCContentMD5(f.Namespace, targetPvc, testPath, md5sum, 18874368)).To(BeTrue())
+	Expect(f.VerifyTargetPVCContentMD5(f.Namespace, targetPvc, testPath, md5sum, utils.UploadFileSize)).To(BeTrue())
 }
 
 func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f *framework.Framework) {
