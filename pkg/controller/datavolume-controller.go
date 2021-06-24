@@ -384,6 +384,9 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 	}
 
 	snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 	doSmartClone := err == nil &&
 		cloneStrategy == cdiv1.CloneStrategySnapshot &&
 		(!isCrossNamespaceClone(datavolume) || *bindingMode == storagev1.VolumeBindingImmediate)
