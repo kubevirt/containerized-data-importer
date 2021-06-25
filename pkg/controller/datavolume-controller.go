@@ -1209,9 +1209,8 @@ func (r *DatavolumeReconciler) snapshotSmartClonePossible(dataVolume *cdiv1.Data
 	}
 
 	srcStorageClass := &storagev1.StorageClass{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *targetPvcStorageClassName}, srcStorageClass); err != nil {
-		log.Info("Unable to retrieve storage class, falling back to host assisted clone", "storage class", *targetPvcStorageClassName)
-		return false, nil
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *targetPvcStorageClassName}, srcStorageClass); IgnoreNotFound(err) != nil {
+		return false, err
 	}
 	srcCapacity, hasSrcCapacity := pvc.Status.Capacity[corev1.ResourceStorage]
 	targetRequest, hasTargetRequest := targetStorageSpec.Resources.Requests[corev1.ResourceStorage]
