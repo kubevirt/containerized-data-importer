@@ -155,7 +155,6 @@ func (f *Framework) VerifyTargetPVCContentMD5(namespace *k8sv1.Namespace, pvc *k
 	if err != nil {
 		return false, err
 	}
-
 	return expectedHash == md5, nil
 }
 
