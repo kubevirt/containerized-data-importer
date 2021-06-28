@@ -334,7 +334,7 @@ func (r *UploadReconciler) cleanup(pvc *v1.PersistentVolumeClaim) error {
 		}
 		return err
 	}
-	if pod.DeletionTimestamp == nil {
+	if pod.DeletionTimestamp == nil && shouldDeletePod(pvc) {
 		if err := r.client.Delete(context.TODO(), pod); IgnoreNotFound(err) != nil {
 			return err
 		}

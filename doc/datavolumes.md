@@ -317,6 +317,7 @@ The running and ready conditions are mutually exclusive, if running is true, the
 
 ## Annotations
 Specific [DV annotations](datavolume-annotations.md) are passed to the transfer pods to control their behavior.
+Other [annotations](debug.md) help debugging and testing by retaining the transfer pods after completion.
 
 ## Priority Class
 You can specify priority class name on the Data Volume Object. The corresponding pod created for the data volume will be assigned the priority class on the data volume. Following is an example of specifying the priority class on Data Volume 

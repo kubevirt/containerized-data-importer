@@ -139,6 +139,28 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			Expect(f.GetDiskGroup(f.Namespace, pvc, false)).To(Equal("107"))
 		}
 	})
+
+	It("[test_id:6687] Should retain the importer pod after completion with dv annotation cdi.kubevirt.io/storage.pod.retainAfterCompletion=true", func() {
+		dataVolume := utils.NewDataVolumeWithHTTPImport("import-pod-retain-test", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
+		dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f.CdiClient, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+
+		By("Find importer pod after completion")
+		importer, err := utils.FindPodByPrefixOnce(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(importer.DeletionTimestamp).To(BeNil())
+	})
 })
 
 var _ = Describe("[Istio] Namespace sidecar injection", func() {

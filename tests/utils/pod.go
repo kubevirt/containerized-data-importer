@@ -70,9 +70,9 @@ func DeletePod(clientSet *kubernetes.Clientset, pod *k8sv1.Pod, namespace string
 	return DeletePodByName(clientSet, pod.Name, namespace, nil)
 }
 
-// FindPodBysuffix finds the first pod which has the passed in postfix. Returns error if multiple pods with the same prefix are found.
-func FindPodBysuffix(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string) (*k8sv1.Pod, error) {
-	return findPodByCompFunc(clientSet, namespace, prefix, labelSelector, strings.HasSuffix)
+// FindPodBySuffix finds the first pod which has the passed in suffix. Returns error if multiple pods with the same suffix are found.
+func FindPodBySuffix(clientSet *kubernetes.Clientset, namespace, suffix, labelSelector string) (*k8sv1.Pod, error) {
+	return findPodByCompFunc(clientSet, namespace, suffix, labelSelector, strings.HasSuffix)
 }
 
 // FindPodByPrefix finds the first pod which has the passed in prefix. Returns error if multiple pods with the same prefix are found.
@@ -80,33 +80,53 @@ func FindPodByPrefix(clientSet *kubernetes.Clientset, namespace, prefix, labelSe
 	return findPodByCompFunc(clientSet, namespace, prefix, labelSelector, strings.HasPrefix)
 }
 
+// FindPodBySuffixOnce finds once (no polling) the first pod which has the passed in suffix. Returns error if multiple pods with the same suffix are found.
+func FindPodBySuffixOnce(clientSet *kubernetes.Clientset, namespace, suffix, labelSelector string) (*k8sv1.Pod, error) {
+	return findPodByCompFuncOnce(clientSet, namespace, suffix, labelSelector, strings.HasSuffix)
+}
+
+// FindPodByPrefixOnce finds once (no polling) the first pod which has the passed in prefix. Returns error if multiple pods with the same prefix are found.
+func FindPodByPrefixOnce(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string) (*k8sv1.Pod, error) {
+	return findPodByCompFuncOnce(clientSet, namespace, prefix, labelSelector, strings.HasPrefix)
+}
+
 func findPodByCompFunc(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string, compFunc func(string, string) bool) (*k8sv1.Pod, error) {
-	var result k8sv1.Pod
-	var foundPod bool
-	err := wait.PollImmediate(2*time.Second, podCreateTime, func() (bool, error) {
-		podList, err := clientSet.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: labelSelector,
-		})
-		if err == nil {
-			for _, pod := range podList.Items {
-				if compFunc(pod.Name, prefix) {
-					if !foundPod {
-						foundPod = true
-						result = pod
-					} else {
-						fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: First pod name %s in namespace %s\n", result.Name, result.Namespace)
-						fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Second pod name %s in namespace %s\n", pod.Name, pod.Namespace)
-						return true, fmt.Errorf("Multiple pods starting with prefix %q in namespace %q", prefix, namespace)
-					}
-				}
+	var result *k8sv1.Pod
+	var err error
+	wait.PollImmediate(2*time.Second, podCreateTime, func() (bool, error) {
+		result, err = findPodByCompFuncOnce(clientSet, namespace, prefix, labelSelector, compFunc)
+		if result != nil {
+			return true, err
+		}
+		// If no result yet, continue polling even if there is an error
+		return false, nil
+	})
+	return result, err
+}
+
+func findPodByCompFuncOnce(clientSet *kubernetes.Clientset, namespace, prefix, labelSelector string, compFunc func(string, string) bool) (*k8sv1.Pod, error) {
+	var result *k8sv1.Pod
+	podList, err := clientSet.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, pod := range podList.Items {
+		if compFunc(pod.Name, prefix) {
+			if result == nil {
+				result = &pod
+			} else {
+				fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: First pod name %s in namespace %s\n", result.Name, result.Namespace)
+				fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Second pod name %s in namespace %s\n", pod.Name, pod.Namespace)
+				return result, fmt.Errorf("Multiple pods starting with prefix %q in namespace %q", prefix, namespace)
 			}
 		}
-		return foundPod, nil
-	})
-	if !foundPod {
+	}
+	if result == nil {
 		return nil, fmt.Errorf("Unable to find pod containing %s", prefix)
 	}
-	return &result, err
+	return result, nil
 }
 
 // WaitTimeoutForPodReady waits for the given pod to be created and ready
