@@ -36,6 +36,10 @@ import (
 // AnnConfigAuthority is the annotation specifying a resource as the CDIConfig authority
 const (
 	AnnConfigAuthority = "cdi.kubevirt.io/configAuthority"
+	defaultCPULimit    = "750m"
+	defaultMemLimit    = "600M"
+	defaultCPURequest  = "100m"
+	defaultMemRequest  = "60M"
 )
 
 // CDIConfigReconciler members
@@ -223,13 +227,19 @@ func (r *CDIConfigReconciler) reconcileStorageClass(config *cdiv1.CDIConfig) err
 }
 
 func (r *CDIConfigReconciler) reconcileDefaultPodResourceRequirements(config *cdiv1.CDIConfig) error {
+	cpuLimit, _ := resource.ParseQuantity(defaultCPULimit)
+	memLimit, _ := resource.ParseQuantity(defaultMemLimit)
+	cpuRequest, _ := resource.ParseQuantity(defaultCPURequest)
+	memRequest, _ := resource.ParseQuantity(defaultMemRequest)
 	config.Status.DefaultPodResourceRequirements = &v1.ResourceRequirements{
 		Limits: map[v1.ResourceName]resource.Quantity{
-			v1.ResourceCPU:    *resource.NewQuantity(0, resource.DecimalSI),
-			v1.ResourceMemory: *resource.NewQuantity(0, resource.DecimalSI)},
+			v1.ResourceCPU:    cpuLimit,
+			v1.ResourceMemory: memLimit,
+		},
 		Requests: map[v1.ResourceName]resource.Quantity{
-			v1.ResourceCPU:    *resource.NewQuantity(0, resource.DecimalSI),
-			v1.ResourceMemory: *resource.NewQuantity(0, resource.DecimalSI)},
+			v1.ResourceCPU:    cpuRequest,
+			v1.ResourceMemory: memRequest,
+		},
 	}
 
 	if config.Spec.PodResourceRequirements != nil {
