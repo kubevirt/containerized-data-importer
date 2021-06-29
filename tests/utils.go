@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strings"
 	"time"
 
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
@@ -18,6 +19,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 )
 
@@ -168,4 +170,37 @@ func PodSpecHasTestNodePlacementValues(f *framework.Framework, podSpec v1.PodSpe
 		return false
 	}
 	return true
+}
+
+// VerifyConditions checks if the conditions match testConditions
+func VerifyConditions(actualConditions []cdiv1.DataVolumeCondition, startTime time.Time, testConditions ...*cdiv1.DataVolumeCondition) bool {
+	for _, condition := range testConditions {
+		if condition != nil {
+			actualCondition := findConditionByType(condition.Type, actualConditions)
+			if actualCondition != nil {
+				if actualCondition.Status != condition.Status {
+					fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Condition.Status does not match for type: %s\n", condition.Type)
+					return false
+				}
+				if strings.Compare(actualCondition.Reason, condition.Reason) != 0 {
+					fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Condition.Reason does not match for type: %s, reason expected [%s], reason found: [%s]\n", condition.Type, condition.Reason, actualCondition.Reason)
+					return false
+				}
+				if !strings.Contains(actualCondition.Message, condition.Message) {
+					fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: Condition.Message does not match for type: %s, message expected: [%s],  message found: [%s]\n", condition.Type, condition.Message, actualCondition.Message)
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions []cdiv1.DataVolumeCondition) *cdiv1.DataVolumeCondition {
+	for i, condition := range conditions {
+		if condition.Type == conditionType {
+			return &conditions[i]
+		}
+	}
+	return nil
 }

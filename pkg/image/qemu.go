@@ -19,6 +19,7 @@ package image
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"regexp"
@@ -121,7 +122,11 @@ func convertToRaw(src, dest string, preallocate bool) error {
 	}
 	if err != nil {
 		os.Remove(dest)
-		return errors.Wrap(err, "could not convert image to raw")
+		errorMsg := "could not convert image to raw"
+		if nbdkitLog, err := ioutil.ReadFile(common.NbdkitLogPath); err == nil {
+			errorMsg += " " + string(nbdkitLog)
+		}
+		return errors.Wrap(err, errorMsg)
 	}
 
 	return nil
@@ -187,7 +192,11 @@ func (o *qemuOperations) Info(url *url.URL) (*ImgInfo, error) {
 	}
 	output, err := qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", url.String())
 	if err != nil {
-		return nil, errors.Errorf("%s, %s", output, err.Error())
+		errorMsg := fmt.Sprintf("%s, %s", output, err.Error())
+		if nbdkitLog, err := ioutil.ReadFile(common.NbdkitLogPath); err == nil {
+			errorMsg += " " + string(nbdkitLog)
+		}
+		return nil, errors.Errorf(errorMsg)
 	}
 	return checkOutputQemuImgInfo(output, url.String())
 }

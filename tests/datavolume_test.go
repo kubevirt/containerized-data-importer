@@ -294,7 +294,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					// will not match if the pod hasn't failed and the backoff is not long enough yet
 					resultDv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 					Expect(dverr).ToNot(HaveOccurred())
-					return verifyConditions(resultDv.Status.Conditions, startTime, args.readyCondition, args.runningCondition, args.boundCondition)
+					return VerifyConditions(resultDv.Status.Conditions, startTime, args.readyCondition, args.runningCondition, args.boundCondition)
 				}, timeout, pollingInterval).Should(BeTrue())
 
 				// verify PVC was created
@@ -2279,38 +2279,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 	})
 })
-
-func verifyConditions(actualConditions []cdiv1.DataVolumeCondition, startTime time.Time, testConditions ...*cdiv1.DataVolumeCondition) bool {
-	for _, condition := range testConditions {
-		if condition != nil {
-			actualCondition := findConditionByType(condition.Type, actualConditions)
-			if actualCondition != nil {
-				if actualCondition.Status != condition.Status {
-					fmt.Fprintf(GinkgoWriter, "INFO: Condition.Status does not match for type: %s\n", condition.Type)
-					return false
-				}
-				if strings.Compare(actualCondition.Reason, condition.Reason) != 0 {
-					fmt.Fprintf(GinkgoWriter, "INFO: Condition.Reason does not match for type: %s, reason expected [%s], reason found: [%s]\n", condition.Type, condition.Reason, actualCondition.Reason)
-					return false
-				}
-				if !strings.Contains(actualCondition.Message, condition.Message) {
-					fmt.Fprintf(GinkgoWriter, "INFO: Condition.Message does not match for type: %s, message expected: [%s],  message found: [%s]\n", condition.Type, condition.Message, actualCondition.Message)
-					return false
-				}
-			}
-		}
-	}
-	return true
-}
-
-func findConditionByType(conditionType cdiv1.DataVolumeConditionType, conditions []cdiv1.DataVolumeCondition) *cdiv1.DataVolumeCondition {
-	for i, condition := range conditions {
-		if condition.Type == conditionType {
-			return &conditions[i]
-		}
-	}
-	return nil
-}
 
 func SetFilesystemOverhead(f *framework.Framework, globalOverhead, scOverhead string) {
 	defaultSCName := utils.DefaultStorageClass.GetName()

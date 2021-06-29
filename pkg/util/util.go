@@ -232,6 +232,7 @@ func WriteTerminationMessage(message string) error {
 
 // WriteTerminationMessageToFile writes the passed in message to the passed in message file
 func WriteTerminationMessageToFile(file, message string) error {
+	message = strings.ReplaceAll(message, "\n", " ")
 	// Only write the first line of the message.
 	scanner := bufio.NewScanner(strings.NewReader(message))
 	if scanner.Scan() {

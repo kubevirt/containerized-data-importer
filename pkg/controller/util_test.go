@@ -199,7 +199,7 @@ var _ = Describe("DecodePublicKey", func() {
 	})
 })
 
-var _ = Describe("setConditionFromPod", func() {
+var _ = Describe("setAnnotationsFromPod", func() {
 	It("Should follow pod container status, running", func() {
 		result := make(map[string]string)
 		testPod := createImporterTestPod(createPvc("test", metav1.NamespaceDefault, nil, nil), "test", nil)
@@ -212,7 +212,7 @@ var _ = Describe("setConditionFromPod", func() {
 				},
 			},
 		}
-		setConditionFromPodWithPrefix(result, AnnRunningCondition, testPod)
+		setAnnotationsFromPodWithPrefix(result, testPod, AnnRunningCondition)
 		Expect(result[AnnRunningCondition]).To(Equal("true"))
 		Expect(result[AnnRunningConditionReason]).To(Equal("Pod is running"))
 	})
@@ -232,7 +232,7 @@ var _ = Describe("setConditionFromPod", func() {
 				},
 			},
 		}
-		setConditionFromPodWithPrefix(result, AnnRunningCondition, testPod)
+		setAnnotationsFromPodWithPrefix(result, testPod, AnnRunningCondition)
 		Expect(result[AnnRunningCondition]).To(Equal("false"))
 		Expect(result[AnnRunningConditionMessage]).To(Equal("The container completed"))
 		Expect(result[AnnRunningConditionReason]).To(Equal("Completed"))
@@ -253,7 +253,7 @@ var _ = Describe("setConditionFromPod", func() {
 				},
 			},
 		}
-		setConditionFromPodWithPrefix(result, AnnRunningCondition, testPod)
+		setAnnotationsFromPodWithPrefix(result, testPod, AnnRunningCondition)
 		Expect(result[AnnRunningCondition]).To(Equal("false"))
 		Expect(result[AnnRunningConditionMessage]).To(Equal("container is waiting"))
 		Expect(result[AnnRunningConditionReason]).To(Equal("Pending"))
@@ -274,7 +274,7 @@ var _ = Describe("setConditionFromPod", func() {
 				},
 			},
 		}
-		setConditionFromPodWithPrefix(result, AnnRunningCondition, testPod)
+		setAnnotationsFromPodWithPrefix(result, testPod, AnnRunningCondition)
 		Expect(result[AnnPreallocationApplied]).To(Equal("true"))
 	})
 })

@@ -55,6 +55,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	})
 
 	DescribeTable("[test_id:2329] Should fail to import images that require too much space", func(uploadURL string) {
+		startTime := time.Now()
 		imageURL := fmt.Sprintf(uploadURL, f.CdiInstallNs)
 
 		By(imageURL)
@@ -70,21 +71,17 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get importer pod"))
 
 		By(fmt.Sprintf("logs for pod -n %s %s", importer.Name, importer.Namespace))
-		By("Verify size error in logs")
+		By("Verify datavolume too small condition")
 		Eventually(func() bool {
-			log, _ := tests.RunKubectlCommand(f, "logs", importer.Name, "-n", importer.Namespace)
-			if strings.Contains(log, "is larger than available size") {
-				return true
-			}
-			if strings.Contains(log, "no space left on device") {
-				return true
-			}
-			if strings.Contains(log, "file largest block is bigger than maxblock") {
-				return true
-			}
-			By("Failed to find error messages about a too large image in log:")
-			By(log)
-			return false
+			dv, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			return tests.VerifyConditions(dv.Status.Conditions, startTime, &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeRunning,
+				Status:  v1.ConditionFalse,
+				Message: "DataVolume too small to contain image",
+				Reason:  "Error",
+			})
 		}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(BeTrue())
 	},
 		Entry("fail given a large virtual size RAW XZ file", utils.LargeVirtualDiskXz),

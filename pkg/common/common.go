@@ -37,6 +37,8 @@ const (
 	ImporterWritePath = ImporterVolumePath + "/" + DiskImageName
 	// WriteBlockPath provides a constant for the path where the PV is mounted.
 	WriteBlockPath = "/dev/cdi-block-volume"
+	// NbdkitLogPath provides a constant for the path in which the nbdkit log messages are stored.
+	NbdkitLogPath = "/tmp/nbdkit.log"
 	// PodTerminationMessageFile is the name of the file to write the termination message to.
 	PodTerminationMessageFile = "/dev/termination-log"
 	// ImporterPodName provides a constant to use as a prefix for Pods created by CDI (controller only)

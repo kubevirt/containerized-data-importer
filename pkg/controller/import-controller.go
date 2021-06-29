@@ -2,11 +2,9 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"reflect"
-	"regexp"
 	"strconv"
 	"time"
 
@@ -93,10 +91,6 @@ const (
 
 	// ImportTargetInUse is reason for event created when an import pvc is in use
 	ImportTargetInUse = "ImportTargetInUse"
-)
-
-var (
-	vddkInfoMatch = regexp.MustCompile(`((.*; )|^)VDDK: (?P<info>{.*})`)
 )
 
 // ImportReconciler members
@@ -353,7 +347,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 
 	log.V(1).Info("Updating PVC from pod")
 	anno := pvc.GetAnnotations()
-	setConditionFromPodWithPrefix(anno, AnnRunningCondition, pod)
+	setAnnotationsFromPodWithPrefix(anno, pod, AnnRunningCondition)
 
 	scratchExitCode := false
 	if pod.Status.ContainerStatuses != nil &&
@@ -368,23 +362,9 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message)
 		}
 	}
-	if pod.Status.ContainerStatuses != nil &&
-		pod.Status.ContainerStatuses[0].State.Terminated != nil &&
-		pod.Status.ContainerStatuses[0].State.Terminated.ExitCode == 0 {
-	}
-	if pod.Status.ContainerStatuses != nil &&
-		pod.Status.ContainerStatuses[0].State.Terminated != nil {
-		if getSource(pvc) == SourceVDDK {
-			r.saveVddkAnnotations(pvc, pod, log)
-		}
-	}
 
 	if anno[AnnCurrentCheckpoint] != "" {
 		anno[AnnCurrentPodID] = string(pod.ObjectMeta.UID)
-	}
-
-	if pod.Status.ContainerStatuses != nil {
-		anno[AnnPodRestarts] = strconv.Itoa(int(pod.Status.ContainerStatuses[0].RestartCount))
 	}
 
 	anno[AnnImportPod] = string(pod.Name)
@@ -435,31 +415,6 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		}
 	}
 	return nil
-}
-
-func (r *ImportReconciler) saveVddkAnnotations(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, log logr.Logger) {
-	terminationMessage := pod.Status.ContainerStatuses[0].State.Terminated.Message
-	log.V(1).Info("Saving VDDK annotations from pod status message: ", "message", terminationMessage)
-
-	var terminationInfo string
-	matches := vddkInfoMatch.FindAllStringSubmatch(terminationMessage, -1)
-	for index, matchName := range vddkInfoMatch.SubexpNames() {
-		if matchName == "info" && len(matches) > 0 {
-			terminationInfo = matches[0][index]
-			break
-		}
-	}
-
-	var vddkInfo util.VddkInfo
-	err := json.Unmarshal([]byte(terminationInfo), &vddkInfo)
-	if err == nil {
-		if vddkInfo.Host != "" {
-			pvc.Annotations[AnnVddkHostConnection] = vddkInfo.Host
-		}
-		if vddkInfo.Version != "" {
-			pvc.Annotations[AnnVddkVersion] = vddkInfo.Version
-		}
-	}
 }
 
 func (r *ImportReconciler) updatePVC(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {

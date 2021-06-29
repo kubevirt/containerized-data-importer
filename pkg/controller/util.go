@@ -3,7 +3,10 @@ package controller
 import (
 	"context"
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
@@ -26,6 +29,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	cdiv1utils "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1/utils"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
@@ -145,6 +149,10 @@ const (
 	AnnPodSidecarInjection = "sidecar.istio.io/inject"
 	// AnnPodSidecarInjectionDefault is the default value passed for AnnPodSidecarInjection
 	AnnPodSidecarInjectionDefault = "false"
+)
+
+var (
+	vddkInfoMatch = regexp.MustCompile(`((.*; )|^)VDDK: (?P<info>{.*})`)
 )
 
 func isCrossNamespaceClone(dv *cdiv1.DataVolume) bool {
@@ -547,25 +555,72 @@ func podSucceededFromPVC(pvc *v1.PersistentVolumeClaim) bool {
 	return (podPhaseFromPVC(pvc) == v1.PodSucceeded)
 }
 
-func setConditionFromPodWithPrefix(anno map[string]string, prefix string, pod *v1.Pod) {
-	if pod.Status.ContainerStatuses != nil {
-		if pod.Status.ContainerStatuses[0].State.Running != nil {
-			anno[prefix] = "true"
-			anno[prefix+".message"] = ""
-			anno[prefix+".reason"] = podRunningReason
-		} else {
-			anno[AnnRunningCondition] = "false"
-			if pod.Status.ContainerStatuses[0].State.Waiting != nil {
-				anno[prefix+".message"] = pod.Status.ContainerStatuses[0].State.Waiting.Message
-				anno[prefix+".reason"] = pod.Status.ContainerStatuses[0].State.Waiting.Reason
-			} else if pod.Status.ContainerStatuses[0].State.Terminated != nil {
-				anno[prefix+".message"] = pod.Status.ContainerStatuses[0].State.Terminated.Message
-				anno[prefix+".reason"] = pod.Status.ContainerStatuses[0].State.Terminated.Reason
-				if strings.Contains(pod.Status.ContainerStatuses[0].State.Terminated.Message, common.PreallocationApplied) {
-					anno[AnnPreallocationApplied] = "true"
-				}
+func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, prefix string) {
+	if pod == nil || pod.Status.ContainerStatuses == nil {
+		return
+	}
+	annPodRestarts, _ := strconv.Atoi(anno[AnnPodRestarts])
+	podRestarts := int(pod.Status.ContainerStatuses[0].RestartCount)
+	if podRestarts >= annPodRestarts {
+		anno[AnnPodRestarts] = strconv.Itoa(podRestarts)
+	}
+	setVddkAnnotations(anno, pod)
+	containerState := pod.Status.ContainerStatuses[0].State
+	if containerState.Running != nil {
+		anno[prefix] = "true"
+		anno[prefix+".message"] = ""
+		anno[prefix+".reason"] = podRunningReason
+	} else {
+		anno[AnnRunningCondition] = "false"
+		if containerState.Waiting != nil && containerState.Waiting.Reason != "CrashLoopBackOff" {
+			anno[prefix+".message"] = simplifyKnownMessage(containerState.Waiting.Message)
+			anno[prefix+".reason"] = containerState.Waiting.Reason
+		} else if containerState.Terminated != nil {
+			anno[prefix+".message"] = simplifyKnownMessage(containerState.Terminated.Message)
+			anno[prefix+".reason"] = containerState.Terminated.Reason
+			if strings.Contains(containerState.Terminated.Message, common.PreallocationApplied) {
+				anno[AnnPreallocationApplied] = "true"
 			}
 		}
+	}
+}
+
+func simplifyKnownMessage(msg string) string {
+	if strings.Contains(msg, "is larger than available size") ||
+		strings.Contains(msg, "no space left on device") ||
+		strings.Contains(msg, "file largest block is bigger than maxblock") {
+		return "DataVolume too small to contain image"
+	}
+
+	return msg
+}
+
+func setVddkAnnotations(anno map[string]string, pod *corev1.Pod) {
+	if pod.Status.ContainerStatuses[0].State.Terminated == nil {
+		return
+	}
+	terminationMessage := pod.Status.ContainerStatuses[0].State.Terminated.Message
+	klog.V(1).Info("Saving VDDK annotations from pod status message: ", "message", terminationMessage)
+
+	var terminationInfo string
+	matches := vddkInfoMatch.FindAllStringSubmatch(terminationMessage, -1)
+	for index, matchName := range vddkInfoMatch.SubexpNames() {
+		if matchName == "info" && len(matches) > 0 {
+			terminationInfo = matches[0][index]
+			break
+		}
+	}
+
+	var vddkInfo util.VddkInfo
+	err := json.Unmarshal([]byte(terminationInfo), &vddkInfo)
+	if err != nil {
+		return
+	}
+	if vddkInfo.Host != "" {
+		anno[AnnVddkHostConnection] = vddkInfo.Host
+	}
+	if vddkInfo.Version != "" {
+		anno[AnnVddkVersion] = vddkInfo.Version
 	}
 }
 
