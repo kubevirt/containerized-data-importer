@@ -29,7 +29,7 @@ When a DataVolume has a `registry` source CDI will populate the volume with a Co
 
 ### Clone another PVC
 
-To clone a PVC, create a DataVolume with a `pvc` source and specify `namespace` and `name` of the source PVC.  CDI will attempt an [efficient clone](doc/smart-clone.md) of the PVC using the storage backend if possible.  Otherwise, the data will be transferred to the target PVC using a TLS secured connection between two pods on the cluster network.  More details can be found [here](doc/clone-datavolume.md).
+To clone a PVC, create a DataVolume with a `pvc` source and specify `namespace` and `name` of the source PVC.  CDI will attempt an [efficient clone](doc/efficient-cloning.md) of the PVC using the storage backend if possible.  Otherwise, the data will be transferred to the target PVC using a TLS secured connection between two pods on the cluster network.  More details can be found [here](doc/clone-datavolume.md).
 
 ### Upload from a client
 
