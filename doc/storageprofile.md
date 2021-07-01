@@ -2,7 +2,8 @@
 
 ## Introduction
 
-Storage Profile is the resource that serves the information about recommended parameters for PVC - right now the `accessMode` and `volumeMode`.
+Storage Profile is the resource that serves the information about recommended parameters for the PVC. 
+
 This can be used by CDI controllers when creating a PVC for DV. That way the DataVolume can be simplified and if the properties are missing,
 defaults can be applied from the StorageProfile.
 
@@ -33,8 +34,17 @@ status:
       volumeMode: Filesystem
 ```
 
+Current version supports the following parameters:
+- `accessMode` - contains the desired access modes the volume should have
+- `volumeMode` -  defines what type of volume is required by the claim
+- `cloneStrategy` - defines the preferred method for performing a CDI clone
+
 Values for accessModes and volumeMode are exactly the same as for PVC: `accessModes` is a list of `[ReadWriteMany|ReadWriteOnce|ReadOnlyMany]`
-and `volumeMode` is a single value `Filesystem` or `Block`. Multiple claim property sets can be specified (`claimPropertySets` is a list).
+and `volumeMode` is a single value `Filesystem` or `Block`. The value for `cloneStrategy` ca be one of: `copy`,`snapshot`,`csi-clone`. 
+When the value is not specified the CDI will try to use the `snapshot` if possible otherwise it falls back to `copy`. 
+If the storage class (and its provider) is capable of doing CSI Volume Clone then the user may choose `csi-clone` as a preferred clone method.
+
+Multiple claim property sets can be specified (`claimPropertySets` is a list).
 
 ## Handling the DV with defaults from Storage Profiles 
 
