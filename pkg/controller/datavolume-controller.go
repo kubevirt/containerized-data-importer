@@ -74,6 +74,8 @@ const (
 	ErrClaimLost = "ErrClaimLost"
 	// ErrClaimNotValid provides a const to indicate a claim is not valid
 	ErrClaimNotValid = "ErrClaimNotValid"
+	// ErrUnableToClone provides a const to indicate some errors are blocking the clone
+	ErrUnableToClone = "ErrUnableToClone"
 	// DataVolumeFailed provides a const to represent DataVolume failed status
 	DataVolumeFailed = "DataVolumeFailed"
 	// ImportScheduled provides a const to indicate import is scheduled
@@ -404,7 +406,6 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		}
 		pvc = newPvc
 	} else {
-		//TODO: maybe... when pvc exists, get clone strategy from pvc?
 		if getSource(pvc) == SourceVDDK {
 			changed, err := r.getVddkAnnotations(datavolume, pvc)
 			if err != nil {
@@ -490,7 +491,7 @@ func (r *DatavolumeReconciler) isCSIClonePossible(dataVolume *cdiv1.DataVolume, 
 
 	srcStorageClass := &storagev1.StorageClass{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: *targetPvcStorageClassName}, srcStorageClass); err != nil {
-		log.Info("Unable to retrieve storage class, falling back to host assisted clone", "storage class", *targetPvcStorageClassName)
+		log.Info("Unable to retrieve storage class", "storage class", *targetPvcStorageClassName)
 		return false, err
 	}
 
@@ -506,13 +507,8 @@ func (r *DatavolumeReconciler) isCSIClonePossible(dataVolume *cdiv1.DataVolume, 
 }
 
 func (r *DatavolumeReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec) (cloneStrategy, error) {
-	doSmartClone := false
-	doCsiClone := false
 
-	isClone := false
 	if datavolume.Spec.Source.PVC != nil {
-		isClone = true
-
 		// The source and target PVCs share the same Storage Class
 		// get this the same way as for getSnapshotClassForSmartClone(datavolume, pvcSpec)
 		preferredCloneStrategy, err := r.getCloneStrategy(datavolume)
@@ -520,19 +516,22 @@ func (r *DatavolumeReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume,
 			return 0, err
 		}
 
-		if isClone && *preferredCloneStrategy == cdiv1.CloneStrategyCsiClone {
-			possible, err := r.isCSIClonePossible(datavolume, pvcSpec)
+		bindingMode, err := r.getStorageClassBindingMode(pvcSpec.StorageClassName)
+		if err != nil {
+			return 0, err
+		}
+
+		if preferredCloneStrategy != nil && *preferredCloneStrategy == cdiv1.CloneStrategyCsiClone {
+			csiClonePossible, err := r.isCSIClonePossible(datavolume, pvcSpec)
 			if err != nil {
 				return 0, err
 			}
 
-			doCsiClone = possible
-		} else if isClone && *preferredCloneStrategy == cdiv1.CloneStrategySnapshot {
-			bindingMode, err := r.getStorageClassBindingMode(pvcSpec.StorageClassName)
-			if err != nil {
-				return 0, err
+			if csiClonePossible &&
+				(!isCrossNamespaceClone(datavolume) || *bindingMode == storagev1.VolumeBindingImmediate) {
+				return CsiClone, nil
 			}
-
+		} else if preferredCloneStrategy != nil && *preferredCloneStrategy == cdiv1.CloneStrategySnapshot {
 			snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
 			if err != nil {
 				return 0, err
@@ -544,16 +543,11 @@ func (r *DatavolumeReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume,
 				return 0, err
 			}
 
-			doSmartClone = snapshotClassAvailable && snapshotPossible &&
-				(!isCrossNamespaceClone(datavolume) || *bindingMode == storagev1.VolumeBindingImmediate)
+			if snapshotClassAvailable && snapshotPossible &&
+				(!isCrossNamespaceClone(datavolume) || *bindingMode == storagev1.VolumeBindingImmediate) {
+				return SmartClone, nil
+			}
 		}
-		if doCsiClone {
-			return CsiClone, nil
-		}
-		if doSmartClone {
-			return SmartClone, nil
-		}
-		return HostAssistedClone, nil
 	}
 
 	return NoClone, nil
@@ -1381,7 +1375,9 @@ func (r *DatavolumeReconciler) getCloneStrategy(dataVolume *cdiv1.DataVolume) (*
 	defaultCloneStrategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategySnapshot)
 	sourcePvc, err := r.findSourcePvc(dataVolume)
 	if err != nil {
-		// when k8serrors.IsNotFound(err) -> Source PVC is missing, cannot correctly select strategy
+		if k8serrors.IsNotFound(err) {
+			r.recorder.Eventf(dataVolume, corev1.EventTypeWarning, ErrUnableToClone, "Source pvc %s not found", dataVolume.Spec.Source.PVC.Name)
+		}
 		return nil, err
 	}
 	storageClass, err := GetStorageClassByName(r.client, sourcePvc.Spec.StorageClassName)
@@ -1389,7 +1385,7 @@ func (r *DatavolumeReconciler) getCloneStrategy(dataVolume *cdiv1.DataVolume) (*
 		return nil, err
 	}
 
-	strategyOverride, err := getGlobalCloneStrategyOverride(r)
+	strategyOverride, err := r.getGlobalCloneStrategyOverride()
 	if err != nil {
 		return nil, err
 	}
@@ -1398,7 +1394,7 @@ func (r *DatavolumeReconciler) getCloneStrategy(dataVolume *cdiv1.DataVolume) (*
 	}
 
 	// do check storageProfile and apply the preferences
-	strategy, err := getPreferredCloneStrategyForStorageClass(r.client, storageClass)
+	strategy, err := r.getPreferredCloneStrategyForStorageClass(storageClass)
 	if err != nil {
 		return nil, err
 	}
@@ -1431,7 +1427,7 @@ func (r *DatavolumeReconciler) findSourcePvc(dataVolume *cdiv1.DataVolume) (*cor
 	return pvc, nil
 }
 
-func getGlobalCloneStrategyOverride(r *DatavolumeReconciler) (*cdiv1.CDICloneStrategy, error) {
+func (r *DatavolumeReconciler) getGlobalCloneStrategyOverride() (*cdiv1.CDICloneStrategy, error) {
 	cr, err := GetActiveCDI(r.client)
 	if err != nil {
 		return nil, err
@@ -2174,14 +2170,14 @@ func getName(storageClass *storagev1.StorageClass) string {
 	return ""
 }
 
-func getPreferredCloneStrategyForStorageClass(c client.Client, storageClass *storagev1.StorageClass) (*cdiv1.CDICloneStrategy, error) {
+func (r *DatavolumeReconciler) getPreferredCloneStrategyForStorageClass(storageClass *storagev1.StorageClass) (*cdiv1.CDICloneStrategy, error) {
 	if storageClass == nil {
 		// fallback to defaults
 		return nil, nil
 	}
 
 	storageProfile := &cdiv1.StorageProfile{}
-	err := c.Get(context.TODO(), types.NamespacedName{Name: storageClass.Name}, storageProfile)
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: storageClass.Name}, storageProfile)
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot get StorageProfile")
 	}

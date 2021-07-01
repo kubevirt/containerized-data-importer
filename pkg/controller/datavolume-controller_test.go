@@ -1169,7 +1169,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Update(context.TODO(), cr)
 			Expect(err).ToNot(HaveOccurred())
 
-			cloneStrategy, err := getGlobalCloneStrategyOverride(reconciler)
+			cloneStrategy, err := reconciler.getGlobalCloneStrategyOverride()
 			Expect(err).ToNot(HaveOccurred())
 			Expect(*cloneStrategy).To(Equal(expectedCloneStrategy))
 		},
