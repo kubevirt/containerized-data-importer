@@ -6,6 +6,7 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/tests",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/apis/core/v1beta1:go_default_library",
         "//tests/framework:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
@@ -82,7 +83,6 @@ go_test(
         "//vendor/k8s.io/apimachinery/pkg/labels:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/runtime/schema:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/types:go_default_library",
-        "//vendor/k8s.io/apimachinery/pkg/util/wait:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes:go_default_library",
         "//vendor/k8s.io/client-go/kubernetes/scheme:go_default_library",
         "//vendor/k8s.io/client-go/tools/clientcmd:go_default_library",
