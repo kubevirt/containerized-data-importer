@@ -359,6 +359,9 @@ const (
 
 	// CloneStrategySnapshot specifies snapshot-based copying
 	CloneStrategySnapshot = "snapshot"
+
+	// CloneStrategyCsiClone specifies csi volume clone based cloning
+	CloneStrategyCsiClone = "csi-clone"
 )
 
 // CDIUninstallStrategy defines the state to leave CDI on uninstall

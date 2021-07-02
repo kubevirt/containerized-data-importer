@@ -652,19 +652,28 @@ func createStorageClass(name string, annotations map[string]string) *storagev1.S
 		},
 	}
 }
+func createStorageProfile(name string,
+	accessModes []v1.PersistentVolumeAccessMode,
+	volumeMode v1.PersistentVolumeMode) *cdiv1.StorageProfile {
+	return createStorageProfileWithCloneStrategy(name, accessModes, volumeMode, nil)
+}
 
-func createStorageProfile(name string, accessModes []v1.PersistentVolumeAccessMode, volumeMode v1.PersistentVolumeMode) *cdiv1.StorageProfile {
+func createStorageProfileWithCloneStrategy(name string,
+	accessModes []v1.PersistentVolumeAccessMode,
+	volumeMode v1.PersistentVolumeMode,
+	cloneStrategy *cdiv1.CDICloneStrategy) *cdiv1.StorageProfile {
+
 	return &cdiv1.StorageProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 		Status: cdiv1.StorageProfileStatus{
 			StorageClass: &name,
-			ClaimPropertySets: []cdiv1.ClaimPropertySet{
-				{
-					AccessModes: accessModes,
-					VolumeMode:  &volumeMode,
-				}},
+			ClaimPropertySets: []cdiv1.ClaimPropertySet{{
+				AccessModes:   accessModes,
+				VolumeMode:    &volumeMode,
+				CloneStrategy: cloneStrategy,
+			}},
 		},
 	}
 }
