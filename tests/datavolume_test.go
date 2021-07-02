@@ -18,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
@@ -1057,6 +1056,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("creating new datavolume %s with annotations", dataVolume.Name))
 			dataVolume.Annotations[controller.AnnPodNetwork] = "net1"
 			dataVolume.Annotations["annot1"] = "value1"
+			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -1084,6 +1084,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("creating new datavolume %s with annotations", dataVolume.Name))
 			dataVolume.Annotations[controller.AnnPodNetwork] = "net1"
 			dataVolume.Annotations["annot1"] = "value1"
+			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -1127,51 +1128,32 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindIfWaitForFirstConsumer(pvc)
 
-			By("Trying to create cloned DV a couple of times until we catch the elusive pods")
+			dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", pvc)
+			Expect(dataVolume).ToNot(BeNil())
+
+			By(fmt.Sprintf("creating new datavolume %s with annotations", dataVolume.Name))
+			dataVolume.Annotations[controller.AnnPodNetwork] = "net1"
+			dataVolume.Annotations["annot1"] = "value1"
+			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("verifying pvc was created")
+			pvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+
 			var sourcePod *v1.Pod
 			var uploadPod *v1.Pod
 			Eventually(func() bool {
-				dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", pvc)
-				Expect(dataVolume).ToNot(BeNil())
-
-				By(fmt.Sprintf("creating new datavolume %s with annotations", dataVolume.Name))
-				dataVolume.Annotations[controller.AnnPodNetwork] = "net1"
-				dataVolume.Annotations["annot1"] = "value1"
-				dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
-				Expect(err).ToNot(HaveOccurred())
-
-				By("verifying pvc was created")
-				pvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-				Expect(err).ToNot(HaveOccurred())
-				f.ForceBindIfWaitForFirstConsumer(pvc)
-
-				By("Trying to catch the pods...")
-				err = wait.PollImmediate(fastPollingInterval, 10*time.Second, func() (bool, error) {
-					sourcePod, err = utils.FindPodBySuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
-					if err != nil {
-						return false, err
-					}
-					uploadPod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
-					if err != nil {
-						return false, err
-					}
-					return true, nil
-				})
-
+				sourcePod, err = utils.FindPodBySuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
 				if err != nil {
-					By("Failed to find pods - cleaning up so we can try again")
-					err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
-					Eventually(func() bool {
-						_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-						if k8serrors.IsNotFound(err) {
-							return true
-						}
-						return false
-					}, timeout, pollingInterval).Should(BeTrue())
-
 					return false
 				}
-
+				uploadPod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
+				if err != nil {
+					return false
+				}
 				return true
 			}, timeout, pollingInterval).Should(BeTrue())
 
@@ -2175,6 +2157,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs))
 			By(fmt.Sprintf("creating new datavolume %s with priority class", dataVolume.Name))
 			dataVolume.Spec.PriorityClassName = "system-cluster-critical"
+			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -2201,6 +2184,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume := utils.NewDataVolumeForUpload(dataVolumeName, "1Gi")
 			By(fmt.Sprintf("creating new datavolume %s with priority class\"", dataVolume.Name))
 			dataVolume.Spec.PriorityClassName = "system-cluster-critical"
+			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -2249,6 +2233,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By(fmt.Sprintf("creating new datavolume %s with priority class", dataVolume.Name))
 			dataVolume.Spec.PriorityClassName = "system-cluster-critical"
+			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -2272,7 +2257,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 						uploadPod, _ = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
 					}
 					return sourcePod != nil && uploadPod != nil
-				}, timeout, fastPollingInterval).Should(BeTrue())
+				}, timeout, pollingInterval).Should(BeTrue())
 				verifyPodAnnotations(sourcePod)
 				verifyPodAnnotations(uploadPod)
 			}
