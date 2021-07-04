@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeclient "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
+	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 
 	cdicorev1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
@@ -180,6 +181,7 @@ func mutateDVs(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthorize
 		}
 		return true, sar, nil
 	})
-	wh := NewDataVolumeMutatingWebhook(client, key)
+	cdiClient := cdiclientfake.NewSimpleClientset()
+	wh := NewDataVolumeMutatingWebhook(client, cdiClient, key)
 	return serve(ar, wh)
 }

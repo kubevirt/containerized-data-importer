@@ -37,11 +37,13 @@ import (
 	"k8s.io/klog/v2"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 )
 
 type dataVolumeValidatingWebhook struct {
-	client kubernetes.Interface
+	k8sClient kubernetes.Interface
+	cdiClient cdiclient.Interface
 }
 
 func validateSourceURL(sourceURL string) string {
@@ -79,7 +81,7 @@ func validateContentTypes(sourcePVC *v1.PersistentVolumeClaim, spec *cdiv1.DataV
 	return sourceContentType == targetContentType, sourceContentType, targetContentType
 }
 
-func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admissionv1.AdmissionRequest, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec) []metav1.StatusCause {
+func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admissionv1.AdmissionRequest, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec, namespace *string) []metav1.StatusCause {
 	var causes []metav1.StatusCause
 	var url string
 	var sourceType string
@@ -150,6 +152,22 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 				return causes
 			}
 		}
+	}
+
+	if (spec.Source == nil && spec.SourceRef == nil) || (spec.Source != nil && spec.SourceRef != nil) {
+		causes = append(causes, metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Data volume should have either Source or SourceRef"),
+			Field:   field.Child("source").String(),
+		})
+		return causes
+	}
+	if spec.SourceRef != nil {
+		cause := wh.validateSourceRef(request, spec, field, namespace)
+		if cause != nil {
+			causes = append(causes, *cause)
+		}
+		return causes
 	}
 
 	numberOfSources := 0
@@ -263,48 +281,88 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 			})
 			return causes
 		}
-
 		if request.Operation == admissionv1.Create {
-			sourcePVC, err := wh.client.CoreV1().PersistentVolumeClaims(spec.Source.PVC.Namespace).Get(context.TODO(), spec.Source.PVC.Name, metav1.GetOptions{})
-			if err != nil {
-				if k8serrors.IsNotFound(err) {
-					causes = append(causes, metav1.StatusCause{
-						Type:    metav1.CauseTypeFieldValueNotFound,
-						Message: fmt.Sprintf("Source PVC %s/%s doesn't exist", spec.Source.PVC.Namespace, spec.Source.PVC.Name),
-						Field:   field.Child("source", "PVC").String(),
-					})
-					return causes
-				}
-			}
-			valid, sourceContentType, targetContentType := validateContentTypes(sourcePVC, spec)
-			if !valid {
-				causes = append(causes, metav1.StatusCause{
-					Type:    metav1.CauseTypeFieldValueInvalid,
-					Message: fmt.Sprintf("Source contentType (%s) and target contentType (%s) do not match", sourceContentType, targetContentType),
-					Field:   field.Child("PVC").String(),
-				})
-				return causes
-			}
-
-			var targetResources v1.ResourceRequirements
-			if spec.PVC != nil {
-				targetResources = spec.PVC.Resources
-			} else {
-				targetResources = spec.Storage.Resources
-			}
-			err = controller.ValidateCloneSize(sourcePVC.Spec.Resources, targetResources)
-			if err != nil {
-				causes = append(causes, metav1.StatusCause{
-					Type:    metav1.CauseTypeFieldValueInvalid,
-					Message: err.Error(),
-					Field:   field.Child("PVC").String(),
-				})
-				return causes
+			cause := wh.validateDataVolumeSourcePVC(spec.Source.PVC, field.Child("source", "PVC"), spec)
+			if cause != nil {
+				causes = append(causes, *cause)
 			}
 		}
 	}
 
 	return causes
+}
+
+func (wh *dataVolumeValidatingWebhook) validateSourceRef(request *admissionv1.AdmissionRequest, spec *cdiv1.DataVolumeSpec, field *k8sfield.Path, namespace *string) *metav1.StatusCause {
+	if spec.SourceRef.Kind == "" {
+		return &metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Missing sourceRef kind"),
+			Field:   field.Child("sourceRef", "Kind").String(),
+		}
+	}
+	if spec.SourceRef.Kind != cdiv1.DataVolumeDataSource {
+		return &metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Unsupported sourceRef kind %s, currently only %s is supported", spec.SourceRef.Kind, cdiv1.DataVolumeDataSource),
+			Field:   field.Child("sourceRef", "Kind").String(),
+		}
+	}
+	if spec.SourceRef.Name == "" {
+		return &metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Missing sourceRef name"),
+			Field:   field.Child("sourceRef", "Name").String(),
+		}
+	}
+	if request.Operation != admissionv1.Create {
+		return nil
+	}
+	ns := namespace
+	if spec.SourceRef.Namespace != nil && *spec.SourceRef.Namespace != "" {
+		ns = spec.SourceRef.Namespace
+	}
+	dataSource, err := wh.cdiClient.CdiV1beta1().DataSources(*ns).Get(context.TODO(), spec.SourceRef.Name, metav1.GetOptions{})
+	if err != nil {
+		return &metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueNotFound,
+			Message: fmt.Sprintf("SourceRef %s/%s/%s doesn't exist, %v", spec.SourceRef.Kind, *ns, spec.SourceRef.Name, err),
+			Field:   field.Child("sourceRef").String(),
+		}
+	}
+	return wh.validateDataVolumeSourcePVC(dataSource.Spec.Source.PVC, field.Child("sourceRef"), spec)
+}
+
+func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.DataVolumeSourcePVC, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec) *metav1.StatusCause {
+	sourcePVC, err := wh.k8sClient.CoreV1().PersistentVolumeClaims(PVC.Namespace).Get(context.TODO(), PVC.Name, metav1.GetOptions{})
+	if err != nil {
+		return &metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueNotFound,
+			Message: fmt.Sprintf("Source PVC %s/%s doesn't exist, %v", PVC.Namespace, PVC.Name, err),
+			Field:   field.String(),
+		}
+	}
+	valid, sourceContentType, targetContentType := validateContentTypes(sourcePVC, spec)
+	if !valid {
+		return &metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Source contentType (%s) and target contentType (%s) do not match", sourceContentType, targetContentType),
+			Field:   field.String(),
+		}
+	}
+	var targetResources v1.ResourceRequirements
+	if spec.PVC != nil {
+		targetResources = spec.PVC.Resources
+	} else {
+		targetResources = spec.Storage.Resources
+	}
+	if err = controller.ValidateCloneSize(sourcePVC.Spec.Resources, targetResources); err != nil {
+		return &metav1.StatusCause{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: err.Error(),
+			Field:   field.String(),
+		}
+	}
+	return nil
 }
 
 func validateStorageSize(resources v1.ResourceRequirements, field *k8sfield.Path, name string) (*metav1.StatusCause, bool) {
@@ -351,7 +409,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 
 		// Always admit checkpoint updates for multi-stage migrations.
 		multiStageAdmitted := false
-		isMultiStage := dv.Spec.Source.VDDK != nil && len(dv.Spec.Checkpoints) > 0
+		isMultiStage := dv.Spec.Source != nil && dv.Spec.Source.VDDK != nil && len(dv.Spec.Checkpoints) > 0
 		if isMultiStage {
 			oldSpec := oldDV.Spec.DeepCopy()
 			oldSpec.FinalCheckpoint = false
@@ -383,7 +441,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 	}
 
 	if ar.Request.Operation == admissionv1.Create {
-		pvc, err := wh.client.CoreV1().PersistentVolumeClaims(dv.GetNamespace()).Get(context.TODO(), dv.GetName(), metav1.GetOptions{})
+		pvc, err := wh.k8sClient.CoreV1().PersistentVolumeClaims(dv.GetNamespace()).Get(context.TODO(), dv.GetName(), metav1.GetOptions{})
 		if err != nil {
 			if !k8serrors.IsNotFound(err) {
 				return toAdmissionResponseError(err)
@@ -411,7 +469,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 		}
 	}
 
-	causes = wh.validateDataVolumeSpec(ar.Request, k8sfield.NewPath("spec"), &dv.Spec)
+	causes = wh.validateDataVolumeSpec(ar.Request, k8sfield.NewPath("spec"), &dv.Spec, &dv.Namespace)
 	if len(causes) > 0 {
 		klog.Infof("rejected DataVolume admission")
 		return toRejectedAdmissionResponse(causes)

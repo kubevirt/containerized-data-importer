@@ -479,12 +479,12 @@ func (app *cdiAPIApp) healthzHandler(req *restful.Request, resp *restful.Respons
 }
 
 func (app *cdiAPIApp) createDataVolumeValidatingWebhook() error {
-	app.container.ServeMux.Handle(dvValidatePath, webhooks.NewDataVolumeValidatingWebhook(app.client))
+	app.container.ServeMux.Handle(dvValidatePath, webhooks.NewDataVolumeValidatingWebhook(app.client, app.cdiClient))
 	return nil
 }
 
 func (app *cdiAPIApp) createDataVolumeMutatingWebhook() error {
-	app.container.ServeMux.Handle(dvMutatePath, webhooks.NewDataVolumeMutatingWebhook(app.client, app.privateSigningKey))
+	app.container.ServeMux.Handle(dvMutatePath, webhooks.NewDataVolumeMutatingWebhook(app.client, app.cdiClient, app.privateSigningKey))
 	return nil
 }
 

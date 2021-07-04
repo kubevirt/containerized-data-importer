@@ -37,6 +37,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeclient "k8s.io/client-go/kubernetes/fake"
+	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 )
@@ -505,7 +506,8 @@ func newPVCSpec(sizeValue int64) *corev1.PersistentVolumeClaimSpec {
 
 func validateDataVolumeCreate(dv *cdiv1.DataVolume, objects ...runtime.Object) *admissionv1.AdmissionResponse {
 	client := fakeclient.NewSimpleClientset(objects...)
-	wh := NewDataVolumeValidatingWebhook(client)
+	cdiClient := cdiclientfake.NewSimpleClientset()
+	wh := NewDataVolumeValidatingWebhook(client, cdiClient)
 
 	dvBytes, _ := json.Marshal(dv)
 	ar := &admissionv1.AdmissionReview{
@@ -527,7 +529,8 @@ func validateDataVolumeCreate(dv *cdiv1.DataVolume, objects ...runtime.Object) *
 
 func validateAdmissionReview(ar *admissionv1.AdmissionReview, objects ...runtime.Object) *admissionv1.AdmissionResponse {
 	client := fakeclient.NewSimpleClientset(objects...)
-	wh := NewDataVolumeValidatingWebhook(client)
+	cdiClient := cdiclientfake.NewSimpleClientset()
+	wh := NewDataVolumeValidatingWebhook(client, cdiClient)
 	return serve(ar, wh)
 }
 
