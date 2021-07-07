@@ -471,7 +471,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 
 	causes = wh.validateDataVolumeSpec(ar.Request, k8sfield.NewPath("spec"), &dv.Spec, &dv.Namespace)
 	if len(causes) > 0 {
-		klog.Infof("rejected DataVolume admission")
+		klog.Infof("rejected DataVolume admission %s", causes)
 		return toRejectedAdmissionResponse(causes)
 	}
 
