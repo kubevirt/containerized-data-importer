@@ -451,6 +451,13 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		r.log.V(1).Info("Pod requires VDDK sidecar for VMware transfer")
 		vddkImageName, err = r.getVddkImageName()
 		if err != nil {
+			anno := pvc.GetAnnotations()
+			anno[AnnBoundCondition] = "false"
+			anno[AnnBoundConditionMessage] = fmt.Sprintf("waiting for %s configmap for VDDK image", common.VddkConfigMap)
+			anno[AnnBoundConditionReason] = common.AwaitingVDDK
+			if updateErr := r.updatePVC(pvc, r.log); updateErr != nil {
+				return updateErr
+			}
 			return err
 		}
 	}

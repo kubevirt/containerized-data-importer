@@ -570,6 +570,51 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()[AnnRunningConditionMessage]).To(Equal("I went poof"))
 		Expect(resPvc.GetAnnotations()[AnnRunningConditionReason]).To(Equal("Explosion"))
 	})
+
+	It("Should mark PVC as waiting for VDDK configmap, if not already present", func() {
+		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "testpod", AnnSource: SourceVDDK}, nil, corev1.ClaimPending)
+		reconciler = createImportReconciler(pvc)
+		err := reconciler.createImporterPod(pvc)
+		By("Checking importer pod creation returned an error")
+		Expect(err).To(HaveOccurred())
+		By("Checking pvc annotations have been updated")
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resPvc.GetAnnotations()[AnnBoundCondition]).To(Equal("false"))
+		Expect(resPvc.GetAnnotations()[AnnBoundConditionMessage]).To(Equal("waiting for v2v-vmware configmap for VDDK image"))
+		Expect(resPvc.GetAnnotations()[AnnBoundConditionReason]).To(Equal(common.AwaitingVDDK))
+
+		By("Checking again after creating configmap")
+		configmap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      common.VddkConfigMap,
+				Namespace: "cdi",
+			},
+			Data: map[string]string{
+				common.VddkConfigDataKey: "test",
+			},
+		}
+		reconciler.client.Create(context.TODO(), configmap)
+		err = reconciler.createImporterPod(pvc)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("Should not mark PVC as waiting for VDDK configmap, if already present", func() {
+		configmap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      common.VddkConfigMap,
+				Namespace: "cdi",
+			},
+			Data: map[string]string{
+				common.VddkConfigDataKey: "test",
+			},
+		}
+		pvc := createPvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{AnnEndpoint: testEndPoint, AnnImportPod: "testpod", AnnSource: SourceVDDK}, nil, corev1.ClaimBound)
+		reconciler = createImportReconciler(configmap, pvc)
+		err := reconciler.createImporterPod(pvc)
+		Expect(err).ToNot(HaveOccurred())
+	})
 })
 
 var _ = Describe("Create Importer Pod", func() {

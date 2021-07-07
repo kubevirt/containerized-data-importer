@@ -137,7 +137,7 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("PVC %s Pending", pvc.Name), pvcPending)
 				conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			} else {
-				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("target PVC %s Pending and %s", pvc.Name, pvcCondition.Message), pvcPending)
+				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("target PVC %s Pending and %s", pvc.Name, pvcCondition.Message), pvcCondition.Reason)
 				conditions = updateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			}
 		case corev1.ClaimLost:
