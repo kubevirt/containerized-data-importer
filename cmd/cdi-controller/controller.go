@@ -176,11 +176,6 @@ func start(ctx context.Context, cfg *rest.Config) {
 		os.Exit(1)
 	}
 
-	if _, err := controller.NewCSICloneController(mgr, log); err != nil {
-		klog.Errorf("Unable to setup csi clone controller: %v", err)
-		os.Exit(1)
-	}
-
 	if _, err := controller.NewUploadController(mgr, log, uploadServerImage, pullPolicy, verbose, uploadServerCertGenerator, uploadClientBundleFetcher); err != nil {
 		klog.Errorf("Unable to setup upload controller: %v", err)
 		os.Exit(1)

@@ -1048,12 +1048,12 @@ var _ = Describe("All DataVolume Tests", func() {
 	})
 
 	var _ = Describe("Smart clone", func() {
-		It("Should not allow smart clone, if no source pvc provided", func() {
+		It("Should err, if no source pvc provided", func() {
 			dv := newImportDataVolume("test-dv")
 			reconciler := createDatavolumeReconciler(dv)
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			possible, err := reconciler.snapshotSmartClonePossible(dv, dv.Spec.PVC)
-			Expect(err).ToNot(HaveOccurred())
+			possible, err := reconciler.advancedClonePossible(dv, dv.Spec.PVC)
+			Expect(err).To(HaveOccurred())
 			Expect(possible).To(BeFalse())
 		})
 
@@ -1077,8 +1077,21 @@ var _ = Describe("All DataVolume Tests", func() {
 			})
 			reconciler := createDatavolumeReconciler(dv, sc)
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			possible, err := reconciler.snapshotSmartClonePossible(dv, dv.Spec.PVC)
+			snapshotClass, err := reconciler.getSnapshotClassForSmartClone(dv, dv.Spec.PVC)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(snapshotClass).To(BeEmpty())
+		})
+
+		It("Should err, if source PVC doesn't exist", func() {
+			dv := newCloneDataVolumeWithPVCNS("test-dv", "ns2")
+			scName := "test"
+			sc := createStorageClass(scName, map[string]string{
+				AnnDefaultStorageClass: "true",
+			})
+			reconciler := createDatavolumeReconciler(dv, sc)
+			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			possible, err := reconciler.advancedClonePossible(dv, dv.Spec.PVC)
+			Expect(err).To(HaveOccurred())
 			Expect(possible).To(BeFalse())
 		})
 
@@ -1087,7 +1100,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc := createPvc("test", metav1.NamespaceDefault, nil, nil)
 			reconciler := createDatavolumeReconciler(dv, pvc)
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			possible, err := reconciler.snapshotSmartClonePossible(dv, dv.Spec.PVC)
+			possible, err := reconciler.advancedClonePossible(dv, dv.Spec.PVC)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(possible).To(BeFalse())
 		})
@@ -1106,7 +1119,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &sourceSc, nil, nil, corev1.ClaimBound)
 			reconciler := createDatavolumeReconciler(ssc, tsc, dv, pvc)
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
-			possible, err := reconciler.snapshotSmartClonePossible(dv, dv.Spec.PVC)
+			possible, err := reconciler.advancedClonePossible(dv, dv.Spec.PVC)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(possible).To(BeFalse())
 		})

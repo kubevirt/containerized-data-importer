@@ -64,6 +64,48 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 			}
 		})
+		It("[test_id:6693]Should clone imported data and retain transfer pods after completion", func() {
+			smartApplicable := f.IsSnapshotStorageClassAvailable()
+			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
+			if err == nil {
+				value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
+				if smartApplicable && ok && strings.Compare(value, "true") == 0 {
+					Skip("Cannot test host assisted cloning for within namespace when all pvcs are smart clone capable.")
+				}
+			}
+
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+			By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
+			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvc)
+			targetDV.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+			By(fmt.Sprintf("Create new target datavolume %s", targetDV.Name))
+			targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
+
+			By("Wait for clone to be completed")
+			_, err = utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			By("Wait for target datavolume phase Succeeded")
+			utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)
+
+			By("Find cloner source pod after completion")
+			cloner, err := utils.FindPodBySuffixOnce(f.K8sClient, targetDataVolume.Namespace, common.ClonerSourcePodNameSuffix, common.CDILabelSelector)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cloner.DeletionTimestamp).To(BeNil())
+
+			By("Find upload pod after completion")
+			uploader, err := utils.FindPodByPrefixOnce(f.K8sClient, targetDataVolume.Namespace, "cdi-upload-", common.CDILabelSelector)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(uploader.DeletionTimestamp).To(BeNil())
+		})
+
 		ClonerBehavior := func(storageClass string, cloneType string) {
 			DescribeTable("[test_id:1354]Should clone data within same namespace", func(targetSize string) {
 				By(storageClass)
@@ -137,48 +179,6 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				By("Wait for target datavolume phase Succeeded")
 				utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, f.Namespace.Name, cdiv1.Succeeded, targetDV.Name, 3*90*time.Second)
-			})
-
-			It("[test_id:6693]Should clone imported data and retain transfer pods after completion", func() {
-				smartApplicable := f.IsSnapshotStorageClassAvailable()
-				sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
-				if err == nil {
-					value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
-					if smartApplicable && ok && strings.Compare(value, "true") == 0 {
-						Skip("Cannot test host assisted cloning for within namespace when all pvcs are smart clone capable.")
-					}
-				}
-
-				dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-				By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
-				dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
-				Expect(err).ToNot(HaveOccurred())
-				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
-
-				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvc)
-				targetDV.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
-				By(fmt.Sprintf("Create new target datavolume %s", targetDV.Name))
-				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
-				Expect(err).ToNot(HaveOccurred())
-				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
-
-				By("Wait for clone to be completed")
-				_, err = utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
-				Expect(err).ToNot(HaveOccurred())
-				By("Wait for target datavolume phase Succeeded")
-				utils.WaitForDataVolumePhaseWithTimeout(f.CdiClient, targetDataVolume.Namespace, cdiv1.Succeeded, targetDV.Name, cloneCompleteTimeout)
-
-				By("Find cloner source pod after completion")
-				cloner, err := utils.FindPodBySuffixOnce(f.K8sClient, targetDataVolume.Namespace, common.ClonerSourcePodNameSuffix, common.CDILabelSelector)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(cloner.DeletionTimestamp).To(BeNil())
-
-				By("Find upload pod after completion")
-				uploader, err := utils.FindPodByPrefixOnce(f.K8sClient, targetDataVolume.Namespace, "cdi-upload-", common.CDILabelSelector)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(uploader.DeletionTimestamp).To(BeNil())
 			})
 
 			DescribeTable("[test_id:1355]Should clone data across different namespaces", func(targetSize string) {
@@ -327,7 +327,7 @@ var _ = Describe("all clone tests", func() {
 				completeClone(f, f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum, "")
 			})
 
-			It("[test_id:cnv-5699]Should clone data from filesystem to block", func() {
+			It("[test_id:cnv-5569]Should clone data from filesystem to block", func() {
 				if !f.IsBlockVolumeStorageClassAvailable() {
 					Skip("Storage Class for block volume is not available")
 				}
@@ -371,7 +371,7 @@ var _ = Describe("all clone tests", func() {
 				err = utils.DeleteVerifierPod(f.K8sClient, f.Namespace.Name)
 				Expect(err).ToNot(HaveOccurred())
 			})
-			It("[test_id:cnv-5970]Should clone data from block to filesystem", func() {
+			It("[test_id:cnv-5570]Should clone data from block to filesystem", func() {
 				if !f.IsBlockVolumeStorageClassAvailable() {
 					Skip("Storage Class for block volume is not available")
 				}
@@ -1535,7 +1535,9 @@ func completeClone(f *framework.Framework, targetNs *v1.Namespace, targetPvc *v1
 	Expect(err).ToNot(HaveOccurred())
 
 	By("Verify the content")
-	Expect(f.VerifyTargetPVCContentMD5(targetNs, targetPvc, filePath, expectedMD5)).To(BeTrue())
+	md5Match, err := f.VerifyTargetPVCContentMD5(targetNs, targetPvc, filePath, expectedMD5)
+	Expect(err).To(BeNil())
+	Expect(md5Match).To(BeTrue())
 
 	if utils.DefaultStorageCSI && sourcePvcDiskGroup != "" {
 		// CSI storage class, it should respect fsGroup
