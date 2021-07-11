@@ -115,6 +115,51 @@ func NewCloningDataVolume(dataVolumeName, size string, sourcePvc *k8sv1.Persiste
 	return NewDataVolumeForImageCloning(dataVolumeName, size, sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
 }
 
+// NewDataVolumeWithSourceRef initializes a DataVolume struct with DataSource SourceRef
+func NewDataVolumeWithSourceRef(dataVolumeName string, size, sourceRefNamespace, sourceRefName string) *cdiv1.DataVolume {
+	claimSpec := &k8sv1.PersistentVolumeClaimSpec{
+		AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
+		Resources: k8sv1.ResourceRequirements{
+			Requests: k8sv1.ResourceList{
+				k8sv1.ResourceStorage: resource.MustParse(size),
+			},
+		},
+	}
+
+	return &cdiv1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        dataVolumeName,
+			Annotations: map[string]string{},
+		},
+		Spec: cdiv1.DataVolumeSpec{
+			SourceRef: &cdiv1.DataVolumeSourceRef{
+				Kind:      cdiv1.DataVolumeDataSource,
+				Namespace: &sourceRefNamespace,
+				Name:      sourceRefName,
+			},
+			PVC: claimSpec,
+		},
+	}
+}
+
+// NewDataSource initializes a DataSource struct with PVC source
+func NewDataSource(dataSourceName, dataSourceNamespace, pvcName, pvcNamespace string) *cdiv1.DataSource {
+	return &cdiv1.DataSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dataSourceName,
+			Namespace: dataSourceNamespace,
+		},
+		Spec: cdiv1.DataSourceSpec{
+			Source: cdiv1.DataSourceSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
+					Name:      pvcName,
+					Namespace: pvcNamespace,
+				},
+			},
+		},
+	}
+}
+
 // NewDataVolumeWithHTTPImport initializes a DataVolume struct with HTTP annotations
 func NewDataVolumeWithHTTPImport(dataVolumeName string, size string, httpURL string) *cdiv1.DataVolume {
 	claimSpec := &k8sv1.PersistentVolumeClaimSpec{
