@@ -35,4 +35,6 @@ Deploy the DataVolume manifest:
 kubectl create -f clone-datavolume.yaml
 ```
 
-Two cloning pods, source and target, will be spawned and the image existed on the source DV/PVC, will be copied to the target DV.
+By default, CDI will attempt the most efficient clone strategy possible.  See [Smart Cloning](smart-clone.md)
+
+For host-assisted cloning, two cloning pods, source and target, will be spawned and the image existed on the source DV/PVC, will be copied to the target DV.

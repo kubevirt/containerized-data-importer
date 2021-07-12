@@ -23,13 +23,14 @@ Here is a description of the flow of the Smart-Cloning:
 
 - DataVolume is created with a PVC source
 - Check if Smart-Cloning is possible:
-  * The source and target PVCs must be in the same namespace
   * The source and target PVCs must be in the same Storage Class
   * There must be a Snapshot Class associated with the Storage Class
 - If Smart-Cloning is possible:
   * Create a snapshot of the source PVC
   * Create a PVC from the created snapshot
   * Delete the snapshot
+  * Expand the new PVC if requested size is larger than the snapshot
+  * If the DataVolume is in a different namespace, "transfer" the PVC to the target namespace via [Namespace Transfer API](namespace-transfer.md)
 - If Smart-Cloning is not possible:
   * Trigger a (slower) host-assisted clone
 
