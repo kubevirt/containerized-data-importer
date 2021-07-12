@@ -108,7 +108,7 @@ var _ = Describe("all clone tests", func() {
 			completeClone(f, f.Namespace, targetPvc, diskImagePath, sourceMD5, sourcePvcDiskGroup)
 		})
 
-		It("[test_id:XXXX]Should clone imported data from SourceRef PVC DataSource", func() {
+		It("[test_id:6784]Should clone imported data from SourceRef PVC DataSource", func() {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 			By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)

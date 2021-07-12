@@ -138,10 +138,10 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				}, timeout, pollingInterval).Should(BeTrue())
 
 			},
-				table.Entry("[test_id:XXXX]fail with empty kind", "", "test", "test-pvc"),
-				table.Entry("[test_id:XXXX]fail with unsupported kind", "no-such-kind", "test", "test-pvc"),
-				table.Entry("[test_id:XXXX]fail with empty sourceRef name", "DataSource", "test", ""),
-				table.Entry("[test_id:XXXX]fail with sourceRef DataSource doesn't exist", "DataSource", "test", "test-pvc"),
+				table.Entry("[test_id:6780]fail with empty kind", "", "test", "test-pvc"),
+				table.Entry("[test_id:6781]fail with unsupported kind", "no-such-kind", "test", "test-pvc"),
+				table.Entry("[test_id:6782]fail with empty sourceRef name", "DataSource", "test", ""),
+				table.Entry("[test_id:6783]fail with sourceRef DataSource doesn't exist", "DataSource", "test", "test-pvc"),
 			)
 
 			table.DescribeTable("with Datavolume PVC size should", func(size string) {
@@ -320,7 +320,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			// k8s < 1.15 return Required value: name or generateName is required, >= 1.15 return error validating data: unknown object type "nil" in DataVolume.metadata
 			table.Entry("[test_id:1857]fail without datavolume name", "manifests/dvNoName.yaml", true, "Required value: name or generateName is required", "error validating data: unknown object type \"nil\" in DataVolume.metadata"),
 			table.Entry("[test_id:1856]fail without meta data", "manifests/dvNoMetaData.yaml", true, "Required value: name or generateName is required"),
-			table.Entry("[test_id:XXXX]fail with both source and sourceRef", "manifests/dvBothSourceAndSourceRef.yaml", true, "Data volume should have either Source or SourceRef"),
+			table.Entry("[test_id:6786]fail with both source and sourceRef", "manifests/dvBothSourceAndSourceRef.yaml", true, "Data volume should have either Source or SourceRef"),
 		)
 
 		It("[test_id:4895][posneg:positive]report progress while importing 1024Mi PVC", func() {
