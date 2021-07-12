@@ -17,7 +17,6 @@
 set -o errexit
 set -o nounset
 set -o pipefail
-
 export GO111MODULE=off
 
 SCRIPT_ROOT="$(cd "$(dirname $0)/../" && pwd -P)"
@@ -71,4 +70,13 @@ openapi-gen --input-dirs k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/api/core/v1
 ${SCRIPT_ROOT}/bin/openapi-spec-generator >${SCRIPT_ROOT}/api/openapi-spec/swagger.json
 
 echo "************* running controller-gen to generate schema yaml ********************"
-controller-gen crd:crdVersions=v1 output:dir=./_out/manifests/schema paths=./pkg/apis/core/...
+controller-gen crd:crdVersions=v1 output:dir=${SCRIPT_ROOT}/_out/manifests/schema paths=./pkg/apis/core/...
+cd ${SCRIPT_ROOT}/_out/manifests/schema
+for file in *.yaml; do
+  tail -n +3 $file >$file"new"
+  mv $file"new" $file
+done
+cd -
+(cd "${SCRIPT_ROOT}/tools/crd-generator/" && go build -o "${SCRIPT_ROOT}/bin/crd-generator" ./...)
+
+${SCRIPT_ROOT}/bin/crd-generator --crdDir=${SCRIPT_ROOT}/_out/manifests/schema/ --outputDir=${SCRIPT_ROOT}/pkg/operator/resources/
