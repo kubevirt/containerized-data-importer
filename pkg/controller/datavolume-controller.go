@@ -347,22 +347,8 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		return reconcile.Result{}, nil
 	}
 
-	// If sourceRef is set, populate spec.Source with data from the DataSource
-	if datavolume.Spec.SourceRef != nil {
-		if datavolume.Spec.SourceRef.Kind != cdiv1.DataVolumeDataSource {
-			return reconcile.Result{}, errors.Errorf("Unsupported sourceRef kind %s, currently only %s is supported", datavolume.Spec.SourceRef.Kind, cdiv1.DataVolumeDataSource)
-		}
-		ns := datavolume.Namespace
-		if datavolume.Spec.SourceRef.Namespace != nil && *datavolume.Spec.SourceRef.Namespace != "" {
-			ns = *datavolume.Spec.SourceRef.Namespace
-		}
-		dataSource := &cdiv1.DataSource{}
-		if err := r.client.Get(context.TODO(), types.NamespacedName{Name: datavolume.Spec.SourceRef.Name, Namespace: ns}, dataSource); err != nil {
-			return reconcile.Result{}, err
-		}
-		datavolume.Spec.Source = &cdiv1.DataVolumeSource{
-			PVC: dataSource.Spec.Source.PVC,
-		}
+	if err := r.populateSourceIfSourceRef(datavolume); err != nil {
+		return reconcile.Result{}, err
 	}
 
 	pvcExists := true
@@ -2082,12 +2068,34 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 	return pvc, nil
 }
 
-// Whenever the controller updates a DV, we must make sure to nil out spec.source when spec.sourceRef is set
-func (r *DatavolumeReconciler) updateDataVolume(dataVolume *cdiv1.DataVolume) error {
-	if dataVolume.Spec.SourceRef != nil {
-		dataVolume.Spec.Source = nil
+// If sourceRef is set, populate spec.Source with data from the DataSource
+func (r *DatavolumeReconciler) populateSourceIfSourceRef(dv *cdiv1.DataVolume) error {
+	if dv.Spec.SourceRef == nil {
+		return nil
 	}
-	return r.client.Update(context.TODO(), dataVolume)
+	if dv.Spec.SourceRef.Kind != cdiv1.DataVolumeDataSource {
+		return errors.Errorf("Unsupported sourceRef kind %s, currently only %s is supported", dv.Spec.SourceRef.Kind, cdiv1.DataVolumeDataSource)
+	}
+	ns := dv.Namespace
+	if dv.Spec.SourceRef.Namespace != nil && *dv.Spec.SourceRef.Namespace != "" {
+		ns = *dv.Spec.SourceRef.Namespace
+	}
+	dataSource := &cdiv1.DataSource{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: dv.Spec.SourceRef.Name, Namespace: ns}, dataSource); err != nil {
+		return err
+	}
+	dv.Spec.Source = &cdiv1.DataVolumeSource{
+		PVC: dataSource.Spec.Source.PVC,
+	}
+	return nil
+}
+
+// Whenever the controller updates a DV, we must make sure to nil out spec.source when spec.sourceRef is set
+func (r *DatavolumeReconciler) updateDataVolume(dv *cdiv1.DataVolume) error {
+	if dv.Spec.SourceRef != nil {
+		dv.Spec.Source = nil
+	}
+	return r.client.Update(context.TODO(), dv)
 }
 
 // RenderPvcSpec creates a new PVC Spec based on either the dv.spec.pvc or dv.spec.storage section

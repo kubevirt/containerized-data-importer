@@ -323,9 +323,15 @@ func (wh *dataVolumeValidatingWebhook) validateSourceRef(request *admissionv1.Ad
 	}
 	dataSource, err := wh.cdiClient.CdiV1beta1().DataSources(*ns).Get(context.TODO(), spec.SourceRef.Name, metav1.GetOptions{})
 	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return &metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueNotFound,
+				Message: fmt.Sprintf("SourceRef %s/%s/%s not found", spec.SourceRef.Kind, *ns, spec.SourceRef.Name),
+				Field:   field.Child("sourceRef").String(),
+			}
+		}
 		return &metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueNotFound,
-			Message: fmt.Sprintf("SourceRef %s/%s/%s doesn't exist, %v", spec.SourceRef.Kind, *ns, spec.SourceRef.Name, err),
+			Message: err.Error(),
 			Field:   field.Child("sourceRef").String(),
 		}
 	}
@@ -335,9 +341,15 @@ func (wh *dataVolumeValidatingWebhook) validateSourceRef(request *admissionv1.Ad
 func (wh *dataVolumeValidatingWebhook) validateDataVolumeSourcePVC(PVC *cdiv1.DataVolumeSourcePVC, field *k8sfield.Path, spec *cdiv1.DataVolumeSpec) *metav1.StatusCause {
 	sourcePVC, err := wh.k8sClient.CoreV1().PersistentVolumeClaims(PVC.Namespace).Get(context.TODO(), PVC.Name, metav1.GetOptions{})
 	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return &metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueNotFound,
+				Message: fmt.Sprintf("Source PVC %s/%s not found", PVC.Namespace, PVC.Name),
+				Field:   field.String(),
+			}
+		}
 		return &metav1.StatusCause{
-			Type:    metav1.CauseTypeFieldValueNotFound,
-			Message: fmt.Sprintf("Source PVC %s/%s doesn't exist, %v", PVC.Namespace, PVC.Name, err),
+			Message: err.Error(),
 			Field:   field.String(),
 		}
 	}
