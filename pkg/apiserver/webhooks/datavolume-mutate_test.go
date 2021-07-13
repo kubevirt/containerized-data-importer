@@ -76,6 +76,71 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			Expect(resp.Patch).To(BeNil())
 		})
 
+		It("should reject a DataVolume with sourceRef to non-existing DataSource", func() {
+			dataVolume := newDataSourceDataVolume("testDV", nil, "test")
+			Expect(dataVolume.Annotations).To(BeNil())
+			dvBytes, _ := json.Marshal(&dataVolume)
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1.SchemeGroupVersion.Group,
+						Version:  cdicorev1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: dvBytes,
+					},
+				},
+			}
+			resp := mutateDVs(key, ar, true)
+			Expect(resp.Allowed).To(BeFalse())
+			Expect(resp.Patch).To(BeNil())
+		})
+
+		It("should allow a DataVolume with sourceRef to existing DataSource", func() {
+			dataVolume := newDataSourceDataVolume("testDV", nil, "test")
+			Expect(dataVolume.Annotations).To(BeNil())
+			dvBytes, _ := json.Marshal(&dataVolume)
+
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1.SchemeGroupVersion.Group,
+						Version:  cdicorev1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: dvBytes,
+					},
+				},
+			}
+
+			dataSource := &cdicorev1.DataSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Spec.SourceRef.Name,
+					Namespace: "default",
+				},
+				Spec: cdicorev1.DataSourceSpec{
+					Source: cdicorev1.DataSourceSource{
+						PVC: &cdicorev1.DataVolumeSourcePVC{
+							Name: "testPVC",
+						},
+					},
+				},
+			}
+
+			resp := mutateDVsEx(key, ar, true, []runtime.Object{dataSource})
+			Expect(resp.Allowed).To(BeTrue())
+			Expect(resp.Patch).ToNot(BeNil())
+
+			var patchObjs []jsonpatch.Operation
+			err := json.Unmarshal(resp.Patch, &patchObjs)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(patchObjs).Should(HaveLen(1))
+			Expect(patchObjs[0].Operation).Should(Equal("add"))
+			Expect(patchObjs[0].Path).Should(Equal("/metadata/annotations"))
+		})
+
 		It("should allow a DataVolume update with token unchanged", func() {
 			dataVolume := newPVCDataVolume("testDV", "testNamespace", "test")
 			Expect(dataVolume.Annotations).To(BeNil())
@@ -167,6 +232,10 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 })
 
 func mutateDVs(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthorized bool) *admissionv1.AdmissionResponse {
+	return mutateDVsEx(key, ar, isAuthorized, nil)
+}
+
+func mutateDVsEx(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthorized bool, cdiObjects []runtime.Object) *admissionv1.AdmissionResponse {
 	client := fakeclient.NewSimpleClientset()
 	client.PrependReactor("create", "subjectaccessreviews", func(action k8stesting.Action) (bool, runtime.Object, error) {
 		if action.GetResource().Resource != "subjectaccessreviews" {
@@ -181,7 +250,7 @@ func mutateDVs(key *rsa.PrivateKey, ar *admissionv1.AdmissionReview, isAuthorize
 		}
 		return true, sar, nil
 	})
-	cdiClient := cdiclientfake.NewSimpleClientset()
+	cdiClient := cdiclientfake.NewSimpleClientset(cdiObjects...)
 	wh := NewDataVolumeMutatingWebhook(client, cdiClient, key)
 	return serve(ar, wh)
 }
