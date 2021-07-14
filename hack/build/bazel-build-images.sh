@@ -27,7 +27,7 @@ docker_tag=$DOCKER_TAG
 for tag in ${docker_tag}; do
     bazel build \
         --verbose_failures \
-        --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64_cgo \
+        --config=${ARCHITECTURE} \
         --define container_prefix=${docker_prefix} \
         --define container_tag=${tag} \
         --host_force_python=PY3 \

@@ -16,6 +16,14 @@ http_archive(
         "https://storage.googleapis.com/builddeps/778197e26c5fbeb07ac2a2c5ae405b30f6cb7ad1f5510ea6fdac03bded96cc6f",
     ],
 )
+load("//third_party:deps.bzl", "deps")
+deps()
+# register crosscompiler toolchains
+load("//bazel/toolchain:toolchain.bzl", "register_all_toolchains")
+
+register_all_toolchains()
+
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 
 http_archive(
     name = "io_bazel_rules_go",
@@ -32,7 +40,7 @@ load("@io_bazel_rules_go//go:deps.bzl", "go_rules_dependencies", "go_register_to
 go_rules_dependencies()
 
 go_register_toolchains(
-    go_version = "1.14.6",
+    go_version = "1.16.1",
 )
 
 http_archive(
@@ -135,6 +143,13 @@ container_pull(
 
 #No need to update this one until we re-enable the cinder lane, as only the lvm pod uses this.
 container_pull(
+    name = "fedora-aarch64",
+    registry = "quay.io",
+    repository = "fedora/fedora",
+    tag = "33-aarch64",
+)
+
+container_pull(
     name = "fedora-docker",
     digest = "sha256:fdf235fa167d2aa5d820fba274ec1d2edeb0534bd32d28d602a19b31bad79b80",
     registry = "index.docker.io",
@@ -159,6 +174,14 @@ http_file(
 )
 
 http_file(
+    name = "qemu-img-aarch64",
+    urls = [
+        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/q/qemu-img-5.1.0-9.fc33.aarch64.rpm",
+    ],
+)
+
+
+http_file(
     name = "nginx",
     sha256 = "e98ab45cb7f616ac99d5dde14d318c0374c060816b02a0d6360a1ac6e6f0c5c4",
     urls = ["https://storage.googleapis.com/builddeps/e98ab45cb7f616ac99d5dde14d318c0374c060816b02a0d6360a1ac6e6f0c5c4"],
@@ -171,15 +194,36 @@ http_file(
 )
 
 http_file(
+    name = "xen-libs-aarch64",
+    urls = [
+        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/x/xen-libs-4.14.2-2.fc33.aarch64.rpm",
+    ],
+)
+
+http_file(
     name = "libaio",
     sha256 = "51ae3b86c7a6fd64ed187574b3a0a7e3a58f533a6db80e3bf44be99f5fd72f50",
     urls = ["https://storage.googleapis.com/builddeps/51ae3b86c7a6fd64ed187574b3a0a7e3a58f533a6db80e3bf44be99f5fd72f50"],
 )
 
 http_file(
+    name = "libaio-aarch64",
+    urls = [
+        "https://mirrors.tuna.tsinghua.edu.cn/fedora/releases/33/Everything/aarch64/os/Packages/l/libaio-0.3.111-10.fc33.aarch64.rpm",
+    ],
+)
+
+http_file(
     name = "capstone",
     sha256 = "1ee04e337c7ba1d8f3d17510b4b86d5a2090f31244a4d9cef3f6f5eb83ec93a9",
     urls = ["https://storage.googleapis.com/builddeps/1ee04e337c7ba1d8f3d17510b4b86d5a2090f31244a4d9cef3f6f5eb83ec93a9"],
+)
+
+http_file(
+    name = "capstone-aarch64",
+    urls = [
+        "https://mirrors.tuna.tsinghua.edu.cn/fedora/releases/33/Everything/aarch64/os/Packages/c/capstone-4.0.2-3.fc33.aarch64.rpm",
+    ],
 )
 
 http_file(
@@ -218,6 +262,14 @@ http_file(
     urls = ["https://storage.googleapis.com/builddeps/26f573cf377eff79893b17a7e3f2ade9984820bcd1776db5fc24bb8b70587349"],
 )
 
+
+http_file(
+    name = "containers-common-aarch64",
+    urls = [
+        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/c/containers-common-1-16.fc33.noarch.rpm",
+    ],
+)
+
 http_file(
     name = "tar",
     sha256 = "871dc18514b9b64bcff6c4c61fd4c1a9f4c1e46cddd6f6934b4ee93662541aca",
@@ -228,6 +280,13 @@ http_file(
     name = "ostree-libs",
     sha256 = "2523f8915b724a14312cd4103faa0e6a213b6dab18a89c7bec6e3c70b0acc66d",
     urls = ["https://storage.googleapis.com/builddeps/2523f8915b724a14312cd4103faa0e6a213b6dab18a89c7bec6e3c70b0acc66d"],
+)
+
+http_file(
+    name = "ostree-libs-aarch64",
+    urls = [
+        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/o/ostree-libs-2021.2-2.fc33.aarch64.rpm",
+    ],
 )
 
 http_file(
@@ -426,6 +485,14 @@ http_file(
     name = "nbdkit-server",
     sha256 = "b22c4949164901295cc84db1d3747fc05b0dc85a9cb0710143005a61919a53de",
     urls = ["https://storage.googleapis.com/builddeps/b22c4949164901295cc84db1d3747fc05b0dc85a9cb0710143005a61919a53de"],
+
+)
+
+http_file(
+    name = "nbdkit-server-aarch64",
+    urls = [
+        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/n/nbdkit-server-1.24.5-1.fc33.aarch64.rpm",
+    ],
 )
 
 http_file(
@@ -433,6 +500,14 @@ http_file(
     sha256 = "51ba4e00f0180ea07b4ed46ca2ded198876bfe67cfe533421cafd0978ed2c7bf",
     urls = ["https://storage.googleapis.com/builddeps/51ba4e00f0180ea07b4ed46ca2ded198876bfe67cfe533421cafd0978ed2c7bf"],
 )
+
+http_file(
+    name = "nbdkit-basic-filters-aarch64",
+    urls = [
+        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/n/nbdkit-basic-filters-1.24.5-1.fc33.aarch64.rpm",
+    ],
+)
+
 
 http_file(
     name = "nbdkit-vddk-plugin",
@@ -447,11 +522,25 @@ http_file(
 )
 
 http_file(
+    name = "nbdkit-xz-filter-aarch64",
+    urls = [
+        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/n/nbdkit-xz-filter-1.24.5-1.fc33.aarch64.rpm",
+    ],
+)
+
+http_file(
     name = "nbdkit-gzip-filter",
     sha256 = "52787fd9aff69599837328b8b8dd76376999e7c5c96bd72669b0c77a1ac31d4f",
     urls = [
         "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/n/nbdkit-gzip-filter-1.22.3-2.fc33.x86_64.rpm",
         "https://storage.googleapis.com/builddeps/52787fd9aff69599837328b8b8dd76376999e7c5c96bd72669b0c77a1ac31d4f",
+    ],
+)
+
+http_file(
+    name = "nbdkit-gzip-filter-aarch64",
+    urls = [
+        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/n/nbdkit-gzip-filter-1.24.5-1.fc33.aarch64.rpm",
     ],
 )
 
@@ -462,9 +551,23 @@ http_file(
 )
 
 http_file(
+    name = "nbdkit-curl-plugin-aarch64",
+    urls = [
+        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/n/nbdkit-curl-plugin-1.24.5-1.fc33.aarch64.rpm",
+    ],
+)
+
+http_file(
     name = "libxcrypt-compat",
     sha256 = "51d74854365a393393b4457e3d92ba103c08671b4c881a8a1d9fcb8a54a4a737",
     urls = ["https://storage.googleapis.com/builddeps/51d74854365a393393b4457e3d92ba103c08671b4c881a8a1d9fcb8a54a4a737"],
+)
+
+http_file(
+    name = "libxcrypt-compat-aarch64",
+    urls = [
+        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/l/libxcrypt-compat-4.4.23-1.fc33.aarch64.rpm",
+    ],
 )
 
 http_file(
@@ -504,7 +607,19 @@ http_file(
 )
 
 http_file(
+    name = "liburing-aarch64",
+    urls = ["https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/l/liburing-0.7-3.fc33.aarch64.rpm"],
+)
+
+http_file(
     name = "libseccomp",
     sha256 = "964e39835b59c76b7eb3f78c460bfc6e7acfb0c40b901775c7e8a7204537f8a7",
     urls = ["https://storage.googleapis.com/builddeps/964e39835b59c76b7eb3f78c460bfc6e7acfb0c40b901775c7e8a7204537f8a7"],
+)
+
+http_file(
+    name = "libnbd-aarch64",
+    urls = [
+        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/l/libnbd-1.6.5-1.fc33.aarch64.rpm",
+    ],
 )

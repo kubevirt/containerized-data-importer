@@ -1,3 +1,5 @@
+// +build amd64
+
 /*
 Copyright 2020 The CDI Authors.
 
