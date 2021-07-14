@@ -30,6 +30,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	"kubevirt.io/containerized-data-importer/pkg/controller"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -59,6 +62,15 @@ func ensureUploadProxyRouteExists(logger logr.Logger, c client.Client, scheme *r
 		return fmt.Errorf("unexpected ConfigMap format, 'ca-bundle.crt' key missing")
 	}
 
+	cr, err := controller.GetActiveCDI(c)
+	if err != nil {
+		return err
+	}
+	if cr == nil {
+		return fmt.Errorf("no active CDI")
+	}
+	installerLabels := util.GetRecommendedInstallerLabelsFromCr(cr)
+
 	desiredRoute := &routev1.Route{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      uploadProxyRouteName,
@@ -82,10 +94,11 @@ func ensureUploadProxyRouteExists(logger logr.Logger, c client.Client, scheme *r
 			},
 		},
 	}
+	util.SetRecommendedLabels(desiredRoute, installerLabels, "cdi-operator")
 
 	currentRoute := &routev1.Route{}
 	key = client.ObjectKey{Namespace: namespace, Name: uploadProxyRouteName}
-	err := c.Get(context.TODO(), key, currentRoute)
+	err = c.Get(context.TODO(), key, currentRoute)
 	if err == nil {
 		if currentRoute.Spec.To.Kind != desiredRoute.Spec.To.Kind ||
 			currentRoute.Spec.To.Name != desiredRoute.Spec.To.Name ||

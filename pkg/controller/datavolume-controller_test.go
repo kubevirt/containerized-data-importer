@@ -88,6 +88,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Name).To(Equal("test-dv"))
+			Expect(pvc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 		})
 
 		It("Should set params on a PVC from import DV.PVC", func() {
@@ -374,7 +375,11 @@ var _ = Describe("All DataVolume Tests", func() {
 			reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
-			By("Verifying that phase is now snapshot in progress")
+			By("Verifying that snapshot now exists and phase is snapshot in progress")
+			snap := &snapshotv1.VolumeSnapshot{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}, snap)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(snap.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 			dv = &cdiv1.DataVolume{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
 			Expect(err).ToNot(HaveOccurred())
@@ -1459,6 +1464,10 @@ func createDatavolumeReconcilerWithoutConfig(objects ...runtime.Object) *Datavol
 		recorder:     rec,
 		extClientSet: extfakeclientset,
 		featureGates: featuregates.NewFeatureGates(cl),
+		installerLabels: map[string]string{
+			common.AppKubernetesPartOfLabel:  "testing",
+			common.AppKubernetesVersionLabel: "v0.0.0-tests",
+		},
 	}
 	return r
 }

@@ -61,10 +61,11 @@ type objectTransferHandler struct {
 
 // ObjectTransferReconciler members
 type ObjectTransferReconciler struct {
-	Client   client.Client
-	Recorder record.EventRecorder
-	Scheme   *runtime.Scheme
-	Log      logr.Logger
+	Client          client.Client
+	Recorder        record.EventRecorder
+	Scheme          *runtime.Scheme
+	Log             logr.Logger
+	InstallerLabels map[string]string
 }
 
 func getTransferTargetName(ot *cdiv1.ObjectTransfer) string {
@@ -84,14 +85,15 @@ func getTransferTargetNamespace(ot *cdiv1.ObjectTransfer) string {
 }
 
 // NewObjectTransferController creates a new instance of the ObjectTransfer controller.
-func NewObjectTransferController(mgr manager.Manager, log logr.Logger) (controller.Controller, error) {
+func NewObjectTransferController(mgr manager.Manager, log logr.Logger, installerLabels map[string]string) (controller.Controller, error) {
 	name := "transfer-controller"
 	client := mgr.GetClient()
 	reconciler := &ObjectTransferReconciler{
-		Client:   client,
-		Scheme:   mgr.GetScheme(),
-		Log:      log.WithName(name),
-		Recorder: mgr.GetEventRecorderFor(name),
+		Client:          client,
+		Scheme:          mgr.GetScheme(),
+		Log:             log.WithName(name),
+		Recorder:        mgr.GetEventRecorderFor(name),
+		InstallerLabels: installerLabels,
 	}
 
 	ctrl, err := controller.New(name, mgr, controller.Options{

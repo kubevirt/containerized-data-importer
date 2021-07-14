@@ -15,6 +15,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -27,9 +28,10 @@ import (
 type StorageProfileReconciler struct {
 	client client.Client
 	// use this for getting any resources not in the install namespace or cluster scope
-	uncachedClient client.Client
-	scheme         *runtime.Scheme
-	log            logr.Logger
+	uncachedClient  client.Client
+	scheme          *runtime.Scheme
+	log             logr.Logger
+	installerLabels map[string]string
 }
 
 // Reconcile the reconcile.Reconciler implementation for the StorageProfileReconciler object.
@@ -138,6 +140,7 @@ func (r *StorageProfileReconciler) reconcileAccessModes(sc *storagev1.StorageCla
 
 func (r *StorageProfileReconciler) createEmptyStorageProfile(sc *storagev1.StorageClass) (*cdiv1.StorageProfile, error) {
 	storageProfile := MakeEmptyStorageProfileSpec(sc.Name)
+	util.SetRecommendedLabels(storageProfile, r.installerLabels, "cdi-controller")
 	// uncachedClient is used to directly get the resource, SetOwnerRuntime requires some cluster-scoped resources
 	// normal/cached client does list resource, a cdi user might not have the rights to list cluster scope resource
 	if err := operator.SetOwnerRuntime(r.uncachedClient, storageProfile); err != nil {
@@ -164,7 +167,7 @@ func MakeEmptyStorageProfileSpec(name string) *cdiv1.StorageProfile {
 }
 
 // NewStorageProfileController creates a new instance of the StorageProfile controller.
-func NewStorageProfileController(mgr manager.Manager, log logr.Logger) (controller.Controller, error) {
+func NewStorageProfileController(mgr manager.Manager, log logr.Logger, installerLabels map[string]string) (controller.Controller, error) {
 	uncachedClient, err := client.New(mgr.GetConfig(), client.Options{
 		Scheme: mgr.GetScheme(),
 		Mapper: mgr.GetRESTMapper(),
@@ -173,10 +176,11 @@ func NewStorageProfileController(mgr manager.Manager, log logr.Logger) (controll
 		return nil, err
 	}
 	reconciler := &StorageProfileReconciler{
-		client:         mgr.GetClient(),
-		uncachedClient: uncachedClient,
-		scheme:         mgr.GetScheme(),
-		log:            log.WithName("storageprofile-controller"),
+		client:          mgr.GetClient(),
+		uncachedClient:  uncachedClient,
+		scheme:          mgr.GetScheme(),
+		log:             log.WithName("storageprofile-controller"),
+		installerLabels: installerLabels,
 	}
 
 	storageProfileController, err := controller.New(

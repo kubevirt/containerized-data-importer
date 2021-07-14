@@ -49,8 +49,9 @@ var (
 	configName             string
 	pullPolicy             string
 	verbose                string
+	installerLabels        map[string]string
 	log                    = logf.Log.WithName("controller")
-	controllerEnvs		   ControllerEnvs
+	controllerEnvs         ControllerEnvs
 )
 
 // ControllerEnvs contains environment variables read for setting custom cert paths
@@ -80,11 +81,21 @@ func init() {
 	clonerImage = getRequiredEnvVar("CLONER_IMAGE")
 	uploadServerImage = getRequiredEnvVar("UPLOADSERVER_IMAGE")
 	uploadProxyServiceName = getRequiredEnvVar("UPLOADPROXY_SERVICE")
+	installerLabels = map[string]string{}
 
 	pullPolicy = common.DefaultPullPolicy
 	if pp := os.Getenv(common.PullPolicy); len(pp) != 0 {
 		pullPolicy = pp
 	}
+
+	// We will need to put those on every resource our controller creates
+	if partOfVal := os.Getenv(common.InstallerPartOfLabel); len(partOfVal) != 0 {
+		installerLabels[common.AppKubernetesPartOfLabel] = partOfVal
+	}
+	if versionVal := os.Getenv(common.InstallerVersionLabel); len(versionVal) != 0 {
+		installerLabels[common.AppKubernetesVersionLabel] = versionVal
+	}
+
 	configName = common.ConfigName
 
 	// NOTE we used to have a constant here and we're now just passing in the level directly
@@ -136,52 +147,52 @@ func start(ctx context.Context, cfg *rest.Config) {
 	crdInformerFactory := crdinformers.NewSharedInformerFactory(extClient, common.DefaultResyncPeriod)
 	crdInformer := crdInformerFactory.Apiextensions().V1().CustomResourceDefinitions().Informer()
 
-	uploadClientCAFetcher := &fetcher.FileCertFetcher{KeyFileName: controllerEnvs.UploadClientKeyFile,CertFileName: controllerEnvs.UploadClientCertFile}
+	uploadClientCAFetcher := &fetcher.FileCertFetcher{KeyFileName: controllerEnvs.UploadClientKeyFile, CertFileName: controllerEnvs.UploadClientCertFile}
 	uploadClientBundleFetcher := &fetcher.ConfigMapCertBundleFetcher{
 		Name:   controllerEnvs.UploadClientCaBundleConfigMap,
 		Client: client.CoreV1().ConfigMaps(namespace),
 	}
 	uploadClientCertGenerator := &generator.FetchCertGenerator{Fetcher: uploadClientCAFetcher}
 
-	uploadServerCAFetcher := &fetcher.FileCertFetcher{KeyFileName: controllerEnvs.UploadServerKeyFile,CertFileName: controllerEnvs.UploadServerCertFile}
+	uploadServerCAFetcher := &fetcher.FileCertFetcher{KeyFileName: controllerEnvs.UploadServerKeyFile, CertFileName: controllerEnvs.UploadServerCertFile}
 	uploadServerBundleFetcher := &fetcher.ConfigMapCertBundleFetcher{
 		Name:   controllerEnvs.UploadServerCaBundleConfigMap,
 		Client: client.CoreV1().ConfigMaps(namespace),
 	}
 	uploadServerCertGenerator := &generator.FetchCertGenerator{Fetcher: uploadServerCAFetcher}
 
-	if _, err := controller.NewConfigController(mgr, log, uploadProxyServiceName, configName); err != nil {
+	if _, err := controller.NewConfigController(mgr, log, uploadProxyServiceName, configName, installerLabels); err != nil {
 		klog.Errorf("Unable to setup config controller: %v", err)
 		os.Exit(1)
 	}
 
-	if _, err := controller.NewStorageProfileController(mgr, log); err != nil {
+	if _, err := controller.NewStorageProfileController(mgr, log, installerLabels); err != nil {
 		klog.Errorf("Unable to setup storage profiles controller: %v", err)
 		os.Exit(1)
 	}
 
 	// TODO: Current DV controller had threadiness 3, should we do the same here, defaults to one thread.
-	if _, err := controller.NewDatavolumeController(mgr, extClient, log, clonerImage, pullPolicy, getAPIServerPublicKey()); err != nil {
+	if _, err := controller.NewDatavolumeController(mgr, extClient, log, clonerImage, pullPolicy, getAPIServerPublicKey(), installerLabels); err != nil {
 		klog.Errorf("Unable to setup datavolume controller: %v", err)
 		os.Exit(1)
 	}
 
-	if _, err := controller.NewImportController(mgr, log, importerImage, pullPolicy, verbose); err != nil {
+	if _, err := controller.NewImportController(mgr, log, importerImage, pullPolicy, verbose, installerLabels); err != nil {
 		klog.Errorf("Unable to setup import controller: %v", err)
 		os.Exit(1)
 	}
 
-	if _, err := controller.NewCloneController(mgr, log, clonerImage, pullPolicy, verbose, uploadClientCertGenerator, uploadServerBundleFetcher, getAPIServerPublicKey()); err != nil {
+	if _, err := controller.NewCloneController(mgr, log, clonerImage, pullPolicy, verbose, uploadClientCertGenerator, uploadServerBundleFetcher, getAPIServerPublicKey(), installerLabels); err != nil {
 		klog.Errorf("Unable to setup clone controller: %v", err)
 		os.Exit(1)
 	}
 
-	if _, err := controller.NewUploadController(mgr, log, uploadServerImage, pullPolicy, verbose, uploadServerCertGenerator, uploadClientBundleFetcher); err != nil {
+	if _, err := controller.NewUploadController(mgr, log, uploadServerImage, pullPolicy, verbose, uploadServerCertGenerator, uploadClientBundleFetcher, installerLabels); err != nil {
 		klog.Errorf("Unable to setup upload controller: %v", err)
 		os.Exit(1)
 	}
 
-	if _, err := transfer.NewObjectTransferController(mgr, log); err != nil {
+	if _, err := transfer.NewObjectTransferController(mgr, log, installerLabels); err != nil {
 		klog.Errorf("Unable to setup transfer controller: %v", err)
 		os.Exit(1)
 	}
@@ -271,7 +282,7 @@ func addCrdInformerEventHandlers(crdInformer cache.SharedIndexInformer, extclien
 func startSmartController(extclient extclientset.Interface, mgr manager.Manager, log logr.Logger) {
 	if controller.IsCsiCrdsDeployed(extclient) {
 		log.Info("CSI CRDs detected, starting smart clone controller")
-		if _, err := controller.NewSmartCloneController(mgr, log); err != nil {
+		if _, err := controller.NewSmartCloneController(mgr, log, installerLabels); err != nil {
 			log.Error(err, "Unable to setup smart clone controller: %v")
 		}
 	}

@@ -298,8 +298,9 @@ func newScratchPersistentVolumeClaimSpec(pvc *v1.PersistentVolumeClaim, pod *v1.
 }
 
 // CreateScratchPersistentVolumeClaim creates and returns a pointer to a scratch PVC which is created based on the passed-in pvc and storage class name.
-func CreateScratchPersistentVolumeClaim(client client.Client, pvc *v1.PersistentVolumeClaim, pod *v1.Pod, name, storageClassName string) (*v1.PersistentVolumeClaim, error) {
+func CreateScratchPersistentVolumeClaim(client client.Client, pvc *v1.PersistentVolumeClaim, pod *v1.Pod, name, storageClassName string, installerLabels map[string]string) (*v1.PersistentVolumeClaim, error) {
 	scratchPvcSpec := newScratchPersistentVolumeClaimSpec(pvc, pod, name, storageClassName)
+	util.SetRecommendedLabels(scratchPvcSpec, installerLabels, "cdi-controller")
 	if err := client.Create(context.TODO(), scratchPvcSpec); err != nil {
 		if !k8serrors.IsAlreadyExists(err) {
 			return nil, errors.Wrap(err, "scratch PVC API create errored")

@@ -52,6 +52,7 @@ type CDIConfigReconciler struct {
 	uploadProxyServiceName string
 	configName             string
 	cdiNamespace           string
+	installerLabels        map[string]string
 }
 
 func isErrCacheNotStarted(err error) bool {
@@ -333,6 +334,7 @@ func (r *CDIConfigReconciler) createCDIConfig() (*cdiv1.CDIConfig, error) {
 			if err := operator.SetOwnerRuntime(r.uncachedClient, config); err != nil {
 				return nil, err
 			}
+			util.SetRecommendedLabels(config, r.installerLabels, "cdi-controller")
 			if err := r.client.Create(context.TODO(), config); err != nil {
 				if errors.IsAlreadyExists(err) {
 					config := &cdiv1.CDIConfig{}
@@ -393,7 +395,9 @@ func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(config *cdiv1.CDIC
 		if certBytes, ok := clusterWideProxyConfigMap.Data[ClusterWideProxyConfigMapKey]; ok {
 			configMap := &v1.ConfigMap{}
 			if err := r.client.Get(context.TODO(), types.NamespacedName{Name: common.ImportProxyConfigMapName, Namespace: r.cdiNamespace}, configMap); errors.IsNotFound(err) {
-				if err := r.client.Create(context.TODO(), r.createProxyConfigMap(certBytes)); err != nil {
+				proxyConfigMap := r.createProxyConfigMap(certBytes)
+				util.SetRecommendedLabels(proxyConfigMap, r.installerLabels, "cdi-controller")
+				if err := r.client.Create(context.TODO(), proxyConfigMap); err != nil {
 					return err
 				}
 				return nil
@@ -425,7 +429,7 @@ func (r *CDIConfigReconciler) Init() error {
 }
 
 // NewConfigController creates a new instance of the config controller.
-func NewConfigController(mgr manager.Manager, log logr.Logger, uploadProxyServiceName, configName string) (controller.Controller, error) {
+func NewConfigController(mgr manager.Manager, log logr.Logger, uploadProxyServiceName, configName string, installerLabels map[string]string) (controller.Controller, error) {
 	uncachedClient, err := client.New(mgr.GetConfig(), client.Options{
 		Scheme: mgr.GetScheme(),
 		Mapper: mgr.GetRESTMapper(),
@@ -441,6 +445,7 @@ func NewConfigController(mgr manager.Manager, log logr.Logger, uploadProxyServic
 		uploadProxyServiceName: uploadProxyServiceName,
 		configName:             configName,
 		cdiNamespace:           util.GetNamespace(),
+		installerLabels:        installerLabels,
 	}
 
 	configController, err := controller.New("config-controller", mgr, controller.Options{

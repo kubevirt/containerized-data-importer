@@ -50,9 +50,9 @@ func getUploadProxyClusterPolicyRules() []rbacv1.PolicyRule {
 }
 
 func createUploadProxyClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
-	return utils.ResourcesBuiler.CreateClusterRoleBinding(uploadProxyResourceName, uploadProxyResourceName, uploadProxyResourceName, namespace)
+	return utils.ResourceBuilder.CreateClusterRoleBinding(uploadProxyResourceName, uploadProxyResourceName, uploadProxyResourceName, namespace)
 }
 
 func createUploadProxyClusterRole() *rbacv1.ClusterRole {
-	return utils.ResourcesBuiler.CreateClusterRole(uploadProxyResourceName, getUploadProxyClusterPolicyRules())
+	return utils.ResourceBuilder.CreateClusterRole(uploadProxyResourceName, getUploadProxyClusterPolicyRules())
 }

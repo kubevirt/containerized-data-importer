@@ -42,7 +42,7 @@ func createUploadProxyResources(args *FactoryArgs) []client.Object {
 }
 
 func createUploadProxyService() *corev1.Service {
-	service := utils.ResourcesBuiler.CreateService(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, nil)
+	service := utils.ResourceBuilder.CreateService(uploadProxyResourceName, cdiLabel, uploadProxyResourceName, nil)
 	service.Spec.Ports = []corev1.ServicePort{
 		{
 			Port: 443,
@@ -57,11 +57,11 @@ func createUploadProxyService() *corev1.Service {
 }
 
 func createUploadProxyServiceAccount() *corev1.ServiceAccount {
-	return utils.ResourcesBuiler.CreateServiceAccount(uploadProxyResourceName)
+	return utils.ResourceBuilder.CreateServiceAccount(uploadProxyResourceName)
 }
 
 func createUploadProxyRoleBinding() *rbacv1.RoleBinding {
-	return utils.ResourcesBuiler.CreateRoleBinding(uploadProxyResourceName, uploadProxyResourceName, uploadProxyResourceName, "")
+	return utils.ResourceBuilder.CreateRoleBinding(uploadProxyResourceName, uploadProxyResourceName, uploadProxyResourceName, "")
 }
 
 func createUploadProxyRole() *rbacv1.Role {
@@ -78,7 +78,7 @@ func createUploadProxyRole() *rbacv1.Role {
 			},
 		},
 	}
-	return utils.ResourcesBuiler.CreateRole(uploadProxyResourceName, rules)
+	return utils.ResourceBuilder.CreateRole(uploadProxyResourceName, rules)
 }
 
 func createUploadProxyDeployment(image, verbosity, pullPolicy string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {

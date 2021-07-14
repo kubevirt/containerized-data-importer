@@ -266,6 +266,7 @@ var _ = Describe("Controller", func() {
 
 				scc, err := getSCC(args.client, scc)
 				Expect(err).ToNot(HaveOccurred())
+				Expect(scc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 
 				for _, eu := range []string{"system:serviceaccount:cdi:cdi-sa"} {
 					found := false
@@ -312,6 +313,7 @@ var _ = Describe("Controller", func() {
 				Expect(route.Spec.To.Kind).Should(Equal("Service"))
 				Expect(route.Spec.To.Name).Should(Equal(uploadProxyServiceName))
 				Expect(route.Spec.TLS.DestinationCACertificate).Should(Equal(testCertData))
+				Expect(route.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 				validateEvents(args.reconciler, createReadyEventValidationMap())
 			})
 
@@ -1186,12 +1188,12 @@ var _ = Describe("Controller", func() {
 				}),
 			Entry("verify - unused service deleted",
 				func() (client.Object, error) {
-					service := utils.ResourcesBuiler.CreateService("fake-cdi-service", "fake-service", "fake", nil)
+					service := utils.ResourceBuilder.CreateService("fake-cdi-service", "fake-service", "fake", nil)
 					return service, nil
 				}),
 			Entry("verify - unused sa deleted",
 				func() (client.Object, error) {
-					sa := utils.ResourcesBuiler.CreateServiceAccount("fake-cdi-sa")
+					sa := utils.ResourceBuilder.CreateServiceAccount("fake-cdi-sa")
 					return sa, nil
 				}),
 
@@ -1249,23 +1251,23 @@ var _ = Describe("Controller", func() {
 
 			Entry("verify - unused role deleted",
 				func() (client.Object, error) {
-					role := utils.ResourcesBuiler.CreateRole("fake-role", nil)
+					role := utils.ResourceBuilder.CreateRole("fake-role", nil)
 					return role, nil
 				}),
 
 			Entry("verify - unused role binding deleted",
 				func() (client.Object, error) {
-					role := utils.ResourcesBuiler.CreateRoleBinding("fake-role", "fake-role", "fake-role", "fake-role")
+					role := utils.ResourceBuilder.CreateRoleBinding("fake-role", "fake-role", "fake-role", "fake-role")
 					return role, nil
 				}),
 			Entry("verify - unused cluster role deleted",
 				func() (client.Object, error) {
-					role := utils.ResourcesBuiler.CreateClusterRole("fake-cluster-role", nil)
+					role := utils.ResourceBuilder.CreateClusterRole("fake-cluster-role", nil)
 					return role, nil
 				}),
 			Entry("verify - unused cluster role binding deleted",
 				func() (client.Object, error) {
-					role := utils.ResourcesBuiler.CreateClusterRoleBinding("fake-cluster-role", "fake-cluster-role", "fake-cluster-role", "fake-cluster-role")
+					role := utils.ResourceBuilder.CreateClusterRoleBinding("fake-cluster-role", "fake-cluster-role", "fake-cluster-role", "fake-cluster-role")
 					return role, nil
 				}),
 		)
@@ -1497,7 +1499,22 @@ func createClient(objs ...client.Object) client.Client {
 }
 
 func createCDI(name, uid string) *cdiv1.CDI {
-	return &cdiv1.CDI{ObjectMeta: metav1.ObjectMeta{Name: name, UID: types.UID(uid)}}
+	return &cdiv1.CDI{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CDI",
+			APIVersion: "cdis.cdi.kubevirt.io",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			UID:  types.UID(uid),
+			Labels: map[string]string{
+				common.AppKubernetesManagedByLabel: "tests",
+				common.AppKubernetesPartOfLabel:    "testing",
+				common.AppKubernetesVersionLabel:   "v0.0.0-tests",
+				common.AppKubernetesComponentLabel: "storage",
+			},
+		},
+	}
 }
 
 func createReconcilerWithVersion(client client.Client, version string) *ReconcileCDI {

@@ -300,6 +300,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		pod := &corev1.Pod{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
 		Expect(err).ToNot(HaveOccurred())
+		Expect(pod.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 		foundEndPoint := false
 		for _, envVar := range pod.Spec.Containers[0].Env {
 			if envVar.Name == common.ImporterEndpoint {
@@ -488,6 +489,7 @@ var _ = Describe("Update PVC from POD", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1-scratch", Namespace: "default"}, scratchPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(scratchPvc.Spec.Resources).To(Equal(pvc.Spec.Resources))
+		Expect(scratchPvc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 
 		resPvc := &corev1.PersistentVolumeClaim{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
@@ -691,7 +693,7 @@ var _ = Describe("Create Importer Pod", func() {
 			filesystemOverhead: "0.055",
 			insecureTLS:        false,
 		}
-		pod, err := createImporterPod(reconciler.log, reconciler.client, testImage, "5", testPullPolicy, podEnvVar, pvc, scratchPvcName, nil, pvc.Annotations[AnnPriorityClassName])
+		pod, err := createImporterPod(reconciler.log, reconciler.client, testImage, "5", testPullPolicy, podEnvVar, pvc, scratchPvcName, nil, pvc.Annotations[AnnPriorityClassName], map[string]string{})
 		Expect(err).ToNot(HaveOccurred())
 		By("Verifying PVC owns pod")
 		Expect(len(pod.GetOwnerReferences())).To(Equal(1))
@@ -938,6 +940,10 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 		log:            importLog,
 		recorder:       rec,
 		featureGates:   featuregates.NewFeatureGates(cl),
+		installerLabels: map[string]string{
+			common.AppKubernetesPartOfLabel:  "testing",
+			common.AppKubernetesVersionLabel: "v0.0.0-tests",
+		},
 	}
 	return r
 }

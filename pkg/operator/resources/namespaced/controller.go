@@ -17,6 +17,8 @@ limitations under the License.
 package namespaced
 
 import (
+	"fmt"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -54,7 +56,7 @@ func createControllerResources(args *FactoryArgs) []client.Object {
 }
 
 func createControllerRoleBinding() *rbacv1.RoleBinding {
-	return utils.ResourcesBuiler.CreateRoleBinding(controllerResourceName, controllerResourceName, common.ControllerServiceAccountName, "")
+	return utils.ResourceBuilder.CreateRoleBinding(controllerResourceName, controllerResourceName, common.ControllerServiceAccountName, "")
 }
 
 func createControllerRole() *rbacv1.Role {
@@ -84,11 +86,11 @@ func createControllerRole() *rbacv1.Role {
 			},
 		},
 	}
-	return utils.ResourcesBuiler.CreateRole(controllerResourceName, rules)
+	return utils.ResourceBuilder.CreateRole(controllerResourceName, rules)
 }
 
 func createControllerServiceAccount() *corev1.ServiceAccount {
-	return utils.ResourcesBuiler.CreateServiceAccount(common.ControllerServiceAccountName)
+	return utils.ResourceBuilder.CreateServiceAccount(common.ControllerServiceAccountName)
 }
 
 func createControllerDeployment(controllerImage, importerImage, clonerImage, uploadServerImage, verbosity, pullPolicy string, infraNodePlacement *sdkapi.NodePlacement) *appsv1.Deployment {
@@ -115,6 +117,22 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 		{
 			Name:  "PULL_POLICY",
 			Value: pullPolicy,
+		},
+		{
+			Name: common.InstallerPartOfLabel,
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: fmt.Sprintf("metadata.labels['%s']", common.AppKubernetesPartOfLabel),
+				},
+			},
+		},
+		{
+			Name: common.InstallerVersionLabel,
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: fmt.Sprintf("metadata.labels['%s']", common.AppKubernetesVersionLabel),
+				},
+			},
 		},
 	}
 	container.ReadinessProbe = &corev1.Probe{
@@ -252,13 +270,13 @@ func createInsecureRegConfigMap() *corev1.ConfigMap {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   common.InsecureRegistryConfigMap,
-			Labels: utils.ResourcesBuiler.WithCommonLabels(nil),
+			Labels: utils.ResourceBuilder.WithCommonLabels(nil),
 		},
 	}
 }
 
 func createPrometheusService() *corev1.Service {
-	service := utils.ResourcesBuiler.CreateService(prometheusServiceName, prometheusLabel, "", nil)
+	service := utils.ResourceBuilder.CreateService(prometheusServiceName, prometheusLabel, "", nil)
 	service.Spec.Ports = []corev1.ServicePort{
 		{
 			Name: "metrics",

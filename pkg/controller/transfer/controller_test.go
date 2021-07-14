@@ -17,6 +17,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/transfer"
 )
 
@@ -68,5 +69,9 @@ func createReconciler(objects ...client.Object) *transfer.ObjectTransferReconcil
 		Scheme:   s,
 		Log:      logf.Log.WithName("transfer-controller-test"),
 		Recorder: record.NewFakeRecorder(10),
+		InstallerLabels: map[string]string{
+			common.AppKubernetesPartOfLabel:  "testing",
+			common.AppKubernetesVersionLabel: "v0.0.0-tests",
+		},
 	}
 }

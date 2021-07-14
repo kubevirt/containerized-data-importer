@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 // Strategy structure for CDI
@@ -152,8 +153,7 @@ func (ins *Strategy) CRDs() []*v1.CustomResourceDefinition {
 	return ins.crds
 }
 
-func newInstallStrategyConfigMap(objects []runtime.Object, reqLogger logr.Logger, namespace string) (*corev1.ConfigMap, error) {
-
+func newInstallStrategyConfigMap(objects []runtime.Object, reqLogger logr.Logger, namespace string, installerLabels map[string]string) (*corev1.ConfigMap, error) {
 	strategy, err := generateCurrentInstallStrategy(objects, reqLogger)
 	if err != nil {
 		return nil, err
@@ -168,12 +168,14 @@ func newInstallStrategyConfigMap(objects []runtime.Object, reqLogger logr.Logger
 			"manifests": string(dumpInstallStrategyToBytes(strategy)),
 		},
 	}
+	util.SetRecommendedLabels(configMap, installerLabels, "cdi-operator")
+
 	return configMap, nil
 }
 
 // DumpInstallStrategyToConfigMap Dumps Install Strategy of CDI to a Config Map
-func DumpInstallStrategyToConfigMap(clientset client.Client, objects []runtime.Object, reqLogger logr.Logger, namespace string) error {
-	configMap, err := newInstallStrategyConfigMap(objects, reqLogger, namespace)
+func DumpInstallStrategyToConfigMap(clientset client.Client, objects []runtime.Object, reqLogger logr.Logger, namespace string, installerLabels map[string]string) error {
+	configMap, err := newInstallStrategyConfigMap(objects, reqLogger, namespace, installerLabels)
 	if err != nil {
 		return err
 	}
