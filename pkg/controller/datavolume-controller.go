@@ -347,6 +347,10 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 		return reconcile.Result{}, nil
 	}
 
+	if err := r.populateSourceIfSourceRef(datavolume); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	pvcExists := true
 	// Get the pvc with the name specified in DataVolume.spec
 	pvc := &corev1.PersistentVolumeClaim{}
@@ -507,46 +511,47 @@ func (r *DatavolumeReconciler) isCSIClonePossible(dataVolume *cdiv1.DataVolume, 
 }
 
 func (r *DatavolumeReconciler) selectCloneStrategy(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec) (cloneStrategy, error) {
+	if datavolume.Spec.Source.PVC == nil {
+		return NoClone, nil
+	}
 
-	if datavolume.Spec.Source.PVC != nil {
-		// The source and target PVCs share the same Storage Class
-		// get this the same way as for getSnapshotClassForSmartClone(datavolume, pvcSpec)
-		preferredCloneStrategy, err := r.getCloneStrategy(datavolume)
+	// The source and target PVCs share the same Storage Class
+	// get this the same way as for getSnapshotClassForSmartClone(datavolume, pvcSpec)
+	preferredCloneStrategy, err := r.getCloneStrategy(datavolume)
+	if err != nil {
+		return NoClone, err
+	}
+
+	bindingMode, err := r.getStorageClassBindingMode(pvcSpec.StorageClassName)
+	if err != nil {
+		return NoClone, err
+	}
+
+	if preferredCloneStrategy != nil && *preferredCloneStrategy == cdiv1.CloneStrategyCsiClone {
+		csiClonePossible, err := r.isCSIClonePossible(datavolume, pvcSpec)
 		if err != nil {
-			return 0, err
+			return NoClone, err
 		}
 
-		bindingMode, err := r.getStorageClassBindingMode(pvcSpec.StorageClassName)
+		if csiClonePossible &&
+			(!isCrossNamespaceClone(datavolume) || *bindingMode == storagev1.VolumeBindingImmediate) {
+			return CsiClone, nil
+		}
+	} else if preferredCloneStrategy != nil && *preferredCloneStrategy == cdiv1.CloneStrategySnapshot {
+		snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
 		if err != nil {
-			return 0, err
+			return NoClone, err
+		}
+		snapshotClassAvailable := snapshotClassName != ""
+
+		snapshotPossible, err := r.snapshotSmartClonePossible(datavolume, pvcSpec)
+		if err != nil {
+			return NoClone, err
 		}
 
-		if preferredCloneStrategy != nil && *preferredCloneStrategy == cdiv1.CloneStrategyCsiClone {
-			csiClonePossible, err := r.isCSIClonePossible(datavolume, pvcSpec)
-			if err != nil {
-				return 0, err
-			}
-
-			if csiClonePossible &&
-				(!isCrossNamespaceClone(datavolume) || *bindingMode == storagev1.VolumeBindingImmediate) {
-				return CsiClone, nil
-			}
-		} else if preferredCloneStrategy != nil && *preferredCloneStrategy == cdiv1.CloneStrategySnapshot {
-			snapshotClassName, err := r.getSnapshotClassForSmartClone(datavolume, pvcSpec)
-			if err != nil {
-				return 0, err
-			}
-			snapshotClassAvailable := snapshotClassName != ""
-
-			snapshotPossible, err := r.snapshotSmartClonePossible(datavolume, pvcSpec)
-			if err != nil {
-				return 0, err
-			}
-
-			if snapshotClassAvailable && snapshotPossible &&
-				(!isCrossNamespaceClone(datavolume) || *bindingMode == storagev1.VolumeBindingImmediate) {
-				return SmartClone, nil
-			}
+		if snapshotClassAvailable && snapshotPossible &&
+			(!isCrossNamespaceClone(datavolume) || *bindingMode == storagev1.VolumeBindingImmediate) {
+			return SmartClone, nil
 		}
 	}
 
@@ -703,7 +708,7 @@ func (r *DatavolumeReconciler) getVddkAnnotations(dataVolume *cdiv1.DataVolume, 
 
 	// only update if something has changed
 	if !reflect.DeepEqual(dataVolume, dataVolumeCopy) {
-		return true, r.client.Update(context.TODO(), dataVolumeCopy)
+		return true, r.updateDataVolume(dataVolumeCopy)
 	}
 	return false, nil
 }
@@ -909,7 +914,7 @@ func (r *DatavolumeReconciler) initTransfer(log logr.Logger, dv *cdiv1.DataVolum
 
 	if !HasFinalizer(dv, crossNamespaceFinalizer) {
 		AddFinalizer(dv, crossNamespaceFinalizer)
-		if err := r.client.Update(context.TODO(), dv); err != nil {
+		if err := r.updateDataVolume(dv); err != nil {
 			return false, err
 		}
 
@@ -1026,7 +1031,7 @@ func (r *DatavolumeReconciler) cleanupTransfer(log logr.Logger, dv *cdiv1.DataVo
 	}
 
 	RemoveFinalizer(dv, crossNamespaceFinalizer)
-	if err := r.client.Update(context.TODO(), dv); dv != nil {
+	if err := r.updateDataVolume(dv); dv != nil {
 		return err
 	}
 
@@ -1485,40 +1490,41 @@ func newSnapshot(dataVolume *cdiv1.DataVolume, snapshotName, snapshotClassName s
 
 func (r *DatavolumeReconciler) updateImportStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *DataVolumeEvent) {
 	phase, ok := pvc.Annotations[AnnPodPhase]
-	if ok {
-		switch phase {
-		case string(corev1.PodPending):
-			// TODO: Use a more generic Scheduled, like maybe TransferScheduled.
-			dataVolumeCopy.Status.Phase = cdiv1.ImportScheduled
+	if !ok {
+		return
+	}
+	switch phase {
+	case string(corev1.PodPending):
+		// TODO: Use a more generic Scheduled, like maybe TransferScheduled.
+		dataVolumeCopy.Status.Phase = cdiv1.ImportScheduled
+		event.eventType = corev1.EventTypeNormal
+		event.reason = ImportScheduled
+		event.message = fmt.Sprintf(MessageImportScheduled, pvc.Name)
+	case string(corev1.PodRunning):
+		// TODO: Use a more generic In Progess, like maybe TransferInProgress.
+		dataVolumeCopy.Status.Phase = cdiv1.ImportInProgress
+		event.eventType = corev1.EventTypeNormal
+		event.reason = ImportInProgress
+		event.message = fmt.Sprintf(MessageImportInProgress, pvc.Name)
+	case string(corev1.PodFailed):
+		dataVolumeCopy.Status.Phase = cdiv1.Failed
+		event.eventType = corev1.EventTypeWarning
+		event.reason = ImportFailed
+		event.message = fmt.Sprintf(MessageImportFailed, pvc.Name)
+	case string(corev1.PodSucceeded):
+		_, ok := pvc.Annotations[AnnCurrentCheckpoint]
+		if ok {
+			// this is a multistage import, set the datavolume status to paused
+			dataVolumeCopy.Status.Phase = cdiv1.Paused
 			event.eventType = corev1.EventTypeNormal
-			event.reason = ImportScheduled
-			event.message = fmt.Sprintf(MessageImportScheduled, pvc.Name)
-		case string(corev1.PodRunning):
-			// TODO: Use a more generic In Progess, like maybe TransferInProgress.
-			dataVolumeCopy.Status.Phase = cdiv1.ImportInProgress
+			event.reason = ImportPaused
+			event.message = fmt.Sprintf(MessageImportPaused, pvc.Name)
+		} else {
+			dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+			dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress("100.0%")
 			event.eventType = corev1.EventTypeNormal
-			event.reason = ImportInProgress
-			event.message = fmt.Sprintf(MessageImportInProgress, pvc.Name)
-		case string(corev1.PodFailed):
-			dataVolumeCopy.Status.Phase = cdiv1.Failed
-			event.eventType = corev1.EventTypeWarning
-			event.reason = ImportFailed
-			event.message = fmt.Sprintf(MessageImportFailed, pvc.Name)
-		case string(corev1.PodSucceeded):
-			_, ok := pvc.Annotations[AnnCurrentCheckpoint]
-			if ok {
-				// this is a multistage import, set the datavolume status to paused
-				dataVolumeCopy.Status.Phase = cdiv1.Paused
-				event.eventType = corev1.EventTypeNormal
-				event.reason = ImportPaused
-				event.message = fmt.Sprintf(MessageImportPaused, pvc.Name)
-			} else {
-				dataVolumeCopy.Status.Phase = cdiv1.Succeeded
-				dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress("100.0%")
-				event.eventType = corev1.EventTypeNormal
-				event.reason = ImportSucceeded
-				event.message = fmt.Sprintf(MessageImportSucceeded, pvc.Name)
-			}
+			event.reason = ImportSucceeded
+			event.message = fmt.Sprintf(MessageImportSucceeded, pvc.Name)
 		}
 	}
 }
@@ -1566,66 +1572,67 @@ func (r *DatavolumeReconciler) updateSmartCloneStatusPhase(phase cdiv1.DataVolum
 
 func (r *DatavolumeReconciler) updateCloneStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *DataVolumeEvent) {
 	phase, ok := pvc.Annotations[AnnPodPhase]
-	if ok {
-		switch phase {
-		case string(corev1.PodPending):
-			// TODO: Use a more generic Scheduled, like maybe TransferScheduled.
-			dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
-			event.eventType = corev1.EventTypeNormal
-			event.reason = CloneScheduled
-			event.message = fmt.Sprintf(MessageCloneScheduled, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
-		case string(corev1.PodRunning):
-			// TODO: Use a more generic In Progess, like maybe TransferInProgress.
-			dataVolumeCopy.Status.Phase = cdiv1.CloneInProgress
-			event.eventType = corev1.EventTypeNormal
-			event.reason = CloneInProgress
-			event.message = fmt.Sprintf(MessageCloneInProgress, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
-		case string(corev1.PodFailed):
-			dataVolumeCopy.Status.Phase = cdiv1.Failed
-			event.eventType = corev1.EventTypeWarning
-			event.reason = CloneFailed
-			event.message = fmt.Sprintf(MessageCloneFailed, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
-		case string(corev1.PodSucceeded):
-			dataVolumeCopy.Status.Phase = cdiv1.Succeeded
-			dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress("100.0%")
-			event.eventType = corev1.EventTypeNormal
-			event.reason = CloneSucceeded
-			event.message = fmt.Sprintf(MessageCloneSucceeded, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
-		}
-
+	if !ok {
+		return
+	}
+	switch phase {
+	case string(corev1.PodPending):
+		// TODO: Use a more generic Scheduled, like maybe TransferScheduled.
+		dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
+		event.eventType = corev1.EventTypeNormal
+		event.reason = CloneScheduled
+		event.message = fmt.Sprintf(MessageCloneScheduled, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
+	case string(corev1.PodRunning):
+		// TODO: Use a more generic In Progess, like maybe TransferInProgress.
+		dataVolumeCopy.Status.Phase = cdiv1.CloneInProgress
+		event.eventType = corev1.EventTypeNormal
+		event.reason = CloneInProgress
+		event.message = fmt.Sprintf(MessageCloneInProgress, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
+	case string(corev1.PodFailed):
+		dataVolumeCopy.Status.Phase = cdiv1.Failed
+		event.eventType = corev1.EventTypeWarning
+		event.reason = CloneFailed
+		event.message = fmt.Sprintf(MessageCloneFailed, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
+	case string(corev1.PodSucceeded):
+		dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+		dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress("100.0%")
+		event.eventType = corev1.EventTypeNormal
+		event.reason = CloneSucceeded
+		event.message = fmt.Sprintf(MessageCloneSucceeded, dataVolumeCopy.Spec.Source.PVC.Namespace, dataVolumeCopy.Spec.Source.PVC.Name, pvc.Namespace, pvc.Name)
 	}
 }
 
 func (r *DatavolumeReconciler) updateUploadStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *DataVolumeEvent) {
 	phase, ok := pvc.Annotations[AnnPodPhase]
-	if ok {
-		switch phase {
-		case string(corev1.PodPending):
-			// TODO: Use a more generic Scheduled, like maybe TransferScheduled.
-			dataVolumeCopy.Status.Phase = cdiv1.UploadScheduled
+	if !ok {
+		return
+	}
+	switch phase {
+	case string(corev1.PodPending):
+		// TODO: Use a more generic Scheduled, like maybe TransferScheduled.
+		dataVolumeCopy.Status.Phase = cdiv1.UploadScheduled
+		event.eventType = corev1.EventTypeNormal
+		event.reason = UploadScheduled
+		event.message = fmt.Sprintf(MessageUploadScheduled, pvc.Name)
+	case string(corev1.PodRunning):
+		running := pvc.Annotations[AnnPodReady]
+		if running == "true" {
+			// TODO: Use a more generic In Progess, like maybe TransferInProgress.
+			dataVolumeCopy.Status.Phase = cdiv1.UploadReady
 			event.eventType = corev1.EventTypeNormal
-			event.reason = UploadScheduled
-			event.message = fmt.Sprintf(MessageUploadScheduled, pvc.Name)
-		case string(corev1.PodRunning):
-			running := pvc.Annotations[AnnPodReady]
-			if running == "true" {
-				// TODO: Use a more generic In Progess, like maybe TransferInProgress.
-				dataVolumeCopy.Status.Phase = cdiv1.UploadReady
-				event.eventType = corev1.EventTypeNormal
-				event.reason = UploadReady
-				event.message = fmt.Sprintf(MessageUploadReady, pvc.Name)
-			}
-		case string(corev1.PodFailed):
-			dataVolumeCopy.Status.Phase = cdiv1.Failed
-			event.eventType = corev1.EventTypeWarning
-			event.reason = UploadFailed
-			event.message = fmt.Sprintf(MessageUploadFailed, pvc.Name)
-		case string(corev1.PodSucceeded):
-			dataVolumeCopy.Status.Phase = cdiv1.Succeeded
-			event.eventType = corev1.EventTypeNormal
-			event.reason = UploadSucceeded
-			event.message = fmt.Sprintf(MessageUploadSucceeded, pvc.Name)
+			event.reason = UploadReady
+			event.message = fmt.Sprintf(MessageUploadReady, pvc.Name)
 		}
+	case string(corev1.PodFailed):
+		dataVolumeCopy.Status.Phase = cdiv1.Failed
+		event.eventType = corev1.EventTypeWarning
+		event.reason = UploadFailed
+		event.message = fmt.Sprintf(MessageUploadFailed, pvc.Name)
+	case string(corev1.PodSucceeded):
+		dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+		event.eventType = corev1.EventTypeNormal
+		event.reason = UploadSucceeded
+		event.message = fmt.Sprintf(MessageUploadSucceeded, pvc.Name)
 	}
 }
 
@@ -1832,7 +1839,7 @@ func (r *DatavolumeReconciler) emitFailureConditionEvent(dataVolume *cdiv1.DataV
 func (r *DatavolumeReconciler) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, curPhase cdiv1.DataVolumePhase, originalCond []cdiv1.DataVolumeCondition, event *DataVolumeEvent) error {
 	// Only update the object if something actually changed in the status.
 	if !reflect.DeepEqual(dataVolume, dataVolumeCopy) {
-		if err := r.client.Update(context.TODO(), dataVolumeCopy); err != nil {
+		if err := r.updateDataVolume(dataVolumeCopy); err != nil {
 			r.log.Error(err, "Unable to update datavolume", "name", dataVolumeCopy.Name)
 			return err
 		}
@@ -2059,6 +2066,36 @@ func (r *DatavolumeReconciler) newPersistentVolumeClaim(dataVolume *cdiv1.DataVo
 	}
 
 	return pvc, nil
+}
+
+// If sourceRef is set, populate spec.Source with data from the DataSource
+func (r *DatavolumeReconciler) populateSourceIfSourceRef(dv *cdiv1.DataVolume) error {
+	if dv.Spec.SourceRef == nil {
+		return nil
+	}
+	if dv.Spec.SourceRef.Kind != cdiv1.DataVolumeDataSource {
+		return errors.Errorf("Unsupported sourceRef kind %s, currently only %s is supported", dv.Spec.SourceRef.Kind, cdiv1.DataVolumeDataSource)
+	}
+	ns := dv.Namespace
+	if dv.Spec.SourceRef.Namespace != nil && *dv.Spec.SourceRef.Namespace != "" {
+		ns = *dv.Spec.SourceRef.Namespace
+	}
+	dataSource := &cdiv1.DataSource{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: dv.Spec.SourceRef.Name, Namespace: ns}, dataSource); err != nil {
+		return err
+	}
+	dv.Spec.Source = &cdiv1.DataVolumeSource{
+		PVC: dataSource.Spec.Source.PVC,
+	}
+	return nil
+}
+
+// Whenever the controller updates a DV, we must make sure to nil out spec.source when spec.sourceRef is set
+func (r *DatavolumeReconciler) updateDataVolume(dv *cdiv1.DataVolume) error {
+	if dv.Spec.SourceRef != nil {
+		dv.Spec.Source = nil
+	}
+	return r.client.Update(context.TODO(), dv)
 }
 
 // RenderPvcSpec creates a new PVC Spec based on either the dv.spec.pvc or dv.spec.storage section

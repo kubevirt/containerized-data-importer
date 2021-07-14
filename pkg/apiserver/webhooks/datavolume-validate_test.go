@@ -37,8 +37,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeclient "k8s.io/client-go/kubernetes/fake"
+	cdiclientfake "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/fake"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+)
+
+var (
+	testNamespace  = "testNamespace"
+	emptyNamespace = ""
 )
 
 var _ = Describe("Validating Webhook", func() {
@@ -354,6 +360,86 @@ var _ = Describe("Validating Webhook", func() {
 			Entry("reject a spec change on un-approved fields, even with identical non-empty multi-stage fields", false, []string{"stage-1"}, false, []string{"stage-1"}, func(newDV *cdiv1.DataVolume) { newDV.Spec.Source.VDDK.URL = "tesing123" }, false),
 		)
 	})
+
+	Context("with DataVolume (using sourceRef) admission review", func() {
+		DescribeTable("should", func(dataSourceNamespace *string) {
+			pvcName := "testPVC"
+			dataVolume := newDataSourceDataVolume("testDV", dataSourceNamespace, "test")
+			dataVolume.Namespace = testNamespace
+			dataSource := &cdiv1.DataSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Spec.SourceRef.Name,
+					Namespace: testNamespace,
+				},
+				Spec: cdiv1.DataSourceSpec{
+					Source: cdiv1.DataSourceSource{
+						PVC: &cdiv1.DataVolumeSourcePVC{
+							Name:      pvcName,
+							Namespace: testNamespace,
+						},
+					},
+				},
+			}
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      pvcName,
+					Namespace: testNamespace,
+				},
+				Spec: *newPVCSpec(pvcSizeDefault),
+			}
+			resp := validateDataVolumeCreateEx(dataVolume, []runtime.Object{pvc}, []runtime.Object{dataSource})
+			Expect(resp.Allowed).To(Equal(true))
+		},
+			Entry("accept DataVolume with PVC and sourceRef on create", &testNamespace),
+			Entry("accept DataVolume with PVC and sourceRef nil namespace on create", nil),
+			Entry("accept DataVolume with PVC and sourceRef missing namespace on create", &emptyNamespace),
+		)
+
+		It("should reject DataVolume with SourceRef on create if DataSource does not exist", func() {
+			ns := "testNamespace"
+			dataVolume := newDataSourceDataVolume("testDV", &ns, "test")
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with SourceRef on create if DataSource exists but PVC does not exist", func() {
+			dataVolume := newDataSourceDataVolume("testDV", &testNamespace, "test")
+			dataSource := &cdiv1.DataSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolume.Spec.SourceRef.Name,
+					Namespace: testNamespace,
+				},
+				Spec: cdiv1.DataSourceSpec{
+					Source: cdiv1.DataSourceSource{
+						PVC: &cdiv1.DataVolumeSourcePVC{
+							Name:      "testPVC",
+							Namespace: testNamespace,
+						},
+					},
+				},
+			}
+			resp := validateDataVolumeCreateEx(dataVolume, nil, []runtime.Object{dataSource})
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with empty SourceRef name on create", func() {
+			dataVolume := newDataSourceDataVolume("testDV", &testNamespace, "")
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with both source and sourceRef on create", func() {
+			dataVolume := newDataVolumeWithBothSourceAndSourceRef("testDV", "testNamespace", "test")
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+
+		It("should reject DataVolume with no source or sourceRef on create", func() {
+			dataVolume := newDataVolumeWithNoSourceOrSourceRef("testDV")
+			resp := validateDataVolumeCreate(dataVolume)
+			Expect(resp.Allowed).To(Equal(false))
+		})
+	})
 })
 
 func newMultistageDataVolume(name string, final bool, checkpoints []string) *cdiv1.DataVolume {
@@ -454,7 +540,6 @@ func newDataVolumeWithMultipleSources(name string) *cdiv1.DataVolume {
 }
 
 func newDataVolumeWithPVCSizeZero(name, url string) *cdiv1.DataVolume {
-
 	httpSource := cdiv1.DataVolumeSource{
 		HTTP: &cdiv1.DataVolumeSourceHTTP{URL: url},
 	}
@@ -463,7 +548,42 @@ func newDataVolumeWithPVCSizeZero(name, url string) *cdiv1.DataVolume {
 	return newDataVolume(name, httpSource, pvc)
 }
 
+func newDataSourceDataVolume(name string, sourceRefNamespace *string, sourceRefName string) *cdiv1.DataVolume {
+	sourceRef := cdiv1.DataVolumeSourceRef{
+		Kind:      cdiv1.DataVolumeDataSource,
+		Namespace: sourceRefNamespace,
+		Name:      sourceRefName,
+	}
+	pvc := newPVCSpec(pvcSizeDefault)
+	return newDataVolumeWithSourceRef(name, nil, &sourceRef, pvc)
+}
+
+func newDataVolumeWithBothSourceAndSourceRef(name string, pvcNamespace string, pvcName string) *cdiv1.DataVolume {
+	pvcSource := cdiv1.DataVolumeSource{
+		PVC: &cdiv1.DataVolumeSourcePVC{
+			Namespace: pvcNamespace,
+			Name:      pvcName,
+		},
+	}
+	sourceRef := cdiv1.DataVolumeSourceRef{
+		Kind:      cdiv1.DataVolumeDataSource,
+		Namespace: &pvcNamespace,
+		Name:      pvcName,
+	}
+	pvc := newPVCSpec(pvcSizeDefault)
+	return newDataVolumeWithSourceRef(name, &pvcSource, &sourceRef, pvc)
+}
+
+func newDataVolumeWithNoSourceOrSourceRef(name string) *cdiv1.DataVolume {
+	pvc := newPVCSpec(pvcSizeDefault)
+	return newDataVolumeWithSourceRef(name, nil, nil, pvc)
+}
+
 func newDataVolume(name string, source cdiv1.DataVolumeSource, pvc *corev1.PersistentVolumeClaimSpec) *cdiv1.DataVolume {
+	return newDataVolumeWithSourceRef(name, &source, nil, pvc)
+}
+
+func newDataVolumeWithSourceRef(name string, source *cdiv1.DataVolumeSource, sourceRef *cdiv1.DataVolumeSourceRef, pvc *corev1.PersistentVolumeClaimSpec) *cdiv1.DataVolume {
 	namespace := k8sv1.NamespaceDefault
 	dv := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
@@ -477,13 +597,12 @@ func newDataVolume(name string, source cdiv1.DataVolumeSource, pvc *corev1.Persi
 		},
 		Status: cdiv1.DataVolumeStatus{},
 		Spec: cdiv1.DataVolumeSpec{
-			Source: &source,
-			PVC:    pvc,
+			Source:    source,
+			SourceRef: sourceRef,
+			PVC:       pvc,
 		},
 	}
-
 	return dv
-
 }
 
 const pvcSizeDefault = 5 << 20 // 5Mi
@@ -504,8 +623,13 @@ func newPVCSpec(sizeValue int64) *corev1.PersistentVolumeClaimSpec {
 }
 
 func validateDataVolumeCreate(dv *cdiv1.DataVolume, objects ...runtime.Object) *admissionv1.AdmissionResponse {
-	client := fakeclient.NewSimpleClientset(objects...)
-	wh := NewDataVolumeValidatingWebhook(client)
+	return validateDataVolumeCreateEx(dv, objects, nil)
+}
+
+func validateDataVolumeCreateEx(dv *cdiv1.DataVolume, k8sObjects, cdiObjects []runtime.Object) *admissionv1.AdmissionResponse {
+	client := fakeclient.NewSimpleClientset(k8sObjects...)
+	cdiClient := cdiclientfake.NewSimpleClientset(cdiObjects...)
+	wh := NewDataVolumeValidatingWebhook(client, cdiClient)
 
 	dvBytes, _ := json.Marshal(dv)
 	ar := &admissionv1.AdmissionReview{
@@ -527,7 +651,8 @@ func validateDataVolumeCreate(dv *cdiv1.DataVolume, objects ...runtime.Object) *
 
 func validateAdmissionReview(ar *admissionv1.AdmissionReview, objects ...runtime.Object) *admissionv1.AdmissionResponse {
 	client := fakeclient.NewSimpleClientset(objects...)
-	wh := NewDataVolumeValidatingWebhook(client)
+	cdiClient := cdiclientfake.NewSimpleClientset()
+	wh := NewDataVolumeValidatingWebhook(client, cdiClient)
 	return serve(ar, wh)
 }
 

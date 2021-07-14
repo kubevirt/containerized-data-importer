@@ -51,14 +51,14 @@ type admissionHandler struct {
 }
 
 // NewDataVolumeValidatingWebhook creates a new DataVolumeValidation webhook
-func NewDataVolumeValidatingWebhook(client kubernetes.Interface) http.Handler {
-	return newAdmissionHandler(&dataVolumeValidatingWebhook{client: client})
+func NewDataVolumeValidatingWebhook(k8sClient kubernetes.Interface, cdiClient cdiclient.Interface) http.Handler {
+	return newAdmissionHandler(&dataVolumeValidatingWebhook{k8sClient: k8sClient, cdiClient: cdiClient})
 }
 
 // NewDataVolumeMutatingWebhook creates a new DataVolumeMutation webhook
-func NewDataVolumeMutatingWebhook(client kubernetes.Interface, key *rsa.PrivateKey) http.Handler {
+func NewDataVolumeMutatingWebhook(k8sClient kubernetes.Interface, cdiClient cdiclient.Interface, key *rsa.PrivateKey) http.Handler {
 	generator := newCloneTokenGenerator(key)
-	return newAdmissionHandler(&dataVolumeMutatingWebhook{client: client, tokenGenerator: generator, proxy: &sarProxy{client: client}})
+	return newAdmissionHandler(&dataVolumeMutatingWebhook{k8sClient: k8sClient, cdiClient: cdiClient, tokenGenerator: generator, proxy: &sarProxy{client: k8sClient}})
 }
 
 // NewCDIValidatingWebhook creates a new CDI validating webhook

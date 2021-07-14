@@ -113,6 +113,37 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				table.Entry("[test_id:3928]fail with empty VDDK source thumbprint", "vddk", validURL, "secret", "uuid", "backingfile", ""),
 			)
 
+			table.DescribeTable("with DataVolume sourceRef validation should", func(kind, namespace, name string) {
+				By("Reading yaml file from: " + datavolumeTestFile)
+				err := yamlFiletoStruct(datavolumeTestFile, &dv)
+				Expect(err).ToNot(HaveOccurred())
+
+				delete(dv["spec"].(map[string]interface{}), "source")
+				dv["spec"].(map[string]interface{})["sourceRef"] = map[string]interface{}{
+					"kind":      kind,
+					"namespace": &namespace,
+					"name":      name}
+
+				err = structToYamlFile(destinationFile, dv)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verifying kubectl create")
+				Eventually(func() bool {
+					out, err := RunKubectlCommand(f, "create", "-f", destinationFile, "-n", f.Namespace.Name)
+					By("out: " + out)
+					if err != nil {
+						return true
+					}
+					return false
+				}, timeout, pollingInterval).Should(BeTrue())
+
+			},
+				table.Entry("[test_id:6780]fail with empty kind", "", "test", "test-pvc"),
+				table.Entry("[test_id:6781]fail with unsupported kind", "no-such-kind", "test", "test-pvc"),
+				table.Entry("[test_id:6782]fail with empty sourceRef name", "DataSource", "test", ""),
+				table.Entry("[test_id:6783]fail with sourceRef DataSource doesn't exist", "DataSource", "test", "test-pvc"),
+			)
+
 			table.DescribeTable("with Datavolume PVC size should", func(size string) {
 
 				By("Reading yaml file from: " + datavolumeTestFile)
@@ -267,8 +298,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 		},
 			table.Entry("[test_id:1760]fail with blank image source and contentType archive", "manifests/dvBlankArchive.yaml", true, "SourceType cannot be blank and the contentType be archive"),
 			table.Entry("[test_id:1761]fail with invalid contentType", "manifests/dvInvalidContentType.yaml", true, "ContentType not one of: kubevirt, archive", "Unsupported value: \"invalid\": supported values: \"kubevirt\", \"archive\""),
-			//FIXME: Data volume source is now optional, so test should be added for missing both source and sourceRef
-			//table.Entry("[test_id:1762]fail with missing source", "manifests/dvMissingSource.yaml", true, "Missing Data volume source", "spec.source in body must be of type object", "missing required field \"source\" in io.kubevirt.cdi.v1beta1.DataVolume.spec"),
+			table.Entry("[test_id:1762]fail with missing both source and sourceRef", "manifests/dvMissingSource.yaml", true, "Data volume should have either Source or SourceRef", "spec.source in body must be of type object", "spec.sourceRef in body must be of type object"),
 			table.Entry("[test_id:1763]fail with multiple sources", "manifests/dvMultiSource.yaml", true, "Multiple Data volume sources"),
 			table.Entry("[test_id:1764]fail with invalid URL for http source", "manifests/dvInvalidURL.yaml", true, "spec.source Invalid source URL"),
 			table.Entry("[test_id:1765]fail with invalid source PVC", "manifests/dvInvalidSourcePVC.yaml", true, "spec.source.pvc.name in body is required", "spec.source.pvc.name: Required value", "missing required field \"name\" in io.kubevirt.cdi.v1beta1.DataVolume.spec.source.pvc"),
@@ -284,13 +314,13 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 			table.Entry("[test_id:1923]fail with missing storage size", "manifests/dvMissingRequestSpec.yaml", true, "PVC size is missing", "spec.pvc.resources in body must be of type object"),
 			table.Entry("[test_id:1915]fail with invalid access modes", "manifests/dvInvalidAccessModes.yaml", true, "supported values: \"ReadOnlyMany\", \"ReadWriteMany\", \"ReadWriteOnce\""),
 			table.Entry("[test_id:3922]fail with multiple access modes", "manifests/dvMultipleAccessModes.yaml", true, "PVC multiple accessModes"),
-			//FIXME: Data volume source is now optional, so test should be added for missing both source and sourceRef
-			//table.Entry("[test_id:1861]fail with missing source (but source key)", "manifests/dvMissingSource2.yaml", true, "Missing Data volume source", "missing required field \"source\" in io.kubevirt.cdi.v1beta1.DataVolume.spec", "invalid: spec.source: Required value"),
+			table.Entry("[test_id:1861]fail with missing both source and sourceRef (but having both keys)", "manifests/dvMissingSource2.yaml", true, "Data volume should have either Source or SourceRef"),
 			table.Entry("[test_id:1860]fail with missing http url key", "manifests/dvMissingSourceHttp.yaml", true, "Missing Data volume source", "spec.source.http in body must be of type object"),
 			table.Entry("[test_id:1858]fail with missing datavolume spec", "manifests/dvMissingCompleteSpec.yaml", true, "Missing Data volume source", "missing required field \"spec\" in io.kubevirt.cdi.v1beta1.DataVolume", " invalid: spec: Required value"),
 			// k8s < 1.15 return Required value: name or generateName is required, >= 1.15 return error validating data: unknown object type "nil" in DataVolume.metadata
 			table.Entry("[test_id:1857]fail without datavolume name", "manifests/dvNoName.yaml", true, "Required value: name or generateName is required", "error validating data: unknown object type \"nil\" in DataVolume.metadata"),
 			table.Entry("[test_id:1856]fail without meta data", "manifests/dvNoMetaData.yaml", true, "Required value: name or generateName is required"),
+			table.Entry("[test_id:6786]fail with both source and sourceRef", "manifests/dvBothSourceAndSourceRef.yaml", true, "Data volume should have either Source or SourceRef"),
 		)
 
 		It("[test_id:4895][posneg:positive]report progress while importing 1024Mi PVC", func() {

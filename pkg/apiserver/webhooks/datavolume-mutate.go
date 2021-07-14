@@ -31,13 +31,15 @@ import (
 	"k8s.io/klog/v2"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/clone"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 )
 
 type dataVolumeMutatingWebhook struct {
-	client         kubernetes.Interface
+	k8sClient      kubernetes.Interface
+	cdiClient      cdiclient.Interface
 	tokenGenerator token.Generator
 	proxy          clone.SubjectAccessReviewsProxy
 }
@@ -60,6 +62,7 @@ func (p *sarProxy) Create(sar *authv1.SubjectAccessReview) (*authv1.SubjectAcces
 
 func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 	var dataVolume, oldDataVolume cdiv1.DataVolume
+	var pvcSource *cdiv1.DataVolumeSourcePVC
 
 	klog.V(3).Infof("Got AdmissionReview %+v", ar)
 
@@ -71,7 +74,20 @@ func (wh *dataVolumeMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admi
 		return toAdmissionResponseError(err)
 	}
 
-	pvcSource := dataVolume.Spec.Source.PVC
+	if dataVolume.Spec.Source != nil {
+		pvcSource = dataVolume.Spec.Source.PVC
+	} else if dataVolume.Spec.SourceRef != nil && dataVolume.Spec.SourceRef.Kind == cdiv1.DataVolumeDataSource {
+		ns := dataVolume.Namespace
+		if dataVolume.Spec.SourceRef.Namespace != nil && *dataVolume.Spec.SourceRef.Namespace != "" {
+			ns = *dataVolume.Spec.SourceRef.Namespace
+		}
+		dataSource, err := wh.cdiClient.CdiV1beta1().DataSources(ns).Get(context.TODO(), dataVolume.Spec.SourceRef.Name, metav1.GetOptions{})
+		if err != nil {
+			return toAdmissionResponseError(err)
+		}
+		pvcSource = dataSource.Spec.Source.PVC
+	}
+
 	targetNamespace, targetName := dataVolume.Namespace, dataVolume.Name
 	if targetNamespace == "" {
 		targetNamespace = ar.Request.Namespace
