@@ -502,6 +502,10 @@ type DataImportCronSource struct {
 
 // DataImportCronStatus provides the most recently observed status of the DataImportCron
 type DataImportCronStatus struct {
+	// CurrentImportDataVolumeName is the current import DataVolume
+	CurrentImportDataVolumeName string `json:"currentImportDataVolumeName,omitempty"`
+	// CurrentImportDigest is the digest of the currently imported image
+	CurrentImportDigest string `json:"currentImportDigest,omitempty"`
 	// LastImportedPVC is the last imported PVC
 	LastImportedPVC *DataVolumeSourcePVC `json:"lastImportedPVC,omitempty"`
 	// LastExecutionTimestamp is the time of the last polling

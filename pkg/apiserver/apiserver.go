@@ -67,6 +67,8 @@ const (
 
 	objectTransferValidatePath = "/objecttransfer-validate"
 
+	dataImportCronValidatePath = "/dataimportcron-validate"
+
 	healthzPath = "/healthz"
 )
 
@@ -180,6 +182,11 @@ func NewCdiAPIServer(bindAddress string,
 	err = app.createObjectTransferValidatingWebhook()
 	if err != nil {
 		return nil, errors.Errorf("failed to create ObjectTransfer validating webhook: %s", err)
+	}
+
+	err = app.createDataImportCronValidatingWebhook()
+	if err != nil {
+		return nil, errors.Errorf("failed to create DataImportCron validating webhook: %s", err)
 	}
 
 	return app, nil
@@ -499,5 +506,9 @@ func (app *cdiAPIApp) createCDIValidatingWebhook() error {
 
 func (app *cdiAPIApp) createObjectTransferValidatingWebhook() error {
 	app.container.ServeMux.Handle(objectTransferValidatePath, webhooks.NewObjectTransferValidatingWebhook(app.client, app.cdiClient))
+	return nil
+}
+func (app *cdiAPIApp) createDataImportCronValidatingWebhook() error {
+	app.container.ServeMux.Handle(dataImportCronValidatePath, webhooks.NewDataImportCronValidatingWebhook(app.client, app.cdiClient))
 	return nil
 }
