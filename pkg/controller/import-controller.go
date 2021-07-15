@@ -1078,7 +1078,7 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: podEnvVar.secretName,
 					},
-					Key: common.KeyAccess,
+					Key:      common.KeyAccess,
 					Optional: &ignoreNonexistentKey,
 				},
 			},
@@ -1089,7 +1089,7 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: podEnvVar.secretName,
 					},
-					Key: common.KeySecret,
+					Key:      common.KeySecret,
 					Optional: &ignoreNonexistentKey,
 				},
 			},
@@ -1100,7 +1100,7 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: podEnvVar.secretName,
 					},
-					Key: common.KeyServiceAccount,
+					Key:      common.KeyServiceAccount,
 					Optional: &ignoreNonexistentKey,
 				},
 			},

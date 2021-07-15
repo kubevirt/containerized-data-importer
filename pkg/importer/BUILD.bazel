@@ -57,6 +57,7 @@ go_test(
     srcs = [
         "data-processor_test.go",
         "format-readers_test.go",
+        "gcs-datasource_test.go",
         "http-datasource_test.go",
         "imageio-datasource_test.go",
         "importer_suite_test.go",
@@ -77,6 +78,7 @@ go_test(
         "//pkg/util/cert/triple:go_default_library",
         "//tests/reporters:go_default_library",
         "//tests/utils:go_default_library",
+        "//vendor/cloud.google.com/go/storage:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/service/s3:go_default_library",
         "//vendor/github.com/mrnold/go-libnbd:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",

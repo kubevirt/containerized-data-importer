@@ -3,6 +3,7 @@ package importer
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"path/filepath"
 
@@ -14,40 +15,33 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
+// GCSDataSource is the data provider for Google Cloud Storage endpoint.
+// Sequence of phases:
+// 1. Info -> Transfer
+// 2. Transfer -> Convert
 type GCSDataSource struct {
 	// GCS endpoint
 	ep *url.URL
 	// Stack of readers
 	readers *FormatReaders
 	// Reader
-	gcsReader *storage.Reader
+	gcsReader io.ReadCloser
 	// The image file in scratch space
 	url *url.URL
 }
 
-func NewGCSDataSource(endpoint string, saKey string) (*GCSDataSource, error) {
+var newGCSReader = getGCSReader
+
+// NewGCSDataSource creates a new instance of the GCS data provider
+func NewGCSDataSource(endpoint, saKey string) (*GCSDataSource, error) {
 	ep, err := ParseEndpoint(endpoint)
 	if err != nil {
 		return nil, errors.Wrapf(err, fmt.Sprintf("unable to parse endpoint %q", endpoint))
 	}
 
-	var client *storage.Client
-	ctx := context.Background()
-	if len(saKey) > 0 {
-		client, err = storage.NewClient(ctx, option.WithCredentialsJSON([]byte(saKey)))
-	} else {
-		client, err = storage.NewClient(ctx)
-	}
+	reader, err := newGCSReader(ep, saKey)
 	if err != nil {
-		return nil, errors.Wrapf(err, fmt.Sprintf("unable to create GCS client: %v", err))
-	}
-
-	bucket := ep.Host
-	object := ep.Path[1:]
-	reader, err := client.Bucket(bucket).Object(object).NewReader(ctx)
-	if err != nil {
-		return nil, errors.Wrapf(
-			err, fmt.Sprintf("unable to create reader for bucket %s and object %s: %v", bucket, object, err))
+		return nil, errors.Wrapf(err, fmt.Sprintf("unable to create reader"))
 	}
 
 	return &GCSDataSource{
@@ -98,7 +92,7 @@ func (gd *GCSDataSource) TransferFile(fileName string) (ProcessingPhase, error) 
 	return ProcessingPhaseResize, nil
 }
 
-// Geturl returns the url that the data processor can use when converting the data.
+// GetURL returns the url that the data processor can use when converting the data.
 func (gd *GCSDataSource) GetURL() *url.URL {
 	return gd.url
 }
@@ -110,4 +104,28 @@ func (gd *GCSDataSource) Close() error {
 		err = gd.readers.Close()
 	}
 	return err
+}
+
+func getGCSReader(endpoint *url.URL, saKey string) (*storage.Reader, error) {
+	var client *storage.Client
+	var err error
+
+	ctx := context.Background()
+	if len(saKey) > 0 {
+		client, err = storage.NewClient(ctx, option.WithCredentialsJSON([]byte(saKey)))
+	} else {
+		client, err = storage.NewClient(ctx)
+	}
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("unable to create GCS client: %v", err))
+	}
+
+	bucket := endpoint.Host
+	object := endpoint.Path[1:]
+	reader, err := client.Bucket(bucket).Object(object).NewReader(ctx)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("unable to create reader for object %s/%s: %v", bucket, object, err))
+	}
+
+	return reader, err
 }
