@@ -175,8 +175,9 @@ http_file(
 
 http_file(
     name = "qemu-img-aarch64",
+    sha256="715523961ee6c0b1617b067ae3e0e0f5a9818626f69dd29d11b66d3cfd37cfad"
     urls = [
-        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/q/qemu-img-5.1.0-9.fc33.aarch64.rpm",
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/q/qemu-img-5.1.0-9.fc33.aarch64.rpm",
     ],
 )
 
@@ -195,8 +196,9 @@ http_file(
 
 http_file(
     name = "xen-libs-aarch64",
+    sha256="cda623f50ec363b1dc8a27ac969973198d6853ec373dc5d26dcdf14978c0415e"
     urls = [
-        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/x/xen-libs-4.14.2-2.fc33.aarch64.rpm",
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/x/xen-libs-4.14.2-2.fc33.aarch64.rpm",
     ],
 )
 
@@ -208,8 +210,9 @@ http_file(
 
 http_file(
     name = "libaio-aarch64",
+    sha256="a2f2ee3465c4495e1b4f10c9dad5dacc9e9679cc8d1153cf8155066ae56303db"
     urls = [
-        "https://mirrors.tuna.tsinghua.edu.cn/fedora/releases/33/Everything/aarch64/os/Packages/l/libaio-0.3.111-10.fc33.aarch64.rpm",
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/l/libaio-0.3.111-10.fc33.aarch64.rpm",
     ],
 )
 
@@ -221,8 +224,9 @@ http_file(
 
 http_file(
     name = "capstone-aarch64",
+    sha256="89b37a5cbc4bd0ae3b36ab3887edaa8b4ecb7db5f7f02d461f4ced10f17e311d"
     urls = [
-        "https://mirrors.tuna.tsinghua.edu.cn/fedora/releases/33/Everything/aarch64/os/Packages/c/capstone-4.0.2-3.fc33.aarch64.rpm",
+        "http://download.fedoraproject.org/pub/fedora/linux/releases/33/Everything/aarch64/os/Packages/c/capstone-4.0.2-3.fc33.aarch64.rpm",
     ],
 )
 
@@ -265,8 +269,9 @@ http_file(
 
 http_file(
     name = "containers-common-aarch64",
+    sha256="2a230e8c2059536ef3377f0094a53db609513187623a4b1d69b9265d4b044bb6"
     urls = [
-        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/c/containers-common-1-16.fc33.noarch.rpm",
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/c/containers-common-1-16.fc33.noarch.rpm",
     ],
 )
 
@@ -284,8 +289,9 @@ http_file(
 
 http_file(
     name = "ostree-libs-aarch64",
+    sha256="86fbe688a50d119d73af6cd1b70707aa35046e907485eb9020409293c426813a"
     urls = [
-        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/o/ostree-libs-2021.2-2.fc33.aarch64.rpm",
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/o/ostree-libs-2021.2-2.fc33.aarch64.rpm",
     ],
 )
 
@@ -490,8 +496,9 @@ http_file(
 
 http_file(
     name = "nbdkit-server-aarch64",
+    sha256="28d0872b0aa914859e479c75ecb3fb3061c7c1701495ec5f3bd166f2c6309204"
     urls = [
-        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/n/nbdkit-server-1.24.5-1.fc33.aarch64.rpm",
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/n/nbdkit-server-1.24.5-1.fc33.aarch64.rpm",
     ],
 )
 
@@ -503,11 +510,11 @@ http_file(
 
 http_file(
     name = "nbdkit-basic-filters-aarch64",
+    sha256="21a40e61d1966509fc6a7575c5af36b6ec31cf44106f674121a1e9996399694b"
     urls = [
-        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/n/nbdkit-basic-filters-1.24.5-1.fc33.aarch64.rpm",
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/n/nbdkit-basic-filters-1.24.5-1.fc33.aarch64.rpm",
     ],
 )
-
 
 http_file(
     name = "nbdkit-vddk-plugin",
@@ -523,8 +530,9 @@ http_file(
 
 http_file(
     name = "nbdkit-xz-filter-aarch64",
+    sha256="132b5f5185754d18bb45135f3ec2803aa7ad1c5273b9a34c371986796b753825"
     urls = [
-        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/n/nbdkit-xz-filter-1.24.5-1.fc33.aarch64.rpm",
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/n/nbdkit-xz-filter-1.24.5-1.fc33.aarch64.rpm",
     ],
 )
 
@@ -539,8 +547,9 @@ http_file(
 
 http_file(
     name = "nbdkit-gzip-filter-aarch64",
+    sha256="63461edfa15ee1d3861a46202fa1494bbd2ff0e9e83b9d5359df369adc59214b"
     urls = [
-        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/n/nbdkit-gzip-filter-1.24.5-1.fc33.aarch64.rpm",
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/n/nbdkit-gzip-filter-1.24.5-1.fc33.aarch64.rpm",
     ],
 )
 
@@ -552,8 +561,9 @@ http_file(
 
 http_file(
     name = "nbdkit-curl-plugin-aarch64",
+    sha256="63461edfa15ee1d3861a46202fa1494bbd2ff0e9e83b9d5359df369adc59214b"
     urls = [
-        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/n/nbdkit-curl-plugin-1.24.5-1.fc33.aarch64.rpm",
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/n/nbdkit-gzip-filter-1.24.5-1.fc33.aarch64.rpm",
     ],
 )
 
@@ -565,8 +575,9 @@ http_file(
 
 http_file(
     name = "libxcrypt-compat-aarch64",
+    sha256="f36cfd27003bcfc6f5fba9b99414402397f4b57fd503e84514a06d794f313346"
     urls = [
-        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/l/libxcrypt-compat-4.4.23-1.fc33.aarch64.rpm",
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/l/libxcrypt-compat-4.4.23-1.fc33.aarch64.rpm",
     ],
 )
 
@@ -608,7 +619,10 @@ http_file(
 
 http_file(
     name = "liburing-aarch64",
-    urls = ["https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/l/liburing-0.7-3.fc33.aarch64.rpm"],
+    sha256="253d0c1dc3180f44766c298ae4cd3426ec7a60a41ea0dc50d0884928b031c1b7"
+    urls = [
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/l/liburing-0.7-3.fc33.aarch64.rpm",
+    ],
 )
 
 http_file(
@@ -619,7 +633,8 @@ http_file(
 
 http_file(
     name = "libnbd-aarch64",
+    sha256="0e24ffdcda4efc7445834c86d29d7416426bafa9073259cc31bcb1f03fb5eaeb"
     urls = [
-        "https://mirrors.tuna.tsinghua.edu.cn/fedora/updates/33/Everything/aarch64/Packages/l/libnbd-1.6.5-1.fc33.aarch64.rpm",
+        "http://download.fedoraproject.org/pub/fedora/linux/updates/33/Everything/aarch64/Packages/l/libnbd-1.6.5-1.fc33.aarch64.rpm",
     ],
 )
