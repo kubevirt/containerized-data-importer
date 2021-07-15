@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "clone-controller.go",
         "config-controller.go",
+        "dataimportcron-controller.go",
         "datavolume-conditions.go",
         "datavolume-controller.go",
         "import-controller.go",
@@ -34,6 +35,7 @@ go_library(
         "//vendor/github.com/openshift/api/config/v1:go_default_library",
         "//vendor/github.com/openshift/api/route/v1:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
+        "//vendor/github.com/robfig/cron:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
         "//vendor/k8s.io/api/networking/v1:go_default_library",
         "//vendor/k8s.io/api/storage/v1:go_default_library",
@@ -71,6 +73,7 @@ go_test(
         "clone-controller_test.go",
         "config-controller_test.go",
         "controller_suite_test.go",
+        "dataimportcron-controller_test.go",
         "datavolume-conditions_test.go",
         "datavolume-controller_test.go",
         "import-controller_test.go",
