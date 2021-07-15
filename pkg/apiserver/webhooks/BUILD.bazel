@@ -4,6 +4,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "cdi-validate.go",
+        "dataimportcron-validate.go",
         "datavolume-mutate.go",
         "datavolume-validate.go",
         "handler.go",

@@ -252,10 +252,12 @@ func (DataImportCronSource) SwaggerDoc() map[string]string {
 
 func (DataImportCronStatus) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                       "DataImportCronStatus provides the most recently observed status of the DataImportCron",
-		"lastImportedPVC":        "LastImportedPVC is the last imported PVC",
-		"lastExecutionTimestamp": "LastExecutionTimestamp is the time of the last polling",
-		"lastImportTimestamp":    "LastImportTimestamp is the time of the last import",
+		"":                            "DataImportCronStatus provides the most recently observed status of the DataImportCron",
+		"currentImportDataVolumeName": "CurrentImportDataVolumeName is the current import DataVolume",
+		"currentImportDigest":         "CurrentImportDigest is the digest of the currently imported image",
+		"lastImportedPVC":             "LastImportedPVC is the last imported PVC",
+		"lastExecutionTimestamp":      "LastExecutionTimestamp is the time of the last polling",
+		"lastImportTimestamp":         "LastImportTimestamp is the time of the last import",
 	}
 }
 

@@ -15041,6 +15041,20 @@ func schema_pkg_apis_core_v1beta1_DataImportCronStatus(ref common.ReferenceCallb
 				Description: "DataImportCronStatus provides the most recently observed status of the DataImportCron",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"currentImportDataVolumeName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CurrentImportDataVolumeName is the current import DataVolume",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"currentImportDigest": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CurrentImportDigest is the digest of the currently imported image",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"lastImportedPVC": {
 						SchemaProps: spec.SchemaProps{
 							Description: "LastImportedPVC is the last imported PVC",
