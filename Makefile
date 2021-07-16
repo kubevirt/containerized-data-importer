@@ -124,7 +124,7 @@ bazel-generate:
 	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-generate.sh -- pkg/ tools/ tests/ cmd/ vendor/"
 
 bazel-cdi-generate:
-	${DO_BAZ} "./hack/build/bazel-generate.sh -- pkg/ tools/ tests/ cmd/"
+	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-generate.sh -- pkg/ tools/ tests/ cmd/"
 
 bazel-build:
 	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-build.sh"
