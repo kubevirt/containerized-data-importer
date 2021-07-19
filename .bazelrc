@@ -19,9 +19,3 @@ run:crossbuild-aarch64  --incompatible_enable_cc_toolchain_resolution --platform
 test:crossbuild-aarch64 --platforms=@io_bazel_rules_go//go/toolchain:linux_arm64_cgo --host_javabase=@local_jdk//:jdk
 
 build --define gotags=selinux
-
-# let our unit tests produce our own junit reports
-test --action_env=GO_TEST_WRAP=0
-
-test --test_tag_filters=-cov
-coverage --test_tag_filters=-nocov
