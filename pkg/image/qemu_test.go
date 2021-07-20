@@ -218,7 +218,7 @@ var _ = Describe("Validate", func() {
 		table.Entry("should return error", mockExecFunction("explosion", "exit 1", expectedLimits), "explosion, exit 1", imageName, 0.0),
 		table.Entry("should return error on bad json", mockExecFunction(badValidateJSON, "", expectedLimits), "unexpected end of JSON input", imageName, 0.0),
 		table.Entry("should return error on bad format", mockExecFunction(badFormatValidateJSON, "", expectedLimits), fmt.Sprintf("Invalid format raw2 for image %s", imageName), imageName, 0.0),
-		table.Entry("should return error on invalid backing file", mockExecFunction(backingFileValidateJSON, "", expectedLimits), fmt.Sprintf("Image %s is invalid because it has backing file backing-file.qcow2", imageName), imageName, 0.0),
+		table.Entry("should return error on invalid backing file", mockExecFunction(backingFileValidateJSON, "", expectedLimits), fmt.Sprintf("Image %s is invalid because it has invalid backing file backing-file.qcow2", imageName), imageName, 0.0),
 		table.Entry("should return error when PVC is too small", mockExecFunction(hugeValidateJSON, "", expectedLimits), fmt.Sprintf("Virtual image size %d is larger than available size %d (PVC size %d, reserved overhead %f%%). A larger PVC is required.", 52949672960, 42949672960, 52949672960, 0.0), imageName, 0.0),
 		table.Entry("should return error when PVC is too small with overhead", mockExecFunction(hugeValidateJSON, "", expectedLimits), fmt.Sprintf("Virtual image size %d is larger than available size %d (PVC size %d, reserved overhead %f%%). A larger PVC is required.", 52949672960, 34359738368, 52949672960, 0.2), imageName, 0.2),
 	)
@@ -375,6 +375,24 @@ var _ = Describe("Try different preallocation modes", func() {
 
 		Expect(err).To(HaveOccurred())
 		Expect(calledCount).To(Equal(1))
+	})
+})
+
+var _ = Describe("Rebase and commit", func() {
+	It("Should successfully rebase image", func() {
+		replaceExecFunction(mockExecFunctionStrict("", "", nil, "rebase", "-p", "-u", "-F", "raw", "-b", "backing-file", "delta"), func() {
+			o := NewQEMUOperations()
+			err := o.Rebase("backing-file", "delta")
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	It("Should successfully commit image to base", func() {
+		replaceExecFunction(mockExecFunctionStrict("", "", nil, "commit", "-p", "delta"), func() {
+			o := NewQEMUOperations()
+			err := o.Commit("delta")
+			Expect(err).NotTo(HaveOccurred())
+		})
 	})
 })
 

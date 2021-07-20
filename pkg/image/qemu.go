@@ -63,6 +63,8 @@ type QEMUOperations interface {
 	Info(url *url.URL) (*ImgInfo, error)
 	Validate(*url.URL, int64, float64) error
 	CreateBlankImage(string, resource.Quantity, bool) error
+	Rebase(backingFile string, delta string) error
+	Commit(image string) error
 }
 
 type qemuOperations struct{}
@@ -216,7 +218,9 @@ func checkIfURLIsValid(info *ImgInfo, availableSize int64, filesystemOverhead fl
 	}
 
 	if len(info.BackingFile) > 0 {
-		return errors.Errorf("Image %s is invalid because it has backing file %s", image, info.BackingFile)
+		if _, err := os.Stat(info.BackingFile); err != nil {
+			return errors.Errorf("Image %s is invalid because it has invalid backing file %s", image, info.BackingFile)
+		}
 	}
 
 	if int64(float64(availableSize)*(1-filesystemOverhead)) < info.VirtualSize {
@@ -318,5 +322,22 @@ func addPreallocation(args []string, preallocationMethods [][]string, qemuFn fun
 		}
 	}
 
+	return err
+}
+
+// Rebase changes a QCOW's backing file to point to a previously-downloaded base image.
+// Depends on original image having been downloaded as raw.
+func (o *qemuOperations) Rebase(backingFile string, delta string) error {
+	klog.V(1).Infof("Rebasing %s onto %s", delta, backingFile)
+	args := []string{"rebase", "-p", "-u", "-F", "raw", "-b", backingFile, delta}
+	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", args...)
+	return err
+}
+
+// Commit takes the changes written to a QCOW and applies them to its raw backing file.
+func (o *qemuOperations) Commit(image string) error {
+	klog.V(1).Infof("Committing %s to backing file...", image)
+	args := []string{"commit", "-p", image}
+	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", args...)
 	return err
 }
