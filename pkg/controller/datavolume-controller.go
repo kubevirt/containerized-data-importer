@@ -1897,7 +1897,7 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 		url := fmt.Sprintf("https://%s:%d/metrics", pod.Status.PodIP, port)
 		resp, err := httpClient.Get(url)
 		if err != nil {
-			if common.ErrConnectionRefused(err) {
+			if errConnectionRefused(err) {
 				return nil
 			}
 			return err
@@ -1919,6 +1919,10 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 		return nil
 	}
 	return err
+}
+
+func errConnectionRefused(err error) bool {
+	return strings.Contains(err.Error(), "connection refused")
 }
 
 func getPodMetricsPort(pod *corev1.Pod) (int, error) {

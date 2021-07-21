@@ -192,7 +192,7 @@ var _ = Describe("Upload server tests", func() {
 		})
 	})
 
-	It("healthz fails without the uploadserver", func() {
+	It("healthz", func() {
 		req, err := http.NewRequest("GET", healthzPath, nil)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -203,7 +203,7 @@ var _ = Describe("Upload server tests", func() {
 		server.Handler.ServeHTTP(rr, req)
 
 		status := rr.Code
-		Expect(status).To(Equal(http.StatusInternalServerError))
+		Expect(status).To(Equal(http.StatusOK))
 
 	})
 

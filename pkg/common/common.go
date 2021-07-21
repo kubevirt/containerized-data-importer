@@ -1,7 +1,6 @@
 package common
 
 import (
-	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -232,9 +231,4 @@ var SyncUploadFormPaths = []string{
 var AsyncUploadFormPaths = []string{
 	UploadFormAsync,
 	"/v1alpha1/upload-form-async",
-}
-
-// ErrConnectionRefused checks whether the error is "connection refused"
-func ErrConnectionRefused(err error) bool {
-	return strings.Contains(err.Error(), "connection refused")
 }
