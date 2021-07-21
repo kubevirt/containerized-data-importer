@@ -3,24 +3,45 @@ load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
 
 rpm_image(
     name = "cdi-importer-base-image",
-    base = "@fedora//image",
-    rpms = [
-        "@liburing//file",
-        "@libnbd//file",
-        "@libxcrypt-compat//file",
-        "@nbdkit-server//file",
-        "@nbdkit-basic-filters//file",
-        "@nbdkit-vddk-plugin//file",
-        "@nbdkit-curl-plugin//file",
-        "@nbdkit-xz-filter//file",
-        "@nbdkit-gzip-filter//file",
-        "@qemu-img//file",
-        "@xen-libs//file",
-        "@libaio//file",
-        "@capstone//file",
-        "@ostree-libs//file",
-        "@containers-common//file",
-    ],
+    base = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
+        "//conditions:default": "@fedora//image",
+    }),
+    rpms = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            "@liburing-aarch64//file",
+            "@libnbd-aarch64//file",
+            "@libxcrypt-compat-aarch64//file",
+            "@nbdkit-server-aarch64//file",
+            "@nbdkit-basic-filters//file",
+            "@nbdkit-curl-plugin//file",
+            "@nbdkit-xz-filter//file",
+            "@nbdkit-gzip-filter//file",
+            "@qemu-img-aarch64//file",
+            "@xen-libs-aarch64//file",
+            "@libaio-aarch64//file",
+            "@capstone-aarch64//file",
+            "@ostree-libs-aarch64//file",
+            "@containers-common-aarch64//file",
+        ],
+        "//conditions:default": [
+            "@liburing//file",
+            "@libnbd//file",
+            "@libxcrypt-compat//file",
+            "@nbdkit-server//file",
+            "@nbdkit-basic-filters//file",
+            "@nbdkit-vddk-plugin//file",
+            "@nbdkit-curl-plugin//file",
+            "@nbdkit-xz-filter//file",
+            "@nbdkit-gzip-filter//file",
+            "@qemu-img//file",
+            "@xen-libs//file",
+            "@libaio//file",
+            "@capstone//file",
+            "@ostree-libs//file",
+            "@containers-common//file",
+        ],
+    }),
 )
 
 go_library(
@@ -56,6 +77,10 @@ load(
 
 container_image(
     name = "cdi-importer-image",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
     base = ":cdi-importer-base-image",
     directory = "/usr/bin",
     entrypoint = [

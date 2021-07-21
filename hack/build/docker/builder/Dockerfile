@@ -43,7 +43,7 @@ RUN pip3 install --upgrade j2cli operator-courier==2.1.11 && \
     ln -s /opt/gradle/gradle-6.6/bin/gradle /usr/local/bin/gradle && \
     rm gradle-6.6-bin.zip
 
-ENV GIMME_GO_VERSION=1.14.6 GOPATH="/go" KUBEBUILDER_VERSION="2.3.2" ARCH="amd64" GO111MODULE="on"
+ENV GIMME_GO_VERSION=1.16.1 GOPATH="/go" KUBEBUILDER_VERSION="2.3.2" ARCH="amd64" GO111MODULE="on"
 
 RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
 

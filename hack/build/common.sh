@@ -25,3 +25,5 @@ SOURCE_DIRS="pkg tests tools"
 APIDOCS_OUT_DIR=${OUT_DIR}/apidocs
 CACHE_DIR=${OUT_DIR}/gocache
 VENDOR_DIR=${CDI_DIR}/vendor
+ARCHITECTURE="${BUILD_ARCH:-$(uname -m)}"
+HOST_ARCHITECTURE="$(uname -m)"

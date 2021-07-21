@@ -44,7 +44,7 @@ load(
 )
 
 container_bundle(
-    name = "test-container-images",
+    name = "test-container-images-amd64",
     images = {
         "$(container_prefix)/cdi-func-test-bad-webserver:$(container_tag)": "//tools/cdi-func-test-bad-webserver:cdi-func-test-bad-webserver-image",
         "$(container_prefix)/cdi-func-test-proxy:$(container_tag)": "//tools/cdi-func-test-proxy:cdi-func-test-proxy-image",
@@ -61,7 +61,33 @@ container_bundle(
     },
 )
 
+container_bundle(
+    name = "test-container-images-aarch64",
+    images = {
+        "$(container_prefix)/cdi-func-test-bad-webserver:$(container_tag)": "//tools/cdi-func-test-bad-webserver:cdi-func-test-bad-webserver-image",
+        "$(container_prefix)/cdi-func-test-proxy:$(container_tag)": "//tools/cdi-func-test-proxy:cdi-func-test-proxy-image",
+        "$(container_prefix)/cdi-func-test-file-host-init:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-init-image",
+        "$(container_prefix)/cdi-func-test-file-host-http:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-http-image",
+        "$(container_prefix)/cdi-func-test-registry-init:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-init-image",
+        "$(container_prefix)/cdi-func-test-registry-populate:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-populate-image",
+        "$(container_prefix)/cdi-func-test-registry:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-image",
+        "$(container_prefix)/imageio-init:$(container_tag)": "//tools/imageio-init:imageio-init-image",
+        "$(container_prefix)/loop-back-lvm:$(container_tag)": "//tools/loop-back-lvm:loop-back-lvm-image",
+        "$(container_prefix)/vcenter-simulator:$(container_tag)": "//tools/vddk-test:vcenter-simulator",
+    },
+)
+
 load("@io_bazel_rules_docker//contrib:push-all.bzl", "docker_push")
+
+
+
+alias(
+    name = "test-container-images",
+    actual = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64":":test-container-images-aarch64",
+        "//conditions:default":  ":test-container-images-amd64",
+    })
+)
 
 docker_push(
     name = "push-test-images",

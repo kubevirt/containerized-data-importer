@@ -58,7 +58,14 @@ load(
 
 container_image(
     name = "cdi-controller-image",
-    base = "@fedora//image",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
+    base = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": "@fedora-aarch64//image",
+        "//conditions:default": "@fedora//image",
+    }),
     directory = "/usr/bin",
     entrypoint = [
         "/usr/bin/cdi-controller",
