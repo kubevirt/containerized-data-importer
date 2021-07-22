@@ -12,6 +12,7 @@ import (
 	"time"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	ovirtsdk4 "github.com/ovirt/go-ovirt"
 	"github.com/pkg/errors"
@@ -228,7 +229,6 @@ var _ = Describe("Imageio cancel", func() {
 	var (
 		ts      *httptest.Server
 		tempDir string
-		err     error
 	)
 
 	BeforeEach(func() {
@@ -253,28 +253,105 @@ var _ = Describe("Imageio cancel", func() {
 		ts.Close()
 	})
 
-	It("should cancel transfer on SIGTERM", func() {
-		_, err = NewImageioDataSource(ts.URL, "", "", tempDir, "")
+	It("should clean up transfer on SIGTERM", func() {
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, "123")
 		Expect(err).ToNot(HaveOccurred())
+		timesFinalized := 0
+		resultChannel := make(chan struct {
+			*ImageioDataSource
+			int
+		}, 1)
+		mockFinalizeHook = func() error {
+			dp.imageTransfer.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_FINALIZING_SUCCESS)
+			timesFinalized++
+			resultChannel <- struct {
+				*ImageioDataSource
+				int
+			}{dp, timesFinalized}
+			return nil
+		}
 		mockTerminationChannel <- os.Interrupt
+		timeout := time.After(10 * time.Second)
+		select {
+		case <-timeout:
+			Fail("Timed out waiting for cancel result")
+		case result := <-resultChannel:
+			timesFinalized = result.int
+			dp = result.ImageioDataSource
+		}
 		Expect(err).ToNot(HaveOccurred())
+		Expect(timesFinalized).To(Equal(1))
+		Expect(dp.imageTransfer.MustPhase()).To(Equal(ovirtsdk4.IMAGETRANSFERPHASE_FINALIZING_SUCCESS))
 	})
 
-	It("should cancel transfer when finalize fails", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
+	DescribeTable("should finalize successful transfer on close", func(initialPhase, expectedPhase ovirtsdk4.ImageTransferPhase) {
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, "123")
+		dp.imageTransfer.SetPhase(initialPhase)
 		Expect(err).ToNot(HaveOccurred())
-		cancelled := false
+		timesFinalized := 0
 		mockFinalizeHook = func() error {
-			return errors.New("Failing finalize")
-		}
-		mockCancelHook = func() error {
-			cancelled = true
+			dp.imageTransfer.SetPhase(expectedPhase)
+			timesFinalized++
 			return nil
 		}
 		err = dp.Close()
 		Expect(err).ToNot(HaveOccurred())
-		Expect(cancelled).To(Equal(true))
-	})
+		Expect(dp.imageTransfer.MustPhase()).To(Equal(expectedPhase))
+		Expect(timesFinalized).To(Equal(1))
+	},
+		Entry("from transferring", ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING, ovirtsdk4.IMAGETRANSFERPHASE_FINALIZING_SUCCESS),
+	)
+
+	DescribeTable("should cancel failed transfer on close", func(initialPhase, expectedPhase ovirtsdk4.ImageTransferPhase) {
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, "123")
+		dp.imageTransfer.SetPhase(initialPhase)
+		Expect(err).ToNot(HaveOccurred())
+		timesCancelled := 0
+		mockCancelHook = func() error {
+			dp.imageTransfer.SetPhase(expectedPhase)
+			timesCancelled++
+			return nil
+		}
+		err = dp.Close()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dp.imageTransfer.MustPhase()).To(Equal(expectedPhase))
+		Expect(timesCancelled).To(Equal(1))
+	},
+		Entry("from initializing", ovirtsdk4.IMAGETRANSFERPHASE_INITIALIZING, ovirtsdk4.IMAGETRANSFERPHASE_CANCELLED),
+		Entry("from paused_system", ovirtsdk4.IMAGETRANSFERPHASE_PAUSED_SYSTEM, ovirtsdk4.IMAGETRANSFERPHASE_CANCELLED),
+		Entry("from paused_user", ovirtsdk4.IMAGETRANSFERPHASE_PAUSED_USER, ovirtsdk4.IMAGETRANSFERPHASE_CANCELLED),
+		Entry("from resuming", ovirtsdk4.IMAGETRANSFERPHASE_RESUMING, ovirtsdk4.IMAGETRANSFERPHASE_CANCELLED),
+		Entry("from unknown", ovirtsdk4.IMAGETRANSFERPHASE_UNKNOWN, ovirtsdk4.IMAGETRANSFERPHASE_CANCELLED),
+	)
+
+	DescribeTable("should take no action on final transfer states", func(initialPhase ovirtsdk4.ImageTransferPhase) {
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, "123")
+		dp.imageTransfer.SetPhase(initialPhase)
+		Expect(err).ToNot(HaveOccurred())
+		timesFinalized := 0
+		mockFinalizeHook = func() error {
+			dp.imageTransfer.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_UNKNOWN)
+			timesFinalized++
+			return nil
+		}
+		timesCancelled := 0
+		mockCancelHook = func() error {
+			dp.imageTransfer.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_UNKNOWN)
+			timesCancelled++
+			return nil
+		}
+		err = dp.Close()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dp.imageTransfer.MustPhase()).To(Equal(initialPhase))
+		Expect(timesCancelled).To(Equal(0))
+		Expect(timesFinalized).To(Equal(0))
+	},
+		Entry("from cancelled", ovirtsdk4.IMAGETRANSFERPHASE_CANCELLED),
+		Entry("from finalizing_failure", ovirtsdk4.IMAGETRANSFERPHASE_FINALIZING_FAILURE),
+		Entry("from finalizing_success", ovirtsdk4.IMAGETRANSFERPHASE_FINALIZING_SUCCESS),
+		Entry("from finished_failure", ovirtsdk4.IMAGETRANSFERPHASE_FINISHED_FAILURE),
+		Entry("from finished_success", ovirtsdk4.IMAGETRANSFERPHASE_FINISHED_SUCCESS),
+	)
 })
 
 // MockOvirtClient is a mock minio client
