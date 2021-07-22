@@ -78,10 +78,6 @@ func NewImageioDataSource(endpoint string, accessKey string, secKey string, cert
 	go func() {
 		<-terminationChannel
 		klog.Infof("Caught termination signal, closing ImageIO.")
-		err := cancelTransfer(conn, it)
-		if err != nil {
-			klog.Errorf("Error cancelling transfer: %v", err)
-		}
 		err = imageioSource.Close()
 		if err != nil {
 			klog.Errorf("Error closing source: %v", err)
@@ -108,6 +104,11 @@ func (is *ImageioDataSource) Info() (ProcessingPhase, error) {
 
 // Transfer is called to transfer the data from the source to a scratch location.
 func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
+	defer func() {
+		if err := cleanupTransfer(is.connection, is.imageTransfer); err == nil {
+			is.imageTransfer = nil // If successful, this avoids an unnecessary cleanup in Close
+		}
+	}()
 	// we know that there won't be archives
 	size, _ := util.GetAvailableSpace(path)
 	if size <= int64(0) {
@@ -126,6 +127,11 @@ func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
 
 // TransferFile is called to transfer the data from the source to the passed in file.
 func (is *ImageioDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+	defer func() {
+		if err := cleanupTransfer(is.connection, is.imageTransfer); err == nil {
+			is.imageTransfer = nil // If successful, this avoids an unnecessary cleanup in Close
+		}
+	}()
 	is.readers.StartProgressUpdate()
 	err := util.StreamDataToFile(is.readers.TopReader(), fileName)
 	if err != nil {
@@ -146,16 +152,7 @@ func (is *ImageioDataSource) Close() error {
 		err = is.readers.Close()
 	}
 	if is.imageTransfer != nil {
-		if itID, ok := is.imageTransfer.Id(); ok {
-			transfersService := is.connection.SystemService().ImageTransfersService()
-			_, err = transfersService.ImageTransferService(itID).Finalize().Send()
-			if err != nil {
-				_, cancelErr := transfersService.ImageTransferService(itID).Cancel().Send()
-				if cancelErr != nil {
-					klog.Errorf("Unable to finalize or cancel transfer! Disk may remain locked until inactivity timeout.\n%v\n%v", err, cancelErr)
-				}
-			}
-		}
+		cleanupTransfer(is.connection, is.imageTransfer)
 	}
 	if is.connection != nil {
 		err = is.connection.Close()
@@ -210,12 +207,12 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 	// Use the create client from http source.
 	client, err := createHTTPClient(certDir)
 	if err != nil {
-		cancelTransfer(conn, it)
+		cleanupTransfer(conn, it)
 		return nil, uint64(0), it, conn, err
 	}
 	transferURL, available := it.TransferUrl()
 	if !available {
-		cancelTransfer(conn, it)
+		cleanupTransfer(conn, it)
 		return nil, uint64(0), it, conn, errors.New("Error transfer url not available")
 	}
 
@@ -224,11 +221,11 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 
 	resp, err := client.Do(req)
 	if err != nil {
-		cancelTransfer(conn, it)
+		cleanupTransfer(conn, it)
 		return nil, uint64(0), it, conn, errors.Wrap(err, "Sending request failed")
 	}
 	if resp.StatusCode != http.StatusOK {
-		cancelTransfer(conn, it)
+		cleanupTransfer(conn, it)
 		return nil, uint64(0), it, conn, errors.Errorf("bad status: %s", resp.Status)
 	}
 
@@ -243,15 +240,112 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 	return countingReader, total, it, conn, nil
 }
 
-// cancelTransfer makes sure the disk is unlocked before shutting down importer
-func cancelTransfer(conn ConnectionInterface, it *ovirtsdk4.ImageTransfer) error {
+// cleanupTransfer makes sure the disk is unlocked before shutting down importer
+func cleanupTransfer(conn ConnectionInterface, it *ovirtsdk4.ImageTransfer) error {
 	var err error
-	if conn != nil && it != nil {
-		if itID, ok := it.Id(); ok {
-			_, err = conn.SystemService().ImageTransfersService().ImageTransferService(itID).Cancel().Send()
+
+	if conn == nil || it == nil {
+		klog.Info("No transfer to clean up.")
+		return nil
+	}
+
+	transferID, success := it.Id()
+	if !success {
+		return errors.New("unable to retrieve image transfer ID")
+	}
+
+	klog.Infof("Closing image transfer %s.", transferID)
+	delay := 2 * time.Second
+	transfersService := conn.SystemService().ImageTransfersService()
+	transferService := transfersService.ImageTransferService(transferID)
+
+	for retries := 10; retries > 0; retries-- {
+		cancelTransfer := func() error {
+			klog.Info("Cancelling image transfer.")
+			if _, cancelError := transferService.Cancel().Send(); err != nil {
+				klog.Errorf("Unable to cancel transfer request: %v", err)
+				return cancelError
+			}
+			return nil
+		}
+
+		finalizeTransfer := func() error {
+			klog.Info("Finalizing image transfer.")
+			if _, finalizeError := transferService.Finalize().Send(); err != nil {
+				klog.Errorf("Unable to finalize transfer request: %v", err)
+				return finalizeError
+			}
+			return nil
+		}
+
+		imageTransferResponse, err := transferService.Get().Send()
+		if err != nil {
+			if strings.Contains(err.Error(), "404 Not Found") {
+				klog.Info("Transfer ticket cleaned up.")
+				return nil
+			}
+			// If transfer request can't be sent, blindly cancel and try again
+			klog.Warningf("Unable to read image transfer response, %d retries remaining.", retries)
+			cancelTransfer()
+			time.Sleep(delay)
+			continue
+		}
+
+		imageTransfer, available := imageTransferResponse.ImageTransfer()
+		if !available {
+			klog.Warningf("Unable to refresh image transfer, %d retries remaining.", retries)
+			cancelTransfer()
+			time.Sleep(delay)
+			continue
+		}
+
+		transferPhase, available := imageTransfer.Phase()
+		if !available {
+			klog.Warningf("Unable to get transfer phase, %d retries remaining.", retries)
+			cancelTransfer()
+			time.Sleep(delay)
+			continue
+		}
+
+		klog.Infof("Current image transfer phase is: %+v", transferPhase)
+		phaseActions := map[ovirtsdk4.ImageTransferPhase]func() error{
+			ovirtsdk4.IMAGETRANSFERPHASE_CANCELLED:          nil,
+			ovirtsdk4.IMAGETRANSFERPHASE_FINALIZING_FAILURE: nil,
+			ovirtsdk4.IMAGETRANSFERPHASE_FINALIZING_SUCCESS: nil,
+			ovirtsdk4.IMAGETRANSFERPHASE_FINISHED_FAILURE:   nil,
+			ovirtsdk4.IMAGETRANSFERPHASE_FINISHED_SUCCESS:   nil,
+			ovirtsdk4.IMAGETRANSFERPHASE_INITIALIZING:       cancelTransfer,
+			ovirtsdk4.IMAGETRANSFERPHASE_PAUSED_SYSTEM:      cancelTransfer,
+			ovirtsdk4.IMAGETRANSFERPHASE_PAUSED_USER:        cancelTransfer,
+			ovirtsdk4.IMAGETRANSFERPHASE_RESUMING:           cancelTransfer,
+			ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING:       finalizeTransfer,
+			ovirtsdk4.IMAGETRANSFERPHASE_UNKNOWN:            cancelTransfer,
+			// Observed from RHV, but not yet listed in Go API:
+			"cancelled_system":   nil,
+			"cancelled_user":     nil,
+			"finalizing_cleanup": nil,
+		}
+		action, available := phaseActions[transferPhase]
+		if !available {
+			klog.Warningf("Unknown transfer phase '%s', %d retries remaining.", transferPhase, retries)
+			cancelTransfer()
+			time.Sleep(delay)
+			continue
+		}
+		if action != nil {
+			err = action()
+			if err != nil {
+				klog.Warningf("Failed to run transfer cleanup command, %d retries remaining.", retries)
+				time.Sleep(delay)
+				continue
+			}
+		} else {
+			klog.Info("No cleanup action required for this image transfer phase, done.")
+			return nil
 		}
 	}
-	return err
+
+	return errors.Wrapf(err, "retry limit exceeded for transfer ticket cleanup, disk may remain locked until inactivity timeout")
 }
 
 func getTransfer(conn ConnectionInterface, diskID string) (*ovirtsdk4.ImageTransfer, uint64, error) {
@@ -320,6 +414,7 @@ func getTransfer(conn ConnectionInterface, diskID string) (*ovirtsdk4.ImageTrans
 		} else if phase == ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING {
 			break
 		} else {
+			cleanupTransfer(conn, it)
 			return nil, uint64(0), errors.Errorf("Error transfer phase: %s", phase)
 		}
 	}
