@@ -256,6 +256,20 @@ var _ = Describe("Data Processor", func() {
 			Expect(tmpDir).To(Equal(mdp.transferPath))
 		})
 	})
+
+	table.DescribeTable("should avoid cleanup before delta copies", func(dataSource DataSourceInterface, expectedCleanup bool) {
+		tmpDir, err := ioutil.TempDir("", "scratch")
+		Expect(err).ToNot(HaveOccurred())
+		defer os.RemoveAll(tmpDir)
+
+		dp := NewDataProcessor(dataSource, "dest", "dataDir", tmpDir, "1G", 0.055, false)
+		Expect(dp.needsDataCleanup).To(Equal(expectedCleanup))
+	},
+		table.Entry("ImageIO delta copy", &ImageioDataSource{currentSnapshot: "123", previousSnapshot: "123"}, false),
+		table.Entry("ImageIO base copy", &ImageioDataSource{currentSnapshot: "123", previousSnapshot: ""}, true),
+		table.Entry("VDDK delta copy", &VDDKDataSource{CurrentSnapshot: "123", PreviousSnapshot: "123"}, false),
+		table.Entry("VDDK base copy", &VDDKDataSource{CurrentSnapshot: "123", PreviousSnapshot: ""}, true),
+	)
 })
 
 var _ = Describe("Convert", func() {

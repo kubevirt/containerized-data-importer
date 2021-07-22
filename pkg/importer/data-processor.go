@@ -131,6 +131,10 @@ func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratch
 	if isVddk {
 		needsDataCleanup = !vddkSource.IsDeltaCopy()
 	}
+	imageioSource, isImageio := dataSource.(*ImageioDataSource)
+	if isImageio {
+		needsDataCleanup = !imageioSource.IsDeltaCopy()
+	}
 	dp := &DataProcessor{
 		currentPhase:       ProcessingPhaseInfo,
 		source:             dataSource,
