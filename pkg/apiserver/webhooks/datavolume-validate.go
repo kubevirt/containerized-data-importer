@@ -421,7 +421,8 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 
 		// Always admit checkpoint updates for multi-stage migrations.
 		multiStageAdmitted := false
-		isMultiStage := dv.Spec.Source != nil && dv.Spec.Source.VDDK != nil && len(dv.Spec.Checkpoints) > 0
+		isMultiStage := dv.Spec.Source != nil && len(dv.Spec.Checkpoints) > 0 &&
+			(dv.Spec.Source.VDDK != nil || dv.Spec.Source.Imageio != nil)
 		if isMultiStage {
 			oldSpec := oldDV.Spec.DeepCopy()
 			oldSpec.FinalCheckpoint = false
