@@ -13,6 +13,7 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	route1client "github.com/openshift/client-go/route/clientset/versioned"
+	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -414,6 +415,19 @@ var _ = Describe("CDI ingress config tests", func() {
 			return *config.Status.UploadProxyURL
 		}, time.Second*30, time.Second).Should(Equal(override))
 	})
+
+	It("Should not crash and uploadProxy empty, if ingress defined without service", func() {
+		ingress = createIngress("test-ingress", f.CdiInstallNs, "cdi-uploadproxy", ingressUrl)
+		// The cdi controller will not process this ingress because it doesn't have the url we are looking for.
+		_, err := f.K8sClient.NetworkingV1().Ingresses(f.CdiInstallNs).Create(context.TODO(), ingress, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		By("Expecting uploadproxy url to be blank")
+		Eventually(func() bool {
+			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return config.Status.UploadProxyURL == nil
+		}, time.Second*30, time.Second).Should(BeTrue())
+	})
 })
 
 var _ = Describe("CDI route config tests", func() {
@@ -601,6 +615,41 @@ func createIngress(name, ns, service, hostUrl string) *networkingv1.Ingress {
 			},
 			Rules: []networkingv1.IngressRule{
 				{Host: hostUrl},
+			},
+		},
+	}
+}
+
+func createNoServiceIngress(name, ns string) *networkingv1.Ingress {
+	apiGroup := "test.test"
+	return &networkingv1.Ingress{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "networking/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+			Labels: map[string]string{
+				"nginx.org/ssl-services":                      "cdi-uploadproxy",
+				"ingress.kubernetes.io/ssl-passthrough":       "true",
+				"nginx.ingress.kubernetes.io/secure-backends": "true",
+				"nginx.ingress.kubernetes.io/proxy-body-size": "0",
+			},
+		},
+		Spec: networkingv1.IngressSpec{
+			DefaultBackend: &networkingv1.IngressBackend{
+				Resource: &v1.TypedLocalObjectReference{
+					APIGroup: &apiGroup,
+					Kind:     "test",
+					Name:     "test",
+				},
+			},
+			TLS: []networkingv1.IngressTLS{
+				{
+					Hosts: []string{
+						"cdi-uploadproxy.example.com",
+					},
+				},
 			},
 		},
 	}
