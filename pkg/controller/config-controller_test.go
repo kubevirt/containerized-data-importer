@@ -172,6 +172,22 @@ var _ = Describe("Controller ingress reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(*cdiConfig.Status.UploadProxyURL).To(Equal(testURL))
 	})
+
+	DescribeTable("Should not set proxyURL if invalid ingress exists", func(createIngress func(name, ns, service, url string) *networkingv1.Ingress) {
+		reconciler, cdiConfig := createConfigReconciler(createIngressList(
+			*createIngress("test-ingress", "test-ns", "service", testURL),
+		))
+		reconciler.uploadProxyServiceName = testServiceName
+		err := reconciler.reconcileIngress(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig).ToNot(BeNil())
+		Expect(cdiConfig.Status).ToNot(BeNil())
+		Expect(cdiConfig.Status.UploadProxyURL).To(BeNil())
+	},
+		Entry("No default backend", createNoDefaultBackendIngress),
+		Entry("No service", createNoServiceIngress),
+		Entry("0 rules", createNoRulesIngress),
+	)
 })
 
 var _ = Describe("Controller route reconcile loop", func() {
@@ -837,6 +853,24 @@ func createIngress(name, ns, service, url string) *networkingv1.Ingress {
 			},
 		},
 	}
+}
+
+func createNoDefaultBackendIngress(name, ns, service, url string) *networkingv1.Ingress {
+	res := createIngress(name, ns, service, url)
+	res.Spec.DefaultBackend = nil
+	return res
+}
+
+func createNoServiceIngress(name, ns, service, url string) *networkingv1.Ingress {
+	res := createIngress(name, ns, service, url)
+	res.Spec.DefaultBackend.Service = nil
+	return res
+}
+
+func createNoRulesIngress(name, ns, service, url string) *networkingv1.Ingress {
+	res := createIngress(name, ns, service, url)
+	res.Spec.Rules = []networkingv1.IngressRule{}
+	return res
 }
 
 func createConfigMap(name, namespace string) *corev1.ConfigMap {

@@ -596,7 +596,7 @@ func watchClusterProxy(mgr manager.Manager, configController controller.Controll
 }
 
 func getURLFromIngress(ing *networkingv1.Ingress, uploadProxyServiceName string) string {
-	if ing.Spec.DefaultBackend != nil {
+	if ing.Spec.DefaultBackend != nil && ing.Spec.DefaultBackend.Service != nil {
 		if ing.Spec.DefaultBackend.Service.Name != uploadProxyServiceName {
 			return ""
 		}
@@ -607,7 +607,7 @@ func getURLFromIngress(ing *networkingv1.Ingress, uploadProxyServiceName string)
 			continue
 		}
 		for _, path := range rule.HTTP.Paths {
-			if path.Backend.Service.Name == uploadProxyServiceName {
+			if path.Backend.Service != nil && path.Backend.Service.Name == uploadProxyServiceName {
 				if rule.Host != "" {
 					return rule.Host
 				}
@@ -615,7 +615,6 @@ func getURLFromIngress(ing *networkingv1.Ingress, uploadProxyServiceName string)
 		}
 	}
 	return ""
-
 }
 
 func getURLFromRoute(route *routev1.Route, uploadProxyServiceName string) string {
