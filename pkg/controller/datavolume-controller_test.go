@@ -1192,6 +1192,55 @@ var _ = Describe("All DataVolume Tests", func() {
 
 	})
 
+	var _ = Describe("CSI clone", func() {
+		DescribeTable("Starting from Failed DV",
+			func(targetPvcPhase corev1.PersistentVolumeClaimPhase, expectedDvPhase cdiv1.DataVolumePhase) {
+				strategy := cdiv1.CDICloneStrategy(cdiv1.CloneStrategyCsiClone)
+				controller := true
+
+				dv := newCloneDataVolume("test-dv")
+				dv.Status.Phase = cdiv1.Failed
+
+				scName := "testsc"
+				srcPvc := createPvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+				targetPvc := createPvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, targetPvcPhase)
+				targetPvc.OwnerReferences = append(targetPvc.OwnerReferences, metav1.OwnerReference{
+					Kind:       "DataVolume",
+					Controller: &controller,
+					Name:       "test-dv",
+					UID:        dv.UID,
+				})
+				sc := createStorageClassWithProvisioner(scName, map[string]string{
+					AnnDefaultStorageClass: "true",
+				}, "csi-plugin")
+
+				storageProfile := createStorageProfileWithCloneStrategy(scName,
+					[]corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany},
+					corev1.PersistentVolumeBlock,
+					&strategy)
+
+				reconciler := createDatavolumeReconciler(dv, srcPvc, targetPvc, storageProfile, sc)
+				reconciler.extClientSet = extfake.NewSimpleClientset(createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+
+				By("Reconcile")
+				result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+				Expect(err).To(Not(HaveOccurred()))
+				Expect(result).To(Not(BeNil()))
+
+				By(fmt.Sprintf("Verifying that phase is now in %s", expectedDvPhase))
+				dv = &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dv.Status.Phase).To(Equal(expectedDvPhase))
+
+			},
+			Entry("Should be in progress, if source pvc is ClaimPending", corev1.ClaimPending, cdiv1.CSICloneInProgress),
+			Entry("Should be failed, if source pvc is ClaimLost", corev1.ClaimLost, cdiv1.Failed),
+			Entry("Should be Succeeded, if source pvc is ClaimBound", corev1.ClaimBound, cdiv1.Succeeded),
+		)
+
+	})
+
 	var _ = Describe("Clone strategy", func() {
 		var (
 			hostAssited = cdiv1.CloneStrategyHostAssisted

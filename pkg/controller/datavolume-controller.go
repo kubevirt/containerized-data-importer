@@ -444,7 +444,7 @@ func (r *DatavolumeReconciler) Reconcile(_ context.Context, req reconcile.Reques
 					return reconcile.Result{}, err
 				}
 			} else if pvc.Status.Phase == corev1.ClaimPending {
-				return reconcile.Result{}, nil
+				return reconcile.Result{}, r.updateCloneStatusPhase(cdiv1.CSICloneInProgress, datavolume, pvc, selectedCloneStrategy)
 			} else if pvc.Status.Phase == corev1.ClaimLost {
 				return reconcile.Result{},
 					r.updateDataVolumeStatusPhaseWithEvent(cdiv1.Failed, datavolume, pvc, selectedCloneStrategy,
