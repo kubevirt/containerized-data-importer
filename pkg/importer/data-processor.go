@@ -285,7 +285,7 @@ func (dp *DataProcessor) resize() (ProcessingPhase, error) {
 		// Change permissions to 0660
 		err := os.Chmod(dp.dataFile, 0660)
 		if err != nil {
-			err = errors.Wrap(err, "Unable to change permissions of target file")
+			return ProcessingPhaseError, errors.Wrap(err, "Unable to change permissions of target file")
 		}
 	}
 
@@ -361,10 +361,9 @@ func (dp *DataProcessor) getUsableSpace() int64 {
 
 // GetUsableSpace calculates space to use taking file system overhead into account
 func GetUsableSpace(filesystemOverhead float64, availableSpace int64) int64 {
-	blockSize := int64(512)
 	spaceWithOverhead := int64((1 - filesystemOverhead) * float64(availableSpace))
 	// qemu-img will round up, making us use more than the usable space.
 	// This later conflicts with image size validation.
-	qemuImgCorrection := util.RoundDown(spaceWithOverhead, blockSize)
+	qemuImgCorrection := util.RoundDown(spaceWithOverhead, util.DefaultAlignBlockSize)
 	return qemuImgCorrection
 }

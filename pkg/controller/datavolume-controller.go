@@ -2285,11 +2285,10 @@ func getDefaultAccessModes(c client.Client, storageClass *storagev1.StorageClass
 
 // GetRequiredSpace calculates space required taking file system overhead into account
 func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
-	blockSize := int64(512)
 	// count overhead as a percentage of the whole/new size
 	spaceWithOverhead := int64(float64(requestedSpace) / (1 - filesystemOverhead))
 	// qemu-img will round up, making us use more than the usable space.
 	// This later conflicts with image size validation.
-	qemuImgCorrection := util.RoundUp(spaceWithOverhead, blockSize)
+	qemuImgCorrection := util.RoundUp(spaceWithOverhead, util.DefaultAlignBlockSize)
 	return qemuImgCorrection
 }
