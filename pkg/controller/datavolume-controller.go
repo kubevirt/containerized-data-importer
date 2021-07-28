@@ -193,15 +193,16 @@ type DataVolumeEvent struct {
 
 // DatavolumeReconciler members
 type DatavolumeReconciler struct {
-	client         client.Client
-	extClientSet   extclientset.Interface
-	recorder       record.EventRecorder
-	scheme         *runtime.Scheme
-	log            logr.Logger
-	featureGates   featuregates.FeatureGates
-	image          string
-	pullPolicy     string
-	tokenValidator token.Validator
+	client          client.Client
+	extClientSet    extclientset.Interface
+	recorder        record.EventRecorder
+	scheme          *runtime.Scheme
+	log             logr.Logger
+	featureGates    featuregates.FeatureGates
+	image           string
+	pullPolicy      string
+	tokenValidator  token.Validator
+	installerLabels map[string]string
 }
 
 func hasAnnOwnedByDataVolume(obj metav1.Object) bool {
@@ -250,18 +251,20 @@ func NewDatavolumeController(
 	log logr.Logger,
 	image, pullPolicy string,
 	apiServerKey *rsa.PublicKey,
+	installerLabels map[string]string,
 ) (controller.Controller, error) {
 	client := mgr.GetClient()
 	reconciler := &DatavolumeReconciler{
-		client:         client,
-		scheme:         mgr.GetScheme(),
-		extClientSet:   extClientSet,
-		log:            log.WithName("datavolume-controller"),
-		recorder:       mgr.GetEventRecorderFor("datavolume-controller"),
-		featureGates:   featuregates.NewFeatureGates(client),
-		image:          image,
-		pullPolicy:     pullPolicy,
-		tokenValidator: newCloneTokenValidator(apiServerKey),
+		client:          client,
+		scheme:          mgr.GetScheme(),
+		extClientSet:    extClientSet,
+		log:             log.WithName("datavolume-controller"),
+		recorder:        mgr.GetEventRecorderFor("datavolume-controller"),
+		featureGates:    featuregates.NewFeatureGates(client),
+		image:           image,
+		pullPolicy:      pullPolicy,
+		tokenValidator:  newCloneTokenValidator(apiServerKey),
+		installerLabels: installerLabels,
 	}
 	datavolumeController, err := controller.New("datavolume-controller", mgr, controller.Options{
 		Reconciler: reconciler,
@@ -564,6 +567,7 @@ func (r *DatavolumeReconciler) createPvcForDatavolume(log logr.Logger, datavolum
 	if err != nil {
 		return nil, err
 	}
+	util.SetRecommendedLabels(newPvc, r.installerLabels, "cdi-controller")
 
 	checkpoint := r.getNextCheckpoint(datavolume, newPvc)
 	if checkpoint != nil { // Initialize new warm import annotations before creating PVC
@@ -631,6 +635,8 @@ func (r *DatavolumeReconciler) reconcileSmartClonePvc(log logr.Logger, datavolum
 		"snapshotClassName", snapshotClassName)
 
 	newSnapshot := newSnapshot(datavolume, pvcName, snapshotClassName)
+	util.SetRecommendedLabels(newSnapshot, r.installerLabels, "cdi-controller")
+
 	if err := setAnnOwnedByDataVolume(newSnapshot, datavolume); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -934,6 +940,10 @@ func (r *DatavolumeReconciler) initTransfer(log logr.Logger, dv *cdiv1.DataVolum
 		ot = &cdiv1.ObjectTransfer{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name,
+				Labels: map[string]string{
+					common.CDILabelKey:       common.CDILabelValue,
+					common.CDIComponentLabel: "",
+				},
 			},
 			Spec: cdiv1.ObjectTransferSpec{
 				Source: cdiv1.TransferSource{
@@ -950,6 +960,7 @@ func (r *DatavolumeReconciler) initTransfer(log logr.Logger, dv *cdiv1.DataVolum
 				},
 			},
 		}
+		util.SetRecommendedLabels(ot, r.installerLabels, "cdi-controller")
 
 		if err := setAnnOwnedByDataVolume(ot, dv); err != nil {
 			return false, err
@@ -1170,6 +1181,7 @@ func (r *DatavolumeReconciler) createExpansionPod(pvc *corev1.PersistentVolumeCl
 			Affinity:     workloadNodePlacement.Affinity,
 		},
 	}
+	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
 
 	if pvc.Spec.VolumeMode != nil && *pvc.Spec.VolumeMode == corev1.PersistentVolumeBlock {
 		pod.Spec.Containers[0].VolumeDevices = addVolumeDevices()

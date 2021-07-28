@@ -31,6 +31,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 )
@@ -86,6 +87,7 @@ type CloneReconciler struct {
 	image               string
 	verbose             string
 	pullPolicy          string
+	installerLabels     map[string]string
 }
 
 // NewCloneController creates a new instance of the config controller.
@@ -95,7 +97,8 @@ func NewCloneController(mgr manager.Manager,
 	verbose string,
 	clientCertGenerator generator.CertGenerator,
 	serverCAFetcher fetcher.CertBundleFetcher,
-	apiServerKey *rsa.PublicKey) (controller.Controller, error) {
+	apiServerKey *rsa.PublicKey,
+	installerLabels map[string]string) (controller.Controller, error) {
 	reconciler := &CloneReconciler{
 		client:              mgr.GetClient(),
 		scheme:              mgr.GetScheme(),
@@ -107,6 +110,7 @@ func NewCloneController(mgr manager.Manager,
 		recorder:            mgr.GetEventRecorderFor("clone-controller"),
 		clientCertGenerator: clientCertGenerator,
 		serverCAFetcher:     serverCAFetcher,
+		installerLabels:     installerLabels,
 	}
 	cloneController, err := controller.New("clone-controller", mgr, controller.Options{
 		Reconciler: reconciler,
@@ -471,6 +475,7 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy, clientName str
 	}
 
 	pod := MakeCloneSourcePodSpec(sourceVolumeMode, image, pullPolicy, sourcePvcName, sourcePvcNamespace, ownerKey, clientKey, clientCert, serverCABundle, pvc, podResourceRequirements, workloadNodePlacement)
+	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
 
 	if err := r.client.Create(context.TODO(), pod); err != nil {
 		return nil, errors.Wrap(err, "source pod API create errored")

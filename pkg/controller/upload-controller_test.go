@@ -255,11 +255,13 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uploadPod.Name).To(Equal(createUploadResourceName(testPvc.Name)))
 		Expect(uploadPod.Spec.PriorityClassName).To(Equal("p0"))
+		Expect(uploadPod.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 
 		uploadService = &corev1.Service{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: createUploadResourceName("testPvc1"), Namespace: "default"}, uploadService)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uploadService.Name).To(Equal(createUploadResourceName(testPvc.Name)))
+		Expect(uploadService.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 	})
 })
 
@@ -535,6 +537,10 @@ func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
 		clientCAFetcher:     &fetcher.MemCertBundleFetcher{Bundle: []byte("baz")},
 		recorder:            rec,
 		featureGates:        featuregates.NewFeatureGates(cl),
+		installerLabels: map[string]string{
+			common.AppKubernetesPartOfLabel:  "testing",
+			common.AppKubernetesVersionLabel: "v0.0.0-tests",
+		},
 	}
 	return r
 }

@@ -19,6 +19,7 @@ package utils
 import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/api"
 	utils "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk/resources"
 )
@@ -29,19 +30,21 @@ const (
 )
 
 var commonLabels = map[string]string{
-	CDILabel: "",
+	CDILabel:                           "",
+	common.AppKubernetesManagedByLabel: "cdi-operator",
+	common.AppKubernetesComponentLabel: "storage",
 }
 
 var operatorLabels = map[string]string{
 	"operator.cdi.kubevirt.io": "",
 }
 
-// ResourcesBuiler helps in creating k8s resources
-var ResourcesBuiler = utils.NewResourceBuilder(commonLabels, operatorLabels)
+// ResourceBuilder helps in creating k8s resources
+var ResourceBuilder = utils.NewResourceBuilder(commonLabels, operatorLabels)
 
 // CreateContainer creates container
 func CreateContainer(name, image, verbosity, pullPolicy string) corev1.Container {
-	container := ResourcesBuiler.CreateContainer(name, image, pullPolicy)
+	container := ResourceBuilder.CreateContainer(name, image, pullPolicy)
 	container.TerminationMessagePolicy = corev1.TerminationMessageReadFile
 	container.TerminationMessagePath = corev1.TerminationMessagePathDefault
 	container.Args = []string{"-v=" + verbosity}
@@ -50,7 +53,7 @@ func CreateContainer(name, image, verbosity, pullPolicy string) corev1.Container
 
 // CreatePortsContainer creates container with ports
 func CreatePortsContainer(name, image, pullPolicy string, ports []corev1.ContainerPort) corev1.Container {
-	return *ResourcesBuiler.CreatePortsContainer(name, image, pullPolicy, ports)
+	return *ResourceBuilder.CreatePortsContainer(name, image, pullPolicy, ports)
 }
 
 // CreateDeployment creates deployment
@@ -60,7 +63,7 @@ func CreateDeployment(name, matchKey, matchValue, serviceAccountName string, rep
 			RunAsNonRoot: &[]bool{true}[0],
 		},
 	}
-	deployment := ResourcesBuiler.CreateDeployment(name, "", matchKey, matchValue, serviceAccountName, replicas, podSpec, infraNodePlacement)
+	deployment := ResourceBuilder.CreateDeployment(name, "", matchKey, matchValue, serviceAccountName, replicas, podSpec, infraNodePlacement)
 	return deployment
 }
 
@@ -78,6 +81,6 @@ func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAcco
 			},
 		},
 	}
-	deployment := ResourcesBuiler.CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAccount, numReplicas, podSpec)
+	deployment := ResourceBuilder.CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAccount, numReplicas, podSpec)
 	return deployment
 }

@@ -64,6 +64,7 @@ func createConfigMap(client kubernetes.Interface, namespace, name string) error 
 			},
 		},
 	}
+	util.SetRecommendedLabels(cm, installerLabels, "cdi-controller")
 
 	err := operator.SetOwner(client, cm)
 	if err != nil {

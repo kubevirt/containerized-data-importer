@@ -26,9 +26,9 @@ import (
 
 func createAggregateClusterRoles(args *FactoryArgs) []client.Object {
 	return []client.Object{
-		utils.ResourcesBuiler.CreateAggregateClusterRole("cdi.kubevirt.io:admin", "admin", getAdminPolicyRules()),
-		utils.ResourcesBuiler.CreateAggregateClusterRole("cdi.kubevirt.io:edit", "edit", getEditPolicyRules()),
-		utils.ResourcesBuiler.CreateAggregateClusterRole("cdi.kubevirt.io:view", "view", getViewPolicyRules()),
+		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.kubevirt.io:admin", "admin", getAdminPolicyRules()),
+		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.kubevirt.io:edit", "edit", getEditPolicyRules()),
+		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.kubevirt.io:view", "view", getViewPolicyRules()),
 		createConfigReaderClusterRole("cdi.kubevirt.io:config-reader"),
 		createConfigReaderClusterRoleBinding("cdi.kubevirt.io:config-reader"),
 	}
@@ -152,7 +152,7 @@ func createConfigReaderClusterRole(name string) *rbacv1.ClusterRole {
 		},
 	}
 
-	return utils.ResourcesBuiler.CreateClusterRole(name, rules)
+	return utils.ResourceBuilder.CreateClusterRole(name, rules)
 }
 
 func createConfigReaderClusterRoleBinding(name string) *rbacv1.ClusterRoleBinding {
@@ -163,7 +163,7 @@ func createConfigReaderClusterRoleBinding(name string) *rbacv1.ClusterRoleBindin
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
-			Labels: utils.ResourcesBuiler.WithCommonLabels(nil),
+			Labels: utils.ResourceBuilder.WithCommonLabels(nil),
 		},
 		RoleRef: rbacv1.RoleRef{
 			Kind:     "ClusterRole",

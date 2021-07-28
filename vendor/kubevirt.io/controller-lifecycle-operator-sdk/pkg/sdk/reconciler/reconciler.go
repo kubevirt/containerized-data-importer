@@ -224,6 +224,7 @@ func (r *Reconciler) ReconcileUpdate(logger logr.Logger, cr client.Object, opera
 
 			r.setLastAppliedConfiguration(desiredObj)
 			sdk.SetLabel(r.createVersionLabel, operatorVersion, desiredObj)
+			r.setRecommendedLabels(cr, desiredObj)
 
 			if err = controllerutil.SetControllerReference(cr, desiredObj, r.scheme); err != nil {
 				r.recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to create resource %s, %v", desiredObj.GetName(), err))
@@ -269,6 +270,9 @@ func (r *Reconciler) ReconcileUpdate(logger logr.Logger, cr client.Object, opera
 
 			// allow users to add new annotations (but not change ours)
 			sdk.MergeLabelsAndAnnotations(desiredObj, currentObj)
+
+			// recommended label values can change by installer, set on update as well
+			r.setRecommendedLabels(cr, currentObj)
 
 			if !sdk.IsMutable(currentObj) {
 				r.setLastAppliedConfiguration(desiredObj)
@@ -770,4 +774,12 @@ func (r *Reconciler) completeUpgrade(logger logr.Logger, cr client.Object, opera
 	logger.Info("Successfully finished Upgrade and entered Deployed state", "from version", previousVersion, "to version", status.ObservedVersion)
 
 	return nil
+}
+
+func (r *Reconciler) setRecommendedLabels(cr client.Object, obj metav1.Object) {
+	labels := sdk.GetRecommendedLabelsFromCr(cr)
+
+	for k, v := range labels {
+		sdk.SetLabel(k, v, obj)
+	}
 }

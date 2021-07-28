@@ -221,6 +221,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sourcePod).ToNot(BeNil())
 		Expect(sourcePod.GetLabels()[CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
+		Expect(sourcePod.GetLabels()[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 		By("Verifying source pod annotations passed from pvc")
 		Expect(sourcePod.GetAnnotations()[AnnPodNetwork]).To(Equal("net1"))
 		Expect(sourcePod.GetAnnotations()[AnnPodSidecarInjection]).To(Equal(AnnPodSidecarInjectionDefault))
@@ -695,6 +696,10 @@ func createCloneReconciler(objects ...runtime.Object) *CloneReconciler {
 		image:               testImage,
 		clientCertGenerator: &fakeCertGenerator{},
 		serverCAFetcher:     &fetcher.MemCertBundleFetcher{Bundle: []byte("baz")},
+		installerLabels: map[string]string{
+			common.AppKubernetesPartOfLabel:  "testing",
+			common.AppKubernetesVersionLabel: "v0.0.0-tests",
+		},
 	}
 }
 

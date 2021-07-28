@@ -24,6 +24,7 @@ import (
 	"time"
 
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -87,6 +88,7 @@ type UploadReconciler struct {
 	serverCertGenerator    generator.CertGenerator
 	clientCAFetcher        fetcher.CertBundleFetcher
 	featureGates           featuregates.FeatureGates
+	installerLabels        map[string]string
 }
 
 // UploadPodArgs are the parameters required to create an upload pod
@@ -404,7 +406,7 @@ func (r *UploadReconciler) getOrCreateScratchPvc(pvc *v1.PersistentVolumeClaim, 
 		anno[AnnBoundConditionMessage] = "Creating scratch space"
 		anno[AnnBoundConditionReason] = creatingScratch
 		// Scratch PVC doesn't exist yet, create it.
-		scratchPvc, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, name, storageClassName)
+		scratchPvc, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, name, storageClassName, map[string]string{})
 		if err != nil {
 			return nil, err
 		}
@@ -459,6 +461,7 @@ func (r *UploadReconciler) deleteService(namespace, serviceName string) error {
 func (r *UploadReconciler) createUploadService(name string, pvc *v1.PersistentVolumeClaim) (*v1.Service, error) {
 	ns := pvc.Namespace
 	service := r.makeUploadServiceSpec(name, pvc)
+	util.SetRecommendedLabels(service, r.installerLabels, "cdi-controller")
 
 	if err := r.client.Create(context.TODO(), service); err != nil {
 		if k8serrors.IsAlreadyExists(err) {
@@ -537,6 +540,7 @@ func (r *UploadReconciler) createUploadPod(args UploadPodArgs) (*v1.Pod, error) 
 	}
 
 	pod := r.makeUploadPodSpec(args, podResourceRequirements, workloadNodePlacement)
+	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
 
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: args.Name, Namespace: ns}, pod); err != nil {
 		if !k8serrors.IsNotFound(err) {
@@ -552,7 +556,7 @@ func (r *UploadReconciler) createUploadPod(args UploadPodArgs) (*v1.Pod, error) 
 }
 
 // NewUploadController creates a new instance of the upload controller.
-func NewUploadController(mgr manager.Manager, log logr.Logger, uploadImage, pullPolicy, verbose string, serverCertGenerator generator.CertGenerator, clientCAFetcher fetcher.CertBundleFetcher) (controller.Controller, error) {
+func NewUploadController(mgr manager.Manager, log logr.Logger, uploadImage, pullPolicy, verbose string, serverCertGenerator generator.CertGenerator, clientCAFetcher fetcher.CertBundleFetcher, installerLabels map[string]string) (controller.Controller, error) {
 	client := mgr.GetClient()
 	reconciler := &UploadReconciler{
 		client:              client,
@@ -565,6 +569,7 @@ func NewUploadController(mgr manager.Manager, log logr.Logger, uploadImage, pull
 		serverCertGenerator: serverCertGenerator,
 		clientCAFetcher:     clientCAFetcher,
 		featureGates:        featuregates.NewFeatureGates(client),
+		installerLabels:     installerLabels,
 	}
 	uploadController, err := controller.New("upload-controller", mgr, controller.Options{
 		Reconciler: reconciler,

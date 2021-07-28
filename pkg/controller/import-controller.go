@@ -105,6 +105,7 @@ type ImportReconciler struct {
 	pullPolicy         string
 	filesystemOverhead string
 	featureGates       featuregates.FeatureGates
+	installerLabels    map[string]string
 }
 
 type importPodEnvVar struct {
@@ -131,22 +132,23 @@ type importPodEnvVar struct {
 }
 
 // NewImportController creates a new instance of the import controller.
-func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pullPolicy, verbose string) (controller.Controller, error) {
+func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pullPolicy, verbose string, installerLabels map[string]string) (controller.Controller, error) {
 	uncachedClient, err := client.New(mgr.GetConfig(), client.Options{
 		Scheme: mgr.GetScheme(),
 		Mapper: mgr.GetRESTMapper(),
 	})
 	client := mgr.GetClient()
 	reconciler := &ImportReconciler{
-		client:         client,
-		uncachedClient: uncachedClient,
-		scheme:         mgr.GetScheme(),
-		log:            log.WithName("import-controller"),
-		image:          importerImage,
-		verbose:        verbose,
-		pullPolicy:     pullPolicy,
-		recorder:       mgr.GetEventRecorderFor("import-controller"),
-		featureGates:   featuregates.NewFeatureGates(client),
+		client:          client,
+		uncachedClient:  uncachedClient,
+		scheme:          mgr.GetScheme(),
+		log:             log.WithName("import-controller"),
+		image:           importerImage,
+		verbose:         verbose,
+		pullPolicy:      pullPolicy,
+		recorder:        mgr.GetEventRecorderFor("import-controller"),
+		featureGates:    featuregates.NewFeatureGates(client),
+		installerLabels: installerLabels,
 	}
 	importController, err := controller.New("import-controller", mgr, controller.Options{
 		Reconciler: reconciler,
@@ -457,7 +459,7 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		return err
 	}
 	// all checks passed, let's create the importer pod!
-	pod, err := createImporterPod(r.log, r.client, r.image, r.verbose, r.pullPolicy, podEnvVar, pvc, scratchPvcName, vddkImageName, getPriorityClass(pvc))
+	pod, err := createImporterPod(r.log, r.client, r.image, r.verbose, r.pullPolicy, podEnvVar, pvc, scratchPvcName, vddkImageName, getPriorityClass(pvc), r.installerLabels)
 
 	if err != nil {
 		return err
@@ -663,7 +665,7 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 
 		storageClassName := GetScratchPvcStorageClass(r.client, pvc)
 		// Scratch PVC doesn't exist yet, create it. Determine which storage class to use.
-		_, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, scratchPVCName, storageClassName)
+		_, err = CreateScratchPersistentVolumeClaim(r.client, pvc, pod, scratchPVCName, storageClassName, r.installerLabels)
 		if err != nil {
 			return err
 		}
@@ -769,7 +771,7 @@ func createImportPodNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 // createImporterPod creates and returns a pointer to a pod which is created based on the passed-in endpoint, secret
 // name, and pvc. A nil secret means the endpoint credentials are not passed to the
 // importer pod.
-func createImporterPod(log logr.Logger, client client.Client, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, vddkImageName *string, priorityClassName string) (*corev1.Pod, error) {
+func createImporterPod(log logr.Logger, client client.Client, image, verbose, pullPolicy string, podEnvVar *importPodEnvVar, pvc *corev1.PersistentVolumeClaim, scratchPvcName *string, vddkImageName *string, priorityClassName string, installerLabels map[string]string) (*corev1.Pod, error) {
 	podResourceRequirements, err := GetDefaultPodResourceRequirements(client)
 	if err != nil {
 		return nil, err
@@ -781,6 +783,7 @@ func createImporterPod(log logr.Logger, client client.Client, image, verbose, pu
 	}
 
 	pod := makeImporterPodSpec(pvc.Namespace, image, verbose, pullPolicy, podEnvVar, pvc, scratchPvcName, podResourceRequirements, workloadNodePlacement, vddkImageName, priorityClassName)
+	util.SetRecommendedLabels(pod, installerLabels, "cdi-controller")
 
 	if err := client.Create(context.TODO(), pod); err != nil {
 		return nil, err

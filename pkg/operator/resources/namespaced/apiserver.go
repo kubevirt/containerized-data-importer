@@ -47,11 +47,11 @@ func createAPIServerResources(args *FactoryArgs) []client.Object {
 }
 
 func createAPIServerServiceAccount() *corev1.ServiceAccount {
-	return utils.ResourcesBuiler.CreateServiceAccount(apiServerRessouceName)
+	return utils.ResourceBuilder.CreateServiceAccount(apiServerRessouceName)
 }
 
 func createAPIServerRoleBinding() *rbacv1.RoleBinding {
-	return utils.ResourcesBuiler.CreateRoleBinding(apiServerRessouceName, apiServerRessouceName, apiServerRessouceName, "")
+	return utils.ResourceBuilder.CreateRoleBinding(apiServerRessouceName, apiServerRessouceName, apiServerRessouceName, "")
 }
 
 func createAPIServerRole() *rbacv1.Role {
@@ -69,11 +69,11 @@ func createAPIServerRole() *rbacv1.Role {
 			},
 		},
 	}
-	return utils.ResourcesBuiler.CreateRole(apiServerRessouceName, rules)
+	return utils.ResourceBuilder.CreateRole(apiServerRessouceName, rules)
 }
 
 func createAPIServerService() *corev1.Service {
-	service := utils.ResourcesBuiler.CreateService("cdi-api", cdiLabel, apiServerRessouceName, nil)
+	service := utils.ResourceBuilder.CreateService("cdi-api", cdiLabel, apiServerRessouceName, nil)
 	service.Spec.Ports = []corev1.ServicePort{
 		{
 			Port: 443,

@@ -10,7 +10,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	cdicontroller "kubevirt.io/containerized-data-importer/pkg/controller"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 type dataVolumeTransferHandler struct {
@@ -94,9 +96,14 @@ func (h *dataVolumeTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (
 	if !targetExists && !pvcTransferExists {
 		targetNamespace := getTransferTargetNamespace(ot)
 		targetName := getTransferTargetName(ot)
+
 		pvcTransfer = &cdiv1.ObjectTransfer{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: pvcTransferName,
+				Labels: map[string]string{
+					common.CDILabelKey:       common.CDILabelValue,
+					common.CDIComponentLabel: "",
+				},
 			},
 			Spec: cdiv1.ObjectTransferSpec{
 				Source: cdiv1.TransferSource{
@@ -111,6 +118,7 @@ func (h *dataVolumeTransferHandler) ReconcileRunning(ot *cdiv1.ObjectTransfer) (
 				ParentName: &ot.Name,
 			},
 		}
+		util.SetRecommendedLabels(pvcTransfer, h.reconciler.InstallerLabels, "cdi-controller")
 
 		if err := h.reconciler.Client.Create(context.TODO(), pvcTransfer); err != nil {
 			return 0, h.reconciler.setCompleteConditionError(ot, err)

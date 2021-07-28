@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 var _ = Describe("DataVolume Transfer Tests", func() {
@@ -151,6 +152,7 @@ var _ = Describe("DataVolume Transfer Tests", func() {
 			err = getResource(r.Client, "", "pvc-transfer-uid-dvTransfer", pvcTransfer)
 			Expect(err).ToNot(HaveOccurred())
 
+			Expect(pvcTransfer.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 			Expect(pvcTransfer.Spec.Source.Kind).To(Equal("PersistentVolumeClaim"))
 			Expect(pvcTransfer.Spec.Source.Name).To(Equal("source-dv"))
 			Expect(pvcTransfer.Spec.Source.Namespace).To(Equal("source-ns"))

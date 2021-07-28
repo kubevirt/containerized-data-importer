@@ -374,6 +374,8 @@ var _ = Describe("Controller ImportProxy reconcile loop", func() {
 		configMap := &corev1.ConfigMap{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ImportProxyConfigMapName, Namespace: reconciler.cdiNamespace}, configMap)
 		Expect(err).ToNot(HaveOccurred())
+		Expect(configMap.Labels[common.AppKubernetesComponentLabel]).To(Equal("storage"))
+
 		cmCert, _ := configMap.Data[common.ImportProxyConfigMapKey]
 		Expect(string(cmCert)).To(Equal(certificate))
 	})
@@ -418,6 +420,7 @@ var _ = Describe("Controller create CDI config", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resConfig.Name).To(Equal("testconfig"))
 		Expect(resConfig.ObjectMeta.OwnerReferences[0].Name).To(Equal("testowner"))
+		Expect(resConfig.Labels[common.AppKubernetesPartOfLabel]).To(Equal(""))
 	})
 })
 
@@ -784,6 +787,10 @@ func createConfigReconciler(objects ...runtime.Object) (*CDIConfigReconciler, *c
 		configName:             "cdiconfig",
 		cdiNamespace:           testNamespace,
 		uploadProxyServiceName: testServiceName,
+		installerLabels: map[string]string{
+			common.AppKubernetesPartOfLabel:  "",
+			common.AppKubernetesVersionLabel: "",
+		},
 	}
 	return r, cdiConfig
 }

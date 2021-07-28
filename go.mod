@@ -47,7 +47,7 @@ require (
 	k8s.io/klog/v2 v2.4.0
 	k8s.io/kube-aggregator v0.20.2
 	k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
-	kubevirt.io/controller-lifecycle-operator-sdk v0.2.0
+	kubevirt.io/controller-lifecycle-operator-sdk v0.2.1-0.20210723143736-64585ea1d1bd // TODO: update when release is made
 	kubevirt.io/qe-tools v0.1.6
 	sigs.k8s.io/controller-runtime v0.8.3
 )

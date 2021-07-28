@@ -192,7 +192,8 @@ func (r *ReconcileCDI) Reconcile(_ context.Context, request reconcile.Request) (
 		for _, obj := range objects {
 			runtimeObjects = append(runtimeObjects, obj)
 		}
-		err = install.DumpInstallStrategyToConfigMap(r.client, runtimeObjects, reqLogger, r.namespace)
+		installerLabels := util.GetRecommendedInstallerLabelsFromCr(cr)
+		err = install.DumpInstallStrategyToConfigMap(r.client, runtimeObjects, reqLogger, r.namespace, installerLabels)
 		if err != nil {
 			reqLogger.Error(err, "Failed to dump CDI object in configmap")
 			return reconcile.Result{}, err
@@ -268,6 +269,9 @@ func (r *ReconcileCDI) getConfigMap() (*corev1.ConfigMap, error) {
 
 // createOperatorConfig creates operator config map
 func (r *ReconcileCDI) createOperatorConfig(cr client.Object) error {
+	cdiCR := cr.(*cdiv1.CDI)
+	installerLabels := util.GetRecommendedInstallerLabelsFromCr(cdiCR)
+
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      operator.ConfigMapName,
@@ -275,6 +279,7 @@ func (r *ReconcileCDI) createOperatorConfig(cr client.Object) error {
 			Labels:    map[string]string{"operator.cdi.kubevirt.io": ""},
 		},
 	}
+	util.SetRecommendedLabels(cm, installerLabels, "cdi-operator")
 
 	if err := controllerutil.SetControllerReference(cr, cm, r.scheme); err != nil {
 		return err

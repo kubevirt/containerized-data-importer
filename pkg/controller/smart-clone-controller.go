@@ -23,6 +23,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -34,19 +35,21 @@ const (
 
 // SmartCloneReconciler members
 type SmartCloneReconciler struct {
-	client   client.Client
-	recorder record.EventRecorder
-	scheme   *runtime.Scheme
-	log      logr.Logger
+	client          client.Client
+	recorder        record.EventRecorder
+	scheme          *runtime.Scheme
+	log             logr.Logger
+	installerLabels map[string]string
 }
 
 // NewSmartCloneController creates a new instance of the Smart clone controller.
-func NewSmartCloneController(mgr manager.Manager, log logr.Logger) (controller.Controller, error) {
+func NewSmartCloneController(mgr manager.Manager, log logr.Logger, installerLabels map[string]string) (controller.Controller, error) {
 	reconciler := &SmartCloneReconciler{
-		client:   mgr.GetClient(),
-		scheme:   mgr.GetScheme(),
-		log:      log.WithName("smartclone-controller"),
-		recorder: mgr.GetEventRecorderFor("smartclone-controller"),
+		client:          mgr.GetClient(),
+		scheme:          mgr.GetScheme(),
+		log:             log.WithName("smartclone-controller"),
+		recorder:        mgr.GetEventRecorderFor("smartclone-controller"),
+		installerLabels: installerLabels,
 	}
 	smartCloneController, err := controller.New("smartclone-controller", mgr, controller.Options{
 		Reconciler: reconciler,
@@ -220,6 +223,7 @@ func (r *SmartCloneReconciler) reconcileSnapshot(log logr.Logger, snapshot *snap
 	if err != nil {
 		return reconcile.Result{}, err
 	}
+	util.SetRecommendedLabels(newPvc, r.installerLabels, "cdi-controller")
 
 	if err := setAnnOwnedByDataVolume(newPvc, dataVolume); err != nil {
 		return reconcile.Result{}, err

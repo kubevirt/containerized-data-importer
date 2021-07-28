@@ -139,11 +139,11 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 }
 
 func createClusterRole() *rbacv1.ClusterRole {
-	return utils.ResourcesBuiler.CreateOperatorClusterRole(clusterRoleName, getClusterPolicyRules())
+	return utils.ResourceBuilder.CreateOperatorClusterRole(clusterRoleName, getClusterPolicyRules())
 }
 
 func createClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
-	return utils.ResourcesBuiler.CreateOperatorClusterRoleBinding(serviceAccountName, clusterRoleName, serviceAccountName, namespace)
+	return utils.ResourceBuilder.CreateOperatorClusterRoleBinding(serviceAccountName, clusterRoleName, serviceAccountName, namespace)
 }
 
 func createClusterRBAC(args *FactoryArgs) []client.Object {
@@ -224,17 +224,17 @@ func getNamespacedPolicyRules() []rbacv1.PolicyRule {
 }
 
 func createServiceAccount(namespace string) *corev1.ServiceAccount {
-	return utils.ResourcesBuiler.CreateOperatorServiceAccount(serviceAccountName, namespace)
+	return utils.ResourceBuilder.CreateOperatorServiceAccount(serviceAccountName, namespace)
 }
 
 func createNamespacedRole(namespace string) *rbacv1.Role {
-	role := utils.ResourcesBuiler.CreateRole(roleName, getNamespacedPolicyRules())
+	role := utils.ResourceBuilder.CreateRole(roleName, getNamespacedPolicyRules())
 	role.Namespace = namespace
 	return role
 }
 
 func createNamespacedRoleBinding(namespace string) *rbacv1.RoleBinding {
-	roleBinding := utils.ResourcesBuiler.CreateRoleBinding(serviceAccountName, roleName, serviceAccountName, namespace)
+	roleBinding := utils.ResourceBuilder.CreateRoleBinding(serviceAccountName, roleName, serviceAccountName, namespace)
 	roleBinding.Namespace = namespace
 	return roleBinding
 }

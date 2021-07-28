@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/apis/core/v1beta1:go_default_library",
+        "//pkg/util:go_default_library",
         "//vendor/github.com/ghodss/yaml:go_default_library",
         "//vendor/github.com/go-logr/logr:go_default_library",
         "//vendor/github.com/openshift/api/security/v1:go_default_library",

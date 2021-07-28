@@ -38,6 +38,13 @@ import (
 const statusKey = "status"
 const capitalStatusKey = "Status"
 
+const (
+	// AppKubernetesPartOfLabel is the Kubernetes recommended part-of label
+	AppKubernetesPartOfLabel = "app.kubernetes.io/part-of"
+	// AppKubernetesVersionLabel is the Kubernetes recommended version label
+	AppKubernetesVersionLabel = "app.kubernetes.io/version"
+)
+
 var log = logf.Log.WithName("sdk")
 
 func MergeLabelsAndAnnotations(src, dest metav1.Object) {
@@ -231,4 +238,17 @@ func GetOperatorToplevel() string {
 		cwd, _ = os.Getwd()
 	}
 	return cwd
+}
+
+// GetRecommendedLabelsFromCr returns the recommended labels to set on CDI resources
+func GetRecommendedLabelsFromCr(cr client.Object) map[string]string {
+	labels := map[string]string{}
+
+	for k, v := range cr.GetLabels() {
+		if k == AppKubernetesPartOfLabel || k == AppKubernetesVersionLabel {
+			labels[k] = v
+		}
+	}
+
+	return labels
 }
