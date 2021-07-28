@@ -68,6 +68,7 @@ func main() {
 	finalCheckpoint, _ := util.ParseEnvVar(common.ImporterFinalCheckpoint, false)
 	preallocation, err := strconv.ParseBool(os.Getenv(common.Preallocation))
 	var preallocationApplied bool
+	var imageDigest string
 	var dp importer.DataSourceInterface
 
 	//Registry import currently support kubevirt content type only
@@ -201,10 +202,14 @@ func main() {
 			os.Exit(1)
 		}
 		preallocationApplied = processor.PreallocationApplied()
+		imageDigest = processor.GetImageDigest()
 	}
 	message := "Import Complete"
 	if preallocationApplied {
 		message += ", " + common.PreallocationApplied
+	}
+	if imageDigest != "" {
+		message += ", " + imageDigest
 	}
 	err = util.WriteTerminationMessage(message)
 	if err != nil {

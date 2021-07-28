@@ -32,6 +32,7 @@ go_library(
         "//vendor/github.com/containers/image/v5/oci/archive:go_default_library",
         "//vendor/github.com/containers/image/v5/pkg/blobinfocache:go_default_library",
         "//vendor/github.com/containers/image/v5/types:go_default_library",
+        "//vendor/github.com/opencontainers/go-digest:go_default_library",
         "//vendor/github.com/ovirt/go-ovirt:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/github.com/prometheus/client_golang/prometheus:go_default_library",

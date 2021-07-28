@@ -114,6 +114,11 @@ func (sd *S3DataSource) GetURL() *url.URL {
 	return sd.url
 }
 
+// GetDigest returns the image digest (currently supported only for registry source)
+func (sd *S3DataSource) GetDigest() string {
+	return ""
+}
+
 // Close closes any readers or other open resources.
 func (sd *S3DataSource) Close() error {
 	var err error

@@ -139,6 +139,11 @@ func (is *ImageioDataSource) GetURL() *url.URL {
 	return is.url
 }
 
+// GetDigest returns the image digest (currently supported only for registry source)
+func (is *ImageioDataSource) GetDigest() string {
+	return ""
+}
+
 // Close all readers.
 func (is *ImageioDataSource) Close() error {
 	var err error

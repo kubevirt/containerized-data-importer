@@ -581,6 +581,11 @@ func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *v1.Pod, prefix
 			if strings.Contains(containerState.Terminated.Message, common.PreallocationApplied) {
 				anno[AnnPreallocationApplied] = "true"
 			}
+			re := regexp.MustCompile("sha256:[0-9a-f]+")
+			imageDigest := re.FindSubmatch([]byte(containerState.Terminated.Message))
+			if len(imageDigest) > 0 {
+				anno[AnnImageDigest] = string(imageDigest[0])
+			}
 		}
 	}
 }

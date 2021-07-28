@@ -29,6 +29,11 @@ func (V VDDKDataSource) GetURL() *url.URL {
 	panic("not support")
 }
 
+// GetDigest returns the image digest (currently supported only for registry source)
+func (V VDDKDataSource) GetDigest() string {
+	panic("not support")
+}
+
 func (V VDDKDataSource) Close() error {
 	panic("not support")
 }

@@ -84,6 +84,11 @@ func (ud *UploadDataSource) GetURL() *url.URL {
 	return ud.url
 }
 
+// GetDigest returns the image digest (currently supported only for registry source)
+func (ud *UploadDataSource) GetDigest() string {
+	return ""
+}
+
 // Close closes any readers or other open resources.
 func (ud *UploadDataSource) Close() error {
 	if ud.stream != nil {
@@ -156,6 +161,11 @@ func (aud *AsyncUploadDataSource) Close() error {
 // GetURL returns the url that the data processor can use when converting the data.
 func (aud *AsyncUploadDataSource) GetURL() *url.URL {
 	return aud.uploadDataSource.GetURL()
+}
+
+// GetDigest returns the image digest (currently supported only for registry source)
+func (aud *AsyncUploadDataSource) GetDigest() string {
+	return ""
 }
 
 // GetResumePhase returns the next phase to process when resuming

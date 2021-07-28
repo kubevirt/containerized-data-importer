@@ -47,6 +47,7 @@ type RegistryDataSource struct {
 	certDir     string
 	insecureTLS bool
 	imageDir    string
+	imageDigest string
 	//The discovered image file in scratch space.
 	url *url.URL
 }
@@ -80,9 +81,12 @@ func (rd *RegistryDataSource) Transfer(path string) (ProcessingPhase, error) {
 	rd.imageDir = filepath.Join(path, containerDiskImageDir)
 
 	klog.V(1).Infof("Copying registry image to scratch space.")
-	err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.certDir, rd.insecureTLS)
+	imageDigest, err := CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.certDir, rd.insecureTLS)
 	if err != nil {
 		return ProcessingPhaseError, errors.Wrapf(err, "Failed to read registry image")
+	}
+	if imageDigest != nil {
+		rd.imageDigest = string(*imageDigest)
 	}
 
 	imageFile, err := getImageFileName(rd.imageDir)
@@ -104,6 +108,11 @@ func (rd *RegistryDataSource) TransferFile(fileName string) (ProcessingPhase, er
 // GetURL returns the url that the data processor can use when converting the data.
 func (rd *RegistryDataSource) GetURL() *url.URL {
 	return rd.url
+}
+
+// GetDigest returns the image digest.
+func (rd *RegistryDataSource) GetDigest() string {
+	return rd.imageDigest
 }
 
 // Close closes any readers or other open resources.

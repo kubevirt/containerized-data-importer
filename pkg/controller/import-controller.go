@@ -75,6 +75,8 @@ const (
 	AnnThumbprint = AnnAPIGroup + "/storage.import.vddk.thumbprint"
 	// AnnPreallocationApplied provides a const for PVC preallocation annotation
 	AnnPreallocationApplied = AnnAPIGroup + "/storage.preallocation"
+	// AnnImageDigest provides a const for imported image digest annotation
+	AnnImageDigest = AnnAPIGroup + "/storage.import.imageDigest"
 
 	//LabelImportPvc is a pod label used to find the import pod that was created by the relevant PVC
 	LabelImportPvc = AnnAPIGroup + "/storage.import.importPvcName"

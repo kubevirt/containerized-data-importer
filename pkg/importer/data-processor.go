@@ -72,6 +72,9 @@ var ErrRequiresScratchSpace = fmt.Errorf("scratch space required and none found"
 // ErrInvalidPath indicates that the path is invalid.
 var ErrInvalidPath = fmt.Errorf("invalid transfer path")
 
+// ErrImageNotChanged indicates that the digest has not changed since last import.
+var ErrImageNotChanged = fmt.Errorf("image digest has not changed")
+
 // may be overridden in tests
 var getAvailableSpaceBlockFunc = util.GetAvailableSpaceBlock
 var getAvailableSpaceFunc = util.GetAvailableSpace
@@ -86,6 +89,8 @@ type DataSourceInterface interface {
 	TransferFile(fileName string) (ProcessingPhase, error)
 	// Geturl returns the url that the data processor can use when converting the data.
 	GetURL() *url.URL
+	// GetDigest returns the image digest.
+	GetDigest() string
 	// Close closes any readers or other open resources.
 	Close() error
 }
@@ -120,6 +125,8 @@ type DataProcessor struct {
 	preallocation bool
 	// preallocationApplied is used to pass information whether preallocation has been performed, or not
 	preallocationApplied bool
+	// imageDigest is the image digest (e.g. SHA256)
+	imageDigest string
 }
 
 // NewDataProcessor create a new instance of a data processor using the passed in data provider.
@@ -188,6 +195,7 @@ func (dp *DataProcessor) ProcessDataWithPause() error {
 			}
 		case ProcessingPhaseTransferScratch:
 			dp.currentPhase, err = dp.source.Transfer(dp.scratchDataDir)
+			dp.imageDigest = dp.source.GetDigest()
 			if err == ErrInvalidPath {
 				// Passed in invalid scratch space path, return scratch space needed error.
 				err = ErrRequiresScratchSpace
@@ -353,6 +361,11 @@ func (dp *DataProcessor) calculateTargetSize() int64 {
 // PreallocationApplied returns true if data processing path included preallocation step
 func (dp *DataProcessor) PreallocationApplied() bool {
 	return dp.preallocationApplied
+}
+
+// GetImageDigest returns the image digest (currently supported only for registry source)
+func (dp *DataProcessor) GetImageDigest() string {
+	return dp.imageDigest
 }
 
 func (dp *DataProcessor) getUsableSpace() int64 {

@@ -29,6 +29,7 @@ import (
 	"github.com/containers/image/v5/oci/archive"
 	"github.com/containers/image/v5/pkg/blobinfocache"
 	"github.com/containers/image/v5/types"
+	digest "github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -169,7 +170,7 @@ func processLayer(ctx context.Context,
 	return found, nil
 }
 
-func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry, stopAtFirst bool) error {
+func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry, stopAtFirst bool) (*digest.Digest, error) {
 	klog.Infof("Downloading image from '%v', copying file from '%v' to '%v'", url, pathPrefix, destDir)
 
 	ctx, cancel := commandTimeoutContext()
@@ -178,16 +179,19 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir stri
 
 	src, err := readImageSource(ctx, srcCtx, url)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer closeImage(src)
 
 	imgCloser, err := image.FromSource(ctx, srcCtx, src)
 	if err != nil {
 		klog.Errorf("Error retrieving image: %v", err)
-		return errors.Wrap(err, "Error retrieving image")
+		return nil, errors.Wrap(err, "Error retrieving image")
 	}
 	defer imgCloser.Close()
+
+	imgDigest := imgCloser.ConfigInfo().Digest
+	klog.Infof("Image digest: %v", imgDigest)
 
 	cache := blobinfocache.DefaultCache(srcCtx)
 	found := false
@@ -209,10 +213,10 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir stri
 
 	if !found {
 		klog.Errorf("Failed to find VM disk image file in the container image")
-		return errors.New("Failed to find VM disk image file in the container image")
+		return nil, errors.New("Failed to find VM disk image file in the container image")
 	}
 
-	return nil
+	return &imgDigest, nil
 }
 
 // CopyRegistryImage download image from registry with docker image API. It will extract first file under the pathPrefix
@@ -223,7 +227,7 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir stri
 // secKey: secretKey for the registry described in url.
 // certDir: directory public CA keys are stored for registry identity verification
 // insecureRegistry: boolean if true will allow insecure registries.
-func CopyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry bool) error {
+func CopyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry bool) (*digest.Digest, error) {
 	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir, insecureRegistry, true)
 }
 
@@ -235,6 +239,6 @@ func CopyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir stri
 // secKey: secretKey for the registry described in url.
 // certDir: directory public CA keys are stored for registry identity verification
 // insecureRegistry: boolean if true will allow insecure registries.
-func CopyRegistryImageAll(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry bool) error {
+func CopyRegistryImageAll(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry bool) (*digest.Digest, error) {
 	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir, insecureRegistry, false)
 }

@@ -870,6 +870,11 @@ func (vs *VDDKDataSource) GetURL() *url.URL {
 	return vs.NbdKit.Socket
 }
 
+// GetDigest returns the image digest (currently supported only for registry source)
+func (vs *VDDKDataSource) GetDigest() string {
+	return ""
+}
+
 // Transfer is called to transfer the data from the source to the path passed in.
 func (vs *VDDKDataSource) Transfer(path string) (ProcessingPhase, error) {
 	return ProcessingPhaseTransferDataFile, nil

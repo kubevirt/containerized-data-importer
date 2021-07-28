@@ -190,6 +190,11 @@ func (hs *HTTPDataSource) GetURL() *url.URL {
 	return hs.url
 }
 
+// GetDigest returns the image digest (currently supported only for registry source)
+func (hs *HTTPDataSource) GetDigest() string {
+	return ""
+}
+
 // Close all readers.
 func (hs *HTTPDataSource) Close() error {
 	var err error
