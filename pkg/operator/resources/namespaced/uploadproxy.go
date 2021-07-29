@@ -53,6 +53,7 @@ func createUploadProxyService() *corev1.Service {
 			Protocol: corev1.ProtocolTCP,
 		},
 	}
+	service.Spec.Type = corev1.ServiceTypeClusterIP
 	return service
 }
 
