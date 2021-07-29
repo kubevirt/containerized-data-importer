@@ -122,7 +122,8 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 			Name: common.InstallerPartOfLabel,
 			ValueFrom: &corev1.EnvVarSource{
 				FieldRef: &corev1.ObjectFieldSelector{
-					FieldPath: fmt.Sprintf("metadata.labels['%s']", common.AppKubernetesPartOfLabel),
+					APIVersion: "v1",
+					FieldPath:  fmt.Sprintf("metadata.labels['%s']", common.AppKubernetesPartOfLabel),
 				},
 			},
 		},
@@ -130,7 +131,8 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, upl
 			Name: common.InstallerVersionLabel,
 			ValueFrom: &corev1.EnvVarSource{
 				FieldRef: &corev1.ObjectFieldSelector{
-					FieldPath: fmt.Sprintf("metadata.labels['%s']", common.AppKubernetesVersionLabel),
+					APIVersion: "v1",
+					FieldPath:  fmt.Sprintf("metadata.labels['%s']", common.AppKubernetesVersionLabel),
 				},
 			},
 		},
