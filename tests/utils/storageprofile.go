@@ -19,8 +19,7 @@ func GetStorageProfileSpec(clientSet *cdiclientset.Clientset, storageClassName s
 		return nil, err
 	}
 
-	originalProfileSpec := storageProfile.Spec.DeepCopy()
-	return originalProfileSpec, nil
+	return &storageProfile.Spec, nil
 }
 
 // UpdateStorageProfile updates the storageProfile found by name, with given StorageProfileSpec.
@@ -44,8 +43,8 @@ func ConfigureCloneStrategy(client client.Client,
 	clientSet *cdiclientset.Clientset,
 	storageClassName string,
 	spec *cdiv1.StorageProfileSpec,
-	cloneStrategyCsiClone cdiv1.CDICloneStrategy) error {
-	newProfileSpec := updateCloneStrategy(spec, cloneStrategyCsiClone)
+	cloneStrategy cdiv1.CDICloneStrategy) error {
+	newProfileSpec := updateCloneStrategy(spec, cloneStrategy)
 	if err := UpdateStorageProfile(client, storageClassName, *newProfileSpec); err != nil {
 		return err
 	}
@@ -57,7 +56,7 @@ func ConfigureCloneStrategy(client client.Client,
 			return profile.Status.ClaimPropertySets[0].CloneStrategy
 		}
 		return nil
-	}, time.Second*30, time.Second).Should(gomega.Equal(&cloneStrategyCsiClone))
+	}, time.Second*30, time.Second).Should(gomega.Equal(&cloneStrategy))
 
 	return nil
 }
