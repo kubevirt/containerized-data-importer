@@ -1,3 +1,8 @@
+v1.34.2:
+TestFix: Make annotation test less flaky.
+Enhancement: Update to latest api versions for libraries.
+BugFix: URL-encode special characters in VDDK credentials
+
 v1.34.1:
 
 TestFix: Fix cluster proxy part of proxy test (#1772)
