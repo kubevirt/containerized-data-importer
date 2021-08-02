@@ -1,0 +1,3 @@
+v1.37.1:
+BugFix: Fixed operator not reconciling service type on upload proxy service
+
