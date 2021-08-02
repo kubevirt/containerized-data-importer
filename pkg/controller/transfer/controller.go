@@ -149,7 +149,11 @@ func (r *ObjectTransferReconciler) Reconcile(_ context.Context, req reconcile.Re
 		if requeue, err := handler.ReconcilePending(ot); requeue > 0 || err != nil {
 			return reconcile.Result{RequeueAfter: requeue}, err
 		}
-	case cdiv1.ObjectTransferRunning:
+	case cdiv1.ObjectTransferRunning, cdiv1.ObjectTransferError:
+		if ot.DeletionTimestamp != nil && ot.Status.Phase == cdiv1.ObjectTransferError {
+			return r.reconcileCleanup(ot)
+		}
+
 		handler, err := r.getHandler(ot)
 		if err != nil {
 			return reconcile.Result{}, err
@@ -161,11 +165,6 @@ func (r *ObjectTransferReconciler) Reconcile(_ context.Context, req reconcile.Re
 	case cdiv1.ObjectTransferComplete:
 
 		return r.reconcileCleanup(ot)
-	case cdiv1.ObjectTransferError:
-
-		if ot.DeletionTimestamp != nil {
-			return r.reconcileCleanup(ot)
-		}
 	}
 
 	return reconcile.Result{}, nil
@@ -275,6 +274,10 @@ func (r *ObjectTransferReconciler) setAndUpdateCompleteCondition(ot *cdiv1.Objec
 }
 
 func (r *ObjectTransferReconciler) setCompleteConditionError(ot *cdiv1.ObjectTransfer, lastError error) error {
+	if ot.Status.Phase == cdiv1.ObjectTransferRunning {
+		ot.Status.Phase = cdiv1.ObjectTransferError
+	}
+
 	if err := r.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "Error", lastError.Error()); err != nil {
 		return err
 	}
@@ -283,6 +286,7 @@ func (r *ObjectTransferReconciler) setCompleteConditionError(ot *cdiv1.ObjectTra
 }
 
 func (r *ObjectTransferReconciler) setCompleteConditionRunning(ot *cdiv1.ObjectTransfer) error {
+	ot.Status.Phase = cdiv1.ObjectTransferRunning
 	return r.setAndUpdateCompleteCondition(ot, corev1.ConditionFalse, "Running", "")
 }
 

@@ -2,6 +2,7 @@ package tests_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -12,7 +13,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -294,7 +294,7 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
 			Expect(uid).To(Equal(pvUID(f.Namespace.Name, dataVolume.Name)))
 		})
 
-		It("[test_id:5695]should do concurrent transfers", func() {
+		DescribeTable("[test_id:5695]should do concurrent transfers", func(createTargetNamespace bool, targetName *string) {
 			var sourceNamespaces []string
 			var wg sync.WaitGroup
 			n := 5
@@ -318,17 +318,28 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
 			wg.Wait()
 
 			for i := 0; i < n; i++ {
-				ns, err := f.CreateNamespace(f.NsPrefix, map[string]string{
-					framework.NsPrefixLabel: f.NsPrefix,
-				})
-				Expect(err).NotTo(HaveOccurred())
-				f.AddNamespaceToDelete(ns)
+				var targetNamespace string
+
+				if createTargetNamespace {
+					ns, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+						framework.NsPrefixLabel: f.NsPrefix,
+					})
+					Expect(err).NotTo(HaveOccurred())
+					f.AddNamespaceToDelete(ns)
+					targetNamespace = ns.Name
+				}
 
 				wg.Add(1)
-				go func(sourceNs, targetNs string) {
+				go func(sourceNs string) {
 					defer GinkgoRecover()
 					defer wg.Done()
-					uid := pvUID(sourceNs, "source-dv")
+					sourceName := "source-dv"
+					targetNs := sourceNs
+					uid := pvUID(sourceNs, sourceName)
+
+					if createTargetNamespace {
+						targetNs = targetNamespace
+					}
 
 					ot := &cdiv1.ObjectTransfer{
 						ObjectMeta: metav1.ObjectMeta{
@@ -338,24 +349,60 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
 							Source: cdiv1.TransferSource{
 								Kind:      "DataVolume",
 								Namespace: sourceNs,
-								Name:      "source-dv",
+								Name:      sourceName,
 							},
 							Target: cdiv1.TransferTarget{
-								Namespace: &targetNs,
+								Name: targetName,
 							},
 						},
+					}
+
+					if createTargetNamespace {
+						ot.Spec.Target.Namespace = &targetNamespace
 					}
 
 					defer deleteTransfer(ot.Name)
 					ot = doTransfer(ot)
 
-					Expect(uid).To(Equal(pvUID(targetNs, "source-dv")))
+					tn := sourceName
+					if targetName != nil {
+						tn = *targetName
+					}
+					Expect(uid).To(Equal(pvUID(targetNs, tn)))
 
-				}(sourceNamespaces[i], ns.Name)
+				}(sourceNamespaces[i])
 			}
 
+			ch := make(chan struct{})
+			defer close(ch)
+
+			go func() {
+				done := false
+				for {
+					select {
+					case <-ch:
+						done = true
+					case <-time.After(5 * time.Second):
+					}
+
+					l, err := f.CdiClient.CdiV1beta1().ObjectTransfers().List(context.TODO(), metav1.ListOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					bs, err := json.MarshalIndent(l.Items, "", "    ")
+					Expect(err).ToNot(HaveOccurred())
+					fmt.Fprintf(GinkgoWriter, "%s\n", string(bs))
+
+					if done {
+						return
+					}
+				}
+			}()
+
 			wg.Wait()
-		})
+		},
+			Entry("with new namespace and same name", true, nil),
+			Entry("with new namespace and explicit name", true, &[]string{"target-name"}[0]),
+			Entry("with same namespace and explicit name", false, &[]string{"target-name"}[0]),
+		)
 
 		It("[posneg:negative][test_id:5734]should handle quota failure", func() {
 			sq := int64(100 * 1024 * 1024)
@@ -408,7 +455,7 @@ var _ = Describe("[rfe_id:5630][crit:high]ObjectTransfer tests", func() {
 			Eventually(func() bool {
 				transferName := "pvc-transfer-" + string(ot.UID)
 				ot2, err := f.CdiClient.CdiV1beta1().ObjectTransfers().Get(context.TODO(), transferName, metav1.GetOptions{})
-				if errors.IsNotFound(err) {
+				if k8serrors.IsNotFound(err) {
 					return false
 				}
 				Expect(err).ToNot(HaveOccurred())
