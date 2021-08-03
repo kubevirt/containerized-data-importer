@@ -135,7 +135,9 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 	if hs.contentType == cdiv1.DataVolumeArchive {
 		return ProcessingPhaseTransferDataDir, nil
 	}
-	if hs.brokenForQemuImg {
+	if hs.brokenForQemuImg || (hs.readers.ArchiveGz && hs.readers.Convert) {
+		// Either broken for qemu-img, so we have to download first OR we are converting
+		// a qcow2 that is gzipped (which means we have to download the image anyway)
 		return ProcessingPhaseTransferScratch, nil
 	}
 	if hs.customCA != "" {
