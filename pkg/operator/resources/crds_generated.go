@@ -3291,8 +3291,6 @@ metadata:
 spec:
   group: cdi.kubevirt.io
   names:
-    categories:
-    - all
     kind: ObjectTransfer
     listKind: ObjectTransferList
     plural: objecttransfers
