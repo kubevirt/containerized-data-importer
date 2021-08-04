@@ -10,6 +10,7 @@ import (
 	"errors"
 	"net/url"
 	"os"
+	"strings"
 
 	libnbd "github.com/mrnold/go-libnbd"
 	. "github.com/onsi/ginkgo"
@@ -354,6 +355,27 @@ var _ = Describe("VDDK data source", func() {
 		mockTerminationChannel <- os.Interrupt
 		Expect(err).ToNot(HaveOccurred())
 	})
+
+	It("should reduce pread length for vCenter endpoints", func() {
+		newVddkDataSource = createVddkDataSource
+		diskName := "testdisk.vmdk"
+
+		currentVMwareFunctions.Properties = func(ctx context.Context, ref types.ManagedObjectReference, property []string, result interface{}) error {
+			switch out := result.(type) {
+			case *mo.VirtualMachine:
+				if property[0] == "config.hardware.device" {
+					out.Config = createVirtualDiskConfig(diskName, 12345)
+				}
+			}
+			return nil
+		}
+		_, err := NewVDDKDataSource("http://esx.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(MaxPreadLength).To(Equal(uint32(MaxPreadLengthESX)))
+		_, err = NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(MaxPreadLength).To(Equal(uint32(MaxPreadLengthVC)))
+	})
 })
 
 var _ = Describe("VDDK log watcher", func() {
@@ -469,10 +491,16 @@ func createMockVddkDataSink(destinationFile string, size uint64, volumeMode v1.P
 	return sink, nil
 }
 
-type mockVMwareConnectionOperations struct{}
+type mockVMwareConnectionOperations struct {
+	Endpoint string
+}
 
 func (ops *mockVMwareConnectionOperations) Logout(context.Context) error {
 	return nil
+}
+
+func (ops *mockVMwareConnectionOperations) IsVC() bool {
+	return strings.Contains(ops.Endpoint, "vcenter")
 }
 
 type mockVMwareFunctions struct {
@@ -524,7 +552,7 @@ func createMockVMwareClient(endpoint string, accessKey string, secKey string, th
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &VMwareClient{
-		conn:       &mockVMwareConnectionOperations{},
+		conn:       &mockVMwareConnectionOperations{endpoint},
 		cancel:     cancel,
 		context:    ctx,
 		moref:      "vm-1",
