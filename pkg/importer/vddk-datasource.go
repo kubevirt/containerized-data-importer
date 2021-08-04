@@ -19,11 +19,16 @@ package importer
 import (
 	"bufio"
 	"bytes"
+	"container/ring"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"os"
+	"regexp"
+	"strings"
 	"syscall"
 	"time"
 
@@ -48,19 +53,30 @@ var newVddkDataSource = createVddkDataSource
 var newVddkDataSink = createVddkDataSink
 var newVMwareClient = createVMwareClient
 var newNbdKitWrapper = createNbdKitWrapper
+var newNbdKitLogWatcher = createNbdKitLogWatcher
 
 /* Section: nbdkit */
 
 const (
 	nbdUnixSocket = "/var/run/nbd.sock"
 	nbdPidFile    = "/var/run/nbd.pid"
+	maxLogLines   = 30
 )
+
+var vddkVersion string
+var vddkHost string
 
 // NbdKitWrapper keeps track of one nbdkit process
 type NbdKitWrapper struct {
 	n      image.NbdkitOperation
 	Socket *url.URL
 	Handle NbdOperations
+}
+
+// NbdKitLogWatcherVddk implements VDDK-specific nbdkit log handling
+type NbdKitLogWatcherVddk struct {
+	stopChannel chan struct{}
+	output      *bufio.Reader
 }
 
 // createNbdKitWrapper starts nbdkit and returns a process handle for further management
@@ -70,6 +86,8 @@ func createNbdKitWrapper(vmware *VMwareClient, diskFileName string) (*NbdKitWrap
 		klog.Errorf("Error validating nbdkit plugins: %v", err)
 		return nil, err
 	}
+	watcher := newNbdKitLogWatcher()
+	n.(*image.Nbdkit).LogWatcher = watcher
 	err = n.StartNbdkit(diskFileName)
 	if err != nil {
 		klog.Errorf("Unable to start nbdkit: %v", err)
@@ -102,6 +120,95 @@ func createNbdKitWrapper(vmware *VMwareClient, diskFileName string) (*NbdKitWrap
 		Handle: handle,
 	}
 	return source, nil
+}
+
+// createNbdKitLogWatcher creates a channel to use as a log watcher stop signal.
+func createNbdKitLogWatcher() *NbdKitLogWatcherVddk {
+	stopper := make(chan struct{})
+	return &NbdKitLogWatcherVddk{
+		stopChannel: stopper,
+		output:      nil,
+	}
+}
+
+// Start runs the nbdkit log watcher in the background.
+func (watcher NbdKitLogWatcherVddk) Start(output *bufio.Reader) {
+	watcher.output = output
+	go watcher.watchNbdLog()
+}
+
+// Stop waits for the log watcher to stop. Needs something else to stop nbdkit first.
+func (watcher NbdKitLogWatcherVddk) Stop() {
+	klog.Infof("Waiting for VDDK nbdkit log watcher to stop.")
+	<-watcher.stopChannel
+	klog.Infof("Stopped VDDK nbdkit log watcher.")
+}
+
+// watchNbdLog reads lines from the nbdkit output. It picks out useful pieces
+// of information (VDDK version, final ESX host) and records the last few lines
+// to help debug errors (the whole log is otherwise too verbose to save).
+func (watcher NbdKitLogWatcherVddk) watchNbdLog() {
+	// Only log the last few lines of nbdkit output, there can be a lot
+	logRing := ring.New(maxLogLines)
+	// Fetch VDDK version from "VMware VixDiskLib (7.0.0) Release build-15832853"
+	versionMatch := regexp.MustCompile(`\((?P<version>.*)\).*build-(?P<build>.*)`)
+	// Fetch ESX host from "Opened 'vpxa-nfcssl://[iSCSI_Datastore] test/test.vmdk@esx12.test.local:902' (0xa): custom, 50331648 sectors / 24 GB."
+	hostMatch := regexp.MustCompile(`Opened '.*@(?P<host>.*):.*' \(0x`)
+
+	scanner := bufio.NewScanner(watcher.output)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if strings.HasPrefix(line, "nbdkit: debug: VMware VixDiskLib") {
+			if version, found := findMatch(versionMatch, line, "version"); found {
+				klog.Infof("VDDK version in-use: %s", version)
+				vddkVersion = version
+			}
+		} else if strings.HasPrefix(line, "nbdkit: vddk[1]: debug: DISKLIB-LINK  : Opened ") {
+			if host, found := findMatch(hostMatch, line, "host"); found {
+				klog.Infof("VDDK connected to host: %s", vddkHost)
+				vddkHost = host
+			}
+		}
+
+		logRing.Value = line
+		logRing = logRing.Next()
+	}
+
+	if err := scanner.Err(); err != nil {
+		klog.Errorf("Error watching nbdkit log: %v", err)
+	}
+
+	klog.Infof("Stopped watching nbdkit log. Last lines follow:")
+	logRing.Do(dumpLogs)
+	klog.Infof("End of nbdkit log.")
+
+	watcher.stopChannel <- struct{}{}
+}
+
+// Find the first match of the given regex in the given line, if it matches the given group name.
+func findMatch(regex *regexp.Regexp, line string, name string) (string, bool) {
+	matches := regex.FindAllStringSubmatch(line, -1)
+	for index, matchName := range regex.SubexpNames() {
+		if matchName == name && len(matches) > 0 {
+			return matches[0][index], true
+		}
+	}
+	return "", false
+}
+
+// Record log lines from the nbdkit log ring buffer, hiding passwords.
+func dumpLogs(ringEntry interface{}) {
+	var ok bool
+	var line string
+	if line, ok = ringEntry.(string); !ok {
+		return
+	}
+	if strings.Contains(line, "vddk: config key=password") {
+		// Do not log passwords
+		return
+	}
+	klog.Infof("Log line from nbdkit: %s", line)
 }
 
 /* Section: VMware API manipulations */
@@ -624,6 +731,7 @@ func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbpr
 
 func createVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode) (*VDDKDataSource, error) {
 	klog.Infof("Creating VDDK data source: backingFile [%s], currentCheckpoint [%s], previousCheckpoint [%s], finalCheckpoint [%s]", backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint)
+
 	if currentCheckpoint == "" && previousCheckpoint != "" {
 		// Not sure what to do with just previous set by itself, return error
 		return nil, errors.New("previous checkpoint set without current")
@@ -735,6 +843,22 @@ func (vs *VDDKDataSource) Info() (ProcessingPhase, error) {
 
 // Close closes any readers or other open resources.
 func (vs *VDDKDataSource) Close() error {
+	if vddkVersion != "" || vddkHost != "" {
+		existingbytes, _ := ioutil.ReadFile(common.PodTerminationMessageFile)
+		existing := string(existingbytes)
+		if existing != "" {
+			existing += "; "
+		}
+		stopinfo := util.VddkInfo{
+			Version: vddkVersion,
+			Host:    vddkHost,
+		}
+		stopmsg, _ := json.Marshal(stopinfo)
+		err := util.WriteTerminationMessage(existing + "VDDK: " + string(stopmsg))
+		if err != nil {
+			klog.Errorf("Unable to write termination message: %v", err)
+		}
+	}
 	vs.NbdKit.Handle.Close()
 	return vs.NbdKit.n.KillNbdkit()
 }

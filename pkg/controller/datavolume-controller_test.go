@@ -615,6 +615,26 @@ var _ = Describe("All DataVolume Tests", func() {
 				Expect(pvc.GetAnnotations()[AnnCurrentCheckpoint]).To(Equal("current"))
 			}),
 		)
+
+		It("Should get VDDK info annotations from PVC", func() {
+			dv := newImportDataVolume("test-dv")
+			annotations := map[string]string{
+				AnnVddkHostConnection: "esx1.test",
+				AnnVddkVersion:        "1.3.4",
+				AnnSource:             SourceVDDK,
+				AnnPopulatedFor:       "test-dv",
+			}
+			pvc := createPvc("test-dv", metav1.NamespaceDefault, annotations, nil)
+
+			reconciler = createDatavolumeReconciler(dv, pvc)
+			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			newDv := &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, newDv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(newDv.GetAnnotations()[AnnVddkHostConnection]).To(Equal("esx1.test"))
+			Expect(newDv.GetAnnotations()[AnnVddkVersion]).To(Equal("1.3.4"))
+		})
 	})
 
 	var _ = Describe("Reconcile Datavolume status", func() {

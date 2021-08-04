@@ -30,6 +30,12 @@ type NbdkitPlugin string
 // NbdkitFilter represents s filter for nbdkit
 type NbdkitFilter string
 
+// NbdkitLogWatcher allows custom handling of nbdkit log messages
+type NbdkitLogWatcher interface {
+	Start(*bufio.Reader)
+	Stop()
+}
+
 // Nbdkit plugins
 const (
 	NbdkitCurlPlugin     NbdkitPlugin = "curl"
@@ -56,6 +62,7 @@ type Nbdkit struct {
 	filters    []NbdkitFilter
 	Socket     string
 	Env        []string
+	LogWatcher NbdkitLogWatcher
 }
 
 // NbdkitOperation defines the interface for executing nbdkit
@@ -112,6 +119,9 @@ func NewNbdkitVddk(nbdkitPidFile, socket, server, username, password, thumbprint
 	if moref != "" {
 		pluginArgs = append(pluginArgs, "vm=moref="+moref)
 	}
+	pluginArgs = append(pluginArgs, "--verbose")
+	pluginArgs = append(pluginArgs, "-D", "nbdkit.backend.controlpath=0")
+	pluginArgs = append(pluginArgs, "-D", "nbdkit.backend.datapath=0")
 	p := getVddkPluginPath()
 	n := &Nbdkit{
 		NbdPidFile: nbdkitPidFile,
@@ -208,16 +218,11 @@ func (n *Nbdkit) StartNbdkit(source string) error {
 	}
 	n.c.Stderr = n.c.Stdout
 	output := bufio.NewReader(stdout)
-	go func() {
-		for {
-			line, err := output.ReadString('\n')
-			if err != nil {
-				break
-			}
-			klog.Infof("Log line from nbdkit: %s", line)
-		}
-		klog.Infof("Stopped watching nbdkit log.")
-	}()
+	if n.LogWatcher != nil {
+		n.LogWatcher.Start(output)
+	} else {
+		go watchNbdLog(output)
+	}
 
 	err = n.c.Start()
 	if err != nil {
@@ -231,6 +236,19 @@ func (n *Nbdkit) StartNbdkit(source string) error {
 		return err
 	}
 	return nil
+}
+
+// Default nbdkit log watcher, just logs lines as nbdkit prints them.
+func watchNbdLog(output *bufio.Reader) {
+	scanner := bufio.NewScanner(output)
+	for scanner.Scan() {
+		line := scanner.Text()
+		klog.Infof("Log line from nbdkit: %s", line)
+	}
+	if err := scanner.Err(); err != nil {
+		klog.Errorf("Error watching nbdkit log: %v", err)
+	}
+	klog.Infof("Stopped watching nbdkit log.")
 }
 
 // waitForNbd waits for nbdkit to start by watching for the existence of the given PID file.
@@ -268,13 +286,20 @@ func waitForNbd(pidfile string) error {
 
 // KillNbdkit stops the nbdkit process
 func (n *Nbdkit) KillNbdkit() error {
+	var err error
 	if n.c == nil {
 		return nil
 	}
 	if n.c.Process != nil {
-		return n.c.Process.Signal(os.Interrupt)
+		err = n.c.Process.Signal(os.Interrupt)
+		if err != nil {
+			err = n.c.Process.Kill()
+		}
 	}
-	return n.c.Process.Kill()
+	if n.LogWatcher != nil {
+		n.LogWatcher.Stop()
+	}
+	return err
 }
 
 // validatePlugins tests VDDK and any other plugins before starting nbdkit for real
@@ -305,6 +330,7 @@ func (n *Nbdkit) validatePlugin() error {
 	args := []string{
 		"--dump-plugin",
 		string(n.plugin),
+		"libdir=" + nbdVddkLibraryPath,
 	}
 	nbdkit := exec.Command("nbdkit", args...)
 	nbdkit.Env = n.Env
