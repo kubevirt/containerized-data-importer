@@ -29,6 +29,8 @@ import (
 
 const (
 	blockdevFileName = "/usr/sbin/blockdev"
+	// DefaultAlignBlockSize is the alignment size we use to align disk images, its a multiple of all known hardware block sizes 512/4k/8k/32k/64k.
+	DefaultAlignBlockSize = 1024 * 1024
 )
 
 // CountingReader is a reader that keeps track of how much has been read

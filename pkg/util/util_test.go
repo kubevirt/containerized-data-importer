@@ -17,10 +17,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-const pattern = "^[a-zA-Z0-9]+$"
-const TestImagesDir = "../../tests/images"
+const (
+	pattern       = "^[a-zA-Z0-9]+$"
+	TestImagesDir = "../../tests/images"
+)
 
-var fileDir, _ = filepath.Abs(TestImagesDir)
+var (
+	fileDir, _ = filepath.Abs(TestImagesDir)
+)
 
 var _ = Describe("Util", func() {
 	It("Should match RandAlphaNum", func() {
