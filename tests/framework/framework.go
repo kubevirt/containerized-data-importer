@@ -76,6 +76,7 @@ type Clients struct {
 	GoCLIPath      string
 	SnapshotSCName string
 	BlockSCName    string
+	CsiCloneSCName string
 
 	//  k8sClient provides our k8s client pointer
 	K8sClient *kubernetes.Clientset
@@ -538,6 +539,15 @@ func (f *Framework) createKubectlCommand(args ...string) *exec.Cmd {
 	cmd.Env = append(os.Environ(), kubeconfEnv)
 
 	return cmd
+}
+
+// IsCSIVolumeCloneStorageClassAvailable checks if the storage class capable of CSI Volume Cloning exists.
+func (f *Framework) IsCSIVolumeCloneStorageClassAvailable() bool {
+	sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.CsiCloneSCName, metav1.GetOptions{})
+	if err != nil {
+		return false
+	}
+	return sc.Name == f.CsiCloneSCName
 }
 
 // IsSnapshotStorageClassAvailable checks if the snapshot storage class exists.

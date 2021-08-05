@@ -15,6 +15,7 @@ go_library(
         "pvc.go",
         "secrets.go",
         "services.go",
+        "storageprofile.go",
         "upload.go",
     ],
     importpath = "kubevirt.io/containerized-data-importer/tests/utils",
