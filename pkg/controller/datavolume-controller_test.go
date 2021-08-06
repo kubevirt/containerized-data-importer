@@ -627,7 +627,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc := createPvc("test-dv", metav1.NamespaceDefault, annotations, nil)
 
 			reconciler = createDatavolumeReconciler(dv, pvc)
-			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 			newDv := &cdiv1.DataVolume{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, newDv)
