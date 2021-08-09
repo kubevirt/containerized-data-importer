@@ -242,9 +242,9 @@ var _ = Describe("Data Processor", func() {
 			transferResponse: ProcessingPhaseConvert,
 			url:              url,
 		}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", tmpDir, "1G", 0.055, false)
+		dp := NewDataProcessor(mdp, "", "dataDir", tmpDir, "1G", 0.055, false)
 		dp.availableSpace = int64(1500)
-		usableSpace := int64((1 - 0.055) * float64(dp.availableSpace))
+		usableSpace := dp.getUsableSpace()
 		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoRet, nil, nil, resource.NewScaledQuantity(usableSpace, 0))
 		replaceQEMUOperations(qemuOperations, func() {
 			err = dp.ProcessData()
@@ -306,12 +306,14 @@ var _ = Describe("Convert", func() {
 
 var _ = Describe("Resize", func() {
 	It("Should not resize and return complete, when requestedSize is blank", func() {
+		tempDir, err := ioutil.TempDir(os.TempDir(), "dest")
+		Expect(err).ToNot(HaveOccurred())
 		url, err := url.Parse("http://fakeurl-notreal.fake")
 		Expect(err).ToNot(HaveOccurred())
 		mdp := &MockDataProvider{
 			url: url,
 		}
-		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "", 0.055, false)
+		dp := NewDataProcessor(mdp, tempDir, "dataDir", "scratchDataDir", "", 0.055, false)
 		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, nil}, nil, nil, nil)
 		replaceQEMUOperations(qemuOperations, func() {
 			nextPhase, err := dp.resize()
@@ -321,8 +323,11 @@ var _ = Describe("Resize", func() {
 	})
 
 	It("Should not resize and return complete, when requestedSize is valid, but datadir doesn't exist (block device)", func() {
+		tempDir, err := ioutil.TempDir(os.TempDir(), "dest")
+		Expect(err).ToNot(HaveOccurred())
+
 		replaceAvailableSpaceBlockFunc(func(dataDir string) (int64, error) {
-			Expect("dest").To(Equal(dataDir))
+			Expect(tempDir).To(Equal(dataDir))
 			return int64(100000), nil
 		}, func() {
 			url, err := url.Parse("http://fakeurl-notreal.fake")
@@ -330,7 +335,7 @@ var _ = Describe("Resize", func() {
 			mdp := &MockDataProvider{
 				url: url,
 			}
-			dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false)
+			dp := NewDataProcessor(mdp, tempDir, "dataDir", "scratchDataDir", "1G", 0.055, false)
 			qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, nil}, nil, nil, nil)
 			replaceQEMUOperations(qemuOperations, func() {
 				nextPhase, err := dp.resize()
@@ -341,14 +346,14 @@ var _ = Describe("Resize", func() {
 	})
 
 	It("Should resize and return complete, when requestedSize is valid, and datadir exists", func() {
-		tmpDir, err := ioutil.TempDir("", "data")
+		tmpDir, err := ioutil.TempDir(os.TempDir(), "data")
 		Expect(err).ToNot(HaveOccurred())
 		url, err := url.Parse("http://fakeurl-notreal.fake")
 		Expect(err).ToNot(HaveOccurred())
 		mdp := &MockDataProvider{
 			url: url,
 		}
-		dp := NewDataProcessor(mdp, "dest", tmpDir, "scratchDataDir", "1G", 0.055, false)
+		dp := NewDataProcessor(mdp, tmpDir, tmpDir, "scratchDataDir", "1G", 0.055, false)
 		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, nil}, nil, nil, nil)
 		replaceQEMUOperations(qemuOperations, func() {
 			nextPhase, err := dp.resize()
@@ -358,7 +363,7 @@ var _ = Describe("Resize", func() {
 	})
 
 	It("Should not resize and return error, when ResizeImage fails", func() {
-		tmpDir, err := ioutil.TempDir("", "data")
+		tmpDir, err := ioutil.TempDir(os.TempDir(), "data")
 		Expect(err).ToNot(HaveOccurred())
 		url, err := url.Parse("http://fakeurl-notreal.fake")
 		Expect(err).ToNot(HaveOccurred())
