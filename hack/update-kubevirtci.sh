@@ -16,15 +16,13 @@
 
 SCRIPT_ROOT="$(cd "$(dirname $0)/../" && pwd -P)"
 
-# the kubevirtci commit hash to vendor from
-kubevirtci_git_hash=142f7450f94d866db863b4af254b5428fe1c570a
+# the kubevirtci release to vendor from (https://github.com/kubevirt/kubevirtci/releases)
+kubevirtci_release_tag=2108081530-91f55e3
 
 # remove previous cluster-up dir entirely before vendoring
 rm -rf ${SCRIPT_ROOT}/cluster-up
 
 # download and extract the cluster-up dir from a specific hash in kubevirtci
-curl -L https://github.com/kubevirt/kubevirtci/archive/${kubevirtci_git_hash}/kubevirtci.tar.gz | tar xz kubevirtci-${kubevirtci_git_hash}/cluster-up --strip-component 1
+curl -L https://github.com/kubevirt/kubevirtci/archive/${kubevirtci_release_tag}/kubevirtci.tar.gz | tar xz kubevirtci-${kubevirtci_release_tag}/cluster-up --strip-component 1
 
-rm -f "${SCRIPT_ROOT}/cluster-up/cluster/kind-k8s-sriov-1.17.0/csrcreator/certsecret.go"
-
-echo "KUBEVIRTCI_TAG=$(curl -L https://storage.googleapis.com/kubevirt-prow/release/kubevirt/kubevirtci/latest)" >>${SCRIPT_ROOT}/cluster-up/hack/common.sh
+echo "KUBEVIRTCI_TAG=${kubevirtci_release_tag}" >>${SCRIPT_ROOT}/cluster-up/hack/common.sh
