@@ -1,126 +1,107 @@
 package importer
 
 import (
-	"bytes"
-	"context"
-	"encoding/pem"
-	"io/ioutil"
-	"net/http/httptest"
+	"fmt"
+	"io"
 	"os"
-	"path"
-	"strings"
-	"time"
+	"path/filepath"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	ovirtsdk4 "github.com/ovirt/go-ovirt"
-	"github.com/pkg/errors"
-
-	"kubevirt.io/containerized-data-importer/pkg/util"
-	"kubevirt.io/containerized-data-importer/pkg/util/cert"
-	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
+	"github.com/onsi/gomega/format"
+	"github.com/onsi/gomega/types"
+	ovirtclient "github.com/ovirt/go-ovirt-client"
 )
 
-var it = &ovirtsdk4.ImageTransfer{}
-var disk = &ovirtsdk4.Disk{}
-var diskAvailable = true
-var diskCreateError error
+type ovirtTestReader struct {
+	data     []byte
+	position int64
+}
 
-var _ = Describe("Imageio reader", func() {
-	var (
-		ts      *httptest.Server
-		tempDir string
-	)
+func (o *ovirtTestReader) Read(p []byte) (n int, err error) {
+	n = copy(p, o.data[o.position:])
+	o.position += int64(n)
+	return n, nil
+}
 
-	BeforeEach(func() {
-		newOvirtClientFunc = createMockOvirtClient
-		newTerminationChannel = createMockTerminationChannel
-		tempDir = createCert()
-		ts = createTestServer(imageDir)
-		disk.SetTotalSize(1024)
-		disk.SetId("123")
-		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)
-		it.SetTransferUrl(ts.URL + "/" + cirrosFileName)
-		it.SetId("123")
-		diskCreateError = nil
-		diskAvailable = true
-	})
+func (o *ovirtTestReader) Seek(offset int64, whence int) (int64, error) {
+	newPosition := o.position
+	switch whence {
+	case io.SeekStart:
+		newPosition = offset
+	case io.SeekEnd:
+		newPosition = int64(len(o.data)) + offset
+	case io.SeekCurrent:
+		newPosition = o.position + offset
+	default:
+		return 0, fmt.Errorf("invalid whence value for seek: %d", whence)
+	}
 
-	AfterEach(func() {
-		newOvirtClientFunc = getOvirtClient
-		if tempDir != "" {
-			os.RemoveAll(tempDir)
-		}
-		ts.Close()
-	})
+	if o.position > int64(len(o.data)) {
+		return 0, fmt.Errorf("seek beyond file end")
+	}
+	if o.position < 0 {
+		return 0, fmt.Errorf("seek before file start")
+	}
+	o.position = newPosition
+	return o.position, nil
+}
 
-	It("should fail creating client", func() {
-		newOvirtClientFunc = failMockOvirtClient
-		_, total, _, _, err := createImageioReader(context.Background(), "invalid/", "", "", "", "")
-		Expect(err).To(HaveOccurred())
-		Expect(uint64(0)).To(Equal(total))
-	})
-
-	It("should create reader", func() {
-		reader, total, _, _, err := createImageioReader(context.Background(), "", "", "", tempDir, "")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(uint64(1024)).To(Equal(total))
-		err = reader.Close()
-		Expect(err).ToNot(HaveOccurred())
-	})
-})
+func (o *ovirtTestReader) Close() error {
+	return nil
+}
 
 var _ = Describe("Imageio data source", func() {
 	var (
-		ts      *httptest.Server
+		diskID  string
 		tempDir string
 		err     error
 	)
 
 	BeforeEach(func() {
-		newOvirtClientFunc = createMockOvirtClient
-		newTerminationChannel = createMockTerminationChannel
-		tempDir = createCert()
-		ts = createTestServer(imageDir)
-		disk.SetTotalSize(1024)
-		disk.SetId("123")
-		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)
-		it.SetTransferUrl(ts.URL)
-		it.SetId("123")
-		diskAvailable = true
-		diskCreateError = nil
+		tempDir, err = os.MkdirTemp(os.TempDir(), "imageio-test-*")
+		if err != nil {
+			panic(fmt.Errorf("failed to create temporary directory (%w)", err))
+		}
+		newOVirtClient = mockOvirtClientFactory
+
+		mockOVirtClient = ovirtclient.NewMock()
+		// The mock has a built-in storage domain that can be used for testing purposes.
+		storageDomains, _ := mockOVirtClient.ListStorageDomains()
+
+		// Upload an empty image for testing.
+		uploadResult, _ := mockOVirtClient.UploadImage(
+			"test",
+			storageDomains[0].ID(),
+			false,
+			512,
+			&ovirtTestReader{make([]byte, 512), 0},
+		)
+		diskID = uploadResult.Disk().ID()
 	})
 
 	AfterEach(func() {
-		newOvirtClientFunc = getOvirtClient
+		newOVirtClient = defaultOVirtClientFactory
 		if tempDir != "" {
-			os.RemoveAll(tempDir)
+			_ = os.RemoveAll(tempDir)
 		}
-		ts.Close()
 	})
 
 	It("NewImageioDataSource should fail when called with an invalid endpoint", func() {
-		newOvirtClientFunc = getOvirtClient
-		_, err = NewImageioDataSource("httpd://!@#$%^&*()dgsdd&3r53/invalid", "", "", "", "")
+		newOVirtClient = defaultOVirtClientFactory
+		_, err = NewImageioDataSource("httpd://!@#$%^&*()dgsdd&3r53/invalid", "", "", "", diskID)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("NewImageioDataSource info should not fail when called with valid endpoint", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
+		dp, err := NewImageioDataSource("", "", "", tempDir, diskID)
 		Expect(err).ToNot(HaveOccurred())
 		_, err = dp.Info()
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("NewImageioDataSource tranfer should fail if invalid path", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
-		Expect(err).ToNot(HaveOccurred())
-		_, err = dp.Transfer("")
-		Expect(err).To(HaveOccurred())
-	})
-
-	It("NewImageioDataSource tranferfile should fail when invalid path", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
+	It("NewImageioDataSource TransferFile should fail when invalid path", func() {
+		dp, err := NewImageioDataSource("", "", "", tempDir, diskID)
 		Expect(err).ToNot(HaveOccurred())
 		_, err = dp.Info()
 		Expect(err).NotTo(HaveOccurred())
@@ -129,309 +110,52 @@ var _ = Describe("Imageio data source", func() {
 		Expect(phase).To(Equal(ProcessingPhaseError))
 	})
 
-	It("NewImageioDataSource url should be nil if not set", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
+	It("NewImageioDataSource TransferFile should succeed with a valid path", func() {
+		path := filepath.Join(tempDir, "image.img")
+		dp, err := NewImageioDataSource("", "", "", tempDir, diskID)
 		Expect(err).ToNot(HaveOccurred())
-		url := dp.GetURL()
-		Expect(url).To(BeNil())
-	})
-
-	It("NewImageioDataSource close should succeed if valid url", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
-		Expect(err).ToNot(HaveOccurred())
-		err = dp.Close()
-		Expect(err).ToNot(HaveOccurred())
-	})
-
-	It("NewImageioDataSource should fail if transfer in unknown state", func() {
-		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_UNKNOWN)
-		_, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
-		Expect(err).To(HaveOccurred())
-	})
-
-	It("NewImageioDataSource should fail if disk creation fails", func() {
-		diskCreateError = errors.New("this is error message")
-		_, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
-		Expect(err).To(HaveOccurred())
-	})
-
-	It("NewImageioDataSource should fail if disk does not exists", func() {
-		diskAvailable = false
-		_, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
-		Expect(err).To(HaveOccurred())
-	})
-
-})
-
-var _ = Describe("Imageio client preparation", func() {
-	var tempDir string
-
-	BeforeEach(func() {
-		tempDir = createCert()
-	})
-
-	AfterEach(func() {
-		if tempDir != "" {
-			os.RemoveAll(tempDir)
-		}
-	})
-
-	It("should load the cert", func() {
-		activeCAs, err := loadCA(tempDir)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(len(activeCAs.Subjects())).Should(Equal(1))
-	})
-
-	It("should return error if dir is empty", func() {
-		_, err := loadCA("")
-		Expect(err).To(HaveOccurred())
-	})
-
-	It("should return error if dir does not exists", func() {
-		_, err := loadCA("/invalid-non-existent")
-		Expect(err).To(HaveOccurred())
+		_, err = dp.Info()
+		Expect(err).NotTo(HaveOccurred())
+		phase, err := dp.TransferFile(path)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(phase).To(Equal(ProcessingPhaseResize))
+		Expect(path).To(BeAnExistingFile())
+		Expect(path).To(haveFileSize(512))
 	})
 })
 
-var _ = Describe("Imageio pollprogress", func() {
-	It("Should properly finish with valid reader", func() {
-		By("Creating context for the transfer, we have the ability to cancel it")
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		dp := &ImageioDataSource{
-			ctx:    ctx,
-			cancel: cancel,
-		}
-		By("Creating string reader we can test just the poll progress part")
-		stringReader := ioutil.NopCloser(strings.NewReader("This is a test string"))
-		endlessReader := EndlessReader{
-			Reader: stringReader,
-		}
-		countingReader := &util.CountingReader{
-			Reader:  &endlessReader,
-			Current: 0,
-		}
-		By("Creating pollProgress as go routine, we can use channels to monitor progress")
-		go dp.pollProgress(countingReader, 5*time.Second, time.Second)
-		By("Waiting for timeout or success")
-		select {
-		case <-time.After(10 * time.Second):
-			Fail("Transfer not cancelled after 10 seconds")
-		case <-dp.ctx.Done():
-			By("Having context be done, we confirm finishing of transfer")
-		}
-	})
-})
-
-var _ = Describe("Imageio cancel", func() {
-	var (
-		ts      *httptest.Server
-		tempDir string
-		err     error
-	)
-
-	BeforeEach(func() {
-		newOvirtClientFunc = createMockOvirtClient
-		newTerminationChannel = createMockTerminationChannel
-		tempDir = createCert()
-		ts = createTestServer(imageDir)
-		disk.SetTotalSize(1024)
-		disk.SetId("123")
-		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)
-		it.SetTransferUrl(ts.URL)
-		it.SetId("123")
-		diskAvailable = true
-		diskCreateError = nil
-	})
-
-	AfterEach(func() {
-		newOvirtClientFunc = getOvirtClient
-		if tempDir != "" {
-			os.RemoveAll(tempDir)
-		}
-		ts.Close()
-	})
-
-	It("should cancel transfer on SIGTERM", func() {
-		_, err = NewImageioDataSource(ts.URL, "", "", tempDir, "")
-		Expect(err).ToNot(HaveOccurred())
-		mockTerminationChannel <- os.Interrupt
-		Expect(err).ToNot(HaveOccurred())
-	})
-
-	It("should cancel transfer when finalize fails", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, "")
-		Expect(err).ToNot(HaveOccurred())
-		cancelled := false
-		mockFinalizeHook = func() error {
-			return errors.New("Failing finalize")
-		}
-		mockCancelHook = func() error {
-			cancelled = true
-			return nil
-		}
-		err = dp.Close()
-		Expect(err).ToNot(HaveOccurred())
-		Expect(cancelled).To(Equal(true))
-	})
-})
-
-// MockOvirtClient is a mock minio client
-type MockOvirtClient struct {
-	ep     string
-	accKey string
-	secKey string
-	doErr  bool
+// haveFileSize succeeds if the given file has the specified size.
+func haveFileSize(size int64) types.GomegaMatcher {
+	return &haveFileSizeMatcher{size}
 }
 
-type MockAddService struct {
-	client *MockOvirtClient
+type haveFileSizeMatcher struct {
+	size int64
 }
 
-type MockCancelService struct {
-	client *MockOvirtClient
-}
-
-type MockFinalizeService struct {
-	client *MockOvirtClient
-}
-
-type MockImageTransfersServiceAddResponse struct {
-	srv *ovirtsdk4.ImageTransfersServiceAddResponse
-}
-
-type MockImageTransferServiceCancelResponse struct {
-	srv *ovirtsdk4.ImageTransferServiceCancelResponse
-}
-
-type MockImageTransferServiceFinalizeResponse struct {
-	srv *ovirtsdk4.ImageTransferServiceFinalizeResponse
-}
-
-func (conn *MockOvirtClient) Disk() (*ovirtsdk4.Disk, bool) {
-	return disk, diskAvailable
-}
-
-func (conn *MockOvirtClient) Send() (DiskServiceResponseInterface, error) {
-	return conn, diskCreateError
-}
-
-func (conn *MockOvirtClient) Get() DiskServiceGetInterface {
-	return conn
-}
-
-func (conn *MockOvirtClient) DiskService(string) DiskServiceInterface {
-	return conn
-}
-
-func (conn *MockOvirtClient) DisksService() DisksServiceInterface {
-	return conn
-}
-
-func (conn *MockOvirtClient) ImageTransfersService() ImageTransfersServiceInterface {
-	return conn
-}
-
-func (conn *MockOvirtClient) ImageTransferService(string) ImageTransferServiceInterface {
-	return conn
-}
-
-func (conn *MockOvirtClient) Cancel() ImageTransferServiceCancelRequestInterface {
-	if mockCancelHook != nil {
-		mockCancelHook()
+func (matcher *haveFileSizeMatcher) Match(actual interface{}) (success bool, err error) {
+	actualFilename, ok := actual.(string)
+	if !ok {
+		return false, fmt.Errorf("BeAnExistingFileMatcher matcher expects a file path")
 	}
-	return &MockCancelService{
-		client: conn,
+
+	stat, err := os.Stat(actualFilename)
+	if err != nil {
+		switch {
+		case os.IsNotExist(err):
+			return false, nil
+		default:
+			return false, err
+		}
 	}
+
+	return stat.Size() == matcher.size, nil
 }
 
-func (conn *MockOvirtClient) Finalize() ImageTransferServiceFinalizeRequestInterface {
-	return &MockFinalizeService{
-		client: conn,
-	}
+func (matcher *haveFileSizeMatcher) FailureMessage(actual interface{}) (message string) {
+	return format.Message(actual, fmt.Sprintf("to have a size of %d", matcher.size))
 }
 
-func (conn *MockOvirtClient) Add() ImageTransferServiceAddInterface {
-	return &MockAddService{
-		client: conn,
-	}
-}
-func (conn *MockAddService) ImageTransfer(imageTransfer *ovirtsdk4.ImageTransfer) *ovirtsdk4.ImageTransfersServiceAddRequest {
-	return &ovirtsdk4.ImageTransfersServiceAddRequest{}
-}
-
-func (conn *MockAddService) Send() (ImageTransfersServiceAddResponseInterface, error) {
-	return &MockImageTransfersServiceAddResponse{srv: nil}, nil
-}
-
-func (conn *MockCancelService) Send() (ImageTransferServiceCancelResponseInterface, error) {
-	var err error
-	if mockCancelHook != nil {
-		err = mockCancelHook()
-	}
-	return &MockImageTransferServiceCancelResponse{srv: nil}, err
-}
-
-func (conn *MockFinalizeService) Send() (ImageTransferServiceFinalizeResponseInterface, error) {
-	var err error
-	if mockFinalizeHook != nil {
-		err = mockFinalizeHook()
-	}
-	return &MockImageTransferServiceFinalizeResponse{srv: nil}, err
-}
-
-func (conn *MockImageTransfersServiceAddResponse) ImageTransfer() (*ovirtsdk4.ImageTransfer, bool) {
-	return it, true
-}
-
-func (conn *MockOvirtClient) SystemService() SystemServiceInteface {
-	return conn
-}
-
-func (conn *MockOvirtClient) Close() error {
-	return nil
-}
-
-var mockCancelHook func() error
-var mockFinalizeHook func() error
-
-func failMockOvirtClient(ep string, accessKey string, secKey string) (ConnectionInterface, error) {
-	return nil, errors.New("Failed to create client")
-}
-
-func createErrMockOvirtClient(ep string, accessKey string, secKey string) (ConnectionInterface, error) {
-	return &MockOvirtClient{
-		ep:     ep,
-		accKey: accessKey,
-		secKey: secKey,
-		doErr:  true,
-	}, nil
-}
-
-func createCert() string {
-	var err error
-
-	tempDir, err := ioutil.TempDir("/tmp", "cert-test")
-	Expect(err).ToNot(HaveOccurred())
-
-	keyPair, err := triple.NewCA("datastream.cdi.kubevirt.io")
-	Expect(err).ToNot(HaveOccurred())
-
-	certBytes := bytes.Buffer{}
-	pem.Encode(&certBytes, &pem.Block{Type: cert.CertificateBlockType, Bytes: keyPair.Cert.Raw})
-
-	err = ioutil.WriteFile(path.Join(tempDir, "tls.crt"), certBytes.Bytes(), 0644)
-	Expect(err).ToNot(HaveOccurred())
-
-	return tempDir
-}
-
-func createMockOvirtClient(ep string, accessKey string, secKey string) (ConnectionInterface, error) {
-	return &MockOvirtClient{
-		ep:     ep,
-		accKey: accessKey,
-		secKey: secKey,
-		doErr:  false,
-	}, nil
+func (matcher *haveFileSizeMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+	return format.Message(actual, fmt.Sprintf("to not have a size of %d", matcher.size))
 }

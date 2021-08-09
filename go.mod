@@ -27,7 +27,9 @@ require (
 	github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca
 	github.com/openshift/library-go v0.0.0-20210205203934-9eb0d970f2f4
 	github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190725173916-b56e63a643cc
-	github.com/ovirt/go-ovirt v4.3.4+incompatible
+	github.com/ovirt/go-ovirt v0.0.0-20210809163552-d4276e35d3db
+	github.com/ovirt/go-ovirt-client v0.5.1-0.20210809165948-95d86fd7d843
+	github.com/ovirt/go-ovirt-client-log-klog v1.0.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
 	github.com/prometheus/client_model v0.2.0
