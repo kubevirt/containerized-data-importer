@@ -1029,7 +1029,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}
 
 		It("[test_id:5353]Importer pod should have specific datavolume annotations passed but not others", func() {
-			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URLRateLimit, f.CdiInstallNs))
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
 			By(fmt.Sprintf("creating new datavolume %s with annotations", dataVolume.Name))
 			dataVolume.Annotations[controller.AnnPodNetwork] = "net1"
 			dataVolume.Annotations["annot1"] = "value1"
@@ -1041,18 +1041,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindIfWaitForFirstConsumer(pvc)
 
-			By("verifying the Datavolume is not complete yet")
-			foundDv, err := f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			if foundDv.Status.Phase != cdiv1.Succeeded {
-				By("find importer pod")
-				var sourcePod *v1.Pod
-				Eventually(func() bool {
-					sourcePod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
-					return err == nil
-				}, timeout, pollingInterval).Should(BeTrue())
-				verifyAnnotations(sourcePod)
-			}
+			By("find importer pod")
+			var sourcePod *v1.Pod
+			Eventually(func() bool {
+				sourcePod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
+				return err == nil
+			}, timeout, pollingInterval).Should(BeTrue())
+			By(fmt.Sprintf("Verifying pod %s has correct annotation", sourcePod.Name))
+			verifyAnnotations(sourcePod)
 		})
 
 		It("[test_id:5365]Uploader pod should have specific datavolume annotations passed but not others", func() {
@@ -1068,18 +1064,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindIfWaitForFirstConsumer(pvc)
 
-			By("verifying the Datavolume is not complete yet")
-			foundDv, err := f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			if foundDv.Status.Phase != cdiv1.Succeeded {
-				By("find uploader pod")
-				var sourcePod *v1.Pod
-				Eventually(func() bool {
-					sourcePod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
-					return err == nil
-				}, timeout, pollingInterval).Should(BeTrue())
-				verifyAnnotations(sourcePod)
-			}
+			By("find uploader pod")
+			var sourcePod *v1.Pod
+			Eventually(func() bool {
+				sourcePod, err = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, "cdi-upload", common.CDILabelSelector)
+				return err == nil
+			}, timeout, pollingInterval).Should(BeTrue())
+			verifyAnnotations(sourcePod)
 		})
 
 		It("[test_id:5366]Cloner pod should have specific datavolume annotations passed but not others", func() {
