@@ -50,28 +50,6 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(r.Spec.TLS.Termination).To(Equal(routev1.TLSTerminationReencrypt))
 			})
 
-			It("[test_id:4351]should create a prometheus service in cdi namespace", func() {
-				promService, err := f.K8sClient.CoreV1().Services(f.CdiInstallNs).Get(context.TODO(), common.PrometheusServiceName, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				Expect(promService.Spec.Ports[0].Name).To(Equal("metrics"))
-				Expect(promService.Spec.Selector[common.PrometheusLabel]).To(Equal(""))
-				originalTimeStamp := promService.ObjectMeta.CreationTimestamp
-
-				By("Deleting the service")
-				err = f.K8sClient.CoreV1().Services(f.CdiInstallNs).Delete(context.TODO(), common.PrometheusServiceName, metav1.DeleteOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				By("Verifying the operator has re-created the service")
-				Eventually(func() bool {
-					promService, err = f.K8sClient.CoreV1().Services(f.CdiInstallNs).Get(context.TODO(), common.PrometheusServiceName, metav1.GetOptions{})
-					if err == nil {
-						return originalTimeStamp.Before(&promService.ObjectMeta.CreationTimestamp)
-					}
-					return false
-				}, 1*time.Minute, 2*time.Second).Should(BeTrue())
-				Expect(promService.Spec.Ports[0].Name).To(Equal("metrics"))
-				Expect(promService.Spec.Selector[common.PrometheusLabel]).To(Equal(""))
-			})
-
 			It("[test_id:3952]add cdi-sa to containerized-data-importer scc", func() {
 				if !utils.IsOpenshift(f.K8sClient) {
 					Skip("This test is OpenShift specific")
