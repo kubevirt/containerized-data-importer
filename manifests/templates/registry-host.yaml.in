@@ -75,6 +75,12 @@ spec:
       - name: registry-populate
         image: {{ .DockerRepo }}/cdi-func-test-registry-populate:{{ .DockerTag }}
         imagePullPolicy: {{ .PullPolicy }}
+        securityContext:
+          capabilities:
+            add:
+            # building using buildah requires a properly installed shadow-utils package (which in turn requires SETFCAP)
+            # https://www.redhat.com/sysadmin/podman-inside-kubernetes
+            - SETFCAP
         args: [ "/tmp/shared/images/", "/tmp/docker-images", "127.0.0.1", "443", "/tmp/health/healthy", "15", "/tmp/health/ready", "15"]
         volumeMounts:
         - name: "images"
