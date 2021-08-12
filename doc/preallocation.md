@@ -2,7 +2,7 @@
 
 ## Introduction
 
-In order to improve write performance, QEMU provides the ability to preallocate QCOW2 files, used
+In order to improve write performance, QEMU provides the ability to preallocate image files, used
 as backing for DataVolumes.
 
 There are several methods for preallocation. CDI uses the best one available, depending on the
